@@ -227,16 +227,64 @@ const LoginForm = () => {
           status: error.status
         });
         
-        // معالجة أخطاء محددة
+        // معالجة أخطاء محددة مع رسائل واضحة
         if (error.message?.includes('Invalid login credentials')) {
           throw new Error('بيانات تسجيل الدخول غير صحيحة');
         } else if (error.message?.includes('Email not confirmed')) {
           throw new Error('يرجى تأكيد بريدك الإلكتروني أولاً');
         } else if (error.message?.includes('Too many requests')) {
           throw new Error('محاولات كثيرة، يرجى المحاولة لاحقاً');
+        } else if (error.message?.includes('captcha')) {
+          // معالجة خاصة لخطأ CAPTCHA - محاولة إعادة تسجيل الدخول
+          loginFormDebugLog('🔄 خطأ CAPTCHA مكتشف، محاولة إعادة تسجيل الدخول');
+          
+          try {
+            // محاولة إعادة تسجيل الدخول مع تأخير قصير
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            const { data: retryData, error: retryError } = await supabase.auth.signInWithPassword({
+              email: loginEmail.toLowerCase().trim(),
+              password: loginPassword
+            });
+            
+            if (retryError) {
+              throw new Error('فشل في التحقق من الأمان، يرجى المحاولة مرة أخرى');
+            }
+            
+            if (retryData.session && retryData.user) {
+              loginFormDebugLog('✅ نجح إعادة تسجيل الدخول بعد خطأ CAPTCHA');
+              
+              // تحديث معرف المؤسسة إذا كان متاحاً
+              try {
+                const { data: userData } = await supabase
+                  .from('users')
+                  .select('organization_id')
+                  .eq('id', retryData.user.id)
+                  .single();
+                  
+                if (userData?.organization_id) {
+                  localStorage.setItem('bazaar_organization_id', userData.organization_id);
+                }
+              } catch (orgError) {
+                loginFormDebugLog('❌ خطأ في جلب معرف المؤسسة:', orgError);
+              }
+              
+              await handleSuccessfulLogin();
+              return;
+            }
+          } catch (retryError) {
+            loginFormDebugLog('❌ فشل إعادة تسجيل الدخول بعد خطأ CAPTCHA:', retryError);
+            throw new Error('فشل في التحقق من الأمان، يرجى المحاولة مرة أخرى');
+          }
+          
+          throw new Error('فشل في التحقق من الأمان، يرجى المحاولة مرة أخرى');
+        } else if (error.status === 500) {
+          // معالجة خطأ الخادم الداخلي
+          throw new Error('مشكلة في الخادم، يرجى المحاولة لاحقاً');
         }
         
-        throw new Error(error.message || 'فشل في تسجيل الدخول');
+        // رسالة خطأ عامة لجميع الأخطاء الأخرى
+        throw new Error('فشل في تسجيل الدخول، يرجى التحقق من البيانات والمحاولة مرة أخرى');
       }
 
       if (!data.session || !data.user) {
@@ -275,6 +323,10 @@ const LoginForm = () => {
       
     } catch (error) {
       loginFormDebugLog('❌ خطأ في تسجيل الدخول المباشر:', error);
+      
+      // عرض رسالة خطأ واضحة للمستخدم
+      const errorMessage = error instanceof Error ? error.message : 'حدث خطأ غير متوقع';
+      toast.error(errorMessage);
       throw error;
     }
   };
@@ -292,11 +344,35 @@ const LoginForm = () => {
         // التوجيه المباشر بدون تعقيدات النطاق الفرعي
         await handleSuccessfulLogin();
       } else {
-        toast.error(result.error?.message || 'فشل تسجيل الدخول');
+        // معالجة رسائل الخطأ بشكل أفضل
+        let errorMessage = result.error?.message || 'فشل تسجيل الدخول';
+        
+        // تنظيف رسائل الخطأ من أي إشارات إلى captcha
+        if (errorMessage.toLowerCase().includes('captcha')) {
+          errorMessage = 'فشل في التحقق من الأمان، يرجى المحاولة مرة أخرى';
+        } else if (errorMessage.includes('500') || errorMessage.includes('Internal Server Error')) {
+          errorMessage = 'مشكلة في الخادم، يرجى المحاولة لاحقاً';
+        }
+        
+        toast.error(errorMessage);
         setIsLoading(false);
       }
     } catch (error) {
-      toast.error('حدث خطأ أثناء تسجيل الدخول');
+      // معالجة الأخطاء العامة
+      let errorMessage = 'حدث خطأ أثناء تسجيل الدخول';
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        
+        // تنظيف رسائل الخطأ
+        if (errorMessage.toLowerCase().includes('captcha')) {
+          errorMessage = 'فشل في التحقق من الأمان، يرجى المحاولة مرة أخرى';
+        } else if (errorMessage.includes('500') || errorMessage.includes('Internal Server Error')) {
+          errorMessage = 'مشكلة في الخادم، يرجى المحاولة لاحقاً';
+        }
+      }
+      
+      toast.error(errorMessage);
       setIsLoading(false);
     }
   };
@@ -421,6 +497,7 @@ const LoginForm = () => {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="أدخل بريدك الإلكتروني"
                     required
+                    autoComplete="username"
                     className="text-right pl-10 h-12 border-2 border-gray-200 focus:border-[#fc5d41] focus:ring-2 focus:ring-[#fc5d41]/20 transition-all duration-200 rounded-lg bg-white/80 backdrop-blur-sm"
                     dir="rtl"
                   />
@@ -440,9 +517,9 @@ const LoginForm = () => {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="أدخل كلمة المرور"
                     required
+                    autoComplete="current-password"
                     className="text-right pl-20 pr-10 h-12 border-2 border-gray-200 focus:border-[#fc5d41] focus:ring-2 focus:ring-[#fc5d41]/20 transition-all duration-200 rounded-lg bg-white/80 backdrop-blur-sm"
                     dir="rtl"
-                    autoComplete="current-password"
                   />
                   {/* أيقونة القفل */}
                   <svg className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 transition-colors group-focus-within:text-[#fc5d41]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -494,6 +571,16 @@ const LoginForm = () => {
                   </div>
                 )}
               </Button>
+              
+              {/* رابط نسيت كلمة المرور */}
+              <div className="text-center">
+                <a 
+                  href="/forgot-password" 
+                  className="text-sm font-medium text-[#fc5d41] hover:text-[#fc5d41]/80 dark:text-[#fc5d41] dark:hover:text-[#fc5d41]/80 transition-colors"
+                >
+                  نسيت كلمة المرور؟
+                </a>
+              </div>
             </form>
           </CardContent>
           

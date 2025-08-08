@@ -80,14 +80,6 @@ export const useProductPurchase = ({
 
   // 🔍 تتبع preloadedProduct (في بيئة التطوير فقط)
   if (process.env.NODE_ENV === 'development') {
-    console.log('🔍 [useProductPurchase] تم استلام البيانات:', {
-      productId,
-      hasPreloadedProduct: !!preloadedProduct,
-      preloadedProductId: preloadedProduct?.id,
-      preloadedProductName: preloadedProduct?.name,
-      enabled,
-      timestamp: new Date().toISOString()
-    });
   }
   
   // الحالة الأساسية
@@ -138,14 +130,6 @@ export const useProductPurchase = ({
     
     if (productMatches) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('✅ [useProductPurchase] استخدام البيانات المحملة مسبقاً:', {
-          productId,
-          productName: preloadedProduct.name,
-          preloadedProductId: preloadedProduct.id,
-          preloadedProductSlug: preloadedProduct.slug,
-          matchType: preloadedProduct.id === productId ? 'ID' : 'slug',
-          timestamp: new Date().toISOString()
-        });
       }
       
       setProduct(preloadedProduct);
@@ -269,12 +253,6 @@ export const useProductPurchase = ({
 
     // التأكد من وجود organizationId (مطلوب للبحث بـ slug)
     if (!organizationId) {
-      console.log('⏸️ [useProductPurchase] انتظار organizationId:', {
-        productId,
-        organizationId,
-        enabled,
-        timestamp: new Date().toISOString()
-      });
       setLoading(true);
       return;
     }
@@ -288,14 +266,6 @@ export const useProductPurchase = ({
     
     if (productMatches) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('🎯 [useProductPurchase] استخدام البيانات المحملة مسبقاً في useEffect:', {
-          productId,
-          productName: preloadedProduct.name,
-          preloadedProductId: preloadedProduct.id,
-          preloadedProductSlug: preloadedProduct.slug,
-          matchType: preloadedProduct.id === productId ? 'ID' : 'slug',
-          timestamp: new Date().toISOString()
-        });
       }
       
       // ✅ إلغاء أي setTimeout جاري
@@ -303,10 +273,8 @@ export const useProductPurchase = ({
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
         if (process.env.NODE_ENV === 'development') {
-          console.log('✅ [useProductPurchase] تم إلغاء setTimeout المعلق');
         }
       } else if (process.env.NODE_ENV === 'development') {
-        console.log('ℹ️ [useProductPurchase] لا يوجد setTimeout للإلغاء');
       }
       
       setProduct(preloadedProduct);
@@ -332,12 +300,6 @@ export const useProductPurchase = ({
       
       return () => {}; // لا حاجة لتنظيف setTimeout
     } else if (preloadedProduct && process.env.NODE_ENV === 'development') {
-      console.log('⚠️ [useProductPurchase] preloadedProduct موجود لكن لا يطابق:', {
-        productId,
-        preloadedProductId: preloadedProduct.id,
-        preloadedProductSlug: preloadedProduct.slug,
-        timestamp: new Date().toISOString()
-      });
     }
     
     // إنشاء مفتاح فريد للطلب الحالي
@@ -361,11 +323,9 @@ export const useProductPurchase = ({
     
     // تأخير البحث قليلاً للسماح للمعاملات بالاستقرار
     if (process.env.NODE_ENV === 'development') {
-      console.log('⏰ [useProductPurchase] إنشاء setTimeout جديد');
     }
     timeoutRef.current = setTimeout(() => {
         if (process.env.NODE_ENV === 'development') {
-          console.log('⏰ [useProductPurchase] تنفيذ setTimeout');
         }
       // فحص إضافي للتأكد من عدم تغيير المعاملات أثناء التأخير
       // وعدم وجود بيانات محملة مسبقاً
@@ -376,45 +336,18 @@ export const useProductPurchase = ({
       );
       
       if (productMatches) {
-        console.log('🛑 [useProductPurchase] إلغاء setTimeout - البيانات المحملة مسبقاً متاحة الآن:', {
-          productId,
-          preloadedProductId: currentPreloadedProduct.id,
-          preloadedProductSlug: currentPreloadedProduct.slug,
-          matchType: currentPreloadedProduct.id === productId ? 'ID' : 'slug',
-          timestamp: new Date().toISOString()
-        });
         timeoutRef.current = null;
         return;
       } else if (process.env.NODE_ENV === 'development') {
-        console.log('ℹ️ [useProductPurchase] setTimeout يتحقق - لا توجد بيانات محملة مسبقاً بعد:', {
-          productId,
-          hasPreloadedProduct: !!currentPreloadedProduct,
-          preloadedProductId: currentPreloadedProduct?.id,
-          timestamp: new Date().toISOString()
-        });
       }
       
       // التأكد من وجود organizationId قبل محاولة الجلب
       if (enabledRef.current && !fetchingRef.current && lastParamsRef.current !== currentParamsKey && organizationId) {
         if (process.env.NODE_ENV === 'development') {
-          console.log('🔄 [useProductPurchase] بدء جلب البيانات العادي:', {
-            productId,
-            hasPreloadedProduct: !!preloadedProduct,
-            enabled,
-            organizationId,
-            currentParamsKey,
-            timestamp: new Date().toISOString()
-          });
         }
         lastParamsRef.current = currentParamsKey;
         fetchProduct();
       } else if (!organizationId && process.env.NODE_ENV === 'development') {
-        console.log('⚠️ [useProductPurchase] تجاهل setTimeout - organizationId غير متوفر:', {
-          productId,
-          organizationId,
-          enabled: enabledRef.current,
-          timestamp: new Date().toISOString()
-        });
       }
       timeoutRef.current = null; // تنظيف المرجع
     }, 300); // زيادة التأخير أكثر للسماح للبيانات المحملة مسبقاً بالوصول

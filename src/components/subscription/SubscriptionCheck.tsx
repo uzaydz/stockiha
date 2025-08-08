@@ -21,7 +21,8 @@ const GLOBAL_SUBSCRIPTION_CACHE = new Map<string, {
   isChecking: boolean;
 }>();
 
-const CACHE_DURATION = 5 * 60 * 1000; // 5 دقائق
+// تحسين مدة الكاش لتكون أطول (30 دقيقة بدلاً من دقيقة واحدة)
+const CACHE_DURATION = 30 * 60 * 1000; // 30 دقيقة
 const CHECK_DEBOUNCE_TIME = 1000; // ثانية واحدة
 
 // 🔥 Default subscription data للحالات الافتراضية
@@ -111,11 +112,12 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
     }
   };
 
+  // تحسين منطق التحقق لمنع الاستدعاءات المتكررة
   useEffect(() => {
     // تجاهل التحقق إذا:
     // 1. المستخدم في صفحة الاشتراك
     // 2. لا توجد مؤسسة
-    // 3. تم التحقق مؤخراً (أقل من دقيقة)
+    // 3. تم التحقق مؤخراً (أقل من 30 دقيقة)
     // 4. جاري التحقق حالياً
     if (isSubscriptionPage || !organization || isChecking) {
       return;
@@ -124,8 +126,8 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
     const now = Date.now();
     const timeSinceLastCheck = now - lastCheckTimeRef.current;
     
-    // منع التحقق المفرط - لا نتحقق أكثر من مرة كل دقيقة
-    if (timeSinceLastCheck < CHECK_DEBOUNCE_TIME && hasCheckedRef.current) {
+    // منع التحقق المفرط - لا نتحقق أكثر من مرة كل 30 دقيقة
+    if (timeSinceLastCheck < CACHE_DURATION) {
       return;
     }
 
@@ -174,7 +176,6 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
 
       } catch (error) {
         // في حالة الخطأ، نسمح بالوصول ولا نعيد التوجيه
-        console.warn('Subscription check failed:', error);
       } finally {
         setIsChecking(false);
       }
@@ -197,7 +198,7 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
     };
   }, [organization?.id, navigate, isSubscriptionPage, isChecking, location.pathname, user?.role]);
 
-  // إعادة تعيين حالة التحقق عند تغيير المؤسسة
+  // إعادة تعيين حالة التحقق عند تغيير المؤسسة فقط
   useEffect(() => {
     hasCheckedRef.current = false;
     lastCheckTimeRef.current = 0;

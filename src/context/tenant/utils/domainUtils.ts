@@ -25,7 +25,15 @@ export const extractSubdomain = async (hostname: string): Promise<string | null>
 
     // مثال: mystore.localhost أو lmrpoxcvvd.localhost
     if (parts.length >= 2 && parts[0] !== 'localhost' && parts[0] !== 'www' && parts[0] !== '') {
-      return parts[0];
+      // تنظيف النطاق الفرعي
+      const cleanSubdomain = parts[0]
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, '') // إزالة جميع المسافات
+        .replace(/[^a-z0-9-]/g, '') // إزالة الأحرف غير المسموحة
+        .replace(/^-+|-+$/g, '') // إزالة الشرطات من البداية والنهاية
+        .replace(/-+/g, '-'); // تحويل الشرطات المتعددة إلى شرطة واحدة
+      return cleanSubdomain;
     }
     
     // إذا كان فقط localhost بدون سابدومين
@@ -56,7 +64,15 @@ export const extractSubdomain = async (hostname: string): Promise<string | null>
       return 'main';
     }
 
-    return subdomain;
+    // تنظيف النطاق الفرعي
+    const cleanSubdomain = subdomain
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '') // إزالة جميع المسافات
+      .replace(/[^a-z0-9-]/g, '') // إزالة الأحرف غير المسموحة
+      .replace(/^-+|-+$/g, '') // إزالة الشرطات من البداية والنهاية
+      .replace(/-+/g, '-'); // تحويل الشرطات المتعددة إلى شرطة واحدة
+    return cleanSubdomain;
   }
   
   // التحقق من النطاق المخصص باستخدام النظام الموحد
@@ -169,11 +185,32 @@ export const sanitizeDomain = (domain: string): string => {
 };
 
 /**
+ * تنظيف وتطهير النطاق الفرعي
+ */
+export const sanitizeSubdomain = (subdomain: string): string => {
+  return subdomain
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '') // إزالة جميع المسافات
+    .replace(/[^a-z0-9-]/g, '') // إزالة الأحرف غير المسموحة
+    .replace(/^-+|-+$/g, '') // إزالة الشرطات من البداية والنهاية
+    .replace(/-+/g, '-'); // تحويل الشرطات المتعددة إلى شرطة واحدة
+};
+
+/**
  * التحقق من صحة النطاق الفرعي
  */
 export const isValidSubdomain = (subdomain: string): boolean => {
-  const subdomainRegex = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
-  return subdomainRegex.test(subdomain.toLowerCase());
+  // تنظيف النطاق الفرعي أولاً
+  const cleanSubdomain = subdomain
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '') // إزالة جميع المسافات
+    .replace(/[^a-z0-9-]/g, '') // إزالة الأحرف غير المسموحة
+    .replace(/^-+|-+$/g, '') // إزالة الشرطات من البداية والنهاية
+    .replace(/-+/g, '-'); // تحويل الشرطات المتعددة إلى شرطة واحدة
+  const subdomainRegex = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+  return subdomainRegex.test(cleanSubdomain);
 };
 
 /**

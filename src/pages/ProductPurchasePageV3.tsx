@@ -7,9 +7,10 @@ import { getSupabaseClient } from '@/lib/supabase';
 import { Helmet } from 'react-helmet-async';
 
 // استيراد المكونات الجديدة المحسنة
-import { NavbarMain } from '@/components/navbar/NavbarMain';
+import { SmartNavbar } from '@/components/navbar/SmartNavbar';
 import { ProductHeader } from '@/components/product/ProductHeader';
 import { ProductDescription } from '@/components/product/ProductDescription';
+import { AdvancedDescriptionRenderer } from '@/components/advanced-description/AdvancedDescriptionRenderer';
 import { ProductActions } from '@/components/product/ProductActions';
 
 import { ProductPageSkeleton } from '@/components/product/ProductPageSkeleton';
@@ -28,9 +29,9 @@ import SpecialOffersDisplay from '@/components/store/special-offers/SpecialOffer
 // الـ Hooks والسياق
 import useProductPurchase from '@/hooks/useProductPurchase';
 import { useTenant } from '@/context/TenantContext';
-import { useProductPageSettings } from '@/context/ProductPageContext';
 import { useSharedOrgSettingsOnly } from '@/context/SharedStoreDataContext';
 import { useUnifiedProductPageData } from '@/hooks/useUnifiedProductPageData';
+import { ProductPageProvider } from '@/context/ProductPageContext';
 
 // حاسبة التوصيل
 import { 
@@ -50,7 +51,6 @@ import {
 } from '@/lib/api/productComplete';
 
 // استيراد مكونات التحليلات
-
 
 // استيراد مكونات التتبع المحسنة
 import ProductConversionTracker from '@/components/tracking/ProductConversionTracker';
@@ -172,12 +172,11 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
   // 🎨 استيراد إعدادات المؤسسة لتطبيق الثيم (Fallback) - محسن لصفحة المنتج
   // استخدام Hook مخصص يجلب فقط إعدادات المؤسسة بدون الفئات والمنتجات
   const { organizationSettings: sharedOrgSettings } = useSharedOrgSettingsOnly();
-  const organizationSettingsFromProduct = useProductPageSettings();
   
   // 🔧 استخدام useMemo لتجنب تغيير organizationSettings في كل render
   const organizationSettings = useMemo(() => 
-    unifiedData.organizationSettings || sharedOrgSettings || organizationSettingsFromProduct, 
-    [unifiedData.organizationSettings, sharedOrgSettings, organizationSettingsFromProduct]
+    unifiedData.organizationSettings || sharedOrgSettings, 
+    [unifiedData.organizationSettings, sharedOrgSettings]
   );
   
   // مرجع لمتتبع التحويل
@@ -441,13 +440,14 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
 
   // تحميل إعدادات التتبع يدوياً عند الحاجة فقط (للبكسل)
   useEffect(() => {
-    // تحميل إعدادات التتبع فقط إذا كان المنتج محمل ولم يتم تحميل الإعدادات بعد
+    // أولاً: حاول إعداد الإعدادات من المنتج الموحد (بدون شبكة)
     if (product && !productTracking.isReady && !productTracking.isLoading) {
-      productTracking.loadTrackingSettings();
+      const applied = productTracking.setSettingsFromProduct(product as any);
+      if (!applied) {
+        // fallback: لا نطلق أي جلب إضافي هنا حفاظاً على النداءات، سيقوم ConversionTracker بالتحمّل عند الحاجة
+      }
     }
-  }, [product, productTracking.isReady, productTracking.isLoading, productTracking.loadTrackingSettings]);
-
-
+  }, [product, productTracking.isReady, productTracking.isLoading, productTracking.setSettingsFromProduct]);
 
   // دالة تحديث الكمية مع التتبع
   const handleQuantityChange = useCallback((newQuantity: number) => {
@@ -527,12 +527,14 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
     // تسجيل مؤقت للتشخيص
     
     return {
-      price: offerSummary.finalPrice || priceInfo?.price || 0,
+      // إصلاح: استخدام السعر الصحيح - offerSummary.finalPrice يحتوي على السعر الكلي للعرض
+      // بينما priceInfo?.price يحتوي على السعر الكلي العادي (مضروب في الكمية)
+      price: offerSummary.offerApplied ? offerSummary.finalPrice : (priceInfo?.price || 0),
       quantity: offerSummary.finalQuantity,
       savings: offerSummary.savings,
       offerApplied: offerSummary.offerApplied
     };
-  }, [product, selectedOffer, quantity]);
+  }, [product, selectedOffer, quantity, priceInfo?.price]);
 
   const handleFormChange = useCallback((data: Record<string, any>) => {
     setSubmittedFormData(data);
@@ -815,8 +817,8 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
         productSizeId: safeUuidOrNull(selectedSize?.id),
         sizeName: selectedSize?.size_name || null,
         quantity: quantity,
-        unitPrice: priceInfo.price,
-        totalPrice: priceInfo.price * quantity, // إصلاح: سعر المنتج فقط بدون رسوم التوصيل
+        unitPrice: priceInfo.price / quantity, // إصلاح: السعر لكل قطعة
+        totalPrice: priceInfo.price, // إصلاح: priceInfo.price يحتوي بالفعل على السعر الكلي
         deliveryFee: deliveryCalculation?.deliveryFee || 0,
         formData: data,
         metadata: {
@@ -837,7 +839,7 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
         
         // 💰 تتبع إتمام الشراء
         const orderId = result.id || result.order_id;
-        const totalValue = (priceInfo.price * quantity) + (deliveryCalculation?.deliveryFee || 0);
+        const totalValue = priceInfo.price + (deliveryCalculation?.deliveryFee || 0);
         
         if (product && productTracking?.isReady && orderId) {
           await productTracking.trackPurchase(
@@ -1226,311 +1228,316 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
       {/* SEO Head للمنتج - دائماً في الأعلى */}
       <ProductSEOHead />
       
-    <div className="min-h-screen bg-background transition-colors duration-300">
-      {/* مكونات التتبع المخفية */}
-      {actualProductId && organizationId && (
-        <>
-          {/* تحميل البكسلات */}
-          <EnhancedPixelLoader
-            productId={actualProductId}
-            organizationId={organizationId}
-            settings={productTracking.settings || undefined}
-            onPixelsLoaded={(loadedPixels) => {
-            }}
-            onPixelError={(platform, error) => {
-            }}
-          />
-          
-          {/* متتبع التحويل */}
-          <ProductConversionTracker
-            ref={conversionTrackerRef}
-            productId={actualProductId}
-            organizationId={organizationId}
-            product={product || undefined}
-            selectedColor={selectedColor}
-            selectedSize={selectedSize}
-            quantity={quantity}
-            currency="DZD"
-            onTrackingReady={() => {
-            }}
-            onTrackingError={(error) => {
-            }}
-          />
-        </>
-      )}
-
-      {/* النافبار الرئيسي */}
-      <NavbarMain 
-        className="bg-background/95 backdrop-blur-md border-b border-border/20"
-        hideCategories={true}
-      />
-
-      <div className="container mx-auto px-4 py-8 pt-20">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
-          {/* قسم الصور */}
-          <motion.div 
-            className="lg:sticky lg:top-28"
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5 }}
-          >
-            <ProductImageGalleryV2 
-              product={product} 
-              selectedColor={selectedColor}
-            />
-          </motion.div>
-
-          {/* قسم المعلومات والشراء */}
-          <motion.div 
-            className="space-y-4"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-          >
-            {/* رأس المنتج */}
-            <ProductHeader
-              name={product.name}
-              brand={product.brand}
-              status={product.status}
-              availableStock={availableStock}
-            />
-
-            {/* عرض السعر */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.1 }}
-              className="pt-2"
-            >
-                          <ProductPriceDisplay
-              product={product}
-              selectedColor={selectedColor}
-              selectedSize={selectedSize}
-              selectedOffer={selectedOffer}
-              quantity={quantity}
-              hideSpecialOfferDetails={(product as any).special_offers_config?.enabled && (product as any).special_offers_config?.offers?.length > 0}
-            />
-            </motion.div>
-
-            {/* الكمية - يُخفى عندما تكون العروض الخاصة مُفعّلة */}
-            {!((product as any).special_offers_config?.enabled && (product as any).special_offers_config?.offers?.length > 0) && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: 0.25 }}
-                className="pt-3"
-              >
-                <ProductQuantitySelector
-                  quantity={quantity}
-                  onQuantityChange={handleQuantityChange}
-                  maxQuantity={Math.min(availableStock, 100)}
-                  disabled={!canPurchase}
-                />
-              </motion.div>
-            )}
-
-            {/* مؤقت العرض */}
-            {offerTimerSettings && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: 0.15 }}
-                className="my-6"
-              >
-                <ProductOfferTimer 
-                  settings={offerTimerSettings}
-                  theme="default"
-                  className="w-full"
-                />
-              </motion.div>
-            )}
-
-            <Separator className="bg-border/50 dark:bg-border/30" />
-
-            {/* اختيار المتغيرات */}
-            <motion.div 
-              className="space-y-6"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.2 }}
-            >
-              <ProductVariantSelector
-                product={product}
+      <ProductPageProvider>
+        <div className="min-h-screen bg-background transition-colors duration-300">
+          {/* مكونات التتبع المخفية */}
+          {actualProductId && organizationId && (
+            <>
+              {/* تحميل البكسلات */}
+              <EnhancedPixelLoader
+                productId={actualProductId}
+                organizationId={organizationId}
+                settings={productTracking.settings || undefined}
+                onPixelsLoaded={(loadedPixels) => {
+                }}
+                onPixelError={(platform, error) => {
+                }}
+              />
+              
+              {/* متتبع التحويل */}
+              <ProductConversionTracker
+                ref={conversionTrackerRef}
+                productId={actualProductId}
+                organizationId={organizationId}
+                product={product || undefined}
                 selectedColor={selectedColor}
                 selectedSize={selectedSize}
-                onColorSelect={setSelectedColor}
-                onSizeSelect={setSelectedSize}
-                showValidation={showValidationErrors || hasTriedToSubmit}
-                hasValidationError={!canPurchase && hasTriedToSubmit}
+                quantity={quantity}
+                currency="DZD"
+                onTrackingReady={() => {
+                }}
+                onTrackingError={(error) => {
+                }}
               />
-            </motion.div>
+            </>
+          )}
 
-            <Separator className="bg-border/50 dark:bg-border/30" />
+          {/* النافبار الرئيسي */}
+          <SmartNavbar 
+            className="bg-background/95 backdrop-blur-md border-b border-border/20"
+            hideCategories={true}
+          />
 
-            {/* العروض الخاصة */}
-            {product.special_offers_config?.enabled && product.special_offers_config.offers?.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: 0.35 }}
-                className="py-2"
+          <div className="container mx-auto px-4 py-8 pt-20">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+              {/* قسم الصور */}
+              <motion.div 
+                className="lg:sticky lg:top-28"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5 }}
               >
-                <SpecialOffersDisplay
-                  config={product.special_offers_config}
-                  basePrice={product.pricing?.price || 0}
-                  onSelectOffer={(offer) => {
-                    
-                    setSelectedOffer(offer);
-                    
-                    // تحديث الكمية تلقائياً لتتناسب مع العرض
-                    if (offer) {
-                      if (offer.quantity !== quantity) {
-                        setIsQuantityUpdatedByOffer(true);
-                        setQuantity(offer.quantity);
-                      }
-                    } else {
-                      // إذا تم إلغاء العرض (اختيار "قطعة واحدة")، الرجوع للكمية 1
-                      if (quantity !== 1) {
-                        setIsQuantityUpdatedByOffer(true);
-                        setQuantity(1);
-                      }
-                    }
-                  }}
-                  selectedOfferId={selectedOffer?.id}
+                <ProductImageGalleryV2 
+                  product={product} 
+                  selectedColor={selectedColor}
                 />
               </motion.div>
-            )}
 
-            {product.special_offers_config?.enabled && product.special_offers_config.offers?.length > 0 && (
-              <Separator className="bg-border/50 dark:bg-border/30" />
-            )}
-
-            {/* أزرار الشراء */}
-            <ProductActions
-              totalPrice={(() => {
-                return finalPriceCalculation.price;
-              })()}
-              deliveryFee={summaryData?.deliveryFee || 0}
-              canPurchase={canPurchase}
-              buyingNow={buyingNow}
-              onBuyNow={handleBuyNow}
-              isCalculatingDelivery={summaryData?.isCalculating || false}
-              currency="دج"
-            />
-
-            {/* ميزات المنتج */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.5 }}
-            >
-              <ProductFeatures product={product} />
-            </motion.div>
-
-            {/* إحصائيات مبسطة للزوار - متاحة لجميع المستخدمين */}
-
-            {/* النماذج */}
-            {formData && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: 0.7 }}
+              {/* قسم المعلومات والشراء */}
+              <motion.div 
+                className="space-y-4"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.5, delay: 0.2 }}
               >
-                <Separator className="mb-6 bg-border/50 dark:bg-border/30" />
-                <ProductFormRenderer
-                  formData={formData}
-                  formStrategy={formStrategy}
-                  onFormSubmit={handleFormSubmit}
-                  onFormChange={handleFormChange}
-                  isLoading={buyingNow}
-                  isSubmitting={buyingNow}
-                  isLoadingDeliveryFee={summaryData?.isCalculating || false}
-                  isCalculatingDelivery={summaryData?.isCalculating || false}
-                  deliveryFee={summaryData?.deliveryFee}
-                  className="mb-4"
-                  // تمرير بيانات المنتج والمزامنة
-                  product={{
-                    has_variants: product.variants?.has_variants,
-                    colors: product.variants?.colors,
-                    stock_quantity: product.inventory?.stock_quantity
-                  }}
-                  selectedColor={selectedColor}
-                  selectedSize={selectedSize}
-                  onColorSelect={setSelectedColor}
-                  onSizeSelect={setSelectedSize}
-                  // إضافة البيانات المالية
-                  subtotal={finalPriceCalculation.price}
-                  total={finalPriceCalculation.price + (summaryData?.deliveryFee || 0)}
-                  quantity={quantity}
-                  // إضافة معلومات الموقع للتحقق من التوصيل المجاني
-                  selectedProvince={summaryData?.selectedProvince ? {
-                    id: summaryData.selectedProvince.id.toString(),
-                    name: summaryData.selectedProvince.name
-                  } : undefined}
-                  selectedMunicipality={summaryData?.selectedMunicipality ? {
-                    id: summaryData.selectedMunicipality.id.toString(),
-                    name: summaryData.selectedMunicipality.name
-                  } : undefined}
+                {/* رأس المنتج */}
+                <ProductHeader
+                  name={product.name}
+                  brand={product.brand}
+                  status={product.status}
+                  availableStock={availableStock}
                 />
 
-                {/* مؤشر حفظ الطلب المتروك */}
-                {isSavingCart && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg p-3 mb-4"
-                  >
-                    <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-                    <span>جاري حفظ بياناتك...</span>
-                  </motion.div>
-                )}
+                {/* عرض السعر */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.1 }}
+                  className="pt-2"
+                >
+                  <ProductPriceDisplay
+                    product={product}
+                    selectedColor={selectedColor}
+                    selectedSize={selectedSize}
+                    selectedOffer={selectedOffer}
+                    quantity={quantity}
+                    hideSpecialOfferDetails={(product as any).special_offers_config?.enabled && (product as any).special_offers_config?.offers?.length > 0}
+                  />
+                </motion.div>
 
-                {/* الوصف - تحت ملخص الطلب */}
-                {product.description && (
+                {/* الكمية - يُخفى عندما تكون العروض الخاصة مُفعّلة */}
+                {!((product as any).special_offers_config?.enabled && (product as any).special_offers_config?.offers?.length > 0) && (
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, delay: 0.9 }}
-                    className="mt-6"
+                    transition={{ duration: 0.4, delay: 0.25 }}
+                    className="pt-3"
                   >
-                    <ProductDescription 
-                      description={product.description}
+                    <ProductQuantitySelector
+                      quantity={quantity}
+                      onQuantityChange={handleQuantityChange}
+                      maxQuantity={Math.min(availableStock, 100)}
+                      disabled={!canPurchase}
                     />
                   </motion.div>
                 )}
+
+                {/* مؤقت العرض */}
+                {offerTimerSettings && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: 0.15 }}
+                    className="my-6"
+                  >
+                    <ProductOfferTimer 
+                      settings={offerTimerSettings}
+                      theme="default"
+                      className="w-full"
+                    />
+                  </motion.div>
+                )}
+
+                <Separator className="bg-border/50 dark:bg-border/30" />
+
+                {/* اختيار المتغيرات */}
+                <motion.div 
+                  className="space-y-6"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.2 }}
+                >
+                  <ProductVariantSelector
+                    product={product}
+                    selectedColor={selectedColor}
+                    selectedSize={selectedSize}
+                    onColorSelect={setSelectedColor}
+                    onSizeSelect={setSelectedSize}
+                    showValidation={showValidationErrors || hasTriedToSubmit}
+                    hasValidationError={!canPurchase && hasTriedToSubmit}
+                  />
+                </motion.div>
+
+                <Separator className="bg-border/50 dark:bg-border/30" />
+
+                {/* العروض الخاصة */}
+                {product.special_offers_config?.enabled && product.special_offers_config.offers?.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: 0.35 }}
+                    className="py-2"
+                  >
+                    <SpecialOffersDisplay
+                      config={product.special_offers_config}
+                      basePrice={product.pricing?.price || 0}
+                      onSelectOffer={(offer) => {
+                        
+                        setSelectedOffer(offer);
+                        
+                        // تحديث الكمية تلقائياً لتتناسب مع العرض
+                        if (offer) {
+                          if (offer.quantity !== quantity) {
+                            setIsQuantityUpdatedByOffer(true);
+                            setQuantity(offer.quantity);
+                          }
+                        } else {
+                          // إذا تم إلغاء العرض (اختيار "قطعة واحدة")، الرجوع للكمية 1
+                          if (quantity !== 1) {
+                            setIsQuantityUpdatedByOffer(true);
+                            setQuantity(1);
+                          }
+                        }
+                      }}
+                      selectedOfferId={selectedOffer?.id}
+                    />
+                  </motion.div>
+                )}
+
+                {product.special_offers_config?.enabled && product.special_offers_config.offers?.length > 0 && (
+                  <Separator className="bg-border/50 dark:bg-border/30" />
+                )}
+
+                {/* أزرار الشراء */}
+                <ProductActions
+                  totalPrice={(() => {
+                    return finalPriceCalculation.price;
+                  })()}
+                  deliveryFee={summaryData?.deliveryFee || 0}
+                  canPurchase={canPurchase}
+                  buyingNow={buyingNow}
+                  onBuyNow={handleBuyNow}
+                  isCalculatingDelivery={summaryData?.isCalculating || false}
+                  currency="دج"
+                />
+
+                {/* ميزات المنتج */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: 0.5 }}
+                >
+                  <ProductFeatures product={product} />
+                </motion.div>
+
+                {/* إحصائيات مبسطة للزوار - متاحة لجميع المستخدمين */}
+
+                {/* النماذج */}
+                {formData && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.4, delay: 0.7 }}
+                  >
+                    <Separator className="mb-6 bg-border/50 dark:bg-border/30" />
+                    <ProductFormRenderer
+                      formData={formData}
+                      formStrategy={formStrategy}
+                      onFormSubmit={handleFormSubmit}
+                      onFormChange={handleFormChange}
+                      isLoading={buyingNow}
+                      isSubmitting={buyingNow}
+                      isLoadingDeliveryFee={summaryData?.isCalculating || false}
+                      isCalculatingDelivery={summaryData?.isCalculating || false}
+                      deliveryFee={summaryData?.deliveryFee}
+                      className="mb-4"
+                      // تمرير بيانات المنتج والمزامنة
+                      product={{
+                        has_variants: product.variants?.has_variants,
+                        colors: product.variants?.colors,
+                        stock_quantity: product.inventory?.stock_quantity
+                      }}
+                      selectedColor={selectedColor}
+                      selectedSize={selectedSize}
+                      onColorSelect={setSelectedColor}
+                      onSizeSelect={setSelectedSize}
+                      // إضافة البيانات المالية
+                      // إصلاح: finalPriceCalculation.price يحتوي بالفعل على السعر مضروباً في الكمية
+                      subtotal={finalPriceCalculation.price}
+                      total={finalPriceCalculation.price + (summaryData?.deliveryFee || 0)}
+                      quantity={quantity}
+                      // إضافة معلومات الموقع للتحقق من التوصيل المجاني
+                      selectedProvince={summaryData?.selectedProvince ? {
+                        id: summaryData.selectedProvince.id.toString(),
+                        name: summaryData.selectedProvince.name
+                      } : undefined}
+                      selectedMunicipality={summaryData?.selectedMunicipality ? {
+                        id: summaryData.selectedMunicipality.id.toString(),
+                        name: summaryData.selectedMunicipality.name
+                      } : undefined}
+                    />
+
+                    {/* مؤشر حفظ الطلب المتروك */}
+                    {isSavingCart && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg p-3 mb-4"
+                      >
+                        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                        <span>جاري حفظ بياناتك...</span>
+                      </motion.div>
+                    )}
+
+                    {/* الوصف - تحت ملخص الطلب */}
+                    {product.description && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.4, delay: 0.9 }}
+                        className="mt-6"
+                      >
+                        <ProductDescription 
+                          description={product.description}
+                          advancedDescription={(product as any).advanced_description}
+                          product={product}
+                        />
+                      </motion.div>
+                    )}
+                  </motion.div>
+                )}
               </motion.div>
-            )}
-          </motion.div>
+            </div>
+
+          </div>
         </div>
 
-      </div>
-    </div>
+        {/* مكون التحقق السريع من التتبع */}
+        <QuickTrackingCheck />
 
-    {/* مكون التحقق السريع من التتبع */}
-    <QuickTrackingCheck />
-
-    {/* كونسول التشخيص - فقط في بيئة التطوير */}
-    {process.env.NODE_ENV === 'development' && actualProductId && organizationId && (
-      <>
-        <TrackingDebugConsole 
-          productId={actualProductId} 
-          organizationId={organizationId}
-        />
-        <ConversionAPIMonitor />
-        <TrackingSettingsViewer 
-          settings={productTracking?.settings || null}
-          productId={actualProductId}
-          organizationId={organizationId}
-        />
-        <FacebookEventsLogger 
-          pixelId={(productTracking?.settings as any)?.facebook_pixel_id || null}
-        />
-        <FacebookPixelChecker />
-        <CustomerDataTracker />
-        <MatchQualityOptimizer />
-      </>
-    )}
+        {/* كونسول التشخيص - فقط في بيئة التطوير */}
+        {process.env.NODE_ENV === 'development' && actualProductId && organizationId && (
+          <>
+            <TrackingDebugConsole 
+              productId={actualProductId} 
+              organizationId={organizationId}
+            />
+            <ConversionAPIMonitor />
+            <TrackingSettingsViewer 
+              settings={productTracking?.settings || null}
+              productId={actualProductId}
+              organizationId={organizationId}
+            />
+            <FacebookEventsLogger 
+              pixelId={(productTracking?.settings as any)?.facebook_pixel_id || null}
+            />
+            <FacebookPixelChecker />
+            <CustomerDataTracker />
+            <MatchQualityOptimizer />
+          </>
+        )}
+        </ProductPageProvider>
     </>
   );
 

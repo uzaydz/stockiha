@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { specialOffersConfigSchema } from './specialOffers';
+import { advancedDescriptionSchema } from './advanced-description';
 
 // نموذج بيانات لون المنتج
 export const productColorSchema = z.object({
@@ -227,6 +228,7 @@ export const productSchema = z.object({
   advancedSettings: productAdvancedSettingsSchema,
   marketingSettings: productMarketingSettingsSchema,
   special_offers_config: specialOffersConfigSchema.optional(),
+  advanced_description: advancedDescriptionSchema.optional().nullable(),
 }).refine((data) => {
   // التحقق المشروط للألوان: إذا كان المنتج يستخدم المتغيرات، يجب أن يكون هناك لون واحد على الأقل
   if (data.has_variants && (!data.colors || data.colors.length === 0)) {

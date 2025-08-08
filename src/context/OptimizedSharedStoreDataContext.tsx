@@ -1,4 +1,4 @@
-import React, { createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
+import React, { createContext, useContext, ReactNode, useMemo, useState, useEffect, useRef } from 'react';
 import { useTenant } from '@/context/TenantContext';
 import { supabase } from '@/lib/supabase';
 
@@ -42,6 +42,40 @@ export const OptimizedSharedStoreDataProvider: React.FC<{ children: ReactNode }>
   
   const [cacheStats, setCacheStats] = useState<any>({});
 
+  // إضافة كاش محسن للبيانات المشتركة
+  const sharedDataCache = useRef<Map<string, { data: any; timestamp: number }>>(new Map());
+  const CACHE_DURATION = 10 * 60 * 1000; // 10 دقائق للبيانات المشتركة
+  const SESSION_CACHE_KEY = 'shared_data_cache';
+
+  // دالة للحصول من sessionStorage
+  const getFromSessionStorage = (orgId: string) => {
+    try {
+      const cached = sessionStorage.getItem(`${SESSION_CACHE_KEY}_${orgId}`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && parsed.timestamp && parsed.data) {
+          return parsed;
+        }
+      }
+    } catch (error) {
+      // تجاهل أخطاء sessionStorage
+    }
+    return null;
+  };
+
+  // دالة للحفظ في sessionStorage
+  const saveToSessionStorage = (orgId: string, data: any, timestamp: number) => {
+    try {
+      const cacheData = {
+        data,
+        timestamp
+      };
+      sessionStorage.setItem(`${SESSION_CACHE_KEY}_${orgId}`, JSON.stringify(cacheData));
+    } catch (error) {
+      // تجاهل أخطاء sessionStorage
+    }
+  };
+
   // دالة جلب البيانات المشتركة المحسنة
   const fetchSharedData = useMemo(() => async () => {
     if (!currentOrganization?.id) {
@@ -51,11 +85,58 @@ export const OptimizedSharedStoreDataProvider: React.FC<{ children: ReactNode }>
 
     const startTime = performance.now();
 
+    // التحقق من sessionStorage أولاً (يبقى بعد تحديث الصفحة)
+    const sessionCached = getFromSessionStorage(currentOrganization.id);
+    const now = Date.now();
+
+    if (sessionCached && (now - sessionCached.timestamp) < CACHE_DURATION) {
+      // استخدام البيانات المخزنة مؤقتاً
+      setSharedData({
+        organization: currentOrganization,
+        organizationSettings: sessionCached.data.organizationSettings,
+        products: sessionCached.data.products,
+        categories: sessionCached.data.categories,
+        featuredProducts: sessionCached.data.featuredProducts,
+        provinces: sessionCached.data.provinces,
+        municipalities: sessionCached.data.municipalities,
+        callConfirmationStatuses: sessionCached.data.callConfirmationStatuses,
+        shippingProviders: sessionCached.data.shippingProviders,
+        isLoading: false,
+        error: null,
+      });
+      return;
+    }
+
+    // التحقق من كاش الذاكرة
+    const cacheKey = `shared_data_${currentOrganization.id}`;
+    const cached = sharedDataCache.current.get(cacheKey);
+
+    if (cached && (now - cached.timestamp) < CACHE_DURATION) {
+      // حفظ في sessionStorage أيضاً
+      saveToSessionStorage(currentOrganization.id, cached.data, now);
+      
+      // استخدام البيانات المخزنة مؤقتاً
+      setSharedData({
+        organization: currentOrganization,
+        organizationSettings: cached.data.organizationSettings,
+        products: cached.data.products,
+        categories: cached.data.categories,
+        featuredProducts: cached.data.featuredProducts,
+        provinces: cached.data.provinces,
+        municipalities: cached.data.municipalities,
+        callConfirmationStatuses: cached.data.callConfirmationStatuses,
+        shippingProviders: cached.data.shippingProviders,
+        isLoading: false,
+        error: null,
+      });
+      return;
+    }
+
     try {
       setSharedData(prev => ({ ...prev, isLoading: true, error: null }));
 
       // استدعاء RPC واحد محسن للبيانات المشتركة
-      const { data, error } = await supabase.rpc('get_shared_data_complete', {
+      const { data, error } = await (supabase as any).rpc('get_shared_data_complete', {
         p_organization_id: currentOrganization.id,
       });
 
@@ -71,15 +152,24 @@ export const OptimizedSharedStoreDataProvider: React.FC<{ children: ReactNode }>
 
       // البيانات مُنسقة بالفعل من RPC
       const responseData = {
-        organizationSettings: data.organizationSettings || null,
-        products: data.products || [],
-        categories: data.categories || [],
-        featuredProducts: data.featuredProducts || [],
-        provinces: data.provinces || [],
-        municipalities: data.municipalities || [],
-        callConfirmationStatuses: data.callConfirmationStatuses || [],
-        shippingProviders: data.shippingProviders || [],
+        organizationSettings: (data as any).organizationSettings || null,
+        products: (data as any).products || [],
+        categories: (data as any).categories || [],
+        featuredProducts: (data as any).featuredProducts || [],
+        provinces: (data as any).provinces || [],
+        municipalities: (data as any).municipalities || [],
+        callConfirmationStatuses: (data as any).callConfirmationStatuses || [],
+        shippingProviders: (data as any).shippingProviders || [],
       };
+
+      // حفظ في كاش الذاكرة
+      sharedDataCache.current.set(cacheKey, {
+        data: responseData,
+        timestamp: now
+      });
+
+      // حفظ في sessionStorage
+      saveToSessionStorage(currentOrganization.id, responseData, now);
 
       // تحديث البيانات المشتركة
       setSharedData({
@@ -97,25 +187,20 @@ export const OptimizedSharedStoreDataProvider: React.FC<{ children: ReactNode }>
       });
 
       // تحديث إحصائيات الكاش
-      setCacheStats({
-        lastFetch: new Date().toISOString(),
-        duration: endTime - startTime,
-        dataSize: JSON.stringify(responseData).length,
-        providersCount: responseData.shippingProviders?.length || 0,
-        provincesCount: responseData.provinces?.length || 0,
-        municipalitiesCount: responseData.municipalities?.length || 0,
-        categoriesCount: responseData.categories?.length || 0,
-        productsCount: responseData.products?.length || 0,
-      });
+      setCacheStats(prev => ({
+        ...prev,
+        sharedDataFetches: prev.sharedDataFetches + 1,
+        lastSharedDataFetch: endTime - startTime
+      }));
 
     } catch (error: any) {
       setSharedData(prev => ({
         ...prev,
         isLoading: false,
-        error: error?.message || 'خطأ في جلب البيانات المشتركة',
+        error: error instanceof Error ? error.message : 'Unknown error'
       }));
     }
-  }, [currentOrganization?.id]);
+  }, [currentOrganization?.id, supabase]);
 
   // تحميل البيانات عند التهيئة أو تغيير المؤسسة
   useEffect(() => {

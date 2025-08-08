@@ -43,4 +43,4 @@ export function cleanUuidParams<T extends Record<string, any>>(params: T): T {
   });
   
   return cleaned;
-} 
+}

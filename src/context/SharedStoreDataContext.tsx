@@ -8,6 +8,10 @@ interface SharedStoreDataContextType {
   products: any[];
   categories: any[];
   featuredProducts: any[];
+  components?: any[];
+  footerSettings?: any | null;
+  testimonials?: any[];
+  seoMeta?: any | null;
   isLoading: boolean;
   error: string | null;
   refreshData: () => void;
@@ -16,10 +20,10 @@ interface SharedStoreDataContextType {
 // دالة آمنة لاستخدام useSharedStoreData مع معالجة الأخطاء
 function useSharedStoreDataSafe() {
   try {
-    // استخدام الخيارات الافتراضية الموفرة للموارد
+    // استخدام خيارات أخف: فئات + منتجات مميزة فقط (بدون قائمة منتجات كاملة)
     return useSharedStoreData({
       includeCategories: true,
-      includeProducts: true,
+      includeProducts: false,
       includeFeaturedProducts: true
     });
   } catch (error) {
@@ -31,6 +35,10 @@ function useSharedStoreDataSafe() {
         products: [],
         categories: [],
         featuredProducts: [],
+        components: [],
+        footerSettings: null,
+        testimonials: [],
+        seoMeta: null,
         isLoading: false,
         error: 'TenantProvider غير متاح',
         refreshData: () => {}
@@ -96,6 +104,10 @@ export const MinimalSharedStoreDataProvider: React.FC<{ children: ReactNode }> =
     products: [],
     categories: [],
     featuredProducts: [],
+    components: [],
+    footerSettings: null,
+    testimonials: [],
+    seoMeta: null,
     isLoading: false,
     error: null,
     refreshData: () => {}

@@ -21,8 +21,14 @@ export const checkSubdomainAvailability = async (subdomain: string): Promise<{
       return { available: false, error: new Error('النطاق الفرعي غير صالح') };
     }
 
-    // تنظيف النطاق الفرعي
-    const cleanSubdomain = subdomain.toLowerCase().trim();
+    // تنظيف النطاق الفرعي وإزالة الأحرف غير المسموحة والمسافات والرموز غير المرئية
+    const cleanSubdomain = subdomain
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '') // إزالة جميع المسافات
+      .replace(/[^a-z0-9-]/g, '') // إزالة الأحرف غير المسموحة
+      .replace(/^-+|-+$/g, '') // إزالة الشرطات من البداية والنهاية
+      .replace(/-+/g, '-'); // تحويل الشرطات المتعددة إلى شرطة واحدة
     
     if (cleanSubdomain.length < 3) {
       return { available: false, error: new Error('النطاق الفرعي يجب أن يكون 3 أحرف على الأقل') };
@@ -42,15 +48,19 @@ export const checkSubdomainAvailability = async (subdomain: string): Promise<{
       .maybeSingle();
 
     if (error) {
+      console.error('خطأ في التحقق من النطاق الفرعي:', error);
       return { available: false, error };
     }
 
     if (data && data.id) {
+      console.log('النطاق الفرعي مستخدم بالفعل:', cleanSubdomain, 'المؤسسة:', data.name);
       return { available: false };
     }
 
+    console.log('النطاق الفرعي متاح:', cleanSubdomain);
     return { available: true };
   } catch (error) {
+    console.error('خطأ غير متوقع في التحقق من النطاق الفرعي:', error);
     return { available: false, error: error as Error };
   }
 };
@@ -65,21 +75,36 @@ export const checkSubdomainAvailabilityWithRetry = async (
   available: boolean;
   error?: Error;
 }> => {
+  // تنظيف النطاق الفرعي قبل التحقق
+  const cleanSubdomain = subdomain
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '') // إزالة جميع المسافات
+    .replace(/[^a-z0-9-]/g, '') // إزالة الأحرف غير المسموحة
+    .replace(/^-+|-+$/g, '') // إزالة الشرطات من البداية والنهاية
+    .replace(/-+/g, '-'); // تحويل الشرطات المتعددة إلى شرطة واحدة
+  
+  console.log('بدء التحقق من النطاق الفرعي:', cleanSubdomain);
+  
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    console.log(`محاولة ${attempt} من ${maxRetries}`);
     
-    const result = await checkSubdomainAvailability(subdomain);
+    const result = await checkSubdomainAvailability(cleanSubdomain);
 
     // إذا نجح الفحص أو كان النطاق غير متاح، أرجع النتيجة
     if (!result.error || !result.available) {
+      console.log('نتيجة التحقق:', result);
       return result;
     }
     
     // إذا كان هناك خطأ، انتظر قليلاً قبل إعادة المحاولة
     if (attempt < maxRetries) {
+      console.log(`انتظار ${attempt} ثانية قبل إعادة المحاولة`);
       await new Promise(resolve => setTimeout(resolve, attempt * 1000));
     }
   }
   
+  console.log(`فشل في التحقق من توفر النطاق الفرعي بعد ${maxRetries} محاولات`);
   return { 
     available: false, 
     error: new Error(`فشل في التحقق من توفر النطاق الفرعي بعد ${maxRetries} محاولات`) 
@@ -92,10 +117,19 @@ export const checkSubdomainAvailabilityWithRetry = async (
 export const findSimilarSubdomains = async (subdomain: string): Promise<string[]> => {
   try {
     
+    // تنظيف النطاق الفرعي قبل البحث
+    const cleanSubdomain = subdomain
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '') // إزالة جميع المسافات
+      .replace(/[^a-z0-9-]/g, '') // إزالة الأحرف غير المسموحة
+      .replace(/^-+|-+$/g, '') // إزالة الشرطات من البداية والنهاية
+      .replace(/-+/g, '-'); // تحويل الشرطات المتعددة إلى شرطة واحدة
+    
     const { data, error } = await supabaseAdmin
       .from('organizations')
       .select('subdomain')
-      .ilike('subdomain', `${subdomain}%`)
+      .ilike('subdomain', `${cleanSubdomain}%`)
       .limit(5);
 
     if (error) {
@@ -122,8 +156,17 @@ export const findSimilarSubdomains = async (subdomain: string): Promise<string[]
  * الحصول على معلومات المؤسسة من النطاق الفرعي
  */
 export const getOrganizationBySubdomain = async (subdomain: string): Promise<Organization | null> => {
+  // تنظيف النطاق الفرعي
+  const cleanSubdomain = subdomain
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '') // إزالة جميع المسافات
+    .replace(/[^a-z0-9-]/g, '') // إزالة الأحرف غير المسموحة
+    .replace(/^-+|-+$/g, '') // إزالة الشرطات من البداية والنهاية
+    .replace(/-+/g, '-'); // تحويل الشرطات المتعددة إلى شرطة واحدة
+  
   // لا نعتبر www كنطاق فرعي صحيح في معظم تطبيقات متعددة المستأجرين
-  if (subdomain === 'www') {
+  if (cleanSubdomain === 'www') {
     // التحقق من وجود معرف المؤسسة في التخزين المحلي
     const orgId = localStorage.getItem('bazaar_organization_id');
     
@@ -135,7 +178,7 @@ export const getOrganizationBySubdomain = async (subdomain: string): Promise<Org
     return null;
   }
 
-  const cacheKey = `organization_subdomain:${subdomain}`;
+  const cacheKey = `organization_subdomain:${cleanSubdomain}`;
 
   return withCache<Organization | null>(
     cacheKey,
@@ -148,7 +191,7 @@ export const getOrganizationBySubdomain = async (subdomain: string): Promise<Org
         const { data, error } = await supabaseClient
           .from('organizations')
           .select('*')
-          .eq('subdomain', subdomain)
+          .eq('subdomain', cleanSubdomain)
           .single();
         
         if (error) {
@@ -295,7 +338,14 @@ export const extractSubdomainFromHostname = (hostname: string) => {
     // إذا كان lcxvmprtetg.localhost، فإن parts ستكون ['lcxvmprtetg', 'localhost']
     // نريد 'lcxvmprtetg'
     if (parts.length > 1 && parts[0] !== 'www' && parts[0] !== '') {
-      return parts[0];
+      const subdomain = parts[0]
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, '') // إزالة جميع المسافات
+        .replace(/[^a-z0-9-]/g, '') // إزالة الأحرف غير المسموحة
+        .replace(/^-+|-+$/g, '') // إزالة الشرطات من البداية والنهاية
+        .replace(/-+/g, '-'); // تحويل الشرطات المتعددة إلى شرطة واحدة
+      return subdomain;
     }
     return null; // في حالة localhost فقط أو www.localhost
   }
@@ -314,7 +364,15 @@ export const extractSubdomainFromHostname = (hostname: string) => {
       const subdomain = parts[parts.length - 1];
       // التأكد من أن النطاق الفرعي ليس فارغاً وليس www
       if (subdomain && subdomain !== 'www') {
-        return subdomain;
+        // تنظيف النطاق الفرعي
+        const cleanSubdomain = subdomain
+          .toLowerCase()
+          .trim()
+          .replace(/\s+/g, '') // إزالة جميع المسافات
+          .replace(/[^a-z0-9-]/g, '') // إزالة الأحرف غير المسموحة
+          .replace(/^-+|-+$/g, '') // إزالة الشرطات من البداية والنهاية
+          .replace(/-+/g, '-'); // تحويل الشرطات المتعددة إلى شرطة واحدة
+        return cleanSubdomain;
       }
     }
   }

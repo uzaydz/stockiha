@@ -94,6 +94,33 @@ export const OrganizationInfoForm = ({
                         placeholder="mystore"
                         className="rounded-r-none sm:rounded-r-md sm:rounded-l-none pl-9 font-mono text-left lowercase"
                         dir="ltr"
+                        onChange={(e) => {
+                          // تحويل إلى أحرف صغيرة وإزالة الأحرف غير المسموحة والمسافات
+                          const value = e.target.value
+                            .toLowerCase()
+                            .trim()
+                            .replace(/[^a-z0-9-]/g, '')
+                            .replace(/^-+|-+$/g, ''); // إزالة الشرطات من البداية والنهاية
+                          field.onChange(value);
+                        }}
+                        onBlur={(e) => {
+                          // تنظيف إضافي عند فقدان التركيز
+                          const value = e.target.value
+                            .toLowerCase()
+                            .trim()
+                            .replace(/[^a-z0-9-]/g, '')
+                            .replace(/^-+|-+$/g, ''); // إزالة الشرطات من البداية والنهاية
+                          field.onChange(value);
+                        }}
+                        onInput={(e) => {
+                          // تنظيف فوري عند الكتابة
+                          const value = e.currentTarget.value
+                            .toLowerCase()
+                            .trim()
+                            .replace(/[^a-z0-9-]/g, '')
+                            .replace(/^-+|-+$/g, ''); // إزالة الشرطات من البداية والنهاية
+                          field.onChange(value);
+                        }}
                       />
                     </div>
                   </div>

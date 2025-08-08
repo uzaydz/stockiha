@@ -1,13 +1,13 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { Bell } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useRealTimeNotifications, type NotificationItem } from '@/hooks/useRealTimeNotifications';
+import { useNotifications } from '@/context/NotificationsContext';
+import type { NotificationItem } from '@/hooks/useRealTimeNotifications';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
-import { motion, AnimatePresence } from 'framer-motion';
 import { playTestNotificationSound } from '@/lib/notification-sounds';
 import './notifications.css';
 
@@ -36,7 +36,7 @@ export function NavbarNotifications({ className, maxItems = 8 }: NavbarNotificat
     clearAllNotifications,
     updateSettings,
     getNotificationIcon
-  } = useRealTimeNotifications();
+  } = useNotifications();
 
   const [showSettings, setShowSettings] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
@@ -44,7 +44,7 @@ export function NavbarNotifications({ className, maxItems = 8 }: NavbarNotificat
   const bellRef = useRef<HTMLButtonElement>(null);
 
   // 🎯 فلترة الإشعارات حسب النوع
-  const filterNotifications = (type: string) => {
+  const filterNotifications = useCallback((type: string) => {
     switch (type) {
       case 'unread': return notifications.filter(n => !n.is_read);
       case 'urgent': return notifications.filter(n => n.priority === 'urgent');
@@ -52,11 +52,10 @@ export function NavbarNotifications({ className, maxItems = 8 }: NavbarNotificat
       case 'stock': return notifications.filter(n => n.type === 'low_stock');
       default: return notifications;
     }
-  };
+  }, [notifications]);
 
   // 🔗 التعامل مع النقر على الإشعار مع التنقل المناسب
-  const handleNotificationClick = (notification: NotificationItem) => {
-    
+  const handleNotificationClick = useCallback((notification: NotificationItem) => {
     // وضع علامة مقروءة أولاً
     if (!notification.is_read) {
       markAsRead(notification.id);
@@ -78,38 +77,34 @@ export function NavbarNotifications({ className, maxItems = 8 }: NavbarNotificat
         break;
         
       default:
-        // إذا كان هناك رابط مخصص في الإشعار
-        if (notification.action?.link) {
-          navigate(notification.action.link);
-        } else {
-          // العودة للوحة التحكم الرئيسية
-          navigate('/dashboard');
-        }
+        // العودة للوحة التحكم الرئيسية
+        navigate('/dashboard');
     }
-  };
+  }, [markAsRead, navigate]);
 
   // 🔊 تشغيل صوت التجربة
-  const handlePlayTestSound = () => {
+  const handlePlayTestSound = useCallback(async () => {
     try {
-      playTestNotificationSound();
+      await playTestNotificationSound();
     } catch (error) {
     }
-  };
+  }, []);
 
   // 📋 التنقل إلى صفحة عرض جميع الإشعارات
-  const handleViewAllNotifications = () => {
+  const handleViewAllNotifications = useCallback(() => {
     setIsOpen(false);
     // يمكن إنشاء صفحة مخصصة للإشعارات لاحقاً
     navigate('/dashboard/notifications');
-  };
+  }, [navigate]);
 
-  // 🎉 تأثير اهتزاز الجرس عند إشعار جديد
+  // 🎉 تأثير اهتزاز الجرس عند إشعار جديد - محسن
   useEffect(() => {
     if (stats.unread > 0 && bellRef.current) {
       bellRef.current.classList.add('animate-bounce');
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         bellRef.current?.classList.remove('animate-bounce');
       }, 1000);
+      return () => clearTimeout(timer);
     }
   }, [stats.unread]);
 
@@ -134,7 +129,7 @@ export function NavbarNotifications({ className, maxItems = 8 }: NavbarNotificat
           variant="ghost"
           size="sm"
           className={cn(
-            "relative p-3 rounded-2xl transition-all duration-500 ease-out group",
+            "relative p-3 rounded-2xl transition-all duration-300 ease-out group",
             "hover:bg-slate-100/80 dark:hover:bg-slate-800/80",
             "hover:scale-105 active:scale-95",
             "focus:ring-2 focus:ring-blue-500/30 focus:outline-none",
@@ -147,14 +142,9 @@ export function NavbarNotifications({ className, maxItems = 8 }: NavbarNotificat
             ],
             className
           )}
+          style={{ willChange: 'transform' }}
         >
-          <motion.div
-            whileHover={{ 
-              rotate: [0, -8, 8, -4, 0],
-              transition: { duration: 0.6, ease: "easeInOut" }
-            }}
-            className="relative"
-          >
+          <div className="relative">
             <Bell className={cn(
               "h-5 w-5 transition-all duration-300",
               stats.unread > 0 
@@ -162,40 +152,38 @@ export function NavbarNotifications({ className, maxItems = 8 }: NavbarNotificat
                 : "text-slate-600 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-300"
             )} />
             
-            {/* تأثير النبضة للإشعارات العاجلة */}
+            {/* تأثير النبضة للإشعارات العاجلة - محسن */}
             {stats.urgent > 0 && (
-              <motion.div
-                className="absolute inset-0 bg-red-500/20 rounded-full"
-                animate={{ scale: [1, 1.2, 1], opacity: [0.5, 0, 0.5] }}
-                transition={{ repeat: Infinity, duration: 2 }}
+              <div
+                className="absolute inset-0 bg-red-500/20 rounded-full animate-pulse"
+                style={{ willChange: 'transform, opacity' }}
               />
             )}
-          </motion.div>
+          </div>
           
-          <AnimatePresence>
-            {stats.unread > 0 && (
-              <motion.div
-                initial={{ scale: 0, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0, opacity: 0 }}
-                transition={{ type: "spring", stiffness: 600, damping: 25 }}
-                className="absolute -top-2 -right-2"
+          {/* Badge - محسن بدون framer-motion */}
+          {stats.unread > 0 && (
+            <div
+              className={cn(
+                "absolute -top-2 -right-2 transition-all duration-300 ease-out",
+                "animate-in fade-in-50 zoom-in-50"
+              )}
+              style={{ willChange: 'transform, opacity' }}
+            >
+              <Badge 
+                className={cn(
+                  "h-6 w-6 p-0 flex items-center justify-center text-xs font-bold",
+                  "bg-gradient-to-br from-red-500 via-red-600 to-pink-600 text-white",
+                  "shadow-lg shadow-red-500/40 dark:shadow-red-400/30",
+                  "ring-2 ring-white dark:ring-slate-900",
+                  "border-0",
+                  stats.urgent > 0 && "animate-pulse"
+                )}
               >
-                <Badge 
-                  className={cn(
-                    "h-6 w-6 p-0 flex items-center justify-center text-xs font-bold",
-                    "bg-gradient-to-br from-red-500 via-red-600 to-pink-600 text-white",
-                    "shadow-lg shadow-red-500/40 dark:shadow-red-400/30",
-                    "ring-2 ring-white dark:ring-slate-900",
-                    "border-0",
-                    stats.urgent > 0 && "animate-pulse"
-                  )}
-                >
-                  {stats.unread > 99 ? '99+' : stats.unread}
-                </Badge>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                {stats.unread > 99 ? '99+' : stats.unread}
+              </Badge>
+            </div>
+          )}
         </Button>
       </PopoverTrigger>
 
@@ -221,15 +209,15 @@ export function NavbarNotifications({ className, maxItems = 8 }: NavbarNotificat
         />
 
         {/* الإعدادات المنزلقة */}
-        <AnimatePresence>
-          {showSettings && (
+        {showSettings && (
+          <div className="animate-in slide-in-from-top-2 duration-300">
             <NotificationSettings
               settings={settings}
               onUpdateSettings={updateSettings}
               onPlayTestSound={handlePlayTestSound}
             />
-          )}
-        </AnimatePresence>
+          </div>
+        )}
 
         {/* تبويبات الفلتر */}
         <NotificationFilters
@@ -241,60 +229,46 @@ export function NavbarNotifications({ className, maxItems = 8 }: NavbarNotificat
         {/* قائمة الإشعارات */}
         <ScrollArea className="max-h-80 overflow-auto notification-scroll-enhanced">
           <div className="px-1">
-            <AnimatePresence mode="popLayout">
-              {displayedNotifications.length === 0 ? (
-                <motion.div
-                  key="empty-state"
-                  initial={{ opacity: 0, y: 40 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -40 }}
-                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
-                  className="p-8 text-center"
+            {displayedNotifications.length === 0 ? (
+              <div
+                className="p-8 text-center animate-in fade-in-50 duration-300"
+              >
+                <div
+                  className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 rounded-2xl flex items-center justify-center shadow-lg animate-in zoom-in-50 duration-300"
                 >
-                  <motion.div
-                    initial={{ scale: 0.8 }}
-                    animate={{ scale: 1 }}
-                    transition={{ delay: 0.1, type: "spring", stiffness: 500, damping: 25 }}
-                    className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 rounded-2xl flex items-center justify-center shadow-lg"
-                  >
-                    <Bell className="h-8 w-8 text-slate-400 dark:text-slate-500" />
-                  </motion.div>
-                  <motion.div
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2 }}
-                  >
-                    <p className="text-slate-600 dark:text-slate-400 font-semibold text-base mb-2">
-                      لا توجد إشعارات
-                    </p>
-                    <p className="text-sm text-slate-500 dark:text-slate-500 leading-relaxed">
-                      {activeTab === 'all' 
-                        ? 'ستظهر جميع إشعاراتك هنا' 
-                        : `لا توجد إشعارات في قسم "${
-                            activeTab === 'unread' ? 'الجديد' :
-                            activeTab === 'urgent' ? 'العاجل' :
-                            activeTab === 'orders' ? 'الطلبات' :
-                            activeTab === 'stock' ? 'المخزون' : ''
-                          }"`
-                      }
-                    </p>
-                  </motion.div>
-                </motion.div>
-              ) : (
-                <div className="py-1">
-                  {displayedNotifications.map((notification, index) => (
-                    <NotificationItemComponent
-                      key={notification.id}
-                      notification={notification}
-                      index={index}
-                      onMarkAsRead={markAsRead}
-                      onRemove={removeNotification}
-                      onClick={handleNotificationClick}
-                    />
-                  ))}
+                  <Bell className="h-8 w-8 text-slate-400 dark:text-slate-500" />
                 </div>
-              )}
-            </AnimatePresence>
+                <div className="animate-in fade-in-50 duration-300 delay-100">
+                  <p className="text-slate-600 dark:text-slate-400 font-semibold text-base mb-2">
+                    لا توجد إشعارات
+                  </p>
+                  <p className="text-sm text-slate-500 dark:text-slate-500 leading-relaxed">
+                    {activeTab === 'all' 
+                      ? 'ستظهر جميع إشعاراتك هنا' 
+                      : `لا توجد إشعارات في قسم "${
+                          activeTab === 'unread' ? 'الجديد' :
+                          activeTab === 'urgent' ? 'العاجل' :
+                          activeTab === 'orders' ? 'الطلبات' :
+                          activeTab === 'stock' ? 'المخزون' : ''
+                        }"`
+                    }
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="py-1">
+                {displayedNotifications.map((notification, index) => (
+                  <NotificationItemComponent
+                    key={notification.id}
+                    notification={notification}
+                    index={index}
+                    onMarkAsRead={markAsRead}
+                    onRemove={removeNotification}
+                    onClick={handleNotificationClick}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </ScrollArea>
 
@@ -312,3 +286,6 @@ export function NavbarNotifications({ className, maxItems = 8 }: NavbarNotificat
     </Popover>
   );
 }
+
+// Optimize with React.memo to prevent unnecessary re-renders
+export default memo(NavbarNotifications);

@@ -172,7 +172,7 @@ export class FacebookConversionAPI {
     const enhancedCustomData = {
       content_ids: [productId],
       content_type: 'product',
-      currency: 'DZD',
+      currency: this.normalizeCurrencyForFacebook((customData && (customData.currency || customData.currency_code)) || 'DZD'),
       value: value,
       content_name: `منتج ${productId}`,
       content_category: 'ecommerce',
@@ -207,6 +207,29 @@ export class FacebookConversionAPI {
       }],
       ...(this.testEventCode && { test_event_code: this.testEventCode })
     };
+  }
+
+  /**
+   * تطبيع رمز العملة لاستخدامه مع Facebook Conversion API
+   */
+  private normalizeCurrencyForFacebook(input: string): string {
+    if (!input) return 'USD';
+    const trimmed = input.trim();
+    const symbolMap: Record<string, string> = {
+      'د.ج': 'DZD',
+      'دج': 'DZD',
+      'DA': 'DZD',
+      '$': 'USD',
+      '€': 'EUR',
+      '£': 'GBP',
+      '¥': 'JPY'
+    };
+    const mapped = symbolMap[trimmed] || trimmed.toUpperCase();
+    if (mapped === 'DZD') return 'USD';
+    if (/^[A-Z]{3}$/.test(mapped)) return mapped;
+    const onlyLetters = mapped.replace(/[^A-Z]/g, '');
+    if (onlyLetters.length === 3) return onlyLetters;
+    return 'USD';
   }
 
   /**

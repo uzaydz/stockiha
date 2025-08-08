@@ -1,10 +1,10 @@
-import React, { useRef, useMemo } from 'react';
+import React, { useRef, useMemo, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { Menu } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { useAppsData } from '@/context/SuperUnifiedDataContext';
+import { useApps } from '@/context/AppsContext';
 import { createNavigationData } from './navigationData';
 import { checkPermission } from './utils';
 import NavigationGroup from './NavigationGroup';
@@ -37,7 +37,7 @@ const SidebarNavigation: React.FC<SidebarNavigationProps> = ({
   const { userProfile } = useAuth();
   const userRole = userProfile?.role || null;
   const userPermissions = (userProfile?.permissions || {}) as Record<string, boolean>;
-  const { organizationApps } = useAppsData();
+  const { organizationApps } = useApps();
   const popupRef = useRef<HTMLDivElement>(null);
   
   const permissions = userPermissions;
@@ -52,7 +52,13 @@ const SidebarNavigation: React.FC<SidebarNavigationProps> = ({
     return (appId: string): boolean => enabledApps.includes(appId);
   }, [enabledApps]);
 
-  // إضافة console.log للتشخيص
+  // إضافة console.log للتشخيص عند تغيير التطبيقات
+  useEffect(() => {
+    
+    // إضافة تأخير صغير للتأكد من تحديث البيانات
+    setTimeout(() => {
+    }, 100);
+  }, [organizationApps, enabledApps]);
 
   // إنشاء بيانات التنقل
   const navItems = useMemo(() => {
@@ -81,7 +87,7 @@ const SidebarNavigation: React.FC<SidebarNavigationProps> = ({
   }, [filteredNavItems, currentPath]);
 
   // تحديث المجموعة النشطة عند تغيير المسار
-  React.useEffect(() => {
+  useEffect(() => {
     if (!activeGroup && activeGroupByPath) {
       onSetActiveGroup(activeGroupByPath.group);
     }

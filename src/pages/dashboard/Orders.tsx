@@ -57,12 +57,19 @@ const Orders = () => {
   // استخدام الـ hooks المخصصة
   const permissions = useOrdersPermissions();
   const {
-    organizationSettings,
-    autoDeductInventory,
-    loadingSettings,
-    updatingSettings,
-    handleToggleAutoDeductInventory,
-  } = useOrganizationSettings();
+    settings: organizationSettings,
+    isLoading: loadingSettings,
+    isSaving: updatingSettings,
+  } = useOrganizationSettings({ organizationId: currentOrganization?.id });
+
+  // Local state for auto deduct inventory
+  const [autoDeductInventory, setAutoDeductInventory] = useState(false);
+
+  // Handle auto deduct inventory toggle
+  const handleToggleAutoDeductInventory = useCallback(async (enabled: boolean) => {
+    setAutoDeductInventory(enabled);
+    // You can add API call here if needed to save the setting
+  }, []);
 
   // View preferences
   const [viewMode, setViewMode] = useState<'table' | 'mobile'>('table');
@@ -81,6 +88,11 @@ const Orders = () => {
     enablePolling: false, // Disabled automatic polling
     pollingInterval: 60000, // Keep interval for manual refresh if needed
     enableCache: true,
+    rpcOptions: {
+      includeItems: false,   // لا نحتاج العناصر في العرض المختصر
+      includeShared: false,  // نستخدم OptimizedSharedStoreDataContext
+      includeCounts: true,   // الصفحة الأولى فقط؛ سيتم التحكم لاحقاً من الهوك إن لزم
+    }
   }), []);
 
   // Use optimized hook for data management
@@ -119,22 +131,28 @@ const Orders = () => {
     error: sharedDataError,
   } = useOptimizedSharedStoreDataContext();
 
-  // البيانات غير المتوفرة في SuperUnifiedDataProvider - استخدام قيم افتراضية
-  const allShippingProviders = sharedData?.shippingProviders?.length > 0 
-    ? sharedData.shippingProviders 
-    : shippingProviders;
+  // استخدم البيانات من OptimizedSharedStoreDataContext بدلاً من تكرارها من sharedData
+  // هذا يمنع التكرار في استدعاءات البيانات
+  const allShippingProviders = shippingProviders;
   const loadingProviders = loading || sharedDataLoading;
   const providersError = error || sharedDataError;
 
-  // Check viewport size for responsive design
+  // Check viewport size with throttling for responsive design
   useEffect(() => {
-    const checkViewport = () => {
-      setViewMode(window.innerWidth < 768 ? 'mobile' : 'table');
+    let rafId: number | null = null;
+    const onResize = () => {
+      if (rafId !== null) return;
+      rafId = window.requestAnimationFrame(() => {
+        setViewMode(window.innerWidth < 768 ? 'mobile' : 'table');
+        rafId = null;
+      });
     };
-
-    checkViewport();
-    window.addEventListener('resize', checkViewport);
-    return () => window.removeEventListener('resize', checkViewport);
+    onResize();
+    window.addEventListener('resize', onResize);
+    return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId);
+      window.removeEventListener('resize', onResize);
+    };
   }, []);
 
   // Handle order status update with optimistic updates
@@ -369,13 +387,16 @@ const Orders = () => {
                 visibleColumns={visibleColumns}
                 currentUserId={user?.id}
                 currentPage={dataCurrentPage}
-                totalItems={totalCount || orders.length}
+                totalItems={totalCount ?? orders.length}
                 pageSize={pageSize}
                 hasNextPage={hasNextPage}
                 hasPreviousPage={hasPreviousPage}
                 onPageChange={handlePageChange}
                 hasMoreOrders={hasMore}
                 shippingProviders={allShippingProviders}
+                onSearchTermChange={(q) => {
+                  applyFilters({ searchTerm: q });
+                }}
               />
             </div>
           )}

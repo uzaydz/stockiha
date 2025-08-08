@@ -178,7 +178,7 @@ const Footer = () => {
                       src="/images/logo-new.webp" 
                       alt="سطوكيها" 
                       className="w-full h-full object-cover"
-                      fetchPriority="high"
+                      fetchpriority="high"
                     />
                   </div>
                 </div>

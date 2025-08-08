@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { supabase } from '@/lib/supabase';
+import { useSharedStoreDataContext } from '@/context/SharedStoreDataContext';
 
 interface SEOHeadProps {
   seoSettings?: {
@@ -29,10 +30,18 @@ const SEOHead: React.FC<SEOHeadProps> = ({
 }) => {
   const [dynamicMetaTags, setDynamicMetaTags] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  
+  // قراءة الإعدادات من المصدر المركزي إن توفرت
+  let sharedOrgSettings: any = null;
+  try {
+    sharedOrgSettings = useSharedStoreDataContext()?.organizationSettings || null;
+  } catch {}
 
   // جلب Meta Tags ديناميكياً من قاعدة البيانات
   useEffect(() => {
     const fetchDynamicMetaTags = async () => {
+      // إذا كانت لدينا إعدادات المؤسسة (من الـ RPC/الكاش)، لا حاجة لأي نداء إضافي
+      if (sharedOrgSettings) return;
       if (!organizationId || !useGlobalFallback) return;
       
       setLoading(true);
@@ -76,23 +85,23 @@ const SEOHead: React.FC<SEOHeadProps> = ({
     };
 
     fetchDynamicMetaTags();
-  }, [organizationId, useGlobalFallback]);
+  }, [organizationId, useGlobalFallback, sharedOrgSettings]);
 
   // دمج الإعدادات مع البيانات الديناميكية
   const finalSeoSettings = React.useMemo(() => {
     const base = {
-      title: seoSettings?.title || dynamicMetaTags?.title || `${storeName} - متجر إلكتروني`,
-      description: seoSettings?.description || dynamicMetaTags?.description || `متجر ${storeName} - أفضل المنتجات بأفضل الأسعار`,
-      keywords: seoSettings?.keywords || dynamicMetaTags?.keywords || `${storeName}, متجر إلكتروني, تسوق أونلاين`,
-      ogImage: seoSettings?.ogImage || seoSettings?.default_image_url || dynamicMetaTags?.image || '',
-      siteName: dynamicMetaTags?.site_name || storeName,
+      title: seoSettings?.title || sharedOrgSettings?.seo_store_title || dynamicMetaTags?.title || `${storeName} - متجر إلكتروني`,
+      description: seoSettings?.description || sharedOrgSettings?.seo_meta_description || dynamicMetaTags?.description || `متجر ${storeName} - أفضل المنتجات بأفضل الأسعار`,
+      keywords: seoSettings?.keywords || sharedOrgSettings?.meta_keywords || dynamicMetaTags?.keywords || `${storeName}, متجر إلكتروني, تسوق أونلاين`,
+      ogImage: seoSettings?.ogImage || seoSettings?.default_image_url || sharedOrgSettings?.logo_url || dynamicMetaTags?.image || '',
+      siteName: sharedOrgSettings?.site_name || dynamicMetaTags?.site_name || storeName,
       canonicalUrl: dynamicMetaTags?.url || window.location.href,
       enable_open_graph: seoSettings?.enable_open_graph !== false,
       enable_twitter_cards: seoSettings?.enable_twitter_cards !== false
     };
 
     return base;
-  }, [seoSettings, dynamicMetaTags, storeName]);
+  }, [seoSettings, dynamicMetaTags, sharedOrgSettings, storeName]);
 
   if (loading) {
     return (

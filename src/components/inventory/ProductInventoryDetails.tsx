@@ -366,10 +366,8 @@ const ProductInventoryDetails: React.FC<ProductInventoryDetailsProps> = ({
             }
             
             const response = await saveChanges();
-            console.log('تم حفظ التحديث:', response);
             setShowEditDialog(false);
           } catch (error) {
-            console.error('خطأ في حفظ التحديث:', error);
             // الخطأ يتم التعامل معه في saveChanges
           }
         }}

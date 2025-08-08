@@ -14,6 +14,7 @@ CREATE OR REPLACE FUNCTION update_product_complete(
   p_images JSONB DEFAULT NULL,
   p_wholesale_tiers JSONB DEFAULT NULL,
   p_special_offers_config JSONB DEFAULT NULL,
+  p_advanced_description JSONB DEFAULT NULL,
   p_user_id UUID DEFAULT NULL
 ) 
 RETURNS JSONB
@@ -133,6 +134,10 @@ BEGIN
         WHEN p_product_data ? 'special_offers_config' AND (p_product_data->>'special_offers_config') IS NOT NULL 
         THEN (p_product_data->>'special_offers_config')::JSONB
         ELSE special_offers_config 
+      END,
+      advanced_description = CASE 
+        WHEN p_advanced_description IS NOT NULL THEN p_advanced_description
+        ELSE advanced_description 
       END,
       updated_by_user_id = CASE 
         WHEN p_user_id IS NOT NULL THEN p_user_id 

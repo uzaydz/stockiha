@@ -28,6 +28,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useTheme } from '@/context/ThemeContext';
 import TestimonialsComponent from '@/components/landing-page/TestimonialsComponent';
 import CtaButtonComponent from '@/components/landing-page/CtaButtonComponent';
+import { sanitizeHTML } from '@/utils/security';
 
 // تحميل كسول للمكونات الثقيلة لتسريع التحميل الأولي
 const EnhancedImageComponent = lazy(() => import('@/components/landing-page/ImageComponent'));
@@ -49,7 +50,7 @@ const TextComponent: React.FC<{ settings: Record<string, any> }> = ({ settings }
         <div 
           className="prose prose-lg max-w-none mx-auto rtl"
           style={textStyle}
-          dangerouslySetInnerHTML={{ __html: settings.content || '<p>أدخل المحتوى النصي هنا...</p>' }}
+          dangerouslySetInnerHTML={{ __html: sanitizeHTML(settings.content || '<p>أدخل المحتوى النصي هنا...</p>') }}
         />
       </div>
     </section>
@@ -91,7 +92,7 @@ const HeroComponent: React.FC<{ settings: Record<string, any> }> = ({ settings }
               src={settings.imageUrl || fallbackImage} 
               alt={settings.title || 'صورة ترويجية'} 
               className="max-w-full rounded-lg shadow-md" 
-              fetchPriority="high"
+              fetchpriority="high"
               loading="eager"
               decoding="async"
               onError={(e) => {
@@ -311,13 +312,13 @@ const LandingPageView: React.FC = () => {
       if ('requestIdleCallback' in window) {
         window.requestIdleCallback(() => {
           if (!themeLoaded.current) {
-            reloadOrganizationTheme(currentOrganization.id);
+            reloadOrganizationTheme();
           }
         }, { timeout: 1000 });
       } else {
         setTimeout(() => {
           if (!themeLoaded.current) {
-            reloadOrganizationTheme(currentOrganization.id);
+            reloadOrganizationTheme();
           }
         }, 100);
       }

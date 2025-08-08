@@ -23,13 +23,14 @@ interface PixelSettings {
 interface PixelLoaderProps {
   settings: PixelSettings;
   onLoad?: () => void;
+  advancedMatch?: Record<string, any>;
 }
 
 /**
  * مكون تحميل البكسلات المحسن
  * يحمل فقط البكسلات المفعلة ويتجنب التحميل المتكرر
  */
-export default function PixelLoader({ settings, onLoad }: PixelLoaderProps) {
+export default function PixelLoader({ settings, onLoad, advancedMatch }: PixelLoaderProps) {
   useEffect(() => {
     if (onLoad) {
       onLoad();
@@ -40,9 +41,10 @@ export default function PixelLoader({ settings, onLoad }: PixelLoaderProps) {
     // تحميل Facebook Pixel
     if (settings.facebook.enabled && settings.facebook.pixel_id) {
       loadFacebookPixel(
-        settings.facebook.pixel_id, 
-        settings.test_mode, 
-        settings.facebook.test_event_code
+        settings.facebook.pixel_id,
+        settings.test_mode,
+        settings.facebook.test_event_code,
+        advancedMatch
       );
     }
 
@@ -65,7 +67,7 @@ export default function PixelLoader({ settings, onLoad }: PixelLoaderProps) {
 }
 
 // دالة تحميل Facebook Pixel
-function loadFacebookPixel(pixelId: string, testMode: boolean, testEventCode?: string) {
+function loadFacebookPixel(pixelId: string, testMode: boolean, testEventCode?: string, advancedMatch?: Record<string, any>) {
   if (typeof window === 'undefined') return;
 
   // تجنب التحميل المتكرر
@@ -74,6 +76,9 @@ function loadFacebookPixel(pixelId: string, testMode: boolean, testEventCode?: s
   }
 
   const script = document.createElement('script');
+  const initAdvanced = advancedMatch && Object.keys(advancedMatch).length > 0
+    ? `fbq('init', '${pixelId}', ${JSON.stringify(advancedMatch)});`
+    : `fbq('init', '${pixelId}');`;
   script.innerHTML = `
     !function(f,b,e,v,n,t,s)
     {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
@@ -84,7 +89,7 @@ function loadFacebookPixel(pixelId: string, testMode: boolean, testEventCode?: s
     s.parentNode.insertBefore(t,s)}(window, document,'script',
     'https://connect.facebook.net/en_US/fbevents.js');
     
-    fbq('init', '${pixelId}');
+    ${initAdvanced}
     ${testMode && testEventCode ? 
       `fbq('track', 'PageView', {}, {testEventCode: '${testEventCode}'});` :
       `fbq('track', 'PageView');`

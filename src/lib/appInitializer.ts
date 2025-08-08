@@ -50,8 +50,12 @@ let memoryCache: { data: AppInitData | null; timestamp: number } | null = null;
 // منع تطبيق البيانات المتكرر
 let lastAppliedDataHash: string | null = null;
 
+// ✨ Global deduplication cache للطلبات المشتركة
+const INIT_CACHE = new Map<string, { data: any; timestamp: number }>();
+const ACTIVE_REQUESTS = new Map<string, Promise<any>>();
+
 /**
- * دالة مركزية لجلب جميع بيانات التطبيق
+ * دالة مركزية لجلب جميع بيانات التطبيق مع منع التكرار
  */
 async function fetchAppInitData(organizationId?: string): Promise<AppInitData | null> {
   try {
@@ -109,7 +113,48 @@ async function fetchAppInitData(organizationId?: string): Promise<AppInitData | 
       return null;
     }
 
-    // جلب جميع البيانات الأساسية في طلبات متوازية
+    // ✨ استخدام cache للبيانات المكتملة
+    const cacheKey = `app-init-data-${organizationId}`;
+    const cached = INIT_CACHE.get(cacheKey);
+    const now = Date.now();
+    
+    if (cached && (now - cached.timestamp) < CACHE_DURATION) {
+      return cached.data;
+    }
+
+    // ✨ منع الطلبات المكررة
+    if (ACTIVE_REQUESTS.has(cacheKey)) {
+      return await ACTIVE_REQUESTS.get(cacheKey);
+    }
+
+    // إنشاء طلب جديد وحفظه
+    const requestPromise = (async () => {
+      try {
+        // 🚨 التحقق من وجود SuperUnifiedDataProvider أولاً
+        const globalDataContext = (window as any).__SUPER_UNIFIED_DATA__;
+        if (globalDataContext && globalDataContext.organization?.id === organizationId) {
+          
+          const result: AppInitData = {
+            organization: globalDataContext.organization,
+            theme: {
+              primaryColor: globalDataContext.organizationSettings?.theme_primary_color || '#fc5a3e',
+              secondaryColor: globalDataContext.organizationSettings?.theme_secondary_color || '#6b21a8',
+              mode: globalDataContext.organizationSettings?.theme_mode || 'light'
+            },
+            language: globalDataContext.organizationSettings?.default_language || 'ar',
+            timestamp: Date.now(),
+            categories: [],
+            products: [],
+            storeSettings: [],
+            testimonials: []
+          };
+          
+          // حفظ في cache
+          INIT_CACHE.set(cacheKey, { data: result, timestamp: now });
+          return result;
+        }
+
+        // جلب جميع البيانات الأساسية في طلبات متوازية
     const [orgResult, settingsResult, categoriesResult, productsResult, storeSettingsResult, testimonialsResult] = await Promise.all([
       supabase
         .from('organizations')
@@ -196,8 +241,23 @@ async function fetchAppInitData(organizationId?: string): Promise<AppInitData | 
       testimonials: testimonialsResult.data || []
     };
 
+    // حفظ في cache
+    INIT_CACHE.set(cacheKey, { data: initData, timestamp: now });
     return initData;
     
+  } catch (error) {
+    return null;
+  }
+})();
+
+// تسجيل الطلب كنشط
+ACTIVE_REQUESTS.set(cacheKey, requestPromise);
+
+// إرجاع النتيجة مع تنظيف cache
+return requestPromise.finally(() => {
+  ACTIVE_REQUESTS.delete(cacheKey);
+});
+
   } catch (error) {
     return null;
   }

@@ -55,7 +55,6 @@ export const useUnifiedProductPageData = ({
       // التحقق من الطلبات النشطة أولاً
       const activeRequest = ACTIVE_REQUESTS.get(cacheKey);
       if (activeRequest) {
-        console.log('🔄 [UnifiedProductPage] انتظار طلب نشط:', cacheKey);
         return await activeRequest;
       }
 
@@ -63,7 +62,6 @@ export const useUnifiedProductPageData = ({
       const cached = GLOBAL_PRODUCT_CACHE.get(cacheKey);
       const now = Date.now();
       if (cached && (now - cached.timestamp) < CACHE_DURATION) {
-        console.log('✅ [UnifiedProductPage] استخدام Cache:', cacheKey);
         return cached.data;
       }
 
@@ -120,11 +118,6 @@ async function fetchUnifiedProductData(
 ): Promise<UnifiedProductPageData> {
   
   if (process.env.NODE_ENV === 'development') {
-    console.log('🚀 [UnifiedProductPage] بدء جلب البيانات الموحدة:', {
-      productId,
-      organizationId,
-      timestamp: new Date().toISOString()
-    });
   }
 
   try {
@@ -139,10 +132,6 @@ async function fetchUnifiedProductData(
     }
 
     if (process.env.NODE_ENV === 'development') {
-      console.log('✅ [UnifiedProductPage] تم جلب البيانات بنجاح:', {
-        hasProduct: !!productResponse.product,
-        timestamp: new Date().toISOString()
-      });
     }
 
     return {
@@ -156,7 +145,6 @@ async function fetchUnifiedProductData(
     };
 
   } catch (error) {
-    console.error('❌ [UnifiedProductPage] فشل في جلب البيانات:', error);
     throw error;
   }
 }
@@ -179,4 +167,4 @@ export const clearUnifiedProductCache = (productId?: string) => {
   ACTIVE_REQUESTS.clear();
 };
 
-export default useUnifiedProductPageData; 
+export default useUnifiedProductPageData;

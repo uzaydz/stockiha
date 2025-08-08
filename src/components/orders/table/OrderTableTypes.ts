@@ -106,6 +106,10 @@ export type OrdersTableProps = {
   hasCancelPermission: boolean;
   visibleColumns?: string[];
   currentUserId?: string;
+  // ربط البحث مع الخادم (اختياري)
+  onSearchTermChange?: (value: string) => void;
+  // تفعيل التحميل التلقائي عند الاقتراب من نهاية الصفحة
+  autoLoadMoreOnScroll?: boolean;
   // Pagination props
   currentPage?: number;
   totalItems?: number;

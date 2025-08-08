@@ -58,8 +58,10 @@ const POSSettings: React.FC<POSSettingsProps> = ({ isOpen, onOpenChange }) => {
     await savePOSSettings();
   }, [savePOSSettings]);
   
-  // استخدام الإعدادات للعرض
+  // استخدام الإعدادات للعرض - تأكد من أن البيانات المحملة لها الأولوية
   const displaySettings = localSettings || { ...defaultPOSSettings, organization_id: currentOrganization?.id || '' };
+
+  // إضافة سجل للتأكد من البيانات
 
   // إنشاء دالة updateSetting للتوافق مع المكونات الفرعية
   const updateSetting = useCallback(<K extends keyof POSSettings>(key: K, value: POSSettings[K]) => {

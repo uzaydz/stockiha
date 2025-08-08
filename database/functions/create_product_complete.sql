@@ -13,6 +13,7 @@ CREATE OR REPLACE FUNCTION create_product_complete(
   p_images JSONB DEFAULT NULL,
   p_wholesale_tiers JSONB DEFAULT NULL,
   p_special_offers_config JSONB DEFAULT NULL,
+  p_advanced_description JSONB DEFAULT NULL,
   p_user_id UUID DEFAULT NULL
 ) 
 RETURNS JSONB
@@ -74,6 +75,7 @@ BEGIN
       min_partial_wholesale_quantity,
       slug,
       special_offers_config,
+      advanced_description,
       created_by_user_id,
       updated_by_user_id,
       is_active,
@@ -144,6 +146,7 @@ BEGIN
         THEN (p_product_data->>'special_offers_config')::JSONB
         ELSE NULL 
       END,
+      p_advanced_description,
       COALESCE(p_user_id, (p_product_data->>'created_by_user_id')::UUID),
       COALESCE(p_user_id, (p_product_data->>'updated_by_user_id')::UUID),
       TRUE,

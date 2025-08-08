@@ -245,8 +245,6 @@ const executeRequest = async <T>(
   if (globalCache.has(key)) {
     const cached = globalCache.get(key)!;
     if ((Date.now() - cached.timestamp) < cached.ttl) {
-      if (import.meta.env.DEV) {
-      }
       return cached.data;
     } else {
       // إزالة البيانات منتهية الصلاحية
@@ -254,32 +252,24 @@ const executeRequest = async <T>(
     }
   }
 
-  // استثناء خاص للفئات - لا نطبق deduplication على الفئات
-  if (!key.includes('categories')) {
-    // التحقق من الطلبات المكررة - نسخة محسنة
-    if (globalRequestDeduplication.has(key)) {
-      const existingRequest = globalRequestDeduplication.get(key)!;
-      // التحقق من أن الطلب ليس قديماً جداً
-      if ((Date.now() - existingRequest.timestamp) < 30000) { // 30 ثانية
-        if (import.meta.env.DEV) {
-        }
-        return existingRequest.promise;
-      } else {
-        // إزالة الطلب القديم
-        globalRequestDeduplication.delete(key);
-      }
+  // التحقق من الطلبات المكررة - نسخة محسنة
+  if (globalRequestDeduplication.has(key)) {
+    const existingRequest = globalRequestDeduplication.get(key)!;
+    // التحقق من أن الطلب ليس قديماً جداً
+    if ((Date.now() - existingRequest.timestamp) < 30000) { // 30 ثانية
+      return existingRequest.promise;
+    } else {
+      // إزالة الطلب القديم
+      globalRequestDeduplication.delete(key);
     }
   }
 
-  // التحقق من الطلبات النشطة القديمة
+  // التحقق من الطلبات النشطة
   if (globalActiveRequests.has(key)) {
-    if (import.meta.env.DEV) {
-    }
     return globalActiveRequests.get(key)!;
   }
 
   // 🔧 استخدام REST API مباشر بدلاً من Supabase client للطلبات المعطلة
-  // تعطيل مؤقت للـ categories للسماح للكود الجديد بالعمل
   if (key.includes('apps') || key.includes('settings') || key.includes('subscriptions') || (key.includes('users') && !key.includes('categories'))) {
     
     const promise = createDirectRestRequest(key)
@@ -291,14 +281,9 @@ const executeRequest = async <T>(
           ttl: key.includes('users') ? 15 * 60 * 1000 : 5 * 60 * 1000 // 15 دقيقة للمستخدمين، 5 دقائق للآخرين
         });
         
-        if (import.meta.env.DEV) {
-        }
-        
         return result;
       })
       .catch(error => {
-        if (import.meta.env.DEV) {
-        }
         throw error;
       })
       .finally(() => {
@@ -327,14 +312,9 @@ const executeRequest = async <T>(
         ttl: 5 * 60 * 1000
       });
       
-      if (import.meta.env.DEV) {
-      }
-      
       return result;
     })
     .catch(error => {
-      if (import.meta.env.DEV) {
-      }
       throw error;
     })
     .finally(() => {
@@ -429,7 +409,6 @@ export class UnifiedRequestManager {
       cacheKey,
       async () => {
         if (import.meta.env.DEV) {
-          console.log(`🔄 [UnifiedRequestManager] جلب فئات المنتجات للمؤسسة: ${orgId}`);
         }
 
         const { data, error } = await supabase
@@ -441,12 +420,10 @@ export class UnifiedRequestManager {
           .limit(1000);
 
         if (error) {
-          console.error('خطأ في جلب فئات المنتجات:', error);
           return [];
         }
         
         if (import.meta.env.DEV) {
-          console.log(`✅ [UnifiedRequestManager] تم جلب ${data?.length || 0} فئة منتج`);
         }
         
         return data || [];
@@ -467,7 +444,6 @@ export class UnifiedRequestManager {
       `unified_org_settings_${orgId}`,
       async () => {
         if (import.meta.env.DEV) {
-          console.log(`🔄 [UnifiedRequestManager] جلب إعدادات المؤسسة: ${orgId}`);
         }
         
         const { data, error } = await supabase
@@ -477,12 +453,10 @@ export class UnifiedRequestManager {
           .maybeSingle();
 
         if (error) {
-          console.error('خطأ في جلب إعدادات المؤسسة:', error);
           return null;
         }
         
         if (import.meta.env.DEV) {
-          console.log(`✅ [UnifiedRequestManager] تم جلب إعدادات المؤسسة`);
         }
         
         return data;
@@ -503,7 +477,6 @@ export class UnifiedRequestManager {
       `unified_organization_${orgId}`,
       async () => {
         if (import.meta.env.DEV) {
-          console.log(`🔄 [UnifiedRequestManager] جلب بيانات المؤسسة: ${orgId}`);
         }
         
         const { data, error } = await supabase
@@ -513,12 +486,10 @@ export class UnifiedRequestManager {
           .maybeSingle();
 
         if (error) {
-          console.error('خطأ في جلب بيانات المؤسسة:', error);
           return null;
         }
         
         if (import.meta.env.DEV) {
-          console.log(`✅ [UnifiedRequestManager] تم جلب بيانات المؤسسة`);
         }
         
         return data;
@@ -539,7 +510,6 @@ export class UnifiedRequestManager {
       `unified_org_apps_${orgId}`,
       async () => {
         if (import.meta.env.DEV) {
-          console.log(`🔄 [UnifiedRequestManager] جلب تطبيقات المؤسسة: ${orgId}`);
         }
         
         const { data, error } = await supabase
@@ -549,12 +519,10 @@ export class UnifiedRequestManager {
           .order('created_at', { ascending: false });
 
         if (error) {
-          console.error('خطأ في جلب تطبيقات المؤسسة:', error);
           return [];
         }
         
         if (import.meta.env.DEV) {
-          console.log(`✅ [UnifiedRequestManager] تم جلب ${data?.length || 0} تطبيق`);
         }
         
         return data || [];
@@ -569,7 +537,6 @@ export class UnifiedRequestManager {
   static async getUserById(userId: string) {
     if (!userId) {
       if (import.meta.env.DEV) {
-        console.warn(`⚠️ [UnifiedRequestManager] معرف المستخدم فارغ`);
       }
       return null;
     }
@@ -578,7 +545,6 @@ export class UnifiedRequestManager {
       `unified_user_${userId}`,
       async () => {
         if (import.meta.env.DEV) {
-          console.log(`🔄 [UnifiedRequestManager] جلب بيانات المستخدم: ${userId}`);
         }
         
         const { data, error } = await supabase
@@ -588,12 +554,10 @@ export class UnifiedRequestManager {
           .maybeSingle();
 
         if (error) {
-          console.error('خطأ في جلب بيانات المستخدم:', error);
           return null;
         }
         
         if (import.meta.env.DEV) {
-          console.log(`✅ [UnifiedRequestManager] تم جلب بيانات المستخدم`);
         }
         
         return data;
@@ -629,7 +593,6 @@ export class UnifiedRequestManager {
       }
       
       if (import.meta.env.DEV) {
-        console.log(`🧹 [UnifiedRequestManager] تم مسح الكاش للنمط: ${pattern}`);
       }
     } else {
       // مسح كل الكاش
@@ -638,7 +601,6 @@ export class UnifiedRequestManager {
       LAST_REQUEST_TIMES.clear();
       
       if (import.meta.env.DEV) {
-        console.log(`🧹 [UnifiedRequestManager] تم مسح كل الكاش`);
       }
     }
   }

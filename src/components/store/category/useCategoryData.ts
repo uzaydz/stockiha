@@ -1,7 +1,9 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { smartPreloadImages } from '@/lib/imageOptimization';
+import { useQuery } from '@tanstack/react-query';
+import { loadCriticalImages, loadLazyImages } from '@/lib/imageOptimization';
 import { useSharedStoreDataContext } from '@/context/SharedStoreDataContext';
+import { useTenant } from '@/context/TenantContext';
 import { getDefaultCategories, mapRealCategoriesToExtended } from './utils';
 import type { ExtendedCategory, CategorySettings } from './types';
 
@@ -17,84 +19,63 @@ export const useCategoryData = ({
   settings = {}
 }: UseCategoryDataProps) => {
   const { t } = useTranslation();
-  const [isLoading, setIsLoading] = useState(false);
-  const [freshCategories, setFreshCategories] = useState<ExtendedCategory[]>([]);
-  
+  const { currentOrganization } = useTenant();
   const { categories: sharedCategories = [] } = useSharedStoreDataContext();
 
-  // جلب أحدث بيانات الفئات
-  useEffect(() => {
-    const fetchFreshCategories = async () => {
-      if (!useRealCategories) return;
-      
-      try {
-        setIsLoading(true);
-        
-        const getOrganizationId = () => {
-          const storedOrgId = localStorage.getItem('bazaar_organization_id');
-          if (storedOrgId) return storedOrgId;
-          
-          const hostname = window.location.hostname;
-          if (hostname.includes('asraycollection')) {
-            return '560e2c06-d13c-4853-abcf-d41f017469cf';
-          }
-          
-          return null;
-        };
-        
-        const orgId = getOrganizationId();
-        if (!orgId) {
-          setFreshCategories([]);
-          return;
-        }
-        
-        const { getSupabaseClient } = await import('@/lib/supabase');
-        const supabase = getSupabaseClient();
-        
-        const { data, error } = await supabase
-          .from('product_categories')
-          .select('id, name, slug, image_url, is_active, updated_at, icon, description')
-          .eq('organization_id', orgId)
-          .eq('is_active', true)
-          .order('name');
-        
-        if (error) {
-          setFreshCategories([]);
-          return;
-        }
-        
-        const updatedCategories = (data || []).map(category => ({
-          id: category.id,
-          name: category.name,
-          description: category.description || t('productCategories.fallbackDescription'),
-          slug: category.slug,
-          imageUrl: category.image_url ? `${category.image_url}?v=${new Date(category.updated_at || Date.now()).getTime()}` : '',
-          icon: category.icon || 'layers',
-          color: 'from-primary/20 to-secondary/20'
-        }));
-        
-        setFreshCategories(updatedCategories);
-      } catch (error) {
-        setFreshCategories([]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  // استخدام organizationId من TenantContext بدلاً من localStorage
+  const organizationId = currentOrganization?.id || (() => {
+    const storedOrgId = localStorage.getItem('bazaar_organization_id');
+    if (storedOrgId) return storedOrgId;
     
-    fetchFreshCategories();
+    const hostname = window.location.hostname;
+    if (hostname.includes('asraycollection')) {
+      return '560e2c06-d13c-4853-abcf-d41f017469cf';
+    }
+    
+    return null;
+  })();
 
-    const handleCategoriesUpdate = () => {
-      setFreshCategories([]);
-      setTimeout(() => {
-        fetchFreshCategories();
-      }, 100);
-    };
-
-    window.addEventListener('categoriesUpdated', handleCategoriesUpdate);
-    return () => {
-      window.removeEventListener('categoriesUpdated', handleCategoriesUpdate);
-    };
-  }, [useRealCategories, t]);
+  // استخدام React Query لجلب البيانات مع deduplication تلقائي
+  const {
+    data: freshCategories = [],
+    isLoading,
+    error
+  } = useQuery({
+    queryKey: ['product-categories', organizationId],
+    queryFn: async (): Promise<ExtendedCategory[]> => {
+      if (!organizationId) return [];
+      
+      const { getSupabaseClient } = await import('@/lib/supabase');
+      const supabase = getSupabaseClient();
+      
+      const { data, error } = await supabase
+        .from('product_categories')
+        .select('id, name, slug, image_url, is_active, updated_at, icon, description')
+        .eq('organization_id', organizationId)
+        .eq('is_active', true)
+        .order('name');
+      
+      if (error) {
+        return [];
+      }
+      
+      return (data || []).map(category => ({
+        id: category.id,
+        name: category.name,
+        description: category.description || t('productCategories.fallbackDescription'),
+        slug: category.slug,
+        imageUrl: category.image_url ? `${category.image_url}?v=${new Date(category.updated_at || Date.now()).getTime()}` : '',
+        icon: category.icon || 'layers',
+        color: 'from-primary/20 to-secondary/20'
+      }));
+    },
+    enabled: useRealCategories && !!organizationId,
+    staleTime: 5 * 60 * 1000, // 5 دقائق
+    gcTime: 10 * 60 * 1000, // 10 دقائق  
+    refetchOnWindowFocus: false,
+    retry: 2,
+    retryDelay: 1000,
+  });
 
   // معالجة البيانات النهائية
   const displayedCategories = useMemo(() => {
@@ -148,19 +129,12 @@ export const useCategoryData = ({
         const priorityImages = imageUrls.slice(0, 3);
         const lazyImages = imageUrls.slice(3);
         
-        // تحميل فوري للصور المهمة
-        priorityImages.forEach(url => {
-          const img = new Image();
-          img.loading = 'eager';
-          img.decoding = 'sync';
-          img.src = url;
-        });
+        // تحميل فوري للصور المهمة بدون preload links
+        loadCriticalImages(priorityImages);
         
         // تحميل متأخر للباقي
         if (lazyImages.length > 0) {
-          setTimeout(() => {
-            smartPreloadImages(lazyImages, { immediate: false, delay: 100 });
-          }, 500);
+          loadLazyImages(lazyImages, 500);
         }
       }
     }

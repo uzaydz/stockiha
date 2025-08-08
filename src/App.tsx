@@ -81,6 +81,20 @@ const App = () => {
               </PublicRoute>
             </Suspense>
           } />
+          <Route path="/forgot-password" element={
+            <Suspense fallback={<PageLoader message="جاري تحميل صفحة نسيت كلمة المرور..." />}>
+              <PublicRoute>
+                <LazyRoutes.ForgotPasswordForm />
+              </PublicRoute>
+            </Suspense>
+          } />
+          <Route path="/reset-password" element={
+            <Suspense fallback={<PageLoader message="جاري تحميل صفحة إعادة تعيين كلمة المرور..." />}>
+              <PublicRoute>
+                <LazyRoutes.ResetPasswordForm />
+              </PublicRoute>
+            </Suspense>
+          } />
           <Route path="/admin/signup" element={
             <Suspense fallback={<PageLoader message="جاري تحميل التسجيل..." />}>
               <PublicRoute>

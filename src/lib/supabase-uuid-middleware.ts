@@ -53,4 +53,4 @@ export function cleanRpcParams(params: Record<string, any>): Record<string, any>
   });
   
   return cleaned;
-} 
+}

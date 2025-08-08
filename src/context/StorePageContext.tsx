@@ -1,5 +1,5 @@
 import React, { createContext, useContext, ReactNode } from 'react';
-import { useSharedStoreData } from '@/hooks/useSharedStoreData';
+import { useSharedStoreDataContext } from '@/context/SharedStoreDataContext';
 
 // أنواع البيانات المطلوبة لصفحة المتجر فقط
 interface StorePageProduct {
@@ -34,8 +34,8 @@ export const StorePageProvider: React.FC<{
   children: ReactNode;
   organizationId?: string;
 }> = ({ children, organizationId: propOrganizationId }) => {
-  // استخدام البيانات المشتركة بدلاً من جلب منفصل
-  const { products, featuredProducts, isLoading, error, refreshData } = useSharedStoreData();
+  // استخدام البيانات المشتركة (بدون أي جلب إضافي)
+  const { products, featuredProducts, isLoading, error, refreshData } = useSharedStoreDataContext();
 
   const contextValue: StorePageContextType = {
     products,

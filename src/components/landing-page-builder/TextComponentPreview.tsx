@@ -1,4 +1,5 @@
 import React from 'react';
+import { sanitizeHTML } from '@/utils/security';
 
 interface TextComponentPreviewProps {
   settings: {
@@ -26,7 +27,7 @@ const TextComponentPreview: React.FC<TextComponentPreviewProps> = ({ settings })
         <div 
           className="prose prose-sm max-w-none mx-auto rtl"
           style={textStyle}
-          dangerouslySetInnerHTML={{ __html: settings.content || '<p>أدخل المحتوى النصي هنا...</p>' }}
+          dangerouslySetInnerHTML={{ __html: sanitizeHTML(settings.content || '<p>أدخل المحتوى النصي هنا...</p>') }}
         />
       </div>
     </section>

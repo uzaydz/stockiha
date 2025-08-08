@@ -16,60 +16,35 @@ export interface DisplayOrderInfo extends FullOrderInfo {
   estimatedDelivery?: string;
 }
 
-export async function getOrderByOrderNumber(orderNumber: string): Promise<FullOrderInfo | null> {
-  
+export async function getOrderByOrderNumber(orderNumber: string): Promise<(FullOrderInfo & { template?: any; organization_settings?: any }) | null> {
   const orderNum = parseInt(orderNumber, 10);
-  if (isNaN(orderNum)) {
-    return null;
-  }
+  if (isNaN(orderNum)) return null;
 
   try {
-    
-    // جلب الطلب الرئيسي مع بيانات metadata
-    const { data: orderDataArray, error: orderError } = await supabase
-      .from('online_orders')
-      .select('*' /* نحدد جميع الأعمدة بما في ذلك metadata */)
-      .eq('customer_order_number', orderNum)
-      .order('created_at', { ascending: false }) // أحدث طلب أولاً
-      .limit(1);
+    // استدعاء RPC الموحد الذي يعيد: order + items + template + organization_settings
+    const { data, error } = await (supabase as any).rpc('get_thank_you_page_data', {
+      p_customer_order_number: orderNum,
+      p_organization_id: null,
+    });
 
-    const orderData = orderDataArray?.[0] || null;
-
-    if (orderError) {
-      // إذا كان الخطأ هو عدم العثور على صف (PGRST116)، فهذا ليس خطأ فعليًا، فقط لم يتم العثور عليه
-      if (orderError.code === 'PGRST116') {
-        return null;
-      }
-      throw orderError;
+    if (error) throw error;
+    if (data && data.success === true) {
+      const order = (data.order || {}) as OnlineOrder;
+      const items = (data.items || []) as OnlineOrderItem[];
+  
+      const fullOrderInfo: FullOrderInfo & { template?: any; organization_settings?: any } = {
+        ...order,
+        metadata: (order as any).metadata,
+        items,
+        template: data.template || undefined,
+        organization_settings: data.organization_settings || undefined,
+      } as any;
+  
+      return fullOrderInfo;
     }
-
-    if (!orderData) {
-      return null;
-    }
-
-    // جلب عناصر الطلب المرتبطة
-    
-    const { data: itemData, error: itemError } = await supabase
-      .from('online_order_items')
-      .select('*')
-      .eq('order_id', (orderData as any).id);
-
-    if (itemError) {
-      throw itemError;
-    }
-
-    // دمج بيانات الطلب وعناصره
-    const fullOrderInfo: FullOrderInfo = {
-      ...orderData,
-      // Supabase type generation might not be picking up the metadata column correctly,
-      // but it should be present in the actual data. Casting to any to bypass linter.
-      metadata: (orderData as any).metadata, 
-      items: itemData || [],
-    } as any;
-
-    return fullOrderInfo;
-
-  } catch (error) {
+    // بدون فولباك لتجنّب تعدد الاستدعاءات
+    return null;
+  } catch (_) {
     return null;
   }
 }

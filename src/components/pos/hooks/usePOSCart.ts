@@ -63,23 +63,16 @@ export const usePOSCart = ({
   // للتوافق مع الكود الحالي - محسن للتحديث التلقائي
   const cartItems = useMemo(() => {
     const items = activeTab?.cartItems || [];
-    console.log('🛒 تحديث cartItems:', { 
-      tabId: activeTab?.id, 
-      itemsCount: items.length,
-      items: items.map(item => ({ id: item.product.id, name: item.product.name, quantity: item.quantity }))
-    });
     return items;
   }, [activeTab?.cartItems, activeTab?.id]);
   
   const selectedServices = useMemo(() => {
     const services = activeTab?.selectedServices || [];
-    console.log('🔧 تحديث selectedServices:', { tabId: activeTab?.id, servicesCount: services.length });
     return services;
   }, [activeTab?.selectedServices, activeTab?.id]);
   
   const selectedSubscriptions = useMemo(() => {
     const subscriptions = activeTab?.selectedSubscriptions || [];
-    console.log('📋 تحديث selectedSubscriptions:', { tabId: activeTab?.id, subscriptionsCount: subscriptions.length });
     return subscriptions;
   }, [activeTab?.selectedSubscriptions, activeTab?.id]);
 
@@ -270,8 +263,6 @@ export const usePOSCart = ({
 
   // مسح السلة - محسن مع تنظيف شامل
   const clearCart = useCallback(() => {
-    console.log('🗑️ مسح السلة - التبويب النشط:', activeTabId);
-    console.log('🗑️ عناصر السلة قبل المسح:', cartItems.length);
 
     // ✅ تم إصلاح المشكلة: لا يتم تحديث المخزون عند مسح السلة
     // المخزون سيتم تحديثه فقط عند إتمام/إلغاء الطلب الفعلي

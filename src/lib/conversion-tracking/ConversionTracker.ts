@@ -181,12 +181,15 @@ class ConversionTracker {
       const { supabase } = await import('@/lib/supabase-client');
 
       // استدعاء دالة get_product_complete_data مباشرة
-      const { data: productData, error } = await supabase.rpc('get_product_complete_data', {
+      const rpcResult: any = await supabase.rpc('get_product_complete_data' as any, {
         p_product_identifier: this.productId,
         p_organization_id: null,
         p_include_inactive: false,
         p_data_scope: 'ultra'
-      });
+      } as any);
+
+      const productData: any = rpcResult?.data;
+      const error: any = rpcResult?.error;
 
       if (error || !productData?.success) {
         return;
@@ -313,10 +316,10 @@ class ConversionTracker {
    */
   private async sendToFacebook(event: ConversionEvent): Promise<void> {
     try {
-      // إنشاء event_ids منفصلة لكل مصدر لرؤية كلاهما في Facebook
+      // استخدام نفس event_id لكل من Pixel و Conversion API لتفعيل deduplication
       const baseEventId = this.generateEventId(event);
-      const pixelEventId = `${baseEventId}_pixel`;
-      const apiEventId = `${baseEventId}_api`;
+      const pixelEventId = baseEventId;
+      const apiEventId = baseEventId;
       
       // Facebook Pixel (Client-side) - يعمل بنجاح
       if (typeof window !== 'undefined' && window.fbq) {
@@ -326,18 +329,48 @@ class ConversionTracker {
         };
 
         // إضافة البيانات الأساسية
-        if (event.value) eventData.value = event.value;
+        const hasNumericValue = typeof event.value === 'number' && isFinite(event.value as number);
+        if (hasNumericValue) eventData.value = event.value;
         if (event.order_id) eventData.order_id = event.order_id;
+
+        // تعزيز بيانات المنتج لرفع EMQ: contents و num_items و content_name
+        const quantity = Number(event.custom_data?.quantity ?? 1) || 1;
+        const unitPrice = ((): number | undefined => {
+          const fromCustom = event.custom_data?.unit_price;
+          if (typeof fromCustom === 'number' && isFinite(fromCustom)) return fromCustom;
+          if (hasNumericValue && quantity > 0) {
+            const computed = Number((event.value as number) / quantity);
+            return isFinite(computed) ? computed : undefined;
+          }
+          return undefined;
+        })();
+        eventData.contents = [
+          {
+            id: event.product_id,
+            quantity,
+            ...(typeof unitPrice === 'number' ? { item_price: unitPrice } : {})
+          }
+        ];
+        eventData.num_items = quantity;
+        if (!eventData.content_name) {
+          const nameFromCustom = event.custom_data?.content_name || event.custom_data?.product_name;
+          if (typeof nameFromCustom === 'string' && nameFromCustom.trim()) {
+            eventData.content_name = nameFromCustom.trim();
+          }
+        }
         
         // إضافة العملة للأحداث التي تتطلبها (Purchase فقط)
         // Facebook يتطلب العملة لأحداث Purchase
         if (event.event_type === 'purchase') {
-          // استخدام العملة المحددة أو DZD كافتراضي
-          const currency = event.currency || 'DZD';
-          eventData.currency = currency.toUpperCase();
+          // أرسل العملة فقط عند وجود قيمة رقمية، وإلا سيعطي Pixel تحذيرًا
+          if (hasNumericValue) {
+            const rawCurrency = (event.currency || 'DZD').toString();
+            const currencyCode = this.normalizeCurrencyForFacebook(rawCurrency);
+            eventData.currency = currencyCode;
+          }
         }
 
-        // استخدام Event ID منفصل للـ Pixel
+        // تمرير eventID الموحد للـ Pixel
         const fbqOptions: any = { eventID: pixelEventId };
         
         // إضافة test_event_code في وضع الاختبار
@@ -433,6 +466,11 @@ class ConversionTracker {
       event.custom_data,
       customerData
     );
+
+    // تمرير event_id الموحّد للتخلص من التكرار بين Pixel وCAPI
+    if (payload?.data && payload.data[0]) {
+      payload.data[0].event_id = eventId;
+    }
 
     await conversionAPI.sendEvent(payload);
   }
@@ -774,6 +812,41 @@ class ConversionTracker {
       // تجاهل أخطاء التخزين المحلي
     }
   }
+
+  /**
+   * تطبيع رمز العملة بما يتوافق مع متطلبات Facebook Pixel (3 حروف كبيرة)
+   * مع بعض التحسينات للأكواد الشائعة المكتوبة بصيغ مختلفة
+   */
+  private normalizeCurrencyForFacebook(input: string): string {
+    if (!input) return 'USD';
+    const trimmed = input.trim();
+    // استبدال الرموز الشائعة بالنُسخ القياسية
+    const symbolMap: Record<string, string> = {
+      'د.ج': 'DZD',
+      'دج': 'DZD',
+      'DA': 'DZD',
+      'د.م.': 'MAD',
+      'د.م': 'MAD',
+      'DH': 'MAD',
+      '$': 'USD',
+      '€': 'EUR',
+      '£': 'GBP',
+      '¥': 'JPY'
+    };
+    if (symbolMap[trimmed]) return symbolMap[trimmed];
+    const upper = trimmed.toUpperCase();
+    // خرائط خاصة لعملات غير مدعومة من Facebook Pixel
+    if (upper === 'DZD') return 'USD';
+    // إن كان 3 أحرف لاتينية اعتبره صالحًا
+    if (/^[A-Z]{3}$/.test(upper)) return upper;
+    // محاولة استخراج حروف لاتينية فقط
+    const onlyLetters = upper.replace(/[^A-Z]/g, '');
+    if (onlyLetters.length === 3) return onlyLetters;
+    // افتراضي آمن
+    return 'USD';
+  }
+
+  // ملاحظة: تطبيق Advanced Matching يتم عبر PixelLoader عند init لتجنب تكرار تهيئة Pixel
 }
 
 // تصدير كـ Singleton لكل منتج

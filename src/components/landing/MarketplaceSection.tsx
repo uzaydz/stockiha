@@ -11,6 +11,7 @@ import {
   Link as LinkIcon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { sanitizeHTML } from '@/utils/security';
 
 const MarketplaceSection = () => {
   const marketplaceFeatures = [
@@ -73,7 +74,7 @@ const MarketplaceSection = () => {
                   </div>
                   <div>
                     <h3 className="text-lg font-medium mb-1">{feature.title}</h3>
-                    <p className="text-muted-foreground text-sm" dangerouslySetInnerHTML={{ __html: feature.description }} />
+                    <p className="text-muted-foreground text-sm" dangerouslySetInnerHTML={{ __html: sanitizeHTML(feature.description) }} />
                   </div>
                 </motion.div>
               ))}

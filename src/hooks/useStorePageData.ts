@@ -7,8 +7,8 @@ import { StoreComponent, ComponentType } from '@/types/store-editor';
 import { useSharedStoreDataContext } from '@/context/SharedStoreDataContext';
 import { useStoreInfo, useOrganizationSettings } from '@/hooks/useAppInitData';
 import { getDefaultFooterSettings, mergeFooterSettings } from '@/lib/footerSettings';
+import { convertDatabaseProductToStoreProduct } from '@/components/store/productUtils';
 import { useUnifiedLoading } from './useUnifiedLoading';
-import { useProductPageSettings } from '@/context/ProductPageContext';
 
 export interface UseStorePageDataReturn {
   // بيانات أساسية
@@ -50,30 +50,28 @@ export const useStorePageData = (): UseStorePageDataReturn => {
   const storeInfo = useStoreInfo();
   const organizationSettingsFromInit = useOrganizationSettings();
   
-  // 🔥 للنطاقات المخصصة: استخدام ProductPageContext
-  const organizationSettingsFromProduct = useProductPageSettings();
-  
-  // 🔥 إصلاح مهم: استخدام إعدادات المؤسسة من ProductPageContext للنطاقات المخصصة
-  const organizationSettings = organizationSettingsFromInit || organizationSettingsFromProduct;
+  // 🔥 أولوية: إعدادات المؤسسة من الـ RPC (SharedStoreDataContext) ثم من AppInit
+  const { organizationSettings: sharedOrgSettings, organization: sharedOrg } = useSharedStoreDataContext();
+  const organizationSettings = sharedOrgSettings || organizationSettingsFromInit;
   
   // استخراج البيانات المطلوبة - تحسين للنطاقات المخصصة
-  const storeName = storeInfo?.name || currentOrganization?.name || organizationSettings?.site_name || 'المتجر';
-  const logoUrl = storeInfo?.logo_url || organizationSettings?.logo_url || null;
+  const storeName = organizationSettings?.site_name || storeInfo?.name || currentOrganization?.name || 'المتجر';
+  const logoUrl = organizationSettings?.logo_url || storeInfo?.logo_url || null;
   
   // 🔥 إصلاح مهم: استخدام currentOrganization.id للنطاقات المخصصة
-  const centralOrgId = storeInfo?.id || currentOrganization?.id || null;
+  const centralOrgId = storeInfo?.id || currentOrganization?.id || sharedOrg?.id || null;
   
   // 🔥 تحسين: إنشاء storeInfo محسن للـ components
   const enhancedStoreInfo = useMemo(() => {
     if (storeInfo) return storeInfo; // إذا كان متوفر من useStoreInfo
     
     // إنشاء storeInfo من البيانات المتوفرة للنطاقات المخصصة
-    if (centralOrgId && (currentOrganization || organizationSettings)) {
+    if (centralOrgId && (currentOrganization || organizationSettings || sharedOrg)) {
       return {
         id: centralOrgId,
-        name: organizationSettings?.site_name || currentOrganization?.name || 'المتجر',
+        name: organizationSettings?.site_name || currentOrganization?.name || sharedOrg?.name || 'المتجر',
         subdomain: currentOrganization?.subdomain || currentSubdomain,
-        logo_url: organizationSettings?.logo_url || null
+        logo_url: organizationSettings?.logo_url || sharedOrg?.logo_url || null
       };
     }
     
@@ -106,10 +104,14 @@ export const useStorePageData = (): UseStorePageDataReturn => {
   }, [organizationSettings, centralOrgId, currentOrganization?.subdomain]);
   
   // البيانات المشتركة
-  const { 
-    categories: sharedCategories, 
-    isLoading: sharedDataLoading, 
-    refreshData: refreshSharedData 
+  const {
+    categories: sharedCategories,
+    featuredProducts: sharedFeaturedProducts,
+    components: sharedComponents,
+    footerSettings: sharedFooterSettings,
+    seoMeta: sharedSeoMeta,
+    isLoading: sharedDataLoading,
+    refreshData: refreshSharedData
   } = useSharedStoreDataContext();
   
   // حالات محلية
@@ -209,26 +211,30 @@ export const useStorePageData = (): UseStorePageDataReturn => {
     return components;
   }, [customComponents, defaultStoreComponents]);
   
-  // إعدادات SEO
+  // إعدادات SEO (أولوية: seoMeta القادمة من RPC)
   const seoSettings = useMemo(() => {
+    if (sharedSeoMeta) {
+      return {
+        title: sharedSeoMeta.title || storeName || 'المتجر الإلكتروني',
+        description: sharedSeoMeta.description || `متجر ${storeName} - أفضل المنتجات بأفضل الأسعار`,
+        keywords: sharedSeoMeta.keywords || '',
+        ogImage: sharedSeoMeta.image || logoUrl || ''
+      };
+    }
     let settings = null;
     try {
       if (organizationSettings?.custom_js) {
         const customJsData = JSON.parse(organizationSettings.custom_js);
         settings = customJsData?.seoSettings;
       }
-    } catch (error) {
-      // تجاهل أخطاء تحليل JSON
-    }
-    
+    } catch {}
     return {
       title: settings?.title || organizationSettings?.seo_store_title || storeName || 'المتجر الإلكتروني',
       description: settings?.description || organizationSettings?.seo_meta_description || `متجر ${storeName} - أفضل المنتجات بأفضل الأسعار`,
       keywords: settings?.keywords || '',
-      ogImage: settings?.default_image_url || logoUrl || '',
-      ...settings
+      ogImage: settings?.default_image_url || logoUrl || ''
     };
-  }, [organizationSettings, storeName, logoUrl]);
+  }, [organizationSettings, storeName, logoUrl, sharedSeoMeta]);
   
   // تحديث حالة تحميل البيانات - إصلاح dependency issue
   useEffect(() => {
@@ -237,186 +243,71 @@ export const useStorePageData = (): UseStorePageDataReturn => {
     }
   }, [sharedDataLoading]); // إزالة unifiedLoading من dependencies
   
-  // جلب المكونات المخصصة والمنتجات المميزة
+  // جلب المكونات المخصصة والمنتجات المميزة مع الاعتماد على بيانات السياق أولاً
   useEffect(() => {
     if (!centralOrgId) return;
-    
-    const fetchStoreData = async () => {
-      try {
-        // 🚀 محاولة استخدام البيانات المحفوظة من appInitializer أولاً
-        const { getAppInitData } = await import('@/lib/appInitializer');
-        const appData = getAppInitData();
-        
-        let componentsData = null;
-        
-        if (appData?.storeSettings && appData.storeSettings.length > 0) {
-          // تصفية البيانات محلياً بدلاً من الطلب
-          componentsData = appData.storeSettings.filter((comp: any) => 
-            comp.is_active && 
-            comp.component_type !== 'footer' && 
-            comp.component_type !== 'seo_settings'
-          );
-        } else {
-          // 🔄 إذا لم تتوفر البيانات المحفوظة، جلب من قاعدة البيانات مع التنسيق
-          const { coordinateRequest } = await import('@/lib/api/requestCoordinator');
-          
-          componentsData = await coordinateRequest(
-            'store_settings',
-            { 
-              organization_id: centralOrgId,
-              is_active: true,
-              component_type_neq_footer: true,
-              component_type_neq_seo_settings: true,
-              order: 'order_index.asc'
-            },
-            async () => {
-              const supabase = getSupabaseClient();
-              const { data } = await supabase
-                .from('store_settings')
-                .select('*')
-                .eq('organization_id', centralOrgId)
-                .eq('is_active', true)
-                .neq('component_type', 'footer')
-                .neq('component_type', 'seo_settings')
-                .order('order_index');
-              return data;
-            },
-            'useStorePageData-components'
-          );
-        }
-        
-        if (componentsData) {
-          const convertedComponents: StoreComponent[] = componentsData.map(comp => ({
-            id: comp.id,
-            type: comp.component_type as ComponentType,
-            settings: comp.settings || {},
-            isActive: comp.is_active,
-            orderIndex: comp.order_index
-          }));
-          setCustomComponents(convertedComponents);
-        }
-        
-        // جلب المنتجات المميزة مع التنسيق
-        let productsData = null;
-        
-        if (appData?.products && appData.products.length > 0) {
-          // تصفية المنتجات المميزة محلياً
-          productsData = appData.products.filter((product: any) => 
-            product.is_featured && product.is_active
-          ).slice(0, 8); // الحد الأقصى 8 منتجات
-        } else {
-          // 🔄 جلب من قاعدة البيانات مع التنسيق
-          const { coordinateRequest } = await import('@/lib/api/requestCoordinator');
-          
-          productsData = await coordinateRequest(
-            'products',
-            { 
-              organization_id: centralOrgId,
-              is_active: true,
-              is_featured: true,
-              limit: 8,
-              select: 'id,name,description,price,compare_at_price,thumbnail_image,slug,stock_quantity,is_new,product_categories(name)'
-            },
-            async () => {
-              const supabase = getSupabaseClient();
-              const { data } = await supabase
-                .from('products')
-                .select(`
-                  id, name, description, price, compare_at_price,
-                  thumbnail_image, slug, stock_quantity, is_new,
-                  product_categories(name)
-                `)
-                .eq('organization_id', centralOrgId)
-                .eq('is_active', true)
-                .eq('is_featured', true)
-                .limit(8);
-              
-              return data;
-            },
-            'useStorePageData-featured'
-          );
-        }
-        
-        if (productsData) {
-          const convertedProducts = productsData.map((product: any) => ({
-            id: product.id,
-            name: product.name,
-            description: product.description || '',
-            price: Number(product.price || 0),
-            discount_price: product.compare_at_price ? Number(product.compare_at_price) : undefined,
-            imageUrl: product.thumbnail_image || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1470',
-            category: product.product_categories?.name || '',
-            is_new: !!product.is_new,
-            stock_quantity: Number(product.stock_quantity || 0),
-            slug: product.slug || product.id,
+
+    // 1) المكوّنات: استخدم القادمة من الـ RPC إن توفرت
+    if (sharedComponents && sharedComponents.length > 0) {
+      const convertedComponents: StoreComponent[] = sharedComponents
+        .filter((comp: any) => comp?.isActive !== false)
+        .map((comp: any) => ({
+          id: comp.id,
+          type: (comp.type || comp.component_type) as ComponentType,
+          settings: comp.settings || {},
+          isActive: comp.isActive ?? comp.is_active ?? true,
+          orderIndex: comp.orderIndex ?? comp.order_index ?? 0
+        }))
+        .sort((a, b) => a.orderIndex - b.orderIndex);
+      setCustomComponents(convertedComponents);
+    } else {
+      // fallback خفيف: لا نطلق أي نداء هنا إذا لم تتوفر بيانات RPC. يمكن ترك المكوّنات الافتراضية
+    }
+
+    // 2) المنتجات المميزة: استخدم القادمة من الـ RPC إن توفرت
+    if (sharedFeaturedProducts && sharedFeaturedProducts.length > 0) {
+      const convertedProducts = sharedFeaturedProducts.map((dbProd: any) => {
+        try {
+          return convertDatabaseProductToStoreProduct(dbProd);
+        } catch {
+          // fallback بسيط إذا فشل التحويل
+          return {
+            id: dbProd.id,
+            name: dbProd.name,
+            description: dbProd.description || '',
+            price: Number(dbProd.price || 0),
+            discount_price: dbProd.compare_at_price ? Number(dbProd.compare_at_price) : undefined,
+            imageUrl: dbProd.thumbnail_url || dbProd.thumbnail_image || dbProd.imageUrl || '',
+            category: dbProd.product_categories?.name || dbProd.category || '',
+            is_new: !!dbProd.is_new,
+            stock_quantity: Number(dbProd.stock_quantity || 0),
+            slug: dbProd.slug || dbProd.id,
             rating: 4.5
-          }));
-          setFeaturedProducts(convertedProducts);
+          };
         }
-        
-      } catch (error) {
-      }
-    };
-    
-    fetchStoreData();
-  }, [centralOrgId]);
+      });
+      setFeaturedProducts(convertedProducts);
+    }
+  }, [centralOrgId, sharedComponents, sharedFeaturedProducts]);
   
-  // جلب إعدادات الفوتر
+  // جلب إعدادات الفوتر دون شبكة إذا توفرت من RPC أو من المكوّنات
   useEffect(() => {
     if (!centralOrgId) return;
-    
-    const fetchFooterSettings = async () => {
-      try {
-        // 🚀 محاولة استخدام البيانات المحفوظة من appInitializer أولاً
-        const { getAppInitData } = await import('@/lib/appInitializer');
-        const appData = getAppInitData();
-        
-        if (appData?.storeSettings && appData.storeSettings.length > 0) {
-          // تصفية إعدادات الفوتر محلياً
-          const footerData = appData.storeSettings.find((comp: any) => 
-            comp.is_active && comp.component_type === 'footer'
-          );
-          
-          if (footerData?.settings) {
-            setFooterSettings(footerData.settings);
-          }
-          return;
-        }
-        
-        // 🔄 إذا لم تتوفر البيانات المحفوظة، جلب من قاعدة البيانات مع التنسيق
-        const { coordinateRequest } = await import('@/lib/api/requestCoordinator');
-        
-        const footerData = await coordinateRequest(
-          'store_settings',
-          { 
-            organization_id: centralOrgId,
-            component_type: 'footer',
-            is_active: true,
-            select: 'settings'
-          },
-          async () => {
-            const supabase = getSupabaseClient();
-            const { data } = await supabase
-              .from('store_settings')
-              .select('settings')
-              .eq('organization_id', centralOrgId)
-              .eq('component_type', 'footer')
-              .eq('is_active', true)
-              .maybeSingle();
-            return data;
-          },
-          'useStorePageData-footer'
-        );
-        
-        if (footerData?.settings) {
-          setFooterSettings(footerData.settings);
-        }
-      } catch (error) {
+    // 1) استخدم footerSettings القادمة من RPC إن توفرت
+    if (sharedFooterSettings) {
+      setFooterSettings(sharedFooterSettings);
+      return;
+    }
+    // 2) حاول استخراج الفوتر من sharedComponents إن وُجد
+    if (sharedComponents && sharedComponents.length > 0) {
+      const footerComp = sharedComponents.find((c: any) => (c.type || c.component_type) === 'footer');
+      if (footerComp?.settings) {
+        setFooterSettings(footerComp.settings);
+        return;
       }
-    };
-    
-    fetchFooterSettings();
-  }, [centralOrgId]);
+    }
+    // وإلا اترك الإعدادات الافتراضية (سيتم توليد Footer افتراضي في StoreLayout)
+  }, [centralOrgId, sharedComponents, sharedFooterSettings]);
   
   // تحديث عنوان الصفحة
   useEffect(() => {

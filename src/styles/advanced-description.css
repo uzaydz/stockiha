@@ -1,0 +1,241 @@
+/* Advanced Description Image Component Styles */
+
+.advanced-description-image {
+  transition: all 0.3s ease;
+}
+
+.advanced-description-image:hover {
+  transform: scale(1.02);
+}
+
+/* Size Mode Styles */
+.image-size-responsive {
+  max-width: 100%;
+  height: auto;
+}
+
+.image-size-full-width {
+  width: 100%;
+  height: auto;
+}
+
+.image-size-contain {
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.image-size-cover {
+  width: 100%;
+  height: 300px;
+  object-fit: cover;
+}
+
+.image-size-custom {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Aspect Ratio Styles */
+.image-aspect-1-1 {
+  aspect-ratio: 1 / 1;
+}
+
+.image-aspect-4-3 {
+  aspect-ratio: 4 / 3;
+}
+
+.image-aspect-16-9 {
+  aspect-ratio: 16 / 9;
+}
+
+.image-aspect-3-2 {
+  aspect-ratio: 3 / 2;
+}
+
+/* Object Position Styles */
+.image-position-center {
+  object-position: center;
+}
+
+.image-position-top {
+  object-position: top;
+}
+
+.image-position-bottom {
+  object-position: bottom;
+}
+
+.image-position-left {
+  object-position: left;
+}
+
+.image-position-right {
+  object-position: right;
+}
+
+.image-position-top-left {
+  object-position: top left;
+}
+
+.image-position-top-right {
+  object-position: top right;
+}
+
+.image-position-bottom-left {
+  object-position: bottom left;
+}
+
+.image-position-bottom-right {
+  object-position: bottom right;
+}
+
+/* Responsive Breakpoints */
+@media (max-width: 768px) {
+  .image-responsive-mobile {
+    max-width: 100% !important;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .image-responsive-tablet {
+    max-width: 80% !important;
+  }
+}
+
+@media (min-width: 1025px) {
+  .image-responsive-desktop {
+    max-width: 60% !important;
+  }
+}
+
+/* Lightbox Styles */
+.lightbox-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 1rem;
+}
+
+.lightbox-content {
+  position: relative;
+  max-width: 90vw;
+  max-height: 90vh;
+}
+
+.lightbox-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 0.5rem;
+}
+
+.lightbox-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  background-color: rgba(255, 255, 255, 0.9);
+  border: none;
+  border-radius: 0.25rem;
+  padding: 0.5rem;
+  cursor: pointer;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.lightbox-close:hover {
+  background-color: rgba(255, 255, 255, 1);
+}
+
+/* Hover Effects */
+.image-hover-zoom {
+  cursor: zoom-in;
+  transition: transform 0.3s ease;
+}
+
+.image-hover-zoom:hover {
+  transform: scale(1.02);
+}
+
+/* Shadow Effects */
+.image-shadow-light {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.image-shadow-medium {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.image-shadow-strong {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Loading States */
+.image-loading {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Error States */
+.image-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: #f8f9fa;
+  border: 2px dashed #dee2e6;
+  border-radius: 0.5rem;
+  padding: 2rem;
+  text-align: center;
+}
+
+.image-error-icon {
+  width: 2rem;
+  height: 2rem;
+  color: #6c757d;
+  margin-bottom: 0.5rem;
+}
+
+.image-error-text {
+  color: #6c757d;
+  font-size: 0.875rem;
+}
+
+/* Caption Styles */
+.image-caption {
+  margin-top: 0.75rem;
+  text-align: center;
+  font-size: 0.875rem;
+  color: #6c757d;
+  line-height: 1.4;
+}
+
+/* Alignment Styles */
+.image-align-left {
+  text-align: left;
+}
+
+.image-align-center {
+  text-align: center;
+}
+
+.image-align-right {
+  text-align: right;
+} 

@@ -12,6 +12,7 @@
 /* استيراد ملفات CSS الإضافية - محسن */
 @import './components/landing-page-builder/styles/cta-button.css';
 @import './styles/apps-management.css';
+@import './styles/advanced-description.css';
 
 /* 🎨 تعريفات خطوط Tajawal المحلية - أولوية عالية مع أكثر من مسار */
 @font-face {

@@ -1786,7 +1786,9 @@ if (typeof window !== 'undefined') {
 // تشغيل تحديث اللغة بعد تهيئة i18n فقط إذا لم توجد بيانات AppInitializer
 setTimeout(() => {
   const appInitData = localStorage.getItem('bazaar_app_init_data');
-  if (!appInitData) {
+  // إذا حصلنا على اللغة للتو (خلال دقيقة) فلا نعيد طلبها مرة أخرى لتجنب التكرار
+  const recentDbFetch = languageCache && (Date.now() - languageCache.timestamp) < IMMEDIATE_CACHE_DURATION;
+  if (!appInitData && !recentDbFetch) {
     updateLanguageFromDatabase();
   }
 }, 300);

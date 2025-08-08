@@ -112,6 +112,19 @@ const TenantRegistrationForm = () => {
   // معالجة إرسال النموذج
   const handleSubmit = async () => {
     
+    // تنظيف النطاق الفرعي قبل التحقق
+    const subdomainValue = form.getValues('subdomain');
+    if (subdomainValue) {
+      const cleanSubdomain = subdomainValue
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, '') // إزالة جميع المسافات
+        .replace(/[^a-z0-9-]/g, '') // إزالة الأحرف غير المسموحة
+        .replace(/^-+|-+$/g, '') // إزالة الشرطات من البداية والنهاية
+        .replace(/-+/g, '-'); // تحويل الشرطات المتعددة إلى شرطة واحدة
+      form.setValue('subdomain', cleanSubdomain);
+    }
+    
     // التحقق من صحة كل الحقول قبل الإرسال
     const isValid = await form.trigger();
     

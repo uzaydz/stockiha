@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef, Suspense, laz
 import { useParams } from 'react-router-dom';
 import { useSupabase } from '@/context/SupabaseContext';
 import { useTenant } from '@/context/TenantContext';
+import { addCSRFTokenToFormData } from '@/utils/csrf';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -168,13 +169,13 @@ const FormComponent: React.FC<FormComponentProps> = React.memo(({ settings, land
         updatedFormData.product_price = productDetails.price;
       }
       
-      // بيانات JSON
-      const jsonData = {
+      // بيانات JSON مع CSRF protection
+      const jsonData = addCSRFTokenToFormData({
         ...updatedFormData,
         organization_id,
         submitted_at: new Date().toISOString(),
         status: 'new'
-      };
+      });
       
       // بيانات الطلب
       const submissionData = {

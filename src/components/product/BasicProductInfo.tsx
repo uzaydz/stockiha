@@ -2,15 +2,20 @@ import { FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/comp
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { UseFormReturn } from "react-hook-form";
 import { ProductFormValues } from "@/types/product";
-import { Package, Tag, FileText, Star, Gift, Eye, Info, HelpCircle, Link } from 'lucide-react';
+import { Package, Tag, FileText, Star, Gift, Eye, Info, HelpCircle, Link, Wand2, Sparkles, Bot } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
 import { useEffect, useState } from "react";
 import { generateSlugFromText, cleanSlug, isValidSlug } from "@/utils/slugUtils";
+import { AdvancedDescriptionBuilder } from "@/components/advanced-description/AdvancedDescriptionBuilder";
+import { AdvancedDescription } from "@/types/advanced-description";
+import { DescriptionGenerator } from "./DescriptionGenerator";
+import { ProductInfoGenerator } from "./ProductInfoGenerator";
 
 interface BasicProductInfoProps {
   form: UseFormReturn<ProductFormValues>;
@@ -18,21 +23,37 @@ interface BasicProductInfoProps {
 
 export default function BasicProductInfo({ form }: BasicProductInfoProps) {
   const [isSlugManual, setIsSlugManual] = useState(false);
+  const [showAdvancedBuilder, setShowAdvancedBuilder] = useState(false);
+  const [advancedDescription, setAdvancedDescription] = useState<AdvancedDescription | null>(null);
+  const [showDescriptionGenerator, setShowDescriptionGenerator] = useState(false);
+  const [showProductInfoGenerator, setShowProductInfoGenerator] = useState(false);
+  const [isFromProductInfoGenerator, setIsFromProductInfoGenerator] = useState(false);
   
   // Watch product name to auto-generate slug
   const watchedName = form.watch('name');
   const watchedSlug = form.watch('slug');
 
-  // Auto-generate slug when name changes (only if not manually edited)
+  // Auto-generate slug when name changes (only if not manually edited and not from ProductInfoGenerator)
   useEffect(() => {
-    if (watchedName && !isSlugManual) {
-      const generatedSlug = generateSlugFromText(watchedName);
-      form.setValue('slug', generatedSlug, { shouldValidate: true });
+    if (watchedName && !isSlugManual && !isFromProductInfoGenerator) {
+      // فقط إذا كان الـ slug فارغ أو يحتوي على قيمة افتراضية
+      const currentSlug = form.getValues('slug');
+      if (!currentSlug || currentSlug === 'product' || currentSlug === '') {
+        const generatedSlug = generateSlugFromText(watchedName);
+        form.setValue('slug', generatedSlug, { shouldValidate: true });
+      }
     }
-  }, [watchedName, isSlugManual, form]);
+  }, [watchedName, isSlugManual, isFromProductInfoGenerator, form]);
+
+  // Sync advanced description from form data
+  useEffect(() => {
+    const formAdvancedDescription = form.getValues('advanced_description');
+    setAdvancedDescription(formAdvancedDescription || null);
+  }, [form.watch('advanced_description')]);
 
   const handleSlugChange = (value: string) => {
     setIsSlugManual(true);
+    setIsFromProductInfoGenerator(false); // إعادة تعيين العلم عند التغيير اليدوي
     const cleanedSlug = cleanSlug(value);
     form.setValue('slug', cleanedSlug, { shouldValidate: true });
   };
@@ -43,6 +64,33 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
       const generatedSlug = generateSlugFromText(watchedName);
       form.setValue('slug', generatedSlug, { shouldValidate: true });
     }
+  };
+
+  const handleDescriptionGenerated = (description: string) => {
+    form.setValue('description', description, { shouldValidate: true, shouldDirty: true });
+  };
+
+  const handleProductInfoGenerated = (info: {
+    name: string;
+    description: string;
+    brand: string;
+    shippingName: string;
+    slug: string;
+  }) => {
+    // تعيين العلم لمنع التوليد التلقائي للـ slug
+    setIsFromProductInfoGenerator(true);
+    setIsSlugManual(true); // تعيين كـ manual لمنع التوليد التلقائي
+    
+    form.setValue('name', info.name, { shouldValidate: true, shouldDirty: true });
+    form.setValue('description', info.description, { shouldValidate: true, shouldDirty: true });
+    form.setValue('brand', info.brand, { shouldValidate: true, shouldDirty: true });
+    form.setValue('name_for_shipping', info.shippingName, { shouldValidate: true, shouldDirty: true });
+    form.setValue('slug', info.slug, { shouldValidate: true, shouldDirty: true });
+    
+    // إعادة تعيين العلم بعد فترة قصيرة
+    setTimeout(() => {
+      setIsFromProductInfoGenerator(false);
+    }, 2000); // زيادة الوقت لضمان عدم التداخل
   };
 
   return (
@@ -62,6 +110,33 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6 space-y-5 bg-gradient-to-b from-background/50 to-background">
+            {/* AI Product Info Generator */}
+            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-purple-50/50 to-indigo-50/30 dark:from-purple-950/20 dark:to-indigo-950/10 rounded-lg border border-purple-200/50 dark:border-purple-800/30">
+              <div className="flex items-center gap-3">
+                <div className="bg-gradient-to-br from-purple-100 to-purple-200 dark:from-purple-900/60 dark:to-purple-800/60 p-2 rounded-lg">
+                  <Wand2 className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-purple-700 dark:text-purple-300">
+                    توليد معلومات المنتج الشاملة
+                  </h3>
+                  <p className="text-xs text-purple-600 dark:text-purple-400">
+                    استخدم الذكاء الاصطناعي لإنشاء جميع المعلومات الأساسية
+                  </p>
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowProductInfoGenerator(true)}
+                className="gap-2 bg-gradient-to-r from-purple-50 to-indigo-50 hover:from-purple-100 hover:to-indigo-100 dark:from-purple-950/20 dark:to-indigo-950/20 dark:hover:from-purple-900/30 dark:hover:to-indigo-900/30 border-purple-200 hover:border-purple-300 dark:border-purple-800 dark:hover:border-purple-700 transition-all duration-300"
+              >
+                <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                توليد شامل
+              </Button>
+            </div>
+
             {/* Product Names Row */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               <FormField
@@ -96,6 +171,16 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
                         placeholder="مثال: آيفون 15 برو ماكس"
                         className="h-10 bg-background/60 border-border/60 focus:border-primary/50 focus:ring-primary/20"
                         {...field}
+                        onChange={(e) => {
+                          field.onChange(e);
+                          // إعادة تعيين العلم عند تغيير الاسم يدوياً
+                          setIsFromProductInfoGenerator(false);
+                          // إعادة تعيين manual إذا كان الـ slug فارغ
+                          const currentSlug = form.getValues('slug');
+                          if (!currentSlug || currentSlug === 'product' || currentSlug === '') {
+                            setIsSlugManual(false);
+                          }
+                        }}
                       />
                     </FormControl>
                     <FormMessage />
@@ -305,6 +390,28 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
                       </TooltipContent>
                     </Tooltip>
                   </FormLabel>
+                  
+                  {/* AI Description Generator Button */}
+                  <div className="flex items-center gap-2 mb-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowDescriptionGenerator(true)}
+                      disabled={!watchedName?.trim()}
+                      className="gap-2 bg-gradient-to-r from-purple-50 to-indigo-50 hover:from-purple-100 hover:to-indigo-100 dark:from-purple-950/20 dark:to-indigo-950/20 dark:hover:from-purple-900/30 dark:hover:to-indigo-900/30 border-purple-200 hover:border-purple-300 dark:border-purple-800 dark:hover:border-purple-700 transition-all duration-300"
+                    >
+                      <Bot className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                      <Sparkles className="w-3 h-3 text-purple-500 dark:text-purple-400" />
+                      توليد وصف ذكي
+                    </Button>
+                    {!watchedName?.trim() && (
+                      <span className="text-xs text-muted-foreground">
+                        (أدخل اسم المنتج أولاً)
+                      </span>
+                    )}
+                  </div>
+                  
                   <FormControl>
                     <div className="relative group">
                       <FileText className="absolute left-3 top-4 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-all duration-300 group-focus-within:scale-110" />
@@ -346,8 +453,92 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
                 </FormItem>
               )}
             />
+
+            {/* Advanced Description Builder */}
+            <div className="space-y-3 pt-4 border-t border-border/30">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-sm font-medium text-foreground flex items-center gap-2">
+                    <Wand2 className="w-4 h-4 text-primary" />
+                    الوصف المتقدم
+                    <Badge variant="secondary" className="text-xs">جديد</Badge>
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    قم بإنشاء وصف احترافي مع الصور والسلايد شو وآراء العملاء
+                  </p>
+                </div>
+                
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAdvancedBuilder(true)}
+                  className="gap-2 bg-gradient-to-r from-primary/5 to-primary/10 hover:from-primary/10 hover:to-primary/20 border-primary/20 hover:border-primary/30 transition-all duration-300"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  {advancedDescription ? 'تعديل الوصف المتقدم' : 'إنشاء وصف متقدم'}
+                </Button>
+              </div>
+
+              {/* Advanced Description Preview */}
+              {advancedDescription && advancedDescription.components.length > 0 && (
+                <div className="bg-gradient-to-r from-green-50/50 to-emerald-50/30 dark:from-green-950/20 dark:to-emerald-950/10 p-3 rounded-lg border border-green-200/50 dark:border-green-800/30">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <span className="text-sm font-medium text-green-700 dark:text-green-400">
+                      تم إنشاء وصف متقدم
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-green-600 dark:text-green-400">
+                      {advancedDescription.components.length} {advancedDescription.components.length === 1 ? 'مكون' : 'مكونات'} • 
+                      آخر تحديث: {new Date(advancedDescription.metadata.updatedAt).toLocaleDateString('ar-SA')}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setAdvancedDescription(null)}
+                      className="h-6 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-950/20"
+                    >
+                      حذف
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
+
+        {/* Advanced Description Builder Dialog */}
+        <AdvancedDescriptionBuilder
+          open={showAdvancedBuilder}
+          onOpenChange={setShowAdvancedBuilder}
+          initialDescription={advancedDescription}
+          onSave={(description) => {
+            setAdvancedDescription(description);
+            // Update form with advanced description
+            form.setValue('advanced_description', description, { 
+              shouldValidate: true, 
+              shouldDirty: true 
+            });
+          }}
+        />
+
+        {/* AI Description Generator Dialog */}
+        <DescriptionGenerator
+          open={showDescriptionGenerator}
+          onOpenChange={setShowDescriptionGenerator}
+          productName={watchedName || ''}
+          onDescriptionGenerated={handleDescriptionGenerated}
+        />
+
+        {/* AI Product Info Generator Dialog */}
+        <ProductInfoGenerator
+          open={showProductInfoGenerator}
+          onOpenChange={setShowProductInfoGenerator}
+          onInfoGenerated={handleProductInfoGenerated}
+        />
 
         {/* Product Settings Section */}
         <Card className="border-border/50 shadow-lg dark:shadow-2xl dark:shadow-black/20 bg-card/50 backdrop-blur-sm">

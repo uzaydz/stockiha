@@ -1,0 +1,423 @@
+/* ==========================================================================
+   محرر المتجر - تحسينات متجاوبة شاملة
+   ========================================================================== */
+
+/* متغيرات مخصصة لمحرر المتجر */
+:root {
+  --store-editor-sidebar-width-sm: clamp(250px, 25vw, 320px);
+  --store-editor-sidebar-width-md: clamp(280px, 22vw, 350px);
+  --store-editor-sidebar-width-lg: 350px;
+  --store-editor-sidebar-width-xl: 380px;
+  --store-editor-min-content-width: 400px;
+  --store-editor-header-height: 60px;
+  --store-editor-header-height-mobile: 50px;
+  --store-editor-border-radius: 12px;
+  --store-editor-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+/* الموضوع الداكن */
+[data-theme="dark"] {
+  --store-editor-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+}
+
+/* الحاوي الرئيسي لمحرر المتجر */
+.store-editor-container {
+  direction: rtl;
+  font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+  position: relative;
+  overflow: hidden;
+  background: var(--background);
+}
+
+/* تحسينات للشاشات الصغيرة في الحاسوب (768px - 1023px) */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .store-editor-container {
+    /* تقليل المسافات الجانبية */
+    --store-editor-sidebar-width: min(280px, 30vw);
+  }
+  
+  /* تحسين عرض المحتوى في الشاشات الصغيرة */
+  .store-editor-main-content {
+    min-width: 0 !important;
+    flex: 1 !important;
+    overflow: visible !important;
+  }
+  
+  .properties-panel-container {
+    height: 100% !important;
+    overflow: visible !important;
+  }
+  
+  .properties-panel-container .flex-1 {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+  }
+  
+  .properties-panel-container .overflow-y-auto {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  
+  /* تحسين شريط العنوان */
+  .store-editor-header {
+    height: 50px !important;
+    padding: 0 0.75rem !important;
+  }
+  
+  .store-editor-header .text-lg {
+    font-size: 1rem !important;
+  }
+  
+  .store-editor-header .text-base {
+    font-size: 0.875rem !important;
+  }
+  
+  /* تحسين الأزرار في الشريط العلوي */
+  .store-editor-header button {
+    height: 36px !important;
+    padding: 0.5rem 0.75rem !important;
+    font-size: 0.875rem !important;
+  }
+  
+  .store-editor-header .h-8 {
+    height: 32px !important;
+    width: 32px !important;
+  }
+  
+  .store-editor-header .h-9 {
+    height: 36px !important;
+  }
+  
+  /* تحسين الشريط الجانبي */
+  .store-editor-sidebar {
+    max-width: var(--store-editor-sidebar-width) !important;
+    min-width: 250px !important;
+  }
+  
+  /* تحسين لوحة الخصائص */
+  .properties-panel-enhanced {
+    max-width: min(350px, 35vw) !important;
+    min-width: 280px !important;
+  }
+  
+  /* تحسين المحتوى الرئيسي */
+  .store-editor-main-content {
+    min-width: var(--store-editor-min-content-width) !important;
+  }
+  
+  /* تحسين التبويبات */
+  .tabs-list {
+    height: 36px !important;
+    padding: 2px !important;
+  }
+  
+  .tabs-trigger {
+    font-size: 0.875rem !important;
+    padding: 0.5rem 0.75rem !important;
+  }
+  
+  /* تحسين الحقول */
+  input, textarea, select {
+    font-size: 0.875rem !important;
+    padding: 0.5rem 0.75rem !important;
+  }
+  
+  /* تحسين الأزرار */
+  button {
+    font-size: 0.875rem !important;
+    padding: 0.5rem 0.75rem !important;
+  }
+  
+  /* تحسين البادجات */
+  .badge {
+    font-size: 0.75rem !important;
+    padding: 0.25rem 0.5rem !important;
+  }
+  
+  /* تحسين المسافات */
+  .space-y-4 > * + * {
+    margin-top: 0.75rem !important;
+  }
+  
+  .space-y-6 > * + * {
+    margin-top: 1rem !important;
+  }
+  
+  .gap-4 {
+    gap: 0.75rem !important;
+  }
+  
+  .gap-3 {
+    gap: 0.5rem !important;
+  }
+  
+  /* تحسين الهوامش والحشو */
+  .p-6 {
+    padding: 1rem !important;
+  }
+  
+  .p-4 {
+    padding: 0.75rem !important;
+  }
+  
+  .px-6 {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+  
+  .py-6 {
+    padding-top: 1rem !important;
+    padding-bottom: 1rem !important;
+  }
+  
+  /* تحسين العناوين */
+  h1 {
+    font-size: 1.25rem !important;
+  }
+  
+  h2 {
+    font-size: 1.125rem !important;
+  }
+  
+  h3 {
+    font-size: 1rem !important;
+  }
+  
+  /* تحسين النصوص */
+  .text-lg {
+    font-size: 1rem !important;
+  }
+  
+  .text-base {
+    font-size: 0.875rem !important;
+  }
+  
+  .text-sm {
+    font-size: 0.8125rem !important;
+  }
+  
+  .text-xs {
+    font-size: 0.75rem !important;
+  }
+}
+
+/* تحسينات للشاشات الصغيرة جداً في الحاسوب (768px - 900px) */
+@media (min-width: 768px) and (max-width: 900px) {
+  .store-editor-container {
+    --store-editor-sidebar-width: min(250px, 28vw);
+  }
+  
+  .properties-panel-enhanced {
+    max-width: min(300px, 32vw) !important;
+    min-width: 250px !important;
+  }
+  
+  /* إخفاء بعض العناصر غير الضرورية */
+  .store-editor-optional-text {
+    display: none !important;
+  }
+  
+  /* تقليل الأيقونات */
+  svg {
+    width: 16px !important;
+    height: 16px !important;
+  }
+  
+  .w-5 {
+    width: 16px !important;
+  }
+  
+  .h-5 {
+    height: 16px !important;
+  }
+  
+  .w-6 {
+    width: 20px !important;
+  }
+  
+  .h-6 {
+    height: 20px !important;
+  }
+}
+
+/* تحسينات للشاشات الكبيرة في الحاسوب (1024px - 1279px) */
+@media (min-width: 1024px) and (max-width: 1279px) {
+  .store-editor-container {
+    --store-editor-sidebar-width: min(320px, 25vw);
+  }
+  
+  .properties-panel-enhanced {
+    max-width: min(380px, 30vw) !important;
+    min-width: 320px !important;
+  }
+}
+
+/* تحسينات للشاشات الضخمة (1280px+) */
+@media (min-width: 1280px) {
+  .store-editor-container {
+    --store-editor-sidebar-width: min(350px, 22vw);
+  }
+  
+  .properties-panel-enhanced {
+    max-width: min(420px, 28vw) !important;
+    min-width: 350px !important;
+  }
+}
+
+/* تحسينات خاصة بالسكرول */
+.store-editor-scroll-container {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(155, 155, 155, 0.3) transparent;
+}
+
+.store-editor-scroll-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.store-editor-scroll-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.store-editor-scroll-container::-webkit-scrollbar-thumb {
+  background-color: rgba(155, 155, 155, 0.3);
+  border-radius: 3px;
+  border: 1px solid transparent;
+  background-clip: content-box;
+}
+
+.store-editor-scroll-container::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(155, 155, 155, 0.5);
+}
+
+/* السكرول الكامل للوحة الخصائص بدون تقييد بالتابات */
+.properties-panel-full-scroll {
+  height: 100vh !important;
+  overflow-y: auto !important;
+  scroll-behavior: smooth !important;
+}
+
+.properties-panel-full-scroll .tabs-content {
+  flex: 1 !important;
+  overflow: visible !important;
+  height: auto !important;
+}
+
+.properties-panel-full-scroll .scroll-area {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.properties-panel-full-scroll .properties-scroll-enhanced {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+/* تحسينات للأداء في الشاشات الصغيرة */
+@media (max-width: 1023px) {
+  * {
+    transition-duration: 0.15s !important;
+  }
+  
+  .motion-div {
+    will-change: auto !important;
+  }
+  
+  /* تحسين reflow */
+  .store-editor-container {
+    contain: layout style paint;
+  }
+  
+  .store-editor-container * {
+    will-change: auto;
+  }
+  
+  /* تحسين السكرول */
+  .store-editor-scroll-container {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scroll-behavior: smooth !important;
+  }
+  
+  .backdrop-blur-sm {
+    backdrop-filter: blur(4px) !important;
+    -webkit-backdrop-filter: blur(4px) !important;
+  }
+  
+  .backdrop-blur-md {
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+  }
+}
+
+/* تحسينات للوصولية */
+@media (prefers-reduced-motion: reduce) {
+  .store-editor-container * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* تحسينات للتباين العالي */
+@media (prefers-contrast: high) {
+  .store-editor-container {
+    border: 2px solid currentColor;
+    background: Canvas;
+    color: CanvasText;
+  }
+  
+  .store-editor-container button {
+    border: 1px solid currentColor !important;
+  }
+}
+
+/* تحسينات خاصة للوضع الأفقي في الأجهزة اللوحية */
+@media (min-width: 768px) and (max-width: 1023px) and (orientation: landscape) {
+  .store-editor-header {
+    height: 45px !important;
+  }
+  
+  .properties-panel-enhanced {
+    max-width: min(350px, 40vw) !important;
+  }
+}
+
+/* تحسينات للشاشات فائقة العرض */
+@media (min-width: 1920px) {
+  .store-editor-container {
+    --store-editor-sidebar-width: 400px;
+  }
+  
+  .properties-panel-enhanced {
+    max-width: 500px !important;
+    min-width: 400px !important;
+  }
+}
+
+/* إصلاحات خاصة للمتصفحات القديمة */
+@supports not (backdrop-filter: blur(10px)) {
+  .store-editor-container .backdrop-blur-sm,
+  .store-editor-container .backdrop-blur-md {
+    background: rgba(255, 255, 255, 0.9) !important;
+  }
+  
+  [data-theme="dark"] .store-editor-container .backdrop-blur-sm,
+  [data-theme="dark"] .store-editor-container .backdrop-blur-md {
+    background: rgba(0, 0, 0, 0.9) !important;
+  }
+}
+
+/* تحسينات للطباعة */
+@media print {
+  .store-editor-container .properties-panel-enhanced,
+  .store-editor-container .store-editor-sidebar {
+    display: none !important;
+  }
+  
+  .store-editor-container .store-editor-main-content {
+    width: 100% !important;
+    max-width: none !important;
+  }
+}

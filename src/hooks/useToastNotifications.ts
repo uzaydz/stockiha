@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ToastNotificationData } from '@/components/ui/toast-notification';
-import { playNotificationForType, notificationSoundManager } from '@/lib/notification-sounds';
+import { playNotificationForType, notificationSoundManager, initializeNotificationSounds } from '@/lib/notification-sounds';
 
 interface UseToastNotificationsOptions {
   maxToasts?: number;
@@ -38,7 +38,8 @@ export function useToastNotifications(options: UseToastNotificationsOptions = {}
 
     // تشغيل الصوت إذا كان مفعلاً
     if (soundEnabled) {
-      playNotificationForType(toast.type, toast.priority);
+      playNotificationForType(toast.type, toast.priority).catch(error => {
+      });
     }
 
     return id;
@@ -53,6 +54,36 @@ export function useToastNotifications(options: UseToastNotificationsOptions = {}
   const clearAllToasts = useCallback(() => {
     setToasts([]);
   }, []);
+
+  // تهيئة الأصوات عند تفاعل المستخدم
+  useEffect(() => {
+    const initializeSounds = async () => {
+      if (soundEnabled) {
+        try {
+          await initializeNotificationSounds();
+        } catch (error) {
+        }
+      }
+    };
+
+    // تهيئة الأصوات عند أول تفاعل مع المستخدم
+    const handleUserInteraction = () => {
+      initializeSounds();
+      document.removeEventListener('click', handleUserInteraction);
+      document.removeEventListener('keydown', handleUserInteraction);
+      document.removeEventListener('touchstart', handleUserInteraction);
+    };
+
+    document.addEventListener('click', handleUserInteraction);
+    document.addEventListener('keydown', handleUserInteraction);
+    document.addEventListener('touchstart', handleUserInteraction);
+
+    return () => {
+      document.removeEventListener('click', handleUserInteraction);
+      document.removeEventListener('keydown', handleUserInteraction);
+      document.removeEventListener('touchstart', handleUserInteraction);
+    };
+  }, [soundEnabled]);
 
   // وظائف مساعدة لأنواع مختلفة من الإشعارات
   const showSuccess = useCallback((title: string, message: string, options?: Partial<ToastNotificationData>) => {
@@ -153,8 +184,11 @@ export function useToastNotifications(options: UseToastNotificationsOptions = {}
   }, []);
 
   // تشغيل صوت اختبار
-  const playTestSound = useCallback(() => {
-    notificationSoundManager.playTestSound();
+  const playTestSound = useCallback(async () => {
+    try {
+      await notificationSoundManager.playTestSound();
+    } catch (error) {
+    }
   }, []);
 
   return {

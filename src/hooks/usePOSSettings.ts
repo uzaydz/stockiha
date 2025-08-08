@@ -1,19 +1,20 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { POSSettings, defaultPOSSettings } from '@/types/posSettings';
-import { useToast } from '@/components/ui/use-toast';
+import { useTenant } from '@/context/TenantContext';
 import { useAuth } from '@/context/AuthContext';
-import { Database } from '@/types/database.types';
-import { User } from '@supabase/supabase-js';
+import { useToast } from '@/components/ui/use-toast';
+import { useCallback, useState } from 'react';
+import { POSSettings, defaultPOSSettings } from '@/types/posSettings';
 
-// Extend the Supabase User type to include our custom fields
-export type AppUser = User & {
-  is_org_admin?: boolean;
-  permissions?: { [key: string]: any };
-};
+// =====================================================
+// 🚀 Hook مخصص لإعدادات POS فقط - يمنع التكرار
+// =====================================================
 
-type POSSettingsRpcResponse = Database['public']['Functions']['get_pos_settings']['Returns']
-type POSSettingsRow = Database['public']['Tables']['pos_settings']['Row']
+interface POSSettingsResponse {
+  success: boolean;
+  data?: POSSettings;
+  error?: string;
+}
 
 interface UsePOSSettingsProps {
   organizationId?: string;
@@ -23,29 +24,29 @@ interface UsePOSSettingsReturn {
   settings: POSSettings;
   isLoading: boolean;
   error: string | null;
-  updateSettings: (newSettings: Partial<POSSettings>) => Promise<boolean>;
+  updateSettings: (newSettings: Partial<POSSettings>) => void;
   saveSettings: () => Promise<void>;
   isSaving: boolean;
   saveSuccess: boolean;
   hasPermission: () => boolean;
 }
 
-export function usePOSSettings({ organizationId }: UsePOSSettingsProps): UsePOSSettingsReturn {
-  const { userProfile, session } = useAuth();
-  const [settings, setSettings] = useState<POSSettings>({ ...defaultPOSSettings, organization_id: organizationId || '' });
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+export const usePOSSettings = ({ organizationId }: UsePOSSettingsProps): UsePOSSettingsReturn => {
+  const { currentOrganization } = useTenant();
+  const { userProfile } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [localSettings, setLocalSettings] = useState<POSSettings>({ 
+    ...defaultPOSSettings, 
+    organization_id: organizationId || currentOrganization?.id || '' 
+  });
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-  const { toast } = useToast();
 
+  // دالة التحقق من الصلاحيات
   const hasPermission = useCallback(() => {
-    if(!userProfile) {
+    if (!userProfile) {
       return false;
-    }
-    
-    // تسجيل معلومات المستخدم للتشخيص (مرة واحدة فقط)
-    if (process.env.NODE_ENV === 'development') {
     }
     
     // التحقق من المدير الأعلى
@@ -79,215 +80,196 @@ export function usePOSSettings({ organizationId }: UsePOSSettingsProps): UsePOSS
       }
     }
     
-    // إذا فشل التحقق من جميع الصلاحيات، اطبع رسالة تحذير
-    if (process.env.NODE_ENV === 'development') {
-    }
     return false;
   }, [userProfile]);
 
-  const fetchSettings = useCallback(async () => {
+  const {
+    data: response,
+    isLoading,
+    error
+  } = useQuery({
+    queryKey: ['pos-settings', currentOrganization?.id],
+    queryFn: async (): Promise<POSSettingsResponse> => {
+      if (!currentOrganization?.id) {
+        throw new Error('معرف المؤسسة مطلوب');
+      }
 
-    if (!organizationId) {
-        setIsLoading(false);
-        setError('معرف المؤسسة مفقود');
-        return;
-    }
+      // التحقق من الصلاحيات أولاً
+      if (!hasPermission()) {
+        throw new Error('ليس لديك صلاحية للوصول إلى إعدادات نقطة البيع');
+      }
 
-    setIsLoading(true);
-    setError(null);
-
-    try {
+      try {
         
-        const { data, error: rpcError } = await supabase
-            .rpc('get_pos_settings', { p_org_id: organizationId } as any);
-
-        if (rpcError) {
-            
-            // إذا فشل RPC، جرب الوصول المباشر للجدول
-            const { data: directData, error: directError } = await supabase
-                .from('pos_settings')
-                .select('*')
-                .eq('organization_id', organizationId)
-                .limit(1);
-
-            if (directError) {
-                throw directError;
-            }
-            
-            if (directData && directData.length > 0) {
-                setSettings(directData[0] as POSSettings);
-                return;
-            } else {
-                await initializeSettings();
-                return;
-            }
-        }
-        
-        if (data && data.length > 0) {
-            const fetchedSettings = data[0] as unknown as POSSettingsRow;
-            setSettings(fetchedSettings as POSSettings);
-        } else {
-            await initializeSettings();
-        }
-    } catch (err: any) {
-        
-        // كخطة احتياطية أخيرة، استخدام الإعدادات الافتراضية مع organization_id صحيح
-        const fallbackSettings = {
-            ...defaultPOSSettings,
-            organization_id: organizationId
-        };
-        
-        setSettings(fallbackSettings);
-        
-        // عرض رسالة تحذير بدلاً من خطأ
-        toast({
-            title: 'تحذير',
-            description: 'تم استخدام الإعدادات الافتراضية. تحقق من الاتصال وحاول مرة أخرى.',
-            variant: 'default',
+        // استخدام الدالة الأساسية فقط
+        const { data, error } = await supabase.rpc('get_pos_settings' as any, {
+          p_org_id: currentOrganization.id
         });
-    } finally {
-        setIsLoading(false);
-    }
-}, [organizationId, toast, userProfile]);
 
-  const initializeSettings = useCallback(async () => {
-    if (!organizationId) {
-        return;
-    }
-    
-    try {
-        
-        // جرب RPC أولاً
-        const { data: initData, error: initError } = await supabase
-            .rpc('initialize_pos_settings', { p_organization_id: organizationId });
-
-        if (initError) {
-            
-            // إذا فشل RPC، جرب الإدراج المباشر
-            const newSettings = {
-                ...defaultPOSSettings,
-                organization_id: organizationId
-            };
-            
-            const { data: insertData, error: insertError } = await supabase
-                .from('pos_settings')
-                .insert([newSettings])
-                .select()
-                .single();
-
-            if (insertError) {
-                // استخدام الإعدادات الافتراضية محلياً
-                setSettings(newSettings);
-                return;
-            }
-            
-            if (insertData) {
-                setSettings(insertData as POSSettings);
-                return;
-            }
+        if (error) {
+          throw new Error(`خطأ في جلب إعدادات POS: ${error.message}`);
         }
-        
-        if (initData) {
-            // بعد الإنشاء، جلب الإعدادات المحدثة
-            await fetchSettings();
+
+        if (!data) {
+          throw new Error('لم يتم إرجاع أي إعدادات من الخادم');
         }
-    } catch (err: any) {
-        
-        // استخدام الإعدادات الافتراضية كخطة احتياطية
-        const fallbackSettings = {
-            ...defaultPOSSettings,
-            organization_id: organizationId
+
+        const responseData = Array.isArray(data) ? data[0] : data;
+
+        if (responseData && typeof responseData === 'object' && 'success' in responseData) {
+          if (!responseData.success) {
+            throw new Error(responseData.error || 'فشل في جلب الإعدادات');
+          }
+          return responseData as POSSettingsResponse;
+        }
+
+        const result = {
+          success: true,
+          data: responseData as POSSettings
         };
-        setSettings(fallbackSettings);
-        
-        toast({
-            title: 'تحذير',
-            description: 'تم استخدام الإعدادات الافتراضية. يمكنك تخصيصها من إعدادات نقطة البيع.',
-            variant: 'default',
-        });
-    }
-  }, [organizationId, toast, fetchSettings]);
+        return result;
 
-  // تحسين useEffect لضمان تحديث الإعدادات عند تغيير organizationId أو userProfile
-  useEffect(() => {
-    
-    if (organizationId) {
-        fetchSettings();
-    } else {
-        setSettings({ ...defaultPOSSettings, organization_id: '' });
-        setIsLoading(false);
+      } catch (error) {
+        // إذا فشل كل شيء، استخدم الإعدادات الافتراضية
+        return {
+          success: true,
+          data: { ...defaultPOSSettings, organization_id: currentOrganization.id }
+        };
+      }
+    },
+    enabled: !!currentOrganization?.id && hasPermission(),
+    staleTime: 60 * 60 * 1000, // ساعة واحدة - الإعدادات لا تتغير كثيراً
+    gcTime: 2 * 60 * 60 * 1000, // ساعتان
+    retry: 1,
+    retryDelay: 2000,
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    placeholderData: (previousData) => {
+      return previousData;
+    },
+    networkMode: 'online',
+    meta: {
+      persist: false
     }
-  }, [organizationId, userProfile]); // إضافة userProfile للاعتماديات
+  });
 
-  const updateSettings = useCallback(async (newSettings: Partial<POSSettings>): Promise<boolean> => {
-    setSettings(prev => ({ ...prev, ...newSettings }));
-    return true;
+  const typedResponse = response as POSSettingsResponse | undefined;
+  const settings = typedResponse?.success ? typedResponse.data : null;
+  const hasError = !typedResponse?.success || !!error;
+  const errorMessage = typedResponse?.error || error?.message;
+
+  // إضافة سجل للتأكد من البيانات
+
+  // إعدادات افتراضية
+  const defaultSettings: POSSettings = {
+    ...defaultPOSSettings,
+    organization_id: currentOrganization?.id || ''
+  };
+
+  // تأكد من أن البيانات من قاعدة البيانات لها الأولوية
+  const finalSettings = settings || localSettings || defaultSettings;
+
+  // إضافة سجل للتأكد من البيانات المُرجعة
+
+  // دالة تحديث الإعدادات محلياً
+  const updateSettings = useCallback((newSettings: Partial<POSSettings>) => {
+    setLocalSettings(prev => ({ ...prev, ...newSettings }));
   }, []);
 
+  // دالة حفظ الإعدادات
   const saveSettings = useCallback(async () => {
-    if (!organizationId) {
-        toast({
-            title: 'خطأ',
-            description: 'معرف المؤسسة مفقود.',
-            variant: 'destructive',
-        });
-        return;
+    if (!currentOrganization?.id || !hasPermission()) {
+      toast({
+        title: "خطأ",
+        description: "ليس لديك صلاحية لحفظ إعدادات نقطة البيع",
+        variant: "destructive"
+      });
+      return;
     }
-    
-    if (!hasPermission()) {
-        toast({
-            title: 'خطأ في الصلاحية',
-            description: 'ليس لديك الصلاحية لحفظ الإعدادات.',
-            variant: 'destructive',
-        });
-        return;
-    }
-    
+
     setIsSaving(true);
     setSaveSuccess(false);
 
     try {
-        
-        const { error } = await supabase
-            .rpc('upsert_pos_settings', {
-                p_organization_id: organizationId,
-                p_settings: settings as any,
-            });
+      // التحقق من وجود إعدادات موجودة أولاً
+      const { data: existingSettings, error: checkError } = await supabase
+        .from('pos_settings')
+        .select('id')
+        .eq('organization_id', currentOrganization.id)
+        .single();
 
-        if (error) {
-            throw error;
-        }
+      if (checkError && checkError.code !== 'PGRST116') {
+        // إذا كان الخطأ ليس "لا توجد نتائج"، فهناك خطأ حقيقي
+        throw new Error(`خطأ في التحقق من الإعدادات الموجودة: ${checkError.message}`);
+      }
 
-        setSaveSuccess(true);
-        
-        toast({
-            title: 'تم الحفظ بنجاح',
-            description: 'تم تحديث إعدادات نقطة البيع بنجاح.',
-            variant: 'default',
-        });
-        
-        // إعادة جلب الإعدادات للتأكد من التحديث
-        await fetchSettings();
+      let result;
+      if (existingSettings) {
+        // تحديث الإعدادات الموجودة
+        result = await supabase
+          .from('pos_settings')
+          .update({
+            ...finalSettings,
+            updated_at: new Date().toISOString()
+          })
+          .eq('organization_id', currentOrganization.id)
+          .select()
+          .single();
+      } else {
+        // إدراج إعدادات جديدة
+        result = await supabase
+          .from('pos_settings')
+          .insert({
+            organization_id: currentOrganization.id,
+            ...finalSettings,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+      }
 
-    } catch (err: any) {
-        toast({
-            title: 'فشل الحفظ',
-            description: err.message || 'حدث خطأ أثناء حفظ الإعدادات',
-            variant: 'destructive',
-        });
+      if (result.error) {
+        throw new Error(`خطأ في حفظ الإعدادات: ${result.error.message}`);
+      }
+
+      // تحديث cache
+      queryClient.setQueryData(['pos-settings', currentOrganization.id], {
+        success: true,
+        data: finalSettings
+      });
+
+      setSaveSuccess(true);
+      toast({
+        title: "تم الحفظ",
+        description: "تم حفظ إعدادات نقطة البيع بنجاح",
+      });
+
+      // إعادة تعيين حالة النجاح بعد 3 ثوان
+      setTimeout(() => setSaveSuccess(false), 3000);
+
+    } catch (error) {
+      toast({
+        title: "خطأ",
+        description: error instanceof Error ? error.message : "فشل في حفظ الإعدادات",
+        variant: "destructive"
+      });
     } finally {
-        setIsSaving(false);
+      setIsSaving(false);
     }
-}, [organizationId, settings, hasPermission, toast, fetchSettings]);
+  }, [currentOrganization?.id, finalSettings, hasPermission, queryClient, toast]);
 
   return {
-    settings,
+    settings: finalSettings,
     isLoading,
-    error,
+    error: errorMessage,
     updateSettings,
     saveSettings,
     isSaving,
     saveSuccess,
-    hasPermission,
+    hasPermission
   };
-}
+};
+
+export default usePOSSettings;

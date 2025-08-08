@@ -485,7 +485,7 @@ const LoginForm = () => {
               تطبيق Electron - نسخة سطح المكتب
             </span>
           )}
-        </CardDescription>
+        </CardDescription>src/components/auth/LoginForm.tsx
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">

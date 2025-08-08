@@ -40,6 +40,77 @@
   }
 }
 
+/* تحسين أزرار البطاقات في الشاشات الصغيرة */
+@media (max-width: 640px) {
+  .product-card-buttons {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+    width: 100%;
+  }
+  
+  .product-card-buttons button {
+    width: 100%;
+    justify-content: center;
+    min-height: 32px;
+    font-size: 0.75rem;
+    padding: 0.5rem;
+    height: 32px;
+  }
+  
+  .product-card-footer {
+    padding: 0.75rem;
+    margin-top: auto;
+    flex-shrink: 0;
+  }
+  
+  /* تحسين البطاقات نفسها */
+  .product-card {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  
+  .product-card-header {
+    flex-shrink: 0;
+  }
+  
+  .product-card-content {
+    flex-shrink: 0;
+  }
+  
+  .product-card-footer {
+    flex-shrink: 0;
+    margin-top: auto;
+  }
+}
+
+/* تحسين أزرار القائمة في الشاشات الصغيرة */
+@media (max-width: 768px) {
+  .product-list-actions {
+    display: flex;
+    gap: 0.25rem;
+    flex-wrap: wrap;
+  }
+  
+  .product-list-actions button {
+    min-width: 32px;
+    min-height: 32px;
+    padding: 0.25rem;
+    font-size: 0.75rem;
+  }
+  
+  .product-list-actions .btn-text {
+    display: none;
+  }
+  
+  .product-list-actions .btn-icon {
+    width: 16px;
+    height: 16px;
+  }
+}
+
 /* تحسين الجداول للهاتف */
 @media (max-width: 768px) {
   .products-table-mobile tbody tr {

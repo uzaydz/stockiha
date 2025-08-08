@@ -23,6 +23,12 @@ interface OptimizedOrdersDataOptions {
   enablePolling?: boolean;
   pollingInterval?: number;
   enableCache?: boolean;
+  // خيارات التحكم في حمولة RPC
+  rpcOptions?: {
+    includeItems?: boolean;
+    includeShared?: boolean;
+    includeCounts?: boolean;
+  };
 }
 
 interface OrdersDataState {
@@ -69,14 +75,22 @@ const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 export const useOptimizedOrdersData = (options: OptimizedOrdersDataOptions = {}) => {
   // Memoize options to prevent unnecessary re-renders
-  const memoizedOptions = useMemo(() => ({
-    pageSize: DEFAULT_PAGE_SIZE,
-    initialStatus: 'all',
-    enablePolling: false,
-    pollingInterval: DEFAULT_POLLING_INTERVAL,
-    enableCache: true,
-    ...options,
-  }), [JSON.stringify(options)]);
+  const memoizedOptions = useMemo(() => {
+    const defaultRpcOptions = {
+      includeItems: false,
+      includeShared: false,
+      includeCounts: true,
+    };
+    return {
+      pageSize: DEFAULT_PAGE_SIZE,
+      initialStatus: 'all',
+      enablePolling: false,
+      pollingInterval: DEFAULT_POLLING_INTERVAL,
+      enableCache: true,
+      ...options,
+      rpcOptions: { ...defaultRpcOptions, ...(options.rpcOptions || {}) },
+    } as OptimizedOrdersDataOptions;
+  }, [JSON.stringify(options)]);
 
   const {
     pageSize,
@@ -85,6 +99,7 @@ export const useOptimizedOrdersData = (options: OptimizedOrdersDataOptions = {})
     pollingInterval,
     enableCache,
   } = memoizedOptions;
+  const rpcOptions = (memoizedOptions as OptimizedOrdersDataOptions).rpcOptions || { includeItems: false, includeShared: false, includeCounts: true };
 
   const { currentOrganization } = useTenant();
   const { toast } = useToast();
@@ -181,20 +196,49 @@ export const useOptimizedOrdersData = (options: OptimizedOrdersDataOptions = {})
       
       const startTime = performance.now();
 
-      // Use the optimized RPC function
-      const { data, error } = await supabase.rpc('get_orders_complete_data' as any, {
-        p_organization_id: currentOrganization.id,
-        p_page: page,
-        p_page_size: pageSize,
-        p_status: currentFilters.status === 'all' ? null : currentFilters.status,
-        p_call_confirmation_status_id: currentFilters.callConfirmationStatusId,
-        p_shipping_provider: currentFilters.shippingProvider,
-        p_search_term: currentFilters.searchTerm || null,
-        p_date_from: currentFilters.dateFrom?.toISOString() || null,
-        p_date_to: currentFilters.dateTo?.toISOString() || null,
-        p_sort_by: 'created_at',
-        p_sort_order: 'desc'
-      });
+      // استدعاء الدالة مع دعم الأعلام الإضافية وفولباك في حال عدم توافق التوقيع
+      let data: any;
+      let error: any;
+      try {
+        const resp = await supabase.rpc('get_orders_complete_data' as any, {
+          p_organization_id: currentOrganization.id,
+          p_page: page,
+          p_page_size: pageSize,
+          p_status: currentFilters.status === 'all' ? null : currentFilters.status,
+          p_call_confirmation_status_id: currentFilters.callConfirmationStatusId,
+          p_shipping_provider: currentFilters.shippingProvider,
+          p_search_term: currentFilters.searchTerm || null,
+          p_date_from: currentFilters.dateFrom?.toISOString() || null,
+          p_date_to: currentFilters.dateTo?.toISOString() || null,
+          p_sort_by: 'created_at',
+          p_sort_order: 'desc',
+          p_include_items: rpcOptions.includeItems ?? false,
+          p_include_shared: rpcOptions.includeShared ?? false,
+          // اجعل العد ديناميكياً: الصفحة الأولى فقط لتقليل التكلفة
+          p_include_counts: (rpcOptions.includeCounts ?? true) && page === 1,
+        });
+        data = resp.data;
+        error = resp.error;
+        if (error && typeof error.message === 'string' && /get_orders_complete_data/i.test(error.message)) {
+          throw error;
+        }
+      } catch (_) {
+        const respFallback = await supabase.rpc('get_orders_complete_data' as any, {
+          p_organization_id: currentOrganization.id,
+          p_page: page,
+          p_page_size: pageSize,
+          p_status: currentFilters.status === 'all' ? null : currentFilters.status,
+          p_call_confirmation_status_id: currentFilters.callConfirmationStatusId,
+          p_shipping_provider: currentFilters.shippingProvider,
+          p_search_term: currentFilters.searchTerm || null,
+          p_date_from: currentFilters.dateFrom?.toISOString() || null,
+          p_date_to: currentFilters.dateTo?.toISOString() || null,
+          p_sort_by: 'created_at',
+          p_sort_order: 'desc',
+        });
+        data = respFallback.data;
+        error = respFallback.error;
+      }
 
       const endTime = performance.now();
 
@@ -275,12 +319,16 @@ export const useOptimizedOrdersData = (options: OptimizedOrdersDataOptions = {})
     }
   }, [currentOrganization?.id, pageSize, getCacheKey, isCacheValid, enableCache]);
 
-  // Load more orders (for infinite scroll)
+  // Load more orders (for infinite scroll) مع Gate لمنع السباقات
+  const loadMoreInFlightRef = useRef(false);
   const loadMore = useCallback(() => {
+    if (loadMoreInFlightRef.current) return;
     if (!state.loading && state.hasMore) {
-      fetchOrdersData(state.currentPage + 1, filters, true);
+      loadMoreInFlightRef.current = true;
+      Promise.resolve(fetchOrdersData(state.currentPage + 1, filters, true))
+        .finally(() => { loadMoreInFlightRef.current = false; });
     }
-  }, [state.loading, state.hasMore, state.currentPage, filters]);
+  }, [state.loading, state.hasMore, state.currentPage, filters, fetchOrdersData]);
 
   // Go to specific page (page is 0-based index from UI)
   const goToPage = useCallback((page: number) => {
@@ -333,7 +381,7 @@ export const useOptimizedOrdersData = (options: OptimizedOrdersDataOptions = {})
     setFilters(prev => ({ ...prev, ...newFilters }));
   }, []);
 
-  // Update order locally
+  // Update order locally مع تحديث كاش الصفحات بدلاً من المسح الكامل
   const updateOrderLocally = useCallback((orderId: string, updates: Partial<Order>) => {
     setState(prev => ({
       ...prev,
@@ -341,9 +389,11 @@ export const useOptimizedOrdersData = (options: OptimizedOrdersDataOptions = {})
         order.id === orderId ? { ...order, ...updates } : order
       ),
     }));
-    
-    // Clear cache to ensure fresh data on next fetch
-    cacheRef.current.clear();
+    for (const [key, entry] of cacheRef.current.entries()) {
+      if (!entry?.data?.orders) continue;
+      const updated = (entry.data.orders as Order[]).map((o: Order) => (o.id === orderId ? { ...o, ...updates } : o));
+      cacheRef.current.set(key, { ...entry, data: { ...entry.data, orders: updated } });
+    }
   }, []);
 
   // Refresh data

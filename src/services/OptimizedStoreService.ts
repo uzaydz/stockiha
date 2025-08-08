@@ -86,7 +86,6 @@ export class OptimizedStoreService {
       return optimizedData;
 
     } catch (error: any) {
-      console.error('خطأ في جلب بيانات المتجر:', error);
       
       // إرجاع بيانات افتراضية في حالة الخطأ
       return {
@@ -126,7 +125,6 @@ export class OptimizedStoreService {
 
   async clearStoreCache(organizationId: string): Promise<void> {
     // لا نحتاج لمسح الكاش لأننا لا نستخدمه بعد الآن
-    console.log('تم استدعاء clearStoreCache ولكن الكاش معطل');
   }
 
   // =================================================================

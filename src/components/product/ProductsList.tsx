@@ -57,6 +57,7 @@ import { toast } from 'sonner';
 import { checkUserPermissions, refreshUserData } from '@/lib/api/permissions';
 import { ProductFeatures } from '@/components/store/ProductFeatures';
 import { Link, useNavigate } from 'react-router-dom';
+import '@/styles/products-responsive.css';
 
 interface ProductsListProps {
   products: Product[];
@@ -182,11 +183,11 @@ const ProductsList = ({
   // Stock status badge
   const StockStatus = ({ quantity }: { quantity: number }) => {
     if (quantity <= 0) {
-      return <Badge variant="destructive">نفذ من المخزون</Badge>;
+      return <Badge variant="destructive" className="text-xs">نفذ من المخزون</Badge>;
     } else if (quantity <= 5) {
-      return <Badge variant="secondary" className="bg-amber-100 text-amber-700 hover:bg-amber-100">منخفض ({quantity})</Badge>;
+      return <Badge variant="secondary" className="bg-amber-100 text-amber-700 hover:bg-amber-100 text-xs">منخفض ({quantity})</Badge>;
     } else {
-      return <Badge variant="default" className="bg-green-100 text-green-700 hover:bg-green-100">متوفر ({quantity})</Badge>;
+      return <Badge variant="default" className="bg-green-100 text-green-700 hover:bg-green-100 text-xs">متوفر ({quantity})</Badge>;
     }
   };
 
@@ -264,7 +265,7 @@ const ProductsList = ({
                   <TableHead className="hidden lg:table-cell">الكمية</TableHead>
                   <TableHead className="hidden xl:table-cell">SKU</TableHead>
                   <TableHead className="hidden md:table-cell">الحالة</TableHead>
-                  <TableHead className="text-left min-w-[100px]">إجراءات</TableHead>
+                  <TableHead className="text-left min-w-[120px]">إجراءات</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -327,15 +328,17 @@ const ProductsList = ({
                       <StockStatus quantity={product.stock_quantity} />
                     </TableCell>
                     <TableCell className="sm:table-cell block">
-                      <div className="flex items-center justify-end space-x-2 sm:space-x-2">
+                      <div className="flex items-center justify-end gap-1 sm:gap-2 flex-wrap product-list-actions">
+                        {/* زر العرض - دائماً متاح */}
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => handleView(product)}
-                          className="sm:size-auto"
+                          className="h-8 w-8 p-0 sm:h-auto sm:w-auto sm:px-2 sm:py-1 text-xs"
+                          title="عرض المنتج"
                         >
-                          <Eye className="h-4 w-4 sm:mr-0 mr-1" />
-                          <span className="sm:sr-only">عرض</span>
+                          <Eye className="h-4 w-4 btn-icon" />
+                          <span className="sr-only sm:not-sr-only sm:mr-1 btn-text">عرض</span>
                         </Button>
                         
                         {/* زر التعديل - يظهر فقط إذا كان المستخدم لديه صلاحية */}
@@ -344,11 +347,12 @@ const ProductsList = ({
                             variant="ghost"
                             size="sm"
                             asChild
-                            className="sm:size-auto"
+                            className="h-8 w-8 p-0 sm:h-auto sm:w-auto sm:px-2 sm:py-1 text-xs"
+                            title="تعديل المنتج"
                           >
                             <Link to={`/dashboard/product/${product.id}`}>
-                              <Edit className="h-4 w-4 sm:mr-0 mr-1" />
-                              <span className="sm:sr-only">تعديل</span>
+                              <Edit className="h-4 w-4 btn-icon" />
+                              <span className="sr-only sm:not-sr-only sm:mr-1 btn-text">تعديل</span>
                             </Link>
                           </Button>
                         ) : (
@@ -356,21 +360,28 @@ const ProductsList = ({
                             variant="ghost"
                             size="sm"
                             onClick={() => handleEdit(product)}
-                            className="opacity-50 cursor-not-allowed sm:size-auto"
+                            className="h-8 w-8 p-0 sm:h-auto sm:w-auto sm:px-2 sm:py-1 text-xs opacity-50 cursor-not-allowed"
+                            title="تعديل المنتج"
                           >
-                            <Edit className="h-4 w-4 sm:mr-0 mr-1" />
-                            <span className="sm:sr-only">تعديل</span>
+                            <Edit className="h-4 w-4 btn-icon" />
+                            <span className="sr-only sm:not-sr-only sm:mr-1 btn-text">تعديل</span>
                           </Button>
                         )}
                         
+                        {/* زر القائمة المنسدلة */}
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="sm" className="sm:size-auto">
-                              <MoreVertical className="h-4 w-4" />
-                              <span className="sr-only">المزيد</span>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-8 w-8 p-0 sm:h-auto sm:w-auto sm:px-2 sm:py-1 text-xs"
+                              title="المزيد من الخيارات"
+                            >
+                              <MoreVertical className="h-4 w-4 btn-icon" />
+                              <span className="sr-only btn-text">المزيد</span>
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
+                          <DropdownMenuContent align="end" className="min-w-[200px]">
                             {/* إضافة خيار تعديل ميزات المنتج */}
                             {canEditProducts && (
                               <DropdownMenuItem onClick={() => handleEditFeatures(product)}>
@@ -379,14 +390,13 @@ const ProductsList = ({
                               </DropdownMenuItem>
                             )}
                             
-                            {/* ===== بداية الإضافة ===== */}
+                            {/* خيار تخصيص صفحة الشراء */}
                             <DropdownMenuItem asChild>
                              <Link to={`/dashboard/products/${product.id}/customize-purchase-page`}>
                                <Settings className="ml-2 h-4 w-4" />
                                تخصيص صفحة الشراء
                              </Link>
                            </DropdownMenuItem>
-                            {/* ===== نهاية الإضافة ===== */}
                             
                             <DropdownMenuSeparator />
                             
@@ -412,8 +422,8 @@ const ProductsList = ({
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6 p-4">
             {products.map((product) => (
-              <Card key={product.id} className="h-full">
-                <CardHeader className="p-3 sm:p-4 pb-2">
+              <Card key={product.id} className="h-full flex flex-col overflow-hidden product-card">
+                <CardHeader className="p-3 sm:p-4 pb-2 flex-shrink-0 product-card-header">
                   <div className="aspect-square rounded-md overflow-hidden mb-2 bg-muted">
                     <img
                       src={product.thumbnail_image}
@@ -428,7 +438,7 @@ const ProductsList = ({
                     {product.description.length > 60 ? '...' : ''}
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="p-3 sm:p-4 pt-0 pb-2">
+                <CardContent className="p-3 sm:p-4 pt-0 pb-2 flex-shrink-0 product-card-content">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <div className="font-medium text-sm sm:text-base">{formatPrice(product.price)}</div>
                     <StockStatus quantity={product.stock_quantity} />
@@ -452,48 +462,52 @@ const ProductsList = ({
                     </div>
                   )}
                 </CardContent>
-                <CardFooter className="p-3 sm:p-4 pt-2 flex flex-col sm:flex-row gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => handleView(product)}
-                    className="w-full sm:w-auto"
-                  >
-                    <Eye className="ml-1 h-3 w-3" />
-                    عرض
-                  </Button>
-                  {canEditProducts ? (
+                <CardFooter className="p-3 sm:p-4 pt-2 mt-auto flex-shrink-0 product-card-footer">
+                  <div className="grid grid-cols-1 gap-2 w-full product-card-buttons">
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      asChild
-                      className="w-full sm:w-auto"
+                      onClick={() => handleView(product)}
+                      className="w-full text-xs h-8 px-2 py-1"
                     >
-                      <Link to={`/dashboard/product/${product.id}`}>
+                      <Eye className="ml-1 h-3 w-3" />
+                      عرض
+                    </Button>
+                    {canEditProducts ? (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        asChild
+                        className="w-full text-xs h-8 px-2 py-1"
+                      >
+                        <Link to={`/dashboard/product/${product.id}`}>
+                          <Edit className="ml-1 h-3 w-3" />
+                          تعديل
+                        </Link>
+                      </Button>
+                    ) : (
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => handleEdit(product)}
+                        className="w-full text-xs h-8 px-2 py-1 opacity-50 cursor-not-allowed"
+                      >
                         <Edit className="ml-1 h-3 w-3" />
                         تعديل
-                      </Link>
-                    </Button>
-                  ) : (
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => handleEdit(product)}
-                      className="w-full sm:w-auto opacity-50 cursor-not-allowed"
-                    >
-                      <Edit className="ml-1 h-3 w-3" />
-                      تعديل
-                    </Button>
-                  )}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-destructive hover:text-destructive"
-                    onClick={() => handleDelete(product)}
-                  >
-                    <Trash2 className="ml-1 h-3 w-3" />
-                    حذف
-                  </Button>
+                      </Button>
+                    )}
+                    {canDeleteProducts && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-destructive hover:text-destructive w-full text-xs h-8 px-2 py-1"
+                        onClick={() => handleDelete(product)}
+                      >
+                        <Trash2 className="ml-1 h-3 w-3" />
+                        حذف
+                      </Button>
+                    )}
+                  </div>
                 </CardFooter>
               </Card>
             ))}
@@ -509,8 +523,6 @@ const ProductsList = ({
           onOpenChange={setIsViewOpen}
         />
       )}
-
-      {/* تم إزالة EditProductDialog - الآن نستخدم صفحة ProductForm الكاملة */}
 
       {/* Delete Product Dialog */}
       {deleteProduct && (

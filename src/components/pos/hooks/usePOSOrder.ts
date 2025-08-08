@@ -91,6 +91,7 @@ export const usePOSOrder = ({
   }, []);
 
   const submitOrder = useCallback(async (orderDetails: Partial<Order>) => {
+
     if (!user) {
       throw new Error('المستخدم غير مسجل الدخول');
     }
@@ -193,6 +194,7 @@ export const usePOSOrder = ({
 
       // معالجة المنتجات والخدمات العادية إذا وجدت
       if (cartItems.length > 0 || selectedServices.length > 0) {
+
         // تحضير بيانات الطلب للدالة المحسنة
         const orderData: POSOrderData = {
           organizationId: currentOrganization.id,
@@ -200,7 +202,7 @@ export const usePOSOrder = ({
           items: cartItems.map(item => {
             const unitPrice = item.customPrice || item.variantPrice || item.product.price || 0;
             const totalPrice = unitPrice * item.quantity;
-            
+
             return {
               id: uuidv4(),
               productId: item.product.id,

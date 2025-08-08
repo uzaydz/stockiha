@@ -1,5 +1,5 @@
 /* ==========================================================================
-   لوحة الخصائص - تحسينات متجاوبة
+   لوحة الخصائص - تحسينات متجاوبة محسنة
    ========================================================================== */
 
 /* متغيرات مخصصة للوحة الخصائص */
@@ -51,20 +51,165 @@
 
 /* تحسينات responsive للشاشات المختلفة مع حدود آمنة */
 
-/* الشاشات الصغيرة جداً (أقل من 640px) */
-@media (max-width: 639px) {
+/* الشاشات الصغيرة جداً (أقل من 480px) - الهواتف الصغيرة */
+@media (max-width: 479px) {
   .properties-panel-rtl {
     position: fixed !important;
     top: 0;
-    left: 0 !important; /* تثبيت من اليسار */
-    right: auto !important; /* إلغاء التثبيت من اليمين */
+    left: 0 !important;
+    right: auto !important;
     height: 100vh;
     z-index: 9999;
     border-radius: 0;
     border-left: none;
     border-right: 1px solid var(--border);
-    max-width: calc(100vw - 20px) !important; /* حد أقصى مع ترك مسافة */
+    max-width: 100vw !important;
+    min-width: 100vw;
+    width: 100vw !important;
+    contain: layout style paint;
+  }
+  
+  /* تحسين عرض المحتوى في الهواتف الصغيرة */
+  .properties-panel-container {
+    height: 100vh !important;
+    overflow: visible !important;
+  }
+  
+  .properties-panel-container .flex-1 {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+  }
+  
+  .properties-panel-container .overflow-y-auto {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  
+  .properties-panel-container .min-h-full {
+    min-height: 100% !important;
+  }
+  
+  /* تحسين عرض المحتوى في الهواتف الصغيرة */
+  .properties-panel-container {
+    height: 100vh !important;
+    overflow: visible !important;
+  }
+  
+  .properties-panel-container .flex-1 {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+  }
+  
+  .properties-panel-container .overflow-y-auto {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  
+  /* تأكد من أن المحتوى يبقى داخل الحدود */
+  .properties-panel-rtl * {
+    max-width: 100%;
+    overflow-wrap: break-word;
+    word-break: break-word;
+  }
+  
+  /* تقليل padding في الشاشات الصغيرة */
+  .properties-panel-rtl .space-y-4 > * + * {
+    margin-top: 0.5rem !important;
+  }
+  
+  .properties-panel-rtl .space-y-3 > * + * {
+    margin-top: 0.375rem !important;
+  }
+  
+  /* تقليل حجم الخط في الحقول */
+  .properties-panel-rtl input,
+  .properties-panel-rtl textarea,
+  .properties-panel-rtl select {
+    font-size: 13px !important;
+    padding: 6px 8px !important;
+    min-height: 32px !important;
+  }
+  
+  /* تقليل ارتفاع الأزرار */
+  .properties-panel-rtl button {
+    min-height: 32px !important;
+    padding: 4px 8px !important;
+    font-size: 12px !important;
+  }
+  
+  /* تحسين التبويبات للشاشات الصغيرة */
+  .properties-panel-rtl .tabs-list {
+    height: 32px !important;
+    padding: 2px !important;
+  }
+  
+  .properties-panel-rtl .tabs-trigger {
+    font-size: 11px !important;
+    padding: 4px 8px !important;
+  }
+  
+  /* تحسين الأقسام */
+  .properties-panel-rtl .properties-section-enhanced {
+    margin-bottom: 0.5rem !important;
+    padding: 0.5rem !important;
+  }
+  
+  /* تحسين العناوين */
+  .properties-panel-rtl h2,
+  .properties-panel-rtl h3 {
+    font-size: 14px !important;
+    line-height: 1.2 !important;
+  }
+  
+  /* تحسين النصوص */
+  .properties-panel-rtl p {
+    font-size: 12px !important;
+    line-height: 1.3 !important;
+  }
+  
+  /* تحسين البادجات */
+  .properties-panel-rtl .badge {
+    font-size: 10px !important;
+    padding: 2px 6px !important;
+  }
+}
+
+/* الشاشات الصغيرة (480px - 639px) - الهواتف العادية */
+@media (min-width: 480px) and (max-width: 639px) {
+  .properties-panel-rtl {
+    position: fixed !important;
+    top: 0;
+    left: 0 !important;
+    right: auto !important;
+    height: 100vh;
+    z-index: 9999;
+    border-radius: 0;
+    border-left: none;
+    border-right: 1px solid var(--border);
+    max-width: calc(100vw - 20px) !important;
     min-width: 280px;
+    width: calc(100vw - 20px) !important;
+    contain: layout style paint;
+  }
+  
+  /* تحسين عرض المحتوى في الهواتف العادية */
+  .properties-panel-container {
+    height: 100vh !important;
+    overflow: visible !important;
+  }
+  
+  .properties-panel-container .flex-1 {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+  }
+  
+  .properties-panel-container .overflow-y-auto {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  
+  .properties-panel-container .min-h-full {
+    min-height: 100% !important;
   }
   
   /* تأكد من أن المحتوى يبقى داخل الحدود */
@@ -88,16 +233,29 @@
   .properties-panel-rtl select {
     font-size: 14px !important;
     padding: 8px 12px !important;
+    min-height: 36px !important;
   }
   
   /* تقليل ارتفاع الأزرار */
   .properties-panel-rtl button {
     min-height: 36px !important;
     padding: 6px 12px !important;
+    font-size: 13px !important;
+  }
+  
+  /* تحسين التبويبات */
+  .properties-panel-rtl .tabs-list {
+    height: 36px !important;
+    padding: 3px !important;
+  }
+  
+  .properties-panel-rtl .tabs-trigger {
+    font-size: 12px !important;
+    padding: 6px 10px !important;
   }
 }
 
-/* الشاشات المتوسطة (640px - 767px) */
+/* الشاشات المتوسطة (640px - 767px) - التابلت الصغير */
 @media (min-width: 640px) and (max-width: 767px) {
   .properties-panel-rtl {
     max-width: min(var(--properties-panel-width-sm), calc(100vw - 40px));
@@ -105,6 +263,8 @@
     right: 0 !important;
     border-left: 1px solid var(--border);
     border-right: none;
+    position: relative !important;
+    height: 100% !important;
   }
   
   /* تحسين المسافات */
@@ -115,9 +275,23 @@
   .properties-panel-rtl .p-3 {
     padding: 0.75rem !important;
   }
+  
+  /* تحسين الحقول */
+  .properties-panel-rtl input,
+  .properties-panel-rtl textarea,
+  .properties-panel-rtl select {
+    font-size: 14px !important;
+    padding: 8px 12px !important;
+  }
+  
+  /* تحسين الأزرار */
+  .properties-panel-rtl button {
+    min-height: 38px !important;
+    padding: 8px 12px !important;
+  }
 }
 
-/* الشاشات الكبيرة (768px - 1023px) */
+/* الشاشات الكبيرة (768px - 1023px) - التابلت الكبير */
 @media (min-width: 768px) and (max-width: 1023px) {
   .properties-panel-rtl {
     max-width: min(var(--properties-panel-width-md), calc(40vw));
@@ -125,10 +299,26 @@
     right: 0 !important;
     border-left: 1px solid var(--border);
     border-right: none;
+    position: relative !important;
+    height: 100% !important;
+  }
+  
+  /* تحسين الحقول */
+  .properties-panel-rtl input,
+  .properties-panel-rtl textarea,
+  .properties-panel-rtl select {
+    font-size: 14px !important;
+    padding: 10px 14px !important;
+  }
+  
+  /* تحسين الأزرار */
+  .properties-panel-rtl button {
+    min-height: 40px !important;
+    padding: 10px 14px !important;
   }
 }
 
-/* الشاشات الكبيرة جداً (1024px+) */
+/* الشاشات الكبيرة جداً (1024px+) - الحاسوب */
 @media (min-width: 1024px) {
   .properties-panel-rtl {
     max-width: min(var(--properties-panel-width-lg), calc(35vw));
@@ -136,10 +326,26 @@
     right: 0 !important;
     border-left: 1px solid var(--border);
     border-right: none;
+    position: relative !important;
+    height: 100% !important;
+  }
+  
+  /* تحسين الحقول */
+  .properties-panel-rtl input,
+  .properties-panel-rtl textarea,
+  .properties-panel-rtl select {
+    font-size: 14px !important;
+    padding: 12px 16px !important;
+  }
+  
+  /* تحسين الأزرار */
+  .properties-panel-rtl button {
+    min-height: 42px !important;
+    padding: 12px 16px !important;
   }
 }
 
-/* الشاشات الضخمة (1280px+) */
+/* الشاشات الضخمة (1280px+) - الشاشات الكبيرة */
 @media (min-width: 1280px) {
   .properties-panel-rtl {
     max-width: min(var(--properties-panel-width-xl), calc(30vw));
@@ -147,6 +353,8 @@
     right: 0 !important;
     border-left: 1px solid var(--border);
     border-right: none;
+    position: relative !important;
+    height: 100% !important;
   }
 }
 
@@ -225,6 +433,10 @@
     width: 18px;
     height: 18px;
   }
+  
+  .properties-panel-rtl .slider-responsive {
+    margin: 8px 0;
+  }
 }
 
 /* تحسين المفاتيح (Switches) */
@@ -257,39 +469,70 @@
 @media (max-width: 639px) {
   .properties-panel-rtl .select-responsive .select-trigger {
     padding: 6px 10px;
-    font-size: 14px;
+    font-size: 13px;
   }
 }
 
 /* تحسين منطقة التمرير */
-.properties-scroll-area {
+.properties-scroll-area,
+.store-editor-scroll-container {
   scrollbar-width: thin;
   scrollbar-color: rgba(155, 155, 155, 0.5) transparent;
 }
 
-.properties-scroll-area::-webkit-scrollbar {
+.properties-scroll-area::-webkit-scrollbar,
+.store-editor-scroll-container::-webkit-scrollbar {
   width: 8px;
 }
 
-.properties-scroll-area::-webkit-scrollbar-track {
+.properties-scroll-area::-webkit-scrollbar-track,
+.store-editor-scroll-container::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.properties-scroll-area::-webkit-scrollbar-thumb {
+.properties-scroll-area::-webkit-scrollbar-thumb,
+.store-editor-scroll-container::-webkit-scrollbar-thumb {
   background-color: rgba(155, 155, 155, 0.5);
   border-radius: 4px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
 
-.properties-scroll-area::-webkit-scrollbar-thumb:hover {
+.properties-scroll-area::-webkit-scrollbar-thumb:hover,
+.store-editor-scroll-container::-webkit-scrollbar-thumb:hover {
   background-color: rgba(155, 155, 155, 0.8);
 }
 
 @media (max-width: 639px) {
-  .properties-scroll-area::-webkit-scrollbar {
+  .properties-scroll-area::-webkit-scrollbar,
+  .store-editor-scroll-container::-webkit-scrollbar {
     width: 6px;
   }
+}
+
+/* تحسينات خاصة للسكرول الكامل */
+.properties-panel-full-scroll {
+  height: 100vh !important;
+  overflow-y: auto !important;
+  scroll-behavior: smooth !important;
+}
+
+.properties-panel-full-scroll .tabs-content {
+  flex: 1 !important;
+  overflow: visible !important;
+  height: auto !important;
+}
+
+.properties-panel-full-scroll .scroll-area {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.properties-panel-full-scroll .properties-scroll-enhanced {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
 }
 
 /* تحسينات للإنيميشن في الأجهزة المحمولة */
@@ -311,6 +554,37 @@
 .properties-panel-rtl * {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* تحسينات للأداء - تقليل reflow */
+.properties-panel-container {
+  contain: layout style paint;
+  will-change: auto;
+}
+
+.properties-panel-container * {
+  will-change: auto;
+}
+
+/* تحسينات للشاشات الصغيرة - تقليل reflow */
+@media (max-width: 1023px) {
+  .properties-panel-container {
+    contain: layout style paint;
+    will-change: auto;
+  }
+  
+  .properties-panel-container * {
+    will-change: auto;
+  }
+  
+  /* تقليل مدة الانيميشن في الأجهزة المحمولة */
+  .properties-panel-container * {
+    transition-duration: 0.15s !important;
+  }
+  
+  .properties-panel-container .motion-div {
+    transition-duration: 0.15s !important;
+  }
 }
 
 /* تحسين focus للوصولية */
@@ -347,27 +621,39 @@
 /* تحسينات خاصة بالشاشات الصغيرة للغاية */
 @media (max-width: 380px) {
   .properties-panel-rtl {
-    font-size: 13px;
+    font-size: 12px;
   }
   
   .properties-panel-rtl .text-sm {
-    font-size: 12px !important;
+    font-size: 11px !important;
   }
   
   .properties-panel-rtl .p-4 {
-    padding: 0.75rem !important;
-  }
-  
-  .properties-panel-rtl .p-3 {
     padding: 0.5rem !important;
   }
   
+  .properties-panel-rtl .p-3 {
+    padding: 0.375rem !important;
+  }
+  
   .properties-panel-rtl .space-y-4 > * + * {
-    margin-top: 0.5rem !important;
+    margin-top: 0.375rem !important;
   }
   
   .properties-panel-rtl .gap-3 {
-    gap: 0.5rem !important;
+    gap: 0.375rem !important;
+  }
+  
+  /* تقليل أحجام الأيقونات */
+  .properties-panel-rtl svg {
+    width: 14px !important;
+    height: 14px !important;
+  }
+  
+  /* تقليل أحجام البادجات */
+  .properties-panel-rtl .badge {
+    font-size: 9px !important;
+    padding: 1px 4px !important;
   }
 }
 
@@ -434,4 +720,254 @@
 .properties-panel-rtl .ml-auto {
   margin-left: auto;
   margin-right: 0;
+}
+
+/* تحسينات خاصة للشاشات الصغيرة - تحسين التخطيط */
+@media (max-width: 639px) {
+  .properties-panel-rtl .flex {
+    flex-direction: column !important;
+  }
+  
+  .properties-panel-rtl .flex-row {
+    flex-direction: column !important;
+  }
+  
+  .properties-panel-rtl .grid {
+    grid-template-columns: 1fr !important;
+  }
+  
+  .properties-panel-rtl .grid-cols-2 {
+    grid-template-columns: 1fr !important;
+  }
+  
+  .properties-panel-rtl .grid-cols-3 {
+    grid-template-columns: 1fr !important;
+  }
+  
+  /* تحسين المسافات */
+  .properties-panel-rtl .gap-2 {
+    gap: 0.25rem !important;
+  }
+  
+  .properties-panel-rtl .gap-3 {
+    gap: 0.375rem !important;
+  }
+  
+  .properties-panel-rtl .gap-4 {
+    gap: 0.5rem !important;
+  }
+  
+  /* تحسين الهوامش */
+  .properties-panel-rtl .mb-4 {
+    margin-bottom: 0.5rem !important;
+  }
+  
+  .properties-panel-rtl .mb-6 {
+    margin-bottom: 0.75rem !important;
+  }
+  
+  .properties-panel-rtl .mt-4 {
+    margin-top: 0.5rem !important;
+  }
+  
+  .properties-panel-rtl .mt-6 {
+    margin-top: 0.75rem !important;
+  }
+}
+
+/* تحسينات خاصة للشاشات المتوسطة */
+@media (min-width: 640px) and (max-width: 767px) {
+  .properties-panel-rtl .grid-cols-2 {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  
+  .properties-panel-rtl .grid-cols-3 {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+/* تحسينات للشاشات الكبيرة */
+@media (min-width: 768px) {
+  .properties-panel-rtl .grid-cols-2 {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  
+  .properties-panel-rtl .grid-cols-3 {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+}
+
+/* تحسينات خاصة للوحة الخصائص في الشاشة الكاملة */
+.properties-panel-fullscreen {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 9999 !important;
+  border-radius: 0 !important;
+  max-width: none !important;
+  min-width: none !important;
+}
+
+/* تحسينات خاصة للوحة الخصائص في الهاتف */
+.properties-panel-mobile {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 9999 !important;
+  border-radius: 0 !important;
+  max-width: none !important;
+  min-width: none !important;
+}
+
+/* تحسينات للشاشات الصغيرة - عرض المحتوى كاملاً */
+.properties-panel-small-screen {
+  height: 100% !important;
+  overflow: visible !important;
+}
+
+.properties-panel-small-screen .flex-1 {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+}
+
+.properties-panel-small-screen .overflow-y-auto {
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+/* تحسينات خاصة للشاشات الصغيرة في الحاسوب */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .properties-panel-container {
+    height: 100% !important;
+    overflow: visible !important;
+    contain: layout style paint;
+  }
+  
+  .properties-panel-container .flex-1 {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+  }
+  
+  .properties-panel-container .overflow-y-auto {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  
+  /* تحسين عرض المحتوى */
+  .properties-panel-container .min-h-full {
+    min-height: 100% !important;
+  }
+  
+  /* تحسين السكرول */
+  .properties-panel-container .store-editor-scroll-container {
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scroll-behavior: smooth !important;
+  }
+}
+
+/* تحسينات خاصة للوحة الخصائص في التابلت */
+.properties-panel-tablet {
+  position: relative !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 400px !important;
+  min-width: 320px !important;
+}
+
+/* تحسينات للزر العائم في الهاتف */
+.floating-properties-button {
+  position: fixed !important;
+  bottom: 20px !important;
+  left: 20px !important;
+  z-index: 10000 !important;
+  width: 56px !important;
+  height: 56px !important;
+  border-radius: 50% !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+}
+
+@media (max-width: 639px) {
+  .floating-properties-button {
+    bottom: 16px !important;
+    left: 16px !important;
+    width: 48px !important;
+    height: 48px !important;
+  }
+}
+
+/* تحسينات للتنقل السفلي في الهاتف */
+.mobile-bottom-nav {
+  position: fixed !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: 60px !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  backdrop-filter: blur(20px) !important;
+  border-top: 1px solid rgba(0, 0, 0, 0.1) !important;
+  z-index: 1000 !important;
+}
+
+[data-theme="dark"] .mobile-bottom-nav {
+  background: rgba(0, 0, 0, 0.95) !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+/* تحسينات للشريط العلوي في الهاتف */
+.mobile-top-bar {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  height: 56px !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  backdrop-filter: blur(20px) !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1) !important;
+  z-index: 1000 !important;
+}
+
+[data-theme="dark"] .mobile-top-bar {
+  background: rgba(0, 0, 0, 0.95) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+/* تحسينات للمحتوى الرئيسي في الهاتف */
+.mobile-main-content {
+  padding-top: 56px !important;
+  padding-bottom: 60px !important;
+  height: 100vh !important;
+  overflow-y: auto !important;
+}
+
+/* تحسينات للإشعارات في الهاتف */
+.mobile-notification {
+  position: fixed !important;
+  top: 70px !important;
+  left: 16px !important;
+  right: 16px !important;
+  z-index: 1001 !important;
+  background: rgba(59, 130, 246, 0.95) !important;
+  backdrop-filter: blur(20px) !important;
+  border-radius: 12px !important;
+  padding: 12px 16px !important;
+  color: white !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2) !important;
+}
+
+@media (max-width: 639px) {
+  .mobile-notification {
+    top: 66px !important;
+    left: 12px !important;
+    right: 12px !important;
+    padding: 10px 14px !important;
+  }
 } 

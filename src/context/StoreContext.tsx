@@ -178,7 +178,6 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   // =================================================================
   const invalidateCache = useCallback(async (subdomain: string, orgId?: string) => {
     // لا نحتاج لمسح الكاش لأننا لا نستخدمه بعد الآن
-    console.log('تم استدعاء invalidateCache ولكن الكاش معطل');
     dispatch({ type: 'INVALIDATE_CACHE' });
   }, []);
 

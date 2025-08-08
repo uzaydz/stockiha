@@ -1,12 +1,8 @@
 import React, { useState, useEffect } from 'react';
 // import { Navigate } from 'react-router-dom'; // Navigate غير مستخدمة حاليًا
-import { getOrganizationByDomain, getOrganizationBySubdomain } from '@/lib/api/subdomain';
 import { extractSubdomainFromHostname } from '@/lib/api/subdomain';
 import StorePage from '@/components/store/StorePage';
 import LandingPage from '@/pages/landing/LandingPage';
-// إزالة getFullStoreData واستيراد الخدمات الجديدة
-// import { getFullStoreData } from '@/api/store'; 
-import { getStoreDataFast, StoreInitializationData } from '@/api/storeDataService';
 import { useGlobalLoading } from '@/components/store/GlobalLoadingManager';
 import { useDynamicTitle } from '@/hooks/useDynamicTitle';
 
@@ -65,7 +61,6 @@ const StoreRouter = () => {
   
   const [isStore, setIsStore] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [storeData, setStoreData] = useState<Partial<StoreInitializationData> | null>(null);
   const [hasSubdomain, setHasSubdomain] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -105,56 +100,12 @@ const StoreRouter = () => {
     }
   }, [isLoading, isSubdomainStore, subdomain, showLoader, hideLoader, setPhase]);
 
-  // دالة محسنة لجلب بيانات المتجر مع إعادة المحاولة
-  const fetchStoreDataWithRetry = async (subdomainToUse: string) => {
-    try {
-      
-      const result = await retryWithBackoff(
-        () => getStoreDataFast(subdomainToUse),
-        3, // 3 محاولات
-        1000 // بداية بثانية واحدة
-      );
-      
-      if (result.data && !result.data.error) {
-        return result.data;
-      } else {
-        const errorMsg = result.data?.error || 'لم يتم العثور على بيانات المتجر';
-        throw new Error(errorMsg);
-      }
-    } catch (error) {
-      throw error;
-    }
-  };
-
-  // دالة محسنة لجلب بيانات المؤسسة مع إعادة المحاولة
-  const fetchOrganizationWithRetry = async (identifier: string, bySubdomain: boolean = true) => {
-    try {
-      
-      const result = await retryWithBackoff(
-        () => bySubdomain 
-          ? getOrganizationBySubdomain(identifier)
-          : getOrganizationByDomain(identifier),
-        3,
-        1000
-      );
-      
-      if (result) {
-        return result;
-      } else {
-        throw new Error(`لم يتم العثور على مؤسسة للمعرف: ${identifier}`);
-      }
-    } catch (error) {
-      throw error;
-    }
-  };
-
   // دالة إعادة المحاولة اليدوية
   const handleRetry = () => {
     setRetryCount(prev => prev + 1);
     setError(null);
     setIsLoading(true);
     setIsStore(null);
-    setStoreData(null);
   };
 
   useEffect(() => {
@@ -168,36 +119,17 @@ const StoreRouter = () => {
           return;
         }
 
-        // إذا كان هناك نطاق فرعي، نفترض أنه متجر ونبدأ التحميل فوراً
-        // (حتى لو كان في localhost مع subdomain)
+        // إذا كان هناك نطاق فرعي، نفترض أنه متجر ونترك تحميل البيانات للمكونات المختصة
         if (isSubdomainStore && subdomain) {
           setHasSubdomain(true);
-          
+          // ضمان توافق المعرف مع النطاق الحالي: نُفرغ المعرف المخزن لتجنب جلب مكرر بالمعرف
           try {
-            // تحميل متوازي للمؤسسة وبيانات المتجر مع إعادة المحاولة
-            const [orgDetails, storeResult] = await Promise.all([
-              fetchOrganizationWithRetry(subdomain, true),
-              fetchStoreDataWithRetry(subdomain)
-            ]);
-            
-            if (orgDetails && storeResult) {
-              
-              localStorage.setItem('bazaar_organization_id', orgDetails.id);
-              localStorage.setItem('bazaar_current_subdomain', subdomain);
-              
-              // تحديث عنوان الصفحة
-              document.title = `${orgDetails.name} - متجر إلكتروني`;
-              
-              setStoreData(storeResult);
-              setIsStore(true);
-              setIsLoading(false);
-              return;
-            }
-          } catch (error) {
-            setError(`خطأ في تحميل المتجر: ${(error as Error).message}`);
-            setIsLoading(false);
-            return;
-          }
+            localStorage.removeItem('bazaar_organization_id');
+            localStorage.setItem('bazaar_current_subdomain', subdomain);
+          } catch {}
+          setIsStore(true);
+          setIsLoading(false);
+          return;
         }
 
         // النطاقات العامة - عرض صفحة الهبوط مباشرة
@@ -207,60 +139,11 @@ const StoreRouter = () => {
           return;
         }
 
-        // التحقق من النطاق المخصص (للنطاقات التي ليس لها نطاق فرعي)
+        // النطاقات المخصصة بدون نطاق فرعي: اترك TenantContext يكتشف المؤسسة
         if (!isSubdomainStore) {
-          
-          try {
-            const orgDetails = await fetchOrganizationWithRetry(hostname, false);
-            
-            if (orgDetails && orgDetails.subdomain) {
-              
-              localStorage.setItem('bazaar_organization_id', orgDetails.id);
-              localStorage.setItem('bazaar_current_subdomain', orgDetails.subdomain);
-              
-              const result = await fetchStoreDataWithRetry(orgDetails.subdomain);
-              
-              if (result) {
-                setStoreData(result);
-                setIsStore(true);
-                setIsLoading(false);
-                return;
-              }
-            } else {
-              // إذا لم نجد في النطاق المخصص، ربما يكون النطاق نفسه هو subdomain
-              // مثل asraycollection.com حيث asraycollection هو subdomain
-              
-              // استخراج اسم النطاق الأول (قبل النقطة الأولى)
-              const potentialSubdomain = hostname.split('.')[0];
-              
-              if (potentialSubdomain && potentialSubdomain !== 'www') {
-                
-                try {
-                  const [orgDetails, storeResult] = await Promise.all([
-                    fetchOrganizationWithRetry(potentialSubdomain, true),
-                    fetchStoreDataWithRetry(potentialSubdomain)
-                  ]);
-                  
-                  if (orgDetails && storeResult) {
-                    
-                    localStorage.setItem('bazaar_organization_id', orgDetails.id);
-                    localStorage.setItem('bazaar_current_subdomain', potentialSubdomain);
-                    
-                    // تحديث عنوان الصفحة
-                    document.title = `${orgDetails.name} - متجر إلكتروني`;
-                    
-                    setStoreData(storeResult);
-                    setIsStore(true);
-                    setIsLoading(false);
-                    return;
-                  }
-                } catch (subdomainError) {
-                }
-              }
-            }
-          } catch (error) {
-            // لا نعرض خطأ هنا، نحاول عرض صفحة الهبوط كبديل
-          }
+          setIsStore(false);
+          setIsLoading(false);
+          return;
         }
         
         // إذا لم نجد أي متجر، عرض صفحة الهبوط
@@ -356,7 +239,7 @@ const StoreRouter = () => {
     return null;
   }
   
-  if (isStore === true && storeData) { // التأكد من وجود storeData أيضًا
+  if (isStore === true) {
     return <StorePage />;
   }
   

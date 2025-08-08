@@ -68,23 +68,42 @@ const startPerformanceTracking = () => {
   }
 };
 
+// دالة لمسح Cache عند الحاجة
+export const clearEmployeeCache = () => {
+  cachedEmployees = null;
+  cachedStats = null;
+  lastEmployeesFetch = 0;
+  lastStatsFetch = 0;
+};
+
 // دالة محسنة للحصول على معرف المؤسسة
 const getOrganizationId = async (): Promise<string | null> => {
   const now = Date.now();
   
+  if (process.env.NODE_ENV === 'development') {
+  }
+  
   // استخدام cache إذا كان حديثاً
   if (cachedOrganizationId && (now - lastOrgFetch) < ORG_CACHE_DURATION) {
+    if (process.env.NODE_ENV === 'development') {
+    }
     return cachedOrganizationId;
   }
   
   try {
+    if (process.env.NODE_ENV === 'development') {
+    }
     // الحصول على بيانات المستخدم الحالي
     const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
+      if (process.env.NODE_ENV === 'development') {
+      }
       return null;
     }
     
+    if (process.env.NODE_ENV === 'development') {
+    }
     // الحصول على معرف المؤسسة للمستخدم الحالي
     const { data: userData, error: userError } = await supabase
       .from('users')
@@ -93,19 +112,27 @@ const getOrganizationId = async (): Promise<string | null> => {
       .single();
       
     if (!userError && userData?.organization_id) {
+      if (process.env.NODE_ENV === 'development') {
+      }
       cachedOrganizationId = userData.organization_id;
       lastOrgFetch = now;
       return cachedOrganizationId;
     }
     
+    if (process.env.NODE_ENV === 'development') {
+    }
     // محاولة استخدام معرف المؤسسة من التخزين المحلي
     const localOrgId = localStorage.getItem('organizationId');
     if (localOrgId) {
+      if (process.env.NODE_ENV === 'development') {
+      }
       cachedOrganizationId = localOrgId;
       lastOrgFetch = now;
       return cachedOrganizationId;
     }
     
+    if (process.env.NODE_ENV === 'development') {
+    }
     return null;
   } catch (err) {
     return null;
@@ -116,21 +143,30 @@ export const getEmployees = async (): Promise<Employee[]> => {
   const now = Date.now();
   performanceStats.employeesRequests++;
   
+  if (process.env.NODE_ENV === 'development') {
+  }
+  
   // بدء تتبع الأداء عند أول استخدام
   startPerformanceTracking();
   
   // استخدام cache إذا كان حديثاً
   if (cachedEmployees && (now - lastEmployeesFetch) < EMPLOYEES_CACHE_DURATION) {
+    if (process.env.NODE_ENV === 'development') {
+    }
     performanceStats.employeesCacheHits++;
     return cachedEmployees;
   }
   
   // إذا كان هناك طلب جاري، انتظر نتيجته بدلاً من إنشاء طلب جديد
   if (ongoingEmployeesRequest) {
+    if (process.env.NODE_ENV === 'development') {
+    }
     performanceStats.duplicateRequestsBlocked++;
     return await ongoingEmployeesRequest;
   }
   
+  if (process.env.NODE_ENV === 'development') {
+  }
   // إنشاء طلب جديد
   ongoingEmployeesRequest = performGetEmployees();
   
@@ -141,6 +177,8 @@ export const getEmployees = async (): Promise<Employee[]> => {
     cachedEmployees = result;
     lastEmployeesFetch = now;
     
+    if (process.env.NODE_ENV === 'development') {
+    }
     return result;
   } finally {
     // تنظيف الطلب الجاري
@@ -151,15 +189,24 @@ export const getEmployees = async (): Promise<Employee[]> => {
 // الدالة الفعلية لجلب الموظفين
 const performGetEmployees = async (): Promise<Employee[]> => {
   try {
+    if (process.env.NODE_ENV === 'development') {
+    }
     
     // الحصول على معرف المؤسسة (مع cache)
     const organizationId = await getOrganizationId();
     
     if (!organizationId) {
+      if (process.env.NODE_ENV === 'development') {
+      }
       return [];
     }
 
+    if (process.env.NODE_ENV === 'development') {
+    }
+
     // استخدام الاستعلام المباشر بدون استدعاءات إضافية
+    if (process.env.NODE_ENV === 'development') {
+    }
     const { data, error } = await supabase
       .from('users')
       .select('*')
@@ -171,31 +218,46 @@ const performGetEmployees = async (): Promise<Employee[]> => {
       return [];
     }
 
+    if (process.env.NODE_ENV === 'development') {
+    }
+
+    // إضافة رسالة تشخيص إذا لم يتم العثور على موظفين
+    if (!data || data.length === 0) {
+      if (process.env.NODE_ENV === 'development') {
+      }
+    }
+
     // تحويل البيانات للنوع المطلوب مع معالجة آمنة للأنواع
-          return (data || []).map(user => ({
-        id: user.id,
-        user_id: user.auth_user_id || user.id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        role: user.role as 'employee' | 'admin',
-        is_active: user.is_active,
-        last_login: user.last_login || null,
-        created_at: user.created_at,
-        updated_at: user.updated_at,
-        organization_id: user.organization_id,
-        permissions: {
-          accessPOS: false,
-          manageOrders: false,
-          processPayments: false,
-          manageUsers: false,
-          viewReports: false,
-          manageProducts: false,
-          manageServices: false,
-          manageEmployees: false,
-          viewOrders: false
-        }
-      })) as Employee[];
+    if (process.env.NODE_ENV === 'development') {
+    }
+    const transformedEmployees = (data || []).map(user => ({
+      id: user.id,
+      user_id: user.auth_user_id || user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role as 'employee' | 'admin',
+      is_active: user.is_active,
+      last_login: null, // حقل غير موجود في قاعدة البيانات
+      created_at: user.created_at,
+      updated_at: user.updated_at,
+      organization_id: user.organization_id,
+      permissions: {
+        accessPOS: false,
+        manageOrders: false,
+        processPayments: false,
+        manageUsers: false,
+        viewReports: false,
+        manageProducts: false,
+        manageServices: false,
+        manageEmployees: false,
+        viewOrders: false
+      }
+    })) as unknown as Employee[];
+    
+    if (process.env.NODE_ENV === 'development') {
+    }
+    return transformedEmployees;
   } catch (err) {
     return [];
   }
@@ -219,7 +281,7 @@ export const getEmployeeById = async (id: string): Promise<Employee | null> => {
     ...data,
     role: data.role as 'employee' | 'admin',
     permissions: typeof data.permissions === 'object' ? data.permissions : {}
-  } as Employee;
+  } as unknown as Employee;
 };
 
 // إنشاء موظف جديد
@@ -227,7 +289,9 @@ export const createEmployee = async (
   email: string, 
   password: string,
   userData: Omit<Employee, 'id' | 'created_at' | 'updated_at'>
-): Promise<Employee> => { 
+): Promise<Employee> => {
+  // مسح Cache عند إضافة موظف جديد
+  clearEmployeeCache(); 
 
   // 1. Get Admin's Org ID (same logic as before)
   const { data: { user: adminUser } } = await supabase.auth.getUser();
@@ -442,6 +506,8 @@ export const updateEmployee = async (
   id: string, 
   updates: Partial<Omit<Employee, 'id' | 'created_at'>>
 ): Promise<Employee> => {
+  // مسح Cache عند تحديث موظف
+  clearEmployeeCache();
   // إزالة permissions من التحديثات لتجنب تعارض الأنواع
   const { permissions, ...otherUpdates } = updates;
   const processedUpdates = {
@@ -466,7 +532,7 @@ export const updateEmployee = async (
     ...data,
     role: data.role as 'employee' | 'admin',
     permissions: typeof data.permissions === 'object' ? data.permissions : {}
-  } as Employee;
+  } as unknown as Employee;
 };
 
 // تغيير كلمة مرور الموظف
@@ -483,6 +549,8 @@ export const resetEmployeePassword = async (id: string, newPassword: string): Pr
 
 // تغيير حالة نشاط الموظف
 export const toggleEmployeeStatus = async (id: string, isActive: boolean): Promise<Employee> => {
+  // مسح Cache عند تغيير حالة الموظف
+  clearEmployeeCache();
   const { data, error } = await supabase
     .from('users')
     .update({
@@ -503,11 +571,13 @@ export const toggleEmployeeStatus = async (id: string, isActive: boolean): Promi
     ...data,
     role: data.role as 'employee' | 'admin',
     permissions: typeof data.permissions === 'object' ? data.permissions : {}
-  } as Employee;
+  } as unknown as Employee;
 };
 
 // حذف موظف
 export const deleteEmployee = async (id: string): Promise<void> => {
+  // مسح Cache عند حذف موظف
+  clearEmployeeCache();
   // 1. حذف الموظف من جدول users
   const { error: userError } = await supabase
     .from('users')
@@ -749,6 +819,9 @@ const performGetEmployeeStats = async (): Promise<{
       active: activeResult.count || 0,
       inactive: inactiveResult.count || 0
     };
+
+    if (process.env.NODE_ENV === 'development') {
+    }
 
     return stats;
   } catch (error) {

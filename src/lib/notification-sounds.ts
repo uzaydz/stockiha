@@ -93,70 +93,87 @@ class NotificationSoundManager {
   private isEnabled: boolean = true;
   private lastPlayTime: number = 0;
   private playQueue: Array<{ config: SoundConfig; delay: number }> = [];
+  private isInitialized: boolean = false;
 
   constructor() {
-    this.initializeAudioContext();
+    // لا نقوم بتهيئة AudioContext هنا - سنقوم بذلك عند الحاجة
   }
 
-  private initializeAudioContext() {
+  private async initializeAudioContext(): Promise<boolean> {
+    if (this.isInitialized && this.audioContext) {
+      return true;
+    }
+
     try {
       // إنشاء AudioContext مع معالجة التوافق
       this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       
-      // استئناف AudioContext إذا كان متوقفاً
+      // محاولة استئناف AudioContext إذا كان متوقفاً
       if (this.audioContext.state === 'suspended') {
-        this.audioContext.resume();
+        await this.audioContext.resume();
       }
+      
+      this.isInitialized = true;
+      return true;
     } catch (error) {
+      return false;
     }
   }
 
   // تشغيل صوت مفرد
-  private playTone(frequency: number, duration: number, volume: number, waveType: OscillatorType) {
-    if (!this.audioContext || !this.isEnabled) return;
+  private async playTone(frequency: number, duration: number, volume: number, waveType: OscillatorType) {
+    if (!this.isEnabled) return;
 
-    const oscillator = this.audioContext.createOscillator();
-    const gainNode = this.audioContext.createGain();
+    // تهيئة AudioContext إذا لم يكن موجوداً
+    if (!await this.initializeAudioContext() || !this.audioContext) {
+      return;
+    }
 
-    oscillator.connect(gainNode);
-    gainNode.connect(this.audioContext.destination);
+    try {
+      const oscillator = this.audioContext.createOscillator();
+      const gainNode = this.audioContext.createGain();
 
-    oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
-    oscillator.type = waveType;
+      oscillator.connect(gainNode);
+      gainNode.connect(this.audioContext.destination);
 
-    // تطبيق منحنى تلاشي ناعم
-    const now = this.audioContext.currentTime;
-    gainNode.gain.setValueAtTime(0, now);
-    gainNode.gain.linearRampToValueAtTime(volume * this.masterVolume, now + 0.01);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, now + duration / 1000);
+      oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+      oscillator.type = waveType;
 
-    oscillator.start(now);
-    oscillator.stop(now + duration / 1000);
+      // تطبيق منحنى تلاشي ناعم
+      const now = this.audioContext.currentTime;
+      gainNode.gain.setValueAtTime(0, now);
+      gainNode.gain.linearRampToValueAtTime(volume * this.masterVolume, now + 0.01);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, now + duration / 1000);
+
+      oscillator.start(now);
+      oscillator.stop(now + duration / 1000);
+    } catch (error) {
+    }
   }
 
   // تشغيل كورد (عدة نغمات معاً)
-  private playChord(baseFreq: number, duration: number, volume: number, waveType: OscillatorType) {
+  private async playChord(baseFreq: number, duration: number, volume: number, waveType: OscillatorType) {
     const chordIntervals = [1, 1.25, 1.5]; // Major chord
-    chordIntervals.forEach((interval, index) => {
-      setTimeout(() => {
-        this.playTone(baseFreq * interval, duration, volume * 0.7, waveType);
-      }, index * 50);
-    });
+    for (let i = 0; i < chordIntervals.length; i++) {
+      setTimeout(async () => {
+        await this.playTone(baseFreq * chordIntervals[i], duration, volume * 0.7, waveType);
+      }, i * 50);
+    }
   }
 
   // تشغيل لحن
-  private playMelody(baseFreq: number, duration: number, volume: number, waveType: OscillatorType) {
+  private async playMelody(baseFreq: number, duration: number, volume: number, waveType: OscillatorType) {
     const melodyPattern = [1, 1.125, 1.25, 1.5]; // جميل ومبهج
-    melodyPattern.forEach((ratio, index) => {
-      setTimeout(() => {
-        this.playTone(baseFreq * ratio, duration * 0.6, volume * 0.8, waveType);
-      }, index * duration * 0.3);
-    });
+    for (let i = 0; i < melodyPattern.length; i++) {
+      setTimeout(async () => {
+        await this.playTone(baseFreq * melodyPattern[i], duration * 0.6, volume * 0.8, waveType);
+      }, i * duration * 0.3);
+    }
   }
 
   // تشغيل صوت الإشعار
   public async playNotificationSound(soundType: NotificationSoundType) {
-    if (!this.isEnabled || !this.audioContext) return;
+    if (!this.isEnabled) return;
 
     // تجنب تشغيل الأصوات بسرعة مفرطة
     const now = Date.now();
@@ -166,38 +183,33 @@ class NotificationSoundManager {
     const config = SOUND_CONFIGS[soundType];
     if (!config) return;
 
-    // التأكد من أن AudioContext جاهز
-    if (this.audioContext.state === 'suspended') {
-      await this.audioContext.resume();
-    }
-
     try {
       switch (config.pattern) {
         case 'single':
-          this.playTone(config.frequency, config.duration, config.volume, config.waveType);
+          await this.playTone(config.frequency, config.duration, config.volume, config.waveType);
           break;
         
         case 'double':
-          this.playTone(config.frequency, config.duration * 0.7, config.volume, config.waveType);
-          setTimeout(() => {
-            this.playTone(config.frequency * 1.125, config.duration * 0.7, config.volume, config.waveType);
+          await this.playTone(config.frequency, config.duration * 0.7, config.volume, config.waveType);
+          setTimeout(async () => {
+            await this.playTone(config.frequency * 1.125, config.duration * 0.7, config.volume, config.waveType);
           }, config.duration * 0.8);
           break;
         
         case 'triple':
-          [1, 1.125, 1.25].forEach((ratio, index) => {
-            setTimeout(() => {
-              this.playTone(config.frequency * ratio, config.duration * 0.6, config.volume, config.waveType);
-            }, index * config.duration * 0.4);
-          });
+          for (let i = 0; i < 3; i++) {
+            setTimeout(async () => {
+              await this.playTone(config.frequency * [1, 1.125, 1.25][i], config.duration * 0.6, config.volume, config.waveType);
+            }, i * config.duration * 0.4);
+          }
           break;
         
         case 'chord':
-          this.playChord(config.frequency, config.duration, config.volume, config.waveType);
+          await this.playChord(config.frequency, config.duration, config.volume, config.waveType);
           break;
         
         case 'melody':
-          this.playMelody(config.frequency, config.duration, config.volume, config.waveType);
+          await this.playMelody(config.frequency, config.duration, config.volume, config.waveType);
           break;
       }
     } catch (error) {
@@ -205,7 +217,7 @@ class NotificationSoundManager {
   }
 
   // تشغيل صوت حسب نوع الإشعار
-  public playForNotificationType(notificationType: string, priority: string = 'medium') {
+  public async playForNotificationType(notificationType: string, priority: string = 'medium') {
     let soundType: NotificationSoundType;
 
     switch (notificationType) {
@@ -225,7 +237,12 @@ class NotificationSoundManager {
         soundType = priority === 'urgent' ? 'urgent' : 'info';
     }
 
-    this.playNotificationSound(soundType);
+    await this.playNotificationSound(soundType);
+  }
+
+  // تهيئة AudioContext عند تفاعل المستخدم
+  public async initializeOnUserInteraction(): Promise<boolean> {
+    return await this.initializeAudioContext();
   }
 
   // تعديل مستوى الصوت الرئيسي
@@ -240,12 +257,12 @@ class NotificationSoundManager {
 
   // التحقق من حالة التفعيل
   public isAudioEnabled(): boolean {
-    return this.isEnabled && !!this.audioContext;
+    return this.isEnabled && this.isInitialized;
   }
 
   // تشغيل صوت اختبار
-  public playTestSound() {
-    this.playNotificationSound('success');
+  public async playTestSound() {
+    await this.playNotificationSound('success');
   }
 
   // تنظيف الموارد
@@ -253,20 +270,25 @@ class NotificationSoundManager {
     if (this.audioContext) {
       this.audioContext.close();
       this.audioContext = null;
+      this.isInitialized = false;
     }
   }
 }
 
-// إنشاء مدير الأصوات العام
+// دوال عامة للاستخدام المباشر
 export const notificationSoundManager = new NotificationSoundManager();
 
-// وظائف مساعدة للاستخدام السهل
-export const playNotificationSound = (type: NotificationSoundType) => {
-  notificationSoundManager.playNotificationSound(type);
+// تهيئة AudioContext عند تفاعل المستخدم
+export const initializeNotificationSounds = async (): Promise<boolean> => {
+  return await notificationSoundManager.initializeOnUserInteraction();
 };
 
-export const playNotificationForType = (notificationType: string, priority: string = 'medium') => {
-  notificationSoundManager.playForNotificationType(notificationType, priority);
+export const playNotificationSound = async (type: NotificationSoundType) => {
+  await notificationSoundManager.playNotificationSound(type);
+};
+
+export const playNotificationForType = async (notificationType: string, priority: string = 'medium') => {
+  await notificationSoundManager.playForNotificationType(notificationType, priority);
 };
 
 export const setNotificationVolume = (volume: number) => {
@@ -277,6 +299,6 @@ export const enableNotificationSounds = (enabled: boolean) => {
   notificationSoundManager.setEnabled(enabled);
 };
 
-export const playTestNotificationSound = () => {
-  notificationSoundManager.playTestSound();
+export const playTestNotificationSound = async () => {
+  await notificationSoundManager.playTestSound();
 };

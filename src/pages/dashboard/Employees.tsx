@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Layout from '@/components/Layout';
 import { 
   getEmployees, 
@@ -38,51 +38,104 @@ const Employees = () => {
     sortOrder: 'asc'
   });
   const [userStatus, setUserStatus] = useState<any>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  // جلب بيانات الموظفين وإحصائياتهم
-  useEffect(() => {
-    checkUserAndLoadEmployees();
-  }, []);
-
-  // تصفية وترتيب الموظفين
-  useEffect(() => {
-    filterEmployees();
-  }, [employees, searchQuery, activeTab, filter]);
-
-  const checkUserAndLoadEmployees = async () => {
-    try {
-      // التحقق من حالة المستخدم وتحميل البيانات بالتوازي
-      const [status] = await Promise.all([
-        checkCurrentUserStatus(),
-        loadEmployees() // تحميل البيانات بالتوازي
-      ]);
-      
-      setUserStatus(status);
-    } catch (error) {
+  // دالة محسنة لتحميل البيانات
+  const loadEmployees = useCallback(async () => {
+    if (process.env.NODE_ENV === 'development') {
     }
-  };
-
-  const loadEmployees = async () => {
+    
     setLoading(true);
     try {
+      if (process.env.NODE_ENV === 'development') {
+      }
       // تحميل البيانات بالتوازي لتحسين الأداء
-      const [employeesData, statsData] = await Promise.all([
-        getEmployees(),
-        getEmployeeStats()
-      ]);
+      if (process.env.NODE_ENV === 'development') {
+      }
+      const employeesData = await getEmployees();
+      if (process.env.NODE_ENV === 'development') {
+      }
+      const statsData = await getEmployeeStats();
       
+      if (process.env.NODE_ENV === 'development') {
+      }
+      
+      // إضافة رسالة تشخيص إذا لم يتم العثور على موظفين
+      if (employeesData.length === 0) {
+        if (process.env.NODE_ENV === 'development') {
+        }
+      }
+      
+      if (process.env.NODE_ENV === 'development') {
+      }
       setEmployees(employeesData);
       setStats(statsData);
+      if (process.env.NODE_ENV === 'development') {
+      }
     } catch (error) {
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء تحميل بيانات الموظفين',
         variant: 'destructive'
       });
+      // تعيين قيم افتراضية في حالة الخطأ
+      setEmployees([]);
+      setStats({ total: 0, active: 0, inactive: 0 });
     } finally {
+      if (process.env.NODE_ENV === 'development') {
+      }
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  // دالة محسنة للتحقق من المستخدم وتحميل البيانات
+  const checkUserAndLoadEmployees = useCallback(async () => {
+    if (isInitialized) return; // منع التكرار
+    
+    try {
+      if (process.env.NODE_ENV === 'development') {
+      }
+      // التحقق من حالة المستخدم أولاً
+      const status = await checkCurrentUserStatus();
+      if (process.env.NODE_ENV === 'development') {
+      }
+      setUserStatus(status);
+      
+      // تحميل البيانات بعد التحقق من المستخدم
+      if (process.env.NODE_ENV === 'development') {
+      }
+      await loadEmployees();
+      setIsInitialized(true);
+      if (process.env.NODE_ENV === 'development') {
+      }
+    } catch (error) {
+      setLoading(false);
+      // تعيين قيم افتراضية في حالة الخطأ
+      setEmployees([]);
+      setStats({ total: 0, active: 0, inactive: 0 });
+      toast({
+        title: 'خطأ في التهيئة',
+        description: 'حدث خطأ أثناء تحميل البيانات',
+        variant: 'destructive'
+      });
+    }
+  }, [isInitialized, loadEmployees, toast]);
+
+  // تحميل البيانات عند بدء التطبيق
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+    }
+    checkUserAndLoadEmployees();
+  }, [checkUserAndLoadEmployees]);
+
+  // تصفية وترتيب الموظفين
+  useEffect(() => {
+    if (!isInitialized) return; // انتظار حتى يتم التهيئة
+    
+    if (process.env.NODE_ENV === 'development') {
+    }
+    filterEmployees();
+  }, [employees, searchQuery, activeTab, filter, isInitialized]);
 
   const filterEmployees = () => {
     let filtered = [...employees];
@@ -159,9 +212,14 @@ const Employees = () => {
     }, 1000);
   };
 
+  // دالة محسنة لتحديث البيانات
+  const handleDataChange = useCallback(() => {
+    loadEmployees();
+  }, [loadEmployees]);
+
   return (
     <Layout>
-      {loading && employees.length === 0 ? (
+      {loading ? (
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-center">
             <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4 text-primary" />
@@ -199,71 +257,86 @@ const Employees = () => {
               <CardTitle>قائمة الموظفين</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-col sm:flex-row gap-4 mb-6">
-                <div className="flex-1 relative">
-                  <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                  <Input 
-                    placeholder="بحث بالاسم، البريد الإلكتروني، أو رقم الهاتف..." 
-                    value={searchQuery}
-                    onChange={handleSearchChange}
-                    className="w-full pl-8"
-                  />
+              {employees.length === 0 ? (
+                <div className="bg-muted/20 rounded-lg p-8 text-center">
+                  <UserMinus className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
+                  <h3 className="font-semibold text-lg">لا يوجد موظفين</h3>
+                  <p className="text-muted-foreground mt-1 mb-4">
+                    لم يتم العثور على موظفين في مؤسستك. يمكنك إضافة موظفين جدد للبدء.
+                  </p>
+                  <div className="flex justify-center">
+                    <AddEmployeeDialog onEmployeeAdded={handleEmployeeAdded} />
+                  </div>
                 </div>
-                <EmployeeFilters 
-                  filter={filter} 
-                  onFilterChange={handleFilterChange} 
-                />
-              </div>
-              
-              <Tabs value={activeTab} onValueChange={handleTabChange}>
-                <TabsList className="mb-4">
-                  <TabsTrigger value="all" className="flex gap-1 items-center">
-                    <UsersRound className="h-4 w-4" />
-                    <span>جميع الموظفين</span>
-                    <span className="ml-1 bg-primary/10 text-primary rounded-full h-5 w-5 flex items-center justify-center text-xs">
-                      {stats.total}
-                    </span>
-                  </TabsTrigger>
-                  <TabsTrigger value="active" className="flex gap-1 items-center">
-                    <UserCheck className="h-4 w-4" />
-                    <span>نشطين</span>
-                    <span className="ml-1 bg-green-100 text-green-700 rounded-full h-5 w-5 flex items-center justify-center text-xs">
-                      {stats.active}
-                    </span>
-                  </TabsTrigger>
-                  <TabsTrigger value="inactive" className="flex gap-1 items-center">
-                    <UserMinus className="h-4 w-4" />
-                    <span>غير نشطين</span>
-                    <span className="ml-1 bg-red-100 text-red-700 rounded-full h-5 w-5 flex items-center justify-center text-xs">
-                      {stats.inactive}
-                    </span>
-                  </TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="all" className="mt-0">
-                  <EmployeeList 
-                    employees={filteredEmployees} 
-                    isLoading={loading} 
-                    onDataChange={loadEmployees}
-                  />
-                </TabsContent>
-                
-                <TabsContent value="active" className="mt-0">
-                  <EmployeeList 
-                    employees={filteredEmployees}
-                    isLoading={loading}
-                    onDataChange={loadEmployees}
-                  />
-                </TabsContent>
-                
-                <TabsContent value="inactive" className="mt-0">
-                  <EmployeeList 
-                    employees={filteredEmployees}
-                    isLoading={loading}
-                    onDataChange={loadEmployees}
-                  />
-                </TabsContent>
-              </Tabs>
+              ) : (
+                <>
+                  <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                    <div className="flex-1 relative">
+                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input 
+                        placeholder="بحث بالاسم، البريد الإلكتروني، أو رقم الهاتف..." 
+                        value={searchQuery}
+                        onChange={handleSearchChange}
+                        className="w-full pl-8"
+                      />
+                    </div>
+                    <EmployeeFilters 
+                      filter={filter} 
+                      onFilterChange={handleFilterChange} 
+                    />
+                  </div>
+                  
+                  <Tabs value={activeTab} onValueChange={handleTabChange}>
+                    <TabsList className="mb-4">
+                      <TabsTrigger value="all" className="flex gap-1 items-center">
+                        <UsersRound className="h-4 w-4" />
+                        <span>جميع الموظفين</span>
+                        <span className="ml-1 bg-primary/10 text-primary rounded-full h-5 w-5 flex items-center justify-center text-xs">
+                          {stats.total}
+                        </span>
+                      </TabsTrigger>
+                      <TabsTrigger value="active" className="flex gap-1 items-center">
+                        <UserCheck className="h-4 w-4" />
+                        <span>نشطين</span>
+                        <span className="ml-1 bg-green-100 text-green-700 rounded-full h-5 w-5 flex items-center justify-center text-xs">
+                          {stats.active}
+                        </span>
+                      </TabsTrigger>
+                      <TabsTrigger value="inactive" className="flex gap-1 items-center">
+                        <UserMinus className="h-4 w-4" />
+                        <span>غير نشطين</span>
+                        <span className="ml-1 bg-red-100 text-red-700 rounded-full h-5 w-5 flex items-center justify-center text-xs">
+                          {stats.inactive}
+                        </span>
+                      </TabsTrigger>
+                    </TabsList>
+                    
+                    <TabsContent value="all" className="mt-0">
+                      <EmployeeList 
+                        employees={filteredEmployees} 
+                        isLoading={loading} 
+                        onDataChange={handleDataChange}
+                      />
+                    </TabsContent>
+                    
+                    <TabsContent value="active" className="mt-0">
+                      <EmployeeList 
+                        employees={filteredEmployees}
+                        isLoading={loading}
+                        onDataChange={handleDataChange}
+                      />
+                    </TabsContent>
+                    
+                    <TabsContent value="inactive" className="mt-0">
+                      <EmployeeList 
+                        employees={filteredEmployees}
+                        isLoading={loading}
+                        onDataChange={handleDataChange}
+                      />
+                    </TabsContent>
+                  </Tabs>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>

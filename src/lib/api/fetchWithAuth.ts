@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { addCSRFTokenToHeaders } from '@/utils/csrf';
 
 interface FetchOptions extends RequestInit {
   timeout?: number;
@@ -45,6 +46,9 @@ export async function fetchWithAuth(url: string, options: FetchOptions = {}): Pr
     headers.set('Accept-Encoding', 'gzip, deflate, br');
     headers.set('Cache-Control', 'no-cache');
     headers.set('Pragma', 'no-cache');
+    
+    // إضافة CSRF token للحماية
+    addCSRFTokenToHeaders(headers);
     
     // إضافة رؤوس أخرى ضرورية لطلبات Supabase
     if (url.includes('supabase.co')) {

@@ -16,6 +16,7 @@ import ProductInfo from '@/components/store/product/ProductInfo';
 import ProductOptions from '@/components/store/product/ProductOptions';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { sanitizeHTML } from '@/utils/security';
 
 /**
  * مكون محسّن لصفحة شراء المنتج
@@ -293,7 +294,7 @@ const OptimizedProductPurchase: React.FC = () => {
             <h2 className="text-xl font-semibold mb-4">{t('product.description')}</h2>
             <div 
               className="prose prose-sm max-w-none"
-              dangerouslySetInnerHTML={{ __html: product.description }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHTML(product.description) }}
             />
           </motion.div>
         )}

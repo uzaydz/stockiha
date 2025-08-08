@@ -1,0 +1,277 @@
+/* Admin Navbar Custom Styles */
+
+[data-navbar="admin"] {
+  --navbar-bg-opacity: 0.95;
+  --navbar-border-opacity: 0.3;
+  --navbar-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  --navbar-blur: blur(24px);
+  --navbar-transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Enhanced scroll effects */
+[data-navbar="admin"].scrolled {
+  --navbar-bg-opacity: 0.98;
+  --navbar-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Button hover effects */
+[data-navbar="admin"] .admin-navbar-button {
+  position: relative;
+  overflow: hidden;
+  transition: var(--navbar-transition);
+}
+
+[data-navbar="admin"] .admin-navbar-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  transition: left 0.5s;
+}
+
+[data-navbar="admin"] .admin-navbar-button:hover::before {
+  left: 100%;
+}
+
+/* Enhanced backdrop blur */
+[data-navbar="admin"] .admin-backdrop {
+  backdrop-filter: var(--navbar-blur);
+  -webkit-backdrop-filter: var(--navbar-blur);
+}
+
+/* Gradient borders */
+[data-navbar="admin"] .admin-gradient-border {
+  background: linear-gradient(135deg, 
+    hsl(var(--primary) / 0.1) 0%, 
+    transparent 50%, 
+    hsl(var(--primary) / 0.1) 100%);
+  border: 1px solid transparent;
+  background-clip: padding-box;
+}
+
+/* Animated particles */
+[data-navbar="admin"] .admin-particle {
+  animation: admin-particle-float 3s ease-in-out infinite;
+}
+
+@keyframes admin-particle-float {
+  0%, 100% {
+    transform: translateY(0px) scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translateY(-10px) scale(1.1);
+    opacity: 1;
+  }
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  [data-navbar="admin"] {
+    --navbar-blur: blur(16px);
+  }
+  
+  [data-navbar="admin"] .admin-navbar-button {
+    min-width: 40px;
+    min-height: 40px;
+  }
+}
+
+/* Desktop enhancements */
+@media (min-width: 1024px) {
+  [data-navbar="admin"] .admin-center-nav {
+    max-width: 600px;
+    margin: 0 auto;
+  }
+}
+
+/* Dark mode adjustments */
+@media (prefers-color-scheme: dark) {
+  [data-navbar="admin"] {
+    --navbar-bg-opacity: 0.98;
+    --navbar-border-opacity: 0.4;
+  }
+}
+
+/* High contrast mode */
+@media (prefers-contrast: high) {
+  [data-navbar="admin"] {
+    --navbar-border-opacity: 0.6;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  [data-navbar="admin"] .admin-particle {
+    animation: none;
+  }
+  
+  [data-navbar="admin"] .admin-navbar-button::before {
+    display: none;
+  }
+}
+
+/* Focus styles for accessibility */
+[data-navbar="admin"] .admin-navbar-button:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+}
+
+/* Loading states */
+[data-navbar="admin"] .admin-loading {
+  background: linear-gradient(90deg, 
+    hsl(var(--muted)) 25%, 
+    hsl(var(--muted) / 0.5) 50%, 
+    hsl(var(--muted)) 75%);
+  background-size: 200% 100%;
+  animation: admin-loading-shimmer 1.5s infinite;
+}
+
+@keyframes admin-loading-shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Enhanced mobile menu */
+[data-navbar="admin"] .admin-mobile-menu {
+  background: linear-gradient(135deg,
+    hsl(var(--background) / 0.95) 0%,
+    hsl(var(--background) / 0.98) 100%);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  border: 1px solid hsl(var(--border) / 0.2);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+/* Quick links enhancement */
+[data-navbar="admin"] .admin-quick-links {
+  background: linear-gradient(135deg,
+    hsl(var(--background) / 0.8) 0%,
+    hsl(var(--background) / 0.9) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid hsl(var(--border) / 0.3);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+/* User menu enhancement */
+[data-navbar="admin"] .admin-user-menu {
+  background: linear-gradient(135deg,
+    hsl(var(--background) / 0.95) 0%,
+    hsl(var(--background) / 0.98) 100%);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid hsl(var(--border) / 0.3);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+}
+
+/* Notification badge */
+[data-navbar="admin"] .admin-notification-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
+  background: hsl(var(--destructive));
+  border-radius: 50%;
+  border: 2px solid hsl(var(--background));
+  animation: admin-notification-pulse 2s infinite;
+}
+
+@keyframes admin-notification-pulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 0.8;
+  }
+}
+
+/* Search button enhancement */
+[data-navbar="admin"] .admin-search-button {
+  position: relative;
+  overflow: hidden;
+}
+
+[data-navbar="admin"] .admin-search-button::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: hsl(var(--primary) / 0.2);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  transition: width 0.3s, height 0.3s;
+}
+
+[data-navbar="admin"] .admin-search-button:hover::after {
+  width: 100%;
+  height: 100%;
+}
+
+/* Settings button enhancement */
+[data-navbar="admin"] .admin-settings-button {
+  position: relative;
+  transition: transform 0.2s ease;
+}
+
+[data-navbar="admin"] .admin-settings-button:hover {
+  transform: rotate(90deg);
+}
+
+/* Logo enhancement */
+[data-navbar="admin"] .admin-logo {
+  position: relative;
+  overflow: hidden;
+}
+
+[data-navbar="admin"] .admin-logo::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, 
+    transparent, 
+    hsl(var(--primary) / 0.1), 
+    transparent);
+  transition: left 0.6s ease;
+}
+
+[data-navbar="admin"] .admin-logo:hover::before {
+  left: 100%;
+}
+
+/* Responsive text sizing */
+@media (max-width: 640px) {
+  [data-navbar="admin"] .admin-text-sm {
+    font-size: 0.75rem;
+    line-height: 1rem;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+  [data-navbar="admin"] .admin-text-sm {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+}
+
+@media (min-width: 1025px) {
+  [data-navbar="admin"] .admin-text-sm {
+    font-size: 1rem;
+    line-height: 1.5rem;
+  }
+} 

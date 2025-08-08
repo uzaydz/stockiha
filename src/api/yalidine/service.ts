@@ -543,7 +543,8 @@ async function fetchYalidineFeesFromAPIOptimized(
 
     // استخدام Vite proxy مع timestamp فريد لتجنب request deduplication
     const uniqueTimestamp = Date.now();
-    const proxyUrl = `/yalidine-api/fees/?from_wilaya_id=${fromWilayaId}&to_wilaya_id=${toWilayaId}&api_id=${encodeURIComponent(api_credentials.api_token)}&api_token=${encodeURIComponent(api_credentials.api_key)}&_t=${uniqueTimestamp}`;
+    // لا نمرر مفاتيح API في الـ query لتجنّب كشفها ولضمان أن البروكسي يمررها كترويسات
+    const proxyUrl = `/yalidine-api/fees/?from_wilaya_id=${fromWilayaId}&to_wilaya_id=${toWilayaId}&_t=${uniqueTimestamp}`;
 
     // إضافة timeout controller للسرعة
     const controller = new AbortController();
@@ -553,6 +554,9 @@ async function fetchYalidineFeesFromAPIOptimized(
       method: 'GET',
       signal: controller.signal,
       headers: {
+        // تمرير بيانات الاعتماد عبر الترويسات ليستقبلها Vite proxy ويحوّلها إلى X-API-ID و X-API-TOKEN upstream
+        'x-api-id': api_credentials.api_token,
+        'x-api-token': api_credentials.api_key,
         'Content-Type': 'application/json',
         'Accept': 'application/json',
         'Cache-Control': 'no-cache, no-store, must-revalidate',  // منع الـ cache تماماً
@@ -822,23 +826,8 @@ export async function calculateDeliveryPrice(
     }
   }
 
-  // جلب ولاية المصدر من إعدادات المؤسسة باستخدام RPC المحسن
-  let originWilayaId: number;
-  
-  try {
-    // 🆕 استخدام RPC المحسن بدلاً من الاستعلام المنفصل
-    const yalidineSettings = await getYalidineSettingsForProductPurchase(organizationId);
-    
-    if (yalidineSettings && yalidineSettings.success && yalidineSettings.data) {
-      originWilayaId = yalidineSettings.data.origin_wilaya_id;
-    } else {
-      // fallback للمعامل الممرر
-      originWilayaId = parseInt(fromProvinceId, 10);
-    }
-  } catch (error) {
-    // fallback للمعامل الممرر
-    originWilayaId = parseInt(fromProvinceId, 10);
-  }
+  // لا تعيد طلب RPC هنا لتفادي تكرار الاستدعاءات؛ استخدم fromProvinceId الممرر كمرجع لولاية المصدر
+  const originWilayaId: number = parseInt(fromProvinceId, 10);
 
   const toWilayaIdNum = parseInt(toProvinceId, 10);
 

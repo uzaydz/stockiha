@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { motion } from "framer-motion";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 
 // مكونات واجهة المستخدم
@@ -40,6 +40,7 @@ import { ThankYouTemplate } from "@/pages/dashboard/ThankYouPageEditor";
 export default function ThankYouPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const location = useLocation();
   // *** استخدام النوع المحدث للحالة ***
   const [orderInfo, setOrderInfo] = useState<DisplayOrderInfo | null>(null);
   const [isLoadingOrder, setIsLoadingOrder] = useState(true);
@@ -85,6 +86,13 @@ export default function ThankYouPage() {
             estimatedDelivery,
             // productName: fetchedProductName // إذا تم جلبه
           });
+
+          // إذا أعاد الـ RPC القالب جاهزاً، استخدمه مباشرة وتجنب استدعاء TemplateLoader
+          if ((fetchedOrder as any)?.template) {
+            setTemplate((fetchedOrder as any).template);
+            setIsTemplateLoading(false);
+            templateLoadedRef.current = true;
+          }
         } else {
           setErrorLoadingOrder("لم يتم العثور على الطلب المحدد.");
         }
@@ -122,7 +130,7 @@ export default function ThankYouPage() {
   // *** تعديل حالة التحميل لتشمل تحميل الطلب والقالب ***
   // *** الوصول إلى product_id عبر items[0] ***
   const productIdForTemplate = orderInfo?.items?.[0]?.product_id;
-  if (isLoadingOrder || (orderInfo && isTemplateLoading && productIdForTemplate)) { 
+  if (isLoadingOrder || (orderInfo && isTemplateLoading && productIdForTemplate && !template)) { 
     return (
       <>
         <Helmet>
@@ -138,10 +146,11 @@ export default function ThankYouPage() {
 
         {/* تحميل القالب في الخلفية - فقط إذا كان لدينا معرف المنتج وبيانات الطلب */}
         {/* *** استخدام productIdForTemplate *** */}
-        {productIdForTemplate && isLoadingOrder === false && (
+        {productIdForTemplate && isLoadingOrder === false && !template && (
           <TemplateLoader 
             productId={productIdForTemplate} 
-            onLoad={handleTemplateLoad} 
+            onLoad={handleTemplateLoad}
+            initialTemplate={(orderInfo as any)?.template || null}
           />
         )}
       </>
@@ -221,7 +230,10 @@ export default function ThankYouPage() {
       </div>
 
       {/* تتبع الطلب المكتمل - أحداث التحويل */}
-      <OrderSuccessTracking />
+      {/* إذا جئنا من صفحة المنتج وتم تتبع الشراء هناك، نتجنب التتبع المكرر هنا */}
+      {!(location.state as any)?.fromProductPage && (
+        <OrderSuccessTracking />
+      )}
     </>
   );
 }

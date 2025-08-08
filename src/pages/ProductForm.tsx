@@ -39,6 +39,7 @@ import { Category, Subcategory } from '@/lib/api/categories';
 import { cn } from '@/lib/utils';
 import { cacheManager } from '@/lib/cache/CentralCacheManager';
 import { refreshAfterProductOperation } from '@/lib/data-refresh-helpers';
+import { addCSRFTokenToFormData } from '@/utils/csrf';
 
 const ProductForm = () => {
   const { id: productId } = useParams<{ id: string }>();
@@ -378,15 +379,19 @@ const ProductForm = () => {
         advancedSettings: data.advancedSettings || undefined,
         marketingSettings: data.marketingSettings || undefined,
         special_offers_config: data.special_offers_config || undefined,
+        advanced_description: data.advanced_description || null,
         additional_images: imagesToSubmit,
       };
+      
+      // إضافة CSRF protection
+      const protectedSubmissionData = addCSRFTokenToFormData(submissionData as any);
       
       let result;
 
       if (isEditMode && productId) {
-        result = await updateProduct(productId, submissionData as any);
+        result = await updateProduct(productId, protectedSubmissionData);
       } else {
-        result = await createProduct(submissionData as any);
+        result = await createProduct(protectedSubmissionData);
       }
 
       if (result) {

@@ -110,18 +110,33 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
 }> => {
   try {
 
+    // تنظيف النطاق الفرعي قبل التحقق
+    const cleanSubdomain = data.subdomain
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '') // إزالة جميع المسافات
+      .replace(/[^a-z0-9-]/g, '') // إزالة الأحرف غير المسموحة
+      .replace(/^-+|-+$/g, '') // إزالة الشرطات من البداية والنهاية
+      .replace(/-+/g, '-'); // تحويل الشرطات المتعددة إلى شرطة واحدة
+    
     // التحقق من توفر النطاق الفرعي باستخدام الوظيفة المحسنة
-    const subdomainCheck = await checkSubdomainAvailabilityWithRetry(data.subdomain);
+    console.log('بدء التحقق من توفر النطاق الفرعي:', cleanSubdomain);
+    const subdomainCheck = await checkSubdomainAvailabilityWithRetry(cleanSubdomain);
+    console.log('نتيجة التحقق من النطاق الفرعي:', subdomainCheck);
     
     if (!subdomainCheck.available) {
       
       // إجراء تشخيص مفصل للمشكلة
-      const diagnostics = await diagnoseFinalRegistration('', data.subdomain);
+      console.log('النطاق الفرعي غير متاح، إجراء تشخيص...');
+      const diagnostics = await diagnoseFinalRegistration('', cleanSubdomain);
+      console.log('نتيجة التشخيص:', diagnostics);
       
       // البحث عن نطاقات بديلة
       try {
-        const similarSubdomains = await findSimilarSubdomains(data.subdomain);
+        const similarSubdomains = await findSimilarSubdomains(cleanSubdomain);
+        console.log('النطاقات المشابهة:', similarSubdomains);
       } catch (similarError) {
+        console.error('خطأ في البحث عن النطاقات المشابهة:', similarError);
       }
       
       return {
@@ -174,7 +189,7 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
     }
 
     // 3. فحص أخير للنطاق الفرعي قبل الإنشاء
-    const finalSubdomainCheck = await checkSubdomainAvailabilityWithRetry(data.subdomain);
+    const finalSubdomainCheck = await checkSubdomainAvailabilityWithRetry(cleanSubdomain);
     
     if (!finalSubdomainCheck.available) {
       return {
@@ -189,7 +204,7 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
 
     const organizationData = {
       name: data.organizationName,
-      subdomain: data.subdomain,
+      subdomain: cleanSubdomain,
       owner_id: authData.user.id,
       settings: {
         theme: 'light',
@@ -201,7 +216,7 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
 
     const organizationResult = await createOrganizationFinal(
       organizationData.name,
-      organizationData.subdomain,
+      cleanSubdomain,
       organizationData.owner_id,
       data.email,
       data.name || 'مستخدم جديد',

@@ -2,6 +2,7 @@ import { toast } from "@/components/ui/use-toast";
 import { processOrder } from "@/api/store";
 import { OrderFormValues } from "./OrderFormTypes";
 import { checkDatabaseConnection } from "./DatabaseConnection";
+import { addCSRFTokenToFormData } from "@/utils/csrf";
 
 export interface OrderFormSubmitterProps {
   values: OrderFormValues;
@@ -244,8 +245,8 @@ export const submitOrderForm = async (props: OrderFormSubmitterProps): Promise<b
       return false;
     }
     
-    // إعداد بيانات الطلب
-    const orderData = prepareOrderData(props, formData);
+    // إعداد بيانات الطلب مع CSRF protection
+    const orderData = addCSRFTokenToFormData(prepareOrderData(props, formData));
 
     // إعداد معلمات محاولة إعادة الإرسال
     let retryCount = 0;

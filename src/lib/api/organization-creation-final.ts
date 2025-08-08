@@ -15,12 +15,23 @@ export const createOrganizationFinal = async (
 ): Promise<{ success: boolean; error: Error | null; organizationId?: string; details?: any }> => {
   try {
     
+    // تنظيف النطاق الفرعي قبل الإرسال
+    const cleanSubdomain = subdomain
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '') // إزالة جميع المسافات
+      .replace(/[^a-z0-9-]/g, '') // إزالة الأحرف غير المسموحة
+      .replace(/^-+|-+$/g, '') // إزالة الشرطات من البداية والنهاية
+      .replace(/-+/g, '-'); // تحويل الشرطات المتعددة إلى شرطة واحدة
+
+    console.log('بدء إنشاء المؤسسة:', { organizationName, subdomain: cleanSubdomain, userId, email });
+    
     // استخدام supabase عادي بدلاً من supabaseAdmin لتجنب مشكلة read-only transaction
     const { data: result, error } = await supabase.rpc(
       'create_organization_final' as any,
       {
         p_name: organizationName,
-        p_subdomain: subdomain,
+        p_subdomain: cleanSubdomain,
         p_owner_id: userId,
         p_email: email,
         p_user_name: userName,
@@ -31,13 +42,13 @@ export const createOrganizationFinal = async (
     if (error) {
       
       // محاولة إنشاء المؤسسة مباشرة كحل بديل
-      return await createOrganizationDirect(organizationName, subdomain, userId, email, userName, settings);
+      return await createOrganizationDirect(organizationName, cleanSubdomain, userId, email, userName, settings);
     }
 
     if (!result) {
       
       // محاولة الإنشاء المباشر كحل بديل
-      return await createOrganizationDirect(organizationName, subdomain, userId, email, userName, settings);
+      return await createOrganizationDirect(organizationName, cleanSubdomain, userId, email, userName, settings);
     }
 
     if (result && typeof result === 'object' && result.success) {
@@ -50,13 +61,13 @@ export const createOrganizationFinal = async (
     } else {
       
       // محاولة الإنشاء المباشر كحل بديل
-      return await createOrganizationDirect(organizationName, subdomain, userId, email, userName, settings);
+      return await createOrganizationDirect(organizationName, cleanSubdomain, userId, email, userName, settings);
     }
 
   } catch (error) {
     
     // محاولة الإنشاء المباشر كحل بديل
-    return await createOrganizationDirect(organizationName, subdomain, userId, email, userName, settings);
+    return await createOrganizationDirect(organizationName, cleanSubdomain, userId, email, userName, settings);
   }
 };
 
@@ -73,14 +84,26 @@ const createOrganizationDirect = async (
 ): Promise<{ success: boolean; error: Error | null; organizationId?: string; details?: any }> => {
   try {
     
+    console.log('بدء إنشاء المؤسسة مباشرة:', { organizationName, subdomain, userId });
+    
+    // تنظيف النطاق الفرعي قبل التحقق
+    const cleanSubdomain = subdomain
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '') // إزالة جميع المسافات
+      .replace(/[^a-z0-9-]/g, '') // إزالة الأحرف غير المسموحة
+      .replace(/^-+|-+$/g, '') // إزالة الشرطات من البداية والنهاية
+      .replace(/-+/g, '-'); // تحويل الشرطات المتعددة إلى شرطة واحدة
+
     // 1. التحقق من عدم وجود مؤسسة بنفس النطاق الفرعي
     const { data: existingOrg } = await supabase
       .from('organizations')
       .select('id')
-      .eq('subdomain', subdomain)
+      .eq('subdomain', cleanSubdomain)
       .single();
 
     if (existingOrg) {
+      console.log('المؤسسة موجودة بالفعل:', existingOrg.id);
       
       // ربط المستخدم بالمؤسسة الموجودة
       const { error: linkError } = await supabase
@@ -99,9 +122,11 @@ const createOrganizationDirect = async (
         });
 
       if (linkError) {
+        console.error('خطأ في ربط المستخدم بالمؤسسة الموجودة:', linkError);
         return { success: false, error: linkError as Error };
       }
 
+      console.log('تم ربط المستخدم بالمؤسسة الموجودة بنجاح');
       return { 
         success: true, 
         error: null, 
@@ -111,11 +136,12 @@ const createOrganizationDirect = async (
     }
 
     // 2. إنشاء المؤسسة الجديدة
+    console.log('إنشاء مؤسسة جديدة...');
     const { data: newOrg, error: orgError } = await supabase
       .from('organizations')
       .insert({
         name: organizationName,
-        subdomain: subdomain,
+        subdomain: cleanSubdomain,
         owner_id: userId,
         subscription_tier: 'trial',
         subscription_status: 'trial',
@@ -127,10 +153,14 @@ const createOrganizationDirect = async (
       .single();
 
     if (orgError) {
+      console.error('خطأ في إنشاء المؤسسة:', orgError);
       return { success: false, error: orgError as Error };
     }
 
+    console.log('تم إنشاء المؤسسة بنجاح:', newOrg.id);
+
     // 3. إنشاء أو تحديث المستخدم
+    console.log('إنشاء/تحديث المستخدم...');
     const { error: userError } = await supabase
       .from('users')
       .upsert({
@@ -147,8 +177,10 @@ const createOrganizationDirect = async (
       });
 
     if (userError) {
+      console.error('خطأ في إنشاء/تحديث المستخدم:', userError);
       // لا نفشل العملية كاملة، المؤسسة تم إنشاؤها
     } else {
+      console.log('تم إنشاء/تحديث المستخدم بنجاح');
     }
 
     // 4. إنشاء إعدادات المؤسسة
@@ -211,10 +243,19 @@ export const diagnoseFinalRegistration = async (
     // فحص المؤسسة إذا تم تمرير النطاق
     let orgData = null;
     if (subdomain) {
+      // تنظيف النطاق الفرعي قبل البحث
+      const cleanSubdomain = subdomain
+        .toLowerCase()
+        .trim()
+        .replace(/\s+/g, '') // إزالة جميع المسافات
+        .replace(/[^a-z0-9-]/g, '') // إزالة الأحرف غير المسموحة
+        .replace(/^-+|-+$/g, '') // إزالة الشرطات من البداية والنهاية
+        .replace(/-+/g, '-'); // تحويل الشرطات المتعددة إلى شرطة واحدة
+
       const { data: org } = await supabaseAdmin
         .from('organizations')
         .select('*')
-        .eq('subdomain', subdomain)
+        .eq('subdomain', cleanSubdomain)
         .single();
       orgData = org;
     }
@@ -250,7 +291,7 @@ export const diagnoseFinalRegistration = async (
       diagnosis.recommendations.push('المستخدم غير موجود في جدول users - يجب إنشاء سجل المستخدم');
     }
     
-    if (subdomain && !orgData) {
+    if (cleanSubdomain && !orgData) {
       diagnosis.recommendations.push('المؤسسة غير موجودة - يجب إنشاء المؤسسة');
     }
     
@@ -277,9 +318,18 @@ export const quickFixUser = async (
 ): Promise<{ success: boolean; error?: string; organizationId?: string }> => {
   try {
     
+    // تنظيف النطاق الفرعي قبل الإرسال
+    const cleanSubdomain = subdomain
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '') // إزالة جميع المسافات
+      .replace(/[^a-z0-9-]/g, '') // إزالة الأحرف غير المسموحة
+      .replace(/^-+|-+$/g, '') // إزالة الشرطات من البداية والنهاية
+      .replace(/-+/g, '-'); // تحويل الشرطات المتعددة إلى شرطة واحدة
+
     const result = await createOrganizationFinal(
       organizationName,
-      subdomain,
+      cleanSubdomain,
       userId,
       email,
       name,

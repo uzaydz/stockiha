@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { memo, useEffect, useRef } from "react";
 import { TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search } from "lucide-react";
@@ -21,6 +21,8 @@ interface OrdersTableBodyProps {
   hasCancelPermission: boolean;
   currentUserId?: string;
   shippingProviders: OrdersTableProps['shippingProviders'];
+  autoLoadMoreOnScroll?: boolean;
+  onLoadMore?: () => void;
 }
 
 const OrdersTableBody = memo(({
@@ -39,7 +41,24 @@ const OrdersTableBody = memo(({
   hasCancelPermission,
   currentUserId,
   shippingProviders = [],
+  autoLoadMoreOnScroll,
+  onLoadMore,
 }: OrdersTableBodyProps) => {
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!autoLoadMoreOnScroll || !onLoadMore) return;
+    const el = sentinelRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.isIntersecting) {
+          onLoadMore();
+        }
+      }
+    }, { root: null, rootMargin: '600px', threshold: 0 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [autoLoadMoreOnScroll, onLoadMore]);
   const renderLoadingSkeleton = () => (
     Array.from({ length: 5 }).map((_, index) => (
       <TableRow key={`skeleton-${index}`} className="hover:bg-accent/10 border-b border-border/20 transition-all duration-300">
@@ -162,6 +181,14 @@ const OrdersTableBody = memo(({
       {loading ? renderLoadingSkeleton() : 
        filteredOrders.length === 0 ? renderEmptyState() : 
        renderOrderRows()}
+      {/* Sentinel for infinite scroll */}
+      {autoLoadMoreOnScroll && !loading && filteredOrders.length > 0 && (
+        <TableRow>
+          <TableCell colSpan={visibleColumns.length + 1}>
+            <div ref={sentinelRef} />
+          </TableCell>
+        </TableRow>
+      )}
     </TableBody>
   );
 });

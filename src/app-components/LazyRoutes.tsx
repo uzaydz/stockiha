@@ -33,6 +33,8 @@ export const PublicGameStorePage = lazy(() => import('../pages/PublicGameStorePa
 
 // ============ صفحات التوثيق ============
 export const LoginForm = lazy(() => import('../components/auth/LoginForm'));
+export const ForgotPasswordForm = lazy(() => import('../components/auth/ForgotPasswordForm'));
+export const ResetPasswordForm = lazy(() => import('../components/auth/ResetPasswordForm'));
 export const AdminSignup = lazy(() => import('../pages/AdminSignup'));
 export const TenantSignup = lazy(() => import('../pages/TenantSignup'));
 export const OrganizationSetup = lazy(() => import('../pages/OrganizationSetup'));

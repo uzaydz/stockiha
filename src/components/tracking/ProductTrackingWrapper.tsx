@@ -165,6 +165,14 @@ export default function ProductTrackingWrapper({
           settings={pixelSettings}
           onLoad={() => {
           }}
+          advancedMatch={buildAdvancedMatch({
+            email: userEmail || (customData as any)?.customer_email || (customData as any)?.email,
+            phone: userPhone || (customData as any)?.customer_phone || (customData as any)?.phone,
+            name: (customData as any)?.customer_name || (customData as any)?.name,
+            city: (customData as any)?.city || (customData as any)?.municipality,
+            state: (customData as any)?.state || (customData as any)?.province,
+            country: (customData as any)?.country || 'DZ'
+          })}
         />
       )}
 
@@ -186,6 +194,86 @@ export default function ProductTrackingWrapper({
       />
     </>
   );
+}
+
+// Helpers: بناء Advanced Matching بشكل آمن
+function buildAdvancedMatch(input: {
+  email?: string;
+  phone?: string;
+  name?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+}) {
+  const data: Record<string, any> = {};
+
+  if (input.email && typeof input.email === 'string') data.em = input.email.trim();
+  const cleanedPhone = cleanPhoneNumber(input.phone);
+  if (cleanedPhone) data.ph = cleanedPhone;
+
+  const { firstName, lastName } = splitName(input.name);
+  if (firstName) data.first_name = firstName;
+  if (lastName) data.last_name = lastName;
+
+  if (input.city && typeof input.city === 'string') data.city = input.city.trim();
+  if (input.state && typeof input.state === 'string') data.state = input.state.trim();
+  if (input.country && typeof input.country === 'string') data.country = input.country.trim();
+
+  // fbp من الكوكيز، fbc من URL/localStorage
+  const fbp = getCookie('_fbp');
+  if (fbp) data.fbp = fbp;
+  const fbc = getFbc();
+  if (fbc) data.fbc = fbc;
+
+  return data;
+}
+
+function cleanPhoneNumber(phone?: string): string | null {
+  if (!phone || typeof phone !== 'string') return null;
+  let digits = phone.replace(/\D/g, '');
+  // الجزائر: أزل 213 في البداية ثم أضف +213
+  if (digits.startsWith('213')) digits = digits.slice(3);
+  if (digits.length === 9 && !digits.startsWith('0')) digits = '0' + digits;
+  if (digits.startsWith('0') && digits.length === 10) return `+213${digits.slice(1)}`;
+  if (digits.startsWith('00')) return `+${digits.slice(2)}`;
+  if (digits.startsWith('+' )) return digits;
+  // fallback دولي إن أمكن
+  if (digits.length >= 10) return `+${digits}`;
+  return null;
+}
+
+function splitName(name?: string): { firstName?: string; lastName?: string } {
+  if (!name || typeof name !== 'string') return {};
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return { firstName: parts[0], lastName: parts[0] };
+  if (parts.length === 2) return { firstName: parts[0], lastName: parts[1] };
+  if (parts.length > 2) return { firstName: parts[0], lastName: parts.slice(1).join(' ') };
+  return {};
+}
+
+function getCookie(name: string): string | undefined {
+  try {
+    const cookies = document.cookie.split(';');
+    for (const cookie of cookies) {
+      const [n, v] = cookie.trim().split('=');
+      if (n === name && v) return v;
+    }
+  } catch {}
+  return undefined;
+}
+
+function getFbc(): string | undefined {
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const fbclid = urlParams.get('fbclid');
+    if (fbclid) return `fb.1.${Date.now()}.${fbclid}`;
+    const stored = localStorage.getItem('facebook_click_id');
+    if (stored) return stored;
+    // من الكوكيز _fbc إن وجدت
+    const fbcCookie = getCookie('_fbc');
+    if (fbcCookie) return fbcCookie;
+  } catch {}
+  return undefined;
 }
 
 // Hook للاستخدام في المكونات المختلفة

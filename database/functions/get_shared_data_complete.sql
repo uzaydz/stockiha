@@ -130,7 +130,8 @@ BEGIN
             (SELECT jsonb_agg(to_jsonb(sdv.*))
              FROM shipping_data_view sdv
              WHERE sdv.is_enabled = true 
-               AND sdv.provider_id IS NOT NULL),
+               AND sdv.provider_id IS NOT NULL
+               AND sdv.organization_id = p_organization_id),
             '[]'::jsonb
         )
     );

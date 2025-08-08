@@ -3,7 +3,7 @@
 // يجلب جميع البيانات في استدعاء واحد فقط بدلاً من 40+ استدعاء
 // ================================================================
 
-import React, { createContext, useContext, useMemo, ReactNode } from 'react';
+import React, { createContext, useContext, useMemo, useEffect, ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './AuthContext';
 import { useTenant } from './TenantContext';
@@ -100,8 +100,59 @@ const SuperUnifiedDataContext = createContext<SuperUnifiedDataContextType | unde
 // 🔧 دالة جلب البيانات الموحدة
 // ================================================================
 
+// إضافة كاش محسن للبيانات الموحدة
+const globalDataCache = new Map<string, { data: GlobalData; timestamp: number }>();
+const CACHE_DURATION = 15 * 60 * 1000; // 15 دقيقة للبيانات الموحدة
+const SESSION_CACHE_KEY = 'global_data_cache';
+
+// دالة للحصول من sessionStorage
+const getFromSessionStorage = (cacheKey: string) => {
+  try {
+    const cached = sessionStorage.getItem(`${SESSION_CACHE_KEY}_${cacheKey}`);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      if (parsed && parsed.timestamp && parsed.data) {
+        return parsed;
+      }
+    }
+  } catch (error) {
+    // تجاهل أخطاء sessionStorage
+  }
+  return null;
+};
+
+// دالة للحفظ في sessionStorage
+const saveToSessionStorage = (cacheKey: string, data: GlobalData, timestamp: number) => {
+  try {
+    const cacheData = {
+      data,
+      timestamp
+    };
+    sessionStorage.setItem(`${SESSION_CACHE_KEY}_${cacheKey}`, JSON.stringify(cacheData));
+  } catch (error) {
+    // تجاهل أخطاء sessionStorage
+  }
+};
+
 const fetchGlobalData = async (organizationId: string, userId?: string): Promise<GlobalData> => {
   try {
+    
+    // التحقق من sessionStorage أولاً (يبقى بعد تحديث الصفحة)
+    const cacheKey = `global_data_${organizationId}_${userId || 'no_user'}`;
+    const sessionCached = getFromSessionStorage(cacheKey);
+    const now = Date.now();
+
+    if (sessionCached && (now - sessionCached.timestamp) < CACHE_DURATION) {
+      return sessionCached.data;
+    }
+    
+    // التحقق من كاش الذاكرة
+    const cached = globalDataCache.get(cacheKey);
+    if (cached && (now - cached.timestamp) < CACHE_DURATION) {
+      // حفظ في sessionStorage أيضاً
+      saveToSessionStorage(cacheKey, cached.data, now);
+      return cached.data;
+    }
     
     // التحقق من الاتصال بـ Supabase أولاً
     if (!supabase) {
@@ -136,22 +187,14 @@ const fetchGlobalData = async (organizationId: string, userId?: string): Promise
     const globalData: GlobalData = {
       organization: result.organization || null,
       user: result.user || null,
-      settings: {
-        organization_settings: result.settings?.organization_settings || null,
-        pos_settings: result.settings?.pos_settings || null,
-      },
+      settings: result.settings || null,
       products: result.products || [],
-      categories: {
-        product_categories: result.categories?.product_categories || [],
-        subscription_categories: result.categories?.subscription_categories || [],
-        subscription_services: result.categories?.subscription_services || [],
-      },
+      categories: result.categories || [],
       customers_and_users: {
         customers: result.customers_and_users?.customers || [],
         users: result.customers_and_users?.users || [],
       },
       apps_and_subscription: {
-        // الإصلاح الأساسي: التأكد من الوصول الصحيح لبيانات التطبيقات
         organization_apps: result.apps_and_subscription?.organization_apps || [],
         active_subscription: result.apps_and_subscription?.active_subscription || [],
       },
@@ -175,6 +218,15 @@ const fetchGlobalData = async (organizationId: string, userId?: string): Promise
       fetched_at: new Date().toISOString(),
       organization_id: organizationId,
     };
+
+    // حفظ في كاش الذاكرة
+    globalDataCache.set(cacheKey, {
+      data: globalData,
+      timestamp: now
+    });
+
+    // حفظ في sessionStorage
+    saveToSessionStorage(cacheKey, globalData, now);
 
     return globalData;
 
@@ -252,6 +304,20 @@ export const SuperUnifiedDataProvider: React.FC<SuperUnifiedDataProviderProps> =
   // معلومات إضافية
   const lastFetched = globalData?.fetched_at ? new Date(globalData.fetched_at) : null;
   const isFresh = lastFetched ? (Date.now() - lastFetched.getTime()) < staleTime : false;
+
+  // 🚨 تحديث البيانات العامة في window للمشاركة مع appInitializer
+  useEffect(() => {
+    if (globalData && organization) {
+      (window as any).__SUPER_UNIFIED_DATA__ = {
+        organization,
+        organizationSettings,
+        posSettings,
+        activeSubscription,
+        organizationApps,
+        timestamp: Date.now()
+      };
+    }
+  }, [globalData, organization, organizationSettings, posSettings, activeSubscription, organizationApps]);
 
   // إعداد قيمة Context
   const contextValue = useMemo<SuperUnifiedDataContextType>(() => ({

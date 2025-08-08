@@ -26,14 +26,26 @@ const OrdersTablePagination = memo(({
   onPageChange,
   onLoadMore,
 }: OrdersTablePaginationProps) => {
-  const totalPages = Math.ceil((totalItems || ordersLength) / pageSize);
+  const effectiveTotal = (totalItems ?? ordersLength) || 0;
+  const totalPages = Math.ceil(effectiveTotal / pageSize) || 1;
+  const hasAny = effectiveTotal > 0;
+  const rangeStart = hasAny ? (currentPage - 1) * pageSize + 1 : 0;
+  const rangeEnd = hasAny ? Math.min(currentPage * pageSize, effectiveTotal) : 0;
   
   return (
     <div className="py-4 px-6 bg-gradient-to-r from-muted/20 to-muted/10 border-t border-border/30 flex items-center justify-between">
-      <div className="text-sm text-muted-foreground">
-        عرض <span className="font-semibold text-foreground bg-accent/50 px-2 py-1 rounded-md">{(currentPage - 1) * pageSize + 1}</span> 
-        إلى <span className="font-semibold text-foreground bg-accent/50 px-2 py-1 rounded-md">{Math.min(currentPage * pageSize, totalItems || ordersLength)}</span> 
-        من إجمالي <span className="font-semibold text-primary bg-primary/10 px-2 py-1 rounded-md">{totalItems || ordersLength}</span> طلب
+      <div className="text-sm text-muted-foreground" aria-live="polite">
+        {hasAny ? (
+          <>
+            عرض <span className="font-semibold text-foreground bg-accent/50 px-2 py-1 rounded-md">{rangeStart}</span>
+            {" "}إلى{" "}
+            <span className="font-semibold text-foreground bg-accent/50 px-2 py-1 rounded-md">{rangeEnd}</span>
+            {" "}من إجمالي{" "}
+            <span className="font-semibold text-primary bg-primary/10 px-2 py-1 rounded-md">{effectiveTotal}</span> طلب
+          </>
+        ) : (
+          <span>لا توجد طلبات للعرض</span>
+        )}
       </div>
       
       <div className="flex items-center gap-3">
@@ -48,8 +60,8 @@ const OrdersTablePagination = memo(({
             >
               السابق
             </Button>
-            <div className="text-sm text-muted-foreground bg-muted/20 px-3 py-2 rounded-lg border border-border/30">
-              صفحة <span className="font-semibold text-foreground">{currentPage}</span> من <span className="font-semibold text-foreground">{totalPages}</span>
+            <div className="text-sm text-muted-foreground bg-muted/20 px-3 py-2 rounded-lg border border-border/30" aria-live="polite">
+              صفحة <span className="font-semibold text-foreground">{hasAny ? currentPage : 0}</span> من <span className="font-semibold text-foreground">{hasAny ? totalPages : 0}</span>
             </div>
             <Button 
               variant="outline" 

@@ -34,11 +34,6 @@ export const useCartTabs = (options: UseCartTabsOptions = {}) => {
         const saved = localStorage.getItem(storageKey);
         if (saved) {
           const parsedTabs = JSON.parse(saved);
-          console.log('📂 استعادة التبويبات من localStorage:', parsedTabs.map(t => ({ 
-            id: t.id, 
-            name: t.name, 
-            itemsCount: t.cartItems?.length || 0 
-          })));
           
           // تحويل التواريخ من نصوص إلى كائنات Date
           const restoredTabs = parsedTabs.map((tab: any) => ({
@@ -50,12 +45,10 @@ export const useCartTabs = (options: UseCartTabsOptions = {}) => {
           return restoredTabs;
         }
       } catch (error) {
-        console.error('خطأ في استعادة التبويبات:', error);
       }
     }
 
     // إنشاء تبويب افتراضي
-    console.log('🆕 إنشاء تبويب افتراضي جديد');
     return [{
       id: uuidv4(),
       name: 'عميل جديد',
@@ -78,7 +71,6 @@ export const useCartTabs = (options: UseCartTabsOptions = {}) => {
         try {
           localStorage.setItem(storageKey, JSON.stringify(tabs));
         } catch (error) {
-          console.error('خطأ في حفظ التبويبات:', error);
         }
       }, 100);
 
@@ -89,11 +81,6 @@ export const useCartTabs = (options: UseCartTabsOptions = {}) => {
   // العثور على التبويب النشط - محسن للتحديث التلقائي
   const activeTab = useMemo(() => {
     const foundTab = tabs.find(tab => tab.id === activeTabId);
-    console.log('🔍 البحث عن التبويب النشط:', { 
-      activeTabId, 
-      foundTab: foundTab ? { id: foundTab.id, itemsCount: foundTab.cartItems.length } : null,
-      allTabs: tabs.map(t => ({ id: t.id, itemsCount: t.cartItems.length }))
-    });
     return foundTab;
   }, [tabs, activeTabId]);
 
@@ -158,27 +145,14 @@ export const useCartTabs = (options: UseCartTabsOptions = {}) => {
     variantPrice?: number;
     variantImage?: string;
   }) => {
-    console.log('➕ بداية إضافة منتج للسلة:', { 
-      productId: product.id, 
-      productName: product.name,
-      quantity,
-      activeTabId
-    });
-
+    
     // استخدام setTabs للحصول على أحدث حالة
     setTabs(currentTabs => {
       const currentActiveTab = currentTabs.find(tab => tab.id === activeTabId);
       
       if (!currentActiveTab) {
-        console.warn('⚠️ لا يوجد تبويب نشط لإضافة المنتج');
         return currentTabs;
       }
-
-      console.log('📊 حالة التبويب النشط الحالية:', { 
-        tabId: currentActiveTab.id,
-        currentItemsCount: currentActiveTab.cartItems.length,
-        items: currentActiveTab.cartItems.map(item => ({ id: item.product.id, name: item.product.name, quantity: item.quantity }))
-      });
 
       const newItem: CartItem = {
         product,
@@ -197,12 +171,6 @@ export const useCartTabs = (options: UseCartTabsOptions = {}) => {
         // تحديث الكمية
         const updatedCartItems = [...currentActiveTab.cartItems];
         updatedCartItems[existingIndex].quantity += quantity;
-        console.log('🔄 تحديث كمية منتج موجود:', { 
-          index: existingIndex, 
-          oldQuantity: currentActiveTab.cartItems[existingIndex].quantity,
-          newQuantity: updatedCartItems[existingIndex].quantity,
-          totalItems: updatedCartItems.length
-        });
 
         return currentTabs.map(tab => 
           tab.id === activeTabId 
@@ -212,11 +180,6 @@ export const useCartTabs = (options: UseCartTabsOptions = {}) => {
       } else {
         // إضافة منتج جديد
         const newCartItems = [...currentActiveTab.cartItems, newItem];
-        console.log('🆕 إضافة منتج جديد:', { 
-          newItemsCount: newCartItems.length,
-          newItem: { id: product.id, name: product.name },
-          allItems: newCartItems.map(item => ({ id: item.product.id, name: item.product.name }))
-        });
 
         return currentTabs.map(tab => 
           tab.id === activeTabId 
@@ -229,19 +192,16 @@ export const useCartTabs = (options: UseCartTabsOptions = {}) => {
 
   // تحديث كمية منتج - محسن للعمل مع الحالة الحالية
   const updateItemQuantity = useCallback((tabId: string, index: number, quantity: number) => {
-    console.log('🔢 تحديث كمية منتج:', { tabId, index, quantity });
     
     setTabs(currentTabs => {
       const tab = currentTabs.find(t => t.id === tabId);
       if (!tab) {
-        console.warn('⚠️ التبويب غير موجود:', tabId);
         return currentTabs;
       }
 
       if (quantity <= 0) {
         // حذف المنتج
         const updatedCartItems = tab.cartItems.filter((_, i) => i !== index);
-        console.log('🗑️ حذف منتج:', { index, newItemsCount: updatedCartItems.length });
         
         return currentTabs.map(t => 
           t.id === tabId 
@@ -252,7 +212,6 @@ export const useCartTabs = (options: UseCartTabsOptions = {}) => {
         // تحديث الكمية
         const updatedCartItems = [...tab.cartItems];
         updatedCartItems[index].quantity = quantity;
-        console.log('📝 تحديث كمية:', { index, newQuantity: quantity, totalItems: updatedCartItems.length });
         
         return currentTabs.map(t => 
           t.id === tabId 
@@ -265,17 +224,14 @@ export const useCartTabs = (options: UseCartTabsOptions = {}) => {
 
   // حذف منتج من السلة - محسن للعمل مع الحالة الحالية
   const removeItemFromCart = useCallback((tabId: string, index: number) => {
-    console.log('🗑️ حذف منتج من السلة:', { tabId, index });
     
     setTabs(currentTabs => {
       const tab = currentTabs.find(t => t.id === tabId);
       if (!tab) {
-        console.warn('⚠️ التبويب غير موجود:', tabId);
         return currentTabs;
       }
 
       const updatedCartItems = tab.cartItems.filter((_, i) => i !== index);
-      console.log('✅ تم حذف المنتج:', { index, newItemsCount: updatedCartItems.length });
       
       return currentTabs.map(t => 
         t.id === tabId 
@@ -287,17 +243,13 @@ export const useCartTabs = (options: UseCartTabsOptions = {}) => {
 
   // مسح السلة - محسن للحفظ الفوري والعمل مع الحالة الحالية
   const clearCart = useCallback((tabId: string) => {
-    console.log('🗑️ مسح السلة للتبويب:', tabId);
     
     setTabs(currentTabs => {
       const tab = currentTabs.find(t => t.id === tabId);
       if (!tab) {
-        console.warn('⚠️ التبويب غير موجود:', tabId);
         return currentTabs;
       }
 
-      console.log('📊 قبل المسح:', { itemsCount: tab.cartItems.length, servicesCount: tab.selectedServices.length });
-      
       const updatedTabs = currentTabs.map(t => 
         t.id === tabId 
           ? { 
@@ -310,15 +262,11 @@ export const useCartTabs = (options: UseCartTabsOptions = {}) => {
           : t
       );
       
-      console.log('📝 التبويبات بعد المسح:', updatedTabs.map(t => ({ id: t.id, itemsCount: t.cartItems.length })));
-      
       // حفظ فوري في localStorage لضمان عدم عودة البيانات
       if (autoSave) {
         try {
           localStorage.setItem(storageKey, JSON.stringify(updatedTabs));
-          console.log('💾 تم حفظ السلة المفرغة في localStorage');
         } catch (error) {
-          console.error('خطأ في حفظ السلة المفرغة:', error);
         }
       }
       
@@ -333,18 +281,15 @@ export const useCartTabs = (options: UseCartTabsOptions = {}) => {
     customerId?: string;
     public_tracking_code?: string;
   }) => {
-    console.log('🔧 إضافة خدمة:', { serviceId: service.id, serviceName: service.name, activeTabId });
     
     setTabs(currentTabs => {
       const currentActiveTab = currentTabs.find(tab => tab.id === activeTabId);
       
       if (!currentActiveTab) {
-        console.warn('⚠️ لا يوجد تبويب نشط لإضافة الخدمة');
         return currentTabs;
       }
 
       const newServices = [...currentActiveTab.selectedServices, service];
-      console.log('✅ تم إضافة الخدمة:', { newServicesCount: newServices.length });
 
       return currentTabs.map(tab => 
         tab.id === activeTabId 
@@ -502,7 +447,6 @@ export const useCartTabs = (options: UseCartTabsOptions = {}) => {
       setTabs([defaultTab]);
       setActiveTabId(defaultTab.id);
     } catch (error) {
-      console.error('خطأ في مسح البيانات المحفوظة:', error);
     }
   }, [storageKey]);
 

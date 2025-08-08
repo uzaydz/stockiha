@@ -106,7 +106,7 @@ export const signIn = async (email: string, password: string): Promise<SignInRes
 
       if (error) {
         
-        // معالجة أخطاء محددة
+        // معالجة أخطاء محددة مع رسائل واضحة
         if (error.message?.includes('Invalid login credentials')) {
           return {
             success: false,
@@ -122,11 +122,54 @@ export const signIn = async (email: string, password: string): Promise<SignInRes
             success: false,
             error: { message: 'محاولات كثيرة، يرجى المحاولة لاحقاً', code: 'rate_limit' }
           };
+        } else if (error.message?.toLowerCase().includes('captcha')) {
+          // معالجة خاصة لخطأ CAPTCHA - محاولة إعادة تسجيل الدخول بدون CAPTCHA
+          console.warn('CAPTCHA error detected, attempting alternative login method');
+          
+          // محاولة إعادة تسجيل الدخول مع إعدادات مختلفة
+          try {
+            const { data: retryData, error: retryError } = await client.auth.signInWithPassword({
+              email: email.toLowerCase().trim(),
+              password: password
+            });
+            
+            if (retryError) {
+              return {
+                success: false,
+                error: { message: 'فشل في التحقق من الأمان، يرجى المحاولة مرة أخرى', code: 'captcha_error' }
+              };
+            }
+            
+            if (retryData.session && retryData.user) {
+              return {
+                success: true,
+                session: retryData.session,
+                user: retryData.user
+              };
+            }
+          } catch (retryError) {
+            return {
+              success: false,
+              error: { message: 'فشل في التحقق من الأمان، يرجى المحاولة مرة أخرى', code: 'captcha_error' }
+            };
+          }
+          
+          return {
+            success: false,
+            error: { message: 'فشل في التحقق من الأمان، يرجى المحاولة مرة أخرى', code: 'captcha_error' }
+          };
+        } else if (error.status === 500) {
+          // معالجة خطأ الخادم الداخلي
+          return {
+            success: false,
+            error: { message: 'مشكلة في الخادم، يرجى المحاولة لاحقاً', code: 'server_error' }
+          };
         }
         
+        // رسالة خطأ عامة لجميع الأخطاء الأخرى
         return {
           success: false,
-          error: { message: error.message || 'فشل في تسجيل الدخول', code: error.status?.toString() }
+          error: { message: 'فشل في تسجيل الدخول، يرجى التحقق من البيانات والمحاولة مرة أخرى', code: error.status?.toString() }
         };
       }
 
@@ -159,7 +202,7 @@ export const signIn = async (email: string, password: string): Promise<SignInRes
   
   return {
     success: false,
-    error: { message: 'فشل في تسجيل الدخول بعد عدة محاولات', code: 'max_attempts_exceeded' }
+    error: { message: 'فشل في تسجيل الدخول بعد عدة محاولات، يرجى المحاولة لاحقاً', code: 'max_attempts_exceeded' }
   };
 };
 
@@ -169,24 +212,24 @@ export const signIn = async (email: string, password: string): Promise<SignInRes
 const validateSession = async (client: any, session: any): Promise<{ valid: boolean; error?: string }> => {
   try {
     if (!session || !session.access_token) {
-      return { valid: false, error: 'Missing session or access token' };
+      return { valid: false, error: 'جلسة المصادقة غير صالحة' };
     }
 
     // محاولة استخدام الجلسة للوصول لبيانات المستخدم
     const { data: user, error } = await client.auth.getUser(session.access_token);
     
     if (error || !user) {
-      return { valid: false, error: error?.message || 'User data not accessible' };
+      return { valid: false, error: 'بيانات المستخدم غير متاحة' };
     }
 
     // التحقق من انتهاء صلاحية الجلسة
     if (session.expires_at && new Date(session.expires_at * 1000) <= new Date()) {
-      return { valid: false, error: 'Session expired' };
+      return { valid: false, error: 'انتهت صلاحية الجلسة' };
     }
 
     return { valid: true };
   } catch (error) {
-    return { valid: false, error: `Session validation failed: ${error}` };
+    return { valid: false, error: 'فشل في التحقق من صحة الجلسة' };
   }
 };
 

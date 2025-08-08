@@ -1,8 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Layout from '@/components/Layout';
-import { useAppsData, useIsAppEnabled } from '@/context/SuperUnifiedDataContext';
 import { useQueryClient } from '@tanstack/react-query';
-import { AppDefinition, OrganizationApp, AVAILABLE_APPS, useApps } from '@/context/AppsContext';
+import { AppDefinition, AVAILABLE_APPS, useApps } from '@/context/AppsContext';
+import { toast } from 'sonner';
 import EnhancedLoader from '@/components/EnhancedLoader';
 import { 
   Card, 
@@ -72,8 +72,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { motion, AnimatePresence } from "framer-motion";
 import { cn } from '@/lib/utils';
-import { supabase } from '@/lib/supabase';
-import { useTenant } from '@/context/TenantContext';
 // import { notifications } from '@mantine/notifications';
 
 // تعيين الأيقونات
@@ -96,82 +94,38 @@ const categoryColors: Record<string, string> = {
 };
 
 const AppsManagement: React.FC = () => {
-  const { organizationApps } = useAppsData();
-  const { currentOrganization } = useTenant();
   const queryClient = useQueryClient();
   
-  // استخدام دوال تفعيل وإلغاء تفعيل التطبيقات الحقيقية من AppsContext
-  const { enableApp: originalEnableApp, disableApp: originalDisableApp, refreshApps } = useApps();
-  
-  // دوال مبسطة للتفعيل وإلغاء التفعيل تستخدم الدوال البسيطة التي تعمل
-  const enableApp = async (appId: string): Promise<boolean> => {
-    if (!currentOrganization?.id) {
-      return false;
-    }
-
-    try {
-      // استخدام الدالة البسيطة التي تعمل
-      const { data, error } = await supabase.rpc('enable_organization_app_simple' as any, {
-        org_id: currentOrganization.id,
-        app_id_param: appId
-      });
-
-      if (error) {
-        return false;
-      }
-
-      return true;
-    } catch (error) {
-      return false;
-    }
-  };
-
-  const disableApp = async (appId: string): Promise<boolean> => {
-    if (!currentOrganization?.id) {
-      return false;
-    }
-
-    try {
-      // استخدام الدالة البسيطة الجديدة
-      const { data, error } = await supabase.rpc('disable_organization_app_simple' as any, {
-        p_org_id: currentOrganization.id,
-        p_app_id: appId
-      });
-
-      if (error) {
-        return false;
-      }
-
-      if (data && Array.isArray(data) && data.length > 0 && data[0].success) {
-        return true;
-      } else {
-        const errorMessage = Array.isArray(data) && data[0]?.message || 'خطأ غير محدد';
-        return false;
-      }
-    } catch (error) {
-      return false;
-    }
-  };
+  // استخدام دوال تفعيل وإلغاء تفعيل التطبيقات من AppsContext
+  const { enableApp, disableApp, refreshApps, isAppEnabled, organizationApps } = useApps();
   
   // استخدام AVAILABLE_APPS كمصدر للتطبيقات المتاحة
   const availableApps = AVAILABLE_APPS;
   const isLoading = false; // نظراً لأننا نستخدم البيانات المُحملة مُسبقاً
+
+  // إضافة useEffect لتحديث البيانات عند تغيير organizationApps
+  useEffect(() => {
+    
+    // إضافة تأخير صغير للتأكد من تحديث البيانات
+    setTimeout(() => {
+    }, 100);
+  }, [organizationApps]);
   
-  // دالة للتحقق من تفعيل التطبيق
-  const isAppEnabled = (appId: string): boolean => {
-    const app = organizationApps?.find((app: any) => app.app_id === appId);
-    return Boolean(app?.is_enabled);
-  };
+  // استخدام دالة isAppEnabled من AppsContext
   
   // تحديث التطبيقات - بدون إعادة تحميل الصفحة  
   const refreshAppsData = async () => {
     try {
-      // تحديث مباشر لcache البيانات
-      await queryClient.invalidateQueries({ queryKey: ['global-data'] });
+      // استخدام دالة refreshApps من AppsContext
+      await refreshApps();
+      
+      // إضافة تأخير صغير للتأكد من تحديث البيانات
+      setTimeout(() => {
+      }, 100);
     } catch (error) {
-      // في حالة فشل التحديث المباشر، نحاول الطريقة التقليدية
+      // في حالة فشل التحديث، نحاول تحديث cache البيانات
       try {
-        await refreshApps();
+        await queryClient.invalidateQueries({ queryKey: ['global-data'] });
       } catch (fallbackError) {
       }
     }
@@ -211,8 +165,8 @@ const AppsManagement: React.FC = () => {
   // احصائيات سريعة
   const stats = {
     total: availableApps.length,
-    enabled: organizationApps.filter((app: any) => app.is_enabled).length,
-    disabled: availableApps.length - organizationApps.filter((app: any) => app.is_enabled).length
+    enabled: availableApps.filter(app => isAppEnabled(app.id)).length,
+    disabled: availableApps.length - availableApps.filter(app => isAppEnabled(app.id)).length
   };
 
   // تشخيص البيانات
@@ -244,7 +198,15 @@ const AppsManagement: React.FC = () => {
       if (success) {
         // تحديث البيانات لإظهار التغيير فوراً - بدون إعادة تحميل الصفحة
         await refreshAppsData();
+        // إضافة toast notification
+        toast.success(`تم ${enabled ? 'تفعيل' : 'إلغاء تفعيل'} التطبيق بنجاح`);
+        
+        // إضافة تأخير صغير للتأكد من تحديث البيانات
+        setTimeout(() => {
+        }, 200);
       } else {
+        // إضافة toast notification للخطأ
+        toast.error(`فشل في ${enabled ? 'تفعيل' : 'إلغاء تفعيل'} التطبيق`);
       }
     } catch (error) {
     } finally {
@@ -284,7 +246,9 @@ const AppsManagement: React.FC = () => {
       if (success) {
         // تحديث البيانات لإظهار التغيير فوراً - بدون إعادة تحميل الصفحة
         await refreshAppsData();
+        toast.success(`تم ${actionType === 'enable' ? 'تفعيل' : 'إلغاء تفعيل'} التطبيق بنجاح`);
       } else {
+        toast.error(`فشل في ${actionType === 'enable' ? 'تفعيل' : 'إلغاء تفعيل'} التطبيق`);
       }
     } catch (error) {
     } finally {

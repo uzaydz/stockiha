@@ -19,6 +19,7 @@ import { ShopProvider } from "@/context/ShopContext";
 import { StoreProvider } from "@/context/StoreContext";
 import { SuperUnifiedDataProvider } from '@/context/SuperUnifiedDataContext';
 import { SupabaseProvider } from "@/context/SupabaseContext";
+import { NotificationsProvider } from '@/context/NotificationsContext';
 
 // Context محسن للصفحات العامة
 import { ProductPageProvider } from '@/context/ProductPageContext';
@@ -48,6 +49,7 @@ type PageType =
   | 'public-product' // صفحات المنتجات العامة
   | 'public-store'   // صفحات المتجر العامة
   | 'max-store'      // صفحة المتجر Max المحسنة
+  | 'thank-you'      // صفحة الشكر خفيفة
   | 'auth'           // صفحات التسجيل/الدخول
   | 'dashboard'      // لوحة التحكم
   | 'pos'            // نقطة البيع
@@ -100,6 +102,17 @@ const logPerformanceIssue = (type: string, data: any) => {
 
 // إعدادات محسنة للـ POS - فقط الضروري
 const PROVIDER_CONFIGS: Record<PageType, ProviderConfig> = {
+  'thank-you': {
+    core: true,
+    auth: true,     // نحتاج Tenant لتحديد المؤسسة إن وجد
+    tenant: true,
+    unifiedData: false,
+    organizationData: false,
+    dashboard: false,
+    shop: false,
+    apps: false,
+    productPage: false,
+  },
   'public-product': {
     core: true,
     auth: true,   // ✅ مطلوب لـ TenantProvider (حتى لو كان guest)
@@ -115,10 +128,10 @@ const PROVIDER_CONFIGS: Record<PageType, ProviderConfig> = {
     core: true,
     auth: true,    // ✅ مطلوب لـ TenantProvider
     tenant: true,  // لتحديد المؤسسة
-    unifiedData: true,    // ✅ مطلوب لـ useIsAppEnabled في NavbarLinks
-    organizationData: false, // ❌ غير مطلوب - البيانات موجودة في SuperUnifiedDataProvider
+    unifiedData: false,    // ❌ تجنب تحميل SuperUnifiedDataProvider للصفحات العامة
+    organizationData: false, // ❌ غير مطلوب - يسبب طلبات مكررة
     dashboard: false,
-    shop: false,   // ❌ غير مطلوب - البيانات موجودة في SuperUnifiedDataProvider
+    shop: false,   // ❌ غير مطلوب - يسبب طلبات مكررة
     apps: false,
     productPage: false,
   },
@@ -139,7 +152,7 @@ const PROVIDER_CONFIGS: Record<PageType, ProviderConfig> = {
     core: true,
     auth: true,
     tenant: true,
-    unifiedData: true,    // ✅ مطلوب لـ useIsAppEnabled في NavbarLinks
+    unifiedData: false,    // ❌ تجنب تحميل بيانات غير ضرورية في صفحات المصادقة
     organizationData: false,
     dashboard: false,
     shop: false,
@@ -154,7 +167,7 @@ const PROVIDER_CONFIGS: Record<PageType, ProviderConfig> = {
     organizationData: false, // ❌ إزالة التكرار - البيانات موجودة في SuperUnifiedDataProvider
     dashboard: false,      // ❌ إزالة - البيانات موجودة في SuperUnifiedDataProvider  
     shop: false,          // ❌ إزالة - البيانات موجودة في SuperUnifiedDataProvider
-    apps: false,          // ❌ إزالة - البيانات موجودة في SuperUnifiedDataProvider
+    apps: true,           // ✅ مطلوب لـ repair-services في POS
     productPage: false,
   },
   'pos': {
@@ -165,7 +178,7 @@ const PROVIDER_CONFIGS: Record<PageType, ProviderConfig> = {
     organizationData: false, // غير مطلوب لـ POS
     dashboard: false, // غير مطلوب لـ POS
     shop: true, // ✅ مطلوب لـ POS - تم تصحيح الخطأ
-    apps: false, // ❌ إزالة - البيانات موجودة في SuperUnifiedDataProvider
+    apps: true, // ✅ مطلوب لـ repair-services في POS
     productPage: false,
     storePage: false,
     productsPage: false,
@@ -196,7 +209,7 @@ const PROVIDER_CONFIGS: Record<PageType, ProviderConfig> = {
     core: true,
     auth: true,    // ✅ مطلوب لـ TenantProvider
     tenant: true,  // لعرض معلومات المؤسسة
-    unifiedData: true,    // ✅ مطلوب لـ useIsAppEnabled في NavbarLinks
+    unifiedData: false,    // ❌ تجنب تحميل بيانات المتجر في صفحات الهبوط
     organizationData: false,
     dashboard: false,
     shop: false,
@@ -253,7 +266,7 @@ const determinePageType = (pathname: string): PageType => {
       pageType = 'landing';
     } else if (pathname.includes('/features') || pathname.includes('/pricing') || pathname.includes('/contact')) {
       pageType = 'landing';
-    } else if (pathname.includes('/login') || pathname.includes('/signup')) {
+    } else if (pathname.includes('/login') || pathname.includes('/signup') || pathname.includes('/forgot-password') || pathname.includes('/reset-password')) {
       pageType = 'auth';
     } else if (pathname === '/pos' || pathname === '/dashboard/pos-advanced') {
       pageType = 'pos';
@@ -273,13 +286,10 @@ const determinePageType = (pathname: string): PageType => {
   }
   // صفحات المتجر العامة - تحقق من وجود subdomain أو custom domain
   else if (
-    (pathname === '/products' ||
-    pathname.includes('/category/') ||
-    pathname.includes('/products/details/') ||
-    pathname === '/thank-you') && // 🔧 إضافة صفحة الشكر للمتاجر
-    (hasSubdomainLocalhost || hasSubdomain || isCustomDomain)
+    pathname === '/thank-you'
   ) {
-    pageType = 'max-store';
+    // صفحة الشكر دائماً خفيفة لتجنب استدعاءات المتجر العامة
+    pageType = 'thank-you';
   }
   // صفحات شراء المنتجات مع subdomain
   else if (
@@ -294,7 +304,7 @@ const determinePageType = (pathname: string): PageType => {
   // 🔧 إصلاح: التعامل مع localhost بدون subdomain
   else if (isLocalhost) {
     // localhost بدون subdomain - يحتاج AuthProvider للوصول إلى /login و /dashboard
-    if (pathname.includes('/login') || pathname.includes('/signup')) {
+    if (pathname.includes('/login') || pathname.includes('/signup') || pathname.includes('/forgot-password') || pathname.includes('/reset-password')) {
       pageType = 'auth';
     } else if (pathname === '/pos' || pathname === '/dashboard/pos-advanced') {
       pageType = 'pos';
@@ -321,8 +331,7 @@ const determinePageType = (pathname: string): PageType => {
   else if (
     pathname === '/products' ||
     pathname.includes('/category/') ||
-    pathname.includes('/products/details/') ||
-    pathname === '/thank-you' // 🔧 إضافة صفحة الشكر للمتاجر
+    pathname.includes('/products/details/')
   ) {
     pageType = 'public-store';
   }
@@ -539,12 +548,13 @@ export const SmartProviderWrapper: React.FC<SmartProviderWrapperProps> = ({ chil
       // Apps providers
       if (config.apps) {
         content = <AppsProvider>{content}</AppsProvider>;
+      } else {
       }
 
       // تطبيق Core providers في الطبقة الخارجية
       // إصلاح ترتيب الـ providers - AuthProvider أولاً
       // ملاحظة: TenantProvider يحتاج دائماً إلى AuthProvider لذا تم تحديث التكوين لضمان ذلك
-      // ملاحظة: NavbarLinks يستخدم useIsAppEnabled من SuperUnifiedDataContext لذا تحتاج الصفحات العامة إلى unifiedData: true
+              // ملاحظة: تم تحسين NavbarLinks لتجنب التبعية على SuperUnifiedDataContext في الصفحات العامة
       // ملاحظة: POSOrdersOptimized يستخدم useOrdersData من UnifiedDataContext لذا تحتاج صفحة dashboard إلى organizationData: true
       content = (
         <QueryClientProvider client={queryClient}>
@@ -558,13 +568,15 @@ export const SmartProviderWrapper: React.FC<SmartProviderWrapperProps> = ({ chil
                       <TenantProvider>
                         <UserProvider>
                                                   {/* للـ dashboard نحتاج OptimizedSharedStoreDataProvider لبعض الصفحات مثل Orders */}
-                        {pageType === 'dashboard' ? (
+                        {pageType === 'dashboard' || pageType === 'pos' ? (
                           <OptimizedSharedStoreDataProvider>
                             <ThemeProviderWrapper>
                               <GlobalLoadingProvider>
-                                <AppWrapper>
-                                  {content}
-                                </AppWrapper>
+                                <NotificationsProvider>
+                                  <AppWrapper>
+                                    {content}
+                                  </AppWrapper>
+                                </NotificationsProvider>
                               </GlobalLoadingProvider>
                             </ThemeProviderWrapper>
                           </OptimizedSharedStoreDataProvider>
@@ -579,21 +591,33 @@ export const SmartProviderWrapper: React.FC<SmartProviderWrapperProps> = ({ chil
                             </ThemeProviderWrapper>
                           </ProductPageSharedStoreDataProvider>
                         ) : (
-                          <SharedStoreDataProvider>
-                            <ThemeProviderWrapper>
-                              <GlobalLoadingProvider>
-                                <AppWrapper>
-                                  {content}
-                                </AppWrapper>
-                              </GlobalLoadingProvider>
-                            </ThemeProviderWrapper>
-                          </SharedStoreDataProvider>
+                          pageType === 'landing' || pageType === 'thank-you' ? (
+                            <MinimalSharedStoreDataProvider>
+                              <ThemeProviderWrapper>
+                                <GlobalLoadingProvider>
+                                  <AppWrapper>
+                                    {content}
+                                  </AppWrapper>
+                                </GlobalLoadingProvider>
+                              </ThemeProviderWrapper>
+                            </MinimalSharedStoreDataProvider>
+                          ) : (
+                            <SharedStoreDataProvider>
+                              <ThemeProviderWrapper>
+                                <GlobalLoadingProvider>
+                                  <AppWrapper>
+                                    {content}
+                                  </AppWrapper>
+                                </GlobalLoadingProvider>
+                              </ThemeProviderWrapper>
+                            </SharedStoreDataProvider>
+                          )
                         )}
                         </UserProvider>
                       </TenantProvider>
                     ) : (
                       <UserProvider>
-                        {pageType === 'dashboard' ? (
+                        {pageType === 'dashboard' || pageType === 'pos' ? (
                           <MinimalOptimizedSharedStoreDataProvider>
                             <ThemeProviderWrapper>
                               <GlobalLoadingProvider>
@@ -629,7 +653,7 @@ export const SmartProviderWrapper: React.FC<SmartProviderWrapperProps> = ({ chil
                   </AuthProvider>
                 ) : (
                                   // للصفحات التي لا تحتاج مصادقة أو tenant
-                pageType === 'dashboard' ? (
+                pageType === 'dashboard' || pageType === 'pos' ? (
                   <MinimalOptimizedSharedStoreDataProvider>
                     <ThemeProviderWrapper>
                       <GlobalLoadingProvider>

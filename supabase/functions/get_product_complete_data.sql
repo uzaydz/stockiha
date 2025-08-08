@@ -419,6 +419,7 @@ BEGIN
         'name', mp.name,
         'name_for_shipping', mp.name_for_shipping,
         'description', mp.description,
+        'advanced_description', mp.advanced_description,
         'slug', mp.slug,
         'sku', mp.sku,
         'barcode', mp.barcode,

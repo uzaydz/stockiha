@@ -714,7 +714,46 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         const subdomain = currentSubdomain || await extractSubdomain(currentHostname);
         const storedOrgId = localStorage.getItem('bazaar_organization_id');
 
-        // استراتيجية الأولوية: orgId > domain > subdomain
+        // 🌟 أولوية 0: الهيدرأة الفورية من نتائج RPC المخزنة محلياً لتجنب أي نداء شبكة
+        try {
+          if (subdomain && subdomain !== 'main') {
+            const rpcOrgKey = `bazaar_rpc_org_details_${subdomain}`;
+            const rpcOrgRaw = localStorage.getItem(rpcOrgKey);
+            if (rpcOrgRaw) {
+              const rpcOrg = JSON.parse(rpcOrgRaw);
+              const hydratedOrg = updateOrganizationFromData(rpcOrg);
+              if (hydratedOrg && hydratedOrg.id) {
+                setOrganization(hydratedOrg);
+                updateLocalStorageOrgId(hydratedOrg.id);
+                clearTimeout(loadingTimeoutId);
+                setIsLoading(false);
+                setError(null);
+                loadingOrganization.current = false;
+                initialized.current = true;
+                return;
+              }
+            }
+          }
+          // fallback: إذا كان لدينا نسخة محلية مخزنة حسب المعرّف
+          if (storedOrgId) {
+            const localOrgRaw = localStorage.getItem(`bazaar_organization_${storedOrgId}`);
+            if (localOrgRaw) {
+              const localOrg = JSON.parse(localOrgRaw);
+              const hydratedOrg = updateOrganizationFromData(localOrg);
+              if (hydratedOrg && hydratedOrg.id) {
+                setOrganization(hydratedOrg);
+                clearTimeout(loadingTimeoutId);
+                setIsLoading(false);
+                setError(null);
+                loadingOrganization.current = false;
+                initialized.current = true;
+                return;
+              }
+            }
+          }
+        } catch {}
+
+        // استراتيجية الأولوية: orgId > domain > subdomain (بعد محاولة الهيدرأة المحلية أعلاه)
         let orgData = null;
         if (storedOrgId) {
           orgData = await fetchOrganizationUnified({ orgId: storedOrgId });
@@ -836,7 +875,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       try {
         // مسح كل التخزين المؤقت المتعلق بالمؤسسة
         const orgId = localStorage.getItem('bazaar_organization_id');
-        console.log('🔍 [DEBUG] Retrieved orgId from localStorage:', { orgId, raw: JSON.stringify(orgId) });
         if (orgId) {
           localStorage.removeItem(`organization:${orgId}`);
           
@@ -855,9 +893,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
         
         // استخدام معرف المؤسسة لجلب البيانات المحدثة مباشرة
-        console.log('🔍 [DEBUG] orgId value:', { orgId, type: typeof orgId, isValid: isValidUuid(orgId) });
         if (isValidUuid(orgId)) {
-          console.log('✅ [DEBUG] orgId is valid, proceeding with query');
           const supabaseClient = await getSupabaseClient();
           
           const { data: orgData, error: orgError } = await supabaseClient

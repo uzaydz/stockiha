@@ -29,8 +29,8 @@ const TRIAL_NOTIFICATION_CACHE = new Map<string, {
   isCalculating: boolean;
 }>();
 
-const TRIAL_CACHE_DURATION = 2 * 60 * 1000; // دقيقتان
-const CALCULATION_DEBOUNCE_TIME = 2000; // ثانيتان
+const TRIAL_CACHE_DURATION = 10 * 60 * 1000; // 10 دقائق بدلاً من دقيقتين
+const CALCULATION_DEBOUNCE_TIME = 5000; // 5 ثواني بدلاً من ثانيتين
 
 export const TrialNotification: React.FC = () => {
   const { organization } = useAuth();
@@ -46,6 +46,8 @@ export const TrialNotification: React.FC = () => {
   const calculationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastOrganizationIdRef = useRef<string | null>(null);
   const lastCalculationTimeRef = useRef<number>(0);
+  const hasCalculatedRef = useRef(false);
+  const calculationDebounceTime = 10000; // 10 ثواني بدلاً من 5
 
   // 🔥 دالة محسنة للحصول على بيانات التجربة من الكاش أو الخادم
   const getTrialData = async (org: OrganizationWithSettings): Promise<any> => {
@@ -108,7 +110,9 @@ export const TrialNotification: React.FC = () => {
     const timeSinceLastCalculation = now - lastCalculationTimeRef.current;
     
     // منع إعادة الحساب للمؤسسة نفسها في وقت قصير
-    if (!organizationChanged && timeSinceLastCalculation < CALCULATION_DEBOUNCE_TIME) {
+    if (!organizationChanged && 
+        hasCalculatedRef.current && 
+        timeSinceLastCalculation < calculationDebounceTime) {
       return;
     }
     
@@ -120,6 +124,7 @@ export const TrialNotification: React.FC = () => {
       
       setIsCalculating(true);
       lastCalculationTimeRef.current = now;
+      hasCalculatedRef.current = true;
       
       try {
         const result = await getTrialData(organization as unknown as OrganizationWithSettings);
@@ -147,7 +152,6 @@ export const TrialNotification: React.FC = () => {
         }
 
       } catch (error) {
-        console.warn('Trial notification calculation failed:', error);
         setShowNotification(false);
       } finally {
         setIsCalculating(false);
@@ -158,16 +162,17 @@ export const TrialNotification: React.FC = () => {
     if (calculationTimeoutRef.current) {
       clearTimeout(calculationTimeoutRef.current);
     }
-    
-    calculationTimeoutRef.current = setTimeout(calculateDays, 500);
 
-    // تنظيف timeout عند إلغاء تحميل المكون
+    calculationTimeoutRef.current = setTimeout(() => {
+      calculateDays();
+    }, 500); // زيادة التأخير إلى 500ms
+
     return () => {
       if (calculationTimeoutRef.current) {
         clearTimeout(calculationTimeoutRef.current);
       }
     };
-  }, [organization?.id, isCalculating, organizationChanged]);
+  }, [organization?.id, organizationChanged, isCalculating]);
 
   // تنظيف المراجع عند إلغاء تحميل المكون
   useEffect(() => {

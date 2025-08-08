@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 import { useTenant } from "@/context/TenantContext";
-import { useProductPageOrganization } from "@/context/ProductPageContext";
 import { supabase } from "@/lib/supabase";
 
 // نفس نوع القالب الموجود في ThankYouPageEditor
@@ -12,21 +11,28 @@ const templateCache = new Map<string, ThankYouTemplate>();
 interface TemplateLoaderProps {
   productId?: string;
   onLoad: (template: ThankYouTemplate | null) => void;
+  initialTemplate?: ThankYouTemplate | null;
 }
 
-export default function TemplateLoader({ productId, onLoad }: TemplateLoaderProps) {
+export default function TemplateLoader({ productId, onLoad, initialTemplate }: TemplateLoaderProps) {
   // محاولة الحصول على معلومات المؤسسة من مصادر متعددة
   const tenantFromContext = useTenant();
-  const organizationFromProduct = useProductPageOrganization();
   
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const hasLoadedRef = useRef(false);
 
   // تحديد معرف المؤسسة من أي مصدر متاح
-  const organizationId = tenantFromContext?.tenant?.id || organizationFromProduct?.id || null;
+  const organizationId = tenantFromContext?.tenant?.id || null;
 
   useEffect(() => {
+    // إذا تم تمرير قالب جاهز من خارج المكون، لا نقوم بأي استدعاءات
+    if (initialTemplate && !hasLoadedRef.current) {
+      hasLoadedRef.current = true;
+      onLoad(initialTemplate);
+      setIsLoading(false);
+      return;
+    }
     // تجنب التحميل المتكرر باستخدام مرجع
     if (hasLoadedRef.current) {
       return;
@@ -102,77 +108,29 @@ export default function TemplateLoader({ productId, onLoad }: TemplateLoaderProp
           return;
         }
 
-        // باقي المنطق كما هو...
-        // 1. التحقق إذا كان هناك قوالب في قاعدة البيانات
-        const { count, error: countError } = await supabase
-          .from("thank_you_templates")
-          .select("*", { count: 'exact', head: true })
-          .eq("organization_id", finalOrganizationId);
-          
-        if (countError) {
+        // طلب واحد مدمج: يفضّل القالب الخاص بالمنتج ثم العام، ويعيد صفاً واحداً فقط
+        // ملاحظة: نستخدم or مع cs (contains) لنفس نتيجة contains('product_ids', [productId])
+        const orFilter = productId
+          ? `and(applies_to.eq.specific_products,product_ids.cs.{${productId}}),and(applies_to.eq.all_products)`
+          : `and(applies_to.eq.all_products)`;
+
+        const { data: templates, error: tplErr } = await supabase
+          .from('thank_you_templates')
+          .select('*')
+          .eq('organization_id', finalOrganizationId)
+          .eq('is_active', true)
+          .or(orFilter)
+          .order('applies_to', { ascending: false }) // specific_products قبل all_products
+          .limit(1);
+
+        const chosenTemplate = Array.isArray(templates) && templates.length > 0
+          ? (templates[0] as unknown as ThankYouTemplate)
+          : null;
+
+        if (chosenTemplate) {
+          templateCache.set(cacheKey, chosenTemplate);
+          onLoad(chosenTemplate);
         } else {
-          // إذا لم تكن هناك قوالب على الإطلاق، استخدم القالب الافتراضي مباشرة
-          if (count === 0) {
-            const fallbackTemplate = createFallbackTemplate(finalOrganizationId);
-            templateCache.set(cacheKey, fallbackTemplate);
-            onLoad(fallbackTemplate);
-            setIsLoading(false);
-            return;
-          }
-        }
-        
-        let specificTemplate = null;
-        
-        // إذا كان هناك معرف للمنتج، نحاول تحميل قالب مخصص له
-        if (productId) {
-          try {
-            // تحسين الاستعلام لجلب جميع القوالب المخصصة في استعلام واحد
-            const { data: templates, error } = await supabase
-              .from("thank_you_templates")
-              .select("*")
-              .eq("organization_id", finalOrganizationId)
-              .eq("is_active", true)
-              .eq("applies_to", "specific_products");
-              
-            if (error) {
-            } else if (templates && templates.length > 0) {
-              // البحث يدويًا عن القالب الذي يحتوي على معرف المنتج في المصفوفة
-              specificTemplate = templates.find(template => 
-                template.product_ids && 
-                Array.isArray(template.product_ids) && 
-                template.product_ids.includes(productId)
-              );
-              
-              if (specificTemplate) {
-                templateCache.set(cacheKey, specificTemplate as ThankYouTemplate);
-                onLoad(specificTemplate as ThankYouTemplate);
-                setIsLoading(false);
-                return;
-              }
-            }
-          } catch (specificError) {
-          }
-        }
-        
-        // 2. البحث عن القالب الافتراضي
-        const { data: defaultTemplate, error: defaultError } = await supabase
-          .from("thank_you_templates")
-          .select("*")
-          .eq("organization_id", finalOrganizationId)
-          .eq("is_active", true)
-          .eq("applies_to", "all_products")
-          .limit(1)
-          .maybeSingle();
-        
-        if (defaultError) {
-        }
-        
-        // 3. إذا وجدنا قالب افتراضي
-        if (defaultTemplate) {
-          templateCache.set(`${finalOrganizationId}:default`, defaultTemplate as ThankYouTemplate);
-          onLoad(defaultTemplate as ThankYouTemplate);
-        } else {
-          // 4. في حالة عدم وجود أي قالب، نستخدم القالب الافتراضي المضمّن
           const fallbackTemplate = createFallbackTemplate(finalOrganizationId);
           templateCache.set(cacheKey, fallbackTemplate);
           onLoad(fallbackTemplate);
@@ -189,7 +147,7 @@ export default function TemplateLoader({ productId, onLoad }: TemplateLoaderProp
     };
 
     loadTemplate();
-  }, [organizationId, productId, onLoad]);
+  }, [organizationId, productId, onLoad, initialTemplate]);
 
   // هذا المكون لا يعرض أي شيء في الواجهة
   return null;

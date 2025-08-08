@@ -338,11 +338,11 @@ export const createPOSOrderLegacy = async (
 // دالة لتحديث المخزون مع نظام FIFO - مع حماية من التحديث المضاعف
 async function updateInventoryForOrder(items: OrderItem[], orderId?: string, organizationId?: string) {
   const updateId = `${Date.now()}-${Math.random()}`;
-  
+
   for (let index = 0; index < items.length; index++) {
     const item = items[index];
     const itemUpdateKey = `${item.productId}-${item.quantity}-${Date.now()}`;
-    
+
     try {
       // حماية من التحديث المضاعف
       if (processedInventoryUpdates.has(itemUpdateKey)) {
@@ -365,6 +365,7 @@ async function updateInventoryForOrder(items: OrderItem[], orderId?: string, org
 
       // استخدام الدالة المحسنة مع دعم المتغيرات والـ FIFO
       try {
+        
         const { data: fifoResult, error } = await supabase.rpc('process_pos_sale_with_variants_fifo' as any, {
           p_product_id: item.productId,
           p_quantity: item.quantity,
@@ -374,8 +375,9 @@ async function updateInventoryForOrder(items: OrderItem[], orderId?: string, org
           p_order_id: orderId || null,
           p_unit_price: item.unitPrice
         }) as { data: any, error: any };
-        
+
         if (error) {
+          
           // العودة للطريقة القديمة كبديل
           const { error: fallbackError } = await supabase.rpc('update_product_stock_safe', {
             p_product_id: item.productId,
@@ -389,7 +391,7 @@ async function updateInventoryForOrder(items: OrderItem[], orderId?: string, org
           processedInventoryUpdates.delete(itemUpdateKey);
         } else if (fifoResult && (fifoResult as any).success) {
           const result = fifoResult as any;
-          
+
           // تنظيف Set بعد 30 ثانية لمنع تراكم البيانات
           setTimeout(() => {
             processedInventoryUpdates.delete(itemUpdateKey);
@@ -398,6 +400,7 @@ async function updateInventoryForOrder(items: OrderItem[], orderId?: string, org
           processedInventoryUpdates.delete(itemUpdateKey);
         }
       } catch (fifoError) {
+        
         // العودة للطريقة القديمة
         const { error: fallbackError } = await supabase.rpc('update_product_stock_safe', {
           p_product_id: item.productId,
@@ -410,11 +413,21 @@ async function updateInventoryForOrder(items: OrderItem[], orderId?: string, org
         
         processedInventoryUpdates.delete(itemUpdateKey);
       }
+      
+      // جلب المخزون بعد التحديث للتحقق
+      const { data: updatedProduct } = await supabase
+        .from('products')
+        .select('stock_quantity')
+        .eq('id', item.productId)
+        .single();
+      
+      const stockAfter = updatedProduct?.stock_quantity || 0;
+
     } catch (error) {
       processedInventoryUpdates.delete(itemUpdateKey);
     }
   }
-  
+
 }
 
 // دالة لإضافة حجوزات الخدمات

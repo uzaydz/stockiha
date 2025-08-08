@@ -381,12 +381,27 @@ export const getProductCompleteData = async (
   } = {}
 ): Promise<ProductCompleteResponse | null> => {
   try {
+    // استخراج الساب-دومين لتمييز نسخة الدالة ذات 5 معاملات وتفادي PGRST203
+    let orgSubdomain: string | null = null;
+    try {
+      const stored = localStorage.getItem('bazaar_current_subdomain');
+      if (stored && stored !== 'www' && stored !== 'main') {
+        orgSubdomain = stored;
+      } else if (typeof window !== 'undefined') {
+        const host = window.location.hostname;
+        const parts = host.split(':')[0].split('.');
+        if (parts.length > 1 && parts[0] && parts[0] !== 'www' && parts[0] !== 'localhost' && parts[0] !== '127') {
+          orgSubdomain = parts[0];
+        }
+      }
+    } catch {}
 
     const { data, error } = await supabase.rpc('get_product_complete_data' as any, {
       p_product_identifier: productIdentifier, // تم تغيير الاسم
       p_organization_id: options.organizationId || null,
       p_include_inactive: options.includeInactive || false,
-      p_data_scope: options.dataScope || 'full'
+      p_data_scope: options.dataScope || 'full',
+      p_org_subdomain: orgSubdomain
     });
 
     if (error) {

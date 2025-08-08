@@ -61,6 +61,50 @@ export const useProductTracking = (options: ProductTrackingOptions) => {
   const trackerRef = useRef<any>(null);
   const settingsLoadedRef = useRef(false);
 
+  // استخراج إعدادات التتبع من كائن منتج مكتمل البيانات (بدون أي نداء شبكة)
+  const setSettingsFromProduct = useCallback((productLike: any) => {
+    try {
+      if (!productLike) return false;
+      const marketingSettings = productLike?.marketing_settings || productLike?.data?.product?.marketing_settings || productLike?.product?.marketing_settings;
+      if (!marketingSettings) return false;
+
+      const trackingSettings: TrackingSettings = {
+        facebook: {
+          enabled: marketingSettings.facebook?.enabled || false,
+          pixel_id: marketingSettings.facebook?.pixel_id || undefined,
+          conversion_api_enabled: marketingSettings.facebook?.conversion_api_enabled || false,
+          access_token: marketingSettings.facebook?.access_token || undefined,
+          test_event_code: marketingSettings.facebook?.test_event_code || undefined
+        },
+        google: {
+          enabled: marketingSettings.google?.enabled || false,
+          gtag_id: marketingSettings.google?.gtag_id || undefined,
+          ads_conversion_id: marketingSettings.google?.ads_conversion_id || undefined,
+          ads_conversion_label: marketingSettings.google?.ads_conversion_label || undefined
+        },
+        tiktok: {
+          enabled: marketingSettings.tiktok?.enabled || false,
+          pixel_id: marketingSettings.tiktok?.pixel_id || undefined,
+          events_api_enabled: marketingSettings.tiktok?.events_api_enabled || false,
+          access_token: marketingSettings.tiktok?.access_token || undefined,
+          test_event_code: marketingSettings.tiktok?.test_event_code || undefined
+        },
+        test_mode: marketingSettings.test_mode !== false
+      };
+
+      setSettings(trackingSettings);
+      settingsLoadedRef.current = true;
+      try {
+        (window as any).__productTrackingSettings = trackingSettings;
+        const evt = new CustomEvent('trackingSettingsReady', { detail: trackingSettings });
+        window.dispatchEvent(evt);
+      } catch {}
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
   // تحميل إعدادات التتبع من الخادم
   const loadTrackingSettings = useCallback(async () => {
     if (!productId || !organizationId || settingsLoadedRef.current) {
@@ -407,6 +451,7 @@ export const useProductTracking = (options: ProductTrackingOptions) => {
     
     // الدوال
     loadTrackingSettings,
+    setSettingsFromProduct,
     trackEvent,
     trackViewContent,
     trackAddToCart,

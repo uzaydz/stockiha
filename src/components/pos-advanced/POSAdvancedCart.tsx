@@ -1066,11 +1066,6 @@ const POSAdvancedCart: React.FC<POSAdvancedCartProps> = ({
                   <Button
                     variant="outline"
                     onClick={() => {
-                      console.log('🔍 تشخيص السلة:');
-                      console.log('- التبويبات:', tabs.map(t => ({ id: t.id, name: t.name, itemsCount: t.cartItems.length })));
-                      console.log('- التبويب النشط:', activeTab ? { id: activeTab.id, itemsCount: activeTab.cartItems.length } : 'لا يوجد');
-                      console.log('- عناصر السلة:', cartItems.length);
-                      console.log('- localStorage:', localStorage.getItem('bazaar_cart_tabs'));
                     }}
                     disabled={isSubmittingOrder}
                     className="w-full h-10 hover:bg-blue-50 dark:hover:bg-blue-950/20 hover:border-blue-300 dark:hover:border-blue-700 hover:text-blue-700 dark:hover:text-blue-400 transition-all duration-200 shadow-sm dark:shadow-blue/10"

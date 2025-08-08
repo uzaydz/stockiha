@@ -52,15 +52,6 @@ const ProductPurchasePageMaxV2Optimized: React.FC = () => {
   });
 
   // 🔍 تتبع حالة البيانات الموحدة
-  console.log('🔍 [ProductPurchasePageMaxV2Optimized] حالة البيانات الموحدة:', {
-    isLoading: unifiedData.isLoading,
-    hasProduct: !!unifiedData.product,
-    productId: unifiedData.product?.id,
-    productName: unifiedData.product?.name,
-    useProductPurchaseEnabled: true,
-    willUsePreloadedData: !!unifiedData.product,
-    timestamp: new Date().toISOString()
-  });
 
   // استخدام hook المخصص لإدارة حالة المنتج مع البيانات المحملة مسبقاً
   const [state, actions] = useProductPurchase({

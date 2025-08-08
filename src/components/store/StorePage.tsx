@@ -144,7 +144,7 @@ const StorePage: React.FC<StorePageProps> = () => {
         organizationId={centralOrgId}
         customCSS={organizationSettings?.custom_css}
         customJSHeader={organizationSettings?.custom_js_header}
-        useGlobalFallback={true}
+        useGlobalFallback={false}
       />
       
       {/* Layout الرئيسي */}

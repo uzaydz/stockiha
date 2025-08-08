@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Menu, ChevronDown, ArrowRightToLine, ArrowLeftToLine, Sparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -16,7 +16,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
 import { useApps } from '@/context/AppsContext';
 import { useStoreInfo, useOrganizationSettings } from '@/hooks/useAppInitData';
-import { useProductPageSettings } from '@/context/ProductPageContext';
+import { useSharedStoreDataContext } from '@/context/SharedStoreDataContext';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -69,6 +69,18 @@ const useAppsSafe = () => {
   }
 };
 
+// Throttle function for scroll events
+const throttle = (func: Function, limit: number) => {
+  let inThrottle: boolean;
+  return function(this: any, ...args: any[]) {
+    if (!inThrottle) {
+      func.apply(this, args);
+      inThrottle = true;
+      setTimeout(() => inThrottle = false, limit);
+    }
+  }
+};
+
 export function NavbarMain({
   className,
   toggleSidebar,
@@ -86,22 +98,25 @@ export function NavbarMain({
   const { isAppEnabled, organizationApps } = useAppsSafe();
 
   const [isScrolled, setIsScrolled] = useState(false);
+  const lastTitleRef = useRef<string>('');
+  const lastFaviconRef = useRef<string>('');
+  const lastLogoRef = useRef<string>('');
   
-  // استخدام useStoreInfo مع البنية الصحيحة
+  // استخدام useStoreInfo + أولوية لبيانات RPC من SharedStoreDataContext
   const storeInfo = useStoreInfo();
-  const storeName = storeInfo?.name || null;
-  const logoUrl = storeInfo?.logo_url || null;
+  const { organizationSettings: sharedOrgSettings, organization: sharedOrg } = useSharedStoreDataContext();
+  const storeName = storeInfo?.name || sharedOrg?.name || null;
+  const logoUrl = storeInfo?.logo_url || sharedOrgSettings?.logo_url || null;
   const storeInfoLoading = !storeInfo; // إذا لم نحصل على البيانات بعد
   
   // 🔧 نظام احتياطي لجلب بيانات الشعار
   const [fallbackLogo, setFallbackLogo] = useState<string | null>(null);
   const [fallbackSiteName, setFallbackSiteName] = useState<string | null>(null);
   
-  // محاولة جلب البيانات من مصادر أخرى إذا فشل النظام الأساسي
+  // محاولة جلب البيانات من localStorage فقط كحل احتياطي خفيف بدون أي طلبات شبكة
   useEffect(() => {
-    const fetchFallbackData = async () => {
+    const applyLocalFallback = () => {
       try {
-        // محاولة جلب من localStorage مباشرة
         const appInitData = localStorage.getItem('bazaar_app_init_data');
         if (appInitData) {
           const data = JSON.parse(appInitData);
@@ -111,29 +126,15 @@ export function NavbarMain({
             setFallbackSiteName(settings.site_name || data.organization.name || null);
           }
         }
-        
-        // إذا لم تتوفر البيانات، محاولة إعادة تهيئة النظام
-        if (!storeInfo && currentOrganization?.id) {
-          const { initializeApp } = await import('@/lib/appInitializer');
-          const initData = await initializeApp(currentOrganization.id);
-          if (initData?.organization?.settings) {
-            setFallbackLogo(initData.organization.settings.logo_url || null);
-            setFallbackSiteName(initData.organization.settings.site_name || initData.organization.name || null);
-          }
-        }
-      } catch (error) {
-      }
+      } catch {}
     };
-    
-    // تشغيل البحث الاحتياطي بعد ثانية إذا لم تتوفر البيانات الأساسية
     const timeoutId = setTimeout(() => {
       if (!logoUrl && !storeName) {
-        fetchFallbackData();
+        applyLocalFallback();
       }
-    }, 1000);
-    
+    }, 500);
     return () => clearTimeout(timeoutId);
-  }, [storeInfo, logoUrl, storeName, currentOrganization?.id]);
+  }, [logoUrl, storeName]);
   
   // إصلاح مشكلة destructuring عندما يكون useOrganizationSettings يرجع null
   const organizationSettingsResult = useOrganizationSettings();
@@ -142,27 +143,13 @@ export function NavbarMain({
     isLoading: false 
   };
   
-  // 🔥 للنطاقات المخصصة: استخدام ProductPageContext
-  const organizationSettingsFromProduct = useProductPageSettings();
-  
-  // 🔥 إصلاح: استخدام إعدادات المؤسسة المحسنة
-  const finalOrganizationSettings = organizationSettings || organizationSettingsFromProduct;
+  // 🔥 إصلاح: استخدام إعدادات المؤسسة المحسنة مع أولوية لإعدادات RPC
+  const finalOrganizationSettings = sharedOrgSettings || organizationSettings;
   
   // استخراج البيانات من إعدادات المؤسسة مع النظام الاحتياطي
-  const orgLogo = logoUrl || fallbackLogo || finalOrganizationSettings?.logo_url || '';
-  const siteName = storeName || fallbackSiteName || finalOrganizationSettings?.site_name || currentOrganization?.name || '';
+  const orgLogo = sharedOrgSettings?.logo_url || logoUrl || fallbackLogo || finalOrganizationSettings?.logo_url || '';
+  const siteName = sharedOrgSettings?.site_name || storeName || sharedOrg?.name || fallbackSiteName || finalOrganizationSettings?.site_name || currentOrganization?.name || '';
   const displayTextWithLogo = finalOrganizationSettings?.display_text_with_logo !== false;
-  
-  // 🔍 Console logs للتحقق من البيانات
-  useEffect(() => {
-  }, [storeInfo, storeName, logoUrl, organizationSettings, organizationSettingsFromProduct, finalOrganizationSettings, orgLogo, siteName, currentOrganization?.name, currentOrganization?.id]);
-  
-  // 🔍 Log مبسط للبيانات النهائية
-  useEffect(() => {
-    if (finalOrganizationSettings) {
-    } else {
-    }
-  }, [orgLogo, siteName, finalOrganizationSettings, displayTextWithLogo]);
 
   const isAdminPage = location.pathname.startsWith('/dashboard');
   const isAdmin = userProfile?.role === 'admin';
@@ -181,27 +168,28 @@ export function NavbarMain({
     };
   }, []);
   
-  // Handle scroll events for advanced header effects
+  // Handle scroll events for advanced header effects with throttling
   useEffect(() => {
-    const handleScroll = () => {
+    const handleScroll = throttle(() => {
       const scrollY = window.scrollY;
       setIsScrolled(scrollY > 10);
-    };
+    }, 16); // ~60fps
     
-    window.addEventListener('scroll', handleScroll);
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
   
-  // تحديث عنوان الصفحة والأيقونة عند تغيير الإعدادات
-  useEffect(() => {
+  // تحديث عنوان الصفحة والأيقونة عند تغيير الإعدادات - محسن
+  const updatePageMetadata = useCallback(() => {
     if (finalOrganizationSettings) {
-      // تحديث عنوان الصفحة
-      if (siteName) {
+      // تحديث عنوان الصفحة فقط إذا تغير
+      if (siteName && lastTitleRef.current !== siteName) {
         document.title = siteName;
+        lastTitleRef.current = siteName;
       }
       
-      // تحديث الأيقونة
-      if (finalOrganizationSettings.favicon_url) {
+      // تحديث الأيقونة فقط إذا تغيرت
+      if (finalOrganizationSettings.favicon_url && lastFaviconRef.current !== finalOrganizationSettings.favicon_url) {
         const faviconElement = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
         if (faviconElement) {
           faviconElement.href = `${finalOrganizationSettings.favicon_url}?t=${Date.now()}`;
@@ -211,19 +199,29 @@ export function NavbarMain({
           newFavicon.href = `${finalOrganizationSettings.favicon_url}?t=${Date.now()}`;
           document.head.appendChild(newFavicon);
         }
+        lastFaviconRef.current = finalOrganizationSettings.favicon_url;
       }
       
-      // تحديث جميع صور الشعار في الصفحة
-      if (orgLogo) {
-        document.querySelectorAll('img[data-logo="organization"]').forEach(img => {
-          const imgElement = img as HTMLImageElement;
-          if (imgElement.src !== orgLogo) {
-            imgElement.src = `${orgLogo}?t=${Date.now()}`;
-          }
+      // تحديث صور الشعار فقط إذا تغيرت
+      if (orgLogo && lastLogoRef.current !== orgLogo) {
+        // استخدام requestAnimationFrame لتجنب forced reflow
+        requestAnimationFrame(() => {
+          document.querySelectorAll('img[data-logo="organization"]').forEach(img => {
+            const imgElement = img as HTMLImageElement;
+            if (imgElement.src !== orgLogo) {
+              imgElement.src = `${orgLogo}?t=${Date.now()}`;
+            }
+          });
         });
+        lastLogoRef.current = orgLogo;
       }
     }
   }, [finalOrganizationSettings, siteName, orgLogo]);
+
+  // استخدام useCallback لتجنب إعادة التشغيل المتكررة
+  useEffect(() => {
+    updatePageMetadata();
+  }, [updatePageMetadata]);
 
   // تم إزالة الإشعارات الوهمية - نستخدم النظام الحقيقي الآن
 
@@ -240,7 +238,7 @@ export function NavbarMain({
   }
 
   // Enhanced mobile quick links rendering
-  const renderMobileQuickLinks = () => {
+  const renderMobileQuickLinks = useCallback(() => {
     return (
       <DropdownMenu open={isQuickLinksOpen} onOpenChange={setIsQuickLinksOpen}>
         <DropdownMenuTrigger asChild>
@@ -261,7 +259,7 @@ export function NavbarMain({
         </DropdownMenuContent>
       </DropdownMenu>
     );
-  };
+  }, [isQuickLinksOpen, t]);
 
   return (
     <header 
@@ -419,3 +417,6 @@ export function NavbarMain({
     </header>
   );
 }
+
+// Optimize with React.memo to prevent unnecessary re-renders
+export default memo(NavbarMain);

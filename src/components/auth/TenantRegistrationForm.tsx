@@ -67,10 +67,19 @@ const TenantRegistrationForm = () => {
       return;
     }
 
+    // تنظيف النطاق الفرعي قبل التحقق
+    const cleanSubdomain = subdomain
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '') // إزالة جميع المسافات
+      .replace(/[^a-z0-9-]/g, '') // إزالة الأحرف غير المسموحة
+      .replace(/^-+|-+$/g, '') // إزالة الشرطات من البداية والنهاية
+      .replace(/-+/g, '-'); // تحويل الشرطات المتعددة إلى شرطة واحدة
+
     setSubdomainStatus({ checking: true, available: null, message: 'جاري التحقق...' });
 
     try {
-      const result = await checkSubdomainAvailability(subdomain);
+      const result = await checkSubdomainAvailability(cleanSubdomain);
       
       if (result.error) {
         setSubdomainStatus({ 
@@ -109,8 +118,17 @@ const TenantRegistrationForm = () => {
       return;
     }
 
+    // تنظيف النطاق الفرعي قبل التحقق
+    const cleanSubdomain = subdomain
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '') // إزالة جميع المسافات
+      .replace(/[^a-z0-9-]/g, '') // إزالة الأحرف غير المسموحة
+      .replace(/^-+|-+$/g, '') // إزالة الشرطات من البداية والنهاية
+      .replace(/-+/g, '-'); // تحويل الشرطات المتعددة إلى شرطة واحدة
+
     const timeoutId = setTimeout(() => {
-      checkSubdomain(subdomain);
+      checkSubdomain(cleanSubdomain);
     }, 1000); // تأخير ثانية واحدة
 
     return () => clearTimeout(timeoutId);
@@ -124,6 +142,16 @@ const TenantRegistrationForm = () => {
       return;
     }
 
+    // تنظيف النطاق الفرعي قبل الإرسال
+    const cleanSubdomain = values.subdomain ? values.subdomain
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '') // إزالة جميع المسافات
+      .replace(/[^a-z0-9-]/g, '') // إزالة الأحرف غير المسموحة
+      .replace(/^-+|-+$/g, '') // إزالة الشرطات من البداية والنهاية
+      .replace(/-+/g, '-') // تحويل الشرطات المتعددة إلى شرطة واحدة
+      : values.subdomain;
+
     setIsLoading(true);
     try {
       const { success, error, organizationId } = await registerTenant({
@@ -132,7 +160,7 @@ const TenantRegistrationForm = () => {
         phone: values.phone,
         password: values.password,
         organizationName: values.organizationName,
-        subdomain: values.subdomain,
+        subdomain: cleanSubdomain,
       });
       
       if (success && organizationId) {
@@ -304,7 +332,27 @@ const TenantRegistrationForm = () => {
                             placeholder="mystore" 
                             className="rounded-r-none border-l-0 pr-8" 
                             onChange={(e) => {
-                              const value = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+                              const value = e.target.value
+                                .toLowerCase()
+                                .trim()
+                                .replace(/[^a-z0-9-]/g, '')
+                                .replace(/^-+|-+$/g, ''); // إزالة الشرطات من البداية والنهاية
+                              field.onChange(value);
+                            }}
+                            onBlur={(e) => {
+                              const value = e.target.value
+                                .toLowerCase()
+                                .trim()
+                                .replace(/[^a-z0-9-]/g, '')
+                                .replace(/^-+|-+$/g, ''); // إزالة الشرطات من البداية والنهاية
+                              field.onChange(value);
+                            }}
+                            onInput={(e) => {
+                              const value = e.currentTarget.value
+                                .toLowerCase()
+                                .trim()
+                                .replace(/[^a-z0-9-]/g, '')
+                                .replace(/^-+|-+$/g, ''); // إزالة الشرطات من البداية والنهاية
                               field.onChange(value);
                             }}
                           />

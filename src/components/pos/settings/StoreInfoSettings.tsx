@@ -13,6 +13,8 @@ interface StoreInfoSettingsProps {
 }
 
 const StoreInfoSettings: React.FC<StoreInfoSettingsProps> = ({ settings, updateSetting }) => {
+  // إضافة سجل للتأكد من البيانات
+  
   if (!settings) {
     return (
       <div className="flex items-center justify-center py-12">

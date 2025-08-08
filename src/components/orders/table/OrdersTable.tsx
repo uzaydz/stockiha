@@ -12,7 +12,7 @@ import OrdersTablePagination from "./OrdersTablePagination";
 // استيراد الـ hooks المخصصة
 import { useOrdersTableLogic } from "./useOrdersTableLogic";
 
-const OrdersTable = memo(({
+const OrdersTable = memo(({ 
   orders,
   loading,
   onUpdateStatus,
@@ -32,6 +32,8 @@ const OrdersTable = memo(({
   onLoadMore,
   hasMoreOrders = false,
   shippingProviders = [],
+  onSearchTermChange,
+  autoLoadMoreOnScroll,
 }: ExtendedOrdersTableProps) => {
   // استخدام الـ hook المخصص لمنطق الجدول
   const {
@@ -56,6 +58,10 @@ const OrdersTable = memo(({
     scrollToProgress,
   } = useOrdersTableLogic({ orders });
 
+  // عند وجود بحث محلي، يمكن أن يتعارض مع فلاتر الخادم.
+  // لذا نعرض عدّ الفلاتر على أساس عدد الطلبات، ونجعل المرسل الخارجي مسؤولاً عن الفلترة الفعلية.
+  const effectiveFilteredCount = orders.length;
+
   // تم حذف useScrollTableEffects لأنه غير مطلوب
 
   return (
@@ -63,8 +69,11 @@ const OrdersTable = memo(({
       {/* شريط البحث والإجراءات العلوي */}
       <OrdersTableSearch
         searchFilter={searchFilter}
-        onSearchChange={setSearchFilter}
-        filteredOrdersCount={filteredOrders.length}
+        onSearchChange={(q) => {
+          setSearchFilter(q);
+          if (onSearchTermChange) onSearchTermChange(q);
+        }}
+        filteredOrdersCount={effectiveFilteredCount}
                   selectedOrders={selectedOrders}
         onBulkUpdateStatus={onBulkUpdateStatus}
         onResetSelections={resetSelections}
@@ -121,6 +130,8 @@ const OrdersTable = memo(({
                       hasCancelPermission={hasCancelPermission}
                       currentUserId={currentUserId}
                       shippingProviders={shippingProviders}
+                      autoLoadMoreOnScroll={autoLoadMoreOnScroll}
+                      onLoadMore={onLoadMore}
                     />
             </Table>
           </div>
