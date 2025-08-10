@@ -4,4 +4,4 @@ const ForgotPasswordPage = () => {
   return <ForgotPasswordForm />;
 };
 
-export default ForgotPasswordPage; 
+export default ForgotPasswordPage;

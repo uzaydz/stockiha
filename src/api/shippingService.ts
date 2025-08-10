@@ -45,6 +45,7 @@ interface ProviderCredentials {
 }
 
 interface CreateOrderParams {
+  order_id?: string; // معرف الطلب في النظام
   Tracking: string;
   TypeLivraison: number; // 1: Home delivery, 2: Stop desk
   TypeColis: number; // 0: Livraison (normal delivery), 1: Échange (exchange/return) - القيم معكوسة في API!
@@ -361,9 +362,17 @@ export class YalidineShippingService extends BaseShippingService {
    */
   async createShippingOrder(params: CreateOrderParams): Promise<any> {
     try {
-      const response = await this.apiClient.post('parcels', params);
+      // قد يحتاج API ياليدين البيانات في مصفوفة أو كائن مخصص
+      const requestBody = [params]; // جرب إرسال البيانات كمصفوفة
+      console.log('🚀 Yalidine API request body:', requestBody);
+      const response = await this.apiClient.post('parcels', requestBody);
+      console.log('🚀 Yalidine API response:', response.data);
+      console.log('🚀 Yalidine API response status:', response.status);
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
+      console.error('❌ Yalidine API error:', error);
+      console.error('❌ Yalidine API error response:', error.response?.data);
+      console.error('❌ Yalidine API error status:', error.response?.status);
       throw error;
     }
   }

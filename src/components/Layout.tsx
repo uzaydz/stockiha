@@ -13,9 +13,25 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   const { user, userProfile, isLoading } = useAuth();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  // قراءة الحالة الأولية من localStorage لتفادي تغير التخطيط (CLS) بعد التركيب
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(() => {
+    try {
+      if (typeof window === 'undefined') return true;
+      const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+      return !isCollapsed;
+    } catch {
+      return true;
+    }
+  });
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState<boolean>(() => {
+    try {
+      if (typeof window === 'undefined') return false;
+      return window.innerWidth < 768;
+    } catch {
+      return false;
+    }
+  });
   
   const userRole = userProfile?.role || null;
   const userPermissions = (userProfile?.permissions || {}) as unknown as Record<string, boolean>;
@@ -27,20 +43,17 @@ export default function Layout({ children }: LayoutProps) {
         setIsSidebarOpen(e.newValue !== 'true');
       }
     };
-    
-    const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
-    setIsSidebarOpen(!isCollapsed);
 
     window.addEventListener('storage', handleStorageChange);
-    
+
     const originalSetItem = localStorage.setItem;
-    localStorage.setItem = function(key, value) {
+    localStorage.setItem = function (key, value) {
       const event = new Event('localStorageChange');
       (event as any).key = key;
       (event as any).newValue = value;
       window.dispatchEvent(event);
       originalSetItem.apply(this, [key, value]);
-    };
+    } as any;
 
     const handleLocalChange = (e: Event) => {
       if ((e as any).key === 'sidebarCollapsed') {
@@ -49,7 +62,7 @@ export default function Layout({ children }: LayoutProps) {
     };
 
     window.addEventListener('localStorageChange', handleLocalChange);
-    
+
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('localStorageChange', handleLocalChange);

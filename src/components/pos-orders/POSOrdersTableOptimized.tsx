@@ -11,13 +11,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  DropdownMenu,
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+ } from "@/components/ui/dropdown-menu";
 import {
   Pagination,
   PaginationContent,
@@ -39,6 +38,7 @@ import { format, parseISO } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import type { POSOrderWithDetails } from '@/api/posOrdersService';
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 interface POSOrdersTableProps {
   orders: POSOrderWithDetails[];

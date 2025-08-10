@@ -12,12 +12,11 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
-import { 
-  DropdownMenu, 
+import { DropdownMenu, 
   DropdownMenuContent, 
   DropdownMenuItem, 
   DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
+ } from "@/components/ui/dropdown-menu";
 import {
   Tooltip,
   TooltipContent,
@@ -45,6 +44,7 @@ import {
 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 // قائمة الأيقونات المتاحة
 const AVAILABLE_ICONS = [

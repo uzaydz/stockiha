@@ -51,8 +51,9 @@ import { useOrderAutoAssignment, useOrderRealTimeMonitoring } from "@/hooks/useO
 import { OrdersDataProvider } from "@/context/OrdersDataContext";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger  } from "@/components/ui/dropdown-menu";
 import CallCenterOrdersTable from "@/components/call-center/CallCenterOrdersTable";
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 // Lazy load heavy components
 const OrdersTable = lazy(() => import("@/components/orders/table/OrdersTable"));

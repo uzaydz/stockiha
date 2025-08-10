@@ -1,13 +1,12 @@
 import { useState, Fragment } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+ } from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -323,7 +322,12 @@ const OrderActionsDropdown = ({
           <Tooltip>
             <TooltipTrigger asChild>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-slate-100">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-8 w-8 rounded-full hover:bg-slate-100 transform-gpu"
+                  style={{ contain: 'layout', willChange: 'auto' }}
+                >
                   {isUpdating || isSendingToYalidine || isSendingToZRExpress || isDeleting ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
@@ -339,7 +343,14 @@ const OrderActionsDropdown = ({
           </Tooltip>
           <DropdownMenuContent 
             align="end" 
-            className="w-56 p-1 rounded-lg border border-muted shadow-lg"
+            className="w-56 p-1 rounded-lg border border-muted shadow-lg transform-gpu"
+            style={{ 
+              contain: 'layout', 
+              willChange: 'transform',
+              zIndex: 9999 
+            }}
+            sideOffset={4}
+            avoidCollisions={true}
           >
             <DropdownMenuLabel className="text-xs font-medium text-muted-foreground px-2 py-1.5">
               إجراءات الطلب
@@ -351,9 +362,10 @@ const OrderActionsDropdown = ({
                 <DropdownMenuItem
                   onClick={actionItem.action}
                   disabled={actionItem.disabled || isUpdating || (actionItem.id === 'send_to_yalidine' && isSendingToYalidine) || (actionItem.id === 'send_to_zrexpress' && isSendingToZRExpress) || (actionItem.id === 'delete' && isDeleting)}
-                  className={`flex items-center gap-2 px-2 py-1.5 text-sm rounded-md cursor-pointer transition-colors ${actionItem.className || ''} ${
+                  className={`flex items-center gap-2 px-2 py-1.5 text-sm rounded-md cursor-pointer transition-colors transform-gpu ${actionItem.className || ''} ${
                     (actionItem.disabled || isUpdating || (actionItem.id === 'send_to_yalidine' && isSendingToYalidine) || (actionItem.id === 'send_to_zrexpress' && isSendingToZRExpress) || (actionItem.id === 'delete' && isDeleting)) ? "opacity-50 cursor-not-allowed" : ""
                   }`}
+                  style={{ contain: 'layout' }}
                 >
                   { ((actionItem.id === "send_to_yalidine" && isSendingToYalidine) || (actionItem.id === "send_to_zrexpress" && isSendingToZRExpress) || (actionItem.id === "delete" && isDeleting) || (isUpdating && (actionItem.id === 'process' || actionItem.id === 'ship' || actionItem.id === 'deliver' || actionItem.id === 'cancel'))) ? (
                     <Loader2 className="ml-2 h-4 w-4 animate-spin" />

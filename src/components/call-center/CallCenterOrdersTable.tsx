@@ -41,9 +41,10 @@ import {
   XCircle,
   Copy
 } from "lucide-react";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuLabel, DropdownMenuSeparator  } from "@/components/ui/dropdown-menu";
 import { getOrderCustomerName, getOrderCustomerContact } from "@/utils/ordersHelpers";
 import { formatDate } from "@/lib/utils";
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 interface AssignedOrder {
   id: string;

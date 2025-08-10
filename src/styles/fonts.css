@@ -1,0 +1,77 @@
+/* تحسين تحميل الخطوط - منع FOIT (Flash of Invisible Text) */
+
+/* تعريف الخطوط مع font-display: swap */
+@font-face {
+  font-family: 'TajawalForced';
+  src: url('/fonts/tajawal-regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'TajawalForced';
+  src: url('/fonts/tajawal-medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'TajawalForced';
+  src: url('/fonts/tajawal-bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* تطبيق الخطوط بشكل محسن */
+.tajawal-forced * {
+  font-family: "TajawalForced", "Tajawal", "Arial Unicode MS", "Tahoma", "Arial", sans-serif !important;
+}
+
+/* تحسين الأداء للعناصر المهمة */
+.tajawal-forced h1,
+.tajawal-forced h2,
+.tajawal-forced h3,
+.tajawal-forced h4,
+.tajawal-forced h5,
+.tajawal-forced h6,
+.tajawal-forced p,
+.tajawal-forced span,
+.tajawal-forced div,
+.tajawal-forced button,
+.tajawal-forced input,
+.tajawal-forced textarea,
+.tajawal-forced select {
+  font-family: "TajawalForced", "Tajawal", "Arial Unicode MS", "Tahoma", "Arial", sans-serif !important;
+  font-display: swap;
+}
+
+/* تحسين عرض النصوص أثناء تحميل الخطوط */
+html {
+  font-family: "TajawalForced", "Tajawal", "Arial Unicode MS", "Tahoma", "Arial", sans-serif;
+  font-display: swap;
+}
+
+body {
+  font-family: "TajawalForced", "Tajawal", "Arial Unicode MS", "Tahoma", "Arial", sans-serif;
+  font-display: swap;
+}
+
+/* تحسين الأداء للعناصر التفاعلية */
+button,
+input,
+textarea,
+select {
+  font-family: "TajawalForced", "Tajawal", "Arial Unicode MS", "Tahoma", "Arial", sans-serif;
+  font-display: swap;
+}
+
+/* تحسين عرض الأيقونات والنصوص */
+.icon,
+.text,
+.label {
+  font-family: "TajawalForced", "Tajawal", "Arial Unicode MS", "Tahoma", "Arial", sans-serif;
+  font-display: swap;
+}

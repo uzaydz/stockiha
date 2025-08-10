@@ -7,13 +7,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  DropdownMenu,
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+ } from "@/components/ui/dropdown-menu";
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -57,6 +56,7 @@ import BookingDialog from './BookingDialog';
 import { formatPrice } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
 import { checkUserPermissions } from '@/lib/api/permissions';
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 interface ServicesListProps {
   services: Service[];

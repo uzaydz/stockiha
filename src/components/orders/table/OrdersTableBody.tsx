@@ -61,31 +61,31 @@ const OrdersTableBody = memo(({
   }, [autoLoadMoreOnScroll, onLoadMore]);
   const renderLoadingSkeleton = () => (
     Array.from({ length: 5 }).map((_, index) => (
-      <TableRow key={`skeleton-${index}`} className="hover:bg-accent/10 border-b border-border/20 transition-all duration-300">
+      <TableRow key={`skeleton-${index}`} className="hover:bg-accent/10 border-b border-border/20 transition-all duration-300 transform-gpu" style={{ contain: 'layout' }}>
         {visibleColumns.includes("checkbox") && (
-          <TableCell className="py-5 px-6">
+          <TableCell className="py-5 px-6" style={{ contain: 'layout' }}>
             <Skeleton className="h-5 w-5 bg-muted/60 rounded-md animate-pulse" />
           </TableCell>
         )}
         
         {visibleColumns.includes("expand") && (
-          <TableCell className="py-5">
+          <TableCell className="py-5" style={{ contain: 'layout' }}>
             <Skeleton className="h-5 w-5 bg-muted/60 rounded-md animate-pulse" />
           </TableCell>
         )}
         
-        <TableCell className="py-5 px-6">
+        <TableCell className="py-5 px-6" style={{ contain: 'layout' }}>
           <Skeleton className="h-6 w-28 bg-muted/60 rounded-lg animate-pulse" />
         </TableCell>
         
-        <TableCell className="py-5 px-6">
+        <TableCell className="py-5 px-6" style={{ contain: 'layout' }}>
           <div className="flex flex-col gap-2">
             <Skeleton className="h-6 w-36 bg-muted/60 rounded-lg animate-pulse" />
             <Skeleton className="h-4 w-24 bg-muted/40 rounded-md animate-pulse" />
           </div>
         </TableCell>
         
-        <TableCell className="py-5 px-6">
+        <TableCell className="py-5 px-6" style={{ contain: 'layout' }}>
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
               <Skeleton className="h-6 w-6 bg-muted/60 rounded-full animate-pulse" />
@@ -95,39 +95,39 @@ const OrdersTableBody = memo(({
           </div>
         </TableCell>
         
-        <TableCell className="py-5 px-6">
+        <TableCell className="py-5 px-6" style={{ contain: 'layout' }}>
           <Skeleton className="h-7 w-24 bg-muted/60 rounded-xl animate-pulse" />
         </TableCell>
         
-        <TableCell className="py-5 px-6">
+        <TableCell className="py-5 px-6" style={{ contain: 'layout' }}>
           <Skeleton className="h-7 w-28 bg-muted/60 rounded-full animate-pulse" />
         </TableCell>
         
-        <TableCell className="py-5 px-6">
+        <TableCell className="py-5 px-6" style={{ contain: 'layout' }}>
           <Skeleton className="h-6 w-36 bg-muted/60 rounded-lg animate-pulse" />
         </TableCell>
         
         {visibleColumns.includes("call_confirmation") && (
-          <TableCell className="py-5 px-6">
+          <TableCell className="py-5 px-6" style={{ contain: 'layout' }}>
             <Skeleton className="h-7 w-24 bg-muted/60 rounded-xl animate-pulse" />
           </TableCell>
         )}
         
-        <TableCell className="py-5 px-6">
+        <TableCell className="py-5 px-6" style={{ contain: 'layout' }}>
           <div className="flex items-center gap-2">
             <Skeleton className="h-4 w-4 rounded-full bg-muted/60 animate-pulse" />
             <Skeleton className="h-6 w-36 bg-muted/60 rounded-lg animate-pulse" />
           </div>
         </TableCell>
         
-        <TableCell className="py-5 px-6">
+        <TableCell className="py-5 px-6" style={{ contain: 'layout' }}>
           <div className="flex flex-col gap-2">
             <Skeleton className="h-6 w-24 bg-muted/60 rounded-lg animate-pulse" />
             <Skeleton className="h-4 w-20 bg-muted/40 rounded-md animate-pulse" />
           </div>
         </TableCell>
         
-        <TableCell className="py-5 px-6">
+        <TableCell className="py-5 px-6" style={{ contain: 'layout' }}>
           <div className="flex justify-end">
             <Skeleton className="h-9 w-9 bg-muted/60 rounded-xl animate-pulse" />
           </div>
@@ -177,7 +177,7 @@ const OrdersTableBody = memo(({
   );
 
   return (
-    <TableBody>
+    <TableBody style={{ contain: 'content', contentVisibility: 'auto' as any }}>
       {loading ? renderLoadingSkeleton() : 
        filteredOrders.length === 0 ? renderEmptyState() : 
        renderOrderRows()}
@@ -189,6 +189,12 @@ const OrdersTableBody = memo(({
           </TableCell>
         </TableRow>
       )}
+      {/* Spacer rows لتثبيت ارتفاع الجدول ومنع القفزات عند تحميل البيانات/توسيع الصفوف */}
+      <TableRow aria-hidden>
+        <TableCell colSpan={visibleColumns.length + 1}>
+          <div style={{ height: 24, visibility: 'hidden' }} />
+        </TableCell>
+      </TableRow>
     </TableBody>
   );
 });

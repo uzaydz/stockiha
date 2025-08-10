@@ -32,13 +32,12 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Label } from '@/components/ui/label';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { 
-  DropdownMenu, 
+import { DropdownMenu, 
   DropdownMenuContent, 
   DropdownMenuItem, 
   DropdownMenuSeparator, 
   DropdownMenuTrigger 
-} from '@/components/ui/dropdown-menu';
+ } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { useAuth } from '@/context/AuthContext';
@@ -46,6 +45,7 @@ import { supabase } from '@/lib/supabase';
 import { toast } from '@/hooks/use-toast';
 import Layout from '@/components/Layout';
 import { formatPrice } from '@/lib/utils';
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 // Types
 interface SubscriptionTransaction {

@@ -25,13 +25,12 @@ import {
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
-import { 
-  DropdownMenu,
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+ } from "@/components/ui/dropdown-menu"
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'

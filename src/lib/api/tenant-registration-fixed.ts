@@ -120,23 +120,17 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
       .replace(/-+/g, '-'); // تحويل الشرطات المتعددة إلى شرطة واحدة
     
     // التحقق من توفر النطاق الفرعي باستخدام الوظيفة المحسنة
-    console.log('بدء التحقق من توفر النطاق الفرعي:', cleanSubdomain);
     const subdomainCheck = await checkSubdomainAvailabilityWithRetry(cleanSubdomain);
-    console.log('نتيجة التحقق من النطاق الفرعي:', subdomainCheck);
     
     if (!subdomainCheck.available) {
       
       // إجراء تشخيص مفصل للمشكلة
-      console.log('النطاق الفرعي غير متاح، إجراء تشخيص...');
       const diagnostics = await diagnoseFinalRegistration('', cleanSubdomain);
-      console.log('نتيجة التشخيص:', diagnostics);
       
       // البحث عن نطاقات بديلة
       try {
         const similarSubdomains = await findSimilarSubdomains(cleanSubdomain);
-        console.log('النطاقات المشابهة:', similarSubdomains);
       } catch (similarError) {
-        console.error('خطأ في البحث عن النطاقات المشابهة:', similarError);
       }
       
       return {

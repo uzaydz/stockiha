@@ -139,4 +139,4 @@ describe('DescriptionGenerator', () => {
       expect(mockProps.onOpenChange).toHaveBeenCalledWith(false);
     });
   });
-}); 
+});

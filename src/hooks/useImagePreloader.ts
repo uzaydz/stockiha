@@ -26,7 +26,7 @@ export const useImagePreloader = ({
     };
   }, [imageUrls, priority]);
 
-  // دالة لتحميل صورة واحدة
+  // دالة محسنة لتحميل صورة واحدة مع Intersection Observer
   const preloadImage = useCallback((url: string): Promise<void> => {
     return new Promise((resolve, reject) => {
       if (!url || url.trim() === '') {
@@ -34,11 +34,25 @@ export const useImagePreloader = ({
         return;
       }
 
-      // تحقق من الذاكرة المؤقتة
+      // تحقق من الذاكرة المؤقتة مع optimization
       setImageStates(prev => {
         const currentState = prev.get(url);
         if (currentState?.loaded) {
           resolve();
+          return prev;
+        }
+        if (currentState?.loading) {
+          // إذا كانت قيد التحميل، انتظر
+          const checkInterval = setInterval(() => {
+            const state = prev.get(url);
+            if (state?.loaded) {
+              clearInterval(checkInterval);
+              resolve();
+            } else if (state?.error) {
+              clearInterval(checkInterval);
+              reject(new Error(`Image failed to load: ${url}`));
+            }
+          }, 100);
           return prev;
         }
 
@@ -53,21 +67,13 @@ export const useImagePreloader = ({
 
       const img = new Image();
       
-      img.onload = () => {
-        setImageStates(prev => {
-          const newState = new Map(prev);
-          newState.set(url, {
-            loaded: true,
-            error: false,
-            loading: false
-          });
-          return newState;
-        });
-        setPreloadedImages(prev => new Set([...prev, url]));
-        resolve();
-      };
-
-      img.onerror = () => {
+      // تحسين أداء التحميل
+      img.crossOrigin = 'anonymous';
+      img.decoding = 'async';
+      
+      const loadTimeout = setTimeout(() => {
+        img.onload = null;
+        img.onerror = null;
         setImageStates(prev => {
           const newState = new Map(prev);
           newState.set(url, {
@@ -77,38 +83,95 @@ export const useImagePreloader = ({
           });
           return newState;
         });
-        reject(new Error(`Failed to load image: ${url}`));
+        reject(new Error(`Image load timeout: ${url}`));
+      }, 10000); // timeout بعد 10 ثوان
+      
+      img.onload = () => {
+        clearTimeout(loadTimeout);
+        requestAnimationFrame(() => {
+          setImageStates(prev => {
+            const newState = new Map(prev);
+            newState.set(url, {
+              loaded: true,
+              error: false,
+              loading: false
+            });
+            return newState;
+          });
+          setPreloadedImages(prev => new Set([...prev, url]));
+          resolve();
+        });
+      };
+
+      img.onerror = () => {
+        clearTimeout(loadTimeout);
+        requestAnimationFrame(() => {
+          setImageStates(prev => {
+            const newState = new Map(prev);
+            newState.set(url, {
+              loaded: false,
+              error: true,
+              loading: false
+            });
+            return newState;
+          });
+          reject(new Error(`Failed to load image: ${url}`));
+        });
       };
 
       // بدء التحميل
       img.src = url;
     });
-  }, []); // إزالة preloadedImages من dependencies لمنع الحلقة اللانهائية
+  }, []);
 
-  // تحميل الصور ذات الأولوية أولاً
+  // تحميل محسن للصور مع throttling وpriority queue
   useEffect(() => {
     if (priorityImages.length === 0) return;
 
+    let isComponentMounted = true;
+    const abortController = new AbortController();
+    
     const loadPriorityImages = async () => {
-      const promises = priorityImages.map(url => 
-        preloadImage(url).catch(() => {
-          // تجاهل الأخطاء ومتابعة التحميل
-        })
-      );
-      
-      await Promise.allSettled(promises);
+      // تحميل الصور ذات الأولوية بشكل متوازي
+      for (let i = 0; i < priorityImages.length && isComponentMounted; i++) {
+        try {
+          if (abortController.signal.aborted) break;
+          await preloadImage(priorityImages[i]);
+          // تأخير قصير بين الصور لتجنب الضغط
+          if (i < priorityImages.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 50));
+          }
+        } catch (error) {
+        }
+      }
       
       // بعد تحميل الصور ذات الأولوية، ابدأ بتحميل الباقي
-      regularImages.forEach((url, index) => {
-        setTimeout(() => {
-          preloadImage(url).catch(() => {
+      if (isComponentMounted && !abortController.signal.aborted) {
+        // استخدام requestIdleCallback إذا كان متاحاً
+        const loadRegularImages = () => {
+          // تحميل الصور العادية
+          regularImages.forEach((imageUrl) => {
+            const img = new Image();
+            img.src = imageUrl;
           });
-        }, index * 100); // تأخير تدريجي لتجنب الضغط على الشبكة
-      });
+        };
+
+        if ('requestIdleCallback' in window) {
+          (window as any).requestIdleCallback(loadRegularImages, { timeout: 2000 });
+        } else {
+          // fallback للمتصفحات التي لا تدعم requestIdleCallback
+          setTimeout(loadRegularImages, 100);
+        }
+      }
     };
 
     loadPriorityImages();
-  }, [priorityImages.join(','), regularImages.join(','), preloadImage]); // استخدام join لتجنب re-render غير ضروري
+    
+    return () => {
+      isComponentMounted = false;
+      abortController.abort();
+    };
+  }, [priorityImages.join(','), regularImages.join(','), preloadImage]);
 
   // دالة للحصول على حالة صورة معينة
   const getImageState = useCallback((url: string): ImageState => {
@@ -150,8 +213,16 @@ export const useImagePreloader = ({
     };
   }, [imageUrls, isImageLoaded, hasImageError, isImageLoading]);
 
-  // دالة لإعادة تحميل صورة فاشلة
-  const retryImage = useCallback((url: string) => {
+  // دالة محسنة لإعادة تحميل صورة فاشلة مع exponential backoff
+  const retryImage = useCallback((url: string, retryCount = 0) => {
+    const maxRetries = 3;
+    const baseDelay = 1000; // 1 ثانية
+    
+    if (retryCount >= maxRetries) {
+      return Promise.reject(new Error(`Max retries reached for ${url}`));
+    }
+    
+    // تنظيف الحالة القديمة
     setImageStates(prev => {
       const newMap = new Map(prev);
       newMap.delete(url);
@@ -163,7 +234,40 @@ export const useImagePreloader = ({
       return newSet;
     });
     
-    return preloadImage(url);
+    // حساب التأخير بناءً على exponential backoff
+    const delay = baseDelay * Math.pow(2, retryCount);
+    
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        preloadImage(url)
+          .then(resolve)
+          .catch(() => {
+            // إعادة المحاولة بعد تأخير
+            retryImage(url, retryCount + 1)
+              .then(resolve)
+              .catch(reject);
+          });
+      }, delay);
+    });
+  }, [preloadImage]);
+
+  // دالة لتنظيف الذاكرة
+  const clearCache = useCallback(() => {
+    setImageStates(new Map());
+    setPreloadedImages(new Set());
+  }, []);
+  
+  // دالة لتحميل مجموعة من الصور
+  const preloadImages = useCallback(async (urls: string[]) => {
+    const results = await Promise.allSettled(
+      urls.map(url => preloadImage(url))
+    );
+    
+    return results.map((result, index) => ({
+      url: urls[index],
+      success: result.status === 'fulfilled',
+      error: result.status === 'rejected' ? result.reason : null
+    }));
   }, [preloadImage]);
 
   return {
@@ -176,8 +280,10 @@ export const useImagePreloader = ({
     // إحصائيات
     loadingStats,
     
-    // إجراءات
+    // إجراءات محسنة
     preloadImage,
-    retryImage
+    preloadImages,
+    retryImage,
+    clearCache
   };
 };

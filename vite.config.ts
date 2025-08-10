@@ -8,6 +8,7 @@ import type { Connect, ViteDevServer } from 'vite';
 import { ServerResponse, IncomingMessage } from 'http';
 import type { ModuleFormat, OutputOptions } from 'rollup';
 import { visualizer } from 'rollup-plugin-visualizer';
+import compression from 'vite-plugin-compression';
 import million from 'million/compiler';
 import { gzipSync, brotliCompressSync } from 'zlib';
 import fs from 'fs';
@@ -151,7 +152,7 @@ export default defineConfig(({ command, mode }) => {
   return {
     base: '/',
     server: {
-      host: "::",
+      host: "0.0.0.0", // تغيير من "::" إلى "0.0.0.0" لضمان الوصول من جميع الأجهزة
       port: 8080,
       
       // 🚀 تحسين HMR للأداء الفائق
@@ -159,6 +160,7 @@ export default defineConfig(({ command, mode }) => {
         overlay: false, // تعطيل overlay لتقليل الضوضاء
         // استخدام نفس المنفذ لتجنب مشاكل WebSocket
         port: 8080,
+        host: "0.0.0.0", // إضافة host للـ HMR
       },
       
       // ⚡ تحسين مراقبة الملفات
@@ -190,14 +192,26 @@ export default defineConfig(({ command, mode }) => {
         }
       },
       
-      cors: true,
+      cors: {
+        origin: true, // السماح لجميع المصادر
+        credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
+        exposedHeaders: ['Content-Length', 'X-Content-Type-Options']
+      },
       fs: {
         strict: false,
         allow: ['..']
       },
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'X-Content-Type-Options': 'nosniff'
+        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Accept, Origin',
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'SAMEORIGIN',
+        'X-XSS-Protection': '1; mode=block',
+        'Referrer-Policy': 'strict-origin-when-cross-origin',
+        'Permissions-Policy': 'camera=(), microphone=(), geolocation=()'
       },
       proxy: {
         '/yalidine-api': {
@@ -310,23 +324,40 @@ export default defineConfig(({ command, mode }) => {
         brotliSize: true,
         template: 'treemap', // أو 'sunburst' أو 'network'
       }),
+
+      // ضغط الملفات الناتجة (Brotli + Gzip)
+      isProd && compression({
+        algorithm: 'brotliCompress',
+        ext: '.br',
+        deleteOriginFile: false,
+        threshold: 1024,
+        compressionOptions: { level: 11 },
+      }),
+      isProd && compression({
+        algorithm: 'gzip',
+        ext: '.gz',
+        deleteOriginFile: false,
+        threshold: 1024,
+        compressionOptions: { level: 9 },
+      }),
       
       criticalCSSPlugin(),
       
-      // 🎯 polyfills خفيفة للويب فقط
-      nodePolyfills({
-        globals: {
-          Buffer: false, // تقليل الحمولة
-          global: false,
-          process: false,
-        },
-        protocolImports: false,
-        include: ['util', 'buffer'], // الأساسي فقط
-        exclude: [
-          'fs', 'path', 'os', 'crypto', 'stream', 'http', 'https',
-          'url', 'querystring', 'timers', 'console'
-        ]
-      }),
+      // 🎯 تعطيل nodePolyfills مؤقتاً لحل مشكلة unenv
+      // nodePolyfills({
+      //   globals: {
+      //     Buffer: false, // تقليل الحمولة
+      //     global: false,
+      //     process: false, // تم تعطيله لتجنب مشاكل unenv
+      //   },
+      //   protocolImports: false,
+      //   include: ['util', 'buffer'], // الأساسي فقط
+      //   exclude: [
+      //     'fs', 'path', 'os', 'crypto', 'stream', 'http', 'https',
+      //     'url', 'querystring', 'timers', 'console', 'unenv', 'process',
+      //     'unenv/node/process'
+      //   ]
+      // }),
     ].filter(Boolean),
     resolve: {
       alias: {
@@ -339,6 +370,8 @@ export default defineConfig(({ command, mode }) => {
         // ✅ polyfills أساسية للويب فقط
         'util': 'util',
         'buffer': 'buffer',
+        // 'process': false, // تعطيل process لتجنب مشاكل unenv
+        // 'unenv/node/process': false, // تعطيل unenv/node/process
         
         // 🚀 Universal lodash resolver - handles ALL lodash imports automatically
         'lodash': 'lodash-es',
@@ -369,6 +402,9 @@ export default defineConfig(({ command, mode }) => {
       
       // ✅ متغيرات React الأساسية فقط
       'process.env.NODE_ENV': JSON.stringify(isDev ? 'development' : 'production'),
+      'process.env': JSON.stringify({
+        NODE_ENV: isDev ? 'development' : 'production'
+      }),
     },
     build: {
       outDir: 'dist',
@@ -376,7 +412,7 @@ export default defineConfig(({ command, mode }) => {
       emptyOutDir: true,
       sourcemap: isDev,
       // تحسينات بناء للمتصفحات القديمة - دعم أوسع
-      target: 'es2015',
+      target: 'es2020',
       minify: isProd ? 'terser' as const : false, // تغيير إلى terser للضغط الأفضل
       terserOptions: isProd ? {
         compress: {
@@ -432,7 +468,11 @@ export default defineConfig(({ command, mode }) => {
             'vendor-core': [
               'react', 'react-dom', 'react/jsx-runtime',
               'react-router-dom', '@remix-run/router',
-              '@tanstack/react-query',
+              '@tanstack/react-query'
+            ],
+
+            // 🔌 Supabase منفصل لتأجيل تحميله حتى الحاجة
+            'supabase-core': [
               '@supabase/supabase-js'
             ],
             
@@ -567,14 +607,17 @@ export default defineConfig(({ command, mode }) => {
 
           }
         } as OutputOptions,
-        external: isProd ? [
+        external: [
           'better-sqlite3',
           'sqlite3',
           'sql.js',
           'path',
           'fs',
-          'os'
-        ] : undefined,
+          'os',
+          'unenv',
+          'process',
+          'unenv/node/process'
+        ],
         // تحسين خاص لـ Vercel
         preserveEntrySignatures: 'strict',
         // تخفيف قوة tree-shaking لمنع حذف الأكواد المهمة
@@ -605,7 +648,7 @@ export default defineConfig(({ command, mode }) => {
       chunkSizeWarningLimit: 2000, // زيادة الحد للويب
       
       // 🎨 تقسيم CSS للأداء - معطل مؤقتاً لحل مشكلة الخطوط
-      cssCodeSplit: false, // إعطاء CSS أولوية لضمان تحميل الخطوط
+      cssCodeSplit: true,
       
       // ⚡ تحسين module preloading للويب - تحميل الحزم الأساسية فقط
       modulePreload: {
@@ -614,9 +657,11 @@ export default defineConfig(({ command, mode }) => {
           // تحميل الحزم الأساسية فقط فوراً - مع إصلاح مشكلة pos-print
           const coreDeps = deps.filter(dep => 
             dep.includes('vendor-core') || 
-            dep.includes('ui-core') ||
-            dep.includes('ui-essentials') ||
-            dep.includes('pos-module') ||
+            // لا نقوم بعمل preload لموديولات ثقيلة مبكراً
+            // dep.includes('ui-core') ||
+            // dep.includes('ui-essentials') ||
+            // dep.includes('pos-module') ||
+            // dep.includes('supabase-core') ||
             dep.includes('main')
           );
           
@@ -683,7 +728,7 @@ export default defineConfig(({ command, mode }) => {
         // Core Polyfills Only
         'util',
         'buffer',
-        'process',
+        // 'process', // تم إزالة مؤقتاً لحل مشكلة unenv
         
         // Essential React Utils
         'react-is',
@@ -744,6 +789,9 @@ export default defineConfig(({ command, mode }) => {
         // Heavy Utilities
         'axios',
         'axios-retry',
+        'unenv',
+        'process',
+        'unenv/node/process',
         
         // Monitoring (load async)
         '@sentry/react', '@sentry/browser', '@sentry/tracing', '@sentry/replay',
@@ -781,7 +829,7 @@ export default defineConfig(({ command, mode }) => {
       postcss: undefined // استخدام PostCSS الافتراضي
     },
     esbuild: {
-      target: 'es2015',
+      target: 'es2020',
       drop: isProd ? ['debugger'] : [],
       legalComments: 'none',
       jsx: 'automatic',

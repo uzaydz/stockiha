@@ -6,15 +6,15 @@ import {
   Settings,
   HelpCircle,
 } from "lucide-react";
-import {
-  DropdownMenu,
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
+ } from "@/components/ui/dropdown-menu";
 import { useTenant } from '@/context/TenantContext';
 import { Badge } from '@/components/ui/badge';
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 interface InvoicesHeaderProps {
   invoiceCount: number;

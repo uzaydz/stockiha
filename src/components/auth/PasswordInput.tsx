@@ -106,4 +106,4 @@ const PasswordInput = ({
   );
 };
 
-export default PasswordInput; 
+export default PasswordInput;

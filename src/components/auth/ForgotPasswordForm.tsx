@@ -31,7 +31,6 @@ const ForgotPasswordForm = () => {
       });
 
       if (error) {
-        console.error('خطأ في إرسال رابط إعادة تعيين كلمة المرور:', error);
         toast.error('حدث خطأ في إرسال رابط إعادة تعيين كلمة المرور');
         return;
       }
@@ -39,7 +38,6 @@ const ForgotPasswordForm = () => {
       setIsEmailSent(true);
       toast.success('تم إرسال رابط إعادة تعيين كلمة المرور إلى بريدك الإلكتروني');
     } catch (error) {
-      console.error('خطأ غير متوقع:', error);
       toast.error('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى');
     } finally {
       setIsLoading(false);
@@ -183,4 +181,4 @@ const ForgotPasswordForm = () => {
   );
 };
 
-export default ForgotPasswordForm; 
+export default ForgotPasswordForm;

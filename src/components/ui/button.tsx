@@ -44,8 +44,9 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const Comp = asChild ? Slot : "button"
     return (
       <Comp
-        className={cn(buttonVariants({ variant, size, className }))}
+        className={cn(buttonVariants({ variant, size, className }), "transform-gpu")}
         ref={ref}
+        style={{ contain: 'layout' }}
         {...props}
       />
     )

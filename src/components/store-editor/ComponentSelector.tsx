@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Plus, ChevronDown, Layout, Layers, ShoppingBag, MessageSquare, Info, Image, Grid, Star, Watch, Tag, Clock } from 'lucide-react';
 import { ComponentType } from '@/types/store-editor';
-import {
-  DropdownMenu,
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
@@ -15,8 +14,9 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuPortal,
   DropdownMenuCheckboxItem,
-} from "@/components/ui/dropdown-menu";
+ } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 interface ComponentSelectorProps {
   onAddComponent: (type: ComponentType) => void;

@@ -22,15 +22,15 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import {
-  DropdownMenu,
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';import { useOptimizedClickHandler } from "@/lib/performance-utils";
+
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
   DropdownMenuLabel,
-} from '@/components/ui/dropdown-menu';
+ } from "@/components/ui/dropdown-menu";
 import { 
   getCurrentCallCenterTheme, 
   updateCallCenterThemeMode,

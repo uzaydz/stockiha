@@ -14,14 +14,14 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import {
-  DropdownMenu,
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';import { useOptimizedClickHandler } from "@/lib/performance-utils";
+
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+ } from "@/components/ui/dropdown-menu";
 
 interface SuperAdminNavbarProps {
   className?: string;

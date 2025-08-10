@@ -141,7 +141,6 @@ export function ImageAnalyzer({
 
       // ضغط الصورة إذا كانت كبيرة جداً (أكثر من 1MB)
       if (imageBase64.length > 1000000) {
-        console.log('ضغط الصورة قبل الإرسال...');
         imageBase64 = await compressImageForAnalysis(imageBase64);
       }
 
@@ -185,27 +184,6 @@ export function ImageAnalyzer({
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error('OpenRouter API Error:', errorData);
-        console.error('Request payload size:', JSON.stringify({
-          "model": "mistralai/mistral-small-3.2-24b-instruct:free",
-          "messages": [
-            {
-              "role": "user",
-              "content": [
-                {
-                  "type": "text",
-                  "text": "أنت خبير في تحليل الصور..."
-                },
-                {
-                  "type": "image_url",
-                  "image_url": {
-                    "url": imageBase64.substring(0, 100) + "..."
-                  }
-                }
-              ]
-            }
-          ]
-        }).length);
         
         if (response.status === 400) {
           const errorMessage = errorData.error?.message || 'خطأ في تنسيق البيانات';
@@ -252,7 +230,6 @@ export function ImageAnalyzer({
       }, 2000);
 
     } catch (error) {
-      console.error('Error analyzing image:', error);
       let errorMessage = 'حدث خطأ أثناء تحليل الصورة';
       
       if (error instanceof Error) {
@@ -555,4 +532,4 @@ export function ImageAnalyzer({
       </Dialog>
     </TooltipProvider>
   );
-} 
+}

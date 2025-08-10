@@ -246,7 +246,6 @@ export function ProductInfoGenerator({
       }));
 
     } catch (error) {
-      console.error('Error generating product info:', error);
       setGenerationState(prev => ({
         ...prev,
         isGenerating: false,
@@ -629,4 +628,4 @@ export function ProductInfoGenerator({
       />
     </TooltipProvider>
   );
-} 
+}

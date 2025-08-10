@@ -8,14 +8,13 @@ import {
   TableHeader,
   TableRow
 } from '@/components/ui/table';
-import {
-  DropdownMenu,
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
+ } from "@/components/ui/dropdown-menu";
 import { Button } from '@/components/ui/button';
 import { 
   MoreHorizontal, 
@@ -44,6 +43,7 @@ import ConfirmDialog from '@/components/ui/confirm-dialog';
 
 // API functions
 import { toggleEmployeeStatus, deleteEmployee } from '@/lib/api/employees';
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 interface EmployeeListProps {
   employees: Employee[];

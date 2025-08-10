@@ -72,13 +72,16 @@ const OrderStatusDropdown = ({
   const availableStatuses = allStatuses.filter(status => status !== currentStatus);
 
   const handleStatusChange = async (newStatus: string) => {
-    setIsUpdating(true);
-    try {
-      await onUpdateStatus(orderId, newStatus);
-    } catch (error) {
-    } finally {
-      setIsUpdating(false);
-    }
+    // تأجيل التنفيذ للإطار التالي لتجنب العمل داخل click مما يسبب reflow فوري
+    requestAnimationFrame(async () => {
+      setIsUpdating(true);
+      try {
+        await onUpdateStatus(orderId, newStatus);
+      } catch (error) {
+      } finally {
+        setIsUpdating(false);
+      }
+    });
   };
 
   const currentConfig = statusConfig[currentStatus as keyof typeof statusConfig] || {
@@ -97,14 +100,29 @@ const OrderStatusDropdown = ({
           variant="outline"
           size="sm"
           disabled={isUpdating}
-          className={`h-8 gap-2 text-xs font-medium transition-colors ${currentConfig.color} hover:opacity-80`}
+          className={`h-8 gap-2 text-xs font-medium transition-colors transform-gpu ${currentConfig.color} hover:opacity-80`} 
+          style={{ 
+            minWidth: 120,
+            contain: 'layout',
+            willChange: 'auto'
+          }}
         >
           <CurrentIcon className={`h-3 w-3 ${currentConfig.iconColor}`} />
           {currentConfig.label}
           <ChevronDown className="h-3 w-3 opacity-50" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-[150px]">
+      <DropdownMenuContent 
+        align="end" 
+        className="min-w-[150px] transform-gpu"
+        style={{ 
+          contain: 'layout',
+          willChange: 'transform',
+          zIndex: 9999
+        }}
+        sideOffset={4}
+        avoidCollisions={true}
+      >
         {availableStatuses.map((status) => {
           const config = statusConfig[status as keyof typeof statusConfig];
           const Icon = config.icon;
@@ -113,7 +131,8 @@ const OrderStatusDropdown = ({
             <DropdownMenuItem
               key={status}
               onClick={() => handleStatusChange(status)}
-              className="gap-2 cursor-pointer"
+              className="gap-2 cursor-pointer transform-gpu"
+              style={{ contain: 'layout' }}
             >
               <Icon className={`h-4 w-4 ${config.iconColor}`} />
               {config.label}

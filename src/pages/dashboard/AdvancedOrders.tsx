@@ -43,12 +43,11 @@ import {
   TableHeader, 
   TableRow 
 } from '@/components/ui/table';
-import { 
-  DropdownMenu,
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+ } from "@/components/ui/dropdown-menu";
 import { Checkbox } from '@/components/ui/checkbox';
 import { 
   Collapsible, 
@@ -57,6 +56,7 @@ import {
 } from '@/components/ui/collapsible';
 import { DatePickerWithRange } from '@/components/ui/date-picker';
 import { Separator } from '@/components/ui/separator';
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 // Icons
 import { 

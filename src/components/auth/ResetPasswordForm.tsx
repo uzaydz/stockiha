@@ -50,37 +50,12 @@ const ResetPasswordForm = () => {
   useEffect(() => {
     // التحقق من وجود رموز صالحة
     const hasValidTokens = (finalAccessToken && finalRefreshToken) || finalToken;
-    
-    console.log('Checking tokens:', { 
-      accessToken: !!finalAccessToken, 
-      refreshToken: !!finalRefreshToken,
-      token: !!finalToken,
-      type: finalType,
-      url: window.location.href,
-      search: window.location.search,
-      hash: window.location.hash
-    });
-    
+
     if (!hasValidTokens || finalType !== 'recovery') {
-      console.log('Tokens not found:', { 
-        accessToken: !!finalAccessToken, 
-        refreshToken: !!finalRefreshToken,
-        token: !!finalToken,
-        type: finalType,
-        url: window.location.href,
-        search: window.location.search,
-        hash: window.location.hash
-      });
       
       toast.error('رابط غير صالح لإعادة تعيين كلمة المرور');
       navigate('/forgot-password');
     } else {
-      console.log('Valid tokens found:', { 
-        hasAccessToken: !!finalAccessToken, 
-        hasRefreshToken: !!finalRefreshToken,
-        hasToken: !!finalToken,
-        type: finalType
-      });
     }
   }, [finalAccessToken, finalRefreshToken, finalToken, finalType, navigate]);
 
@@ -161,7 +136,6 @@ const ResetPasswordForm = () => {
 
       if (finalToken) {
         // إذا كان لدينا token واحد، نستخدم verifyOtp
-        console.log('Using single token for verification:', finalToken);
         
         // التحقق من صحة الـ token
         const { data: verifyData, error: verifyError } = await supabase.auth.verifyOtp({
@@ -170,7 +144,6 @@ const ResetPasswordForm = () => {
         });
         
         if (verifyError) {
-          console.error('خطأ في التحقق من الـ token:', verifyError);
           toast.error('رابط غير صالح أو منتهي الصلاحية');
           navigate('/forgot-password');
           return;
@@ -182,7 +155,6 @@ const ResetPasswordForm = () => {
         });
         
         if (error) {
-          console.error('خطأ في تحديث كلمة المرور:', error);
           toast.error('حدث خطأ في تحديث كلمة المرور');
           return;
         }
@@ -190,7 +162,6 @@ const ResetPasswordForm = () => {
         sessionData = data;
       } else {
         // إذا كان لدينا access_token و refresh_token، نستخدم setSession
-        console.log('Using access_token and refresh_token for session');
         
         const { data, error } = await supabase.auth.setSession({
           access_token: finalAccessToken,
@@ -198,7 +169,6 @@ const ResetPasswordForm = () => {
         });
         
         if (error) {
-          console.error('خطأ في تعيين الجلسة:', error);
           toast.error('رابط غير صالح أو منتهي الصلاحية');
           navigate('/forgot-password');
           return;
@@ -210,7 +180,6 @@ const ResetPasswordForm = () => {
         });
         
         if (updateError) {
-          console.error('خطأ في تحديث كلمة المرور:', updateError);
           toast.error('حدث خطأ في تحديث كلمة المرور');
           return;
         }
@@ -224,7 +193,6 @@ const ResetPasswordForm = () => {
       // تسجيل الخروج بعد تحديث كلمة المرور لضمان الأمان
       await supabase.auth.signOut();
     } catch (error) {
-      console.error('خطأ غير متوقع:', error);
       toast.error('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى');
     } finally {
       setIsLoading(false);
@@ -455,4 +423,4 @@ const ResetPasswordForm = () => {
   );
 };
 
-export default ResetPasswordForm; 
+export default ResetPasswordForm;

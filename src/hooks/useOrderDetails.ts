@@ -75,7 +75,9 @@ async function fetchWithRPC(_organizationId: string, _orderId: string): Promise<
 
 export function useOrderDetails(orderId: string | undefined, options: UseOrderDetailsOptions = {}) {
   const { organizationId = null, useRpc = false } = options;
-  const [state, setState] = useState<OrderDetailsRecord>({ data: null, status: 'idle', error: null, fetchedAt: 0 });
+  // ابدأ فوراً بحالة الكاش إن وُجِد لتجنب فاصل تجميد واجهة المستخدم
+  const initialFromCache = orderId ? getCache(orderId) : undefined;
+  const [state, setState] = useState<OrderDetailsRecord>(initialFromCache || { data: null, status: 'idle', error: null, fetchedAt: 0 });
   const inFlightRef = useRef<Promise<void> | null>(null);
 
   const load = useCallback(async () => {
@@ -137,7 +139,7 @@ export function useOrderDetails(orderId: string | undefined, options: UseOrderDe
     setState({ data: null, status: 'idle', error: null, fetchedAt: 0 });
   }, [orderId]);
 
-  // تحميل عند الطلب فقط (لا تحميل تلقائي لتقليل الضغط)
+  // حمل عند الطلب. إن لم يكن في الكاش، لا نجلب تلقائياً إلا عند استدعاء refetch من واجهة التفاصيل
   const result = useMemo(() => ({
     data: state.data,
     status: state.status,
@@ -186,4 +188,37 @@ export async function prefetchOrderDetails(orderId: string, options: UseOrderDet
   }
 }
 
-
+// Prefetch مجمّع لعناصر أكثر من طلب دفعة واحدة لتقليل عدد الاستدعاءات
+export async function prefetchOrderItemsBatch(orderIds: string[]) {
+  if (!Array.isArray(orderIds) || orderIds.length === 0) return;
+  const missing: string[] = [];
+  for (const id of orderIds) {
+    const cached = getCache(id);
+    if (!cached || cached.status !== 'success') missing.push(id);
+  }
+  // لا تقوم بأي شيء إذا كان الجميع موجودين بالكاش
+  if (missing.length === 0) return;
+  try {
+    // جلب العناصر لكل طلب عبر استعلامات متوازية لكن محدودة
+    // ملاحظة: supabase لا يدعم IN هنا بسهولة مع select join على نفس الجدول بدون view،
+    // لذلك نستعمل Promise.all مع سقف بسيط لعدد التوازي
+    const CONCURRENCY = 4;
+    const queue = [...missing];
+    const workers: Promise<void>[] = [];
+    const runWorker = async () => {
+      while (queue.length > 0) {
+        const id = queue.shift()!;
+        try {
+          const items = await fetchItemsFromSupabase(id);
+          const record: OrderDetailsRecord = { data: { order_items: items } as Partial<Order>, status: 'success', error: null, fetchedAt: Date.now() };
+          setCache(id, record);
+        } catch (err: any) {
+          const record: OrderDetailsRecord = { data: null, status: 'error', error: err?.message || 'failed', fetchedAt: Date.now() };
+          setCache(id, record);
+        }
+      }
+    };
+    for (let i = 0; i < CONCURRENCY; i++) workers.push(runWorker());
+    await Promise.all(workers);
+  } catch {}
+}

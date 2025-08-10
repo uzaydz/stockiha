@@ -14,13 +14,12 @@ import {
   TableHeader, 
   TableRow 
 } from '@/components/ui/table';
-import {
-  DropdownMenu,
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator
-} from '@/components/ui/dropdown-menu';
+ } from "@/components/ui/dropdown-menu";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -51,6 +50,7 @@ import { inventoryCache, cacheKeys } from '@/lib/cache/advanced-cache-system';
 import { useDebounce } from '@/hooks/useDebounce';
 import ProductInventoryDetails from './ProductInventoryDetails';
 import { toast } from 'sonner';
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 // Types
 interface InventoryFilters {

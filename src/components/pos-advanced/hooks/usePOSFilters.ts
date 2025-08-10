@@ -236,13 +236,16 @@ export const usePOSFilters = (
     // تحميل مسبق للفئات بشكل غير متزامن
     if (availableCategories.length > 0) {
       // تأخير بسيط لمنع حجب الـ UI
-      requestIdleCallback ? 
-        requestIdleCallback(() => {
-          // الفئات جاهزة للاستخدام
-        }) : 
-        setTimeout(() => {
-          // الفئات جاهزة للاستخدام
-        }, 0);
+      const applyCategories = () => {
+        // الفئات جاهزة للاستخدام
+      };
+
+      if (typeof window !== 'undefined' && window.requestIdleCallback) {
+        window.requestIdleCallback(applyCategories);
+      } else {
+        // fallback للمتصفحات التي لا تدعم requestIdleCallback
+        setTimeout(applyCategories, 0);
+      }
     }
   }, [availableCategories]);
 

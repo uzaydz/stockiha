@@ -1,248 +1,231 @@
-import { useCallback, useRef, useEffect } from 'react';
-
-interface PerformanceMetrics {
-  operationName: string;
-  startTime: number;
-  endTime?: number;
-  duration?: number;
-  memoryUsage?: number;
-  reflows?: number;
-}
+import { useEffect, useRef, useCallback } from 'react';
+import { domOptimizer, getReflowStats } from '@/utils/performanceOptimizer';
 
 interface UsePerformanceOptimizerOptions {
   enableLogging?: boolean;
   maxMetricsHistory?: number;
   detectReflows?: boolean;
+  enableDOMOptimization?: boolean;
+  enableScrollOptimization?: boolean;
+}
+
+interface PerformanceMetrics {
+  timestamp: number;
+  type: string;
+  duration: number;
+  memory?: number;
 }
 
 export const usePerformanceOptimizer = (options: UsePerformanceOptimizerOptions = {}) => {
   const {
     enableLogging = process.env.NODE_ENV === 'development',
     maxMetricsHistory = 100,
-    detectReflows = true
+    detectReflows = true,
+    enableDOMOptimization = true,
+    enableScrollOptimization = true
   } = options;
 
   const metricsRef = useRef<PerformanceMetrics[]>([]);
   const reflowCountRef = useRef(0);
   const originalScrollTop = useRef<typeof Element.prototype.scrollTop>();
+  const scrollTimeoutRef = useRef<number>();
+  const reflowDebounceTimeoutRef = useRef<number | null>(null);
 
-  // مراقبة Forced Reflows
+  // مراقبة Forced Reflows (محسّنة لتقليل الإيجابيات الكاذبة والضجيج)
   useEffect(() => {
     if (!detectReflows) return;
 
-    // تتبع العمليات التي تسبب reflow
-    const reflowProperties = [
-      'offsetTop', 'offsetLeft', 'offsetWidth', 'offsetHeight',
-      'scrollTop', 'scrollLeft', 'scrollWidth', 'scrollHeight',
-      'clientTop', 'clientLeft', 'clientWidth', 'clientHeight',
-      'getComputedStyle'
-    ];
+    const REFLOW_DEBOUNCE_MS = 250; // دمج أي تغييرات خلال 250ms في حدث واحد
+    const LOG_EVERY = 100; // اطبع تحذيراً كل 100 حدث فقط
 
-    const originalMethods = new Map();
+    const scheduleReflowIncrement = () => {
+      if (reflowDebounceTimeoutRef.current != null) {
+        clearTimeout(reflowDebounceTimeoutRef.current);
+      }
+      reflowDebounceTimeoutRef.current = window.setTimeout(() => {
+        reflowCountRef.current++;
+        domOptimizer.trackReflow();
 
-    // تسجيل الدوال الأصلية
-    reflowProperties.forEach(prop => {
-      if (Element.prototype[prop as keyof Element]) {
-        originalMethods.set(prop, Element.prototype[prop as keyof Element]);
+        if (enableLogging && reflowCountRef.current % LOG_EVERY === 0) {
+          console.warn(`🔄 [PERFORMANCE] Potential reflow detected (${reflowCountRef.current} total)`);
+        }
+        reflowDebounceTimeoutRef.current = null;
+      }, REFLOW_DEBOUNCE_MS);
+    };
+
+    // مراقبة التغييرات في DOM مع تجاهل تغييرات style (مثل تح animations من framer-motion)
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        // تجاهل تغييرات style تماماً لتفادي التحذيرات أثناء التحريك
+        if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+          continue;
+        }
+
+        // تجاهل العناصر المرتبطة بالتحريك إن أمكن التعرف عليها بالاسم
+        const targetEl = mutation.target as HTMLElement | null;
+        if (targetEl) {
+          const className = (targetEl.className || '').toString();
+          if (
+            targetEl.hasAttribute?.('data-motion') ||
+            className.includes('framer') ||
+            className.includes('motion')
+          ) {
+            continue;
+          }
+        }
+
+        // جدولة زيادة العد (مرة واحدة لكل نافذة 250ms)
+        scheduleReflowIncrement();
+        break; // يكفي جدولة مرة واحدة لدفعة الطفرات الحالية
       }
     });
 
-    // مراقبة getComputedStyle
-    const originalGetComputedStyle = window.getComputedStyle;
-    window.getComputedStyle = function(...args) {
-      reflowCountRef.current++;
-      if (enableLogging && reflowCountRef.current % 10 === 0) {
-      }
-      return originalGetComputedStyle.apply(this, args);
-    };
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      // تجاهل تغييرات style لتقليل الإيجابيات الكاذبة من التحريك
+      attributeFilter: ['class'],
+      attributeOldValue: false,
+    });
 
     return () => {
-      // استعادة الدوال الأصلية
-      window.getComputedStyle = originalGetComputedStyle;
+      observer.disconnect();
+      if (reflowDebounceTimeoutRef.current != null) {
+        clearTimeout(reflowDebounceTimeoutRef.current);
+        reflowDebounceTimeoutRef.current = null;
+      }
     };
   }, [detectReflows, enableLogging]);
 
-  // بدء قياس الأداء
-  const startPerformanceMonitoring = useCallback((operationName: string): string => {
-    const operationId = `${operationName}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
-    const metric: PerformanceMetrics = {
-      operationName,
-      startTime: performance.now(),
-      reflows: reflowCountRef.current
+  // تحسين عمليات التمرير
+  useEffect(() => {
+    if (!enableScrollOptimization) return;
+
+    let ticking = false;
+    const handleScroll = () => {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          // معالجة التمرير هنا
+          ticking = false;
+        });
+        ticking = true;
+      }
     };
 
-    // قياس استخدام الذاكرة إذا كان متاحاً
-    if ('memory' in performance) {
-      metric.memoryUsage = (performance as any).memory.usedJSHeapSize;
-    }
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [enableScrollOptimization]);
+
+  // تحسين عمليات تغيير الحجم
+  useEffect(() => {
+    if (!enableScrollOptimization) return;
+
+    let resizeTimeout: number;
+    const handleResize = () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = window.setTimeout(() => {
+        // معالجة تغيير الحجم هنا
+      }, 100);
+    };
+
+    window.addEventListener('resize', handleResize, { passive: true });
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      clearTimeout(resizeTimeout);
+    };
+  }, [enableScrollOptimization]);
+
+  // دالة لتسجيل مقاييس الأداء
+  const recordMetric = useCallback((type: string, duration: number) => {
+    const metric: PerformanceMetrics = {
+      timestamp: Date.now(),
+      type,
+      duration,
+      memory: (performance as any).memory?.usedJSHeapSize
+    };
 
     metricsRef.current.push(metric);
 
-    // تحديد حجم التاريخ
+    // الحفاظ على عدد محدود من المقاييس
     if (metricsRef.current.length > maxMetricsHistory) {
-      metricsRef.current = metricsRef.current.slice(-maxMetricsHistory);
+      metricsRef.current.shift();
     }
 
-    if (enableLogging) {
+    if (enableLogging && duration > 16) {
+      console.warn(`⚠️ [PERFORMANCE] ${type} took ${duration.toFixed(2)}ms`);
     }
+  }, [maxMetricsHistory, enableLogging]);
 
-    return operationId;
-  }, [enableLogging, maxMetricsHistory]);
-
-  // إنهاء قياس الأداء
-  const endPerformanceMonitoring = useCallback((operationName: string): PerformanceMetrics | null => {
-    const metric = metricsRef.current.find(m => 
-      m.operationName === operationName && !m.endTime
-    );
-
-    if (!metric) return null;
-
-    metric.endTime = performance.now();
-    metric.duration = metric.endTime - metric.startTime;
-    metric.reflows = reflowCountRef.current - (metric.reflows || 0);
-
-    if (enableLogging) {
-      
-      // تحذيرات الأداء
-      if (metric.duration > 100) {
-      }
-      
-      if (metric.reflows && metric.reflows > 5) {
-      }
-    }
-
-    return metric;
-  }, [enableLogging]);
-
-  // دالة محسنة لتنفيذ العمليات مع مراقبة الأداء
-  const withPerformanceMonitoring = useCallback(<T extends (...args: any[]) => any>(
-    operationName: string,
-    fn: T
-  ): T => {
-    return ((...args: Parameters<T>) => {
-      const operationId = startPerformanceMonitoring(operationName);
-      
-      try {
-        const result = fn(...args);
-        
-        // إذا كانت النتيجة Promise
-        if (result && typeof result.then === 'function') {
-          return result.finally(() => {
-            endPerformanceMonitoring(operationName);
-          });
-        }
-        
-        // إذا كانت النتيجة عادية
-        endPerformanceMonitoring(operationName);
-        return result;
-      } catch (error) {
-        endPerformanceMonitoring(operationName);
-        throw error;
-      }
-    }) as T;
-  }, [startPerformanceMonitoring, endPerformanceMonitoring]);
-
-  // تجميع العمليات لتقليل DOM updates
-  const batchDOMUpdates = useCallback((updates: (() => void)[]): void => {
-    const operationId = startPerformanceMonitoring('batchDOMUpdates');
+  // دالة لقياس أداء العمليات
+  const measurePerformance = useCallback(<T>(fn: () => T, operationName: string = 'operation'): T => {
+    const start = performance.now();
+    const result = fn();
+    const duration = performance.now() - start;
     
-    // استخدام requestAnimationFrame لتجميع التحديثات
-    requestAnimationFrame(() => {
-      updates.forEach(update => {
-        try {
-          update();
-        } catch (error) {
-        }
-      });
-      
-      endPerformanceMonitoring('batchDOMUpdates');
-    });
-  }, [startPerformanceMonitoring, endPerformanceMonitoring]);
+    recordMetric(operationName, duration);
+    return result;
+  }, [recordMetric]);
 
-  // تحسين العمليات المتزامنة
-  const debounceOperation = useCallback(<T extends (...args: any[]) => any>(
-    fn: T,
-    delay: number = 300
-  ): T => {
-    let timeoutId: NodeJS.Timeout;
+  // دالة لقياس أداء العمليات غير المتزامنة
+  const measureAsyncPerformance = useCallback(async <T>(
+    fn: () => Promise<T>, 
+    operationName: string = 'async-operation'
+  ): Promise<T> => {
+    const start = performance.now();
+    const result = await fn();
+    const duration = performance.now() - start;
     
-    return ((...args: Parameters<T>) => {
-      clearTimeout(timeoutId);
-      
-      timeoutId = setTimeout(() => {
-        const operationId = startPerformanceMonitoring(`debounced-${fn.name || 'operation'}`);
-        
-        try {
-          const result = fn(...args);
-          endPerformanceMonitoring(`debounced-${fn.name || 'operation'}`);
-          return result;
-        } catch (error) {
-          endPerformanceMonitoring(`debounced-${fn.name || 'operation'}`);
-          throw error;
-        }
-      }, delay);
-    }) as T;
-  }, [startPerformanceMonitoring, endPerformanceMonitoring]);
+    recordMetric(operationName, duration);
+    return result;
+  }, [recordMetric]);
 
-  // الحصول على تقرير الأداء
-  const getPerformanceReport = useCallback(() => {
-    const completedMetrics = metricsRef.current.filter(m => m.duration !== undefined);
+  // دالة للحصول على إحصائيات الأداء
+  const getPerformanceStats = useCallback(() => {
+    const metrics = metricsRef.current;
+    const reflowStats = getReflowStats();
     
-    if (completedMetrics.length === 0) {
-      return {
-        totalOperations: 0,
-        averageDuration: 0,
-        slowestOperation: null,
-        totalReflows: reflowCountRef.current,
-        recommendations: []
-      };
-    }
-
-    const averageDuration = completedMetrics.reduce((sum, m) => sum + (m.duration || 0), 0) / completedMetrics.length;
-    const slowestOperation = completedMetrics.reduce((slowest, current) => 
-      (current.duration || 0) > (slowest?.duration || 0) ? current : slowest
-    );
-
-    const recommendations: string[] = [];
-    
-    if (averageDuration > 50) {
-      recommendations.push('⚠️ Average operation time is high. Consider optimizing heavy operations.');
-    }
-    
-    if (reflowCountRef.current > 100) {
-      recommendations.push('🔄 High number of reflows detected. Consider batching DOM operations.');
-    }
-    
-    const slowOperations = completedMetrics.filter(m => (m.duration || 0) > 100);
-    if (slowOperations.length > 0) {
-      recommendations.push(`🐌 ${slowOperations.length} slow operations detected. Review: ${slowOperations.map(op => op.operationName).join(', ')}`);
-    }
-
-    return {
-      totalOperations: completedMetrics.length,
-      averageDuration,
-      slowestOperation,
-      totalReflows: reflowCountRef.current,
-      recommendations,
-      detailedMetrics: completedMetrics
+    const stats = {
+      totalMetrics: metrics.length,
+      averageDuration: metrics.length > 0 
+        ? metrics.reduce((sum, m) => sum + m.duration, 0) / metrics.length 
+        : 0,
+      slowOperations: metrics.filter(m => m.duration > 16).length,
+      reflowCount: reflowStats.reflowCount,
+      pendingReads: reflowStats.pendingReads,
+      pendingWrites: reflowStats.pendingWrites
     };
+
+    return stats;
   }, []);
 
-  // إعادة تعيين المقاييس
-  const resetMetrics = useCallback(() => {
+  // دالة لطباعة تقرير الأداء
+  const printPerformanceReport = useCallback(() => {
+    const stats = getPerformanceStats();
+    
+    console.group('📊 تقرير الأداء');
+    console.log(`إجمالي العمليات: ${stats.totalMetrics}`);
+    console.log(`متوسط المدة: ${stats.averageDuration.toFixed(2)}ms`);
+    console.log(`العمليات البطيئة (>16ms): ${stats.slowOperations}`);
+    console.log(`عمليات reflow: ${stats.reflowCount}`);
+    console.log(`قراءات DOM معلقة: ${stats.pendingReads}`);
+    console.log(`كتابات DOM معلقة: ${stats.pendingWrites}`);
+    console.groupEnd();
+  }, [getPerformanceStats]);
+
+  // دالة لتنظيف المقاييس
+  const clearMetrics = useCallback(() => {
     metricsRef.current = [];
     reflowCountRef.current = 0;
   }, []);
 
   return {
-    startPerformanceMonitoring,
-    endPerformanceMonitoring,
-    withPerformanceMonitoring,
-    batchDOMUpdates,
-    debounceOperation,
-    getPerformanceReport,
-    resetMetrics,
-    currentReflowCount: reflowCountRef.current
+    measurePerformance,
+    measureAsyncPerformance,
+    getPerformanceStats,
+    printPerformanceReport,
+    clearMetrics,
+    recordMetric,
+    reflowCount: reflowCountRef.current
   };
 };

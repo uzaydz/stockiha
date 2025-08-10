@@ -10,13 +10,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  DropdownMenu,
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+ } from "@/components/ui/dropdown-menu";
 import {
   Grid3X3,
   List,
@@ -34,6 +33,7 @@ import {
   Filter
 } from 'lucide-react';
 import { FilterControlsProps } from '../types';
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 // مكون فرعي للتبويبات محسن للأداء
 const TabsSection = React.memo<{

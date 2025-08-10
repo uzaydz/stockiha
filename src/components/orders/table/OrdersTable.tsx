@@ -4,13 +4,14 @@ import { type ExtendedOrdersTableProps } from "./OrderTableTypes";
 
 // استيراد المكونات المنفصلة
 import OrdersTableSearch from "./OrdersTableSearch";
-import OrdersTableScrollControls from "./OrdersTableScrollControls";
 import OrdersTableHeader from "./OrdersTableHeader";
 import OrdersTableBody from "./OrdersTableBody";
 import OrdersTablePagination from "./OrdersTablePagination";
 
 // استيراد الـ hooks المخصصة
 import { useOrdersTableLogic } from "./useOrdersTableLogic";
+
+// ملاحظة: للحصول على عرض متجاوب للهاتف، استخدم ResponsiveOrdersTable بدلاً من هذا المكون
 
 const OrdersTable = memo(({ 
   orders,
@@ -42,7 +43,6 @@ const OrdersTable = memo(({
     expandedOrders,
     showLeftScroll,
     showRightScroll,
-    scrollProgress,
     tableContainerRef,
     filteredOrders,
     allSelected,
@@ -51,12 +51,7 @@ const OrdersTable = memo(({
     handleSelectOrder,
     handleToggleExpand,
     resetSelections,
-    checkScrollability,
-    scrollTable,
-    scrollToStart,
-    scrollToEnd,
-    scrollToProgress,
-  } = useOrdersTableLogic({ orders });
+  } = useOrdersTableLogic({ orders, processLocally: !onSearchTermChange });
 
   // عند وجود بحث محلي، يمكن أن يتعارض مع فلاتر الخادم.
   // لذا نعرض عدّ الفلاتر على أساس عدد الطلبات، ونجعل المرسل الخارجي مسؤولاً عن الفلترة الفعلية.
@@ -82,77 +77,54 @@ const OrdersTable = memo(({
                 />
       
       {/* الجدول المحسن مع تصميم حديث */}
-      <div className="relative">
-        {/* عناصر التحكم في التمرير */}
-        <OrdersTableScrollControls
-          showLeftScroll={showLeftScroll}
-          showRightScroll={showRightScroll}
-          scrollProgress={scrollProgress}
-          onScrollLeft={() => scrollTable('left')}
-          onScrollRight={() => scrollTable('right')}
-          onScrollToStart={scrollToStart}
-          onScrollToEnd={scrollToEnd}
-          onScrollProgress={scrollToProgress}
-        />
-        
-        <div className="rounded-lg border border-border/30 bg-background/50 backdrop-blur-sm overflow-hidden">
-          <div 
-            ref={tableContainerRef}
-            className={`orders-table-container overflow-x-auto overflow-y-visible ${
-              showLeftScroll && showRightScroll ? 'scroll-fade-both' :
-              showLeftScroll ? 'scroll-fade-left' :
-              showRightScroll ? 'scroll-fade-right' : ''
-            }`}
-          >
-            <Table className="w-full min-w-[1200px]">
-              {/* رأس الجدول */}
-              <OrdersTableHeader
-                visibleColumns={visibleColumns}
-                allSelected={allSelected}
-                filteredOrdersLength={filteredOrders.length}
-                onSelectAll={handleSelectAll}
-              />
-              
-              {/* جسم الجدول */}
-              <OrdersTableBody
-                loading={loading}
-                filteredOrders={filteredOrders}
-                searchFilter={searchFilter}
-                visibleColumns={visibleColumns}
-                selectedOrders={selectedOrders}
-                expandedOrders={expandedOrders}
-                onSelectOrder={handleSelectOrder}
-                onToggleExpand={handleToggleExpand}
-                      onUpdateStatus={onUpdateStatus}
-                      onUpdateCallConfirmation={onUpdateCallConfirmation}
-                      onSendToProvider={onSendToProvider}
-                      hasUpdatePermission={hasUpdatePermission}
-                      hasCancelPermission={hasCancelPermission}
-                      currentUserId={currentUserId}
-                      shippingProviders={shippingProviders}
-                      autoLoadMoreOnScroll={autoLoadMoreOnScroll}
-                      onLoadMore={onLoadMore}
-                    />
-            </Table>
-          </div>
+      <div className="relative w-full overflow-auto" style={{ contain: 'layout paint', contentVisibility: 'auto' as any }}>
+        <Table className="table-fixed" style={{ minWidth: '1200px', tableLayout: 'fixed' as any }}>
+          {/* رأس الجدول */}
+          <OrdersTableHeader
+            visibleColumns={visibleColumns}
+            allSelected={allSelected}
+            filteredOrdersLength={filteredOrders.length}
+            onSelectAll={handleSelectAll}
+          />
           
-          {/* شريط التنقل السفلي */}
-          {filteredOrders.length > 0 && (
-            <OrdersTablePagination
-              currentPage={currentPage}
-              pageSize={pageSize}
-              totalItems={totalItems}
-              ordersLength={orders.length}
-              hasNextPage={hasNextPage}
-              hasPreviousPage={hasPreviousPage}
-              hasMoreOrders={hasMoreOrders}
-              loading={loading}
-              onPageChange={onPageChange}
-              onLoadMore={onLoadMore}
-            />
-          )}
-        </div>
+          {/* جسم الجدول */}
+          <OrdersTableBody
+            loading={loading}
+            filteredOrders={filteredOrders}
+            searchFilter={searchFilter}
+            visibleColumns={visibleColumns}
+            selectedOrders={selectedOrders}
+            expandedOrders={expandedOrders}
+            onSelectOrder={handleSelectOrder}
+            onToggleExpand={handleToggleExpand}
+            onUpdateStatus={onUpdateStatus}
+            onUpdateCallConfirmation={onUpdateCallConfirmation}
+            onSendToProvider={onSendToProvider}
+            hasUpdatePermission={hasUpdatePermission}
+            hasCancelPermission={hasCancelPermission}
+            currentUserId={currentUserId}
+            shippingProviders={shippingProviders}
+            autoLoadMoreOnScroll={autoLoadMoreOnScroll}
+            onLoadMore={onLoadMore}
+          />
+        </Table>
       </div>
+      
+      {/* شريط التنقل السفلي */}
+      {filteredOrders.length > 0 && (
+        <OrdersTablePagination
+          currentPage={currentPage}
+          pageSize={pageSize}
+          totalItems={totalItems}
+          ordersLength={orders.length}
+          hasNextPage={hasNextPage}
+          hasPreviousPage={hasPreviousPage}
+          hasMoreOrders={hasMoreOrders}
+          loading={loading}
+          onPageChange={onPageChange}
+          onLoadMore={onLoadMore}
+        />
+      )}
     </div>
   );
 });

@@ -30,7 +30,6 @@ import { ThemeProvider } from './context/ThemeContext';
 import { SharedStoreDataProvider } from './context/SharedStoreDataContext';
 import { Toaster } from "./components/ui/toaster";
 import App from './App.tsx';
-import { initPerformanceOptimizations } from './utils/performanceOptimizer';
 
 // 🔧 Make React globally available if needed
 (window as any).React = React;
@@ -44,7 +43,77 @@ import { initializeRequestBlocker } from './lib/requestBlocker';
 // 📊 نظام إدارة preload لمنع التحذيرات
 import './lib/preloadManager';
 
+// 🔧 إضافة polyfill لـ requestIdleCallback
+if (typeof window !== 'undefined' && !window.requestIdleCallback) {
+  (window as any).requestIdleCallback = function(callback: any, options?: any) {
+    const start = Date.now();
+    return setTimeout(function() {
+      callback({
+        didTimeout: false,
+        timeRemaining: function() {
+          return Math.max(0, 50 - (Date.now() - start));
+        }
+      });
+    }, 1);
+  };
+  
+  (window as any).cancelIdleCallback = function(id: any) {
+    clearTimeout(id);
+  };
+}
+
 // 🚀 تطبيق تحسينات الأداء فوراً
+const initPerformanceOptimizations = () => {
+  // تقليل console errors في production
+  if (import.meta.env.PROD) {
+    const originalError = console.error;
+    console.error = (...args) => {
+      const message = args.join(' ').toLowerCase();
+      
+      // تجاهل أخطاء WebSocket و HMR في production
+      if (
+        message.includes('websocket') ||
+        message.includes('hmr') ||
+        message.includes('vite') ||
+        message.includes('failed to connect')
+      ) {
+        return;
+      }
+      
+      // عرض الأخطاء الأخرى
+      originalError.apply(console, args);
+    };
+  }
+
+  // تحسين CSS loading
+  if (typeof window !== 'undefined') {
+    // منع FOUC (Flash of Unstyled Content)
+    document.documentElement.style.visibility = 'visible';
+    
+    // تأجيل تطبيق الخطوط لما بعد أول إطار لخفض LCP
+    const applyFonts = () => {
+      if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(() => {
+          // تطبيق الخطوط
+          document.body.classList.add('tajawal-forced');
+        });
+      } else {
+        // fallback للمتصفحات القديمة
+        setTimeout(() => {
+          document.body.classList.add('tajawal-forced');
+        }, 100);
+      }
+    };
+    
+    // استخدام requestIdleCallback إذا كان متوفراً، وإلا استخدم setTimeout
+    if (window.requestIdleCallback) {
+      window.requestIdleCallback(applyFonts);
+    } else {
+      setTimeout(applyFonts, 100);
+    }
+  }
+};
+
 initPerformanceOptimizations();
 
 // 🚫 تفعيل نظام منع الطلبات المتكررة
@@ -161,38 +230,35 @@ if (root) {
   document.body.classList.add('tajawal-forced');
   document.documentElement.style.fontFamily = "'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif";
   
-  // 🔤 ضمان تحميل الخطوط قبل عرض التطبيق
-  const ensureFontsLoaded = async () => {
+  // عرض التطبيق فوراً لتحسين FCP، ثم استكمال تحسينات الخطوط لاحقاً
+  root.render(
+    <AppProviders>
+      <App />
+    </AppProviders>
+  );
+  
+  // استكمال تحسينات الخطوط بعد العرض الأول
+  const completeFontOptimizations = () => {
     try {
-      // انتظار تحميل الخطوط
-      await document.fonts.ready;
-      
-      // التحقق من وجود خطوط Tajawal
-      const tajawalFonts = Array.from(document.fonts).filter(font => 
-        font.family === 'TajawalForced' && font.status === 'loaded'
-      );
-      
-      if (tajawalFonts.length === 0) {
-        // إضافة خطوط احتياطية
-        const style = document.createElement('style');
-        style.textContent = `
-          * { font-family: 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important; }
-        `;
-        document.head.appendChild(style);
-      }
-    } catch (error) {
-      // تجاهل أخطاء الخطوط
-    }
+      document.fonts.ready.then(() => {
+        const tajawalFonts = Array.from(document.fonts).filter(font => 
+          font.family === 'TajawalForced' && font.status === 'loaded'
+        );
+        if (tajawalFonts.length === 0) {
+          const style = document.createElement('style');
+          style.textContent = `* { font-family: 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important; }`;
+          document.head.appendChild(style);
+        }
+      }).catch(() => {});
+    } catch {}
   };
   
-  // تشغيل التطبيق مع ضمان الخطوط
-  ensureFontsLoaded().then(() => {
-    root.render(
-      <AppProviders>
-        <App />
-      </AppProviders>
-    );
-  });
+  // استخدام requestIdleCallback إذا كان متوفراً، وإلا استخدم setTimeout
+  if (window.requestIdleCallback) {
+    window.requestIdleCallback(completeFontOptimizations);
+  } else {
+    setTimeout(completeFontOptimizations, 100);
+  }
 
 } else {
 }
@@ -237,21 +303,29 @@ if ('serviceWorker' in navigator) {
   }
 }
 
-// 🚀 Immediate Critical Loading - No Delay
-Promise.allSettled([
-  // Load i18n system immediately  
-  import('./i18n/index').catch(() => {}),
-  
-  // Load Supabase client immediately
-  import('./lib/supabase-unified')
-    .then(({ getSupabaseClient }) => getSupabaseClient())
-    .catch(() => {}),
-  
-  // Load theme system immediately
+// 🚀 تأجيل الأنظمة غير الحرجة لما بعد التفاعل الأول
+const deferNonCriticalSystems = () => {
+  import('./i18n/index').catch(() => {});
   import('./lib/themeManager').then(({ applyInstantTheme }) => {
     applyInstantTheme();
-  }).catch(() => {})
-]);
+  }).catch(() => {});
+};
+
+// استخدام requestIdleCallback إذا كان متوفراً، وإلا استخدم setTimeout
+if (typeof window !== 'undefined') {
+  if (window.requestIdleCallback) {
+    window.requestIdleCallback(deferNonCriticalSystems);
+  } else {
+    setTimeout(deferNonCriticalSystems, 500);
+  }
+}
+
+// 🔌 تحميل Supabase عند الطلب فقط لتقليل LCP
+(window as any).loadSupabase = () => {
+  return import('./lib/supabase-unified')
+    .then(({ getSupabaseClient }) => getSupabaseClient())
+    .catch(() => undefined);
+};
 
 // Defer non-critical systems
 setTimeout(() => {

@@ -7,13 +7,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  DropdownMenu,
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+ } from "@/components/ui/dropdown-menu";
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -51,6 +50,7 @@ import { deleteCategory, updateCategory, getSubcategories } from '@/lib/api/cate
 import EditCategoryDialog from './EditCategoryDialog';
 import { getLucideIcon } from '@/lib/utils';
 import CategoryDetailsDialog from './CategoryDetailsDialog';
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 interface CategoriesListProps {
   categories: Category[];

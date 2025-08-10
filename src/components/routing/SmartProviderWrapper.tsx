@@ -35,10 +35,29 @@ import AppWrapper from '@/components/AppWrapper';
 
 import queryClient from "@/lib/config/queryClient";
 import i18n from '@/i18n';
-import { applyFontsOptimized } from '@/utils/performanceOptimizer';
 
 // 🚨 إضافة نظام تتبع الأداء والمشاكل
 const PERFORMANCE_DEBUG = true; // تغيير إلى false في الإنتاج
+
+// دالة محسنة لتطبيق الخطوط
+const applyFontsOptimized = () => {
+  requestAnimationFrame(() => {
+    // إضافة class للجسم فقط (أكثر كفاءة)
+    document.body.classList.add('tajawal-forced');
+    
+    // تطبيق CSS عام عبر stylesheet بدلاً من تعديل كل عنصر
+    if (!document.getElementById('font-override-style')) {
+      const style = document.createElement('style');
+      style.id = 'font-override-style';
+      style.textContent = `
+        .tajawal-forced * {
+          font-family: "TajawalForced", "Tajawal", "Arial Unicode MS", "Tahoma", "Arial", sans-serif !important;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+  });
+};
 
 interface SmartProviderWrapperProps {
   children: ReactNode;
@@ -134,6 +153,7 @@ const PROVIDER_CONFIGS: Record<PageType, ProviderConfig> = {
     shop: false,   // ❌ غير مطلوب - يسبب طلبات مكررة
     apps: false,
     productPage: false,
+    productsPage: true, // ✅ مطلوب لتفعيل ProductsPageProvider لصفحة المنتجات
   },
   'max-store': {
     core: true,
@@ -300,6 +320,17 @@ const determinePageType = (pathname: string): PageType => {
     (hasSubdomainLocalhost || hasSubdomain || isCustomDomain)
   ) {
     pageType = 'public-product';
+  }
+  // صفحات المتجر العامة مع subdomain أو custom domain (مثل /products و /category/...)
+  else if (
+    (hasSubdomainLocalhost || hasSubdomain || isCustomDomain) &&
+    (
+      pathname === '/products' ||
+      pathname.includes('/category/') ||
+      pathname.includes('/products/details/')
+    )
+  ) {
+    pageType = 'public-store';
   }
   // 🔧 إصلاح: التعامل مع localhost بدون subdomain
   else if (isLocalhost) {
@@ -569,17 +600,31 @@ export const SmartProviderWrapper: React.FC<SmartProviderWrapperProps> = ({ chil
                         <UserProvider>
                                                   {/* للـ dashboard نحتاج OptimizedSharedStoreDataProvider لبعض الصفحات مثل Orders */}
                         {pageType === 'dashboard' || pageType === 'pos' ? (
-                          <OptimizedSharedStoreDataProvider>
-                            <ThemeProviderWrapper>
-                              <GlobalLoadingProvider>
-                                <NotificationsProvider>
-                                  <AppWrapper>
-                                    {content}
-                                  </AppWrapper>
-                                </NotificationsProvider>
-                              </GlobalLoadingProvider>
-                            </ThemeProviderWrapper>
-                          </OptimizedSharedStoreDataProvider>
+                          location.pathname.includes('/dashboard/orders-v2') ? (
+                            <MinimalOptimizedSharedStoreDataProvider>
+                              <ThemeProviderWrapper>
+                                <GlobalLoadingProvider>
+                                  <NotificationsProvider>
+                                    <AppWrapper>
+                                      {content}
+                                    </AppWrapper>
+                                  </NotificationsProvider>
+                                </GlobalLoadingProvider>
+                              </ThemeProviderWrapper>
+                            </MinimalOptimizedSharedStoreDataProvider>
+                          ) : (
+                            <OptimizedSharedStoreDataProvider>
+                              <ThemeProviderWrapper>
+                                <GlobalLoadingProvider>
+                                  <NotificationsProvider>
+                                    <AppWrapper>
+                                      {content}
+                                    </AppWrapper>
+                                  </NotificationsProvider>
+                                </GlobalLoadingProvider>
+                              </ThemeProviderWrapper>
+                            </OptimizedSharedStoreDataProvider>
+                          )
                         ) : pageType === 'public-product' ? (
                           <ProductPageSharedStoreDataProvider>
                             <ThemeProviderWrapper>

@@ -1,13 +1,12 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+ } from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,6 +35,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { OrderBulkActionsProps } from "./OrderTableTypes";
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 const OrderBulkActions = ({
   selectedOrders,

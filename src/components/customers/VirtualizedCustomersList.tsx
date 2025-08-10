@@ -3,14 +3,13 @@ import { Customer } from '@/types/customer';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { 
-  DropdownMenu,
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
+ } from "@/components/ui/dropdown-menu";
 import { 
   MoreHorizontal, 
   Edit, 
@@ -28,6 +27,7 @@ import CustomerDetailsDialog from './CustomerDetailsDialog';
 import EditCustomerDialog from './EditCustomerDialog';
 import ConfirmDialog from '@/components/ui/confirm-dialog';
 import { deleteCustomer } from '@/lib/api/customers';
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 interface VirtualizedCustomersListProps {
   customers: Customer[];

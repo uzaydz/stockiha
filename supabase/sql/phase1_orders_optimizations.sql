@@ -37,7 +37,8 @@ CREATE OR REPLACE FUNCTION public.get_orders_complete_data(
   -- New optional flags
   p_include_items boolean DEFAULT false,
   p_include_shared boolean DEFAULT false,
-  p_include_counts boolean DEFAULT true
+  p_include_counts boolean DEFAULT true,
+  p_fetch_all boolean DEFAULT false
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -112,7 +113,8 @@ BEGIN
         o.notes ILIKE '%' || p_search_term || '%'
       )
     ORDER BY 
-      CASE WHEN p_sort_by = 'created_at' AND p_sort_order = 'desc' THEN o.created_at END DESC,
+      -- إفتراضياً: الأحدث أولاً
+      CASE WHEN (p_sort_by IS NULL OR p_sort_by = 'created_at') AND (p_sort_order IS NULL OR p_sort_order = 'desc') THEN o.created_at END DESC,
       CASE WHEN p_sort_by = 'created_at' AND p_sort_order = 'asc' THEN o.created_at END ASC,
       CASE WHEN p_sort_by = 'total' AND p_sort_order = 'desc' THEN o.total END DESC,
       CASE WHEN p_sort_by = 'total' AND p_sort_order = 'asc' THEN o.total END ASC,
@@ -125,6 +127,9 @@ BEGIN
   paginated_orders AS (
     SELECT * FROM filtered_orders
     LIMIT p_page_size OFFSET v_offset
+  ),
+  all_orders AS (
+    SELECT * FROM filtered_orders
   ),
   items_agg AS (
     SELECT 
@@ -145,8 +150,17 @@ BEGIN
         )
       ) AS items_data
     FROM online_order_items oi
-    WHERE p_include_items = TRUE AND oi.order_id IN (SELECT id FROM paginated_orders)
+    WHERE p_include_items = TRUE AND oi.order_id IN (
+      SELECT id FROM all_orders WHERE p_fetch_all = TRUE
+      UNION ALL
+      SELECT id FROM paginated_orders WHERE p_fetch_all = FALSE
+    )
     GROUP BY oi.order_id
+  ),
+  selected_orders AS (
+    SELECT * FROM all_orders WHERE p_fetch_all = TRUE
+    UNION ALL
+    SELECT * FROM paginated_orders WHERE p_fetch_all = FALSE
   ),
   order_with_relations AS (
     SELECT 
@@ -180,7 +194,7 @@ BEGIN
         jsonb_build_object('id', ccs.id, 'name', ccs.name, 'color', ccs.color, 'icon', ccs.icon, 'is_default', ccs.is_default)
       ELSE NULL END AS call_confirmation_status_data,
       COALESCE(i.items_data, '[]'::jsonb) AS order_items
-    FROM paginated_orders o
+    FROM selected_orders o
     LEFT JOIN customers c ON c.id = o.customer_id
     LEFT JOIN guest_customers gc ON gc.id = o.customer_id
     LEFT JOIN addresses a ON a.id = o.shipping_address_id
@@ -230,6 +244,13 @@ BEGIN
       'customer', o.customer_data,
       'shipping_address', o.shipping_address_data,
       'call_confirmation_status', o.call_confirmation_status_data,
+      -- توفير حالات تأكيد الاتصال لاستخدام خفيف على الواجهة بدون Context
+      'available_call_statuses', (
+        SELECT COALESCE(jsonb_agg(jsonb_build_object('id', cs.id, 'name', cs.name, 'color', cs.color, 'icon', cs.icon, 'is_default', cs.is_default) ORDER BY cs.is_default DESC, cs.name), '[]'::jsonb)
+        FROM call_confirmation_statuses cs
+        WHERE cs.organization_id = p_organization_id
+      ),
+      -- تمرير عناصر الطلب ضمن نفس الاستجابة (بدون أي استدعاء لاحق)
       'order_items', CASE WHEN p_include_items THEN o.order_items ELSE '[]'::jsonb END
     )
   ) INTO v_orders
@@ -237,8 +258,8 @@ BEGIN
   
   v_performance_log := v_performance_log || jsonb_build_object('step','fetch_orders','duration_ms', EXTRACT(epoch FROM (NOW()-v_step_start))*1000);
 
-  -- Counts (optional)
-  IF p_include_counts THEN
+  -- Counts (optional)؛ عند الجلب الكامل احسب دائماً الإجمالي لضبط الصفحات محلياً
+  IF p_include_counts OR p_fetch_all THEN
     v_step_start := NOW();
     SELECT COUNT(*) INTO v_total_orders
     FROM online_orders o
@@ -314,6 +335,15 @@ BEGIN
         SELECT jsonb_agg(jsonb_build_object('id', sdv.id, 'provider_id', sdv.provider_id, 'provider_code', sdv.provider_code, 'provider_name', sdv.provider_name, 'is_enabled', sdv.is_enabled))
         FROM shipping_data_view sdv
         WHERE sdv.organization_id = p_organization_id AND sdv.is_enabled = TRUE AND sdv.provider_id IS NOT NULL
+      ),
+      'organizationSettings', (
+        SELECT jsonb_build_object(
+          'auto_deduct_inventory', COALESCE((os.custom_js::jsonb ->> 'auto_deduct_inventory')::boolean, false),
+          'trackingPixels', COALESCE(os.custom_js::jsonb -> 'trackingPixels', '{}'::jsonb)
+        )
+        FROM organization_settings os
+        WHERE os.organization_id = p_organization_id
+        LIMIT 1
       )
     ) INTO v_shared_data;
     v_performance_log := v_performance_log || jsonb_build_object('step','shared_data','duration_ms', EXTRACT(epoch FROM (NOW()-v_step_start))*1000);
@@ -324,9 +354,9 @@ BEGIN
     'pagination', jsonb_build_object(
       'page', p_page,
       'pageSize', p_page_size,
-      'totalItems', v_total_orders,
-      'totalPages', CASE WHEN p_include_counts THEN CEIL(v_total_orders::DECIMAL / p_page_size) ELSE NULL END,
-      'hasNextPage', CASE WHEN p_include_counts THEN (p_page * p_page_size) < v_total_orders ELSE NULL END,
+      'totalItems', CASE WHEN (p_include_counts OR p_fetch_all) THEN v_total_orders ELSE v_total_orders END,
+      'totalPages', CASE WHEN (p_include_counts OR p_fetch_all) THEN CEIL(GREATEST(v_total_orders,0)::DECIMAL / NULLIF(p_page_size,0)) ELSE NULL END,
+      'hasNextPage', CASE WHEN p_fetch_all THEN FALSE ELSE CASE WHEN p_include_counts THEN (p_page * p_page_size) < v_total_orders ELSE NULL END END,
       'hasPreviousPage', p_page > 1
     ),
     'filters', jsonb_build_object(
@@ -342,7 +372,8 @@ BEGIN
       'totalDurationMs', EXTRACT(epoch FROM (NOW() - v_start_time)) * 1000,
       'steps', v_performance_log,
       'optimizationVersion', '1.1',
-      'singleQuery', true
+      'singleQuery', true,
+      'fetchedAll', p_fetch_all
     ),
     'dataFreshness', jsonb_build_object('fetchedAt', NOW(), 'cacheStatus', 'fresh')
   ) INTO v_metadata;

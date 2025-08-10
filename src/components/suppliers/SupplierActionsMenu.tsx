@@ -1,16 +1,16 @@
 import React from 'react';
 import { MoreHorizontal, Edit, Trash, ShoppingCart, CreditCard, BarChart } from 'lucide-react';
-import {
-  DropdownMenu,
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+ } from "@/components/ui/dropdown-menu";
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { Supplier } from '@/api/supplierService';
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 interface SupplierActionsMenuProps {
   supplier: Supplier;

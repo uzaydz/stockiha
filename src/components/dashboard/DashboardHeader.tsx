@@ -4,15 +4,15 @@ import { useTenant } from '@/context/TenantContext';
 import { CalendarIcon, Bell, Menu as MenuIcon, Settings, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import {
-  DropdownMenu,
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { useLocation, useNavigate } from 'react-router-dom';
+ } from "@/components/ui/dropdown-menu";
+import { useLocation, useNavigate } from 'react-router-dom';import { useOptimizedClickHandler } from "@/lib/performance-utils";
+
 import {
   Tabs,
   TabsContent,

@@ -10,12 +10,11 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import {
-  DropdownMenu,
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+ } from "@/components/ui/dropdown-menu";
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -29,6 +28,7 @@ import { format } from 'date-fns';
 import { ActivationCodeBatch } from '@/types/activation';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/ui/use-toast';
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 interface Props {
   batches: ActivationCodeBatch[];

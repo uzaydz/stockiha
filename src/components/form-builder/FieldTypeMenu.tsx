@@ -2,15 +2,15 @@ import { Separator } from "@/components/ui/separator";
 import { FormField as IFormField } from '@/api/form-settings';
 import { Button } from "@/components/ui/button";
 import { PlusCircle, Type, Mail, Phone, ListFilter, CheckSquare, MapPin, Building, TextIcon } from "lucide-react";
-import {
-  DropdownMenu,
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+ } from "@/components/ui/dropdown-menu";
 import { Truck } from "lucide-react";
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 interface FieldTypeMenuProps {
   onSelectFieldType: (type: IFormField['type']) => void;

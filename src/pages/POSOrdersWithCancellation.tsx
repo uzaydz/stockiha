@@ -6,13 +6,13 @@ import { CancelOrderDialog } from '@/components/pos-orders/CancelOrderDialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { 
-  DropdownMenu,
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger 
-} from '@/components/ui/dropdown-menu';
+ } from "@/components/ui/dropdown-menu";
 import { MoreHorizontal, Ban, Eye, Edit, Trash } from 'lucide-react';
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 interface POSOrdersWithCancellationProps {
   // يمكن إضافة خصائص أخرى حسب الحاجة

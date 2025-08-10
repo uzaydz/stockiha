@@ -5,9 +5,8 @@
    ================================================================= */
 
 /* 🎨 تحميل خطوط Tajawal محلياً (Self-Hosted) لأداء أفضل - يقلل Render Blocking */
-@import "@fontsource/tajawal/400.css";
-@import "@fontsource/tajawal/500.css"; 
-@import "@fontsource/tajawal/700.css";
+/* إزالة استيراد خطوط إضافية لتقليل تغييرات التخطيط وتقليل CLS */
+/* تم الإبقاء على الخطوط المحلية عبر public/fonts */
 
 /* استيراد ملفات CSS الإضافية - محسن */
 @import './components/landing-page-builder/styles/cta-button.css';
@@ -19,7 +18,7 @@
   font-family: 'TajawalForced';
   font-style: normal;
   font-weight: 400;
-  font-display: block; /* تغيير من swap إلى block لضمان التحميل */
+  font-display: swap;
   src: url('/fonts/tajawal-regular.woff2') format('woff2'),
        url('./fonts/tajawal-regular.woff2') format('woff2'),
        url('../public/fonts/tajawal-regular.woff2') format('woff2');
@@ -29,7 +28,7 @@
   font-family: 'TajawalForced';
   font-style: normal;
   font-weight: 500;
-  font-display: block;
+  font-display: swap;
   src: url('/fonts/tajawal-medium.woff2') format('woff2'),
        url('./fonts/tajawal-medium.woff2') format('woff2'),
        url('../public/fonts/tajawal-medium.woff2') format('woff2');
@@ -39,7 +38,7 @@
   font-family: 'TajawalForced';
   font-style: normal;
   font-weight: 700;
-  font-display: block;
+  font-display: swap;
   src: url('/fonts/tajawal-bold.woff2') format('woff2'),
        url('./fonts/tajawal-bold.woff2') format('woff2'),
        url('../public/fonts/tajawal-bold.woff2') format('woff2');
@@ -49,7 +48,7 @@
   font-family: 'Tajawal';
   font-style: normal;
   font-weight: 400;
-  font-display: block;
+  font-display: swap;
   src: url('/fonts/tajawal-regular.woff2') format('woff2'),
        url('./fonts/tajawal-regular.woff2') format('woff2'),
        url('../public/fonts/tajawal-regular.woff2') format('woff2');
@@ -59,7 +58,7 @@
   font-family: 'Tajawal';
   font-style: normal;
   font-weight: 500;
-  font-display: block;
+  font-display: swap;
   src: url('/fonts/tajawal-medium.woff2') format('woff2'),
        url('./fonts/tajawal-medium.woff2') format('woff2'),
        url('../public/fonts/tajawal-medium.woff2') format('woff2');
@@ -69,7 +68,7 @@
   font-family: 'Tajawal';
   font-style: normal;
   font-weight: 700;
-  font-display: block;
+  font-display: swap;
   src: url('/fonts/tajawal-bold.woff2') format('woff2'),
        url('./fonts/tajawal-bold.woff2') format('woff2'),
        url('../public/fonts/tajawal-bold.woff2') format('woff2');
@@ -150,11 +149,15 @@ h1, h2, h3, h4, h5, h6, p, span, div, a, button, input, textarea, select, label 
 
     --primary: 217.2 91.2% 59.8%;
     --primary-foreground: 210 40% 98%;
+    --primary-hover: 217.2 91.2% 45%;
+    --primary-hover-foreground: 210 40% 98%;
     --primary-lighter: 217.2 91.2% 85%;
     --primary-darker: 217.2 91.2% 35%;
 
     --secondary: 210 40% 96%;
     --secondary-foreground: 222.2 84% 4.9%;
+    --secondary-hover: 210 40% 88%;
+    --secondary-hover-foreground: 222.2 84% 4.9%;
 
     --muted: 210 40% 96%;
     --muted-foreground: 215.4 16.3% 46.9%;

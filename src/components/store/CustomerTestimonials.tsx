@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Quote, Star, Verified } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { motion, AnimatePresence } from "framer-motion";
 import TestimonialCard, { Testimonial } from "./TestimonialCard";
 import { getTestimonials } from "@/lib/api/testimonials";
 import { useTranslation } from 'react-i18next';
@@ -208,6 +209,17 @@ export function CustomerTestimonials({
     );
   };
 
+  // Auto-scroll للشهادات كل 5 ثوان
+  useEffect(() => {
+    if (testimonials.length <= displayedCount) return;
+    
+    const interval = setInterval(() => {
+      handleNext();
+    }, 5000);
+    
+    return () => clearInterval(interval);
+  }, [testimonials.length, displayedCount]);
+
   const visibleTestimonials = Array.from({ length: displayedCount }).map(
     (_, index) => {
       const testimonialIndex = (activeIndex + index) % testimonials.length;
@@ -226,86 +238,192 @@ export function CustomerTestimonials({
     );
   }
 
+  // مكون بطاقة شهادة بتصميم جديد كلياً
+  const ElegantTestimonialCard = ({ testimonial, index }: { testimonial: Testimonial; index: number }) => (
+    <motion.div
+      initial={{ opacity: 0, y: 50 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: index * 0.1 }}
+      className="group relative"
+    >
+      {/* البطاقة الرئيسية */}
+      <div className="relative p-6 bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 hover:border-primary/20 dark:hover:border-primary/30 transition-all duration-300 hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-1 group-hover:scale-[1.02]">
+        
+        {/* شريط علوي ملون */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary to-secondary rounded-t-2xl"></div>
+        
+        {/* المحتوى */}
+        <div className="space-y-4">
+          
+          {/* النجوم والتقييم */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1">
+              {[...Array(5)].map((_, i) => (
+                <Star
+                  key={i}
+                  className={cn(
+                    "w-4 h-4",
+                    i < Math.floor(testimonial.rating) 
+                      ? "text-yellow-400 fill-yellow-400" 
+                      : "text-gray-200 dark:text-gray-700"
+                  )}
+                />
+              ))}
+            </div>
+            {testimonial.verified && (
+              <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                <Verified className="w-4 h-4" />
+                <span className="text-xs font-medium">مؤكد</span>
+              </div>
+            )}
+          </div>
+
+          {/* نص الشهادة */}
+          <blockquote className="text-gray-700 dark:text-gray-300 leading-relaxed relative">
+            <Quote className="absolute -top-2 -right-2 w-8 h-8 text-primary/20 transform rotate-180" />
+            <p className="text-base relative z-10 pr-4">
+              {testimonial.comment}
+            </p>
+          </blockquote>
+
+          {/* خط فاصل رفيع */}
+          <div className="h-px bg-gradient-to-r from-transparent via-gray-200 dark:via-gray-700 to-transparent"></div>
+
+          {/* معلومات العميل */}
+          <div className="flex items-center gap-3">
+            <img
+              src={testimonial.customerAvatar}
+              alt={testimonial.customerName}
+              className="w-10 h-10 rounded-full object-cover"
+              loading="lazy"
+            />
+            <div className="flex-1">
+              <h4 className="font-medium text-gray-900 dark:text-gray-100 text-sm">
+                {testimonial.customerName}
+              </h4>
+              {testimonial.productName && (
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  اشترى {testimonial.productName}
+                </p>
+              )}
+            </div>
+            <div className="text-right">
+              <div className="text-lg font-bold text-primary">
+                {testimonial.rating}
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                من 5
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+
   return (
-    <div className={cn("py-12 px-4", getSectionClassNames())} dir="rtl">
-      <div className="max-w-7xl mx-auto">
-        <div className="text-center mb-10">
-          <h2 className="text-3xl font-bold mb-2">{displayTitle}</h2>
-          <p className={cn(
-            "max-w-2xl mx-auto",
-            backgroundColor === 'dark' ? 'text-gray-300' : 'text-gray-600 dark:text-gray-400'
-          )}>
+    <section className={cn("py-16 px-4", getSectionClassNames())} dir="rtl">
+      <div className="max-w-6xl mx-auto">
+        
+        {/* العنوان والوصف بتصميم بسيط */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.5 }}
+          className="text-center mb-12"
+        >
+          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-gray-100 mb-4">
+            {displayTitle}
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
             {displayDescription}
           </p>
-        </div>
+        </motion.div>
 
         {testimonials.length > 0 ? (
           <div className="relative">
-            <div className="flex justify-between items-center mb-6">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handlePrevious}
-                aria-label={t('customerTestimonials.previousItem')}
-                className="h-10 w-10 rounded-full"
-                disabled={testimonials.length <= displayedCount}
-              >
-                <ChevronRight className="h-6 w-6" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleNext}
-                aria-label={t('customerTestimonials.nextItem')}
-                className="h-10 w-10 rounded-full"
-                disabled={testimonials.length <= displayedCount}
-              >
-                <ChevronLeft className="h-6 w-6" />
-              </Button>
-            </div>
+            
+            {/* أزرار التنقل المبسطة */}
+            {testimonials.length > displayedCount && (
+              <div className="flex justify-center gap-4 mb-8">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePrevious}
+                  aria-label={t('customerTestimonials.previousItem')}
+                  className="rounded-full"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleNext}
+                  aria-label={t('customerTestimonials.nextItem')}
+                  className="rounded-full"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+              </div>
+            )}
 
+            {/* الشهادات */}
             <div className={cn(
               "grid gap-6",
-              displayedCount === 1 ? "grid-cols-1" :
+              displayedCount === 1 ? "grid-cols-1 max-w-2xl mx-auto" :
                 displayedCount === 2 ? "grid-cols-1 md:grid-cols-2" :
-                  "grid-cols-1 md:grid-cols-2 xl:grid-cols-3"
+                  "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
             )}>
-              {visibleTestimonials.map((testimonial, index) => (
-                <div key={`testimonial-${testimonial.id}-${activeIndex + index}`} className="h-full">
-                  <div className={getCardClassNames()}>
-                    <TestimonialCard testimonial={testimonial} />
-                  </div>
-                </div>
-              ))}
+              <AnimatePresence mode="wait">
+                {visibleTestimonials.map((testimonial, index) => (
+                  <ElegantTestimonialCard
+                    key={`testimonial-${testimonial.id}-${activeIndex + index}`}
+                    testimonial={testimonial}
+                    index={index}
+                  />
+                ))}
+              </AnimatePresence>
             </div>
 
+            {/* مؤشرات التنقل المبسطة */}
             {testimonials.length > displayedCount && (
-              <div className="flex justify-center mt-8">
-                {testimonials.map((_, index) => (
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.3 }}
+                className="flex justify-center mt-8 gap-2"
+              >
+                {Array.from({ length: Math.ceil(testimonials.length / displayedCount) }).map((_, index) => (
                   <button
                     key={`nav-dot-${index}`}
-                    onClick={() => setActiveIndex(index)}
+                    onClick={() => setActiveIndex(index * displayedCount)}
                     className={cn(
-                      "h-2 w-2 mx-1 rounded-full transition-colors",
-                      index >= activeIndex && index < activeIndex + displayedCount
-                        ? "bg-primary"
-                        : backgroundColor === 'dark'
-                          ? "bg-gray-700 hover:bg-gray-600"
-                          : "bg-gray-300 dark:bg-gray-700 hover:bg-gray-400 dark:hover:bg-gray-600"
+                      "w-2 h-2 rounded-full transition-all duration-300",
+                      Math.floor(activeIndex / displayedCount) === index
+                        ? "bg-primary scale-125"
+                        : "bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500"
                     )}
                     aria-label={`${t('customerTestimonials.item')} ${index + 1}`}
                   />
                 ))}
-              </div>
+              </motion.div>
             )}
           </div>
         ) : (
-          <div className="text-center py-10 bg-muted/20 rounded-lg border border-dashed border-muted-foreground/30">
-            <p className="text-muted-foreground">{t('customerTestimonials.noTestimonials')}</p>
-          </div>
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center py-16 border border-dashed border-gray-300 dark:border-gray-600 rounded-2xl"
+          >
+            <Quote className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-500 dark:text-gray-400">
+              {t('customerTestimonials.noTestimonials')}
+            </p>
+          </motion.div>
         )}
       </div>
-    </div>
+    </section>
   );
 }
 

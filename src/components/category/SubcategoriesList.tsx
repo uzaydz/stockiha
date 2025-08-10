@@ -7,13 +7,12 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import {
-  DropdownMenu,
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+ } from "@/components/ui/dropdown-menu";
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
@@ -47,6 +46,7 @@ import {
 import type { Category, Subcategory } from '@/lib/api/categories';
 import { getSubcategories, deleteSubcategory } from '@/lib/api/categories';
 import AddSubcategoryDialog from './AddSubcategoryDialog';
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 interface SubcategoriesListProps {
   category: Category;

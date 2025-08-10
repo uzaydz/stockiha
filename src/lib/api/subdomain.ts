@@ -8,6 +8,9 @@ import { isValidUuid } from '@/utils/uuid-helpers';
 // For now, let's assume a simple type for the return
 type Organization = any; // Replace with actual Organization type
 
+// منع تكرار الطلبات المتوازية لنفس المفتاح
+const pendingOrgRequests: Record<string, Promise<Organization | null>> = {};
+
 /**
  * التحقق من توفر النطاق الفرعي مع معالجة محسنة للأخطاء
  */
@@ -48,19 +51,15 @@ export const checkSubdomainAvailability = async (subdomain: string): Promise<{
       .maybeSingle();
 
     if (error) {
-      console.error('خطأ في التحقق من النطاق الفرعي:', error);
       return { available: false, error };
     }
 
     if (data && data.id) {
-      console.log('النطاق الفرعي مستخدم بالفعل:', cleanSubdomain, 'المؤسسة:', data.name);
       return { available: false };
     }
 
-    console.log('النطاق الفرعي متاح:', cleanSubdomain);
     return { available: true };
   } catch (error) {
-    console.error('خطأ غير متوقع في التحقق من النطاق الفرعي:', error);
     return { available: false, error: error as Error };
   }
 };
@@ -83,28 +82,22 @@ export const checkSubdomainAvailabilityWithRetry = async (
     .replace(/[^a-z0-9-]/g, '') // إزالة الأحرف غير المسموحة
     .replace(/^-+|-+$/g, '') // إزالة الشرطات من البداية والنهاية
     .replace(/-+/g, '-'); // تحويل الشرطات المتعددة إلى شرطة واحدة
-  
-  console.log('بدء التحقق من النطاق الفرعي:', cleanSubdomain);
-  
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    console.log(`محاولة ${attempt} من ${maxRetries}`);
     
     const result = await checkSubdomainAvailability(cleanSubdomain);
 
     // إذا نجح الفحص أو كان النطاق غير متاح، أرجع النتيجة
     if (!result.error || !result.available) {
-      console.log('نتيجة التحقق:', result);
       return result;
     }
     
     // إذا كان هناك خطأ، انتظر قليلاً قبل إعادة المحاولة
     if (attempt < maxRetries) {
-      console.log(`انتظار ${attempt} ثانية قبل إعادة المحاولة`);
       await new Promise(resolve => setTimeout(resolve, attempt * 1000));
     }
   }
   
-  console.log(`فشل في التحقق من توفر النطاق الفرعي بعد ${maxRetries} محاولات`);
   return { 
     available: false, 
     error: new Error(`فشل في التحقق من توفر النطاق الفرعي بعد ${maxRetries} محاولات`) 
@@ -180,7 +173,12 @@ export const getOrganizationBySubdomain = async (subdomain: string): Promise<Org
 
   const cacheKey = `organization_subdomain:${cleanSubdomain}`;
 
-  return withCache<Organization | null>(
+  // Dedup: إذا كان هناك طلب جارٍ لنفس المفتاح، استخدمه
+  if (pendingOrgRequests[cacheKey]) {
+    return pendingOrgRequests[cacheKey];
+  }
+
+  const exec = withCache<Organization | null>(
     cacheKey,
     async () => {
       try {
@@ -192,26 +190,22 @@ export const getOrganizationBySubdomain = async (subdomain: string): Promise<Org
           .from('organizations')
           .select('*')
           .eq('subdomain', cleanSubdomain)
-          .single();
+          .maybeSingle();
         
         if (error) {
-          // Don't log verbose errors for not found, as single() will error
-          if (error.code !== 'PGRST116') { // PGRST116: "The result contains 0 rows"
-          } else {
-          }
+          // في maybeSingle، الأخطاء الحرجة فقط، وإلا null
           return null;
         }
-        
-        if (data) {
-        }
-        
-        return data as Organization || null;
+        return (data as Organization) || null;
       } catch (error) {
         return null;
       }
     },
     DEFAULT_CACHE_TTL // Use default TTL
   );
+
+  pendingOrgRequests[cacheKey] = exec.finally(() => { delete pendingOrgRequests[cacheKey]; });
+  return pendingOrgRequests[cacheKey];
 };
 
 /**
@@ -234,7 +228,12 @@ export const getOrganizationByDomain = async (domain: string): Promise<Organizat
 
   const cacheKey = `organization_domain:${cleanDomain}`;
 
-  return withCache<Organization | null>(
+  // Dedup: إذا كان هناك طلب جارٍ لنفس المفتاح، استخدمه
+  if (pendingOrgRequests[cacheKey]) {
+    return pendingOrgRequests[cacheKey];
+  }
+
+  const exec = withCache<Organization | null>(
     cacheKey,
     async () => {
       try {
@@ -281,6 +280,9 @@ export const getOrganizationByDomain = async (domain: string): Promise<Organizat
     },
     DEFAULT_CACHE_TTL // Use default TTL
   );
+
+  pendingOrgRequests[cacheKey] = exec.finally(() => { delete pendingOrgRequests[cacheKey]; });
+  return pendingOrgRequests[cacheKey];
 };
 
 /**

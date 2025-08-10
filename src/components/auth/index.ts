@@ -9,4 +9,4 @@ export { default as PasswordInput } from './PasswordInput';
 export { default as PasswordStrengthIndicator } from './PasswordStrengthIndicator';
 
 // تصدير الأنواع
-export type { PasswordStrength } from './PasswordStrengthIndicator'; 
+export type { PasswordStrength } from './PasswordStrengthIndicator';

@@ -1,0 +1,167 @@
+/* تنسيقات خاصة ببطاقات الطلبات للهاتف */
+
+/* تحسينات الأداء للبطاقات */
+.order-card {
+  will-change: transform, opacity;
+  contain: layout style paint;
+}
+
+/* تحسين التمرير للبطاقات */
+.cards-container {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* تحسينات التفاعل اللمسي */
+.order-card:active {
+  transform: scale(0.98);
+  transition: transform 0.1s ease-out;
+}
+
+/* تحسين عرض البطاقات في الشبكة */
+.cards-grid {
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+
+@media (max-width: 640px) {
+  .cards-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+  .cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+}
+
+@media (min-width: 1025px) {
+  .cards-grid {
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 20px;
+  }
+}
+
+/* تحسين العرض في وضع القائمة */
+.cards-list .order-card {
+  max-width: 100%;
+}
+
+/* تأثيرات الحركة المحسنة */
+.order-card-enter {
+  opacity: 0;
+  transform: translateY(20px);
+}
+
+.order-card-enter-active {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 300ms ease-out, transform 300ms ease-out;
+}
+
+.order-card-exit {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.order-card-exit-active {
+  opacity: 0;
+  transform: translateY(-20px);
+  transition: opacity 200ms ease-in, transform 200ms ease-in;
+}
+
+/* تحسين عرض الحالات الفارغة */
+.empty-state {
+  min-height: 400px;
+}
+
+/* تحسين أداء التمرير اللانهائي */
+.infinite-scroll-sentinel {
+  height: 1px;
+  margin: 20px 0;
+}
+
+/* تحسينات إضافية للأداء */
+.order-card img {
+  content-visibility: auto;
+  contain-intrinsic-size: 40px 40px;
+}
+
+/* تحسين عرض النصوص الطويلة */
+.order-card .truncate-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-card .truncate-multiline {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.4;
+  max-height: 2.8em;
+}
+
+/* تحسين عرض الأزرار في البطاقات */
+.order-card .action-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 480px) {
+  .order-card .action-buttons {
+    flex-direction: column;
+  }
+  
+  .order-card .action-buttons button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* تحسين عرض الحالات */
+.status-badge {
+  min-width: fit-content;
+  white-space: nowrap;
+}
+
+/* تحسين العرض في الوضع المظلم */
+@media (prefers-color-scheme: dark) {
+  .order-card {
+    backdrop-filter: blur(10px);
+  }
+}
+
+/* تحسين إمكانية الوصول */
+.order-card:focus-within {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+}
+
+/* تحسين عرض المعلومات المهمة */
+.order-card .highlight-info {
+  background: linear-gradient(135deg, hsl(var(--primary) / 0.1), hsl(var(--primary) / 0.05));
+  border: 1px solid hsl(var(--primary) / 0.2);
+}
+
+/* تحسين التفاعل مع اللمس */
+@media (hover: none) and (pointer: coarse) {
+  .order-card:hover {
+    transform: none;
+  }
+  
+  .order-card:active {
+    transform: scale(0.98);
+  }
+}
+
+/* تحسين العرض للشاشات عالية الكثافة */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .order-card {
+    border-width: 0.5px;
+  }
+}

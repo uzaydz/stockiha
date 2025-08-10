@@ -28,7 +28,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger  } from "@/components/ui/dropdown-menu";
 import { useToast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
 import { 
@@ -49,7 +49,8 @@ import {
 } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { format } from 'date-fns';
-import { ar } from 'date-fns/locale';
+import { ar } from 'date-fns/locale';import { useOptimizedClickHandler } from "@/lib/performance-utils";
+
 import {
   AlertDialog,
   AlertDialogAction,

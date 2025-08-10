@@ -24,8 +24,6 @@ export const createOrganizationFinal = async (
       .replace(/^-+|-+$/g, '') // إزالة الشرطات من البداية والنهاية
       .replace(/-+/g, '-'); // تحويل الشرطات المتعددة إلى شرطة واحدة
 
-    console.log('بدء إنشاء المؤسسة:', { organizationName, subdomain: cleanSubdomain, userId, email });
-    
     // استخدام supabase عادي بدلاً من supabaseAdmin لتجنب مشكلة read-only transaction
     const { data: result, error } = await supabase.rpc(
       'create_organization_final' as any,
@@ -83,9 +81,7 @@ const createOrganizationDirect = async (
   settings: Record<string, any>
 ): Promise<{ success: boolean; error: Error | null; organizationId?: string; details?: any }> => {
   try {
-    
-    console.log('بدء إنشاء المؤسسة مباشرة:', { organizationName, subdomain, userId });
-    
+
     // تنظيف النطاق الفرعي قبل التحقق
     const cleanSubdomain = subdomain
       .toLowerCase()
@@ -103,7 +99,6 @@ const createOrganizationDirect = async (
       .single();
 
     if (existingOrg) {
-      console.log('المؤسسة موجودة بالفعل:', existingOrg.id);
       
       // ربط المستخدم بالمؤسسة الموجودة
       const { error: linkError } = await supabase
@@ -122,11 +117,9 @@ const createOrganizationDirect = async (
         });
 
       if (linkError) {
-        console.error('خطأ في ربط المستخدم بالمؤسسة الموجودة:', linkError);
         return { success: false, error: linkError as Error };
       }
 
-      console.log('تم ربط المستخدم بالمؤسسة الموجودة بنجاح');
       return { 
         success: true, 
         error: null, 
@@ -136,7 +129,6 @@ const createOrganizationDirect = async (
     }
 
     // 2. إنشاء المؤسسة الجديدة
-    console.log('إنشاء مؤسسة جديدة...');
     const { data: newOrg, error: orgError } = await supabase
       .from('organizations')
       .insert({
@@ -153,14 +145,10 @@ const createOrganizationDirect = async (
       .single();
 
     if (orgError) {
-      console.error('خطأ في إنشاء المؤسسة:', orgError);
       return { success: false, error: orgError as Error };
     }
 
-    console.log('تم إنشاء المؤسسة بنجاح:', newOrg.id);
-
     // 3. إنشاء أو تحديث المستخدم
-    console.log('إنشاء/تحديث المستخدم...');
     const { error: userError } = await supabase
       .from('users')
       .upsert({
@@ -177,10 +165,8 @@ const createOrganizationDirect = async (
       });
 
     if (userError) {
-      console.error('خطأ في إنشاء/تحديث المستخدم:', userError);
       // لا نفشل العملية كاملة، المؤسسة تم إنشاؤها
     } else {
-      console.log('تم إنشاء/تحديث المستخدم بنجاح');
     }
 
     // 4. إنشاء إعدادات المؤسسة

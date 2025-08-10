@@ -141,7 +141,6 @@ ${additionalDetails ? `تفاصيل إضافية: ${additionalDetails.trim()}` :
     });
 
     if (!response.ok) {
-      console.error('OpenRouter API error:', response.status, response.statusText);
       return res.status(500).json({ 
         success: false, 
         error: `خطأ في الاتصال بالخدمة: ${response.status}` 
@@ -190,10 +189,9 @@ ${additionalDetails ? `تفاصيل إضافية: ${additionalDetails.trim()}` :
     });
 
   } catch (error) {
-    console.error('Error generating description:', error);
     return res.status(500).json({ 
       success: false, 
       error: error instanceof Error ? error.message : 'حدث خطأ أثناء توليد الوصف' 
     });
   }
-} 
+}

@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from "react";
-import {
-  DropdownMenu,
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
+ } from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -35,6 +34,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useOrdersData } from "@/context/OrdersDataContext";
 import type { CallConfirmationStatus } from "@/context/OrdersDataContext";
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 // نوع خصائص مكون القائمة المنسدلة
 type CallConfirmationDropdownProps = {
@@ -221,6 +221,7 @@ const CallConfirmationDropdown = ({
           align="end"
           alignOffset={0}
           className="min-w-[180px] p-1 rounded-lg border shadow-lg"
+          style={{ willChange: 'transform', contain: 'layout paint', contentVisibility: 'auto' as any }}
         >
           {statuses.length > 0 ? (
             statuses.map((status) => {

@@ -3,12 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { 
-  DropdownMenu, 
+import { DropdownMenu, 
   DropdownMenuContent, 
   DropdownMenuItem, 
   DropdownMenuTrigger 
-} from '@/components/ui/dropdown-menu';
+ } from "@/components/ui/dropdown-menu";
 import { 
   Dialog, 
   DialogContent, 
@@ -36,6 +35,7 @@ import {
 import { useCallCenterAgents } from '@/hooks/useCallCenterAgents';
 import type { CallCenterAgent } from '@/types/call-center.types';
 import AddAgentDialog from './AddAgentDialog';
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 interface AgentFormData {
   user_id: string;

@@ -124,7 +124,6 @@ export const signIn = async (email: string, password: string): Promise<SignInRes
           };
         } else if (error.message?.toLowerCase().includes('captcha')) {
           // معالجة خاصة لخطأ CAPTCHA - محاولة إعادة تسجيل الدخول بدون CAPTCHA
-          console.warn('CAPTCHA error detected, attempting alternative login method');
           
           // محاولة إعادة تسجيل الدخول مع إعدادات مختلفة
           try {

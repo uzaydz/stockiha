@@ -182,7 +182,6 @@ ${additionalDetails ? `تفاصيل إضافية: ${additionalDetails}` : ''}
       }));
 
     } catch (error) {
-      console.error('Error generating description:', error);
       setGenerationState(prev => ({
         ...prev,
         isGenerating: false,
@@ -418,4 +417,4 @@ ${additionalDetails ? `تفاصيل إضافية: ${additionalDetails}` : ''}
       </Dialog>
     </TooltipProvider>
   );
-} 
+}

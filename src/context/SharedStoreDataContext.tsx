@@ -1,8 +1,9 @@
-import React, { createContext, useContext, ReactNode, useMemo } from 'react';
+import React, { createContext, useContext, ReactNode, useMemo, useEffect } from 'react';
 import { useSharedStoreData } from '@/hooks/useSharedStoreData';
+import { OptimizedSharedStoreDataContext, type OptimizedSharedStoreDataContextType } from '@/context/OptimizedSharedStoreDataContext';
 
 // نوع البيانات المشتركة
-interface SharedStoreDataContextType {
+export interface SharedStoreDataContextType {
   organization: any | null;
   organizationSettings: any | null;
   products: any[];
@@ -21,10 +22,14 @@ interface SharedStoreDataContextType {
 function useSharedStoreDataSafe() {
   try {
     // استخدام خيارات أخف: فئات + منتجات مميزة فقط (بدون قائمة منتجات كاملة)
+    // في صفحة شراء المنتج، لا نحتاج أي جلب عام لمنع التكرار مع جلب المنتج الكامل
+    const isProductPurchasePage = typeof window !== 'undefined' && window.location.pathname.includes('/product-purchase');
+    
     return useSharedStoreData({
       includeCategories: true,
       includeProducts: false,
-      includeFeaturedProducts: true
+      includeFeaturedProducts: true,
+      enabled: !isProductPurchasePage
     });
   } catch (error) {
     // إذا كان الخطأ متعلق بـ TenantProvider، أرجع قيم افتراضية
@@ -50,12 +55,10 @@ function useSharedStoreDataSafe() {
 }
 
 // السياق المركزي
-const SharedStoreDataContext = createContext<SharedStoreDataContextType | null>(null);
+export const SharedStoreDataContext = createContext<SharedStoreDataContextType | null>(null);
 
 // مزود السياق المركزي - يستدعي useSharedStoreData مرة واحدة فقط
 export const SharedStoreDataProvider: React.FC<{ children: ReactNode }> = React.memo(({ children }) => {
-  // console.log('🏗️ [SharedStoreDataProvider] Initializing central data provider');
-  
   // استدعاء آمن لـ useSharedStoreData في كامل التطبيق
   const sharedData = useSharedStoreDataSafe();
   
@@ -67,15 +70,9 @@ export const SharedStoreDataProvider: React.FC<{ children: ReactNode }> = React.
     sharedData.isLoading,
     sharedData.error,
     sharedData.organization?.id,
-    sharedData.organizationSettings?.id
+    sharedData.organizationSettings?.id,
+    sharedData.refreshData
   ]);
-  
-  // console.log('📋 [SharedStoreDataProvider] Providing data to all children:', {
-  //   productsCount: contextValue.products?.length || 0,
-  //   categoriesCount: contextValue.categories?.length || 0,
-  //   isLoading: contextValue.isLoading,
-  //   hasError: !!contextValue.error
-  // });
 
   return (
     <SharedStoreDataContext.Provider value={contextValue}>
@@ -86,13 +83,31 @@ export const SharedStoreDataProvider: React.FC<{ children: ReactNode }> = React.
 
 // Hook لاستخدام البيانات المشتركة - بدلاً من useSharedStoreData مباشرة
 export const useSharedStoreDataContext = (): SharedStoreDataContextType => {
-  const context = useContext(SharedStoreDataContext);
-  
-  if (!context) {
-    throw new Error('useSharedStoreDataContext must be used within a SharedStoreDataProvider');
+  const sharedContext = useContext(SharedStoreDataContext);
+  const optimizedContext = useContext(
+    OptimizedSharedStoreDataContext as React.Context<OptimizedSharedStoreDataContextType | null>
+  );
+
+  if (sharedContext) return sharedContext;
+
+  if (optimizedContext) {
+    return {
+      organization: optimizedContext.organization,
+      organizationSettings: optimizedContext.organizationSettings,
+      products: optimizedContext.products,
+      categories: optimizedContext.categories,
+      featuredProducts: optimizedContext.featuredProducts,
+      components: [],
+      footerSettings: null,
+      testimonials: [],
+      seoMeta: null,
+      isLoading: optimizedContext.isLoading,
+      error: optimizedContext.error,
+      refreshData: optimizedContext.refreshData,
+    };
   }
-  
-  return context;
+
+  throw new Error('useSharedStoreDataContext must be used within a SharedStoreDataProvider or OptimizedSharedStoreDataProvider');
 };
 
 // مزود بديل للصفحات التي لا تحتاج TenantProvider

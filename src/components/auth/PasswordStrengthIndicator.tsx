@@ -73,4 +73,4 @@ const PasswordStrengthIndicator = ({ password, passwordStrength }: PasswordStren
   );
 };
 
-export default PasswordStrengthIndicator; 
+export default PasswordStrengthIndicator;

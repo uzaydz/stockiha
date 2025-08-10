@@ -19,14 +19,13 @@ import {
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+ } from "@/components/ui/dropdown-menu";
 import { Skeleton } from '@/components/ui/skeleton';
 import { Order } from './table/OrderTableTypes';
 import OrderStatusDropdown from './OrderStatusDropdown';
@@ -50,6 +49,7 @@ import {
 } from '@/utils/ordersHelpers';
 import { getProvinceName, getMunicipalityName } from '@/utils/addressHelpers';
 import { cn } from '@/lib/utils';
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 interface OrdersTableMobileProps {
   orders: Order[];
@@ -654,14 +654,13 @@ const OrdersTableMobile: React.FC<OrdersTableMobileProps> = ({
 }) => {
   const handleScroll = useCallback(() => {
     if (!onLoadMore || !hasMore || loading) return;
-    
-    const scrollHeight = document.documentElement.scrollHeight;
-    const scrollTop = document.documentElement.scrollTop;
-    const clientHeight = document.documentElement.clientHeight;
-    
-    if (scrollTop + clientHeight >= scrollHeight - 100) {
-      onLoadMore();
-    }
+    // اجعل الحساب داخل rAF لتجنب forced reflow في أحداث scroll مكثفة
+    requestAnimationFrame(() => {
+      const { scrollHeight, scrollTop, clientHeight } = document.documentElement;
+      if (scrollTop + clientHeight >= scrollHeight - 100) {
+        onLoadMore();
+      }
+    });
   }, [onLoadMore, hasMore, loading]);
 
   React.useEffect(() => {

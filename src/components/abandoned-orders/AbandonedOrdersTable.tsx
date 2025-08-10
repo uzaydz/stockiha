@@ -28,18 +28,18 @@ import {
 } from "@tanstack/react-table";
 import { format } from "date-fns";
 import { formatDate, formatCurrency } from "@/lib/utils";
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 import {
   Button
 } from "@/components/ui/button";
-import {
-  DropdownMenu,
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+ } from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,

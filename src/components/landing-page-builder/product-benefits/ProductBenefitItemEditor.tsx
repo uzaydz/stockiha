@@ -4,7 +4,8 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';import { useOptimizedClickHandler } from "@/lib/performance-utils";
+
 import { 
   Select, 
   SelectContent, 
@@ -12,12 +13,11 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
-import { 
-  DropdownMenu, 
+import { DropdownMenu, 
   DropdownMenuContent, 
   DropdownMenuItem, 
   DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
+ } from "@/components/ui/dropdown-menu";
 import {
   Tooltip,
   TooltipContent,

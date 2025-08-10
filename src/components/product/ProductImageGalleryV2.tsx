@@ -1,186 +1,270 @@
-import React, { useState, useEffect, memo } from 'react';
+import React, { useState, useEffect, memo, useRef, useCallback, useMemo } from 'react';
 import { CompleteProduct, ProductColor } from '@/lib/api/productComplete';
 import { cn } from '@/lib/utils';
-import { useImageGallery } from '@/hooks/useImageGallery';
-import { useScrollFollow } from '@/hooks/useScrollFollow';
-import { useImagePreloader } from '@/hooks/useImagePreloader';
-import MainImageDisplay from './MainImageDisplay';
-import ThumbnailGrid from './ThumbnailGrid';
-import ImageControls from './ImageControls';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface ProductImageGalleryV2Props {
   product: CompleteProduct;
   selectedColor?: ProductColor;
-  disableAutoColorSwitch?: boolean;
-  enableScrollFollow?: boolean;
   className?: string;
 }
 
 /**
- * معرض الصور المحسن للمنتجات - الإصدار الثالث المطور
+ * معرض الصور فائق التحسين للهواتف - مصمم خصيصاً للأداء العالي
  * 
- * التحسينات الجديدة:
- * - تقسيم المكون إلى عدة مكونات منفصلة
- * - تحسين الأداء وتقليل الثقل
- * - إصلاح مشاكل التبديل بين الصور
- * - تحسين تجربة المستخدم
- * - تصميم أبسط وأكثر قابلية للصيانة
- * - إضافة خيار لتعطيل التبديل التلقائي للألوان
- * - إضافة ميزة التتبع عند التمرير (للحاسوب)
- * - تحسين تحميل الصور مع التحميل المسبق
- * - إصلاح مشاكل الزوم والتتبع العمودي
+ * التحسينات الجذرية:
+ * - إزالة framer-motion لتحسين الأداء
+ * - تقليل re-renders إلى الحد الأدنى
+ * - تحميل مسبق ذكي للصور المجاورة فقط
+ * - معالجة لمس محسنة بدون تأخير
+ * - منع وميض الصور نهائياً
+ * - استهلاك ذاكرة أقل بكثير
+ * - تحسين خاص للهواتف المحمولة
  */
+
 const ProductImageGalleryV2 = memo<ProductImageGalleryV2Props>(({ 
   product, 
   selectedColor,
-  disableAutoColorSwitch = false,
-  enableScrollFollow = true,
   className
 }) => {
-  // استخدام الhooks المخصصة لإدارة حالة المعرض
-  const {
-    activeImage,
-    allImages,
-    imageUrls,
-    currentIndex,
-    currentImageInfo,
-    imageLoaded,
-    hasError,
-    imageLoadError,
-    handleImageLoad,
-    handleImageError,
-    goToNext,
-    goToPrevious,
-    goToImage,
-    selectImage,
-    userManuallySelected,
-    resetManualSelection
-  } = useImageGallery({ product, selectedColor, disableAutoColorSwitch });
+  // حالة محسنة ومبسطة
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isImageLoaded, setIsImageLoaded] = useState(false);
+  const [touchStart, setTouchStart] = useState(0);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  
+  const containerRef = useRef<HTMLDivElement>(null);
+  const imageRefs = useRef<Map<string, HTMLImageElement>>(new Map());
+  
+  // كشف الهاتف مرة واحدة فقط
+  const isMobile = useMemo(() => 
+    typeof window !== 'undefined' && window.innerWidth < 768, []
+  );
 
-  // استخدام hook التتبع عند التمرير
-  const {
-    isFollowing,
-    position,
-    containerRef,
-    galleryRef,
-    isMobile,
-    resetFollow,
-    getDebugInfo
-  } = useScrollFollow({
-    enabled: enableScrollFollow,
-    offset: 20,
-    stickyMode: true // تفعيل الوضع sticky دائماً
-  });
-
-  // استخدام hook التحميل المسبق للصور
-  const {
-    isImageLoaded: isPreloaded,
-    hasImageError: hasPreloadError,
-    isImageLoading: isPreloading,
-    loadingStats,
-    retryImage
-  } = useImagePreloader({
-    imageUrls,
-    priority: 3
-  });
-
-  // دمج حالة التحميل من النظامين
-  const getEffectiveImageState = (url: string) => ({
-    loaded: imageLoaded && isPreloaded(url),
-    error: hasError || hasPreloadError(url),
-    loading: !imageLoaded || isPreloading(url)
-  });
-
-  // إعادة تعيين الاختيار اليدوي عند تغيير اللون إذا كان التبديل التلقائي مُعطل
-  useEffect(() => {
-    if (disableAutoColorSwitch && userManuallySelected) {
-      // يمكن إضافة منطق إضافي هنا حسب الحاجة
+  // إعداد قائمة الصور المحسنة - مرة واحدة فقط
+  const images = useMemo(() => {
+    const imageList: string[] = [];
+    
+    // أولوية للصورة المختارة
+    if (selectedColor?.image_url && selectedColor.image_url.trim() !== '') {
+      imageList.push(selectedColor.image_url);
     }
-  }, [selectedColor, disableAutoColorSwitch, userManuallySelected, resetManualSelection]);
+    
+    // الصورة الرئيسية
+    if (product.images?.thumbnail_image && 
+        product.images.thumbnail_image.trim() !== '' &&
+        !imageList.includes(product.images.thumbnail_image)) {
+      imageList.push(product.images.thumbnail_image);
+    }
+    
+    // الصور الإضافية
+    product.images?.additional_images?.forEach(img => {
+      if (img.url && img.url.trim() !== '' && !imageList.includes(img.url)) {
+        imageList.push(img.url);
+      }
+    });
 
-  // التحكم بلوحة المفاتيح
+    // صور الألوان الأخرى
+    product.variants?.colors?.forEach(color => {
+      if (color.image_url && 
+          color.image_url.trim() !== '' && 
+          !imageList.includes(color.image_url)) {
+        imageList.push(color.image_url);
+      }
+    });
+
+    return imageList.length > 0 ? imageList : ['/images/placeholder-product.jpg'];
+  }, [product, selectedColor]);
+
+  const currentImage = images[currentIndex] || images[0];
+
+  // تحميل مسبق للصور المجاورة فقط - أكثر كفاءة
   useEffect(() => {
-    const handleKeyPress = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') goToNext();
-      else if (e.key === 'ArrowRight') goToPrevious();
-      else if (e.key === 'Escape' && isFollowing) resetFollow();
+    if (!isMobile || images.length <= 1) return;
+
+    const preloadAdjacentImages = () => {
+      const toPreload = [
+        images[currentIndex - 1],
+        images[currentIndex + 1],
+      ].filter(Boolean);
+
+      toPreload.forEach(url => {
+        if (!imageRefs.current.has(url)) {
+          const img = new Image();
+          img.src = url;
+          img.loading = 'lazy';
+          imageRefs.current.set(url, img);
+        }
+      });
     };
 
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [goToNext, goToPrevious, isFollowing, resetFollow]);
+    const timer = setTimeout(preloadAdjacentImages, 100);
+    return () => clearTimeout(timer);
+  }, [currentIndex, images, isMobile]);
 
-  const effectiveImageState = getEffectiveImageState(activeImage);
-  const debugInfo = getDebugInfo();
+  // معالجة لمس فائقة التحسين
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (!isMobile || images.length <= 1) return;
+    setTouchStart(e.targetTouches[0].clientX);
+  }, [isMobile, images.length]);
+
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (!isMobile || images.length <= 1) return;
+    
+    const touchEnd = e.changedTouches[0].clientX;
+    const distance = touchStart - touchEnd;
+    const isSignificantSwipe = Math.abs(distance) > 50;
+
+    if (isSignificantSwipe && !isTransitioning) {
+      setIsTransitioning(true);
+      
+      if (distance > 0) {
+        setCurrentIndex(prev => (prev + 1) % images.length);
+      } else {
+        setCurrentIndex(prev => (prev - 1 + images.length) % images.length);
+      }
+      
+      setTimeout(() => setIsTransitioning(false), 200);
+    }
+  }, [touchStart, images.length, isMobile, isTransitioning]);
+
+  // معالجة تحميل الصورة
+  const handleImageLoad = useCallback(() => {
+    setIsImageLoaded(true);
+  }, []);
+
+  const handleImageError = useCallback(() => {
+    setIsImageLoaded(true); // حتى لو فشلت، اعتبرها محملة
+  }, []);
+
+  // إعادة تعيين حالة التحميل عند تغيير الصورة
+  useEffect(() => {
+    setIsImageLoaded(false);
+  }, [currentImage]);
+
+  // التنقل بالأزرار
+  const goToNext = useCallback(() => {
+    if (images.length <= 1 || isTransitioning) return;
+    setIsTransitioning(true);
+    setCurrentIndex(prev => (prev + 1) % images.length);
+    setTimeout(() => setIsTransitioning(false), 200);
+  }, [images.length, isTransitioning]);
+
+  const goToPrevious = useCallback(() => {
+    if (images.length <= 1 || isTransitioning) return;
+    setIsTransitioning(true);
+    setCurrentIndex(prev => (prev - 1 + images.length) % images.length);
+    setTimeout(() => setIsTransitioning(false), 200);
+  }, [images.length, isTransitioning]);
 
   return (
     <div className={cn("w-full", className)}>
-      {/* Placeholder للحفاظ على المساحة عندما تكون الجالري في وضع التتبع */}
-      {isFollowing && (
+      <div className="space-y-3">
+        {/* الصورة الرئيسية فائقة التحسين */}
         <div 
-          style={{ height: galleryRef.current?.offsetHeight || 'auto' }} 
-          className="transition-all duration-300"
-        />
-      )}
-      
-      <div 
-        ref={galleryRef}
-        className={cn(
-          "transition-all duration-300 ease-out",
-          isMobile ? "space-y-3" : "space-y-4",
-          isFollowing && [
-            "fixed z-50 bg-background/98 backdrop-blur-md rounded-3xl p-4 md:p-6",
-            "shadow-2xl border border-border/40",
-            "ring-1 ring-black/5 dark:ring-white/5",
-            // إضافة تحسينات بصرية عند التتبع
-            "shadow-[0_20px_40px_-12px_rgba(0,0,0,0.25)]",
-            "backdrop-saturate-150"
-          ]
-        )}
-        style={isFollowing ? {
-          top: `${position.top}px`,
-          left: `${position.left}px`,
-          width: `${position.width}px`,
-          // إضافة z-index عالي للتأكد من الظهور فوق كل شيء
-          zIndex: 9999
-        } : undefined}
-      >
-        {/* الصورة الرئيسية مع التحكمات */}
-        <div className="relative" ref={containerRef}>
-          <MainImageDisplay
-            currentImage={activeImage}
-            imageInfo={currentImageInfo}
-            productName={product.name}
-            currentIndex={currentIndex}
-            onImageLoad={handleImageLoad}
-            onImageError={handleImageError}
-            hasError={effectiveImageState.error}
-            isLoaded={effectiveImageState.loaded}
-            isMobile={isMobile}
+          ref={containerRef}
+          className="relative aspect-square bg-muted/10 rounded-2xl overflow-hidden group"
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+          style={{ 
+            touchAction: 'pan-y',
+            WebkitTapHighlightColor: 'transparent'
+          }}
+        >
+          {/* مؤشر التحميل البسيط */}
+          {!isImageLoaded && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+            </div>
+          )}
+
+          {/* الصورة */}
+          <img
+            src={currentImage}
+            alt={`${product.name} - صورة ${currentIndex + 1}`}
+            className={cn(
+              "w-full h-full object-contain transition-opacity duration-200",
+              isImageLoaded ? "opacity-100" : "opacity-0"
+            )}
+            onLoad={handleImageLoad}
+            onError={handleImageError}
+            loading={currentIndex === 0 ? "eager" : "lazy"}
+            decoding="async"
+            draggable={false}
           />
-          
-          {/* تحكمات التنقل */}
-          <ImageControls
-            totalImages={imageUrls.length}
-            currentIndex={currentIndex}
-            onNext={goToNext}
-            onPrevious={goToPrevious}
-            onGoToImage={goToImage}
-            isMobile={isMobile}
-            className="absolute inset-0"
-          />
+
+          {/* أزرار التنقل - تظهر فقط على سطح المكتب */}
+          {!isMobile && images.length > 1 && (
+            <>
+              <button
+                onClick={goToPrevious}
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-background/90 hover:bg-background rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                disabled={isTransitioning}
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+              
+              <button
+                onClick={goToNext}
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-background/90 hover:bg-background rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                disabled={isTransitioning}
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+            </>
+          )}
+
+          {/* مؤشر الموقع */}
+          {images.length > 1 && (
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 bg-background/90 px-2 py-1 rounded-lg">
+              {images.map((_, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => !isTransitioning && setCurrentIndex(idx)}
+                  className={cn(
+                    "w-1.5 h-1.5 rounded-full transition-all duration-200",
+                    idx === currentIndex 
+                      ? "bg-primary w-4" 
+                      : "bg-muted-foreground/40 hover:bg-muted-foreground/70"
+                  )}
+                  disabled={isTransitioning}
+                />
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* الصور المصغرة */}
-        <ThumbnailGrid
-          images={allImages}
-          activeImage={activeImage}
-          onImageSelect={selectImage}
-          onImageError={handleImageError}
-          imageLoadError={imageLoadError}
-          isMobile={isMobile}
-          isCompact={isFollowing}
-        />
+        {/* الصور المصغرة المحسنة */}
+        {images.length > 1 && (
+          <div className="flex gap-1.5 overflow-x-auto pb-2 no-scrollbar">
+            {images.slice(0, 6).map((imageUrl, idx) => (
+              <button
+                key={idx}
+                onClick={() => !isTransitioning && setCurrentIndex(idx)}
+                className={cn(
+                  "flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden border-2 transition-all duration-200",
+                  idx === currentIndex 
+                    ? "border-primary scale-105" 
+                    : "border-border/30 opacity-70 hover:opacity-100"
+                )}
+                disabled={isTransitioning}
+              >
+                <img
+                  src={imageUrl}
+                  alt={`صورة مصغرة ${idx + 1}`}
+                  className="w-full h-full object-cover"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </button>
+            ))}
+            {images.length > 6 && (
+              <div className="flex-shrink-0 w-12 h-12 rounded-lg border-2 border-dashed border-border/50 flex items-center justify-center bg-muted/50">
+                <span className="text-xs text-muted-foreground">+{images.length - 6}</span>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -190,26 +274,24 @@ ProductImageGalleryV2.displayName = 'ProductImageGalleryV2';
 
 export default ProductImageGalleryV2;
 
-// الأنماط المخصصة
-const styles = `
-  .no-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-  
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
-  }
-  
-  .cursor-zoom-in {
-    cursor: zoom-in;
-  }
-`;
-
-// إضافة الأنماط
-if (typeof document !== 'undefined' && !document.getElementById('product-gallery-v2-styles')) {
+// إضافة أنماط محسنة للهاتف
+if (typeof document !== 'undefined' && !document.getElementById('optimized-gallery-styles')) {
   const styleElement = document.createElement('style');
-  styleElement.id = 'product-gallery-v2-styles';
-  styleElement.textContent = styles;
+  styleElement.id = 'optimized-gallery-styles';
+  styleElement.textContent = `
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    @media (max-width: 768px) {
+      * {
+        -webkit-tap-highlight-color: transparent;
+        -webkit-touch-callout: none;
+      }
+    }
+  `;
   document.head.appendChild(styleElement);
 }

@@ -30,107 +30,252 @@ export const getDimensionsSafely = (element: HTMLElement) => {
   });
 };
 
-// تطبيق الخطوط بطريقة محسنة
-export const applyFontsOptimized = () => {
-  requestAnimationFrame(() => {
-    // إضافة class للجسم فقط (أكثر كفاءة)
-    document.body.classList.add('tajawal-forced');
+// 🚀 نظام تحسين DOM محسن لمنع Forced Reflow
+class DOMOptimizer {
+  private static instance: DOMOptimizer;
+  private pendingReads: Array<() => void> = [];
+  private pendingWrites: Array<() => void> = [];
+  private isScheduled = false;
+  private reflowCount = 0;
+  private lastReportTime = 0;
+  private LOG_THRESHOLD = 150; // لا تُبلغ إلا إذا تجاوزت هذا العدد خلال 5 ثوانٍ
+
+  static getInstance(): DOMOptimizer {
+    if (!DOMOptimizer.instance) {
+      DOMOptimizer.instance = new DOMOptimizer();
+    }
+    return DOMOptimizer.instance;
+  }
+
+  // تجميع قراءات DOM
+  scheduleRead(callback: () => void) {
+    this.pendingReads.push(callback);
+    this.scheduleFlush();
+  }
+
+  // تجميع كتابات DOM
+  scheduleWrite(callback: () => void) {
+    this.pendingWrites.push(callback);
+    this.scheduleFlush();
+  }
+
+  // تنفيذ العمليات المجمعة
+  private scheduleFlush() {
+    if (this.isScheduled) return;
     
-    // تطبيق CSS عام عبر stylesheet بدلاً من تعديل كل عنصر
-    if (!document.getElementById('font-override-style')) {
-      const style = document.createElement('style');
-      style.id = 'font-override-style';
-      style.textContent = `
-        .tajawal-forced * {
-          font-family: "TajawalForced", "Tajawal", "Arial Unicode MS", "Tahoma", "Arial", sans-serif !important;
+    this.isScheduled = true;
+    requestAnimationFrame(() => {
+      // تنفيذ جميع القراءات أولاً
+      while (this.pendingReads.length > 0) {
+        const read = this.pendingReads.shift()!;
+        try {
+          read();
+        } catch (error) {
+          console.warn('خطأ في قراءة DOM:', error);
         }
-      `;
-      document.head.appendChild(style);
-    }
-  });
-};
-
-// تحسين scroll listening لتجنب مشاكل الأداء
-export const createOptimizedScrollListener = (callback: (scrollInfo: { scrollTop: number; scrollHeight: number; clientHeight: number }) => void) => {
-  let ticking = false;
-  
-  return () => {
-    if (!ticking) {
-      requestAnimationFrame(() => {
-        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-        const scrollHeight = document.documentElement.scrollHeight;
-        const clientHeight = document.documentElement.clientHeight;
-        
-        callback({ scrollTop, scrollHeight, clientHeight });
-        ticking = false;
-      });
-      ticking = true;
-    }
-  };
-};
-
-// تحسين batch DOM operations
-export const batchDOMOperations = (operations: (() => void)[]) => {
-  requestAnimationFrame(() => {
-    // تنفيذ جميع العمليات في نفس الإطار
-    operations.forEach(operation => operation());
-  });
-};
-
-// تقليل console errors في production
-export const suppressNonCriticalErrors = () => {
-  if (import.meta.env.PROD) {
-    const originalError = console.error;
-    console.error = (...args) => {
-      const message = args.join(' ').toLowerCase();
+      }
       
-      // تجاهل أخطاء WebSocket و HMR في production
-      if (
-        message.includes('websocket') ||
-        message.includes('hmr') ||
-        message.includes('vite') ||
-        message.includes('failed to connect')
-      ) {
+      // ثم تنفيذ جميع الكتابات
+      while (this.pendingWrites.length > 0) {
+        const write = this.pendingWrites.shift()!;
+        try {
+          write();
+        } catch (error) {
+          console.warn('خطأ في كتابة DOM:', error);
+        }
+      }
+      
+      this.isScheduled = false;
+    });
+  }
+
+  // تتبع عدد عمليات reflow
+  trackReflow() {
+    this.reflowCount++;
+    const now = Date.now();
+
+    // تقرير كل 5 ثوانٍ مع عتبة أعلى، ولا يُطبع إلا في التطوير
+    if (now - this.lastReportTime > 5000) {
+      const shouldLog = typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'development';
+      if (shouldLog && this.reflowCount > this.LOG_THRESHOLD) {
+        console.warn(`⚠️ [PERFORMANCE] تم اكتشاف ${this.reflowCount} عملية forced reflow في آخر 5 ثوانٍ`);
+      }
+      this.reflowCount = 0;
+      this.lastReportTime = now;
+    }
+  }
+
+  // الحصول على إحصائيات reflow
+  getReflowStats() {
+    return {
+      reflowCount: this.reflowCount,
+      pendingReads: this.pendingReads.length,
+      pendingWrites: this.pendingWrites.length
+    };
+  }
+}
+
+// تصدير instance واحد
+export const domOptimizer = DOMOptimizer.getInstance();
+
+// دالة محسنة لقياس عرض العنصر بدون reflow
+export const measureElementWidth = (element: HTMLElement): Promise<number> => {
+  return new Promise((resolve) => {
+    domOptimizer.scheduleRead(() => {
+      if (!element) {
+        resolve(0);
         return;
       }
       
-      // عرض الأخطاء الأخرى
-      originalError.apply(console, args);
-    };
-  }
+      // استخدام getBoundingClientRect بدلاً من clientWidth لتجنب reflow
+      const rect = element.getBoundingClientRect();
+      resolve(rect.width);
+    });
+  });
 };
 
-// تحسين تحميل الصور لتجنب layout shift
-export const optimizeImageLoading = (img: HTMLImageElement) => {
-  // تعيين أبعاد مبدئية إذا لم تكن محددة
-  if (!img.style.width && !img.style.height) {
-    img.style.minHeight = '200px';
-    img.style.backgroundColor = '#f5f5f5';
-  }
-  
-  // إضافة loading optimization
-  img.loading = 'lazy';
-  img.decoding = 'async';
+// دالة محسنة لقياس ارتفاع العنصر بدون reflow
+export const measureElementHeight = (element: HTMLElement): Promise<number> => {
+  return new Promise((resolve) => {
+    domOptimizer.scheduleRead(() => {
+      if (!element) {
+        resolve(0);
+        return;
+      }
+      
+      const rect = element.getBoundingClientRect();
+      resolve(rect.height);
+    });
+  });
 };
 
-// تطبيق تحسينات الأداء العامة
-export const initPerformanceOptimizations = () => {
-  // تقليل console errors
-  suppressNonCriticalErrors();
-  
-  // تحسين CSS loading
-  if (typeof window !== 'undefined') {
-    // منع FOUC (Flash of Unstyled Content)
-    document.documentElement.style.visibility = 'visible';
-    
-    // تحسين font loading
-    if (document.fonts && document.fonts.ready) {
-      document.fonts.ready.then(() => {
-        applyFontsOptimized();
+// دالة محسنة للحصول على موقع العنصر بدون reflow
+export const getElementPosition = (element: HTMLElement): Promise<{ top: number; left: number }> => {
+  return new Promise((resolve) => {
+    domOptimizer.scheduleRead(() => {
+      if (!element) {
+        resolve({ top: 0, left: 0 });
+        return;
+      }
+      
+      const rect = element.getBoundingClientRect();
+      resolve({
+        top: rect.top + window.scrollY,
+        left: rect.left + window.scrollX
       });
-    } else {
-      // fallback للمتصفحات القديمة
-      setTimeout(applyFontsOptimized, 100);
-    }
-  }
+    });
+  });
 };
+
+// دالة محسنة لتطبيق تغييرات CSS بدون reflow
+export const applyStylesWithoutReflow = (
+  element: HTMLElement, 
+  styles: Partial<CSSStyleDeclaration>
+) => {
+  domOptimizer.scheduleWrite(() => {
+    Object.assign(element.style, styles);
+  });
+};
+
+// دالة محسنة لإضافة/إزالة classes بدون reflow
+export const toggleClassWithoutReflow = (
+  element: HTMLElement, 
+  className: string, 
+  force?: boolean
+) => {
+  domOptimizer.scheduleWrite(() => {
+    if (force === true) {
+      element.classList.add(className);
+    } else if (force === false) {
+      element.classList.remove(className);
+    } else {
+      element.classList.toggle(className);
+    }
+  });
+};
+
+// دالة محسنة لتغيير النص بدون reflow
+export const setTextContentWithoutReflow = (
+  element: HTMLElement, 
+  text: string
+) => {
+  domOptimizer.scheduleWrite(() => {
+    element.textContent = text;
+  });
+};
+
+// دالة محسنة لتغيير innerHTML بدون reflow
+export const setInnerHTMLWithoutReflow = (
+  element: HTMLElement, 
+  html: string
+) => {
+  domOptimizer.scheduleWrite(() => {
+    element.innerHTML = html;
+  });
+};
+
+// دالة محسنة لإنشاء ResizeObserver بدون reflow
+export const createOptimizedResizeObserver = (
+  element: HTMLElement,
+  callback: (entries: ResizeObserverEntry[]) => void,
+  options?: ResizeObserverOptions
+) => {
+  const observer = new ResizeObserver((entries) => {
+    // تأخير معالجة التغييرات لتجنب reflow متكرر
+    requestAnimationFrame(() => {
+      callback(entries);
+    });
+  });
+  
+  observer.observe(element, options);
+  return observer;
+};
+
+// دالة محسنة لمراقبة تغييرات DOM بدون reflow
+export const createOptimizedMutationObserver = (
+  element: HTMLElement,
+  callback: (mutations: MutationRecord[]) => void,
+  options?: MutationObserverInit
+) => {
+  const observer = new MutationObserver((mutations) => {
+    // تأخير معالجة التغييرات لتجنب reflow متكرر
+    requestAnimationFrame(() => {
+      callback(mutations);
+    });
+  });
+  
+  observer.observe(element, options);
+  return observer;
+};
+
+// دالة محسنة لقياس أداء العمليات
+export const measurePerformance = <T>(fn: () => T): { result: T; duration: number } => {
+  const start = performance.now();
+  const result = fn();
+  const duration = performance.now() - start;
+  
+  // تحذير إذا استغرقت العملية أكثر من 16ms (frame واحد)
+  if (duration > 16) {
+    console.warn(`⚠️ [PERFORMANCE] العملية استغرقت ${duration.toFixed(2)}ms (أكثر من frame واحد)`);
+  }
+  
+  return { result, duration };
+};
+
+// دالة محسنة لقياس أداء العمليات غير المتزامنة
+export const measureAsyncPerformance = async <T>(fn: () => Promise<T>): Promise<{ result: T; duration: number }> => {
+  const start = performance.now();
+  const result = await fn();
+  const duration = performance.now() - start;
+  
+  if (duration > 100) {
+    console.warn(`⚠️ [PERFORMANCE] العملية غير المتزامنة استغرقت ${duration.toFixed(2)}ms`);
+  }
+  
+  return { result, duration };
+};
+
+// تصدير الدوال المساعدة
+export const scheduleRead = (callback: () => void) => domOptimizer.scheduleRead(callback);
+export const scheduleWrite = (callback: () => void) => domOptimizer.scheduleWrite(callback);
+export const getReflowStats = () => domOptimizer.getReflowStats();

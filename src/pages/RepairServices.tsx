@@ -25,14 +25,13 @@ import {
 } from "@/components/ui/card";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  DropdownMenu,
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
+ } from "@/components/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
@@ -87,6 +86,7 @@ import RepairServiceDialog from '@/components/repair/RepairServiceDialog';
 import { ShareRepairDialog } from '@/components/repair/ShareRepairDialog';
 import RepairOrderPrint from '@/components/repair/RepairOrderPrint';
 import { buildTrackingUrl } from '@/lib/utils/store-url';
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 // تعريف واجهات البيانات
 interface RepairLocation {

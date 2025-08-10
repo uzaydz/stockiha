@@ -8,14 +8,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  DropdownMenu,
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+ } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -54,6 +53,7 @@ import {
 } from "lucide-react";
 import { ar } from "date-fns/locale";
 import { toast } from "sonner";
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 interface CustomPaginationProps {
   totalPages: number;

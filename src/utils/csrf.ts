@@ -110,4 +110,4 @@ export const validateCSRFResponse = (response: Response): boolean => {
  */
 export const clearCSRFToken = (): void => {
   localStorage.removeItem(CSRF_TOKEN_KEY);
-}; 
+};

@@ -22,19 +22,19 @@ import {
   Truck,
   Globe
 } from 'lucide-react';
-import {
-  DropdownMenu,
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+ } from "@/components/ui/dropdown-menu";
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Card } from '@/components/ui/card';
 import { useToast } from '@/components/ui/use-toast';
 import { useShippingProviders } from '@/hooks/useShippingProviders';
 import EditProviderDialog from './EditProviderDialog';
 import DeleteProviderDialog from './DeleteProviderDialog';
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 interface DeliveryProvidersTableProps {
   organizationId: string;

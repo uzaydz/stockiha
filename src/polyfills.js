@@ -2,7 +2,19 @@
 
 // العناصر الأساسية
 import { Buffer } from 'buffer';
-import process from 'process';
+// import process from 'process'; // تم إزالة هذا الاستيراد لحل مشكلة unenv
+
+// تعريف process محلي
+const process = {
+  env: {
+    NODE_ENV: typeof window !== 'undefined' ? 'browser' : 'node'
+  },
+  nextTick: (fn) => setTimeout(fn, 0),
+  platform: 'browser',
+  version: '',
+  versions: {}
+};
+
 window.Buffer = Buffer;
 window.process = process;
 

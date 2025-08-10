@@ -8,6 +8,7 @@ import { getCompleteStoreData, StoreData } from '@/api/optimized-store-api';
 import { Truck, ShieldCheck, Gem } from 'lucide-react';
 import SEOHead from '@/components/store/SEOHead';
 import { StoreHead } from '../StoreHead';
+import { applyEnhancedColors, generateHoverFixCSS } from '@/utils/colorUtils';
 
 // Lazy loading للمكونات لتحسين الأداء
 const MaxNavbar = lazy(() => import('./components/MaxNavbar.tsx').then(m => ({ default: m.MaxNavbar })));
@@ -211,29 +212,57 @@ const MaxStorePage: React.FC<MaxStorePageProps> = ({
       return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
     };
 
-    // حساب لون النص المناسب بناءً على سطوع اللون
+    // حساب لون النص المناسب بناءً على سطوع اللون - محسن
     const getContrastColor = (hex: string) => {
       const cleanHex = hex.replace('#', '');
       const r = parseInt(cleanHex.slice(0, 2), 16);
       const g = parseInt(cleanHex.slice(2, 4), 16);
       const b = parseInt(cleanHex.slice(4, 6), 16);
       
-      // حساب السطوع النسبي باستخدام معادلة W3C
+      // حساب السطوع النسبي باستخدام معادلة W3C المحسنة
       const brightness = (r * 299 + g * 587 + b * 114) / 1000;
       
-      // إذا كان اللون داكن (سطوع أقل من 128)، استخدم أبيض، وإلا استخدم أسود
-      return brightness < 128 ? '0 0% 98%' : '222.2 84% 4.9%';
+      // إذا كان اللون داكن (سطوع أقل من 140)، استخدم أبيض، وإلا استخدم أسود
+      return brightness < 140 ? '0 0% 98%' : '222.2 84% 4.9%';
+    };
+
+    // حساب لون مُخفف للهوفر
+    const getLighterColor = (hex: string, factor: number = 0.1) => {
+      const cleanHex = hex.replace('#', '');
+      const r = parseInt(cleanHex.slice(0, 2), 16);
+      const g = parseInt(cleanHex.slice(2, 4), 16);
+      const b = parseInt(cleanHex.slice(4, 6), 16);
+      
+      const lighterR = Math.min(255, r + (255 - r) * factor);
+      const lighterG = Math.min(255, g + (255 - g) * factor);
+      const lighterB = Math.min(255, b + (255 - b) * factor);
+      
+      return hexToHsl(`#${Math.round(lighterR).toString(16).padStart(2, '0')}${Math.round(lighterG).toString(16).padStart(2, '0')}${Math.round(lighterB).toString(16).padStart(2, '0')}`);
+    };
+
+    // حساب لون مُغمق للهوفر  
+    const getDarkerColor = (hex: string, factor: number = 0.1) => {
+      const cleanHex = hex.replace('#', '');
+      const r = parseInt(cleanHex.slice(0, 2), 16);
+      const g = parseInt(cleanHex.slice(2, 4), 16);
+      const b = parseInt(cleanHex.slice(4, 6), 16);
+      
+      const darkerR = Math.max(0, r * (1 - factor));
+      const darkerG = Math.max(0, g * (1 - factor));
+      const darkerB = Math.max(0, b * (1 - factor));
+      
+      return hexToHsl(`#${Math.round(darkerR).toString(16).padStart(2, '0')}${Math.round(darkerG).toString(16).padStart(2, '0')}${Math.round(darkerB).toString(16).padStart(2, '0')}`);
     };
     
     // تطبيق الألوان المخصصة على متغيرات CSS الخاصة بـ Tailwind
     const primaryColor = settings.theme_primary_color || '#3B82F6';
     const secondaryColor = settings.theme_secondary_color || '#10B981';
 
+    // استخدام النظام المحسن للألوان
+    const enhancedColors = applyEnhancedColors(primaryColor, secondaryColor);
+    
     const colorProperties = {
-      '--primary': hexToHsl(primaryColor),
-      '--primary-foreground': getContrastColor(primaryColor),
-      '--secondary': hexToHsl(secondaryColor),
-      '--secondary-foreground': getContrastColor(secondaryColor),
+      ...enhancedColors,
       '--accent': hexToHsl(secondaryColor),
       '--accent-foreground': getContrastColor(secondaryColor),
       '--muted': '210 40% 96%',
@@ -380,12 +409,7 @@ const MaxStorePage: React.FC<MaxStorePageProps> = ({
         color: hsl(${getContrastColor(secondaryColor)}) !important;
       }
       
-      /* إجبار تطبيق الألوان على الرسوم المتحركة */
-      html body .hover\\:bg-primary\\/90:hover,
-      html body [class*="hover:bg-primary"]:hover {
-        background-color: hsl(${hexToHsl(primaryColor)} / 0.9) !important;
-        color: hsl(${getContrastColor(primaryColor)}) !important;
-      }
+      ${generateHoverFixCSS(primaryColor, secondaryColor).replace(/\n/g, '\n      ')}
       
       html body .hover\\:text-primary:hover,
       html body [class*="hover:text-primary"]:hover {
@@ -681,6 +705,34 @@ const MaxStorePage: React.FC<MaxStorePageProps> = ({
     };
   }, [storeData, subdomain]);
 
+  // حساب رابط صورة LCP (صورة الهيرو) وتجهيز مسار render من Supabase مع srcset
+  const lcpImage = useMemo(() => {
+    try {
+      if (!storeData) return null;
+      const rawUrl = (
+        storeData.store_layout_components?.find(c => c.type === 'hero')?.settings?.imageUrl ||
+        storeData.organization_details?.logo_url ||
+        storeData.organization_settings?.logo_url ||
+        ''
+      ) as string;
+      if (!rawUrl) return null;
+      if (rawUrl.endsWith('.svg')) {
+        return { href: rawUrl, srcSet: undefined as string | undefined };
+      }
+      if (rawUrl.includes('/storage/v1/object/public/')) {
+        const url = new URL(rawUrl);
+        const pathAfterPublic = url.pathname.split('/storage/v1/object/public/')[1];
+        const base = `${url.origin}/storage/v1/render/image/public/${pathAfterPublic}`;
+        const srcSet = [400, 800, 1200]
+          .map(w => `${base}?width=${w}&quality=75 ${w}w`).join(', ');
+        return { href: `${base}?width=800&quality=75`, srcSet };
+      }
+      return { href: rawUrl, srcSet: undefined };
+    } catch {
+      return null;
+    }
+  }, [storeData]);
+
   // رسائل التحميل والأخطاء (محسنة باستخدام Tailwind)
   // عرض التحميل إذا كان أي من النظامين يحمل أو إذا لم تكتمل عملية تحديد المؤسسة بعد
   if (loading || tenantLoading || (!currentOrganization && !error)) {
@@ -772,10 +824,20 @@ const MaxStorePage: React.FC<MaxStorePageProps> = ({
         <meta name="theme-color" content={storeData.organization_settings?.theme_primary_color || '#3B82F6'} />
         
         {/* تحسينات الأداء */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="//cdnjs.cloudflare.com" />
         <link rel="dns-prefetch" href="//unpkg.com" />
+
+        {/* Preload لصورة LCP مع fetchpriority=high لجعل الاكتشاف مبكراً */}
+        {lcpImage?.href && (
+          <link
+            rel="preload"
+            as="image"
+            href={lcpImage.href}
+            imageSrcSet={lcpImage.srcSet}
+            imageSizes="(max-width: 640px) 90vw, (max-width: 1024px) 50vw, 512px"
+            fetchPriority="high"
+          />
+        )}
         
         {/* CSS المخصص */}
         {storeData.organization_settings?.custom_css && (
@@ -866,7 +928,7 @@ const MaxStorePage: React.FC<MaxStorePageProps> = ({
 
             {/* محتوى الصفحة الرئيسي */}
             <main className="relative">
-              <AnimatePresence>
+              <AnimatePresence mode="wait">
                 {sortedComponents.map((component, index) => (
                   <motion.div
                     key={`${component.type}-${component.id}`}

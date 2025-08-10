@@ -11,13 +11,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import {
-  DropdownMenu,
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+ } from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -45,6 +44,7 @@ import {
 import { format, parseISO } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import type { POSOrderWithDetails } from '../../api/posOrdersService';
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 interface POSOrdersTableProps {
   orders: POSOrderWithDetails[];

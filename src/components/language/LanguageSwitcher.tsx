@@ -2,14 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronDown, Globe, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-  DropdownMenu,
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+ } from "@/components/ui/dropdown-menu";
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 interface Language {
   code: string;

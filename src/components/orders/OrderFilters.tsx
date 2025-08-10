@@ -8,20 +8,20 @@ import {
   PopoverContent,
   PopoverTrigger 
 } from "@/components/ui/popover";
-import {
-  DropdownMenu,
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+ } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Check, ChevronDown, Filter, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useState } from "react";
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 // مكون مرشحات الطلبات
 const OrderFilters = ({ filterStatus, setFilterStatus, orderCounts }) => {

@@ -7,14 +7,13 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
-import { 
-  DropdownMenu, 
+import { DropdownMenu, 
   DropdownMenuContent, 
   DropdownMenuItem, 
   DropdownMenuTrigger,
   DropdownMenuSeparator,
   DropdownMenuLabel
-} from '@/components/ui/dropdown-menu';
+ } from "@/components/ui/dropdown-menu";
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardTitle, CardDescription, CardHeader, CardFooter } from '@/components/ui/card';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -43,6 +42,7 @@ import {
   Columns
 } from 'lucide-react';
 import BeforeAfterItemEditor from './before-after/BeforeAfterItemEditor';
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 interface BeforeAfterComponentEditorProps {
   component: LandingPageComponent;

@@ -94,11 +94,23 @@ const BeforeAfterComponent: React.FC<BeforeAfterComponentProps> = ({ settings })
       setSliderPositions(initialPositions);
     });
 
-    // تحميل مسبق للصور التالية أثناء وقت الخمول
+    // تحميل الصور عند الحاجة
+    const loadImages = () => {
+      if (beforeImage) {
+        const img = new Image();
+        img.src = beforeImage;
+      }
+      if (afterImage) {
+        const img = new Image();
+        img.src = afterImage;
+      }
+    };
+
     if ('requestIdleCallback' in window) {
-      window.requestIdleCallback(() => {
-        preloadNextImages(3); // تحميل الـ 3 صور القادمة مسبقًا
-      });
+      (window as any).requestIdleCallback(loadImages);
+    } else {
+      // fallback للمتصفحات التي لا تدعم requestIdleCallback
+      setTimeout(loadImages, 100);
     }
   }, [items, inView, preloadNextImages]);
 

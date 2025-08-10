@@ -107,10 +107,16 @@
   <meta name="twitter:title" content="سطوكيها - منصة إدارة المتاجر الذكية" />
   <meta name="twitter:description" content="سطوكيها - منصة إدارة المتاجر الذكية لإنشاء متجرك الإلكتروني وإدارة المبيعات والمخزون بكل سهولة" />
   
-  <!-- الخطوط -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <!-- تحسين الاتصال المبكر مع Supabase (يُستبدل أثناء البناء من Vite) -->
+  <link rel="preconnect" href="%VITE_SUPABASE_URL%" crossorigin>
+  <link rel="dns-prefetch" href="%VITE_SUPABASE_URL%">
+
+  <!-- الخطوط المحلية (Tajawal) بدلاً من Google Fonts لتقليل الحجب وتحسين FCP/LCP) -->
+  <link rel="preload" as="style" href="/fonts/tajawal.css" />
+  <link rel="preload" as="font" type="font/woff2" href="/fonts/tajawal-regular.woff2" crossorigin="anonymous" />
+  <link rel="preload" as="font" type="font/woff2" href="/fonts/tajawal-medium.woff2" crossorigin="anonymous" />
+  <link rel="preload" as="font" type="font/woff2" href="/fonts/tajawal-bold.woff2" crossorigin="anonymous" />
+  <link rel="stylesheet" href="/fonts/tajawal.css" />
   
   <!-- الأنماط الأساسية -->
   <style>
@@ -121,7 +127,7 @@
     }
     
     body {
-      font-family: 'Cairo', sans-serif;
+      font-family: 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif;
       background-color: #f8fafc;
       color: #1e293b;
       line-height: 1.6;

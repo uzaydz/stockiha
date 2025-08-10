@@ -29,14 +29,13 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
-import { 
-  DropdownMenu,
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
   DropdownMenuLabel
-} from '@/components/ui/dropdown-menu'
+ } from "@/components/ui/dropdown-menu"
 import { 
   AlertDialog,
   AlertDialogAction,
@@ -75,6 +74,7 @@ import StoreContact from '@/components/store/StoreContact'
 import CustomizableStoreFooter from '@/components/store/CustomizableStoreFooter'
 import CountdownOffersSection from '@/components/store/CountdownOffersSection'
 import ProductCategories from '@/components/store/ProductCategoriesOptimized'
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 interface StorePreviewProps {
   organizationId: string
@@ -141,6 +141,7 @@ const useStorePreviewData = (organizationId: string) => {
 // تعريف واجهة للمكون مع إضافة وظائف جديدة
 interface ComponentProps {
   component: any;
+
   isSelected: boolean;
   isHovered: boolean;
   previewMode: boolean;

@@ -10,12 +10,11 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import {
-  DropdownMenu,
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+ } from "@/components/ui/dropdown-menu";
 import { 
   AlertDialog,
   AlertDialogAction,
@@ -45,6 +44,7 @@ import {
 } from '@/types/activation';
 import { ActivationService } from '@/lib/activation-service';
 import { useToast } from '@/components/ui/use-toast';
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 interface Props {
   codes: ActivationCode[];

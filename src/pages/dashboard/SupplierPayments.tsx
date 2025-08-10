@@ -18,11 +18,12 @@ import {
 } from '@/api/supplierService';
 import { useToast } from '@/components/ui/use-toast';
 import Layout from '@/components/Layout';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger  } from "@/components/ui/dropdown-menu";
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink } from '@/components/ui/breadcrumb';
 import { CreditCard, MoreVertical, ShoppingBag } from 'lucide-react';
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 export default function SupplierPayments() {
   const { user } = useAuth();

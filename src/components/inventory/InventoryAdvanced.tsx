@@ -41,14 +41,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
-import { 
-  DropdownMenu, 
+import { DropdownMenu, 
   DropdownMenuContent, 
   DropdownMenuItem, 
   DropdownMenuTrigger,
   DropdownMenuSeparator,
   DropdownMenuCheckboxItem
-} from '@/components/ui/dropdown-menu';
+ } from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -71,6 +70,7 @@ import { Separator } from '@/components/ui/separator';
 import useInventoryAdvanced from '@/hooks/useInventoryAdvanced';
 import { cn } from '@/lib/utils';
 import type { InventoryProduct, BulkUpdateItem } from '@/lib/api/inventory-advanced-api';
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 // أنواع العرض
 type ViewMode = 'grid' | 'list' | 'compact' | 'detailed';

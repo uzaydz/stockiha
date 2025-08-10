@@ -35,12 +35,16 @@ export default {
     			primary: {
     				DEFAULT: 'hsl(var(--primary))',
     				foreground: 'hsl(var(--primary-foreground))',
+    				hover: 'hsl(var(--primary-hover))',
+    				'hover-foreground': 'hsl(var(--primary-hover-foreground))',
     				lighter: 'hsl(var(--primary-lighter))',
     				darker: 'hsl(var(--primary-darker))'
     			},
     			secondary: {
     				DEFAULT: 'hsl(var(--secondary))',
-    				foreground: 'hsl(var(--secondary-foreground))'
+    				foreground: 'hsl(var(--secondary-foreground))',
+    				hover: 'hsl(var(--secondary-hover))',
+    				'hover-foreground': 'hsl(var(--secondary-hover-foreground))'
     			},
     			destructive: {
     				DEFAULT: 'hsl(var(--destructive))',

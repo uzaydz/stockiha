@@ -303,9 +303,9 @@ export function AdminNavbar({
       {/* Top gradient line */}
       <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
       
-      <div className="flex items-center justify-between h-16 py-2 px-4 mx-auto w-full max-w-7xl relative">
+      <div className="flex items-center justify-between h-16 py-2 px-4 mx-auto w-full max-w-7xl relative" style={{ contain: 'layout' as any }}>
         {/* Animated background particles effect */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ contain: 'paint' as any }}>
           <div className="absolute top-1/2 left-1/4 w-1 h-1 bg-primary/30 rounded-full animate-pulse admin-particle" style={{ animationDelay: '0s' }} />
           <div className="absolute top-1/3 right-1/3 w-0.5 h-0.5 bg-primary/40 rounded-full animate-pulse admin-particle" style={{ animationDelay: '1s' }} />
           <div className="absolute bottom-1/3 left-1/2 w-0.5 h-0.5 bg-primary/35 rounded-full animate-pulse admin-particle" style={{ animationDelay: '2s' }} />

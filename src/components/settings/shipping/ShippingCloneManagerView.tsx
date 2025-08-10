@@ -19,7 +19,8 @@ import ShippingProviderCard from './ShippingProviderCard';
 import CloneCard from './CloneCard';
 import CloneDialog from './CloneDialog';
 import EditCloneDialog from './EditCloneDialog';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger  } from "@/components/ui/dropdown-menu";
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 interface ShippingCloneManagerViewProps {
   organizationId: string;

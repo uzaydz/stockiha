@@ -23,12 +23,11 @@ import {
   Check,
   ArrowUpDown
 } from 'lucide-react';
-import {
-  DropdownMenu,
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
+ } from "@/components/ui/dropdown-menu";
 import {
   Tooltip,
   TooltipContent,
@@ -37,6 +36,7 @@ import {
 } from '@/components/ui/tooltip';
 import ImageUploader from '@/components/ui/ImageUploader';
 import { Separator } from '@/components/ui/separator';
+import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 interface BeforeAfterItemEditorProps {
   item: any;

@@ -145,12 +145,72 @@ export async function createYalidineShippingOrder(
     // Get products description
     const productsDescription = getProductsDescription(order.order_items || []);
     
+    // فصل الاسم الأول والأخير
+    const nameParts = order.customer_name.split(' ');
+    const firstname = nameParts[0] || '';
+    const familyname = nameParts.slice(1).join(' ') || firstname; // إذا لم يوجد اسم أخير، استخدم الأول
+
+    // الحصول على أسماء الولايات والبلديات من قاعدة البيانات
+    let wilayaName = order.shipping_wilaya;
+    let communeName = order.shipping_commune;
+
+    try {
+      // الحصول على اسم الولاية من قاعدة البيانات
+      const { data: wilayaData } = await supabase
+        .from('yalidine_provinces_global')
+        .select('name')
+        .eq('id', parseInt(order.shipping_wilaya))
+        .single();
+      
+      if (wilayaData?.name) {
+        wilayaName = wilayaData.name;
+      }
+
+      // البحث عن اسم البلدية في قاعدة البيانات
+      const { data: communeData } = await supabase
+        .from('yalidine_municipalities_global')
+        .select('name')
+        .eq('id', parseInt(order.shipping_commune))
+        .single();
+        
+      if (communeData?.name) {
+        communeName = communeData.name;
+      }
+
+      // console.log('📍 Using wilaya name from DB:', wilayaName);
+      // console.log('📍 Using commune name from DB:', communeName);
+      
+    } catch (error) {
+      console.warn('⚠️ Failed to get province names from DB, using fallback');
+      // استخدام أسماء افتراضية إذا فشل الاستعلام
+      const fallbackWilayas: { [key: string]: string } = {
+        '3': 'Laghouat', '5': 'Batna', '16': 'Alger', '31': 'Oran'
+      };
+      wilayaName = fallbackWilayas[order.shipping_wilaya] || `Wilaya_${order.shipping_wilaya}`;
+    }
+
     // Create shipping order parameters
     const params = {
+      order_id: order.id, // معرف الطلب المطلوب من API ياليدين
       Tracking: trackingNumber,
       TypeLivraison: 1, // Home delivery
       TypeColis: 0, // Regular shipping
       Confrimee: 1, // Confirmed
+      
+      // الحقول المطلوبة من API ياليدين
+      firstname: firstname,
+      familyname: familyname,
+      contact_phone: order.customer_phone,
+      address: order.shipping_address,
+      to_commune_name: communeName,
+      to_wilaya_name: wilayaName,
+      product_list: productsDescription,
+      price: parseFloat(order.total_amount.toString()),
+      freeshipping: 0, // 0 = مدفوع، 1 = مجاني
+      is_stopdesk: 0, // 0 = توصيل للبيت، 1 = مكتب
+      has_exchange: 0, // 0 = بدون استبدال، 1 = مع استبدال
+      
+      // الحقول القديمة للتوافق العكسي
       Client: order.customer_name,
       MobileA: order.customer_phone,
       Adresse: order.shipping_address,
@@ -162,16 +222,20 @@ export async function createYalidineShippingOrder(
     };
     
     // Call the API to create the shipping order
+    console.log('📦 Sending to Yalidine API:', params);
     const result = await shippingService.createShippingOrder(params);
+    console.log('📦 Yalidine API result received:', result);
     
-    if (result && result.tracking) {
+    // تحقق من وجود النتائج والـ tracking ID
+    if (result && (result.tracking || result.data?.tracking || result[0]?.tracking)) {
+      const trackingId = result.tracking || result.data?.tracking || result[0]?.tracking;
       // Create the shipping order record in our database
       await createShippingOrderRecord(
         organizationId,
         providerData.id,
         order.id,
         {
-          trackingNumber: trackingNumber,
+          trackingNumber: trackingId,
           externalId: result.id || '',
           recipientName: order.customer_name,
           recipientPhone: order.customer_phone,
@@ -197,7 +261,7 @@ export async function createYalidineShippingOrder(
       return {
         success: true,
         message: 'تم إنشاء طلب الشحن بنجاح',
-        trackingNumber: trackingNumber,
+        trackingNumber: trackingId,
         externalId: result.id || '',
         labelUrl
       };
@@ -225,23 +289,18 @@ export async function createShippingOrderForOrder(
   try {
     // Get the order details
     const { data: order, error: orderError } = await supabase
-      .from('orders')
+      .from('online_orders')
       .select(`
         id,
         organization_id,
-        customer_name,
-        customer_phone,
-        shipping_address,
-        shipping_wilaya,
-        shipping_commune,
-        total_amount,
-        paid_amount,
+        total,
         notes,
-        order_items (
+        form_data,
+        online_order_items (
           product_id,
           product_name,
           quantity,
-          price
+          unit_price
         )
       `)
       .eq('id', orderId)
@@ -254,17 +313,59 @@ export async function createShippingOrderForOrder(
       };
     }
     
+    // Extract customer and shipping data from form_data
+    const formData = (order.form_data as any) || {};
+    // console.log('📋 Original form_data:', formData);
+    // console.log('📋 Form data keys:', Object.keys(formData));
+    
+    const customerName = formData.fullName || formData.customerName || formData.name || '';
+    const customerPhone = formData.phone || formData.customerPhone || formData.telephone || '';
+    const shippingWilaya = formData.province || formData.wilaya || formData.wilayaId || '';
+    const shippingCommune = formData.municipality || formData.commune || formData.communeId || '';
+    
+    // جرب جميع الأسماء المحتملة للعنوان
+    let shippingAddress = formData.address || 
+                         formData.shippingAddress || 
+                         formData.adresse || 
+                         formData.shipping_address ||
+                         formData.deliveryAddress ||
+                         formData.delivery_address ||
+                         formData.addressLine1 ||
+                         formData.street ||
+                         formData.location ||
+                         '';
+
+    // إذا لم يوجد عنوان محدد، استخدم البلدية والولاية كعنوان
+    if (!shippingAddress) {
+      shippingAddress = `بلدية ${shippingCommune}, ولاية ${shippingWilaya}`;
+    }
+    
+    console.log('📋 Extracted shipping data:', {
+      customerName,
+      customerPhone,
+      shippingAddress,
+      shippingWilaya,
+      shippingCommune
+    });
+    
     // Check if all required shipping fields are available
-    if (!order.customer_name || !order.customer_phone || 
-        !order.shipping_address || !order.shipping_wilaya || 
-        !order.shipping_commune) {
+    if (!customerName || !customerPhone || 
+        !shippingAddress || !shippingWilaya || 
+        !shippingCommune) {
+      console.log('❌ Missing required shipping fields:', {
+        hasCustomerName: !!customerName,
+        hasCustomerPhone: !!customerPhone,
+        hasShippingAddress: !!shippingAddress,
+        hasShippingWilaya: !!shippingWilaya,
+        hasShippingCommune: !!shippingCommune
+      });
       return {
         success: false,
         message: 'معلومات الشحن غير مكتملة في الطلب'
       };
     }
     
-    // Get all enabled shipping providers for the organization
+    // Get all enabled shipping providers for the organization (remove auto_shipping requirement)
     const { data: enabledProviders, error: providersError } = await supabase
       .from('shipping_provider_settings')
       .select(`
@@ -277,31 +378,36 @@ export async function createShippingOrderForOrder(
         auto_shipping
       `)
       .eq('organization_id', organizationId)
-      .eq('is_enabled', true)
-      .eq('auto_shipping', true);
+      .eq('is_enabled', true);
+    
+    console.log('📦 Available providers:', enabledProviders);
     
     if (providersError) {
+      console.error('❌ Providers query error:', providersError);
       return {
         success: false,
         message: 'خطأ في جلب مزودي خدمة الشحن المفعلين'
       };
     }
     
-    // If no providers are enabled for auto-shipping
+    // If no providers are enabled at all
     if (!enabledProviders || enabledProviders.length === 0) {
       return {
         success: false,
-        message: 'لا يوجد مزود شحن مفعل للشحن التلقائي'
+        message: 'لا يوجد مزود شحن مفعل في النظام'
       };
     }
     
-    // Use the first provider that has auto_shipping enabled
-    const defaultProvider = enabledProviders[0];
+    // Use the first enabled provider (prioritize auto_shipping if available)
+    const autoShippingProvider = enabledProviders.find(p => p.auto_shipping);
+    const defaultProvider = autoShippingProvider || enabledProviders[0];
     
-    // Get the provider code
-    const providerCode = await shippingSettingsService.getProviderCodeById(
-      defaultProvider.provider_id
-    );
+    console.log('📦 Selected provider:', defaultProvider);
+    
+    // Get the provider code from the nested object
+    const providerCode = defaultProvider.shipping_providers?.code;
+    
+    console.log('📦 Provider code:', providerCode);
     
     if (!providerCode) {
       return {
@@ -310,9 +416,23 @@ export async function createShippingOrderForOrder(
       };
     }
     
+    // Create order object compatible with createYalidineShippingOrder
+    const orderForShipping: Order = {
+      id: order.id,
+      organization_id: order.organization_id,
+      customer_name: customerName,
+      customer_phone: customerPhone,
+      shipping_address: shippingAddress,
+      shipping_wilaya: shippingWilaya,
+      shipping_commune: shippingCommune,
+      total_amount: order.total,
+      notes: order.notes || '',
+      order_items: (order.online_order_items as any) || []
+    };
+
     // Create the shipping order based on the provider
     if (providerCode === ShippingProvider.YALIDINE) {
-      return createYalidineShippingOrder(organizationId, order);
+      return createYalidineShippingOrder(organizationId, orderForShipping);
     }
     
     // Add other providers as they are implemented

@@ -2,14 +2,14 @@ import { BanknoteIcon, CircleDollarSign, CreditCard, Mail, MoreVertical, Edit, T
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { PaymentMethod } from '@/types/payment';
 import { Button } from '@/components/ui/button';
-import { useState } from 'react';
-import {
-  DropdownMenu,
+import { useState } from 'react';import { useOptimizedClickHandler } from "@/lib/performance-utils";
+
+import { DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+ } from "@/components/ui/dropdown-menu";
 
 interface PaymentMethodCardProps {
   method: PaymentMethod;
