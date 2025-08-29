@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '../../components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -20,7 +21,7 @@ import {
   DialogTitle,
   DialogFooter
 } from '../../components/ui/dialog';
-import { ArrowRightIcon, PlusCircleIcon, Phone, EuroIcon, RefreshCw } from 'lucide-react';
+import { ArrowRightIcon, PlusCircleIcon, Phone, EuroIcon, RefreshCw, ShieldAlert, Loader2 } from 'lucide-react';
 import { useToast } from '../../components/ui/use-toast';
 import type { 
   FlexiNetwork, 
@@ -41,10 +42,15 @@ import {
 } from '../../api/currencyService';
 import Layout from '../../components/Layout';
 import { useAuth } from '../../context/AuthContext';
+import { checkUserPermissions } from '../../lib/api/permissions';
 
 export default function FlexiSales() {
   const { toast } = useToast();
   const { user } = useAuth();
+  
+  // حالات الصلاحيات
+  const [hasSellPermission, setHasSellPermission] = useState(false);
+  const [permissionLoading, setPermissionLoading] = useState(true);
   
   // حالة شبكات الفليكسي والأرصدة
   const [flexiNetworks, setFlexiNetworks] = useState<FlexiNetwork[]>([]);
@@ -141,15 +147,48 @@ export default function FlexiSales() {
     }
   };
   
+  // التحقق من صلاحيات المستخدم
+  useEffect(() => {
+    const checkPermissions = async () => {
+      if (!user) {
+        setHasSellPermission(false);
+        setPermissionLoading(false);
+        return;
+      }
+      
+      setPermissionLoading(true);
+      try {
+        // التحقق من صلاحية بيع الفليكسي والعملات الرقمية
+        const canSell = await checkUserPermissions(user, 'sellFlexiAndDigitalCurrency' as any);
+        setHasSellPermission(canSell);
+      } catch (error) {
+        setHasSellPermission(false);
+        toast({
+          variant: 'destructive',
+          title: 'خطأ في التحقق من الصلاحيات',
+          description: 'حدث خطأ أثناء التحقق من صلاحياتك للوصول إلى هذه الصفحة'
+        });
+      } finally {
+        setPermissionLoading(false);
+      }
+    };
+    
+    checkPermissions();
+  }, [user, toast]);
+
   // عند تغيير إعداد عرض جميع البيانات، نعيد تحميل البيانات
   useEffect(() => {
-    fetchFlexiData();
-  }, [showAllData]);
+    if (hasSellPermission && !permissionLoading) {
+      fetchFlexiData();
+    }
+  }, [showAllData, hasSellPermission, permissionLoading]);
   
   useEffect(() => {
-    fetchFlexiData();
-    fetchCurrencyData();
-  }, []);
+    if (hasSellPermission && !permissionLoading) {
+      fetchFlexiData();
+      fetchCurrencyData();
+    }
+  }, [hasSellPermission, permissionLoading]);
   
   // تحديث الأرصدة المعروضة عندما تتغير الأرصدة الفعلية
   useEffect(() => {
@@ -518,6 +557,38 @@ export default function FlexiSales() {
     }));
   };
   
+  // عرض شاشة التحميل أثناء التحقق من الصلاحيات
+  if (permissionLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+            <p>التحقق من الصلاحيات...</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  // عرض رسالة عدم وجود صلاحية
+  if (!hasSellPermission) {
+    return (
+      <Layout>
+        <div className="container mx-auto py-6">
+          <Alert variant="destructive" className="max-w-md mx-auto">
+            <ShieldAlert className="h-4 w-4" />
+            <AlertTitle>غير مصرح</AlertTitle>
+            <AlertDescription>
+              ليس لديك الصلاحية اللازمة لبيع خدمات الفليكسي والعملات الرقمية. 
+              يرجى التواصل مع المسؤول لمنحك الصلاحية المناسبة.
+            </AlertDescription>
+          </Alert>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <div className="container mx-auto py-6">

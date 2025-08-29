@@ -216,6 +216,14 @@ export function AppsProvider({ children }: AppsProviderProps) {
   const [organizationApps, setOrganizationApps] = useState<OrganizationApp[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // إضافة تشخيص لمعرفة قيمة organizationId
+  useEffect(() => {
+    console.log('🔍 [AppsContext] organizationId:', organizationId);
+    console.log('🔍 [AppsContext] organizationId type:', typeof organizationId);
+    console.log('🔍 [AppsContext] organizationId is null:', organizationId === null);
+    console.log('🔍 [AppsContext] organizationId is undefined:', organizationId === undefined);
+  }, [organizationId]);
+
   // مرجع لتجنب استدعاءات متعددة
   const loadingRef = useRef(false);
   const lastOrgIdRef = useRef<string | null>(null);
@@ -420,7 +428,7 @@ export function AppsProvider({ children }: AppsProviderProps) {
       // تحميل فوري للبيانات مع تأخير صغير
       fetchTimeoutRef.current = setTimeout(() => {
         fetchOrganizationApps();
-      }, 100);
+      }, 0); // ✅ إزالة التأخير لحل مشكلة عرض المتجر
     }
 
     return () => {
@@ -470,14 +478,130 @@ export function AppsProvider({ children }: AppsProviderProps) {
 
   // تفعيل تطبيق - نسخة محسنة مع إنشاء الإعدادات الافتراضية
   const enableApp = useCallback(async (appId: string): Promise<boolean> => {
+    console.log('🔍 [enableApp] بدء تفعيل التطبيق:', appId);
+    console.log('🔍 [enableApp] organizationId:', organizationId);
+    console.log('🔍 [enableApp] organizationId type:', typeof organizationId);
+    
     if (!organizationId) {
+      console.error('❌ [enableApp] معرف المنظمة غير متوفر');
       toast.error('معرف المنظمة غير متوفر');
       return false;
     }
 
     const appDefinition = availableApps.find(app => app.id === appId);
     if (!appDefinition) {
+      console.error('❌ [enableApp] التطبيق المطلوب غير متوفر:', appId);
       toast.error('التطبيق المطلوب غير متوفر');
+      return false;
+    }
+
+    console.log('✅ [enableApp] تم العثور على التطبيق:', appDefinition.name);
+
+    // التحقق من الصلاحيات المطلوبة للتطبيق
+    if (appDefinition.permissions && appDefinition.permissions.length > 0) {
+      console.log('🔍 [enableApp] فحص الصلاحيات المطلوبة:', appDefinition.permissions);
+      
+      // الحصول على بيانات المستخدم الحالي
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.error('❌ [enableApp] المستخدم غير متوفر');
+        toast.error('المستخدم غير متوفر');
+        return false;
+      }
+
+      // الحصول على ملف المستخدم
+      const { data: userProfile } = await supabase
+        .from('users')
+        .select('role, permissions')
+        .eq('auth_user_id', user.id)
+        .eq('organization_id', organizationId)
+        .maybeSingle();
+
+      console.log('🔍 [enableApp] ملف المستخدم:', userProfile);
+
+      // التحقق من الصلاحيات
+      const hasRequiredPermissions = appDefinition.permissions.some(permission => {
+        // فحص الأدوار الإدارية
+        if (['admin', 'owner', 'org_admin', 'super_admin'].includes(userProfile?.role || '')) {
+          console.log('✅ [enableApp] المستخدم لديه دور إداري:', userProfile?.role);
+          return true;
+        }
+
+        // فحص الصلاحيات المحددة
+        const hasPermission = userProfile?.permissions?.[permission] === true;
+        console.log('🔍 [enableApp] فحص الصلاحية:', permission, 'النتيجة:', hasPermission);
+        return hasPermission;
+      });
+
+      if (!hasRequiredPermissions) {
+        console.error('❌ [enableApp] المستخدم لا يملك الصلاحيات المطلوبة');
+        toast.error(`لا يمكن تفعيل ${appDefinition.name} - الصلاحيات غير كافية`);
+        return false;
+      }
+
+      console.log('✅ [enableApp] تم التحقق من الصلاحيات بنجاح');
+    }
+
+    // التحقق من صلاحيات خطة الاشتراك
+    try {
+      console.log('🔍 [enableApp] فحص صلاحيات خطة الاشتراك');
+      
+      // الحصول على خطة الاشتراك الحالية للمؤسسة
+      const { data: subscriptionData, error: subscriptionError } = await supabase
+        .from('organization_subscriptions')
+        .select(`
+          id,
+          plan_id,
+          status,
+          subscription_plans!inner(
+            id,
+            code,
+            name,
+            permissions
+          )
+        `)
+        .eq('organization_id', organizationId)
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (subscriptionError) {
+        console.error('❌ [enableApp] خطأ في الحصول على بيانات الاشتراك:', subscriptionError);
+        toast.error('خطأ في التحقق من خطة الاشتراك');
+        return false;
+      }
+
+      if (!subscriptionData) {
+        console.error('❌ [enableApp] لا توجد خطة اشتراك نشطة');
+        toast.error('لا توجد خطة اشتراك نشطة');
+        return false;
+      }
+
+      const plan = subscriptionData.subscription_plans;
+      console.log('🔍 [enableApp] خطة الاشتراك:', plan);
+
+      // التحقق من أن خطة الاشتراك تتضمن الصلاحيات المطلوبة للتطبيق
+      if (appDefinition.permissions && appDefinition.permissions.length > 0) {
+        const planPermissions = plan.permissions || {};
+        console.log('🔍 [enableApp] صلاحيات الخطة:', planPermissions);
+        console.log('🔍 [enableApp] الصلاحيات المطلوبة للتطبيق:', appDefinition.permissions);
+
+        const planHasRequiredPermissions = appDefinition.permissions.some(permission => {
+          const hasPermission = planPermissions[permission] === true;
+          console.log('🔍 [enableApp] فحص الصلاحية في الخطة:', permission, 'النتيجة:', hasPermission);
+          return hasPermission;
+        });
+
+        if (!planHasRequiredPermissions) {
+          console.error('❌ [enableApp] خطة الاشتراك لا تتضمن الصلاحيات المطلوبة');
+          toast.error(`لا يمكن تفعيل ${appDefinition.name} - خطة الاشتراك الحالية لا تتضمن الصلاحيات المطلوبة`);
+          return false;
+        }
+
+        console.log('✅ [enableApp] تم التحقق من صلاحيات خطة الاشتراك بنجاح');
+      }
+    } catch (subscriptionCheckError) {
+      console.error('❌ [enableApp] خطأ في فحص صلاحيات خطة الاشتراك:', subscriptionCheckError);
+      toast.error('خطأ في التحقق من صلاحيات خطة الاشتراك');
       return false;
     }
 

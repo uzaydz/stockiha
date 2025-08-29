@@ -78,8 +78,7 @@ export const useProductDataLoader = ({
     if (dataFetchedRef.current && !slug) return;
     
     const loadProductWithRetry = async () => {
-
-      // التحقق من إلغاء الطلب
+      // إلغاء أي طلب سابق عند تغيير المعاملات
       if (currentAbortController.signal.aborted) {
         return;
       }
@@ -93,81 +92,46 @@ export const useProductDataLoader = ({
       // إذا لم يكن لدينا slug أو organizationId بعد انتهاء التحميل
       if (!slug || !organizationId) {
         if (!isOrganizationLoading && !organizationId) {
+          setError('لم يتم تحديد المتجر');
         }
         setIsLoading(false);
         return;
       }
 
-      let lastError: Error | null = null;
+      let lastError: any = null;
       
+      // حلقة إعادة المحاولة
       for (let attempt = 0; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
-        // التحقق من إلغاء الطلب قبل كل محاولة
-        if (currentAbortController.signal.aborted) return;
-
         try {
+
+          // التحقق من إلغاء الطلب
+          if (currentAbortController.signal.aborted) {
+            return;
+          }
+
           setIsLoading(true);
           setError(null);
-          
-          const responseData: ProductPageData | null = await getProductPageData(organizationId, slug);
-          
-          // التحقق من إلغاء الطلب بعد الحصول على الاستجابة
-          if (currentAbortController.signal.aborted) return;
-          
-          if (!responseData || !responseData.product || !responseData.product.id) {
-            throw new Error('المنتج غير موجود أو تعذر تحميل تفاصيله.');
-          }
-          
-          const actualProduct = responseData.product as Product;
-          
-          // تحديث البيانات فقط إذا لم يتم إلغاء الطلب
-          if (!currentAbortController.signal.aborted) {
-            
-            // إضافة الألوان والمقاسات إلى المنتج
-            const productWithColors = {
-              ...actualProduct,
-              colors: responseData.colors || [],
-              sizes: responseData.sizes || []
-            };
 
-            setProduct(productWithColors);
-            setEffectiveProduct(productWithColors);
+          // جلب بيانات المنتج
+          const responseData = await getProductPageData(organizationId, slug);
+
+          if (responseData && responseData.product) {
             
-            // تحديث الألوان والأحجام
-            if (responseData.colors && Array.isArray(responseData.colors) && responseData.colors.length > 0) {
-              const defaultColor = responseData.colors.find(c => c.is_default) || responseData.colors[0];
-              if (defaultColor) {
-                setSelectedColor(defaultColor as ProductColor);
-                if (actualProduct.use_sizes) {
-                  const filteredSizes = (responseData.sizes || []).filter(
-                    (size: ProductSize) => size.color_id === defaultColor.id && size.product_id === actualProduct.id
-                  );
-                  if (filteredSizes.length > 0) {
-                    setSizes(filteredSizes);
-                    const defaultSize = filteredSizes.find(s => s.is_default) || filteredSizes[0];
-                    setSelectedSize(defaultSize);
-                  }
-                }
-              }
-            } else {
-              setSelectedColor(null);
-              setSizes([]);
-              setSelectedSize(null);
+            // تحديث حالة المنتج
+            setProduct(responseData.product);
+            setEffectiveProduct(responseData.product);
+            setError(null);
+
+            // تحديث الألوان
+            if (responseData.colors && responseData.colors.length > 0) {
+              setSelectedColor(responseData.colors[0]);
+              setSizes(responseData.colors[0].sizes || []);
             }
-            
+
             // تحديث إعدادات النموذج
-            if (responseData.form_settings && typeof responseData.form_settings === 'object' && !Array.isArray(responseData.form_settings)) {
-              const fs = responseData.form_settings as ExtendedFormSettings;
-              setFormSettings(fs);
-              if (fs.fields && Array.isArray(fs.fields)) {
-                const processedFields = fs.fields.map(field => ({ 
-                  ...field, 
-                  isVisible: field.isVisible !== undefined ? field.isVisible : true 
-                })) as CustomFormField[];
-                setCustomFormFields(processedFields);
-              }
-            } else {
-              setFormSettings(null);
-              setCustomFormFields([]);
+            if (responseData.form_settings) {
+              setFormSettings(responseData.form_settings);
+              setCustomFormFields(responseData.form_settings.custom_fields || []);
             }
 
             // تحديث إعدادات التسويق
@@ -181,10 +145,23 @@ export const useProductDataLoader = ({
             dataFetchedRef.current = true;
             retryCountRef.current = 0; // إعادة تعيين عداد المحاولات عند النجاح
             
+            setIsLoading(false);
+            return; // نجح التحميل، الخروج من الحلقة
+            
+          } else {
+            // المنتج غير موجود
+            setError('المنتج غير موجود أو غير متاح حالياً');
+            setProduct(null);
+            setEffectiveProduct(null);
+            setSelectedColor(null);
+            setSizes([]);
+            setSelectedSize(null);
+            setFormSettings(null);
+            setCustomFormFields([]);
+            setMarketingSettings(null);
+            setIsLoading(false);
+            return;
           }
-          
-          setIsLoading(false);
-          return; // نجح التحميل، الخروج من الحلقة
           
         } catch (error: any) {
           lastError = error;
@@ -193,11 +170,12 @@ export const useProductDataLoader = ({
           if (currentAbortController.signal.aborted) {
             return;
           }
-          
+
           // إذا كان خطأ 404 أو منتج غير موجود، لا نعيد المحاولة
           if (error.message?.includes('404') || 
               error.message?.includes('Product not found') ||
-              error.message?.includes('المنتج غير موجود')) {
+              error.message?.includes('المنتج غير موجود') ||
+              error.message?.includes('PRODUCT_NOT_FOUND')) {
             setError(error.message || 'المنتج غير موجود');
             setProduct(null);
             setEffectiveProduct(null);
@@ -213,7 +191,7 @@ export const useProductDataLoader = ({
           
           // إذا كانت هذه المحاولة الأخيرة، اعرض الخطأ
           if (attempt === RETRY_CONFIG.maxRetries) {
-            // خطأ في تحميل المنتج
+            setError(lastError.message || 'فشل في تحميل بيانات المنتج بعد عدة محاولات');
             setProduct(null);
             setEffectiveProduct(null);
             setIsLoading(false);
@@ -221,17 +199,13 @@ export const useProductDataLoader = ({
           }
           
           // انتظار قبل إعادة المحاولة
-          const retryDelay = calculateRetryDelay(attempt);
-          await delay(retryDelay);
+          const delay = Math.min(
+            RETRY_CONFIG.baseDelay * Math.pow(RETRY_CONFIG.backoffMultiplier, attempt),
+            RETRY_CONFIG.maxDelay
+          );
           
-          retryCountRef.current = attempt + 1;
+          await new Promise(resolve => setTimeout(resolve, delay));
         }
-      }
-      
-      // إذا وصلنا هنا، فقد فشلت جميع المحاولات
-      if (lastError) {
-        setError(lastError.message || 'فشل في تحميل المنتج بعد عدة محاولات');
-        setIsLoading(false);
       }
     };
 

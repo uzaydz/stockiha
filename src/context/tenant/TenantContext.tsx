@@ -3,7 +3,7 @@
  * يستخدم المكونات المنفصلة للأداء الأفضل
  */
 
-import React, { createContext, useContext, useMemo, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useMemo, useCallback, useEffect, useState, useRef } from 'react';
 import { useAuth } from '../AuthContext';
 import { useUser } from '../UserContext';
 import { useLocation } from 'react-router-dom';
@@ -19,39 +19,172 @@ export interface TenantProviderProps {
 }
 
 export const TenantProvider: React.FC<TenantProviderProps> = React.memo(({ children }) => {
+  const appStartTime = useRef(performance.now());
+  const renderCount = useRef(0);
   const { user, isLoading: authLoading, currentSubdomain, organization: authOrganization } = useAuth();
   const { organizationId } = useUser();
   const location = useLocation();
 
-  // تحديد معاملات الجلب بناءً على السياق
+  // 🔍 Console logs للتتبع المفصل مع تحذير الرندر المفرط
+  renderCount.current++;
+  if (process.env.NODE_ENV === 'development') {
+    
+    // 🚨 تحذير إذا كان الرندر مفرط
+    if (renderCount.current > 3) {
+    }
+    
+  }
+
+  // State محسن مع preloading
+  const [preloadedOrganization, setPreloadedOrganization] = useState<Organization | null>(null);
+  const [isPreloading, setIsPreloading] = useState(true);
+
+  // 🚀 الاستماع لأحداث AppInitializer لحل مشكلة التحميل
+  useEffect(() => {
+    const handleAppInitData = (event: CustomEvent) => {
+      try {
+        const { organization: orgData } = event.detail;
+        if (orgData && orgData.id) {
+          console.log('✅ [TenantContext] تم استلام بيانات المؤسسة من AppInitializer:', orgData.id);
+          
+          // إنشاء كائن المؤسسة من البيانات المستلمة
+          const newOrg: Organization = {
+            id: orgData.id,
+            name: orgData.name,
+            subdomain: orgData.subdomain || '',
+            description: orgData.description || '',
+            logo_url: orgData.logo_url || '',
+            domain: orgData.domain || '',
+            subscription_tier: orgData.subscription_tier || 'basic',
+            subscription_status: orgData.subscription_status || 'active',
+            settings: orgData.settings || {},
+            created_at: orgData.created_at || new Date().toISOString(),
+            updated_at: orgData.updated_at || new Date().toISOString(),
+            owner_id: orgData.owner_id || ''
+          };
+          
+          setPreloadedOrganization(newOrg);
+          setIsPreloading(false);
+          
+          // حفظ البيانات في localStorage
+          localStorage.setItem('bazaar_organization_id', newOrg.id);
+          localStorage.setItem('bazaar_organization_name', newOrg.name);
+          sessionStorage.setItem('bazaar_organization_data', JSON.stringify(newOrg));
+        }
+      } catch (error) {
+        console.error('❌ [TenantContext] خطأ في معالجة بيانات AppInitializer:', error);
+      }
+    };
+
+    window.addEventListener('appInitDataReady', handleAppInitData);
+    
+    return () => {
+      window.removeEventListener('appInitDataReady', handleAppInitData);
+    };
+  }, []);
+
+  // تحسين: Preloading محسن مع تقليل العمليات
+  useEffect(() => {
+    const preloadStartTime = performance.now();
+    
+    const preloadData = () => {
+      try {
+        console.log('🔄 [TenantContext] بدء preload البيانات');
+        
+        // تحسين: تحميل أسرع من localStorage فقط
+        const storedOrgId = localStorage.getItem('bazaar_organization_id');
+        const storedOrgData = localStorage.getItem('bazaar_organization_data'); // تغيير من sessionStorage إلى localStorage
+
+        if (storedOrgId && storedOrgData) {
+          try {
+            const fullData = JSON.parse(storedOrgData);
+            // تحسين: التحقق من صحة البيانات بسرعة
+            if (fullData && fullData.id === storedOrgId) {
+              const preloadTime = performance.now() - preloadStartTime;
+              console.log('✅ [TenantContext] تم تحميل البيانات المحفوظة:', fullData.id, `(${preloadTime.toFixed(2)}ms)`);
+              setPreloadedOrganization(fullData);
+              setIsPreloading(false);
+              return;
+            }
+          } catch (e) {
+            console.warn('⚠️ [TenantContext] خطأ في parsing البيانات المحفوظة:', e);
+            // تجاهل أخطاء parsing وتنظيف البيانات التالفة
+            localStorage.removeItem('bazaar_organization_data');
+          }
+        }
+        
+        // تحسين: fallback أبسط إذا لم تكن هناك بيانات كاملة
+        if (storedOrgId) {
+          const storedOrgName = localStorage.getItem('bazaar_organization_name');
+          if (storedOrgName) {
+            console.log('🔄 [TenantContext] إنشاء كائن مؤقت من البيانات الأساسية');
+            // إنشاء كائن مؤقت بسيط
+            const tempOrg: Organization = {
+              id: storedOrgId,
+              name: storedOrgName,
+              subdomain: currentSubdomain || '',
+              description: '',
+              logo_url: '',
+              domain: '',
+              subscription_tier: 'free',
+              subscription_status: 'trial',
+              settings: {},
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              owner_id: ''
+            };
+            setPreloadedOrganization(tempOrg);
+            setIsPreloading(false);
+            return;
+          }
+        }
+        
+        // إذا لم تكن هناك بيانات محفوظة، نتوقف عن التحميل
+        console.log('⏳ [TenantContext] لا توجد بيانات محفوظة، انتظار AppInitializer');
+        setIsPreloading(false);
+        
+      } catch (error) {
+        console.error('❌ [TenantContext] خطأ في preload البيانات:', error);
+        setIsPreloading(false);
+      } finally {
+        const totalPreloadTime = performance.now() - preloadStartTime;
+        console.log('🏁 [TenantContext] انتهاء preload:', `${totalPreloadTime.toFixed(2)}ms`);
+      }
+    };
+
+    // Preloading فوري
+    preloadData();
+  }, [currentSubdomain]);
+
+  // تحسين: معاملات الجلب محسنة مع تقليل العمليات
   const fetchParams = useMemo(() => {
     const hostname = window.location.hostname;
     
-    // أولوية 1: معرف من AuthContext
+    // تحسين: أولوية 1 - استخدام البيانات المحفوظة أولاً
+    if (preloadedOrganization?.id) {
+      return { orgId: preloadedOrganization.id };
+    }
+    
+    // تحسين: أولوية 2 - معرف من AuthContext
     if (authOrganization?.id) {
       return { orgId: authOrganization.id };
     }
     
-    // أولوية 2: معرف محفوظ
-    const storedOrgId = localStorage.getItem('bazaar_organization_id');
-    if (storedOrgId) {
-      return { orgId: storedOrgId };
-    }
-    
-    // أولوية 3: النطاق المخصص
-    if (!hostname.includes('localhost')) {
-      return { hostname };
-    }
-    
-    // أولوية 4: النطاق الفرعي
+    // تحسين: أولوية 3 - النطاق الفرعي (أسرع من النطاق المخصص)
     if (currentSubdomain && currentSubdomain !== 'main') {
       return { subdomain: currentSubdomain };
     }
     
+    // تحسين: أولوية 4 - النطاق المخصص (فقط إذا لم تكن localhost)
+    if (!hostname.includes('localhost') && !hostname.includes('127.0.0.1')) {
+      return { hostname };
+    }
+    
     return undefined;
-  }, [authOrganization?.id, currentSubdomain]);
+  }, [authOrganization?.id, currentSubdomain, preloadedOrganization?.id]);
 
-  // استخدام hook محسن لجلب بيانات المؤسسة
+  // 🚨 تحسين: تعطيل جلب المؤسسة من TenantProvider مؤقتاً
+  // لأن get_store_init_data يوفر البيانات المطلوبة بنجاح
   const {
     organization,
     isLoading: orgLoading,
@@ -59,86 +192,45 @@ export const TenantProvider: React.FC<TenantProviderProps> = React.memo(({ child
     fetchOrganization,
     refreshOrganization,
     clearError
-  } = useOrganizationData(fetchParams, {
-    autoFetch: !!fetchParams && !authLoading,
+  } = useOrganizationData(undefined, { // تعطيل autoFetch
+    autoFetch: false, // 🚨 تعطيل مؤقتاً لتجنب الحلقة اللانهائية
+    timeout: 2000,
+    retries: 0,
     onSuccess: (org) => {
-      // حفظ معرف المؤسسة عند النجاح
       localStorage.setItem('bazaar_organization_id', org.id);
+      if (process.env.NODE_ENV === 'development') {
+      }
     },
     onError: (err) => {
+      if (process.env.NODE_ENV === 'development') {
+      }
     }
   });
 
+  // استخدام البيانات المحملة مسبقاً أو البيانات المجلوبة
+  const finalOrganization = preloadedOrganization || organization;
+  const finalLoading = isPreloading || (orgLoading && !preloadedOrganization);
+
   // 🔥 حفظ بيانات المؤسسة في الكاش للنظام الديناميكي
   useEffect(() => {
-    if (organization) {
-      try {
-        
-        // حفظ البيانات الأساسية للمؤسسة
-        const orgData = {
-          id: organization.id,
-          name: organization.name,
-          description: organization.description || `${organization.name} - متجر إلكتروني متميز`,
-          logo_url: organization.logo_url,
-          subdomain: organization.subdomain || currentSubdomain
-        };
-        
-        // حفظ إعدادات المؤسسة (قد تكون فارغة في البداية)
-        const orgSettings = {
-          site_name: organization.name,
-          seo_store_title: organization.name,
-          seo_meta_description: organization.description || `${organization.name} - أفضل المنتجات بأفضل الأسعار`,
-          meta_keywords: `${organization.name}, متجر إلكتروني, تسوق أونلاين`,
-          logo_url: organization.logo_url,
-          favicon_url: organization.logo_url
-        };
-        
-        // حفظ البيانات في localStorage
-        localStorage.setItem('bazaar_organization_id', organization.id);
-        localStorage.setItem(`bazaar_organization_${organization.id}`, JSON.stringify(orgData));
-        localStorage.setItem(`bazaar_org_settings_${organization.id}`, JSON.stringify(orgSettings));
-        
-        // حفظ في session storage للوصول السريع حسب النطاق الفرعي
-        const subdomain = organization.subdomain || currentSubdomain;
-        if (subdomain && subdomain !== 'main') {
-          const storeInfo = {
-            name: organization.name,
-            description: organization.description || `${organization.name} - متجر إلكتروني متميز`,
-            logo_url: organization.logo_url,
-            favicon_url: organization.logo_url,
-            seo: {
-              title: organization.name,
-              description: organization.description || `${organization.name} - أفضل المنتجات بأفضل الأسعار`,
-              keywords: `${organization.name}, متجر إلكتروني, تسوق أونلاين`,
-              og_image: organization.logo_url
-            }
-          };
-          sessionStorage.setItem(`store_${subdomain}`, JSON.stringify(storeInfo));
-          
-        }
-        
-        // إطلاق حدث مخصص لتنبيه النظام الديناميكي
-        const updateEvent = new CustomEvent('organizationDataUpdated', {
-          detail: {
-            organization: orgData,
-            settings: orgSettings,
-            subdomain
-          }
-        });
-        window.dispatchEvent(updateEvent);
-
-      } catch (error) {
-      }
+    if (finalOrganization) {
+      const saveStartTime = performance.now();
+      
+      // حفظ في localStorage للوصول السريع
+      localStorage.setItem('bazaar_organization_id', finalOrganization.id);
+      localStorage.setItem('bazaar_organization_name', finalOrganization.name);
+      
+      // حفظ البيانات الكاملة في sessionStorage للجلسة الحالية
+      sessionStorage.setItem('bazaar_organization_data', JSON.stringify(finalOrganization));
+      
+      const saveTime = performance.now() - saveStartTime;
     }
-  }, [organization, currentSubdomain]);
+  }, [finalOrganization]);
 
   // تحديد ما إذا كان المستخدم مدير المؤسسة
   const isOrgAdmin = useMemo(() => {
-    return user && organization && user.id === organization.owner_id;
-  }, [user, organization]);
-
-  // حالة التحميل الإجمالية
-  const isLoading = authLoading || orgLoading;
+    return user && finalOrganization && user.id === finalOrganization.owner_id;
+  }, [user, finalOrganization]);
 
   /**
    * إنشاء مؤسسة جديدة
@@ -190,7 +282,7 @@ export const TenantProvider: React.FC<TenantProviderProps> = React.memo(({ child
         throw new Error('يجب تسجيل الدخول لدعوة مستخدمين');
       }
 
-      if (!organization) {
+      if (!finalOrganization) {
         throw new Error('يجب أن تكون جزءًا من مؤسسة لدعوة مستخدمين');
       }
 
@@ -212,7 +304,7 @@ export const TenantProvider: React.FC<TenantProviderProps> = React.memo(({ child
     } catch (err) {
       return { success: false, error: err as Error };
     }
-  }, [user, organization, isOrgAdmin]);
+  }, [user, finalOrganization, isOrgAdmin]);
 
   /**
    * تحديث بيانات المؤسسة
@@ -222,30 +314,50 @@ export const TenantProvider: React.FC<TenantProviderProps> = React.memo(({ child
     await refreshOrganization();
   }, [refreshOrganization, clearError]);
 
-  // قيمة السياق
-  const value = useMemo<TenantContextType>(() => ({
-    currentOrganization: organization,
-    tenant: organization,
-    organization,
-    isOrgAdmin: !!isOrgAdmin,
-    isLoading,
-    error,
-    createOrganization,
-    inviteUserToOrganization,
-    refreshOrganizationData,
-    refreshTenant: refreshOrganizationData
-  }), [
-    organization,
+  // إنشاء قيمة Context
+  const contextValue: TenantContextType = useMemo(() => {
+    const startTime = performance.now();
+    
+    const value = {
+      currentOrganization: finalOrganization,
+      tenant: finalOrganization,
+      organization: finalOrganization,
+      isOrgAdmin: !!isOrgAdmin,
+      isLoading: finalLoading,
+      error: error as Error | null,
+      createOrganization,
+      inviteUserToOrganization,
+      refreshOrganizationData,
+      refreshTenant: refreshOrganizationData
+    };
+    
+    const time = performance.now() - startTime;
+    
+    return value;
+  }, [
+    finalOrganization,
     isOrgAdmin,
-    isLoading,
+    finalLoading,
     error,
     createOrganization,
     inviteUserToOrganization,
     refreshOrganizationData
   ]);
 
+  // تسجيل الأداء
+  useEffect(() => {
+    if (finalOrganization && !finalLoading) {
+      const totalTime = performance.now() - appStartTime.current;
+    }
+  }, [finalOrganization, finalLoading, preloadedOrganization]);
+
+  // تسجيل حالة التحميل
+  useEffect(() => {
+    const currentTime = performance.now() - appStartTime.current;
+  }, [isPreloading, orgLoading, authLoading, finalLoading, preloadedOrganization, organization, finalOrganization]);
+
   return (
-    <TenantContext.Provider value={value}>
+    <TenantContext.Provider value={contextValue}>
       {children}
     </TenantContext.Provider>
   );
@@ -254,14 +366,14 @@ export const TenantProvider: React.FC<TenantProviderProps> = React.memo(({ child
 TenantProvider.displayName = 'TenantProvider';
 
 /**
- * Hook لاستخدام سياق المستأجر
+ * Hook لاستخدام TenantContext
  */
-export function useTenant(): TenantContextType {
+export const useTenant = (): TenantContextType => {
   const context = useContext(TenantContext);
   if (context === undefined) {
     throw new Error('useTenant must be used within a TenantProvider');
   }
   return context;
-}
+};
 
-export { TenantContext };
+export default TenantContext;

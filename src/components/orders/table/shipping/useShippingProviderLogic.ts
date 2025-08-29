@@ -166,10 +166,8 @@ export const useShippingProviderLogic = ({
 
   // معالجة إرسال الطلب إلى مزود الشحن - مع تحسين الأداء
   const handleSendToProvider = useCallback(async (providerCode: string) => {
-    console.log('🎯 useShippingProviderLogic handleSendToProvider called:', { providerCode, orderId: order.id, isLoading, hasCallback: !!onSendToProvider });
     
     if (!onSendToProvider || isLoading) {
-      console.log('❌ Cannot send - missing callback or loading:', { hasCallback: !!onSendToProvider, isLoading });
       return;
     }
     
@@ -180,11 +178,8 @@ export const useShippingProviderLogic = ({
     });
     
     try {
-      console.log('🚀 Calling onSendToProvider...');
       await onSendToProvider(order.id, providerCode);
-      console.log('✅ onSendToProvider completed successfully');
     } catch (error) {
-      console.error('❌ Error in handleSendToProvider:', error);
     } finally {
       // تأجيل إعادة تعيين الحالة لتجنب re-renders متعددة
       requestAnimationFrame(() => {

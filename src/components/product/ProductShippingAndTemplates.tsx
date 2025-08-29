@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { UseFormReturn } from 'react-hook-form';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from '@/components/ui/form';
@@ -42,28 +42,54 @@ const ProductShippingAndTemplates: React.FC<ProductShippingAndTemplatesProps> = 
   const currentFormTemplateId = watch('form_template_id');
   const shippingMethodType = watch('shipping_method_type');
 
-  // Fetch organization templates and shipping providers
+  // Fetch organization templates and shipping providers with memoization
   useEffect(() => {
     if (organizationId) {
-      setIsLoadingTemplates(true);
-      getFormSettingTemplatesForProductPage(organizationId)
-        .then(data => {
-          setTemplates(data);
-          if (!productId && !currentFormTemplateId && data.length > 0) {
-            const defaultTemplate = data.find(t => t.is_default);
-            if (defaultTemplate) {
-              setValue('form_template_id', defaultTemplate.id, { shouldValidate: true });
+      // Use a flag to prevent multiple simultaneous requests
+      let isMounted = true;
+      
+      const fetchData = async () => {
+        try {
+          // Fetch templates and shipping providers in parallel
+          const [templatesData, shippingData] = await Promise.all([
+            getFormSettingTemplatesForProductPage(organizationId),
+            getActiveShippingProvidersForOrg(organizationId)
+          ]);
+          
+          if (isMounted) {
+            
+            // عرض القيم المحفوظة في النموذج
+            
+            setTemplates(templatesData);
+            setShippingProviders(shippingData);
+            
+            // Set default template only if needed and if the ID is valid
+            if (!productId && !currentFormTemplateId && templatesData.length > 0) {
+              const defaultTemplate = templatesData.find(t => t.is_default && t.id && typeof t.id === 'string');
+              if (defaultTemplate && defaultTemplate.id) {
+                setValue('form_template_id', defaultTemplate.id, { shouldValidate: true });
+              }
             }
           }
-        })
-        .catch(() => toast.error('فشل تحميل نماذج عرض الصفحة.'))
-        .finally(() => setIsLoadingTemplates(false));
-
+        } catch (error) {
+          if (isMounted) {
+            toast.error('فشل تحميل بيانات التوصيل والنماذج.');
+          }
+        } finally {
+          if (isMounted) {
+            setIsLoadingTemplates(false);
+            setIsLoadingShippingProviders(false);
+          }
+        }
+      };
+      
+      setIsLoadingTemplates(true);
       setIsLoadingShippingProviders(true);
-      getActiveShippingProvidersForOrg(organizationId)
-        .then(setShippingProviders)
-        .catch(() => toast.error('فشل تحميل مزودي الشحن.'))
-        .finally(() => setIsLoadingShippingProviders(false));
+      fetchData();
+      
+      return () => {
+        isMounted = false;
+      };
     }
   }, [organizationId, setValue, productId, currentFormTemplateId]);
 
@@ -201,19 +227,32 @@ const ProductShippingAndTemplates: React.FC<ProductShippingAndTemplatesProps> = 
                       <Select 
                         onValueChange={(value) => {
                           if (value === "" || value === "_NO_PROVIDER_SELECTED_") {
-                            field.onChange(null);
+                            setValue('shipping_provider_id', null);
                             setValue('shipping_method_type', 'default');
                           } else if (value === "custom") {
-                            field.onChange(null);
+                            setValue('shipping_provider_id', null);
                             setValue('shipping_method_type', 'custom');
+                            toast.success('تم اختيار طريقة الشحن المخصصة بنجاح!');
                           } else {
-                            field.onChange(Number(value));
+                            setValue('shipping_provider_id', Number(value));
                             setValue('shipping_method_type', 'standard');
                           }
+                          
+                          // عرض جميع قيم النموذج للتأكد من التحديث
                         }} 
                         value={
-                          shippingMethodType === 'custom' ? 'custom' : 
-                          field.value ? String(field.value) : ""
+                          (() => {
+                            const currentMethodType = watch('shipping_method_type');
+                            const currentProviderId = watch('shipping_provider_id');
+                            
+                            if (currentMethodType === 'custom') {
+                              return 'custom';
+                            } else if (currentMethodType === 'standard' && currentProviderId) {
+                              return String(currentProviderId);
+                            } else {
+                              return "";
+                            }
+                          })()
                         } 
                         disabled={isLoadingShippingProviders}
                       >
@@ -237,7 +276,7 @@ const ProductShippingAndTemplates: React.FC<ProductShippingAndTemplatesProps> = 
                             <>
                               <Separator className="my-1" />
                               <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                                طرق الشحن المخصصة
+                                طرق الشحن المخصصة ({shippingProviders.filter(p => p.type === 'custom').length})
                               </div>
                               {shippingProviders.filter(p => p.type === 'custom').map(provider => {
                                 const IconComponent = Globe;
@@ -260,12 +299,12 @@ const ProductShippingAndTemplates: React.FC<ProductShippingAndTemplatesProps> = 
                             </>
                           )}
 
-                                                    {/* شركات التوصيل العادية */}
+                          {/* شركات التوصيل العادية */}
                           {shippingProviders.filter(p => p.type === 'standard').length > 0 && (
                             <>
                               <Separator className="my-1" />
                               <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                                شركات التوصيل
+                                شركات التوصيل ({shippingProviders.filter(p => p.type === 'standard').length})
                               </div>
                               {shippingProviders.filter(p => p.type === 'standard').map(provider => {
                                 // تحديد الأيقونة حسب كود الشركة

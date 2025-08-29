@@ -7,6 +7,39 @@ import { getSupabaseClient } from "@/lib/supabase";
 import { useTenant } from "@/context/TenantContext";
 import ImageUploader from "./ImageUploader";
 
+// دالة لحذف الصورة من Supabase Storage
+const deleteImageFromStorage = async (imageUrl: string): Promise<boolean> => {
+  try {
+    if (!imageUrl || !imageUrl.includes('supabase.co')) {
+      return true; // الصورة ليست في Supabase، لا حاجة للحذف
+    }
+
+    const supabase = getSupabaseClient();
+
+    // استخراج مسار الملف من URL
+    const url = new URL(imageUrl);
+    const pathParts = url.pathname.split('/');
+    const filePath = pathParts.slice(pathParts.indexOf('organization-assets') + 1).join('/');
+
+    if (!filePath) {
+      return true; // لا يمكن استخراج المسار، لكن لا نعتبرها خطأ
+    }
+
+    // حذف الملف من Supabase Storage
+    const { error } = await supabase.storage
+      .from('organization-assets')
+      .remove([filePath]);
+
+    if (error) {
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    return false;
+  }
+};
+
 interface MultiImageUploaderProps {
   onImagesUploaded: (urls: string[]) => void;
   defaultImages?: string[];
@@ -77,25 +110,49 @@ export default function MultiImageUploader({
     setIsAddingImage(false);
   };
 
-  const handleRemoveImage = (index: number) => {
+  const handleRemoveImage = async (index: number) => {
     if (process.env.NODE_ENV !== 'production') {
-      
     }
-    
+
     setImages(prevImages => {
       const newImages = [...prevImages];
       const removedUrl = newImages.splice(index, 1)[0];
+
+      // حذف الصورة من Supabase Storage في الخلفية
+      if (removedUrl) {
+        deleteImageFromStorage(removedUrl).then(success => {
+          if (success) {
+            toast({
+              title: "تم حذف الصورة",
+              description: "تم حذف الصورة من التخزين بنجاح",
+              variant: "default",
+            });
+          } else {
+            toast({
+              title: "تحذير",
+              description: "تم حذف الصورة من الواجهة ولكن قد تظل في التخزين",
+              variant: "destructive",
+            });
+          }
+        }).catch(error => {
+          toast({
+            title: "تحذير",
+            description: "تم حذف الصورة من الواجهة ولكن قد تظل في التخزين",
+            variant: "destructive",
+          });
+        });
+      }
+
       // تحديث مرجع الصور
       imagesRef.current = newImages;
-      
+
       if (process.env.NODE_ENV !== 'production') {
-        
       }
-      
+
       if (!disableAutoCallback) {
         onImagesUploaded(newImages);
       }
-      
+
       return newImages;
     });
   };
@@ -145,15 +202,47 @@ export default function MultiImageUploader({
     return images;
   };
 
+  // دالة للتحقق من صحة الصورة
+  const checkImageExists = (url: string): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (!url || !url.trim()) {
+        resolve(false);
+        return;
+      }
+
+      const img = new Image();
+      img.onload = () => resolve(true);
+      img.onerror = () => resolve(false);
+      img.src = url;
+
+      // تعيين timeout للصور التي لا ترد
+      setTimeout(() => resolve(false), 5000);
+    });
+  };
+
   // استخدام useEffect للتحقق من الصور وإزالة الروابط الفارغة أو غير الصالحة
   useEffect(() => {
-    if (images.length > 0) {
-      const filteredImages = images.filter(url => url && url.trim() !== "");
-      if (filteredImages.length !== images.length) {
-        
-        setImages(filteredImages);
+    const validateImages = async () => {
+      if (images.length > 0) {
+        const validationPromises = images.map(url => checkImageExists(url));
+        const validationResults = await Promise.all(validationPromises);
+
+        const validImages = images.filter((url, index) => validationResults[index]);
+
+        if (validImages.length !== images.length) {
+
+          // تحديث الصور المتبقية
+          setImages(validImages);
+          imagesRef.current = validImages;
+
+          if (!disableAutoCallback) {
+            onImagesUploaded(validImages);
+          }
+        }
       }
-    }
+    };
+
+    validateImages();
   }, []);
 
   return (

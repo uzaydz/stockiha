@@ -55,7 +55,7 @@ import ServiceDetailsDialog from './ServiceDetailsDialog';
 import BookingDialog from './BookingDialog';
 import { formatPrice } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
-import { checkUserPermissions } from '@/lib/api/permissions';
+import { hasPermissions } from '@/lib/api/userPermissionsUnified';
 import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 interface ServicesListProps {
@@ -86,16 +86,13 @@ const ServicesList = ({ services, onRefreshServices }: ServicesListProps) => {
     const checkPermissions = async () => {
       if (user) {
         try {
-          const [canEdit, canDelete, canTrack] = await Promise.all([
-            checkUserPermissions(user, 'editServices'),
-            checkUserPermissions(user, 'deleteServices'),
-            checkUserPermissions(user, 'trackServices')
-          ]);
+          // استخدام الدالة الموحدة للتحقق من عدة صلاحيات دفعة واحدة
+          const permissionsResult = await hasPermissions(['editServices', 'deleteServices', 'trackServices'], user.id);
           
           setPermissions({
-            canEdit,
-            canDelete,
-            canTrack
+            canEdit: permissionsResult.editServices || false,
+            canDelete: permissionsResult.deleteServices || false,
+            canTrack: permissionsResult.trackServices || false
           });
         } catch (error) {
         }

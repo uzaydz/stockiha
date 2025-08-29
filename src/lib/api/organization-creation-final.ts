@@ -1,5 +1,4 @@
 import { supabase } from '@/lib/supabase';
-import { supabaseAdmin } from '@/lib/supabase-admin';
 
 /**
  * إنشاء مؤسسة باستخدام الحل النهائي
@@ -217,10 +216,10 @@ export const diagnoseFinalRegistration = async (
   try {
     
     // فحص المستخدم في auth.users
-    const { data: authUser } = await supabaseAdmin.auth.admin.getUserById(userId);
+    const { data: authUser } = await supabase.auth.admin.getUserById(userId);
     
     // فحص المستخدم في جدول users
-    const { data: userData } = await supabaseAdmin
+    const { data: userData } = await supabase
       .from('users')
       .select('*')
       .or(`id.eq.${userId},auth_user_id.eq.${userId}`)
@@ -238,7 +237,7 @@ export const diagnoseFinalRegistration = async (
         .replace(/^-+|-+$/g, '') // إزالة الشرطات من البداية والنهاية
         .replace(/-+/g, '-'); // تحويل الشرطات المتعددة إلى شرطة واحدة
 
-      const { data: org } = await supabaseAdmin
+      const { data: org } = await supabase
         .from('organizations')
         .select('*')
         .eq('subdomain', cleanSubdomain)

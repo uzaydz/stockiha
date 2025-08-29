@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Menu, ChevronDown, ArrowRightToLine, ArrowLeftToLine, Sparkles } from 'lucide-react';
+import { Menu, ChevronDown, ArrowRightToLine, ArrowLeftToLine, Sparkles, ShoppingCart } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -17,6 +17,7 @@ import { useTenant } from '@/context/TenantContext';
 import { useApps } from '@/context/AppsContext';
 import { useStoreInfo, useOrganizationSettings } from '@/hooks/useAppInitData';
 import { useSharedStoreDataContext } from '@/context/SharedStoreDataContext';
+// import { OnlineOrdersLimitBadge } from '@/components/subscription/OnlineOrdersLimitBadge';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -363,6 +364,8 @@ export function NavbarMain({
             <div className="bg-gradient-to-r from-background/40 to-background/60 backdrop-blur-md rounded-full border border-border/20 shadow-sm p-1">
               <NavbarThemeToggle />
             </div>
+            
+            {/* عرض عدد الطلبيات المتبقية - معطل مؤقتاً */}
             
             {user && (
               <div className="bg-gradient-to-r from-background/40 to-background/60 backdrop-blur-md rounded-full border border-border/20 shadow-sm p-1">

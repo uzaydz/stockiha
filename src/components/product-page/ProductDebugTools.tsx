@@ -19,9 +19,9 @@ export const ProductDebugTools: React.FC<ProductDebugToolsProps> = React.memo(({
   organizationId,
   productTracking
 }) => {
-  // عرض أدوات التشخيص فقط في بيئة التطوير
+  // في الإنتاج: لا نعرض شيئاً لتفادي أي تكلفة إضافية
   if (process.env.NODE_ENV !== 'development') {
-    return <QuickTrackingCheck />;
+    return null;
   }
 
   return (
@@ -63,4 +63,3 @@ export const ProductDebugTools: React.FC<ProductDebugToolsProps> = React.memo(({
 });
 
 ProductDebugTools.displayName = 'ProductDebugTools';
-

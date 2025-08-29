@@ -29,7 +29,19 @@ export const productPurchaseTranslations = {
       totalPrice: "السعر الإجمالي:",
       freeDelivery: "توصيل مجاني",
       scrollToForm: "انتقل للنموذج",
-      completeOrder: "إتمام الطلب"
+      completeOrder: "إتمام الطلب",
+      // إضافة الترجمات الجديدة
+      success: "تم بنجاح!",
+      thankYou: "شكراً لثقتك",
+      outOfStock: "غير متوفر",
+      willNotify: "سيتم الإعلام عند التوفر",
+      calculatingCost: "حساب التكلفة...",
+      pleaseWait: "انتظر قليلاً...",
+      clickToGo: "انقر للانتقال",
+      completeRequest: "اكمل الطلب",
+      saving: "توفير",
+      currentlyUnavailable: "غير متوفر حالياً",
+      productActions: "إجراءات المنتج"
     },
 
     // ProductPageSkeleton
@@ -85,7 +97,10 @@ export const productPurchaseTranslations = {
       pieces: "قطعة",
       noSizesAvailable: "لا توجد مقاسات متاحة لهذا اللون",
       loadingSizes: "جاري تحميل المقاسات...",
-      variants: "المتغيرات"
+      variants: "المتغيرات",
+      lowStock: "مخزون قليل",
+      outOfStockFull: "نفد المخزون",
+      pricesMayVary: "الأسعار قد تختلف حسب المقاس المختار"
     },
 
     // ProductPriceDisplay
@@ -176,6 +191,12 @@ export const productPurchaseTranslations = {
       processing: "جاري المعالجة...",
       calculatingDelivery: "جاري حساب سعر التوصيل...",
       loadingPrices: "جاري تحميل الأسعار..."
+    },
+
+    // OrderForm Header
+    orderForm: {
+      heroTitle: "أكمل طلبك الآن",
+      heroDescription: "املأ البيانات التالية لإتمام طلبك بسهولة وأمان"
     },
 
     // ProductPurchaseSummary
@@ -338,7 +359,10 @@ export const productPurchaseTranslations = {
       pieces: "pieces",
       noSizesAvailable: "No sizes available for this color",
       loadingSizes: "Loading sizes...",
-      variants: "Variants"
+      variants: "Variants",
+      lowStock: "Low Stock",
+      outOfStockFull: "Out of Stock",
+      pricesMayVary: "Prices may vary based on selected size"
     },
 
     // ProductPriceDisplay
@@ -429,6 +453,12 @@ export const productPurchaseTranslations = {
       processing: "Processing...",
       calculatingDelivery: "Calculating delivery price...",
       loadingPrices: "Loading prices..."
+    },
+
+    // OrderForm Header
+    orderForm: {
+      heroTitle: "Complete Your Order Now",
+      heroDescription: "Fill in the following data to complete your order easily and securely"
     },
 
     // ProductPurchaseSummary
@@ -592,7 +622,10 @@ export const productPurchaseTranslations = {
       pieces: "pièces",
       noSizesAvailable: "Aucune taille disponible pour cette couleur",
       loadingSizes: "Chargement des tailles...",
-      variants: "Variantes"
+      variants: "Variantes",
+      lowStock: "Stock Faible",
+      outOfStockFull: "Rupture de Stock",
+      pricesMayVary: "Les prix peuvent varier selon la taille sélectionnée"
     },
 
     // ProductPriceDisplay
@@ -683,6 +716,12 @@ export const productPurchaseTranslations = {
       processing: "Traitement en cours...",
       calculatingDelivery: "Calcul du prix de livraison...",
       loadingPrices: "Chargement des prix..."
+    },
+
+    // OrderForm Header
+    orderForm: {
+      heroTitle: "Complétez Votre Commande Maintenant",
+      heroDescription: "Remplissez les données suivantes pour finaliser votre commande facilement et en toute sécurité"
     },
 
     // ProductPurchaseSummary

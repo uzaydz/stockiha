@@ -11985,6 +11985,7 @@ export type Database = {
           limits: Json
           monthly_price: number
           name: string
+          permissions: Json | null
           trial_period_days: number
           updated_at: string
           yearly_price: number
@@ -21853,7 +21854,7 @@ export type Database = {
         Returns: Json
       }
       get_store_init_data: {
-        Args: { org_subdomain: string }
+        Args: { org_identifier: string }
         Returns: Json
       }
       get_store_optimized_data: {

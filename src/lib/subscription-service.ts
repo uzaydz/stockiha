@@ -252,7 +252,28 @@ export const SubscriptionService = {
     fallbackToCache: boolean = true
   ): Promise<SubscriptionValidationResult> {
     try {
-      // المحاولة الأولى: استخدام البيانات المرسلة (cachedSubscriptions)
+      // المحاولة الأولى: استخدام الدالة المحسنة الجديدة
+      try {
+        const { data, error } = await (supabase as any).rpc('check_organization_subscription_enhanced', {
+          org_id: organizationId
+        });
+
+        if (!error && data && data.success) {
+          const daysLeft = data.days_left || 0;
+          return {
+            isValid: data.status === 'active' || data.status === 'trial',
+            status: data.status,
+            message: data.message,
+            daysLeft,
+            planName: data.plan_name,
+            source: 'subscription'
+          };
+        }
+      } catch (enhancedError) {
+        console.warn('فشل في استخدام الدالة المحسنة، استخدام الطريقة التقليدية:', enhancedError);
+      }
+
+      // المحاولة الثانية: استخدام البيانات المرسلة (cachedSubscriptions)
       if (cachedSubscriptions && cachedSubscriptions.length > 0) {
         const subscription = cachedSubscriptions[0];
         const endDate = new Date(subscription.end_date);
@@ -271,7 +292,7 @@ export const SubscriptionService = {
         }
       }
 
-      // المحاولة الثانية: التحقق مباشرة من قاعدة البيانات
+      // المحاولة الثالثة: التحقق مباشرة من قاعدة البيانات
       const { data: directSubscriptions, error: directError } = await supabase
         .from('organization_subscriptions')
         .select(`

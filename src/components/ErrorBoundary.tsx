@@ -1,23 +1,27 @@
-import React from "react";
-import * as Sentry from "@sentry/react";
-import type { FallbackRender } from "@sentry/react";
+import React, { Component, ReactNode } from "react";
 import { reportHookError, resetAndReload } from "@/lib/utils/storage-helper";
 
-const ErrorFallback: FallbackRender = (props) => {
-  const { error, resetError } = props;
-  
-  const errorMessage = error && typeof error === 'object' && 'message' in error
-    ? String(error.message)
-    : 'خطأ غير معروف';
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error: Error | null;
+}
+
+interface ErrorBoundaryProps {
+  children: ReactNode;
+  fallback?: (error: Error, resetError: () => void) => ReactNode;
+}
+
+const ErrorFallback = ({ error, resetError }: { error: Error; resetError: () => void }) => {
+  const errorMessage = error?.message || 'خطأ غير معروف';
 
   // التحقق من نوع الخطأ
   const isHookError = errorMessage.includes('hooks') || errorMessage.includes('Rendered fewer hooks');
   const isRenderError = errorMessage.includes('Cannot read properties of undefined') || errorMessage.includes('Cannot access before initialization');
 
   // تقرير الخطأ بدون hooks
-  if (error && typeof error === 'object' && 'message' in error) {
+  if (error) {
     try {
-      reportHookError(error as Error);
+      reportHookError(error);
     } catch (reportError) {
     }
   }
@@ -67,9 +71,46 @@ const ErrorFallback: FallbackRender = (props) => {
   );
 };
 
-export const SentryErrorBoundary = Sentry.withErrorBoundary(
-  ({ children }) => children,
-  {
-    fallback: ErrorFallback,
+export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, error: null };
   }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    // تسجيل الخطأ في الكونسول
+    
+    // يمكن إضافة تسجيل إضافي هنا
+    if (process.env.NODE_ENV === 'development') {
+    }
+  }
+
+  resetError = () => {
+    this.setState({ hasError: false, error: null });
+  };
+
+  render() {
+    if (this.state.hasError && this.state.error) {
+      if (this.props.fallback) {
+        return this.props.fallback(this.state.error, this.resetError);
+      }
+      
+      return <ErrorFallback error={this.state.error} resetError={this.resetError} />;
+    }
+
+    return this.props.children;
+  }
+}
+
+// Export للتوافق مع الكود الموجود
+export const SentryErrorBoundary: React.FC<{ children: ReactNode }> = ({ children }) => (
+  <ErrorBoundary>
+    {children}
+  </ErrorBoundary>
 );
+
+export default ErrorBoundary;

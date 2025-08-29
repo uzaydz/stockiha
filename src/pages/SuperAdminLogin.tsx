@@ -44,19 +44,22 @@ export default function SuperAdminLogin() {
   // تحقق من صلاحيات المسؤول الرئيسي
   const checkSuperAdminStatus = async (userId: string) => {
     try {
+      
       // طريقة 1: استخدام supabase للتحقق مباشرة
       const { data, error } = await supabase
         .from('users')
         .select('is_super_admin, role')
         .eq('id', userId)
         .single();
-      
+
       if (error) {
         return false;
       }
-      
+
       // العودة true إذا كان is_super_admin صحيح 
-      return data?.is_super_admin === true;
+      const isSuper = data?.is_super_admin === true;
+      
+      return isSuper;
     } catch (error) {
       return false;
     }
@@ -72,7 +75,7 @@ export default function SuperAdminLogin() {
         email: values.email,
         password: values.password,
       });
-      
+
       if (error) {
         throw new Error(error.message);
       }
@@ -80,29 +83,36 @@ export default function SuperAdminLogin() {
       if (!data.user) {
         throw new Error('فشل تسجيل الدخول لسبب غير معروف');
       }
-      
+
       // التحقق من صلاحيات المسؤول الرئيسي
       const isSuperAdmin = await checkSuperAdminStatus(data.user.id);
-      
+
       if (!isSuperAdmin) {
         // تسجيل الخروج إذا لم يكن مسؤول رئيسي
         await supabase.auth.signOut();
         throw new Error('ليس لديك صلاحيات للوصول إلى لوحة المسؤول الرئيسي');
       }
-      
-      // حفظ حالة الـ Super Admin في localStorage لتجنب فقدان الجلسة
+
+      // حفظ حالة السوبر أدمين في localStorage
       localStorage.setItem('is_super_admin', 'true');
       localStorage.setItem('super_admin_session', JSON.stringify({
         userId: data.user.id,
         timestamp: Date.now()
       }));
+
+      // إنتظار للتأكد من تحديث AuthContext وإشعار Supabase listeners
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // التأكد من أن الجلسة تم تحديثها
+      const { data: updatedSession } = await supabase.auth.getSession();
       
       // توجيه المستخدم إلى لوحة المسؤول الرئيسي
       toast({
         title: 'تم تسجيل الدخول بنجاح',
         description: 'مرحباً بك في لوحة المسؤول الرئيسي',
       });
-      
+
+      // استخدام navigate بدلاً من window.location لتجنب إعادة التحميل
       navigate('/super-admin');
     } catch (err: any) {
       

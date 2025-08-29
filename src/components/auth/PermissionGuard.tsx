@@ -1,196 +1,130 @@
-import { ReactNode, useEffect, useState } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { EmployeePermissions } from '@/types/employee';
-import { toast } from '@/hooks/use-toast';
-import { checkUserPermissions } from '@/lib/api/permissions'; // استيراد دالة التحقق من الصلاحيات
-// استيراد مكونات النافذة المنبثقة
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import { 
+  AlertDialog, 
+  AlertDialogAction, 
+  AlertDialogContent, 
+  AlertDialogDescription, 
+  AlertDialogFooter, 
+  AlertDialogHeader, 
+  AlertDialogTitle 
+} from '@/components/ui/alert-dialog';
+import { checkUserPermissionsLocal } from '@/lib/utils/permissions-utils';
 
 interface PermissionGuardProps {
-  requiredPermissions: Array<keyof EmployeePermissions>;
-  children: ReactNode;
+  requiredPermissions: string[];
+  children: React.ReactNode;
   fallbackPath?: string;
 }
 
-// خريطة لتصحيح أسماء الصلاحيات
+// تعيين الصلاحيات البديلة لكل صلاحية مطلوبة
 const permissionMapping: Record<string, string[]> = {
-  'viewServices': ['viewServices', 'manageServices'],
-  'viewProducts': ['viewProducts', 'manageProducts', 'editProducts'],
-  'viewOrders': ['viewOrders', 'manageOrders'],
-  'viewSalesReports': ['viewSalesReports', 'viewReports'],
-  'viewFinancialReports': ['viewFinancialReports', 'viewReports'],
-  'viewCustomers': ['viewCustomers', 'manageCustomers'],
-  'viewDebts': ['viewDebts', 'manageCustomers', 'viewCustomers'],
-  'viewEmployees': ['viewEmployees', 'manageEmployees'],
-  'manageOrganizationSettings': ['manageOrganizationSettings', 'manageSettings'],
-  'viewSettings': ['viewSettings', 'manageSettings'],
-  'viewInventory': ['viewInventory', 'manageInventory'],
-  'accessPOS': ['accessPOS'],
-  'trackServices': ['trackServices', 'manageServices'],
-  'viewSuppliers': ['viewSuppliers', 'manageSuppliers'],
-  'managePurchases': ['managePurchases', 'manageSuppliers'],
-  'viewReports': ['viewReports'],
-  'manageFlexiAndDigitalCurrency': ['manageFlexi'],
-  'sellFlexiAndDigitalCurrency': ['manageFlexi', 'processPayments'],
-  'viewFlexiAndDigitalCurrencySales': ['manageFlexi', 'viewReports']
+  'manageProducts': ['manageProducts', 'addProducts', 'editProducts', 'admin', 'owner', 'org_admin', 'super_admin'],
+  'viewFlexiAndDigitalCurrencySales': ['manageFlexi', 'viewReports'],
+  'editProducts': ['editProducts', 'manageProducts', 'admin', 'owner', 'org_admin', 'super_admin'],
+  'addProducts': ['addProducts', 'manageProducts', 'admin', 'owner', 'org_admin', 'super_admin'],
+  'viewEmployees': ['viewEmployees', 'manageEmployees', 'admin', 'owner', 'org_admin', 'super_admin'],
+  'manageEmployees': ['manageEmployees', 'viewEmployees', 'admin', 'owner', 'org_admin', 'super_admin'],
+  // إضافة الصلاحيات المطلوبة لـ POS
+  'accessPOS': ['accessPOS', 'processPayments', 'manageOrders', 'admin', 'owner', 'org_admin', 'super_admin'],
+  'viewPOSOrders': ['viewPOSOrders', 'accessPOS', 'processPayments', 'manageOrders', 'admin', 'owner', 'org_admin', 'super_admin'],
+  'processPayments': ['processPayments', 'accessPOS', 'manageOrders', 'admin', 'owner', 'org_admin', 'super_admin'],
+  // إضافة الصلاحيات المطلوبة للطلبات
+  'viewOrders': ['viewOrders', 'manageOrders', 'accessPOS', 'admin', 'owner', 'org_admin', 'super_admin'],
+  'updateOrderStatus': ['updateOrderStatus', 'manageOrders', 'admin', 'owner', 'org_admin', 'super_admin'],
+  'cancelOrders': ['cancelOrders', 'manageOrders', 'admin', 'owner', 'org_admin', 'super_admin'],
+  'manageOrders': ['manageOrders', 'viewOrders', 'updateOrderStatus', 'cancelOrders', 'admin', 'owner', 'org_admin', 'super_admin'],
+  // إضافة الصلاحيات المطلوبة للخدمات
+  'viewServices': ['viewServices', 'manageServices', 'admin', 'owner', 'org_admin', 'super_admin'],
+  'addServices': ['addServices', 'manageServices', 'admin', 'owner', 'org_admin', 'super_admin'],
+  'editServices': ['editServices', 'manageServices', 'admin', 'owner', 'org_admin', 'super_admin'],
+  'manageServices': ['manageServices', 'viewServices', 'addServices', 'editServices', 'admin', 'owner', 'org_admin', 'super_admin'],
+  // إضافة الصلاحيات المطلوبة للمخزون
+  'viewInventory': ['viewInventory', 'manageInventory', 'admin', 'owner', 'org_admin', 'super_admin'],
+  'manageInventory': ['manageInventory', 'viewInventory', 'admin', 'owner', 'org_admin', 'super_admin'],
+  // إضافة الصلاحيات المطلوبة للفئات
+  'manageProductCategories': ['manageProductCategories', 'manageProducts', 'admin', 'owner', 'org_admin', 'super_admin'],
+  // إضافة الصلاحيات المطلوبة للديون
+  'viewDebts': ['viewDebts', 'manageDebts', 'viewFinancialReports', 'admin', 'owner', 'org_admin', 'super_admin'],
+  'manageDebts': ['manageDebts', 'viewDebts', 'admin', 'owner', 'org_admin', 'super_admin'],
+  // إضافة الصلاحيات المطلوبة للتقارير
+  'viewFinancialReports': ['viewFinancialReports', 'viewReports', 'admin', 'owner', 'org_admin', 'super_admin'],
+  'viewSalesReports': ['viewSalesReports', 'viewReports', 'admin', 'owner', 'org_admin', 'super_admin'],
+  'viewReports': ['viewReports', 'viewFinancialReports', 'viewSalesReports', 'admin', 'owner', 'org_admin', 'super_admin'],
+  // إضافة الصلاحيات المطلوبة للموردين
+  'manageSuppliers': ['manageSuppliers', 'viewSuppliers', 'admin', 'owner', 'org_admin', 'super_admin'],
+  'viewSuppliers': ['viewSuppliers', 'manageSuppliers', 'admin', 'owner', 'org_admin', 'super_admin'],
+  // إضافة الصلاحيات المطلوبة للإعدادات
+  'manageOrganizationSettings': ['manageOrganizationSettings', 'admin', 'owner', 'org_admin', 'super_admin'],
+  // إضافة الصلاحيات المطلوبة للعملاء
+  'viewCustomers': ['viewCustomers', 'manageCustomers', 'admin', 'owner', 'org_admin', 'super_admin'],
+  'manageCustomers': ['manageCustomers', 'viewCustomers', 'admin', 'owner', 'org_admin', 'super_admin'],
+  'addCustomers': ['addCustomers', 'manageCustomers', 'admin', 'owner', 'org_admin', 'super_admin'],
+  'editCustomers': ['editCustomers', 'manageCustomers', 'admin', 'owner', 'org_admin', 'super_admin']
 };
 
-/**
- * مكون للتحقق من صلاحيات المستخدم
- * يسمح بالوصول فقط إذا كان المستخدم لديه إحدى الصلاحيات المطلوبة
- * ويعرض رسالة تنبيه عند عدم وجود الصلاحية
- */
 const PermissionGuard = ({ 
   requiredPermissions, 
   children, 
   fallbackPath = '/dashboard' 
 }: PermissionGuardProps) => {
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
   const location = useLocation();
   const [showPermissionAlert, setShowPermissionAlert] = useState(false);
-  const [redirect, setRedirect] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
-  const [shouldRedirectToLogin, setShouldRedirectToLogin] = useState(false);
   
-  // وظيفة لمسح تنبيهات قديمة (أكثر من يوم)
-  const clearOldAlerts = () => {
-    try {
-      const now = Date.now();
-      const expireTime = 24 * 60 * 60 * 1000; // 24 ساعة
-      
-      // البحث عن جميع مفاتيح تنبيهات الصلاحيات
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith('permission_alert_')) {
-          const timestamp = Number(localStorage.getItem(key));
-          if (isNaN(timestamp) || (now - timestamp) > expireTime) {
-            localStorage.removeItem(key);
-          }
-        }
-      }
-    } catch (error) {
-    }
-  };
-  
-  // نتحقق من وجود المستخدم ونعد الكومبوننت للتحقق من الصلاحيات
   useEffect(() => {
-    // التحقق من وجود المستخدم أولاً
+    
     if (!user) {
-      setShouldRedirectToLogin(true);
+      setHasPermission(false);
       setIsChecking(false);
       return;
     }
-    
-    const checkPermissions = async () => {
-      setIsChecking(true);
-      
-      try {
-        // التحقق من دور المستخدم - إذا كان مسؤولاً، يمكنه الوصول بغض النظر عن الصلاحيات
-        const userRole = user.user_metadata?.role || user.app_metadata?.role || (user as any).role;
-        const isAdmin = userRole === 'admin' || userRole === 'owner';
-        const isOrgAdmin = user.user_metadata?.is_org_admin === true || 
-                          user.app_metadata?.is_org_admin === true || 
-                          (user as any).is_org_admin === true;
-        
-        if (isAdmin || isOrgAdmin) {
+
+    // فحص الصلاحيات المطلوبة مع الصلاحيات البديلة
+    const hasRequiredPermission = requiredPermissions.some(requiredPermission => {
+      // الحصول على الصلاحيات البديلة لهذه الصلاحية
+      const alternativePermissions = permissionMapping[requiredPermission] || [requiredPermission];
+
+      // فحص كل صلاحية بديلة
+      const hasAnyPermission = alternativePermissions.some(permission => {
+        // فحص الأدوار الإدارية أولاً
+        if (['admin', 'owner', 'org_admin', 'super_admin'].includes(permission)) {
+          const isAdmin = 
+            user.user_metadata?.role === 'admin' ||
+            user.user_metadata?.role === 'owner' ||
+            user.user_metadata?.is_org_admin === true ||
+            user.user_metadata?.is_super_admin === true;
           
-          setHasPermission(true);
-          setIsChecking(false);
-          return;
+          return isAdmin;
         }
         
-        // إذا لم يكن هناك صلاحيات مطلوبة
-        if (requiredPermissions.length === 0) {
-          setHasPermission(true);
-          setIsChecking(false);
-          return;
+        // فحص الصلاحية المحددة
+        const hasSpecificPermission = checkUserPermissionsLocal(user, permission as any, userProfile);
+        
+        // إضافة فحص إضافي للصلاحيات
+        if (permission === 'accessPOS') {
         }
         
-        // التحقق من كل صلاحية مطلوبة
-        const permissionChecks = await Promise.all(
-          requiredPermissions.map(async (permission) => {
-            return await checkUserPermissions(user, permission);
-          })
-        );
-        
-        // السماح بالوصول إذا كان لديه أي صلاحية من الصلاحيات المطلوبة
-        const hasAnyPermission = permissionChecks.some(result => result === true);
-        
-        // طباعة معلومات تشخيصية
+        return hasSpecificPermission;
+      });
+      
+      return hasAnyPermission;
+    });
 
-        setHasPermission(hasAnyPermission);
-      } catch (error) {
-        setHasPermission(false);
-      } finally {
-        setIsChecking(false);
-      }
-    };
-    
-    checkPermissions();
-  }, [user, requiredPermissions, location.pathname]);
-  
-  // التعامل مع حالة عدم وجود الصلاحية
-  useEffect(() => {
-    // فقط إذا اكتمل التحقق وليس لديه الصلاحية
-    if (!isChecking && !hasPermission && user && !shouldRedirectToLogin) {
-      // مسح التنبيهات القديمة
-      clearOldAlerts();
-      
-      // مفتاح تخزين فريد لهذا المسار
-      const alertKey = `permission_alert_${location.pathname}`;
-      const lastAlertTime = localStorage.getItem(alertKey);
-      const now = Date.now();
-      
-      // التحقق من عدم عرض التنبيه في آخر 10 دقائق
-      const showAlertTimeout = 10 * 60 * 1000; // 10 دقائق
-      const shouldShowAlert = !lastAlertTime || (now - Number(lastAlertTime)) > showAlertTimeout;
-      
-      if (shouldShowAlert) {
-        // تحديث وقت آخر تنبيه
-        localStorage.setItem(alertKey, now.toString());
-        // عرض النافذة المنبثقة
-        setShowPermissionAlert(true);
-        
-        // سجل الصلاحيات المطلوبة للتشخيص
-        const requiredPermissionNames = requiredPermissions.join(', ');
-        
-        // عرض رسالة توست
-        toast({
-          title: "ليس لديك الصلاحية للوصول",
-          description: `لا تملك الصلاحيات المطلوبة (${requiredPermissionNames}) للوصول إلى هذه الصفحة`,
-          variant: "destructive",
-        });
-      } else {
-        // إذا تم عرض التنبيه مؤخراً، نقوم بإعادة التوجيه مباشرة
-        setRedirect(true);
-      }
+    setHasPermission(hasRequiredPermission);
+    setIsChecking(false);
+
+    if (!hasRequiredPermission) {
+      setShowPermissionAlert(true);
     }
-  }, [isChecking, hasPermission, location.pathname, requiredPermissions, user, shouldRedirectToLogin]);
+  }, [user, userProfile, requiredPermissions, location.pathname]);
 
-  // التعامل مع إغلاق نافذة التنبيه
   const handleDialogClose = () => {
     setShowPermissionAlert(false);
-    setRedirect(true);
   };
-
-  // عرض المحتوى المناسب بناءً على حالة المكون
-  if (shouldRedirectToLogin) {
-    return <Navigate to="/login" replace />;
-  }
-
-  if (redirect) {
-    return <Navigate to={fallbackPath} replace />;
-  }
 
   if (isChecking) {
     return (
@@ -210,7 +144,7 @@ const PermissionGuard = ({
             <AlertDialogHeader>
               <AlertDialogTitle>ليس لديك الصلاحية</AlertDialogTitle>
               <AlertDialogDescription>
-                لا تملك الصلاحيات الكافية للوصول إلى هذه الصفحة. سيتم إعادة توجيهك إلى لوحة التحكم.
+                لا تملك الصلاحيات الكافية للوصول إلى هذه الصفحة.
                 <br />
                 <br />
                 <span className="text-xs text-muted-foreground">
@@ -225,8 +159,7 @@ const PermissionGuard = ({
         </AlertDialog>
       )}
       
-      {/* نعرض محتوى الصفحة فقط إذا لدينا الصلاحية وليست هناك أي عملية إعادة توجيه مطلوبة */}
-      {hasPermission && !redirect && !showPermissionAlert ? children : null}
+      {hasPermission ? children : null}
     </>
   );
 };

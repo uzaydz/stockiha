@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار Supabase</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            direction: rtl;
+            text-align: right;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            direction: ltr;
+            text-align: left;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 اختبار اتصال Supabase</h1>
+        
+        <div id="status" class="status info">
+            جاري التحميل...
+        </div>
+        
+        <div>
+            <button onclick="testSupabaseConnection()">اختبار الاتصال</button>
+            <button onclick="testStoreData()">اختبار بيانات المتجر</button>
+            <button onclick="clearResults()">مسح النتائج</button>
+        </div>
+        
+        <div id="results"></div>
+    </div>
+
+    <script type="module">
+        // إعداد متغيرات البيئة للاختبار
+        window.process = { env: {} };
+        window.global = window;
+        
+        // تعريف exports و module إذا لم يكونا موجودين
+        if (typeof exports === 'undefined') {
+            window.exports = {};
+        }
+        if (typeof module === 'undefined') {
+            window.module = { exports: {} };
+        }
+
+        let supabase = null;
+        let testResults = [];
+
+        function addResult(type, message, data = null) {
+            const result = {
+                type,
+                message,
+                data,
+                timestamp: new Date().toLocaleString('ar-EG')
+            };
+            testResults.push(result);
+            updateResults();
+        }
+
+        function updateResults() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = testResults.map(result => `
+                <div class="status ${result.type}">
+                    <strong>[${result.timestamp}]</strong> ${result.message}
+                    ${result.data ? `<pre>${JSON.stringify(result.data, null, 2)}</pre>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = `status ${type}`;
+            statusDiv.textContent = message;
+        }
+
+        // اختبار تحميل Supabase
+        async function initializeSupabase() {
+            try {
+                updateStatus('جاري تحميل Supabase...', 'info');
+                
+                // محاولة استيراد Supabase
+                const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.49.4');
+                
+                // إعداد Supabase
+                const supabaseUrl = 'https://wrnssatuvmumsczyldth.supabase.co';
+                const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndybnNzYXR1dm11bXN6enlsZHRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzI3MjE0MzQsImV4cCI6MjA0ODI5NzQzNH0.GjXqhPJlFVIGvnTVGKQj-_lPsL8Dn8XCBCxFbKIhqXM';
+                
+                supabase = createClient(supabaseUrl, supabaseAnonKey);
+                
+                updateStatus('تم تحميل Supabase بنجاح! ✅', 'success');
+                addResult('success', 'تم تهيئة Supabase بنجاح');
+                
+                return true;
+            } catch (error) {
+                console.error('خطأ في تحميل Supabase:', error);
+                updateStatus(`فشل في تحميل Supabase: ${error.message}`, 'error');
+                addResult('error', 'فشل في تهيئة Supabase', { error: error.message });
+                return false;
+            }
+        }
+
+        // اختبار الاتصال
+        window.testSupabaseConnection = async function() {
+            if (!supabase) {
+                const initialized = await initializeSupabase();
+                if (!initialized) return;
+            }
+
+            try {
+                updateStatus('جاري اختبار الاتصال...', 'info');
+                
+                // اختبار بسيط - جلب المؤسسات
+                const { data, error } = await supabase
+                    .from('organizations')
+                    .select('id, name, subdomain')
+                    .limit(1);
+
+                if (error) {
+                    throw error;
+                }
+
+                updateStatus('الاتصال يعمل بشكل صحيح! ✅', 'success');
+                addResult('success', 'اختبار الاتصال نجح', { 
+                    organizationsCount: data?.length || 0,
+                    sampleData: data?.[0] || null
+                });
+
+            } catch (error) {
+                console.error('خطأ في اختبار الاتصال:', error);
+                updateStatus(`فشل في اختبار الاتصال: ${error.message}`, 'error');
+                addResult('error', 'فشل في اختبار الاتصال', { error: error.message });
+            }
+        };
+
+        // اختبار بيانات المتجر
+        window.testStoreData = async function() {
+            if (!supabase) {
+                const initialized = await initializeSupabase();
+                if (!initialized) return;
+            }
+
+            try {
+                updateStatus('جاري اختبار بيانات المتجر...', 'info');
+                
+                // اختبار دالة get_store_init_data
+                const { data, error } = await supabase.rpc('get_store_init_data', {
+                    org_identifier: 'asraycollection'
+                });
+
+                if (error) {
+                    throw error;
+                }
+
+                updateStatus('تم جلب بيانات المتجر بنجاح! ✅', 'success');
+                addResult('success', 'اختبار بيانات المتجر نجح', {
+                    hasData: !!data,
+                    organizationName: data?.organization_details?.name,
+                    categoriesCount: data?.categories?.length || 0,
+                    productsCount: data?.featured_products?.length || 0,
+                    hasComponents: !!data?.store_layout_components,
+                    executionTime: data?.performance_info?.execution_time_ms
+                });
+
+            } catch (error) {
+                console.error('خطأ في اختبار بيانات المتجر:', error);
+                updateStatus(`فشل في اختبار بيانات المتجر: ${error.message}`, 'error');
+                addResult('error', 'فشل في اختبار بيانات المتجر', { error: error.message });
+            }
+        };
+
+        // مسح النتائج
+        window.clearResults = function() {
+            testResults = [];
+            updateResults();
+            updateStatus('تم مسح النتائج', 'info');
+        };
+
+        // تهيئة تلقائية
+        initializeSupabase();
+    </script>
+</body>
+</html>

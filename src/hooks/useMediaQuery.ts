@@ -1,64 +1,35 @@
 import { useState, useEffect } from 'react';
 
 /**
- * Hook مخصص للتحقق من media queries والاستجابة للتغييرات
- * @param query - CSS media query string
- * @returns boolean indicating if the media query matches
+ * Hook للتحقق من استعلامات الميديا (media queries) مثل حجم الشاشة
+ * @param query استعلام CSS للميديا مثل '(max-width: 768px)'
+ * @returns قيمة بوليانية تشير إلى ما إذا كان الاستعلام مطابقاً أم لا
  */
 export function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState<boolean>(false);
+  // تهيئة الحالة الأولية بناءً على استعلام الميديا الحالي
+  const getMatches = (): boolean => {
+    // للتأكد من أننا في بيئة المتصفح
+    if (typeof window !== 'undefined') {
+      return window.matchMedia(query).matches;
+    }
+    return false;
+  };
+
+  const [matches, setMatches] = useState<boolean>(getMatches());
 
   useEffect(() => {
-    // التحقق من وجود window object (للتوافق مع SSR)
-    if (typeof window === 'undefined') {
-      return;
-    }
-
+    // تحديث الحالة عند تغيير حجم النافذة
     const mediaQuery = window.matchMedia(query);
+    const updateMatches = () => setMatches(mediaQuery.matches);
     
-    // تعيين القيمة الأولية
-    setMatches(mediaQuery.matches);
-
-    // إنشاء listener للتغييرات
-    const listener = (event: MediaQueryListEvent) => {
-      setMatches(event.matches);
-    };
-
-    // إضافة listener
-    if (mediaQuery.addEventListener) {
-      mediaQuery.addEventListener('change', listener);
-    } else {
-      // للمتصفحات القديمة
-      mediaQuery.addListener(listener);
-    }
-
-    // تنظيف عند unmount
+    // إضافة مستمع للتغييرات
+    mediaQuery.addEventListener('change', updateMatches);
+    
+    // تنظيف المستمع عند إزالة المكون
     return () => {
-      if (mediaQuery.removeEventListener) {
-        mediaQuery.removeEventListener('change', listener);
-      } else {
-        // للمتصفحات القديمة
-        mediaQuery.removeListener(listener);
-      }
+      mediaQuery.removeEventListener('change', updateMatches);
     };
   }, [query]);
 
   return matches;
-}
-
-/**
- * Hook مخصص للحصول على breakpoints شائعة
- */
-export function useBreakpoints() {
-  const isMobile = useMediaQuery('(max-width: 768px)');
-  const isTablet = useMediaQuery('(min-width: 769px) and (max-width: 1024px)');
-  const isDesktop = useMediaQuery('(min-width: 1025px)');
-  const isLargeDesktop = useMediaQuery('(min-width: 1440px)');
-
-  return {
-    isMobile,
-    isTablet,
-    isDesktop,
-    isLargeDesktop,
-  };
 }

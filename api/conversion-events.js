@@ -1,16 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 
-// إعداد Supabase client مع تحقق من متغيرات البيئة
-const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const supabaseServiceRoleKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
-
-// التحقق من وجود متغيرات البيئة المطلوبة
-if (!supabaseUrl || !supabaseServiceRoleKey) {
-}
+// إعداد Supabase client - استخدام anon key للـ API endpoints
+const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || 'https://wrnssatuvmumsczyldth.supabase.co';
+const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndybnNzYXR1dm11bXN6enlsZHRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzI3MjE0MzQsImV4cCI6MjA0ODI5NzQzNH0.GjXqhPJlFVIGvnTVGKQj-_lPsL8Dn8XCBCxFbKIhqXM';
 
 let supabase = null;
 try {
-  supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
+  supabase = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false

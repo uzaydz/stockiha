@@ -1,0 +1,250 @@
+/* ShippingProviderColumn - تحسينات القائمة المنسدلة والأداء */
+
+/* تحسينات عامة للأداء */
+.shipping-provider-column * {
+  will-change: auto !important;
+}
+
+.shipping-provider-column .transform-gpu {
+  will-change: transform, opacity !important;
+}
+
+/* تحسينات للـ select */
+.shipping-provider-column select {
+  contain: layout style paint !important;
+  will-change: auto !important;
+  appearance: none !important;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 8px center !important;
+  background-size: 12px !important;
+  padding-right: 32px !important;
+  cursor: pointer !important;
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* تحسينات للـ focus state */
+.shipping-provider-column select:focus {
+  outline: 2px solid var(--ring) !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 2px var(--ring) !important;
+}
+
+/* تحسينات للـ hover state */
+.shipping-provider-column select:hover:not(:disabled) {
+  border-color: var(--ring) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* تحسينات للـ active state */
+.shipping-provider-column select:active {
+  transform: translateY(0) !important;
+}
+
+/* تحسينات للـ disabled state */
+.shipping-provider-column select:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+
+/* تحسينات للـ options */
+.shipping-provider-column select option {
+  padding: 8px 12px !important;
+  background-color: var(--background) !important;
+  color: var(--foreground) !important;
+  cursor: pointer !important;
+}
+
+/* تحسينات للـ options في الوضع المظلم */
+.dark .shipping-provider-column select option {
+  background-color: hsl(var(--background)) !important;
+  color: hsl(var(--foreground)) !important;
+}
+
+/* تحسينات للـ options المختارة */
+.shipping-provider-column select option:checked {
+  background-color: var(--accent) !important;
+  color: var(--accent-foreground) !important;
+}
+
+/* تحسينات للـ options المعطلة */
+.shipping-provider-column select option:disabled {
+  color: var(--muted-foreground) !important;
+  background-color: var(--muted) !important;
+  cursor: not-allowed !important;
+}
+
+/* تحسينات للـ container */
+.shipping-provider-column {
+  position: relative !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  contain: layout style !important;
+}
+
+/* تحسينات للأجهزة المحمولة */
+@media (max-width: 768px) {
+  .shipping-provider-column select {
+    font-size: 16px !important; /* منع zoom في iOS */
+    min-height: 44px !important; /* حجم اللمس المناسب */
+  }
+
+  .shipping-provider-column select option {
+    font-size: 16px !important;
+    min-height: 44px !important;
+  }
+}
+
+/* تحسينات للـ high contrast mode */
+@media (prefers-contrast: high) {
+  .shipping-provider-column select {
+    border-width: 2px !important;
+    box-shadow: 0 0 0 2px var(--ring) !important;
+  }
+}
+
+/* تحسينات للـ reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .shipping-provider-column select {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  .shipping-provider-column * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* تحسينات للـ print */
+@media print {
+  .shipping-provider-column select {
+    display: none !important;
+  }
+}
+
+/* تحسينات للـ accessibility */
+.shipping-provider-column select:focus-visible {
+  outline: 2px solid var(--ring) !important;
+  outline-offset: 2px !important;
+}
+
+/* تحسينات للـ dark mode */
+.dark .shipping-provider-column select {
+  background-color: hsl(var(--background)) !important;
+  border-color: hsl(var(--border)) !important;
+  color: hsl(var(--foreground)) !important;
+}
+
+.dark .shipping-provider-column select:hover:not(:disabled) {
+  border-color: hsl(var(--ring)) !important;
+}
+
+.dark .shipping-provider-column select:focus {
+  outline-color: hsl(var(--ring)) !important;
+  box-shadow: 0 0 0 2px hsl(var(--ring)) !important;
+}
+
+/* تحسينات للـ RTL support */
+[dir="rtl"] .shipping-provider-column select {
+  text-align: right !important;
+  direction: rtl !important;
+}
+
+[dir="rtl"] .shipping-provider-column select option {
+  text-align: right !important;
+  direction: rtl !important;
+}
+
+/* تحسينات للألوان المخصصة */
+.shipping-provider-column select[data-color] {
+  border-color: var(--data-color) !important;
+}
+
+.shipping-provider-column select[data-color]:hover:not(:disabled) {
+  border-color: var(--data-color) !important;
+  box-shadow: 0 0 0 2px var(--data-color) !important;
+}
+
+/* تحسينات خاصة بحالات الشحن */
+.shipping-provider-column select.bg-green-100 {
+  background-color: #dcfce7 !important;
+  border-color: #22c55e !important;
+  color: #166534 !important;
+}
+
+.shipping-provider-column select.bg-blue-100 {
+  background-color: #dbeafe !important;
+  border-color: #3b82f6 !important;
+  color: #1d4ed8 !important;
+}
+
+.shipping-provider-column select.bg-purple-100 {
+  background-color: #e9d5ff !important;
+  border-color: #8b5cf6 !important;
+  color: #6b21a8 !important;
+}
+
+.shipping-provider-column select.bg-red-100 {
+  background-color: #fee2e2 !important;
+  border-color: #ef4444 !important;
+  color: #dc2626 !important;
+}
+
+.shipping-provider-column select.bg-yellow-100 {
+  background-color: #fef3c7 !important;
+  border-color: #f59e0b !important;
+  color: #92400e !important;
+}
+
+.shipping-provider-column select.bg-orange-100 {
+  background-color: #fed7aa !important;
+  border-color: #f97316 !important;
+  color: #9a3412 !important;
+}
+
+/* تحسينات للـ custom properties */
+.shipping-provider-column {
+  --ring: hsl(var(--ring)) !important;
+  --ring-offset: hsl(var(--background)) !important;
+  --background: hsl(var(--background)) !important;
+  --foreground: hsl(var(--foreground)) !important;
+  --border: hsl(var(--border)) !important;
+  --accent: hsl(var(--accent)) !important;
+  --accent-foreground: hsl(var(--accent-foreground)) !important;
+  --muted: hsl(var(--muted)) !important;
+  --muted-foreground: hsl(var(--muted-foreground)) !important;
+}
+
+/* تحسينات للـ loading spinner */
+.shipping-provider-column .animate-spin {
+  animation: spin 1s linear infinite !important;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* تحسينات للـ tracking ID display */
+.shipping-provider-column .text-green-600 {
+  color: #16a34a !important;
+  font-weight: 600 !important;
+}
+
+/* تحسينات للـ hover effects */
+.shipping-provider-column:hover .text-green-600 {
+  color: #15803d !important;
+}
+
+/* تحسينات للـ focus states */
+.shipping-provider-column:focus-within .text-green-600 {
+  color: #15803d !important;
+}

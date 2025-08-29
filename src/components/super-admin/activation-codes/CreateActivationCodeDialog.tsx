@@ -27,10 +27,10 @@ import {
   PopoverTrigger 
 } from "@/components/ui/popover";
 import { format } from 'date-fns';
-import { CalendarIcon, ListPlus, Plus } from 'lucide-react';
+import { CalendarIcon, ListPlus, Plus, GraduationCap, Crown, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-import { CreateActivationCodeBatchDto } from '@/types/activation';
+import { CreateActivationCodeBatchDto, CoursesAccessType } from '@/types/activation';
 import { ActivationService } from '@/lib/activation-service';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/ui/use-toast';
@@ -60,7 +60,11 @@ export default function CreateActivationCodeDialog({ onSuccess }: Props) {
     count: 10,
     billing_cycle: 'yearly',
     expires_at: undefined,
-    notes: ''
+    notes: '',
+    // الحقول الجديدة للدورات مدى الحياة
+    lifetime_courses_access: false,
+    courses_access_type: CoursesAccessType.STANDARD,
+    accessible_courses: []
   });
   
   // تاريخ انتهاء الصلاحية
@@ -124,6 +128,10 @@ export default function CreateActivationCodeDialog({ onSuccess }: Props) {
     setFormData({ ...formData, [name]: value });
   };
   
+  const handleSwitchChange = (name: string, checked: boolean) => {
+    setFormData({ ...formData, [name]: checked });
+  };
+  
   const handleSubmit = async () => {
     try {
       setLoading(true);
@@ -150,9 +158,13 @@ export default function CreateActivationCodeDialog({ onSuccess }: Props) {
       // إنشاء الدفعة وأكواد التفعيل
       const result = await ActivationService.createActivationCodeBatch(formData);
       
+      const successMessage = formData.lifetime_courses_access 
+        ? `تم إنشاء ${result.codesCount} كود تفعيل جديد مع الوصول لجميع دورات سطوكيها مدى الحياة`
+        : `تم إنشاء ${result.codesCount} كود تفعيل جديد`;
+      
       toast({
         title: "تم إنشاء أكواد التفعيل بنجاح",
-        description: `تم إنشاء ${result.codesCount} كود تفعيل جديد`,
+        description: successMessage,
       });
       
       // إعادة ضبط النموذج
@@ -162,7 +174,10 @@ export default function CreateActivationCodeDialog({ onSuccess }: Props) {
         count: 10,
         billing_cycle: 'yearly',
         expires_at: undefined,
-        notes: ''
+        notes: '',
+        lifetime_courses_access: false,
+        courses_access_type: CoursesAccessType.STANDARD,
+        accessible_courses: []
       });
       setExpiryDate(undefined);
       
@@ -189,7 +204,10 @@ export default function CreateActivationCodeDialog({ onSuccess }: Props) {
       count: 10,
       billing_cycle: 'yearly',
       expires_at: undefined,
-      notes: ''
+      notes: '',
+      lifetime_courses_access: false,
+      courses_access_type: CoursesAccessType.STANDARD,
+      accessible_courses: []
     });
     setExpiryDate(undefined);
   };
@@ -205,7 +223,7 @@ export default function CreateActivationCodeDialog({ onSuccess }: Props) {
           إنشاء أكواد تفعيل
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[550px]">
+      <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
           <DialogTitle>إنشاء أكواد تفعيل جديدة</DialogTitle>
           <DialogDescription>
@@ -318,6 +336,80 @@ export default function CreateActivationCodeDialog({ onSuccess }: Props) {
                 >
                   إلغاء التاريخ
                 </Button>
+              )}
+            </div>
+          </div>
+          
+          {/* قسم الدورات مدى الحياة */}
+          <div className="border rounded-lg p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20">
+            <div className="flex items-center gap-2 mb-3">
+              <GraduationCap className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+              <Label className="text-lg font-semibold text-blue-900 dark:text-blue-100">
+                خيارات الدورات التدريبية
+              </Label>
+            </div>
+            
+            <div className="space-y-3">
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="lifetime_courses_access"
+                  checked={formData.lifetime_courses_access}
+                  onCheckedChange={(checked) => handleSwitchChange('lifetime_courses_access', checked)}
+                />
+                <Label htmlFor="lifetime_courses_access" className="font-medium">
+                  منح الوصول لجميع دورات سطوكيها مدى الحياة
+                </Label>
+              </div>
+              
+              {formData.lifetime_courses_access && (
+                <div className="ml-6 space-y-3">
+                  <div className="grid gap-2">
+                    <Label htmlFor="courses_access_type">نوع الوصول للدورات</Label>
+                    <Select 
+                      value={formData.courses_access_type} 
+                      onValueChange={(value) => handleSelectChange('courses_access_type', value as CoursesAccessType)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="اختر نوع الوصول" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={CoursesAccessType.STANDARD}>
+                          <div className="flex items-center gap-2">
+                            <Zap className="w-4 h-4 text-gray-500" />
+                            <span>عادي</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value={CoursesAccessType.LIFETIME}>
+                          <div className="flex items-center gap-2">
+                            <GraduationCap className="w-4 h-4 text-blue-500" />
+                            <span>مدى الحياة</span>
+                          </div>
+                        </SelectItem>
+                        <SelectItem value={CoursesAccessType.PREMIUM}>
+                          <div className="flex items-center gap-2">
+                            <Crown className="w-4 h-4 text-yellow-500" />
+                            <span>متميز</span>
+                          </div>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="bg-blue-100 dark:bg-blue-900/30 p-3 rounded-lg">
+                    <div className="flex items-start gap-2">
+                      <GraduationCap className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5" />
+                      <div className="text-sm text-blue-800 dark:text-blue-200">
+                        <p className="font-medium mb-1">مميزات خاصة:</p>
+                        <ul className="space-y-1 text-xs">
+                          <li>• الوصول لجميع دورات سطوكيها مدى الحياة</li>
+                          <li>• لا حاجة لتجديد الاشتراك للدورات</li>
+                          <li>• تحديثات مجانية للدورات الجديدة</li>
+                          <li>• شهادة إتمام لكل دورة</li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           </div>

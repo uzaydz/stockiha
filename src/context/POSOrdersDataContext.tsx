@@ -3,7 +3,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTenant } from './TenantContext';
 import { useAuth } from './AuthContext';
 import { deduplicateRequest } from '../lib/cache/deduplication';
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-unified';
+import type { Database } from '@/types/database.types';
+import type { OrderItemWithDetails } from '@/types/database-overrides';
 
 // =================================================================
 // 🎯 POSOrdersDataContext - الحل الشامل للطلبات المكررة
@@ -44,21 +46,7 @@ interface POSOrderWithDetails {
     name: string;
     email: string;
   };
-  order_items: {
-    id: string;
-    product_id: string;
-    product_name?: string;
-    name: string;
-    quantity: number;
-    unit_price: number;
-    total_price: number;
-    is_wholesale: boolean;
-    variant_info?: any;
-    color_id?: string;
-    size_id?: string;
-    color_name?: string;
-    size_name?: string;
-  }[];
+  order_items: OrderItemWithDetails[];
   
   // حقول محسوبة للمرتجعات
   items_count: number;
@@ -200,7 +188,7 @@ const fetchPOSOrderStats = async (orgId: string): Promise<POSOrderStats> => {
       let partiallyReturnedCount = 0;
 
       if (orderIds.length > 0) {
-        const { data: returns } = await supabase
+        const { data: returns } = await (supabase as any)
           .from('returns')
           .select('original_order_id, status, refund_amount')
           .in('original_order_id', orderIds)
@@ -230,7 +218,7 @@ const fetchPOSOrderStats = async (orgId: string): Promise<POSOrderStats> => {
         }
       }
 
-      const totalRevenue = parseFloat(String(stats?.total_revenue || '0'));
+      const totalRevenue = parseFloat(String(stats?.total_revenue || 0));
       const effectiveRevenue = totalRevenue - totalReturnedAmount;
       const returnRate = totalRevenue > 0 ? (totalReturnedAmount / totalRevenue) * 100 : 0;
 
@@ -243,9 +231,9 @@ const fetchPOSOrderStats = async (orgId: string): Promise<POSOrderStats> => {
         cancelled_orders: stats?.cancelled_orders || 0,
         cash_orders: stats?.cash_orders || 0,
         card_orders: stats?.card_orders || 0,
-        avg_order_value: parseFloat(String(stats?.avg_order_value || '0')),
+        avg_order_value: typeof stats?.avg_order_value === 'number' ? stats.avg_order_value : parseFloat(String(stats?.avg_order_value || 0)),
         today_orders: stats?.today_orders || 0,
-        today_revenue: parseFloat(String(stats?.today_revenue || '0')),
+        today_revenue: parseFloat(String(stats?.today_revenue || 0)),
         fully_returned_orders: fullyReturnedCount,
         partially_returned_orders: partiallyReturnedCount,
         total_returned_amount: totalReturnedAmount,
@@ -358,12 +346,14 @@ const fetchPOSOrders = async (
         throw ordersError;
       }
 
+      // إضافة logging للتشخيص
+
       // جلب بيانات المرتجعات للطلبيات المُحمّلة
       const orderIds = (orders || []).map(order => order.id);
       let returnsData: any[] = [];
 
       if (orderIds.length > 0) {
-        const { data: returns } = await supabase
+        const { data: returns } = await (supabase as any)
           .from('returns')
           .select('original_order_id, status, refund_amount, return_items!inner(return_quantity)')
           .in('original_order_id', orderIds)
@@ -383,6 +373,8 @@ const fetchPOSOrders = async (
         const itemsCount = (order.order_items || []).reduce((sum: number, item: any) => {
           return sum + (parseInt(item.quantity?.toString() || '0') || 0);
         }, 0);
+
+        // إضافة logging للتشخيص
 
         return {
           ...order,
@@ -443,7 +435,7 @@ const fetchOrganizationSettings = async (orgId: string): Promise<any> => {
     try {
       // محاولة الحصول على البيانات من UnifiedDataContext أولاً
       // إذا لم تكن متوفرة، نستدعي RPC function مباشرة
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .rpc('get_organization_settings_direct', { org_id: orgId });
 
       if (!error && data && data.length > 0) {
@@ -474,18 +466,16 @@ const fetchOrganizationSubscriptions = async (orgId: string): Promise<any[]> => 
     try {
       // استعلام مُحسن مع تقليل الحقول المطلوبة
       const { data, error } = await supabase
-        .from('active_organization_subscriptions')  // استخدام view محسن
+        .from('organization_subscriptions')  // استخدام الجدول الأصلي
         .select(`
           id,
           organization_id,
           plan_id,
           status,
-          current_period_start,
-          current_period_end,
-          trial_end,
-          created_at,
-          plan_name,
-          plan_code
+          start_date,
+          end_date,
+          trial_ends_at,
+          created_at
         `)
         .eq('organization_id', orgId)
         .order('created_at', { ascending: false })
@@ -520,15 +510,15 @@ const fetchPOSSettings = async (orgId: string): Promise<any> => {
     
     try {
       // استخدام RPC function المحسنة أولاً
-      const { data: enhancedData, error: enhancedError } = await supabase
+      const { data: enhancedData, error: enhancedError } = await (supabase as any)
         .rpc('get_pos_settings_enhanced', { p_org_id: orgId });
 
-      if (!enhancedError && enhancedData && enhancedData.success) {
-        return enhancedData.data.pos_settings;
+      if (!enhancedError && enhancedData && typeof enhancedData === 'object' && 'success' in enhancedData && enhancedData.success) {
+        return (enhancedData as any).data?.pos_settings;
       }
 
       // fallback للـ RPC function القديمة
-      const { data: rpcData, error: rpcError } = await supabase
+      const { data: rpcData, error: rpcError } = await (supabase as any)
         .rpc('get_pos_settings', { p_org_id: orgId });
 
       if (!rpcError && rpcData && Array.isArray(rpcData) && rpcData.length > 0) {
@@ -568,7 +558,7 @@ const fetchPOSOrdersOptimized = async (
 
     try {
       // استخدام RPC function محسنة للحصول على عدد أسرع
-      const { data: countData, error: countError } = await supabase
+      const { data: countData, error: countError } = await (supabase as any)
         .rpc('get_pos_orders_count_with_returns', {
           p_organization_id: orgId
         });
@@ -684,7 +674,7 @@ const fetchPOSOrdersOptimized = async (
         }, {} as any);
 
         // جلب معاملات الاشتراك
-        const { data: subscriptionTransactions } = await supabase
+        const { data: subscriptionTransactions } = await (supabase as any)
           .from('subscription_transactions')
           .select('id, quantity, transaction_date, processed_by, customer_name')
           .eq('transaction_type', 'sale')
@@ -713,7 +703,7 @@ const fetchPOSOrdersOptimized = async (
       // جلب بيانات المرتجعات للطلبيات المُحمّلة (مبسطة)
       let returnsData: any[] = [];
       if (orderIds.length > 0) {
-        const { data: returns } = await supabase
+        const { data: returns } = await (supabase as any)
           .from('returns')
           .select('original_order_id, refund_amount')
           .in('original_order_id', orderIds)
@@ -843,7 +833,7 @@ const fetchOrderDetails = async (orderId: string): Promise<any[]> => {
           const startTime = new Date(orderDate.getTime() - 2 * 60 * 1000); // قبل دقيقتين
           const endTime = new Date(orderDate.getTime() + 2 * 60 * 1000); // بعد دقيقتين
 
-          const { data: subscriptions, error: subsError } = await supabase
+          const { data: subscriptions, error: subsError } = await (supabase as any)
             .from('subscription_transactions')
             .select(`
               id,
@@ -866,14 +856,14 @@ const fetchOrderDetails = async (orderId: string): Promise<any[]> => {
             subscriptionItems = subscriptions.map(sub => ({
               id: `sub_${sub.id}`,
               product_id: sub.service_id,
-              product_name: sub.service?.name || sub.description,
-              name: sub.service?.name || sub.description,
+              product_name: (sub.service as any)?.name || sub.description || 'خدمة اشتراك',
+              name: (sub.service as any)?.name || sub.description || 'خدمة اشتراك',
               quantity: sub.quantity || 1,
-              unit_price: parseFloat(sub.amount || '0'),
-              total_price: parseFloat(sub.amount || '0') * (sub.quantity || 1),
+              unit_price: parseFloat(String(sub.amount || 0)),
+              total_price: parseFloat(String(sub.amount || 0)) * (sub.quantity || 1),
               is_wholesale: false,
               slug: `SUB-${sub.id.toString().slice(-8)}`,
-              original_price: parseFloat(sub.amount || '0'),
+              original_price: parseFloat(String(sub.amount || 0)),
               variant_info: null,
               color_id: null,
               color_name: null,
@@ -912,11 +902,11 @@ const fetchOrderDetails = async (orderId: string): Promise<any[]> => {
             product_name: 'خدمة رقمية',
             name: 'خدمة رقمية',
             quantity: 1,
-            unit_price: parseFloat(orderInfo.total),
-            total_price: parseFloat(orderInfo.total),
+            unit_price: typeof orderInfo.total === 'number' ? orderInfo.total : parseFloat(String(orderInfo.total)),
+            total_price: typeof orderInfo.total === 'number' ? orderInfo.total : parseFloat(String(orderInfo.total)),
             is_wholesale: false,
             slug: 'DIGITAL-SERVICE',
-            original_price: parseFloat(orderInfo.total),
+            original_price: typeof orderInfo.total === 'number' ? orderInfo.total : parseFloat(String(orderInfo.total)),
             variant_info: null,
             color_id: null,
             color_name: null,
@@ -982,7 +972,7 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
     enabled: !!orgId,
     staleTime: 1 * 60 * 1000, // دقيقة واحدة للطلبيات (بيانات ديناميكية)
     gcTime: 5 * 60 * 1000, // 5 دقائق
-    keepPreviousData: true,
+    placeholderData: (previousData) => previousData,
     retry: 2,
     retryDelay: 1500,
   });
@@ -1247,10 +1237,10 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
       }
 
       // 4. حذف المرتجعات المرتبطة (إن وجدت)
-      const { error: returnsError } = await supabase
-        .from('returns')
-        .delete()
-        .eq('original_order_id', orderId);
+              const { error: returnsError } = await (supabase as any)
+          .from('returns')
+          .delete()
+          .eq('original_order_id', orderId);
 
       if (returnsError) {
         // نتابع حتى لو فشل حذف المرتجعات
@@ -1271,7 +1261,7 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
           const startTime = new Date(orderDate.getTime() - 5 * 60 * 1000);
           const endTime = new Date(orderDate.getTime() + 5 * 60 * 1000);
 
-          const { error: subscriptionError } = await supabase
+          const { error: subscriptionError } = await (supabase as any)
             .from('subscription_transactions')
             .delete()
             .eq('processed_by', orderData.employee_id)
@@ -1373,7 +1363,7 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
     
     // حالات التحميل
     isLoading,
-    isOrderStatsLoading,
+    isStatsLoading: isOrderStatsLoading,
     isOrdersLoading,
     isEmployeesLoading,
     
@@ -1405,7 +1395,7 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
     organizationSubscriptions, posSettings, isLoading, isOrderStatsLoading, 
     isOrdersLoading, isEmployeesLoading, errors, refreshAll, refreshStats, 
     refreshOrders, handleSetFilters, handleSetPage, updateOrderStatus, 
-    updatePaymentStatus, deleteOrder, updateOrderInCache
+    updatePaymentStatus, deleteOrder, updateOrderInCache, fetchOrderDetails
   ]);
 
   return (

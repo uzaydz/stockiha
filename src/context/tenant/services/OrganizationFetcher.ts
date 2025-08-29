@@ -3,9 +3,11 @@
  * يدعم الجلب بطرق مختلفة مع retry logic وإدارة أخطاء محسنة
  */
 
-import { getOrganizationBySubdomain, getOrganizationByDomain } from '@/lib/api/subdomain';
 import { getOrganizationById } from '@/lib/api/organization';
+import { getOrganizationBySubdomain } from '@/lib/api/subdomain';
+import { getOrganizationByDomain } from '@/lib/api/subdomain';
 import { organizationCache } from './OrganizationCache';
+import { API_TIMEOUTS } from '@/config/api-timeouts';
 
 export interface FetchParams {
   orgId?: string;
@@ -21,7 +23,7 @@ export interface FetchOptions {
 }
 
 export interface FetchResult {
-  data: any | null;
+  data: any;
   source: 'cache' | 'api';
   duration: number;
   success: boolean;
@@ -30,8 +32,8 @@ export interface FetchResult {
 
 export class OrganizationFetcher {
   private static readonly DEFAULT_OPTIONS: Required<FetchOptions> = {
-    timeout: 10000,
-    retries: 2,
+    timeout: API_TIMEOUTS.ORGANIZATION_LOAD, // تحسين: استخدام timeout من الإعدادات (8 ثوان)
+    retries: 0, // تحسين: إلغاء المحاولات المتكررة لتجنب التأخير
     useCache: true,
     contextName: 'OrganizationFetcher'
   };
@@ -48,8 +50,10 @@ export class OrganizationFetcher {
 
     try {
       // تحديد نوع الجلب والمفتاح
+      const strategyStartTime = performance.now();
       const { fetchType, cacheKey, isValid } = this.determineFetchStrategy(params);
-      
+      const strategyTime = performance.now() - strategyStartTime;
+
       if (!isValid) {
         throw new Error('معاملات جلب غير صحيحة');
       }
@@ -59,16 +63,25 @@ export class OrganizationFetcher {
 
       // محاولة الجلب من Cache أولاً
       if (opts.useCache) {
+        const cacheStartTime = performance.now();
+        
         data = await this.tryCache(cacheKey, params, opts.contextName);
+        
+        const cacheTime = performance.now() - cacheStartTime;
         if (data) {
           source = 'cache';
+        } else {
         }
       }
 
       // إذا لم نجد في Cache، اجلب من API
       if (!data) {
+        const apiStartTime = performance.now();
+        
         data = await this.fetchFromAPI(params, fetchType as 'byId' | 'byDomain' | 'bySubdomain', opts);
         source = 'api';
+        
+        const apiTime = performance.now() - apiStartTime;
       }
 
       const duration = performance.now() - startTime;
@@ -146,7 +159,7 @@ export class OrganizationFetcher {
   }
 
   /**
-   * جلب من API مع retry logic
+   * جلب من API مع retry logic محسن
    */
   private static async fetchFromAPI(
     params: FetchParams,
@@ -156,33 +169,30 @@ export class OrganizationFetcher {
     const { orgId, hostname, subdomain } = params;
     let lastError: Error | null = null;
 
-    for (let attempt = 1; attempt <= options.retries + 1; attempt++) {
-      try {
+    // محاولة واحدة فقط مع timeout قصير
+    try {
+      const fetchStartTime = performance.now();
+      const fetchPromise = this.createFetchPromise(fetchType, { orgId, hostname, subdomain });
+      const timeoutPromise = this.createTimeoutPromise(options.timeout);
 
-        const fetchPromise = this.createFetchPromise(fetchType, { orgId, hostname, subdomain });
-        const timeoutPromise = this.createTimeoutPromise(options.timeout);
+      const data = await Promise.race([fetchPromise, timeoutPromise]);
+      const fetchTime = performance.now() - fetchStartTime;
 
-        const data = await Promise.race([fetchPromise, timeoutPromise]);
-
-        // حفظ في Cache
-        if (data && options.useCache) {
-          const cacheKey = this.determineFetchStrategy(params).cacheKey;
-          organizationCache.set(cacheKey, data, fetchType);
-        }
-
-        return data;
-
-      } catch (error) {
-        lastError = error as Error;
-
-        // انتظار قبل إعادة المحاولة
-        if (attempt < options.retries + 1) {
-          await this.delay(Math.pow(2, attempt - 1) * 1000); // Exponential backoff
-        }
+      // حفظ في Cache
+      if (data && options.useCache) {
+        const cacheStartTime = performance.now();
+        const cacheKey = this.determineFetchStrategy(params).cacheKey;
+        organizationCache.set(cacheKey, data, fetchType);
+        const cacheTime = performance.now() - cacheStartTime;
+        
       }
-    }
 
-    throw lastError || new Error('فشل في جلب بيانات المؤسسة');
+      return data;
+
+    } catch (error) {
+      lastError = error as Error;
+      throw lastError;
+    }
   }
 
   /**
@@ -192,6 +202,7 @@ export class OrganizationFetcher {
     fetchType: 'byId' | 'byDomain' | 'bySubdomain',
     params: FetchParams
   ): Promise<any> {
+
     switch (fetchType) {
       case 'byId':
         if (!params.orgId) throw new Error('معرف المؤسسة مطلوب');
@@ -220,13 +231,6 @@ export class OrganizationFetcher {
   }
 
   /**
-   * تأخير
-   */
-  private static delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
-  /**
    * جلب متعدد مع أولوية
    */
   static async fetchWithPriority(
@@ -244,7 +248,7 @@ export class OrganizationFetcher {
     for (const fallbackParam of fallbackParams) {
       const fallbackResult = await this.fetch(fallbackParam, {
         ...options,
-        retries: 1 // تقليل المحاولات للاحتياطي
+        retries: 0 // لا توجد محاولات إضافية للاحتياطي
       });
       
       if (fallbackResult.success && fallbackResult.data) {

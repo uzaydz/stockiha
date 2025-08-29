@@ -2,6 +2,8 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { checkUserPermissions } from '@/lib/api/permissions';
+import DataReadyWrapper from '@/components/common/DataReadyWrapper';
+import { useIsAppEnabled } from '@/context/SuperUnifiedDataContext';
 import { 
   Store,
   Package,
@@ -20,7 +22,8 @@ import {
   BarChart3,
   Phone,
   Settings,
-  Building
+  Building,
+  ShoppingCart
 } from 'lucide-react';
 
 // بيانات ثابتة للروابط السريعة (لا تحتاج API calls)
@@ -30,7 +33,8 @@ const quickAccessPages = [
     icon: Store,
     href: '/dashboard/pos-advanced',
     color: 'bg-blue-500',
-    description: 'إدارة المبيعات والمدفوعات'
+    description: 'إدارة المبيعات والمدفوعات',
+    appId: 'pos'
   },
   {
     title: 'المنتجات',
@@ -52,14 +56,16 @@ const quickAccessPages = [
     icon: Wrench,
     href: '/dashboard/services',
     color: 'bg-green-500',
-    description: 'إدارة خدمات الصيانة'
+    description: 'إدارة خدمات الصيانة',
+    appId: 'repair-services'
   },
   {
     title: 'متابعة الخدمات',
     icon: Calendar,
     href: '/dashboard/service-tracking',
     color: 'bg-teal-500',
-    description: 'جدولة وتتبع الخدمات'
+    description: 'جدولة وتتبع الخدمات',
+    appId: 'repair-services'
   },
   {
     title: 'الفئات',
@@ -117,13 +123,7 @@ const quickAccessPages = [
     color: 'bg-lime-500',
     description: 'تسجيل وتتبع المصروفات'
   },
-  {
-    title: 'التقارير المالية',
-    icon: FileBarChart,
-    href: '/dashboard/reports',
-    color: 'bg-sky-500',
-    description: 'تقارير الأرباح والخسائر'
-  },
+
   {
     title: 'التحليلات',
     icon: BarChart3,
@@ -152,19 +152,80 @@ const quickAccessPages = [
     color: 'bg-blue-700',
     description: 'تخصيص بيانات المؤسسة'
   },
+  {
+    title: 'إعادة شحن الطلبيات',
+    icon: ShoppingCart,
+    href: '/dashboard/online-orders-recharge',
+    color: 'bg-rose-500',
+    description: 'إعادة شحن الطلبيات الإلكترونية'
+  },
 ];
 
 interface QuickAccessSectionProps {
   maxItems?: number;
 }
 
+// مكون محسن بدون تعقيدات إضافية
 const QuickAccessSection: React.FC<QuickAccessSectionProps> = ({ maxItems = 10 }) => {
-  const { user } = useAuth();
+  return (
+    <DataReadyWrapper
+      requireUserProfile={true}
+      fallback={
+        <div className="grid grid-cols-5 sm:grid-cols-5 lg:grid-cols-10 gap-3">
+          {Array.from({ length: Math.min(maxItems, 8) }).map((_, index) => (
+            <div
+              key={index}
+              className="flex flex-col items-center p-3 rounded-lg border border-gray-200 animate-pulse"
+            >
+              <div className="w-8 h-8 bg-gray-300 rounded mb-2"></div>
+              <div className="w-16 h-3 bg-gray-300 rounded"></div>
+            </div>
+          ))}
+        </div>
+      }
+    >
+      <QuickAccessContent maxItems={maxItems} />
+    </DataReadyWrapper>
+  );
+};
 
-  // تصفية الروابط حسب الصلاحيات دون API calls
-  const filteredPages = quickAccessPages
-    .filter(page => !page.requiredPermission || checkUserPermissions(user, page.requiredPermission as any))
-    .slice(0, maxItems);
+// مكون المحتوى الفعلي منفصل ومبسط
+const QuickAccessContent: React.FC<{ maxItems: number }> = ({ maxItems }) => {
+  const { user, userProfile } = useAuth();
+  
+  // التحقق من تفعيل التطبيقات
+  const isPOSEnabled = useIsAppEnabled('pos');
+  const isRepairServicesEnabled = useIsAppEnabled('repair-services');
+
+  // تصفية الروابط حسب الصلاحيات والتطبيقات المفعلة
+  const filteredPages = React.useMemo(() => {
+    if (!user || !userProfile) return [];
+    
+    return quickAccessPages
+      .filter(page => {
+        // التحقق من التطبيقات المفعلة أولاً
+        if (page.appId === 'pos' && !isPOSEnabled) return false;
+        if (page.appId === 'repair-services' && !isRepairServicesEnabled) return false;
+        
+        // التحقق من الصلاحيات
+        if (!page.requiredPermission) return true;
+        
+        // استخدام userProfile مباشرة
+        const userRole = userProfile.role || userProfile.user_metadata?.role;
+        const isAdmin = userRole === 'admin' || userRole === 'owner';
+        const isOrgAdmin = userProfile.user_metadata?.is_org_admin === true || 
+                          ('is_org_admin' in userProfile && userProfile.is_org_admin === true);
+        
+        // المدراء لديهم صلاحية كاملة
+        if (isAdmin || isOrgAdmin) return true;
+        
+        // فحص الصلاحيات المحددة
+        const permissions = ('permissions' in userProfile ? userProfile.permissions : null) || 
+                          userProfile.user_metadata?.permissions || {};
+        return permissions[page.requiredPermission] === true;
+      })
+      .slice(0, maxItems);
+  }, [user?.id, userProfile?.id, maxItems, isPOSEnabled, isRepairServicesEnabled]);
 
   return (
     <div className="grid grid-cols-5 sm:grid-cols-5 lg:grid-cols-10 gap-3">

@@ -1,4 +1,5 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { SupabaseClient } from '@supabase/supabase-js';
+import { supabase } from '../src/lib/supabase-unified';
 
 /**
  * عميل واجهة برمجة التطبيقات لـ Yalidine مع التخزين المؤقت
@@ -10,8 +11,8 @@ export class YalidineApiClient {
   private apiToken: string;
   private baseUrl: string = 'https://api.yalidine.app/v1';
 
-  constructor(supabaseUrl: string, supabaseKey: string, yalidineApiId: string, yalidineApiToken: string) {
-    this.supabase = createClient(supabaseUrl, supabaseKey);
+  constructor(yalidineApiId: string, yalidineApiToken: string) {
+    this.supabase = supabase; // استخدام العميل الموحد
     this.apiId = yalidineApiId;
     this.apiToken = yalidineApiToken;
   }

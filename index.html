@@ -4,14 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     
-    <!-- تحسين الضغط والأداء -->
-    <meta http-equiv="Accept-Encoding" content="gzip, deflate, br" />
-    <meta http-equiv="Content-Encoding" content="gzip" />
+    <!-- إزالة وسوم http-equiv غير الصحيحة للضغط لتفادي سلوك غير متوقع في المتصفحات/الوكلاء -->
     
     <!-- سياسة أمان المحتوى المُحسّنة للعمل في بيئتي التطوير والإنتاج -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://connect.facebook.net https://www.googletagmanager.com https://www.google-analytics.com https://analytics.tiktok.com https://ads.tiktok.com https://www.facebook.com https://player.vimeo.com https://vimeo.com https://api.vadoo.tv https://vadoo.tv blob:; script-src-elem 'self' 'unsafe-inline' 'unsafe-eval' https://connect.facebook.net https://www.googletagmanager.com https://www.google-analytics.com https://analytics.tiktok.com https://ads.tiktok.com https://www.facebook.com https://player.vimeo.com https://vimeo.com https://api.vadoo.tv https://vadoo.tv; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com data:; connect-src 'self' https://api.vercel.com https://*.vercel.com https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://api.yalidine.app https://procolis.com https://*.ecotrack.dz https://api.ecotrack.dz https://*.vercel.app https://*.sentry.io https://www.facebook.com https://graph.facebook.com https://www.google-analytics.com https://analytics.google.com https://ads.tiktok.com https://analytics.tiktok.com https://fonts.googleapis.com https://fonts.gstatic.com https://images.unsplash.com https://www.gravatar.com https://secure.gravatar.com https://api.ipify.org https://player.vimeo.com https://vimeo.com https://api.vadoo.tv https://vadoo.tv https://openrouter.ai ws://localhost:* wss://localhost:* http://localhost:* http://127.0.0.1:* ws://127.0.0.1:* ws://0.0.0.0:* wss://0.0.0.0:* http://0.0.0.0:*; img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://cdn.jsdelivr.net https://images.unsplash.com https://*.unsplash.com https://maps.googleapis.com https://*.googleusercontent.com https://www.gravatar.com https://www.facebook.com https://t.co https://analytics.tiktok.com https://ads.tiktok.com https://api.qrserver.com https://bwipjs-api.metafloor.com https://cdn.salla.sa https://i.vimeocdn.com https://f.vimeocdn.com https://api.vadoo.tv https://vadoo.tv; frame-src https://www.facebook.com https://connect.facebook.net https://player.vimeo.com https://vimeo.com https://api.vadoo.tv https://vadoo.tv;" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://connect.facebook.net https://www.googletagmanager.com https://www.google-analytics.com https://analytics.tiktok.com https://ads.tiktok.com https://www.facebook.com https://player.vimeo.com https://vimeo.com https://api.vadoo.tv https://vadoo.tv blob:; script-src-elem 'self' 'unsafe-inline' 'unsafe-eval' data: https://connect.facebook.net https://www.googletagmanager.com https://www.google-analytics.com https://analytics.tiktok.com https://ads.tiktok.com https://www.facebook.com https://player.vimeo.com https://vimeo.com https://api.vadoo.tv https://vadoo.tv; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com data:; connect-src 'self' https://api.vercel.com https://*.vercel.com https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://api.yalidine.app https://procolis.com https://*.ecotrack.dz https://api.ecotrack.dz https://*.vercel.app https://*.sentry.io https://www.facebook.com https://graph.facebook.com https://www.google-analytics.com https://analytics.google.com https://ads.tiktok.com https://analytics.tiktok.com https://fonts.googleapis.com https://fonts.gstatic.com https://images.unsplash.com https://www.gravatar.com https://secure.gravatar.com https://api.ipify.org https://player.vimeo.com https://vimeo.com https://api.vadoo.tv https://vadoo.tv https://openrouter.ai ws://localhost:* wss://localhost:* http://localhost:* http://127.0.0.1:* ws://127.0.0.1:* ws://0.0.0.0:* wss://0.0.0.0:* http://0.0.0.0:*; img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://cdn.jsdelivr.net https://images.unsplash.com https://*.unsplash.com https://maps.googleapis.com https://*.googleusercontent.com https://www.gravatar.com https://www.facebook.com https://t.co https://analytics.tiktok.com https://ads.tiktok.com https://api.qrserver.com https://bwipjs-api.metafloor.com https://cdn.salla.sa https://i.vimeocdn.com https://f.vimeocdn.com https://api.vadoo.tv https://vadoo.tv; frame-src https://www.facebook.com https://connect.facebook.net https://player.vimeo.com https://vimeo.com https://api.vadoo.tv https://vadoo.tv;" />
 
-    <title>سطوكيها - منصة إدارة المتاجر الذكية</title>
+    <title>جاري التحميل...</title>
     <meta name="description" content="سطوكيها - منصة إدارة المتاجر الذكية لإنشاء متجرك الإلكتروني وإدارة المبيعات والمخزون بكل سهولة" />
     <meta name="author" content="سطوكيها" />
     
@@ -40,36 +38,11 @@
     <!-- 🚀 DNS prefetch للموارد الخارجية -->
     <link rel="dns-prefetch" href="//cdn.jsdelivr.net">
     
-    <!-- Polyfill for process -->
+    <!-- إزالة polyfills الخاصة ببيئة CommonJS (module/exports/require) لأنها تكسر اكتشاف الوحدات ESM في المتصفح -->
     <script>
+      // احتفظ فقط بالحد الأدنى الآمن
       window.process = window.process || { env: {} };
       window.global = window.global || window;
-      
-      // تعريف module و require لمنع أخطاء في الملفات المجمعة
-      if (typeof window !== 'undefined' && typeof module === 'undefined') {
-        window.module = { exports: {} };
-      }
-      if (typeof window !== 'undefined' && typeof exports === 'undefined') {
-        window.exports = window.module.exports;
-      }
-      if (typeof window !== 'undefined' && typeof require === 'undefined') {
-        window.require = function(name) { return {}; };
-        window.require.main = window.module;
-      }
-      
-      // 🔧 React Polyfill لحل مشكلة __SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED
-      window.React = window.React || {};
-      if (typeof window.React === 'object' && !window.React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED) {
-        window.React.__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED = {
-          ReactCurrentDispatcher: { current: null },
-          ReactCurrentBatchConfig: { transition: null },
-          ReactCurrentOwner: { current: null },
-          ReactDebugCurrentFrame: { getCurrentStack: null },
-          ReactCurrentFiber: { current: null },
-          ReactCurrentActQueue: { current: null, isBatchingLegacy: false, didScheduleLegacyUpdate: false },
-        };
-
-      }
     </script>
     
     <!-- 🚀 PERFORMANCE OPTIMIZATION: Resource Hints -->
@@ -173,15 +146,46 @@
         const loadingScreen = document.getElementById('initial-loading');
         if (loadingScreen) {
           loadingScreen.style.opacity = '0';
-          loadingScreen.style.transition = 'opacity 0.3s ease';
+          loadingScreen.style.transition = 'opacity 0.15s ease'; // ✅ تقليل من 0.3s إلى 0.15s
           setTimeout(() => {
             if (loadingScreen.parentNode) {
               loadingScreen.remove();
             }
-          }, 300);
+          }, 150); // ✅ تقليل من 300ms إلى 150ms لتحسين الأداء
         }
       };
+
+      // 🚀 تغيير العنوان فوراً عند اكتشاف النطاق
+      const updateTitleImmediately = () => {
+        try {
+          const hostname = window.location.hostname;
+          
+          // فحص النطاقات العامة
+          const isPublicDomain = ['ktobi.online', 'www.ktobi.online', 'stockiha.com', 'www.stockiha.com'].includes(hostname);
+          
+          if (!isPublicDomain && !hostname.includes('localhost')) {
+            // نطاق مخصص أو subdomain - تغيير العنوان فوراً
+            const detectedSubdomain = hostname.split('.')[0];
+            document.title = `متجر ${detectedSubdomain} - جاري التحميل...`;
+            console.log('🚀 تم تغيير العنوان فوراً:', document.title);
+          } else if (hostname.includes('localhost') && hostname.includes('.')) {
+            // localhost مع subdomain
+            const parts = hostname.split('.');
+            if (parts.length > 1 && parts[0] !== 'localhost') {
+              document.title = `متجر ${parts[0]} - جاري التحميل...`;
+              console.log('🚀 تم تغيير العنوان فوراً:', document.title);
+            }
+          }
+        } catch (error) {
+          console.warn('خطأ في تغيير العنوان المبكر:', error);
+        }
+      };
+
+      // تشغيل تغيير العنوان فوراً
+      updateTitleImmediately();
     </script>
+    
+    <!-- Main Application Entry -->
     <script type="module" src="/src/main.tsx"></script>
 
 

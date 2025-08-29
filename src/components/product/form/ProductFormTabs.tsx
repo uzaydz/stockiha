@@ -86,9 +86,13 @@ const ProductFormTabs = memo<ProductFormTabsProps>(({
     form,
     watchHasVariants,
     watchPrice,
+    watchPurchasePrice,
     watchThumbnailImage,
     productColors,
+    organizationId: organizationId || '',
   });
+
+  // Debug logging
 
   return (
     <TooltipProvider>

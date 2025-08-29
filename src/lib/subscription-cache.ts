@@ -18,9 +18,9 @@ export interface SubscriptionData {
   days_left: number;
   features: string[];
   limits: {
-    max_pos: number | null;
-    max_users: number | null;
-    max_products: number | null;
+    max_pos: string | null;
+    max_users: string | null;
+    max_products: string | null;
   };
   billing_cycle?: string;
   amount_paid?: number;
@@ -87,8 +87,8 @@ class SubscriptionCacheService {
         return localStorageCached;
       }
 
-      // 5. استدعاء دالة قاعدة البيانات المحسنة مع التخزين المؤقت
-      const { data, error } = await (supabase as any).rpc('get_organization_subscription_cached', {
+      // 5. استدعاء دالة قاعدة البيانات المحسنة الجديدة
+      const { data, error } = await (supabase as any).rpc('check_organization_subscription_enhanced', {
         org_id: organizationId
       });
 
@@ -124,6 +124,8 @@ class SubscriptionCacheService {
            (subscription.status === 'active' || subscription.status === 'trial') &&
            subscription.days_left > 0;
   }
+
+
 
   /**
    * الحصول من التخزين المؤقت في الذاكرة
@@ -276,7 +278,7 @@ class SubscriptionCacheService {
       end_date: null,
       days_left: 0,
       features: [],
-      limits: { max_pos: 0, max_users: 0, max_products: 0 },
+      limits: { max_pos: '0', max_users: '0', max_products: '0' },
       message: errorMessage,
       error: errorMessage
     };
@@ -325,8 +327,35 @@ class SubscriptionCacheService {
    * إجبار تحديث البيانات (تجاهل التخزين المؤقت)
    */
   async forceRefresh(organizationId: string): Promise<SubscriptionData> {
-    this.clearCache(organizationId);
-    return this.getSubscriptionStatus(organizationId);
+    try {
+      // حذف جميع أنواع التخزين المؤقت
+      this.clearCache(organizationId);
+      
+      // استدعاء دالة قاعدة البيانات مباشرة
+      const { data, error } = await (supabase as any).rpc('check_organization_subscription_enhanced', {
+        org_id: organizationId
+      });
+
+      if (error) {
+        return this.getErrorResponse(error.message);
+      }
+
+      if (!data) {
+        return this.getErrorResponse('لم يتم العثور على بيانات الاشتراك');
+      }
+
+      const subscriptionData = data as SubscriptionData;
+
+      // حفظ في جميع أنواع الكاش
+      this.saveToMemoryCache(organizationId, subscriptionData);
+      this.saveToLocalStorage(organizationId, subscriptionData);
+      this.saveToSessionCache(organizationId, subscriptionData);
+      this.saveToSessionStorage(organizationId, subscriptionData);
+
+      return subscriptionData;
+    } catch (error) {
+      return this.getErrorResponse('خطأ في تحديث البيانات');
+    }
   }
 
   /**

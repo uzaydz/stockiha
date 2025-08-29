@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Layout from '@/components/Layout';
+import POSPureLayout from '@/components/pos-layout/POSPureLayout';
 import { useTenant } from '@/context/TenantContext';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
-import { checkUserPermissions } from '@/lib/api/permissions';
+import { hasPermissions } from '@/lib/api/userPermissionsUnified';
 import { AlertTriangle, Plus } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -22,7 +22,7 @@ import { DebtsData, getDebtsData, recordDebtPayment } from '@/lib/api/debts';
 const CustomerDebts: React.FC = () => {
   const navigate = useNavigate();
   const { currentOrganization } = useTenant();
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [debtsData, setDebtsData] = useState<DebtsData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -46,30 +46,48 @@ const CustomerDebts: React.FC = () => {
         if (!user) {
           setHasViewPermission(false);
           setHasPaymentPermission(false);
+          setHasAddDebtPermission(false);
+          setPermissionsChecked(true);
           return;
         }
 
-        // التحقق من صلاحية عرض الديون
-        const canViewDebts = await checkUserPermissions(user, 'viewDebts');
-        setHasViewPermission(canViewDebts);
+        // المدير والموظف لهم صلاحية تلقائياً لصفحة الديون
+        const userRole = user.user_metadata?.role || user.app_metadata?.role;
+        const profileRole = userProfile?.role;
+        const isAdmin = userRole === 'admin' || profileRole === 'admin';
+        const isEmployee = userRole === 'employee' || profileRole === 'employee';
+        const isStaff = isAdmin || isEmployee;
+        
+        // تشخيص للتطوير
+        if (process.env.NODE_ENV === 'development') {
+        }
+        
+        if (isStaff) {
+          setHasViewPermission(true);
+          setHasPaymentPermission(true);
+          setHasAddDebtPermission(true);
+          setPermissionsChecked(true);
+          return;
+        }
 
-        // التحقق من صلاحية تسجيل الدفعات
-        const canRecordPayments = await checkUserPermissions(user, 'recordDebtPayments');
-        setHasPaymentPermission(canRecordPayments);
-
-        // التحقق من صلاحية إضافة الديون (نستخدم نفس صلاحية تسجيل الدفعات)
-        setHasAddDebtPermission(canRecordPayments);
+        // التحقق من الصلاحيات للأدوار الأخرى باستخدام الدالة الموحدة
+        const permissionsResult = await hasPermissions(['viewDebts', 'recordDebtPayments'], user.id);
+        
+        setHasViewPermission(permissionsResult.viewDebts || false);
+        setHasPaymentPermission(permissionsResult.recordDebtPayments || false);
+        setHasAddDebtPermission(permissionsResult.recordDebtPayments || false);
 
         setPermissionsChecked(true);
       } catch (err) {
         setHasViewPermission(false);
         setHasPaymentPermission(false);
         setHasAddDebtPermission(false);
+        setPermissionsChecked(true);
       }
     };
 
     checkPermissions();
-  }, [user]);
+  }, [user, userProfile]);
 
   // تحميل بيانات الديون
   useEffect(() => {
@@ -254,20 +272,20 @@ const CustomerDebts: React.FC = () => {
   // إذا لم يتم التحقق من الصلاحيات بعد
   if (!permissionsChecked) {
     return (
-      <Layout>
+      <POSPureLayout>
         <div className="container mx-auto px-4 py-8">
           <div className="flex justify-center items-center min-h-[50vh]">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
           </div>
         </div>
-      </Layout>
+      </POSPureLayout>
     );
   }
 
   // إذا لم يكن للمستخدم صلاحية الوصول إلى صفحة الديون
   if (!hasViewPermission) {
     return (
-      <Layout>
+      <POSPureLayout>
         <div className="container mx-auto px-4 py-8">
           <Alert variant="destructive" className="mb-6">
             <AlertTriangle className="h-4 w-4" />
@@ -278,12 +296,15 @@ const CustomerDebts: React.FC = () => {
             </AlertDescription>
           </Alert>
         </div>
-      </Layout>
+      </POSPureLayout>
     );
   }
 
   return (
-    <Layout>
+    <POSPureLayout
+      onRefresh={() => setRefreshTrigger(prev => prev + 1)}
+      isRefreshing={isLoading}
+    >
       <div className="container mx-auto py-6 space-y-6">
         <div className="flex justify-between items-center">
           <h1 className="text-2xl font-bold">إدارة ديون العملاء</h1>
@@ -370,7 +391,7 @@ const CustomerDebts: React.FC = () => {
         onOpenChange={setAddDebtModalOpen}
         onDebtAdded={handleDebtAdded}
       />
-    </Layout>
+    </POSPureLayout>
   );
 };
 

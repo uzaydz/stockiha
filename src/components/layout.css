@@ -1,0 +1,113 @@
+/* Layout CSS - ضمان عدم التداخل بين القائمة الجانبية والنافبار */
+
+/* تثبيت z-index hierarchy */
+.layout-container {
+  position: relative;
+  z-index: 1;
+}
+
+/* Navbar - أعلى مستوى */
+.layout-navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  height: 64px;
+  background: hsl(var(--background) / 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid hsl(var(--border) / 0.2);
+  box-shadow: 0 1px 3px 0 hsl(var(--foreground) / 0.1);
+}
+
+/* القائمة الجانبية الثابتة - desktop */
+.layout-sidebar {
+  position: fixed;
+  top: 64px; /* تحت النافبار مباشرة */
+  bottom: 0;
+  right: 0;
+  z-index: 30;
+  background: hsl(var(--background));
+  border-left: 1px solid hsl(var(--border) / 0.3);
+  contain: layout paint;
+}
+
+/* القائمة الجانبية للجوال */
+.layout-mobile-sidebar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  z-index: 40;
+  background: hsl(var(--background));
+  border-left: 1px solid hsl(var(--border) / 0.3);
+  box-shadow: -4px 0 24px hsl(var(--foreground) / 0.1);
+  contain: layout paint;
+}
+
+/* المحتوى الرئيسي */
+.layout-main {
+  position: relative;
+  z-index: 1;
+  contain: layout;
+}
+
+/* Overlay للخلفية */
+.layout-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  background: hsl(var(--foreground) / 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* زر القائمة للجوال */
+.layout-mobile-button {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 30;
+  border-radius: 50%;
+  box-shadow: 0 4px 12px hsl(var(--foreground) / 0.15);
+}
+
+/* تحسينات للأداء */
+.layout-sidebar,
+.layout-mobile-sidebar,
+.layout-main {
+  contain: layout paint;
+}
+
+/* منع التداخل في الشاشات الصغيرة */
+@media (max-width: 768px) {
+  .layout-sidebar {
+    display: none;
+  }
+  
+  .layout-main {
+    margin-right: 0 !important;
+  }
+}
+
+/* ملاحظة: أزلنا تعيين العرض والهامش الإجباريين حسب نقاط التوقف
+   لنتجنب تعارضات مع منطق الطيّ الديناميكي. التحكم الآن يتم عبر
+   حالات React والكلاسات tailwind (w-72/w-20 و mr-72/mr-20) أو عبر
+   الكلاس .collapsed فقط. */
+
+/* حالة القائمة المطوية */
+.layout-sidebar.collapsed {
+  width: 80px; /* w-20 */
+}
+
+.layout-main.sidebar-collapsed {
+  margin-right: 80px;
+}
+
+/* منع التحديثات المتكررة */
+.layout-sidebar *,
+.layout-mobile-sidebar *,
+.layout-main * {
+  contain: layout paint;
+}

@@ -33,13 +33,21 @@ export const useUnifiedLoading = (): UseUnifiedLoadingReturn => {
   loadingStateRef.current = loadingState;
 
   const setPageLoading = useCallback((loading: boolean) => {
-    // console.log('🔄 تحديث حالة تحميل الصفحة:', loading);
-    setLoadingState(prev => ({ ...prev, isPageLoading: loading }));
+    console.log('🔄 useUnifiedLoading: تحديث حالة تحميل الصفحة:', loading);
+    setLoadingState(prev => {
+      const newState = { ...prev, isPageLoading: loading };
+      console.log('🔄 useUnifiedLoading: الحالة الجديدة:', newState);
+      return newState;
+    });
   }, []);
 
   const setDataLoading = useCallback((loading: boolean) => {
-    // console.log('🔄 تحديث حالة تحميل البيانات:', loading);
-    setLoadingState(prev => ({ ...prev, isDataLoading: loading }));
+    console.log('🔄 useUnifiedLoading: تحديث حالة تحميل البيانات:', loading);
+    setLoadingState(prev => {
+      const newState = { ...prev, isDataLoading: loading };
+      console.log('🔄 useUnifiedLoading: الحالة الجديدة:', newState);
+      return newState;
+    });
   }, []);
 
   const setComponentLoading = useCallback((componentId: string, loading: boolean) => {
@@ -107,16 +115,31 @@ export const useUnifiedLoading = (): UseUnifiedLoadingReturn => {
   const shouldShowGlobalLoader = loadingState.isPageLoading || 
     (loadingState.isDataLoading && loadingState.loadedComponents.size === 0);
 
+  // إضافة console.log لتتبع حالة التحميل
+  useEffect(() => {
+    console.log('🔄 useUnifiedLoading: تحديث shouldShowGlobalLoader', {
+      isPageLoading: loadingState.isPageLoading,
+      isDataLoading: loadingState.isDataLoading,
+      loadedComponentsSize: loadingState.loadedComponents.size,
+      shouldShowGlobalLoader
+    });
+  }, [shouldShowGlobalLoader, loadingState.isPageLoading, loadingState.isDataLoading, loadingState.loadedComponents.size]);
+
   // إيقاف تحميل الصفحة تلقائياً بمجرد تحميل البيانات أو أول مكون
   useEffect(() => {
     const { isDataLoading, loadedComponents } = loadingState;
     
+    console.log('🔄 useUnifiedLoading: فحص إيقاف التحميل', {
+      isDataLoading,
+      loadedComponentsSize: loadedComponents.size
+    });
+    
     // إيقاف التحميل بمجرد تحميل البيانات أو أول مكون
     if (!isDataLoading || loadedComponents.size > 0) {
       const timer = setTimeout(() => {
-        // console.log('🔄 إيقاف تحميل الصفحة - البيانات جاهزة أو تم تحميل أول مكون');
+        console.log('✅ useUnifiedLoading: إيقاف تحميل الصفحة - البيانات جاهزة أو تم تحميل أول مكون');
         setPageLoading(false);
-      }, 100);
+      }, 0); // ✅ إزالة التأخير لتحسين الأداء
       
       return () => clearTimeout(timer);
     }
@@ -125,7 +148,7 @@ export const useUnifiedLoading = (): UseUnifiedLoadingReturn => {
   // إضافة timeout أمان عام مُحسن - وقت قصير
   useEffect(() => {
     const safetyTimeout = setTimeout(() => {
-      // console.log('🚨 انتهت مهلة التحميل الأمان - إيقاف جميع مؤشرات التحميل');
+      console.log('🚨 useUnifiedLoading: انتهت مهلة التحميل الأمان - إيقاف جميع مؤشرات التحميل');
       setLoadingState({
         isPageLoading: false,
         isDataLoading: false,
@@ -133,7 +156,7 @@ export const useUnifiedLoading = (): UseUnifiedLoadingReturn => {
         loadedComponents: new Set(['safety-component']), // إضافة مكون وهمي لإيقاف التحميل
         totalComponents: 1,
       });
-    }, 3000); // 3 ثواني فقط
+    }, 3000); // ✅ زيادة الوقت إلى 3 ثوانٍ لحل مشكلة التحميل السريع جداً
 
     return () => clearTimeout(safetyTimeout);
   }, []); // يتم تشغيله مرة واحدة فقط عند التحميل
@@ -142,7 +165,7 @@ export const useUnifiedLoading = (): UseUnifiedLoadingReturn => {
   useEffect(() => {
     if (isAnyLoading) {
       const activityTimeout = setTimeout(() => {
-        // console.log('🔄 إيقاف التحميل بسبب عدم النشاط');
+        console.log('🔄 useUnifiedLoading: إيقاف التحميل بسبب عدم النشاط');
         setLoadingState(prev => ({
           ...prev,
           isPageLoading: false,
@@ -151,8 +174,8 @@ export const useUnifiedLoading = (): UseUnifiedLoadingReturn => {
           loadedComponents: new Set(['activity-timeout']), // إضافة مكون وهمي
           totalComponents: Math.max(prev.totalComponents, 1)
         }));
-      }, 2000); // ثانيتان من عدم النشاط
-
+      }, 2000); // ✅ زيادة الوقت إلى ثانيتين لحل مشكلة التحميل السريع جداً
+      
       return () => clearTimeout(activityTimeout);
     }
   }, [isAnyLoading]);

@@ -1,0 +1,190 @@
+/* CallConfirmationDropdownLite - تحسينات القائمة المنسدلة والأداء */
+
+/* تحسينات عامة للأداء */
+.call-confirmation-dropdown * {
+  will-change: auto !important;
+}
+
+.call-confirmation-dropdown .transform-gpu {
+  will-change: transform, opacity !important;
+}
+
+/* تحسينات للـ select */
+.call-confirmation-dropdown select {
+  contain: layout style paint !important;
+  will-change: auto !important;
+  appearance: none !important;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 8px center !important;
+  background-size: 12px !important;
+  padding-right: 32px !important;
+  cursor: pointer !important;
+  transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+/* تحسينات للـ focus state */
+.call-confirmation-dropdown select:focus {
+  outline: 2px solid var(--ring) !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 2px var(--ring) !important;
+}
+
+/* تحسينات للـ hover state */
+.call-confirmation-dropdown select:hover:not(:disabled) {
+  border-color: var(--ring) !important;
+  transform: translateY(-1px) !important;
+}
+
+/* تحسينات للـ active state */
+.call-confirmation-dropdown select:active {
+  transform: translateY(0) !important;
+}
+
+/* تحسينات للـ disabled state */
+.call-confirmation-dropdown select:disabled {
+  opacity: 0.5 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+
+/* تحسينات للـ options */
+.call-confirmation-dropdown select option {
+  padding: 8px 12px !important;
+  background-color: var(--background) !important;
+  color: var(--foreground) !important;
+  cursor: pointer !important;
+}
+
+/* تحسينات للـ options في الوضع المظلم */
+.dark .call-confirmation-dropdown select option {
+  background-color: hsl(var(--background)) !important;
+  color: hsl(var(--foreground)) !important;
+}
+
+/* تحسينات للـ options المختارة */
+.call-confirmation-dropdown select option:checked {
+  background-color: var(--accent) !important;
+  color: var(--accent-foreground) !important;
+}
+
+/* تحسينات للـ options المعطلة */
+.call-confirmation-dropdown select option:disabled {
+  color: var(--muted-foreground) !important;
+  background-color: var(--muted) !important;
+  cursor: not-allowed !important;
+}
+
+/* تحسينات للـ container */
+.call-confirmation-dropdown {
+  position: relative !important;
+  display: inline-block !important;
+  contain: layout style !important;
+}
+
+/* تحسينات للأجهزة المحمولة */
+@media (max-width: 768px) {
+  .call-confirmation-dropdown select {
+    font-size: 16px !important; /* منع zoom في iOS */
+    min-height: 44px !important; /* حجم اللمس المناسب */
+  }
+
+  .call-confirmation-dropdown select option {
+    font-size: 16px !important;
+    min-height: 44px !important;
+  }
+}
+
+/* تحسينات للـ high contrast mode */
+@media (prefers-contrast: high) {
+  .call-confirmation-dropdown select {
+    border-width: 2px !important;
+    box-shadow: 0 0 0 2px var(--ring) !important;
+  }
+}
+
+/* تحسينات للـ reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .call-confirmation-dropdown select {
+    transition: none !important;
+    animation: none !important;
+  }
+
+  .call-confirmation-dropdown * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* تحسينات للـ print */
+@media print {
+  .call-confirmation-dropdown select {
+    display: none !important;
+  }
+}
+
+/* تحسينات للـ accessibility */
+.call-confirmation-dropdown select:focus-visible {
+  outline: 2px solid var(--ring) !important;
+  outline-offset: 2px !important;
+}
+
+/* تحسينات للـ dark mode */
+.dark .call-confirmation-dropdown select {
+  background-color: hsl(var(--background)) !important;
+  border-color: hsl(var(--border)) !important;
+  color: hsl(var(--foreground)) !important;
+}
+
+.dark .call-confirmation-dropdown select:hover:not(:disabled) {
+  border-color: hsl(var(--ring)) !important;
+}
+
+.dark .call-confirmation-dropdown select:focus {
+  outline-color: hsl(var(--ring)) !important;
+  box-shadow: 0 0 0 2px hsl(var(--ring)) !important;
+}
+
+/* تحسينات للـ RTL support */
+[dir="rtl"] .call-confirmation-dropdown select {
+  text-align: right !important;
+  direction: rtl !important;
+}
+
+[dir="rtl"] .call-confirmation-dropdown select option {
+  text-align: right !important;
+  direction: rtl !important;
+}
+
+/* تحسينات للألوان المخصصة */
+.call-confirmation-dropdown select[data-color] {
+  border-color: var(--data-color) !important;
+}
+
+.call-confirmation-dropdown select[data-color]:hover:not(:disabled) {
+  border-color: var(--data-color) !important;
+  box-shadow: 0 0 0 2px var(--data-color) !important;
+}
+
+/* تحسينات للـ screen readers */
+@media (prefers-reduced-motion: reduce) and (prefers-color-scheme: dark) {
+  .call-confirmation-dropdown select {
+    background-color: hsl(var(--background)) !important;
+    border-color: hsl(var(--border)) !important;
+    color: hsl(var(--foreground)) !important;
+  }
+}
+
+/* تحسينات للـ custom properties */
+.call-confirmation-dropdown {
+  --ring: hsl(var(--ring)) !important;
+  --ring-offset: hsl(var(--background)) !important;
+  --background: hsl(var(--background)) !important;
+  --foreground: hsl(var(--foreground)) !important;
+  --border: hsl(var(--border)) !important;
+  --accent: hsl(var(--accent)) !important;
+  --accent-foreground: hsl(var(--accent-foreground)) !important;
+  --muted: hsl(var(--muted)) !important;
+  --muted-foreground: hsl(var(--muted-foreground)) !important;
+}

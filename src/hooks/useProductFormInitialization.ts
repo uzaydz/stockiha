@@ -39,6 +39,10 @@ export const useProductFormInitialization = ({
   const isEditMode = !!id;
   const navigate = useNavigate();
 
+  // Debug logging moved to useEffect to prevent running on every render
+  useEffect(() => {
+  }, [id, isEditMode, organizationId]);
+
   const resetData = useCallback((productData: Product | null) => {
 
     const defaultAdvancedSettings: ProductAdvancedSettings = productAdvancedSettingsSchema.parse({});
@@ -97,6 +101,7 @@ export const useProductFormInitialization = ({
       unit_sale_price: productData?.unit_sale_price ?? undefined,
       form_template_id: productData?.form_template_id || null,
       shipping_provider_id: productData?.shipping_provider_id || null,
+      shipping_method_type: (productData as any)?.shipping_method_type || 'default',
       shipping_clone_id: productData?.shipping_clone_id || null,
       features: formFeatures,
       specifications: formSpecifications,
@@ -271,7 +276,9 @@ export const useProductFormInitialization = ({
     form.reset(defaultValuesForForm);
 
         if (productData) {
-      setAdditionalImages(productData.additional_images || []);
+      // تصفية الصور الإضافية من الروابط الفارغة
+      const validImages = (productData.additional_images || []).filter((url: string) => url && url.trim() !== '');
+      setAdditionalImages(validImages);
       
       // تنظيف الألوان من قيم null
       const cleanedColors = (productData.colors || []).map((color: any) => ({
@@ -289,15 +296,20 @@ export const useProductFormInitialization = ({
         })) : undefined
       }));
       
+      // تفعيل المتغيرات تلقائياً إذا كان المنتج يحتوي على ألوان
+      const hasColors = cleanedColors.length > 0;
+      const shouldHaveVariants = productData.has_variants || hasColors;
+
       setProductColors(cleanedColors);
       setWholesaleTiers(formWholesaleTiers); // Use the safe value
       setUseVariantPrices(formUseVariantPrices); // Use the safe value
       setUseSizes(productData.use_sizes || false);
-      setHasVariantsState(productData.has_variants || false);
+      setHasVariantsState(shouldHaveVariants);
       setProductNameForTitle(productData.name || '');
       
-      // تحديث النموذج بالألوان المنظفة
+      // تحديث النموذج بالألوان المنظفة والمتغيرات المفعلة
       form.setValue('colors', cleanedColors, { shouldValidate: false, shouldDirty: false });
+      form.setValue('has_variants', shouldHaveVariants, { shouldValidate: false, shouldDirty: false });
     } else {
       setAdditionalImages([]);
       setProductColors([]);
@@ -311,10 +323,11 @@ export const useProductFormInitialization = ({
       form.setValue('colors', [], { shouldValidate: false, shouldDirty: false });
     }
     setInitialDataSet(true);
-  }, [form, organizationId, setAdditionalImages, setProductColors, setWholesaleTiers, setUseVariantPrices, setUseSizes, setHasVariantsState, setProductNameForTitle, setInitialDataSet]);
+  }, [form, organizationId]);
 
   useEffect(() => {
     const loadProduct = async () => {
+      
       if (!id) { // Should only run in edit mode if id is present
         setIsLoading(false);
         return;
@@ -326,7 +339,7 @@ export const useProductFormInitialization = ({
         if (fetchedProductData) {
           // جلب الالوان منفصلاً
           const colors = await getProductColors(id);
-          
+
           // تنظيف الألوان من قيم null
           const cleanedColors = (colors || []).map((color: any) => ({
             ...color,
@@ -369,7 +382,7 @@ export const useProductFormInitialization = ({
       resetData(null);
         setIsLoading(false);
     }
-  }, [isEditMode, id, resetData, organizationId, setIsLoading, navigate]); // Added navigate to deps as it's used indirectly via toast potentially
+  }, [isEditMode, id, organizationId, resetData]);
 
   return { isLoading, productNameForTitle, isEditMode, initialDataSet };
 };

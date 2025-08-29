@@ -1,36 +1,167 @@
 /**
- * ملف Supabase موحد - يحل مشكلة تعدد الـ instances
- * يضمن وجود client واحد فقط في كامل التطبيق
- * النسخة المبسطة والقياسية مع مراقبة محسنة
+ * نظام Supabase موحد محسن - يحل مشكلة تعدد الـ instances نهائياً
+ * يضمن وجود client واحد فقط في كامل التطبيق مع حماية متقدمة
+ * النسخة النهائية والآمنة مع تحسينات الأداء
  */
 
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { Database } from '@/types/database.types';
+import { createClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/types/database.types';
 
-// متغيرات البيئة
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL!;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY!;
+// متغيرات البيئة مع فحص صارم
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Supabase URL and anonymous key are required.');
 }
 
-// نظام مراقبة عملاء Supabase
-class SupabaseClientMonitor {
-  private static instances: Set<SupabaseClient> = new Set();
-  private static warningShown = false;
+// 🔒 نظام حماية مبسط ومنطقي
+class SupabaseProtector {
+  private static instance: SupabaseProtector | null = null;
+  private static isInitializing = false;
 
-  static registerClient(client: SupabaseClient, name: string) {
-    this.instances.add(client);
-    
-    // تحذير عند وجود أكثر من عميل واحد
-    if (this.instances.size > 1 && !this.warningShown) {
-      this.warningShown = true;
+  private constructor() {}
+
+  static getInstance(): SupabaseProtector {
+    if (!SupabaseProtector.instance) {
+      if (!SupabaseProtector.isInitializing) {
+        SupabaseProtector.isInitializing = true;
+        try {
+          SupabaseProtector.instance = new SupabaseProtector();
+        } finally {
+          SupabaseProtector.isInitializing = false;
+        }
+      }
+      return SupabaseProtector.instance;
     }
+    return SupabaseProtector.instance;
   }
 
-  static unregisterClient(client: SupabaseClient) {
+  // 🔒 منع إنشاء عملاء متعددين
+  preventMultipleInstances(): void {
+    if (typeof window === 'undefined') return;
+
+    // حماية على مستوى window
+    const protectionKey = '__BAZAAR_SUPABASE_PROTECTION__';
+    if ((window as any)[protectionKey]) {
+      throw new Error('Supabase client already exists - multiple instances prevented');
+    }
+
+    // تعيين علامة الحماية
+    Object.defineProperty(window, protectionKey, {
+      value: true,
+      writable: false,
+      configurable: false
+    });
+
+    // حماية على مستوى GoTrueClient
+    this.overrideGoTrueClientCreation();
+  }
+
+  // 🔒 تجاوز إنشاء GoTrueClient لمنع التكرار
+  private overrideGoTrueClientCreation(): void {
+    if (typeof window === 'undefined') return;
+
+    // حفظ الدالة الأصلية
+    const originalCreateClient = (window as any).__ORIGINAL_SUPABASE_CREATE_CLIENT__ || createClient;
+    if (!(window as any).__ORIGINAL_SUPABASE_CREATE_CLIENT__) {
+      (window as any).__ORIGINAL_SUPABASE_CREATE_CLIENT__ = originalCreateClient;
+    }
+
+    // تجاوز createClient لمنع التكرار
+    (window as any).createClient = function(...args: any[]) {
+      // السماح فقط للعميل الرئيسي
+      if ((window as any).__BAZAAR_MAIN_SUPABASE_CLIENT__) {
+        console.warn('⚠️ [SupabaseProtector] محاولة إنشاء عميل إضافي - إرجاع العميل الرئيسي');
+        return (window as any).__BAZAAR_MAIN_SUPABASE_CLIENT__;
+      }
+
+      // السماح للعميل الأول فقط
+      return originalCreateClient(...args);
+    };
+  }
+
+  // 🔒 تنظيف شامل
+  cleanup(): void {
+    if (typeof window === 'undefined') return;
+
+    try {
+      // إزالة علامات الحماية - استخدام try-catch لتجنب أخطاء الحذف
+      if ((window as any).__BAZAAR_SUPABASE_PROTECTION__ !== undefined) {
+        try {
+          // محاولة إزالة بأمان
+          Object.defineProperty(window, '__BAZAAR_SUPABASE_PROTECTION__', {
+            value: undefined,
+            writable: true,
+            configurable: true
+          });
+          delete (window as any).__BAZAAR_SUPABASE_PROTECTION__;
+        } catch (e) {
+          // تجاهل الأخطاء - هذه علامة حماية فقط
+        }
+      }
+
+      if ((window as any).__BAZAAR_MAIN_SUPABASE_CLIENT__ !== undefined) {
+        try {
+          delete (window as any).__BAZAAR_MAIN_SUPABASE_CLIENT__;
+        } catch (e) {
+          // تجاهل الأخطاء
+        }
+      }
+
+      if ((window as any).__BAZAAR_SUPABASE_CLIENTS_COUNT__ !== undefined) {
+        try {
+          delete (window as any).__BAZAAR_SUPABASE_CLIENTS_COUNT__;
+        } catch (e) {
+          // تجاهل الأخطاء
+        }
+      }
+
+      // إعادة الدالة الأصلية
+      if ((window as any).__ORIGINAL_SUPABASE_CREATE_CLIENT__) {
+        try {
+          (window as any).createClient = (window as any).__ORIGINAL_SUPABASE_CREATE_CLIENT__;
+          delete (window as any).__ORIGINAL_SUPABASE_CREATE_CLIENT__;
+        } catch (e) {
+          // تجاهل الأخطاء
+        }
+      }
+    } catch (error) {
+      // تجاهل جميع الأخطاء في التنظيف
+    }
+  }
+}
+
+// 🔒 نظام مراقبة متقدم
+class AdvancedSupabaseMonitor {
+  private static instances: Set<SupabaseClient> = new Set();
+  private static creationTimes: Map<SupabaseClient, number> = new Map();
+  private static storageKeys: Set<string> = new Set();
+  private static warningShown = false;
+
+  static registerClient(client: SupabaseClient, name: string): void {
+    this.instances.add(client);
+    this.creationTimes.set(client, Date.now());
+
+    // فحص storage keys
+    if (client.auth && (client.auth as any).storageKey) {
+      this.storageKeys.add((client.auth as any).storageKey);
+    }
+
+    // تحذير عند وجود أكثر من عميل واحد
+    if (this.instances.size > 1 && !this.warningShown) {
+      console.warn('⚠️ [SupabaseMonitor] تم اكتشاف عدة عملاء Supabase - هذا قد يسبب مشاكل');
+      this.warningShown = true;
+    }
+
+    // فحص GoTrueClient instances
+    this.detectGoTrueClients();
+  }
+
+  static unregisterClient(client: SupabaseClient): void {
     this.instances.delete(client);
+    this.creationTimes.delete(client);
   }
 
   static getInstanceCount(): number {
@@ -41,233 +172,270 @@ class SupabaseClientMonitor {
     return Array.from(this.instances);
   }
 
-  static cleanup() {
-    this.instances.clear();
-    this.warningShown = false;
+  static getStorageKeys(): string[] {
+    return Array.from(this.storageKeys);
   }
-}
 
-// إضافة علامة عالمية لمنع إنشاء عملاء متعددين
-declare global {
-  interface Window {
-    __BAZAAR_SUPABASE_CLIENTS_COUNT__: number;
-    __BAZAAR_MAIN_SUPABASE_CLIENT__: SupabaseClient<Database> | null;
-  }
-}
+  // 🔍 كشف GoTrueClient instances
+  private static detectGoTrueClients(): void {
+    if (typeof window === 'undefined') return;
 
-// تهيئة متغيرات النافذة
-if (typeof window !== 'undefined') {
-  window.__BAZAAR_SUPABASE_CLIENTS_COUNT__ = window.__BAZAAR_SUPABASE_CLIENTS_COUNT__ || 0;
-  window.__BAZAAR_MAIN_SUPABASE_CLIENT__ = window.__BAZAAR_MAIN_SUPABASE_CLIENT__ || null;
-}
-
-// إذا كان العميل الرئيسي موجود بالفعل، استخدمه
-let mainClient: SupabaseClient<Database>;
-
-if (typeof window !== 'undefined' && window.__BAZAAR_MAIN_SUPABASE_CLIENT__) {
-  mainClient = window.__BAZAAR_MAIN_SUPABASE_CLIENT__;
-} else {
-  
-  // Create a single, exported Supabase client instance
-  mainClient = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: true,
-      // A single, consistent storage key across the app
-      storageKey: 'bazaar-supabase-auth-unified-main', 
-    },
-    realtime: {
-      // تحسين إعدادات WebSocket للاتصال الفوري
-      transport: typeof window !== 'undefined' ? window.WebSocket : undefined,
-      timeout: 60000, // زيادة timeout إلى 60 ثانية
-      heartbeatIntervalMs: 30000, // زيادة heartbeat interval إلى 30 ثانية
-      params: {
-        eventsPerSecond: 10, // تقليل معدل الأحداث لتجنب الضغط
-        maxRetries: 3, // عدد محاولات إعادة الاتصال
-        retryDelay: 1000, // تأخير إعادة المحاولة
-        backoffMultiplier: 2, // مضاعف التأخير
-        maxBackoffDelay: 30000 // الحد الأقصى للتأخير
-      }
-    },
-    global: {
-      headers: {
-        'X-Client-Info': 'bazaar-unified-client-main',
-        'X-Instance-Type': 'primary',
-        'X-Creation-Time': new Date().toISOString(),
-        'x-application-name': 'bazaar-console',
-      }
-    }
-  });
-
-  // تسجيل العميل في المراقب والنافذة
-  SupabaseClientMonitor.registerClient(mainClient, 'MainClient');
-  
-  if (typeof window !== 'undefined') {
-    window.__BAZAAR_MAIN_SUPABASE_CLIENT__ = mainClient;
-    window.__BAZAAR_SUPABASE_CLIENTS_COUNT__ = (window.__BAZAAR_SUPABASE_CLIENTS_COUNT__ || 0) + 1;
-    
-  }
-}
-
-export const supabase: SupabaseClient<Database> = mainClient;
-
-/**
- * دالة للحصول على العميل. الاستيراد المباشر لـ `supabase` هو المفضل.
- */
-export const getSupabaseClient = (): SupabaseClient<Database> => {
-  return supabase;
-};
-
-/**
- * فحص ما إذا كان Supabase جاهزاً
- */
-export const isSupabaseReady = (): boolean => {
-  return !!supabase && !!supabaseUrl && !!supabaseAnonKey;
-};
-
-/**
- * تنظيف جميع عملاء Supabase
- */
-export const cleanupSupabaseClients = () => {
-  
-  SupabaseClientMonitor.cleanup();
-  
-  if (typeof window !== 'undefined') {
-    window.__BAZAAR_MAIN_SUPABASE_CLIENT__ = null;
-    window.__BAZAAR_SUPABASE_CLIENTS_COUNT__ = 0;
-  }
-  
-};
-
-/**
- * معلومات التشخيص للعملاء
- */
-export const getSupabaseDiagnostics = () => {
-  return {
-    mainClientExists: !!supabase,
-    totalClientsInMonitor: SupabaseClientMonitor.getInstanceCount(),
-    totalClientsInWindow: typeof window !== 'undefined' ? window.__BAZAAR_SUPABASE_CLIENTS_COUNT__ || 0 : 0,
-    isReady: isSupabaseReady(),
-    url: supabaseUrl ? supabaseUrl.substring(0, 30) + '...' : 'not set',
-    hasAnonKey: !!supabaseAnonKey
-  };
-};
-
-// تصدير المراقب للاستخدام في أماكن أخرى
-export { SupabaseClientMonitor };
-
-/**
- * مراقب متقدم لـ GoTrueClient instances
- */
-export const detectMultipleGoTrueClients = () => {
-  const result = {
-    count: 0,
-    warning: false,
-    instances: [] as any[],
-    storageKeys: [] as string[]
-  };
-
-  try {
-    // البحث في window object عن GoTrueClient instances
+    let goTrueCount = 0;
     const checkObject = (obj: any, path = 'window') => {
       if (!obj || typeof obj !== 'object') return;
       
       for (const key in obj) {
         try {
           const value = obj[key];
-          
-          // فحص إذا كان GoTrueClient
           if (value && value.constructor && value.constructor.name === 'GoTrueClient') {
-            result.count++;
-            result.instances.push({
-              path: `${path}.${key}`,
-              storageKey: value.storageKey || 'unknown',
-              instance: value
-            });
-            
-            if (value.storageKey) {
-              result.storageKeys.push(value.storageKey);
-            }
-          }
-          
-          // فحص إذا كان SupabaseClient وله auth.client
-          if (value && value.auth && value.auth.storageKey) {
-            result.storageKeys.push(value.auth.storageKey);
+            goTrueCount++;
+            console.warn(`⚠️ [SupabaseMonitor] GoTrueClient detected at ${path}.${key}`);
           }
         } catch (e) {
-          // تجاهل الأخطاء في الفحص
+          // تجاهل الأخطاء
         }
       }
     };
 
-    if (typeof window !== 'undefined') {
-      checkObject(window);
-      
-      // فحص خاص لـ Supabase clients المحتملة
-      if ((window as any).__BAZAAR_MAIN_SUPABASE_CLIENT__) {
-        const client = (window as any).__BAZAAR_MAIN_SUPABASE_CLIENT__;
-        if (client.auth && client.auth.storageKey) {
-          result.storageKeys.push(client.auth.storageKey);
-        }
-      }
-      
-      if ((window as any).__BAZAAR_ADMIN_CLIENT__) {
-        const client = (window as any).__BAZAAR_ADMIN_CLIENT__;
-        if (client.auth && client.auth.storageKey) {
-          result.storageKeys.push(client.auth.storageKey);
-        }
-      }
-    }
-
-    result.warning = result.count > 1 || result.storageKeys.length > 2;
+    checkObject(window);
     
-    if (result.warning) {
+    if (goTrueCount > 1) {
+      console.error('❌ [SupabaseMonitor] تم اكتشاف عدة GoTrueClient instances - هذا خطير!');
     }
-
-  } catch (error) {
   }
 
-  return result;
+  static cleanup(): void {
+    this.instances.clear();
+    this.creationTimes.clear();
+    this.storageKeys.clear();
+    this.warningShown = false;
+  }
+
+  static getDiagnostics() {
+    return {
+      instanceCount: this.getInstanceCount(),
+      storageKeys: this.getStorageKeys(),
+      instances: this.getAllInstances().map(client => ({
+        creationTime: this.creationTimes.get(client),
+        hasAuth: !!client.auth,
+        storageKey: (client.auth as any)?.storageKey || 'none'
+      }))
+    };
+  }
+}
+
+// 🔒 إعدادات Supabase محسنة
+const createOptimizedSupabaseClient = (): SupabaseClient<Database> => {
+  const protector = SupabaseProtector.getInstance();
+  protector.preventMultipleInstances();
+
+  const client = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      autoRefreshToken: false, // ✅ تعطيل التحديث التلقائي لمنع التكرار
+      persistSession: true,
+      detectSessionInUrl: false, // تعطيل لمنع مشاكل URL
+      flowType: 'pkce',
+      storageKey: 'bazaar-supabase-auth-unified-v3', // تحديث المفتاح
+      debug: false, // تعطيل debug في production
+    },
+    realtime: {
+      // ✅ تحسين إعدادات WebSocket لتقليل الاستهلاك
+      transport: typeof window !== 'undefined' ? window.WebSocket : undefined,
+      timeout: 60000, // زيادة إلى دقيقة واحدة
+      heartbeatIntervalMs: 60000, // ✅ زيادة إلى دقيقة واحدة
+      params: {
+        eventsPerSecond: 1, // ✅ تقليل إلى حدث واحد/ثانية
+        maxRetries: 1, // ✅ تقليل المحاولات
+        retryDelay: 5000, // ✅ زيادة التأخير
+        backoffMultiplier: 1.2, // ✅ تقليل المضاعف
+        maxBackoffDelay: 30000 // ✅ تقليل التأخير الأقصى
+      }
+    },
+    global: {
+      headers: {
+        'X-Client-Info': 'bazaar-unified-client-v3',
+        'X-Instance-Type': 'primary',
+        'X-Creation-Time': new Date().toISOString(),
+        'x-application-name': 'bazaar-console',
+        'X-Client-Version': '3.0.0'
+      }
+    }
+  });
+
+  // تسجيل العميل في المراقب
+  AdvancedSupabaseMonitor.registerClient(client, 'MainClient');
+
+  // إضافة علامات تعريفية
+  (client as any).__BAZAAR_PRIMARY_CLIENT__ = true;
+  (client as any).__UNIFIED_CLIENT__ = true;
+  (client as any).__CREATION_TIME__ = Date.now();
+  (client as any).__VERSION__ = '3.0.0';
+
+  return client;
 };
 
-/**
- * دالة مساعدة لتشخيص مشاكل Supabase
- */
-export const diagnoseSupabaseIssues = () => {
+// 🔒 إنشاء العميل الرئيسي مع حماية متقدمة
+let mainClient: SupabaseClient<Database>;
+
+try {
+  // فحص العميل الموجود
+  if (typeof window !== 'undefined' && (window as any).__BAZAAR_MAIN_SUPABASE_CLIENT__) {
+    mainClient = (window as any).__BAZAAR_MAIN_SUPABASE_CLIENT__;
+    console.log('✅ [Supabase] استخدام العميل الموجود');
+  } else {
+    // إنشاء عميل جديد
+    mainClient = createOptimizedSupabaseClient();
+    
+    if (typeof window !== 'undefined') {
+      (window as any).__BAZAAR_MAIN_SUPABASE_CLIENT__ = mainClient;
+      (window as any).__BAZAAR_SUPABASE_CLIENTS_COUNT__ = 1;
+    }
+    
+    console.log('✅ [Supabase] تم إنشاء العميل الرئيسي بنجاح');
+  }
+} catch (error) {
+  console.error('❌ [Supabase] فشل في إنشاء العميل:', error);
   
+  // إنشاء عميل fallback آمن
+  mainClient = {
+    from: () => ({
+      select: () => Promise.resolve({ data: [], error: new Error('Supabase غير متاح') }),
+      insert: () => Promise.resolve({ data: null, error: new Error('Supabase غير متاح') }),
+      update: () => Promise.resolve({ data: null, error: new Error('Supabase غير متاح') }),
+      delete: () => Promise.resolve({ data: null, error: new Error('Supabase غير متاح') }),
+    }),
+    rpc: () => Promise.resolve({ data: null, error: new Error('Supabase غير متاح') }),
+    auth: {
+      getSession: () => Promise.resolve({ data: { session: null }, error: null }),
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } })
+    }
+  } as any;
+}
+
+// 🔒 تصدير العميل الرئيسي
+export const supabase: SupabaseClient<Database> = mainClient;
+
+// 🔒 دوال مساعدة محسنة
+export const getSupabaseClient = (): SupabaseClient<Database> => {
+  if (!mainClient) {
+    throw new Error('Supabase client غير متاح');
+  }
+  return mainClient;
+};
+
+// 🔒 دالة للتحقق من جاهزية Supabase
+export const isSupabaseReady = (): boolean => {
+  return !!mainClient && !!(mainClient as any).__BAZAAR_PRIMARY_CLIENT__;
+};
+
+// 🔒 دالة تنظيف العملاء
+export const cleanupSupabaseClients = (): void => {
+  try {
+    // تنظيف المراقب المتقدم
+    AdvancedSupabaseMonitor.cleanup();
+    
+    // تنظيف الحماية
+    const protector = SupabaseProtector.getInstance();
+    protector.cleanup();
+    
+    // تنظيف العميل الرئيسي
+    if (mainClient && (mainClient as any).__BAZAAR_PRIMARY_CLIENT__) {
+      try {
+        // إغلاق اتصالات WebSocket
+        if (mainClient.realtime) {
+          mainClient.realtime.disconnect();
+        }
+      } catch (error) {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('⚠️ [Supabase] خطأ في إغلاق WebSocket:', error);
+        }
+      }
+    }
+    
+    // إزالة المراجع العالمية
+    if (typeof window !== 'undefined') {
+      try {
+        delete (window as any).__BAZAAR_MAIN_SUPABASE_CLIENT__;
+        delete (window as any).__BAZAAR_SUPABASE_CLIENTS_COUNT__;
+      } catch (error) {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('⚠️ [Supabase] خطأ في حذف المراجع العالمية:', error);
+        }
+      }
+    }
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log('✅ [Supabase] تم تنظيف جميع العملاء بنجاح');
+    }
+  } catch (error) {
+    if (process.env.NODE_ENV === 'development') {
+      console.error('❌ [Supabase] خطأ في التنظيف:', error);
+    }
+  }
+};
+
+// 🔒 دالة للحصول على إحصائيات التشخيص
+export const getSupabaseDiagnostics = () => {
+  return {
+    isReady: isSupabaseReady(),
+    clientInfo: mainClient ? {
+      version: (mainClient as any).__VERSION__,
+      creationTime: (mainClient as any).__CREATION_TIME__,
+      isPrimary: !!(mainClient as any).__BAZAAR_PRIMARY_CLIENT__,
+      isUnified: !!(mainClient as any).__UNIFIED_CLIENT__
+    } : null,
+    monitorStats: AdvancedSupabaseMonitor.getDiagnostics(),
+    globalReferences: typeof window !== 'undefined' ? {
+      hasMainClient: !!(window as any).__BAZAAR_MAIN_SUPABASE_CLIENT__,
+      clientsCount: (window as any).__BAZAAR_SUPABASE_CLIENTS_COUNT__ || 0
+    } : null
+  };
+};
+
+// 🔒 تصدير المراقب والواقي
+export { AdvancedSupabaseMonitor, SupabaseProtector };
+
+// 🔒 دالة تشخيص متقدمة
+export const diagnoseSupabaseIssues = () => {
   const diagnostics = getSupabaseDiagnostics();
-  const goTrueInfo = detectMultipleGoTrueClients();
+  const monitor = AdvancedSupabaseMonitor.getDiagnostics();
   
   const report = {
     ...diagnostics,
-    goTrueClients: goTrueInfo,
     timestamp: new Date().toISOString(),
-    recommendations: [] as string[]
+    recommendations: [] as string[],
+    issues: [] as string[]
   };
 
-  // توليد التوصيات
-  if (goTrueInfo.warning) {
-    report.recommendations.push('تم اكتشاف عدة GoTrueClient instances - يُنصح بإعادة تشغيل التطبيق');
+  // فحص المشاكل
+  if (monitor.instanceCount > 1) {
+    report.issues.push('يوجد أكثر من عميل Supabase');
+    report.recommendations.push('إعادة تشغيل التطبيق لحل مشكلة تعدد العملاء');
   }
   
-  if (diagnostics.totalClientsInMonitor > 1) {
-    report.recommendations.push('يوجد أكثر من عميل Supabase - تحقق من الاستيرادات المتكررة');
+  if (monitor.storageKeys.length > 2) {
+    report.issues.push('يوجد عدة storage keys - قد يسبب تضارب في المصادقة');
+    report.recommendations.push('مسح localStorage وإعادة تسجيل الدخول');
   }
   
   if (!diagnostics.isReady) {
-    report.recommendations.push('Supabase غير جاهز - تحقق من متغيرات البيئة');
+    report.issues.push('Supabase غير جاهز');
+    report.recommendations.push('التحقق من متغيرات البيئة');
   }
 
   return report;
 };
 
-// إضافة معالج تنظيف عند إغلاق النافذة
+// 🔒 تنظيف تلقائي عند إغلاق النافذة
 if (typeof window !== 'undefined') {
   window.addEventListener('beforeunload', () => {
     cleanupSupabaseClients();
   });
 }
 
-// إعادة تصدير أنواع البيانات للتوافق
+// 🔒 إعادة تصدير أنواع البيانات
 export type { Database } from '@/types/database.types';
+
+// 🔒 تصدير معلومات النسخة
+export const SUPABASE_CLIENT_VERSION = '2.0.0';
+export const SUPABASE_CLIENT_BUILD_TIME = new Date().toISOString();

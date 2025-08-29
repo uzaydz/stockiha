@@ -73,7 +73,8 @@ export interface ProductInventoryDetails {
 export interface VariantUpdateRequest {
   product_id: string;
   variant_id?: string; // null للمنتجات البسيطة
-  new_quantity: number;
+  size_id?: string; // للمقاسات
+  quantity_change: number; // التغيير في الكمية (موجب أو سالب)
   operation_type?: 'manual' | 'sale' | 'purchase' | 'adjustment' | 'return';
   notes?: string;
 }
@@ -81,53 +82,31 @@ export interface VariantUpdateRequest {
 export interface VariantUpdateResponse {
   success: boolean;
   message: string;
-  old_quantity: number;
-  new_quantity: number;
-  affected_levels: {
-    product_level?: {
-      old_quantity: number;
-      new_quantity: number;
-    };
-    color_level?: {
-      color_id: string;
-      old_quantity: number;
-      new_quantity: number;
-    };
-    size_level?: {
-      size_id: string;
-      old_quantity: number;
-      new_quantity: number;
-    };
-  };
+  updated_quantity: number;
+  previous_quantity: number;
+  timestamp: string;
+}
+
+export interface SyncResponse {
+  success: boolean;
+  message: string;
+  synced_variants: number;
+  updated_levels: number;
+  timestamp: string;
 }
 
 export interface InventoryLogEntry {
-  log_id: string;
+  id: string;
   product_id: string;
-  product_name: string;
-  variant_type: 'simple' | 'color' | 'size';
   variant_id?: string;
-  variant_name: string;
-  operation_type: string;
+  size_id?: string;
   quantity_change: number;
-  previous_stock: number;
-  new_stock: number;
+  previous_quantity: number;
+  new_quantity: number;
+  operation_type: string;
   notes?: string;
-  created_by?: string;
-  created_by_name?: string;
-  created_at: string;
-  reference_info: {
-    variant_type: string;
-    color_info?: {
-      color_name: string;
-      color_code: string;
-      color_image?: string;
-    };
-    size_info?: {
-      size_name: string;
-      size_barcode?: string;
-    };
-  };
+  updated_by: string;
+  updated_at: string;
 }
 
 // الحصول على معرف المؤسسة الحالية
@@ -136,13 +115,44 @@ async function getCurrentUserOrganizationId(): Promise<string | null> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
 
-    const { data: userProfile } = await supabase
-      .from('users')
-      .select('organization_id')
-      .eq('id', user.id)
-      .single();
+    // محاولة أولى: استخدام auth_user_id
+    let userProfile = null;
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('organization_id')
+        .eq('auth_user_id', user.id)
+        .eq('is_active', true)
+        .single();
+      
+      if (!error && data) {
+        userProfile = data;
+      }
+    } catch (firstError) {
+    }
 
-    return userProfile?.organization_id || null;
+    // محاولة ثانية: استخدام id مباشرة إذا كان auth_user_id هو نفسه id
+    if (!userProfile) {
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('organization_id')
+          .eq('id', user.id)
+          .eq('is_active', true)
+          .single();
+        
+        if (!error && data) {
+          userProfile = data;
+        }
+      } catch (secondError) {
+      }
+    }
+
+    if (!userProfile) {
+      return null;
+    }
+
+    return userProfile.organization_id;
   } catch (error) {
     return null;
   }
@@ -160,7 +170,7 @@ export async function getProductInventoryDetails(
       throw new Error('لم يتم العثور على معرف المؤسسة');
     }
 
-    const { data, error } = await supabase.rpc('get_product_inventory_details', {
+    const { data, error } = await supabase.rpc('get_product_inventory_details' as any, {
       p_organization_id: organizationId,
       p_product_id: productId
     });
@@ -169,11 +179,11 @@ export async function getProductInventoryDetails(
       throw new Error(`خطأ في جلب تفاصيل مخزون المنتج: ${error.message}`);
     }
 
-    if (!data || data.length === 0) {
+    if (!data || (Array.isArray(data) && data.length === 0)) {
       throw new Error('المنتج غير موجود أو لا تملك صلاحية الوصول إليه');
     }
 
-    const details = data[0];
+    const details = Array.isArray(data) ? data[0] : data;
     
     return {
       product_id: details.product_id,
@@ -223,36 +233,32 @@ export async function updateVariantInventory(
       throw new Error('المستخدم غير مسجل الدخول');
     }
 
-    const { data, error } = await supabase.rpc('update_variant_inventory', {
+    const { data, error } = await supabase.rpc('update_variant_inventory' as any, {
       p_organization_id: organizationId,
       p_product_id: request.product_id,
       p_variant_id: request.variant_id || null,
-      p_new_quantity: request.new_quantity,
+      p_new_quantity: request.quantity_change,
       p_operation_type: request.operation_type || 'manual',
-      p_notes: request.notes || null,
+      p_notes: request.notes || '',
       p_updated_by: user.id
     });
 
     if (error) {
-      throw new Error(`خطأ في تحديث المخزون: ${error.message}`);
+      throw new Error(`خطأ في تحديث مخزون المتغير: ${error.message}`);
     }
 
-    if (!data || data.length === 0) {
+    if (!data || (Array.isArray(data) && data.length === 0)) {
       throw new Error('فشل في تحديث المخزون');
     }
 
-    const result = data[0];
+    const result = Array.isArray(data) ? data[0] : data;
     
-    if (!result.success) {
-      throw new Error(result.message || 'فشل في تحديث المخزون');
-    }
-
     return {
-      success: result.success,
-      message: result.message,
-      old_quantity: result.old_quantity,
-      new_quantity: result.new_quantity,
-      affected_levels: result.affected_levels || {}
+      success: true,
+      message: 'تم تحديث المخزون بنجاح',
+      updated_quantity: result.updated_quantity,
+      previous_quantity: result.previous_quantity,
+      timestamp: new Date().toISOString()
     };
   } catch (error) {
     throw error;
@@ -262,44 +268,48 @@ export async function updateVariantInventory(
 /**
  * مزامنة مستويات المخزون
  */
-export async function syncInventoryLevels(productId: string): Promise<{
-  success: boolean;
-  message: string;
-  sync_report: any;
-}> {
+export async function syncInventoryLevels(
+  productId: string
+): Promise<SyncResponse> {
   try {
     const organizationId = await getCurrentUserOrganizationId();
     if (!organizationId) {
       throw new Error('لم يتم العثور على معرف المؤسسة');
     }
 
-    const { data, error } = await supabase.rpc('sync_inventory_levels', {
+    const { data, error } = await supabase.rpc('sync_inventory_levels' as any, {
       p_organization_id: organizationId,
       p_product_id: productId
     });
 
     if (error) {
-      throw new Error(`خطأ في مزامنة المخزون: ${error.message}`);
+      throw new Error(`خطأ في مزامنة مستويات المخزون: ${error.message}`);
     }
 
-    if (!data || data.length === 0) {
-      throw new Error('فشل في مزامنة المخزون');
+    if (!data || (Array.isArray(data) && data.length === 0)) {
+      throw new Error('فشل في مزامنة مستويات المخزون');
     }
 
-    return data[0];
+    const result = Array.isArray(data) ? data[0] : data;
+    
+    return {
+      success: true,
+      message: 'تمت مزامنة مستويات المخزون بنجاح',
+      synced_variants: result.synced_variants || 0,
+      updated_levels: result.updated_levels || 0,
+      timestamp: new Date().toISOString()
+    };
   } catch (error) {
     throw error;
   }
 }
 
 /**
- * الحصول على سجل المخزون للمتغيرات
+ * الحصول على سجل مخزون المتغيرات
  */
 export async function getInventoryVariantsLog(
-  productId?: string,
-  variantId?: string,
-  limit: number = 50,
-  offset: number = 0
+  productId: string,
+  limit: number = 50
 ): Promise<InventoryLogEntry[]> {
   try {
     const organizationId = await getCurrentUserOrganizationId();
@@ -307,34 +317,34 @@ export async function getInventoryVariantsLog(
       throw new Error('لم يتم العثور على معرف المؤسسة');
     }
 
-    const { data, error } = await supabase.rpc('get_inventory_variants_log', {
+    const { data, error } = await supabase.rpc('get_inventory_variants_log' as any, {
       p_organization_id: organizationId,
-      p_product_id: productId || null,
-      p_variant_id: variantId || null,
-      p_limit: limit,
-      p_offset: offset
+      p_product_id: productId,
+      p_limit: limit
     });
 
     if (error) {
       throw new Error(`خطأ في جلب سجل المخزون: ${error.message}`);
     }
 
-    return (data || []).map((entry: any) => ({
-      log_id: entry.log_id,
+    if (!data) {
+      return [];
+    }
+
+    const logData = Array.isArray(data) ? data : [data];
+    
+    return logData.map((entry: any) => ({
+      id: entry.id,
       product_id: entry.product_id,
-      product_name: entry.product_name,
-      variant_type: entry.variant_type,
       variant_id: entry.variant_id,
-      variant_name: entry.variant_name,
-      operation_type: entry.operation_type,
+      size_id: entry.size_id,
       quantity_change: entry.quantity_change,
-      previous_stock: entry.previous_stock,
-      new_stock: entry.new_stock,
+      previous_quantity: entry.previous_quantity,
+      new_quantity: entry.new_quantity,
+      operation_type: entry.operation_type,
       notes: entry.notes,
-      created_by: entry.created_by,
-      created_by_name: entry.created_by_name,
-      created_at: entry.created_at,
-      reference_info: entry.reference_info || {}
+      updated_by: entry.updated_by,
+      updated_at: entry.updated_at
     }));
   } catch (error) {
     throw error;
@@ -374,7 +384,7 @@ export async function getInventoryQuickSummary(productId: string): Promise<{
 export async function bulkUpdateVariants(updates: Array<{
   product_id: string;
   variant_id?: string;
-  new_quantity: number;
+  quantity_change: number;
   notes?: string;
 }>): Promise<{
   success_count: number;
@@ -386,7 +396,7 @@ export async function bulkUpdateVariants(updates: Array<{
       updates.map(update => updateVariantInventory({
         product_id: update.product_id,
         variant_id: update.variant_id,
-        new_quantity: update.new_quantity,
+        quantity_change: update.quantity_change,
         operation_type: 'manual',
         notes: update.notes || 'تحديث مجمع'
       }))

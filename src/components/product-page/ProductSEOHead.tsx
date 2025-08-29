@@ -130,4 +130,3 @@ export const ProductSEOHead: React.FC<ProductSEOHeadProps> = React.memo(({
 });
 
 ProductSEOHead.displayName = 'ProductSEOHead';
-

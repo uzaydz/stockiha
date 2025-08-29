@@ -1,11 +1,12 @@
-// تصدير جميع مكونات صفحة المنتج
-export { ProductSEOHead } from './ProductSEOHead';
-export { ProductTrackingContainer } from './ProductTrackingContainer';
+// تصدير المكون الرئيسي
 export { ProductMainSection } from './ProductMainSection';
-export { ProductDebugTools } from './ProductDebugTools';
 
-// تصدير الـ hooks المخصصة
-export { useDeliveryCalculation } from './useDeliveryCalculation';
-export { useOrderHandler } from './useOrderHandler';
-export { useSpecialOffers } from './useSpecialOffers';
-
+// تصدير المكونات الفرعية
+export { ProductImageSection } from './ProductImageSection';
+export { ProductInfoSection } from './ProductInfoSection';
+export { ProductOfferTimerSection } from './ProductOfferTimerSection';
+export { ProductVariantsSection } from './ProductVariantsSection';
+export { ProductSpecialOffersSection } from './ProductSpecialOffersSection';
+export { ProductActionsSection } from './ProductActionsSection';
+export { ProductFormSection } from './ProductFormSection';
+export { ProductContentSection } from './ProductContentSection';

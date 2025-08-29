@@ -3,7 +3,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { useTenant } from "@/context/TenantContext";
 import { supabase } from "@/lib/supabase";
-import { checkUserPermissions } from "@/lib/api/permissions";
+import { hasPermissions } from "@/lib/api/userPermissionsUnified";
 import Layout from "@/components/Layout";
 import {
   Card,
@@ -103,13 +103,11 @@ const AbandonedOrders = () => {
       setPermissionLoading(true);
       
       try {
-        // التحقق من صلاحية مشاهدة الطلبات المتروكة
-        const canView = await checkUserPermissions(user, 'viewOrders' as any);
-        setHasViewPermission(canView);
+        // استخدام الدالة الموحدة للتحقق من عدة صلاحيات دفعة واحدة
+        const permissionsResult = await hasPermissions(['viewOrders', 'updateOrderStatus'], user.id);
         
-        // التحقق من صلاحية إدارة الطلبات المتروكة
-        const canManage = await checkUserPermissions(user, 'updateOrderStatus' as any);
-        setHasManagePermission(canManage);
+        setHasViewPermission(permissionsResult.viewOrders || false);
+        setHasManagePermission(permissionsResult.updateOrderStatus || false);
       } catch (error) {
         toast({
           variant: "destructive",

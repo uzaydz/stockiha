@@ -2,6 +2,28 @@
 @tailwind components;
 @tailwind utilities;
 
+/* تطبيق اللون البرتقالي على جميع العناصر */
+:root {
+  --primary: 15 96% 62% !important; /* #fc5d41 */
+  --primary-foreground: 0 0% 100% !important;
+  --ring: 15 96% 62% !important; /* #fc5d41 */
+  --sidebar-primary: 15 96% 62% !important; /* #fc5d41 */
+  --sidebar-ring: 15 96% 62% !important; /* #fc5d41 */
+}
+
+/* إجبار تطبيق اللون البرتقالي على جميع العناصر */
+* {
+  --tw-ring-color: hsl(15 96% 62%) !important;
+}
+
+/* تطبيق اللون البرتقالي على الأزرار والعناصر التفاعلية */
+.btn-primary,
+[class*="bg-primary"],
+[class*="text-primary"],
+[class*="border-primary"] {
+  --tw-ring-color: hsl(15 96% 62%) !important;
+}
+
 /* Shimmer Animation */
 @keyframes shimmer {
   0% {

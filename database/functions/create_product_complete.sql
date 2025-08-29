@@ -393,7 +393,7 @@ BEGIN
       SELECT 
         v_product_id,
         (value->>'image_url')::TEXT,
-        (ROW_NUMBER() OVER())::INTEGER
+        (ROW_NUMBER() OVER(ORDER BY (value->>'image_url')))::INTEGER
       FROM jsonb_array_elements(p_images);
     END IF;
 

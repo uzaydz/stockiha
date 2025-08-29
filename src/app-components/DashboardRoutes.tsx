@@ -39,7 +39,7 @@ export const DashboardRoutes = () => (
           
           {/* إضافة منتج جديد */}
           <Route path="/dashboard/products/new" element={
-            <PermissionGuard requiredPermissions={['manageProducts']}>
+            <PermissionGuard requiredPermissions={['addProducts']}>
               <Suspense fallback={<PageLoader message="جاري تحميل نموذج المنتج..." />}>
                 <LazyRoutes.ProductForm />
               </Suspense>
@@ -122,6 +122,12 @@ export const DashboardRoutes = () => (
           <Route path="/dashboard/orders-v2" element={
             <Suspense fallback={<PageLoader message="جاري تحميل الطلبات (V2)..." />}>
               <LazyRoutes.OrdersV2 />
+            </Suspense>
+          } />
+          {/* تفاصيل الطلب (V2) برقم الطلبية */}
+          <Route path="/dashboard/orders-v2/:orderNumber" element={
+            <Suspense fallback={<PageLoader message="جاري تحميل تفاصيل الطلب..." />}>
+              <LazyRoutes.OrderDetailsV2 />
             </Suspense>
           } />
           
@@ -214,15 +220,7 @@ export const DashboardRoutes = () => (
               <LazyRoutes.Invoices />
             </Suspense>
           } />
-          
-          <Route path="/dashboard/reports" element={
-            <PermissionGuard requiredPermissions={['viewFinancialReports']}>
-              <Suspense fallback={<PageLoader message="جاري تحميل التقارير..." />}>
-                <LazyRoutes.FinancialReports />
-              </Suspense>
-            </PermissionGuard>
-          } />
-          
+
           {/* التحليلات المالية الشاملة */}
           <Route path="/dashboard/financial-analytics" element={
             <PermissionGuard requiredPermissions={['viewFinancialReports']}>
@@ -392,6 +390,24 @@ export const DashboardRoutes = () => (
             <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
               <Suspense fallback={<PageLoader message="جاري تحميل محرر المتجر..." />}>
                 <LazyRoutes.StoreEditor />
+              </Suspense>
+            </PermissionGuard>
+          } />
+          
+          {/* محرر المتجر V2 */}
+          <Route path="/dashboard/store-editor-v2" element={
+            <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+              <Suspense fallback={<PageLoader message="جاري تحميل محرر المتجر V2..." />}>
+                <LazyRoutes.StoreEditorV2 />
+              </Suspense>
+            </PermissionGuard>
+          } />
+          
+          {/* إعدادات المتجر */}
+          <Route path="/dashboard/store-settings" element={
+            <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+              <Suspense fallback={<PageLoader message="جاري تحميل إعدادات المتجر..." />}>
+                <LazyRoutes.StoreSettingsPage />
               </Suspense>
             </PermissionGuard>
           } />
@@ -729,6 +745,13 @@ export const DashboardRoutes = () => (
         <Route path="/dashboard/subscription" element={
           <Suspense fallback={<PageLoader message="جاري تحميل الاشتراك..." />}>
             <LazyRoutes.SubscriptionPage />
+          </Suspense>
+        } />
+
+        {/* صفحة إعادة شحن الطلبيات الإلكترونية */}
+        <Route path="/dashboard/online-orders-recharge" element={
+          <Suspense fallback={<PageLoader message="جاري تحميل إعادة شحن الطلبيات..." />}>
+            <LazyRoutes.OnlineOrdersRechargePage />
           </Suspense>
         } />
 

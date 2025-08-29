@@ -1,21 +1,7 @@
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { 
-  ChevronDown, 
-  Clock, 
-  Package, 
-  Truck, 
-  CheckCircle2, 
-  XCircle,
-  Send,
-  PackageCheck
-} from "lucide-react";
+import { Clock, Package, Truck, Home, XCircle } from "lucide-react";
+import './OrderStatusDropdown.css';
+
 type OrderStatusDropdownProps = {
   currentStatus: string;
   orderId: string;
@@ -31,48 +17,52 @@ const OrderStatusDropdown = ({
 }: OrderStatusDropdownProps) => {
   const [isUpdating, setIsUpdating] = useState(false);
   
-  // تكوين الحالات - تم إضافة "تم الإرسال" و "تم الاستلام"
+  // تكوين الحالات المحسن - أبسط وأصغر
   const statusConfig = {
     pending: {
       label: "معلق",
       icon: Clock,
-      color: "bg-amber-100 text-amber-700 border-amber-200",
-      iconColor: "text-amber-500",
+      color: "bg-amber-100 text-amber-800 border-amber-200",
+      bgColor: "#fef3c7",
+      textColor: "#92400e"
     },
     processing: {
       label: "قيد المعالجة",
       icon: Package,
-      color: "bg-blue-100 text-blue-700 border-blue-200",
-      iconColor: "text-blue-500",
+      color: "bg-blue-100 text-blue-800 border-blue-200",
+      bgColor: "#dbeafe",
+      textColor: "#1d4ed8"
     },
     shipped: {
       label: "تم الإرسال",
-      icon: Send,
-      color: "bg-purple-100 text-purple-700 border-purple-200",
-      iconColor: "text-purple-500",
+      icon: Truck,
+      color: "bg-purple-100 text-purple-800 border-purple-200",
+      bgColor: "#e9d5ff",
+      textColor: "#6b21a8"
     },
     delivered: {
       label: "تم الاستلام",
-      icon: PackageCheck,
-      color: "bg-green-100 text-green-700 border-green-200",
-      iconColor: "text-green-500",
+      icon: Home,
+      color: "bg-green-100 text-green-800 border-green-200",
+      bgColor: "#d1fae5",
+      textColor: "#065f46"
     },
     cancelled: {
       label: "ملغي",
       icon: XCircle,
-      color: "bg-rose-100 text-rose-700 border-rose-200",
-      iconColor: "text-rose-500",
+      color: "bg-red-100 text-red-800 border-red-200",
+      bgColor: "#fee2e2",
+      textColor: "#991b1b"
     }
   };
   
-  // جميع الحالات المتاحة (إزالة القيود السابقة)
+  // جميع الحالات المتاحة
   const allStatuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
   
   // الحالات المتاحة للتغيير - جميع الحالات ما عدا الحالة الحالية
   const availableStatuses = allStatuses.filter(status => status !== currentStatus);
 
   const handleStatusChange = async (newStatus: string) => {
-    // تأجيل التنفيذ للإطار التالي لتجنب العمل داخل click مما يسبب reflow فوري
     requestAnimationFrame(async () => {
       setIsUpdating(true);
       try {
@@ -87,60 +77,59 @@ const OrderStatusDropdown = ({
   const currentConfig = statusConfig[currentStatus as keyof typeof statusConfig] || {
     label: currentStatus,
     icon: Clock,
-    color: "bg-gray-100 text-gray-700 border-gray-200",
-    iconColor: "text-gray-500",
+    color: "bg-gray-100 text-gray-800 border-gray-200",
+    bgColor: "#f3f4f6",
+    textColor: "#374151"
   };
 
-  const CurrentIcon = currentConfig.icon;
-
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={isUpdating}
-          className={`h-8 gap-2 text-xs font-medium transition-colors transform-gpu ${currentConfig.color} hover:opacity-80`} 
-          style={{ 
-            minWidth: 120,
-            contain: 'layout',
-            willChange: 'auto'
-          }}
-        >
-          <CurrentIcon className={`h-3 w-3 ${currentConfig.iconColor}`} />
-          {currentConfig.label}
-          <ChevronDown className="h-3 w-3 opacity-50" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent 
-        align="end" 
-        className="min-w-[150px] transform-gpu"
-        style={{ 
-          contain: 'layout',
-          willChange: 'transform',
-          zIndex: 9999
+    <div className="order-status-dropdown-compact relative inline-block">
+      <select
+        value={currentStatus}
+        onChange={(e) => handleStatusChange(e.target.value)}
+        disabled={isUpdating}
+        className={`h-7 px-2 py-1 pr-6 text-xs font-medium border rounded-md cursor-pointer appearance-none focus:outline-none focus:ring-1 focus:ring-offset-0 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 ${currentConfig.color} hover:shadow-sm`}
+        style={{
+          minWidth: 100,
+          contain: 'paint',
+          willChange: 'auto',
+          backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e")`,
+          backgroundRepeat: 'no-repeat',
+          backgroundPosition: 'right 4px center',
+          backgroundSize: '10px'
         }}
-        sideOffset={4}
-        avoidCollisions={true}
       >
+        {/* الخيار الحالي */}
+        <option value={currentStatus} disabled>
+          {currentConfig.label}
+        </option>
+
+        {/* الخيارات المتاحة */}
         {availableStatuses.map((status) => {
           const config = statusConfig[status as keyof typeof statusConfig];
-          const Icon = config.icon;
-          
           return (
-            <DropdownMenuItem
+            <option
               key={status}
-              onClick={() => handleStatusChange(status)}
-              className="gap-2 cursor-pointer transform-gpu"
-              style={{ contain: 'layout' }}
+              value={status}
+              style={{
+                color: config.textColor,
+                backgroundColor: config.bgColor,
+                padding: '4px 8px'
+              }}
             >
-              <Icon className={`h-4 w-4 ${config.iconColor}`} />
               {config.label}
-            </DropdownMenuItem>
+            </option>
           );
         })}
-      </DropdownMenuContent>
-    </DropdownMenu>
+      </select>
+      
+      {/* مؤشر التحميل الصغير */}
+      {isUpdating && (
+        <div className="absolute -top-1 -right-1">
+          <div className="h-3 w-3 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"></div>
+        </div>
+      )}
+    </div>
   );
 };
 

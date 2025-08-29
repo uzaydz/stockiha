@@ -1,5 +1,4 @@
 import { supabase } from '@/lib/supabase';
-import { supabaseAdmin } from '@/lib/supabase-admin';
 import { User } from '../../types';
 import { mapSupabaseUserToUser } from './mappers';
 import { v4 as uuidv4 } from 'uuid';
@@ -62,11 +61,73 @@ export const createCustomer = async (customerData: { name: string; email?: strin
     // البيانات الأساسية للعميل
     const customerEmail = customerData.email || `customer_${Date.now()}@example.com`;
     
-    // الحصول على معرف المؤسسة الحالية
-    const organizationId = await getOrganizationId();
-    
+    // الحصول على معرف المؤسسة الحالية - محسن مع بدائل
+    let organizationId = await getOrganizationId();
+
     if (!organizationId) {
-      throw new Error('لم يتم العثور على المؤسسة');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('⚠️ [userService] فشل في الحصول على معرف المؤسسة، محاولة البدائل...');
+      }
+
+      // محاولة أولى: البحث عن المستخدم في جدول users
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: userData, error } = await supabase
+            .from('users')
+            .select('organization_id')
+            .eq('auth_user_id', user.id)
+            .single();
+
+          if (!error && userData?.organization_id) {
+            organizationId = userData.organization_id;
+            if (process.env.NODE_ENV === 'development') {
+              console.log('✅ [userService] تم العثور على معرف المؤسسة من جدول users:', organizationId);
+            }
+          }
+        }
+      } catch (error) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('⚠️ [userService] فشل في البحث في جدول users:', error);
+        }
+      }
+
+      // إذا لم نجد المؤسسة، نبحث في التخزين المحلي
+      if (!organizationId) {
+        const storedOrgId = localStorage.getItem('bazaar_organization_id');
+        if (storedOrgId) {
+          organizationId = storedOrgId;
+          if (process.env.NODE_ENV === 'development') {
+            console.log('✅ [userService] استخدام معرف المؤسسة من التخزين المحلي:', organizationId);
+          }
+        }
+      }
+
+      // إذا لم نجد المؤسسة بعد، نبحث عن أول مؤسسة في قاعدة البيانات
+      if (!organizationId) {
+        try {
+          const { data: orgs, error } = await supabase
+            .from('organizations')
+            .select('id')
+            .limit(1);
+
+          if (!error && orgs && orgs.length > 0) {
+            organizationId = orgs[0].id;
+            if (process.env.NODE_ENV === 'development') {
+              console.log('✅ [userService] استخدام أول مؤسسة كبديل:', organizationId);
+            }
+          }
+        } catch (error) {
+          if (process.env.NODE_ENV === 'development') {
+            console.log('⚠️ [userService] فشل في البحث عن أول مؤسسة:', error);
+          }
+        }
+      }
+
+      // إذا لم نجد المؤسسة حتى الآن، نرمي خطأ
+      if (!organizationId) {
+        throw new Error('لم يتم العثور على المؤسسة. يرجى التأكد من أن لديك مؤسسة مرتبطة بحسابك أو الاتصال بالدعم.');
+      }
     }
     
     // استخدام آلية المزامنة: أولاً، تحقق من الاتصال بالإنترنت
@@ -103,8 +164,9 @@ export const createCustomer = async (customerData: { name: string; email?: strin
     }
     
     try {
-      // محاولة إضافة العميل عبر ال API
-      const { data: customerRecord, error: customerError } = await supabaseAdmin
+      // محاولة إضافة العميل عبر Supabase العادي
+      // ملاحظة: هذا يتطلب أن يكون المستخدم لديه صلاحيات لإضافة عملاء
+      const { data: customerRecord, error: customerError } = await supabase
         .from('customers')
         .insert({
           id: customerId,
@@ -119,8 +181,8 @@ export const createCustomer = async (customerData: { name: string; email?: strin
         .single();
         
       if (customerError) {
-        
         // إذا فشلت الإضافة، نضيف العميل محلياً ونضيفه إلى طابور المزامنة
+        console.log('فشل في إضافة العميل عبر Supabase، إضافة محلية:', customerError);
 
         const localCustomer = await createLocalCustomer({
           name: customerData.name,

@@ -2,46 +2,201 @@ import React, { useRef, useMemo, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { Menu } from 'lucide-react';
+import { Menu, Search, LogOut, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useApps } from '@/context/AppsContext';
+import { useTenant } from '@/context/TenantContext';
 import { createNavigationData } from './navigationData';
-import { checkPermission } from './utils';
+import { checkPermission, debugPermissions } from './utils';
 import NavigationGroup from './NavigationGroup';
 import PopupMenu from './PopupMenu';
+import MerchantTypeToggle from './MerchantTypeToggle';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { MerchantType } from './types';
+import { supabase } from '@/lib/supabase';
 
 interface SidebarNavigationProps {
-  isCollapsed: boolean;
-  activePopup: string | null;
   activeGroup: string | null;
-  onTogglePopup: (groupName: string) => void;
   onToggleGroup: (group: string) => void;
-  onToggleCollapse: () => void;
-  onSetActivePopup: (popup: string | null) => void;
   onSetActiveGroup: (group: string | null) => void;
-  isInPOSPage: boolean;
+  onLogout: () => void;
 }
 
 const SidebarNavigation: React.FC<SidebarNavigationProps> = ({
-  isCollapsed,
-  activePopup,
   activeGroup,
-  onTogglePopup,
   onToggleGroup,
-  onToggleCollapse,
-  onSetActivePopup,
   onSetActiveGroup,
-  isInPOSPage
+  onLogout
 }) => {
   const location = useLocation();
   const { userProfile } = useAuth();
+  const { currentOrganization } = useTenant();
   const userRole = userProfile?.role || null;
+
+  // إضافة debug log لمراقبة currentOrganization
+  React.useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+    }
+  }, [currentOrganization, userProfile?.id]);
+
+  // حل بديل: التحقق من currentOrganization بشكل دوري
+  React.useEffect(() => {
+    if (!currentOrganization && userProfile?.organization_id) {
+      if (process.env.NODE_ENV === 'development') {
+      }
+
+      // إرسال حدث لإجبار TenantContext على التحقق من AuthContext
+      const checkInterval = setInterval(() => {
+        if (currentOrganization) {
+          clearInterval(checkInterval);
+        } else {
+          window.dispatchEvent(new CustomEvent('checkAuthOrganization'));
+        }
+      }, 1000); // كل ثانية
+
+      return () => clearInterval(checkInterval);
+    }
+  }, [currentOrganization, userProfile?.organization_id]);
+
+  // الاستماع إلى أحداث AuthContext لتحديث currentOrganization
+  React.useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+    }
+
+    const handleAuthOrganizationReady = (event: CustomEvent) => {
+      const { organization: authOrg } = event.detail;
+      if (process.env.NODE_ENV === 'development') {
+      }
+    };
+
+    window.addEventListener('authOrganizationReady', handleAuthOrganizationReady as EventListener);
+
+    return () => {
+      window.removeEventListener('authOrganizationReady', handleAuthOrganizationReady as EventListener);
+    };
+  }, [currentOrganization]);
   const userPermissions = (userProfile?.permissions || {}) as Record<string, boolean>;
   const { organizationApps } = useApps();
-  const popupRef = useRef<HTMLDivElement>(null);
+  // إزالة popup ref - لا حاجة له بعد إزالة الطي
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const isMobile = useMediaQuery('(max-width: 768px)');
   
   const permissions = userPermissions;
   const isAdmin = userRole === 'admin';
+
+  // حالة نوع التاجر المحلية
+  const [merchantType, setMerchantType] = React.useState<MerchantType>('both');
+  const [isRefreshing, setIsRefreshing] = React.useState(false);
+  
+  // فحص أن supabase جاهز
+  const isSupabaseReady = React.useMemo(() => {
+    const ready = supabase && typeof supabase.from === 'function' && typeof supabase.channel === 'function';
+    if (!ready) {
+    }
+    return ready;
+  }, []);
+
+  // دالة لإجبار تحديث البيانات
+  const handleForceRefresh = async () => {
+    if (!userProfile?.id) return;
+    
+    setIsRefreshing(true);
+    try {
+      // مسح البيانات المحفوظة
+      localStorage.removeItem('user_data_cache');
+      localStorage.removeItem('bazaar_organization_id');
+      
+      // إعادة تحميل الصفحة لإجبار تحديث البيانات
+      window.location.reload();
+    } catch (error) {
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  // استخراج نوع التاجر من إعدادات المؤسسة
+  React.useEffect(() => {
+    const getMerchantType = async () => {
+      if (!currentOrganization?.id) {
+        setMerchantType('both');
+        return;
+      }
+
+      // فحص أن supabase جاهز
+      if (!isSupabaseReady) {
+        setMerchantType('both');
+        return;
+      }
+
+      try {
+        // محاولة الحصول على merchant_type من قاعدة البيانات
+        const { data: orgSettings, error } = await supabase
+          .from('organization_settings')
+          .select('merchant_type')
+          .eq('organization_id', currentOrganization.id)
+          .single() as { data: any, error: any };
+
+        if (error && error.code !== 'PGRST116') {
+          throw error;
+        }
+
+        if (orgSettings?.merchant_type) {
+          setMerchantType(orgSettings.merchant_type as MerchantType);
+        } else {
+          // القيمة الافتراضية
+          setMerchantType('both');
+        }
+      } catch (error) {
+        // إذا لم يكن الحقل موجود في قاعدة البيانات، استخدم القيمة الافتراضية
+        setMerchantType('both');
+        
+        // إضافة معالجة أفضل للأخطاء
+        if (error && typeof error === 'object' && 'message' in error) {
+        }
+      }
+    };
+
+    // تأخير صغير للتأكد من أن supabase جاهز
+    const timer = setTimeout(() => {
+      getMerchantType();
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [currentOrganization?.id]);
+
+  // إضافة مراقبة لتغييرات merchantType في قاعدة البيانات
+  React.useEffect(() => {
+    if (!currentOrganization?.id) {
+      return;
+    }
+
+    // فحص أن supabase جاهز
+    if (!isSupabaseReady) {
+      return;
+    }
+
+    const channel = supabase
+      .channel('organization_settings_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'organization_settings',
+          filter: `organization_id=eq.${currentOrganization.id}`
+        },
+        (payload) => {
+          if (payload.new && payload.new.merchant_type) {
+            setMerchantType(payload.new.merchant_type as MerchantType);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [currentOrganization?.id]);
 
   // تحسين isAppEnabled مع memoization
   const enabledApps = useMemo(() => {
@@ -54,25 +209,51 @@ const SidebarNavigation: React.FC<SidebarNavigationProps> = ({
 
   // إضافة console.log للتشخيص عند تغيير التطبيقات
   useEffect(() => {
-    
     // إضافة تأخير صغير للتأكد من تحديث البيانات
     setTimeout(() => {
+      // طباعة معلومات تشخيصية للصلاحيات
+      if (userProfile && permissions) {
+      }
     }, 100);
-  }, [organizationApps, enabledApps]);
+  }, [organizationApps, enabledApps, userProfile, permissions, userRole, isAdmin]);
 
-  // إنشاء بيانات التنقل
+  // إنشاء بيانات التنقل مع تمرير نوع التاجر
   const navItems = useMemo(() => {
-    return createNavigationData(isAppEnabledMemo);
-  }, [isAppEnabledMemo]);
+    return createNavigationData(isAppEnabledMemo, merchantType);
+  }, [isAppEnabledMemo, merchantType]);
   
-  // تصفية المجموعات التي يملك المستخدم صلاحيات عرضها
+  // تصفية المجموعات التي يملك المستخدم صلاحيات عرضها - محسنة
   const filteredNavItems = useMemo(() => {
-    return navItems.filter(group => 
-      isAdmin || 
-      !group.requiredPermission || 
-      checkPermission(group.requiredPermission, permissions)
-    );
-  }, [navItems, isAdmin, permissions]);
+    const filtered = navItems.filter(group => {
+      // إذا كان المستخدم مدير، يظهر له كل شيء
+      if (isAdmin) {
+        return true;
+      }
+      
+      // إذا لم تتطلب المجموعة صلاحية، تظهر للجميع
+      if (!group.requiredPermission) {
+        return true;
+      }
+      
+      // التحقق من الصلاحية مع تشخيص
+      const hasPermission = checkPermission(group.requiredPermission, permissions);
+      
+      // طباعة معلومات تشخيصية للمجموعات المفلترة
+      if (process.env.NODE_ENV === 'development') {
+        const debugInfo = debugPermissions(group.requiredPermission, permissions, userRole);
+        if (!hasPermission) {
+        }
+      }
+      
+      return hasPermission;
+    });
+    
+    // طباعة معلومات تشخيصية للنتيجة النهائية
+    if (process.env.NODE_ENV === 'development') {
+    }
+    
+    return filtered;
+  }, [navItems, isAdmin, permissions, userRole]);
   
   // تحديد المجموعة التي تحتوي على العنصر النشط
   const currentPath = location.pathname;
@@ -93,150 +274,135 @@ const SidebarNavigation: React.FC<SidebarNavigationProps> = ({
     }
   }, [activeGroup, activeGroupByPath, onSetActiveGroup]);
 
-  // دالة عرض زر المجموعة المطوية
-  const renderCollapsedGroupButton = (group: any, isActive: boolean, hasActiveItem: boolean) => {
-    const isPopupActive = activePopup === group.group;
+  // إزالة دالة عرض زر المجموعة المطوية - القائمة دائماً موسعة
+
+  // تصفية العناصر بناءً على البحث
+  const filteredItems = useMemo(() => {
+    if (!searchQuery.trim()) return filteredNavItems;
     
-    return (
-      <motion.button
-        data-group-button={group.group}
-        whileHover={{ scale: 1.05 }}
-        whileTap={{ scale: 0.95 }}
-        onClick={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          onTogglePopup(group.group);
-        }}
-        onMouseDown={(e) => {
-          e.preventDefault();
-        }}
-        className={cn(
-          "w-14 h-14 flex items-center justify-center relative z-10 group",
-          "rounded-xl transition-all duration-300 mx-auto mb-3",
-          "border-2 shadow-sm cursor-pointer select-none",
-          (isActive || hasActiveItem)
-            ? "bg-primary/15 border-primary/40 text-primary shadow-primary/10"
-            : isPopupActive
-              ? "bg-primary/10 border-primary/30 text-primary shadow-md scale-105"
-              : "bg-card border-border text-muted-foreground hover:bg-primary/5 hover:border-primary/25 hover:text-primary hover:shadow-md"
-        )}
-        aria-label={`قائمة ${group.group}`}
-        aria-expanded={isPopupActive}
-        type="button"
-      >
-        <group.icon className="w-5 h-5 transition-transform group-hover:scale-110 pointer-events-none" />
-        
-        {/* إشارة إلى القائمة النشطة */}
-        {(isActive || hasActiveItem) && (
-          <div className="absolute -top-1 -right-1 w-3 h-3 bg-primary rounded-full border-2 border-sidebar-background pointer-events-none" />
-        )}
-        
-        {/* إشارة إلى وجود شارة */}
-        {group.badge && (
-          <div className="absolute -bottom-1 -left-1 w-3 h-3 bg-orange-500 rounded-full border-2 border-sidebar-background animate-pulse pointer-events-none" />
-        )}
-      </motion.button>
+    return filteredNavItems.filter(group => 
+      group.group.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      group.items.some(item => 
+        item.title.toLowerCase().includes(searchQuery.toLowerCase())
+      )
     );
-  };
+  }, [filteredNavItems, searchQuery]);
 
   return (
     <nav 
       id="sidebar-content"
       className={cn(
-        "flex-1 transition-all duration-300 ease-in-out overflow-y-auto sidebar-scrollbar",
-        "h-[calc(100vh-14rem)]",
-        isCollapsed ? "px-2 py-4" : "px-3 py-5"
+        "flex-1 transition-all duration-300 ease-in-out",
+        "h-[calc(100vh-14rem)] px-3 py-5"
       )}
     >
-      <AnimatePresence mode="wait">
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4, ease: "easeOut" }}
-          className="space-y-2"
-        >
-          {/* عنوان القسم الرئيسي */}
-          {!isCollapsed && (
+      <div className="h-full overflow-y-auto sidebar-scrollbar">
+        <AnimatePresence mode="wait">
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+            className="space-y-2"
+          >
+            {/* عنوان القسم الرئيسي */}
             <motion.div 
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.2 }}
               className="px-4 my-3"
             >
-              <h2 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-4 flex items-center gap-2">
+              <h2 className="text-xs uppercase tracking-wider text-muted-foreground font-semibold flex items-center gap-2">
                 <Menu className="w-3 h-3 text-primary" />
                 القائمة الرئيسية
               </h2>
             </motion.div>
-          )}
 
-          {/* عناصر القائمة */}
-          <div className={cn(
-            "transition-all duration-300",
-            isCollapsed ? "space-y-2 mt-3" : "space-y-1.5"
-          )}>
-            {filteredNavItems.map((group) => {
-              const isGroupActive = activeGroup === group.group;
-              const hasActiveItem = group.items.some(item => 
-                currentPath === item.href || 
-                (currentPath.startsWith(item.href + '/') && item.href !== '/dashboard') || 
-                (item.href === '/dashboard' && currentPath === '/dashboard')
-              );
+            {/* شريط البحث */}
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="px-3"
+            >
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+                <input
+                  type="text"
+                  placeholder="البحث في القائمة..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent"
+                />
+              </div>
+            </motion.div>
 
-              // عرض أزرار المجموعات في حالة الطي
-              if (isCollapsed) {
-                return (
-                  <div key={group.group} className="relative mb-3">
-                    {renderCollapsedGroupButton(group, isGroupActive, hasActiveItem)}
-                    
-                    {/* القائمة المنبثقة للعناصر الفرعية */}
-                    <AnimatePresence>
-                      {activePopup === group.group && (
-                        <PopupMenu
-                          ref={popupRef}
-                          group={group}
-                          isAdmin={isAdmin}
-                          permissions={permissions}
-                          currentPath={currentPath}
-                          isInPOSPage={isInPOSPage}
-                          onClose={() => onSetActivePopup(null)}
-                          onToggleCollapse={onToggleCollapse}
-                        />
-                      )}
-                    </AnimatePresence>
-                  </div>
-                );
-              }
+            {/* تبديل نوع التاجر */}
+            <MerchantTypeToggle 
+              currentType={merchantType}
+              onTypeChange={setMerchantType}
+            />
 
-              // عرض المجموعات في الوضع العادي
-              return (
+            {/* المجموعات */}
+            {filteredItems.map((group, index) => (
+              <motion.div
+                key={group.group}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ 
+                  delay: 0.4 + (index * 0.1),
+                  duration: 0.3,
+                  ease: "easeOut"
+                }}
+              >
                 <NavigationGroup
-                  key={group.group}
                   group={group}
                   isAdmin={isAdmin}
                   permissions={permissions}
-                  isGroupActive={isGroupActive}
-                  hasActiveItem={hasActiveItem}
+                  isGroupActive={activeGroup === group.group}
+                  hasActiveItem={group.items.some(item => 
+                    currentPath === item.href || 
+                    (currentPath.startsWith(item.href + '/') && item.href !== '/dashboard') ||
+                    (item.href === '/dashboard' && currentPath === '/dashboard')
+                  )}
                   currentPath={currentPath}
                   toggleGroup={onToggleGroup}
-                  isCollapsed={isCollapsed}
+                  isCollapsed={false}
                 />
-              );
-            })}
-          </div>
-        </motion.div>
-      </AnimatePresence>
+              </motion.div>
+            ))}
 
-      {/* Overlay للقائمة المنبثقة */}
-      {isCollapsed && activePopup && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/20 z-40"
-          onClick={() => onSetActivePopup(null)}
-        />
-      )}
+            {/* رسالة إذا لم توجد عناصر */}
+            {filteredItems.length === 0 && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="text-center py-8 text-muted-foreground"
+              >
+                <p>لا توجد عناصر متاحة</p>
+                {searchQuery && (
+                  <p className="text-sm mt-2">جرب البحث بكلمات مختلفة</p>
+                )}
+              </motion.div>
+            )}
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
+      {/* زر تسجيل الخروج */}
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.8 }}
+        className="px-3 mt-4"
+      >
+        <button
+          onClick={onLogout}
+          className="w-full flex items-center justify-center gap-2 px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors rounded-md hover:bg-accent"
+        >
+          <LogOut className="w-4 h-4" />
+          تسجيل الخروج
+        </button>
+      </motion.div>
     </nav>
   );
 };

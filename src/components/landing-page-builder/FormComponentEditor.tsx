@@ -15,7 +15,7 @@ import {
 import { AlertCircle, ExternalLink } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useOrganization } from '@/hooks/useOrganization';
-import { useFormData } from '@/hooks/useFormData';
+import { useFormData } from '@/hooks/useFormData.tsx';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import FormSettingsPanel from './form-editor/FormSettingsPanel';
 
@@ -52,6 +52,15 @@ const FormComponentEditor: React.FC<FormComponentEditorProps> = ({
     organization?.id
   );
   
+  // التأكد من وجود organization قبل محاولة تحميل البيانات
+  const hasOrganization = Boolean(organization?.id);
+  
+  // إضافة console logs للتشخيص
+  
+  // طباعة تفاصيل النماذج
+  if (forms && forms.length > 0) {
+  }
+  
   const [productModalOpen, setProductModalOpen] = useState(false);
   const [formModalOpen, setFormModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('basic');
@@ -67,6 +76,20 @@ const FormComponentEditor: React.FC<FormComponentEditorProps> = ({
     }
   }, [settings]);
 
+  // تحديث حقول النموذج عند تحميل البيانات أو تغيير النموذج
+  useEffect(() => {
+    if (settings.formId && forms && forms.length > 0) {
+      const selectedForm = forms.find(f => f.id === settings.formId);
+      if (selectedForm && (!settings.fields || settings.fields.length === 0)) {
+        
+        onUpdate({
+          ...settings,
+          fields: selectedForm.fields || []
+        });
+      }
+    }
+  }, [settings.formId, forms, settings.fields, onUpdate]);
+
   // معالجة اختيار المنتج
   const handleProductSelect = useCallback((productId: string) => {
     onUpdate({ ...localSettings, productId });
@@ -75,9 +98,19 @@ const FormComponentEditor: React.FC<FormComponentEditorProps> = ({
   
   // معالجة اختيار النموذج
   const handleFormSelect = useCallback((formId: string) => {
-    onUpdate({ ...localSettings, formId });
+    // البحث عن النموذج المحدد لجلب حقوله
+    const selectedForm = forms.find(f => f.id === formId);
+    
+    // تحديث الإعدادات مع معرف النموذج وحقوله
+    const updatedSettings = {
+      ...localSettings,
+      formId,
+      fields: selectedForm?.fields || [] // إضافة حقول النموذج
+    };
+
+    onUpdate(updatedSettings);
     setFormModalOpen(false);
-  }, [localSettings, onUpdate]);
+  }, [localSettings, onUpdate, forms]);
   
   // الذهاب إلى صفحة إنشاء منتج جديد
   const goToCreateProduct = useCallback(() => {
@@ -108,8 +141,16 @@ const FormComponentEditor: React.FC<FormComponentEditorProps> = ({
     
     const updatedSettings = { ...localSettings, [field]: value };
     
+    // إذا تم تغيير النموذج، تأكد من تحديث الحقول أيضاً
+    if (field === 'formId' && value) {
+      const selectedForm = forms.find(f => f.id === value);
+      if (selectedForm) {
+        updatedSettings.fields = selectedForm.fields || [];
+      }
+    }
+    
     onUpdate(updatedSettings);
-  }, [localSettings, onUpdate]);
+  }, [localSettings, onUpdate, forms]);
 
   // معالج خاص لتحديثات الإعدادات المتقدمة
   const handleAdvancedSettingsChange = useCallback((newSettings: Record<string, any>) => {
@@ -214,7 +255,11 @@ const FormComponentEditor: React.FC<FormComponentEditorProps> = ({
                       <div className="text-center py-4">
                         {t('جاري تحميل المنتجات...')}
                       </div>
-                    ) : products.length === 0 ? (
+                    ) : !hasOrganization ? (
+                      <div className="text-center py-4">
+                        <p className="mb-2">{t('جاري تحميل بيانات المؤسسة...')}</p>
+                      </div>
+                    ) : !products || products.length === 0 ? (
                       <div className="text-center py-4">
                         <p className="mb-2">{t('لا توجد منتجات بعد.')}</p>
                         <Button variant="link" onClick={goToCreateProduct} className="flex items-center gap-1 mx-auto">
@@ -268,7 +313,56 @@ const FormComponentEditor: React.FC<FormComponentEditorProps> = ({
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-auto">
-                      {/* نفس محتوى الديالوج السابق */}
+                      <DialogHeader>
+                        <DialogTitle>{t('اختر منتجاً')}</DialogTitle>
+                        <DialogDescription>
+                          {t('اختر المنتج الذي ترغب في ربطه بالنموذج في صفحة الهبوط.')}
+                        </DialogDescription>
+                      </DialogHeader>
+                      
+                      {isLoadingProducts ? (
+                        <div className="text-center py-4">
+                          {t('جاري تحميل المنتجات...')}
+                        </div>
+                      ) : !hasOrganization ? (
+                        <div className="text-center py-4">
+                          <p className="mb-2">{t('جاري تحميل بيانات المؤسسة...')}</p>
+                        </div>
+                      ) : !products || products.length === 0 ? (
+                        <div className="text-center py-4">
+                          <p className="mb-2">{t('لا توجد منتجات بعد.')}</p>
+                          <Button variant="link" onClick={goToCreateProduct} className="flex items-center gap-1 mx-auto">
+                            {t('إنشاء منتج جديد')}
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 gap-2 py-2">
+                          {products.map(product => (
+                            <Button
+                              key={product.id}
+                              variant="outline"
+                              className="justify-start h-auto py-3 px-4"
+                              onClick={() => handleProductSelect(product.id)}
+                            >
+                              <div className="text-left">
+                                <div className="font-medium">{product.name}</div>
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  {(product as any).description?.substring(0, 60) || t('بدون وصف')}
+                                  {(product as any).description?.length > 60 ? '...' : ''}
+                                </div>
+                              </div>
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+                      
+                      <DialogFooter>
+                        <Button variant="outline" onClick={goToCreateProduct} className="flex items-center gap-1">
+                          {t('إنشاء منتج جديد')}
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      </DialogFooter>
                     </DialogContent>
                   </Dialog>
                 </div>
@@ -303,7 +397,7 @@ const FormComponentEditor: React.FC<FormComponentEditorProps> = ({
                       <div className="text-center py-4">
                         {t('جاري تحميل النماذج...')}
                       </div>
-                    ) : forms.length === 0 ? (
+                    ) : !forms || forms.length === 0 ? (
                       <div className="text-center py-4">
                         <p className="mb-2">{t('لا توجد نماذج بعد.')}</p>
                         <Button variant="link" onClick={goToCreateForm} className="flex items-center gap-1 mx-auto">
@@ -356,7 +450,51 @@ const FormComponentEditor: React.FC<FormComponentEditorProps> = ({
                       </Button>
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-auto">
-                      {/* نفس محتوى الديالوج السابق */}
+                      <DialogHeader>
+                        <DialogTitle>{t('اختر نموذجاً')}</DialogTitle>
+                        <DialogDescription>
+                          {t('اختر النموذج الذي ترغب في استخدامه في صفحة الهبوط.')}
+                        </DialogDescription>
+                      </DialogHeader>
+                      
+                      {isLoadingForms ? (
+                        <div className="text-center py-4">
+                          {t('جاري تحميل النماذج...')}
+                        </div>
+                      ) : !forms || forms.length === 0 ? (
+                        <div className="text-center py-4">
+                          <p className="mb-2">{t('لا توجد نماذج بعد.')}</p>
+                          <Button variant="link" onClick={goToCreateForm} className="flex items-center gap-1 mx-auto">
+                            {t('إنشاء نموذج جديد')}
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 gap-2 py-2">
+                          {forms.map(form => (
+                            <Button
+                              key={form.id}
+                              variant="outline"
+                              className="justify-start h-auto py-3 px-4"
+                              onClick={() => handleFormSelect(form.id)}
+                            >
+                              <div className="text-left">
+                                <div className="font-medium">{form.name}</div>
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  {t('عدد الحقول')}: {form.fields?.length || 0}
+                                </div>
+                              </div>
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+                      
+                      <DialogFooter>
+                        <Button variant="outline" onClick={goToCreateForm} className="flex items-center gap-1">
+                          {t('إنشاء نموذج جديد')}
+                          <ExternalLink className="h-4 w-4" />
+                        </Button>
+                      </DialogFooter>
                     </DialogContent>
                   </Dialog>
                 </div>

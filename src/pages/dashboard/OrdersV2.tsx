@@ -10,7 +10,10 @@ import OrdersSettings from '@/components/orders/OrdersSettings';
 import OrdersStatsCards from '@/components/orders/OrdersStatsCards';
 import OrdersAdvancedFilters from '@/components/orders/OrdersAdvancedFilters';
 import { useOptimizedOrdersData } from '@/hooks/useOptimizedOrdersData';
-import PerformanceMonitor from '@/components/PerformanceMonitor';
+import { useOrderOperations } from '@/hooks/useOrdersData';
+
+// استيراد ملف CSS المخصص لتحسين الأداء
+import '@/components/orders/orders-performance.css';
 
 const ResponsiveOrdersTable = lazy(() => import('@/components/orders/ResponsiveOrdersTable'));
 
@@ -72,16 +75,60 @@ const OrdersV2: React.FC = () => {
     pageSize,
   } = useOptimizedOrdersData(hookOptions);
 
+  // استخدام useOrderOperations للحصول على دالة updateOrderStatus التي تدعم إرجاع المخزون
+  const { updateOrderStatus } = useOrderOperations(updateOrderLocally);
+
+  // دالة حفظ إعدادات خصم المخزون التلقائي
+  const handleToggleAutoDeductInventory = useCallback(async (enabled: boolean) => {
+    if (!currentOrganization?.id) return;
+
+    try {
+      setUpdatingInventorySettings(true);
+      
+      // حفظ في قاعدة البيانات
+      const { error } = await supabase
+        .from('organization_settings')
+        .upsert({
+          organization_id: currentOrganization.id,
+          custom_js: JSON.stringify({ auto_deduct_inventory: enabled }),
+          updated_at: new Date().toISOString()
+        })
+        .eq('organization_id', currentOrganization.id);
+
+      if (error) {
+        throw error;
+      }
+
+      // تحديث محلي بعد النجاح
+      setAutoDeductInventory(enabled);
+
+      toast({
+        title: "تم حفظ الإعدادات",
+        description: `تم ${enabled ? 'تفعيل' : 'إلغاء تفعيل'} خصم المخزون التلقائي بنجاح`,
+      });
+    } catch (error) {
+      toast({
+        title: "خطأ",
+        description: "فشل في حفظ إعدادات خصم المخزون",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingInventorySettings(false);
+    }
+  }, [currentOrganization?.id, toast]);
+
   // حالة واجهة لزر خصم المخزون التلقائي (نقرأها من sharedData.organizationSettings إن وُجد)
   const autoDeductInventoryEnabled = !!(sharedData as any)?.organizationSettings?.auto_deduct_inventory;
   const [autoDeductInventory, setAutoDeductInventory] = useState<boolean>(autoDeductInventoryEnabled);
+  const [updatingInventorySettings, setUpdatingInventorySettings] = useState<boolean>(false);
+  
   useEffect(() => {
     setAutoDeductInventory(!!(sharedData as any)?.organizationSettings?.auto_deduct_inventory);
   }, [sharedData]);
 
   const [visibleColumns] = useState<string[]>([
     'checkbox', 'expand', 'id', 'customer_name', 'customer_contact',
-    'total', 'status', 'call_confirmation', 'shipping_provider' // إعادة عمود مزود الشحن فقط للعرض
+    'total', 'status', 'call_confirmation', 'shipping_provider', 'actions'
   ]);
 
   // ===============================
@@ -107,17 +154,17 @@ const OrdersV2: React.FC = () => {
     const timeoutId = window.setTimeout(async () => {
       try {
         const { error } = await supabase
-          .from('orders')
+          .from('online_orders')
           .update({ 
             call_confirmation_status_id: statusId as any,
             call_confirmation_notes: notes as any,
             call_confirmation_updated_by: (userId || user?.id) as any,
             call_confirmation_updated_at: new Date().toISOString() as any
           } as any)
-          .eq('id', orderId);
+          .eq('id', orderId)
+          .eq('organization_id', currentOrganization?.id);
 
         if (error) {
-          console.error('خطأ في تحديث تأكيد الاتصال:', error);
           toast({
             title: "خطأ",
             description: "فشل في تحديث حالة تأكيد الاتصال",
@@ -131,7 +178,6 @@ const OrdersV2: React.FC = () => {
           } as any);
         }
       } catch (error) {
-        console.error('خطأ في تحديث تأكيد الاتصال:', error);
         toast({
           title: "خطأ",
           description: "فشل في تحديث حالة تأكيد الاتصال",
@@ -153,51 +199,38 @@ const OrdersV2: React.FC = () => {
 
   const handleUpdateStatus = useCallback(async (orderId: string, newStatus: string) => {
     try {
-      // تحديث محلي فوري
-      updateOrderLocally(orderId, { status: newStatus as any });
-
-      const { error } = await supabase
-        .from('orders')
-        .update({ status: newStatus })
-        .eq('id', orderId);
-
-      if (error) {
-        console.error('خطأ في تحديث حالة الطلب:', error);
+      // استخدام updateOrderStatus من useOrderOperations التي تدعم إرجاع المخزون
+      const result = await updateOrderStatus(orderId, newStatus);
+      
+      if (!result.success) {
         toast({
           title: "خطأ",
-          description: "فشل في تحديث حالة الطلب",
+          description: result.error || "فشل في تحديث حالة الطلب",
           variant: "destructive",
         });
-        // إعادة الحالة الأصلية في حالة الخطأ
-        // يمكن إضافة منطق لإعادة الحالة الأصلية هنا
-      } else {
-        toast({
-          title: "تم التحديث",
-          description: "تم تحديث حالة الطلب بنجاح",
-        });
       }
+      // لا حاجة لإظهار رسالة نجاح لأن updateOrderStatus تظهر رسائلها الخاصة
     } catch (error) {
-      console.error('خطأ في تحديث حالة الطلب:', error);
       toast({
         title: "خطأ",
-        description: "فشل في تحديث حالة الطلب",
+        description: "حدث خطأ أثناء محاولة تحديث حالة الطلب",
         variant: "destructive",
       });
     }
-  }, [updateOrderLocally, toast]);
+  }, [updateOrderStatus, toast]);
 
   const handleSendToProvider = useCallback(async (orderId: string, providerId: string) => {
     try {
       const { error } = await supabase
-        .from('orders')
+        .from('online_orders')
         .update({ 
-          shippingMethod: providerId,
+          shipping_method: providerId,
           status: 'shipped' // تحديث الحالة تلقائياً إلى "تم الشحن"
         })
-        .eq('id', orderId);
+        .eq('id', orderId)
+        .eq('organization_id', currentOrganization?.id);
 
       if (error) {
-        console.error('خطأ في إرسال الطلب للمزود:', error);
         toast({
           title: "خطأ",
           description: "فشل في إرسال الطلب للمزود",
@@ -206,7 +239,7 @@ const OrdersV2: React.FC = () => {
       } else {
         // تحديث محلي
         updateOrderLocally(orderId, { 
-          shippingMethod: providerId,
+          shipping_method: providerId,
           status: 'shipped'
         } as any);
         toast({
@@ -215,14 +248,13 @@ const OrdersV2: React.FC = () => {
         });
       }
     } catch (error) {
-      console.error('خطأ في إرسال الطلب للمزود:', error);
       toast({
         title: "خطأ",
         description: "فشل في إرسال الطلب للمزود",
         variant: "destructive",
       });
     }
-  }, [updateOrderLocally, toast]);
+  }, [updateOrderLocally, toast, currentOrganization?.id]);
 
   // ===============================
   // Pagination handlers
@@ -260,8 +292,8 @@ const OrdersV2: React.FC = () => {
           <OrdersSettings
             autoDeductInventory={autoDeductInventory}
             loadingSettings={false}
-            updatingSettings={false}
-            onToggleAutoDeductInventory={(enabled) => setAutoDeductInventory(enabled)}
+            updatingSettings={updatingInventorySettings}
+            onToggleAutoDeductInventory={handleToggleAutoDeductInventory}
           />
         </div>
       </div>
@@ -325,13 +357,6 @@ const OrdersV2: React.FC = () => {
         </Suspense>
       </div>
 
-      {/* مراقب الأداء */}
-      <PerformanceMonitor 
-        showInProduction={false}
-        position="bottom-right"
-        autoHide={true}
-        hideDelay={8000}
-      />
     </Layout>
   );
 };

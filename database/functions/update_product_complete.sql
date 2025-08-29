@@ -1,9 +1,9 @@
 -- ================================================
--- دالة متقدمة لتحديث المنتج الكامل في معاملة واحدة
+-- إصلاح مشكلة الصور في دالة update_product_complete
 -- ================================================
 
 -- حذف الدالة القديمة لتجنب تضارب المعاملات
-DROP FUNCTION IF EXISTS update_product_complete(p_product_id uuid, p_product_data jsonb, p_advanced_settings jsonb, p_marketing_settings jsonb, p_colors jsonb, p_images jsonb, p_wholesale_tiers jsonb, p_user_id uuid);
+DROP FUNCTION IF EXISTS update_product_complete(uuid, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb, jsonb, uuid);
 
 CREATE OR REPLACE FUNCTION update_product_complete(
   p_product_id UUID,
@@ -128,6 +128,11 @@ BEGIN
         WHEN p_product_data ? 'stock_quantity' AND (p_product_data->>'stock_quantity') IS NOT NULL 
         THEN (p_product_data->>'stock_quantity')::INTEGER 
         ELSE stock_quantity 
+      END,
+      slug = CASE 
+        WHEN p_product_data ? 'slug' AND (p_product_data->>'slug') IS NOT NULL AND (p_product_data->>'slug') != '' 
+        THEN (p_product_data->>'slug')::TEXT 
+        ELSE slug 
       END,
       special_offers_config = CASE 
         WHEN p_special_offers_config IS NOT NULL THEN p_special_offers_config
@@ -461,16 +466,32 @@ BEGIN
 
     -- 5. معالجة الصور
     IF p_images IS NOT NULL THEN
-      -- حذف الصور القديمة
+      -- حذف الصور القديمة من جدول product_images
       DELETE FROM product_images WHERE product_id = p_product_id;
-      
-      -- إدراج الصور الجديدة
+
+      -- إدراج الصور الجديدة في جدول product_images
       INSERT INTO product_images (product_id, image_url, sort_order)
-      SELECT 
+      SELECT
         p_product_id,
         (value->>'image_url')::TEXT,
-        (ROW_NUMBER() OVER())::INTEGER
+        (ROW_NUMBER() OVER(ORDER BY (value->>'image_url')))::INTEGER
       FROM jsonb_array_elements(p_images);
+
+      -- تحديث حقل images في جدول products (ليس additional_images)
+      UPDATE products
+      SET images = (
+        SELECT array_agg((value->>'image_url')::TEXT ORDER BY (value->>'image_url'))
+        FROM jsonb_array_elements(p_images)
+      )
+      WHERE id = p_product_id;
+    ELSE
+      -- إذا لم يتم تمرير صور، امسح جميع الصور من جدول product_images
+      DELETE FROM product_images WHERE product_id = p_product_id;
+
+      -- امسح حقل images في جدول products
+      UPDATE products
+      SET images = NULL
+      WHERE id = p_product_id;
     END IF;
 
     -- 6. معالجة أسعار الجملة
@@ -488,8 +509,7 @@ BEGIN
       FROM jsonb_array_elements(p_wholesale_tiers);
     END IF;
 
-    -- 7. إنشاء النتيجة النهائية
-    -- جلب القيمة الحديثة للمخزون من قاعدة البيانات
+    -- 7. جلب القيمة الحديثة للمخزون من قاعدة البيانات
     SELECT stock_quantity INTO v_total_stock FROM products WHERE id = p_product_id;
     
     SELECT jsonb_build_object(
@@ -513,4 +533,17 @@ BEGIN
       );
   END;
 END;
-$$; 
+$$;
+
+-- ================================================
+-- تحديث لإصلاح مشكلة الصور المحذوفة
+-- ================================================
+-- هذا التحديث يضمن أن حقل additional_images في جدول products
+-- يتم تحديثه بشكل صحيح عند حذف/إضافة الصور
+
+-- يمكنك تشغيل هذا التحديث في Supabase SQL Editor:
+
+-- UPDATE products SET additional_images = NULL WHERE id = 'your-product-id';
+
+-- لتنظيف جميع المنتجات من الروابط المكسورة:
+-- UPDATE products SET additional_images = NULL WHERE additional_images IS NOT NULL;

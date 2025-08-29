@@ -4,7 +4,6 @@ import { useAuth } from './AuthContext';
 import { useTenant } from './TenantContext';
 import { supabase } from '@/lib/supabase';
 import { deduplicateRequest } from '../lib/cache/deduplication';
-import { processDataInChunks } from '@/lib/performance-monitor';
 
 // =================================================================
 // 🎯 UnifiedDataContext - التوافق مع النظام القديم
@@ -316,16 +315,8 @@ const fetchPOSCompleteData = async (orgId: string): Promise<POSCompleteData> => 
       // تأخير قصير لتجنب حجب الواجهة
       await new Promise(resolve => setTimeout(resolve, 10));
 
-      // الخطوة 4: معالجة البيانات بشكل متدرج
-      const processedProducts = await processDataInChunks(
-        products || [],
-        (product) => product, // المنتجات معالجة مسبقاً
-                 {
-           chunkSize: 3,  // تقليل أكثر
-           delay: 20,     // زيادة التأخير أكثر
-           taskName: 'معالجة منتجات UnifiedData'
-         }
-      );
+      // الخطوة 4: معالجة البيانات مباشرة
+      const processedProducts = products || [];
 
       // إحصائيات سريعة مع حماية من الأخطاء
       const safeProducts = Array.isArray(processedProducts) ? processedProducts : [];

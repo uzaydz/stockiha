@@ -38,7 +38,6 @@ import { format, parseISO } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import type { POSOrderWithDetails } from '@/api/posOrdersService';
-import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 interface POSOrdersTableProps {
   orders: POSOrderWithDetails[];
@@ -81,6 +80,8 @@ StatusBadge.displayName = 'StatusBadge';
 const PaymentStatusBadge = React.memo<{ order: POSOrderWithDetails }>(({ order }) => {
   const total = parseFloat(order.total.toString());
   const amountPaid = parseFloat(order.amount_paid?.toString() || '0');
+  
+  // إضافة تسجيل للتحقق من البيانات
   
   // تحديد حالة الدفع الفعلية بناءً على البيانات
   let status = order.payment_status;
@@ -217,6 +218,7 @@ const OrderRow = React.memo<{
     const total = parseFloat(order.total.toString());
     const amountPaid = parseFloat(order.amount_paid?.toString() || '0');
     const remainingAmount = parseFloat(order.remaining_amount?.toString() || '0');
+    const discount = parseFloat((order as any).discount?.toString() || '0');
     
     // إضافة تسجيل للتحقق من البيانات
     
@@ -225,8 +227,8 @@ const OrderRow = React.memo<{
       return { type: 'partial', label: 'دفعة جزئية', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300' };
     }
     
-    // إذا كان المبلغ المدفوع أقل من المجموع ولم يتم تعيين consider_remaining_as_partial (تخفيض)
-    if (amountPaid < total && order.consider_remaining_as_partial !== true) {
+    // حالة التخفيض: وجود خصم وعدم اعتبار المتبقي كدفعة جزئية
+    if (discount > 0 && order.consider_remaining_as_partial !== true) {
       return { type: 'discount', label: 'تخفيض', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' };
     }
     
@@ -238,6 +240,11 @@ const OrderRow = React.memo<{
     // إذا لم يتم الدفع أصلاً
     if (amountPaid === 0) {
       return { type: 'unpaid', label: 'لم يتم الدفع', color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' };
+    }
+    
+    // إذا كان المبلغ المدفوع أقل من المجموع (حالة الدفع الجزئي)
+    if (amountPaid < total) {
+      return { type: 'partial', label: 'دفعة جزئية', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300' };
     }
     
     return { type: 'unknown', label: 'غير محدد', color: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300' };

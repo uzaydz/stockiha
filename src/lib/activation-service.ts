@@ -7,7 +7,10 @@ import {
   CreateActivationCodeBatchDto,
   CreateActivationCodeDto,
   UpdateActivationCodeDto,
-  ActivateSubscriptionDto
+  ActivateSubscriptionDto,
+  ActivateSubscriptionResult,
+  CourseAccess,
+  CoursesAccessType
 } from '@/types/activation';
 
 /**
@@ -35,7 +38,11 @@ export const ActivationService = {
           expires_at: data.expires_at,
           batch_id: data.batch_id,
           notes: data.notes,
-          created_by: (await supabase.auth.getUser()).data.user?.id
+          created_by: (await supabase.auth.getUser()).data.user?.id,
+          // الحقول الجديدة للدورات مدى الحياة
+          lifetime_courses_access: data.lifetime_courses_access || false,
+          courses_access_type: data.courses_access_type || CoursesAccessType.STANDARD,
+          accessible_courses: data.accessible_courses || []
         })
         .select('*')
         .single();
@@ -67,7 +74,10 @@ export const ActivationService = {
           billing_cycle: data.billing_cycle || 'yearly', // افتراضي هو سنوي
           expires_at: data.expires_at,
           notes: data.notes,
-          created_by: user?.id
+          created_by: user?.id,
+          // الحقول الجديدة للدورات مدى الحياة
+          lifetime_courses_access: data.lifetime_courses_access || false,
+          courses_access_type: data.courses_access_type || CoursesAccessType.STANDARD
         })
         .select('id')
         .single();
@@ -104,12 +114,7 @@ export const ActivationService = {
    * @param data بيانات التفعيل
    * @returns نتيجة عملية التفعيل
    */
-  async activateSubscription(data: ActivateSubscriptionDto): Promise<{
-    success: boolean;
-    message: string;
-    subscription_id?: string;
-    subscription_end_date?: string;
-  }> {
+  async activateSubscription(data: ActivateSubscriptionDto): Promise<ActivateSubscriptionResult> {
     try {
       // التحقق من وجود المؤسسة - دعم كلا التنسيقين للتوافق
       const organizationId = data.organizationId || data.organization_id;
@@ -118,14 +123,16 @@ export const ActivationService = {
       if (!organizationId) {
         return {
           success: false,
-          message: "معرّف المؤسسة غير متوفر، يرجى تسجيل الدخول مرة أخرى"
+          message: "معرّف المؤسسة غير متوفر، يرجى تسجيل الدخول مرة أخرى",
+          courses_access_granted: false
         };
       }
 
       if (!activationCode) {
         return {
           success: false,
-          message: "كود التفعيل مطلوب"
+          message: "كود التفعيل مطلوب",
+          courses_access_granted: false
         };
       }
 
@@ -133,13 +140,14 @@ export const ActivationService = {
       if (!isValidActivationCodeFormat(activationCode)) {
         return {
           success: false,
-          message: 'كود التفعيل غير صالح'
+          message: 'كود التفعيل غير صالح',
+          courses_access_granted: false
         };
       }
 
-      // استدعاء الدالة المحسنة لتفعيل الاشتراك
+      // استدعاء الدالة المحسنة لتفعيل الاشتراك مع الدورات
       const { data: result, error } = await supabase.rpc(
-        'activate_subscription' as any,
+        'activate_subscription_with_courses' as any,
         {
           p_activation_code: activationCode,
           p_organization_id: organizationId
@@ -149,25 +157,40 @@ export const ActivationService = {
       if (error) {
         return {
           success: false,
-          message: error.message || 'حدث خطأ أثناء تفعيل الاشتراك'
+          message: error.message || 'حدث خطأ أثناء تفعيل الاشتراك',
+          courses_access_granted: false
         };
       }
 
       const activationResult = result[0];
       
       if (activationResult?.success) {
-        // إذا نجح التفعيل، قم بتحديث الكاش
+        // إذا نجح التفعيل، قم بتحديث البيانات في الواجهة
         try {
           // حذف الكاش القديم
           const cacheKey = `subscription_${organizationId}`;
           localStorage.removeItem(cacheKey);
           
-          // تحديث البيانات في الكونتكست
-          if (typeof window !== 'undefined' && window.location) {
-            // إعادة تحميل الصفحة لضمان تحديث جميع البيانات
-            window.location.reload();
+          // تحديث البيانات في الواجهة
+          if (typeof window !== 'undefined') {
+            // إرسال حدث لتحديث البيانات في السياقات
+            window.dispatchEvent(new CustomEvent('subscriptionActivated', {
+              detail: {
+                success: true,
+                organizationId,
+                message: 'تم تفعيل الاشتراك بنجاح'
+              }
+            }));
           }
+          
         } catch (cacheError) {
+          console.warn('تحذير: فشل في تحديث البيانات في الواجهة:', cacheError);
+          // إذا فشل التحديث، قم بإعادة تحميل الصفحة كحل بديل
+          if (typeof window !== 'undefined' && window.location) {
+            setTimeout(() => {
+              window.location.reload();
+            }, 1000);
+          }
         }
       }
 
@@ -175,12 +198,14 @@ export const ActivationService = {
         success: activationResult.success,
         message: activationResult.message,
         subscription_id: activationResult.subscription_id,
-        subscription_end_date: activationResult.subscription_end_date
+        subscription_end_date: activationResult.subscription_end_date,
+        courses_access_granted: activationResult.courses_access_granted || false
       };
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'حدث خطأ أثناء تفعيل الاشتراك'
+        message: error.message || 'حدث خطأ أثناء تفعيل الاشتراك',
+        courses_access_granted: false
       };
     }
   },
@@ -194,6 +219,8 @@ export const ActivationService = {
     batchId?: string;
     status?: ActivationCodeStatus;
     planId?: string;
+    lifetimeCoursesAccess?: boolean;
+    coursesAccessType?: CoursesAccessType;
     limit?: number;
     offset?: number;
   } = {}): Promise<{
@@ -216,6 +243,15 @@ export const ActivationService = {
         query = query.eq('plan_id', options.planId);
       }
       
+      // فلترة جديدة للدورات مدى الحياة
+      if (options.lifetimeCoursesAccess !== undefined) {
+        query = query.eq('lifetime_courses_access', options.lifetimeCoursesAccess);
+      }
+      
+      if (options.coursesAccessType) {
+        query = query.eq('courses_access_type', options.coursesAccessType);
+      }
+      
       // تطبيق الصفحات
       if (options.limit) {
         query = query.limit(options.limit);
@@ -228,12 +264,12 @@ export const ActivationService = {
       // ترتيب النتائج
       query = query.order('created_at', { ascending: false });
       
-      const { data, error, count } = await query;
+      const { data, error, count } = await (query as any);
       
       if (error) throw error;
       
       return {
-        codes: data as ActivationCode[],
+        codes: (data || []) as ActivationCode[],
         total: count || 0
       };
     } catch (error) {
@@ -283,6 +319,8 @@ export const ActivationService = {
    */
   async getActivationCodeBatches(options: {
     planId?: string;
+    lifetimeCoursesAccess?: boolean;
+    coursesAccessType?: CoursesAccessType;
     limit?: number;
     offset?: number;
   } = {}): Promise<{
@@ -305,6 +343,15 @@ export const ActivationService = {
         query = query.eq('plan_id', options.planId);
       }
       
+      // فلترة جديدة للدورات مدى الحياة
+      if (options.lifetimeCoursesAccess !== undefined) {
+        query = query.eq('lifetime_courses_access', options.lifetimeCoursesAccess);
+      }
+      
+      if (options.coursesAccessType) {
+        query = query.eq('courses_access_type', options.coursesAccessType);
+      }
+      
       // تطبيق الصفحات
       if (options.limit) {
         query = query.limit(options.limit);
@@ -317,13 +364,13 @@ export const ActivationService = {
       // ترتيب النتائج
       query = query.order('created_at', { ascending: false });
       
-      const { data, error, count } = await query;
+      const { data, error, count } = await (query as any);
       
       if (error) throw error;
       
       // جلب إحصائيات كل دفعة
       const batchesWithStats = await Promise.all(
-        data.map(async (batch) => {
+        (data || []).map(async (batch: any) => {
           const { data: stats, error: statsError } = await supabase.rpc(
             'get_activation_code_batch_statistics',
             { p_batch_id: batch.id }
@@ -335,16 +382,19 @@ export const ActivationService = {
             id: batch.id,
             name: batch.name,
             plan_id: batch.plan_id,
-            plan_name: batch.subscription_plans.name,
+            plan_name: batch.subscription_plans?.name || 'غير محدد',
             billing_cycle: (batch.billing_cycle || 'yearly') as 'monthly' | 'yearly',
-            total_codes: stats[0].total_codes,
-            used_codes: stats[0].used_codes,
-            active_codes: stats[0].active_codes,
-            expired_codes: stats[0].expired_codes,
-            revoked_codes: stats[0].revoked_codes,
+            total_codes: stats?.[0]?.total_codes || 0,
+            used_codes: stats?.[0]?.used_codes || 0,
+            active_codes: stats?.[0]?.active_codes || 0,
+            expired_codes: stats?.[0]?.expired_codes || 0,
+            revoked_codes: stats?.[0]?.revoked_codes || 0,
             created_at: batch.created_at,
             created_by: batch.created_by,
-            notes: batch.notes
+            notes: batch.notes,
+            // الحقول الجديدة للدورات مدى الحياة
+            lifetime_courses_access: batch.lifetime_courses_access || false,
+            courses_access_type: batch.courses_access_type || CoursesAccessType.STANDARD
           };
         })
       );
@@ -371,7 +421,11 @@ export const ActivationService = {
         .update({
           status: data.status,
           notes: data.notes,
-          expires_at: data.expires_at
+          expires_at: data.expires_at,
+          // الحقول الجديدة للدورات مدى الحياة
+          lifetime_courses_access: data.lifetime_courses_access,
+          courses_access_type: data.courses_access_type,
+          accessible_courses: data.accessible_courses
         })
         .eq('id', codeId)
         .select()
@@ -394,6 +448,8 @@ export const ActivationService = {
     isValid: boolean;
     message: string;
     plan?: any;
+    lifetimeCoursesAccess?: boolean;
+    coursesAccessType?: CoursesAccessType;
   }> {
     try {
       // التحقق من تنسيق الكود
@@ -449,13 +505,35 @@ export const ActivationService = {
       return {
         isValid: true,
         message: 'كود التفعيل صالح',
-        plan: data.subscription_plans
+        plan: data.subscription_plans,
+        lifetimeCoursesAccess: (data as any).lifetime_courses_access || false,
+        coursesAccessType: (data as any).courses_access_type || CoursesAccessType.STANDARD
       };
     } catch (error) {
       return {
         isValid: false,
         message: 'حدث خطأ أثناء التحقق من كود التفعيل'
       };
+    }
+  },
+
+  /**
+   * الحصول على الوصول للدورات لمؤسسة معينة
+   * @param organizationId معرف المؤسسة
+   * @returns قائمة الوصول للدورات
+   */
+  async getOrganizationCoursesAccess(organizationId: string): Promise<CourseAccess[]> {
+    try {
+      const { data, error } = await supabase.rpc(
+        'get_organization_courses_access' as any,
+        { p_organization_id: organizationId }
+      );
+      
+      if (error) throw error;
+      
+      return data as CourseAccess[];
+    } catch (error) {
+      throw error;
     }
   }
 };

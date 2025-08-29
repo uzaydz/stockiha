@@ -27,7 +27,8 @@ import {
   CheckCircle2, 
   Tags,
   Loader2,
-  Settings
+  Settings,
+  ExternalLink
 } from 'lucide-react';
 import { 
   Card, 
@@ -37,11 +38,18 @@ import {
   CardHeader, 
   CardTitle 
 } from '@/components/ui/card';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import DeleteProductDialog from './DeleteProductDialog';
 import ViewProductDialog from './ViewProductDialog';
 import type { Product } from '@/lib/api/products';
 import { formatPrice } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
+import { useTenant } from '@/context/TenantContext';
 import { EmployeePermissions } from '@/types/employee';
 import {
   Dialog,
@@ -53,9 +61,10 @@ import {
 } from '@/components/ui/dialog';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { toast } from 'sonner';
-import { checkUserPermissions, refreshUserData } from '@/lib/api/permissions';
+import { hasPermissions } from '@/lib/api/userPermissionsUnified';
 import { ProductFeatures } from '@/components/store/ProductFeatures';
-import { Link, useNavigate } from 'react-router-dom';import { useOptimizedClickHandler } from "@/lib/performance-utils";
+import { Link, useNavigate } from 'react-router-dom';
+// import { getProductSlug } from '@/components/store/productUtils';
 
 import '@/styles/products-responsive.css';
 
@@ -73,6 +82,13 @@ const ProductsList = ({
   isLoading = false 
 }: ProductsListProps) => {
   const navigate = useNavigate();
+  
+  // Debug: فحص البيانات الواردة
+  useEffect(() => {
+    if (products.length > 0) {
+    }
+  }, [products]);
+
   const [viewProduct, setViewProduct] = useState<Product | null>(null);
   const [deleteProduct, setDeleteProduct] = useState<Product | null>(null);
   const [productForFeatures, setProductForFeatures] = useState<Product | null>(null);
@@ -88,6 +104,7 @@ const ProductsList = ({
 
   // استدعاء معلومات المستخدم من سياق المصادقة
   const { user } = useAuth();
+  const { currentOrganization } = useTenant();
   
   // تعديل آلية التحقق من الصلاحيات
   useEffect(() => {
@@ -97,24 +114,11 @@ const ProductsList = ({
       try {
         setIsCheckingPermissions(true);
         
-        // تحديث بيانات المستخدم من قاعدة البيانات
-        const userData = await refreshUserData(user.id);
+        // استخدام الدالة الموحدة للتحقق من عدة صلاحيات دفعة واحدة
+        const permissionsResult = await hasPermissions(['editProducts', 'deleteProducts'], user.id);
         
-        // دمج البيانات المحدثة مع بيانات المستخدم
-        const mergedUserData = {
-          ...user,
-          permissions: userData?.permissions || user.user_metadata?.permissions,
-          is_org_admin: userData?.is_org_admin || user.user_metadata?.is_org_admin,
-          is_super_admin: userData?.is_super_admin || user.user_metadata?.is_super_admin,
-          role: userData?.role || user.user_metadata?.role,
-        };
-        
-        // استخدام وظيفة فحص الصلاحيات
-        const canEdit = await checkUserPermissions(mergedUserData, 'editProducts');
-        const canDelete = await checkUserPermissions(mergedUserData, 'deleteProducts');
-        
-        setCanEditProducts(canEdit);
-        setCanDeleteProducts(canDelete);
+        setCanEditProducts(permissionsResult.editProducts || false);
+        setCanDeleteProducts(permissionsResult.deleteProducts || false);
       } catch (error) {
         // في حالة الخطأ، تحقق مباشرة من البيانات الخام
         const permissions = user.user_metadata?.permissions || {};
@@ -165,6 +169,95 @@ const ProductsList = ({
   const handleEditFeatures = (product: Product) => {
     setProductForFeatures(product);
     setIsFeaturesOpen(true);
+  };
+
+  const handlePreviewProduct = (product: Product) => {
+
+    // استخدام الدالة المحلية للحصول على slug
+    const productSlug = generateProductSlug(product);
+    
+    // الحصول على معلومات النطاق
+    const domainInfo = getProductDomain(product);
+    
+    // فتح الرابط في نافذة جديدة
+    
+    window.open(domainInfo.url, '_blank');
+  };
+
+  // دالة محسنة لإنشاء slug من اسم المنتج - تعطي أولوية للـ slug من قاعدة البيانات
+  const generateProductSlug = (product: Product): string => {
+
+    // أولوية 1: استخدام slug موجود من قاعدة البيانات
+    if (product.slug && product.slug.trim() !== '') {
+      return product.slug.trim();
+    }
+    
+    // أولوية 2: استخدام معرف المنتج كـ fallback
+    return product.id;
+  };
+
+  // دالة محسنة لتحديد النطاق المناسب للمنتج
+  const getProductDomain = (product: Product) => {
+    // استخدام الدالة المحلية للحصول على slug
+    const productSlug = generateProductSlug(product);
+    
+    // الحصول على معلومات النطاق من المؤسسة الحالية
+    const organization = currentOrganization;
+    const currentHostname = window.location.hostname;
+    const currentProtocol = window.location.protocol;
+    
+    // الحصول على النطاق الأساسي من متغيرات البيئة أو استخدام القيمة الافتراضية
+    const baseDomain = import.meta.env.VITE_APP_DOMAIN || 'ktobi.online';
+    
+    // مسار صفحة الشراء - يمكن جعله قابل للتكوين
+    const purchasePagePath = 'product-purchase-max-v2';
+
+    // أولوية 1: النطاق المخصص للمؤسسة
+    if (organization?.domain && organization.domain.trim()) {
+      const customDomain = organization.domain.trim();
+      const url = `${currentProtocol}//${customDomain}/${purchasePagePath}/${productSlug}`;
+
+      return {
+        type: 'custom' as const,
+        domain: customDomain,
+        url: url
+      };
+    }
+    
+    // أولوية 2: النطاق الفرعي للمؤسسة
+    if (organization?.subdomain && organization.subdomain.trim() && organization.subdomain !== 'main') {
+      const subdomain = organization.subdomain.trim();
+      
+      // في بيئة التطوير (localhost)
+      if (currentHostname.includes('localhost')) {
+        const port = window.location.port ? `:${window.location.port}` : '';
+        const url = `${currentProtocol}//${subdomain}.localhost${port}/${purchasePagePath}/${productSlug}`;
+
+        return {
+          type: 'subdomain' as const,
+          domain: `${subdomain}.localhost`,
+          url: url
+        };
+      }
+      
+      // في بيئة الإنتاج - استخدام النطاق الأساسي من متغيرات البيئة
+      const url = `${currentProtocol}//${subdomain}.${baseDomain}/${purchasePagePath}/${productSlug}`;
+
+      return {
+        type: 'subdomain' as const,
+        domain: `${subdomain}.${baseDomain}`,
+        url: url
+      };
+    }
+    
+    // أولوية 3: النطاق الحالي (fallback)
+    const fallbackUrl = `${currentProtocol}//${currentHostname}/${purchasePagePath}/${productSlug}`;
+
+    return {
+      type: 'fallback' as const,
+      domain: currentHostname,
+      url: fallbackUrl
+    };
   };
 
   const handleFeaturesUpdated = async () => {
@@ -328,90 +421,99 @@ const ProductsList = ({
                       <StockStatus quantity={product.stock_quantity} />
                     </TableCell>
                     <TableCell className="sm:table-cell block">
-                      <div className="flex items-center justify-end gap-1 sm:gap-2 flex-wrap product-list-actions">
+                      <div className="flex items-center justify-end gap-1 product-list-actions">
                         {/* زر العرض - دائماً متاح */}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleView(product)}
-                          className="h-8 w-8 p-0 sm:h-auto sm:w-auto sm:px-2 sm:py-1 text-xs"
-                          title="عرض المنتج"
-                        >
-                          <Eye className="h-4 w-4 btn-icon" />
-                          <span className="sr-only sm:not-sr-only sm:mr-1 btn-text">عرض</span>
-                        </Button>
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleView(product)}
+                                className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700"
+                              >
+                                <Eye className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>عرض المنتج</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+
+                        {/* زر العرض المباشر - يفتح صفحة الشراء */}
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handlePreviewProduct(product)}
+                                className="h-8 w-8 p-0 hover:bg-green-100 dark:hover:bg-green-950/20"
+                              >
+                                <ExternalLink className="h-4 w-4 text-green-600 dark:text-green-400" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>عرض صفحة الشراء</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                         
                         {/* زر التعديل - يظهر فقط إذا كان المستخدم لديه صلاحية */}
-                        {canEditProducts ? (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            asChild
-                            className="h-8 w-8 p-0 sm:h-auto sm:w-auto sm:px-2 sm:py-1 text-xs"
-                            title="تعديل المنتج"
-                          >
-                            <Link to={`/dashboard/product/${product.id}`}>
-                              <Edit className="h-4 w-4 btn-icon" />
-                              <span className="sr-only sm:not-sr-only sm:mr-1 btn-text">تعديل</span>
-                            </Link>
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(product)}
-                            className="h-8 w-8 p-0 sm:h-auto sm:w-auto sm:px-2 sm:py-1 text-xs opacity-50 cursor-not-allowed"
-                            title="تعديل المنتج"
-                          >
-                            <Edit className="h-4 w-4 btn-icon" />
-                            <span className="sr-only sm:not-sr-only sm:mr-1 btn-text">تعديل</span>
-                          </Button>
-                        )}
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              {canEditProducts ? (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  asChild
+                                  className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700"
+                                >
+                                  <Link to={`/dashboard/product/${product.id}`}>
+                                    <Edit className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                  </Link>
+                                </Button>
+                              ) : (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleEdit(product)}
+                                  className="h-8 w-8 p-0 opacity-50 cursor-not-allowed"
+                                  disabled
+                                >
+                                  <Edit className="h-4 w-4 text-gray-400" />
+                                </Button>
+                              )}
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              <p>تعديل المنتج</p>
+                            </TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
                         
-                        {/* زر القائمة المنسدلة */}
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="h-8 w-8 p-0 sm:h-auto sm:w-auto sm:px-2 sm:py-1 text-xs"
-                              title="المزيد من الخيارات"
-                            >
-                              <MoreVertical className="h-4 w-4 btn-icon" />
-                              <span className="sr-only btn-text">المزيد</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="min-w-[200px]">
-                            {/* إضافة خيار تعديل ميزات المنتج */}
-                            {canEditProducts && (
-                              <DropdownMenuItem onClick={() => handleEditFeatures(product)}>
-                                <Settings className="ml-2 h-4 w-4" />
-                                تعديل مميزات المنتج
-                              </DropdownMenuItem>
-                            )}
-                            
-                            {/* خيار تخصيص صفحة الشراء */}
-                            <DropdownMenuItem asChild>
-                             <Link to={`/dashboard/products/${product.id}/customize-purchase-page`}>
-                               <Settings className="ml-2 h-4 w-4" />
-                               تخصيص صفحة الشراء
-                             </Link>
-                           </DropdownMenuItem>
-                            
-                            <DropdownMenuSeparator />
-                            
-                            {/* خيار الحذف في القائمة المنسدلة - يظهر فقط عند وجود صلاحية */}
-                            {canDeleteProducts && (
-                              <DropdownMenuItem
-                                className="text-destructive"
-                                onClick={() => handleDelete(product)}
-                              >
-                                <Trash2 className="ml-2 h-4 w-4" />
-                                حذف المنتج
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        {/* زر الحذف - يظهر فقط عند وجود صلاحية */}
+                        {canDeleteProducts && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleDelete(product)}
+                                  className="h-8 w-8 p-0 hover:bg-red-50 dark:hover:bg-red-950/20"
+                                >
+                                  <Trash2 className="h-4 w-4 text-red-600 dark:text-red-400" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>حذف المنتج</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+
                       </div>
                     </TableCell>
                   </TableRow>
@@ -463,50 +565,99 @@ const ProductsList = ({
                   )}
                 </CardContent>
                 <CardFooter className="p-3 sm:p-4 pt-2 mt-auto flex-shrink-0 product-card-footer">
-                  <div className="grid grid-cols-1 gap-2 w-full product-card-buttons">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => handleView(product)}
-                      className="w-full text-xs h-8 px-2 py-1"
-                    >
-                      <Eye className="ml-1 h-3 w-3" />
-                      عرض
-                    </Button>
-                    {canEditProducts ? (
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        asChild
-                        className="w-full text-xs h-8 px-2 py-1"
-                      >
-                        <Link to={`/dashboard/product/${product.id}`}>
-                          <Edit className="ml-1 h-3 w-3" />
-                          تعديل
-                        </Link>
-                      </Button>
-                    ) : (
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={() => handleEdit(product)}
-                        className="w-full text-xs h-8 px-2 py-1 opacity-50 cursor-not-allowed"
-                      >
-                        <Edit className="ml-1 h-3 w-3" />
-                        تعديل
-                      </Button>
-                    )}
+                  <div className="flex items-center justify-center gap-2 w-full product-card-buttons">
+                    {/* زر العرض */}
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => handleView(product)}
+                            className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700"
+                          >
+                            <Eye className="h-4 w-4 text-gray-600 dark:text-gray-400" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>عرض المنتج</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+
+                    {/* زر العرض المباشر - يفتح صفحة الشراء */}
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            onClick={() => handlePreviewProduct(product)}
+                            className="h-8 w-8 p-0 hover:bg-green-100 dark:hover:bg-green-950/20"
+                          >
+                            <ExternalLink className="h-4 w-4 text-green-600 dark:text-green-400" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>عرض صفحة الشراء</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    
+                    {/* زر التعديل */}
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          {canEditProducts ? (
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              asChild
+                              className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-700"
+                            >
+                              <Link to={`/dashboard/product/${product.id}`}>
+                                <Edit className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                              </Link>
+                            </Button>
+                          ) : (
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => handleEdit(product)}
+                              className="h-8 w-8 p-0 opacity-50 cursor-not-allowed"
+                              disabled
+                            >
+                              <Edit className="h-4 w-4 text-gray-400" />
+                            </Button>
+                          )}
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>تعديل المنتج</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    
+                    {/* زر الحذف */}
                     {canDeleteProducts && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-destructive hover:text-destructive w-full text-xs h-8 px-2 py-1"
-                        onClick={() => handleDelete(product)}
-                      >
-                        <Trash2 className="ml-1 h-3 w-3" />
-                        حذف
-                      </Button>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 hover:bg-red-50 dark:hover:bg-red-950/20"
+                              onClick={() => handleDelete(product)}
+                            >
+                              <Trash2 className="h-4 w-4 text-red-600 dark:text-red-400" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>حذف المنتج</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     )}
+
                   </div>
                 </CardFooter>
               </Card>
@@ -565,6 +716,7 @@ const ProductsList = ({
           </DialogContent>
         </Dialog>
       )}
+
     </>
   );
 };

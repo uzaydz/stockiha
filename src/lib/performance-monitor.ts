@@ -165,136 +165,83 @@ export function monitorPagePerformance() {
   return transaction;
 }
 
-/**
- * مراقب الأداء - لتتبع الاستدعاءات المتكررة وتحسين الأداء
- */
+// 🔍 نظام مراقبة الأداء الشامل - للكونسول فقط
+// هذا النظام يراقب جميع مشاكل الأداء ويعرضها في الكونسول
 
-interface PerformanceMetric {
-  type: string;
-  count: number;
-  totalTime: number;
-  averageTime: number;
-  lastCall: number;
+interface PerformanceIssue {
+  type: 'memory' | 'network' | 'database' | 'rendering' | 'cache' | 'javascript';
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  message: string;
+  details: any;
+  timestamp: number;
+  stack?: string;
 }
 
-class PerformanceMonitor {
-  private metrics = new Map<string, PerformanceMetric>();
-  private requestCounts = new Map<string, number>();
-  private lastRequestTimes = new Map<string, number>();
-
-  /**
-   * تسجيل استدعاء API
-   */
-  trackApiCall(endpoint: string, duration: number) {
-    const now = Date.now();
-    const lastCall = this.lastRequestTimes.get(endpoint) || 0;
-    const timeSinceLastCall = now - lastCall;
-    
-    // تحديث عداد الاستدعاءات
-    const currentCount = this.requestCounts.get(endpoint) || 0;
-    this.requestCounts.set(endpoint, currentCount + 1);
-    this.lastRequestTimes.set(endpoint, now);
-
-    // تحديث المقاييس
-    const existing = this.metrics.get(endpoint);
-    if (existing) {
-      existing.count++;
-      existing.totalTime += duration;
-      existing.averageTime = existing.totalTime / existing.count;
-      existing.lastCall = now;
-    } else {
-      this.metrics.set(endpoint, {
-        type: 'api_call',
-        count: 1,
-        totalTime: duration,
-        averageTime: duration,
-        lastCall: now
-      });
-    }
-
-    // تحذير من الاستدعاءات المتكررة
-    if (timeSinceLastCall < 1000 && currentCount > 0) { // أقل من ثانية
-    }
-
-    // تحذير من الاستدعاءات المفرطة
-    if (currentCount > 10) {
-    }
-  }
-
-  /**
-   * الحصول على إحصائيات الأداء
-   */
-  getStats() {
-    const stats = {
-      totalEndpoints: this.metrics.size,
-      totalCalls: Array.from(this.metrics.values()).reduce((sum, metric) => sum + metric.count, 0),
-      averageResponseTime: Array.from(this.metrics.values()).reduce((sum, metric) => sum + metric.averageTime, 0) / this.metrics.size,
-      mostCalledEndpoints: Array.from(this.metrics.entries())
-        .sort((a, b) => b[1].count - a[1].count)
-        .slice(0, 5)
-        .map(([endpoint, metric]) => ({
-          endpoint,
-          count: metric.count,
-          averageTime: metric.averageTime
-        })),
-      recentCalls: Array.from(this.lastRequestTimes.entries())
-        .filter(([_, time]) => Date.now() - time < 60000) // آخر دقيقة
-        .map(([endpoint, time]) => ({
-          endpoint,
-          timeSinceLastCall: Date.now() - time
-        }))
-    };
-
-    return stats;
-  }
-
-  /**
-   * مسح المقاييس
-   */
-  clear() {
-    this.metrics.clear();
-    this.requestCounts.clear();
-    this.lastRequestTimes.clear();
-  }
-
-  /**
-   * طباعة تقرير الأداء
-   */
-  printReport() {
-    const stats = this.getStats();
-    
-    stats.mostCalledEndpoints.forEach((item, index) => {
-    });
-    
-    stats.recentCalls.forEach(item => {
-    });
-  }
+interface MemoryStats {
+  usedJSHeapSize: number;
+  totalJSHeapSize: number;
+  jsHeapSizeLimit: number;
+  usage: number; // percentage
 }
 
-// إنشاء مثيل عالمي
-export const performanceMonitor = new PerformanceMonitor();
-
-// دالة مساعدة لتتبع استدعاءات API
-export const trackApiCall = (endpoint: string, duration: number) => {
-  performanceMonitor.trackApiCall(endpoint, duration);
-};
-
-// دالة مساعدة للحصول على الإحصائيات
-export const getPerformanceStats = () => {
-  return performanceMonitor.getStats();
-};
-
-// دالة مساعدة لطباعة التقرير
-export const printPerformanceReport = () => {
-  performanceMonitor.printReport();
-};
-
-// إضافة للـ window للاستخدام في console
-if (typeof window !== 'undefined') {
-  (window as any).performanceMonitor = performanceMonitor;
-  (window as any).getPerformanceStats = getPerformanceStats;
-  (window as any).printPerformanceReport = printPerformanceReport;
+interface NetworkStats {
+  activeRequests: number;
+  totalRequests: number;
+  failedRequests: number;
+  slowRequests: number;
+  duplicateRequests: number;
+  averageResponseTime: number;
 }
+
+interface DatabaseStats {
+  totalQueries: number;
+  slowQueries: number;
+  duplicateQueries: number;
+  failedQueries: number;
+  averageQueryTime: number;
+  tablesAccessed: Set<string>;
+}
+
+interface RenderingStats {
+  totalRenders: number;
+  slowRenders: number;
+  componentErrors: number;
+  memoryLeaks: number;
+}
+
+// PERFORMANCE MONITOR DISABLED - تم تعطيل مراقب الأداء لتوفير الذاكرة
+// class PerformanceMonitor {
+//   private static instance: PerformanceMonitor;
+//   private reportInterval?: NodeJS.Timeout;
+//   private memoryInterval?: NodeJS.Timeout;
+//   private duplicateInterval?: NodeJS.Timeout;
+//   private dbInterval?: NodeJS.Timeout;
+
+//   private constructor() {
+//     this.setupReporting();
+//     this.setupMemoryMonitoring();
+//     this.setupDuplicateDetection();
+//     this.setupDatabaseTracking();
+//   }
+
+//   private setupReporting(): void {
+//     this.reportInterval = setInterval(() => {
+//       this.generateReport();
+//     }, 30000); // Every 30 seconds
+//   }
+
+//   private setupMemoryMonitoring(): void {
+//     this.memoryInterval = setInterval(checkMemory, 5000);
+//   }
+
+//   private setupDuplicateDetection(): void {
+//     this.duplicateInterval = setInterval(checkDuplicates, 15000);
+//   }
+
+//   private setupDatabaseTracking(): void {
+//     this.dbInterval = setInterval(checkDatabaseTracker, 10000);
+//   }
+// }
 
 // 🚀 نظام تقسيم المهام الطويلة
 class TaskSplitter {

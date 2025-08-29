@@ -5,6 +5,7 @@ import { withCache, LONG_CACHE_TTL, SHORT_CACHE_TTL } from '@/lib/cache/storeCac
 import type { Product, ProductColor, ProductSize } from '@/lib/api/products';
 // import { trackedFunctionInvoke, trackedRpc, trackedSupabase } from '@/lib/db-tracker'; // تعطيل هذا مؤقتًا
 import { getSupabaseClient } from '@/lib/supabase-client'; // افتراض وجود هذا الملف وتكوينه بشكل صحيح
+import { getProductCompleteDataOptimized } from '@/lib/api/productCompleteOptimized';
 // import { FormSettings, CustomFormField } from '@/components/store/order-form/OrderFormTypes';
 import type { ExtendedFormSettings } from '@/components/store/product-purchase/ProductStateHooks'; // افتراض وجود هذا النوع
 
@@ -122,98 +123,48 @@ export const getProductPageData = async (organizationId: string, slug: string): 
         const startTime = Date.now();
 
         const supabase = getSupabaseClient();
-        const { data: responseData, error: functionError } = await supabase.functions.invoke(
-          'get-product-page-data',
-          {
-            body: { slug: slug, organization_id: organizationId },
-          }
-        ) as { data: ProductPageData | null; error: any };
+        
+        // استخدام الدالة المحسنة مع fallback تلقائي
+        const rpcData = await getProductCompleteDataOptimized(slug, {
+          organizationId,
+          dataScope: 'full',
+          includeInactive: false
+        });
 
         const endTime = Date.now();
 
-        if (functionError) {
-          
-          // معالجة أنواع مختلفة من الأخطاء
-          const errorStatus = (functionError as any)?.status;
-          const errorMessage = functionError.message || '';
-
-          if (errorStatus === 404 || errorMessage.includes('404') || errorMessage.includes('Product not found')) {
-            return null; // المنتج غير موجود
-          }
-          
-          if (errorStatus === 500 || errorMessage.includes('500')) {
-            throw new Error('خطأ في الخادم. يرجى المحاولة مرة أخرى.');
-          }
-          
-          if (errorStatus === 403 || errorMessage.includes('403')) {
-            throw new Error('ليس لديك صلاحية للوصول إلى هذا المنتج.');
-          }
-          
-          if (errorMessage.includes('timeout') || errorMessage.includes('network')) {
-            throw new Error('انتهت مهلة الاتصال. يرجى التحقق من اتصال الإنترنت والمحاولة مرة أخرى.');
-          }
-          
-          // في حالة Edge Function غير متاح، حاول Fallback عبر RPC مباشرة
-          
-          try {
-            const rpcStartTime = Date.now();
-
-            const { data: rpcData, error: rpcError } = await supabase.rpc('get_complete_product_data', {
-              p_slug: slug,
-              p_org_id: organizationId,
-            });
-
-            const rpcEndTime = Date.now();
-            
-            if (rpcError) {
-              throw new Error('فشل في الطريقة البديلة أيضاً');
-            }
-            
-            if (!rpcData) {
-              throw new Error('لم يتم إرجاع بيانات من الطريقة البديلة');
-            }
-            
-            // تنسيق البيانات بنفس شكل Edge Function
-            const rpcResult = rpcData as any; // Type assertion للبيانات القادمة من RPC
-            const fallbackData: ProductPageData = {
-              product: rpcResult.product || null,
-              colors: rpcResult.colors || [],
-              sizes: rpcResult.sizes || [],
-              form_settings: rpcResult.form_settings || null,
-              marketing_settings: rpcResult.marketing_settings || null,
-              reviews: rpcResult.reviews || [],
-            };
-            
-            return fallbackData;
-            
-          } catch (fallbackError) {
-            throw new Error(errorMessage || 'حدث خطأ أثناء تحميل بيانات المنتج');
-          }
+        if (!rpcData) {
+          throw new Error('لم يتم إرجاع بيانات من قاعدة البيانات');
         }
 
-        // التحقق من صحة البيانات المُرجعة
-        if (!responseData || typeof responseData !== 'object') {
-          throw new Error('تنسيق استجابة غير صحيح من الخادم');
+        // التحقق من نجاح العملية
+        if (!rpcData.success) {
+          if (rpcData.error?.code === 'PRODUCT_NOT_FOUND') {
+            return null;
+          }
+          throw new Error(rpcData.error?.message || 'فشل في جلب بيانات المنتج');
         }
-        
-        if (!('product' in responseData)) {
-          throw new Error('بيانات المنتج مفقودة في الاستجابة');
-        }
-        
-        // إذا كان المنتج null، فهذا يعني أن المنتج غير موجود
-        if (responseData.product === null) {
+
+        // تنسيق البيانات للتوافق مع ProductPageData
+        const formattedData: ProductPageData = {
+          product: rpcData.product as any || null,
+          colors: [], // سيتم جلبها من مصدر آخر
+          sizes: [], // سيتم جلبها من مصدر آخر
+          form_settings: null, // سيتم جلبها من مصدر آخر
+          marketing_settings: null, // سيتم جلبها من مصدر آخر
+          reviews: [], // سيتم جلبها من مصدر آخر
+        };
+
+        // التحقق من صحة البيانات
+        if (!formattedData.product || !formattedData.product.id) {
           return null;
         }
 
-        // التحقق من صحة بيانات المنتج
-        if (!responseData.product.id) {
-          throw new Error('بيانات المنتج غير مكتملة');
-        }
+        return formattedData;
 
-        return responseData;
       } catch (error) {
         
-        // إعادة رمي الخطأ مع معلومات إضافية إذا لزم الأمر
+        // إعادة رمي الخطأ مع معلومات إضافية
         if (error instanceof Error) {
           throw error;
         } else {

@@ -6,6 +6,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { OrganizationFetcher, FetchParams, FetchOptions } from '../services/OrganizationFetcher';
 import { Organization } from '../types';
+import { API_TIMEOUTS } from '@/config/api-timeouts';
 
 export interface UseOrganizationDataOptions {
   autoFetch?: boolean;
@@ -39,8 +40,8 @@ export function useOrganizationData(
 ): UseOrganizationDataReturn {
   const {
     autoFetch = true,
-    retries = 2,
-    timeout = 10000,
+    retries = 0, // تحسين: إلغاء المحاولات المتكررة
+    timeout = API_TIMEOUTS.ORGANIZATION_LOAD, // تحسين: استخدام timeout من الإعدادات (8 ثوان)
     onSuccess,
     onError
   } = options;
@@ -68,6 +69,8 @@ export function useOrganizationData(
     params: FetchParams,
     fetchOptions: FetchOptions = {}
   ) => {
+    const fetchStartTime = performance.now();
+
     // منع الطلبات المكررة
     if (isCurrentlyFetching.current) {
       return;
@@ -78,6 +81,7 @@ export function useOrganizationData(
     setError(null);
 
     try {
+      const rpcStartTime = performance.now();
 
       const result = await OrganizationFetcher.fetch(params, {
         retries,
@@ -86,8 +90,13 @@ export function useOrganizationData(
         ...fetchOptions
       });
 
+      const rpcTime = performance.now() - rpcStartTime;
+
       if (result.success && result.data) {
+        const transformStartTime = performance.now();
         const orgData = transformOrganizationData(result.data);
+        const transformTime = performance.now() - transformStartTime;
+
         setOrganization(orgData);
         lastParamsRef.current = params;
         
@@ -98,6 +107,8 @@ export function useOrganizationData(
           statsRef.current.cacheHits++;
         }
 
+        const totalFetchTime = performance.now() - fetchStartTime;
+
         onSuccess?.(orgData);
         
       } else {
@@ -105,10 +116,14 @@ export function useOrganizationData(
       }
     } catch (err) {
       const error = err as Error;
+      const totalFetchTime = performance.now() - fetchStartTime;
+
       setError(error);
       onError?.(error);
       
     } finally {
+      const totalTime = performance.now() - fetchStartTime;
+      
       setIsLoading(false);
       isCurrentlyFetching.current = false;
     }
@@ -139,7 +154,9 @@ export function useOrganizationData(
    */
   useEffect(() => {
     if (autoFetch && initialParams && !organization && !isLoading && !error) {
+      
       fetchOrganization(initialParams);
+    } else {
     }
   }, [autoFetch, initialParams, organization, isLoading, error, fetchOrganization]);
 
@@ -151,6 +168,10 @@ export function useOrganizationData(
       isCurrentlyFetching.current = false;
     };
   }, []);
+
+  // تسجيل حالة التحميل
+  useEffect(() => {
+  }, [isLoading, organization, error]);
 
   return {
     organization,
@@ -167,7 +188,9 @@ export function useOrganizationData(
  * تحويل بيانات المؤسسة إلى النموذج المطلوب
  */
 function transformOrganizationData(rawData: any): Organization {
-  return {
+  const startTime = performance.now();
+  
+  const result = {
     id: rawData.id,
     name: rawData.name || rawData.business_name || 'متجر',
     description: rawData.description,
@@ -184,6 +207,12 @@ function transformOrganizationData(rawData: any): Organization {
     updated_at: rawData.updated_at,
     owner_id: rawData.owner_id
   };
+
+  const transformTime = performance.now() - startTime;
+  if (transformTime > 1) {
+  }
+
+  return result;
 }
 
 /**

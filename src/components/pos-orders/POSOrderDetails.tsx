@@ -114,8 +114,10 @@ export const POSOrderDetails: React.FC<POSOrderDetailsProps> = ({
   const [orderItems, setOrderItems] = useState<any[]>([]);
   const [isLoadingItems, setIsLoadingItems] = useState(false);
   const [itemsError, setItemsError] = useState<string | null>(null);
+  const [employeeInfo, setEmployeeInfo] = useState<{id: string, name: string, email?: string} | null>(null);
+  const [isLoadingEmployee, setIsLoadingEmployee] = useState(false);
 
-  // جلب عناصر الطلبية عند فتح النافذة
+  // جلب عناصر الطلبية ومعلومات الموظف عند فتح النافذة
   useEffect(() => {
     if (open && order && order.id) {
       const loadOrderItems = async () => {
@@ -145,7 +147,42 @@ export const POSOrderDetails: React.FC<POSOrderDetailsProps> = ({
         }
       };
 
+      const loadEmployeeInfo = async () => {
+        // إذا كانت معلومات الموظف موجودة بالفعل، لا نحتاج لجلبها
+        if (order.employee?.name) {
+          setEmployeeInfo(order.employee);
+          return;
+        }
+
+        // إذا لم يكن هناك employee_id، لا نجلب شيء
+        if (!order.employee_id) {
+          setEmployeeInfo(null);
+          return;
+        }
+
+        setIsLoadingEmployee(true);
+        try {
+          // جلب معلومات الموظف مباشرة باستخدام service role أو admin query
+          const { data, error } = await supabase
+            .from('users')
+            .select('id, name, email')
+            .eq('id', order.employee_id)
+            .single();
+
+          if (error) {
+            setEmployeeInfo(null);
+          } else {
+            setEmployeeInfo(data);
+          }
+        } catch (error) {
+          setEmployeeInfo(null);
+        } finally {
+          setIsLoadingEmployee(false);
+        }
+      };
+
       loadOrderItems();
+      loadEmployeeInfo();
     }
   }, [open, order]);
 
@@ -155,6 +192,8 @@ export const POSOrderDetails: React.FC<POSOrderDetailsProps> = ({
       setOrderItems([]);
       setIsLoadingItems(false);
       setItemsError(null);
+      setEmployeeInfo(null);
+      setIsLoadingEmployee(false);
     }
   }, [open]);
 
@@ -468,20 +507,31 @@ export const POSOrderDetails: React.FC<POSOrderDetailsProps> = ({
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {order.employee ? (
+                  {isLoadingEmployee ? (
+                    <div className="text-center py-4">
+                      <Loader2 className="h-6 w-6 mx-auto mb-2 animate-spin" />
+                      <p className="text-sm text-muted-foreground">جاري تحميل معلومات الموظف...</p>
+                    </div>
+                  ) : (employeeInfo || order.employee) ? (
                     <>
                       <div className="flex items-center gap-2">
                         <User className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">{order.employee.name}</span>
+                        <span className="font-medium">{employeeInfo?.name || order.employee?.name}</span>
                       </div>
                       
-                      {order.employee.email && (
+                      {(employeeInfo?.email || order.employee?.email) && (
                         <div className="flex items-center gap-2">
                           <Mail className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-sm">{order.employee.email}</span>
+                          <span className="text-sm">{employeeInfo?.email || order.employee?.email}</span>
                         </div>
                       )}
                     </>
+                  ) : order.employee_id ? (
+                    <div className="text-muted-foreground text-center py-4">
+                      <AlertCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p>تعذر تحميل معلومات الموظف</p>
+                      <p className="text-xs mt-1">ID: {order.employee_id}</p>
+                    </div>
                   ) : (
                     <div className="text-muted-foreground text-center py-4">
                       <User className="h-8 w-8 mx-auto mb-2 opacity-50" />

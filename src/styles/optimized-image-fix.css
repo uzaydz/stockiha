@@ -1,0 +1,75 @@
+/* إصلاح خاص لعرض الصور المحسنة */
+.optimized-image-container {
+  position: relative;
+  overflow: hidden;
+}
+
+.optimized-image {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  opacity: inherit !important;
+  visibility: inherit !important;
+  background: inherit !important;
+  background-color: inherit !important;
+  background-image: inherit !important;
+  border: inherit !important;
+  border-radius: inherit !important;
+  box-shadow: inherit !important;
+  /* إعادة تعيين أي تأثيرات من icon-hover-fix */
+  --tw-bg-opacity: 1 !important;
+  --tw-border-opacity: 1 !important;
+  --tw-shadow: inherit !important;
+}
+
+/* التأكد من عدم تأثير قواعد الأيقونات على الصور */
+.optimized-image,
+.optimized-image *,
+.optimized-image-container,
+.optimized-image-container * {
+  background-attachment: inherit !important;
+  background-blend-mode: inherit !important;
+  background-clip: inherit !important;
+  background-origin: inherit !important;
+  background-position: inherit !important;
+  background-repeat: inherit !important;
+  background-size: inherit !important;
+}
+
+/* إصلاح خاص للصور داخل البانر */
+.banner-image img,
+.banner-logo img,
+[class*="BannerImage"] img,
+[class*="OptimizedImage"] img {
+  display: block !important;
+  opacity: inherit !important;
+  visibility: inherit !important;
+  background: white !important;
+  /* إعادة تعيين متغيرات Tailwind */
+  --tw-bg-opacity: 1 !important;
+  --tw-border-opacity: 1 !important;
+  --tw-shadow: inherit !important;
+}
+
+/* إصلاح خاص للحاويات */
+.banner-image,
+.banner-logo,
+[class*="BannerImage"],
+[class*="OptimizedImage"] {
+  background: inherit !important;
+  background-color: inherit !important;
+  background-image: inherit !important;
+  opacity: inherit !important;
+  visibility: inherit !important;
+}
+
+/* تأكيد عرض الصور في حالة التحميل */
+.optimized-image.opacity-100 {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.optimized-image.opacity-0 {
+  opacity: 0 !important;
+  visibility: hidden !important;
+}

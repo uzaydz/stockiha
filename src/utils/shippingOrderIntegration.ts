@@ -181,7 +181,6 @@ export async function createYalidineShippingOrder(
       // console.log('📍 Using commune name from DB:', communeName);
       
     } catch (error) {
-      console.warn('⚠️ Failed to get province names from DB, using fallback');
       // استخدام أسماء افتراضية إذا فشل الاستعلام
       const fallbackWilayas: { [key: string]: string } = {
         '3': 'Laghouat', '5': 'Batna', '16': 'Alger', '31': 'Oran'
@@ -222,9 +221,7 @@ export async function createYalidineShippingOrder(
     };
     
     // Call the API to create the shipping order
-    console.log('📦 Sending to Yalidine API:', params);
     const result = await shippingService.createShippingOrder(params);
-    console.log('📦 Yalidine API result received:', result);
     
     // تحقق من وجود النتائج والـ tracking ID
     if (result && (result.tracking || result.data?.tracking || result[0]?.tracking)) {
@@ -339,26 +336,11 @@ export async function createShippingOrderForOrder(
     if (!shippingAddress) {
       shippingAddress = `بلدية ${shippingCommune}, ولاية ${shippingWilaya}`;
     }
-    
-    console.log('📋 Extracted shipping data:', {
-      customerName,
-      customerPhone,
-      shippingAddress,
-      shippingWilaya,
-      shippingCommune
-    });
-    
+
     // Check if all required shipping fields are available
     if (!customerName || !customerPhone || 
         !shippingAddress || !shippingWilaya || 
         !shippingCommune) {
-      console.log('❌ Missing required shipping fields:', {
-        hasCustomerName: !!customerName,
-        hasCustomerPhone: !!customerPhone,
-        hasShippingAddress: !!shippingAddress,
-        hasShippingWilaya: !!shippingWilaya,
-        hasShippingCommune: !!shippingCommune
-      });
       return {
         success: false,
         message: 'معلومات الشحن غير مكتملة في الطلب'
@@ -379,11 +361,8 @@ export async function createShippingOrderForOrder(
       `)
       .eq('organization_id', organizationId)
       .eq('is_enabled', true);
-    
-    console.log('📦 Available providers:', enabledProviders);
-    
+
     if (providersError) {
-      console.error('❌ Providers query error:', providersError);
       return {
         success: false,
         message: 'خطأ في جلب مزودي خدمة الشحن المفعلين'
@@ -401,14 +380,10 @@ export async function createShippingOrderForOrder(
     // Use the first enabled provider (prioritize auto_shipping if available)
     const autoShippingProvider = enabledProviders.find(p => p.auto_shipping);
     const defaultProvider = autoShippingProvider || enabledProviders[0];
-    
-    console.log('📦 Selected provider:', defaultProvider);
-    
+
     // Get the provider code from the nested object
     const providerCode = defaultProvider.shipping_providers?.code;
-    
-    console.log('📦 Provider code:', providerCode);
-    
+
     if (!providerCode) {
       return {
         success: false,

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 // import { Navigate } from 'react-router-dom'; // Navigate غير مستخدمة حاليًا
 import { extractSubdomainFromHostname } from '@/lib/api/subdomain';
 import StorePage from '@/components/store/StorePage';
@@ -53,9 +53,23 @@ async function retryWithBackoff<T>(
 }
 
 /**
- * مكون للتوجيه المباشر إلى صفحة المتجر عند استخدام سابدومين أو دومين مخصص
+ * 🚀 مكون تحميل محسن للمتاجر - يعرض المتجر مباشرة عند الكشف المبكر
  */
-const StoreRouter = () => {
+const OptimizedStoreLoader = React.memo(({ subdomain, hostname }: { subdomain?: string; hostname: string }) => {
+  // 🔥 عرض المتجر فوراً بدون تأخير
+  console.log('🔄 OptimizedStoreLoader: عرض StorePage مباشرة', { subdomain, hostname });
+  return <StorePage />;
+});
+
+OptimizedStoreLoader.displayName = 'OptimizedStoreLoader';
+
+/**
+ * مكون للتوجيه المباشر إلى صفحة المتجر عند استخدام سابدومين أو دومين مخصص
+ * محسن للاستفادة من الكشف المبكر للنطاق
+ */
+const StoreRouter = React.memo(() => {
+  console.log('🚀 StoreRouter: بدء التهيئة');
+  
   // استخدام Hook لضمان تحديث العنوان والأيقونة
   useDynamicTitle();
   
@@ -65,17 +79,124 @@ const StoreRouter = () => {
   const [retryCount, setRetryCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
   
+  // 🔥 إضافة مراجع لمنع التكرار
+  const domainChecked = useRef(false);
+  const earlyDetectionProcessed = useRef(false);
+  const renderCount = useRef(0);
+  const isInitialized = useRef(false);
+  
   // استخدام النظام المركزي للتحميل
   const { showLoader, hideLoader, setPhase } = useGlobalLoading();
   
   // التحقق الفوري من النطاق الفرعي
-  const hostname = window.location.hostname;
-  const subdomain = extractSubdomainFromHostname(hostname);
-  const isSubdomainStore = Boolean(subdomain && subdomain !== 'www');
-  const isCustomDomain = !isSubdomainStore && !PUBLIC_DOMAINS.includes(hostname) && !isLocalhostDomain(hostname);
+  const hostname = useMemo(() => window.location.hostname, []);
+  const subdomain = useMemo(() => extractSubdomainFromHostname(hostname), [hostname]);
+  const isSubdomainStore = useMemo(() => Boolean(subdomain && subdomain !== 'www'), [subdomain]);
+  const isCustomDomain = useMemo(() => !isSubdomainStore && !PUBLIC_DOMAINS.includes(hostname) && !isLocalhostDomain(hostname), [isSubdomainStore, hostname]);
+
+  console.log('🔍 StoreRouter: معلومات النطاق', { 
+    hostname, 
+    subdomain, 
+    isSubdomainStore, 
+    isCustomDomain,
+    isLocalhost: isLocalhostDomain(hostname)
+  });
+
+  // 🔥 تحسين: فحص الكشف المبكر للنطاق
+  const earlyDomainDetection = useMemo(() => {
+    // 🔥 منع التكرار: التحقق من أن الكشف المبكر لم يتم معالجته
+    if (earlyDetectionProcessed.current) {
+      return { isEarlyDetected: false, earlySubdomain: null };
+    }
+    
+    try {
+      const isEarlyDetected = sessionStorage.getItem('bazaar_early_domain_detection') === 'true';
+      const earlyHostname = sessionStorage.getItem('bazaar_early_hostname');
+      const earlySubdomain = sessionStorage.getItem('bazaar_early_subdomain');
+      
+      console.log('🔍 StoreRouter: الكشف المبكر للنطاق', { 
+        isEarlyDetected, 
+        earlyHostname, 
+        earlySubdomain,
+        currentHostname: hostname 
+      });
+      
+      if (isEarlyDetected && earlyHostname === hostname) {
+        // ✅ إزالة console.log المفرط
+        earlyDetectionProcessed.current = true; // 🔥 تمييز الكشف المبكر كمعالج
+        return { isEarlyDetected: true, earlySubdomain };
+      }
+    } catch (e) {
+      console.warn('⚠️ StoreRouter: خطأ في الكشف المبكر للنطاق', e);
+    }
+    return { isEarlyDetected: false, earlySubdomain: null };
+  }, [hostname]);
+
+  // 🔥 إرسال event لتتبع العرض - مرة واحدة فقط
+  useEffect(() => {
+    renderCount.current++;
+    
+    console.log('🔄 StoreRouter: render effect', { 
+      renderCount: renderCount.current,
+      timestamp: Date.now(),
+      hostname,
+      subdomain,
+      isSubdomainStore,
+      isCustomDomain
+    });
+    
+    // إرسال event لتتبع العرض
+    window.dispatchEvent(new CustomEvent('bazaar:store-router-render', {
+      detail: {
+        renderCount: renderCount.current,
+        timestamp: Date.now()
+      }
+    }));
+    
+    // إذا كان هذا هو العرض الأول، قم بتهيئة المكون
+    if (renderCount.current === 1) {
+      isInitialized.current = true;
+    }
+  }, []);
+
+  // 🔥 إضافة مراقب للأداء - مرة واحدة فقط
+  useEffect(() => {
+    console.log('🚀 StoreRouter: بدء التتبع', {
+      timestamp: Date.now(),
+      hostname,
+      subdomain,
+      isSubdomainStore,
+      isCustomDomain
+    });
+    
+    // إرسال event بداية StoreRouter
+    window.dispatchEvent(new CustomEvent('bazaar:store-router-start', {
+      detail: {
+        timestamp: Date.now(),
+        hostname,
+        subdomain,
+        isSubdomainStore,
+        isCustomDomain
+      }
+    }));
+  }, [hostname, subdomain, isSubdomainStore, isCustomDomain]);
+
+  // 🔥 منع إعادة الإنشاء المتكرر
+  useEffect(() => {
+    if (isInitialized.current) {
+      return;
+    }
+    isInitialized.current = true;
+  }, []);
 
   // إدارة مؤشر التحميل
   useEffect(() => {
+    console.log('📊 StoreRouter: إدارة مؤشر التحميل', { 
+      isLoading, 
+      isSubdomainStore, 
+      subdomain 
+    });
+    
     if (isLoading) {
       if (isSubdomainStore) {
         // إظهار مؤشر تحميل للمتجر
@@ -102,69 +223,126 @@ const StoreRouter = () => {
   }, [isLoading, isSubdomainStore, subdomain, showLoader, hideLoader, setPhase]);
 
   // دالة إعادة المحاولة اليدوية
-  const handleRetry = () => {
+  const handleRetry = useCallback(() => {
+    console.log('🔄 StoreRouter: إعادة المحاولة', { retryCount: retryCount + 1 });
     setRetryCount(prev => prev + 1);
     setError(null);
     setIsLoading(true);
     setIsStore(null);
-  };
+    // 🔥 إعادة تعيين المراجع عند إعادة المحاولة
+    domainChecked.current = false;
+    earlyDetectionProcessed.current = false;
+    isInitialized.current = false;
+  }, []);
 
   useEffect(() => {
+    // 🔥 منع التكرار: التحقق من أن النطاق لم يتم فحصه
+    if (domainChecked.current) {
+      console.log('⏭️ StoreRouter: النطاق تم فحصه مسبقاً');
+      return;
+    }
+    
+    domainChecked.current = true;
+    
+    console.log('🔍 StoreRouter: بدء فحص النطاق', {
+      hostname,
+      subdomain,
+      isSubdomainStore,
+      isCustomDomain,
+      earlyDomainDetection
+    });
+
     const checkDomain = async () => {
       try {
-
+        console.log('🔍 StoreRouter: بدء فحص النطاق التفصيلي');
+        
         // التحقق من النطاقات المحلية الخالصة (بدون subdomain)
         if (isPlainLocalhost(hostname)) {
+          console.log('🏠 StoreRouter: نطاق localhost خالص - عرض صفحة الهبوط');
           setIsStore(false);
           setIsLoading(false);
+          domainChecked.current = true;
           return;
         }
 
         // إذا كان هناك نطاق فرعي، نفترض أنه متجر ونترك تحميل البيانات للمكونات المختصة
         if (isSubdomainStore && subdomain) {
+          console.log('🏪 StoreRouter: نطاق فرعي - عرض المتجر', { subdomain });
           setHasSubdomain(true);
           // ضمان توافق المعرف مع النطاق الحالي: نُفرغ المعرف المخزن لتجنب جلب مكرر بالمعرف
           try {
             localStorage.removeItem('bazaar_organization_id');
             localStorage.setItem('bazaar_current_subdomain', subdomain);
-          } catch {}
+            console.log('💾 StoreRouter: حفظ النطاق الفرعي', { subdomain });
+          } catch (e) {
+            console.warn('⚠️ StoreRouter: خطأ في حفظ النطاق الفرعي', e);
+          }
           setIsStore(true);
           setIsLoading(false);
+          domainChecked.current = true;
           return;
         }
 
         // النطاقات العامة - عرض صفحة الهبوط مباشرة
         if (PUBLIC_DOMAINS.includes(hostname)) {
+          console.log('🌐 StoreRouter: نطاق عام - عرض صفحة الهبوط', { hostname });
           setIsStore(false);
           setIsLoading(false);
+          domainChecked.current = true;
           return;
         }
 
         // النطاقات المخصصة بدون نطاق فرعي: اعتبرها متجر (سيتم حل المؤسسة عبر الدومين)
         if (isCustomDomain) {
+          console.log('🏪 StoreRouter: نطاق مخصص - عرض المتجر', { hostname });
           try {
-            localStorage.removeItem('bazaar_current_subdomain');
-          } catch {}
+            // حفظ النطاق كاملاً للنطاقات المخصصة
+            localStorage.setItem('bazaar_current_subdomain', hostname);
+            console.log('💾 StoreRouter: حفظ النطاق المخصص', { hostname });
+          } catch (e) {
+            console.warn('⚠️ StoreRouter: خطأ في حفظ النطاق المخصص', e);
+          }
           setIsStore(true);
           setIsLoading(false);
+          domainChecked.current = true;
           return;
         }
         
         // إذا لم نجد أي متجر، عرض صفحة الهبوط
+        console.log('🏠 StoreRouter: نطاق غير محدد - عرض صفحة الهبوط');
         setIsStore(false);
         setIsLoading(false);
-
+        domainChecked.current = true;
       } catch (error) {
-        setError(`خطأ في تحميل المتجر: ${(error as Error).message}`);
+        console.error('❌ StoreRouter: خطأ في فحص النطاق', error);
+        setError(`خطأ في فحص النطاق: ${error instanceof Error ? error.message : 'خطأ غير معروف'}`);
         setIsLoading(false);
+        domainChecked.current = true;
       }
     };
-    
+
+    // بدء فحص النطاق
     checkDomain();
-  }, [hostname, subdomain, isSubdomainStore, retryCount]); // إضافة retryCount كـ dependency
-  
-  // إذا كان هناك خطأ وأزرار إعادة المحاولة
-  if (error && !isLoading) {
+  }, [hostname, subdomain, isSubdomainStore, isCustomDomain, earlyDomainDetection]);
+
+  // 🔥 منع التكرار: التحقق من أن المكون لم يتم تهيئته
+  if (isInitialized.current && renderCount.current > 1) {
+    return null;
+  }
+
+  // 🔥 تحسين: إذا كان هناك كشف مبكر للنطاق، اعرض المتجر مباشرة
+  if (earlyDomainDetection.isEarlyDetected) {
+    return (
+      <OptimizedStoreLoader 
+        subdomain={earlyDomainDetection.earlySubdomain || undefined}
+        hostname={hostname}
+      />
+    );
+  }
+
+  // عرض شاشة الخطأ
+  if (error) {
+    console.log('❌ StoreRouter: عرض شاشة الخطأ', { error });
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center bg-gradient-to-br from-red-50 to-orange-50">
         <div className="max-w-2xl mx-auto bg-white rounded-lg shadow-lg p-8">
@@ -184,6 +362,8 @@ const StoreRouter = () => {
               <div><strong>محاولات إعادة المحاولة:</strong> {retryCount + 1}</div>
               <div><strong>معرف المؤسسة المخزن:</strong> {localStorage.getItem('bazaar_organization_id') || 'غير موجود'}</div>
               <div><strong>النطاق الفرعي المخزن:</strong> {localStorage.getItem('bazaar_current_subdomain') || 'غير موجود'}</div>
+              <div><strong>الكشف المبكر للنطاق:</strong> {earlyDomainDetection.isEarlyDetected ? 'نعم' : 'لا'}</div>
+              <div><strong>النطاق الفرعي المبكر:</strong> {earlyDomainDetection.earlySubdomain || 'غير موجود'}</div>
             </div>
           </div>
           
@@ -209,6 +389,7 @@ const StoreRouter = () => {
             <button 
               onClick={() => {
                 localStorage.clear();
+                sessionStorage.clear();
                 window.location.reload();
               }}
               className="w-full inline-flex items-center justify-center px-6 py-3 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors"
@@ -219,6 +400,15 @@ const StoreRouter = () => {
             {process.env.NODE_ENV === 'development' && (
               <button 
                 onClick={() => {
+                  console.log('🐛 StoreRouter: معلومات التشخيص', {
+                    hostname,
+                    subdomain,
+                    isSubdomainStore,
+                    isCustomDomain,
+                    earlyDomainDetection,
+                    localStorage: Object.keys(localStorage),
+                    sessionStorage: Object.keys(sessionStorage)
+                  });
                 }}
                 className="w-full inline-flex items-center justify-center px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
               >
@@ -234,26 +424,40 @@ const StoreRouter = () => {
   
   // لا نعرض صفحة الهبوط إذا كان هناك نطاق فرعي أو نطاق مخصص حتى لو كان isLoading
   if (isLoading) {
-    // إذا كان متجر، نعرض StorePage مباشرة لتتولى عرض المحتوى عند الانتهاء
+    console.log('⏳ StoreRouter: جاري التحميل', { 
+      isSubdomainStore, 
+      isCustomDomain, 
+      isLoading 
+    });
+    
+    // 🔥 إذا كان متجر، نعرض StorePage مباشرة لتتولى عرض المحتوى عند الانتهاء
     if (isSubdomainStore || isCustomDomain) {
+      console.log('🏪 StoreRouter: عرض StorePage أثناء التحميل');
       return <StorePage />;
     }
     
     // للنطاقات الأخرى، نعتمد على مؤشر التحميل المركزي
+    console.log('⏳ StoreRouter: انتظار مؤشر التحميل المركزي');
     return null;
   }
   
+  // 🔥 إذا كان متجر، اعرض StorePage
   if (isStore === true) {
+    console.log('🏪 StoreRouter: عرض StorePage - متجر محدد');
     return <StorePage />;
   }
   
-  // لا نعرض صفحة الهبوط إذا كان هناك نطاق فرعي وما زلنا نحمل
+  // 🔥 لا نعرض صفحة الهبوط إذا كان هناك نطاق فرعي وما زلنا نحمل
   if (isSubdomainStore && isLoading) {
+    console.log('🏪 StoreRouter: عرض StorePage - نطاق فرعي مع تحميل');
     return <StorePage />;
   }
 
-  // عرض صفحة الهبوط للنطاقات العامة
+  // 🔥 عرض صفحة الهبوط للنطاقات العامة فقط
+  console.log('🏠 StoreRouter: عرض LandingPage - نطاق عام');
   return <LandingPage />;
-};
+});
+
+StoreRouter.displayName = 'StoreRouter';
 
 export default StoreRouter;

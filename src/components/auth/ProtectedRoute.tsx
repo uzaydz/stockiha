@@ -27,9 +27,10 @@ const ProtectedRoute = ({
   allowedRoles, 
   redirectBasedOnRole = false 
 }: ProtectedRouteProps) => {
-  const { user, userProfile, isLoading } = useAuth();
+  const { user, userProfile, isLoading, authReady } = useAuth();
   const location = useLocation();
   const [hasWaited, setHasWaited] = useState(false);
+  const [profileWaitTime, setProfileWaitTime] = useState(0);
   
   // معرفة ما إذا كانت هذه زيارة مباشرة (refresh أو URL مباشر)
   const isDirectVisit = !location.state || performance.navigation.type === 1;
@@ -42,10 +43,23 @@ const ProtectedRoute = ({
   useEffect(() => {
     const timer = setTimeout(() => {
       setHasWaited(true);
-    }, 300); // انتظار أطول قليلاً لضمان تحميل البيانات المحفوظة
+    }, 0); // ✅ إزالة التأخير لحل مشكلة عرض المتجر
 
     return () => clearTimeout(timer);
   }, []);
+
+  // تتبع وقت انتظار userProfile
+  useEffect(() => {
+    if (user && !userProfile && !isLoading) {
+      const timer = setInterval(() => {
+        setProfileWaitTime(prev => prev + 1000);
+      }, 1000);
+
+      return () => clearInterval(timer);
+    } else {
+      setProfileWaitTime(0);
+    }
+  }, [user, userProfile, isLoading]);
 
   // عرض شاشة التحميل فقط إذا كان isLoading صحيح وانتظرنا قليلاً
   if (isLoading && hasWaited) {
@@ -57,11 +71,86 @@ const ProtectedRoute = ({
     return null;
   }
 
-  // إذا انتهى التحميل ولم يكن هناك مستخدم، إعادة توجيه لتسجيل الدخول
-  if (!isLoading && (!user || !userProfile)) {
+  // إذا AuthContext ليس جاهزاً بعد، أظهر شاشة انتظار
+  if (!authReady) {
+    if (import.meta.env.DEV) {
+    }
+    return <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <p className="text-gray-600">جاري التحقق من حالة تسجيل الدخول...</p>
+      </div>
+    </div>;
+  }
+
+  // الآن فقط، إذا كان AuthContext جاهزاً ولم يكن هناك مستخدم، إعادة توجيه لتسجيل الدخول
+  if (authReady && !user) {
     if (import.meta.env.DEV) {
     }
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // إذا كان هناك مستخدم لكن لا يوجد userProfile بعد، أظهر شاشة تحميل أو أعد التوجيه
+  if (authReady && user && !userProfile) {
+    // تحقق من وجود بيانات محفوظة أولاً
+    const savedUserData = localStorage.getItem('user_data_cache');
+    const savedOrgData = localStorage.getItem('current_organization');
+    
+    if (savedUserData && savedOrgData) {
+      try {
+        const userData = JSON.parse(savedUserData);
+        const orgData = JSON.parse(savedOrgData);
+        
+        // إذا كانت البيانات متاحة ومحدثة، لا تنتظر كثيراً
+        const now = Date.now();
+        const userDataAge = now - (userData.timestamp || 0);
+        
+        if (userDataAge < 60000 && userData.data?.id && orgData?.id) {
+          // البيانات متاحة، انتظار أقل
+          if (profileWaitTime < 3000) {
+            if (import.meta.env.DEV) {
+            }
+            return <div className="min-h-screen flex items-center justify-center">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <p className="text-gray-600 text-lg font-medium">جاري تحميل البيانات...</p>
+                <p className="text-gray-500 text-sm mt-2">البيانات محفوظة، تحميل سريع...</p>
+              </div>
+            </div>;
+          }
+        }
+      } catch (error) {
+        // خطأ في قراءة البيانات المحفوظة
+      }
+    }
+    
+    // انتظار عادي إذا لم تكن البيانات محفوظة
+    if (profileWaitTime < 12000) {
+      if (import.meta.env.DEV) {
+      }
+      return <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 text-lg font-medium">جاري تحميل بيانات المستخدم...</p>
+          <p className="text-gray-500 text-sm mt-2">({Math.floor(profileWaitTime/1000)}s)</p>
+          {profileWaitTime > 5000 && (
+            <p className="text-orange-500 text-sm mt-2">
+              يرجى الانتظار، جاري تحميل البيانات...
+            </p>
+          )}
+          {profileWaitTime > 8000 && (
+            <p className="text-red-500 text-sm mt-2">
+              يبدو أن هناك مشكلة في الاتصال...
+            </p>
+          )}
+        </div>
+      </div>;
+    } else {
+      // بعد 12 ثانية، أعد التوجيه لتسجيل الدخول
+      if (import.meta.env.DEV) {
+      }
+      return <Navigate to="/login" state={{ from: location }} replace />;
+    }
   }
 
   // التحقق من الأدوار المسموحة
@@ -79,7 +168,7 @@ const ProtectedRoute = ({
         case 'owner':
           return <Navigate to="/dashboard" replace />;
         case 'employee':
-          return <Navigate to="/pos" replace />;
+          return <Navigate to="/dashboard" replace />;
         case 'customer':
           return <Navigate to="/shop" replace />;
         default:
@@ -123,7 +212,7 @@ const ProtectedRoute = ({
         case 'owner':
           return <Navigate to="/dashboard" replace />;
         case 'employee':
-          return <Navigate to="/pos" replace />;
+          return <Navigate to="/dashboard" replace />;
         case 'customer':
           return <Navigate to="/shop" replace />;
         default:

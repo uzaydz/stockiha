@@ -1,10 +1,4 @@
 import { supabase } from '@/lib/supabase';
-import { 
-  supabaseAdmin, 
-  createAdminRequest, 
-  executeAdminQuery, 
-  executeAdminRPC 
-} from '@/lib/supabase-admin';
 import { TenantRegistrationData } from './tenant-types';
 import { createOrganizationFinal, diagnoseFinalRegistration, quickFixUser } from './organization-creation-final';
 import { checkSubdomainAvailabilityWithRetry, findSimilarSubdomains } from './subdomain';
@@ -31,7 +25,7 @@ export const continueWithOrganization = async (
     // إنشاء سجل اشتراك تجريبي إذا تم العثور على خطة تجريبية
     if (trialPlan) {
       try {
-        const { error: subError } = await supabaseAdmin
+        const { error: subError } = await supabase
           .from('organization_subscriptions')
           .insert({
             organization_id: organizationId,
@@ -79,7 +73,7 @@ export const continueWithOrganization = async (
     };
 
     // استخدام upsert بدلاً من insert لتجنب الأخطاء
-    const { error: userError } = await supabaseAdmin
+    const { error: userError } = await supabase
       .from('users')
       .upsert(userData, { onConflict: 'id' });
 
@@ -121,11 +115,17 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
     
     // التحقق من توفر النطاق الفرعي باستخدام الوظيفة المحسنة
     const subdomainCheck = await checkSubdomainAvailabilityWithRetry(cleanSubdomain);
+    if (process.env.NODE_ENV === 'development') {
+    }
     
     if (!subdomainCheck.available) {
       
-      // إجراء تشخيص مفصل للمشكلة
-      const diagnostics = await diagnoseFinalRegistration('', cleanSubdomain);
+      // إجراء تشخيص مفصل للمشكلة (تسجيل فقط في التطوير)
+      if (process.env.NODE_ENV === 'development') {
+        try {
+          const diagnostics = await diagnoseFinalRegistration(undefined as any, cleanSubdomain);
+        } catch {}
+      }
       
       // البحث عن نطاقات بديلة
       try {
@@ -139,10 +139,10 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
       };
     }
 
-    // 1. إنشاء المستخدم في نظام المصادقة (استخدام العميل العادي فقط)
+    // 1. إنشاء المستخدم في نظام المصادقة (استخدام كلمة المرور المُدخلة)
     const { data: authData, error: authError } = await supabase.auth.signUp({
       email: data.email,
-      password: generateSecurePassword(),
+      password: data.password,
       options: {
         data: {
           name: data.name,
@@ -167,17 +167,14 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
     }
 
     // 2. البحث عن خطة التجربة المجانية باستخدام API مباشر
-    const trialPlanResult = await executeAdminQuery('subscription_plans', {
-      action: 'select',
-      filters: {
-        code: 'trial',
-        is_active: true
-      }
-    });
+    const { data: trialPlanData, error: trialPlanError } = await supabase
+      .from('subscription_plans')
+      .select('*')
+      .eq('code', 'trial')
+      .eq('is_active', true)
+      .single();
 
-    const trialPlan = trialPlanResult.data && Array.isArray(trialPlanResult.data) && trialPlanResult.data.length > 0 
-      ? trialPlanResult.data[0] 
-      : null;
+    const trialPlan = trialPlanData;
 
     if (!trialPlan) {
     }
@@ -234,17 +231,15 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
       
       try {
         // أولاً: التحقق من وجود اشتراك موجود بالفعل
-        const existingSubscriptionResult = await executeAdminQuery('organization_subscriptions', {
-          action: 'select',
-          filters: {
-            organization_id: organizationResult.organizationId,
-            status: 'trial'
-          },
-          columns: 'id'
-        });
+        const { data: existingSubscriptionData, error: existingSubscriptionError } = await supabase
+          .from('organization_subscriptions')
+          .select('id')
+          .eq('organization_id', organizationResult.organizationId)
+          .eq('status', 'trial')
+          .maybeSingle();
 
-        if (existingSubscriptionResult.data && Array.isArray(existingSubscriptionResult.data) && existingSubscriptionResult.data.length > 0) {
-          subscriptionId = existingSubscriptionResult.data[0].id;
+        if (existingSubscriptionData) {
+          subscriptionId = existingSubscriptionData.id;
         } else {
           // إنشاء اشتراك تجريبي جديد
           const subscriptionData = {
@@ -260,21 +255,14 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
             created_at: new Date().toISOString()
           };
 
-          const subscriptionResult = await executeAdminQuery('organization_subscriptions', {
-            action: 'insert',
-            data: subscriptionData,
-            columns: 'id'
-          });
+          const { data: subscriptionDataResult, error: subscriptionError } = await supabase
+            .from('organization_subscriptions')
+            .insert(subscriptionData)
+            .select('id')
+            .single();
 
-          if (subscriptionResult.error) {
-          } else if (subscriptionResult.data) {
-            // معالجة أفضل لأنواع الاستجابات المختلفة
-            if (Array.isArray(subscriptionResult.data) && subscriptionResult.data.length > 0) {
-              subscriptionId = subscriptionResult.data[0].id;
-            } else if (subscriptionResult.data && typeof subscriptionResult.data === 'object' && subscriptionResult.data.id) {
-              subscriptionId = subscriptionResult.data.id;
-            } else {
-            }
+          if (subscriptionDataResult) {
+            subscriptionId = subscriptionDataResult.id;
           }
         }
       } catch (subscriptionError) {
@@ -284,26 +272,26 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
 
     // 6. ربط المستخدم بالمؤسسة في جدول users
     try {
-      const userLinkResult = await executeAdminQuery('users', {
-        action: 'upsert',
-        data: {
+      const { error: userLinkError } = await supabase
+        .from('users')
+        .upsert({
           id: authData.user.id,
-          auth_user_id: authData.user.id,
           email: data.email,
           name: data.name || 'مستخدم جديد',
-          organization_id: organizationResult.organizationId,
+          phone: data.phone || null,
           role: 'admin',
-          is_org_admin: true,
           is_active: true,
+          organization_id: organizationResult.organizationId,
+          is_org_admin: true,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
-        }
-      });
+        }, { onConflict: 'id' });
 
-      if (userLinkResult.error) {
-      } else {
+      if (userLinkError) {
+        return { success: false, error: userLinkError.message };
       }
-    } catch (linkError) {
+    } catch (userLinkError) {
+      return { success: false, error: 'فشل في ربط المستخدم بالمؤسسة' };
     }
 
     // 7. تحديث التخزين المحلي وإجبار TenantContext على التحديث
@@ -344,15 +332,5 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
   }
 };
 
-/**
- * توليد كلمة مرور آمنة
- */
-function generateSecurePassword(): string {
-  const length = 16;
-  const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
-  let password = "";
-  for (let i = 0; i < length; i++) {
-    password += charset.charAt(Math.floor(Math.random() * charset.length));
-  }
-  return password;
-}
+// ملاحظة: كان يتم توليد كلمة مرور عشوائية سابقًا،
+// تم استبدال ذلك باستخدام كلمة المرور التي يُدخلها المستخدم لضمان توقعات المستخدم.

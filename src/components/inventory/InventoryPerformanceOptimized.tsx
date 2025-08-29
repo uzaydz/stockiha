@@ -50,7 +50,6 @@ import { inventoryCache, cacheKeys } from '@/lib/cache/advanced-cache-system';
 import { useDebounce } from '@/hooks/useDebounce';
 import ProductInventoryDetails from './ProductInventoryDetails';
 import { toast } from 'sonner';
-import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 // Types
 interface InventoryFilters {
@@ -73,12 +72,14 @@ interface InventoryPerformanceOptimizedProps {
   onProductSelect?: (productId: string) => void;
   showActions?: boolean;
   initialSearchTerm?: string;
+  canEdit?: boolean; // إضافة prop جديد للصلاحيات
 }
 
 const InventoryPerformanceOptimized: React.FC<InventoryPerformanceOptimizedProps> = ({
   onProductSelect,
   showActions = true,
-  initialSearchTerm = ''
+  initialSearchTerm = '',
+  canEdit = true // Default to true if not provided
 }) => {
   // Auth state
   const { organizationId, isLoading: authLoading } = useOptimizedAuth();
@@ -98,8 +99,8 @@ const InventoryPerformanceOptimized: React.FC<InventoryPerformanceOptimizedProps
     pageSize: 50
   });
 
-  // Debounced search query
-  const debouncedSearchQuery = useDebounce(filters.searchQuery, 500);
+  // Debounced search query - زيادة من 500ms إلى 1000ms
+  const debouncedSearchQuery = useDebounce(filters.searchQuery, 1000);
 
   // Performance metrics
   const [performanceMetrics, setPerformanceMetrics] = useState<PerformanceMetrics>({
@@ -109,7 +110,7 @@ const InventoryPerformanceOptimized: React.FC<InventoryPerformanceOptimizedProps
     throttledRequests: 0
   });
 
-  // Memoized filters for API calls
+  // Memoized filters for API calls - محسن
   const optimizedFilters = useMemo(() => ({
     ...filters,
     searchQuery: debouncedSearchQuery
@@ -130,7 +131,7 @@ const InventoryPerformanceOptimized: React.FC<InventoryPerformanceOptimizedProps
     refetch: refetchProducts 
   } = useOptimizedInventoryProducts(optimizedFilters);
 
-  // Update performance metrics
+  // Update performance metrics - محسن
   useEffect(() => {
     const updateMetrics = () => {
       const cacheStats = inventoryCache.getStats();
@@ -141,11 +142,12 @@ const InventoryPerformanceOptimized: React.FC<InventoryPerformanceOptimizedProps
       }));
     };
 
-    const interval = setInterval(updateMetrics, 2000);
+    // تحديث أقل تكراراً
+    const interval = setInterval(updateMetrics, 10000); // زيادة من 5000ms إلى 10000ms
     return () => clearInterval(interval);
   }, []);
 
-  // Handlers
+  // Handlers - محسنة مع useCallback
   const handleFilterChange = useCallback((newFilters: Partial<InventoryFilters>) => {
     setFilters(prev => ({ ...prev, ...newFilters, page: 1 }));
   }, []);
@@ -155,9 +157,12 @@ const InventoryPerformanceOptimized: React.FC<InventoryPerformanceOptimizedProps
   }, []);
 
   const handleClearCache = useCallback(() => {
-    optimizedInventoryAPI.clearInventoryCache(organizationId || undefined);
-    refetchStats();
-    refetchProducts();
+    if (organizationId) {
+      optimizedInventoryAPI.clearInventoryCache(organizationId);
+      refetchStats();
+      refetchProducts();
+      toast.success('تم مسح Cache بنجاح');
+    }
   }, [organizationId, refetchStats, refetchProducts]);
 
   // Handlers for product actions
@@ -215,7 +220,8 @@ const InventoryPerformanceOptimized: React.FC<InventoryPerformanceOptimizedProps
     }
   }, []);
 
-  const getStockStatusColor = useCallback((status: string) => {
+  // Memoized utility functions
+  const getStockStatusColor = useMemo(() => (status: string) => {
     switch (status) {
       case 'in-stock': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300';
       case 'low-stock': return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300';
@@ -224,7 +230,7 @@ const InventoryPerformanceOptimized: React.FC<InventoryPerformanceOptimizedProps
     }
   }, []);
 
-  const getStockStatusIcon = useCallback((status: string) => {
+  const getStockStatusIcon = useMemo(() => (status: string) => {
     switch (status) {
       case 'in-stock': return <TrendingUp className="w-3 h-3" />;
       case 'low-stock': return <AlertCircle className="w-3 h-3" />;
@@ -232,6 +238,115 @@ const InventoryPerformanceOptimized: React.FC<InventoryPerformanceOptimizedProps
       default: return <Package className="w-3 h-3" />;
     }
   }, []);
+
+  // Memoized table rows
+  const tableRows = useMemo(() => {
+    if (!products) return [];
+    
+    return products.map((product) => (
+      <TableRow key={product.id}>
+        <TableCell>
+          <Checkbox
+            checked={selectedProducts.has(product.id)}
+            onCheckedChange={(checked) => handleProductSelect(product.id, !!checked)}
+            aria-label={`تحديد ${product.name}`}
+          />
+        </TableCell>
+        <TableCell>
+          <div className="flex items-center gap-3">
+            {product.thumbnail_image && (
+              <img
+                src={product.thumbnail_image}
+                alt={product.name}
+                className="w-10 h-10 rounded object-cover"
+                loading="lazy"
+              />
+            )}
+            <div>
+              <p className="font-medium">{product.name}</p>
+              {product.has_variants && (
+                <Badge variant="secondary" className="text-xs mt-1">
+                  {product.variant_count} متغير
+                </Badge>
+              )}
+            </div>
+          </div>
+        </TableCell>
+        <TableCell className="font-mono text-sm">{product.sku}</TableCell>
+        <TableCell>
+          <div className="text-center">
+            <span className="font-bold">{product.stock_quantity}</span>
+            {product.has_variants && (
+              <p className="text-xs text-muted-foreground">
+                إجمالي: {product.total_variant_stock}
+              </p>
+            )}
+          </div>
+        </TableCell>
+        <TableCell>{product.price} د.ج</TableCell>
+        <TableCell>
+          <Badge 
+            className={`text-xs ${getStockStatusColor(product.stock_status)}`}
+          >
+            {getStockStatusIcon(product.stock_status)}
+            <span className="mr-1">
+              {product.stock_status === 'in-stock' && 'متوفر'}
+              {product.stock_status === 'low-stock' && 'منخفض'}
+              {product.stock_status === 'out-of-stock' && 'نفذ'}
+            </span>
+          </Badge>
+        </TableCell>
+        <TableCell className="text-sm">
+          {product.days_since_last_update} يوم
+        </TableCell>
+        <TableCell>
+          {showActions && (
+            <div className="flex gap-1">
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => handleViewProductDetails(product.id)}
+                title="عرض التفاصيل"
+              >
+                <Eye className="w-3 h-3" />
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={() => handleEditProduct(product.id)}
+                title="تعديل المنتج"
+              >
+                <Edit className="w-3 h-3" />
+              </Button>
+              
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" title="خيارات إضافية">
+                    <MoreHorizontal className="w-3 h-3" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={() => handleViewProductDetails(product.id)}>
+                    <ExternalLink className="w-4 h-4 mr-2" />
+                    فتح في صفحة جديدة
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => handleCopySKU(product.sku)}>
+                    <Package className="w-4 h-4 mr-2" />
+                    نسخ SKU
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem className="text-red-600 focus:text-red-600">
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    حذف المنتج
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          )}
+        </TableCell>
+      </TableRow>
+    ));
+  }, [products, selectedProducts, handleProductSelect, getStockStatusColor, getStockStatusIcon, handleViewProductDetails, handleEditProduct, handleCopySKU, showActions]);
 
   // Loading state
   if (authLoading) {
@@ -470,108 +585,7 @@ const InventoryPerformanceOptimized: React.FC<InventoryPerformanceOptimizedProps
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {products?.map((product) => (
-                  <TableRow key={product.id}>
-                    <TableCell>
-                      <Checkbox
-                        checked={selectedProducts.has(product.id)}
-                        onCheckedChange={(checked) => handleProductSelect(product.id, !!checked)}
-                        aria-label={`تحديد ${product.name}`}
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        {product.thumbnail_image && (
-                          <img
-                            src={product.thumbnail_image}
-                            alt={product.name}
-                            className="w-10 h-10 rounded object-cover"
-                          />
-                        )}
-                        <div>
-                          <p className="font-medium">{product.name}</p>
-                          {product.has_variants && (
-                            <Badge variant="secondary" className="text-xs mt-1">
-                              {product.variant_count} متغير
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="font-mono text-sm">{product.sku}</TableCell>
-                    <TableCell>
-                      <div className="text-center">
-                        <span className="font-bold">{product.stock_quantity}</span>
-                        {product.has_variants && (
-                          <p className="text-xs text-muted-foreground">
-                            إجمالي: {product.total_variant_stock}
-                          </p>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>{product.price} د.ج</TableCell>
-                    <TableCell>
-                      <Badge 
-                        className={`text-xs ${getStockStatusColor(product.stock_status)}`}
-                      >
-                        {getStockStatusIcon(product.stock_status)}
-                        <span className="mr-1">
-                          {product.stock_status === 'in-stock' && 'متوفر'}
-                          {product.stock_status === 'low-stock' && 'منخفض'}
-                          {product.stock_status === 'out-of-stock' && 'نفذ'}
-                        </span>
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {product.days_since_last_update} يوم
-                    </TableCell>
-                    <TableCell>
-                      {showActions && (
-                        <div className="flex gap-1">
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleViewProductDetails(product.id)}
-                            title="عرض التفاصيل"
-                          >
-                            <Eye className="w-3 h-3" />
-                          </Button>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => handleEditProduct(product.id)}
-                            title="تعديل المنتج"
-                          >
-                            <Edit className="w-3 h-3" />
-                          </Button>
-                          
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm" title="خيارات إضافية">
-                                <MoreHorizontal className="w-3 h-3" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-48">
-                              <DropdownMenuItem onClick={() => handleViewProductDetails(product.id)}>
-                                <ExternalLink className="w-4 h-4 mr-2" />
-                                فتح في صفحة جديدة
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleCopySKU(product.sku)}>
-                                <Package className="w-4 h-4 mr-2" />
-                                نسخ SKU
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem className="text-red-600 focus:text-red-600">
-                                <Trash2 className="w-4 h-4 mr-2" />
-                                حذف المنتج
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {tableRows}
               </TableBody>
             </Table>
           )}
@@ -623,6 +637,7 @@ const InventoryPerformanceOptimized: React.FC<InventoryPerformanceOptimizedProps
           productId={showProductDetails}
           onClose={handleCloseProductDetails}
           showInModal={true}
+          canEdit={canEdit}
         />
       )}
 
@@ -632,10 +647,17 @@ const InventoryPerformanceOptimized: React.FC<InventoryPerformanceOptimizedProps
           productId={selectedProductForEdit}
           onClose={handleCloseProductEdit}
           showInModal={true}
+          canEdit={canEdit}
         />
       )}
     </div>
   );
 };
 
-export default InventoryPerformanceOptimized;
+// استخدام React.memo لتحسين الأداء
+export default React.memo(InventoryPerformanceOptimized, (prevProps, nextProps) => {
+  return (
+    prevProps.showActions === nextProps.showActions &&
+    prevProps.initialSearchTerm === nextProps.initialSearchTerm
+  );
+});

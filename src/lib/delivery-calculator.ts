@@ -227,9 +227,14 @@ export async function calculateDeliveryFeesOptimized(
       }
       
       // تحديد شركة التوصيل بناءً على معلومات المنتج
-      const providerCode = input.productShippingInfo.type === 'clone' 
+      let providerCode = input.productShippingInfo.type === 'clone' 
         ? input.productShippingInfo.original_provider?.toLowerCase()
         : input.productShippingInfo.code?.toLowerCase();
+      
+      // 🆕 إذا كان shippingProvider.type محدد، نستخدمه كأولوية
+      if (input.shippingProvider?.type && input.shippingProvider.type !== 'yalidine') {
+        providerCode = input.shippingProvider.type.toLowerCase();
+      }
 
       // استدعاء النظام المناسب حسب شركة التوصيل
       if (providerCode === 'yalidine') {

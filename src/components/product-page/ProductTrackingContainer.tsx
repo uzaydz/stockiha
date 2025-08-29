@@ -26,6 +26,34 @@ export const ProductTrackingContainer = forwardRef<any, ProductTrackingContainer
   onTrackingError
 }, ref) => {
   const conversionTrackerRef = React.useRef<any>(null);
+  const [shouldLoadPixels, setShouldLoadPixels] = React.useState(false);
+
+  // تأجيل تحميل سكربتات التتبع لما بعد أول رسم أو خمول المتصفح
+  React.useEffect(() => {
+    let idleId: number | null = null;
+    const enable = () => setShouldLoadPixels(true);
+    // @ts-ignore requestIdleCallback قد لا تكون معرفة
+    if (typeof window !== 'undefined' && (window as any).requestIdleCallback) {
+      // @ts-ignore
+      idleId = (window as any).requestIdleCallback(enable, { timeout: 2000 });
+    } else {
+      const t = setTimeout(enable, 1200);
+      return () => clearTimeout(t);
+    }
+    return () => {
+      if (idleId) {
+        // @ts-ignore
+        (window as any).cancelIdleCallback?.(idleId);
+      }
+    };
+  }, []);
+
+  const pixelSettings = productTracking?.settings;
+  const hasAnyPixelEnabled = !!(
+    pixelSettings?.facebook?.enabled ||
+    pixelSettings?.google?.enabled ||
+    pixelSettings?.tiktok?.enabled
+  );
 
   // Expose conversion tracker methods to parent
   useImperativeHandle(ref, () => ({
@@ -39,18 +67,16 @@ export const ProductTrackingContainer = forwardRef<any, ProductTrackingContainer
 
   return (
     <>
-      {/* تحميل البكسلات */}
-      <EnhancedPixelLoader
-        productId={productId}
-        organizationId={organizationId}
-        settings={productTracking?.settings || undefined}
-        onPixelsLoaded={(loadedPixels) => {
-          // معالجة البكسلات المحملة
-        }}
-        onPixelError={(platform, error) => {
-          // معالجة أخطاء البكسل
-        }}
-      />
+      {/* تحميل البكسلات (مؤجل) */}
+      {shouldLoadPixels && hasAnyPixelEnabled && (
+        <EnhancedPixelLoader
+          productId={productId}
+          organizationId={organizationId}
+          settings={pixelSettings}
+          onPixelsLoaded={() => {}}
+          onPixelError={() => {}}
+        />
+      )}
       
       {/* متتبع التحويل */}
       <ProductConversionTracker
@@ -70,4 +96,3 @@ export const ProductTrackingContainer = forwardRef<any, ProductTrackingContainer
 });
 
 ProductTrackingContainer.displayName = 'ProductTrackingContainer';
-

@@ -74,6 +74,7 @@ export interface OrganizationSettings {
   display_text_with_logo: boolean | null;
   enable_public_site: boolean | null;
   enable_registration: boolean | null;
+  merchant_type?: 'traditional' | 'ecommerce' | 'both' | null;
   created_at: string | null;
   updated_at: string | null;
 }
@@ -126,16 +127,26 @@ let lastLoadedData: StoreInitializationData | null = null;
 let pendingPromise: Promise<{ data: StoreInitializationData | null; isLoading: boolean }> | null = null;
 
 /**
- * جلب بيانات المتجر الأولية عبر دالة RPC
+ * جلب بيانات المتجر الأولية عبر دالة RPC - محسن للسرعة
  */
 async function fetchStoreInitializationDataViaRpc(subdomain: string): Promise<StoreInitializationData | null> {
   try {
+    const startTime = performance.now();
     
-    // @ts-ignore supabase-next-line <<< تمت الإضافة لتجاوز خطأ النوع مؤقتًا. لا يزال rpc بحاجة إلى تحسينات في النوع.
-    const { data, error: rpcError } = await supabase.rpc('get_store_init_data', {
-      org_subdomain: subdomain,
+    // تحسين: timeout أقصر (2 ثانية) لتسريع الاستجابة
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error('RPC timeout after 2 seconds')), 2000)
+    );
+    
+    const rpcPromise = supabase.rpc('get_store_init_data', {
+      org_identifier: subdomain,
     });
-
+    
+    // استخدام Promise.race للتنافس بين RPC و timeout
+    const { data, error: rpcError } = await Promise.race([rpcPromise, timeoutPromise]) as any;
+    
+    const executionTime = performance.now() - startTime;
+    
     if (rpcError) {
       return { 
         error: rpcError.message, 
@@ -164,9 +175,7 @@ async function fetchStoreInitializationDataViaRpc(subdomain: string): Promise<St
     }
 
     // data يمكن أن يكون أي Json هنا. نحتاج للتحقق إذا كان يحتوي على خطأ من داخل دالة RPC
-    if (typeof data === 'object' && data !== null && 'error' in data && typeof data.error === 'string') {
-      // إذا كانت الدالة في قاعدة البيانات تُرجع فقط { error: "..." }
-      // نحتاج لضمان أن الكائن المرجع يطابق StoreInitializationData
+    if (data.error) {
       return { 
         error: data.error, 
         organization_details: null, 
@@ -179,13 +188,10 @@ async function fetchStoreInitializationDataViaRpc(subdomain: string): Promise<St
       };
     }
 
-    // استخدام الوظيفة المبسطة الجديدة
     return validateAndReturnStoreData(data);
-
-  } catch (e: any) {
-    
+  } catch (error) {
     return { 
-      error: e.message || 'خطأ غير متوقع أثناء جلب بيانات المتجر', 
+      error: (error as Error).message, 
       organization_details: null, 
       organization_settings: null, 
       categories: [], 

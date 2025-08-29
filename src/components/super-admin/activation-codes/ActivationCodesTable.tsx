@@ -34,17 +34,20 @@ import {
   MoreHorizontal, 
   RefreshCw,
   X,
-  XCircle
+  XCircle,
+  GraduationCap,
+  Crown,
+  Zap
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { 
   ActivationCode, 
   ActivationCodeStatus, 
-  UpdateActivationCodeDto 
+  UpdateActivationCodeDto,
+  CoursesAccessType
 } from '@/types/activation';
 import { ActivationService } from '@/lib/activation-service';
 import { useToast } from '@/components/ui/use-toast';
-import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 interface Props {
   codes: ActivationCode[];

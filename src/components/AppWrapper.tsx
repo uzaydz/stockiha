@@ -1,10 +1,11 @@
 /**
- * مكون AppWrapper مُبسط - يضمن تحميل جميع البيانات قبل عرض المحتوى
+ * مكون AppWrapper مُحسن - يضمن تحميل جميع البيانات قبل عرض المحتوى
  */
 
 import React, { useEffect, useState, useRef } from 'react';
 import { getAppInitData, isAppInitDataValid, initializeApp } from '@/lib/appInitializer';
 import { useGlobalLoading } from '@/components/store/GlobalLoadingManager';
+import { useUser } from '@/context/UserContext';
 
 interface AppWrapperProps {
   children: React.ReactNode;
@@ -32,186 +33,184 @@ const ErrorScreen: React.FC<{ onRetry: () => void }> = ({ onRetry }) => (
 );
 
 const AppWrapper: React.FC<AppWrapperProps> = ({ children }) => {
+  console.log('🚀 AppWrapper: بدء التهيئة');
+  
   const [isReady, setIsReady] = useState(false);
   const [hasError, setHasError] = useState(false);
-  const isInitializedRef = useRef(false);
+  const [isInitializing, setIsInitializing] = useState(false);
   const mountedRef = useRef(true);
   const retryCountRef = useRef(0);
-  const maxRetries = 3; // عدد المحاولات القصوى
+  const maxRetries = 3;
+  const initializationPromiseRef = useRef<Promise<void> | null>(null);
 
   // استخدام النظام المركزي للتحميل
-  const { showLoader, hideLoader, setPhase } = useGlobalLoading();
+  const { showLoader, hideLoader, setPhase, isLoaderVisible } = useGlobalLoading();
+  
+  // الحصول على معرف المؤسسة من UserContext
+  const { organizationId } = useUser();
 
-  const initializeData = async (isRetry = false) => {
+  // 🔥 دالة محسنة لتهيئة البيانات
+  const initializeData = async (isRetry = false, forceOrgId?: string) => {
+    console.log('🔍 AppWrapper: بدء تهيئة البيانات', {
+      isRetry,
+      retryCount: retryCountRef.current,
+      organizationId: forceOrgId || organizationId,
+      isInitializing
+    });
+
     // منع التشغيل المتكرر
-    if (isInitializedRef.current) {
+    if (isInitializing && !forceOrgId) {
+      console.log('⏭️ AppWrapper: التهيئة قيد التشغيل بالفعل');
       return;
     }
-    
+
+    // منع التشغيل المتوازي
+    if (initializationPromiseRef.current) {
+      console.log('⏭️ AppWrapper: التهيئة قيد التشغيل بالفعل (promise)');
+      return initializationPromiseRef.current;
+    }
+
     const currentRetry = isRetry ? retryCountRef.current : 0;
     if (!isRetry) {
       retryCountRef.current = 0;
     }
 
-    try {
-      setHasError(false);
-      
-      // التحقق من النطاق الحالي
-      const hostname = window.location.hostname;
-      const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.includes('localhost');
-      const subdomain = hostname.split('.')[0];
-      const hasValidSubdomain = subdomain && subdomain !== 'localhost' && subdomain !== '127';
+    // إنشاء promise جديد للتهيئة
+    initializationPromiseRef.current = (async () => {
+      try {
+        setIsInitializing(true);
+        setHasError(false);
 
-      // ✅ النطاقات الأساسية للمنصة (console/admin)
-      const platformDomains = ['stockiha.com', 'www.stockiha.com', 'ktobi.online', 'www.ktobi.online'];
-      if (platformDomains.includes(hostname)) {
-        
-        // إظهار مؤشر التحميل
-        showLoader({
-          storeName: 'سطوكيها',
-          progress: 10,
-          message: 'جاري تحضير النظام...',
-          primaryColor: '#fc5a3e'
-        });
-        setPhase('system');
-        
-        // فحص البيانات المحفوظة أولاً
-        if (isAppInitDataValid()) {
-          const savedData = getAppInitData();
-          if (savedData && mountedRef.current) {
-            isInitializedRef.current = true;
-            setIsReady(true);
-            hideLoader();
-            return;
-          }
-        }
-
-        // جلب بيانات جديدة للمنصة
-        const data = await initializeApp();
-
-        if (data && mountedRef.current) {
-          isInitializedRef.current = true;
-          setIsReady(true);
-          hideLoader();
-        } else if (mountedRef.current) {
-          isInitializedRef.current = true;
-          setIsReady(true);
-          hideLoader();
-        }
-        return;
-      }
-      
-      // ✅ التطوير المحلي مع subdomain صالح (مثل test.localhost:3000)
-      if (isLocalhost && hasValidSubdomain) {
-        
-        // نمنح StoreRouter وقتاً لإعداد البيانات
-        const waitForStoreData = async (attempt = 0): Promise<void> => {
-          const maxAttempts = 3;
-          const delay = 500;
-          
-          await new Promise(resolve => setTimeout(resolve, delay));
-          
-          const storedOrgId = localStorage.getItem('bazaar_organization_id');
-          if (storedOrgId && storedOrgId !== 'default-organization-id') {
-            return;
-          }
-          
-          if (attempt < maxAttempts) {
-            return await waitForStoreData(attempt + 1);
-          }
-        };
-        
-        await waitForStoreData();
-        isInitializedRef.current = true;
-        setIsReady(true);
-        return;
-      }
-      
-      // ✅ التطوير المحلي بدون subdomain (localhost:3000)
-      if (isLocalhost && !hasValidSubdomain) {
-        isInitializedRef.current = true;
-        setIsReady(true);
-        return;
-      }
-      
-      // 🏪 أي نطاق آخر = نطاق مخصص للمتجر (StoreRouter سيتولى الأمر)
-      
-      // انتظار StoreRouter ليحدد ما إذا كان متجراً صالحاً أم لا
-      const waitForStoreRouter = async (attempt = 0): Promise<void> => {
-        const maxAttempts = 8; // زيادة المحاولات للنطاقات المخصصة
-        const delay = 400;
-        
-        await new Promise(resolve => setTimeout(resolve, delay));
-        
-        // فحص إذا كان StoreRouter قد حمل بيانات المتجر
-        const storedOrgId = localStorage.getItem('bazaar_organization_id');
-        const storedSubdomain = localStorage.getItem('bazaar_current_subdomain');
-        
-        if ((storedOrgId && storedOrgId !== 'default-organization-id') || storedSubdomain) {
-          return;
-        }
-        
-        if (attempt < maxAttempts) {
-          return await waitForStoreRouter(attempt + 1);
-        }
-        
-      };
-      
-      await waitForStoreRouter();
-      
-      // بغض النظر عن النتيجة، نتابع ونترك StoreRouter يظهر الأخطاء إن وجدت
-      isInitializedRef.current = true;
-      setIsReady(true);
-
-    } catch (error) {
-      
-      if (mountedRef.current) {
-        // للنطاقات المخصصة والمحلية، لا نعتبر الأخطاء فادحة
+        // التحقق من النطاق الحالي
         const hostname = window.location.hostname;
         const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.includes('localhost');
-        const platformDomains = ['stockiha.com', 'www.stockiha.com', 'ktobi.online', 'www.ktobi.online'];
-        const isPlatformDomain = platformDomains.includes(hostname);
-        
-        if (isPlatformDomain) {
-          // للنطاقات الأساسية، نعرض خطأ
-          setHasError(true);
-        } else {
-          // للنطاقات المخصصة والمحلية، نتجاهل الخطأ
-          isInitializedRef.current = true;
+
+        console.log('🔍 AppWrapper: معلومات النطاق', { hostname, isLocalhost });
+
+        // ⚡ تحسين: تسريع localhost - متابعة فورية
+        if (isLocalhost) {
+          console.log('🏠 AppWrapper: localhost - متابعة فورية');
           setIsReady(true);
+          return;
         }
+
+        // ⚡ تحسين: متابعة فورية إذا كان organizationId متاحاً
+        const currentOrgId = forceOrgId || organizationId;
+        if (currentOrgId) {
+          console.log('🏢 AppWrapper: معرف المؤسسة متاح - متابعة فورية:', currentOrgId);
+          setIsReady(true);
+          return;
+        }
+
+        // 🔥 محاولة استخدام initializeApp إذا كان organizationId متاحاً
+        if (currentOrgId) {
+          console.log('🏢 AppWrapper: نطاق أساسي للمنصة - تطبيق initializeApp:', currentOrgId);
+          
+          // محاولة الحصول على البيانات المحفوظة أولاً
+          const existingData = getAppInitData();
+          if (existingData && isAppInitDataValid()) {
+            console.log('✅ AppWrapper: استخدام البيانات المحفوظة');
+            setIsReady(true);
+            return;
+          }
+          
+          // جلب البيانات الجديدة باستخدام organizationId
+          console.log('🔄 AppWrapper: جلب بيانات جديدة من initializeApp');
+          const data = await initializeApp(currentOrgId);
+          
+          if (data) {
+            console.log('✅ AppWrapper: تم جلب البيانات بنجاح:', data.organization.id);
+            setIsReady(true);
+            return;
+          } else {
+            console.log('⚠️ AppWrapper: لم يتم العثور على بيانات المؤسسة');
+          }
+        } else {
+          console.log('⏳ AppWrapper: انتظار organizationId...');
+        }
+        
+        // إذا لم نتمكن من جلب البيانات، نتابع مع البيانات الأساسية
+        console.log('🔄 AppWrapper: متابعة مع البيانات الأساسية');
+        setIsReady(true);
+
+      } catch (error) {
+        console.error('❌ AppWrapper: خطأ في تهيئة البيانات', error);
+        
+        if (mountedRef.current) {
+          const hostname = window.location.hostname;
+          const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.includes('localhost');
+          const platformDomains = ['stockiha.com', 'www.stockiha.com', 'ktobi.online', 'www.ktobi.online'];
+          const isPlatformDomain = platformDomains.includes(hostname);
+          
+          if (isPlatformDomain) {
+            console.log('❌ AppWrapper: عرض خطأ للنطاق الأساسي');
+            setHasError(true);
+          } else {
+            console.log('⚠️ AppWrapper: تجاهل الخطأ للنطاق المخصص/المحلي');
+            setIsReady(true);
+          }
+        }
+      } finally {
+        setIsInitializing(false);
+        initializationPromiseRef.current = null;
       }
-    }
+    })();
+
+    return initializationPromiseRef.current;
   };
 
   const handleRetry = () => {
-    isInitializedRef.current = false;
+    console.log('🔄 AppWrapper: إعادة المحاولة');
     retryCountRef.current = 0;
     setIsReady(false);
     setHasError(false);
-    initializeData();
+    initializeData(true);
   };
 
+  // 🔥 useEffect محسن للتهيئة الأولية
   useEffect(() => {
+    console.log('🔧 AppWrapper: useEffect mount');
     mountedRef.current = true;
+
+    // تشغيل التهيئة الأولية
     initializeData();
-    
+
     return () => {
+      console.log('🔧 AppWrapper: useEffect cleanup');
       mountedRef.current = false;
     };
   }, []); // فقط عند mount الأول
 
+  // 🔥 useEffect محسن لمراقبة organizationId
+  useEffect(() => {
+    // ⚡ تحسين: إذا كان organizationId متاحاً، تعيين setIsReady فوراً
+    if (organizationId && !isReady) {
+      console.log('🔧 AppWrapper: organizationId متاح، تعيين setIsReady فوراً:', organizationId);
+      setIsReady(true);
+      return;
+    }
+
+    // إذا لم يكن organizationId متاحاً، تشغيل التهيئة
+    if (!organizationId && !isReady && !isInitializing) {
+      console.log('🔧 AppWrapper: organizationId غير متاح، تشغيل التهيئة العامة');
+      initializeData();
+    }
+  }, [organizationId, isReady, isInitializing]);
+
   // شاشة الخطأ
   if (hasError) {
+    console.log('❌ AppWrapper: عرض شاشة الخطأ');
     return <ErrorScreen onRetry={handleRetry} />;
   }
 
   // شاشة التحميل - يتم التعامل معها بواسطة النظام المركزي
   if (!isReady) {
+    console.log('⏳ AppWrapper: انتظار جاهزية البيانات');
     return null; // النظام المركزي سيعرض مؤشر التحميل
   }
 
   // عرض المحتوى
+  console.log('✅ AppWrapper: عرض المحتوى - البيانات جاهزة');
   return <>{children}</>;
 };
 

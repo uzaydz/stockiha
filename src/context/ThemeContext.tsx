@@ -6,11 +6,18 @@ import type { OrganizationThemeMode } from '@/types/settings';
 
 type Theme = 'light' | 'dark' | 'system';
 
+interface FastThemeController {
+  applyImmediate: (theme: Theme) => void;
+  toggleFast: () => Theme;
+  getCurrentEffectiveTheme: () => Theme;
+}
+
 interface ThemeContextType {
   theme: Theme;
   setTheme: (theme: Theme) => void;
   reloadOrganizationTheme: () => Promise<void>;
   isTransitioning: boolean;
+  fastThemeController: FastThemeController;
 }
 
 interface ThemeProviderProps {
@@ -42,46 +49,102 @@ function convertThemeMode(orgMode: OrganizationThemeMode): Theme {
   }
 }
 
-// دالة تطبيق الثيم على DOM بشكل سريع وفوري
-function applyThemeToDOM(theme: Theme) {
+// دالة تطبيق الثيم بشكل فوري ومتزامن - محسنة لأقصى سرعة مع منع forced reflow
+function applyThemeImmediate(theme: Theme): void {
   const root = document.documentElement;
   const body = document.body;
-  
+
   // تحديد الثيم الفعلي
   let effectiveTheme = theme;
   if (theme === 'system') {
     effectiveTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
-  
-  // تطبيق الثيم فوراً بدون requestAnimationFrame لتجنب التأخير
-  // إزالة الفئات السابقة
+
+  // تجنب الوصول المباشر للخصائص التي تسبب reflow
+  // استخدام classList بدلاً من className لتجنب forced reflow
+
+  // إزالة الفئات القديمة
   root.classList.remove('light', 'dark');
   body.classList.remove('light', 'dark');
-  
+
   // إضافة الفئة الجديدة
   root.classList.add(effectiveTheme);
   body.classList.add(effectiveTheme);
-  
-  // تعيين data attribute
-  root.setAttribute('data-theme', effectiveTheme);
-  body.setAttribute('data-theme', effectiveTheme);
-  
-  // تحديث color-scheme فوراً
-  root.style.colorScheme = effectiveTheme;
-  body.style.colorScheme = effectiveTheme;
-  
-  // تحديث meta theme-color للمتصفحات المحمولة
-  const metaThemeColor = document.querySelector('meta[name="theme-color"]');
-  if (metaThemeColor) {
-    const themeColor = effectiveTheme === 'dark' ? '#111827' : '#ffffff';
-    metaThemeColor.setAttribute('content', themeColor);
+
+  // تعيين data attributes - تجميع العمليات
+  const updates = [
+    () => root.setAttribute('data-theme', effectiveTheme),
+    () => body.setAttribute('data-theme', effectiveTheme),
+    () => { root.style.colorScheme = effectiveTheme; },
+    () => { body.style.colorScheme = effectiveTheme; },
+    () => {
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+      if (metaThemeColor) {
+        const themeColor = effectiveTheme === 'dark' ? '#111827' : '#ffffff';
+        metaThemeColor.setAttribute('content', themeColor);
+      }
+    },
+    () => {
+      root.style.setProperty('--theme-transition-duration', '0.1s');
+      root.style.setProperty('--theme-transition-timing', 'ease-out');
+    }
+  ];
+
+  // تطبيق التحديثات في batch واحد مع تجنب forced reflow تماماً
+  // استخدام microtask بدلاً من requestAnimationFrame للتحكم الأفضل
+  Promise.resolve().then(() => {
+    updates.forEach(update => update());
+  });
+}
+
+// دالة تطبيق الثيم مع الألوان المخصصة فوراً - محسنة لتجنب forced reflow
+function applyCustomColorsImmediate(primaryColor?: string, secondaryColor?: string): void {
+  const root = document.documentElement;
+
+  const colorUpdates: Array<() => void> = [];
+
+  if (primaryColor) {
+    const primaryHSL = hexToHSL(primaryColor);
+    colorUpdates.push(
+      () => root.style.setProperty('--primary', primaryHSL, 'important'),
+      () => root.style.setProperty('--ring', primaryHSL, 'important'),
+      () => root.style.setProperty('--sidebar-primary', primaryHSL, 'important'),
+      () => root.style.setProperty('--sidebar-ring', primaryHSL, 'important')
+    );
   }
-  
-  // إضافة فئة إضافية للتأكد من التطبيق
+
+  if (secondaryColor) {
+    const secondaryHSL = hexToHSL(secondaryColor);
+    colorUpdates.push(
+      () => root.style.setProperty('--secondary', secondaryHSL, 'important'),
+      () => root.style.setProperty('--secondary-foreground', '0 0% 100%', 'important')
+    );
+  }
+
+  // تطبيق جميع تحديثات الألوان في batch واحد مع microtask
+  if (colorUpdates.length > 0) {
+    Promise.resolve().then(() => {
+      colorUpdates.forEach(update => update());
+    });
+  }
+}
+
+// دالة تطبيق الثيم على DOM بشكل سريع وفوري - محسنة
+function applyThemeToDOM(theme: Theme): void {
+  // استخدام الدالة المحسنة للتطبيق الفوري
+  applyThemeImmediate(theme);
+
+  // إضافة attributes إضافية للتأكيد
+  const root = document.documentElement;
+  const body = document.body;
+
+  let effectiveTheme = theme;
+  if (theme === 'system') {
+    effectiveTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+
   root.setAttribute('data-theme-applied', effectiveTheme);
   body.setAttribute('data-theme-applied', effectiveTheme);
-  
-  // تجنب forced reflow: لا حاجة لإجبار إعادة الرسم هنا
 }
 
 // إضافة دالة تحويل HEX إلى HSL
@@ -195,47 +258,49 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
   const isApplyingThemeRef = useRef(false);
   const hasInitializedRef = useRef(false);
 
-  // دالة تحديث الثيم بشكل محسن
+  // دالة تحديث الثيم بشكل محسن - فوري ومتزامن مع منع forced reflow
   const setTheme = useCallback((newTheme: Theme) => {
-    if (newTheme === theme) return;
-    
-    if (isDebug) {
+    // تجنب التطبيق إذا كان الثيم نفسه
+    if (newTheme === theme && lastAppliedThemeRef.current === newTheme) {
+      return;
     }
-    
-    // حفظ التفضيل في localStorage
-    localStorage.setItem('theme', newTheme);
-    
-    // تحديث الحالة
+
+    const startTime = performance.now();
+
+    // تحديث الحالة والمراجع فوراً
     setThemeState(newTheme);
-    
-    // تطبيق فوري على DOM
-    applyThemeToDOM(newTheme);
-    
-    // تحديث المرجع
     lastAppliedThemeRef.current = newTheme;
+
+    // تطبيق الثيم فوراً - بدون انتظار
+    applyThemeImmediate(newTheme);
+
+    // حفظ التفضيل في localStorage في الخلفية بدون block
+    setTimeout(() => {
+      try {
+        localStorage.setItem('theme', newTheme);
+      } catch (error) {
+        // تجاهل أخطاء localStorage
+      }
+    }, 0);
+
+    if (isDebug) {
+      const endTime = performance.now();
+    }
   }, [theme, isDebug]);
 
-  // دالة جلب وتطبيق ثيم المؤسسة مع حماية من التكرار
+  // دالة جلب وتطبيق ثيم المؤسسة - محسنة لأقصى سرعة
   const applyOrganizationTheme = useCallback(async () => {
-    const applyStart = performance.now();
-    
     // منع التشغيل المتزامن
     if (isApplyingThemeRef.current) {
-      if (isDebug) {
-      }
       return;
     }
 
     if (!initialOrganizationId) {
-      if (isDebug) {
-      }
       return;
     }
 
     // منع التطبيق المتكرر لنفس المؤسسة
     if (lastAppliedOrganizationIdRef.current === initialOrganizationId && hasInitializedRef.current) {
-      if (isDebug) {
-      }
       return;
     }
 
@@ -246,80 +311,71 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
       if (isDebug) {
       }
 
-      // جلب إعدادات المؤسسة
-      const settingsStart = performance.now();
-      
+      // جلب إعدادات المؤسسة بأسرع طريقة
       const orgSettings = await getOrganizationSettings(initialOrganizationId);
-      
-      const settingsEnd = performance.now();
 
       if (orgSettings) {
+        let needsThemeUpdate = false;
+        let newThemeMode = theme;
+
         // تطبيق وضع الثيم فوراً إذا كان متاحاً
         if ((orgSettings as any).theme_mode) {
-          const themeStart = performance.now();
           const orgTheme = convertThemeMode((orgSettings as any).theme_mode);
 
-          // حفظ تفضيل المؤسسة
-          localStorage.setItem('theme-preference', orgTheme);
-          localStorage.setItem('bazaar_org_theme', JSON.stringify({
-            mode: orgTheme,
-            organizationId: initialOrganizationId,
-            timestamp: Date.now()
-          }));
-          
+          // حفظ تفضيل المؤسسة في localStorage
+          try {
+            localStorage.setItem('theme-preference', orgTheme);
+            localStorage.setItem('bazaar_org_theme', JSON.stringify({
+              mode: orgTheme,
+              organizationId: initialOrganizationId,
+              timestamp: Date.now()
+            }));
+          } catch (error) {
+            // تجاهل أخطاء localStorage
+          }
+
           // تطبيق الثيم فوراً إذا كان مختلفاً
           if (orgTheme !== theme) {
-            setTheme(orgTheme);
-            // تطبيق فوري على DOM
-            applyThemeToDOM(orgTheme);
+            newThemeMode = orgTheme;
+            needsThemeUpdate = true;
           }
-          
-          const themeEnd = performance.now();
-        }
-        
-        // تطبيق ألوان المؤسسة المخصصة فوراً
-        if ((orgSettings as any).theme_primary_color || (orgSettings as any).theme_secondary_color) {
-          const colorsStart = performance.now();
-          
-          const root = document.documentElement;
-          
-          if ((orgSettings as any).theme_primary_color) {
-            root.style.setProperty('--primary', hexToHSL((orgSettings as any).theme_primary_color));
-          }
-          if ((orgSettings as any).theme_secondary_color) {
-            root.style.setProperty('--secondary', hexToHSL((orgSettings as any).theme_secondary_color));
-          }
-          
-          const colorsEnd = performance.now();
-        }
-        
-        // تطبيق الخطوط المخصصة
-        if ((orgSettings as any).theme_font_family) {
-          const fontStart = performance.now();
-          
-          const root = document.documentElement;
-          root.style.setProperty('--font-family', (orgSettings as any).theme_font_family);
-          
-          const fontEnd = performance.now();
-        }
         }
 
-        // تحديث المراجع
-        lastAppliedOrganizationIdRef.current = initialOrganizationId;
-        hasInitializedRef.current = true;
+        // تطبيق الألوان المخصصة فوراً
+        const primaryColor = (orgSettings as any).theme_primary_color;
+        const secondaryColor = (orgSettings as any).theme_secondary_color;
+
+        if (primaryColor || secondaryColor) {
+          applyCustomColorsImmediate(primaryColor, secondaryColor);
+        }
+
+        // تطبيق الخطوط المخصصة
+        if ((orgSettings as any).theme_font_family) {
+          const root = document.documentElement;
+          root.style.setProperty('--font-family', (orgSettings as any).theme_font_family, 'important');
+        }
+
+        // تحديث الثيم إذا لزم الأمر
+        if (needsThemeUpdate) {
+          setTheme(newThemeMode);
+        }
+      }
+
+      // تحديث المراجع
+      lastAppliedOrganizationIdRef.current = initialOrganizationId;
+      hasInitializedRef.current = true;
 
       if (isDebug) {
       }
 
     } catch (error) {
-      const errorTime = performance.now();
+      if (isDebug) {
+      }
     } finally {
       // إزالة العلم
       isApplyingThemeRef.current = false;
-      
-      const applyEnd = performance.now();
     }
-  }, [initialOrganizationId, theme, isDebug]);
+  }, [initialOrganizationId, theme, isDebug, setTheme]);
 
   // تطبيق الثيم الأولي على DOM
   useEffect(() => {
@@ -331,50 +387,49 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
     const themeApplyEnd = performance.now();
   }, [theme]);
 
-  // تطبيق فوري للثيم عند تحميل الكومبوننت لأول مرة
+  // تطبيق فوري للثيم عند تحميل الكومبوننت - محسن للأداء
   useEffect(() => {
-    const initialThemeStart = performance.now();
-    
-    // تطبيق الثيم فوراً عند التحميل
-    applyThemeToDOM(theme);
-    
-    // محاولة تحميل الثيم من localStorage فوراً
-    const savedOrgTheme = localStorage.getItem('theme-preference');
-    if (savedOrgTheme && ['light', 'dark', 'system'].includes(savedOrgTheme) && savedOrgTheme !== theme) {
-      setTheme(savedOrgTheme as Theme);
-      applyThemeToDOM(savedOrgTheme as Theme);
+    if (isDebug) {
     }
 
-    // محاولة تطبيق ثيم المؤسسة فوراً إذا كان متاحاً
-    if (initialOrganizationId) {
-      // تطبيق فوري بدون انتظار
-      const quickApplyTheme = async () => {
-        const quickStart = performance.now();
-        
-        try {
-          const cachedOrgTheme = localStorage.getItem('bazaar_org_theme');
-          if (cachedOrgTheme) {
-            const parsed = JSON.parse(cachedOrgTheme);
-            if (parsed.organizationId === initialOrganizationId && parsed.mode) {
-              setTheme(parsed.mode);
-              applyThemeToDOM(parsed.mode);
-              
-              const quickEnd = performance.now();
-            }
-          }
-        } catch (e) {
-        }
-      };
-      quickApplyTheme();
-      
-      // تطبيق كامل في الخلفية
-      setTimeout(() => {
-        applyOrganizationTheme();
-      }, 100);
+    // تطبيق الثيم الحالي فوراً
+    applyThemeImmediate(theme);
+
+    // محاولة تحميل الثيم من localStorage فوراً
+    try {
+      const savedOrgTheme = localStorage.getItem('theme-preference');
+      if (savedOrgTheme && ['light', 'dark', 'system'].includes(savedOrgTheme) && savedOrgTheme !== theme) {
+        setTheme(savedOrgTheme as Theme);
+      }
+    } catch (error) {
+      // تجاهل أخطاء localStorage
     }
-    
-    const initialThemeEnd = performance.now();
-  }, []);
+
+    // محاولة تطبيق ثيم المؤسسة من cache فوراً
+    if (initialOrganizationId) {
+      try {
+        const cachedOrgTheme = localStorage.getItem('bazaar_org_theme');
+        if (cachedOrgTheme) {
+          const parsed = JSON.parse(cachedOrgTheme);
+          if (parsed.organizationId === initialOrganizationId && parsed.mode && parsed.mode !== theme) {
+            setTheme(parsed.mode);
+          }
+        }
+      } catch (error) {
+        // تجاهل أخطاء JSON أو localStorage
+      }
+
+      // تطبيق كامل في الخلفية بعد frame واحد
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          applyOrganizationTheme();
+        });
+      });
+    }
+
+    if (isDebug) {
+    }
+  }, []); // لا نحتاج dependencies هنا لأن هذا يعمل مرة واحدة فقط
 
   // تطبيق ثيم المؤسسة عند تغيير المعرف - مع تحسين
   useEffect(() => {
@@ -487,13 +542,82 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
     };
   }, []);
 
+  // مكون مساعد للتحكم في الثيم بدون تأخيرات - محسن للأداء القصوى
+  const fastThemeController = useMemo(() => ({
+    // تطبيق الثيم فوراً بدون أي تأخيرات - مع تجنب forced reflow تماماً
+    applyImmediate: (targetTheme: Theme) => {
+      const startTime = performance.now();
+
+      // تجنب الوصول المباشر للخصائص التي تسبب reflow
+      const root = document.documentElement;
+      const body = document.body;
+
+      let effectiveTheme = targetTheme;
+      if (targetTheme === 'system') {
+        effectiveTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+
+      // تجميع جميع العمليات لتجنب multiple reflows
+      const operations = [
+        () => root.classList.remove('light', 'dark'),
+        () => body.classList.remove('light', 'dark'),
+        () => root.classList.add(effectiveTheme),
+        () => body.classList.add(effectiveTheme),
+        () => root.setAttribute('data-theme', effectiveTheme),
+        () => body.setAttribute('data-theme', effectiveTheme),
+        () => { root.style.colorScheme = effectiveTheme; },
+        () => { body.style.colorScheme = effectiveTheme; }
+      ];
+
+      // تطبيق جميع العمليات في microtask واحد
+      Promise.resolve().then(() => {
+        operations.forEach(op => op());
+
+        if (isDebug) {
+          const endTime = performance.now();
+        }
+      });
+    },
+
+    // تبديل سريع بين الثيمين - محسن للأداء القصوى
+    toggleFast: () => {
+      // تعطيل التأثيرات المؤقتة للتبديل السريع
+      const root = document.documentElement;
+      const body = document.body;
+
+      // إزالة التأثيرات المؤقتة
+      root.style.setProperty('--theme-transition-duration', '0s');
+      body.style.setProperty('--theme-transition-duration', '0s');
+
+      const newTheme = theme === 'dark' ? 'light' : 'dark';
+      setTheme(newTheme);
+
+      // إعادة التأثيرات بعد فترة قصيرة جداً
+      setTimeout(() => {
+        root.style.setProperty('--theme-transition-duration', '0.1s');
+        body.style.setProperty('--theme-transition-duration', '0.1s');
+      }, 50);
+
+      return newTheme;
+    },
+
+    // الحصول على الثيم الحالي الفعلي - محسن
+    getCurrentEffectiveTheme: () => {
+      if (theme === 'system') {
+        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      }
+      return theme;
+    }
+  }), [theme, setTheme]);
+
   // تحسين الأداء بمنع إعادة الرسم غير الضرورية
   const contextValue = useMemo(() => ({
     theme,
     setTheme,
     reloadOrganizationTheme: applyOrganizationTheme,
-    isTransitioning
-  }), [theme, setTheme, applyOrganizationTheme, isTransitioning]);
+    isTransitioning,
+    fastThemeController
+  }), [theme, setTheme, applyOrganizationTheme, isTransitioning, fastThemeController]);
 
   return (
     <ThemeContext.Provider value={contextValue}>

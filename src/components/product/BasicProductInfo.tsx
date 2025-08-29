@@ -38,9 +38,15 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
     if (watchedName && !isSlugManual && !isFromProductInfoGenerator) {
       // فقط إذا كان الـ slug فارغ أو يحتوي على قيمة افتراضية
       const currentSlug = form.getValues('slug');
+      
       if (!currentSlug || currentSlug === 'product' || currentSlug === '') {
         const generatedSlug = generateSlugFromText(watchedName);
-        form.setValue('slug', generatedSlug, { shouldValidate: true });
+        form.setValue('slug', generatedSlug, { shouldValidate: true, shouldDirty: true });
+        
+        // Debug: فحص القيمة بعد الحفظ
+        setTimeout(() => {
+          const savedSlug = form.getValues('slug');
+        }, 100);
       }
     }
   }, [watchedName, isSlugManual, isFromProductInfoGenerator, form]);
@@ -55,14 +61,19 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
     setIsSlugManual(true);
     setIsFromProductInfoGenerator(false); // إعادة تعيين العلم عند التغيير اليدوي
     const cleanedSlug = cleanSlug(value);
-    form.setValue('slug', cleanedSlug, { shouldValidate: true });
+    form.setValue('slug', cleanedSlug, { shouldValidate: true, shouldDirty: true });
+    
+    // Debug: فحص القيمة بعد الحفظ
+    setTimeout(() => {
+      const savedSlug = form.getValues('slug');
+    }, 100);
   };
 
   const resetSlugToAuto = () => {
     setIsSlugManual(false);
     if (watchedName) {
       const generatedSlug = generateSlugFromText(watchedName);
-      form.setValue('slug', generatedSlug, { shouldValidate: true });
+      form.setValue('slug', generatedSlug, { shouldValidate: true, shouldDirty: true });
     }
   };
 
@@ -265,7 +276,10 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
                               placeholder="مثال: iphone-15-pro-max"
                               className="h-10 bg-background/60 border-border/60 focus:border-primary/50 focus:ring-primary/20 pl-10"
                               value={field.value || ''}
-                              onChange={(e) => handleSlugChange(e.target.value)}
+                              onChange={(e) => {
+                                handleSlugChange(e.target.value);
+                                field.onChange(e.target.value);
+                              }}
                               dir="ltr"
                             />
                           </div>

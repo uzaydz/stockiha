@@ -3,10 +3,18 @@ import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/supabase-client';
 import { Product, Order, User as AppUser, Service, OrderItem, ServiceBooking } from '@/types';
 import { logOrderSubmit, logStockUpdate, logProductAdd } from '@/utils/inventoryLogger';
-import { createPOSOrder, POSOrderData, POSOrderResult } from '@/context/shop/posOrderService';
+import { createPOSOrder, POSOrderData } from '@/context/shop/posOrderService';
 import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
 import { v4 as uuidv4 } from 'uuid';
+
+// واجهة مخصصة لبيانات الطلب من POS
+interface POSOrderDetails extends Partial<Order> {
+  discountType?: 'percentage' | 'fixed';
+  amountPaid?: number;
+  remainingAmount?: number;
+  considerRemainingAsPartial?: boolean;
+}
 
 export interface PartialPayment {
   amountPaid: number;
@@ -75,7 +83,7 @@ export const usePOSOrder = ({
   clearCart
 }: UsePOSOrderProps) => {
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
   const { currentOrganization } = useTenant();
   
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
@@ -90,7 +98,7 @@ export const usePOSOrder = ({
     setCurrentOrder(order);
   }, []);
 
-  const submitOrder = useCallback(async (orderDetails: Partial<Order>) => {
+  const submitOrder = useCallback(async (orderDetails: POSOrderDetails): Promise<{orderId: string, customerOrderNumber: number}> => {
 
     if (!user) {
       throw new Error('المستخدم غير مسجل الدخول');
@@ -182,12 +190,7 @@ export const usePOSOrder = ({
 
           return {
             orderId: subscriptionOrderId,
-            customerOrderNumber: subscriptionOrderNumber,
-            slug: `SUB-${subscriptionOrderNumber}`,
-            status: 'completed',
-            paymentStatus: 'paid',
-            total: selectedSubscriptions.reduce((sum, sub) => sum + (sub.final_price || sub.selling_price || 0), 0),
-            message: 'تم معالجة الاشتراكات بنجاح'
+            customerOrderNumber: subscriptionOrderNumber
           };
         }
       }
@@ -195,10 +198,32 @@ export const usePOSOrder = ({
       // معالجة المنتجات والخدمات العادية إذا وجدت
       if (cartItems.length > 0 || selectedServices.length > 0) {
 
+        // حساب المجموع الفرعي والإجمالي
+        const cartSubtotal = cartItems.reduce((total, item) => {
+          const price = item.customPrice || item.variantPrice || item.product.price || 0;
+          return total + (price * item.quantity);
+        }, 0);
+        
+        const servicesTotal = selectedServices.reduce((total, service) => total + (service.price || 0), 0);
+        const subscriptionsTotal = selectedSubscriptions.reduce((total, subscription) => {
+          const price = subscription.price || subscription.selling_price || subscription.purchase_price || 0;
+          return total + price;
+        }, 0);
+        
+        const subtotal = cartSubtotal + servicesTotal + subscriptionsTotal;
+        
+        // استخدام القيم من orderDetails مباشرة إذا كانت موجودة
+        const discountAmount = orderDetails.discount || 0;
+        const tax = 0;
+        const total = Math.max(0, orderDetails.total || (subtotal - discountAmount + tax));
+
+        // إضافة logging للتشخيص
+
         // تحضير بيانات الطلب للدالة المحسنة
+
         const orderData: POSOrderData = {
           organizationId: currentOrganization.id,
-          employeeId: user.id,
+          employeeId: userProfile?.id || user.id, // استخدام userProfile.id إذا كان متاحاً
           items: cartItems.map(item => {
             const unitPrice = item.customPrice || item.variantPrice || item.product.price || 0;
             const totalPrice = unitPrice * item.quantity;
@@ -228,14 +253,17 @@ export const usePOSOrder = ({
               }
             } as OrderItem;
           }),
+          // استخدام القيم من orderDetails مباشرة (محسوبة من usePOSAdvancedState) - تبسيط
           total: orderDetails.total || 0,
           customerId: orderDetails.customerId,
           paymentMethod: orderDetails.paymentMethod || 'cash',
           paymentStatus: orderDetails.paymentStatus || 'paid',
           notes: orderDetails.notes || '',
-          amountPaid: orderDetails.partialPayment?.amountPaid,
+          amountPaid: orderDetails.partialPayment?.amountPaid || orderDetails.total || 0,
           discount: orderDetails.discount || 0,
-          subtotal: orderDetails.subtotal
+          subtotal: orderDetails.subtotal || 0,
+          remainingAmount: orderDetails.partialPayment?.remainingAmount || 0,
+          considerRemainingAsPartial: orderDetails.considerRemainingAsPartial || false
         };
 
         logOrderSubmit(
@@ -253,8 +281,11 @@ export const usePOSOrder = ({
           }
         );
 
-        // استخدام الدالة المحسنة
-        const result = await createPOSOrder(orderData);
+        // عمل deep copy للبيانات لمنع mutation
+        const orderDataCopy = JSON.parse(JSON.stringify(orderData));
+
+        // استخدام الدالة المحسنة مع النسخة المحمية
+        const result = await createPOSOrder(orderDataCopy);
 
         if (result.success) {
           // تحديث المخزون في الكاش
@@ -290,12 +321,7 @@ export const usePOSOrder = ({
 
           return {
             orderId: result.orderId,
-            customerOrderNumber: result.customerOrderNumber,
-            slug: result.slug,
-            status: result.status,
-            paymentStatus: result.paymentStatus,
-            total: result.total,
-            message: result.message
+            customerOrderNumber: result.customerOrderNumber
           };
         } else {
           throw new Error(result.message || 'فشل في إنشاء الطلب');

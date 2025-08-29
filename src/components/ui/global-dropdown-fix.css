@@ -1,0 +1,131 @@
+/* إصلاح شامل لمشاكل القوائم المنسدلة في جميع أنحاء التطبيق */
+
+/* زيادة z-index لجميع عناصر Radix UI */
+[data-radix-dropdown-content],
+[data-radix-select-content],
+[data-radix-popover-content],
+[data-radix-tooltip-content],
+[data-radix-dialog-content],
+[data-radix-alert-dialog-content],
+[data-radix-context-menu-content],
+[data-radix-menubar-content],
+[data-radix-navigation-menu-content] {
+  z-index: 99999 !important;
+  position: fixed !important;
+}
+
+/* تحسين الأداء للقوائم المنسدلة */
+[data-radix-dropdown-content],
+[data-radix-select-content] {
+  will-change: transform !important;
+  transform: translateZ(0) !important;
+  contain: layout style paint !important;
+}
+
+/* إصلاح Portals */
+[data-radix-popper-content-wrapper],
+[data-radix-portal] {
+  z-index: 99999 !important;
+}
+
+/* تأكيد أن Select Content يظهر بشكل صحيح */
+[data-radix-select-viewport] {
+  max-height: 300px !important;
+  overflow-y: auto !important;
+}
+
+/* تحسين أداء Select Items */
+[data-radix-select-item] {
+  contain: layout style !important;
+  will-change: auto !important;
+}
+
+/* منع تداخل المحتوى */
+[data-radix-select-content] {
+  background-color: var(--background) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 6px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+}
+
+.dark [data-radix-select-content] {
+  background-color: var(--background) !important;
+  border-color: var(--border) !important;
+}
+
+/* إصلاح مشاكل Firefox */
+@-moz-document url-prefix() {
+  [data-radix-select-content],
+  [data-radix-dropdown-content] {
+    z-index: 99999 !important;
+  }
+}
+
+/* إصلاح مشاكل Safari */
+@supports (-webkit-appearance: none) {
+  [data-radix-select-content],
+  [data-radix-dropdown-content] {
+    contain: layout !important;
+    -webkit-transform: translateZ(0) !important;
+    transform: translateZ(0) !important;
+  }
+}
+
+/* ضمان عمل القوائم المنسدلة في النوافذ المنبثقة */
+.modal-content [data-radix-select-content],
+.dialog-content [data-radix-select-content],
+.popover-content [data-radix-select-content] {
+  z-index: 99999 !important;
+}
+
+/* تحسين أداء العناصر التفاعلية */
+[data-radix-select-trigger],
+[data-radix-dropdown-trigger] {
+  contain: layout style !important;
+  will-change: auto !important;
+}
+
+/* منع forced reflow */
+[data-radix-select-trigger]:focus,
+[data-radix-dropdown-trigger]:focus {
+  outline: 2px solid var(--ring) !important;
+  outline-offset: 2px !important;
+}
+
+/* تحسين الانتقالات */
+[data-radix-select-content],
+[data-radix-dropdown-content] {
+  transition: opacity 150ms ease, transform 150ms ease !important;
+}
+
+/* إصلاح مشاكل المحتوى المقطوع */
+[data-radix-select-content] {
+  min-width: var(--radix-select-trigger-width) !important;
+  max-width: 400px !important;
+}
+
+/* تحسين التمرير */
+[data-radix-select-viewport]::-webkit-scrollbar {
+  width: 8px !important;
+}
+
+[data-radix-select-viewport]::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1) !important;
+  border-radius: 4px !important;
+}
+
+[data-radix-select-viewport]::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.3) !important;
+  border-radius: 4px !important;
+}
+
+[data-radix-select-viewport]::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.5) !important;
+}
+
+/* إصلاح مشاكل الـ backdrop */
+[data-radix-select-content],
+[data-radix-dropdown-content] {
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+}

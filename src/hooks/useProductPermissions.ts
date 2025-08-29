@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext'; // Assuming AuthContext provides user object
-import { checkUserPermissions, refreshUserData } from '@/lib/api/permissions'; // API functions
 
 interface UseProductPermissionsProps {
   isEditMode: boolean;
@@ -28,32 +27,8 @@ export const useProductPermissions = ({ isEditMode }: UseProductPermissionsProps
     setIsCheckingPermission(true);
     const checkPermission = async () => {
       try {
-        const userData = await refreshUserData(user.id);
         
-        const mergedUserData = {
-          ...user,
-          permissions: userData?.permissions || user.user_metadata?.permissions,
-          is_org_admin: userData?.is_org_admin || user.user_metadata?.is_org_admin,
-          is_super_admin: userData?.is_super_admin || user.user_metadata?.is_super_admin,
-          role: userData?.role || user.user_metadata?.role,
-        };
-
-        const permissionAction = isEditMode ? 'editProducts' : 'addProducts';
-        
-        const hasRequiredPermission = await checkUserPermissions(mergedUserData, permissionAction);
-        
-        setHasPermission(hasRequiredPermission);
-        
-        if (!hasRequiredPermission) {
-          setPermissionWarning(`قد لا تملك صلاحية ${isEditMode ? 'تعديل' : 'إضافة'} المنتجات. سيتم التحقق عند الحفظ.`);
-          // Don't navigate away, just show warning
-          toast.warning(`تحذير: قد لا تملك صلاحية ${isEditMode ? 'تعديل' : 'إضافة'} المنتجات`);
-        } else {
-          setPermissionWarning(null);
-        }
-      } catch (error) {
-        
-        // Fallback permission check (simplified from original)
+        // فحص الصلاحيات مباشرة من user metadata
         const permissions = user.user_metadata?.permissions || {};
         const isAdmin =
           user.user_metadata?.role === 'admin' ||
@@ -63,18 +38,28 @@ export const useProductPermissions = ({ isEditMode }: UseProductPermissionsProps
 
         const requiredPermission = isEditMode ? 'editProducts' : 'addProducts';
         const hasExplicitPermission = Boolean(permissions[requiredPermission]);
-        const fallbackPermission = isAdmin || hasExplicitPermission;
+        const hasManageProductsPermission = Boolean(permissions.manageProducts);
 
-        // Be more lenient - allow access with warning if uncertain
-        if (fallbackPermission) {
-          setHasPermission(true);
-          setPermissionWarning(null);
+        // السماح بالوصول إذا كان:
+        // 1. مدير (admin/owner/org_admin/super_admin)
+        // 2. لديه الصلاحية المطلوبة مباشرة
+        // 3. لديه صلاحية manageProducts
+        const hasAccess = isAdmin || hasExplicitPermission || hasManageProductsPermission;
+
+        setHasPermission(hasAccess);
+        
+        if (!hasAccess) {
+          setPermissionWarning(`قد لا تملك صلاحية ${isEditMode ? 'تعديل' : 'إضافة'} المنتجات. سيتم التحقق عند الحفظ.`);
+          toast.warning(`تحذير: قد لا تملك صلاحية ${isEditMode ? 'تعديل' : 'إضافة'} المنتجات`);
         } else {
-          // Still allow access but with warning
-          setHasPermission(true);
-          setPermissionWarning(`لا يمكن التحقق من الصلاحيات. سيتم التحقق عند الحفظ.`);
-          toast.warning(`تحذير: لا يمكن التحقق من صلاحيات ${isEditMode ? 'تعديل' : 'إضافة'} المنتجات`);
+          setPermissionWarning(null);
         }
+      } catch (error) {
+        
+        // في حالة الخطأ، نكون أكثر تساهلاً ونسمح بالوصول مع تحذير
+        setHasPermission(true);
+        setPermissionWarning(`لا يمكن التحقق من الصلاحيات. سيتم التحقق عند الحفظ.`);
+        toast.warning(`تحذير: لا يمكن التحقق من صلاحيات ${isEditMode ? 'تعديل' : 'إضافة'} المنتجات`);
       } finally {
         setIsCheckingPermission(false);
       }

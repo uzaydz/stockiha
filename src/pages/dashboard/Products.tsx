@@ -15,11 +15,21 @@ import SyncProducts from '@/components/product/SyncProducts';
 import { cn } from '@/lib/utils';
 import { useDebounce } from '@/hooks/useDebounce';
 import ProductsSkeleton from '@/components/product/ProductsSkeleton';
-import { Grid, List, RefreshCcw, Filter, Search, X } from 'lucide-react';
+import { Grid, List, RefreshCcw, Filter, Search, X, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { useAuth } from '@/context/AuthContext';
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@/components/ui/alert-dialog';
 
 // Define category type
 type CategoryObject = { id: string; name: string; slug: string };
@@ -42,6 +52,7 @@ const MAX_CACHE_SIZE = 20; // تقليل حجم cache
 
 const Products = memo(() => {
   const { currentOrganization } = useTenant();
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -57,6 +68,9 @@ const Products = memo(() => {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  
+  // Permission alert state
+  const [showPermissionAlert, setShowPermissionAlert] = useState(false);
   
   // Filter state with URL sync
   const [filters, setFilters] = useState<FilterState>(() => ({
@@ -460,6 +474,33 @@ const Products = memo(() => {
     };
   }, []);
 
+  // التحقق من صلاحيات المستخدم
+  const hasManageProductsPermission = useMemo(() => {
+    if (!user) return false;
+
+    const meta: any = (user as any)?.user_metadata || (user as any)?.app_metadata || {};
+
+    if (meta.is_super_admin === true) return true;
+    if (meta.is_org_admin === true) return true;
+
+    const role: string = meta.role || '';
+    if (role === 'admin' || role === 'owner') return true;
+
+    const permissions: any = meta.permissions || {};
+    return Boolean(permissions.manageProducts || permissions.addProducts);
+  }, [user]);
+
+  // معالج موحد لزر إنشاء منتج
+  const handleCreateProductClick = useCallback(() => {
+    
+    if (!hasManageProductsPermission) {
+      setShowPermissionAlert(true);
+      return;
+    }
+    
+    setIsAddProductOpen(true);
+  }, [hasManageProductsPermission, user]);
+
   // Render states
   const renderErrorState = useCallback(() => (
     <div className="flex flex-col items-center justify-center min-h-[400px] p-8 border border-destructive/20 rounded-lg bg-destructive/5">
@@ -498,13 +539,15 @@ const Products = memo(() => {
             مسح الفلاتر
           </Button>
         )}
-        <Button onClick={() => setIsAddProductOpen(true)} className="gap-2">
-          <Search className="h-4 w-4" />
-          إضافة منتج جديد
-        </Button>
+        {hasManageProductsPermission && (
+          <Button onClick={handleCreateProductClick} className="gap-2" disabled={!hasManageProductsPermission}>
+            <Plus className="h-4 w-4" />
+            إضافة منتج جديد
+          </Button>
+        )}
       </div>
     </div>
-  ), [debouncedSearchQuery, filters.categoryFilter, filters.stockFilter, resetFilters]);
+  ), [debouncedSearchQuery, filters.categoryFilter, filters.stockFilter, resetFilters, handleCreateProductClick, hasManageProductsPermission]);
 
   // Loading state
   if (isLoading && !isRefreshing && (!Array.isArray(products) || products.length === 0)) {
@@ -541,28 +584,45 @@ const Products = memo(() => {
           showBarcodeSearch={true}
         />
 
+        {/* إضافة زر إنشاء منتج في الهيدر */}
+        <div className="flex justify-between items-center">
+          <div className="text-sm text-muted-foreground">
+            {totalCount} منتج متاح
+          </div>
+          <Button 
+            onClick={handleCreateProductClick} 
+            className="gap-2" 
+            size="sm"
+            disabled={!hasManageProductsPermission}
+            title={!hasManageProductsPermission ? "ليس لديك صلاحية لإضافة منتجات" : ""}
+          >
+            <Plus className="h-4 w-4" />
+            إنشاء منتج جديد
+          </Button>
+        </div>
+
         {/* Enhanced Filters */}
         {showFilters && (
           <div className="bg-card border rounded-lg p-4 space-y-4">
             {/* Filter Row */}
             <div className="flex flex-wrap gap-3">
               {/* Category Filter */}
-                             <Select
-                 value={filters.categoryFilter || 'all'}
-                 onValueChange={(value) => handleFilterChange('categoryFilter', value === 'all' ? null : value)}
-               >
-                 <SelectTrigger className="w-48">
-                   <SelectValue placeholder="جميع الفئات" />
-                 </SelectTrigger>
-                 <SelectContent>
-                   <SelectItem value="all">جميع الفئات</SelectItem>
-                   {categories.map((category) => (
-                     <SelectItem key={category.id} value={category.id}>
-                       {category.name}
-                     </SelectItem>
-                   ))}
-                 </SelectContent>
-               </Select>
+              <Select
+                value={filters.categoryFilter || 'all'}
+                onValueChange={(value) => handleFilterChange('categoryFilter', value === 'all' ? null : value)}
+              >
+                <SelectTrigger className="w-48">
+                  <SelectValue placeholder="جميع الفئات" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">جميع الفئات</SelectItem>
+                  {categories.map((category) => (
+                    <SelectItem key={category.id} value={category.id}>
+                      {category.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
 
               {/* Stock Filter */}
               <Select
@@ -645,21 +705,21 @@ const Products = memo(() => {
             renderEmptyState()
           ) : (
             <>
-                             <ProductsList 
-                 products={products} 
-                 viewMode={viewMode}
-                 isLoading={isRefreshing}
-                 onRefreshProducts={refreshProducts}
-               />
+              <ProductsList 
+                products={products} 
+                viewMode={viewMode}
+                isLoading={isRefreshing}
+                onRefreshProducts={refreshProducts}
+              />
               
               {/* Pagination */}
               {totalPages > 1 && (
                 <div className="flex justify-center items-center gap-4 pt-6">
-                                     <Pagination
-                     currentPage={currentPage}
-                     totalPages={totalPages}
-                     onPageChange={handlePageChange}
-                   />
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={handlePageChange}
+                  />
                   
                   {/* Page Size Selector */}
                   <Select
@@ -683,12 +743,27 @@ const Products = memo(() => {
         </div>
 
         {/* Add Product Dialog */}
-                 <AddProductDialog
-           open={isAddProductOpen}
-           onOpenChange={setIsAddProductOpen}
-           onProductAdded={refreshProducts}
-         />
+        <AddProductDialog
+          open={isAddProductOpen}
+          onOpenChange={setIsAddProductOpen}
+          onProductAdded={refreshProducts}
+        />
       </div>
+
+      {/* Permission Alert Dialog */}
+      <AlertDialog open={showPermissionAlert} onOpenChange={setShowPermissionAlert}>
+        <AlertDialogContent dir="rtl" className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle>ليس لديك الصلاحية</AlertDialogTitle>
+            <AlertDialogDescription>
+              لا تملك الصلاحيات الكافية لإنشاء منتج جديد. يرجى التواصل مع مدير النظام لمنحك صلاحية manageProducts.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setShowPermissionAlert(false)}>فهمت</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Layout>
   );
 });

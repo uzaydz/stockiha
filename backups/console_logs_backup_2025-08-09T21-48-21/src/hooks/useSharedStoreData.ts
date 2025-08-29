@@ -272,7 +272,7 @@ export const useSharedStoreData = (options: UseSharedStoreDataOptions = {}) => {
         }
         if (!pendingRequests[resolvedSubdomain]) {
           pendingRequests[resolvedSubdomain] = (supabase as any)
-            .rpc('get_store_init_data', { org_subdomain: resolvedSubdomain })
+            .rpc('get_store_init_data', { org_identifier: resolvedSubdomain })
             .then((res: any) => res)
             .finally(() => { delete pendingRequests[resolvedSubdomain!]; });
         }

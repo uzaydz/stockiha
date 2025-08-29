@@ -122,6 +122,14 @@ export const useProductTracking = (options: ProductTrackingOptions) => {
       };
       setSettings(defaultSettings);
       settingsLoadedRef.current = true;
+      
+      // تعيين الإعدادات في window.__productTrackingSettings
+      try {
+        (window as any).__productTrackingSettings = defaultSettings;
+        const evt = new CustomEvent('trackingSettingsReady', { detail: defaultSettings });
+        window.dispatchEvent(evt);
+      } catch {}
+      
       setIsLoading(false);
       return;
     }
@@ -139,19 +147,43 @@ export const useProductTracking = (options: ProductTrackingOptions) => {
       };
       setSettings(defaultSettings);
       settingsLoadedRef.current = true;
-      (window as any).__productTrackingSettings = defaultSettings;
+      
+      // تعيين الإعدادات في window.__productTrackingSettings
+      try {
+        (window as any).__productTrackingSettings = defaultSettings;
+        const evt = new CustomEvent('trackingSettingsReady', { detail: defaultSettings });
+        window.dispatchEvent(evt);
+      } catch {}
+      
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'خطأ غير معروف';
       setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
-  }, [productId, organizationId, enableDebugMode]);
+  }, [productId, organizationId, autoLoadSettings]);
 
   // تحميل الإعدادات تلقائياً
   useEffect(() => {
     if (autoLoadSettings && productId && organizationId && !settingsLoadedRef.current) {
       loadTrackingSettings();
+    } else if (!autoLoadSettings && !settingsLoadedRef.current) {
+      // إذا كان التحميل التلقائي معطل، استخدم إعدادات افتراضية فوراً
+      const defaultSettings: TrackingSettings = {
+        facebook: { enabled: false },
+        google: { enabled: false },
+        tiktok: { enabled: false },
+        test_mode: true
+      };
+      setSettings(defaultSettings);
+      settingsLoadedRef.current = true;
+      
+      // تعيين الإعدادات في window.__productTrackingSettings فوراً
+      try {
+        (window as any).__productTrackingSettings = defaultSettings;
+        const evt = new CustomEvent('trackingSettingsReady', { detail: defaultSettings });
+        window.dispatchEvent(evt);
+      } catch {}
     }
   }, [autoLoadSettings, productId, organizationId, loadTrackingSettings]);
 
@@ -174,6 +206,23 @@ export const useProductTracking = (options: ProductTrackingOptions) => {
 
     initializeTracker();
   }, [settings, productId, enableDebugMode]);
+
+  // تحديث window.__productTrackingSettings عند تغيير الإعدادات
+  useEffect(() => {
+    if (settings) {
+      try {
+        (window as any).__productTrackingSettings = settings;
+        const evt = new CustomEvent('trackingSettingsReady', { detail: settings });
+        window.dispatchEvent(evt);
+        
+        if (enableDebugMode) {
+        }
+      } catch (error) {
+        if (enableDebugMode) {
+        }
+      }
+    }
+  }, [settings, enableDebugMode]);
 
   // دالة تتبع الأحداث
   const trackEvent = useCallback(async (event: TrackingEvent) => {

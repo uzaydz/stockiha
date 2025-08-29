@@ -1,4 +1,4 @@
-import React, { memo, Suspense, lazy, useRef } from 'react';
+import React, { memo, Suspense, lazy, useRef, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { TabsContent } from '@/components/ui/tabs';
 import { UseFormReturn } from 'react-hook-form';
@@ -199,6 +199,16 @@ const ProductFormTabContent = memo<ProductFormTabContentProps>(({
   onUseVariantPricesChange,
   onUseSizesChange,
 }) => {
+  useEffect(() => {
+  }, [watchHasVariants, productColors]);
+
+  // Additional logging for variants tab visibility
+  useEffect(() => {
+    if (watchHasVariants) {
+    } else {
+    }
+  }, [watchHasVariants, productColors]);
+
   return (
     <Card className={`min-h-[400px] sm:min-h-[500px] overflow-hidden shadow-lg dark:shadow-2xl dark:shadow-black/20 bg-card/50 backdrop-blur-sm border-border/50 transition-all duration-300 ${isTransitioning ? 'opacity-75' : 'opacity-100'}`}>
       <SafeSuspense fallback={<SectionLoader />}>

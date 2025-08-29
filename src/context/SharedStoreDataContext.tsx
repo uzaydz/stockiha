@@ -22,14 +22,13 @@ export interface SharedStoreDataContextType {
 function useSharedStoreDataSafe() {
   try {
     // استخدام خيارات أخف: فئات + منتجات مميزة فقط (بدون قائمة منتجات كاملة)
-    // في صفحة شراء المنتج، لا نحتاج أي جلب عام لمنع التكرار مع جلب المنتج الكامل
-    const isProductPurchasePage = typeof window !== 'undefined' && window.location.pathname.includes('/product-purchase');
+    // إزالة تعطيل جلب البيانات في صفحات المنتجات لضمان عرض المنتجات المميزة دائماً
     
     return useSharedStoreData({
       includeCategories: true,
       includeProducts: false,
       includeFeaturedProducts: true,
-      enabled: !isProductPurchasePage
+      enabled: true // دائماً مفعل لضمان ظهور المنتجات المميزة
     });
   } catch (error) {
     // إذا كان الخطأ متعلق بـ TenantProvider، أرجع قيم افتراضية
@@ -62,17 +61,30 @@ export const SharedStoreDataProvider: React.FC<{ children: ReactNode }> = React.
   // استدعاء آمن لـ useSharedStoreData في كامل التطبيق
   const sharedData = useSharedStoreDataSafe();
   
-  // تحسين الأداء مع useMemo لمنع إعادة الإنشاء غير الضرورية
+  // 🔥 تحسين: استخدام useMemo مع dependencies محسنة لمنع إعادة الإنشاء المتكرر
   const contextValue = useMemo(() => sharedData, [
-    sharedData.products?.length,
-    sharedData.categories?.length,
-    sharedData.featuredProducts?.length,
+    // 🔥 إصلاح: استخدام قيم مستقرة بدلاً من الدوال
+    sharedData.organization?.id ?? null,
+    sharedData.organizationSettings?.id ?? null,
+    sharedData.products?.length ?? 0,
+    sharedData.categories?.length ?? 0,
+    sharedData.featuredProducts?.length ?? 0,
     sharedData.isLoading,
-    sharedData.error,
-    sharedData.organization?.id,
-    sharedData.organizationSettings?.id,
-    sharedData.refreshData
+    sharedData.error
+    // 🔥 إصلاح: إزالة refreshData من dependencies لتجنب إعادة الإنشاء
   ]);
+
+  // إضافة useEffect لمنع الاستدعاءات المكررة
+  useEffect(() => {
+    // تنظيف cache قديم عند تغيير المؤسسة
+    if (sharedData.organization?.id) {
+      const cacheKey = `store-data-${sharedData.organization.id}`;
+      // الاحتفاظ بالبيانات الحالية فقط
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`🔒 [SharedStoreDataProvider] تأمين cache للمؤسسة: ${sharedData.organization.id}`);
+      }
+    }
+  }, [sharedData.organization?.id ?? null]);
 
   return (
     <SharedStoreDataContext.Provider value={contextValue}>
@@ -81,33 +93,47 @@ export const SharedStoreDataProvider: React.FC<{ children: ReactNode }> = React.
   );
 });
 
-// Hook لاستخدام البيانات المشتركة - بدلاً من useSharedStoreData مباشرة
+// Hook لاستخدام البيانات المشتركة - محسن لمنع re-renders
 export const useSharedStoreDataContext = (): SharedStoreDataContextType => {
   const sharedContext = useContext(SharedStoreDataContext);
   const optimizedContext = useContext(
     OptimizedSharedStoreDataContext as React.Context<OptimizedSharedStoreDataContextType | null>
   );
 
-  if (sharedContext) return sharedContext;
+  // 🔥 تحسين: استخدام useMemo مع dependencies محسنة
+  return useMemo(() => {
+    if (sharedContext) return sharedContext;
 
-  if (optimizedContext) {
-    return {
-      organization: optimizedContext.organization,
-      organizationSettings: optimizedContext.organizationSettings,
-      products: optimizedContext.products,
-      categories: optimizedContext.categories,
-      featuredProducts: optimizedContext.featuredProducts,
-      components: [],
-      footerSettings: null,
-      testimonials: [],
-      seoMeta: null,
-      isLoading: optimizedContext.isLoading,
-      error: optimizedContext.error,
-      refreshData: optimizedContext.refreshData,
-    };
-  }
+    if (optimizedContext) {
+      return {
+        organization: optimizedContext.organization,
+        organizationSettings: optimizedContext.organizationSettings,
+        products: optimizedContext.products,
+        categories: optimizedContext.categories,
+        featuredProducts: optimizedContext.featuredProducts,
+        components: [],
+        footerSettings: null,
+        testimonials: [],
+        seoMeta: null,
+        isLoading: optimizedContext.isLoading,
+        error: optimizedContext.error,
+        refreshData: optimizedContext.refreshData,
+      };
+    }
 
-  throw new Error('useSharedStoreDataContext must be used within a SharedStoreDataProvider or OptimizedSharedStoreDataProvider');
+    throw new Error('useSharedStoreDataContext must be used within a SharedStoreDataProvider or OptimizedSharedStoreDataProvider');
+  }, [
+    sharedContext,
+    // 🔥 إصلاح: استخدام قيم مستقرة بدلاً من الدوال
+    optimizedContext?.organization?.id ?? null,
+    optimizedContext?.organizationSettings?.id ?? null,
+    optimizedContext?.products?.length ?? 0,
+    optimizedContext?.categories?.length ?? 0,
+    optimizedContext?.featuredProducts?.length ?? 0,
+    optimizedContext?.isLoading,
+    optimizedContext?.error
+    // 🔥 إصلاح: إزالة refreshData من dependencies
+  ]);
 };
 
 // مزود بديل للصفحات التي لا تحتاج TenantProvider
@@ -144,12 +170,13 @@ export const ProductPageSharedStoreDataProvider: React.FC<{ children: ReactNode 
     includeFeaturedProducts: false
   });
   
-  // تحسين الأداء مع useMemo لمنع إعادة الإنشاء غير الضرورية
+  // 🔥 تحسين: استخدام useMemo مع dependencies محسنة
   const contextValue = useMemo(() => sharedData, [
     sharedData.isLoading,
     sharedData.error,
-    sharedData.organization?.id,
-    sharedData.organizationSettings?.id
+    sharedData.organization?.id ?? null,
+    sharedData.organizationSettings?.id ?? null
+    // 🔥 إصلاح: إزالة refreshData من dependencies
   ]);
 
   return (

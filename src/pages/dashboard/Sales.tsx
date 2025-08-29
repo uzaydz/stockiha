@@ -6,7 +6,7 @@ import SalesTable from '@/components/sales/SalesTable';
 import SalesAnalytics from '@/components/sales/SalesAnalytics';
 import SalesReports from '@/components/sales/SalesReports';
 import { useAuth } from '@/context/AuthContext';
-import { checkUserPermissions } from '@/lib/api/permissions';
+import { hasPermissions } from '@/lib/api/userPermissionsUnified';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ShieldAlert, Loader2 } from 'lucide-react';
@@ -34,13 +34,11 @@ export default function Sales() {
       setPermissionLoading(true);
       
       try {
-        // التحقق من صلاحية مشاهدة المبيعات
-        const canViewSales = await checkUserPermissions(user, 'viewSales' as any);
-        setHasViewPermission(canViewSales);
+        // استخدام الدالة الموحدة للتحقق من عدة صلاحيات دفعة واحدة
+        const permissionsResult = await hasPermissions(['viewSales', 'viewReports'], user.id);
         
-        // التحقق من صلاحية عرض التقارير
-        const canViewReports = await checkUserPermissions(user, 'viewReports' as any);
-        setHasViewReportsPermission(canViewReports);
+        setHasViewPermission(permissionsResult.viewSales || false);
+        setHasViewReportsPermission(permissionsResult.viewReports || false);
       } catch (error) {
         toast({
           variant: "destructive",

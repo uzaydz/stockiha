@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '../../components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
@@ -42,7 +43,9 @@ import {
   RefreshCwIcon, 
   EditIcon,
   EuroIcon, 
-  Phone
+  Phone,
+  ShieldAlert,
+  Loader2
 } from 'lucide-react';
 import { useToast } from '../../components/ui/use-toast';
 import type { FlexiNetwork, FlexiBalance, DigitalCurrency, CurrencyBalance } from '../../types/flexi';
@@ -50,10 +53,15 @@ import { getFlexiNetworks, getFlexiBalances, updateFlexiBalance, addFlexiNetwork
 import { getDigitalCurrencies, getCurrencyBalances, updateCurrencyBalance, addDigitalCurrency, updateDigitalCurrency, deleteDigitalCurrency } from '../../api/currencyService';
 import Layout from '../../components/Layout';
 import { useAuth } from '../../context/AuthContext';
+import { checkUserPermissions } from '../../lib/api/permissions';
 
 export default function FlexiManagement() {
   const { toast } = useToast();
   const { user } = useAuth();
+  
+  // حالات الصلاحيات
+  const [hasManagePermission, setHasManagePermission] = useState(false);
+  const [permissionLoading, setPermissionLoading] = useState(true);
   
   // حالة شبكات الفليكسي والأرصدة
   const [flexiNetworks, setFlexiNetworks] = useState<FlexiNetwork[]>([]);
@@ -152,10 +160,42 @@ export default function FlexiManagement() {
     }
   };
   
+  // التحقق من صلاحيات المستخدم
   useEffect(() => {
-    fetchFlexiData();
-    fetchCurrencyData();
-  }, []);
+    const checkPermissions = async () => {
+      if (!user) {
+        setHasManagePermission(false);
+        setPermissionLoading(false);
+        return;
+      }
+      
+      setPermissionLoading(true);
+      try {
+        // التحقق من صلاحية إدارة الفليكسي والعملات الرقمية
+        const canManage = await checkUserPermissions(user, 'manageFlexiAndDigitalCurrency' as any);
+        setHasManagePermission(canManage);
+      } catch (error) {
+        setHasManagePermission(false);
+        toast({
+          variant: 'destructive',
+          title: 'خطأ في التحقق من الصلاحيات',
+          description: 'حدث خطأ أثناء التحقق من صلاحياتك للوصول إلى هذه الصفحة'
+        });
+      } finally {
+        setPermissionLoading(false);
+      }
+    };
+    
+    checkPermissions();
+  }, [user, toast]);
+
+  useEffect(() => {
+    // تحميل البيانات فقط إذا كان لديه صلاحية
+    if (hasManagePermission && !permissionLoading) {
+      fetchFlexiData();
+      fetchCurrencyData();
+    }
+  }, [hasManagePermission, permissionLoading]);
   
   const openFlexiBalanceDialog = (networkId: string) => {
     setSelectedFlexiNetwork(networkId);
@@ -447,6 +487,38 @@ export default function FlexiManagement() {
     }
   };
   
+  // عرض شاشة التحميل أثناء التحقق من الصلاحيات
+  if (permissionLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+            <p>التحقق من الصلاحيات...</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  // عرض رسالة عدم وجود صلاحية
+  if (!hasManagePermission) {
+    return (
+      <Layout>
+        <div className="container mx-auto py-6">
+          <Alert variant="destructive" className="max-w-md mx-auto">
+            <ShieldAlert className="h-4 w-4" />
+            <AlertTitle>غير مصرح</AlertTitle>
+            <AlertDescription>
+              ليس لديك الصلاحية اللازمة لإدارة الفليكسي والعملات الرقمية. 
+              يرجى التواصل مع المسؤول لمنحك الصلاحية المناسبة.
+            </AlertDescription>
+          </Alert>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       <div className="container mx-auto py-6">

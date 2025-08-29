@@ -10,6 +10,37 @@ import { Input } from "./input";
 import { UploadCloud } from "lucide-react";
 import { v4 } from "uuid";
 
+// دالة لحذف الصورة من Supabase Storage
+const deleteImageFromStorage = async (imageUrl: string): Promise<boolean> => {
+  try {
+    if (!imageUrl || !imageUrl.includes('supabase.co')) {
+      return true; // الصورة ليست في Supabase، لا حاجة للحذف
+    }
+
+    // استخراج مسار الملف من URL
+    const url = new URL(imageUrl);
+    const pathParts = url.pathname.split('/');
+    const filePath = pathParts.slice(pathParts.indexOf('organization-assets') + 1).join('/');
+
+    if (!filePath) {
+      return true; // لا يمكن استخراج المسار، لكن لا نعتبرها خطأ
+    }
+
+    // حذف الملف من Supabase Storage
+    const { error } = await supabase.storage
+      .from('organization-assets')
+      .remove([filePath]);
+
+    if (error) {
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    return false;
+  }
+};
+
 interface ImageUploaderProps {
   imageUrl?: string;
   onImageUploaded: (url: string) => void;
@@ -51,10 +82,9 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
   const tenantContext = useTenant();
   const userContext = useUser();
   
-  // استخدام المؤسسة من أي من السياقين المتاحين
-  const currentOrganization = tenantContext?.currentOrganization || 
-                               userContext?.currentOrganization || 
-                               { id: userContext?.organizationId };
+  // استخدام المؤسسة من سياق المؤسسة أو معرف المؤسسة من سياق المستخدم
+  const currentOrganization = tenantContext?.currentOrganization ||
+                               (userContext?.organizationId ? { id: userContext.organizationId } : null);
   
   // استخدام Supabase client مباشرة (متاح بشكل متزامن)
   // const supabase متاح من الاستيراد مباشرة
@@ -431,7 +461,7 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
         });
       
       if (error) {
-        
+
         // معالجة أخطاء محددة
         if (error.message?.includes('Duplicate')) {
           throw new Error('اسم الملف موجود بالفعل. جاري المحاولة مرة أخرى...');
@@ -445,6 +475,8 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
           throw new Error('مشكلة في الاتصال بالإنترنت. يرجى المحاولة مرة أخرى.');
         } else if (error.message?.includes('storage')) {
           throw new Error('مشكلة في خدمة التخزين. يرجى المحاولة لاحقاً.');
+        } else if (error.message?.includes('InvalidKey') || error.message?.includes('Invalid key')) {
+          throw new Error('اسم الملف يحتوي على أحرف غير مدعومة. تم إنشاء اسم جديد تلقائياً.');
         } else {
           throw new Error(`فشل رفع الصورة: ${error.message}`);
         }
@@ -498,6 +530,15 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
     setUploadStage('compressing');
 
     try {
+      // حذف الصورة السابقة إذا كانت موجودة
+      if (uploadedImageUrl && uploadedImageUrl.trim() !== '') {
+        try {
+          await deleteImageFromStorage(uploadedImageUrl);
+        } catch (deleteError) {
+          // لا نرمي خطأ هنا لأننا لا نريد إيقاف عملية رفع الصورة الجديدة
+        }
+      }
+
       // التحقق من نوع الملف
       if (!file.type.startsWith('image/')) {
         throw new Error('يرجى اختيار ملف صورة صالح');
@@ -516,9 +557,23 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
       setUploadProgress(50);
       setUploadStage('uploading');
 
-      // إنشاء مسار الملف
+      // إنشاء مسار الملف مع تنظيف الاسم
       const fileExtension = compressedFile.name.split('.').pop();
-      const fileName = compressedFile.name;
+
+      // تنظيف اسم الملف من الأحرف غير المسموحة
+      const cleanFileName = (fileName: string): string => {
+        return fileName
+          .replace(/[^a-zA-Z0-9._-]/g, '_') // استبدال الأحرف غير المسموحة بشرطة سفلية
+          .replace(/_{2,}/g, '_') // تقليل الشرطات المتعددة إلى واحدة
+          .replace(/^_+|_+$/g, '') // إزالة الشرطات من البداية والنهاية
+          .toLowerCase(); // تحويل إلى أحرف صغيرة
+      };
+
+      // إنشاء اسم ملف جديد مع الطابع الزمني
+      const timestamp = Date.now();
+      const baseName = compressedFile.name.replace(/\.[^/.]+$/, ''); // إزالة الامتداد
+      const cleanBaseName = cleanFileName(baseName);
+      const fileName = `${timestamp}_${cleanBaseName}.${fileExtension}`;
       const filePath = `${folder}/${currentOrganization?.id}/${fileName}`;
 
       setUploadProgress(70);

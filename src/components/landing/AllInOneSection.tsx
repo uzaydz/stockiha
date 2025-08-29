@@ -68,6 +68,7 @@ interface SystemFeature {
   demoVideo?: string;
 }
 
+// Simplified background without heavy particles and parallax for better performance and simplicity
 const AllInOneSection = memo(() => {
   const [activeSystem, setActiveSystem] = useState('ecommerce');
   const [isPlaying, setIsPlaying] = useState(false);

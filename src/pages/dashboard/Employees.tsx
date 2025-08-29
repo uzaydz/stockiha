@@ -3,7 +3,8 @@ import Layout from '@/components/Layout';
 import { 
   getEmployees, 
   getEmployeeStats,
-  checkCurrentUserStatus 
+  checkCurrentUserStatus,
+  getEmployeesWithStats
 } from '@/lib/api/employees';
 import { Employee, EmployeeFilter, EmployeeStats } from '@/types/employee';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -40,7 +41,7 @@ const Employees = () => {
   const [userStatus, setUserStatus] = useState<any>(null);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // دالة محسنة لتحميل البيانات
+  // دالة محسنة لتحميل البيانات - استخدام RPC واحدة فقط
   const loadEmployees = useCallback(async () => {
     if (process.env.NODE_ENV === 'development') {
     }
@@ -49,13 +50,9 @@ const Employees = () => {
     try {
       if (process.env.NODE_ENV === 'development') {
       }
-      // تحميل البيانات بالتوازي لتحسين الأداء
-      if (process.env.NODE_ENV === 'development') {
-      }
-      const employeesData = await getEmployees();
-      if (process.env.NODE_ENV === 'development') {
-      }
-      const statsData = await getEmployeeStats();
+      
+      // استخدام الدالة المحسنة التي تجلب البيانات والإحصائيات معاً
+      const { employees: employeesData, stats: statsData } = await getEmployeesWithStats();
       
       if (process.env.NODE_ENV === 'development') {
       }

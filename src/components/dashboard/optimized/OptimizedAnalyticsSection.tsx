@@ -4,8 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useSuperUnifiedData } from '../../../context/SuperUnifiedDataContext';
 import { useTenant } from '../../../context/TenantContext';
 import OrderHeatmapCard from '../OrderHeatmapCard';
-import VisitorAnalyticsCard from '../VisitorAnalyticsCard';
-import OnlineOrderAnalyticsCard from '../OnlineOrderAnalyticsCard';
 import { 
   MapPin, 
   Clock, 
@@ -397,7 +395,7 @@ const OptimizedProvinceCard = () => {
           </motion.div>
       ) : (
         <div className="space-y-3">
-            <AnimatePresence mode="wait">
+            <AnimatePresence mode="popLayout">
               {displayedProvinces?.map((province, index) => {
                 const percentage = stats ? (province.total_revenue / stats.totalRevenue) * 100 : 0;
                 const isTop = index === 0;
@@ -616,23 +614,6 @@ const OptimizedAnalyticsSection: React.FC = () => {
           <OptimizedHeatmapCard />
         </motion.div>
 
-        {/* الصف الثاني: تحليلات الزوار - صف منفصل */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.3 }}
-        >
-          <VisitorAnalyticsCard />
-        </motion.div>
-
-        {/* الصف الثالث: إحصائيات الطلبات الأونلاين - صف منفصل */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
-        >
-          <OnlineOrderAnalyticsCard />
-        </motion.div>
       </div>
     </>
   );

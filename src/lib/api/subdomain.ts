@@ -1,5 +1,4 @@
 import { supabase } from '@/lib/supabase';
-import { supabaseAdmin } from '@/lib/supabase-admin';
 import { getSupabaseClient } from '@/lib/supabase';
 import { withCache, DEFAULT_CACHE_TTL } from '@/lib/cache/storeCache';
 import { isValidUuid } from '@/utils/uuid-helpers';
@@ -19,6 +18,8 @@ export const checkSubdomainAvailability = async (subdomain: string): Promise<{
   error?: Error;
 }> => {
   try {
+    if (process.env.NODE_ENV === 'development') {
+    }
     // التحقق من صحة المدخل
     if (!subdomain || typeof subdomain !== 'string') {
       return { available: false, error: new Error('النطاق الفرعي غير صالح') };
@@ -43,23 +44,62 @@ export const checkSubdomainAvailability = async (subdomain: string): Promise<{
       return { available: false, error: new Error('النطاق الفرعي يجب أن يحتوي على أحرف صغيرة وأرقام وشرطات فقط') };
     }
 
-    // استخدام supabaseAdmin للاتساق مع وظيفة registerTenant
-    const { data, error } = await supabaseAdmin
-      .from('organizations')
-      .select('id, subdomain, name')
-      .eq('subdomain', cleanSubdomain)
-      .maybeSingle();
+    // المحاولة الأولى: استخدام عميل supabase العادي
+    try {
+      const { data, error } = await supabase
+        .from('organizations')
+        .select('id, subdomain')
+        .eq('subdomain', cleanSubdomain)
+        .maybeSingle();
 
-    if (error) {
-      return { available: false, error };
+      if (error) {
+        throw error;
+      }
+
+      if (process.env.NODE_ENV === 'development') {
+      }
+
+      if (data && (data as any).subdomain === cleanSubdomain) {
+        return { available: false };
+      }
+
+      // إذا لم يتم العثور على صف مطابق
+      return { available: true };
+    } catch (adminError) {
+      if (process.env.NODE_ENV === 'development') {
+      }
+
+      // المحاولة الثانية: استخدام supabase مباشرة
+      try {
+        const { data, error } = await supabase
+          .from('organizations')
+          .select('id,subdomain')
+          .eq('subdomain', cleanSubdomain)
+          .single();
+
+        if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+          throw error;
+        }
+
+        if (process.env.NODE_ENV === 'development') {
+        }
+
+        // إذا لم يتم العثور على نتائج، النطاق الفرعي متاح
+        if (!data) {
+          return { available: true };
+        }
+
+        // إذا تم العثور على نتائج، النطاق الفرعي غير متاح
+        return { available: false };
+      } catch (restError) {
+        if (process.env.NODE_ENV === 'development') {
+        }
+        return { available: false, error: restError as Error };
+      }
     }
-
-    if (data && data.id) {
-      return { available: false };
-    }
-
-    return { available: true };
   } catch (error) {
+    if (process.env.NODE_ENV === 'development') {
+    }
     return { available: false, error: error as Error };
   }
 };
@@ -84,24 +124,31 @@ export const checkSubdomainAvailabilityWithRetry = async (
     .replace(/-+/g, '-'); // تحويل الشرطات المتعددة إلى شرطة واحدة
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    
     const result = await checkSubdomainAvailability(cleanSubdomain);
 
-    // إذا نجح الفحص أو كان النطاق غير متاح، أرجع النتيجة
-    if (!result.error || !result.available) {
+    // إذا لم يكن هناك خطأ، أرجع النتيجة مباشرة (سواء متاح أو غير متاح)
+    if (!result.error) {
+      if (process.env.NODE_ENV === 'development') {
+      }
       return result;
     }
-    
-    // إذا كان هناك خطأ، انتظر قليلاً قبل إعادة المحاولة
+
+    // إذا كان هناك خطأ، أعد المحاولة حتى تصل للحد الأقصى
     if (attempt < maxRetries) {
-      await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+      if (process.env.NODE_ENV === 'development') {
+      }
+      await new Promise(resolve => setTimeout(resolve, attempt * 500));
+      continue;
     }
+
+    // بعد استنفاد المحاولات، أرجع الخطأ للمستدعي ليعالجه بشكل مناسب
+    if (process.env.NODE_ENV === 'development') {
+    }
+    return { available: false, error: result.error };
   }
-  
-  return { 
-    available: false, 
-    error: new Error(`فشل في التحقق من توفر النطاق الفرعي بعد ${maxRetries} محاولات`) 
-  };
+
+  // لا يجب الوصول إلى هنا، لكن للسلامة
+  return { available: false, error: new Error('فشل غير معروف في التحقق من توفر النطاق الفرعي') };
 };
 
 /**
@@ -119,7 +166,7 @@ export const findSimilarSubdomains = async (subdomain: string): Promise<string[]
       .replace(/^-+|-+$/g, '') // إزالة الشرطات من البداية والنهاية
       .replace(/-+/g, '-'); // تحويل الشرطات المتعددة إلى شرطة واحدة
     
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from('organizations')
       .select('subdomain')
       .ilike('subdomain', `${cleanSubdomain}%`)
@@ -173,6 +220,27 @@ export const getOrganizationBySubdomain = async (subdomain: string): Promise<Org
 
   const cacheKey = `organization_subdomain:${cleanSubdomain}`;
 
+  // 🚀 تحسين: فحص localStorage أولاً للزوار العائدين
+  const storedOrgData = localStorage.getItem(`bazaar_org_${cleanSubdomain}`);
+  if (storedOrgData) {
+    try {
+      const parsed = JSON.parse(storedOrgData);
+      const ageInMinutes = (Date.now() - parsed.timestamp) / (1000 * 60);
+      // إذا كانت البيانات أقل من 30 دقيقة، استخدمها
+      if (ageInMinutes < 30 && parsed.data) {
+        if (process.env.NODE_ENV === 'development') {
+        }
+        return parsed.data;
+      } else {
+        // مسح البيانات المنتهية الصلاحية
+        localStorage.removeItem(`bazaar_org_${cleanSubdomain}`);
+      }
+    } catch (e) {
+      // مسح البيانات التالفة
+      localStorage.removeItem(`bazaar_org_${cleanSubdomain}`);
+    }
+  }
+
   // Dedup: إذا كان هناك طلب جارٍ لنفس المفتاح، استخدمه
   if (pendingOrgRequests[cacheKey]) {
     return pendingOrgRequests[cacheKey];
@@ -185,18 +253,58 @@ export const getOrganizationBySubdomain = async (subdomain: string): Promise<Org
         
         const supabaseClient = getSupabaseClient();
         
-        // البحث عن المنظمة بواسطة النطاق الفرعي
+        // البحث عن المنظمة بواسطة النطاق الفرعي - محسن للسرعة
         const { data, error } = await supabaseClient
           .from('organizations')
-          .select('*')
+          .select('id, name, subdomain, domain, logo_url, description, subscription_tier, subscription_status, owner_id, settings, created_at, updated_at')
           .eq('subdomain', cleanSubdomain)
           .maybeSingle();
         
-        if (error) {
-          // في maybeSingle، الأخطاء الحرجة فقط، وإلا null
+        if (error || !data) {
           return null;
         }
-        return (data as Organization) || null;
+        
+        const orgData = data as Organization;
+        
+        // جلب إعدادات المؤسسة من جدول منفصل
+        const { data: settings, error: settingsError } = await supabaseClient
+          .from('organization_settings')
+          .select('*')
+          .eq('organization_id', orgData.id)
+          .maybeSingle();
+        
+        // دمج إعدادات المؤسسة في كائن المؤسسة
+        if (settings && !settingsError) {
+          orgData.settings = {
+            ...orgData.settings,
+            ...settings,
+            // تأكد من وضع إعدادات الثيم في المكان الصحيح
+            theme_primary_color: settings.theme_primary_color,
+            theme_secondary_color: settings.theme_secondary_color,
+            theme_mode: settings.theme_mode,
+            custom_css: settings.custom_css,
+            site_name: settings.site_name,
+            enable_public_site: settings.enable_public_site
+          };
+        }
+        
+        // 🚀 تحسين: حفظ البيانات في localStorage للزيارات المستقبلية
+        if (orgData) {
+          try {
+            localStorage.setItem(`bazaar_org_${cleanSubdomain}`, JSON.stringify({
+              data: orgData,
+              timestamp: Date.now()
+            }));
+            if (process.env.NODE_ENV === 'development') {
+            }
+          } catch (e) {
+            // تجاهل أخطاء localStorage (قد يكون ممتلئ)
+            if (process.env.NODE_ENV === 'development') {
+            }
+          }
+        }
+        
+        return orgData;
       } catch (error) {
         return null;
       }
@@ -363,7 +471,7 @@ export const extractSubdomainFromHostname = (hostname: string) => {
   for (const baseDomain of baseDomains) {
     if (hostname.endsWith(baseDomain)) {
       const parts = hostname.replace(baseDomain, '').split('.');
-      const subdomain = parts[parts.length - 1];
+      const subdomain = parts[0]; // الجزء الأول هو النطاق الفرعي
       // التأكد من أن النطاق الفرعي ليس فارغاً وليس www
       if (subdomain && subdomain !== 'www') {
         // تنظيف النطاق الفرعي

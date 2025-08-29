@@ -4,6 +4,7 @@ import { useTenant } from './TenantContext';
 import { v4 as uuidv4 } from 'uuid';
 import { withCache, DEFAULT_CACHE_TTL, SHORT_CACHE_TTL } from '@/lib/cache/storeCache';
 import { OptimizedStoreService } from '@/services/OptimizedStoreService';
+import { useSharedStoreData } from '@/hooks/useSharedStoreData';
 
 // استيراد الأنواع من الملفات المنفصلة
 import { 
@@ -53,6 +54,10 @@ const ShopContext = createContext<ShopContextType | undefined>(undefined);
 export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // حالة المتجر
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [cartItems, setCartItems] = useState<any[]>([]);
+  const [wishlistItems, setWishlistItems] = useState<any[]>([]);
+  
+  // إضافة المتغيرات المفقودة
   const [products, setProducts] = useState<Product[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -60,94 +65,49 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [cart, setCart] = useState<CartItem[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [currentOrganization, setCurrentOrganization] = useState<{ id: string } | null>(null);
   
-  // Flag to prevent multiple initialization
+  // مرجع لتتبع حالة التهيئة
   const isInitialized = useRef(false);
-  const loadingProducts = useRef(false);
 
-  // حساب المجموع الكلي للسلة
-  const cartTotal = cartService.calculateCartTotal(cart);
+  // حساب إجمالي عربة التسوق
+  const cartTotal = cart.reduce((total, item) => {
+    const price = item.variantPrice || item.product.price;
+    return total + (price * item.quantity);
+  }, 0);
 
   const tenant = useTenant();
 
-  // وظيفة محسنة لجلب المنتجات باستخدام OptimizedStoreService
-  const fetchProducts = useCallback(async (organizationId: string) => {
-    if (loadingProducts.current) {
-      return [];
-    }
-    
-    loadingProducts.current = true;
-    
-    // إنشاء وقت انتهاء مهلة للاستعلام
-    const timeoutPromise = new Promise<Product[]>((_, reject) => {
-      setTimeout(() => {
-        reject(new Error('انتهت مهلة جلب المنتجات'));
-      }, 30000);
-    });
-    
-    try {
-      // استخدام OptimizedStoreService بدلاً من الطلبات المنفصلة
-      const productsPromise = withCache<Product[]>(
-        `shop_products:${organizationId}`,
-        async () => {
-          
-          // استخدام استعلام مباشر محسن مع الألوان والأحجام
-          const { data: productsData, error: productsError } = await supabase
-            .from('products')
-            .select(`
-              id, name, description, price, compare_at_price, sku, barcode, category_id, brand, images, thumbnail_image, stock_quantity, features, specifications, is_digital, is_new, is_featured, created_at, updated_at, has_variants, use_sizes
-            `)
-            .eq('organization_id', organizationId)
-            .eq('is_active', true)
-            .order('created_at', { ascending: false })
-            .limit(30); // تقليل الحد الأقصى لتحسين الأداء
-            
-          if (productsError) {
-            return [];
-          }
+  // 🔒 استخدام البيانات من useSharedStoreData بدلاً من الاستدعاءات المنفصلة
+  const { 
+    products: sharedProducts, 
+    isLoading: productsLoading,
+    error: productsError
+  } = useSharedStoreData({
+    includeProducts: true,
+    enabled: !!tenant.currentOrganization?.id
+  });
 
-          // تحويل البيانات مع الألوان والأحجام المحملة مسبقاً
-          return (productsData || []).map(product => ({
-            id: product.id,
-            name: product.name,
-            description: product.description || '',
-            price: product.price,
-            compareAtPrice: product.compare_at_price || undefined,
-            sku: product.sku,
-            barcode: product.barcode || undefined,
-            category: 'accessories' as any,
-            category_id: product.category_id || undefined,
-            subcategory: undefined,
-            brand: product.brand || undefined,
-            images: product.images || [],
-            thumbnailImage: product.thumbnail_image || '',
-            stockQuantity: product.stock_quantity,
-            stock_quantity: product.stock_quantity,
-            features: product.features || undefined,
-            specifications: product.specifications as Record<string, string> || {},
-            isDigital: product.is_digital,
-            isNew: product.is_new || undefined,
-            isFeatured: product.is_featured || undefined,
-            createdAt: new Date(product.created_at),
-            updatedAt: new Date(product.updated_at),
-            has_variants: product.has_variants || false,
-            use_sizes: product.use_sizes || false,
-            colors: [] // تم إيقاف تحميل الألوان هنا لتحسين الأداء
-          }));
-        },
-        SHORT_CACHE_TTL // تخزين مؤقت لمدة 5 دقائق
-      );
-      
-      // استخدام Race بين الاستعلام والمهلة الزمنية
-      return await Promise.race([productsPromise, timeoutPromise]);
-    } catch (error) {
-      return [];
-    } finally {
-      loadingProducts.current = false;
+  // وظيفة محسنة لجلب المنتجات باستخدام البيانات المشتركة
+  const fetchProducts = useCallback(async (organizationId: string) => {
+    // إذا كانت البيانات متوفرة من useSharedStoreData، استخدمها
+    if (sharedProducts && sharedProducts.length > 0) {
+      return sharedProducts;
     }
-  }, []);
+    
+    // إذا لم تكن البيانات متوفرة، انتظر حتى يتم تحميلها
+    if (productsLoading) {
+      return [];
+    }
+    
+    // إذا كان هناك خطأ، أعد مصفوفة فارغة
+    if (productsError) {
+      return [];
+    }
+    
+    return [];
+  }, [sharedProducts, productsLoading, productsError]);
 
   // وظيفة محسنة لجلب الطلبات
   const fetchOrders = useCallback(async (organizationId: string) => {
@@ -299,44 +259,38 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } else {
       }
       
-      // جلب المستخدمين بشكل منفصل (لا نستخدم Promise.allSettled لأننا نحتاج إلى معالجة الخطأ مباشرة)
+      // جلب المستخدمين بشكل منفصل باستخدام API موحد
       try {
+        const { getOrganizationUsers } = await import('@/lib/api/deduplicatedApi');
+        const usersData = await getOrganizationUsers(organizationId);
         
-        const { data: usersData, error: usersError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('organization_id', organizationId);
+        const mappedUsers = usersData.map(mapSupabaseUserToUser);
+        setUsers(prevUsers => {
+          // دمج المستخدمين من API مع المستخدمين المخزنة محليًا
+          const mergedUsers = [...mappedUsers];
           
-        if (usersError) {
-        } else {
-          const mappedUsers = usersData.map(mapSupabaseUserToUser);
-          setUsers(prevUsers => {
-            // دمج المستخدمين من API مع المستخدمين المخزنة محليًا
-            const mergedUsers = [...mappedUsers];
-            
-            // إضافة المستخدمين المخزنة محليًا التي لا توجد في API
-            for (const localUser of prevUsers) {
-              const existingIndex = mergedUsers.findIndex(u => u.id === localUser.id);
-              if (existingIndex >= 0) {
-                // تحديث البيانات الموجودة إذا كانت البيانات المحلية أحدث
-                if (localUser.updatedAt > mergedUsers[existingIndex].updatedAt) {
-                  mergedUsers[existingIndex] = localUser;
-                }
-              } else {
-                // إضافة المستخدم المحلي إذا لم يكن موجوداً
-                mergedUsers.push(localUser);
+          // إضافة المستخدمين المخزنة محليًا التي لا توجد في API
+          for (const localUser of prevUsers) {
+            const existingIndex = mergedUsers.findIndex(u => u.id === localUser.id);
+            if (existingIndex >= 0) {
+              // تحديث البيانات الموجودة إذا كانت البيانات المحلية أحدث
+              if (localUser.updatedAt > mergedUsers[existingIndex].updatedAt) {
+                mergedUsers[existingIndex] = localUser;
               }
+            } else {
+              // إضافة المستخدم المحلي إذا لم يكن موجوداً
+              mergedUsers.push(localUser);
             }
-            
-            // حفظ المستخدمين في التخزين المحلي
-            try {
-              localStorage.setItem('bazaar_users', JSON.stringify(mergedUsers));
-            } catch (storageError) {
-            }
-            
-            return mergedUsers;
-          });
-        }
+          }
+          
+          // حفظ المستخدمين في التخزين المحلي
+          try {
+            localStorage.setItem('bazaar_users', JSON.stringify(mergedUsers));
+          } catch (storageError) {
+          }
+          
+          return mergedUsers;
+        });
       } catch (usersError) {
       }
 
@@ -405,9 +359,9 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         throw new Error('لم يتم العثور على معرف المنظمة عند إضافة المنتج');
       }
       const newProductFromService = await productService.addProduct({ ...product, organizationId });
-      const newProduct = mapSupabaseProductToProduct(newProductFromService);
-      setProducts([...products, newProduct]);
-      return newProduct;
+      // productService.addProduct يُرجع Promise<Product>، تم استخدام await
+      setProducts([...products, newProductFromService]);
+      return newProductFromService;
     } catch (error) {
       throw error;
     }
@@ -416,9 +370,9 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const updateProduct = async (product: Product) => {
     try {
       const updatedProductFromService = await productService.updateProduct(product);
-      const mappedProduct = mapSupabaseProductToProduct(updatedProductFromService);
-      setProducts(products.map(p => p.id === product.id ? mappedProduct : p));
-      return mappedProduct;
+      // productService.updateProduct يُرجع Product مباشرة، لا حاجة للتحويل
+      setProducts(products.map(p => p.id === product.id ? updatedProductFromService : p));
+      return updatedProductFromService;
     } catch (error) {
       throw error;
     }

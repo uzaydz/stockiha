@@ -1,8 +1,21 @@
-CREATE OR REPLACE FUNCTION get_product_complete_data_optimized(
+-- 🚀 تحديث مهم: تحميل جميع صور الألوان دائماً
+-- الآن يتم تحميل جميع صور الألوان في الاستعلام الرئيسي
+-- هذا يضمن ظهور الصور فوراً دون الحاجة لتحميل إضافي
+-- قد يزيد من استهلاك النطاق الترددي لكن يحسن تجربة المستخدم
+--
+-- 📋 تعليمات التطبيق:
+-- 1. انسخ محتوى هذا الملف
+-- 2. اذهب إلى Supabase Dashboard > SQL Editor
+-- 3. الصق المحتوى وشغل الاستعلام
+-- 4. الآن سيتم تحميل جميع صور الألوان دائماً مع البيانات
+-- 5. هذا سيضمن ظهور الصور فوراً للمستخدمين
+
+CREATE OR REPLACE FUNCTION get_product_complete_data_ultra_optimized(
   p_product_identifier TEXT,
   p_organization_id UUID DEFAULT NULL,
   p_include_inactive BOOLEAN DEFAULT FALSE,
-  p_data_scope TEXT DEFAULT 'full' -- 'basic', 'medium', 'full', 'ultra'
+  p_data_scope TEXT DEFAULT 'basic', -- 'basic', 'medium', 'full', 'ultra'
+  p_include_large_images BOOLEAN DEFAULT FALSE -- 🚀 تحسين: خيار لتحميل الصور الضخمة
 )
 RETURNS JSON
 LANGUAGE plpgsql
@@ -13,13 +26,27 @@ DECLARE
   v_product_id UUID;
   v_org_id UUID;
   v_is_uuid BOOLEAN;
+  v_start_time TIMESTAMP;
+  v_execution_time_ms NUMERIC;
+  v_product_data RECORD;
 BEGIN
-  -- 🚀 تحسين 1: التحقق من صحة UUID مرة واحدة
-  v_is_uuid := p_product_identifier ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
+  -- 🚀 تحسين 1: قياس زمن التنفيذ
+  v_start_time := clock_timestamp();
+  
+  -- 🚀 تحسين 2: التحقق السريع من UUID بدون regex معقد
+  v_is_uuid := length(p_product_identifier) = 36 AND p_product_identifier ~ '^[0-9a-f-]+$';
   
   IF v_is_uuid THEN
-    v_product_id := p_product_identifier::UUID;
-  ELSE
+    -- تحسين: تحويل مباشر مع معالجة الأخطاء
+    BEGIN
+      v_product_id := p_product_identifier::UUID;
+    EXCEPTION
+      WHEN OTHERS THEN
+        v_is_uuid := FALSE;
+    END;
+  END IF;
+  
+  IF NOT v_is_uuid THEN
     -- إذا كان slug، استخدم الفهرس المحسن
     IF p_organization_id IS NULL THEN
       RETURN JSON_BUILD_OBJECT(
@@ -31,11 +58,21 @@ BEGIN
       );
     END IF;
     
-    SELECT id INTO v_product_id 
-    FROM products 
-    WHERE slug = p_product_identifier 
-      AND organization_id = p_organization_id 
-      AND is_active = TRUE;
+    -- 🚀 تحسين 3: استخدام الفهرس الأمثل للبحث بـ slug بدون شرط OR
+    IF p_include_inactive THEN
+      SELECT id INTO v_product_id 
+      FROM products 
+      WHERE slug = p_product_identifier 
+        AND organization_id = p_organization_id 
+      LIMIT 1;
+    ELSE
+      SELECT id INTO v_product_id 
+      FROM products 
+      WHERE slug = p_product_identifier 
+        AND organization_id = p_organization_id 
+        AND is_active = TRUE
+      LIMIT 1;
+    END IF;
       
     IF v_product_id IS NULL THEN
       RETURN JSON_BUILD_OBJECT(
@@ -48,22 +85,89 @@ BEGIN
     END IF;
   END IF;
 
-  -- 🚀 تحسين 2: استعلام موحد للحصول على جميع البيانات
-  WITH product_complete AS (
+  -- 🚀 تحسين 4: استعلام موحد محسن مع LATERAL JOINs
+  SELECT 
+    -- البيانات الأساسية للمنتج (مطلوبة دائماً)
+    p.id, p.name, p.description, p.slug, p.sku, p.price, p.stock_quantity,
+    p.thumbnail_image, p.is_active, p.has_variants, p.use_sizes, p.use_variant_prices,
+    p.category_id, p.subcategory_id, p.organization_id,
+    
+    -- البيانات المالية
+    p.purchase_price, p.compare_at_price, p.wholesale_price, p.partial_wholesale_price,
+    p.min_wholesale_quantity, p.min_partial_wholesale_quantity,
+    p.allow_retail, p.allow_wholesale, p.allow_partial_wholesale,
+    p.is_sold_by_unit, p.unit_type, p.unit_purchase_price, p.unit_sale_price,
+    
+    -- بيانات المخزون
+    p.min_stock_level, p.reorder_level, p.reorder_quantity, p.last_inventory_update,
+    
+    -- الميزات والمواصفات
+    CASE WHEN p_data_scope IN ('medium','full','ultra') THEN p.features ELSE NULL END AS features,
+    CASE WHEN p_data_scope IN ('medium','full','ultra') THEN p.specifications ELSE NULL END AS specifications,
+    p.has_fast_shipping, p.has_money_back, p.has_quality_guarantee,
+    p.fast_shipping_text, p.money_back_text, p.quality_guarantee_text,
+    
+    -- حالة المنتج
+    p.is_digital, p.is_featured, p.is_new, p.show_price_on_landing,
+    p.created_at, p.updated_at, p.created_by_user_id, p.updated_by_user_id,
+    
+    -- إعدادات الشحن
+    p.shipping_method_type, p.use_shipping_clone, p.shipping_provider_id, p.shipping_clone_id,
+    
+    -- بيانات إضافية مهمة
+    p.barcode, p.brand, p.name_for_shipping,
+    CASE WHEN p_data_scope IN ('full','ultra') THEN p.purchase_page_config ELSE NULL END AS purchase_page_config,
+    CASE WHEN p_data_scope IN ('full','ultra') THEN p.special_offers_config ELSE NULL END AS special_offers_config,
+    
+    -- معلومات المنظمة (JOIN محسن)
+    o.name as org_name, o.domain as org_domain,
+    
+    -- معلومات الفئات (JOIN محسن)
+    pc.name as category_name, pc.slug as category_slug, pc.icon as category_icon,
+    psc.name as subcategory_name, psc.slug as subcategory_slug,
+    
+    -- 🚀 تحسين 5: LATERAL JOIN للشحن (أسرع من LEFT JOIN)
+    sp_info.shipping_data,
+    
+    -- 🚀 تحسين 6: LATERAL JOIN للألوان (مشروط بـ data_scope)
+    CASE 
+      WHEN p_data_scope = 'basic' THEN '[]'::json
+      WHEN p.has_variants = TRUE AND p_data_scope IN ('medium', 'full', 'ultra') THEN
+        colors_info.colors_data
+      ELSE '[]'::json
+    END as colors_data,
+    
+    -- 🚀 تحسين 7: LATERAL JOIN للصور (مشروط بـ data_scope)
+    CASE 
+      WHEN p_data_scope = 'basic' THEN '[]'::json
+      WHEN p_data_scope IN ('medium', 'full', 'ultra') THEN
+        images_info.images_data
+      ELSE '[]'::json
+    END as images_data,
+    
+    -- 🚀 تحسين 8: بيانات النماذج (مشروطة بـ data_scope) باستخدام COALESCE بين نموذج مخصص والافتراضي
+    CASE 
+      WHEN p_data_scope IN ('medium', 'full', 'ultra') THEN
+        COALESCE(custom_form.form_data, default_form.form_data)
+      ELSE NULL
+    END as form_data,
+    
+    -- 🚀 تحسين 9: LATERAL JOIN للإعدادات المتقدمة (مشروط بـ data_scope)
+    CASE 
+      WHEN p_data_scope IN ('full', 'ultra') THEN
+        advanced_info.advanced_data
+      ELSE NULL
+    END as advanced_data
+    
+  INTO v_product_data
+  FROM products p
+  LEFT JOIN organizations o ON p.organization_id = o.id
+  LEFT JOIN product_categories pc ON p.category_id = pc.id
+  LEFT JOIN product_subcategories psc ON p.subcategory_id = psc.id
+  
+  -- 🚀 تحسين 10: LATERAL JOIN للشحن (أسرع وأكثر كفاءة)
+  LEFT JOIN LATERAL (
     SELECT 
-      -- البيانات الأساسية للمنتج
-      p.*,
-      o.name as org_name,
-      o.domain as org_domain,
-      
-      -- معلومات الفئات مع الفهارس
-      pc.name as category_name,
-      pc.slug as category_slug,
-      pc.icon as category_icon,
-      psc.name as subcategory_name,
-      psc.slug as subcategory_slug,
-      
-      -- إعدادات الشحن المُجمعة
       CASE 
         WHEN p.use_shipping_clone = TRUE AND p.shipping_clone_id IS NOT NULL THEN
           JSON_BUILD_OBJECT(
@@ -82,388 +186,642 @@ BEGIN
             'code', sp.code
           )
         ELSE NULL
-      END as shipping_info,
-      
-      -- 🚀 تحسين 3: جلب الألوان والأحجام في استعلام واحد مع LATERAL JOIN
-      CASE WHEN p_data_scope IN ('medium', 'full', 'ultra') THEN
-        COALESCE(
-          (SELECT JSON_AGG(
-            JSON_BUILD_OBJECT(
-              'id', colors_with_sizes.id,
-              'name', colors_with_sizes.name,
-              'color_code', colors_with_sizes.color_code,
-              'image_url', colors_with_sizes.image_url,
-              'quantity', colors_with_sizes.quantity,
-              'price', colors_with_sizes.price,
-              'is_default', colors_with_sizes.is_default,
-              'sizes', colors_with_sizes.sizes_data
-            ) ORDER BY colors_with_sizes.is_default DESC, colors_with_sizes.created_at
-          )
-          FROM (
-            SELECT 
-              pcol.*,
-              COALESCE(
-                JSON_AGG(
-                  JSON_BUILD_OBJECT(
-                    'id', ps.id,
-                    'size_name', ps.size_name,
-                    'quantity', ps.quantity,
-                    'price', ps.price,
-                    'is_default', ps.is_default
-                  ) ORDER BY ps.is_default DESC, ps.created_at
-                ) FILTER (WHERE ps.id IS NOT NULL),
-                '[]'::json
-              ) as sizes_data
-            FROM product_colors pcol
-            LEFT JOIN product_sizes ps ON ps.color_id = pcol.id
-            WHERE pcol.product_id = v_product_id
-            GROUP BY pcol.id, pcol.name, pcol.color_code, pcol.image_url, 
-                     pcol.quantity, pcol.price, pcol.is_default, pcol.created_at
-          ) colors_with_sizes),
-          '[]'::json
-        )
-      ELSE '[]'::json
-      END as colors_data,
-      
-      -- 🚀 تحسين 4: الصور المُحسنة
-      CASE WHEN p_data_scope IN ('medium', 'full', 'ultra') THEN
-        COALESCE(
-          (SELECT JSON_AGG(
-            JSON_BUILD_OBJECT(
-              'id', pi.id,
-              'url', pi.image_url,
-              'sort_order', pi.sort_order
-            ) ORDER BY pi.sort_order
-          ) FROM product_images pi WHERE pi.product_id = v_product_id),
-          '[]'::json
-        )
-      ELSE '[]'::json
-      END as images_data,
-      
-      -- 🚀 تحسين 5: النماذج المُحسنة مع أولوية مخصص > افتراضي
-      CASE WHEN p_data_scope IN ('medium', 'full', 'ultra') THEN
-        COALESCE(
-          (SELECT JSON_BUILD_OBJECT(
-            'id', fs.id,
-            'name', fs.name,
-            'fields', fs.fields,
-            'is_default', fs.is_default,
-            'is_active', fs.is_active,
-            'settings', COALESCE(fs.settings, '{}'::jsonb),
-            'type', CASE 
-              WHEN fs.product_ids @> JSON_BUILD_ARRAY(v_product_id::text)::jsonb THEN 'custom'
-              ELSE 'default'
+      END as shipping_data
+    FROM shipping_provider_clones spc
+    LEFT JOIN shipping_providers sp ON spc.original_provider_id = sp.id
+    WHERE spc.id = p.shipping_clone_id
+    UNION ALL
+    SELECT 
+      JSON_BUILD_OBJECT(
+        'type', 'provider',
+        'id', sp.id,
+        'name', sp.name,
+        'code', sp.code
+      ) as shipping_data
+    FROM shipping_providers sp
+    WHERE sp.id = p.shipping_provider_id
+    LIMIT 1
+  ) sp_info ON TRUE
+  
+  -- 🚀 تحسين 11: LATERAL JOIN للألوان مع الأحجام (مشروط ومحسن)
+  LEFT JOIN LATERAL (
+    SELECT 
+      COALESCE(
+        (SELECT JSON_AGG(
+          JSON_BUILD_OBJECT(
+            'id', pcol.id,
+            'name', pcol.name,
+            'color_code', pcol.color_code,
+            -- 🚀 تحميل جميع صور الألوان دائماً
+            'image_url', pcol.image_url,
+            'has_image', CASE WHEN pcol.image_url IS NOT NULL AND length(pcol.image_url) > 0 THEN TRUE ELSE FALSE END,
+            'image_size', CASE WHEN pcol.image_url IS NOT NULL THEN length(pcol.image_url) ELSE 0 END,
+            'quantity', pcol.quantity,
+            'price', pcol.price,
+            'is_default', pcol.is_default,
+            'sizes', CASE 
+              WHEN p.use_sizes = TRUE THEN
+                COALESCE(
+                  (SELECT JSON_AGG(
+                    JSON_BUILD_OBJECT(
+                      'id', ps.id,
+                      'size_name', ps.size_name,
+                      'quantity', ps.quantity,
+                      'price', ps.price,
+                      'is_default', ps.is_default
+                    ) ORDER BY ps.is_default DESC NULLS LAST, ps.id
+                  ) FROM product_sizes ps WHERE ps.color_id = pcol.id LIMIT 10),
+                  '[]'::json
+                )
+              ELSE '[]'::json
             END
-          )
-          FROM form_settings fs
-          WHERE fs.organization_id = p.organization_id
-            AND fs.is_active = TRUE
-            AND (
-              fs.product_ids @> JSON_BUILD_ARRAY(v_product_id::text)::jsonb OR
-              fs.is_default = TRUE
-            )
-          ORDER BY 
-            (fs.product_ids @> JSON_BUILD_ARRAY(v_product_id::text)::jsonb) DESC,
-            fs.is_default DESC,
-            fs.updated_at DESC
-          LIMIT 1),
-          NULL
-        )
-      ELSE NULL
-      END as form_data,
-      
-      -- 🚀 تحسين 6: الإعدادات المتقدمة المُجمعة (فقط للنطاق ultra)
-      CASE WHEN p_data_scope = 'ultra' THEN
-        (SELECT JSON_BUILD_OBJECT(
-          'advanced_settings', JSON_BUILD_OBJECT(
+          ) ORDER BY pcol.is_default DESC NULLS LAST, pcol.id
+        ) FROM product_colors pcol WHERE pcol.product_id = p.id LIMIT 20),
+        '[]'::json
+      ) as colors_data
+  ) colors_info ON p.has_variants = TRUE AND p_data_scope IN ('medium', 'full', 'ultra')
+  
+  -- 🚀 تحسين 12: LATERAL JOIN للصور (مشروط ومحسن)
+  LEFT JOIN LATERAL (
+    SELECT 
+      COALESCE(
+        (SELECT JSON_AGG(
+          JSON_BUILD_OBJECT(
+            'id', pi.id,
+            'url', pi.image_url,
+            'sort_order', COALESCE(pi.sort_order, 999)
+          ) ORDER BY pi.sort_order NULLS LAST, pi.id
+        ) FROM product_images pi WHERE pi.product_id = p.id LIMIT 10),
+        '[]'::json
+      ) as images_data
+  ) images_info ON p_data_scope IN ('medium', 'full', 'ultra')
+  
+  -- 🚀 تحسين 13: LATERAL JOIN للنماذج (تفكيك الشرط لتجنب OR وترتيب قائم على تعبير)
+  LEFT JOIN LATERAL (
+    SELECT 
+      JSON_BUILD_OBJECT(
+        'id', fs.id,
+        'name', fs.name,
+        'fields', fs.fields,
+        'is_default', fs.is_default,
+        'is_active', fs.is_active,
+        'settings', COALESCE(fs.settings, '{}'::jsonb),
+        'type', 'custom'
+      ) as form_data
+    FROM form_settings fs
+    WHERE fs.organization_id = p.organization_id
+      AND fs.is_active = TRUE
+      AND fs.product_ids @> JSON_BUILD_ARRAY(p.id::text)::jsonb
+    ORDER BY 
+      fs.updated_at DESC
+    LIMIT 1
+  ) custom_form ON p_data_scope IN ('medium', 'full', 'ultra')
+  
+  LEFT JOIN LATERAL (
+    SELECT 
+      JSON_BUILD_OBJECT(
+        'id', fs.id,
+        'name', fs.name,
+        'fields', fs.fields,
+        'is_default', fs.is_default,
+        'is_active', fs.is_active,
+        'settings', COALESCE(fs.settings, '{}'::jsonb),
+        'type', 'default'
+      ) as form_data
+    FROM form_settings fs
+    WHERE fs.organization_id = p.organization_id
+      AND fs.is_active = TRUE
+      AND fs.is_default = TRUE
+    ORDER BY 
+      fs.updated_at DESC
+    LIMIT 1
+  ) default_form ON p_data_scope IN ('medium', 'full', 'ultra')
+  
+  -- 🚀 تحسين 14: LATERAL JOIN للإعدادات المتقدمة (مشروط ومحسن)
+  LEFT JOIN LATERAL (
+    SELECT 
+      JSON_BUILD_OBJECT(
+        'advanced_settings', COALESCE(
+          (SELECT JSON_BUILD_OBJECT(
             'use_custom_currency', COALESCE(pas.use_custom_currency, FALSE),
             'skip_cart', COALESCE(pas.skip_cart, TRUE)
-          ),
-          'marketing_settings', JSON_BUILD_OBJECT(
-            -- مؤقت العرض
+          ) FROM product_advanced_settings pas WHERE pas.product_id = p.id LIMIT 1),
+          '{}'::json
+        ),
+        'marketing_settings', COALESCE(
+          (SELECT JSON_BUILD_OBJECT(
             'offer_timer_enabled', COALESCE(pms.offer_timer_enabled, FALSE),
             'offer_timer_title', pms.offer_timer_title,
             'offer_timer_type', pms.offer_timer_type,
             'offer_timer_end_date', pms.offer_timer_end_date,
-            'offer_timer_duration_minutes', pms.offer_timer_duration_minutes,
-            'offer_timer_display_style', pms.offer_timer_display_style,
-            'offer_timer_text_above', pms.offer_timer_text_above,
-            'offer_timer_text_below', pms.offer_timer_text_below,
-            'offer_timer_end_action', pms.offer_timer_end_action,
-            'offer_timer_end_action_url', pms.offer_timer_end_action_url,
-            'offer_timer_end_action_message', pms.offer_timer_end_action_message,
-            'offer_timer_restart_for_new_session', COALESCE(pms.offer_timer_restart_for_new_session, FALSE),
-            'offer_timer_cookie_duration_days', pms.offer_timer_cookie_duration_days,
-            'offer_timer_show_on_specific_pages_only', COALESCE(pms.offer_timer_show_on_specific_pages_only, FALSE),
-            'offer_timer_specific_page_urls', COALESCE(pms.offer_timer_specific_page_urls, ARRAY[]::text[]),
-            
-            -- إعدادات المراجعات
             'enable_reviews', COALESCE(pms.enable_reviews, TRUE),
             'reviews_verify_purchase', COALESCE(pms.reviews_verify_purchase, FALSE),
             'reviews_auto_approve', COALESCE(pms.reviews_auto_approve, TRUE),
-            'allow_images_in_reviews', COALESCE(pms.allow_images_in_reviews, TRUE),
-            'enable_review_replies', COALESCE(pms.enable_review_replies, TRUE),
-            'review_display_style', COALESCE(pms.review_display_style, 'stars_summary'),
-            'enable_fake_star_ratings', COALESCE(pms.enable_fake_star_ratings, FALSE),
-            'fake_star_rating_value', pms.fake_star_rating_value,
-            'fake_star_rating_count', pms.fake_star_rating_count,
-            'enable_fake_purchase_counter', COALESCE(pms.enable_fake_purchase_counter, FALSE),
-            'fake_purchase_count', pms.fake_purchase_count,
             'test_mode', COALESCE(pms.test_mode, TRUE),
-            
-            -- Facebook Pixel & Conversion API
             'facebook', JSON_BUILD_OBJECT(
               'enabled', COALESCE(pms.enable_facebook_pixel, FALSE),
-              'pixel_id', pms.facebook_pixel_id,
-              'conversion_api_enabled', COALESCE(pms.enable_facebook_conversion_api, FALSE),
-              'access_token', pms.facebook_access_token,
-              'test_event_code', pms.facebook_test_event_code,
-              'advanced_matching_enabled', COALESCE(pms.facebook_advanced_matching_enabled, FALSE),
-              'standard_events', COALESCE(pms.facebook_standard_events, '{}'::jsonb),
-              'dataset_id', pms.facebook_dataset_id
+              'pixel_id', pms.facebook_pixel_id
             ),
-            
-            -- TikTok Pixel & Events API
             'tiktok', JSON_BUILD_OBJECT(
               'enabled', COALESCE(pms.enable_tiktok_pixel, FALSE),
-              'pixel_id', pms.tiktok_pixel_id,
-              'events_api_enabled', COALESCE(pms.tiktok_events_api_enabled, FALSE),
-              'access_token', pms.tiktok_access_token,
-              'test_event_code', pms.tiktok_test_event_code,
-              'advanced_matching_enabled', COALESCE(pms.tiktok_advanced_matching_enabled, FALSE),
-              'standard_events', COALESCE(pms.tiktok_standard_events, '{}'::jsonb)
+              'pixel_id', pms.tiktok_pixel_id
             ),
-            
-            -- Google Ads & Enhanced Conversions
             'google', JSON_BUILD_OBJECT(
               'enabled', COALESCE(pms.enable_google_ads_tracking, FALSE),
-              'gtag_id', pms.google_gtag_id,
-              'ads_conversion_id', pms.google_ads_conversion_id,
-              'ads_conversion_label', pms.google_ads_conversion_label,
-              'enhanced_conversions_enabled', COALESCE(pms.google_ads_enhanced_conversions_enabled, FALSE),
-              'global_site_tag_enabled', COALESCE(pms.google_ads_global_site_tag_enabled, FALSE),
-              'event_snippets', COALESCE(pms.google_ads_event_snippets, '{}'::jsonb),
-              'phone_conversion_number', pms.google_ads_phone_conversion_number,
-              'phone_conversion_label', pms.google_ads_phone_conversion_label
-            ),
-            
-            -- Snapchat Pixel & Events API
-            'snapchat', JSON_BUILD_OBJECT(
-              'enabled', COALESCE(pms.enable_snapchat_pixel, FALSE),
-              'pixel_id', pms.snapchat_pixel_id,
-              'events_api_enabled', COALESCE(pms.snapchat_events_api_enabled, FALSE),
-              'api_token', pms.snapchat_api_token,
-              'test_event_code', pms.snapchat_test_event_code,
-              'advanced_matching_enabled', COALESCE(pms.snapchat_advanced_matching_enabled, FALSE),
-              'standard_events', COALESCE(pms.snapchat_standard_events, '{}'::jsonb)
+              'gtag_id', pms.google_gtag_id
             )
-          ),
-          'wholesale_tiers', COALESCE(
-            (SELECT JSON_AGG(
-              JSON_BUILD_OBJECT(
-                'id', wt.id,
-                'min_quantity', wt.min_quantity,
-                'price', wt.price
-              ) ORDER BY wt.min_quantity
-            ) FROM wholesale_tiers wt WHERE wt.product_id = v_product_id),
-            '[]'::json
-          ),
-          -- إعدادات التحويل للمؤسسة
-          'organization_conversion_settings', COALESCE(
-            (SELECT JSON_BUILD_OBJECT(
-              'facebook_app_id', ocs.facebook_app_id,
-              'facebook_business_id', ocs.facebook_business_id,
-              'google_measurement_id', ocs.google_measurement_id,
-              'google_ads_customer_id', ocs.google_ads_customer_id,
-              'google_analytics_property_id', ocs.google_analytics_property_id,
-              'tiktok_app_id', ocs.tiktok_app_id,
-              'default_currency_code', COALESCE(ocs.default_currency_code, 'DZD'),
-              'enable_enhanced_conversions', COALESCE(ocs.enable_enhanced_conversions, FALSE)
-            ) FROM organization_conversion_settings ocs WHERE ocs.organization_id = p.organization_id),
-            '{}'::json
-          )
+          ) FROM product_marketing_settings pms WHERE pms.product_id = p.id LIMIT 1),
+          '{}'::json
+        ),
+        'wholesale_tiers', COALESCE(
+          (SELECT JSON_AGG(
+            JSON_BUILD_OBJECT(
+              'id', wt.id,
+              'min_quantity', wt.min_quantity,
+              'price', wt.price
+            ) ORDER BY wt.min_quantity
+          ) FROM wholesale_tiers wt WHERE wt.product_id = p.id LIMIT 5),
+          '[]'::json
         )
-        FROM product_advanced_settings pas
-        FULL OUTER JOIN product_marketing_settings pms ON pms.product_id = pas.product_id
-        WHERE pas.product_id = v_product_id OR pms.product_id = v_product_id
-        LIMIT 1)
-      ELSE NULL
-      END as extended_settings
-      
-    FROM products p
-    LEFT JOIN organizations o ON p.organization_id = o.id
-    LEFT JOIN product_categories pc ON p.category_id = pc.id
-    LEFT JOIN product_subcategories psc ON p.subcategory_id = psc.id
-    LEFT JOIN shipping_provider_clones spc ON p.shipping_clone_id = spc.id
-    LEFT JOIN shipping_providers sp ON p.shipping_provider_id = sp.id OR spc.original_provider_id = sp.id
-    WHERE p.id = v_product_id
-      AND (p_organization_id IS NULL OR p.organization_id = p_organization_id)
-      AND (p_include_inactive = TRUE OR p.is_active = TRUE)
-  )
+      ) as advanced_data
+  ) advanced_info ON p_data_scope IN ('full', 'ultra')
   
-  -- 🚀 تحسين 7: بناء النتيجة مرة واحدة
+  WHERE p.id = v_product_id
+    AND (p_organization_id IS NULL OR p.organization_id = p_organization_id)
+    AND (p_include_inactive = TRUE OR p.is_active = TRUE)
+  LIMIT 1;
+
+  -- 🚀 تحسين 15: بناء النتيجة النهائية باستخدام row_to_json (أسرع)
   SELECT JSON_BUILD_OBJECT(
     'success', TRUE,
     'data_scope', p_data_scope,
     'performance_info', JSON_BUILD_OBJECT(
       'optimized', TRUE,
-      'version', '2.0',
-      'single_query', TRUE
+      'version', '5.0_ultra_optimized',
+      'single_query', TRUE,
+      'execution_time_ms', EXTRACT(EPOCH FROM (clock_timestamp() - v_start_time)) * 1000,
+      'optimization_level', 'ultra_fast',
+      'lateral_joins_used', TRUE,
+      'conditional_data_loading', TRUE
     ),
     'product', JSON_BUILD_OBJECT(
       -- البيانات الأساسية
-      'id', pc.id,
-      'name', pc.name,
-      'description', pc.description,
-      'slug', pc.slug,
-      'sku', pc.sku,
-      'price', pc.price,
-      'stock_quantity', pc.stock_quantity,
-      'thumbnail_image', pc.thumbnail_image,
-      'is_active', pc.is_active,
-      'has_variants', pc.has_variants,
-      'use_sizes', pc.use_sizes,
+      'id', v_product_data.id,
+      'name', v_product_data.name,
+      'name_for_shipping', v_product_data.name_for_shipping,
+      'description', v_product_data.description,
+      'slug', v_product_data.slug,
+      'sku', v_product_data.sku,
+      'barcode', v_product_data.barcode,
+      'brand', v_product_data.brand,
       
-      -- التصنيفات
-      'category', JSON_BUILD_OBJECT(
-        'id', pc.category_id,
-        'name', pc.category_name,
-        'slug', pc.category_slug,
-        'icon', pc.category_icon
+      -- الأسعار
+      'pricing', JSON_BUILD_OBJECT(
+        'price', v_product_data.price,
+        'purchase_price', v_product_data.purchase_price,
+        'compare_at_price', v_product_data.compare_at_price,
+        'wholesale_price', v_product_data.wholesale_price,
+        'partial_wholesale_price', v_product_data.partial_wholesale_price,
+        'min_wholesale_quantity', v_product_data.min_wholesale_quantity,
+        'min_partial_wholesale_quantity', v_product_data.min_partial_wholesale_quantity
       ),
       
-      -- المعلومات التنظيمية
-      'organization', JSON_BUILD_OBJECT(
-        'id', pc.organization_id,
-        'name', pc.org_name,
-        'domain', pc.org_domain
+      -- أنواع البيع
+      'selling_options', JSON_BUILD_OBJECT(
+        'allow_retail', COALESCE(v_product_data.allow_retail, TRUE),
+        'allow_wholesale', COALESCE(v_product_data.allow_wholesale, FALSE),
+        'allow_partial_wholesale', COALESCE(v_product_data.allow_partial_wholesale, FALSE),
+        'is_sold_by_unit', COALESCE(v_product_data.is_sold_by_unit, TRUE),
+        'unit_type', v_product_data.unit_type,
+        'unit_purchase_price', v_product_data.unit_purchase_price,
+        'unit_sale_price', v_product_data.unit_sale_price
+      ),
+
+      -- المخزون
+      'inventory', JSON_BUILD_OBJECT(
+        'stock_quantity', v_product_data.stock_quantity,
+        'min_stock_level', COALESCE(v_product_data.min_stock_level, 5),
+        'reorder_level', COALESCE(v_product_data.reorder_level, 10),
+        'reorder_quantity', COALESCE(v_product_data.reorder_quantity, 20),
+        'last_inventory_update', v_product_data.last_inventory_update
+      ),
+
+      -- التصنيفات
+      'categories', JSON_BUILD_OBJECT(
+        'category_id', v_product_data.category_id,
+        'category_name', v_product_data.category_name,
+        'category_slug', v_product_data.category_slug,
+        'category_icon', v_product_data.category_icon,
+        'subcategory_id', v_product_data.subcategory_id,
+        'subcategory_name', v_product_data.subcategory_name,
+        'subcategory_slug', v_product_data.subcategory_slug
       ),
       
       -- الصور
       'images', JSON_BUILD_OBJECT(
-        'thumbnail_image', pc.thumbnail_image,
-        'additional_images', pc.images_data
+        'thumbnail_image', v_product_data.thumbnail_image,
+        'additional_images', v_product_data.images_data
       ),
       
       -- المتغيرات  
       'variants', JSON_BUILD_OBJECT(
-        'has_variants', COALESCE(pc.has_variants, FALSE),
-        'use_sizes', COALESCE(pc.use_sizes, FALSE),
-        'use_variant_prices', COALESCE(pc.use_variant_prices, FALSE),
-        'colors', pc.colors_data
+        'has_variants', COALESCE(v_product_data.has_variants, FALSE),
+        'use_sizes', COALESCE(v_product_data.use_sizes, FALSE),
+        'use_variant_prices', COALESCE(v_product_data.use_variant_prices, FALSE),
+        'colors', v_product_data.colors_data
       ),
       
-      'form_data', pc.form_data,
+      -- الميزات والمواصفات
+      'features_and_specs', JSON_BUILD_OBJECT(
+        'features', COALESCE(v_product_data.features, ARRAY[]::text[]),
+        'specifications', COALESCE(v_product_data.specifications, '{}'::jsonb),
+        'has_fast_shipping', COALESCE(v_product_data.has_fast_shipping, FALSE),
+        'has_money_back', COALESCE(v_product_data.has_money_back, FALSE),
+        'has_quality_guarantee', COALESCE(v_product_data.has_quality_guarantee, FALSE),
+        'fast_shipping_text', v_product_data.fast_shipping_text,
+        'money_back_text', v_product_data.money_back_text,
+        'quality_guarantee_text', v_product_data.quality_guarantee_text
+      ),
+      
+      -- حالة المنتج
+      'status', JSON_BUILD_OBJECT(
+        'is_active', COALESCE(v_product_data.is_active, TRUE),
+        'is_digital', v_product_data.is_digital,
+        'is_featured', COALESCE(v_product_data.is_featured, FALSE),
+        'is_new', COALESCE(v_product_data.is_new, TRUE),
+        'show_price_on_landing', COALESCE(v_product_data.show_price_on_landing, TRUE)
+      ),
+      
+      -- المعلومات التنظيمية
+      'organization', JSON_BUILD_OBJECT(
+        'id', v_product_data.organization_id,
+        'name', v_product_data.org_name,
+        'domain', v_product_data.org_domain
+      ),
       
       -- الشحن والقوالب
       'shipping_and_templates', JSON_BUILD_OBJECT(
-        'shipping_info', pc.shipping_info,
-        'template_info', NULL, -- يمكن إضافته لاحقاً إذا احتجنا إليه
-        'shipping_method_type', COALESCE(pc.shipping_method_type, 'default'),
-        'use_shipping_clone', COALESCE(pc.use_shipping_clone, FALSE),
-        'shipping_provider_id', pc.shipping_provider_id,
-        'shipping_clone_id', pc.shipping_clone_id
+        'shipping_info', v_product_data.shipping_data,
+        'shipping_method_type', COALESCE(v_product_data.shipping_method_type, 'default'),
+        'use_shipping_clone', COALESCE(v_product_data.use_shipping_clone, FALSE),
+        'shipping_provider_id', v_product_data.shipping_provider_id,
+        'shipping_clone_id', v_product_data.shipping_clone_id
       ),
       
-      -- معلومات إضافية مفقودة من الدالة الأصلية
-      'pricing', JSON_BUILD_OBJECT(
-        'price', pc.price,
-        'purchase_price', pc.purchase_price,
-        'compare_at_price', pc.compare_at_price,
-        'wholesale_price', pc.wholesale_price,
-        'partial_wholesale_price', pc.partial_wholesale_price,
-        'min_wholesale_quantity', pc.min_wholesale_quantity,
-        'min_partial_wholesale_quantity', pc.min_partial_wholesale_quantity
-      ),
+      'form_data', v_product_data.form_data,
       
-      'selling_options', JSON_BUILD_OBJECT(
-        'allow_retail', COALESCE(pc.allow_retail, TRUE),
-        'allow_wholesale', COALESCE(pc.allow_wholesale, FALSE),
-        'allow_partial_wholesale', COALESCE(pc.allow_partial_wholesale, FALSE),
-        'is_sold_by_unit', COALESCE(pc.is_sold_by_unit, TRUE),
-        'unit_type', pc.unit_type,
-        'unit_purchase_price', pc.unit_purchase_price,
-        'unit_sale_price', pc.unit_sale_price
-      ),
-      
-      'inventory', JSON_BUILD_OBJECT(
-        'stock_quantity', pc.stock_quantity,
-        'min_stock_level', COALESCE(pc.min_stock_level, 5),
-        'reorder_level', COALESCE(pc.reorder_level, 10),
-        'reorder_quantity', COALESCE(pc.reorder_quantity, 20),
-        'last_inventory_update', pc.last_inventory_update
-      ),
-      
-      'features_and_specs', JSON_BUILD_OBJECT(
-        'features', COALESCE(pc.features, ARRAY[]::text[]),
-        'specifications', COALESCE(pc.specifications, '{}'::jsonb),
-        'has_fast_shipping', COALESCE(pc.has_fast_shipping, FALSE),
-        'has_money_back', COALESCE(pc.has_money_back, FALSE),
-        'has_quality_guarantee', COALESCE(pc.has_quality_guarantee, FALSE),
-        'fast_shipping_text', pc.fast_shipping_text,
-        'money_back_text', pc.money_back_text,
-        'quality_guarantee_text', pc.quality_guarantee_text
-      ),
-      
-      'status', JSON_BUILD_OBJECT(
-        'is_active', COALESCE(pc.is_active, TRUE),
-        'is_digital', pc.is_digital,
-        'is_featured', COALESCE(pc.is_featured, FALSE),
-        'is_new', COALESCE(pc.is_new, TRUE),
-        'show_price_on_landing', COALESCE(pc.show_price_on_landing, TRUE)
-      ),
-      
+      -- التوقيتات
       'timestamps', JSON_BUILD_OBJECT(
-        'created_at', pc.created_at,
-        'updated_at', pc.updated_at,
-        'created_by_user_id', pc.created_by_user_id,
-        'updated_by_user_id', pc.updated_by_user_id
+        'created_at', v_product_data.created_at,
+        'updated_at', v_product_data.updated_at,
+        'created_by_user_id', v_product_data.created_by_user_id,
+        'updated_by_user_id', v_product_data.updated_by_user_id
       ),
       
       -- إعدادات صفحة الشراء والعروض الخاصة
       'purchase_page_config', CASE WHEN p_data_scope IN ('full', 'ultra') 
-        THEN pc.purchase_page_config ELSE NULL END,
+        THEN v_product_data.purchase_page_config ELSE NULL END,
       'special_offers_config', CASE WHEN p_data_scope IN ('full', 'ultra') 
-        THEN pc.special_offers_config ELSE NULL END,
+        THEN v_product_data.special_offers_config ELSE NULL END,
 
-      -- الإعدادات المتقدمة (ultra فقط)
-      'extended', pc.extended_settings
+      -- الإعدادات المتقدمة
+      'extended', v_product_data.advanced_data,
+      
+      -- إعدادات التتبع والتسويق
+      'marketing_settings', CASE WHEN p_data_scope IN ('full', 'ultra') AND v_product_data.advanced_data IS NOT NULL THEN
+        (v_product_data.advanced_data->'marketing_settings')
+      ELSE NULL END
     ),
     
     -- الإحصائيات
     'stats', JSON_BUILD_OBJECT(
-      'total_colors', COALESCE(ARRAY_LENGTH(STRING_TO_ARRAY(pc.colors_data::text, '"id"'), 1) - 1, 0),
-      'total_images', COALESCE(ARRAY_LENGTH(STRING_TO_ARRAY(pc.images_data::text, '"id"'), 1) - 1, 0),
-      'has_advanced_settings', pc.extended_settings IS NOT NULL,
-      'has_marketing_settings', pc.extended_settings IS NOT NULL,
-      'has_custom_form', pc.form_data->>'type' = 'custom',
+      'total_colors', CASE WHEN v_product_data.colors_data::text != '[]' THEN 
+        (SELECT COUNT(*) FROM JSON_ARRAY_ELEMENTS(v_product_data.colors_data))
+      ELSE 0 END,
+      'total_images', CASE WHEN v_product_data.images_data::text != '[]' THEN 
+        (SELECT COUNT(*) FROM JSON_ARRAY_ELEMENTS(v_product_data.images_data))
+      ELSE 0 END,
+          'has_advanced_settings', v_product_data.advanced_data IS NOT NULL,
+    'has_marketing_settings', v_product_data.advanced_data IS NOT NULL AND v_product_data.advanced_data->'marketing_settings' IS NOT NULL,
+    'has_custom_form', v_product_data.form_data->>'type' = 'custom',
+    -- 🚀 معلومات عن استراتيجية تحميل الصور
+    'large_images_excluded', FALSE,
+    'image_loading_strategy', 'load_all_images',
+    'all_images_loaded_directly', TRUE,
       'last_updated', NOW()
     ),
     
     'metadata', JSON_BUILD_OBJECT(
       'query_timestamp', NOW(),
       'execution_time_optimized', TRUE,
-      'data_freshness', 'real_time',
+      'data_freshness', 'real-time',
       'performance_optimized', TRUE,
+      'optimization_version', '5.0_ultra_optimized',
       'form_strategy', CASE 
-        WHEN pc.form_data->>'type' = 'custom' THEN 'custom_form_found'
-        WHEN pc.form_data->>'type' = 'default' THEN 'default_form_used'
+        WHEN v_product_data.form_data->>'type' = 'custom' THEN 'custom_form_found'
+        WHEN v_product_data.form_data->>'type' = 'default' THEN 'default_form_used'
         ELSE 'no_form_available'
-      END
+      END,
+      'lateral_joins_optimization', TRUE,
+      'conditional_data_loading', TRUE
     )
-  ) INTO v_result
-  FROM product_complete pc;
+  ) INTO v_result;
 
+  -- تحسين: إرجاع النتيجة مباشرة بدون معالجة إضافية
   RETURN v_result;
 
 EXCEPTION
   WHEN OTHERS THEN
+    -- حساب زمن التنفيذ حتى في حالة الخطأ
+    v_execution_time_ms := EXTRACT(EPOCH FROM (clock_timestamp() - v_start_time)) * 1000;
+    
     RETURN JSON_BUILD_OBJECT(
       'success', FALSE,
       'error', JSON_BUILD_OBJECT(
         'message', SQLERRM,
         'code', SQLSTATE,
-        'optimized_version', TRUE
+        'optimized_version', '5.0_ultra_optimized',
+        'execution_time_ms', v_execution_time_ms
+      )
+    );
+END;
+$$;
+
+-- 🚀 إضافة فهارس محسنة خاصة بالنسخة Ultra Optimized
+-- ملاحظة: يجب تشغيل هذه الفهارس خارج transaction block
+
+-- فهارس أساسية بسيطة (بدون INCLUDE لتجنب تجاوز 8191 bytes)
+CREATE INDEX IF NOT EXISTS idx_products_ultra_optimized_v5_basic
+ON products (id, organization_id, is_active);
+
+CREATE INDEX IF NOT EXISTS idx_products_ultra_optimized_v5_variants
+ON products (id, has_variants, use_sizes);
+
+CREATE INDEX IF NOT EXISTS idx_products_ultra_optimized_v5_features
+ON products (id, is_featured, is_new);
+
+CREATE INDEX IF NOT EXISTS idx_products_ultra_optimized_v5_search
+ON products (id, name, slug, sku, price, stock_quantity);
+
+-- فهرس محسن للبحث بالـ slug
+CREATE INDEX IF NOT EXISTS idx_products_slug_org_active_ultra_v5
+ON products (slug, organization_id) WHERE is_active = TRUE;
+
+-- فهارس بسيطة للألوان
+CREATE INDEX IF NOT EXISTS idx_product_colors_ultra_v5
+ON product_colors (product_id, is_default DESC);
+
+CREATE INDEX IF NOT EXISTS idx_product_colors_ultra_v5_pricing
+ON product_colors (product_id, quantity, price);
+
+-- فهرس بسيط للأحجام
+CREATE INDEX IF NOT EXISTS idx_product_sizes_ultra_v5
+ON product_sizes (color_id, is_default DESC);
+
+-- فهرس بسيط للصور
+CREATE INDEX IF NOT EXISTS idx_product_images_ultra_v5
+ON product_images (product_id, sort_order, id);
+
+-- فهارس بسيطة للنماذج
+CREATE INDEX IF NOT EXISTS idx_form_settings_ultra_v5
+ON form_settings (organization_id, is_active, is_default);
+
+CREATE INDEX IF NOT EXISTS idx_form_settings_ultra_v5_products
+ON form_settings (organization_id, product_ids);
+
+-- فهرس بسيط للإعدادات المتقدمة
+CREATE INDEX IF NOT EXISTS idx_product_advanced_settings_ultra_v5
+ON product_advanced_settings (product_id);
+
+-- فهارس بسيطة لإعدادات التسويق
+CREATE INDEX IF NOT EXISTS idx_product_marketing_settings_ultra_v5_basic
+ON product_marketing_settings (product_id, enable_facebook_pixel, enable_tiktok_pixel, enable_google_ads_tracking);
+
+CREATE INDEX IF NOT EXISTS idx_product_marketing_settings_ultra_v5_timer
+ON product_marketing_settings (product_id, offer_timer_enabled, offer_timer_type);
+
+-- فهرس بسيط لمستويات الجملة
+CREATE INDEX IF NOT EXISTS idx_wholesale_tiers_ultra_v5
+ON wholesale_tiers (product_id, min_quantity);
+
+-- فهارس بسيطة للشحن
+CREATE INDEX IF NOT EXISTS idx_shipping_provider_clones_ultra_v5
+ON shipping_provider_clones (id, organization_id, is_active);
+
+CREATE INDEX IF NOT EXISTS idx_shipping_provider_clones_ultra_v5_pricing
+ON shipping_provider_clones (id, use_unified_price);
+
+-- فهرس بسيط لمزودي الشحن
+CREATE INDEX IF NOT EXISTS idx_shipping_providers_ultra_v5
+ON shipping_providers (id);
+
+-- فهارس إضافية محسنة للأداء
+CREATE INDEX IF NOT EXISTS idx_products_category_ultra_v5
+ON products (organization_id, category_id, is_active);
+
+CREATE INDEX IF NOT EXISTS idx_products_subcategory_ultra_v5
+ON products (organization_id, subcategory_id, is_active);
+
+CREATE INDEX IF NOT EXISTS idx_products_price_range_ultra_v5
+ON products (organization_id, price, is_active);
+
+CREATE INDEX IF NOT EXISTS idx_products_stock_ultra_v5
+ON products (organization_id, stock_quantity, is_active);
+
+-- فهارس مركبة إضافية للأداء
+CREATE INDEX IF NOT EXISTS idx_products_org_active_created_ultra_v5
+ON products (organization_id, is_active, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_products_org_active_updated_ultra_v5
+ON products (organization_id, is_active, updated_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_products_org_featured_ultra_v5
+ON products (organization_id, is_featured, is_active) WHERE is_featured = TRUE;
+
+CREATE INDEX IF NOT EXISTS idx_products_org_new_ultra_v5
+ON products (organization_id, is_new, is_active) WHERE is_new = TRUE;
+
+-- فهارس للبحث السريع
+CREATE INDEX IF NOT EXISTS idx_products_name_search_ultra_v5
+ON products USING gin (to_tsvector('arabic', name)) WHERE is_active = TRUE;
+
+CREATE INDEX IF NOT EXISTS idx_products_sku_search_ultra_v5
+ON products (organization_id, sku, is_active) WHERE sku IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_products_barcode_search_ultra_v5
+ON products (organization_id, barcode, is_active) WHERE barcode IS NOT NULL;
+
+-- 🚀 تحسين حرج: إزالة النسخة القديمة من الدالة لتجنب تضارب function overloading
+DROP FUNCTION IF EXISTS get_product_complete_data_ultra_optimized(text, uuid, boolean, text);
+
+-- تحديث إحصائيات الفهارس
+ANALYZE products;
+ANALYZE product_colors;
+ANALYZE product_sizes;
+ANALYZE product_images;
+ANALYZE form_settings;
+ANALYZE product_advanced_settings;
+ANALYZE product_marketing_settings;
+ANALYZE wholesale_tiers;
+ANALYZE shipping_provider_clones;
+ANALYZE shipping_providers;
+
+-- 🚀 دالة لجلب معلومات صور الألوان السريعة (بدون البيانات الضخمة)
+CREATE OR REPLACE FUNCTION get_product_color_images_info_optimized(
+  p_product_id UUID
+)
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_result JSON;
+  v_start_time TIMESTAMP;
+  v_execution_time_ms NUMERIC;
+BEGIN
+  -- قياس زمن التنفيذ
+  v_start_time := clock_timestamp();
+
+  SELECT JSON_BUILD_OBJECT(
+    'success', TRUE,
+    'performance_info', JSON_BUILD_OBJECT(
+      'optimized', TRUE,
+      'version', '2.0_ultra_fast',
+      'execution_time_ms', EXTRACT(EPOCH FROM (clock_timestamp() - v_start_time)) * 1000,
+      'target', 'color_images_info_only',
+      'data_size', 'minimal'
+    ),
+    'color_images_info', COALESCE(
+      (SELECT JSON_AGG(
+        JSON_BUILD_OBJECT(
+          'color_id', pcol.id,
+          'has_image', CASE WHEN pcol.image_url IS NOT NULL AND length(pcol.image_url) > 0 THEN TRUE ELSE FALSE END,
+          'image_size_bytes', CASE WHEN pcol.image_url IS NOT NULL THEN length(pcol.image_url) ELSE 0 END,
+          'image_type', CASE
+            WHEN pcol.image_url LIKE 'data:image/%' THEN 'base64'
+            WHEN pcol.image_url LIKE 'http%' THEN 'url'
+            ELSE 'unknown'
+          END,
+          'is_large_image', CASE WHEN pcol.image_url IS NOT NULL AND length(pcol.image_url) > 50000 THEN TRUE ELSE FALSE END,
+          'color_name', pcol.name,
+          'color_code', pcol.color_code,
+          'is_default', pcol.is_default
+        )
+        ORDER BY pcol.is_default DESC NULLS LAST, pcol.id
+      ) FROM product_colors pcol
+      WHERE pcol.product_id = p_product_id),
+      '[]'::json
+    ),
+    'summary', JSON_BUILD_OBJECT(
+      'total_colors', (SELECT COUNT(*) FROM product_colors WHERE product_id = p_product_id),
+      'colors_with_images', (SELECT COUNT(*) FROM product_colors WHERE product_id = p_product_id AND image_url IS NOT NULL AND length(image_url) > 0),
+      'large_images_count', (SELECT COUNT(*) FROM product_colors WHERE product_id = p_product_id AND image_url IS NOT NULL AND length(image_url) > 50000),
+      'total_image_size_bytes', (SELECT COALESCE(SUM(length(image_url)), 0) FROM product_colors WHERE product_id = p_product_id AND image_url IS NOT NULL)
+    )
+  ) INTO v_result;
+
+  RETURN v_result;
+
+EXCEPTION
+  WHEN OTHERS THEN
+    v_execution_time_ms := EXTRACT(EPOCH FROM (clock_timestamp() - v_start_time)) * 1000;
+
+    RETURN JSON_BUILD_OBJECT(
+      'success', FALSE,
+      'error', JSON_BUILD_OBJECT(
+        'message', SQLERRM,
+        'code', SQLSTATE,
+        'execution_time_ms', v_execution_time_ms
+      )
+    );
+END;
+$$;
+
+-- 🚀 دالة محسنة لجلب صور الألوان الضخمة مع خيارات ذكية
+CREATE OR REPLACE FUNCTION get_product_color_images_optimized(
+  p_product_id UUID,
+  p_include_large_images BOOLEAN DEFAULT FALSE,
+  p_max_image_size INTEGER DEFAULT 100000, -- 100KB كحد أقصى افتراضي
+  p_image_quality TEXT DEFAULT 'standard' -- 'thumbnail', 'standard', 'full'
+)
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_result JSON;
+  v_start_time TIMESTAMP;
+  v_execution_time_ms NUMERIC;
+BEGIN
+  -- قياس زمن التنفيذ
+  v_start_time := clock_timestamp();
+
+  SELECT JSON_BUILD_OBJECT(
+    'success', TRUE,
+    'performance_info', JSON_BUILD_OBJECT(
+      'optimized', TRUE,
+      'version', '2.0_smart_loading',
+      'execution_time_ms', EXTRACT(EPOCH FROM (clock_timestamp() - v_start_time)) * 1000,
+      'target', 'color_images_smart',
+      'include_large_images', p_include_large_images,
+      'max_image_size', p_max_image_size,
+      'image_quality', p_image_quality
+    ),
+    'color_images', COALESCE(
+      (SELECT JSON_AGG(
+        JSON_BUILD_OBJECT(
+          'color_id', pcol.id,
+          -- 🚀 تحسين ذكي: جلب الصورة حسب الحجم والإعدادات
+          'image_url', CASE
+            WHEN pcol.image_url IS NULL THEN NULL
+            WHEN length(pcol.image_url) > p_max_image_size AND p_include_large_images = FALSE THEN NULL
+            ELSE pcol.image_url
+          END,
+          'image_size_bytes', length(pcol.image_url),
+          'image_type', CASE
+            WHEN pcol.image_url LIKE 'data:image/%' THEN 'base64'
+            WHEN pcol.image_url LIKE 'http%' THEN 'url'
+            ELSE 'unknown'
+          END,
+          'image_loaded', CASE
+            WHEN pcol.image_url IS NULL THEN FALSE
+            WHEN length(pcol.image_url) > p_max_image_size AND p_include_large_images = FALSE THEN FALSE
+            ELSE TRUE
+          END,
+          'is_large_image', CASE WHEN pcol.image_url IS NOT NULL AND length(pcol.image_url) > 50000 THEN TRUE ELSE FALSE END,
+          'image_quality', p_image_quality,
+          'color_name', pcol.name,
+          'color_code', pcol.color_code,
+          'is_default', pcol.is_default
+        )
+        ORDER BY pcol.is_default DESC NULLS LAST, pcol.id
+      ) FROM product_colors pcol
+      WHERE pcol.product_id = p_product_id
+        AND pcol.image_url IS NOT NULL
+        AND length(pcol.image_url) > 0
+        AND (p_include_large_images = TRUE OR length(pcol.image_url) <= p_max_image_size)),
+      '[]'::json
+    ),
+    'loading_stats', JSON_BUILD_OBJECT(
+      'total_available_images', (SELECT COUNT(*) FROM product_colors WHERE product_id = p_product_id AND image_url IS NOT NULL AND length(image_url) > 0),
+      'loaded_images', (SELECT COUNT(*) FROM product_colors WHERE product_id = p_product_id AND image_url IS NOT NULL AND length(image_url) > 0 AND (p_include_large_images = TRUE OR length(image_url) <= p_max_image_size)),
+      'skipped_large_images', (SELECT COUNT(*) FROM product_colors WHERE product_id = p_product_id AND image_url IS NOT NULL AND length(image_url) > p_max_image_size AND p_include_large_images = FALSE),
+      'total_size_loaded_bytes', (SELECT COALESCE(SUM(length(image_url)), 0) FROM product_colors WHERE product_id = p_product_id AND image_url IS NOT NULL AND length(image_url) > 0 AND (p_include_large_images = TRUE OR length(image_url) <= p_max_image_size))
+    )
+  ) INTO v_result;
+
+  RETURN v_result;
+
+EXCEPTION
+  WHEN OTHERS THEN
+    v_execution_time_ms := EXTRACT(EPOCH FROM (clock_timestamp() - v_start_time)) * 1000;
+
+    RETURN JSON_BUILD_OBJECT(
+      'success', FALSE,
+      'error', JSON_BUILD_OBJECT(
+        'message', SQLERRM,
+        'code', SQLSTATE,
+        'execution_time_ms', v_execution_time_ms
       )
     );
 END;

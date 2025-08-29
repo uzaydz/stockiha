@@ -1,0 +1,140 @@
+/* تصميم محسن للوحة الخصائص الجديدة */
+.properties-panel-enhanced {
+  /* تحسينات الأداء */
+  will-change: transform, opacity;
+  contain: layout style paint;
+}
+
+/* تحسين الشريط المتحرك */
+.properties-panel-enhanced::-webkit-scrollbar {
+  width: 6px;
+}
+
+.properties-panel-enhanced::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 3px;
+}
+
+.properties-panel-enhanced::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+  transition: background 0.2s ease;
+}
+
+.properties-panel-enhanced::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+/* تأثيرات الظلال المحسنة */
+.properties-panel-shadow {
+  box-shadow: 
+    0 10px 25px -5px rgba(0, 0, 0, 0.1),
+    0 20px 40px -5px rgba(0, 0, 0, 0.04),
+    0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+/* تحسين النصوص العربية */
+.properties-panel-rtl {
+  font-feature-settings: 'liga' off;
+  text-rendering: optimizeLegibility;
+}
+
+/* تأثيرات التفاعل */
+.quick-action-button {
+  position: relative;
+  overflow: hidden;
+}
+
+.quick-action-button::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.2) 0%, transparent 70%);
+  transition: width 0.3s ease, height 0.3s ease;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+}
+
+.quick-action-button:hover::before {
+  width: 100px;
+  height: 100px;
+}
+
+/* تحسين الانيميشن */
+@keyframes slideInFromRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutToRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+.panel-slide-enter {
+  animation: slideInFromRight 0.3s ease-out;
+}
+
+.panel-slide-exit {
+  animation: slideOutToRight 0.3s ease-in;
+}
+
+/* تحسين للشاشات الصغيرة */
+@media (max-width: 768px) {
+  .properties-panel-enhanced {
+    border-radius: 0;
+  }
+  
+  .quick-action-button {
+    min-height: 44px; /* تحسين للمس */
+  }
+}
+
+/* تأثير الضوء */
+.panel-glow {
+  position: relative;
+}
+
+.panel-glow::after {
+  content: '';
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  bottom: -2px;
+  left: -2px;
+  background: linear-gradient(45deg, 
+    transparent, 
+    rgba(var(--primary), 0.1), 
+    transparent
+  );
+  border-radius: inherit;
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.panel-glow:hover::after {
+  opacity: 1;
+}
+
+/* تحسين أداء الانيميشن */
+.smooth-transform {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}

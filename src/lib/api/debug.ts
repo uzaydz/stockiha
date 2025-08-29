@@ -1,5 +1,4 @@
 import { supabase } from '@/lib/supabase';
-import { supabaseAdmin } from '@/lib/supabase-admin';
 
 // وظيفة للتحقق من اتصال قاعدة البيانات
 export const checkDatabaseConnection = async (): Promise<{
@@ -111,14 +110,14 @@ export const checkOrganizationAccess = async (
 
     // تسجيل محاولة الوصول في جدول السجلات
     try {
-      await supabaseAdmin.rpc('log_dashboard_access', {
-        p_user_id: userId,
-        p_organization_id: organizationId,
-        p_details: {
-          hasAccess,
-          userRole: userData.role,
-          timestamp: new Date()
-        }
+      await supabase.rpc('log_dashboard_access', {
+        user_id: userId,
+        organization_id: organizationId,
+        access_type: 'dashboard',
+        timestamp: new Date().toISOString(),
+        user_agent: navigator.userAgent,
+        ip_address: 'client-side',
+        success: true
       });
     } catch (logError) {
       // استمر حتى في حالة فشل التسجيل

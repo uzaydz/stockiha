@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Navigate, useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useTenant } from '@/context/TenantContext';
 import { useAuth } from '@/context/AuthContext';
@@ -16,36 +16,99 @@ type RequireTenantProps = {
  */
 const RequireTenant = ({ children }: RequireTenantProps) => {
   const { currentOrganization, isLoading, error, refreshOrganizationData } = useTenant();
-  const { currentSubdomain, organization, user, userProfile } = useAuth();
+  const { currentSubdomain, organization, user, userProfile, isLoadingProfile, isLoadingOrganization } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [retryCount, setRetryCount] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [waitingForOrgData, setWaitingForOrgData] = useState(true);
+  const [forceReload, setForceReload] = useState(0);
+  const loginTimeRef = useRef(Date.now()); // تسجيل وقت بدء التحميل مرة واحدة فقط
 
-  // انتظار مختصر في البداية للسماح لـ TenantContext بالتحميل
+  // انتظار مختصر في البداية للسماح لـ TenantContext بالتحميل - محسن لتسجيل الدخول الأول
   useEffect(() => {
     const timer = setTimeout(() => {
       setWaitingForOrgData(false);
-    }, 300); // انتظار 300ms فقط لتحسين سرعة الاستجابة
+    }, 300); // زيادة قليلاً لضمان التحميل الكامل
 
     return () => clearTimeout(timer);
   }, []);
 
-  // تشخيص شامل لـ RequireTenant
-  if (import.meta.env.DEV) {
-  }
-  
-  // التحقق من وجود مؤسسة في أي من السياقين
-  const hasOrganization = currentOrganization || organization;
-  
-  // تسريع التحقق - إذا كان لدينا organization من AuthContext وننتظر TenantContext
-  const canProceedEarly = organization && !currentOrganization && waitingForOrgData;
-  
   // فحص ما إذا كان المسار يتطلب مؤسسة
-  const requiresOrganization = location.pathname.startsWith('/dashboard') || 
+  const requiresOrganization = location.pathname.startsWith('/dashboard') ||
                               location.pathname.startsWith('/pos') ||
                               location.pathname.startsWith('/call-center');
+
+  // حساب الوقت المنقضي منذ تسجيل الدخول
+  const timeSinceLogin = Date.now() - loginTimeRef.current;
+  const hasWaitedTooLong = timeSinceLogin > 3000; // 3 ثوانٍ
+  const hasWaitedReasonably = timeSinceLogin > 1500; // 1.5 ثانية - وقت معقول للتحميل
+
+  // ⚡ تحسين: مراقبة التزامن بين AuthContext و TenantContext - محسن لتسجيل الدخول الأول
+  useEffect(() => {
+    // إذا كانت المؤسسة متاحة في AuthContext لكن ليس في TenantContext
+    if (organization && !currentOrganization && !isLoading && !waitingForOrgData && requiresOrganization) {
+      if (import.meta.env.DEV) {
+        console.log('🔄 [RequireTenant] انتظار تزامن المؤسسة', {
+          authOrgId: organization.id,
+          tenantOrgId: currentOrganization?.id,
+          timeSinceLogin,
+          hasWaitedTooLong
+        });
+      }
+
+      // إذا مر وقت طويل، نعطي TenantProvider فرصة أخيرة للتحديث
+      if (hasWaitedTooLong && retryCount < 2) {
+        setForceReload(prev => prev + 1);
+        setRetryCount(prev => prev + 1);
+      }
+      // لا نحتاج لإرسال حدث إضافي - TenantProvider سيتعامل مع المؤسسة من AuthContext
+    }
+  }, [organization, currentOrganization, isLoading, waitingForOrgData, requiresOrganization, retryCount, timeSinceLogin, hasWaitedTooLong]);
+
+  // ⚡ تحسين: إذا كانت المؤسسة متاحة من AuthContext، لا نحتاج لانتظار TenantContext
+  const hasAuthOrganization = !!organization;
+  const hasAuthUser = !!user;
+  const hasAuthUserProfile = !!userProfile;
+  const isAuthLoading = isLoadingProfile || isLoadingOrganization;
+
+  // تسريع التحقق - إذا كان لدينا organization من AuthContext وننتظر TenantContext
+  const canProceedEarly = (organization && !currentOrganization && (waitingForOrgData || hasWaitedReasonably)) ||
+                         (hasAuthOrganization && hasAuthUser && hasAuthUserProfile && !isAuthLoading);
+
+  const canSkipLoading = (hasAuthOrganization && hasAuthUser && hasAuthUserProfile && !isAuthLoading) && !requiresOrganization;
+
+  // تحسين: السماح بالمتابعة إذا مر وقت طويل والمؤسسة متاحة في AuthContext أو إذا كان TenantProvider يحتاج وقت إضافي
+  const shouldAllowProceed = canProceedEarly ||
+                           (hasWaitedTooLong && organization && requiresOrganization) ||
+                           (organization && !currentOrganization && hasWaitedReasonably && requiresOrganization);
+
+  // التحقق من وجود مؤسسة في أي من السياقين - مع الأولوية لـ AuthContext
+  const hasOrganization = organization || currentOrganization;
+
+  // تشخيص شامل لـ RequireTenant - محسن لتسجيل الدخول الأول
+  if (import.meta.env.DEV) {
+    console.log('🔍 [RequireTenant] Debug info:', {
+      hasOrganization: !!hasOrganization,
+      currentOrganization: !!currentOrganization,
+      authOrganization: !!organization,
+      hasAuthUser: !!user,
+      hasAuthUserProfile: !!userProfile,
+      isAuthLoading,
+      canProceedEarly,
+      shouldAllowProceed,
+      canSkipLoading,
+      isLoading: !!isLoading,
+      isRefreshing: !!isRefreshing,
+      waitingForOrgData: !!waitingForOrgData,
+      requiresOrganization: !!requiresOrganization,
+      timeSinceLogin,
+      hasWaitedTooLong,
+      pathname: location.pathname,
+      organizationId: organization?.id,
+      currentOrganizationId: currentOrganization?.id
+    });
+  }
 
   // محاولة إعادة تحميل بيانات المؤسسة
   const handleRetryLoadOrganization = async () => {
@@ -72,15 +135,15 @@ const RequireTenant = ({ children }: RequireTenantProps) => {
     }
   }, [error, isLoading, requiresOrganization, retryCount, waitingForOrgData]);
 
-  // في حالة جاري تحميل بيانات المؤسسة أو فترة الانتظار (إلا إذا كان يمكن المتابعة مبكراً)
-  if ((isLoading || isRefreshing || waitingForOrgData) && !canProceedEarly) {
+  // في حالة جاري تحميل بيانات المؤسسة أو فترة الانتظار (إلا إذا كان يمكن المتابعة مبكراً أو تخطي التحميل)
+  if ((isLoading || isRefreshing || waitingForOrgData) && !shouldAllowProceed && !canSkipLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-background">
         <Loader2 className="h-8 w-8 animate-spin mb-4 text-primary" />
         <p className="text-muted-foreground">
-          {isRefreshing ? 'جاري إعادة تحميل بيانات المؤسسة...' : 
+          {isRefreshing ? 'جاري إعادة تحميل بيانات المؤسسة...' :
            waitingForOrgData ? 'جاري تحميل البيانات...' :
-           'جاري التحقق من بيانات المؤسسة...'}
+           'جاري تحميل بيانات المؤسسة...'}
         </p>
       </div>
     );
@@ -118,8 +181,8 @@ const RequireTenant = ({ children }: RequireTenantProps) => {
     );
   }
 
-  // إذا لم تكن هناك مؤسسة والمسار يتطلب مؤسسة
-  if (!hasOrganization && requiresOrganization) {
+  // إذا لم تكن هناك مؤسسة والمسار يتطلب مؤسسة (مع مراعاة shouldAllowProceed)
+  if (!hasOrganization && requiresOrganization && !shouldAllowProceed) {
     // تحقق من وجود المستخدم وإذا كان مسجل حديثاً
     if (user && userProfile) {
       return (

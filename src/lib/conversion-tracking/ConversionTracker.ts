@@ -34,7 +34,9 @@ interface ConversionSettings {
   tiktok: {
     enabled: boolean;
     pixel_id?: string;
+    events_api_enabled?: boolean;
     access_token?: string;
+    test_event_code?: string;
   };
   test_mode: boolean;
 }
@@ -157,7 +159,9 @@ class ConversionTracker {
         tiktok: {
           enabled: externalSettings.tiktok?.enabled || false,
           pixel_id: externalSettings.tiktok?.pixel_id || undefined,
-          access_token: externalSettings.tiktok?.access_token || undefined
+          events_api_enabled: externalSettings.tiktok?.events_api_enabled || false,
+          access_token: externalSettings.tiktok?.access_token || undefined,
+          test_event_code: externalSettings.tiktok?.test_event_code || undefined
         },
         test_mode: externalSettings.test_mode !== false
       };
@@ -588,6 +592,7 @@ class ConversionTracker {
    */
   private async sendToTikTok(event: ConversionEvent): Promise<void> {
     try {
+      // إرسال إلى TikTok Pixel (client-side)
       if (typeof window !== 'undefined' && window.ttq) {
         const eventData: any = {
           content_id: event.product_id,
@@ -598,9 +603,74 @@ class ConversionTracker {
         if (event.value) eventData.value = event.value;
         if (event.order_id) eventData.order_id = event.order_id;
 
-        window.ttq.track(this.mapEventTypeForTikTok(event.event_type), eventData);
+        const tiktokEvent = this.mapEventTypeForTikTok(event.event_type);
+        
+        // إضافة test event code في وضع الاختبار
+        if (this.settings?.test_mode && this.settings?.tiktok?.test_event_code) {
+          eventData.test_event_code = this.settings.tiktok.test_event_code;
+        }
+        
+        window.ttq.track(tiktokEvent, eventData);
+      }
+
+      // إرسال إلى TikTok Events API (server-side) إذا كان مفعل
+      if (this.settings?.tiktok?.events_api_enabled && this.settings?.tiktok?.access_token) {
+        await this.sendToTikTokEventsAPI(event);
+      } else {
       }
     } catch (error) {
+      this.logTrackingEvent('tiktok_pixel', 'error', { error: (error as Error).message }, 'tiktok');
+    }
+  }
+
+  /**
+   * إرسال إلى TikTok Events API (server-side)
+   */
+  private async sendToTikTokEventsAPI(event: ConversionEvent): Promise<void> {
+    try {
+      const eventData = {
+        event_type: this.mapEventTypeForTikTok(event.event_type),
+        product_id: event.product_id,
+        order_id: event.order_id,
+        value: event.value,
+        currency: event.currency || 'DZD',
+        user_data: event.user_data,
+        custom_data: {
+          ...event.custom_data,
+          content_id: event.product_id,
+          content_type: 'product'
+        },
+        platform: 'tiktok',
+        pixel_id: this.settings?.tiktok?.pixel_id,
+        access_token: this.settings?.tiktok?.access_token,
+        test_event_code: this.settings?.test_mode ? this.settings?.tiktok?.test_event_code : undefined
+      };
+
+      // إرسال إلى API endpoint
+      const response = await fetch('/api/conversion-events/tiktok', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(eventData)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`TikTok Events API error: ${response.statusText} - ${errorText}`);
+      }
+
+      const responseData = await response.json();
+
+      this.logTrackingEvent('tiktok_events_api', 'success', { 
+        event_type: event.event_type,
+        response: responseData
+      }, 'tiktok');
+    } catch (error) {
+      this.logTrackingEvent('tiktok_events_api', 'error', { 
+        error: (error as Error).message,
+        stack: (error as Error).stack 
+      }, 'tiktok');
     }
   }
 

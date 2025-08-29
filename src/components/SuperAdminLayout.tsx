@@ -16,12 +16,18 @@ export default function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<string>('');
+  
+  // إضافة logging للتشخيص
+  useEffect(() => {
+  }, [user, isLoading]);
   
   // Check screen size
   useEffect(() => {
     const checkScreenSize = () => {
-      setIsMobile(window.innerWidth < 768);
-      if (window.innerWidth < 768) {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (mobile) {
         setIsSidebarOpen(false);
       }
     };
@@ -37,10 +43,19 @@ export default function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
   // Check if user is super admin and handle loading state
   useEffect(() => {
     if (user) {
-      // In a real implementation, this would verify the user is a super admin
+      // إذا كان هناك مستخدم، نفترض أنه سوبر أدمين (تم التحقق منه في SuperAdminRoute)
       setIsLoading(false);
+      setDebugInfo('تم تأكيد وجود المستخدم');
     } else {
-      setIsLoading(true);
+      // إعطاء وقت إضافي لـ AuthContext لتهيئة نفسه
+      const timer = setTimeout(() => {
+        if (!user) {
+          setIsLoading(false);
+          setDebugInfo('لم يتم العثور على مستخدم بعد الانتظار');
+        }
+      }, 3000); // انتظار 3 ثوان
+      
+      return () => clearTimeout(timer);
     }
   }, [user]);
   
@@ -73,7 +88,17 @@ export default function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
   };
 
   if (isLoading) {
-    return <div className="flex items-center justify-center h-screen">جاري التحميل...</div>;
+    return (
+      <div className="flex items-center justify-center h-screen bg-gray-50">
+        <div className="flex flex-col items-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <p className="mt-4 text-gray-600">جاري تحميل لوحة السوبر أدمين...</p>
+          {debugInfo && (
+            <p className="mt-2 text-sm text-gray-500">{debugInfo}</p>
+          )}
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -96,6 +121,16 @@ export default function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
             )}
           >
             <SuperAdminSidebar />
+          </div>
+        )}
+        
+        {/* إضافة logging للتشخيص */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="fixed top-20 left-4 z-50 bg-black/80 text-white p-2 rounded text-xs">
+            <div>isLoading: {isLoading.toString()}</div>
+            <div>isMobile: {isMobile.toString()}</div>
+            <div>isSidebarOpen: {isSidebarOpen.toString()}</div>
+            <div>user: {user ? 'exists' : 'null'}</div>
           </div>
         )}
         

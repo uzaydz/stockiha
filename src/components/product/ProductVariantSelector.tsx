@@ -1,4 +1,4 @@
-import React, { memo, useMemo, useCallback } from 'react';
+import React, { memo, useMemo, useCallback, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -26,7 +26,6 @@ const containerVariants = {
     y: 0,
     transition: {
       duration: 0.4,
-      ease: [0.25, 0.46, 0.45, 0.94],
       staggerChildren: 0.1
     }
   }
@@ -38,8 +37,7 @@ const sectionVariants = {
     opacity: 1, 
     y: 0,
     transition: { 
-      duration: 0.3,
-      ease: "easeOut"
+      duration: 0.3
     }
   }
 };
@@ -50,7 +48,7 @@ const colorVariants = {
     opacity: 1, 
     scale: 1,
     transition: { 
-      type: "spring",
+      type: "spring" as const,
       stiffness: 300,
       damping: 30
     }
@@ -70,6 +68,13 @@ const ProductVariantSelector = memo<ProductVariantSelectorProps>(({
   
   // استخدام الترجمة المخصصة
   const { productVariantSelector } = useProductPurchaseTranslation();
+
+  // تسجيل معلومات البيانات الواردة للتشخيص
+
+  // تتبع الاختيار التلقائي لتجنب التكرار
+  const autoSelectedColorsRef = useRef<Set<string>>(new Set());
+
+  // ✅ تم تحديث النظام لتحميل جميع صور الألوان دائماً
   
   // تحسين فحص المتغيرات بـ useMemo
   const variantData = useMemo(() => {
@@ -78,8 +83,8 @@ const ProductVariantSelector = memo<ProductVariantSelectorProps>(({
     }
 
     const colors = product.variants.colors;
-    const availableSizes = (selectedColor?.sizes && selectedColor.sizes.length > 0) 
-      ? selectedColor.sizes 
+    const availableSizes = (selectedColor?.sizes && selectedColor.sizes.length > 0)
+      ? selectedColor.sizes
       : [];
 
     return {
@@ -88,6 +93,52 @@ const ProductVariantSelector = memo<ProductVariantSelectorProps>(({
       availableSizes
     };
   }, [product, selectedColor]);
+
+  // تتبع تغييرات selectedSize
+  useEffect(() => {
+    console.log('🔄 ProductVariantSelector: selectedSize changed:', selectedSize);
+    console.log('🔄 ProductVariantSelector: selectedSize details:', {
+      id: selectedSize?.id,
+      name: selectedSize?.size_name,
+      quantity: selectedSize?.quantity,
+      isSelected: selectedSize?.id
+    });
+  }, [selectedSize]);
+
+  // منطق الاختيار التلقائي للمقاس عند التحميل الأولي
+  useEffect(() => {
+    console.log('🔄 ProductVariantSelector: Checking for auto-selection on mount/update');
+    console.log('🔄 ProductVariantSelector: Current selectedColor:', selectedColor?.name);
+    console.log('🔄 ProductVariantSelector: Current selectedSize:', selectedSize?.size_name);
+
+    // إذا كان هناك لون محدد لكن لا يوجد مقاس، اختر مقاس تلقائي
+    if (selectedColor && !selectedSize && selectedColor.sizes && selectedColor.sizes.length > 0) {
+      // تحقق من أننا لم نختار مقاس لهذا اللون من قبل
+      if (!autoSelectedColorsRef.current.has(selectedColor.id)) {
+        console.log('🎯 ProductVariantSelector: Auto-selecting size on load for color:', selectedColor.name);
+
+        // البحث عن مقاسات متوفرة فقط
+        const availableSizes = selectedColor.sizes.filter(size => (size.quantity || 0) > 0);
+
+        if (availableSizes.length > 0) {
+          console.log('🎯 ProductVariantSelector: Found available sizes, selecting first:', availableSizes[0].size_name);
+
+          // أضف اللون إلى مجموعة الألوان التي تم اختيار مقاس لها
+          autoSelectedColorsRef.current.add(selectedColor.id);
+
+          onSizeSelect(availableSizes[0]);
+        } else {
+          console.log('⚠️ ProductVariantSelector: No available sizes found for color:', selectedColor.name);
+        }
+      } else {
+        console.log('✅ ProductVariantSelector: Size already auto-selected for this color');
+      }
+    } else if (selectedColor && selectedSize) {
+      console.log('✅ ProductVariantSelector: Color and size already selected');
+    } else if (!selectedColor) {
+      console.log('⏳ ProductVariantSelector: No color selected yet');
+    }
+  }, [selectedColor, selectedSize, onSizeSelect]);
 
   // منطق التحقق من الصحة
   const validationErrors = useMemo(() => {
@@ -110,17 +161,66 @@ const ProductVariantSelector = memo<ProductVariantSelectorProps>(({
 
   // تحسين معالج اختيار اللون مع فحص المخزون
   const handleColorSelect = useCallback((color: ProductColor) => {
+    console.log('🎨 Color selection triggered:', color.name);
+    console.log('📊 Color quantity:', color.quantity);
+    console.log('📏 Color sizes:', color.sizes);
+    console.log('📏 Selected size before:', selectedSize);
+
+    // تحقق من التحديث بعد استدعاء onSizeSelect
+    setTimeout(() => {
+      console.log('📏 ProductVariantSelector: selectedSize after timeout:', selectedSize);
+    }, 200);
+
     // منع اختيار اللون إذا لم يكن متوفر في المخزون
     if ((color.quantity || 0) <= 0) {
+      console.log('❌ Color out of stock, not selecting');
       return;
     }
-    
+
+    console.log('✅ Selecting color:', color.name);
     onColorSelect(color);
-    // إعادة تعيين المقاس إذا لم يعد متاحاً مع اللون الجديد
-    if (selectedSize && color.sizes && !color.sizes.find(s => s.id === selectedSize.id)) {
-      // يمكن إضافة منطق لإعادة تعيين المقاس هنا
+
+    // منطق اختيار المقاس الافتراضي عند اختيار اللون
+    if (color.sizes && color.sizes.length > 0) {
+      console.log('📏 Color has sizes:', color.sizes.length);
+
+      // البحث عن مقاسات متوفرة فقط (تحتوي على كمية أكبر من 0)
+      const availableSizes = color.sizes.filter(size => (size.quantity || 0) > 0);
+      console.log('📏 Available sizes:', availableSizes.length, availableSizes.map(s => `${s.size_name}: ${s.quantity}`));
+
+      if (availableSizes.length > 0) {
+        // إذا لم يكن هناك مقاس مختار مسبقاً، اختر أول مقاس متوفر
+        if (!selectedSize) {
+          console.log('🎯 No size selected, auto-selecting:', availableSizes[0].size_name);
+
+          // أضف اللون إلى مجموعة الألوان التي تم اختيار مقاس لها
+          autoSelectedColorsRef.current.add(color.id);
+
+          onSizeSelect(availableSizes[0]);
+        } else {
+          // التحقق إذا كان المقاس المختار الحالي متاح في اللون الجديد
+          const currentSizeStillAvailable = availableSizes.find(s => s.id === selectedSize.id);
+          console.log('🔍 Current size still available:', currentSizeStillAvailable ? 'Yes' : 'No');
+
+          // إذا لم يكن المقاس الحالي متاحاً، اختر أول مقاس متوفر
+          if (!currentSizeStillAvailable) {
+            console.log('🔄 Current size not available, auto-selecting:', availableSizes[0].size_name);
+
+            // أضف اللون إلى مجموعة الألوان التي تم اختيار مقاس لها
+            autoSelectedColorsRef.current.add(color.id);
+
+            onSizeSelect(availableSizes[0]);
+          } else {
+            console.log('✅ Current size still available, keeping it');
+          }
+        }
+      } else {
+        console.log('❌ No available sizes for this color');
+      }
+    } else {
+      console.log('❌ Color has no sizes');
     }
-  }, [onColorSelect, selectedSize]);
+  }, [onColorSelect, onSizeSelect, selectedSize]);
 
   // معالج اختيار المقاس مع فحص المخزون
   const handleSizeSelect = useCallback((size: ProductSize) => {
@@ -167,10 +267,17 @@ const ProductVariantSelector = memo<ProductVariantSelectorProps>(({
         </div>
         
         <div className="flex flex-wrap gap-3">
+          {/* 🚀 تسجيل معلومات البيانات الواردة للتشخيص */}
+          {(() => {
+            return null;
+          })()}
+
           {variantData.colors.map((color) => {
             const isSelected = selectedColor?.id === color.id;
             const isOutOfStock = (color.quantity || 0) <= 0;
             const isLowStock = (color.quantity || 0) > 0 && (color.quantity || 0) <= 5;
+            
+            // إضافة console.log لتشخيص المشكلة
             
             return (
               <motion.button
@@ -210,25 +317,30 @@ const ProductVariantSelector = memo<ProductVariantSelectorProps>(({
                     ? 'hsl(var(--primary))' 
                     : undefined
                 }}>
+                  {/* عرض صورة المنتج للون */}
                   {color.image_url ? (
                     <img
                       src={color.image_url}
-                      alt={color.name}
+                      alt={`${color.name} - ${product.name}`}
                       className={cn(
                         "w-full h-full rounded-lg object-cover",
                         isOutOfStock && "grayscale opacity-50"
                       )}
                       loading="lazy"
                     />
-                  ) : color.color_code ? (
+                  ) : (
+                    /* عرض اللون كبديل إذا لم تكن هناك صورة */
                     <div 
                       className={cn(
                         "w-10 h-10 rounded-lg shadow-sm",
                         isOutOfStock && "grayscale opacity-50"
                       )}
-                      style={{ backgroundColor: color.color_code }}
+                      style={{ backgroundColor: color.color_code || '#e5e7eb' }}
                     />
-                  ) : (
+                  )}
+                  
+                  {/* عرض اسم اللون إذا لم تكن هناك صورة ولا لون */}
+                  {!color.image_url && !color.color_code && (
                     <span className={cn(
                       "text-xs font-medium text-center px-1",
                       isOutOfStock ? "text-gray-400" : "text-foreground"

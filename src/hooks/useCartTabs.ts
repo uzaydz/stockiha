@@ -145,7 +145,7 @@ export const useCartTabs = (options: UseCartTabsOptions = {}) => {
     variantPrice?: number;
     variantImage?: string;
   }) => {
-    
+
     // استخدام setTabs للحصول على أحدث حالة
     setTabs(currentTabs => {
       const currentActiveTab = currentTabs.find(tab => tab.id === activeTabId);
@@ -261,7 +261,7 @@ export const useCartTabs = (options: UseCartTabsOptions = {}) => {
             }
           : t
       );
-      
+
       // حفظ فوري في localStorage لضمان عدم عودة البيانات
       if (autoSave) {
         try {

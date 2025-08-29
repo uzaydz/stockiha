@@ -354,11 +354,70 @@ export const getProductsPaginated = async (
       const from = (page - 1) * limit;
       const to = from + limit - 1;
 
-      // بناء الاستعلام الأساسي مع تحسينات
+      // بناء الاستعلام الأساسي مع تحسينات - التأكد من جلب slug
       let query = supabase
         .from('products')
         .select(`
-          *,
+          id,
+          name,
+          description,
+          price,
+          compare_at_price,
+          sku,
+          barcode,
+          category_id,
+          subcategory_id,
+          brand,
+          images,
+          thumbnail_image,
+          stock_quantity,
+          features,
+          specifications,
+          is_digital,
+          is_new,
+          is_featured,
+          created_at,
+          updated_at,
+          purchase_price,
+          min_stock_level,
+          reorder_level,
+          reorder_quantity,
+          organization_id,
+          slug,
+          has_variants,
+          show_price_on_landing,
+          wholesale_price,
+          partial_wholesale_price,
+          min_wholesale_quantity,
+          min_partial_wholesale_quantity,
+          allow_retail,
+          allow_wholesale,
+          allow_partial_wholesale,
+          last_inventory_update,
+          is_active,
+          use_sizes,
+          has_fast_shipping,
+          has_money_back,
+          has_quality_guarantee,
+          fast_shipping_text,
+          money_back_text,
+          quality_guarantee_text,
+          is_sold_by_unit,
+          unit_type,
+          use_variant_prices,
+          unit_purchase_price,
+          unit_sale_price,
+          purchase_page_config,
+          shipping_clone_id,
+          name_for_shipping,
+          created_by_user_id,
+          updated_by_user_id,
+          form_template_id,
+          shipping_provider_id,
+          use_shipping_clone,
+          shipping_method_type,
+          special_offers_config,
+          advanced_description,
           category:category_id(id, name, slug),
           subcategory:subcategory_id(id, name, slug)
         `, { count: 'exact' })
@@ -498,6 +557,11 @@ export const getProductsPaginated = async (
 
       if (error) {
         throw error;
+      }
+
+      // Debug: فحص البيانات المُرجعة
+      if (data && data.length > 0) {
+        const sampleProduct = data[0];
       }
 
       // تأخير قصير لتجنب حجب الواجهة
@@ -851,18 +915,27 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
     ...mainProductData 
   } = productData;
 
+  // ✅ التحقق من صحة organization_id قبل أي شيء
+  if (!productData.organization_id) {
+    const error = new Error("معرف المؤسسة مطلوب");
+    toast.error("معرف المؤسسة مطلوب");
+    throw error;
+  }
+
+  // ✅ التحقق من صحة UUID
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(productData.organization_id)) {
+    const error = new Error("معرف المؤسسة يجب أن يكون بصيغة UUID صحيحة");
+    toast.error("معرف المؤسسة يجب أن يكون بصيغة UUID صحيحة");
+    throw error;
+  }
+
   // استخدام العميل الموحد بدلاً من إنشاء عميل جديد
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   
   if (userError || !user) {
     toast.error("يجب تسجيل الدخول لإنشاء منتج.");
     throw new Error("User not authenticated");
-  }
-
-  if (!productData.organization_id) {
-    const error = new Error("Organization ID is required");
-    toast.error("معرف المؤسسة مطلوب");
-    throw error;
   }
 
   try {
@@ -926,6 +999,14 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
     });
 
     if (createError) {
+      console.error('خطأ في إنشاء المنتج:', createError);
+      
+      // ✅ معالجة خاصة لأخطاء UUID
+      if (createError.message?.includes('invalid input syntax for type uuid')) {
+        toast.error("خطأ في صيغة معرف المؤسسة أو الفئة. يرجى التحقق من البيانات");
+        throw new Error("Invalid UUID format in product data");
+      }
+      
       toast.error(`فشل إنشاء المنتج: ${createError.message}`);
       throw createError;
     }
@@ -1055,7 +1136,6 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
         additional_images.map((url, index) => ({ image_url: url, sort_order: index + 1 })) : null,
       p_wholesale_tiers: wholesale_tiers && wholesale_tiers.length > 0 ? JSON.parse(JSON.stringify(wholesale_tiers)) : null,
       p_special_offers_config: updates.special_offers_config || null,
-      p_advanced_description: updates.advanced_description || null,
       p_user_id: user.id
     });
 
@@ -1068,6 +1148,31 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
       const errorMessage = (result as any)?.message || 'فشل تحديث المنتج';
       toast.error(errorMessage);
       throw new Error(errorMessage);
+    }
+
+    // 🔧 تحديث إضافي لshipping_method_type إذا كان موجوداً
+    if (mainProductUpdates.shipping_method_type !== undefined) {
+      
+      const updateData: any = {
+        shipping_method_type: mainProductUpdates.shipping_method_type,
+        updated_at: new Date().toISOString(),
+        updated_by_user_id: user.id
+      };
+      
+      // إذا كانت طريقة الشحن مخصصة، تأكد من أن shipping_provider_id هو null
+      if (mainProductUpdates.shipping_method_type === 'custom') {
+        updateData.shipping_provider_id = null;
+      }
+      
+      const { error: shippingUpdateError } = await supabase
+        .from('products')
+        .update(updateData)
+        .eq('id', id);
+      
+      if (shippingUpdateError) {
+        toast.error(`تم تحديث المنتج ولكن فشل تحديث إعدادات الشحن: ${shippingUpdateError.message}`);
+      } else {
+      }
     }
 
     // 🎯 جلب المنتج المحدث مع جميع البيانات المرتبطة في استدعاء واحد

@@ -1,12 +1,28 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Settings2,
   Eye,
   EyeOff,
-  PanelRightClose,
-  PanelRightOpen,
-  Maximize2
+  ChevronLeft,
+  ChevronRight,
+  Maximize2,
+  Minimize2,
+  Pin,
+  PinOff,
+  Zap,
+  Layers,
+  Palette,
+  MousePointer,
+  Move,
+  RotateCcw,
+  Copy,
+  Trash2,
+  MoreVertical,
+  Search,
+  Filter,
+  Grid3x3,
+  Sliders
 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
@@ -16,6 +32,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 
 import { 
@@ -27,6 +45,9 @@ import {
 import { ResponsivePropertiesPanel } from './properties/ResponsivePropertiesPanel'
 import { PropertiesDialogs } from './properties/PropertiesDialogs'
 import { FloatingPropertiesButton } from './properties/FloatingPropertiesButton'
+
+// استيراد الأنماط المخصصة
+import './PropertiesPanel.css'
 
 // Hook للتحقق من حجم الشاشة المحسن
 const useResponsive = () => {
@@ -70,18 +91,36 @@ const useResponsive = () => {
   }
 }
 
+// تعريف أنواع الحالات الجديدة
+type PanelMode = 'docked' | 'floating' | 'overlay' | 'sidebar'
+type PanelSize = 'compact' | 'normal' | 'expanded'
+type QuickAction = {
+  id: string
+  icon: React.ReactNode
+  label: string
+  action: () => void
+  badge?: string
+  variant?: 'default' | 'secondary' | 'destructive' | 'outline'
+}
+
 export const PropertiesPanel: React.FC = () => {
-  const [activeTab, setActiveTab] = useState('properties')
-  const [isCollapsed, setIsCollapsed] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('propertiesPanel.collapsed')
-      return saved ? JSON.parse(saved) : false
-    }
-    return false
-  })
-  const [showFullscreen, setShowFullscreen] = useState(false)
-  const [showFloatingButton, setShowFloatingButton] = useState(true)
-  const [showTooltipHint, setShowTooltipHint] = useState(true)
+  // الحالات الأساسية الجديدة
+  const [panelMode, setPanelMode] = useState<PanelMode>('docked')
+  const [panelSize, setPanelSize] = useState<PanelSize>('normal')
+  const [isPinned, setIsPinned] = useState(true)
+  const [activeSection, setActiveSection] = useState('properties')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [showQuickActions, setShowQuickActions] = useState(true)
+  const [isMinimized, setIsMinimized] = useState(false)
+  
+  // حالات للتفاعل المحسن
+  const [isHovering, setIsHovering] = useState(false)
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
+  const [isDragging, setIsDragging] = useState(false)
+  
+  // المراجع
+  const panelRef = useRef<HTMLDivElement>(null)
+  const dragRef = useRef<HTMLDivElement>(null)
 
   const { windowSize, breakpoint, isMobile, isTablet, isDesktop, isSmallScreen, isXs } = useResponsive()
   
@@ -94,87 +133,100 @@ export const PropertiesPanel: React.FC = () => {
   
   const selectedComponent = getSelectedComponent()
   
-  // فتح الخصائص تلقائياً عند اختيار مكون في الهاتف
-  useEffect(() => {
-    if (selectedComponent && (isMobile || isXs)) {
-      setShowFloatingButton(true)
-      setShowTooltipHint(true)
-      // تأخير قصير للسماح للانيميشن بالانتهاء
-      const timer = setTimeout(() => {
-        setShowFullscreen(true)
-        setActiveTab('properties')
-      }, 300)
-      
-      return () => clearTimeout(timer)
-      } else {
-      setShowFloatingButton(false)
-      setShowTooltipHint(false)
-    }
-  }, [selectedComponentId, isMobile, isXs])
-
-  // إخفاء التلميح النصي أولاً
-  useEffect(() => {
-    if (selectedComponent && (isMobile || isXs) && !showFullscreen && showTooltipHint) {
-      const hideTooltipTimer = setTimeout(() => {
-        setShowTooltipHint(false)
-      }, 4000) // 4 ثوان
-      
-      return () => clearTimeout(hideTooltipTimer)
-    }
-  }, [selectedComponentId, showFullscreen, isMobile, isXs, showTooltipHint])
-
-  // إخفاء الزر العائم تدريجياً بعد عرضه
-  useEffect(() => {
-    if (selectedComponent && (isMobile || isXs) && !showFullscreen && showFloatingButton) {
-      const hideTimer = setTimeout(() => {
-        setShowFloatingButton(false)
-      }, 8000) // 8 ثوان
-      
-      return () => clearTimeout(hideTimer)
-    }
-  }, [selectedComponentId, showFullscreen, isMobile, isXs, showFloatingButton])
-
-  // إظهار الزر العائم مرة أخرى عند إغلاق الشاشة الكاملة
-  useEffect(() => {
-    if (!showFullscreen && selectedComponent && (isMobile || isXs)) {
-      setShowFloatingButton(true)
-      setShowTooltipHint(true)
-    }
-  }, [showFullscreen, selectedComponent, isMobile, isXs])
-
-  // إظهار الزر العائم عند لمس الشاشة إذا كان هناك مكون محدد
-  useEffect(() => {
-    if (!(isMobile || isXs) || !selectedComponent || showFullscreen) return
-
-    const handleTouch = () => {
-      if (!showFloatingButton) {
-        setShowFloatingButton(true)
-        setShowTooltipHint(true)
-      }
-    }
-
-    const handleScroll = () => {
-      if (!showFloatingButton) {
-        setShowFloatingButton(true)
-        setShowTooltipHint(false) // لا نظهر التلميح عند التمرير لتجنب الإزعاج
-      }
-    }
-
-    document.addEventListener('touchstart', handleTouch, { passive: true })
-    document.addEventListener('scroll', handleScroll, { passive: true })
+  // إعداد الإجراءات السريعة الذكية
+  const getQuickActions = useCallback((): QuickAction[] => {
+    if (!selectedComponent) return []
     
-    return () => {
-      document.removeEventListener('touchstart', handleTouch)
-      document.removeEventListener('scroll', handleScroll)
-    }
-  }, [isMobile, isXs, selectedComponent, showFullscreen, showFloatingButton])
+    const baseActions: QuickAction[] = [
+      {
+        id: 'visibility',
+        icon: (selectedComponent.isVisible ?? true) ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />,
+        label: (selectedComponent.isVisible ?? true) ? 'إخفاء' : 'إظهار',
+        action: () => toggleComponentVisibility(selectedComponent.id),
+        variant: (selectedComponent.isVisible ?? true) ? 'secondary' : 'outline'
+      },
+      {
+        id: 'duplicate',
+        icon: <Copy className="w-4 h-4" />,
+        label: 'نسخ',
+        action: () => {
+          // منطق النسخ
+        },
+        variant: 'outline'
+      },
+      {
+        id: 'reset',
+        icon: <RotateCcw className="w-4 h-4" />,
+        label: 'إعادة تعيين',
+        action: () => {
+          // منطق إعادة التعيين
+        },
+        variant: 'outline'
+      }
+    ]
 
-  // حفظ حالة التوسيع في localStorage
+    // إضافة إجراءات حسب نوع المكون
+    if (selectedComponent.type && selectedComponent.type.toString() === 'button') {
+      baseActions.unshift({
+        id: 'style',
+        icon: <Palette className="w-4 h-4" />,
+        label: 'تصميم سريع',
+        action: () => setActiveSection('style'),
+        badge: '3',
+        variant: 'default'
+      })
+    }
+
+    return baseActions
+  }, [selectedComponent, toggleComponentVisibility])
+
+  // تحديث تلقائي للوضع حسب حجم الشاشة
+  useEffect(() => {
+    if (isMobile || isXs) {
+      setPanelMode('overlay')
+      setPanelSize('compact')
+    } else if (isTablet) {
+      setPanelMode('sidebar')
+      setPanelSize('normal')
+    } else {
+      setPanelMode('docked')
+      setPanelSize(isSmallScreen ? 'compact' : 'normal')
+    }
+  }, [isMobile, isXs, isTablet, isSmallScreen])
+
+  // حفظ إعدادات اللوحة
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('propertiesPanel.collapsed', JSON.stringify(isCollapsed))
+      const settings = {
+        panelMode,
+        panelSize,
+        isPinned,
+        activeSection,
+        isMinimized
+      }
+      localStorage.setItem('propertiesPanel.settings', JSON.stringify(settings))
     }
-  }, [isCollapsed])
+  }, [panelMode, panelSize, isPinned, activeSection, isMinimized])
+
+  // استرجاع الإعدادات المحفوظة
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('propertiesPanel.settings')
+      if (saved) {
+        try {
+          const settings = JSON.parse(saved)
+          if (!isMobile && !isXs) {
+            setPanelMode(settings.panelMode || 'docked')
+            setPanelSize(settings.panelSize || 'normal')
+            setIsPinned(settings.isPinned ?? true)
+            setActiveSection(settings.activeSection || 'properties')
+            setIsMinimized(settings.isMinimized || false)
+          }
+        } catch (e) {
+        }
+      }
+    }
+  }, [])
   
   // تحديث خاصية في المكون
   const updateProperty = useCallback((key: string, value: any) => {
@@ -205,253 +257,388 @@ export const PropertiesPanel: React.FC = () => {
     updateComponent(selectedComponent.id, { settings })
   }, [selectedComponent, updateComponent])
   
-  // تعريف animation variants للمحتوى
-  const contentVariants = {
-    expanded: {
-      opacity: 1,
+  // دوال التحكم في اللوحة الجديدة
+  const togglePinned = () => setIsPinned(!isPinned)
+  const toggleMinimized = () => setIsMinimized(!isMinimized)
+  const cyclePanelSize = () => {
+    const sizes: PanelSize[] = ['compact', 'normal', 'expanded']
+    const currentIndex = sizes.indexOf(panelSize)
+    const nextIndex = (currentIndex + 1) % sizes.length
+    setPanelSize(sizes[nextIndex])
+  }
+
+  // حساب أبعاد اللوحة الديناميكية
+  const getPanelDimensions = () => {
+    const baseWidth = {
+      compact: 280,
+      normal: 360,
+      expanded: 480
+    }[panelSize]
+
+    const maxWidth = Math.min(baseWidth, windowSize.width * 0.4)
+    
+    if (isMinimized) {
+      return { width: 60, height: 'auto' }
+    }
+
+    if (panelMode === 'floating') {
+      return { 
+        width: Math.min(maxWidth, windowSize.width - 40),
+        height: Math.min(600, windowSize.height - 100)
+      }
+    }
+
+    return { width: maxWidth, height: '100%' }
+  }
+
+  // animation variants محسنة
+  const panelVariants = {
+    docked: {
       x: 0,
-      transition: { duration: 0.3, delay: 0.1 }
+      y: 0,
+      scale: 1,
+      opacity: 1,
+      transition: { type: "spring" as const, stiffness: 300, damping: 30 }
     },
-    collapsed: {
-      opacity: 0,
-      x: 20,
+    floating: {
+      x: dragOffset.x,
+      y: dragOffset.y,
+      scale: isDragging ? 1.02 : 1,
+      opacity: 1,
+      transition: { type: "spring" as const, stiffness: 300, damping: 30 }
+    },
+    minimized: {
+      scale: 0.95,
+      opacity: 0.9,
       transition: { duration: 0.2 }
     }
   }
 
-  // دالة تبديل حالة التوسيع
-  const toggleCollapse = () => {
-    setIsCollapsed(!isCollapsed)
-  }
+  // رندر شريط التحكم الذكي الجديد
+  const renderSmartToolbar = () => (
+    <div className="flex items-center justify-between p-3 bg-gradient-to-r from-background/95 to-muted/20 border-b border-border/30 backdrop-blur-sm">
+      {/* معلومات المكون */}
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        {selectedComponent && (
+          <>
+            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+              <span className="text-sm">{getComponentIcon(selectedComponent.type)}</span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-medium truncate">{selectedComponent.name}</h3>
+              <p className="text-xs text-muted-foreground">{selectedComponent.type}</p>
+            </div>
+          </>
+        )}
+      </div>
 
-  // دالة التوسيع التلقائي عند الضغط على أيقونة
-  const expandOnAction = (action?: () => void) => {
-    if (isCollapsed) {
-      setIsCollapsed(false)
-      if (action) {
-        setTimeout(action, 300)
-      }
-    } else if (action) {
-      action()
-    }
-  }
+      {/* أدوات التحكم */}
+      <div className="flex items-center gap-1">
+        {/* بحث سريع */}
+        {!isMinimized && panelSize !== 'compact' && (
+          <div className="relative">
+            <Search className="absolute right-2 top-1/2 transform -translate-y-1/2 w-3 h-3 text-muted-foreground" />
+            <Input
+              placeholder="بحث..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-24 h-7 text-xs pr-7 pl-2 bg-muted/50 border-0"
+            />
+          </div>
+        )}
 
-  // رندر النسخة المضغوطة المحسنة
-  const renderCollapsedView = () => (
-    <div className="h-full flex flex-col bg-gradient-to-b from-card/90 via-card/95 to-muted/20 backdrop-blur-sm border-r border-border/30">
-      {/* شريط التحكم العلوي */}
-      <div className="p-3 border-b border-border/30">
+        {/* أزرار التحكم */}
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={toggleCollapse}
-                className="w-full h-10 p-0 hover:bg-primary/10 transition-all duration-200 rounded-lg border border-transparent hover:border-primary/20"
-              >
-                <PanelRightOpen className="w-5 h-5 text-primary" />
+              <Button variant="ghost" size="sm" onClick={cyclePanelSize} className="h-7 w-7 p-0">
+                <Grid3x3 className="w-3 h-3" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="left">
-              <p>توسيع لوحة الخصائص</p>
+            <TooltipContent side="bottom">
+              <p>تغيير الحجم ({panelSize})</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="sm" onClick={togglePinned} className="h-7 w-7 p-0">
+                {isPinned ? <Pin className="w-3 h-3" /> : <PinOff className="w-3 h-3" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>{isPinned ? 'إلغاء التثبيت' : 'تثبيت'}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="sm" onClick={toggleMinimized} className="h-7 w-7 p-0">
+                {isMinimized ? <Maximize2 className="w-3 h-3" /> : <Minimize2 className="w-3 h-3" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>{isMinimized ? 'توسيع' : 'تصغير'}</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
       </div>
-
-      {/* الأيقونات الرئيسية */}
-      <div className="flex-1 p-2 space-y-2">
-        {/* أيقونة المكون المحدد */}
-        {selectedComponent && (
-          <div className="mb-4">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant={(selectedComponent.isVisible ?? true) ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => {
-                      if (isMobile || isXs) {
-                        setShowFullscreen(true)
-                      } else {
-                        expandOnAction()
-                      }
-                    }}
-                    className="w-full h-12 p-0 transition-all duration-200 rounded-lg"
-                  >
-                    <span className="text-lg">{getComponentIcon(selectedComponent.type)}</span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="left">
-                  <p>{selectedComponent.name}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-        )}
-
-        {/* أيقونات التبويبات */}
-        <div className="space-y-1">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant={activeTab === 'properties' ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => {
-                    if (isMobile || isXs) {
-                      setActiveTab('properties')
-                      setShowFullscreen(true)
-                    } else {
-                      expandOnAction(() => setActiveTab('properties'))
-                    }
-                  }}
-                  className="w-full h-10 p-0 transition-all duration-200 rounded-lg"
-                >
-                  <Settings2 className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="left">
-                <p>الخصائص</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        </div>
-
-        {/* أيقونات إضافية */}
-        {selectedComponent && (
-          <div className="mt-4 pt-4 border-t border-border/30 space-y-1">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowFullscreen(true)}
-                    className="w-full h-10 p-0 transition-all duration-200 rounded-lg hover:bg-primary/10"
-                  >
-                    <Maximize2 className="w-4 h-4 text-primary" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="left">
-                  <p>فتح في الشاشة الكاملة</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => toggleComponentVisibility(selectedComponent.id)}
-                    className="w-full h-10 p-0 transition-all duration-200 rounded-lg"
-                  >
-                    {(selectedComponent.isVisible ?? true) ? (
-                      <Eye className="w-4 h-4 text-green-600" />
-                    ) : (
-                      <EyeOff className="w-4 h-4 text-red-500" />
-                    )}
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="left">
-                  <p>{(selectedComponent.isVisible ?? true) ? "إخفاء المكون" : "إظهار المكون"}</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-        )}
-      </div>
     </div>
   )
 
-  // رندر اللوحة للشاشات الكبيرة
-  const renderDesktopPanel = () => (
-    <motion.div 
-      className={cn(
-        "h-full flex flex-col properties-panel-enhanced properties-panel-rtl",
-        "bg-gradient-to-bl from-card/95 via-card/90 to-background/95",
-        "backdrop-blur-md shadow-xl",
-        "border-l border-border/30", // تغيير من border-r إلى border-l
-        "relative overflow-hidden",
-        isMobile && "properties-panel-mobile",
-        isTablet && "properties-panel-tablet"
-      )}
-      animate={{
-        width: isCollapsed ? (isMobile ? 50 : 60) : Math.min(
-          isXs ? Math.min(300, windowSize.width - 40) :
-          isMobile ? Math.min(340, windowSize.width - 60) :
-          isTablet ? Math.min(380, windowSize.width * 0.4) :
-          isSmallScreen ? Math.min(400, windowSize.width * 0.35) : 420,
-          windowSize.width - 80
-        )
-      }}
-      transition={{ duration: isCollapsed ? 0.3 : 0.4, ease: "easeInOut" }}
-      initial={false}
-      style={{ 
-        direction: 'rtl',
-        position: 'relative',
-        maxWidth: '100%'
-      }}
-    >
-      {isCollapsed ? (
-        renderCollapsedView()
-      ) : (
-        <motion.div 
-          variants={contentVariants}
-          initial="collapsed"
-          animate="expanded"
-          className="h-full"
+  // رندر الإجراءات السريعة الجديدة
+  const renderQuickActions = () => {
+    if (!selectedComponent || !showQuickActions) return null
+    
+    const actions = getQuickActions()
+    
+    return (
+      <div className="p-3 border-b border-border/30">
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-xs font-medium text-muted-foreground">إجراءات سريعة</h4>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={() => setShowQuickActions(false)}
+            className="h-5 w-5 p-0"
+          >
+            <ChevronRight className="w-3 h-3" />
+          </Button>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {actions.map((action) => (
+            <Button
+              key={action.id}
+              variant={action.variant || "outline"}
+              size="sm"
+              onClick={action.action}
+              className="h-8 text-xs relative"
+            >
+              {action.icon}
+              <span className="mr-1">{action.label}</span>
+              {action.badge && (
+                <Badge variant="secondary" className="absolute -top-1 -right-1 h-4 w-4 p-0 text-xs">
+                  {action.badge}
+                </Badge>
+              )}
+            </Button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // رندر التبويبات الذكية الجديدة
+  const renderSmartTabs = () => {
+    const tabs = [
+      { id: 'properties', label: 'خصائص', icon: Settings2 },
+      { id: 'style', label: 'تصميم', icon: Palette },
+      { id: 'layout', label: 'تخطيط', icon: Layers },
+      { id: 'interactions', label: 'تفاعل', icon: MousePointer }
+    ]
+
+    return (
+      <div className="px-3 py-2 border-b border-border/30">
+        <div className="grid grid-cols-2 gap-1 bg-muted/20 rounded-lg p-1">
+          {tabs.map((tab) => (
+            <Button
+              key={tab.id}
+              variant={activeSection === tab.id ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setActiveSection(tab.id)}
+              className={cn(
+                "h-8 text-xs font-medium transition-all duration-200",
+                activeSection === tab.id && "shadow-sm"
+              )}
+            >
+              <tab.icon className="w-3 h-3 ml-1" />
+              {tab.label}
+            </Button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // رندر المحتوى المحسن
+  const renderEnhancedContent = () => (
+    <div className="flex-1 overflow-y-auto">
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeSection}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.2 }}
+          className="p-4 space-y-4"
         >
-          <ResponsivePropertiesPanel
-            selectedComponent={selectedComponent}
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            updateProperty={updateProperty}
-            updateNestedProperty={updateNestedProperty}
-            toggleComponentVisibility={toggleComponentVisibility}
-            isMobile={isMobile}
-          />
+          {selectedComponent ? (
+            <ResponsivePropertiesPanel
+              selectedComponent={selectedComponent}
+              activeTab={activeSection}
+              setActiveTab={setActiveSection}
+              updateProperty={updateProperty}
+              updateNestedProperty={updateNestedProperty}
+              toggleComponentVisibility={toggleComponentVisibility}
+              isMobile={isMobile}
+            />
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <Layers className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p className="text-sm">اختر مكوناً لعرض خصائصه</p>
+            </div>
+          )}
         </motion.div>
-      )}
-    </motion.div>
+      </AnimatePresence>
+    </div>
   )
 
-  const handleOpenProperties = () => {
-    setShowFullscreen(true)
-    setActiveTab('properties')
+  // رندر اللوحة الجديدة المطورة
+  const renderNewPanel = () => {
+    const dimensions = getPanelDimensions()
+    
+    return (
+      <motion.div
+        ref={panelRef}
+        variants={panelVariants}
+        animate={isMinimized ? "minimized" : panelMode}
+        className={cn(
+          "bg-gradient-to-br from-background/95 via-background/90 to-muted/10",
+          "backdrop-blur-xl border border-border/30 shadow-2xl",
+          "flex flex-col overflow-hidden",
+          panelMode === 'floating' && "rounded-2xl fixed top-20 right-6 z-50",
+          panelMode === 'docked' && "border-l-0 rounded-l-none",
+          panelMode === 'sidebar' && "rounded-l-xl",
+          panelMode === 'overlay' && "fixed inset-0 z-50 bg-background/95",
+          isMinimized && "rounded-xl",
+          !isPinned && panelMode === 'floating' && "cursor-move"
+        )}
+        style={{
+          width: dimensions.width,
+          height: dimensions.height,
+          direction: 'rtl'
+        }}
+        onMouseEnter={() => setIsHovering(true)}
+        onMouseLeave={() => setIsHovering(false)}
+        drag={!isPinned && panelMode === 'floating'}
+        dragMomentum={false}
+        dragElastic={0.1}
+        onDragStart={() => setIsDragging(true)}
+        onDragEnd={(_, info) => {
+          setIsDragging(false)
+          setDragOffset({
+            x: dragOffset.x + info.offset.x,
+            y: dragOffset.y + info.offset.y
+          })
+        }}
+      >
+        {/* شريط التحكم الذكي */}
+        {renderSmartToolbar()}
+
+        {/* المحتوى الرئيسي */}
+        {!isMinimized && (
+          <>
+            {/* الإجراءات السريعة */}
+            {renderQuickActions()}
+            
+            {/* التبويبات الذكية */}
+            {renderSmartTabs()}
+            
+            {/* المحتوى */}
+            {renderEnhancedContent()}
+          </>
+        )}
+
+        {/* مؤشر الحالة */}
+        {selectedComponent && (
+          <div className="absolute top-2 left-2">
+            <div className={cn(
+              "w-2 h-2 rounded-full",
+              selectedComponent.isVisible ? "bg-green-500" : "bg-red-500"
+            )} />
+          </div>
+        )}
+      </motion.div>
+    )
+  }
+
+  // عرض اللوحة حسب الجهاز
+  const renderPanelForDevice = () => {
+    if (isMobile || isXs) {
+      return (
+        <>
+          {/* اللوحة العائمة للهواتف */}
+          {panelMode === 'overlay' && (
+            <AnimatePresence>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-black/50 z-40"
+                onClick={() => setPanelMode('floating')}
+              />
+              {renderNewPanel()}
+            </AnimatePresence>
+          )}
+          
+          {/* الزر العائم للهواتف */}
+          {panelMode === 'floating' && selectedComponent && (
+            <motion.div
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="fixed bottom-6 right-6 z-50"
+            >
+              <Button
+                size="lg"
+                onClick={() => setPanelMode('overlay')}
+                className="rounded-full w-14 h-14 shadow-2xl"
+              >
+                <Sliders className="w-6 h-6" />
+              </Button>
+            </motion.div>
+          )}
+        </>
+      )
+    }
+
+    return renderNewPanel()
   }
 
   return (
-    <>
-      {/* اللوحة الأساسية للشاشات الكبيرة */}
-      {!isMobile && !isXs && renderDesktopPanel()}
+    <TooltipProvider>
+      {/* اللوحة الجديدة المطورة */}
+      {renderPanelForDevice()}
       
-      {/* الحوارات للشاشات الصغيرة */}
-      <PropertiesDialogs
-        selectedComponent={selectedComponent}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        updateProperty={updateProperty}
-        updateNestedProperty={updateNestedProperty}
-        toggleComponentVisibility={toggleComponentVisibility}
-        showFullscreen={showFullscreen}
-        setShowFullscreen={setShowFullscreen}
-        isMobile={isMobile}
-      />
+      {/* مؤثرات بصرية إضافية */}
+      {isHovering && panelMode === 'floating' && !isPinned && (
+        <motion.div
+          className="fixed inset-0 pointer-events-none z-30"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 0.1 }}
+          exit={{ opacity: 0 }}
+        >
+          <div className="absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent" />
+        </motion.div>
+      )}
       
-      {/* الأزرار العائمة للهواتف */}
-      <FloatingPropertiesButton
-        selectedComponent={selectedComponent}
-        showFloatingButton={showFloatingButton}
-        showTooltipHint={showTooltipHint}
-        onOpenProperties={handleOpenProperties}
-        isMobile={isMobile}
-        isXs={isXs}
-      />
-    </>
+      {/* مؤشر الاتصال */}
+      {selectedComponent && (
+        <motion.div
+          className="fixed top-4 right-4 z-60"
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          exit={{ scale: 0 }}
+        >
+          <div className="flex items-center gap-2 bg-card/90 backdrop-blur-sm border border-border/30 rounded-full px-3 py-1 shadow-lg">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+          </div>
+        </motion.div>
+      )}
+    </TooltipProvider>
   )
 }
 

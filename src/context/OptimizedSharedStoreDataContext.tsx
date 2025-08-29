@@ -226,6 +226,7 @@ export const OptimizedSharedStoreDataProvider: React.FC<{ children: ReactNode }>
     getCacheStats: getCacheStatsFunc,
     clearCache,
   }), [
+    // 🔥 إصلاح: استخدام قيم مستقرة بدلاً من الدوال
     sharedData.organization?.id,
     sharedData.organizationSettings?.id,
     sharedData.products?.length,
@@ -236,10 +237,8 @@ export const OptimizedSharedStoreDataProvider: React.FC<{ children: ReactNode }>
     sharedData.callConfirmationStatuses?.length,
     sharedData.shippingProviders?.length,
     sharedData.isLoading,
-    sharedData.error,
-    refreshData,
-    getCacheStatsFunc,
-    clearCache,
+    sharedData.error
+    // 🔥 إصلاح: إزالة الدوال من dependencies لتجنب إعادة الإنشاء
   ]);
 
   return (

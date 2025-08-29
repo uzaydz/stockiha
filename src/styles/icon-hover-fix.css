@@ -258,32 +258,32 @@ svg[class*="hover:"],
   border-radius: 0 !important;
 }
 
-/* إصلاح خاص للتأثيرات التي قد تأتي من CSS variables */
-svg {
+/* إصلاح خاص للتأثيرات التي قد تأتي من CSS variables - باستثناء الصور */
+svg:not(img svg) {
   --tw-bg-opacity: 0 !important;
   --tw-border-opacity: 0 !important;
   --tw-shadow: none !important;
 }
 
-.lucide {
+.lucide:not(img .lucide) {
   --tw-bg-opacity: 0 !important;
   --tw-border-opacity: 0 !important;
   --tw-shadow: none !important;
 }
 
-[class*="icon"] {
+[class*="icon"]:not(img):not([class*="OptimizedImage"]) {
   --tw-bg-opacity: 0 !important;
   --tw-border-opacity: 0 !important;
   --tw-shadow: none !important;
 }
 
-/* إصلاح نهائي مطلق لضمان عدم ظهور أي مربعات ملونة */
-svg,
-svg *,
-.lucide,
-.lucide *,
-[class*="icon"],
-[class*="icon"] * {
+/* إصلاح نهائي مطلق لضمان عدم ظهور أي مربعات ملونة - باستثناء الصور */
+svg:not(img svg),
+svg:not(img svg) *,
+.lucide:not(img .lucide),
+.lucide:not(img .lucide) *,
+[class*="icon"]:not(img),
+[class*="icon"]:not(img) * {
   background-attachment: initial !important;
   background-blend-mode: initial !important;
   background-clip: initial !important;
@@ -298,4 +298,17 @@ svg *,
   border-radius: 0 !important;
   box-shadow: none !important;
   outline: none !important;
+}
+
+/* استثناء الصور من قواعد إزالة الخلفية */
+img,
+img *,
+.optimized-image,
+.optimized-image *,
+[class*="OptimizedImage"],
+[class*="OptimizedImage"] * {
+  background: inherit !important;
+  background-color: inherit !important;
+  background-image: inherit !important;
+  opacity: inherit !important;
 } 

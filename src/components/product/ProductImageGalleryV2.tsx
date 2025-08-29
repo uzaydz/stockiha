@@ -20,6 +20,7 @@ interface ProductImageGalleryV2Props {
  * - منع وميض الصور نهائياً
  * - استهلاك ذاكرة أقل بكثير
  * - تحسين خاص للهواتف المحمولة
+ * - عرض الصور بشكل كامل مع خيارات التكبير
  */
 
 const ProductImageGalleryV2 = memo<ProductImageGalleryV2Props>(({ 
@@ -27,11 +28,11 @@ const ProductImageGalleryV2 = memo<ProductImageGalleryV2Props>(({
   selectedColor,
   className
 }) => {
-  // حالة محسنة ومبسطة
+  // تبسيط: إزالة التعقيدات وجعل التحميل أسرع
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isImageLoaded, setIsImageLoaded] = useState(false);
   const [touchStart, setTouchStart] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [imageFit, setImageFit] = useState<'contain' | 'cover'>('contain');
   
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRefs = useRef<Map<string, HTMLImageElement>>(new Map());
@@ -77,6 +78,21 @@ const ProductImageGalleryV2 = memo<ProductImageGalleryV2Props>(({
   }, [product, selectedColor]);
 
   const currentImage = images[currentIndex] || images[0];
+
+  // تبسيط: تحميل مسبق بسيط للصور
+  useEffect(() => {
+    if (images.length === 0) return;
+
+    // تحميل فوري لجميع الصور
+    images.forEach(url => {
+      if (!imageRefs.current.has(url)) {
+        const img = new Image();
+        img.src = url;
+        img.loading = 'eager';
+        imageRefs.current.set(url, img);
+      }
+    });
+  }, [images]);
 
   // تحميل مسبق للصور المجاورة فقط - أكثر كفاءة
   useEffect(() => {
@@ -128,34 +144,90 @@ const ProductImageGalleryV2 = memo<ProductImageGalleryV2Props>(({
     }
   }, [touchStart, images.length, isMobile, isTransitioning]);
 
-  // معالجة تحميل الصورة
-  const handleImageLoad = useCallback(() => {
-    setIsImageLoaded(true);
+  // معالجة تحميل الصورة محسنة مع منع التكرار
+  const handleImageLoad = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    const imageUrl = e.currentTarget.src;
+    
+    // منع التحميل المتكرر لنفس الصورة
+    if (imageRefs.current.has(imageUrl)) {
+      return;
+    }
+
+    // إضافة الصورة لقائمة المعالجة
+    const img = new Image();
+    img.src = imageUrl;
+    img.loading = 'eager';
+    imageRefs.current.set(imageUrl, img);
+    
+    // تحديث فوري لحالة التحميل
   }, []);
 
-  const handleImageError = useCallback(() => {
-    setIsImageLoaded(true); // حتى لو فشلت، اعتبرها محملة
+  const handleImageError = useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
+    const imageUrl = e.currentTarget.src;
+    
+    // تحسين: إضافة fallback للصور الفاشلة
+    if (imageUrl !== '/images/placeholder-product.jpg') {
+      const img = e.currentTarget;
+      img.src = '/images/placeholder-product.jpg';
+      img.alt = 'صورة بديلة';
+      
+      // تعيين حالة التحميل كـ true حتى مع الصورة البديلة
+    } else {
+      // إذا كانت الصورة البديلة أيضاً فشلت، اعتبرها محملة
+    }
   }, []);
 
-  // إعادة تعيين حالة التحميل عند تغيير الصورة
+  // تبسيط: إزالة المنطق المعقد وإضافة منطق بسيط وسريع
   useEffect(() => {
-    setIsImageLoaded(false);
-  }, [currentImage]);
+    if (images.length > 0 && currentIndex < images.length) {
+      const newImage = images[currentIndex];
+      if (newImage && newImage !== currentImage) {
+        // تحميل مسبق للصورة الجديدة
+        if (!imageRefs.current.has(newImage)) {
+          const img = new Image();
+          img.src = newImage;
+          img.loading = 'eager';
+          imageRefs.current.set(newImage, img);
+        }
+      }
+    }
+  }, [currentIndex, images, currentImage]);
+
+  // تحديث الصورة المعروضة عند تغيير اللون المختار
+  useEffect(() => {
+    if (selectedColor?.image_url) {
+      const colorImageIndex = images.findIndex(img => img === selectedColor.image_url);
+      if (colorImageIndex !== -1) {
+        setCurrentIndex(colorImageIndex);
+      }
+    }
+  }, [selectedColor?.id, images]);
+
+  // إزالة المنطق المعقد
+  const handleImageChange = useCallback((newIndex: number) => {
+    if (newIndex === currentIndex || isTransitioning) return;
+    setCurrentIndex(newIndex);
+  }, [currentIndex, isTransitioning]);
 
   // التنقل بالأزرار
   const goToNext = useCallback(() => {
     if (images.length <= 1 || isTransitioning) return;
     setIsTransitioning(true);
-    setCurrentIndex(prev => (prev + 1) % images.length);
+    handleImageChange((currentIndex + 1) % images.length);
     setTimeout(() => setIsTransitioning(false), 200);
-  }, [images.length, isTransitioning]);
+  }, [images.length, isTransitioning, currentIndex, handleImageChange]);
 
   const goToPrevious = useCallback(() => {
     if (images.length <= 1 || isTransitioning) return;
     setIsTransitioning(true);
-    setCurrentIndex(prev => (prev - 1 + images.length) % images.length);
+    handleImageChange((currentIndex - 1 + images.length) % images.length);
     setTimeout(() => setIsTransitioning(false), 200);
-  }, [images.length, isTransitioning]);
+  }, [images.length, isTransitioning, currentIndex, handleImageChange]);
+
+  // تبديل نوع عرض الصورة
+  const toggleImageFit = useCallback(() => {
+    setImageFit(prev => prev === 'contain' ? 'cover' : 'contain');
+  }, []);
 
   return (
     <div className={cn("w-full", className)}>
@@ -171,27 +243,39 @@ const ProductImageGalleryV2 = memo<ProductImageGalleryV2Props>(({
             WebkitTapHighlightColor: 'transparent'
           }}
         >
-          {/* مؤشر التحميل البسيط */}
-          {!isImageLoaded && (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
-            </div>
-          )}
-
-          {/* الصورة */}
-          <img
-            src={currentImage}
-            alt={`${product.name} - صورة ${currentIndex + 1}`}
-            className={cn(
-              "w-full h-full object-contain transition-opacity duration-200",
-              isImageLoaded ? "opacity-100" : "opacity-0"
+          {/* مؤشر التحميل المحسن */}
+          {/* الصورة الرئيسية */}
+          <div className="relative w-full h-full">
+            {/* تبسيط: عرض الصورة مباشرة */}
+            {currentImage && (
+              <img
+                src={currentImage}
+                alt={`${product.name} - صورة ${currentIndex + 1}`}
+                className={cn(
+                  "w-full h-full transition-opacity duration-200",
+                  imageFit === 'contain' ? 'object-contain' : 'object-cover',
+                )}
+                onLoad={handleImageLoad}
+                onError={handleImageError}
+                loading="eager" // تحميل فوري دائماً
+                decoding="async"
+                draggable={false}
+              />
             )}
-            onLoad={handleImageLoad}
-            onError={handleImageError}
-            loading={currentIndex === 0 ? "eager" : "lazy"}
-            decoding="async"
-            draggable={false}
-          />
+            
+            {/* fallback للصور */}
+            {!currentImage && images.length > 0 && (
+              <img
+                src={images[0]}
+                alt={`${product.name} - صورة بديلة`}
+                className="w-full h-full object-cover opacity-100"
+                onError={(e) => {
+                  const img = e.currentTarget;
+                  img.src = '/images/placeholder-product.jpg';
+                }}
+              />
+            )}
+          </div>
 
           {/* أزرار التنقل - تظهر فقط على سطح المكتب */}
           {!isMobile && images.length > 1 && (
@@ -220,7 +304,7 @@ const ProductImageGalleryV2 = memo<ProductImageGalleryV2Props>(({
               {images.map((_, idx) => (
                 <button
                   key={idx}
-                  onClick={() => !isTransitioning && setCurrentIndex(idx)}
+                  onClick={() => !isTransitioning && handleImageChange(idx)}
                   className={cn(
                     "w-1.5 h-1.5 rounded-full transition-all duration-200",
                     idx === currentIndex 
@@ -234,35 +318,39 @@ const ProductImageGalleryV2 = memo<ProductImageGalleryV2Props>(({
           )}
         </div>
 
-        {/* الصور المصغرة المحسنة */}
+        {/* الصور المصغرة المحسنة - في المنتصف */}
         {images.length > 1 && (
-          <div className="flex gap-1.5 overflow-x-auto pb-2 no-scrollbar">
-            {images.slice(0, 6).map((imageUrl, idx) => (
-              <button
-                key={idx}
-                onClick={() => !isTransitioning && setCurrentIndex(idx)}
-                className={cn(
-                  "flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden border-2 transition-all duration-200",
-                  idx === currentIndex 
-                    ? "border-primary scale-105" 
-                    : "border-border/30 opacity-70 hover:opacity-100"
-                )}
-                disabled={isTransitioning}
-              >
-                <img
-                  src={imageUrl}
-                  alt={`صورة مصغرة ${idx + 1}`}
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                  decoding="async"
-                />
-              </button>
-            ))}
-            {images.length > 6 && (
-              <div className="flex-shrink-0 w-12 h-12 rounded-lg border-2 border-dashed border-border/50 flex items-center justify-center bg-muted/50">
-                <span className="text-xs text-muted-foreground">+{images.length - 6}</span>
-              </div>
-            )}
+          <div className="flex justify-center">
+            <div className="flex gap-1.5 overflow-x-auto pb-2 no-scrollbar max-w-fit">
+              {images.slice(0, 6).map((imageUrl, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => !isTransitioning && handleImageChange(idx)}
+                  className={cn(
+                    "flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden border-2 transition-all duration-200",
+                    idx === currentIndex 
+                      ? "border-primary scale-105" 
+                      : "border-border/30 opacity-70 hover:opacity-100"
+                  )}
+                  disabled={isTransitioning}
+                >
+                  <img
+                    src={imageUrl}
+                    alt={`صورة مصغرة ${idx + 1}`}
+                    className="w-full h-full object-cover"
+                    loading={idx < 3 ? "eager" : "lazy"} // تحميل فوري لأول 3 صور
+                    decoding="async"
+                    onLoad={(e) => handleImageLoad(e)}
+                    onError={(e) => handleImageError(e)}
+                  />
+                </button>
+              ))}
+              {images.length > 6 && (
+                <div className="flex-shrink-0 w-12 h-12 rounded-lg border-2 border-dashed border-border/50 flex items-center justify-center bg-muted/50">
+                  <span className="text-xs text-muted-foreground">+{images.length - 6}</span>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

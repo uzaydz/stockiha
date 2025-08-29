@@ -112,8 +112,6 @@ const OrderCard: React.FC<OrderCardProps> = ({
     [order, customer]
   );
 
-
-
   // تنسيق التاريخ
   const formattedDate = useMemo(() => {
     try {

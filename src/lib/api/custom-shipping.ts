@@ -8,12 +8,25 @@ export interface CustomShippingRates {
 }
 
 export interface CustomShippingSettings {
+  // الحقول الجديدة من قاعدة البيانات
+  use_uniform_rates?: boolean;
+  uniform_home_rate?: number;
+  uniform_office_rate?: number;
+  free_home_delivery?: boolean;
+  free_office_delivery?: boolean;
+  
+  // الحقول القديمة للتوافق
   use_unified_price?: boolean;
   unified_home_price?: number;
   unified_desk_price?: number;
   is_free_delivery_home?: boolean;
   is_free_delivery_desk?: boolean;
+  
+  // الأسعار المخصصة بحسب الولاية
   custom_rates?: CustomShippingRates;
+  shipping_rates?: CustomShippingRates;
+  
+  // السعر الافتراضي
   default_price?: number;
 }
 
@@ -82,6 +95,7 @@ export async function createOrUpdateCustomShipping(
  */
 export async function getCustomShippingSettings(organizationId: string) {
   try {
+    
     const { data, error } = await supabase
       .from('shipping_provider_settings')
       .select('*')
@@ -94,10 +108,12 @@ export async function getCustomShippingSettings(organizationId: string) {
       throw error;
     }
 
-    return { 
+    const result = { 
       success: true, 
       data: data || null 
     };
+
+    return result;
   } catch (error) {
     return { 
       success: false, 
@@ -143,30 +159,63 @@ export async function calculateCustomShippingPrice(
   deliveryType: 'home' | 'desk'
 ): Promise<number> {
   try {
-    const { data: settings } = await getCustomShippingSettings(organizationId);
     
+    const settings = await getCustomShippingSettings(organizationId);
+
     if (!settings.success || !settings.data) {
       return 0;
     }
 
     const shippingSettings = settings.data.settings as CustomShippingSettings;
 
-    // التحقق من الأسعار الموحدة أولاً
+    // 🆕 التحقق من الأسعار الموحدة الجديدة أولاً
+    if (shippingSettings.use_uniform_rates) {
+      
+      if (deliveryType === 'home') {
+        if (shippingSettings.free_home_delivery) {
+          return 0;
+        }
+        const price = shippingSettings.uniform_home_rate || 0;
+        return price;
+      } else {
+        if (shippingSettings.free_office_delivery) {
+          return 0;
+        }
+        const price = shippingSettings.uniform_office_rate || 0;
+        return price;
+      }
+    }
+    
+    // التحقق من الأسعار الموحدة القديمة (للتوافق)
     if (shippingSettings.use_unified_price) {
+      
       if (deliveryType === 'home') {
         if (shippingSettings.is_free_delivery_home) {
           return 0;
         }
-        return shippingSettings.unified_home_price || 0;
+        const price = shippingSettings.unified_home_price || 0;
+        return price;
       } else {
         if (shippingSettings.is_free_delivery_desk) {
           return 0;
         }
-        return shippingSettings.unified_desk_price || 0;
+        const price = shippingSettings.unified_desk_price || 0;
+        return price;
       }
     }
 
-    // البحث عن أسعار مخصصة بحسب الولاية
+    // البحث عن أسعار مخصصة بحسب الولاية (الحقول الجديدة)
+    if (shippingSettings.shipping_rates && shippingSettings.shipping_rates[provinceId]) {
+      const provinceRates = shippingSettings.shipping_rates[provinceId];
+      
+      if (deliveryType === 'home') {
+        return provinceRates.home_delivery || 0;
+      } else {
+        return provinceRates.office_delivery || 0;
+      }
+    }
+    
+    // البحث عن أسعار مخصصة بحسب الولاية (الحقول القديمة)
     if (shippingSettings.custom_rates && shippingSettings.custom_rates[provinceId]) {
       const provinceRates = shippingSettings.custom_rates[provinceId];
       

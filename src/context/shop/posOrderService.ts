@@ -17,6 +17,8 @@ export interface POSOrderData {
   amountPaid?: number;
   discount?: number;
   subtotal?: number;
+  remainingAmount?: number; // إضافة المبلغ المتبقي
+  considerRemainingAsPartial?: boolean; // هل يعتبر المبلغ المتبقي دفع جزئي أم تخفيض
 }
 
 export interface POSOrderResult {
@@ -40,7 +42,7 @@ const processedInventoryUpdates = new Set<string>();
 // دالة محسنة لإنشاء طلبية نقطة البيع - بواجهة جديدة
 export async function createPOSOrder(orderData: POSOrderData): Promise<POSOrderResult> {
   const startTime = performance.now();
-  
+
   try {
     // التحقق من وجود organization_id
     if (!orderData.organizationId) {
@@ -53,6 +55,39 @@ export async function createPOSOrder(orderData: POSOrderData): Promise<POSOrderR
     // توليد slug فريد للطلبية (بأحرف صغيرة لتوافق القيد)
     const orderSlug = `pos-${new Date().getTime()}-${Math.floor(Math.random() * 1000)}`;
     
+    // إضافة logging للتشخيص - هذا هو الـ log القديم الذي يظهر في console
+
+    // التحقق من صحة employee_id قبل إنشاء الطلب
+    
+    let validEmployeeId = null;
+    if (orderData.employeeId && orderData.employeeId !== "") {
+      try {
+        // البحث أولاً بـ id ثم بـ auth_user_id
+        let { data: employeeExists } = await supabase
+          .from('users')
+          .select('id')
+          .eq('id', orderData.employeeId)
+          .single();
+        
+        if (employeeExists) {
+          validEmployeeId = orderData.employeeId;
+        } else {
+          // إذا لم يوجد، البحث بـ auth_user_id
+          const { data: employeeByAuthId } = await supabase
+            .from('users')
+            .select('id')
+            .eq('auth_user_id', orderData.employeeId)
+            .single();
+          
+          if (employeeByAuthId) {
+            validEmployeeId = employeeByAuthId.id;
+          } else {
+          }
+        }
+      } catch (error) {
+      }
+    }
+
     // تحضير بيانات الطلبية
     const order = {
       customer_id: customerId,
@@ -61,18 +96,18 @@ export async function createPOSOrder(orderData: POSOrderData): Promise<POSOrderR
       status: 'completed',
       payment_status: orderData.paymentStatus || 'paid',
       payment_method: orderData.paymentMethod || 'cash',
-      subtotal: orderData.subtotal || orderData.total || 0,
+      subtotal: orderData.subtotal || 0,
       tax: 0,
       discount: orderData.discount || 0,
-      total: orderData.total || 0,
+      total: orderData.total || 0, // استخدام القيمة المحسوبة مسبقاً
       notes: orderData.notes || '',
       is_online: false,
-      employee_id: orderData.employeeId || null,
+      employee_id: validEmployeeId, // استخدام معرف الموظف المتحقق منه أو null
       // حقول إضافية لنقطة البيع
       pos_order_type: 'pos',
-      amount_paid: orderData.amountPaid || orderData.total || 0,
-      remaining_amount: 0,
-      consider_remaining_as_partial: false,
+      amount_paid: orderData.amountPaid || (orderData.total || 0),
+      remaining_amount: orderData.remainingAmount || 0,
+      consider_remaining_as_partial: orderData.considerRemainingAsPartial || false,
       completed_at: new Date().toISOString(),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -205,6 +240,36 @@ export const createPOSOrderLegacy = async (
       metadata.subscriptionAccountInfo = order.subscriptionAccountInfo;
     }
 
+    // التحقق من صحة employee_id قبل إنشاء الطلب
+    let validEmployeeId = null;
+    if (order.employeeId && order.employeeId !== "") {
+      try {
+        // البحث أولاً بـ id ثم بـ auth_user_id
+        let { data: employeeExists } = await supabase
+          .from('users')
+          .select('id')
+          .eq('id', order.employeeId)
+          .single();
+        
+        if (employeeExists) {
+          validEmployeeId = order.employeeId;
+        } else {
+          // إذا لم يوجد، البحث بـ auth_user_id
+          const { data: employeeByAuthId } = await supabase
+            .from('users')
+            .select('id')
+            .eq('auth_user_id', order.employeeId)
+            .single();
+          
+          if (employeeByAuthId) {
+            validEmployeeId = employeeByAuthId.id;
+          } else {
+          }
+        }
+      } catch (error) {
+      }
+    }
+
     // تحضير بيانات الطلبية
     const orderData = {
       customer_id: customerId,
@@ -219,7 +284,7 @@ export const createPOSOrderLegacy = async (
       total: order.total || 0,
       notes: order.notes || '',
       is_online: false,
-      employee_id: order.employeeId || null,
+      employee_id: validEmployeeId, // استخدام معرف الموظف المتحقق منه أو null
       // حقول إضافية لنقطة البيع
       pos_order_type: 'pos',
       amount_paid: order.partialPayment?.amountPaid || order.total || 0,
@@ -481,6 +546,36 @@ async function addOrderTransactionForPOS(
       throw new Error('Organization ID is required for transaction but was not provided');
     }
     
+    // التحقق من صحة employee_id قبل إنشاء المعاملة
+    let validEmployeeId = null;
+    if (orderData.employeeId && orderData.employeeId !== "") {
+      try {
+        // البحث أولاً بـ id ثم بـ auth_user_id
+        let { data: employeeExists } = await supabase
+          .from('users')
+          .select('id')
+          .eq('id', orderData.employeeId)
+          .single();
+        
+        if (employeeExists) {
+          validEmployeeId = orderData.employeeId;
+        } else {
+          // إذا لم يوجد، البحث بـ auth_user_id
+          const { data: employeeByAuthId } = await supabase
+            .from('users')
+            .select('id')
+            .eq('auth_user_id', orderData.employeeId)
+            .single();
+          
+          if (employeeByAuthId) {
+            validEmployeeId = employeeByAuthId.id;
+          }
+        }
+      } catch (error) {
+        // تجاهل الخطأ واستخدام null
+      }
+    }
+    
     // التأكد من وجود جميع الحقول المطلوبة فقط
     const transactionData = {
       order_id: orderId,
@@ -490,7 +585,7 @@ async function addOrderTransactionForPOS(
       description: orderData.paymentStatus === 'paid' 
         ? `Payment for POS order` 
         : `Partial payment for POS order`,
-      employee_id: orderData.employeeId || null,
+      employee_id: validEmployeeId, // استخدام معرف الموظف المتحقق منه أو null
       organization_id: organizationId
     };
 
@@ -519,6 +614,36 @@ async function addOrderTransaction(
       throw new Error('Organization ID is required for transaction but was not provided');
     }
     
+    // التحقق من صحة employee_id قبل إنشاء المعاملة
+    let validEmployeeId = null;
+    if (order.employeeId && order.employeeId !== "") {
+      try {
+        // البحث أولاً بـ id ثم بـ auth_user_id
+        let { data: employeeExists } = await supabase
+          .from('users')
+          .select('id')
+          .eq('id', order.employeeId)
+          .single();
+        
+        if (employeeExists) {
+          validEmployeeId = order.employeeId;
+        } else {
+          // إذا لم يوجد، البحث بـ auth_user_id
+          const { data: employeeByAuthId } = await supabase
+            .from('users')
+            .select('id')
+            .eq('auth_user_id', order.employeeId)
+            .single();
+          
+          if (employeeByAuthId) {
+            validEmployeeId = employeeByAuthId.id;
+          }
+        }
+      } catch (error) {
+        // تجاهل الخطأ واستخدام null
+      }
+    }
+    
     // التأكد من وجود جميع الحقول المطلوبة فقط
     const transactionData = {
       order_id: orderId,
@@ -528,7 +653,7 @@ async function addOrderTransaction(
       description: order.paymentStatus === 'paid' 
         ? `Payment for POS order` 
         : `Partial payment for POS order`,
-      employee_id: order.employeeId || null,
+      employee_id: validEmployeeId, // استخدام معرف الموظف المتحقق منه أو null
       organization_id: organizationId
     };
 

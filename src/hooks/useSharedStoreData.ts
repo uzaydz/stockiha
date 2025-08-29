@@ -1,9 +1,9 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTenant } from '@/context/TenantContext';
-import { supabase } from '@/lib/supabase-client';
+import { supabase } from '@/lib/supabase-unified';
 import { getOrganizationByDomain } from '@/lib/api/subdomain';
 import { getOrganizationSettings } from '@/lib/api/settings';
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useRef, useEffect } from 'react';
 
 // نوع البيانات المشتركة للمتجر
 interface SharedStoreData {
@@ -20,12 +20,96 @@ interface SharedStoreData {
   error: string | null;
 }
 
-// Cache عام لمنع الاستدعاءات المكررة
+// نوع البيانات المرجعة من الـ hook
+interface SharedStoreDataReturn {
+  organization: any | null;
+  organizationSettings: any | null;
+  products: any[];
+  categories: any[];
+  featuredProducts: any[];
+  components: any[];
+  footerSettings: any | null;
+  testimonials: any[];
+  seoMeta: any | null;
+  isLoading: boolean;
+  error: string | null;
+  refreshData: () => Promise<void>;
+}
+
+// Cache عام محسن لمنع الاستدعاءات المكررة
 let globalStoreDataCache: { [key: string]: any } = {};
 let globalCacheTimestamp: { [key: string]: number } = {};
-const CACHE_DURATION = 2 * 60 * 1000; // دقيقتان
-// منع نداءات RPC المكررة لنفس السابدومين
-const pendingRequests: Record<string, Promise<any>> = {};
+let activeRequests: { [key: string]: Promise<any> } = {};
+
+// 🔥 تحسين: إضافة deduplication أقوى
+const requestDeduplication = new Map<string, Promise<any>>();
+
+// دوال Cache محسنة مع deduplication أقوى
+const getCachedData = (key: string) => {
+  const cached = globalStoreDataCache[key];
+  const timestamp = globalCacheTimestamp[key];
+  
+  if (cached && timestamp && (Date.now() - timestamp) < 5 * 60 * 1000) { // 5 دقائق
+    return cached;
+  }
+  return null;
+};
+
+const setCachedData = (key: string, data: any, ttl: number = 10 * 60 * 1000) => {
+  globalStoreDataCache[key] = data;
+  globalCacheTimestamp[key] = Date.now();
+  
+  // تنظيف cache قديم تلقائياً
+  setTimeout(() => {
+    if (globalCacheTimestamp[key] && (Date.now() - globalCacheTimestamp[key]) > ttl) {
+      delete globalStoreDataCache[key];
+      delete globalCacheTimestamp[key];
+    }
+  }, ttl);
+};
+
+// دالة محسنة لمنع التكرار
+const getOrCreateRequest = (cacheKey: string, requestFn: () => Promise<any>): Promise<any> => {
+  // 🔥 تحسين: فحص cache أولاً
+  if (globalStoreDataCache[cacheKey]) {
+    const cacheAge = Date.now() - globalCacheTimestamp[cacheKey];
+    if (cacheAge < 5 * 60 * 1000) { // 5 دقائق
+      if (process.env.NODE_ENV === 'development') {
+        console.log('✅ useSharedStoreData: استخدام البيانات من cache', { cacheKey, cacheAge });
+      }
+      return Promise.resolve(globalStoreDataCache[cacheKey]);
+    }
+  }
+
+  // 🔥 تحسين: deduplication أقوى
+  if (requestDeduplication.has(cacheKey)) {
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔄 useSharedStoreData: استخدام طلب موجود', { cacheKey });
+    }
+    return requestDeduplication.get(cacheKey)!;
+  }
+
+  // إنشاء طلب جديد
+  const request = requestFn().then(result => {
+    // حفظ النتيجة في cache
+    globalStoreDataCache[cacheKey] = result;
+    globalCacheTimestamp[cacheKey] = Date.now();
+    
+    // إزالة من deduplication
+    requestDeduplication.delete(cacheKey);
+    
+    return result;
+  }).catch(error => {
+    // إزالة من deduplication في حالة الخطأ
+    requestDeduplication.delete(cacheKey);
+    throw error;
+  });
+
+  // حفظ الطلب في deduplication
+  requestDeduplication.set(cacheKey, request);
+  
+  return request;
+};
 
 // Preloader للصور
 const preloadImages = (products: any[], categories: any[]) => {
@@ -60,385 +144,418 @@ const preloadImages = (products: any[], categories: any[]) => {
   });
 };
 
-// خيارات Hook البيانات المشتركة
+// خيارات Hook البيانات المشتركة - محسنة
 interface UseSharedStoreDataOptions {
   includeCategories?: boolean;
   includeProducts?: boolean;
   includeFeaturedProducts?: boolean;
+  includeComponents?: boolean;
+  includeFooterSettings?: boolean;
+  includeTestimonials?: boolean;
+  includeSeoMeta?: boolean;
+  enableOptimisticUpdates?: boolean;
+  cacheStrategy?: 'aggressive' | 'conservative';
   enabled?: boolean;
 }
 
 // Hook مشترك لجلب بيانات المتجر مرة واحدة مع تحسينات الأداء
-export const useSharedStoreData = (options: UseSharedStoreDataOptions = {}) => {
+export const useSharedStoreData = (options: UseSharedStoreDataOptions = {}): SharedStoreDataReturn => {
   const {
+    includeComponents = true,
+    includeFooterSettings = true,
+    includeTestimonials = true,
+    includeSeoMeta = true,
     includeCategories = true,
     includeProducts = true,
     includeFeaturedProducts = true,
+    enableOptimisticUpdates = true,
+    cacheStrategy = 'aggressive',
     enabled = true
   } = options;
+
   const { currentOrganization } = useTenant();
   const queryClient = useQueryClient();
   const organizationId = currentOrganization?.id;
-
-  // استنتاج السابدومين من التخزين المحلي أو من hostname (مع دعم النطاقات المخصصة)
-  const resolveSubdomain = (): string | null => {
+  
+  // 🔥 تحسين: استخدام useRef لمنع إعادة الإنشاء المتكرر
+  const lastOrganizationId = useRef<string | null>(null);
+  const lastSubdomain = useRef<string | null>(null);
+  const renderCount = useRef(0);
+  const isRenderLimitReached = useRef(false);
+  
+  // 🔥 تحسين: منع الرندر المفرط بطريقة آمنة مع React hooks
+  if (renderCount.current > 5 && !isRenderLimitReached.current) {
+    console.warn('⚠️ useSharedStoreData: تم تجاوز حد الرندر، إيقاف العمليات');
+    isRenderLimitReached.current = true;
+  }
+  
+  // 🔥 إصلاح: استخدام useCallback لمنع إعادة الإنشاء المتكرر
+  const resolveSubdomain = useCallback((): string | null => {
     try {
-      const stored = localStorage.getItem('bazaar_current_subdomain');
-      if (stored && stored !== 'main' && stored !== 'www') return stored;
-    } catch {}
-    try {
-      const host = window.location.hostname;
-      if (!host) return null;
-      const hostname = host.split(':')[0];
-
-      // نطاقاتنا الأساسية التي تعتمد على السابدومين
+      const hostname = window.location.hostname.split(':')[0];
       const baseDomains = ['.ktobi.online', '.stockiha.com', '.bazaar.dev', '.vercel.app', '.bazaar.com'];
       const isBaseDomain = baseDomains.some((d) => hostname.endsWith(d));
-
-      const parts = hostname.split('.');
-      // حالة نطاق أساسي: يسمح فقط باستخراج السابدومين إذا كان هناك أكثر من جزئين
-      // مثال: sub.ktobi.online → parts.length = 3 → subdomain = parts[0]
+      const isLocalhost = hostname.includes('localhost') || hostname.startsWith('127.');
+      const isCustomDomain = !isLocalhost && !isBaseDomain;
+      
+      // 🔥 إصلاح: تقليل console.log لتجنب التكرار
+      if (process.env.NODE_ENV === 'development' && renderCount.current === 0) {
+        console.log('🔍 useSharedStoreData: تحليل النطاق', { hostname, isLocalhost, isBaseDomain, isCustomDomain });
+      }
+      
+      // 🔥 إصلاح: للنطاقات المخصصة، نستخدم النطاق الكامل مباشرة
+      if (isCustomDomain) {
+        if (process.env.NODE_ENV === 'development' && renderCount.current === 0) {
+          console.log('🔍 useSharedStoreData: نطاق مخصص - استخدام النطاق الكامل', { hostname });
+        }
+        return hostname;
+      }
+      
+      // للنطاقات الأساسية، نستخرج subdomain
       if (isBaseDomain) {
+        const parts = hostname.split('.');
         if (parts.length > 2 && parts[0] && parts[0] !== 'www') {
-          return parts[0];
+          const subdomain = parts[0];
+          if (process.env.NODE_ENV === 'development' && renderCount.current === 0) {
+            console.log('🔍 useSharedStoreData: subdomain من hostname', { subdomain, hostname });
+          }
+          return subdomain;
+        }
+      }
+      
+      // للنطاقات المحلية
+      if (isLocalhost) {
+        if (hostname.includes('localhost')) {
+          const subdomain = hostname.split('.')[0];
+          if (subdomain && subdomain !== 'localhost') {
+            if (process.env.NODE_ENV === 'development' && renderCount.current === 0) {
+              console.log('🔍 useSharedStoreData: نطاق محلي مع subdomain', { subdomain, hostname });
+            }
+            return subdomain;
+          }
         }
         return null;
       }
-
-      // نطاق مخصص:
-      // - إذا كان على شكل sub.domain.com (3 أجزاء فأكثر) قد يكون subdomain حقيقي تابع للعميل
-      // - إذا كان apex مثل mybrand.com (جزءان) فهذا ليس سابدومين ويجب إرجاع null
-      if (parts.length > 2 && parts[0] && parts[0] !== 'www') {
-        return parts[0];
-      }
-      return null;
-    } catch {}
-    return null;
-  };
-  const subdomain = resolveSubdomain();
-
-  // تتبع الأداء - بداية (مقيد)
-  const startTime = performance.now();
-  
-  // تحسين: استخدام cache محلي أولاً
-  const getCachedData = (key: string) => {
-    const cached = globalStoreDataCache[key];
-    const timestamp = globalCacheTimestamp[key];
-    
-    if (cached && timestamp && (Date.now() - timestamp) < CACHE_DURATION) {
-      return cached;
+      
+      // 🔥 fallback: استخدام النطاق المخزن في localStorage فقط إذا لم نتمكن من تحديد النطاق الحالي
+      try {
+        const stored = localStorage.getItem('bazaar_current_subdomain');
+        if (stored && stored !== 'main' && stored !== 'www') {
+          if (process.env.NODE_ENV === 'development' && renderCount.current === 0) {
+            console.log('🔍 useSharedStoreData: استخدام النطاق المخزن كـ fallback', { stored });
+          }
+          return stored;
+        }
+      } catch {}
+      
+    } catch (error) {
+      console.warn('⚠️ useSharedStoreData: خطأ في resolveSubdomain', error);
     }
+    
     return null;
-  };
+  }, []); // 🔥 إصلاح: dependencies فارغة لمنع إعادة الإنشاء
 
-  const setCachedData = (key: string, data: any) => {
-    globalStoreDataCache[key] = data;
-    globalCacheTimestamp[key] = Date.now();
-  };
+  const subdomain = resolveSubdomain();
+  
+  // 🔥 تحسين: منع إعادة التحميل إذا لم تتغير البيانات
+  const shouldRefetch = useMemo(() => {
+    return (
+      lastOrganizationId.current !== organizationId ||
+      lastSubdomain.current !== subdomain
+    );
+  }, [organizationId, subdomain]);
+  
+  // تحديث القيم المرجعية
+  useEffect(() => {
+    lastOrganizationId.current = organizationId;
+    lastSubdomain.current = subdomain;
+  }, [organizationId, subdomain]);
 
-  // جلب جميع البيانات معاً في استدعاء واحد محسن
+  // 🔥 تحسين: إعادة تعيين عداد الرندر عند تغيير المؤسسة
+  useEffect(() => {
+    if (organizationId !== lastOrganizationId.current) {
+      renderCount.current = 0;
+      isRenderLimitReached.current = false;
+    }
+  }, [organizationId]);
+
+  // 🔥 إصلاح: تحسين منطق enabled لمنع التكرار
+  const shouldEnable = useMemo(() => {
+    const hasValidIdentifier = !!organizationId || !!subdomain;
+    const hasChanged = lastOrganizationId.current !== organizationId || lastSubdomain.current !== subdomain;
+
+    // إذا تغير المعرف أو لدينا معرف صالح، فعل
+    if (hasChanged || hasValidIdentifier) {
+      return hasValidIdentifier;
+    }
+
+    // إذا لم يتغير المعرف، ابقِ على الحالة السابقة
+    return lastEnabled.current;
+  }, [organizationId, subdomain]);
+
+  // حفظ القيمة السابقة للمقارنة
+  const lastEnabled = useRef(false);
+  useEffect(() => {
+    lastEnabled.current = shouldEnable;
+  }, [shouldEnable]);
+
+  // ⚡ تحسين: تقليل console.log في production
+  if (process.env.NODE_ENV === 'development' && renderCount.current === 0) {
+    console.log('🔍 useSharedStoreData: subdomain النهائي', {
+      subdomain,
+      organizationId,
+      enabled: shouldEnable && enabled
+    });
+  }
+
   const {
     data: storeData,
     isLoading,
     error
   } = useQuery({
-    queryKey: ['shared-store-data', organizationId, subdomain, includeCategories, includeProducts, includeFeaturedProducts],
+    queryKey: ['shared-store-data', organizationId, subdomain],
     queryFn: async () => {
+      const startTime = performance.now();
+
+      // 🔥 تحسين: منع إعادة التحميل إذا لم تتغير البيانات
+      if (!shouldRefetch) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('⏭️ useSharedStoreData: تخطي إعادة التحميل - نفس البيانات');
+        }
+        return null;
+      }
+
+      // 🔥 تحسين: منع الطلبات إذا تم تجاوز حد الرندر
+      if (isRenderLimitReached.current) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('⏭️ useSharedStoreData: تخطي الطلب - تم تجاوز حد الرندر');
+        }
+        return null;
+      }
+
+      // ⚡ تحسين: استخدام cache محسن
+      const cacheKey = `store-data-unified-${subdomain || organizationId}`;
+      const cachedData = getCachedData(cacheKey);
+
+      // 🔥 تحسين: استخدام cache إذا كان حديثاً (أقل من 5 دقائق)
+      if (cachedData && cacheStrategy === 'aggressive') {
+        const cacheAge = Date.now() - new Date(cachedData.cacheTimestamp).getTime();
+        if (cacheAge < 5 * 60 * 1000) { // 5 دقائق
+          if (process.env.NODE_ENV === 'development') {
+            console.log('✅ useSharedStoreData: استخدام البيانات من cache الحديث', { cacheKey, cacheAge: `${(cacheAge / 1000).toFixed(1)}s` });
+          }
+          return cachedData;
+        }
+      }
+
+      // استنتاج السابدومين من التخزين المحلي أو من hostname
       const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
       const isLocalhost = hostname.includes('localhost') || hostname.startsWith('127.');
       const baseDomains = ['.ktobi.online', '.stockiha.com', '.bazaar.dev', '.vercel.app', '.bazaar.com'];
       const isBaseDomain = baseDomains.some((d) => hostname.endsWith(d));
       const isCustomDomain = !isLocalhost && !isBaseDomain;
 
-      // أولوية: إذا كنا على نطاق متجر (سابدومين)، استخدم RPC الموحد لاستدعاء واحد فقط
-      if (subdomain) {
-        // تحقق من cache محلي أولاً حسب السابدومين
-        const cacheKey = `store-data-sd-${subdomain}`;
-        const cachedData = getCachedData(cacheKey);
-        if (cachedData) {
-          return cachedData;
-        }
+      if (process.env.NODE_ENV === 'development' && renderCount.current === 0) {
+        console.log('🔍 useSharedStoreData: معلومات النطاق', {
+          hostname,
+          isLocalhost,
+          isBaseDomain,
+          isCustomDomain
+        });
+      }
 
-        // نداء واحد: get_store_init_data (مع منع التكرار)
-        if (!pendingRequests[subdomain]) {
-          pendingRequests[subdomain] = (supabase as any)
-            .rpc('get_store_init_data', { org_subdomain: subdomain })
-            .then((res: any) => res)
-            .finally(() => { delete pendingRequests[subdomain]; });
-        }
-        const rpcResult = await pendingRequests[subdomain];
-        const { data, error } = rpcResult || {};
-        if (error) {
-          throw error;
-        }
-        const orgDetails = data?.organization_details || null;
-        const orgSettings = data?.organization_settings || null;
-        const categories = includeCategories ? (data?.categories || []) : [];
-        // المنتجات الكاملة غير ضرورية لصفحة المتجر العامة، نكتفي بالمميزة من الـ RPC
-        const featuredProducts = includeFeaturedProducts ? (data?.featured_products || []) : [];
-        const products: any[] = includeProducts ? featuredProducts : [];
-        const components = data?.store_layout_components || [];
-        const footerSettings = data?.footer_settings || null;
-        const testimonials = data?.testimonials || [];
-        const seoMeta = data?.seo_meta || null;
+      // أولوية: إذا كنا على نطاق متجر (سابدومين أو نطاق مخصص)، استخدم RPC الموحد لاستدعاء واحد فقط
+      let storeIdentifier = subdomain;
 
-        const result = {
-          organization: currentOrganization || orgDetails,
-          organizationSettings: orgSettings,
-          products,
-          categories,
-          featuredProducts,
-          components,
-          footerSettings,
-          testimonials,
-          seoMeta
-        };
-        setCachedData(cacheKey, result);
-
-        // مزامنة سريعة مع التخزين المحلي + حدث لتحديث بقية النظام
-        try {
-          if (subdomain && orgDetails?.id) {
-            localStorage.setItem('bazaar_current_subdomain', subdomain);
-            localStorage.setItem('bazaar_organization_id', orgDetails.id);
-            localStorage.setItem(`bazaar_organization_${orgDetails.id}`, JSON.stringify(orgDetails));
-            localStorage.setItem(`bazaar_rpc_org_details_${subdomain}`, JSON.stringify(orgDetails));
-            if (orgSettings) {
-              localStorage.setItem(`bazaar_org_settings_${orgDetails.id}`, JSON.stringify(orgSettings));
-            }
-            try {
-              const storeInfo = {
-                name: orgSettings?.site_name || orgDetails?.name,
-                description: orgDetails?.description || `${orgDetails?.name} - متجر إلكتروني متميز`,
-                logo_url: orgSettings?.logo_url || orgDetails?.logo_url,
-                favicon_url: orgSettings?.favicon_url || orgSettings?.logo_url || orgDetails?.logo_url
-              };
-              sessionStorage.setItem(`store_${subdomain}`, JSON.stringify(storeInfo));
-            } catch {}
-            try {
-              const updateEvent = new CustomEvent('organizationDataUpdated', {
-                detail: {
-                  organization: orgDetails,
-                  settings: orgSettings,
-                  subdomain
-                }
-              });
-              window.dispatchEvent(updateEvent);
-            } catch {}
+      // للنطاقات المخصصة، نحاول استخراج subdomain أولاً
+      if (!storeIdentifier && isCustomDomain) {
+        const domainParts = hostname.split('.');
+        if (domainParts.length > 2 && domainParts[0] && domainParts[0] !== 'www') {
+          const possibleSubdomain = domainParts[0].toLowerCase().trim();
+          if (process.env.NODE_ENV === 'development' && renderCount.current === 0) {
+            console.log('🔍 useSharedStoreData: محاولة استخراج subdomain من النطاق المخصص:', possibleSubdomain);
           }
-        } catch {}
-
-        return result;
-      }
-
-      // خلاف ذلك: إما لوحة التحكم أو نطاق مخصص بدون سابدومين
-      let resolvedOrgId = organizationId || null;
-      let resolvedSubdomain: string | null = null;
-
-      // إذا كنا على نطاق مخصص بلا سابدومين، حاول حل المؤسسة عبر الدومين
-      if (!resolvedOrgId && isCustomDomain && hostname) {
-        const orgData = await getOrganizationByDomain(hostname).catch(() => null);
-        if (orgData?.id) {
-          resolvedOrgId = orgData.id;
-          resolvedSubdomain = orgData.subdomain || null;
-          try {
-            localStorage.setItem('bazaar_organization_id', resolvedOrgId);
-            if (resolvedSubdomain) {
-              localStorage.setItem('bazaar_current_subdomain', resolvedSubdomain);
-            }
-          } catch {}
+          storeIdentifier = possibleSubdomain;
+        } else {
+          // إذا لم نتمكن من استخراج subdomain، استخدم النطاق كاملاً
+          storeIdentifier = hostname;
         }
       }
 
-      // إذا استطعنا استخراج السابدومين من بيانات المؤسسة على النطاق المخصص، استغل RPC للحصول على بيانات موحدة
-      if (!subdomain && resolvedSubdomain) {
-        const cacheKey = `store-data-sd-${resolvedSubdomain}`;
-        const cachedData = getCachedData(cacheKey);
-        if (cachedData) {
+      if (process.env.NODE_ENV === 'development' && renderCount.current === 0) {
+        console.log('🔍 useSharedStoreData: معرف المتجر', { storeIdentifier });
+      }
+
+      if (storeIdentifier) {
+        // ⚡ تحسين: استخدام cache محسن
+        if (cachedData && cacheStrategy === 'aggressive') {
+          if (process.env.NODE_ENV === 'development') {
+            console.log('✅ useSharedStoreData: استخدام البيانات من cache', { cacheKey });
+          }
           return cachedData;
         }
-        if (!pendingRequests[resolvedSubdomain]) {
-          pendingRequests[resolvedSubdomain] = (supabase as any)
-            .rpc('get_store_init_data', { org_subdomain: resolvedSubdomain })
-            .then((res: any) => res)
-            .finally(() => { delete pendingRequests[resolvedSubdomain!]; });
-        }
-        const rpcResult = await pendingRequests[resolvedSubdomain];
-        const { data, error } = rpcResult || {};
-        if (error) {
-          // إذا فشل الـ RPC نعود للخطة البديلة باستخدام resolvedOrgId أدناه
-        } else if (data) {
-          const orgDetails = data?.organization_details || null;
-          const orgSettings = data?.organization_settings || null;
-          const categories = includeCategories ? (data?.categories || []) : [];
-          const featuredProducts = includeFeaturedProducts ? (data?.featured_products || []) : [];
-          const products: any[] = includeProducts ? featuredProducts : [];
-          const components = data?.store_layout_components || [];
-          const footerSettings = data?.footer_settings || null;
-          const testimonials = data?.testimonials || [];
-          const seoMeta = data?.seo_meta || null;
 
-          const result = {
-            organization: currentOrganization || orgDetails,
-            organizationSettings: orgSettings,
-            products,
-            categories,
-            featuredProducts,
-            components,
-            footerSettings,
-            testimonials,
-            seoMeta
-          };
-          setCachedData(cacheKey, result);
-          return result;
+        if (process.env.NODE_ENV === 'development' && renderCount.current === 0) {
+          console.log('🔄 useSharedStoreData: جلب بيانات جديدة', { storeIdentifier });
         }
-      }
 
-      if (!resolvedOrgId) {
+        // ⚡ تحسين: استخدام نظام cache محسن
+        return getOrCreateRequest(cacheKey, async () => {
+          try {
+            // استخدام الـ API الموحد لمنع التكرار
+            const { getStoreInitData } = await import('@/lib/api/deduplicatedApi');
+            const data = await getStoreInitData(storeIdentifier);
+
+            if (process.env.NODE_ENV === 'development' && renderCount.current === 0) {
+              console.log('✅ useSharedStoreData: تم جلب البيانات بنجاح', { data });
+            }
+
+            const orgDetails = data?.organization_details || null;
+            const orgSettings = data?.organization_settings || null;
+            const categories = includeCategories ? (data?.categories || []) : [];
+            const featuredProducts = includeFeaturedProducts ? (data?.featured_products || []) : [];
+            const products: any[] = includeProducts ? featuredProducts : [];
+            const components = includeComponents ? (data?.store_layout_components || []) : [];
+            const footerSettings = includeFooterSettings ? (data?.footer_settings || null) : null;
+            const testimonials = includeTestimonials ? (data?.testimonials || []) : [];
+            const seoMeta = includeSeoMeta ? (data?.seo_meta || null) : null;
+
+            const result = {
+              organization: currentOrganization || orgDetails,
+              organizationSettings: orgSettings,
+              categories,
+              products,
+              featuredProducts,
+              components,
+              footerSettings,
+              testimonials,
+              seoMeta,
+              cacheTimestamp: new Date().toISOString()
+            };
+
+            // ⚡ تحسين: حفظ في cache مع timestamp
+            setCachedData(cacheKey, result, 10 * 60 * 1000); // 10 دقائق
+
+            return result;
+          } catch (error) {
+            if (process.env.NODE_ENV === 'development') {
+              console.error('❌ useSharedStoreData: خطأ في جلب البيانات', error);
+            }
+            throw error;
+          }
+        });
+      } else {
+        if (process.env.NODE_ENV === 'development' && renderCount.current === 0) {
+          console.log('❌ useSharedStoreData: لا يوجد معرف متجر صالح');
+        }
         return null;
       }
-
-      const cacheKey = `store-data-${resolvedOrgId}`;
-      const cachedData = getCachedData(cacheKey);
-      if (cachedData) return cachedData;
-
-      const orgSettings = await getOrganizationSettings(resolvedOrgId).catch(() => null);
-
-      const [productsResponse, categoriesResponse] = await Promise.all([
-        includeProducts
-          ? supabase
-              .from('products')
-              .select(`
-                id, name, description, price, compare_at_price,
-                thumbnail_image, images, stock_quantity,
-                is_featured, is_new, category_id, slug,
-                category:category_id(id, name, slug),
-                subcategory:subcategory_id(id, name, slug)
-              `)
-              .eq('organization_id', resolvedOrgId)
-              .eq('is_active', true)
-              .order('created_at', { ascending: false })
-              .limit(200)
-          : Promise.resolve({ data: [], error: null } as any),
-        includeCategories
-          ? supabase
-              .from('product_categories')
-              .select('id, name, slug, image_url, is_active')
-              .eq('organization_id', resolvedOrgId)
-              .eq('is_active', true)
-              .order('name', { ascending: true })
-              .limit(100)
-          : Promise.resolve({ data: [], error: null } as any)
-      ]);
-
-      if ((productsResponse as any).error) throw (productsResponse as any).error;
-      if ((categoriesResponse as any).error) throw (categoriesResponse as any).error;
-
-      const products = (productsResponse as any).data || [];
-      const categories = (categoriesResponse as any).data || [];
-      
-      // إصلاح: تحميل المنتجات المميزة بشكل منفصل إذا كان مطلوباً
-      let featuredProducts: any[] = [];
-      if (includeFeaturedProducts) {
-        if (includeProducts) {
-          // إذا كانت المنتجات الكاملة مطلوبة، استخرج المميزة منها
-          featuredProducts = products.filter((p: any) => p.is_featured);
-        } else {
-          // إذا كانت المنتجات المميزة فقط مطلوبة، احملها بشكل منفصل
-          const featuredResponse = await supabase
-            .from('products')
-            .select(`
-              id, name, description, price, compare_at_price,
-              thumbnail_image, images, stock_quantity,
-              is_featured, is_new, category_id, slug,
-              category:category_id(id, name, slug),
-              subcategory:subcategory_id(id, name, slug)
-            `)
-            .eq('organization_id', resolvedOrgId)
-            .eq('is_active', true)
-            .eq('is_featured', true)
-            .order('created_at', { ascending: false })
-            .limit(50);
-          
-          if (featuredResponse.error) throw featuredResponse.error;
-          featuredProducts = featuredResponse.data || [];
-        }
-      }
-
-      const result = {
-        organization: currentOrganization,
-        organizationSettings: orgSettings,
-        products,
-        categories,
-        featuredProducts,
-        components: [],
-        footerSettings: null,
-        testimonials: [],
-        seoMeta: null
-      };
-      
-      setCachedData(cacheKey, result);
-      return result;
     },
-    // مفعّل إذا كان لدينا orgId أو subdomain
-    enabled: (!!organizationId || !!subdomain) && enabled,
+    // ⚡ تحسين: إعدادات cache محسنة
     staleTime: 5 * 60 * 1000, // 5 دقائق
     gcTime: 10 * 60 * 1000, // 10 دقائق
     refetchOnWindowFocus: false,
     refetchOnMount: false,
-    // تحسين الأداء بإعطاء أولوية عالية
-    networkMode: 'online',
-    retry: 1, // تقليل المحاولات
-    retryDelay: 500, // تقليل التأخير
+    enabled: shouldEnable && enabled
   });
+  
+  // 🔥 إصلاح: تقليل console.log لتجنب التكرار
+  if (process.env.NODE_ENV === 'development' && renderCount.current === 0) {
+    console.log('🔄 useSharedStoreData: حالة useQuery', {
+      hasData: !!storeData,
+      isLoading,
+      error: error?.message,
+      enabled: shouldEnable && enabled
+    });
+  }
 
   // تتبع حالة التحميل
   const endTime = performance.now();
   
-  // دالة لتحديث البيانات
-  const refreshData = useCallback(() => {
-    if (organizationId) {
-      const cacheKey = `store-data-${organizationId}`;
-      delete globalStoreDataCache[cacheKey];
-      delete globalCacheTimestamp[cacheKey];
+  // دالة محسنة لتحديث البيانات مع الحفاظ على البيانات المؤقتة
+  const refreshData = useCallback(async () => {
+    try {
+      
+      // إبطال البيانات المؤقتة بشكل انتقائي
+      if (organizationId) {
+        const cacheKey = `store-data-${organizationId}`;
+        delete globalStoreDataCache[cacheKey];
+        delete globalCacheTimestamp[cacheKey];
+      }
+      
+      if (subdomain) {
+        const cacheKey = `store-data-sd-${subdomain}`;
+        delete globalStoreDataCache[cacheKey];
+        delete globalCacheTimestamp[cacheKey];
+      }
+      
+      // إزالة cache للبيانات الموحدة أيضاً
+      if (subdomain || (typeof window !== 'undefined' && !window.location.hostname.includes('localhost'))) {
+        const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+        const isLocalhost = hostname.includes('localhost') || hostname.startsWith('127.');
+        const baseDomains = ['.ktobi.online', '.stockiha.com', '.bazaar.dev', '.vercel.app', '.bazaar.com'];
+        const isBaseDomain = baseDomains.some((d) => hostname.endsWith(d));
+        const isCustomDomain = !isLocalhost && !isBaseDomain;
+        
+        if (isCustomDomain) {
+          const cacheKey = `store-data-unified-${hostname}`;
+          delete globalStoreDataCache[cacheKey];
+          delete globalCacheTimestamp[cacheKey];
+        }
+      }
+      
+      // إجبار إعادة التحميل مع الحفاظ على البيانات القديمة أثناء التحميل
+      await queryClient.refetchQueries({ 
+        queryKey: ['shared-store-data', organizationId, subdomain],
+        type: 'active'
+      });
+      
+    } catch (error) {
+      // تم حذف console.log
     }
-    
-    if (subdomain) {
-      const cacheKey = `store-data-sd-${subdomain}`;
-      delete globalStoreDataCache[cacheKey];
-      delete globalCacheTimestamp[cacheKey];
-    }
-    
-    queryClient.invalidateQueries({ queryKey: ['shared-store-data', organizationId, subdomain] });
   }, [organizationId, subdomain, queryClient]);
 
   // إرجاع البيانات بشكل منظم (محسن مع memoization)
   return useMemo(() => {
-    const result = {
-      organization: storeData?.organization || null,
-      organizationSettings: storeData?.organizationSettings || null,
-      products: storeData?.products || [],
-      categories: storeData?.categories || [],
-      featuredProducts: storeData?.featuredProducts || [],
-      components: storeData?.components || [],
-      footerSettings: storeData?.footerSettings || null,
-      testimonials: storeData?.testimonials || [],
-      seoMeta: storeData?.seoMeta || null,
-      isLoading,
+    const data = storeData as any; // تحويل النوع بشكل آمن
+    
+    // 🔥 إصلاح مهم: ضمان إرجاع نفس البنية دائماً
+    const result: SharedStoreDataReturn = {
+      organization: data?.organization || null,
+      organizationSettings: data?.organizationSettings || null,
+      products: data?.products || [],
+      categories: data?.categories || [],
+      featuredProducts: data?.featuredProducts || [],
+      components: data?.components || [],
+      footerSettings: data?.footerSettings || null,
+      testimonials: data?.testimonials || [],
+      seoMeta: data?.seoMeta || null,
+      isLoading: isLoading || false,
       error: error?.message || null,
-      refreshData
+      refreshData: refreshData || (() => Promise.resolve())
     };
+    
+    // 🔥 إصلاح: تقليل console.log لتجنب التكرار
+    if (process.env.NODE_ENV === 'development' && renderCount.current === 0) {
+      console.log('🔄 useSharedStoreData: تحديث البيانات', {
+        hasData: !!data,
+        organization: result.organization ? { id: result.organization.id, name: result.organization.name } : null,
+        organizationSettings: result.organizationSettings ? { id: result.organizationSettings.id, site_name: result.organizationSettings.site_name } : null,
+        productsCount: result.products.length,
+        categoriesCount: result.categories.length,
+        featuredProductsCount: result.featuredProducts.length,
+        componentsCount: result.components.length,
+        isLoading: result.isLoading,
+        error: result.error
+      });
+    }
+    
+    // 🔥 إصلاح: زيادة عداد الرندر
+    renderCount.current++;
     
     return result;
   }, [
-    storeData?.organization?.id,
-    storeData?.organizationSettings?.id,
-    storeData?.products?.length,
-    storeData?.categories?.length,
-    storeData?.featuredProducts?.length,
-    storeData?.components?.length,
-    storeData?.footerSettings,
-    storeData?.testimonials?.length,
-    storeData?.seoMeta,
+    storeData,
     isLoading,
     error?.message,
     refreshData

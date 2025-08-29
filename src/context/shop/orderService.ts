@@ -25,6 +25,36 @@ export const addOrder = async (
 
     const orderSlug = `order-${new Date().getTime()}`;
     
+    // التحقق من صحة employee_id قبل إنشاء الطلب
+    let validEmployeeId = null;
+    if (order.employeeId && order.employeeId !== "") {
+      try {
+        // البحث أولاً بـ id ثم بـ auth_user_id
+        let { data: employeeExists } = await supabase
+          .from('users')
+          .select('id')
+          .eq('id', order.employeeId)
+          .single();
+        
+        if (employeeExists) {
+          validEmployeeId = order.employeeId;
+        } else {
+          // إذا لم يوجد، البحث بـ auth_user_id
+          const { data: employeeByAuthId } = await supabase
+            .from('users')
+            .select('id')
+            .eq('auth_user_id', order.employeeId)
+            .single();
+          
+          if (employeeByAuthId) {
+            validEmployeeId = employeeByAuthId.id;
+          } else {
+          }
+        }
+      } catch (error) {
+      }
+    }
+    
     // إنشاء الطلب في قاعدة لبيانات
     const { data: orderData, error: orderError } = await supabase
       .from('orders')
@@ -42,7 +72,7 @@ export const addOrder = async (
         shipping_cost: order.shippingCost,
         notes: order.notes || '',
         is_online: order.isOnline,
-        employee_id: order.employeeId,
+        employee_id: validEmployeeId, // استخدام معرف الموظف المتحقق منه أو null
         organization_id: currentOrganizationId,
         slug: orderSlug,
         // إضافة حقول المدفوعات الجزئية

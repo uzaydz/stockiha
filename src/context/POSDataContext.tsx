@@ -8,7 +8,6 @@ import { deduplicateRequest } from '../lib/cache/deduplication';
 import { supabase } from '@/lib/supabase';
 import { logPOSContextStatus } from '@/utils/productionDebug';
 import UnifiedRequestManager from '@/lib/unifiedRequestManager';
-import { processDataInChunks, optimizeLongTask } from '@/lib/performance-monitor';
 
 // =================================================================
 // 🎯 POSDataContext V2 - الحل الشامل مع تحليل قاعدة البيانات المعمق
@@ -251,8 +250,7 @@ const POSDataContext = createContext<POSData | undefined>(undefined);
 const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWithVariants[]> => {
   return deduplicateRequest(`pos-products-enhanced-${orgId}`, async () => {
     
-    // 🚀 تحسين الأداء: استخدام نظام التحسين التلقائي للمهام الطويلة
-    return optimizeLongTask(async () => {
+    // تنفيذ مباشر بدون مراقبة أداء
       
       // الخطوة 1: تحميل المنتجات الأساسية أولاً (عدد محدود)
       const { data: basicProducts, error: basicError } = await supabase
@@ -309,10 +307,8 @@ const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWi
       // الخطوة 3: معالجة البيانات بشكل متدرج مع نظام تقسيم المهام
       const processedProducts: POSProductWithVariants[] = [];
       
-      // 🚀 استخدام نظام تقسيم المهام الجديد
-      const processedBatches = await processDataInChunks(
-        allProducts,
-        (product) => {
+      // معالجة المنتجات مباشرة
+      for (const product of allProducts) {
           // معالجة المنتج الواحد
           const stockQuantity = product.stock_quantity || 0;
           let actualStockQuantity = stockQuantity;
@@ -363,7 +359,7 @@ const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWi
             actualStockQuantity = totalVariantsStock;
           }
 
-          return {
+          const processedProduct = {
             // خصائص Product الأساسية
             id: product.id,
             name: product.name,
@@ -450,16 +446,9 @@ const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWi
             // معلومات مساعدة للباركود
             has_valid_barcodes: (processedColors.some(c => c.barcode || c.sizes?.some(s => s.barcode))) || !!product.barcode?.trim()
           };
-        },
-        {
-          chunkSize: 2, // تقليل إلى منتجين فقط لتجنب المهام الطويلة
-          delay: 25,    // زيادة التأخير إلى 25ms
-          taskName: 'معالجة منتجات POS'
+          
+          processedProducts.push(processedProduct);
         }
-      );
-
-      // تجميع النتائج
-      processedProducts.push(...processedBatches.flat());
 
       logPOSContextStatus('PRODUCTS_PROCESSED', { 
         count: processedProducts.length,
@@ -467,8 +456,6 @@ const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWi
       });
 
       return processedProducts;
-      
-    }, 'تحميل منتجات POS');
   });
 };
 

@@ -45,44 +45,79 @@ export async function getCurrentUserProfileEnhanced(): Promise<UserProfileData |
 
     if (profileError) {
       
-      // في حالة فشل الدالة، جرب الطريقة التقليدية
-      const { data: fallbackData, error: fallbackError } = await supabase
-        .from('users')
-        .select(`
-          id,
-          email,
-          name,
-          first_name,
-          last_name,
-          phone,
-          avatar_url,
-          job_title,
-          bio,
-          birth_date,
-          gender,
-          address,
-          city,
-          country,
-          role,
-          is_org_admin,
-          is_super_admin,
-          status,
-          last_activity_at,
-          created_at,
-          updated_at,
-          whatsapp_phone,
-          whatsapp_connected,
-          whatsapp_enabled,
-          organization_id
-        `)
-        .eq('id', user.id)
-        .single();
+      // في حالة فشل الدالة، جرب الطريقة التقليدية مع معالجة أخطاء RLS
+      try {
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('users')
+          .select(`
+            id,
+            email,
+            name,
+            first_name,
+            last_name,
+            phone,
+            avatar_url,
+            job_title,
+            bio,
+            birth_date,
+            gender,
+            address,
+            city,
+            country,
+            role,
+            is_org_admin,
+            is_super_admin,
+            status,
+            last_activity_at,
+            created_at,
+            updated_at,
+            whatsapp_phone,
+            whatsapp_connected,
+            whatsapp_enabled,
+            organization_id
+          `)
+          .eq('id', user.id)
+          .single();
 
-      if (fallbackError) {
-        return null;
+        if (!fallbackError && fallbackData) {
+          return fallbackData;
+        }
+      } catch (dbError) {
+        // تجاهل أخطاء قاعدة البيانات
+        if (process.env.NODE_ENV === 'development') {
+        }
       }
 
-      return fallbackData;
+      // إذا فشل الوصول لجدول users، استخدم البيانات من auth metadata
+      const fallbackProfile: UserProfileData = {
+        id: user.id,
+        email: user.email || '',
+        name: user.user_metadata?.name || user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
+        first_name: user.user_metadata?.first_name || null,
+        last_name: user.user_metadata?.last_name || null,
+        phone: user.user_metadata?.phone || null,
+        avatar_url: user.user_metadata?.avatar_url || null,
+        job_title: user.user_metadata?.job_title || null,
+        bio: user.user_metadata?.bio || null,
+        birth_date: user.user_metadata?.birth_date || null,
+        gender: user.user_metadata?.gender || null,
+        address: user.user_metadata?.address || null,
+        city: user.user_metadata?.city || null,
+        country: user.user_metadata?.country || null,
+        role: user.user_metadata?.role || 'customer',
+        is_org_admin: user.user_metadata?.is_org_admin || false,
+        is_super_admin: user.user_metadata?.is_super_admin || false,
+        status: user.user_metadata?.status || 'active',
+        last_activity_at: user.user_metadata?.last_activity_at || null,
+        created_at: user.user_metadata?.created_at || new Date().toISOString(),
+        updated_at: user.user_metadata?.updated_at || new Date().toISOString(),
+        whatsapp_phone: user.user_metadata?.whatsapp_phone || null,
+        whatsapp_connected: user.user_metadata?.whatsapp_connected || false,
+        whatsapp_enabled: user.user_metadata?.whatsapp_enabled || false,
+        organization_id: user.user_metadata?.organization_id || null
+      };
+
+      return fallbackProfile;
     }
 
     // إذا كانت البيانات مصفوفة، خذ العنصر الأول

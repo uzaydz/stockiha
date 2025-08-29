@@ -7,11 +7,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Check, Crown, Star, Zap, Clock, AlertTriangle, Loader2 } from 'lucide-react';
+import { Check, Crown, Star, Zap, Clock, AlertTriangle, Loader2, ShoppingCart, RefreshCw } from 'lucide-react';
 import { subscriptionCache, SubscriptionData } from '@/lib/subscription-cache';
 import { toast } from 'sonner';
 import ActivateWithCode from './ActivateWithCode';
-import SubscriptionDebug from '@/components/debug/SubscriptionDebug';
+import OnlineOrdersLimitCard from '@/components/subscription/OnlineOrdersLimitCard';
+import OnlineOrdersRechargeModal from '@/components/dashboard/OnlineOrdersRechargeModal';
 
 interface SubscriptionPlan {
   id: string;
@@ -27,6 +28,7 @@ interface SubscriptionPlan {
     max_users: number | null;
     max_products: number | null;
   };
+  max_online_orders?: number;
   is_active: boolean;
   is_popular: boolean;
   display_order: number;
@@ -39,6 +41,7 @@ const SubscriptionPage: React.FC = () => {
   const [subscriptionData, setSubscriptionData] = useState<SubscriptionData | null>(null);
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [activating, setActivating] = useState<string | null>(null);
+  const [showRechargeModal, setShowRechargeModal] = useState(false);
 
   // جلب حالة الاشتراك الحالية
   useEffect(() => {
@@ -91,6 +94,7 @@ const SubscriptionPage: React.FC = () => {
             max_users: (plan.limits as any)?.max_users || null,
             max_products: (plan.limits as any)?.max_products || null,
           },
+          max_online_orders: (plan as any).max_online_orders,
           is_active: plan.is_active,
           is_popular: plan.is_popular,
           display_order: plan.display_order
@@ -139,6 +143,7 @@ const SubscriptionPage: React.FC = () => {
 
   const getDaysLeftColor = (daysLeft: number, status: string) => {
     if (status === 'expired') return 'text-red-600';
+    if (daysLeft === -1) return 'text-blue-600'; // لون أزرق للاشتراكات غير المحدودة
     if (daysLeft <= 7) return 'text-orange-600';
     if (daysLeft <= 30) return 'text-yellow-600';
     return 'text-green-600';
@@ -173,6 +178,33 @@ const SubscriptionPage: React.FC = () => {
                 <Crown className="w-5 h-5" />
                 اشتراكك الحالي
               </CardTitle>
+              <div className="ml-auto">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    if (organization) {
+                      setLoading(true);
+                      subscriptionCache.forceRefresh(organization.id)
+                        .then(setSubscriptionData)
+                        .finally(() => setLoading(false));
+                    }
+                  }}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      تحديث...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      تحديث البيانات
+                    </>
+                    )}
+                </Button>
+              </div>
                 </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
@@ -187,8 +219,12 @@ const SubscriptionPage: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                   <div className="text-center p-4 bg-muted rounded-lg">
                     <Clock className={`w-6 h-6 mx-auto mb-2 ${getDaysLeftColor(subscriptionData.days_left, subscriptionData.status)}`} />
-                    <p className="font-semibold text-lg">{subscriptionData.days_left}</p>
-                    <p className="text-sm text-muted-foreground">يوم متبقي</p>
+                    <p className="font-semibold text-lg">
+                      {subscriptionData.days_left === -1 ? 'غير محدود' : subscriptionData.days_left}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {subscriptionData.days_left === -1 ? 'اشتراك دائم' : 'يوم متبقي'}
+                    </p>
                   </div>
 
                   {subscriptionData.end_date && (
@@ -209,27 +245,56 @@ const SubscriptionPage: React.FC = () => {
                 </div>
               )}
 
-              {/* عرض حدود الخطة */}
+                            {/* عرض حدود الخطة */}
               {subscriptionData.limits && (
-                <div className="mt-4">
+                <div className="mt-4 space-y-4">
                   <h4 className="font-semibold mb-2">حدود الخطة الحالية:</h4>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
                       <div>
-                      نقاط البيع: {subscriptionData.limits.max_pos ? subscriptionData.limits.max_pos : 'غير محدود'}
-                      </div>
-                    <div>
-                      المستخدمين: {subscriptionData.limits.max_users ? subscriptionData.limits.max_users : 'غير محدود'}
+                      نقاط البيع: {subscriptionData.limits.max_pos || 'غير متاحة'}
                     </div>
-                      <div>
-                      المنتجات: {subscriptionData.limits.max_products ? subscriptionData.limits.max_products : 'غير محدود'}
+                    <div>
+                      المستخدمين: {subscriptionData.limits.max_users || 'غير محدود'}
+                    </div>
+                    <div>
+                      المنتجات: {subscriptionData.limits.max_products || 'غير محدود'}
                     </div>
                   </div>
+
+                  {/* عرض حدود الطلبيات الإلكترونية إذا كانت موجودة */}
+                  {subscriptionData.subscription_type === 'paid' && subscriptionData.plan_code === 'ecommerce_starter' && (
+                    <div className="mt-4 space-y-4">
+                      <OnlineOrdersLimitCard compact />
+                      
+                      {/* زر إعادة الشحن */}
+                      <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                            <Zap className="h-5 w-5 text-blue-600" />
+                          </div>
+                          <div>
+                            <h4 className="font-medium text-blue-900">إعادة شحن الطلبيات الإلكترونية</h4>
+                            <p className="text-sm text-blue-700">
+                              أضف المزيد من الطلبيات لخطتك الحالية
+                            </p>
+                          </div>
+                        </div>
+                        <Button 
+                          onClick={() => setShowRechargeModal(true)}
+                          className="bg-blue-600 hover:bg-blue-700 text-white"
+                        >
+                          إعادة الشحن الآن
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
               {/* تحذير إذا كان الاشتراك سينتهي قريباً */}
               {subscriptionData.success && 
                subscriptionData.status !== 'expired' && 
+               subscriptionData.days_left !== -1 &&
                subscriptionData.days_left <= 7 && (
                 <div className="flex items-center gap-2 p-3 bg-orange-50 text-orange-800 rounded-lg border border-orange-200">
                   <AlertTriangle className="w-5 h-5" />
@@ -295,8 +360,21 @@ const SubscriptionPage: React.FC = () => {
                         <div key={index} className="flex items-center gap-2">
                           <Check className="w-4 h-4 text-green-600" />
                           <span className="text-sm">{feature}</span>
-                  </div>
+                        </div>
                       ))}
+
+                      {/* عرض معلومات خاصة بخطة التجار الإلكترونيين */}
+                      {plan.code === 'ecommerce_starter' && plan.max_online_orders && (
+                        <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                          <div className="flex items-center gap-2 text-blue-800">
+                            <ShoppingCart className="w-4 h-4" />
+                            <span className="text-sm font-medium">خطة مبتدئين مثالية للتجارة الإلكترونية</span>
+                          </div>
+                          <p className="text-xs text-blue-700 mt-1">
+                            {plan.max_online_orders} طلبية إلكترونية شهرياً - مثالية للبداية!
+                          </p>
+                        </div>
+                      )}
                     </div>
                     
                     <Button 
@@ -393,10 +471,16 @@ const SubscriptionPage: React.FC = () => {
             <CardTitle>معلومات التشخيص</CardTitle>
           </CardHeader>
           <CardContent>
-            <SubscriptionDebug />
+
           </CardContent>
         </Card>
       </div>
+
+      {/* نافذة إعادة الشحن */}
+      <OnlineOrdersRechargeModal 
+        isOpen={showRechargeModal}
+        onClose={() => setShowRechargeModal(false)}
+      />
     </Layout>
   );
 };

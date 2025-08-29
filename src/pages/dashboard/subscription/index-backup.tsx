@@ -16,7 +16,7 @@ import SubscriptionCard from '@/components/subscription/SubscriptionCard';
 import SubscriptionDialog from '@/components/subscription/SubscriptionDialog';
 import ActivateWithCode from './ActivateWithCode';
 import TrialStatusCard from '@/components/subscription/TrialStatusCard';
-import SubscriptionDebug from '@/components/debug/SubscriptionDebug';
+
 import { subscriptionCache, SubscriptionData } from '@/lib/subscription-cache';
 import { toast } from 'sonner';
 
@@ -395,8 +395,7 @@ const SubscriptionPage = () => {
           </div>
 
           {/* مكون التشخيص المؤقت */}
-          <SubscriptionDebug />
-          
+
           {/* تشخيص سريع */}
           <div className="bg-gray-100 p-4 rounded-lg mb-4 text-sm">
             <h3 className="font-bold mb-2">تشخيص سريع:</h3>

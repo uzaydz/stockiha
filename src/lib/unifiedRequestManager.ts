@@ -5,6 +5,7 @@
 
 import { supabase } from '@/lib/supabase';
 import { useQuery } from '@tanstack/react-query';
+import UnifiedCacheManager from './cache/unifiedCacheManager';
 
 // اختبار فوري لـ Supabase - تم إزالة console.log
 
@@ -245,6 +246,8 @@ const executeRequest = async <T>(
   if (globalCache.has(key)) {
     const cached = globalCache.get(key)!;
     if ((Date.now() - cached.timestamp) < cached.ttl) {
+      if (import.meta.env.DEV) {
+      }
       return cached.data;
     } else {
       // إزالة البيانات منتهية الصلاحية
@@ -252,24 +255,32 @@ const executeRequest = async <T>(
     }
   }
 
-  // التحقق من الطلبات المكررة - نسخة محسنة
-  if (globalRequestDeduplication.has(key)) {
-    const existingRequest = globalRequestDeduplication.get(key)!;
-    // التحقق من أن الطلب ليس قديماً جداً
-    if ((Date.now() - existingRequest.timestamp) < 30000) { // 30 ثانية
-      return existingRequest.promise;
-    } else {
-      // إزالة الطلب القديم
-      globalRequestDeduplication.delete(key);
+  // استثناء خاص للفئات - لا نطبق deduplication على الفئات
+  if (!key.includes('categories')) {
+    // التحقق من الطلبات المكررة - نسخة محسنة
+    if (globalRequestDeduplication.has(key)) {
+      const existingRequest = globalRequestDeduplication.get(key)!;
+      // التحقق من أن الطلب ليس قديماً جداً
+      if ((Date.now() - existingRequest.timestamp) < 30000) { // 30 ثانية
+        if (import.meta.env.DEV) {
+        }
+        return existingRequest.promise;
+      } else {
+        // إزالة الطلب القديم
+        globalRequestDeduplication.delete(key);
+      }
     }
   }
 
-  // التحقق من الطلبات النشطة
+  // التحقق من الطلبات النشطة القديمة
   if (globalActiveRequests.has(key)) {
+    if (import.meta.env.DEV) {
+    }
     return globalActiveRequests.get(key)!;
   }
 
   // 🔧 استخدام REST API مباشر بدلاً من Supabase client للطلبات المعطلة
+  // تعطيل مؤقت للـ categories للسماح للكود الجديد بالعمل
   if (key.includes('apps') || key.includes('settings') || key.includes('subscriptions') || (key.includes('users') && !key.includes('categories'))) {
     
     const promise = createDirectRestRequest(key)
@@ -281,9 +292,14 @@ const executeRequest = async <T>(
           ttl: key.includes('users') ? 15 * 60 * 1000 : 5 * 60 * 1000 // 15 دقيقة للمستخدمين، 5 دقائق للآخرين
         });
         
+        if (import.meta.env.DEV) {
+        }
+        
         return result;
       })
       .catch(error => {
+        if (import.meta.env.DEV) {
+        }
         throw error;
       })
       .finally(() => {
@@ -312,9 +328,14 @@ const executeRequest = async <T>(
         ttl: 5 * 60 * 1000
       });
       
+      if (import.meta.env.DEV) {
+      }
+      
       return result;
     })
     .catch(error => {
+      if (import.meta.env.DEV) {
+      }
       throw error;
     })
     .finally(() => {
@@ -333,61 +354,94 @@ const executeRequest = async <T>(
 }
 
 /**
- * تنفيذ طلب مع منع التكرار المفرط
+ * تنفيذ طلب مع منع التكرار المفرط - محسن مع نظام الكاش الموحد
  */
 async function executeRequestWithDeduplication<T>(
   key: string,
   requestFn: () => Promise<T>,
-  cacheTime: number = 5 * 60 * 1000
+  cacheTime: number = 5 * 60 * 1000,
+  cacheType: 'api' | 'ui' | 'user' = 'api'
 ): Promise<T> {
   const now = Date.now();
-  
+
   // التحقق من الـ debouncing
   const lastRequestTime = LAST_REQUEST_TIMES.get(key) || 0;
   if (now - lastRequestTime < REQUEST_DEBOUNCE_TIME) {
     // إذا كان هناك طلب نشط، انتظره
     const activeRequest = ACTIVE_REQUESTS.get(key);
     if (activeRequest) {
+      if (import.meta.env.DEV) {
+        console.log(`🔄 انتظار طلب نشط: ${key}`);
+      }
       return await activeRequest;
     }
   }
-  
-  // التحقق من الكاش أولاً
+
+  // التحقق من الكاش الموحد أولاً
+  const unifiedCached = UnifiedCacheManager.get<T>(key);
+  if (unifiedCached !== null) {
+    if (import.meta.env.DEV) {
+      console.log(`✅ تم العثور على البيانات في الكاش الموحد: ${key}`);
+    }
+    return unifiedCached;
+  }
+
+  // التحقق من الكاش القديم كاحتياط
   const cached = globalCache.get(key);
   if (cached && (now - cached.timestamp) < cacheTime) {
+    // نقل البيانات إلى الكاش الموحد
+    UnifiedCacheManager.set(key, cached.data, cacheType, cacheTime);
     return cached.data;
   }
-  
+
   // إذا كان هناك طلب نشط لنفس المفتاح، انتظره
   const existingRequest = ACTIVE_REQUESTS.get(key);
   if (existingRequest) {
+    if (import.meta.env.DEV) {
+      console.log(`⏳ انتظار طلب نشط آخر: ${key}`);
+    }
     return await existingRequest;
   }
-  
+
   // إنشاء طلب جديد
   const requestPromise = (async () => {
     try {
       LAST_REQUEST_TIMES.set(key, now);
+
+      if (import.meta.env.DEV) {
+        console.log(`🚀 بدء طلب جديد: ${key}`);
+      }
+
       const result = await requestFn();
-      
-      // حفظ في الكاش
+
+      // حفظ في الكاش الموحد
+      UnifiedCacheManager.set(key, result, cacheType, cacheTime);
+
+      // حفظ في الكاش القديم كاحتياط
       globalCache.set(key, {
         data: result,
         timestamp: now
       });
-      
+
+      if (import.meta.env.DEV) {
+        console.log(`💾 تم حفظ النتيجة في الكاش: ${key}`);
+      }
+
       return result;
     } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error(`❌ فشل الطلب: ${key}`, error);
+      }
       throw error;
     } finally {
       // إزالة الطلب من القائمة النشطة
       ACTIVE_REQUESTS.delete(key);
     }
   })();
-  
+
   // حفظ الطلب في القائمة النشطة
   ACTIVE_REQUESTS.set(key, requestPromise);
-  
+
   return await requestPromise;
 }
 
@@ -396,7 +450,7 @@ async function executeRequestWithDeduplication<T>(
  */
 export class UnifiedRequestManager {
   /**
-   * جلب فئات المنتجات - موحد
+   * جلب فئات المنتجات - موحد مع cache محسن
    */
   static async getProductCategories(orgId: string) {
     if (!orgId) {
@@ -404,11 +458,12 @@ export class UnifiedRequestManager {
     }
 
     const cacheKey = `unified_categories_${orgId}`;
-    
+
     return executeRequestWithDeduplication(
       cacheKey,
       async () => {
         if (import.meta.env.DEV) {
+          console.log(`🔍 جلب فئات المنتجات للمؤسسة: ${orgId}`);
         }
 
         const { data, error } = await supabase
@@ -420,15 +475,18 @@ export class UnifiedRequestManager {
           .limit(1000);
 
         if (error) {
+          console.warn(`⚠️ خطأ في جلب الفئات:`, error);
           return [];
         }
-        
+
         if (import.meta.env.DEV) {
+          console.log(`✅ تم جلب ${data?.length || 0} فئة`);
         }
-        
+
         return data || [];
       },
-      10 * 60 * 1000 // 10 دقائق cache للفئات
+      10 * 60 * 1000, // 10 دقائق cache للفئات
+      'api' // نوع الكاش
     );
   }
   

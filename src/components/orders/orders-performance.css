@@ -1,0 +1,38 @@
+/* Orders Performance CSS - حل مشكلة Forced Reflow */
+
+/* تحسين القوائم المنسدلة */
+.orders-dropdown {
+  contain: paint;
+  will-change: auto;
+  transform: translateZ(0);
+}
+
+/* منع إعادة حساب التخطيط */
+.orders-dropdown * {
+  contain: paint;
+}
+
+/* تحسين الانتقالات */
+.orders-dropdown-transition {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: auto;
+}
+
+/* تحسين الأزرار */
+.orders-button {
+  contain: paint;
+  will-change: auto;
+  transform: translateZ(0);
+}
+
+/* تحسين الجداول */
+.orders-table {
+  contain: layout paint;
+  will-change: auto;
+}
+
+/* منع CLS */
+.orders-table-container {
+  min-height: 400px;
+  contain: layout;
+}

@@ -44,20 +44,14 @@ interface NotificationSettings {
 export function useRealTimeNotifications() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { currentOrganization } = useTenant();
   const supabase = getSupabaseClient();
   const subscriptionRef = useRef<any>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 5;
-  // إضافة متغير لمنع الاتصال المكرر
-  const isConnectingRef = useRef(false);
-  
-  // إضافة مراجع جديدة لمنع التكرار
-  const hasLoadedRef = useRef(false);
-  const lastLoadTimeRef = useRef(0);
-  const loadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastOrganizationIdRef = useRef<string | null>(null);
 
   // إعدادات الإشعارات مع القيم الافتراضية
   const [settings, setSettings] = useState<NotificationSettings>({
@@ -124,26 +118,11 @@ export function useRealTimeNotifications() {
     };
   }, [settings.soundEnabled]);
 
-  // تحميل الإشعارات - نسخة محسنة
+  // تحميل الإشعارات
   const loadNotifications = useCallback(async () => {
     if (!currentOrganization?.id || !settings.enabled) return;
 
-    // منع التحميل المتكرر
-    const now = Date.now();
-    if (hasLoadedRef.current && (now - lastLoadTimeRef.current) < 5000) {
-      return;
-    }
-
-    // منع التحميل إذا لم تتغير المنظمة
-    if (lastOrganizationIdRef.current === currentOrganization.id && hasLoadedRef.current) {
-      return;
-    }
-
     try {
-      hasLoadedRef.current = true;
-      lastLoadTimeRef.current = now;
-      lastOrganizationIdRef.current = currentOrganization.id;
-
       // Use raw SQL to bypass strict typing
       const { data, error } = await supabase
         .from('notifications' as any)
@@ -167,7 +146,6 @@ export function useRealTimeNotifications() {
   const reconnect = useCallback(() => {
     if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
       setIsRealtimeConnected(false);
-      isConnectingRef.current = false;
       return;
     }
 
@@ -175,14 +153,13 @@ export function useRealTimeNotifications() {
 
     reconnectTimeoutRef.current = setTimeout(() => {
       reconnectAttemptsRef.current++;
-      isConnectingRef.current = false;
       // إعادة إنشاء الاشتراك
       if (subscriptionRef.current) {
         subscriptionRef.current.unsubscribe();
         subscriptionRef.current = null;
       }
     }, delay);
-  }, [maxReconnectAttempts]);
+  }, []);
 
   // إعداد الاشتراك في الوقت الفعلي مع آلية إعادة المحاولة المحسنة
   useEffect(() => {
@@ -190,96 +167,91 @@ export function useRealTimeNotifications() {
       return;
     }
 
-    // منع الاتصال المكرر
-    if (isConnectingRef.current || subscriptionRef.current) {
-      return;
-    }
-
     if (typeof supabase.channel !== 'function') {
       return;
     }
 
-    // تعطيل Realtime مؤقتاً إذا كان هناك مشاكل متكررة
-    if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
-      setIsRealtimeConnected(false);
-      return;
+    // إلغاء الاشتراك السابق
+    if (subscriptionRef.current) {
+      subscriptionRef.current.unsubscribe();
+      subscriptionRef.current = null;
+    }
+
+    // إلغاء timeout إعادة الاتصال السابق
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
     }
 
     try {
-      isConnectingRef.current = true;
+      // استخدام طريقة أبسط للاشتراك بدون presence أو broadcast
+      const channelName = `notifications-${currentOrganization.id}-${Date.now()}`;
       
       const channel = supabase
-        .channel(`notifications_${currentOrganization.id}`)
-        .on('postgres_changes', {
-          event: '*',
-          schema: 'public',
-          table: 'notifications',
-          filter: `organization_id=eq.${currentOrganization.id}`
-        }, (payload) => {
-          // معالجة الإشعارات الجديدة
-          if (payload.eventType === 'INSERT') {
-            const newNotification = payload.new as NotificationItem;
-            setNotifications(prev => [newNotification, ...prev]);
-            
-            // إظهار toast حسب نوع الإشعار
-            if (settings.toastEnabled) {
-              switch (newNotification.type) {
-                case 'new_order':
-                  if (settings.newOrderSound) {
-                    showNewOrder(newNotification.title, newNotification.message);
-                  }
-                  break;
-                case 'low_stock':
-                  if (settings.lowStockSound) {
-                    showLowStock(newNotification.title, newNotification.message);
-                  }
-                  break;
-                case 'payment_received':
-                  showPaymentReceived(newNotification.title, newNotification.message);
-                  break;
-                default:
-                  showInfo(newNotification.title, newNotification.message);
-                  break;
+        .channel(channelName, {
+          config: {
+            presence: {
+              key: currentOrganization.id,
+            },
+          },
+        })
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'notifications',
+            filter: `organization_id=eq.${currentOrganization.id}`
+          },
+          (payload) => {
+            if (payload.new && payload.new.organization_id === currentOrganization.id) {
+              const newNotification = payload.new as NotificationItem;
+              
+              // إضافة الإشعار الجديد إلى البداية
+              setNotifications(prev => {
+                const filtered = prev.filter(n => n.id !== newNotification.id);
+                return [newNotification, ...filtered];
+              });
+              
+              // تشغيل الصوت إذا كان مفعل
+              if (settings.newOrderSound) {
+                playNotificationForType(newNotification.type, newNotification.priority).catch(error => {
+                });
+              }
+              
+              // إظهار إشعار المتصفح إذا كان مفعل
+              if (settings.toastEnabled && 'Notification' in window) {
+                if (Notification.permission === 'granted') {
+                  new Notification(newNotification.title, {
+                    body: newNotification.message,
+                    icon: '/favicon.ico'
+                  });
+                }
               }
             }
-          } else if (payload.eventType === 'DELETE') {
-            const deletedId = payload.old?.id;
-            if (deletedId) {
-              setNotifications(prev => prev.filter(n => n.id !== deletedId));
-            }
-          } else if (payload.eventType === 'UPDATE') {
-            const updatedNotification = payload.new as NotificationItem;
-            setNotifications(prev => 
-              prev.map(n => n.id === updatedNotification.id ? updatedNotification : n)
-            );
           }
-        });
+        );
 
       // الاشتراك مع معالجة الأخطاء المحسنة
       subscriptionRef.current = channel.subscribe((status) => {
         
         if (status === 'SUBSCRIBED') {
           setIsRealtimeConnected(true);
-          isConnectingRef.current = false;
           reconnectAttemptsRef.current = 0; // إعادة تعيين عداد المحاولات
         } else if (status === 'CHANNEL_ERROR') {
           setIsRealtimeConnected(false);
-          isConnectingRef.current = false;
           reconnect();
         } else if (status === 'CLOSED') {
           setIsRealtimeConnected(false);
-          isConnectingRef.current = false;
           reconnect();
         } else if (status === 'TIMED_OUT') {
           setIsRealtimeConnected(false);
-          isConnectingRef.current = false;
           reconnect();
         }
       });
 
     } catch (error) {
       setIsRealtimeConnected(false);
-      isConnectingRef.current = false;
       reconnect();
     }
 
@@ -292,73 +264,15 @@ export function useRealTimeNotifications() {
         clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = null;
       }
-      isConnectingRef.current = false;
     };
   }, [currentOrganization?.id, settings.realtimeEnabled, settings.newOrderSound, settings.toastEnabled, reconnect]);
 
-  // تحميل الإشعارات عند التهيئة - تحسين إضافي لمنع التكرار
+  // تحميل الإشعارات عند التهيئة
   useEffect(() => {
     if (!currentOrganization?.id) return;
 
-    // منع الاستدعاءات المكررة
-    let isMounted = true;
-    const LOAD_DEBOUNCE_TIME = 5000; // 5 ثواني
-    const SESSION_CACHE_KEY = 'notifications_cache';
-    const CACHE_DURATION = 2 * 60 * 1000; // دقيقتان
-
-    // دالة للحصول من sessionStorage
-    const getFromSessionStorage = () => {
+    const loadNotifications = async () => {
       try {
-        const cached = sessionStorage.getItem(`${SESSION_CACHE_KEY}_${currentOrganization.id}`);
-        if (cached) {
-          const parsed = JSON.parse(cached);
-          if (parsed && parsed.timestamp && parsed.data) {
-            const now = Date.now();
-            if ((now - parsed.timestamp) < CACHE_DURATION) {
-              return parsed.data;
-            }
-          }
-        }
-      } catch (error) {
-        // تجاهل أخطاء sessionStorage
-      }
-      return null;
-    };
-
-    // دالة للحفظ في sessionStorage
-    const saveToSessionStorage = (data: any) => {
-      try {
-        const cacheData = {
-          data,
-          timestamp: Date.now()
-        };
-        sessionStorage.setItem(`${SESSION_CACHE_KEY}_${currentOrganization.id}`, JSON.stringify(cacheData));
-      } catch (error) {
-        // تجاهل أخطاء sessionStorage
-      }
-    };
-
-    const loadNotificationsWithCache = async () => {
-      const now = Date.now();
-      
-      // منع التحميل المتكرر في وقت قصير
-      if (hasLoadedRef.current && (now - lastLoadTimeRef.current) < LOAD_DEBOUNCE_TIME) {
-        return;
-      }
-      
-      // التحقق من sessionStorage أولاً
-      const sessionCached = getFromSessionStorage();
-      if (sessionCached && isMounted) {
-        setNotifications(sessionCached);
-        hasLoadedRef.current = true;
-        lastLoadTimeRef.current = now;
-        return;
-      }
-      
-      try {
-        hasLoadedRef.current = true;
-        lastLoadTimeRef.current = now;
-        
         // Use raw SQL to bypass strict typing
         const { data, error } = await supabase
           .from('notifications' as any)
@@ -371,42 +285,26 @@ export function useRealTimeNotifications() {
           return;
         }
 
-        if (isMounted) {
-          const notificationsData = (data || []) as unknown as NotificationItem[];
-          setNotifications(notificationsData);
-          
-          // حفظ في sessionStorage
-          saveToSessionStorage(notificationsData);
-        }
+        setNotifications((data || []) as unknown as NotificationItem[]);
       } catch (error) {
       }
     };
 
-    // إضافة تأخير قصير لتجنب الاستدعاءات المتكررة
-    if (loadTimeoutRef.current) {
-      clearTimeout(loadTimeoutRef.current);
-    }
-
-    loadTimeoutRef.current = setTimeout(() => {
-      loadNotificationsWithCache();
-    }, 100);
-
-    return () => {
-      isMounted = false;
-      if (loadTimeoutRef.current) {
-        clearTimeout(loadTimeoutRef.current);
-      }
-    };
-  }, [currentOrganization?.id, supabase]);
+    loadNotifications();
+  }, [currentOrganization?.id]);
 
   // حساب الإحصائيات
-  const stats = useMemo(() => {
-    const total = notifications.length;
-    const unread = notifications.filter(n => !n.is_read).length;
-    const urgent = notifications.filter(n => n.priority === 'urgent').length;
-    
-    return { total, unread, urgent };
-  }, [notifications]);
+  const stats = useMemo(() => ({
+    total: notifications.length,
+    unread: notifications.filter(n => !n.is_read).length,
+    urgent: notifications.filter(n => n.priority === 'urgent').length
+  }), [notifications]);
+
+  // حساب عدد الإشعارات الجديدة
+  const newNotificationsCount = useMemo(() => 
+    notifications.filter(n => !n.is_read).length, 
+    [notifications]
+  );
 
   // تحديث حالة القراءة
   const markAsRead = useCallback(async (notificationId: string) => {
@@ -527,6 +425,8 @@ export function useRealTimeNotifications() {
     stats,
     settings,
     isRealtimeConnected,
+    loading,
+    error,
     
     // Toast notifications
     toasts,

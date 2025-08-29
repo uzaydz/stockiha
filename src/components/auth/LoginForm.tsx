@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { toast } from 'sonner';
 import { supabase, getSupabaseClient } from '@/lib/supabase-unified';
 import { checkUserRequires2FA } from '@/lib/api/authHelpers';
+import { ensureUserOrganizationLink } from '@/lib/api/auth-helpers';
 import TwoFactorLoginForm from './TwoFactorLoginForm';
 
 // إضافة دالة console مخصصة لـ LoginForm
@@ -17,12 +18,13 @@ const loginFormDebugLog = (message: string, data?: any) => {
 };
 
 const LoginForm = () => {
-  const { signIn, currentSubdomain } = useAuth();
+  const { signIn, currentSubdomain, updateAuthState, forceUpdateAuthState, user, userProfile, organization, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState('جاري تسجيل الدخول...');
   const [redirectPath, setRedirectPath] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   // حالات المصادقة الثنائية
@@ -201,6 +203,7 @@ const LoginForm = () => {
       setIsLoading(false);
     } finally {
       setIsLoading(false);
+      setLoadingMessage('جاري تسجيل الدخول...');
       loginFormDebugLog('=== انتهاء عملية تسجيل الدخول من النموذج ===');
     }
   };
@@ -251,27 +254,34 @@ const LoginForm = () => {
               throw new Error('فشل في التحقق من الأمان، يرجى المحاولة مرة أخرى');
             }
             
-            if (retryData.session && retryData.user) {
-              loginFormDebugLog('✅ نجح إعادة تسجيل الدخول بعد خطأ CAPTCHA');
-              
-              // تحديث معرف المؤسسة إذا كان متاحاً
-              try {
-                const { data: userData } = await supabase
-                  .from('users')
-                  .select('organization_id')
-                  .eq('id', retryData.user.id)
-                  .single();
-                  
-                if (userData?.organization_id) {
-                  localStorage.setItem('bazaar_organization_id', userData.organization_id);
+                          if (retryData.session && retryData.user) {
+                loginFormDebugLog('✅ نجح إعادة تسجيل الدخول بعد خطأ CAPTCHA');
+                
+                // ⚡ تحديث AuthContext فوراً
+                loginFormDebugLog('⚡ تحديث AuthContext بعد إعادة المحاولة...');
+                updateAuthState(retryData.session, retryData.user);
+                
+                // انتظار تحديث AuthContext
+                await new Promise(resolve => setTimeout(resolve, 200));
+                
+                // تحديث معرف المؤسسة إذا كان متاحاً
+                try {
+                  const { data: userData } = await supabase
+                    .from('users')
+                    .select('organization_id')
+                    .eq('id', retryData.user.id)
+                    .single();
+                    
+                  if (userData?.organization_id) {
+                    localStorage.setItem('bazaar_organization_id', userData.organization_id);
+                  }
+                } catch (orgError) {
+                  loginFormDebugLog('❌ خطأ في جلب معرف المؤسسة:', orgError);
                 }
-              } catch (orgError) {
-                loginFormDebugLog('❌ خطأ في جلب معرف المؤسسة:', orgError);
+                
+                await handleSuccessfulLogin();
+                return;
               }
-              
-              await handleSuccessfulLogin();
-              return;
-            }
           } catch (retryError) {
             loginFormDebugLog('❌ فشل إعادة تسجيل الدخول بعد خطأ CAPTCHA:', retryError);
             throw new Error('فشل في التحقق من الأمان، يرجى المحاولة مرة أخرى');
@@ -298,28 +308,66 @@ const LoginForm = () => {
         sessionId: data.session.access_token?.substring(0, 20) + '...'
       });
 
-      // تحديث معرف المؤسسة إذا كان متاحاً
+      // ⚡ تحديث AuthContext فوراً لتجنب مشكلة التزامن
+      loginFormDebugLog('⚡ تحديث AuthContext فوراً...');
+      forceUpdateAuthState(data.session, data.user);
+      
+      // انتظار تحديث AuthContext وتحميل البيانات
+      setLoadingMessage('جاري تحديث حالة المصادقة...');
+      await new Promise(resolve => setTimeout(resolve, 300)); // انتظار محسن
+      
+      // انتظار إضافي لضمان تحميل userProfile
+      setLoadingMessage('جاري تحميل بيانات المستخدم...');
+      await new Promise(resolve => setTimeout(resolve, 500)); // انتظار محسن لتحميل البيانات
+
+      // التحقق من ربط المستخدم بالمؤسسة مع إعادة المحاولة
       try {
-        loginFormDebugLog('جلب معرف المؤسسة للمستخدم');
+        setLoadingMessage('جاري التحقق من بيانات المؤسسة...');
+        loginFormDebugLog('🔗 التحقق من ربط المستخدم بالمؤسسة مع آلية إعادة المحاولة');
         
-        const { data: userData } = await supabase
-          .from('users')
-          .select('organization_id')
-          .eq('id', data.user.id)
-          .single();
+        const linkResult = await ensureUserOrganizationLink(data.user.id, 3, 1000);
+        
+        if (!linkResult.success) {
+          loginFormDebugLog('❌ فشل في ربط المستخدم بالمؤسسة:', linkResult.error);
           
-        if (userData?.organization_id) {
-          localStorage.setItem('bazaar_organization_id', userData.organization_id);
-          loginFormDebugLog('✅ تم حفظ معرف المؤسسة:', userData.organization_id);
-        } else {
-          loginFormDebugLog('⚠️ لم يتم العثور على معرف مؤسسة للمستخدم');
+          // إذا كان المستخدم غير مرتبط بمؤسسة، وجهه لصفحة إعداد المؤسسة
+          if (linkResult.error?.includes('غير مرتبط بأي مؤسسة')) {
+            // تسجيل خروج المستخدم أولاً
+            await supabase.auth.signOut();
+            
+            toast.error('حسابك غير مرتبط بأي مؤسسة. سيتم توجيهك لإعداد المؤسسة.');
+            navigate('/setup-organization');
+            return;
+          }
+          
+          // أخطاء أخرى
+          await supabase.auth.signOut();
+          throw new Error(linkResult.error || 'فشل في التحقق من بيانات المؤسسة');
         }
+        
+        loginFormDebugLog('✅ تم ربط المستخدم بالمؤسسة بنجاح:', linkResult.organizationId);
+        
       } catch (orgError) {
-        loginFormDebugLog('❌ خطأ في جلب معرف المؤسسة:', orgError);
+        loginFormDebugLog('❌ خطأ في التحقق من ربط المؤسسة:', orgError);
+        await supabase.auth.signOut();
+        throw orgError;
       }
 
+      setLoadingMessage('تم تسجيل الدخول بنجاح، جاري التحديث...');
       loginFormDebugLog('بدء عملية التوجيه بعد نجاح تسجيل الدخول');
-      await handleSuccessfulLogin();
+      
+      // إخبار AuthContext أن العملية تمت بنجاح (بدون handleSuccessfulLogin لتجنب التكرار)
+      loginFormDebugLog('✅ تم التحقق من المصادقة، جاري التوجيه مباشرة');
+      
+      // تطهير البيانات المخزنة مؤقتاً لضمان البدء بحالة نظيفة
+      sessionStorage.clear();
+      
+      // انتظار مختصر لضمان حفظ البيانات في Supabase
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // استخدام React Router للتنقل بدلاً من window.location
+      // هذا يضمن التنقل السلس بدون إعادة تحميل كاملة
+      navigate('/dashboard');
       
     } catch (error) {
       loginFormDebugLog('❌ خطأ في تسجيل الدخول المباشر:', error);
@@ -389,22 +437,52 @@ const LoginForm = () => {
       
       loginFormDebugLog('تم تنظيف البيانات المحفوظة');
       
-      // ⏰ انتظار قصير لتزامن الحالة - حل المشكلة
-      loginFormDebugLog('انتظار تزامن حالة المصادقة...');
-      await new Promise(resolve => setTimeout(resolve, 500)); // انتظار نصف ثانية
+      // 🎯 تحسين: انتظار قصير ومحسن لـ AuthContext
+      loginFormDebugLog('انتظار اكتمال عمليات AuthContext...');
+      setLoadingMessage('جاري تحميل بيانات المستخدم والمؤسسة...');
       
-      // 🎯 التوجيه بعد تزامن الحالة
+      // انتظار محسن لـ AuthContext مع فحص دوري
+      const maxWaitTime = 8000; // 8 ثوانٍ حد أقصى (مخفض من 15)
+      const checkInterval = 100; // فحص كل 100ms (محسن من 200ms)
+      let waitTime = 0;
+      
+      while (authLoading && waitTime < maxWaitTime) {
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
+        waitTime += checkInterval;
+        
+        if (waitTime % 500 === 0) { // كل نصف ثانية
+          const secondsWaited = Math.floor(waitTime/1000);
+          setLoadingMessage(`جاري تحميل البيانات... (${secondsWaited}s)`);
+          loginFormDebugLog(`⏳ انتظار AuthContext... ${secondsWaited}s`);
+        }
+      }
+      
+      if (authLoading) {
+        loginFormDebugLog('⚠️ انتهت مهلة انتظار AuthContext، المتابعة...');
+      } else {
+        loginFormDebugLog('✅ انتهى AuthContext من التحميل');
+        loginFormDebugLog('📊 حالة البيانات:', {
+          hasUser: !!user,
+          hasUserProfile: !!userProfile,
+          hasOrganization: !!organization,
+          userEmail: user?.email
+        });
+      }
+      
+      setLoadingMessage('جاري الانتقال إلى لوحة التحكم...');
+      
+      // 🎯 التوجيه بعد اكتمال العمليات
       let dashboardPath = '/dashboard';
       
       if (redirectPath && redirectPath.startsWith('/dashboard')) {
         dashboardPath = redirectPath;
       }
 
-      loginFormDebugLog('التوجيه بعد تزامن الحالة إلى:', dashboardPath);
+      loginFormDebugLog('التوجيه إلى:', dashboardPath);
 
       setIsLoading(false);
       navigate(dashboardPath);
-      loginFormDebugLog('✅ تم التوجيه بنجاح بعد تزامن الحالة');
+      loginFormDebugLog('✅ تم التوجيه بنجاح');
       
     } catch (error) {
       loginFormDebugLog('❌ خطأ في معالجة نجاح تسجيل الدخول:', error);
@@ -560,7 +638,7 @@ const LoginForm = () => {
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
-                    جارٍ تسجيل الدخول...
+                    {loadingMessage}
                   </div>
                 ) : (
                   <div className="flex items-center justify-center">

@@ -91,37 +91,7 @@ const getOrganizationId = async (): Promise<string | null> => {
   }
   
   try {
-    if (process.env.NODE_ENV === 'development') {
-    }
-    // الحصول على بيانات المستخدم الحالي
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      if (process.env.NODE_ENV === 'development') {
-      }
-      return null;
-    }
-    
-    if (process.env.NODE_ENV === 'development') {
-    }
-    // الحصول على معرف المؤسسة للمستخدم الحالي
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('organization_id')
-      .eq('id', user.id)
-      .single();
-      
-    if (!userError && userData?.organization_id) {
-      if (process.env.NODE_ENV === 'development') {
-      }
-      cachedOrganizationId = userData.organization_id;
-      lastOrgFetch = now;
-      return cachedOrganizationId;
-    }
-    
-    if (process.env.NODE_ENV === 'development') {
-    }
-    // محاولة استخدام معرف المؤسسة من التخزين المحلي
+    // أولاً، محاولة استخدام معرف المؤسسة من التخزين المحلي (أسرع)
     const localOrgId = localStorage.getItem('organizationId');
     if (localOrgId) {
       if (process.env.NODE_ENV === 'development') {
@@ -133,8 +103,68 @@ const getOrganizationId = async (): Promise<string | null> => {
     
     if (process.env.NODE_ENV === 'development') {
     }
+    
+    // الحصول على بيانات المستخدم الحالي
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      if (process.env.NODE_ENV === 'development') {
+      }
+      return null;
+    }
+    
+    // البحث بـ auth_user_id أولاً ثم بـ id
+    let userData = null;
+    let userError = null;
+    
+    // محاولة البحث بـ auth_user_id
+    try {
+      const authResult = await supabase
+        .from('users')
+        .select('organization_id')
+        .eq('auth_user_id', user.id)
+        .single();
+      
+      if (!authResult.error && authResult.data?.organization_id) {
+        userData = authResult.data;
+      }
+    } catch (err) {
+      // تجاهل الخطأ والمحاولة التالية
+    }
+    
+    // إذا لم نجد بـ auth_user_id، نحاول بـ id
+    if (!userData) {
+      try {
+        const idResult = await supabase
+          .from('users')
+          .select('organization_id')
+          .eq('id', user.id)
+          .single();
+        
+        if (!idResult.error && idResult.data?.organization_id) {
+          userData = idResult.data;
+        }
+      } catch (err) {
+        // تجاهل الخطأ
+      }
+    }
+      
+    if (userData?.organization_id) {
+      if (process.env.NODE_ENV === 'development') {
+      }
+      cachedOrganizationId = userData.organization_id;
+      lastOrgFetch = now;
+      // حفظ في التخزين المحلي للمرات القادمة
+      localStorage.setItem('organizationId', userData.organization_id);
+      return cachedOrganizationId;
+    }
+    
+    if (process.env.NODE_ENV === 'development') {
+    }
     return null;
   } catch (err) {
+    if (process.env.NODE_ENV === 'development') {
+    }
     return null;
   }
 };
@@ -242,7 +272,7 @@ const performGetEmployees = async (): Promise<Employee[]> => {
       created_at: user.created_at,
       updated_at: user.updated_at,
       organization_id: user.organization_id,
-      permissions: {
+      permissions: user.permissions || {
         accessPOS: false,
         manageOrders: false,
         processPayments: false,
@@ -251,7 +281,49 @@ const performGetEmployees = async (): Promise<Employee[]> => {
         manageProducts: false,
         manageServices: false,
         manageEmployees: false,
-        viewOrders: false
+        viewOrders: false,
+        // إضافة الصلاحيات الجديدة
+        viewProducts: false,
+        addProducts: false,
+        editProducts: false,
+        deleteProducts: false,
+        manageProductCategories: false,
+        manageInventory: false,
+        viewInventory: false,
+        viewServices: false,
+        addServices: false,
+        editServices: false,
+        deleteServices: false,
+        trackServices: false,
+        updateOrderStatus: false,
+        cancelOrders: false,
+        viewCustomers: false,
+        manageCustomers: false,
+        viewDebts: false,
+        recordDebtPayments: false,
+        viewCustomerDebtHistory: false,
+        viewSuppliers: false,
+        manageSuppliers: false,
+        managePurchases: false,
+        viewEmployees: false,
+        viewFinancialReports: false,
+        viewSalesReports: false,
+        viewInventoryReports: false,
+        viewCustomerReports: false,
+        exportReports: false,
+        viewSettings: false,
+        manageProfileSettings: false,
+        manageAppearanceSettings: false,
+        manageSecuritySettings: false,
+        manageNotificationSettings: false,
+        manageOrganizationSettings: false,
+        manageBillingSettings: false,
+        manageIntegrations: false,
+        manageAdvancedSettings: false,
+        manageFlexi: false,
+        manageFlexiAndDigitalCurrency: false,
+        sellFlexiAndDigitalCurrency: false,
+        viewFlexiAndDigitalCurrencySales: false
       }
     })) as unknown as Employee[];
     
@@ -499,6 +571,145 @@ export const createEmployee = async (
 
   // Return the user record regardless of invitation status
   return { ...createdUserRecord, is_active: true } as Employee;
+};
+
+// دالة محسنة لإنشاء الموظفين - تقلل الاستدعاءات والتعقيد
+export const createEmployeeOptimized = async (
+  email: string, 
+  password: string,
+  userData: Omit<Employee, 'id' | 'created_at' | 'updated_at' | 'user_id'>
+): Promise<Employee> => {
+  // مسح Cache عند إضافة موظف جديد
+  clearEmployeeCache(); 
+
+  try {
+    if (process.env.NODE_ENV === 'development') {
+    }
+
+    // استدعاء الدالة الموحدة
+    const { data, error } = await supabase.rpc('create_employee_unified' as any, {
+      p_email: email,
+      p_password: password,
+      p_name: userData.name,
+      p_phone: userData.phone || null,
+      p_job_title: (userData as any).job_title || null,
+      p_permissions: userData.permissions || {}
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    if (!data || !data.success) {
+      const errorMsg = data?.error || 'فشل في إنشاء الموظف';
+      throw new Error(errorMsg);
+    }
+
+    const employee = data.employee;
+    
+    if (process.env.NODE_ENV === 'development') {
+    }
+
+    // DISABLED: إنشاء مستخدم المصادقة بشكل منفصل لتجنب تسجيل الدخول التلقائي
+    // سيتم إنشاء مستخدم المصادقة عبر دعوة بالبريد الإلكتروني أو Admin Panel
+    
+    if (process.env.NODE_ENV === 'development') {
+    }
+
+    return {
+      id: employee.id,
+      user_id: employee.user_id,
+      name: employee.name,
+      email: employee.email,
+      phone: employee.phone,
+      role: employee.role as 'employee' | 'admin',
+      is_active: employee.is_active,
+      last_login: null,
+      created_at: employee.created_at,
+      updated_at: employee.updated_at,
+      organization_id: employee.organization_id,
+      permissions: employee.permissions || {
+        accessPOS: false,
+        manageOrders: false,
+        processPayments: false,
+        manageUsers: false,
+        viewReports: false,
+        manageProducts: false,
+        manageServices: false,
+        manageEmployees: false,
+        viewOrders: false
+      }
+    } as Employee;
+
+  } catch (err) {
+    throw err;
+  }
+};
+
+// دالة منفصلة لإرسال دعوة للموظف بدون تسجيل دخول تلقائي
+export const inviteEmployeeAuth = async (
+  employeeId: string,
+  email: string,
+  name: string
+): Promise<{ success: boolean; message: string }> => {
+  try {
+    if (process.env.NODE_ENV === 'development') {
+    }
+
+    // الحصول على معرف المؤسسة من الموظف
+    const { data: employeeData, error: employeeError } = await supabase
+      .from('users')
+      .select('organization_id')
+      .eq('id', employeeId)
+      .single();
+
+    if (employeeError || !employeeData?.organization_id) {
+      return {
+        success: false,
+        message: 'فشل في الحصول على معرف المؤسسة للموظف'
+      };
+    }
+
+    // استخدام Admin API لإرسال دعوة بدون تسجيل دخول تلقائي
+    const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, {
+      data: { 
+        name: name, 
+        role: 'employee',
+        employee_id: employeeId,
+        organization_id: employeeData.organization_id // ✅ إضافة معرف المؤسسة
+      },
+      redirectTo: `${window.location.origin}/auth/callback`
+    });
+
+    if (error) {
+      return {
+        success: false,
+        message: `فشل إرسال الدعوة: ${error.message}`
+      };
+    }
+
+    if (process.env.NODE_ENV === 'development') {
+    }
+
+    // تحديث معرف المصادقة في قاعدة البيانات
+    if (data?.user?.id) {
+      await supabase
+        .from('users')
+        .update({ auth_user_id: data.user.id })
+        .eq('id', employeeId);
+    }
+
+    return {
+      success: true,
+      message: 'تم إرسال دعوة بالبريد الإلكتروني للموظف'
+    };
+
+  } catch (err) {
+    return {
+      success: false,
+      message: 'فشل في إرسال الدعوة'
+    };
+  }
 };
 
 // تحديث بيانات موظف
@@ -984,5 +1195,165 @@ export const updateEmployeesWithMissingOrganizationId = async (): Promise<void> 
     }
 
   } catch (error) {
+  }
+};
+
+// جلب جميع الموظفين مع إحصائياتهم في استدعاء واحد فقط - دالة محسنة
+export const getEmployeesWithStats = async (): Promise<{
+  employees: Employee[];
+  stats: EmployeeStats;
+}> => {
+  const now = Date.now();
+  
+  // بدء تتبع الأداء عند أول استخدام
+  startPerformanceTracking();
+  
+  // تحديث إحصائيات الطلبات
+  performanceStats.employeesRequests++;
+  performanceStats.statsRequests++;
+  
+  if (process.env.NODE_ENV === 'development') {
+  }
+  
+  // فحص الـ cache للبيانات المدمجة
+  const employeesCacheValid = cachedEmployees && (now - lastEmployeesFetch) < EMPLOYEES_CACHE_DURATION;
+  const statsCacheValid = cachedStats && (now - lastStatsFetch) < STATS_CACHE_DURATION;
+  
+  if (employeesCacheValid && statsCacheValid) {
+    if (process.env.NODE_ENV === 'development') {
+    }
+    performanceStats.employeesCacheHits++;
+    performanceStats.statsCacheHits++;
+    return {
+      employees: cachedEmployees,
+      stats: cachedStats
+    };
+  }
+  
+  try {
+    if (process.env.NODE_ENV === 'development') {
+    }
+    
+    // الحصول على معرف المؤسسة
+    const organizationId = await getOrganizationId();
+    
+    if (!organizationId) {
+      if (process.env.NODE_ENV === 'development') {
+      }
+      return {
+        employees: [],
+        stats: { total: 0, active: 0, inactive: 0 }
+      };
+    }
+    
+    // استدعاء الـ RPC function الجديدة المحسنة
+    const { data, error } = await supabase.rpc('get_employees_with_stats' as any, {
+      p_organization_id: organizationId
+    });
+    
+    if (error) {
+      throw new Error(error.message);
+    }
+    
+    if (!data) {
+      if (process.env.NODE_ENV === 'development') {
+      }
+      return {
+        employees: [],
+        stats: { total: 0, active: 0, inactive: 0 }
+      };
+    }
+    
+    // إضافة تشخيص مفصل للبيانات المُسترجعة
+    if (process.env.NODE_ENV === 'development') {
+    }
+    
+    // معالجة البيانات المُسترجعة
+    const employeesArray = (data as any)?.employees || [];
+    const employees = employeesArray.map((emp: any) => ({
+      id: emp.id,
+      user_id: emp.user_id,
+      name: emp.name,
+      email: emp.email,
+      phone: emp.phone,
+      role: emp.role as 'employee' | 'admin',
+      is_active: emp.is_active,
+      last_login: emp.last_login,
+      created_at: emp.created_at,
+      updated_at: emp.updated_at,
+      organization_id: emp.organization_id,
+      permissions: emp.permissions || {
+        accessPOS: false,
+        manageOrders: false,
+        processPayments: false,
+        manageUsers: false,
+        viewReports: false,
+        manageProducts: false,
+        manageServices: false,
+        manageEmployees: false,
+        viewOrders: false,
+        // إضافة الصلاحيات الجديدة
+        viewProducts: false,
+        addProducts: false,
+        editProducts: false,
+        deleteProducts: false,
+        manageProductCategories: false,
+        manageInventory: false,
+        viewInventory: false,
+        viewServices: false,
+        addServices: false,
+        editServices: false,
+        deleteServices: false,
+        trackServices: false,
+        updateOrderStatus: false,
+        cancelOrders: false,
+        viewCustomers: false,
+        manageCustomers: false,
+        viewDebts: false,
+        recordDebtPayments: false,
+        viewCustomerDebtHistory: false,
+        viewSuppliers: false,
+        manageSuppliers: false,
+        managePurchases: false,
+        viewEmployees: false,
+        viewFinancialReports: false,
+        viewSalesReports: false,
+        viewInventoryReports: false,
+        viewCustomerReports: false,
+        exportReports: false,
+        viewSettings: false,
+        manageProfileSettings: false,
+        manageAppearanceSettings: false,
+        manageSecuritySettings: false,
+        manageNotificationSettings: false,
+        manageOrganizationSettings: false,
+        manageBillingSettings: false,
+        manageIntegrations: false,
+        manageAdvancedSettings: false,
+        manageFlexi: false,
+        manageFlexiAndDigitalCurrency: false,
+        sellFlexiAndDigitalCurrency: false,
+        viewFlexiAndDigitalCurrencySales: false
+      }
+    })) as Employee[];
+    
+    const stats = (data as any)?.stats || { total: 0, active: 0, inactive: 0 };
+    
+    // تحديث الـ cache
+    cachedEmployees = employees;
+    cachedStats = stats;
+    lastEmployeesFetch = now;
+    lastStatsFetch = now;
+    
+    if (process.env.NODE_ENV === 'development') {
+    }
+    
+    return { employees, stats };
+    
+  } catch (err) {
+    return {
+      employees: [],
+      stats: { total: 0, active: 0, inactive: 0 }
+    };
   }
 };

@@ -1,0 +1,274 @@
+/* SidebarNavigation - تصميم بسيط وأنيق */
+
+/* تحسينات عامة */
+.sidebar-navigation {
+  font-family: 'Tajawal', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* تحسين الانتقالات */
+.sidebar-navigation * {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* تحسين الأزرار */
+.sidebar-navigation button {
+  position: relative;
+  overflow: hidden;
+}
+
+.sidebar-navigation button:active {
+  transform: scale(0.95);
+}
+
+/* تأثير الضغط على الأزرار */
+.sidebar-navigation button::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 70%);
+  transition: all 0.3s ease;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+}
+
+.sidebar-navigation button:hover::before {
+  width: 100%;
+  height: 100%;
+}
+
+/* تحسين الـ tooltips */
+.sidebar-navigation [data-radix-tooltip-content] {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* تحسين الـ scrollbar */
+.sidebar-navigation .overflow-y-auto::-webkit-scrollbar {
+  width: 8px;
+}
+
+.sidebar-navigation .overflow-y-auto::-webkit-scrollbar-track {
+  background: rgba(156, 163, 175, 0.1);
+  border-radius: 4px;
+}
+
+.sidebar-navigation .overflow-y-auto::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.4);
+  border-radius: 4px;
+  border: 1px solid rgba(156, 163, 175, 0.1);
+}
+
+.sidebar-navigation .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.6);
+}
+
+/* تحسين التمرير في النافذة المنبثقة */
+.sidebar-navigation .overflow-y-auto {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(156, 163, 175, 0.4) rgba(156, 163, 175, 0.1);
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  min-height: 0 !important;
+}
+
+/* ضمان ثبات النافذة المنبثقة */
+.sidebar-navigation .fixed {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  z-index: 9999 !important;
+  overflow: hidden !important;
+}
+
+/* منع تحريك النافذة المنبثقة */
+.sidebar-navigation .fixed .overflow-y-auto {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  min-height: 0 !important;
+  max-height: 100% !important;
+}
+
+/* ضمان عدم تداخل التمرير */
+.sidebar-navigation .fixed {
+  touch-action: none !important;
+}
+
+.sidebar-navigation .fixed .overflow-y-auto {
+  touch-action: pan-y !important;
+}
+
+/* تحسين ScrollArea */
+.sidebar-navigation [data-radix-scroll-area-viewport] {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+.sidebar-navigation [data-radix-scroll-area-root] {
+  height: 100% !important;
+  width: 100% !important;
+}
+
+/* تحسين النصوص العربية */
+.arabic-text {
+  font-feature-settings: "liga" 1, "kern" 1;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* تحسين الظلال */
+.sidebar-navigation .shadow-lg {
+  box-shadow: 
+    0 10px 15px -3px rgba(0, 0, 0, 0.1),
+    0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.sidebar-navigation .shadow-2xl {
+  box-shadow: 
+    0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+/* تحسين الـ backdrop blur */
+.sidebar-navigation .backdrop-blur-sm {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* تحسين الألوان الديناميكية */
+.sidebar-navigation .bg-emerald-500 {
+  background-color: rgb(16 185 129);
+}
+
+.sidebar-navigation .bg-blue-500 {
+  background-color: rgb(59 130 246);
+}
+
+.sidebar-navigation .bg-purple-500 {
+  background-color: rgb(168 85 247);
+}
+
+.sidebar-navigation .bg-pink-500 {
+  background-color: rgb(236 72 153);
+}
+
+.sidebar-navigation .bg-indigo-500 {
+  background-color: rgb(99 102 241);
+}
+
+.sidebar-navigation .bg-gray-500 {
+  background-color: rgb(107 114 128);
+}
+
+/* تحسين hover effects */
+.sidebar-navigation .hover\:bg-emerald-600:hover {
+  background-color: rgb(5 150 105);
+}
+
+.sidebar-navigation .hover\:bg-blue-600:hover {
+  background-color: rgb(37 99 235);
+}
+
+.sidebar-navigation .hover\:bg-purple-600:hover {
+  background-color: rgb(147 51 234);
+}
+
+.sidebar-navigation .hover\:bg-pink-600:hover {
+  background-color: rgb(219 39 119);
+}
+
+.sidebar-navigation .hover\:bg-indigo-600:hover {
+  background-color: rgb(79 70 229);
+}
+
+.sidebar-navigation .hover\:bg-gray-600:hover {
+  background-color: rgb(75 85 99);
+}
+
+/* تحسينات للوضع المظلم */
+.dark .sidebar-navigation .bg-gray-800 {
+  background-color: rgb(31 41 55);
+}
+
+.dark .sidebar-navigation .border-gray-700 {
+  border-color: rgb(55 65 81);
+}
+
+.dark .sidebar-navigation .text-gray-300 {
+  color: rgb(209 213 219);
+}
+
+.dark .sidebar-navigation .text-gray-400 {
+  color: rgb(156 163 175);
+}
+
+.dark .sidebar-navigation .text-gray-500 {
+  color: rgb(107 114 128);
+}
+
+.dark .sidebar-navigation .hover\:bg-gray-700:hover {
+  background-color: rgb(55 65 81);
+}
+
+.dark .sidebar-navigation .from-gray-800 {
+  --tw-gradient-from: rgb(31 41 55);
+}
+
+.dark .sidebar-navigation .to-gray-700 {
+  --tw-gradient-to: rgb(55 65 81);
+}
+
+/* تحسينات للأجهزة المحمولة */
+@media (max-width: 768px) {
+  .sidebar-navigation {
+    transform: scale(0.9);
+    transform-origin: top right;
+  }
+}
+
+@media (max-width: 480px) {
+  .sidebar-navigation {
+    transform: scale(0.8);
+  }
+}
+
+/* تحسينات للشاشات الكبيرة */
+@media (min-width: 1024px) {
+  .sidebar-navigation .max-w-2xl {
+    max-width: 42rem;
+  }
+}
+
+/* تحسينات للانتقالات */
+.sidebar-navigation .transition-all {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
+}
+
+.sidebar-navigation .duration-200 {
+  transition-duration: 200ms;
+}
+
+.sidebar-navigation .duration-300 {
+  transition-duration: 300ms;
+}
+
+/* تحسينات للـ focus states */
+.sidebar-navigation button:focus-visible {
+  outline: 2px solid rgb(59 130 246);
+  outline-offset: 2px;
+}
+
+/* تحسينات للـ accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-navigation * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

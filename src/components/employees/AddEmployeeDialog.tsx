@@ -13,7 +13,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { createEmployee } from '@/lib/api/employees';
+import { createEmployee, createEmployeeOptimized, inviteEmployeeAuth } from '@/lib/api/employees';
 import { useToast } from '@/components/ui/use-toast';
 import { UserPlus, Plus, Box, ShoppingCart, Users, Settings, BarChart3, Phone, Truck, Wrench as ServiceIcon, UserCog, BanknoteIcon, CreditCard } from 'lucide-react';
 import { 
@@ -274,16 +274,9 @@ const AddEmployeeDialog = ({ onEmployeeAdded }: AddEmployeeDialogProps) => {
     setIsSubmitting(true);
     
     try {
-      // Store admin password temporarily in localStorage to allow re-login after employee creation
-      if (formData.password) {
-        localStorage.setItem('adminPassword', formData.password);
-        // Set timeout to remove it after 5 minutes
-        setTimeout(() => {
-          localStorage.removeItem('adminPassword');
-        }, 5 * 60 * 1000); // 5 minutes
-      }
-
-      const newEmployee = await createEmployee(
+      // استخدام الدالة المحسنة الجديدة
+      
+      const newEmployee = await createEmployeeOptimized(
         formData.email,
         formData.password,
         {
@@ -292,14 +285,44 @@ const AddEmployeeDialog = ({ onEmployeeAdded }: AddEmployeeDialogProps) => {
           phone: formData.phone || null,
           role: 'employee',
           permissions: permissions,
-          is_active: true
+          is_active: true,
+          job_title: undefined,
+          last_login: null,
+          organization_id: undefined
         }
       );
 
-      toast({
-        title: 'تمت العملية بنجاح',
-        description: `تم إضافة الموظف ${formData.name} بنجاح. يمكنك الآن مشاركة بيانات الدخول معه.`,
-      });
+      // انتظار قليل للسماح لقاعدة البيانات بحفظ البيانات
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // محاولة إرسال دعوة للموظف (اختياري)
+      try {
+        
+        const inviteResult = await inviteEmployeeAuth(
+          newEmployee.id,
+          newEmployee.email,
+          newEmployee.name
+        );
+        
+        if (inviteResult.success) {
+          toast({
+            title: 'تمت العملية بنجاح',
+            description: `تم إضافة الموظف ${formData.name} وإرسال دعوة بالبريد الإلكتروني.`,
+          });
+        } else {
+          toast({
+            title: 'تمت العملية جزئياً',
+            description: `تم إضافة الموظف ${formData.name} ولكن فشل إرسال الدعوة. يمكنك إرسالها لاحقاً.`,
+            variant: 'default'
+          });
+        }
+      } catch (inviteErr) {
+        toast({
+          title: 'تمت العملية جزئياً',
+          description: `تم إضافة الموظف ${formData.name} ولكن فشل إرسال الدعوة. يمكنك إرسالها لاحقاً.`,
+          variant: 'default'
+        });
+      }
       
       onEmployeeAdded(newEmployee);
       setOpen(false);

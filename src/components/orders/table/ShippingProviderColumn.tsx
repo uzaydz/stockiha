@@ -1,12 +1,6 @@
 import React, { memo } from 'react';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuLabel, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
-} from "@/components/ui/dropdown-menu";
 import { Truck, RefreshCw } from "lucide-react";
+import './ShippingProviderColumn.css';
 import { cn } from "@/lib/utils";
 import { useShippingProviderLogic } from "./shipping/useShippingProviderLogic";
 import { ShippingOrder, EnabledProvider } from "./shipping/ShippingProviderConstants";
@@ -14,7 +8,6 @@ import ActiveProviderBadge from "./shipping/ActiveProviderBadge";
 import ProviderDropdownMenu from "./shipping/ProviderDropdownMenu";
 import ProviderSelectionButton from "./shipping/ProviderSelectionButton";
 import ShippingStatusDisplay from "./shipping/ShippingStatusDisplay";
-
 
 // تم نقل دالة getColorClass إلى ShippingProviderConstants.ts
 
@@ -58,55 +51,49 @@ export const ShippingProviderColumn: React.FC<ShippingProviderColumnProps> = ({
     const displayName = providerName || code;
 
     return (
-      <div className={cn("flex items-center gap-2", className)}>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button 
-              type="button"
-              className="flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium border transition-all duration-200 cursor-pointer hover:shadow-md hover:scale-105 active:scale-95 hover:brightness-110 bg-green-100 text-green-800 border-green-300"
-              title={`شركة التوصيل: ${displayName} - رقم التتبع: ${trackingId} - انقر لتغيير`}
-            >
-              <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-              </svg>
-              <span>{displayName}</span>
-              <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-              <svg className="h-3 w-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-          </DropdownMenuTrigger>
-
-          <DropdownMenuContent 
-            align="end" 
-            side="bottom"
-            className="w-64 rounded-lg border shadow-lg bg-background"
-            sideOffset={4}
-            avoidCollisions={true}
-            style={{ zIndex: 9999 }}
+      <div className={cn("shipping-provider-column flex items-center gap-2", className)}>
+        <div className="relative inline-block">
+          <select
+            value={code}
+            onChange={(e) => handleSendToProvider(e.target.value)}
+            disabled={isLoading}
+            className="h-8 px-3 py-1 pr-8 text-xs font-medium border rounded-full bg-green-100 text-green-800 border-green-300 cursor-pointer appearance-none focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transform-gpu hover:shadow-md hover:scale-105 active:scale-95 transition-all duration-200"
+            style={{
+              contain: 'paint',
+              willChange: 'auto',
+              backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e")`,
+              backgroundRepeat: 'no-repeat',
+              backgroundPosition: 'right 8px center',
+              backgroundSize: '12px'
+            }}
+            title={`شركة التوصيل: ${displayName} - رقم التتبع: ${trackingId} - انقر لتغيير`}
           >
-            <DropdownMenuLabel className="text-xs font-medium text-muted-foreground px-2 py-1.5 flex items-center gap-2">
-              <RefreshCw className="h-3.5 w-3.5" />
-              تغيير شركة التوصيل
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            
-            <div className="px-2 py-1.5 text-xs text-muted-foreground bg-muted/50">
-              الشركة الحالية: {displayName} ({trackingId})
-            </div>
-            <DropdownMenuSeparator />
-            
-            <ProviderDropdownMenu
-              providers={uniqueProviders}
-              onSelectProvider={handleSendToProvider}
-              isLoading={isLoading}
-              selectedProvider={selectedProvider}
-              excludeProviderCode={activeProvider.code}
-            />
-          </DropdownMenuContent>
-        </DropdownMenu>
+            <option value={code} disabled>
+              {displayName}
+            </option>
+            {uniqueProviders
+              .filter(provider => provider.provider_code !== code)
+              .map((provider) => (
+                <option
+                  key={provider.provider_code}
+                  value={provider.provider_code}
+                  style={{
+                    backgroundColor: '#ffffff',
+                    color: '#374151'
+                  }}
+                >
+                  {provider.provider_name}
+                </option>
+              ))
+            }
+          </select>
+        </div>
+        <div className="flex items-center gap-1">
+          <svg className="h-3.5 w-3.5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          </svg>
+          <span className="text-xs text-green-600 font-medium">{trackingId}</span>
+        </div>
       </div>
     );
   }
@@ -123,55 +110,40 @@ export const ShippingProviderColumn: React.FC<ShippingProviderColumnProps> = ({
 
   // عرض خيارات الشحن المتاحة
   return (
-    <div className={cn("flex items-center gap-2", className)}>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button 
-            type="button"
-            className="h-7 px-2.5 py-0.5 text-xs hover:bg-accent transition-colors rounded-full border-dashed border flex items-center gap-1.5"
-            disabled={isLoading}
-          >
-            {isLoading && selectedProvider ? (
-              <>
-                <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-500 border-t-transparent ml-1.5" />
-                <span>جاري الإرسال...</span>
-              </>
-            ) : (
-              <>
-                <svg className="h-3.5 w-3.5 ml-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                </svg>
-                <span>اختر شركة التوصيل</span>
-                <svg className="h-3 w-3 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </>
-            )}
-          </button>
-        </DropdownMenuTrigger>
-        
-        <DropdownMenuContent 
-          align="end" 
-          side="bottom"
-          className="w-56 rounded-lg border shadow-lg bg-background"
-          sideOffset={4}
-          avoidCollisions={true}
-          style={{ zIndex: 9999 }}
+    <div className={cn("shipping-provider-column flex items-center gap-2", className)}>
+      <div className="relative inline-block">
+        <select
+          value={selectedProvider || ''}
+          onChange={(e) => handleSendToProvider(e.target.value)}
+          disabled={isLoading}
+          className="h-7 px-3 py-1 pr-8 text-xs border-dashed border rounded-full bg-transparent cursor-pointer appearance-none focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transform-gpu hover:bg-accent transition-colors"
+          style={{
+            contain: 'paint',
+            willChange: 'auto',
+            backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e")`,
+            backgroundRepeat: 'no-repeat',
+            backgroundPosition: 'right 8px center',
+            backgroundSize: '12px'
+          }}
         >
-          <DropdownMenuLabel className="text-xs font-medium text-muted-foreground px-2 py-1.5 flex items-center gap-2">
-            <Truck className="h-3.5 w-3.5" />
-            شركات التوصيل المتاحة ({enabledProviders.length})
-          </DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          
-          <ProviderDropdownMenu
-            providers={uniqueProviders}
-            onSelectProvider={handleSendToProvider}
-            isLoading={isLoading}
-            selectedProvider={selectedProvider}
-          />
-        </DropdownMenuContent>
-      </DropdownMenu>
+          <option value="" disabled>اختر شركة التوصيل</option>
+          {uniqueProviders.map((provider) => (
+            <option
+              key={provider.provider_code}
+              value={provider.provider_code}
+              style={{
+                backgroundColor: '#ffffff',
+                color: '#374151'
+              }}
+            >
+              {provider.provider_name}
+            </option>
+          ))}
+        </select>
+      </div>
+      {isLoading && selectedProvider && (
+        <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+      )}
     </div>
   );
 };

@@ -180,8 +180,7 @@ export default defineConfig(({ command, mode }) => {
       ...(isProd ? [
         criticalResourcePreloadPlugin(),
         bundleAnalysisPlugin(),
-        performanceMonitoringPlugin(),
-        
+
         // Bundle analyzer
         visualizer({
           filename: 'dist/bundle-analysis.html',

@@ -1,0 +1,17 @@
+{
+  "optimizeDeps": {
+    "force": false,
+    "include": [
+      "react",
+      "react/jsx-runtime", 
+      "react-dom",
+      "react-dom/client",
+      "react-router-dom",
+      "use-sync-external-store",
+      "use-sync-external-store/shim"
+    ]
+  },
+  "server": {
+    "force": true
+  }
+}

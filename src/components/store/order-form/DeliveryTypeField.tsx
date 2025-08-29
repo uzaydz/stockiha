@@ -12,6 +12,7 @@ export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
   handleProvinceChange,
   updateValue,
   shippingProviderSettings,
+  submittedFormData, // إضافة submittedFormData كخاصية إضافية
 }) => {
   const { t } = useTranslation();
   // يستخدم هذا المرجع للتحكم في تنفيذ useEffect مرة واحدة فقط بعد تحميل الإعدادات
@@ -151,40 +152,60 @@ export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
     // التحقق من صلاحية الخيار المطلوب
     if (type === 'home' && !isHomeDeliveryEnabled) {
       type = 'desk'; // استخدام المكتب بدلاً من المنزل إذا كان المنزل غير متاح
-      
+
     } else if (type === 'desk' && !isDeskDeliveryEnabled) {
       type = 'home'; // استخدام المنزل بدلاً من المكتب إذا كان المكتب غير متاح
-      
+
     }
 
     setSelectedDeliveryType(type);
-    
+
     // تحديث قيمة react-hook-form إذا كان الحقل له اسم
     if (field.name) {
       setValue(field.name, type);
     }
-    
+
     // تحديث قيمة deliveryOption في النموذج الأساسي
     if (updateValue) {
       updateValue('deliveryOption', type);
+    }
+
+    // تحديث البيانات الأساسية للنموذج
+    // استدعاء updateValue مع جميع الأسماء المحتملة لضمان التحديث
+    if (updateValue && typeof updateValue === 'function') {
+      updateValue('deliveryOption', type);
+      updateValue('deliveryType', type);
+      updateValue('delivery_type', type);
+      updateValue('shipping_type', type);
+      updateValue('fixedDeliveryType', type);
     }
   };
   
   // دالة لمعالجة تغيير نوع التوصيل
   const handleDeliveryTypeChange = async (type: string) => {
-    updateDeliveryOption(type);
-    
-    // الحصول على القيم الحالية للولاية والبلدية
+    console.log('🚚 DeliveryTypeField: تغيير نوع التوصيل من', selectedDeliveryType, 'إلى', type);
+
+    // الحصول على القيم الحالية للولاية والبلدية قبل التحديث
     const provinceValue = provinceField?.value || '';
     const municipalityValue = municipalityField?.value || '';
-    
-    // إعادة حساب سعر التوصيل باستخدام القيم الحالية
-    if (provinceValue) {
+
+    console.log('📍 DeliveryTypeField: القيم الحالية - province:', provinceValue, 'municipality:', municipalityValue);
+
+    updateDeliveryOption(type);
+
+    // إعادة حساب سعر التوصيل باستخدام القيم المحفوظة
+    if (provinceValue && municipalityValue) {
+      console.log('🔄 DeliveryTypeField: إعادة حساب سعر التوصيل بالقيم المحفوظة...');
+      recalculateAndSetDeliveryPrice(type, provinceValue, municipalityValue);
+    } else if (provinceValue) {
+      console.log('🔄 DeliveryTypeField: إعادة حساب سعر التوصيل بالولاية فقط...');
       if (municipalityField && municipalityField.id) {
         await handleProvinceChange(provinceValue, municipalityField.id, type);
       } else {
         recalculateAndSetDeliveryPrice(type, provinceValue, municipalityValue);
       }
+    } else {
+      console.log('⚠️ DeliveryTypeField: لا توجد قيمة للولاية، لن يتم إعادة حساب السعر');
     }
   };
   

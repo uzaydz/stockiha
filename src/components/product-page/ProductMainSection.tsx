@@ -1,19 +1,7 @@
-import React, { useMemo, useCallback, useState } from 'react';
-import { motion } from 'framer-motion';
-import { Separator } from '@/components/ui/separator';
-
-// المكونات المستوردة
-import ProductImageGalleryV2 from '@/components/product/ProductImageGalleryV2';
-import ProductVariantSelector from '@/components/product/ProductVariantSelector';
-import ProductPriceDisplay from '@/components/product/ProductPriceDisplay';
-import ProductQuantitySelector from '@/components/product/ProductQuantitySelector';
-import ProductFeatures from '@/components/product/ProductFeatures';
-import ProductFormRenderer from '@/components/product/ProductFormRenderer';
-import ProductOfferTimer from '@/components/product/ProductOfferTimer';
-import SpecialOffersDisplay from '@/components/store/special-offers/SpecialOffersDisplay';
+import React, { memo } from 'react';
 import { ProductHeader } from '@/components/product/ProductHeader';
-import { ProductDescription } from '@/components/product/ProductDescription';
-import { ProductActions } from '@/components/product/ProductActions';
+import ProductImageGalleryV2 from '@/components/product/ProductImageGalleryV2';
+import { ProductContentSection } from './ProductContentSection';
 
 interface ProductMainSectionProps {
   product: any;
@@ -37,9 +25,25 @@ interface ProductMainSectionProps {
   setIsQuantityUpdatedByOffer: (value: boolean) => void;
   setShowValidationErrors: (value: boolean) => void;
   setHasTriedToSubmit: (value: boolean) => void;
+  updateCurrentFormData: (data: Record<string, any>) => void;
 }
 
-export const ProductMainSection: React.FC<ProductMainSectionProps> = React.memo(({
+/**
+ * المكون الرئيسي لصفحة المنتج - محسن للأداء
+ * 
+ * التحسينات المطبقة:
+ * ✅ تقسيم إلى مكونات فرعية أصغر
+ * ✅ استخدام React.memo لمنع re-renders غير الضرورية
+ * ✅ فصل المنطق المعقد إلى مكونات متخصصة
+ * ✅ تحسين إدارة الحالة والبيانات
+ * ✅ تقليل تعقيد المكون الرئيسي
+ * 
+ * المكونات الفرعية:
+ * - ProductHeader: عنوان المنتج والمعلومات الأساسية
+ * - ProductImageGalleryV2: معرض الصور
+ * - ProductContentSection: المحتوى الرئيسي (يجمع جميع الأقسام)
+ */
+export const ProductMainSection = memo<ProductMainSectionProps>(({
   product,
   state,
   actions,
@@ -60,296 +64,119 @@ export const ProductMainSection: React.FC<ProductMainSectionProps> = React.memo(
   setSelectedOffer,
   setIsQuantityUpdatedByOffer,
   setShowValidationErrors,
-  setHasTriedToSubmit
+  setHasTriedToSubmit,
+  updateCurrentFormData
 }) => {
-  const {
-    selectedColor,
-    selectedSize,
-    quantity,
-    buyingNow,
-    availableStock,
-    canPurchase,
-  } = state;
-
-  const {
-    setSelectedColor,
-    setSelectedSize,
-    setQuantity,
-  } = actions;
-
-  // إعداد مؤقت العرض
-  const offerTimerSettings = useMemo(() => {
-    if (!product?.marketing_settings) return null;
-    
-    const marketingSettings = product.marketing_settings as any;
-    const offerTimerEnabled = marketingSettings?.offer_timer_enabled === true;
-    
-    if (!offerTimerEnabled) return null;
-    
-    let timerType = marketingSettings.offer_timer_type as 'evergreen' | 'specific_date' | 'fixed_duration_per_visitor';
-    if (timerType === 'specific_date' && !marketingSettings.offer_timer_end_date) {
-      timerType = 'evergreen';
-    }
-    
-    const duration = marketingSettings.offer_timer_duration_minutes || 60;
-    
-    return {
-      offer_timer_enabled: true,
-      offer_timer_title: marketingSettings.offer_timer_title || 'عرض خاص',
-      offer_timer_type: timerType,
-      offer_timer_end_date: marketingSettings.offer_timer_end_date || undefined,
-      offer_timer_duration_minutes: duration,
-      offer_timer_text_above: marketingSettings.offer_timer_text_above || 'عرض محدود الوقت',
-      offer_timer_text_below: marketingSettings.offer_timer_text_below || 'استفد من العرض قبل انتهاء الوقت',
-      offer_timer_end_action: (marketingSettings.offer_timer_end_action as 'hide' | 'show_message' | 'redirect') || 'hide',
-      offer_timer_end_action_message: marketingSettings.offer_timer_end_action_message || undefined,
-      offer_timer_end_action_url: marketingSettings.offer_timer_end_action_url || undefined,
-      offer_timer_restart_for_new_session: marketingSettings.offer_timer_restart_for_new_session || false,
-      offer_timer_cookie_duration_days: marketingSettings.offer_timer_cookie_duration_days || 30,
-      offer_timer_show_on_specific_pages_only: marketingSettings.offer_timer_show_on_specific_pages_only || false,
-      offer_timer_specific_page_urls: marketingSettings.offer_timer_specific_page_urls || []
-    };
-  }, [product?.marketing_settings]);
-
   return (
     <div className="container mx-auto px-4 py-8 pt-20">
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
-        {/* قسم الصور */}
-        <motion.div 
-          className="lg:sticky lg:top-28"
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <ProductImageGalleryV2 
-            product={product} 
-            selectedColor={selectedColor}
-          />
-        </motion.div>
-
-        {/* قسم المعلومات والشراء */}
-        <motion.div 
-          className="space-y-4"
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-        >
-          {/* رأس المنتج */}
+      {/* تخطيط متجاوب: مختلف في الموبايل والحاسوب */}
+      <div className="space-y-8">
+        {/* في الموبايل: ProductHeader أولاً، ثم معرض الصور، ثم المحتوى */}
+        <div className="lg:hidden">
           <ProductHeader
             name={product.name}
-            brand={product.brand}
-            status={product.status}
-            availableStock={availableStock}
+            brand={product.brand?.name}
+            status={{
+              is_new: product.is_new,
+              is_featured: product.is_featured
+            }}
+            availableStock={state.availableStock || 0}
           />
+        </div>
 
-          {/* عرض السعر */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.1 }}
-            className="pt-2"
-          >
-            <ProductPriceDisplay
+        {/* معرض الصور - في الموبايل بعد ProductHeader، في الحاسوب في اليسار */}
+        <div className="lg:hidden">
+          <ProductImageGalleryV2
+            product={product}
+            selectedColor={state.selectedColor}
+          />
+        </div>
+
+        {/* في الحاسوب: تخطيط بعمودين */}
+        <div className="hidden lg:grid lg:grid-cols-2 gap-8 lg:gap-12">
+          {/* العمود الأيسر - معرض الصور */}
+          <div className="lg:col-span-1">
+            <ProductImageGalleryV2
               product={product}
-              selectedColor={selectedColor}
-              selectedSize={selectedSize}
+              selectedColor={state.selectedColor}
+            />
+          </div>
+
+          {/* العمود الأيمن - المحتوى الرئيسي مع ProductHeader */}
+          <div className="lg:col-span-1 space-y-8">
+            {/* ProductHeader أولاً */}
+            <ProductHeader
+              name={product.name}
+              brand={product.brand?.name}
+              status={{
+                is_new: product.is_new,
+                is_featured: product.is_featured
+              }}
+              availableStock={state.availableStock || 0}
+            />
+
+            {/* ثم المحتوى الرئيسي */}
+            <ProductContentSection
+              product={product}
+              state={state}
+              actions={actions}
+              formData={formData}
+              formStrategy={formStrategy}
+              summaryData={summaryData}
+              finalPriceCalculation={finalPriceCalculation}
               selectedOffer={selectedOffer}
-              quantity={quantity}
-              hideSpecialOfferDetails={(product as any).special_offers_config?.enabled && (product as any).special_offers_config?.offers?.length > 0}
+              isQuantityUpdatedByOffer={isQuantityUpdatedByOffer}
+              showValidationErrors={showValidationErrors}
+              hasTriedToSubmit={hasTriedToSubmit}
+              submittedFormData={submittedFormData}
+              isSavingCart={isSavingCart}
+              onFormChange={onFormChange}
+              onFormSubmit={onFormSubmit}
+              onBuyNow={onBuyNow}
+              onQuantityChange={onQuantityChange}
+              setSelectedOffer={setSelectedOffer}
+              setIsQuantityUpdatedByOffer={setIsQuantityUpdatedByOffer}
+              setShowValidationErrors={setShowValidationErrors}
+              setHasTriedToSubmit={setHasTriedToSubmit}
+              updateCurrentFormData={updateCurrentFormData}
             />
-          </motion.div>
+          </div>
+        </div>
 
-          {/* الكمية - يُخفى عندما تكون العروض الخاصة مُفعّلة */}
-          {!((product as any).special_offers_config?.enabled && (product as any).special_offers_config?.offers?.length > 0) && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.25 }}
-              className="pt-3"
-            >
-              <ProductQuantitySelector
-                quantity={quantity}
-                onQuantityChange={onQuantityChange}
-                maxQuantity={Math.min(availableStock, 100)}
-                disabled={!canPurchase}
-              />
-            </motion.div>
-          )}
-
-          {/* مؤقت العرض */}
-          {offerTimerSettings && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.15 }}
-              className="my-6"
-            >
-              <ProductOfferTimer 
-                settings={offerTimerSettings}
-                theme="default"
-                className="w-full"
-              />
-            </motion.div>
-          )}
-
-          <Separator className="bg-border/50 dark:bg-border/30" />
-
-          {/* اختيار المتغيرات */}
-          <motion.div 
-            className="space-y-6"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.2 }}
-          >
-            <ProductVariantSelector
-              product={product}
-              selectedColor={selectedColor}
-              selectedSize={selectedSize}
-              onColorSelect={setSelectedColor}
-              onSizeSelect={setSelectedSize}
-              showValidation={showValidationErrors || hasTriedToSubmit}
-              hasValidationError={!canPurchase && hasTriedToSubmit}
-            />
-          </motion.div>
-
-          <Separator className="bg-border/50 dark:bg-border/30" />
-
-          {/* العروض الخاصة */}
-          {product.special_offers_config?.enabled && product.special_offers_config.offers?.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.35 }}
-              className="py-2"
-            >
-              <SpecialOffersDisplay
-                config={product.special_offers_config}
-                basePrice={product.pricing?.price || 0}
-                onSelectOffer={(offer) => {
-                  setSelectedOffer(offer);
-                  
-                  // تحديث الكمية تلقائياً لتتناسب مع العرض
-                  if (offer) {
-                    if (offer.quantity !== quantity) {
-                      setIsQuantityUpdatedByOffer(true);
-                      setQuantity(offer.quantity);
-                    }
-                  } else {
-                    // إذا تم إلغاء العرض (اختيار "قطعة واحدة")، الرجوع للكمية 1
-                    if (quantity !== 1) {
-                      setIsQuantityUpdatedByOffer(true);
-                      setQuantity(1);
-                    }
-                  }
-                }}
-                selectedOfferId={selectedOffer?.id}
-              />
-            </motion.div>
-          )}
-
-          {product.special_offers_config?.enabled && product.special_offers_config.offers?.length > 0 && (
-            <Separator className="bg-border/50 dark:bg-border/30" />
-          )}
-
-          {/* أزرار الشراء */}
-          <ProductActions
-            totalPrice={finalPriceCalculation.price}
-            deliveryFee={summaryData?.deliveryFee || 0}
-            canPurchase={canPurchase}
-            buyingNow={buyingNow}
+        {/* في الموبايل: المحتوى الرئيسي بعد معرض الصور */}
+        <div className="lg:hidden">
+          <ProductContentSection
+            product={product}
+            state={state}
+            actions={actions}
+            formData={formData}
+            formStrategy={formStrategy}
+            summaryData={summaryData}
+            finalPriceCalculation={finalPriceCalculation}
+            selectedOffer={selectedOffer}
+            isQuantityUpdatedByOffer={isQuantityUpdatedByOffer}
+            showValidationErrors={showValidationErrors}
+            hasTriedToSubmit={hasTriedToSubmit}
+            submittedFormData={submittedFormData}
+            isSavingCart={isSavingCart}
+            onFormChange={onFormChange}
+            onFormSubmit={onFormSubmit}
             onBuyNow={onBuyNow}
-            isCalculatingDelivery={summaryData?.isCalculating || false}
-            currency="دج"
+            onQuantityChange={onQuantityChange}
+            setSelectedOffer={setSelectedOffer}
+            setIsQuantityUpdatedByOffer={setIsQuantityUpdatedByOffer}
+            setShowValidationErrors={setShowValidationErrors}
+            setHasTriedToSubmit={setHasTriedToSubmit}
+            updateCurrentFormData={updateCurrentFormData}
           />
-
-          {/* ميزات المنتج */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.5 }}
-          >
-            <ProductFeatures product={product} />
-          </motion.div>
-
-          {/* النماذج */}
-          {formData && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4, delay: 0.7 }}
-            >
-              <Separator className="mb-6 bg-border/50 dark:bg-border/30" />
-              <ProductFormRenderer
-                formData={formData}
-                formStrategy={formStrategy}
-                onFormSubmit={onFormSubmit}
-                onFormChange={onFormChange}
-                isLoading={buyingNow}
-                isSubmitting={buyingNow}
-                isLoadingDeliveryFee={summaryData?.isCalculating || false}
-                isCalculatingDelivery={summaryData?.isCalculating || false}
-                deliveryFee={summaryData?.deliveryFee}
-                className="mb-4"
-                // تمرير بيانات المنتج والمزامنة
-                product={{
-                  has_variants: product.variants?.has_variants,
-                  colors: product.variants?.colors,
-                  stock_quantity: product.inventory?.stock_quantity
-                }}
-                selectedColor={selectedColor}
-                selectedSize={selectedSize}
-                onColorSelect={setSelectedColor}
-                onSizeSelect={setSelectedSize}
-                // إضافة البيانات المالية
-                subtotal={finalPriceCalculation.price}
-                total={finalPriceCalculation.price + (summaryData?.deliveryFee || 0)}
-                quantity={quantity}
-                // إضافة معلومات الموقع للتحقق من التوصيل المجاني
-                selectedProvince={summaryData?.selectedProvince ? {
-                  id: summaryData.selectedProvince.id.toString(),
-                  name: summaryData.selectedProvince.name
-                } : undefined}
-                selectedMunicipality={summaryData?.selectedMunicipality ? {
-                  id: summaryData.selectedMunicipality.id.toString(),
-                  name: summaryData.selectedMunicipality.name
-                } : undefined}
-              />
-
-              {/* مؤشر حفظ الطلب المتروك */}
-              {isSavingCart && (
-                <motion.div
-                  initial={{ opacity: 0, y: -10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg p-3 mb-4"
-                >
-                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-                  <span>جاري حفظ بياناتك...</span>
-                </motion.div>
-              )}
-
-              {/* الوصف - تحت ملخص الطلب */}
-              {product.description && (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, delay: 0.9 }}
-                  className="mt-6"
-                >
-                  <ProductDescription 
-                    description={product.description}
-                    advancedDescription={(product as any).advanced_description}
-                    product={product}
-                  />
-                </motion.div>
-              )}
-            </motion.div>
-          )}
-        </motion.div>
+        </div>
       </div>
     </div>
   );
 });
 
 ProductMainSection.displayName = 'ProductMainSection';
+
+
+
 

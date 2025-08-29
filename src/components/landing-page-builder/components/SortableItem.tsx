@@ -73,15 +73,11 @@ const SortableItem = React.forwardRef<HTMLDivElement, SortableItemProps>(({
     opacity: isDragging ? 0.3 : 1,
   };
 
-  // تعديل الدالة لمنع فتح النافذة المنبثقة لجميع المكونات
+  // معالج النقر على المكون لفتح إعدادات الشريط الجانبي
   const handleEdit = () => {
-    // تنشيط المكون فقط دون فتح أي نافذة منبثقة
+    // تنشيط المكون وفتح لوحة الإعدادات
     onActivate(id);
     
-    // سجل تصحيح الأخطاء
-
-    // لا نقوم بفتح النافذة المنبثقة لأي مكون
-    // setShowEditModal(true); -- تم تعطيل هذا السطر
   };
 
   return (

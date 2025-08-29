@@ -12,6 +12,7 @@ export interface SubscriptionPlan {
     max_products: number | null;
     max_pos: number | null;
   };
+  permissions?: Record<string, boolean>;
   is_active: boolean;
   is_popular: boolean;
   display_order: number;

@@ -76,19 +76,30 @@ export const ProductConversionTracker = React.forwardRef<any, ProductConversionT
         viewContentTrackedRef.current = false;
         addToCartTrackedRef.current = false;
         
-        // انتظار توفر الإعدادات من useProductTracking لمدة أقصاها 3 ثوان
+        // انتظار توفر الإعدادات من useProductTracking لمدة أقصاها 1 ثانية فقط
         let trackingSettings = (window as any).__productTrackingSettings;
         let attempts = 0;
-        const maxAttempts = 30; // 3 ثوان (30 * 100ms)
+        const maxAttempts = 10; // 1 ثانية (10 * 100ms) - تقليل من 5 ثوان
         
-        while (!trackingSettings && attempts < maxAttempts) {
+        if (process.env.NODE_ENV === 'development') {
+        }
+        
+        while ((!trackingSettings) && attempts < maxAttempts) {
           await new Promise(resolve => setTimeout(resolve, 100));
           trackingSettings = (window as any).__productTrackingSettings;
           attempts++;
+          
+          if (process.env.NODE_ENV === 'development' && attempts % 5 === 0) {
+          }
+        }
+        
+        if (process.env.NODE_ENV === 'development') {
         }
         
         // إذا لم تتوفر الإعدادات بعد الانتظار، استخدم إعدادات افتراضية معطلة لتجنب أي جلب إضافي
         if (!trackingSettings) {
+          if (process.env.NODE_ENV === 'development') {
+          }
           trackingSettings = {
             facebook: { enabled: false },
             google: { enabled: false },
@@ -101,8 +112,26 @@ export const ProductConversionTracker = React.forwardRef<any, ProductConversionT
         // واجهة getConversionTracker تأخذ (productId, settings) فقط
         trackerRef.current = getConversionTracker(productId, trackingSettings);
         
+        // إضافة معالج للحدث كنسخة احتياطية
+        const handleSettingsUpdate = (event: any) => {
+          const updatedSettings = event.detail;
+          if (process.env.NODE_ENV === 'development') {
+          }
+          
+          if (trackerRef.current && updatedSettings) {
+            trackerRef.current = getConversionTracker(productId, updatedSettings);
+          }
+        };
+        
+        window.addEventListener('trackingSettingsReady', handleSettingsUpdate);
+        
         setIsTrackerReady(true);
         onTrackingReady?.();
+        
+        // تنظيف المعالج عند إلغاء التحميل
+        return () => {
+          window.removeEventListener('trackingSettingsReady', handleSettingsUpdate);
+        };
         
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'خطأ غير معروف';

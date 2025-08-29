@@ -2,8 +2,8 @@ import { supabase } from '@/lib/supabase';
 import { getCurrentUser } from '@/lib/api/authHelpers';
 import { getUser as getAuthUser } from '@/lib/auth-proxy';
 import type { Database } from '@/types/database.types';
-import type { User, InsertUser } from '@/types/user';
-import { getUserProfile } from './userProfile';
+// import type { User, InsertUser } from '@/types/user';
+// import { getUserProfile } from './userProfile';
 import UnifiedRequestManager from '@/lib/unifiedRequestManager';
 import { getCachedUserData, updateUserCache } from '@/lib/userDataCache';
 
@@ -286,8 +286,13 @@ export const getCurrentUserProfile = async (): Promise<User | null> => {
     const dbStartTime = Date.now();
     let userProfile: User | null = null;
 
-    // البحث عن المستخدم في قاعدة البيانات
+    // البحث عن المستخدم في قاعدة البيانات - محاولة آمنة مع معالجة أخطاء RLS
     try {
+      // محاولة جلب البيانات من جدول users فقط إذا كان المستخدم لديه صلاحيات كافية
+      let userRole = authData.user.user_metadata?.role || 'customer';
+      const isAdmin = userRole === 'admin' || userRole === 'super_admin';
+      
+      // محاولة جلب البيانات لجميع المستخدمين (ليس فقط المسؤولين)
       const dbPromise = supabase
         .from('users')
         .select('*')
@@ -303,35 +308,16 @@ export const getCurrentUserProfile = async (): Promise<User | null> => {
       if (!idError && userById) {
         userProfile = userById;
         
-        // محاولة جلب بيانات وكيل مركز الاتصال إذا كان موجوداً
-        try {
-          const { data: agentData, error: agentError } = await supabase
-            .from('call_center_agents')
-            .select('id, assigned_regions, assigned_stores, max_daily_orders, is_available, is_active, performance_metrics, specializations, work_schedule')
-            .eq('user_id', userById.id)
-            .eq('is_active', true)
-            .maybeSingle();
-
-          if (agentData) {
-            userProfile = {
-              ...userProfile,
-              call_center_agent_id: agentData.id,
-              assigned_regions: agentData.assigned_regions,
-              assigned_stores: agentData.assigned_stores,
-              max_daily_orders: agentData.max_daily_orders,
-              is_call_center_available: agentData.is_available,
-              is_call_center_active: agentData.is_active,
-              call_center_performance_metrics: agentData.performance_metrics,
-              specializations: agentData.specializations,
-              work_schedule: agentData.work_schedule
-            };
-          } else {
-          }
-        } catch (agentError) {
+        // تحديث الدور من قاعدة البيانات إذا كان متوفراً
+        if (userById.role) {
+          userRole = userById.role;
         }
+
       }
     } catch (error) {
-      // Silent error - لا نحاول إنشاء مستخدم جديد
+      // تجاهل أخطاء قاعدة البيانات - سنستخدم البيانات من auth metadata
+      if (process.env.NODE_ENV === 'development') {
+      }
     }
 
     const dbDuration = Date.now() - dbStartTime;
@@ -356,7 +342,7 @@ export const getCurrentUserProfile = async (): Promise<User | null> => {
     }
 
     // إنشاء بيانات أساسية فوراً بدلاً من محاولة إنشاء في قاعدة البيانات (تجنب أخطاء 409/401)
-    const userRole = authData.user.user_metadata?.role || 'customer';
+    let userRole = authData.user.user_metadata?.role || 'customer';
     
     // محاولة الحصول على organization_id من مصادر مختلفة
     let organizationId = authData.user.user_metadata?.organization_id || localStorage.getItem('bazaar_organization_id');
@@ -370,6 +356,29 @@ export const getCurrentUserProfile = async (): Promise<User | null> => {
       }
     }
     
+    // محاولة جلب الصلاحيات من قاعدة البيانات أولاً
+    let userPermissions = {};
+    try {
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('permissions, role, is_active, is_org_admin, is_super_admin')
+        .eq('auth_user_id', authData.user.id)
+        .maybeSingle();
+      
+      if (!userError && userData) {
+        userPermissions = userData.permissions || {};
+        // تحديث الدور من قاعدة البيانات إذا كان متوفراً
+        if (userData.role) {
+          userRole = userData.role;
+        }
+      }
+    } catch (permissionError) {
+      // إذا فشل جلب الصلاحيات من قاعدة البيانات، استخدم البيانات من auth metadata
+      userPermissions = authData.user.user_metadata?.permissions || {};
+      if (process.env.NODE_ENV === 'development') {
+      }
+    }
+    
     const quickProfile: User = {
       id: authData.user.id,
       auth_user_id: authData.user.id,
@@ -379,7 +388,7 @@ export const getCurrentUserProfile = async (): Promise<User | null> => {
            authData.user.email.split('@')[0] || 'User',
       role: userRole,
       is_active: true,
-      permissions: authData.user.user_metadata?.permissions || {},
+      permissions: userPermissions,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       organization_id: organizationId
@@ -462,10 +471,20 @@ export const getUserPermissionsByEmail = async (email: string): Promise<any | nu
  */
 export const updateUserPermissions = async (userId: string, permissions: any): Promise<boolean> => {
   try {
-    const { error } = await supabase
+    // أولاً: البحث بـ auth_user_id
+    let { error } = await supabase
       .from('users')
       .update({ permissions })
-      .eq('id', userId);
+      .eq('auth_user_id', userId);
+      
+    // إذا فشل، جرب بـ id (للتوافق مع النظام القديم)
+    if (error) {
+      const { error: idError } = await supabase
+        .from('users')
+        .update({ permissions })
+        .eq('id', userId);
+      error = idError;
+    }
 
     if (error) {
       return false;
@@ -492,57 +511,32 @@ export const getCurrentUserProfileWithAgent = async (): Promise<User | null> => 
 
     const userId = user.id;
 
-    // جلب بيانات المستخدم مع بيانات وكيل مركز الاتصال في استعلام واحد
-    const { data: userData, error } = await supabase
+    // جلب بيانات المستخدم فقط (بدون وكيل مركز الاتصال)
+    // أولاً: البحث بـ auth_user_id
+    let { data: userData, error } = await supabase
       .from('users')
-      .select(`
-        *,
-        call_center_agents(
-          id,
-          assigned_regions,
-          assigned_stores,
-          max_daily_orders,
-          is_available,
-          is_active,
-          performance_metrics,
-          specializations,
-          work_schedule
-        )
-      `)
-      .eq('id', userId)
+      .select('*')
+      .eq('auth_user_id', userId)
       .maybeSingle();
+      
+    // إذا لم توجد البيانات، جرب بـ id (للتوافق مع النظام القديم)
+    if (!userData && !error) {
+      const { data: userDataById, error: errorById } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+      userData = userDataById;
+      error = errorById;
+    }
 
     if (error && error.code !== 'PGRST116') {
       // fallback إلى الطريقة العادية
       return await getCurrentUserProfile();
     }
 
-    if (userData && userData.call_center_agents && userData.call_center_agents.length > 0) {
-      // فلترة وكلاء مركز الاتصال النشطين فقط
-      const activeAgents = userData.call_center_agents.filter((agent: any) => agent.is_active === true);
-      
-      if (activeAgents.length > 0) {
-        const agentData = activeAgents[0];
-        
-        // دمج بيانات وكيل مركز الاتصال مع بيانات المستخدم
-        const userWithAgent = {
-          ...userData,
-          call_center_agent_id: agentData.id,
-          assigned_regions: agentData.assigned_regions,
-          assigned_stores: agentData.assigned_stores,
-          max_daily_orders: agentData.max_daily_orders,
-          is_call_center_available: agentData.is_available,
-          is_call_center_active: agentData.is_active,
-          call_center_performance_metrics: agentData.performance_metrics,
-          specializations: agentData.specializations,
-          work_schedule: agentData.work_schedule
-        };
-
-        // حذف البيانات المكررة
-        delete (userWithAgent as any).call_center_agents;
-
-        return userWithAgent;
-      }
+    if (userData) {
+      return userData;
     }
 
     // إذا لم يكن وكيل مركز اتصال، استخدم الطريقة العادية

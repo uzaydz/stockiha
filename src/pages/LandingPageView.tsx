@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useRef, lazy, Suspense, startTransition } from 'react';
 import { useParams, Navigate } from 'react-router-dom';
-import { useSupabase } from '@/context/SupabaseContext';
 import { Helmet } from 'react-helmet-async';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -29,11 +28,17 @@ import { useTheme } from '@/context/ThemeContext';
 import TestimonialsComponent from '@/components/landing-page/TestimonialsComponent';
 import CtaButtonComponent from '@/components/landing-page/CtaButtonComponent';
 import { sanitizeHTML } from '@/utils/security';
+import { useSingleLandingPageFetch } from '@/hooks/useLandingPageFetch';
 
 // تحميل كسول للمكونات الثقيلة لتسريع التحميل الأولي
 const EnhancedImageComponent = lazy(() => import('@/components/landing-page/ImageComponent'));
-const FormComponent = lazy(() => import('@/components/landing/FormComponent'));
+const LandingPageFormRenderer = lazy(() => import('@/components/landing/LandingPageFormRenderer'));
 const BeforeAfterComponent = lazy(() => import('@/components/landing/BeforeAfterComponent'));
+const ProductBenefitsComponent = lazy(() => import('@/components/landing-page/ProductBenefitsComponent'));
+const GuaranteesComponent = lazy(() => import('@/components/landing-page/GuaranteesComponent'));
+const ProductHeroComponent = lazy(() => import('@/components/landing-page/ProductHeroComponent'));
+const ProblemSolutionComponent = lazy(() => import('@/components/landing-page/ProblemSolutionComponent'));
+const WhyChooseUsComponent = lazy(() => import('@/components/landing-page/WhyChooseUsComponent'));
 
 // تعريف مكونات داخلية بدلاً من استيرادها (لأنها غير موجودة)
 // مكون النص
@@ -65,7 +70,7 @@ const HeroComponent: React.FC<{ settings: Record<string, any> }> = ({ settings }
   };
   
   // صورة بديلة محلية بدلاً من استخدام خدمة خارجية
-  const fallbackImage = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAwIiBoZWlnaHQ9IjYwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjYwMCIgZmlsbD0iI2YzZjRmNiIvPjxwYXRoIGQ9Ik0zMTAuNSAzMTkuNUwzNjUuNSAyNzVMMzc0LjUgMjgzLjVMNDAwIDMwM0w0NjkgMjQ5LjVMNDk2LjUgMjc1TDUyNS41IDI0Ni41TDUzNC41IDI2My41TDYwMCAzMzAuNUw0MDAgMzgwTDMxMC41IDMxOS41WiIgZmlsbD0iI2UyZThmMCIvPjxjaXJjbGUgY3g9IjM0NyIgY3k9IjI0NiIgcj0iMTgiIGZpbGw9IiNlMmU4ZjAiLz48cGF0aCBkPSJNMjM4LjUgMzQ5LjVDMjM4LjUgMzQ5LjUgMjYwLjUgMzA1IDMwMi41IDI5NC41QzM0NC41IDI4NCA0MDAuNSAzMTMgNDAwLjUgMzEzTDIzOC41IDM1NS41VjM0OS41WiIgZmlsbD0iI2UyZThmMCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjI0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBhbGlnbm1lbnQtYmFzZWxpbmU9Im1pZGRsZSIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmaWxsPSIjOTQ5NDk0Ij7LktmI2LHYqTwvdGV4dD48L3N2Zz4=';
+  const fallbackImage = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAwIiBoZWlnaHQ9IjYwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iODAwIiBoZWlnaHQ9IjYwMCIgZmlsbD0iI2YzZjRmNiIvPjxwYXRoIGQ9Ik0zMTAuNSAzMTkuNUwzNjUuNSAyNzVMMzc0LjUgMjgzLjVMNDAwIDMwM0w0NjkgMjQ5LjVMNDk2LjUgMjc1TDUyNS41IDI0Ni41TDUzNC41IDI2My41TDYwMCAzMzAuNUw0MDAgMzgwTDMxMC41IDMxOS41WiIgZmlsbD0iI2UyZThmMCIvPjxjaXJjbGUgY3g9IjM0NyIgY3k9IjI0NiIgcj0iMTgiIGZpbGw9IiNlMmU4ZjAiLz48cGF0aCBkPSJNMjM4LjUgMzQ5LjVDMjM4LjUgMzQ5LjUgMjYwLjUgMzA1IDMwMi41IDI5NC41QzM0NC41IDI4NCA0MDAuNSAzMTMgNDAwLjUgMzEzTDIzOC41IDM1NS41VjM0OS41WiIgZmlsbD0iI2UyZThmMCIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjI0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBhbGlnbm1lbnQtYmFzZWxpbmU9Im1pZGxlIiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZpbGw9IiM5NDk0OTQiPsuS2YjYsdiqPC90ZXh0Pjwvc3ZnPg==';
   
   return (
     <section className="py-16 transform-gpu animate-in fade-in slide-in-from-bottom duration-300" style={backgroundStyle}>
@@ -93,11 +98,6 @@ const HeroComponent: React.FC<{ settings: Record<string, any> }> = ({ settings }
               alt={settings.title || 'صورة ترويجية'} 
               className="max-w-full rounded-lg shadow-md" 
               fetchpriority="high"
-              loading="eager"
-              decoding="async"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTYwIiBoZWlnaHQ9IjE2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTYwIiBoZWlnaHQ9IjE2MCIgZmlsbD0iI2VlZWVlZSIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LXNpemU9IjE0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBhbGlnbm1lbnQtYmFzZWxpbmU9Im1pZGRsZSIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmaWxsPSIjOTk5OTk5Ij5JbWFnZTwvdGV4dD48L3N2Zz4=';
-              }}
             />
           </div>
         </div>
@@ -106,38 +106,26 @@ const HeroComponent: React.FC<{ settings: Record<string, any> }> = ({ settings }
   );
 };
 
-// مكون المميزات
+// مكون الميزات
 const FeaturesComponent: React.FC<{ settings: Record<string, any> }> = ({ settings }) => {
   const features = settings.features || [
-    { title: 'ميزة 1', description: 'وصف الميزة', icon: 'star' },
-    { title: 'ميزة 2', description: 'وصف الميزة', icon: 'check' },
-    { title: 'ميزة 3', description: 'وصف الميزة', icon: 'heart' },
+    { title: 'ميزة 1', description: 'وصف الميزة الأولى' },
+    { title: 'ميزة 2', description: 'وصف الميزة الثانية' },
+    { title: 'ميزة 3', description: 'وصف الميزة الثالثة' }
   ];
   
-  // حساب عدد الأعمدة
-  const cols = settings.columnsCount || 3;
-  const colClass = `grid-cols-1 md:grid-cols-${Math.min(cols, 3)} lg:grid-cols-${Math.min(cols, 4)}`;
-  
   return (
-    <section className="py-16 bg-muted/30 transform-gpu animate-in fade-in duration-300">
+    <section className="py-16 bg-muted/30">
       <div className="container mx-auto px-4">
-        <h2 className="text-2xl md:text-3xl font-bold text-center mb-10 animate-in slide-in-from-bottom duration-300">
-          {settings.title || 'المميزات'}
-        </h2>
-        
-        <div className={`grid ${colClass} gap-8 content-visibility-auto`}>
-          {features.map((feature: any, index: number) => (
-            <div 
-              key={index} 
-              className="bg-card rounded-lg p-6 shadow-sm transform-gpu will-change-transform animate-in fade-in-50 slide-in-from-bottom-4 duration-300" 
-              style={{ animationDelay: `${index * 50}ms` }}
-            >
-              <div className="w-12 h-12 bg-primary/10 text-primary rounded-full flex items-center justify-center mb-4 mx-auto">
-                <span className="text-xl">✓</span>
-              </div>
-              <h3 className="text-xl font-semibold text-center mb-3">{feature.title}</h3>
-              <p className="text-center text-muted-foreground">{feature.description}</p>
-            </div>
+        <h2 className="text-3xl font-bold text-center mb-12">{settings.title || 'ميزاتنا'}</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {features.map((feature, index) => (
+            <Card key={index} className="text-center p-6 hover:shadow-lg transition-shadow">
+              <CardContent>
+                <h3 className="text-xl font-semibold mb-4">{feature.title}</h3>
+                <p className="text-muted-foreground">{feature.description}</p>
+              </CardContent>
+            </Card>
           ))}
         </div>
       </div>
@@ -145,59 +133,28 @@ const FeaturesComponent: React.FC<{ settings: Record<string, any> }> = ({ settin
   );
 };
 
-// مكون الشهادات
+// مكون التوصيات
 const TestimonialComponent: React.FC<{ settings: Record<string, any> }> = ({ settings }) => {
-  const testimonials = settings.items || [
-    { author: 'اسم العميل', quote: 'اقتباس إيجابي عن المنتج', avatar: null, rating: 5 },
+  const testimonials = settings.testimonials || [
+    { name: 'أحمد محمد', role: 'عميل سعيد', content: 'تجربة رائعة مع المنتج!' },
+    { name: 'فاطمة علي', role: 'عميلة سعيدة', content: 'أوصي به بشدة!' }
   ];
   
   return (
-    <section 
-      className="py-16 transform-gpu animate-in fade-in duration-300" 
-      style={{ 
-        backgroundColor: settings.backgroundColor || '#f0f7ff',
-        contentVisibility: 'auto',
-        contain: 'content'
-      }}
-    >
+    <section className="py-16">
       <div className="container mx-auto px-4">
-        <h2 className="text-2xl md:text-3xl font-bold text-center mb-10 animate-in slide-in-from-bottom duration-300">
-          {settings.title || 'آراء العملاء'}
-        </h2>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {testimonials.map((testimonial: any, index: number) => (
-            <div 
-              key={index} 
-              className="bg-white rounded-lg p-6 shadow-md transform-gpu animate-in fade-in slide-in-from-bottom duration-300" 
-              style={{ animationDelay: `${index * 100}ms` }}
-            >
-              <div className="mb-4">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <span key={i} className={i < (testimonial.rating || 5) ? 'text-yellow-400' : 'text-gray-300'}>
-                    ★
-                  </span>
-                ))}
-              </div>
-              <p className="italic mb-6 text-muted-foreground">"{testimonial.quote}"</p>
-              <div className="flex items-center">
-                {testimonial.avatar ? (
-                  <img 
-                    src={testimonial.avatar} 
-                    alt={testimonial.author} 
-                    className="w-10 h-10 rounded-full mr-3"
-                    loading="lazy"
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center mr-3">
-                    <span className="text-primary font-medium">
-                      {testimonial.author.charAt(0)}
-                    </span>
-                  </div>
-                )}
-                <span className="font-medium">{testimonial.author}</span>
-              </div>
-            </div>
+        <h2 className="text-3xl font-bold text-center mb-12">{settings.title || 'آراء العملاء'}</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {testimonials.map((testimonial, index) => (
+            <Card key={index} className="p-6">
+              <CardContent>
+                <p className="text-lg mb-4 italic">"{testimonial.content}"</p>
+                <div>
+                  <p className="font-semibold">{testimonial.name}</p>
+                  <p className="text-muted-foreground text-sm">{testimonial.role}</p>
+                </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
       </div>
@@ -205,6 +162,7 @@ const TestimonialComponent: React.FC<{ settings: Record<string, any> }> = ({ set
   );
 };
 
+// تعريف الأنواع
 interface LandingPageComponent {
   id: string;
   type: string;
@@ -225,39 +183,36 @@ interface LandingPage {
   components: LandingPageComponent[];
 }
 
-// كاتش للتحميل
+// مكون placeholder للمكونات غير المعرفة
 const ComponentPlaceholder = ({ type }: { type: string }) => (
-  <div className="w-full py-8 animate-pulse">
-    <div className="container mx-auto px-4">
-      <div className="flex flex-col items-center justify-center space-y-4">
-        <Skeleton className={`h-8 w-1/3 mx-auto rounded-md ${type === 'hero' ? 'h-16 w-1/2' : ''}`} />
-        <Skeleton className="h-24 w-full max-w-3xl mx-auto rounded-md" />
-        {type === 'form' && <Skeleton className="h-64 w-full max-w-md mx-auto rounded-md" />}
-        {type === 'beforeAfter' && (
-          <div className="w-full max-w-3xl mx-auto">
-            <Skeleton className="h-64 w-full rounded-md" />
-          </div>
-        )}
-      </div>
-    </div>
+  <div className="p-8 text-center border-2 border-dashed border-muted-foreground/20 rounded-lg">
+    <p className="text-muted-foreground">مكون {type} غير معرّف</p>
   </div>
 );
 
 /**
- * عرض صفحة الهبوط - محسن مع تقنيات 2024-2025
- * - التخزين المؤقت للبيانات
- * - التحميل المتدرج والكسول
- * - الرسوم المتحركة وانتقالات العرض
- * - تحسين أداء الصفحة
+ * صفحة عرض صفحة الهبوط - محسنة باستخدام RPC واحد
+ * 
+ * التحسينات المطبقة:
+ * - استخدام RPC واحد لجلب البيانات بدلاً من استدعاءات متعددة
+ * - تحسين الأداء من 3+ استدعاءات HTTP إلى استدعاء واحد
+ * - تقليل وقت التحميل وتحسين تجربة المستخدم
  */
 const LandingPageView: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
-  const { supabase } = useSupabase();
   const { currentOrganization } = useTenant();
   const { reloadOrganizationTheme } = useTheme();
   
+  // استخدام الـ hook الجديد لجلب البيانات في استدعاء واحد
+  const { 
+    landingPage: fetchedLandingPage, 
+    components: fetchedComponents, 
+    isLoading, 
+    error: fetchError 
+  } = useSingleLandingPageFetch(slug);
+  
+  // تحويل البيانات إلى التنسيق المطلوب
   const [landingPage, setLandingPage] = useState<LandingPage | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [visibleComponents, setVisibleComponents] = useState<string[]>([]);
   
@@ -294,6 +249,7 @@ const LandingPageView: React.FC = () => {
         }
       }
     } catch (e) {
+      // تجاهل الأخطاء
     }
     
     return false;
@@ -338,6 +294,52 @@ const LandingPageView: React.FC = () => {
     }
   };
   
+  // تحويل البيانات من الـ hook إلى التنسيق المطلوب
+  useEffect(() => {
+    if (fetchedLandingPage && fetchedComponents) {
+      // تحويل المكونات إلى التنسيق المطلوب
+      const formattedComponents = fetchedComponents.map(comp => ({
+        id: comp.id,
+        type: comp.type,
+        isActive: comp.is_active,
+        position: comp.position,
+        settings: comp.settings || {}
+      }));
+      
+      // إنشاء كائن الصفحة مع المكونات
+      const completePage: LandingPage = {
+        id: fetchedLandingPage.id,
+        organization_id: fetchedLandingPage.organization_id,
+        name: fetchedLandingPage.name,
+        slug: fetchedLandingPage.slug,
+        title: fetchedLandingPage.title || '',
+        description: fetchedLandingPage.description || '',
+        keywords: fetchedLandingPage.keywords || '',
+        is_published: fetchedLandingPage.is_published,
+        components: formattedComponents
+      };
+      
+      // تطبيق التغييرات بتقنية View Transitions API
+      applyViewTransition(() => {
+        setLandingPage(completePage);
+        
+        // تخزين البيانات في التخزين المحلي (صالحة لمدة 5 دقائق)
+        localStorage.setItem(cacheKey.current, JSON.stringify({
+          data: completePage,
+          expiry: Date.now() + (5 * 60 * 1000) // 5 دقائق
+        }));
+      });
+
+    }
+  }, [fetchedLandingPage, fetchedComponents]);
+  
+  // معالجة الأخطاء من الـ hook
+  useEffect(() => {
+    if (fetchError) {
+      setError(fetchError);
+    }
+  }, [fetchError]);
+  
   // التحقق من التخزين المؤقت أولاً للعرض الفوري
   useEffect(() => {
     const cachedData = localStorage.getItem(cacheKey.current);
@@ -349,8 +351,6 @@ const LandingPageView: React.FC = () => {
             setLandingPage(parsedData.data);
             hasInitialData.current = true;
           });
-          // نستمر في العرض سريعاً حتى لو كانت البيانات مخزنة مؤقتاً
-          setIsLoading(false);
         }
       } catch (e) {
       }
@@ -386,102 +386,6 @@ const LandingPageView: React.FC = () => {
     };
   }, []);
   
-  // جلب بيانات صفحة الهبوط
-  useEffect(() => {
-    const fetchLandingPage = async () => {
-      if (!slug) return;
-      
-      // لا داعي لعرض التحميل إذا كان لدينا بيانات مخزنة مؤقتاً
-      if (!hasInitialData.current) {
-      setIsLoading(true);
-      }
-      setError(null);
-      
-      try {
-        // استخدام استعلام SQL بدلاً من RPC مع تحسينات الأداء
-        const pagePromise = supabase
-          .from('landing_pages')
-          .select('id, organization_id, name, slug, title, description, keywords, is_published')
-          .eq('slug', slug)
-          .eq('is_deleted', false)
-          .single();
-          
-        const componentsPromise = supabase
-          .from('landing_page_components')
-          .select('id, type, is_active, position, settings')
-          .eq('landing_page_id', (await pagePromise).data?.id || '')
-          .eq('is_active', true)
-          .order('position');
-          
-        // تنفيذ الاستعلامات بالتوازي
-        const [pageResult, componentsResult] = await Promise.all([
-          pagePromise,
-          componentsPromise
-        ]);
-        
-        const { data: pageData, error: pageError } = pageResult;
-        
-        if (pageError) throw pageError;
-        
-        if (!pageData) {
-          applyViewTransition(() => {
-          setError('الصفحة غير موجودة أو غير منشورة');
-          setLandingPage(null);
-          setIsLoading(false);
-          });
-          return;
-        }
-        
-        const { data: componentsData, error: componentsError } = componentsResult;
-        
-        if (componentsError) throw componentsError;
-        
-        // تحويل المكونات إلى التنسيق المطلوب
-        const formattedComponents = componentsData.map(comp => ({
-          id: comp.id,
-          type: comp.type,
-          isActive: comp.is_active,
-          position: comp.position,
-          settings: comp.settings || {}
-        }));
-        
-        // إنشاء كائن الصفحة مع المكونات
-        const completePage: LandingPage = {
-          ...pageData,
-          components: formattedComponents
-        };
-        
-        // تطبيق التغييرات بتقنية View Transitions API
-        applyViewTransition(() => {
-        setLandingPage(completePage);
-          
-          // تخزين البيانات في التخزين المحلي (صالحة لمدة 5 دقائق)
-          localStorage.setItem(cacheKey.current, JSON.stringify({
-            data: completePage,
-            expiry: Date.now() + (5 * 60 * 1000) // 5 دقائق
-          }));
-        });
-      } catch (error) {
-        applyViewTransition(() => {
-        setError('حدث خطأ أثناء تحميل الصفحة');
-        });
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    // استخدام requestIdleCallback لتحميل البيانات الحقيقية في وقت الخمول إذا كانت البيانات مخزنة مؤقتاً
-    if (hasInitialData.current) {
-      if ('requestIdleCallback' in window) {
-        window.requestIdleCallback(() => fetchLandingPage(), { timeout: 2000 });
-      } else {
-        setTimeout(fetchLandingPage, 200);
-      }
-    } else {
-    fetchLandingPage();
-    }
-  }, [slug, supabase]);
-  
   // رسالة التحميل - مع تحسين تجربة المستخدم
   if (isLoading && !hasInitialData.current) {
     return (
@@ -489,20 +393,11 @@ const LandingPageView: React.FC = () => {
         <Navbar />
         <div className="container py-12 pt-24">
           <div className="w-full animate-pulse space-y-6">
-            {/* هيكل تحميل لصفحة الهبوط */}
-            <div className="flex flex-col items-center justify-center space-y-4">
-              <Skeleton className="h-16 w-2/3 md:w-1/2 rounded-md" />
-              <Skeleton className="h-8 w-full md:w-2/3 rounded-md" />
-              <Skeleton className="h-60 w-full md:w-3/4 rounded-md" />
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {[1, 2, 3].map(i => (
-                <div key={i} className="space-y-2">
-                  <Skeleton className="h-40 w-full rounded-md" />
-                  <Skeleton className="h-6 w-3/4 rounded-md" />
-                  <Skeleton className="h-4 w-1/2 rounded-md" />
-                </div>
+            <Skeleton className="h-8 w-3/4 mx-auto" />
+            <Skeleton className="h-4 w-1/2 mx-auto" />
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
+              {[1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-32 w-full" />
               ))}
             </div>
           </div>
@@ -511,125 +406,199 @@ const LandingPageView: React.FC = () => {
     );
   }
   
-  // رسالة الخطأ
-  if (error && !landingPage) {
+  // عرض الخطأ
+  if (error) {
     return (
-      <div className="flex flex-col min-h-screen bg-background animate-in fade-in duration-300">
+      <div className="flex flex-col min-h-screen bg-background">
         <Navbar />
         <div className="container py-12 pt-24">
-          <Alert variant="destructive" className="animate-in slide-in-from-top duration-300">
-            <AlertCircle className="h-4 w-4 mr-2" />
-            <AlertTitle>خطأ</AlertTitle>
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>خطأ في جلب صفحة الهبوط</AlertTitle>
             <AlertDescription>
-              {error || 'الصفحة غير موجودة أو غير منشورة'}
+              <div className="space-y-2">
+                <p><strong>الخطأ:</strong> {error}</p>
+                <p><strong>الرابط المطلوب:</strong> {slug}</p>
+                <p><strong>حالة التحميل:</strong> {isLoading ? 'جاري التحميل...' : 'تم الانتهاء'}</p>
+                <p><strong>البيانات المستلمة:</strong> {fetchedLandingPage ? 'نعم' : 'لا'}</p>
+                <p><strong>عدد المكونات:</strong> {fetchedComponents?.length || 0}</p>
+              </div>
             </AlertDescription>
+          </Alert>
+          <div className="mt-4 space-x-2">
+            <Button asChild>
+              <a href="/">العودة للصفحة الرئيسية</a>
+            </Button>
+            <Button variant="outline" onClick={() => window.location.reload()}>
+              إعادة المحاولة
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  // إذا لم تكن الصفحة موجودة
+  if (!landingPage) {
+    // عرض رسالة خطأ واضحة بدلاً من التوجيه التلقائي إلى 404
+    return (
+      <div className="flex flex-col min-h-screen bg-background">
+        <Navbar />
+        <div className="container py-12 pt-24">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>صفحة الهبوط غير موجودة</AlertTitle>
+            <AlertDescription>
+              عذراً، صفحة الهبوط "{slug}" غير موجودة في قاعدة البيانات. 
+              يرجى التحقق من أن الصفحة تم إنشاؤها وأن الرابط صحيح.
+            </AlertDescription>
+          </Alert>
+          <div className="mt-4">
+            <Button asChild>
+              <a href="/">العودة للصفحة الرئيسية</a>
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  
+  // إذا لم تكن الصفحة منشورة
+  if (!landingPage.is_published) {
+    return (
+      <div className="flex flex-col min-h-screen bg-background">
+        <Navbar />
+        <div className="container py-12 pt-24">
+          <Alert>
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>صفحة غير منشورة</AlertTitle>
+            <AlertDescription>هذه الصفحة غير متاحة للعرض العام.</AlertDescription>
           </Alert>
         </div>
       </div>
     );
   }
   
-  // إذا الصفحة غير منشورة، قم بتوجيه المستخدم إلى الصفحة الرئيسية
-  if (landingPage && !landingPage.is_published) {
-    return <Navigate to="/" replace />;
-  }
-  
   return (
     <>
       <Helmet>
-        <title>{landingPage?.title || 'صفحة الهبوط'}</title>
-        <meta name="description" content={landingPage?.description || ''} />
-        {landingPage?.keywords && <meta name="keywords" content={landingPage.keywords} />}
+        <title>{landingPage.title || landingPage.name}</title>
+        <meta name="description" content={landingPage.description} />
+        <meta name="keywords" content={landingPage.keywords} />
       </Helmet>
       
-      <div className="flex flex-col min-h-screen bg-background view-transition-page">
+      <div className="min-h-screen bg-background">
         <Navbar />
-        <div className="flex-grow landing-page-container pt-16">
-          {landingPage?.components
-            .filter(component => component.isActive)
-            .sort((a, b) => a.position - b.position)
-            .map((component, index) => (
-              <div 
-                key={component.id} 
-                data-component-id={component.id}
-                ref={el => {
-                  if (el && componentObserver.current) {
-                    componentObserver.current.observe(el);
-                  }
-                }}
-                className="landing-page-component animate-in fade-in slide-in-from-bottom-8"
-                style={{ 
-                  contentVisibility: 'auto',
-                  animationDelay: `${index * 100}ms`,
-                  viewTransitionName: `component-${component.id}`,
-                  contain: 'content',
-                  animationPlayState: visibleComponents.includes(component.id) ? 'running' : 'paused',
-                  opacity: visibleComponents.includes(component.id) ? 1 : 0,
-                  transform: visibleComponents.includes(component.id) ? 'translateY(0)' : 'translateY(20px)',
-                  transition: 'opacity 0.5s ease, transform 0.5s ease'
-                }}
-              >
-                <Suspense fallback={<ComponentPlaceholder type={component.type} />}>
-                  <LandingPageComponentRenderer 
+        
+        <main className="pt-16">
+          {/* عرض المكونات */}
+
+          {landingPage.components.map((component) => (
+            <div
+              key={component.id}
+              data-component-id={component.id}
+              className="component-wrapper"
+            >
+              <LandingPageComponentRenderer 
                 component={component} 
+                landingPage={landingPage}
               />
-                </Suspense>
-              </div>
-            ))}
-        </div>
+            </div>
+          ))}
+        </main>
       </div>
     </>
   );
 };
 
-// مكون لعرض مكونات صفحة الهبوط المختلفة
-const LandingPageComponentRenderer: React.FC<{ component: LandingPageComponent }> = ({ component }) => {
-  // اختر المكون المناسب بناءً على النوع
-  switch (component.type) {
+// مكون عرض المكونات
+const LandingPageComponentRenderer: React.FC<{ 
+  component: LandingPageComponent;
+  landingPage: LandingPage;
+}> = ({ component, landingPage }) => {
+
+  if (!component.isActive) return null;
+  
+  const { type, settings } = component;
+  
+  switch (type) {
     case 'hero':
-      return <HeroComponent settings={component.settings} />;
-    case 'form':
-      return <FormComponent settings={component.settings} />;
-    case 'text':
-      return <TextComponent settings={component.settings} />;
-    case 'image':
-      return <EnhancedImageComponent settings={component.settings} />;
+      return <HeroComponent settings={settings} />;
     case 'features':
-      return <FeaturesComponent settings={component.settings} />;
-    case 'testimonial':
-      return <TestimonialComponent settings={component.settings} />;
+      return <FeaturesComponent settings={settings} />;
     case 'testimonials':
-      // استخدام الإعدادات الموجودة مع المكون، مع توفير قيم افتراضية للحقول المطلوبة
-      const defaultSettings = {
-        title: component.settings.title || 'آراء العملاء',
-        subtitle: component.settings.subtitle || 'تعرف على آراء عملائنا',
-        backgroundColor: component.settings.backgroundColor || '#f8f9fa',
-        textColor: component.settings.textColor || '#333333',
-        accentColor: component.settings.accentColor || '#4f46e5',
-        cardsBackgroundColor: component.settings.cardsBackgroundColor || '#ffffff',
-        cardsTextColor: component.settings.cardsTextColor || '#333333',
-        layout: component.settings.layout || 'grid',
-        columns: component.settings.columns || 3,
-        showRatings: component.settings.showRatings !== undefined ? component.settings.showRatings : true,
-        showAvatars: component.settings.showAvatars !== undefined ? component.settings.showAvatars : true,
-        avatarSize: component.settings.avatarSize || 'medium',
-        animation: component.settings.animation || 'none',
-        items: component.settings.items || [],
-        // ✅ تفعيل جلب البيانات من قاعدة البيانات تلقائياً عند توفر organizationId
-        useDbTestimonials: component.settings.useDbTestimonials !== undefined ? component.settings.useDbTestimonials : !!component.settings.organizationId,
-        organizationId: component.settings.organizationId || null,
-      };
-      return <TestimonialsComponent settings={defaultSettings} />;
+      return <TestimonialComponent settings={settings} />;
+    case 'text':
+      return <TextComponent settings={settings} />;
     case 'beforeAfter':
-      return <BeforeAfterComponent settings={component.settings} />;
-    case 'ctaButton':
-      return <CtaButtonComponent settings={component.settings} />;
-    default:
       return (
-        <div className="p-4 text-center text-muted-foreground">
-          مكون غير معروف: {component.type}
-        </div>
+        <Suspense fallback={<div className="h-64 bg-muted animate-pulse rounded-lg" />}>
+          <BeforeAfterComponent settings={settings} />
+        </Suspense>
       );
+    case 'ctaButton':
+      return (
+        <Suspense fallback={<div className="h-16 bg-muted animate-pulse rounded-lg" />}>
+          <CtaButtonComponent settings={settings} />
+        </Suspense>
+      );
+    case 'productBenefits':
+      return (
+        <Suspense fallback={<div className="h-64 bg-muted animate-pulse rounded-lg" />}>
+          <ProductBenefitsComponent settings={settings} />
+        </Suspense>
+      );
+    case 'guarantees':
+      return (
+        <Suspense fallback={<div className="h-64 bg-muted animate-pulse rounded-lg" />}>
+          <GuaranteesComponent settings={settings} />
+        </Suspense>
+      );
+    case 'productHero':
+      return (
+        <Suspense fallback={<div className="h-64 bg-muted animate-pulse rounded-lg" />}>
+          <ProductHeroComponent settings={settings} />
+        </Suspense>
+      );
+    case 'problemSolution':
+      return (
+        <Suspense fallback={<div className="h-64 bg-muted animate-pulse rounded-lg" />}>
+          <ProblemSolutionComponent settings={settings} />
+        </Suspense>
+      );
+    case 'whyChooseUs':
+      return (
+        <Suspense fallback={<div className="h-64 bg-muted animate-pulse rounded-lg" />}>
+          <WhyChooseUsComponent settings={settings} />
+        </Suspense>
+      );
+    case 'form':
+
+      return (
+        <Suspense fallback={<div className="h-64 bg-muted animate-pulse rounded-lg" />}>
+          <LandingPageFormRenderer 
+            fields={settings.fields || []}
+            title={settings.title}
+            subtitle={settings.description}
+            submitButtonText={settings.submitButtonText || 'إرسال الطلب'}
+            formId={settings.formId}
+            productId={settings.productId}
+            onSubmit={async (data) => {
+              // معالجة إرسال النموذج
+
+              // هنا يمكنك إضافة منطق إرسال البيانات إلى الخادم
+            }}
+          />
+        </Suspense>
+      );
+    case 'image':
+      return (
+        <Suspense fallback={<div className="h-64 bg-muted animate-pulse rounded-lg" />}>
+          <EnhancedImageComponent settings={settings} />
+        </Suspense>
+      );
+    default:
+      return <ComponentPlaceholder type={type} />;
   }
 };
 

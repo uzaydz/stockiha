@@ -130,6 +130,40 @@ const arTranslations = {
       "limitedQuantity": "كمية محدودة",
       "available": "متوفر"
     },
+    "storeProducts": {
+      "title": "متجر المنتجات",
+      "subtitle": "اكتشف مجموعة متنوعة من المنتجات عالية الجودة",
+      "searchPlaceholder": "البحث في المنتجات...",
+      "allCategories": "جميع الفئات",
+      "newest": "الأحدث",
+      "showingResults": "عرض {current} من {total} منتج",
+      "product": "منتج",
+      "category": "فئة",
+      "result": "نتيجة",
+      "previous": "السابق",
+      "next": "التالي",
+      "page": "الصفحة",
+      "of": "من",
+      "resetFilters": "إعادة تعيين",
+      "activeFilters": "الفلاتر النشطة",
+      "noProducts": "لا توجد منتجات",
+      "noProductsMessage": "لم يتم العثور على منتجات تطابق البحث",
+      "noProductsAvailable": "لا توجد منتجات متاحة حالياً",
+      "resetFiltersButton": "إعادة تعيين الفلاتر",
+      "gridView": "منتجات في شبكة",
+      "listView": "منتجات في قائمة",
+      "stock": {
+        "outOfStock": "نفد المخزون",
+        "lowStock": "مخزون قليل",
+        "available": "متوفر",
+        "productOutOfStock": "هذا المنتج غير متوفر حالياً",
+        "colorOutOfStock": "هذا اللون غير متوفر حالياً",
+        "sizeOutOfStock": "هذا المقاس غير متوفر حالياً"
+      },
+      "pricing": {
+        "pricesMayVary": "الأسعار قد تختلف حسب المقاس المختار"
+      }
+    },
     "defaultProducts": {
       "headphones": {
         "name": "سماعات لاسلكية احترافية",
@@ -424,7 +458,9 @@ const arTranslations = {
     "shippingPrice": "سعر الشحن",
     "deliveryOptions": "خيارات التوصيل",
     "usingFallbackProvinces": "يتم استخدام قائمة الولايات الاحتياطية",
-    "selectProvinceAndMunicipality": "اختر الولاية والبلدية لمعرفة سعر التوصيل"
+    "selectProvinceAndMunicipality": "اختر الولاية والبلدية لمعرفة سعر التوصيل",
+    "heroTitle": "أكمل طلبك الآن",
+    "heroDescription": "املأ البيانات التالية لإتمام طلبك بسهولة وأمان"
   },
   "form": {
     "fillFormToOrder": "املأ الاستمارة للطلب",
@@ -497,7 +533,31 @@ const arTranslations = {
   },
   "إرسال الطلب": "إرسال الطلب",
   "جاري إرسال الطلب...": "جاري إرسال الطلب...",
-  "تفاصيل المنتج": "تفاصيل المنتج"
+  "تفاصيل المنتج": "تفاصيل المنتج",
+  // ترجمات ProductActions
+  "productActions": {
+    "success": "تم بنجاح!",
+    "thankYou": "شكراً لثقتك",
+    "outOfStock": "غير متوفر",
+    "willNotify": "سيتم الإعلام عند التوفر",
+    "calculatingCost": "حساب التكلفة...",
+    "pleaseWait": "انتظر قليلاً...",
+    "clickToGo": "انقر للانتقال",
+    "completeRequest": "اكمل الطلب",
+    "saving": "توفير",
+    "currentlyUnavailable": "غير متوفر حالياً",
+    "productActions": "إجراءات المنتج",
+    "buyNow": "اشتري الآن",
+    "orderNow": "اطلب الآن",
+    "addToCart": "أضف للعربة",
+    "calculating": "جاري الحساب...",
+    "product": "المنتج:",
+    "delivery": "التوصيل:",
+    "totalPrice": "السعر الإجمالي:",
+    "freeDelivery": "توصيل مجاني",
+    "scrollToForm": "انتقل للنموذج",
+    "completeOrder": "إتمام الطلب"
+  }
 };
 
 const enTranslations = {
@@ -613,6 +673,40 @@ const enTranslations = {
       "outOfStock": "Out of Stock",
       "limitedQuantity": "Limited Quantity",
       "available": "Available"
+    },
+    "storeProducts": {
+      "title": "Store Products",
+      "subtitle": "Discover a diverse collection of high-quality products",
+      "searchPlaceholder": "Search in products...",
+      "allCategories": "All Categories",
+      "newest": "Newest",
+      "showingResults": "Showing {current} of {total} products",
+      "product": "product",
+      "category": "category",
+      "result": "result",
+      "previous": "Previous",
+      "next": "Next",
+      "page": "Page",
+      "of": "of",
+      "resetFilters": "Reset",
+      "activeFilters": "Active Filters",
+      "noProducts": "No Products",
+      "noProductsMessage": "No products found matching the search",
+      "noProductsAvailable": "No products available at the moment",
+      "resetFiltersButton": "Reset Filters",
+      "gridView": "Products in Grid",
+      "listView": "Products in List",
+      "stock": {
+        "outOfStock": "Out of Stock",
+        "lowStock": "Low Stock",
+        "available": "Available",
+        "productOutOfStock": "This product is currently out of stock",
+        "colorOutOfStock": "This color is currently out of stock",
+        "sizeOutOfStock": "This size is currently out of stock"
+      },
+      "pricing": {
+        "pricesMayVary": "Prices may vary based on selected size"
+      }
     },
     "defaultProducts": {
       "headphones": {
@@ -897,7 +991,9 @@ const enTranslations = {
     "currency": "DZD",
     "required": "*",
     "usingFallbackProvinces": "Using fallback provinces list",
-    "selectProvinceAndMunicipality": "Select province and municipality to know delivery price"
+    "selectProvinceAndMunicipality": "Select province and municipality to know delivery price",
+    "heroTitle": "Complete Your Order Now",
+    "heroDescription": "Fill in the following data to complete your order easily and securely"
   },
   "form": {
     "fillFormToOrder": "Fill the form to order",
@@ -970,7 +1066,31 @@ const enTranslations = {
   },
   "إرسال الطلب": "Submit Order",
   "جاري إرسال الطلب...": "Submitting Order...",
-  "تفاصيل المنتج": "Product Details"
+  "تفاصيل المنتج": "Product Details",
+  // ProductActions translations
+  "productActions": {
+    "success": "Success!",
+    "thankYou": "Thank you for your trust",
+    "outOfStock": "Out of Stock",
+    "willNotify": "We'll notify you when available",
+    "calculatingCost": "Calculating cost...",
+    "pleaseWait": "Please wait...",
+    "clickToGo": "Click to go",
+    "completeRequest": "Complete request",
+    "saving": "Save",
+    "currentlyUnavailable": "Currently unavailable",
+    "productActions": "Product Actions",
+    "buyNow": "Buy Now",
+    "orderNow": "Order Now",
+    "addToCart": "Add to Cart",
+    "calculating": "Calculating...",
+    "product": "Product:",
+    "delivery": "Delivery:",
+    "totalPrice": "Total Price:",
+    "freeDelivery": "Free Delivery",
+    "scrollToForm": "Go to Form",
+    "completeOrder": "Complete Order"
+  }
 };
 
 const frTranslations = {
@@ -1086,6 +1206,40 @@ const frTranslations = {
       "outOfStock": "Rupture de stock",
       "limitedQuantity": "Quantité limitée",
       "available": "Disponible"
+    },
+    "storeProducts": {
+      "title": "Produits du Magasin",
+      "subtitle": "Découvrez une collection diversifiée de produits de haute qualité",
+      "searchPlaceholder": "Rechercher dans les produits...",
+      "allCategories": "Toutes les Catégories",
+      "newest": "Plus Récent",
+      "showingResults": "Affichage de {current} sur {total} produits",
+      "product": "produit",
+      "category": "catégorie",
+      "result": "résultat",
+      "previous": "Précédent",
+      "next": "Suivant",
+      "page": "Page",
+      "of": "sur",
+      "resetFilters": "Réinitialiser",
+      "activeFilters": "Filtres Actifs",
+      "noProducts": "Aucun Produit",
+      "noProductsMessage": "Aucun produit trouvé correspondant à la recherche",
+      "noProductsAvailable": "Aucun produit disponible pour le moment",
+      "resetFiltersButton": "Réinitialiser les Filtres",
+      "gridView": "Produits en Grille",
+      "listView": "Produits en Liste",
+      "stock": {
+        "outOfStock": "Rupture de Stock",
+        "lowStock": "Stock Faible",
+        "available": "Disponible",
+        "productOutOfStock": "Ce produit n'est actuellement pas en stock",
+        "colorOutOfStock": "Cette couleur n'est actuellement pas en stock",
+        "sizeOutOfStock": "Cette taille n'est actuellement pas en stock"
+      },
+      "pricing": {
+        "pricesMayVary": "Les prix peuvent varier selon la taille sélectionnée"
+      }
     },
     "defaultProducts": {
       "headphones": {
@@ -1370,7 +1524,9 @@ const frTranslations = {
     "currency": "DZD",
     "required": "*",
     "usingFallbackProvinces": "Utilisation de la liste de provinces de secours",
-    "selectProvinceAndMunicipality": "Sélectionnez la wilaya et la commune pour connaître le prix de livraison"
+    "selectProvinceAndMunicipality": "Sélectionnez la wilaya et la commune pour connaître le prix de livraison",
+    "heroTitle": "Complétez Votre Commande Maintenant",
+    "heroDescription": "Remplissez les données suivantes pour finaliser votre commande facilement et en toute sécurité"
   },
   "form": {
     "fillFormToOrder": "Remplissez le formulaire pour commander",
@@ -1443,7 +1599,31 @@ const frTranslations = {
   },
   "إرسال الطلب": "Envoyer la Commande",
   "جاري إرسال الطلب...": "Envoi en cours...",
-  "تفاصيل المنتج": "Détails du Produit"
+  "تفاصيل المنتج": "Détails du Produit",
+  // Traductions ProductActions
+  "productActions": {
+    "success": "Succès !",
+    "thankYou": "Merci pour votre confiance",
+    "outOfStock": "Rupture de Stock",
+    "willNotify": "Nous vous informerons quand disponible",
+    "calculatingCost": "Calcul du coût...",
+    "pleaseWait": "Veuillez patienter...",
+    "clickToGo": "Cliquez pour aller",
+    "completeRequest": "Finaliser la demande",
+    "saving": "Économisez",
+    "currentlyUnavailable": "Actuellement indisponible",
+    "productActions": "Actions du Produit",
+    "buyNow": "Acheter Maintenant",
+    "orderNow": "Commander Maintenant",
+    "addToCart": "Ajouter au Panier",
+    "calculating": "Calcul en cours...",
+    "product": "Produit:",
+    "delivery": "Livraison:",
+    "totalPrice": "Prix Total:",
+    "freeDelivery": "Livraison Gratuite",
+    "scrollToForm": "Aller au Formulaire",
+    "completeOrder": "Finaliser la Commande"
+  }
 };
 
 const resources = {
@@ -1557,94 +1737,67 @@ const getDefaultLanguageFromDatabase = async (useImmediateCache = false): Promis
       return language;
     }
 
-    // إذا لم نجد في cache، اجلب من قاعدة البيانات
-    const supabase = getSupabaseClient();
+    // إذا لم نجد في cache، اجلب من قاعدة البيانات باستخدام API موحد
+    let targetOrgId: string | null = null;
     
-    let query;
     if (organizationId) {
-      query = supabase
-        .from('organization_settings')
-        .select('default_language, organization_id')
-        .eq('organization_id', organizationId)
-        .single();
+      targetOrgId = organizationId;
     } else {
       // للتطوير المحلي - التحقق إذا كان subdomain هو معرف مؤسسة UUID
       const isUUID = subdomain && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(subdomain);
       
       if (isUUID) {
         // إذا كان subdomain هو UUID (معرف مؤسسة)، استخدمه مباشرة
-        query = supabase
-          .from('organization_settings')
-          .select('default_language, organization_id')
-          .eq('organization_id', subdomain)
-          .single();
+        targetOrgId = subdomain;
       } else if (!subdomain) {
-        const storedOrgId = localStorage.getItem('bazaar_organization_id');
-        if (!storedOrgId) {
+        targetOrgId = localStorage.getItem('bazaar_organization_id');
+        if (!targetOrgId) {
           return 'ar'; // fallback
         }
-        
-        // استخدم organization_id المحفوظ
-        query = supabase
-          .from('organization_settings')
-          .select('default_language, organization_id')
-          .eq('organization_id', storedOrgId)
-          .single();
       } else {
         // عند الدومين المخصص: لا تبحث بـ subdomain، حاول حل المؤسسة بالدومين
         if (!isPlatform && !isLocalhost) {
           const org = await getOrganizationByDomain(currentHost).catch(() => null);
-          const resolvedOrgId = org?.id || localStorage.getItem('bazaar_organization_id');
-          if (!resolvedOrgId) return 'ar';
-          query = supabase
-            .from('organization_settings')
-            .select('default_language, organization_id')
-            .eq('organization_id', resolvedOrgId)
-            .single();
+          targetOrgId = org?.id || localStorage.getItem('bazaar_organization_id');
+          if (!targetOrgId) return 'ar';
         } else {
           // المنصة: البحث التقليدي بـ subdomain (قد يكون UUID في حالات التطوير)
           if (subdomain === 'www') {
             return 'ar';
           }
+          const supabase = getSupabaseClient();
           const { data: orgData } = await supabase
             .from('organizations')
             .select('id')
             .eq('subdomain', subdomain)
             .maybeSingle();
-          if (!orgData?.id) return 'ar';
-          query = supabase
-            .from('organization_settings')
-            .select('default_language, organization_id')
-            .eq('organization_id', orgData.id)
-            .single();
+          targetOrgId = orgData?.id;
+          if (!targetOrgId) return 'ar';
         }
       }
     }
 
-    const { data, error } = await query;
-
-    if (error) {
+    if (!targetOrgId) {
       return 'ar'; // fallback
     }
 
-    let detectedLanguage = 'ar';
-    
-    if (data) {
-      // تحديد اللغة من البيانات المجلبة - البيانات دائماً من organization_settings
-      detectedLanguage = data.default_language || 'ar';
+    // استخدام API موحد لجلب اللغة الافتراضية
+    try {
+      const { getOrganizationDefaultLanguage } = await import('@/lib/api/deduplicatedApi');
+      const detectedLanguage = await getOrganizationDefaultLanguage(targetOrgId);
 
-      // حفظ في cache - استخدم organization_id الفعلي بدلاً من subdomain
-      const actualOrgId = data.organization_id || subdomain;
+      // حفظ في cache المحلي أيضاً
       languageCache = {
         language: detectedLanguage,
         timestamp: Date.now(),
-        organizationId: actualOrgId,
+        organizationId: targetOrgId,
         fromCache: false
       };
 
+      return detectedLanguage;
+    } catch (error) {
+      return 'ar'; // fallback
     }
-
-    return detectedLanguage;
 
   } catch (error) {
     return 'ar'; // fallback

@@ -22,6 +22,10 @@ interface OptimizedAuthState {
   isOrganizationLoading: boolean;
 }
 
+// Cache محسن للمؤسسة
+const orgIdCache = new Map<string, { orgId: string | null; timestamp: number }>();
+const ORG_ID_CACHE_DURATION = 20 * 60 * 1000; // 20 دقيقة
+
 // Singleton لتجنب استدعاءات متعددة
 class AuthManager {
   private static instance: AuthManager;
@@ -30,6 +34,8 @@ class AuthManager {
   private authPromise: Promise<any> | null = null;
   private orgPromise: Promise<any> | null = null;
   private listeners: Set<(state: OptimizedAuthState) => void> = new Set();
+  private lastRequestTime: Map<string, number> = new Map();
+  private REQUEST_THROTTLE = 1000; // 1 ثانية
 
   static getInstance(): AuthManager {
     if (!AuthManager.instance) {
@@ -49,8 +55,32 @@ class AuthManager {
     this.listeners.forEach(listener => listener(state));
   }
 
+  // فحص throttling للطلبات
+  private isThrottled(key: string): boolean {
+    const lastTime = this.lastRequestTime.get(key);
+    const now = Date.now();
+    
+    if (lastTime && (now - lastTime) < this.REQUEST_THROTTLE) {
+      return true;
+    }
+    
+    this.lastRequestTime.set(key, now);
+    return false;
+  }
+
   // جلب معرف المؤسسة بطريقة محسنة
   async getOrganizationId(userId: string): Promise<string | null> {
+    // فحص cache أولاً
+    const cached = orgIdCache.get(userId);
+    if (cached && Date.now() - cached.timestamp < ORG_ID_CACHE_DURATION) {
+      return cached.orgId;
+    }
+
+    // فحص throttling
+    if (this.isThrottled(`org:${userId}`)) {
+      return cached?.orgId || null;
+    }
+
     const cacheKey = cacheKeys.userOrganization(userId);
     
     return cacheWithFallback(
@@ -68,19 +98,37 @@ class AuthManager {
         // مسح Promise بعد الانتهاء
         this.orgPromise = null;
         
+        // حفظ في cache
+        orgIdCache.set(userId, { orgId: result, timestamp: Date.now() });
+        
         return result;
       },
-      10 * 60 * 1000 // 10 minutes cache
+      15 * 60 * 1000 // 15 minutes cache
     );
   }
 
   private async fetchUserOrganization(userId: string): Promise<string | null> {
     try {
-      const { data, error } = await supabase
+      // محاولة أولى: البحث بـ auth_user_id
+      let { data, error } = await supabase
         .from('users')
         .select('organization_id')
-        .eq('id', userId)
+        .eq('auth_user_id', userId)
         .single();
+
+      // إذا فشل، جرب البحث بـ id
+      if (error || !data?.organization_id) {
+        const { data: idData, error: idError } = await supabase
+          .from('users')
+          .select('organization_id')
+          .eq('id', userId)
+          .single();
+          
+        if (!idError && idData?.organization_id) {
+          data = idData;
+          error = null;
+        }
+      }
 
       if (error) {
         return null;
@@ -94,6 +142,11 @@ class AuthManager {
 
   // جلب بيانات المؤسسة
   async getOrganizationData(orgId: string): Promise<any> {
+    // فحص throttling
+    if (this.isThrottled(`orgData:${orgId}`)) {
+      return null;
+    }
+
     const cacheKey = cacheKeys.organization(orgId);
     
     return cacheWithFallback(
@@ -101,9 +154,9 @@ class AuthManager {
       cacheKey,
       async () => {
         const { data, error } = await supabase
-          .from('organizations')
-          .select('*')
-          .eq('id', orgId)
+          .from('organization_settings')
+          .select('merchant_type')
+          .eq('organization_id', orgId)
           .single();
 
         if (error) {
@@ -112,7 +165,7 @@ class AuthManager {
 
         return data;
       },
-      15 * 60 * 1000 // 15 minutes cache
+      20 * 60 * 1000 // 20 minutes cache
     );
   }
 
@@ -121,11 +174,31 @@ class AuthManager {
     userCache.delete(cacheKeys.user(userId));
     userCache.delete(cacheKeys.userOrganization(userId));
     authCache.delete(cacheKeys.auth(userId));
+    orgIdCache.delete(userId);
   }
 
   // مسح cache للمؤسسة
   clearOrganizationCache(orgId: string) {
     organizationCache.deleteByPrefix(`org:${orgId}`);
+  }
+
+  // تنظيف cache منتهي الصلاحية
+  cleanupExpiredCache() {
+    const now = Date.now();
+    
+    // تنظيف orgIdCache
+    for (const [userId, data] of orgIdCache.entries()) {
+      if (now - data.timestamp > ORG_ID_CACHE_DURATION) {
+        orgIdCache.delete(userId);
+      }
+    }
+
+    // تنظيف lastRequestTime
+    for (const [key, timestamp] of this.lastRequestTime.entries()) {
+      if (now - timestamp > this.REQUEST_THROTTLE * 2) {
+        this.lastRequestTime.delete(key);
+      }
+    }
   }
 }
 
@@ -143,9 +216,39 @@ export function useOptimizedAuth(): OptimizedAuthState {
 
   const authManager = useMemo(() => AuthManager.getInstance(), []);
 
+  // تنظيف cache دوري
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      authManager.cleanupExpiredCache();
+    }, 10 * 60 * 1000); // زيادة من 5 دقائق إلى 10 دقائق
+
+    return () => clearInterval(cleanupInterval);
+  }, [authManager]);
+
   // دالة محسنة لجلب معرف المؤسسة
   const fetchOrganizationId = useCallback(async (userId: string) => {
     if (!userId) return;
+
+    // فحص cache أولاً
+    const cached = orgIdCache.get(userId);
+    if (cached && Date.now() - cached.timestamp < ORG_ID_CACHE_DURATION) {
+      setState(prev => ({ 
+        ...prev, 
+        organizationId: cached.orgId,
+        isOrganizationLoading: false 
+      }));
+
+      // جلب بيانات المؤسسة إذا وُجد معرفها
+      if (cached.orgId) {
+        try {
+          const orgData = await authManager.getOrganizationData(cached.orgId);
+          setState(prev => ({ ...prev, organizationData: orgData }));
+        } catch (error) {
+          // تجاهل الأخطاء في جلب بيانات المؤسسة
+        }
+      }
+      return;
+    }
 
     setState(prev => ({ ...prev, isOrganizationLoading: true, error: null }));
 
@@ -160,8 +263,12 @@ export function useOptimizedAuth(): OptimizedAuthState {
 
       // جلب بيانات المؤسسة إذا وُجد معرفها
       if (orgId) {
-        const orgData = await authManager.getOrganizationData(orgId);
-        setState(prev => ({ ...prev, organizationData: orgData }));
+        try {
+          const orgData = await authManager.getOrganizationData(orgId);
+          setState(prev => ({ ...prev, organizationData: orgData }));
+        } catch (error) {
+          // تجاهل الأخطاء في جلب بيانات المؤسسة
+        }
       }
     } catch (error) {
       setState(prev => ({ 
@@ -182,24 +289,26 @@ export function useOptimizedAuth(): OptimizedAuthState {
         isLoading: false,
       }));
 
-             // جلب معرف المؤسسة فقط إذا لم يكن محفوظاً
-       const cachedOrgId = userCache.get<string>(cacheKeys.userOrganization(user.id));
-       if (cachedOrgId) {
-         setState(prev => ({ ...prev, organizationId: cachedOrgId }));
-         
-         // جلب بيانات المؤسسة إذا كانت محفوظة في cache
-         const cachedOrgData = organizationCache.get(cacheKeys.organization(cachedOrgId));
-         if (cachedOrgData) {
-           setState(prev => ({ ...prev, organizationData: cachedOrgData }));
-         } else {
-           authManager.getOrganizationData(cachedOrgId).then(orgData => {
-             setState(prev => ({ ...prev, organizationData: orgData }));
-           }).catch(error => {
-           });
-         }
-       } else {
-         fetchOrganizationId(user.id);
-       }
+      // جلب معرف المؤسسة فقط إذا لم يكن محفوظاً
+      const cachedOrgId = orgIdCache.get(user.id);
+      if (cachedOrgId && Date.now() - cachedOrgId.timestamp < ORG_ID_CACHE_DURATION) {
+        setState(prev => ({ ...prev, organizationId: cachedOrgId.orgId }));
+        
+        // جلب بيانات المؤسسة إذا كانت محفوظة في cache
+        const cachedOrgData = organizationCache.get(cacheKeys.organization(cachedOrgId.orgId || ''));
+        if (cachedOrgData) {
+          setState(prev => ({ ...prev, organizationData: cachedOrgData }));
+        } else if (cachedOrgId.orgId) {
+          // جلب البيانات في الخلفية - إزالة setTimeout
+          authManager.getOrganizationData(cachedOrgId.orgId).then(orgData => {
+            setState(prev => ({ ...prev, organizationData: orgData }));
+          }).catch(error => {
+            // تجاهل الأخطاء
+          });
+        }
+      } else {
+        fetchOrganizationId(user.id);
+      }
     } else if (!user && state.userId) {
       // تسجيل الخروج - مسح البيانات
       setState({
@@ -214,7 +323,7 @@ export function useOptimizedAuth(): OptimizedAuthState {
     } else if (!authLoading && !user) {
       setState(prev => ({ ...prev, isLoading: false }));
     }
-  }, [user, authLoading, state.userId]); // إزالة fetchOrganizationId و authManager من dependencies
+  }, [user, authLoading, state.userId, fetchOrganizationId, authManager]);
 
   return state;
 }

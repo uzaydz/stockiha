@@ -84,30 +84,7 @@ const GlobalScannerIndicator: React.FC<GlobalScannerIndicatorProps> = ({
           </motion.div>
         )}
       </AnimatePresence>
-      
-      {/* مساعدة للمستخدم */}
-              {isEnabled && !isProcessing && !currentBuffer && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 2 }}
-          className="absolute top-full mt-2 left-0 min-w-max"
-        >
-          <div className="bg-black/80 text-white text-xs px-2 py-1 rounded shadow-lg space-y-1">
-            <div className="flex items-center gap-1">
-              📷 امسح أي باركود في أي مكان بالصفحة
-            </div>
-            {isReady && (
-              <div className="flex items-center gap-2 text-green-300">
-                <Database className="h-3 w-3" />
-                <span>{totalCount.toLocaleString()} منتج محمل محلياً</span>
-                <Zap className="h-3 w-3" />
-                <span>بحث فوري</span>
-              </div>
-            )}
-          </div>
-        </motion.div>
-      )}
+
     </div>
   );
 };

@@ -1,7 +1,7 @@
 // API محسن للمخزون مع cache وتقليل الاستدعاءات
 // Optimized Inventory API with Caching
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { 
   inventoryCache, 
@@ -108,11 +108,26 @@ class OptimizedInventoryAPI {
       userCache,
       cacheKey,
       async () => {
-        const { data, error } = await supabase
+        // محاولة أولى: البحث بـ auth_user_id
+        let { data, error } = await supabase
           .from('users')
           .select('organization_id')
-          .eq('id', user.id)
+          .eq('auth_user_id', user.id)
           .single();
+
+        // إذا فشل، جرب البحث بـ id
+        if (error || !data?.organization_id) {
+          const { data: idData, error: idError } = await supabase
+            .from('users')
+            .select('organization_id')
+            .eq('id', user.id)
+            .single();
+            
+          if (!idError && idData?.organization_id) {
+            data = idData;
+            error = null;
+          }
+        }
 
         if (error || !data?.organization_id) {
           throw new Error('Organization not found');
@@ -361,24 +376,78 @@ export function useOptimizedInventoryProducts(filters: InventoryFilters = {}) {
   const [products, setProducts] = useState<InventoryProduct[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastFetchTime, setLastFetchTime] = useState<number>(0);
+
+  // Cache محسن للمنتجات
+  const productsCache = useMemo(() => new Map<string, { data: InventoryProduct[]; timestamp: number }>(), []);
+  const CACHE_DURATION = 5 * 60 * 1000; // 5 دقائق
+
+  const getCacheKey = useCallback((filters: InventoryFilters) => {
+    return `products:${JSON.stringify(filters)}`;
+  }, []);
+
+  const getCachedProducts = useCallback((filters: InventoryFilters) => {
+    const cacheKey = getCacheKey(filters);
+    const cached = productsCache.get(cacheKey);
+    
+    if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+      return cached.data;
+    }
+    
+    return null;
+  }, [productsCache, getCacheKey]);
+
+  const setCachedProducts = useCallback((filters: InventoryFilters, data: InventoryProduct[]) => {
+    const cacheKey = getCacheKey(filters);
+    productsCache.set(cacheKey, { data, timestamp: Date.now() });
+  }, [productsCache, getCacheKey]);
 
   const fetchProducts = useCallback(async () => {
+    // فحص cache أولاً
+    const cached = getCachedProducts(filters);
+    if (cached) {
+      setProducts(cached);
+      return;
+    }
+
+    // فحص throttling
+    const now = Date.now();
+    if (now - lastFetchTime < 2000) { // 2 ثانية
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
+    setLastFetchTime(now);
 
     try {
       const data = await optimizedInventoryAPI.getInventoryProducts(filters);
       setProducts(data);
+      setCachedProducts(filters, data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'خطأ في جلب المنتجات');
     } finally {
       setIsLoading(false);
     }
-  }, [filters]);
+  }, [filters, getCachedProducts, setCachedProducts, lastFetchTime]);
 
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
+
+  // تنظيف cache دوري
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      const now = Date.now();
+      for (const [key, value] of productsCache.entries()) {
+        if (now - value.timestamp > CACHE_DURATION) {
+          productsCache.delete(key);
+        }
+      }
+    }, 5 * 60 * 1000); // زيادة من دقيقتين إلى 5 دقائق
+
+    return () => clearInterval(cleanupInterval);
+  }, [productsCache]);
 
   return { products, isLoading, error, refetch: fetchProducts };
 }
@@ -387,24 +456,72 @@ export function useOptimizedInventoryStats() {
   const [stats, setStats] = useState<InventoryStats | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastFetchTime, setLastFetchTime] = useState<number>(0);
+
+  // Cache محسن للإحصائيات
+  const statsCache = useMemo(() => new Map<string, { data: InventoryStats; timestamp: number }>(), []);
+  const STATS_CACHE_DURATION = 15 * 60 * 1000; // زيادة من 10 دقائق إلى 15 دقيقة
+
+  const getCachedStats = useCallback(() => {
+    const cached = statsCache.get('global');
+    
+    if (cached && Date.now() - cached.timestamp < STATS_CACHE_DURATION) {
+      return cached.data;
+    }
+    
+    return null;
+  }, [statsCache]);
+
+  const setCachedStats = useCallback((data: InventoryStats) => {
+    statsCache.set('global', { data, timestamp: Date.now() });
+  }, [statsCache]);
 
   const fetchStats = useCallback(async () => {
+    // فحص cache أولاً
+    const cached = getCachedStats();
+    if (cached) {
+      setStats(cached);
+      return;
+    }
+
+    // فحص throttling
+    const now = Date.now();
+    if (now - lastFetchTime < 10000) { // زيادة من 5 ثانية إلى 10 ثانية
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
+    setLastFetchTime(now);
 
     try {
       const data = await optimizedInventoryAPI.getInventoryStats();
       setStats(data);
+      setCachedStats(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'خطأ في جلب الإحصائيات');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [getCachedStats, setCachedStats, lastFetchTime]);
 
   useEffect(() => {
     fetchStats();
   }, [fetchStats]);
+
+  // تنظيف cache دوري
+  useEffect(() => {
+    const cleanupInterval = setInterval(() => {
+      const now = Date.now();
+      for (const [key, value] of statsCache.entries()) {
+        if (now - value.timestamp > STATS_CACHE_DURATION) {
+          statsCache.delete(key);
+        }
+      }
+    }, 10 * 60 * 1000); // زيادة من 5 دقائق إلى 10 دقائق
+
+    return () => clearInterval(cleanupInterval);
+  }, [statsCache]);
 
   return { stats, isLoading, error, refetch: fetchStats };
 }

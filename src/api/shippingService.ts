@@ -135,7 +135,7 @@ export interface IShippingService {
 /**
  * Base class for shipping services
  */
-abstract class BaseShippingService implements IShippingService {
+export abstract class BaseShippingService implements IShippingService {
   protected providerCode: ShippingProvider;
   protected baseUrl: string;
   protected credentials: ProviderCredentials;
@@ -364,15 +364,9 @@ export class YalidineShippingService extends BaseShippingService {
     try {
       // قد يحتاج API ياليدين البيانات في مصفوفة أو كائن مخصص
       const requestBody = [params]; // جرب إرسال البيانات كمصفوفة
-      console.log('🚀 Yalidine API request body:', requestBody);
       const response = await this.apiClient.post('parcels', requestBody);
-      console.log('🚀 Yalidine API response:', response.data);
-      console.log('🚀 Yalidine API response status:', response.status);
       return response.data;
     } catch (error: any) {
-      console.error('❌ Yalidine API error:', error);
-      console.error('❌ Yalidine API error response:', error.response?.data);
-      console.error('❌ Yalidine API error status:', error.response?.status);
       throw error;
     }
   }

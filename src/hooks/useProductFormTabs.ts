@@ -20,7 +20,6 @@ interface UseProductFormTabsProps {
   watchHasVariants: boolean;
   watchPrice: number;
   watchPurchasePrice: number;
-  watchIsActive: boolean;
   watchThumbnailImage: string | undefined;
   productColors: ProductColor[];
   organizationId: string;
@@ -31,7 +30,6 @@ export const useProductFormTabs = ({
   watchHasVariants,
   watchPrice,
   watchPurchasePrice,
-  watchIsActive,
   watchThumbnailImage,
   productColors,
   organizationId,
@@ -54,6 +52,8 @@ export const useProductFormTabs = ({
 
   // Enhanced tab status calculation
   const getTabStatus = useCallback((tabValue: string): TabStatus => {
+    // Debug logging
+    
     switch (tabValue) {
       case 'basic': {
         const requiredFields = [watchName, watchCategory, watchSku];
@@ -73,7 +73,9 @@ export const useProductFormTabs = ({
       case 'special_offers':
         return 'optional';
       case 'variants':
-        if (!watchHasVariants) return 'optional';
+        if (!watchHasVariants) {
+          return 'optional';
+        }
         return productColors.length > 0 ? 'complete' : 'empty';
       case 'shipping_templates':
         return 'optional';

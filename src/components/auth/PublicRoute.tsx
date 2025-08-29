@@ -8,11 +8,42 @@ type PublicRouteProps = {
 };
 
 const PublicRoute = ({ children, redirectTo = '/dashboard' }: PublicRouteProps) => {
-  const { user, userProfile, isLoading } = useAuth();
   const location = useLocation();
+
+  // السماح دائماً بعرض صفحات استرجاع/إعادة تعيين كلمة المرور حتى لو كان المستخدم مسجلاً الدخول
+  // وكذلك عند وجود أخطاء/معلمات الاسترجاع في الرابط القادم من Supabase
+  const currentPath = location.pathname;
+  const allowAnonymousEvenIfLoggedIn = (
+    currentPath === '/reset-password' ||
+    currentPath === '/forgot-password' ||
+    location.search.includes('type=recovery') ||
+    location.hash.includes('type=recovery') ||
+    location.hash.includes('error=') ||
+    location.hash.includes('error_code=')
+  );
+
+  // محاولة استخدام useAuth مع معالجة الخطأ
+  let authData = null;
+  let isLoading = false;
+
+  try {
+    const auth = useAuth();
+    authData = auth;
+    isLoading = auth.isLoading;
+  } catch (error) {
+    // إذا لم يكن AuthProvider متاحاً، نعرض المحتوى مباشرة
+    return <>{children}</>;
+  }
+
+  const { user, userProfile } = authData || {};
 
   // إذا كان التحميل جارياً، نعرض المحتوى
   if (isLoading) {
+    return <>{children}</>;
+  }
+
+  // لا تقم بإعادة التوجيه القسري في صفحات الاسترجاع أو عند وجود أخطاء/معلمات الاسترجاع
+  if (allowAnonymousEvenIfLoggedIn) {
     return <>{children}</>;
   }
 
@@ -29,7 +60,7 @@ const PublicRoute = ({ children, redirectTo = '/dashboard' }: PublicRouteProps) 
         targetPath = '/dashboard';
         break;
       case 'employee':
-        targetPath = '/pos';
+        targetPath = '/dashboard';
         break;
       case 'customer':
         targetPath = '/shop';

@@ -28,6 +28,8 @@ import { useLandingPage } from './hooks/useLandingPage';
 import { FormFieldRenderer } from './FormFieldRenderer';
 import { FormSuccessMessage } from './FormSuccessMessage';
 import { ProductSummary } from './ProductSummary';
+import ColorSelector from '@/components/product/form/ColorSelector';
+import SizeSelector from '@/components/product/form/SizeSelector';
 
 // قائمة الولايات الجزائرية
 const PROVINCES = [
@@ -49,9 +51,13 @@ const MUNICIPALITIES: { [province: string]: string[] } = {
 interface FormComponentProps {
   settings: Record<string, any>;
   landingPageId?: string;
+  landingPageDetails?: {
+    id: string;
+    organization_id: string;
+  } | null;
 }
 
-const FormComponent: React.FC<FormComponentProps> = React.memo(({ settings, landingPageId }) => {
+const FormComponent: React.FC<FormComponentProps> = React.memo(({ settings, landingPageId, landingPageDetails: propLandingPageDetails }) => {
   const formRef = useRef<HTMLFormElement>(null);
   const { slug } = useParams<{ slug: string }>();
   const { supabase } = useSupabase();
@@ -64,10 +70,14 @@ const FormComponent: React.FC<FormComponentProps> = React.memo(({ settings, land
     fetchFormFields
   } = useFormFields(settings.formId);
   
+  // استخدام البيانات المُمررة إذا كانت متاحة، وإلا استخدم الـ hook
   const {
-    landingPageDetails,
+    landingPageDetails: hookLandingPageDetails,
     fetchLandingPageDetails
   } = useLandingPage(landingPageId, slug);
+  
+  // تحديد البيانات النهائية
+  const landingPageDetails = propLandingPageDetails || hookLandingPageDetails;
   
   // الحالات
   const [formData, setFormData] = useState<Record<string, any>>({});
@@ -78,12 +88,17 @@ const FormComponent: React.FC<FormComponentProps> = React.memo(({ settings, land
   const [availableMunicipalities, setAvailableMunicipalities] = useState<{[key: string]: string[]}>({});
   const [productDetails, setProductDetails] = useState<any>(null);
   const [isLoadingProduct, setIsLoadingProduct] = useState(false);
+  const [selectedColor, setSelectedColor] = useState<any>(null);
+  const [selectedSize, setSelectedSize] = useState<any>(null);
   
   // جلب البيانات عند تحميل المكون
   useEffect(() => {
     fetchFormFields();
-    fetchLandingPageDetails();
-  }, [fetchFormFields, fetchLandingPageDetails]);
+    // جلب بيانات صفحة الهبوط فقط إذا لم تكن متاحة بالفعل
+    if (!propLandingPageDetails) {
+      fetchLandingPageDetails();
+    }
+  }, [fetchFormFields, fetchLandingPageDetails, propLandingPageDetails]);
   
   // جلب بيانات المنتج عند تغيير المنتج المحدد
   useEffect(() => {
@@ -101,7 +116,8 @@ const FormComponent: React.FC<FormComponentProps> = React.memo(({ settings, land
           .select(`
             id, name, description, price, compare_at_price, thumbnail_image,
             has_fast_shipping, has_money_back, has_quality_guarantee,
-            fast_shipping_text, money_back_text, quality_guarantee_text
+            fast_shipping_text, money_back_text, quality_guarantee_text,
+            has_variants
           `)
           .eq('id', settings.productId)
           .single();
@@ -109,6 +125,63 @@ const FormComponent: React.FC<FormComponentProps> = React.memo(({ settings, land
         if (error) throw error;
         
         if (data) {
+          // جلب الألوان والمقاسات إذا كان المنتج يدعم المتغيرات
+          if (data.has_variants) {
+
+            const { data: colorsData, error: colorsError } = await supabase
+              .from('product_colors')
+              .select(`
+                id, name, color_code, price, is_default, image_url,
+                has_sizes, quantity,
+                sizes:product_sizes(id, size_name, price, quantity)
+              `)
+              .eq('product_id', settings.productId)
+              .order('is_default', { ascending: false });
+
+            if (colorsError) {
+
+              // محاولة جلب الألوان بدون العلاقات
+              const { data: simpleColorsData, error: simpleColorsError } = await supabase
+                .from('product_colors')
+                .select('id, name, color_code, price, is_default, image_url, has_sizes, quantity')
+                .eq('product_id', settings.productId)
+                .order('is_default', { ascending: false });
+
+              if (!simpleColorsError && simpleColorsData) {
+                // جلب المقاسات لكل لون منفصلاً
+                for (const color of simpleColorsData) {
+                  if (color.has_sizes) {
+                    const { data: sizesData } = await supabase
+                      .from('product_sizes')
+                      .select('id, size_name, price, quantity')
+                      .eq('color_id', color.id);
+                    (color as any).sizes = sizesData || [];
+                  }
+                }
+                (data as any).colors = simpleColorsData;
+              }
+            } else if (colorsData) {
+              (data as any).colors = colorsData;
+              
+            }
+
+            // تحديد اللون الافتراضي (بغض النظر عن طريقة الجلب)
+            const finalColors = data.colors;
+            if (finalColors && finalColors.length > 0) {
+              const defaultColor = finalColors.find(c => c.is_default) || finalColors[0];
+              if (defaultColor) {
+                setSelectedColor(defaultColor);
+                setFormData(prev => ({ ...prev, product_color: defaultColor.id }));
+                
+                // تحديد المقاس الافتراضي إذا كان متاحاً
+                if (defaultColor.sizes && defaultColor.sizes.length > 0) {
+                  setSelectedSize(defaultColor.sizes[0]);
+                  setFormData(prev => ({ ...prev, product_size: defaultColor.sizes[0].id }));
+                }
+              }
+            }
+          }
+          
           setProductDetails(data);
         }
       } catch (error) {
@@ -345,6 +418,33 @@ const FormComponent: React.FC<FormComponentProps> = React.memo(({ settings, land
     }
   }, []);
   
+  // معالج اختيار الألوان
+  const handleColorSelect = useCallback((colorId: string) => {
+    const color = productDetails?.colors?.find((c: any) => c.id === colorId);
+    if (color) {
+      setSelectedColor(color);
+      setFormData(prev => ({ ...prev, product_color: colorId }));
+      
+      // إعادة تعيين المقاس عند تغيير اللون
+      if (color.sizes && color.sizes.length > 0) {
+        setSelectedSize(color.sizes[0]);
+        setFormData(prev => ({ ...prev, product_size: color.sizes[0].id }));
+      } else {
+        setSelectedSize(null);
+        setFormData(prev => ({ ...prev, product_size: '' }));
+      }
+    }
+  }, [productDetails?.colors]);
+
+  // معالج اختيار المقاسات
+  const handleSizeSelect = useCallback((sizeId: string) => {
+    const size = selectedColor?.sizes?.find((s: any) => s.id === sizeId);
+    if (size) {
+      setSelectedSize(size);
+      setFormData(prev => ({ ...prev, product_size: sizeId }));
+    }
+  }, [selectedColor?.sizes]);
+  
   // تنميط الحقل بناءً على نوعه - نقل إلى مكون منفصل
   const renderField = useCallback((field: any) => {
     return (
@@ -423,8 +523,41 @@ const FormComponent: React.FC<FormComponentProps> = React.memo(({ settings, land
                 <ProductSummary 
                   productDetails={productDetails} 
                   isLoading={isLoadingProduct}
+                  selectedColor={selectedColor}
+                  selectedSize={selectedSize}
                 />
               </Suspense>
+            )}
+
+            {/* اختيار الألوان والمقاسات */}
+            {productDetails?.has_variants && productDetails?.colors?.length > 0 && (
+              <div className="space-y-4 mb-6">
+                {/* اختيار الألوان */}
+                <div>
+                  <ColorSelector
+                    colors={productDetails.colors}
+                    selectedValue={formData.product_color || ''}
+                    onSelect={handleColorSelect}
+                    disabled={isLoading}
+                    errors={{}}
+                    touched={{}}
+                  />
+                </div>
+
+                {/* اختيار المقاسات */}
+                {selectedColor?.sizes?.length > 0 && (
+                  <div>
+                    <SizeSelector
+                      sizes={selectedColor.sizes}
+                      selectedValue={formData.product_size || ''}
+                      onSelect={handleSizeSelect}
+                      disabled={isLoading}
+                      errors={{}}
+                      touched={{}}
+                    />
+                  </div>
+                )}
+              </div>
             )}
             
             <form 

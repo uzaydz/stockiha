@@ -12,6 +12,7 @@
 @import './components/landing-page-builder/styles/cta-button.css';
 @import './styles/apps-management.css';
 @import './styles/advanced-description.css';
+@import './components/ui/global-dropdown-fix.css';
 
 /* 🎨 تعريفات خطوط Tajawal المحلية - أولوية عالية مع أكثر من مسار */
 @font-face {
@@ -78,46 +79,10 @@
 @tailwind components;
 @tailwind utilities;
 
-/* 🎯 تطبيق خط Tajawal بأولوية عالية جداً - بدون @layer لتجنب مشاكل Lazy Loading */
-html, body, *, *::before, *::after {
-  font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
-}
+/* الخط يطبق عبر body فقط لتفادي التعارضات */
 
-/* 🔧 إعدادات خاصة للعناصر الشائعة */
-h1, h2, h3, h4, h5, h6, p, span, div, a, button, input, textarea, select, label {
-  font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
-}
-
-/* 🚀 إجبار خاص للعناصر التي قد تتداخل */
-.properties-panel-rtl, .properties-panel-enhanced, [class*="properties"], [class*="panel"] {
-  font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
-}
-
-/* 💪 إجبار أقوى للعناصر العنيدة */
-[style*="font-family"] {
-  font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
-}
-
-/* 🎯 تطبيق خط Tajawal في @layer base للتوافق مع Tailwind */
+/* إزالة فرض الخطوط العام داخل طبقة base */
 @layer base {
-  html, body, *, *::before, *::after {
-    font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
-  }
-  
-  /* 🔧 إعدادات خاصة للعناصر الشائعة */
-  h1, h2, h3, h4, h5, h6, p, span, div, a, button, input, textarea, select, label {
-    font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
-  }
-  
-  /* 🚀 إجبار خاص للعناصر التي قد تتداخل */
-  .properties-panel-rtl, .properties-panel-enhanced, [class*="properties"], [class*="panel"] {
-    font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
-  }
-  
-  /* 💪 إجبار أقوى للعناصر العنيدة */
-  [style*="font-family"] {
-    font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
-  }
 }
 
 /* Custom gradient utilities */
@@ -147,12 +112,13 @@ h1, h2, h3, h4, h5, h6, p, span, div, a, button, input, textarea, select, label 
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 210 40% 98%;
-    --primary-hover: 217.2 91.2% 45%;
-    --primary-hover-foreground: 210 40% 98%;
-    --primary-lighter: 217.2 91.2% 85%;
-    --primary-darker: 217.2 91.2% 35%;
+    /* اللون الأساسي البرتقالي - محسن للتباين والوضوح */
+    --primary: 15 96% 62%;  /* #fc5d41 */
+    --primary-foreground: 0 0% 100%;  /* أبيض للنص */
+    --primary-hover: 15 84% 55%;  /* #e04e2f */
+    --primary-hover-foreground: 0 0% 100%;
+    --primary-lighter: 15 96% 85%;  /* نسخة فاتحة */
+    --primary-darker: 15 76% 45%;  /* نسخة داكنة */
 
     --secondary: 210 40% 96%;
     --secondary-foreground: 222.2 84% 4.9%;
@@ -170,19 +136,19 @@ h1, h2, h3, h4, h5, h6, p, span, div, a, button, input, textarea, select, label 
 
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 217.2 91.2% 59.8%;
+    --ring: 15 96% 62%;  /* تحديث إلى اللون البرتقالي */
 
     --radius: 0.75rem;
 
     /* متغيرات الشريط الجانبي */
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 222.2 84% 4.9%;
-    --sidebar-primary: 217.2 91.2% 59.8%;
+    --sidebar-primary: 15 96% 62%;  /* تحديث إلى اللون البرتقالي */
     --sidebar-primary-foreground: 210 40% 98%;
     --sidebar-accent: 210 40% 96%;
     --sidebar-accent-foreground: 222.2 84% 4.9%;
     --sidebar-border: 214.3 31.8% 91.4%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-ring: 15 96% 62%;  /* تحديث إلى اللون البرتقالي */
 
     /* متغيرات مخصصة للانتقالات السريعة */
     --theme-transition-duration: 0.15s;
@@ -200,10 +166,11 @@ h1, h2, h3, h4, h5, h6, p, span, div, a, button, input, textarea, select, label 
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
 
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 210 40% 98%;
-    --primary-lighter: 217.2 91.2% 85%;
-    --primary-darker: 217.2 91.2% 35%;
+    /* اللون الأساسي البرتقالي - الوضع الفاتح */
+    --primary: 15 96% 62%;  /* #fc5d41 */
+    --primary-foreground: 0 0% 100%;
+    --primary-lighter: 15 96% 85%;
+    --primary-darker: 15 76% 45%;
 
     --secondary: 210 40% 96%;
     --secondary-foreground: 222.2 84% 4.9%;
@@ -219,74 +186,102 @@ h1, h2, h3, h4, h5, h6, p, span, div, a, button, input, textarea, select, label 
 
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 217.2 91.2% 59.8%;
+    --ring: 15 96% 62%;  /* تحديث إلى اللون البرتقالي */
 
     /* الشريط الجانبي - الوضع الفاتح */
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 222.2 84% 4.9%;
-    --sidebar-primary: 217.2 91.2% 59.8%;
+    --sidebar-primary: 15 96% 62%;  /* تحديث إلى اللون البرتقالي */
     --sidebar-primary-foreground: 210 40% 98%;
     --sidebar-accent: 210 40% 96%;
     --sidebar-accent-foreground: 222.2 84% 4.9%;
     --sidebar-border: 214.3 31.8% 91.4%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-ring: 15 96% 62%;  /* تحديث إلى اللون البرتقالي */
   }
 
   .dark {
     /* الوضع الداكن - ألوان محسنة ومتباينة */
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
-
     --card: 222.2 84% 4.9%;
     --card-foreground: 210 40% 98%;
-
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
-
-    --primary: 217.2 91.2% 59.8%;
+    --primary: 15 96% 62%;  /* تحديث إلى اللون البرتقالي */
     --primary-foreground: 210 40% 98%;
-    --primary-lighter: 217.2 91.2% 75%;
-    --primary-darker: 217.2 91.2% 45%;
-
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
-
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
-
     --accent: 217.2 32.6% 17.5%;
     --accent-foreground: 210 40% 98%;
-
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
-    --ring: 217.2 91.2% 59.8%;
-
-    /* الشريط الجانبي - الوضع الداكن */
+    --ring: 15 96% 62%;  /* تحديث إلى اللون البرتقالي */
     --sidebar-background: 222.2 84% 4.9%;
     --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 217.2 91.2% 59.8%;
+    --sidebar-primary: 15 96% 62%;  /* تحديث إلى اللون البرتقالي */
     --sidebar-primary-foreground: 222.2 84% 4.9%;
     --sidebar-accent: 217.2 32.6% 17.5%;
     --sidebar-accent-foreground: 210 40% 98%;
     --sidebar-border: 217.2 32.6% 17.5%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-ring: 15 96% 62%;  /* تحديث إلى اللون البرتقالي */
   }
 
-  /* تحسين الانتقالات لتكون سريعة جداً */
-  * {
-    @apply border-border;
-  }
+  /* إزالة تطبيق border على جميع العناصر لتجنب الoverrides العامة */
 
-  /* تحسين الجسم الرئيسي */
+  /* تحسين الجسم الرئيسي مع انتقالات محسنة */
   body {
     @apply bg-background text-foreground;
     font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
     transition: background-color var(--theme-transition-duration) var(--theme-transition-timing),
-                color var(--theme-transition-duration) var(--theme-transition-timing);
+                color var(--theme-transition-duration) var(--theme-transition-timing),
+                border-color var(--theme-transition-duration) var(--theme-transition-timing),
+                box-shadow var(--theme-transition-duration) var(--theme-transition-timing);
     color-scheme: light dark;
+  }
+
+  /* تحسين انتقالات الثيم مع منع forced reflow */
+  :root {
+    --theme-transition-duration: 0.1s;
+    --theme-transition-timing: ease-out;
+  }
+
+  /* انتقالات محسنة للعناصر الرئيسية فقط */
+  .theme-transition-element {
+    transition: background-color var(--theme-transition-duration) var(--theme-transition-timing),
+                color var(--theme-transition-duration) var(--theme-transition-timing),
+                border-color var(--theme-transition-duration) var(--theme-transition-timing) !important;
+    will-change: background-color, color, border-color;
+  }
+
+  /* تحسين انتقالات خاصة للعناصر الشائعة */
+  .bg-background, .bg-card, .bg-popover {
+    transition: background-color var(--theme-transition-duration) var(--theme-transition-timing) !important;
+  }
+
+  .text-foreground, .text-muted-foreground {
+    transition: color var(--theme-transition-duration) var(--theme-transition-timing) !important;
+  }
+
+  .border, .border-border {
+    transition: border-color var(--theme-transition-duration) var(--theme-transition-timing) !important;
+  }
+
+
+
+  /* تحسين الأداء للعناصر المتحركة */
+  .theme-animated {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    perspective: 1000px;
+  }
+
+  /* تحسينات آمنة للأداء دون التأثير على التمرير */
+  .theme-dynamic {
+    will-change: background-color, color, border-color;
   }
 
   /* 🔧 إجبار تطبيق خط Tajawal على جميع العناصر */
@@ -339,7 +334,7 @@ h1, h2, h3, h4, h5, h6, p, span, div, a, button, input, textarea, select, label 
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-    --primary: 217.2 91.2% 59.8%;
+    --primary: 15 96% 62%;  /* تحديث إلى اللون البرتقالي */
     --primary-foreground: 210 40% 98%;
     --secondary: 210 40% 96%;
     --secondary-foreground: 222.2 84% 4.9%;
@@ -351,15 +346,15 @@ h1, h2, h3, h4, h5, h6, p, span, div, a, button, input, textarea, select, label 
     --destructive-foreground: 210 40% 98%;
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 217.2 91.2% 59.8%;
+    --ring: 15 96% 62%;  /* تحديث إلى اللون البرتقالي */
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 222.2 84% 4.9%;
-    --sidebar-primary: 217.2 91.2% 59.8%;
+    --sidebar-primary: 15 96% 62%;  /* تحديث إلى اللون البرتقالي */
     --sidebar-primary-foreground: 210 40% 98%;
     --sidebar-accent: 210 40% 96%;
     --sidebar-accent-foreground: 222.2 84% 4.9%;
     --sidebar-border: 214.3 31.8% 91.4%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-ring: 15 96% 62%;  /* تحديث إلى اللون البرتقالي */
   }
   
   [data-theme="dark"] {
@@ -369,7 +364,7 @@ h1, h2, h3, h4, h5, h6, p, span, div, a, button, input, textarea, select, label 
     --card-foreground: 210 40% 98%;
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
+    --primary: 15 96% 62%;  /* تحديث إلى اللون البرتقالي */
     --primary-foreground: 210 40% 98%;
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
@@ -381,15 +376,15 @@ h1, h2, h3, h4, h5, h6, p, span, div, a, button, input, textarea, select, label 
     --destructive-foreground: 210 40% 98%;
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
-    --ring: 217.2 91.2% 59.8%;
+    --ring: 15 96% 62%;  /* تحديث إلى اللون البرتقالي */
     --sidebar-background: 222.2 84% 4.9%;
     --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 217.2 91.2% 59.8%;
+    --sidebar-primary: 15 96% 62%;  /* تحديث إلى اللون البرتقالي */
     --sidebar-primary-foreground: 222.2 84% 4.9%;
     --sidebar-accent: 217.2 32.6% 17.5%;
     --sidebar-accent-foreground: 210 40% 98%;
     --sidebar-border: 217.2 32.6% 17.5%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-ring: 15 96% 62%;  /* تحديث إلى اللون البرتقالي */
   }
 }
 
@@ -397,14 +392,16 @@ h1, h2, h3, h4, h5, h6, p, span, div, a, button, input, textarea, select, label 
   /* أزرار محسنة بدون تأثيرات كبيرة */
   .primary-button {
     @apply bg-primary text-primary-foreground hover:bg-primary/90;
-    transition: background-color var(--theme-transition-duration) var(--theme-transition-timing);
+    transition: background-color var(--theme-transition-duration) var(--theme-transition-timing),
+                transform var(--theme-transition-duration) var(--theme-transition-timing);
   }
-  
+
   .custom-button {
     @apply bg-primary text-primary-foreground hover:bg-primary-lighter;
-    transition: background-color var(--theme-transition-duration) var(--theme-transition-timing);
+    transition: background-color var(--theme-transition-duration) var(--theme-transition-timing),
+                transform var(--theme-transition-duration) var(--theme-transition-timing);
   }
-  
+
   /* بطاقات محسنة وبسيطة */
   .custom-card {
     @apply bg-card text-card-foreground border rounded-lg shadow-sm;
@@ -414,6 +411,78 @@ h1, h2, h3, h4, h5, h6, p, span, div, a, button, input, textarea, select, label 
   /* انتقال سلس وسريع للثيم */
   .theme-transition {
     transition: all var(--theme-transition-duration) var(--theme-transition-timing);
+  }
+
+  /* تأثيرات متقدمة للتحويل بين الثيم */
+  .theme-switch-flash {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .theme-switch-flash::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+    transition: left 0.5s ease-out;
+    z-index: 1;
+  }
+
+  .theme-switch-flash.theme-switching::before {
+    left: 100%;
+  }
+
+  /* تأثير وهج للتحويل */
+  .theme-glow {
+    transition: all var(--theme-transition-duration) var(--theme-transition-timing);
+  }
+
+  .theme-glow.dark {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+  }
+
+  .theme-glow.light {
+    box-shadow: 0 0 20px rgba(251, 146, 60, 0.3);
+  }
+
+  /* تحسين انتقال الأيقونات */
+  .theme-icon {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transform-style: preserve-3d;
+  }
+
+  .theme-icon.rotating {
+    animation: themeRotate 0.3s ease-in-out;
+  }
+
+  @keyframes themeRotate {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(180deg); }
+  }
+
+  /* تأثير تموج للتحويل */
+  .theme-wave {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .theme-wave::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, currentColor, transparent);
+    opacity: 0.1;
+    transition: left 0.4s ease-out;
+  }
+
+  .theme-wave.wave-active::after {
+    left: 100%;
   }
 }
 
@@ -1303,78 +1372,14 @@ main {
   background: hsl(var(--primary) / 0.5);
 }
 
-/* إصلاح مشكلة الهوفر للأزرار - الأولوية العالية */
-.hover\:bg-primary\/10:hover.hover\:text-primary:hover,
-.hover\:bg-primary\/5:hover.hover\:text-primary:hover,
-.group:hover .group-hover\:bg-primary\/10.group-hover\:text-primary,
-.group:hover .group-hover\:bg-primary\/5.group-hover\:text-primary {
-  background-color: hsl(var(--primary) / 0.1) !important;
-  color: hsl(var(--primary)) !important;
-}
+/* إزالة فرضات hover العامة لصالح أنماط Tailwind والمكونات */
 
-/* إصلاح شامل لجميع حالات الهوفر المتضاربة */
-.hover\:bg-primary\/10:hover.hover\:text-primary:hover *,
-.hover\:bg-primary\/5:hover.hover\:text-primary:hover *,
-.group:hover .group-hover\:bg-primary\/10.group-hover\:text-primary *,
-.group:hover .group-hover\:bg-primary\/5.group-hover\:text-primary * {
-  color: hsl(var(--primary)) !important;
-}
+/* إزالة تخصيص dropdown العام */
 
-/* إصلاح الأيقونات والعناصر الفرعية */
-.hover\:bg-primary\/10:hover.hover\:text-primary:hover svg,
-.hover\:bg-primary\/5:hover.hover\:text-primary:hover svg,
-.group:hover .group-hover\:bg-primary\/10.group-hover\:text-primary svg,
-.group:hover .group-hover\:bg-primary\/5.group-hover\:text-primary svg {
-  color: hsl(var(--primary-foreground)) !important;
-}
-
-/* إصلاح لـ navbar links */
-.navbar-link.group:hover {
-  background-color: hsl(var(--primary)) !important;
-  color: hsl(var(--primary-foreground)) !important;
-}
-
-.navbar-link.group:hover * {
-  color: hsl(var(--primary-foreground)) !important;
-}
-
-/* إصلاح شامل لجميع الأزرار التي تحتوي على المشكلة */
-.group:hover .group-hover\:text-primary,
-.hover\:text-primary:hover {
-  color: hsl(var(--primary-foreground)) !important;
-}
-
-/* إصلاح خاص للقوائم المنسدلة */
-.dropdown-item:hover {
-  background-color: hsl(var(--primary)) !important;
-  color: hsl(var(--primary-foreground)) !important;
-}
-
-.dropdown-item:hover * {
-  color: hsl(var(--primary-foreground)) !important;
-}
-
-/* إصلاح لأزرار التنقل */
-.navbar-link:hover,
-.nav-link:hover {
-  background-color: hsl(var(--primary)) !important;
-  color: hsl(var(--primary-foreground)) !important;
-}
-
-.navbar-link:hover *,
-.nav-link:hover * {
-  color: hsl(var(--primary-foreground)) !important;
-}
+/* إزالة تخصيصات navbar العامة */
 
 /* إصلاح إضافي للعناصر التي تحتوي على كلاسات متضاربة */
-[class*="hover:bg-primary"][class*="hover:text-primary"]:hover {
-  background-color: hsl(var(--primary)) !important;
-  color: hsl(var(--primary-foreground)) !important;
-}
-
-[class*="hover:bg-primary"][class*="hover:text-primary"]:hover * {
-  color: hsl(var(--primary-foreground)) !important;
-}
+/* إزالة قواعد مطابقة النص للكلاسات */
 
 /* إصلاح للعناصر التي تستخدم group */
 .group[class*="hover:bg-primary"]:hover [class*="group-hover:text-primary"],
@@ -1617,50 +1622,7 @@ nav a:hover,
   color: inherit !important;
 }
 
-/* 🚀 قاعدة نهائية للخطوط - تطبق بعد تحميل جميع المكونات */
-* {
-  font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
-}
-
-/* خاص للمكونات المحملة بشكل lazy */
-[data-react-component], [data-component], .react-component {
-  font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
-}
-
-/* تطبيق على جميع النصوص مع Google Fonts backup */
-.text-foreground, .text-muted-foreground, .text-primary, .text-secondary {
-  font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
-}
-
-/* Class خاص عندما يتم إجبار الخطوط */
-.tajawal-forced,
-.tajawal-forced * {
-  font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
-}
-
-/* 🚀 حل إضافي - تطبيق الخطوط مع أقصى أولوية */
-html[lang="ar"], html[dir="rtl"], 
-body[class*="tajawal"], body[class*="arabic"],
-.ar, .arabic, [dir="rtl"] {
-  font-family: 'TajawalForced', 'Tajawal', 'Droid Arabic Naskh', 'Tahoma', 'Arial Unicode MS', 'Arial', sans-serif !important;
-}
-
-/* خاص للنصوص العربية */
-*:lang(ar), [dir="rtl"] *, .arabic * {
-  font-family: 'TajawalForced', 'Tajawal', 'Droid Arabic Naskh', 'Tahoma', 'Arial Unicode MS', 'Arial', sans-serif !important;
-}
-
-/* 🔧 حل تجريبي - إجبار أكثر للخطوط العربية */
-@media screen {
-  * {
-    font-family: 'TajawalForced', 'Tajawal', 'Droid Arabic Naskh', 'Tahoma', 'Arial Unicode MS', 'Arial', sans-serif !important;
-  }
-  
-  /* لكل العناصر التي تحتوي على نص عربي */
-  *:not([class*="icon"]):not([class*="svg"]):not(svg):not(path) {
-    font-family: 'TajawalForced', 'Tajawal', 'Droid Arabic Naskh', 'Tahoma', 'Arial Unicode MS', 'Arial', sans-serif !important;
-  }
-}
+/* إزالة جميع قواعد فرض الخطوط الشاملة */
 
 /* تأثيرات مخصصة لمكون فئات المنتجات */
 @keyframes gradient-x {
@@ -1732,7 +1694,7 @@ body[class*="tajawal"], body[class*="arabic"],
   animation: sparkle 2s ease-in-out infinite;
 }
 
-.bg-300% {
+.bg-300\% {
   background-size: 300% 300%;
 }
 
@@ -1768,6 +1730,7 @@ body[class*="tajawal"], body[class*="arabic"],
 .animation-delay-700 { animation-delay: 0.7s !important; }
 .animation-delay-800 { animation-delay: 0.8s !important; }
 
+@media (max-width: 0px) {
 /* ===============================
    إصلاح شامل نهائي لمشكلة الـ hover
    =============================== */
@@ -1824,7 +1787,7 @@ button.group:hover [class*="group-hover:bg-primary"],
   color: hsl(var(--primary-foreground)) !important;
 }
 
-/* نصوص الأزرار */
+/* نصوص الأزرار - إصلاح مشكلة الهوفر */
 button[class*="text-primary"]:hover,
 [role="button"][class*="text-primary"]:hover,
 button.group:hover [class*="group-hover:text-primary"],
@@ -1834,6 +1797,250 @@ a[class*="hover:text-primary"]:hover,
 [role="button"][class*="hover:text-primary"]:hover {
   color: hsl(var(--primary-foreground)) !important;
   background-color: hsl(var(--primary)) !important;
+}
+
+/* إصلاح خاص للأزرار البيضاء - منع اختفاء النص */
+button[class*="text-white"]:hover,
+button[class*="text-white"]:hover *,
+[role="button"][class*="text-white"]:hover,
+[role="button"][class*="text-white"]:hover * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح للأزرار مع خلفيات ملونة - ضمان رؤية النص */
+button[class*="bg-"]:hover,
+button[class*="bg-"]:hover *,
+[role="button"][class*="bg-"]:hover,
+[role="button"][class*="bg-"]:hover * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح خاص لأزرار التدرج اللوني */
+button[class*="bg-gradient-"]:hover,
+button[class*="bg-gradient-"]:hover *,
+[role="button"][class*="bg-gradient-"]:hover,
+[role="button"][class*="bg-gradient-"]:hover * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح شامل لأزرار outline - ضمان رؤية النص في جميع الأوضاع */
+button[class*="border-"]:hover,
+button[class*="border-"]:hover *,
+[role="button"][class*="border-"]:hover,
+[role="button"][class*="border-"]:hover * {
+  color: hsl(var(--primary)) !important;
+}
+
+/* إصلاح خاص لأزرار outline في الوضع المظلم */
+.dark button[class*="border-"]:hover,
+.dark button[class*="border-"]:hover *,
+.dark [role="button"][class*="border-"]:hover,
+.dark [role="button"][class*="border-"]:hover * {
+  color: hsl(var(--primary)) !important;
+}
+
+/* إصلاح لأزرار outline مع hover effects */
+button[class*="hover:border-"]:hover,
+button[class*="hover:border-"]:hover *,
+[role="button"][class*="hover:border-"]:hover,
+[role="button"][class*="hover:border-"]:hover * {
+  color: hsl(var(--primary)) !important;
+}
+
+/* إصلاح شامل لجميع الأزرار - ضمان التباين */
+button:hover,
+button:hover *,
+[role="button"]:hover,
+[role="button"]:hover * {
+  /* ضمان أن النص يكون مرئياً دائماً */
+  text-shadow: 0 0 1px currentColor;
+}
+
+/* إصلاح شامل للوضع المظلم - ضمان رؤية النص */
+.dark button:hover,
+.dark button:hover *,
+.dark [role="button"]:hover,
+.dark [role="button"]:hover * {
+  /* في الوضع المظلم، نستخدم ألوان أفتح للنص */
+  color: hsl(var(--primary)) !important;
+  text-shadow: 0 0 2px hsl(var(--primary) / 0.5);
+}
+
+/* إصلاح خاص لأزرار outline في الوضع المظلم */
+.dark button[class*="border-"]:hover,
+.dark button[class*="border-"]:hover *,
+.dark [role="button"][class*="border-"]:hover,
+.dark [role="button"][class*="border-"]:hover * {
+  color: hsl(var(--primary)) !important;
+  background-color: hsl(var(--background)) !important;
+  border-color: hsl(var(--primary)) !important;
+}
+
+/* إصلاح لأزرار الهوفر في الوضع المظلم */
+.dark button[class*="hover:text-"]:hover,
+.dark button[class*="hover:text-"]:hover *,
+.dark [role="button"][class*="hover:text-"]:hover,
+.dark [role="button"][class*="hover:text-"]:hover * {
+  color: hsl(var(--primary)) !important;
+  background-color: hsl(var(--background)) !important;
+}
+
+/* إصلاح شامل لجميع الأزرار في الوضع المظلم */
+.dark button[class*="bg-"]:hover,
+.dark button[class*="bg-"]:hover *,
+.dark [role="button"][class*="bg-"]:hover,
+.dark [role="button"][class*="bg-"]:hover * {
+  color: hsl(var(--primary)) !important;
+}
+
+/* إصلاح خاص لأزرار التدرج اللوني في الوضع المظلم */
+.dark button[class*="bg-gradient-"]:hover,
+.dark button[class*="bg-gradient-"]:hover *,
+.dark [role="button"][class*="bg-gradient-"]:hover,
+.dark [role="button"][class*="bg-gradient-"]:hover * {
+  color: hsl(var(--primary)) !important;
+}
+
+/* إصلاح خاص للأزرار البيضاء في الوضع المظلم */
+.dark button[class*="bg-white"]:hover,
+.dark button[class*="bg-white"]:hover *,
+.dark [role="button"][class*="bg-white"]:hover,
+.dark [role="button"][class*="bg-white"]:hover * {
+  color: hsl(var(--primary)) !important;
+  background-color: hsl(var(--background)) !important;
+}
+
+/* إصلاح شامل لجميع الأزرار - ضمان رؤية النص في جميع الحالات */
+button:hover,
+button:hover *,
+[role="button"]:hover,
+[role="button"]:hover * {
+  /* ضمان أن النص يكون مرئياً دائماً */
+  text-shadow: 0 0 1px currentColor;
+}
+
+/* إصلاح خاص لأزرار الهوفر مع تغيير اللون */
+button[class*="hover:text-"]:hover,
+button[class*="hover:text-"]:hover *,
+[role="button"][class*="hover:text-"]:hover,
+[role="button"][class*="hover:text-"]:hover * {
+  /* ضمان أن النص يكون مرئياً مع اللون المحدد */
+  color: inherit !important;
+}
+
+/* إصلاح شامل لجميع الأزرار في الوضع المظلم - ضمان رؤية النص */
+.dark button:hover,
+.dark button:hover *,
+.dark [role="button"]:hover,
+.dark [role="button"]:hover * {
+  /* في الوضع المظلم، نستخدم ألوان أفتح للنص */
+  color: hsl(var(--primary)) !important;
+  text-shadow: 0 0 2px hsl(var(--primary) / 0.5);
+}
+
+/* إصلاح خاص لأزرار outline في الوضع المظلم */
+.dark button[class*="border-"]:hover,
+.dark button[class*="border-"]:hover *,
+.dark [role="button"][class*="border-"]:hover,
+.dark [role="button"][class*="border-"]:hover * {
+  color: hsl(var(--primary)) !important;
+  background-color: hsl(var(--background)) !important;
+  border-color: hsl(var(--primary)) !important;
+}
+
+/* إصلاح لأزرار الهوفر في الوضع المظلم */
+.dark button[class*="hover:text-"]:hover,
+.dark button[class*="hover:text-"]:hover *,
+.dark [role="button"][class*="hover:text-"]:hover,
+.dark [role="button"][class*="hover:text-"]:hover * {
+  color: hsl(var(--primary)) !important;
+  background-color: hsl(var(--background)) !important;
+}
+
+/* إصلاح شامل لجميع الأزرار في الوضع المظلم */
+.dark button[class*="bg-"]:hover,
+.dark button[class*="bg-"]:hover *,
+.dark [role="button"][class*="bg-"]:hover,
+.dark [role="button"][class*="bg-"]:hover * {
+  color: hsl(var(--primary)) !important;
+}
+
+/* إصلاح خاص لأزرار التدرج اللوني في الوضع المظلم */
+.dark button[class*="bg-gradient-"]:hover,
+.dark button[class*="bg-gradient-"]:hover *,
+.dark [role="button"][class*="bg-gradient-"]:hover,
+.dark [role="button"][class*="bg-gradient-"]:hover * {
+  color: hsl(var(--primary)) !important;
+}
+
+/* إصلاح نهائي شامل - ضمان رؤية النص في جميع الأزرار */
+button,
+button *,
+[role="button"],
+[role="button"] * {
+  /* ضمان أن النص يكون مرئياً دائماً */
+  transition: color 0.2s ease-in-out;
+}
+
+/* إصلاح خاص للأزرار الملونة - ضمان التباين */
+button[class*="bg-"]:hover,
+button[class*="bg-"]:hover *,
+[role="button"][class*="bg-"]:hover,
+[role="button"][class*="bg-"]:hover * {
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+/* إصلاح شامل نهائي - ضمان رؤية النص في جميع الحالات */
+button:hover,
+button:hover *,
+[role="button"]:hover,
+[role="button"]:hover * {
+  /* ضمان أن النص يكون مرئياً دائماً */
+  text-shadow: 0 0 1px currentColor;
+}
+
+/* إصلاح خاص للأزرار في الوضع المظلم - ضمان التباين */
+.dark button:hover,
+.dark button:hover *,
+.dark [role="button"]:hover,
+.dark [role="button"]:hover * {
+  /* في الوضع المظلم، نستخدم ألوان أفتح للنص */
+  color: hsl(var(--primary)) !important;
+  text-shadow: 0 0 2px hsl(var(--primary) / 0.5);
+}
+
+/* إصلاح نهائي شامل لجميع الأزرار */
+button,
+button *,
+[role="button"],
+[role="button"] * {
+  /* ضمان أن النص يكون مرئياً دائماً */
+  transition: all 0.2s ease-in-out;
+}
+
+/* إصلاح خاص لزر العرض الترويجي والأزرار المشابهة */
+button[class*="hover:text-[#fc5d41]"]:hover,
+button[class*="hover:text-[#fc5d41]"]:hover *,
+[role="button"][class*="hover:text-[#fc5d41]"]:hover,
+[role="button"][class*="hover:text-[#fc5d41]"]:hover * {
+  color: hsl(15, 97%, 61%) !important; /* #fc5d41 */
+}
+
+/* إصلاح خاص للوضع المظلم - زر العرض الترويجي */
+.dark button[class*="hover:text-[#fc5d41]"]:hover,
+.dark button[class*="hover:text-[#fc5d41]"]:hover *,
+.dark [role="button"][class*="hover:text-[#fc5d41]"]:hover,
+.dark [role="button"][class*="hover:text-[#fc5d41]"]:hover * {
+  color: hsl(15, 97%, 61%) !important; /* #fc5d41 */
+  text-shadow: 0 0 2px hsl(15, 97%, 61%) / 0.5;
+}
+
+/* إصلاح شامل لجميع الأزرار مع ألوان مخصصة */
+button[class*="text-[#fc5d41]"]:hover,
+button[class*="text-[#fc5d41]"]:hover *,
+[role="button"][class*="text-[#fc5d41]"]:hover,
+[role="button"][class*="text-[#fc5d41]"]:hover * {
+  color: hsl(15, 97%, 61%) !important; /* #fc5d41 */
 }
 
 /* ===============================
@@ -2305,4 +2512,5 @@ img[loading="eager"] {
 
 .instant-transition {
   transition: none !important;
+}
 }

@@ -1,0 +1,380 @@
+/* BeforeAfterComponentEditor - تصميم محسن مع حل مشكلة التمرير */
+
+/* تحسينات عامة */
+.before-after-editor {
+  font-family: 'Tajawal', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* تحسين الانتقالات */
+.before-after-editor * {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* حل مشكلة التمرير - قواعد أساسية */
+.before-after-editor .overflow-y-auto {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(156, 163, 175, 0.4) rgba(156, 163, 175, 0.1) !important;
+}
+
+.before-after-editor .flex-1 {
+  flex: 1 1 0% !important;
+}
+
+.before-after-editor .min-h-0 {
+  min-height: 0 !important;
+}
+
+.before-after-editor .h-full {
+  height: 100% !important;
+}
+
+.before-after-editor .flex-shrink-0 {
+  flex-shrink: 0 !important;
+}
+
+/* تحسين Tabs - القواعد الأساسية */
+.before-after-editor [data-radix-tabs-root] {
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.before-after-editor [data-radix-tabs-list] {
+  flex-shrink: 0 !important;
+}
+
+.before-after-editor [data-radix-tabs-content] {
+  height: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+}
+
+.before-after-editor [data-radix-tabs-content][data-state="active"] {
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* ضمان عمل التمرير في التبويب النشط */
+.before-after-editor [data-radix-tabs-content][data-state="active"] .overflow-y-auto {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  height: 100% !important;
+  flex: 1 1 0% !important;
+}
+
+/* تحسين تبويب "عام" تحديداً */
+.before-after-editor [data-radix-tabs-content][data-state="active"] .overflow-y-auto {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  height: 100% !important;
+  flex: 1 1 0% !important;
+}
+
+.before-after-editor [data-radix-tabs-content][data-state="active"] .flex-1 {
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+}
+
+/* تحديد إضافي لحل مشكلة السكرول في تبويب العام */
+.before-after-editor [data-radix-tabs-content][data-state="active"] .max-h-full {
+  max-height: 100% !important;
+}
+
+.before-after-editor [data-radix-tabs-content][data-state="active"] .pb-4 {
+  padding-bottom: 1rem !important;
+}
+
+/* ضمان عمل السكرول في جميع المتصفحات */
+.before-after-editor .overflow-y-auto {
+  -webkit-overflow-scrolling: touch !important;
+  contain: layout style paint !important;
+}
+
+/* إصلاح مشاكل الـ dropdowns والـ z-index */
+.before-after-editor [data-radix-dropdown-content],
+.before-after-editor [data-radix-select-content] {
+  z-index: 9999 !important;
+  position: fixed !important;
+}
+
+.before-after-editor [data-radix-dropdown-content] {
+  will-change: transform !important;
+  transform: translateZ(0) !important;
+}
+
+.before-after-editor [data-radix-select-content] {
+  will-change: transform !important;
+  transform: translateZ(0) !important;
+}
+
+/* إصلاح مشاكل الـ Portals */
+.before-after-editor [data-radix-popper-content-wrapper] {
+  z-index: 9999 !important;
+}
+
+/* إصلاح مشاكل Firefox */
+@-moz-document url-prefix() {
+  .before-after-editor [data-radix-tabs-content] {
+    overflow: hidden !important;
+  }
+  
+  .before-after-editor [data-radix-tabs-content] .overflow-y-auto {
+    overflow-y: scroll !important;
+    scrollbar-width: thin !important;
+  }
+}
+
+/* إصلاح مشاكل Safari */
+@supports (-webkit-appearance: none) {
+  .before-after-editor [data-radix-tabs-content][data-state="active"] {
+    contain: layout !important;
+  }
+  
+  .before-after-editor .overflow-y-auto {
+    -webkit-transform: translateZ(0) !important;
+    transform: translateZ(0) !important;
+  }
+}
+
+/* تحسينات الأداء لمنع forced reflow */
+.before-after-editor * {
+  will-change: auto !important;
+}
+
+.before-after-editor .transition-all {
+  will-change: transform, opacity !important;
+}
+
+/* إصلاح مشاكل الأداء مع الـ dropdowns */
+.before-after-editor select,
+.before-after-editor [data-radix-select-trigger] {
+  contain: layout style !important;
+  will-change: auto !important;
+}
+
+/* منع forced reflow في العناصر التفاعلية */
+.before-after-editor button,
+.before-after-editor input,
+.before-after-editor textarea {
+  contain: layout style !important;
+}
+
+/* تحسين شريط التمرير */
+.before-after-editor .overflow-y-auto::-webkit-scrollbar {
+  width: 8px !important;
+}
+
+.before-after-editor .overflow-y-auto::-webkit-scrollbar-track {
+  background: rgba(156, 163, 175, 0.1) !important;
+  border-radius: 4px !important;
+}
+
+.before-after-editor .overflow-y-auto::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.4) !important;
+  border-radius: 4px !important;
+  border: 1px solid rgba(156, 163, 175, 0.1) !important;
+}
+
+.before-after-editor .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.6) !important;
+}
+
+/* تحسين Tabs */
+.before-after-editor [data-radix-tabs-trigger] {
+  transition: all 0.2s ease;
+}
+
+.before-after-editor [data-radix-tabs-trigger][data-state="active"] {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+/* تحسين Cards */
+.before-after-editor .card {
+  transition: all 0.2s ease;
+  flex-shrink: 0 !important;
+}
+
+.before-after-editor .card:hover {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+/* تحسين Inputs */
+.before-after-editor input,
+.before-after-editor textarea,
+.before-after-editor select {
+  transition: all 0.2s ease;
+}
+
+.before-after-editor input:focus,
+.before-after-editor textarea:focus,
+.before-after-editor select:focus {
+  border-color: hsl(var(--primary));
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.2);
+}
+
+/* تحسين Switch */
+.before-after-editor [data-radix-switch-root] {
+  transition: all 0.2s ease;
+}
+
+.before-after-editor [data-radix-switch-root][data-state="checked"] {
+  background-color: hsl(var(--primary));
+}
+
+/* تحسين Slider */
+.before-after-editor [data-radix-slider-track] {
+  background-color: hsl(var(--muted));
+}
+
+.before-after-editor [data-radix-slider-range] {
+  background-color: hsl(var(--primary));
+}
+
+.before-after-editor [data-radix-slider-thumb] {
+  background-color: hsl(var(--primary));
+  border: 2px solid hsl(var(--background));
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* تحسينات للوضع المظلم */
+.dark .before-after-editor {
+  color-scheme: dark;
+}
+
+.dark .before-after-editor [data-radix-tabs-trigger][data-state="active"] {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+/* تحسينات للأجهزة المحمولة */
+@media (max-width: 768px) {
+  .before-after-editor .text-xs {
+    font-size: 0.75rem;
+  }
+  
+  .before-after-editor .h-7 {
+    height: 1.75rem;
+  }
+  
+  .before-after-editor .h-8 {
+    height: 2rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .before-after-editor .p-3 {
+    padding: 0.75rem;
+  }
+  
+  .before-after-editor .space-y-3 > * + * {
+    margin-top: 0.75rem;
+  }
+}
+
+/* تحسينات للشاشات الكبيرة */
+@media (min-width: 1024px) {
+  .before-after-editor .space-y-3 > * + * {
+    margin-top: 1rem;
+  }
+}
+
+/* تحسينات للانتقالات */
+.before-after-editor .transition-all {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
+}
+
+.before-after-editor .duration-200 {
+  transition-duration: 200ms;
+}
+
+/* تحسينات للـ focus states */
+.before-after-editor button:focus-visible,
+.before-after-editor input:focus-visible,
+.before-after-editor textarea:focus-visible,
+.before-after-editor select:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+}
+
+/* تحسينات للـ accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .before-after-editor * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ضمان عمل space-y */
+.before-after-editor .space-y-3 > * + * {
+  margin-top: 0.75rem !important;
+}
+
+.before-after-editor .space-y-2 > * + * {
+  margin-top: 0.5rem !important;
+}
+
+/* تحسينات للـ hover effects */
+.before-after-editor .hover\:bg-muted\/30:hover {
+  background-color: hsl(var(--muted) / 0.3);
+}
+
+.before-after-editor .hover\:bg-muted\/50:hover {
+  background-color: hsl(var(--muted) / 0.5);
+}
+
+/* تحسينات للـ shadow */
+.before-after-editor .shadow-sm {
+  box-shadow: 
+    0 1px 2px 0 rgba(0, 0, 0, 0.05),
+    0 1px 3px 1px rgba(0, 0, 0, 0.1);
+}
+
+/* تحسينات للـ border */
+.before-after-editor .border {
+  border-color: hsl(var(--border));
+}
+
+.before-after-editor .border-b {
+  border-bottom-color: hsl(var(--border));
+}
+
+/* تحسينات للـ text colors */
+.before-after-editor .text-muted-foreground {
+  color: hsl(var(--muted-foreground));
+}
+
+.before-after-editor .text-primary {
+  color: hsl(var(--primary));
+}
+
+/* تحسينات للـ background colors */
+.before-after-editor .bg-muted\/10 {
+  background-color: hsl(var(--muted) / 0.1);
+}
+
+.before-after-editor .bg-muted\/20 {
+  background-color: hsl(var(--muted) / 0.2);
+}
+
+.before-after-editor .bg-muted\/30 {
+  background-color: hsl(var(--muted) / 0.3);
+}

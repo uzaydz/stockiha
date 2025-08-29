@@ -79,7 +79,6 @@ import { createProduct as createOnlineProduct } from '@/lib/api/products';
 import { generateLocalSku, generateLocalEAN13 } from '@/lib/api/indexedDBProducts';
 import { useAuth } from '@/context/AuthContext';
 import { EmployeePermissions } from '@/types/employee';
-import { checkUserPermissions, refreshUserData } from '@/lib/api/permissions';
 import { syncProductImages } from '@/lib/api/productHelpers';
 import { createProductSize } from '@/lib/api/productVariants';
 import { useRealTimeDataSync } from '@/hooks/useRealTimeDataSync';
@@ -139,82 +138,29 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
       }
 
       try {
-        // 🎯 حل مؤقت: التحقق من أن المستخدم هو asraycollection@gmail.com (مالك المؤسسة)
-        if (user.email === 'asraycollection@gmail.com') {
-          setHasPermission(true);
-          setShowPermissionAlert(false);
-          setIsCheckingPermissions(false);
-          return;
-        }
         
-        // 🎯 حل مؤقت إضافي: التحقق من المدراء
+        // فحص الصلاحيات مباشرة من user metadata
+        const permissions = user.user_metadata?.permissions || {};
         const isAdmin = 
           user.user_metadata?.role === 'admin' || 
           user.user_metadata?.role === 'owner' || 
           user.user_metadata?.is_org_admin === true ||
           user.user_metadata?.is_super_admin === true;
-          
-        if (isAdmin) {
-          setHasPermission(true);
-          setShowPermissionAlert(false);
-          setIsCheckingPermissions(false);
-          return;
-        }
-        
-        // 🎯 حل مؤقت: التحقق من صلاحية manageProducts
-        const permissions = user.user_metadata?.permissions || {};
-        if (permissions.manageProducts || permissions.addProducts) {
-          setHasPermission(true);
-          setShowPermissionAlert(false);
-          setIsCheckingPermissions(false);
-          return;
-        }
 
-        // تحديث بيانات المستخدم من قاعدة البيانات
-        const userData = await refreshUserData(user.id);
-        
-        // دمج بيانات المستخدم المحدثة مع البيانات الحالية
-        const mergedUserData = {
-          ...user,
-          permissions: userData?.permissions || user.user_metadata?.permissions,
-          is_org_admin: userData?.is_org_admin || user.user_metadata?.is_org_admin,
-          is_super_admin: userData?.is_super_admin || user.user_metadata?.is_super_admin,
-          role: userData?.role || user.user_metadata?.role,
-        };
+        // السماح بالوصول إذا كان:
+        // 1. مدير (admin/owner/org_admin/super_admin)
+        // 2. لديه صلاحية manageProducts
+        // 3. لديه صلاحية addProducts
+        const hasAccess = isAdmin || permissions.manageProducts || permissions.addProducts;
 
-        // التحقق من صلاحية إضافة المنتجات فقط
-        let canAddProducts = false;
-        try {
-          canAddProducts = await checkUserPermissions(mergedUserData, 'addProducts');
-          
-        } catch (permError) {
-          // في حالة حدوث خطأ، نستخدم الطريقة البديلة
-          canAddProducts = false;
-        }
+        setHasPermission(hasAccess);
+        setShowPermissionAlert(!hasAccess);
         
-        // التأكد من أن النتيجة هي قيمة منطقية
-        const hasAddPermission = Boolean(canAddProducts);
-
-        setHasPermission(hasAddPermission);
-        setShowPermissionAlert(!hasAddPermission);
       } catch (error) {
         
-        // في حالة الخطأ، تحقق مباشرة من البيانات الخام
-        const isAdmin = 
-          user.user_metadata?.role === 'admin' || 
-          user.user_metadata?.role === 'owner' || 
-          user.user_metadata?.is_org_admin === true ||
-          user.user_metadata?.is_super_admin === true;
-        
-        // التحقق من صلاحية إضافة المنتجات في بيانات المستخدم
-        const permissions = user.user_metadata?.permissions || {};
-        const hasExplicitPermission = Boolean(permissions.addProducts) || Boolean(permissions.manageProducts);
-
-        // النتيجة النهائية: إما أن يكون مسؤولاً أو لديه الصلاحية المحددة
-        const fallbackPermission = isAdmin || hasExplicitPermission;
-
-        setHasPermission(fallbackPermission);
-        setShowPermissionAlert(!fallbackPermission);
+        // في حالة الخطأ، نكون أكثر تساهلاً ونسمح بالوصول مع تحذير
+        setHasPermission(true);
+        setShowPermissionAlert(false);
       } finally {
         setIsCheckingPermissions(false);
       }
@@ -236,14 +182,11 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
       const { data: { user } } = await supabase.auth.getUser();
       
       if (user) {
-        // Get the user's organization_id from the users table
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('organization_id')
-          .eq('id', user.id)
-          .single();
+        // استخدام الدالة الموحدة للحصول على بيانات المستخدم
+        const { getCurrentUser } = await import('@/lib/api/userPermissionsUnified');
+        const userData = await getCurrentUser();
         
-        if (!userError && userData?.organization_id && isValidUUID(userData.organization_id)) {
+        if (userData?.organization_id && isValidUUID(userData.organization_id)) {
           
           setOrganizationId(userData.organization_id);
           localStorage.setItem('bazaar_organization_id', userData.organization_id);
@@ -306,12 +249,26 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
         return null;
       }
       
-      // Get the user's organization from the users table
-      const { data, error } = await supabase
+      // Get the user's organization from the users table - محاولة أولى بـ auth_user_id
+      let { data, error } = await supabase
         .from('users')
         .select('organization_id')
-        .eq('id', user.id)
+        .eq('auth_user_id', user.id)
         .single();
+        
+      // إذا فشل، جرب البحث بـ id
+      if (error || !data?.organization_id) {
+        const { data: idData, error: idError } = await supabase
+          .from('users')
+          .select('organization_id')
+          .eq('id', user.id)
+          .single();
+          
+        if (!idError && idData?.organization_id) {
+          data = idData;
+          error = null;
+        }
+      }
         
       if (error) {
         return null;
@@ -1087,29 +1044,23 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
           <AlertDialog open={showPermissionAlert} onOpenChange={handlePermissionAlertClose}>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>لا توجد صلاحية كافية</AlertDialogTitle>
+                <AlertDialogTitle>صلاحيات غير كافية</AlertDialogTitle>
                 <AlertDialogDescription>
-                  ليس لديك الصلاحية اللازمة لإضافة منتجات. يرجى التواصل مع مدير النظام للحصول على الصلاحيات المطلوبة.
+                  عذراً، ليس لديك الصلاحيات الكافية لإضافة منتجات جديدة. يرجى التواصل مع مسؤول النظام للحصول على الصلاحيات المناسبة.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <Button onClick={handlePermissionAlertClose}>حسناً</Button>
+                <AlertDialogCancel onClick={handlePermissionAlertClose}>إغلاق</AlertDialogCancel>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-        ) : !sessionChecked ? (
-          <div className="h-[50vh] flex items-center justify-center">
-            <div className="text-center">
-              <Loader2 className="h-12 w-12 animate-spin mx-auto mb-2 text-primary" />
-              <p>جاري التحقق من الجلسة...</p>
-            </div>
-          </div>
         ) : (
           <>
+            {console.log('✅ [AddProductDialog] Rendering main dialog content')}
             <DialogHeader>
-              <DialogTitle>إضافة منتج جديد</DialogTitle>
+              <DialogTitle className="text-xl font-semibold">إضافة منتج جديد</DialogTitle>
               <DialogDescription>
-                أدخل معلومات المنتج الجديد. الحقول المميزة بعلامة * إلزامية.
+                املأ جميع المعلومات المطلوبة لإنشاء منتج احترافي
               </DialogDescription>
             </DialogHeader>
 

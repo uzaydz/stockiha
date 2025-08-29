@@ -1,0 +1,405 @@
+/* ComponentEditor - تصميم محسن وأنيق */
+
+/* تحسينات عامة */
+.component-editor {
+  font-family: 'Tajawal', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* تحسين الانتقالات */
+.component-editor * {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* تحسين التمرير */
+.component-editor .overflow-y-auto {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  min-height: 0 !important;
+}
+
+/* تحسينات خاصة للنوافذ المنبثقة */
+.component-editor-modal .scroll-area {
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+.component-editor-modal .scroll-area > div[data-radix-scroll-area-viewport] {
+  height: 100% !important;
+  min-height: 0 !important;
+}
+
+/* تحسين التمرير في المودال */
+.component-editor-in-modal {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.component-editor-in-modal .flex-1 {
+  flex: 1 1 auto !important;
+  min-height: auto !important;
+  height: auto !important;
+}
+
+.component-editor-in-modal .overflow-hidden {
+  overflow: visible !important;
+}
+
+.component-editor-in-modal .overflow-y-auto {
+  overflow-y: visible !important;
+  max-height: none !important;
+}
+
+.component-editor .overflow-y-auto::-webkit-scrollbar {
+  width: 8px;
+}
+
+.component-editor .overflow-y-auto::-webkit-scrollbar-track {
+  background: rgba(156, 163, 175, 0.1);
+  border-radius: 4px;
+}
+
+.component-editor .overflow-y-auto::-webkit-scrollbar-thumb {
+  background: rgba(156, 163, 175, 0.4);
+  border-radius: 4px;
+  border: 1px solid rgba(156, 163, 175, 0.1);
+}
+
+.component-editor .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+  background: rgba(156, 163, 175, 0.6);
+}
+
+/* تحسين Flexbox للتمرير */
+.component-editor .flex-1 {
+  flex: 1 1 0% !important;
+}
+
+.component-editor .min-h-0 {
+  min-height: 0 !important;
+}
+
+.component-editor .h-full {
+  height: 100% !important;
+}
+
+.component-editor .flex-shrink-0 {
+  flex-shrink: 0 !important;
+}
+
+/* تحسين التمرير في motion.div */
+.component-editor .motion-div {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+}
+
+/* ضمان عمل التمرير */
+.component-editor .overflow-hidden {
+  overflow: hidden !important;
+}
+
+.component-editor .overflow-y-auto {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+/* تحسين الظلال */
+.component-editor .shadow-sm {
+  box-shadow: 
+    0 1px 2px 0 rgba(0, 0, 0, 0.05),
+    0 1px 3px 1px rgba(0, 0, 0, 0.1);
+}
+
+/* تحسين الحلقات */
+.component-editor .ring-1 {
+  box-shadow: 0 0 0 1px rgba(156, 163, 175, 0.2);
+}
+
+.component-editor .ring-2 {
+  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.2);
+}
+
+/* تحسين الألوان الديناميكية */
+.component-editor .bg-violet-100 {
+  background-color: rgb(237, 233, 254);
+}
+
+.component-editor .bg-blue-100 {
+  background-color: rgb(219, 234, 254);
+}
+
+.component-editor .bg-green-100 {
+  background-color: rgb(220, 252, 231);
+}
+
+.component-editor .bg-amber-100 {
+  background-color: rgb(254, 243, 199);
+}
+
+.component-editor .bg-indigo-100 {
+  background-color: rgb(224, 231, 255);
+}
+
+.component-editor .bg-purple-100 {
+  background-color: rgb(243, 232, 255);
+}
+
+.component-editor .bg-teal-100 {
+  background-color: rgb(204, 251, 241);
+}
+
+.component-editor .bg-pink-100 {
+  background-color: rgb(252, 231, 243);
+}
+
+.component-editor .bg-cyan-100 {
+  background-color: rgb(207, 250, 254);
+}
+
+.component-editor .bg-emerald-100 {
+  background-color: rgb(209, 250, 229);
+}
+
+.component-editor .bg-gray-100 {
+  background-color: rgb(243, 244, 246);
+}
+
+/* تحسين النصوص */
+.component-editor .text-violet-900 {
+  color: rgb(76, 29, 149);
+}
+
+.component-editor .text-blue-900 {
+  color: rgb(30, 58, 138);
+}
+
+.component-editor .text-green-900 {
+  color: rgb(20, 83, 45);
+}
+
+.component-editor .text-amber-900 {
+  color: rgb(120, 53, 15);
+}
+
+.component-editor .text-indigo-900 {
+  color: rgb(49, 46, 129);
+}
+
+.component-editor .text-purple-900 {
+  color: rgb(88, 28, 135);
+}
+
+.component-editor .text-teal-900 {
+  color: rgb(19, 78, 74);
+}
+
+.component-editor .text-pink-900 {
+  color: rgb(131, 24, 67);
+}
+
+.component-editor .text-cyan-900 {
+  color: rgb(21, 94, 117);
+}
+
+.component-editor .text-emerald-900 {
+  color: rgb(6, 78, 59);
+}
+
+.component-editor .text-gray-900 {
+  color: rgb(17, 24, 39);
+}
+
+/* تحسين الحدود */
+.component-editor .border-violet-300 {
+  border-color: rgb(196, 181, 253);
+}
+
+.component-editor .border-blue-300 {
+  border-color: rgb(147, 197, 253);
+}
+
+.component-editor .border-green-300 {
+  border-color: rgb(134, 239, 172);
+}
+
+.component-editor .border-amber-300 {
+  border-color: rgb(252, 211, 77);
+}
+
+.component-editor .border-indigo-300 {
+  border-color: rgb(165, 180, 252);
+}
+
+.component-editor .border-purple-300 {
+  border-color: rgb(196, 181, 253);
+}
+
+.component-editor .border-teal-300 {
+  border-color: rgb(94, 234, 212);
+}
+
+.component-editor .border-pink-300 {
+  border-color: rgb(244, 114, 182);
+}
+
+.component-editor .border-cyan-300 {
+  border-color: rgb(103, 232, 249);
+}
+
+.component-editor .border-emerald-300 {
+  border-color: rgb(110, 231, 183);
+}
+
+.component-editor .border-gray-300 {
+  border-color: rgb(209, 213, 219);
+}
+
+/* تحسينات للوضع المظلم */
+.dark .component-editor .bg-gray-800 {
+  background-color: rgb(31, 41, 55);
+}
+
+.dark .component-editor .border-gray-700 {
+  border-color: rgb(55, 65, 81);
+}
+
+.dark .component-editor .border-gray-100 {
+  border-color: rgb(243, 244, 246);
+}
+
+.dark .component-editor .text-gray-300 {
+  color: rgb(209, 213, 219);
+}
+
+.dark .component-editor .text-gray-400 {
+  color: rgb(156, 163, 175);
+}
+
+.dark .component-editor .text-gray-500 {
+  color: rgb(107, 114, 128);
+}
+
+.dark .component-editor .text-gray-700 {
+  color: rgb(55, 65, 81);
+}
+
+.dark .component-editor .text-white {
+  color: rgb(255, 255, 255);
+}
+
+.dark .component-editor .from-gray-800 {
+  --tw-gradient-from: rgb(31, 41, 55);
+}
+
+.dark .component-editor .to-gray-700 {
+  --tw-gradient-to: rgb(55, 65, 81);
+}
+
+.dark .component-editor .from-gray-50 {
+  --tw-gradient-from: rgb(249, 250, 251);
+}
+
+.dark .component-editor .to-white {
+  --tw-gradient-to: rgb(255, 255, 255);
+}
+
+/* تحسينات للأجهزة المحمولة */
+@media (max-width: 768px) {
+  .component-editor .p-4 {
+    padding: 1rem;
+  }
+  
+  .component-editor .text-lg {
+    font-size: 1.125rem;
+  }
+  
+  .component-editor .h-10 {
+    height: 2.5rem;
+  }
+  
+  .component-editor .w-10 {
+    width: 2.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .component-editor .p-4 {
+    padding: 0.75rem;
+  }
+  
+  .component-editor .text-lg {
+    font-size: 1rem;
+  }
+  
+  .component-editor .h-10 {
+    height: 2.25rem;
+  }
+  
+  .component-editor .w-10 {
+    width: 2.25rem;
+  }
+}
+
+/* تحسينات للشاشات الكبيرة */
+@media (min-width: 1024px) {
+  .component-editor .space-y-4 > * + * {
+    margin-top: 1.5rem;
+  }
+}
+
+/* تحسينات للانتقالات */
+.component-editor .transition-all {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 200ms;
+}
+
+.component-editor .duration-300 {
+  transition-duration: 300ms;
+}
+
+/* تحسينات للـ focus states */
+.component-editor button:focus-visible {
+  outline: 2px solid rgb(59, 130, 246);
+  outline-offset: 2px;
+}
+
+/* تحسينات للـ accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .component-editor * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* تحسينات للـ hover effects */
+.component-editor .hover\:bg-gray-100:hover {
+  background-color: rgb(243, 244, 246);
+}
+
+.component-editor .hover\:bg-gray-700:hover {
+  background-color: rgb(55, 65, 81);
+}
+
+/* تحسينات للـ gradient */
+.component-editor .from-blue-500 {
+  --tw-gradient-from: rgb(59, 130, 246);
+}
+
+.component-editor .to-purple-500 {
+  --tw-gradient-to: rgb(168, 85, 247);
+}
+
+/* تحسينات للـ rounded */
+.component-editor .rounded-xl {
+  border-radius: 0.75rem;
+}
+
+.component-editor .rounded-lg {
+  border-radius: 0.5rem;
+}
+
+.component-editor .rounded-full {
+  border-radius: 9999px;
+}

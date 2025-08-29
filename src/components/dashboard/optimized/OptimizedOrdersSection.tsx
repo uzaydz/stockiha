@@ -1,14 +1,14 @@
 import React, { Suspense } from 'react';
 import { Link } from 'react-router-dom';
-import { ShoppingBag, Globe, AlertCircle } from 'lucide-react';
-import { useSuperUnifiedData } from '../../../context/SuperUnifiedDataContext';
+import { ShoppingBag, Globe, AlertCircle, ShoppingCart } from 'lucide-react';
+import { useSuperUnifiedData, useIsAppEnabled } from '../../../context/SuperUnifiedDataContext';
 import RecentOrdersCard from '@/components/dashboard/RecentOrdersCard';
 import { Button } from '@/components/ui/button';
 
 // مكون التحميل للطلبات
-const OrdersLoader = () => (
-  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-    {Array.from({ length: 2 }).map((_, i) => (
+const OrdersLoader = ({ isPOSEnabled = true }: { isPOSEnabled?: boolean }) => (
+  <div className={`grid gap-8 ${isPOSEnabled ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
+    {Array.from({ length: isPOSEnabled ? 2 : 1 }).map((_, i) => (
       <div key={i} className="rounded-xl bg-background/80 border border-border/30 shadow-sm p-5">
         <div className="flex items-center justify-between mb-4">
           <div className="h-6 w-24 bg-muted animate-pulse rounded"></div>
@@ -25,8 +25,8 @@ const OrdersLoader = () => (
 );
 
 // مكون الخطأ للطلبات
-const OrdersError = ({ error, onRetry }: { error: string; onRetry: () => void }) => (
-  <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+const OrdersError = ({ error, onRetry, isPOSEnabled = true }: { error: string; onRetry: () => void; isPOSEnabled?: boolean }) => (
+  <div className={`grid gap-8 ${isPOSEnabled ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
     <div className="rounded-xl bg-background/80 border border-border/30 shadow-sm p-5">
       <div className="flex flex-col items-center justify-center py-8 text-center space-y-4">
         <div className="p-3 rounded-full bg-red-100 dark:bg-red-900/20">
@@ -149,6 +149,7 @@ const OptimizedOnlineOrdersCard = () => {
 
 const OptimizedOrdersSection: React.FC = () => {
   const { recentOrders, recentOnlineOrders, isLoading, error } = useSuperUnifiedData();
+  const isPOSEnabled = useIsAppEnabled('pos');
 
   // معالجة أخطاء مفردة بدلاً من متعددة
   if (isLoading) {
@@ -163,20 +164,22 @@ const OptimizedOrdersSection: React.FC = () => {
   const recentOrdersSliced = recentOrders?.slice(0, 5) || [];
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-      {/* آخر الطلبات العادية */}
-      <div className="rounded-xl bg-background/80 border border-border/30 shadow-sm p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-bold flex items-center gap-2">
-            <ShoppingBag className="h-4 w-4 text-primary" />
-            آخر الطلبات
-          </h2>
-          <Link to="/dashboard/orders" className="text-xs text-primary hover:underline">
-            عرض الكل
-          </Link>
+    <div className={`grid gap-8 ${isPOSEnabled ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1'}`}>
+      {/* آخر الطلبات العادية - يظهر فقط إذا كان تطبيق نقطة البيع مفعل */}
+      {isPOSEnabled && (
+        <div className="rounded-xl bg-background/80 border border-border/30 shadow-sm p-5">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-bold flex items-center gap-2">
+              <ShoppingBag className="h-4 w-4 text-primary" />
+              آخر الطلبات
+            </h2>
+            <Link to="/dashboard/orders" className="text-xs text-primary hover:underline">
+              عرض الكل
+            </Link>
+          </div>
+          <RecentOrdersCard orders={recentOrdersSliced} />
         </div>
-        <RecentOrdersCard orders={recentOrdersSliced} />
-      </div>
+      )}
       
       {/* آخر الطلبات الأونلاين */}
       <OptimizedOnlineOrdersCard />

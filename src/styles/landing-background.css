@@ -1,0 +1,348 @@
+/* 🎨 LANDING BACKGROUND - خلفية موحدة لصفحة الهبوط */
+/* ملف CSS مشترك لجميع مكونات صفحة الهبوط */
+
+/* ==========================================
+   🌟 الخلفية الرئيسية الموحدة
+   ========================================== */
+
+.landing-background {
+  position: relative;
+  background: linear-gradient(
+    135deg,
+    hsl(var(--background)) 0%,
+    hsl(var(--card)) 25%,
+    hsl(var(--muted) / 0.3) 50%,
+    hsl(var(--card)) 75%,
+    hsl(var(--background)) 100%
+  );
+  overflow: hidden;
+}
+
+/* ==========================================
+   ✨ العناصر الزخرفية المتحركة
+   ========================================== */
+
+/* دوائر متدرجة متحركة */
+.landing-background::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(
+    circle at 20% 20%,
+    hsl(var(--primary) / 0.08) 0%,
+    transparent 50%
+  );
+  animation: float-orb-1 20s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.landing-background::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  right: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(
+    circle at 80% 80%,
+    hsl(var(--secondary) / 0.06) 0%,
+    transparent 50%
+  );
+  animation: float-orb-2 25s ease-in-out infinite reverse;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ==========================================
+   🎭 تأثيرات الخلفية المتحركة
+   ========================================== */
+
+/* دوائر متدرجة إضافية */
+.landing-bg-orb-1 {
+  position: absolute;
+  top: 15%;
+  left: 10%;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(
+    circle,
+    hsl(var(--primary) / 0.05) 0%,
+    hsl(var(--primary) / 0.02) 40%,
+    transparent 70%
+  );
+  border-radius: 50%;
+  filter: blur(60px);
+  animation: float-orb-3 18s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.landing-bg-orb-2 {
+  position: absolute;
+  bottom: 20%;
+  right: 15%;
+  width: 350px;
+  height: 350px;
+  background: radial-gradient(
+    circle,
+    hsl(var(--secondary) / 0.04) 0%,
+    hsl(var(--secondary) / 0.01) 50%,
+    transparent 80%
+  );
+  border-radius: 50%;
+  filter: blur(50px);
+  animation: float-orb-4 22s ease-in-out infinite reverse;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.landing-bg-orb-3 {
+  position: absolute;
+  top: 60%;
+  left: 60%;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(
+    circle,
+    hsl(var(--accent) / 0.03) 0%,
+    transparent 60%
+  );
+  border-radius: 50%;
+  filter: blur(40px);
+  animation: float-orb-5 16s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ==========================================
+   🌊 نمط الموجات المتحركة
+   ========================================== */
+
+.landing-wave-pattern {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-image: 
+    radial-gradient(circle at 25% 25%, hsl(var(--primary) / 0.02) 2px, transparent 2px),
+    radial-gradient(circle at 75% 75%, hsl(var(--secondary) / 0.02) 2px, transparent 2px);
+  background-size: 100px 100px, 150px 150px;
+  background-position: 0 0, 50px 50px;
+  animation: wave-move 30s linear infinite;
+  opacity: 0.3;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ==========================================
+   ✨ تأثيرات التوهج والظلال
+   ========================================== */
+
+.landing-glow-effect {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(
+    circle,
+    hsl(var(--primary) / 0.03) 0%,
+    hsl(var(--secondary) / 0.02) 30%,
+    transparent 70%
+  );
+  border-radius: 50%;
+  filter: blur(80px);
+  animation: glow-pulse 12s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ==========================================
+   🎬 الرسوم المتحركة
+   ========================================== */
+
+@keyframes float-orb-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(50px, -30px) scale(1.1); }
+  50% { transform: translate(100px, 0) scale(0.9); }
+  75% { transform: translate(50px, 30px) scale(1.05); }
+}
+
+@keyframes float-orb-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(-40px, -50px) scale(1.2); }
+  66% { transform: translate(-80px, 0) scale(0.8); }
+}
+
+@keyframes float-orb-3 {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  50% { transform: translate(30px, -20px) rotate(180deg); }
+}
+
+@keyframes float-orb-4 {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  50% { transform: translate(-25px, 40px) rotate(-180deg); }
+}
+
+@keyframes float-orb-5 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(20px, 30px) scale(1.3); }
+}
+
+@keyframes wave-move {
+  0% { background-position: 0 0, 50px 50px; }
+  100% { background-position: 100px 100px, 150px 150px; }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.3; transform: translate(-50%, -50%) scale(1); }
+  50% { opacity: 0.6; transform: translate(-50%, -50%) scale(1.1); }
+}
+
+/* ==========================================
+   📱 تحسينات للأجهزة المحمولة
+   ========================================== */
+
+@media (max-width: 768px) {
+  .landing-bg-orb-1,
+  .landing-bg-orb-2,
+  .landing-bg-orb-3 {
+    width: 200px;
+    height: 200px;
+    filter: blur(30px);
+  }
+  
+  .landing-glow-effect {
+    width: 300px;
+    height: 300px;
+    filter: blur(40px);
+  }
+  
+  .landing-wave-pattern {
+    background-size: 60px 60px, 90px 90px;
+  }
+}
+
+/* ==========================================
+   🌙 دعم الوضع الداكن
+   ========================================== */
+
+.dark .landing-background {
+  background: linear-gradient(
+    135deg,
+    hsl(var(--background)) 0%,
+    hsl(var(--card)) 25%,
+    hsl(var(--muted) / 0.2) 50%,
+    hsl(var(--card)) 75%,
+    hsl(var(--background)) 100%
+  );
+}
+
+.dark .landing-background::before {
+  background: radial-gradient(
+    circle at 20% 20%,
+    hsl(var(--primary) / 0.12) 0%,
+    transparent 50%
+  );
+}
+
+.dark .landing-background::after {
+  background: radial-gradient(
+    circle at 80% 80%,
+    hsl(var(--secondary) / 0.08) 0%,
+    transparent 50%
+  );
+}
+
+.dark .landing-bg-orb-1 {
+  background: radial-gradient(
+    circle,
+    hsl(var(--primary) / 0.08) 0%,
+    hsl(var(--primary) / 0.03) 40%,
+    transparent 70%
+  );
+}
+
+.dark .landing-bg-orb-2 {
+  background: radial-gradient(
+    circle,
+    hsl(var(--secondary) / 0.06) 0%,
+    hsl(var(--secondary) / 0.02) 50%,
+    transparent 80%
+  );
+}
+
+.dark .landing-bg-orb-3 {
+  background: radial-gradient(
+    circle,
+    hsl(var(--accent) / 0.05) 0%,
+    transparent 60%
+  );
+}
+
+.dark .landing-glow-effect {
+  background: radial-gradient(
+    circle,
+    hsl(var(--primary) / 0.05) 0%,
+    hsl(var(--secondary) / 0.03) 30%,
+    transparent 70%
+  );
+}
+
+/* ==========================================
+   🎯 فئات مساعدة للاستخدام
+   ========================================== */
+
+/* تطبيق الخلفية على أي مكون */
+.landing-section {
+  position: relative;
+  overflow: hidden;
+}
+
+.landing-section-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.landing-section-content {
+  position: relative;
+  z-index: 10;
+}
+
+/* ==========================================
+   🚀 تحسينات الأداء
+   ========================================== */
+
+/* تعطيل الرسوم المتحركة للأجهزة التي تفضل تقليل الحركة */
+@media (prefers-reduced-motion: reduce) {
+  .landing-background::before,
+  .landing-background::after,
+  .landing-bg-orb-1,
+  .landing-bg-orb-2,
+  .landing-bg-orb-3,
+  .landing-glow-effect,
+  .landing-wave-pattern {
+    animation: none;
+  }
+}
+
+/* تحسين الأداء للأجهزة الضعيفة */
+@media (max-width: 480px) {
+  .landing-background::before,
+  .landing-background::after {
+    display: none;
+  }
+  
+  .landing-bg-orb-1,
+  .landing-bg-orb-2,
+  .landing-bg-orb-3 {
+    display: none;
+  }
+}

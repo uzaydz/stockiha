@@ -47,7 +47,7 @@ import { Separator } from "@/components/ui/separator";
 import { useAuth } from '@/context/AuthContext';
 import { EmployeePermissions } from '@/types/employee';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { checkUserPermissions, refreshUserData } from '@/lib/api/permissions';
+import { hasPermissions } from '@/lib/api/userPermissionsUnified';
 
 import ProductImagesManager from './ProductImagesManager';
 import ProductColorManager from './ProductColorManager';
@@ -108,25 +108,12 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
   useEffect(() => {
     if (!user) return;
     
-    // وظيفة مساعدة لتحقق من الصلاحيات باستخدام نفس آلية ProductsList
+    // وظيفة مساعدة لتحقق من الصلاحيات باستخدام الدالة الموحدة
     const checkUserPermissionsLocally = async () => {
       try {
-        // تحديث بيانات المستخدم من قاعدة البيانات
-        const userData = await refreshUserData(user.id);
-        
-        // دمج البيانات المحدثة مع بيانات المستخدم
-        const mergedUserData = {
-          ...user,
-          permissions: userData?.permissions || user.user_metadata?.permissions,
-          is_org_admin: userData?.is_org_admin || user.user_metadata?.is_org_admin,
-          is_super_admin: userData?.is_super_admin || user.user_metadata?.is_super_admin,
-          role: userData?.role || user.user_metadata?.role,
-        };
-
-        // استخدام نفس دالة فحص الصلاحيات المستخدمة في ProductsList
-        // انتظار حل الوعد (Promise) لاستلام نتيجة التحقق
-        const canEditPromise = checkUserPermissions(mergedUserData, 'editProducts');
-        const canEdit = await canEditPromise;
+        // استخدام الدالة الموحدة للتحقق من صلاحية تعديل المنتجات
+        const permissionsResult = await hasPermissions(['editProducts'], user.id);
+        const canEdit = permissionsResult.editProducts || false;
 
         // تحديث حالة الصلاحية
         setHasPermission(canEdit);
@@ -198,6 +185,9 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
         use_variant_prices: Boolean((product as any)?.use_variant_prices),
         unit_purchase_price: (product as any)?.unit_purchase_price || 0,
         unit_sale_price: (product as any)?.unit_sale_price || 0,
+        form_template_id: (product as any)?.form_template_id || null,
+        shipping_provider_id: (product as any)?.shipping_provider_id || null,
+        shipping_method_type: (product as any)?.shipping_method_type || 'default',
         colors: [],
         additional_images: [],
       };
@@ -232,6 +222,12 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
     if (product && open) {
       // تعيين الصورة الرئيسية مباشرة من معلومات المنتج
       form.setValue('thumbnail_image', product.thumbnail_image || '');
+      
+      // عرض قيم الشحن في المنتج
+      
+      // تعيين إعدادات الشحن
+      form.setValue('shipping_method_type', (product as any)?.shipping_method_type || 'default');
+      form.setValue('shipping_provider_id', (product as any)?.shipping_provider_id || null);
       
       const loadProductDetails = async () => {
         try {

@@ -52,13 +52,23 @@ export class YalidineApiClient {
       ...options
     };
 
-    // استخدام قيم افتراضية إذا كانت القيم غير صالحة
-    this.supabase = createClient(
-      supabaseUrl || "https://wrnssatuvmumsczyldth.supabase.co",
-      supabaseKey || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndybnNzYXR1dm11bXNjenlsZHRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE2OTUzNzk2MDUsImV4cCI6MjAxMDk1NTYwNX0.ftKN5POMQr1PVpUMuQRvZ2WoKGexmf3LXj_QA0UBUbw"
-    );
-    this.apiId = yalidineApiId || "86289860825230294974";
-    this.apiToken = yalidineApiToken || "c5ceGQvvk7XxPYEHs8uD02mapnsAVgmqfHebdNBKl234hZFCyTwXl4wVjFRJoZCh";
+    // التحقق من وجود المتغيرات المطلوبة
+    if (!supabaseUrl) {
+      throw new Error('VITE_SUPABASE_URL environment variable is required');
+    }
+    if (!supabaseKey) {
+      throw new Error('VITE_SUPABASE_ANON_KEY environment variable is required');
+    }
+    if (!yalidineApiId) {
+      throw new Error('YALIDINE_API_ID environment variable is required');
+    }
+    if (!yalidineApiToken) {
+      throw new Error('YALIDINE_API_TOKEN environment variable is required');
+    }
+
+    this.supabase = createClient(supabaseUrl, supabaseKey);
+    this.apiId = yalidineApiId;
+    this.apiToken = yalidineApiToken;
     this.organizationId = organizationId;
     
     // حفظ المثيل الحالي للاستخدام المستقبلي

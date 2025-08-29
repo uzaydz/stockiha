@@ -113,6 +113,7 @@ export function useToastNotifications(options: UseToastNotificationsOptions = {}
       title,
       message,
       priority: 'high',
+      duration: 6000,
       ...options
     });
   }, [addToast]);
@@ -127,60 +128,40 @@ export function useToastNotifications(options: UseToastNotificationsOptions = {}
     });
   }, [addToast]);
 
-  const showNewOrder = useCallback((title: string, message: string, options?: Partial<ToastNotificationData>) => {
+  // وظائف مخصصة للأنواع المختلفة
+  const showNewOrder = useCallback((order: any) => {
     return addToast({
       type: 'new_order',
-      title,
-      message,
-      priority: 'medium',
-      action: {
-        label: 'عرض الطلب',
-        onClick: () => {
-          navigate('/dashboard/orders');
-        }
-      },
-      ...options
+      title: '🛒 طلبية جديدة',
+      message: `طلبية جديدة بقيمة ${order.total || 0} دج`,
+      priority: 'high',
+      duration: 8000
     });
-  }, [addToast, navigate]);
+  }, [addToast]);
 
-  const showPaymentReceived = useCallback((title: string, message: string, options?: Partial<ToastNotificationData>) => {
-    return addToast({
-      type: 'payment_received',
-      title,
-      message,
-      priority: 'medium',
-      action: {
-        label: 'عرض الطلب',
-        onClick: () => {
-          navigate('/dashboard/orders');
-        }
-      },
-      ...options
-    });
-  }, [addToast, navigate]);
-
-  const showLowStock = useCallback((title: string, message: string, options?: Partial<ToastNotificationData>) => {
+  const showLowStock = useCallback((product: any) => {
     return addToast({
       type: 'low_stock',
-      title,
-      message,
-      priority: 'high',
-      action: {
-        label: 'إدارة المخزون',
-        onClick: () => {
-          navigate('/dashboard/inventory');
-        }
-      },
-      ...options
+      title: '⚠️ مخزون منخفض',
+      message: `المخزون منخفض للمنتج: ${product.name}`,
+      priority: 'urgent',
+      duration: 10000
     });
-  }, [addToast, navigate]);
+  }, [addToast]);
+
+  const showPaymentReceived = useCallback((payment: any) => {
+    return addToast({
+      type: 'payment_received',
+      title: '💰 تم استلام الدفع',
+      message: `تم استلام دفع بقيمة ${payment.amount || 0} دج`,
+      priority: 'medium',
+      duration: 6000
+    });
+  }, [addToast]);
 
   // تحديث إعدادات الصوت
-  const updateSoundSettings = useCallback((enabled: boolean, volume?: number) => {
-    notificationSoundManager.setEnabled(enabled);
-    if (volume !== undefined) {
-      notificationSoundManager.setMasterVolume(volume);
-    }
+  const updateSoundSettings = useCallback((enabled: boolean, volume: number) => {
+    // يمكن إضافة منطق تحديث الصوت هنا
   }, []);
 
   // تشغيل صوت اختبار

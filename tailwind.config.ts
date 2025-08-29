@@ -40,6 +40,21 @@ export default {
     				lighter: 'hsl(var(--primary-lighter))',
     				darker: 'hsl(var(--primary-darker))'
     			},
+    			// نظام الألوان الموحد - اللون البرتقالي الأساسي
+    			brand: {
+    				DEFAULT: '#fc5d41',
+    				50: '#fef7f4',
+    				100: '#fdeee9',
+    				200: '#fad4c8',
+    				300: '#f6b8a4',
+    				400: '#f19071',
+    				500: '#fc5d41',
+    				600: '#e04e2f',
+    				700: '#c23e24',
+    				800: '#a0341d',
+    				900: '#822d1a',
+    				950: '#461609'
+    			},
     			secondary: {
     				DEFAULT: 'hsl(var(--secondary))',
     				foreground: 'hsl(var(--secondary-foreground))',

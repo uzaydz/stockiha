@@ -25,22 +25,35 @@ export const useCallCenterAgents = (filters?: AgentFilters): UseCallCenterAgents
       setLoading(true);
       setError(null);
 
-      const { data, error: fetchError } = await supabase
-        .from('call_center_agents')
-        .select(`
-          *,
-          users (
-            id,
-            name,
-            email
-          )
-        `)
-        .eq('organization_id', organization.id)
-        .order('created_at', { ascending: false });
+      // استخدام API موحد لمنع التكرار
+      const { getCallCenterAgents } = await import('@/lib/api/deduplicatedApi');
+      const agentsData = await getCallCenterAgents(organization.id);
 
-      if (fetchError) throw fetchError;
+      // جلب بيانات المستخدمين للوكلاء
+      const agentsWithUsers = await Promise.all(
+        agentsData.map(async (agent) => {
+          try {
+            const { data: userData } = await supabase
+              .from('users')
+              .select('id, name, email')
+              .eq('id', agent.user_id)
+              .single();
+            
+            return {
+              ...agent,
+              users: userData
+            } as AgentWithUser;
+          } catch (error) {
+            // في حالة عدم وجود بيانات المستخدم، أرجع الوكيل بدون بيانات المستخدم
+            return {
+              ...agent,
+              users: null
+            } as AgentWithUser;
+          }
+        })
+      );
 
-      setAgents((data || []) as AgentWithUser[]);
+      setAgents(agentsWithUsers);
     } catch (err: any) {
       setError('فشل في جلب بيانات الوكلاء');
     } finally {
