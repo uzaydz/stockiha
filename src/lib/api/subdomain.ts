@@ -466,7 +466,7 @@ export const extractSubdomainFromHostname = (hostname: string) => {
   }
   
   // التحقق أولاً إذا كان يستخدم النطاق الرئيسي الذي نمتلكه
-  const baseDomains = ['.bazaar.com', '.bazaar.dev', '.vercel.app', '.ktobi.online', '.stockiha.com'];
+  const baseDomains = ['.bazaar.com', '.bazaar.dev', '.vercel.app', '.ktobi.online', '.stockiha.com', '.stockiha.pages.dev'];
   
   for (const baseDomain of baseDomains) {
     if (hostname.endsWith(baseDomain)) {

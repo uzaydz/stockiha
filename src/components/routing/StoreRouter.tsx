@@ -11,7 +11,8 @@ const PUBLIC_DOMAINS = [
   'ktobi.online',
   'www.ktobi.online',
   'stockiha.com',
-  'www.stockiha.com'
+  'www.stockiha.com',
+  'stockiha.pages.dev'
 ];
 
 // دالة للتحقق من localhost (مع أو بدون منفذ)

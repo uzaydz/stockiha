@@ -66,7 +66,7 @@ export const usePreloadedStoreData = (options: UsePreloadedStoreDataOptions = {}
     
     try {
       const hostname = window.location.hostname.split(':')[0];
-      const baseDomains = ['.ktobi.online', '.stockiha.com', '.bazaar.dev', '.vercel.app', '.bazaar.com'];
+      const baseDomains = ['.ktobi.online', '.stockiha.com', '.bazaar.dev', '.vercel.app', '.bazaar.com', '.stockiha.pages.dev'];
       const isBaseDomain = baseDomains.some((d) => hostname.endsWith(d));
       const isLocalhost = hostname.includes('localhost') || hostname.startsWith('127.');
       const isCustomDomain = !isLocalhost && !isBaseDomain;
@@ -159,7 +159,7 @@ export const usePreloadedStoreData = (options: UsePreloadedStoreDataOptions = {}
           try {
             // استيراد earlyPreloader ومسح البيانات
             import('@/utils/earlyPreload').then(({ earlyPreloader }) => {
-              earlyPreloader.clearPreloadedData(storeIdentifier);
+              earlyPreloader.clearPreloadedData();
             });
           } catch (e) {
             console.warn('⚠️ فشل في مسح البيانات من earlyPreload:', e);
