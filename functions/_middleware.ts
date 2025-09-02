@@ -50,7 +50,8 @@ function isValidOrigin(origin: string | null): boolean {
   
   const allowedOrigins = [
     'https://stockiha.pages.dev',
-    'https://96bab160.stockiha.pages.dev', // Current deployment
+    'https://96bab160.stockiha.pages.dev', // Previous deployment
+    'https://a0effe32.stockiha.pages.dev', // Current deployment
     'https://stockiha.com',
     'https://www.stockiha.com',
     'http://localhost:8080',
@@ -65,11 +66,12 @@ export const onRequest: PagesFunction = async (context) => {
   const url = new URL(request.url);
   const origin = request.headers.get('Origin');
 
-  // 🚫 Skip security checks for static assets
+  // 🚫 Skip ALL security checks for static assets and main page
   if (url.pathname.startsWith('/assets/') || 
       url.pathname.startsWith('/fonts/') || 
       url.pathname.startsWith('/images/') ||
       url.pathname.startsWith('/icons/') ||
+      url.pathname === '/' ||
       url.pathname.endsWith('.js') ||
       url.pathname.endsWith('.css') ||
       url.pathname.endsWith('.woff2') ||
@@ -82,18 +84,8 @@ export const onRequest: PagesFunction = async (context) => {
       url.pathname.endsWith('.webp') ||
       url.pathname.endsWith('.ico')) {
     
-    const response = await next();
-    
-    // Add basic security headers for static assets
-    response.headers.set('X-Content-Type-Options', 'nosniff');
-    response.headers.set('X-Frame-Options', 'SAMEORIGIN');
-    
-    // Add caching headers for assets
-    if (url.pathname.startsWith('/assets/')) {
-      response.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
-    }
-    
-    return response;
+    // Just pass through without any security checks
+    return next();
   }
 
   // 🛡️ Security checks for non-static requests only
