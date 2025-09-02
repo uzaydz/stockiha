@@ -465,6 +465,21 @@ export const extractSubdomainFromHostname = (hostname: string) => {
     return null;
   }
   
+  // 🔥 إضافة منطق خاص للتعامل مع نطاقات Cloudflare Pages التلقائية
+  // هذه النطاقات تحتوي على hash عشوائي (مثل fc4aad5d.stockiha.pages.dev)
+  // ويجب أن تعرض صفحة الهبوط وليس متجر محدد
+  if (hostname.endsWith('.stockiha.pages.dev')) {
+    const parts = hostname.split('.');
+    if (parts.length === 3 && parts[0] && parts[0] !== 'www') {
+      // التحقق من أن الجزء الأول هو hash عشوائي (8 أحرف hex)
+      const firstPart = parts[0];
+      if (/^[a-f0-9]{8}$/i.test(firstPart)) {
+        // هذا نطاق Cloudflare Pages تلقائي - لا نعتبره subdomain
+        return null;
+      }
+    }
+  }
+  
   // التحقق أولاً إذا كان يستخدم النطاق الرئيسي الذي نمتلكه
   const baseDomains = ['.bazaar.com', '.bazaar.dev', '.vercel.app', '.ktobi.online', '.stockiha.com', '.stockiha.pages.dev'];
   

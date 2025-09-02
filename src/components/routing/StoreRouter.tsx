@@ -15,6 +15,19 @@ const PUBLIC_DOMAINS = [
   'stockiha.pages.dev'
 ];
 
+// دالة للتحقق من نطاقات Cloudflare Pages التلقائية
+const isCloudflarePagesDomain = (hostname: string): boolean => {
+  if (hostname.endsWith('.stockiha.pages.dev')) {
+    const parts = hostname.split('.');
+    if (parts.length === 3 && parts[0] && parts[0] !== 'www') {
+      // التحقق من أن الجزء الأول هو hash عشوائي (8 أحرف hex)
+      const firstPart = parts[0];
+      return /^[a-f0-9]{8}$/i.test(firstPart);
+    }
+  }
+  return false;
+};
+
 // دالة للتحقق من localhost (مع أو بدون منفذ)
 const isLocalhostDomain = (hostname: string) => {
   return hostname === 'localhost' || 
@@ -231,7 +244,7 @@ const StoreRouter = React.memo(() => {
         }
 
         // النطاقات العامة - عرض صفحة الهبوط مباشرة
-        if (PUBLIC_DOMAINS.includes(hostname)) {
+        if (PUBLIC_DOMAINS.includes(hostname) || isCloudflarePagesDomain(hostname)) {
           setIsStore(false);
           setIsLoading(false);
           domainChecked.current = true;
