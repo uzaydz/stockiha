@@ -228,8 +228,12 @@ const StoreRouter = React.memo(() => {
           return;
         }
 
-        // إذا كان هناك نطاق فرعي، نفترض أنه متجر ونترك تحميل البيانات للمكونات المختصة
-        if (isSubdomainStore && subdomain) {
+        // فحص نطاقات Cloudflare Pages أولاً قبل معاملتها كنطاقات فرعية
+        const isCloudflarePages = isCloudflarePagesDomain(hostname);
+        
+        // إذا كان هناك نطاق فرعي وليس نطاق Cloudflare Pages، نفترض أنه متجر
+        if (isSubdomainStore && subdomain && !isCloudflarePages) {
+          console.log(`🏪 معاملة كمتجر: ${hostname} (subdomain: ${subdomain})`);
           setHasSubdomain(true);
           // ضمان توافق المعرف مع النطاق الحالي: نُفرغ المعرف المخزن لتجنب جلب مكرر بالمعرف
           try {
@@ -244,7 +248,16 @@ const StoreRouter = React.memo(() => {
         }
 
         // النطاقات العامة أو نطاقات Cloudflare Pages التلقائية - عرض صفحة الهبوط مباشرة
-        if (PUBLIC_DOMAINS.includes(hostname) || isCloudflarePagesDomain(hostname)) {
+        const isPublicDomain = PUBLIC_DOMAINS.includes(hostname);
+        
+        console.log(`🔍 فحص النطاق: ${hostname}`, {
+          isPublicDomain,
+          isCloudflarePages,
+          isSubdomainStore,
+          subdomain
+        });
+        
+        if (isPublicDomain || isCloudflarePages) {
           console.log(`🏠 عرض صفحة الهبوط للنطاق: ${hostname}`);
           setIsStore(false);
           setIsLoading(false);
