@@ -1,7 +1,7 @@
 // تكوين الثيم للمشروع
 export const THEME_CONFIG = {
   // النطاقات العامة المعروفة
-  PUBLIC_DOMAINS: ['ktobi.online', 'stockiha.com', 'localhost', 'stockiha.pages.dev'],
+  PUBLIC_DOMAINS: ['ktobi.online', 'stockiha.com', 'localhost'],
   
   // الألوان الافتراضية للموقع العام
   DEFAULT_GLOBAL_COLORS: {

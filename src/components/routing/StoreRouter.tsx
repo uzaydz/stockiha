@@ -11,22 +11,8 @@ const PUBLIC_DOMAINS = [
   'ktobi.online',
   'www.ktobi.online',
   'stockiha.com',
-  'www.stockiha.com',
-  'stockiha.pages.dev'
+  'www.stockiha.com'
 ];
-
-// دالة للتحقق من نطاقات Cloudflare Pages التلقائية
-const isCloudflarePagesDomain = (hostname: string): boolean => {
-  if (hostname.endsWith('.stockiha.pages.dev')) {
-    const parts = hostname.split('.');
-    if (parts.length === 4 && parts[0] && parts[0] !== 'www') {
-      // التحقق من أن الجزء الأول هو hash عشوائي (8 أحرف hex)
-      const firstPart = parts[0];
-      return /^[a-f0-9]{8}$/i.test(firstPart);
-    }
-  }
-  return false;
-};
 
 // دالة للتحقق من localhost (مع أو بدون منفذ)
 const isLocalhostDomain = (hostname: string) => {
@@ -104,7 +90,7 @@ const StoreRouter = React.memo(() => {
   const hostname = useMemo(() => window.location.hostname, []);
   const subdomain = useMemo(() => extractSubdomainFromHostname(hostname), [hostname]);
   const isSubdomainStore = useMemo(() => Boolean(subdomain && subdomain !== 'www'), [subdomain]);
-  const isCustomDomain = useMemo(() => !isSubdomainStore && !PUBLIC_DOMAINS.includes(hostname) && !isLocalhostDomain(hostname) && !isCloudflarePagesDomain(hostname), [isSubdomainStore, hostname]);
+  const isCustomDomain = useMemo(() => !isSubdomainStore && !PUBLIC_DOMAINS.includes(hostname) && !isLocalhostDomain(hostname), [isSubdomainStore, hostname]);
 
   // 🔥 تحسين: فحص الكشف المبكر للنطاق
   const earlyDomainDetection = useMemo(() => {
@@ -228,12 +214,8 @@ const StoreRouter = React.memo(() => {
           return;
         }
 
-        // فحص نطاقات Cloudflare Pages أولاً قبل معاملتها كنطاقات فرعية
-        const isCloudflarePages = isCloudflarePagesDomain(hostname);
-        
-        // إذا كان هناك نطاق فرعي وليس نطاق Cloudflare Pages، نفترض أنه متجر
-        if (isSubdomainStore && subdomain && !isCloudflarePages) {
-          console.log(`🏪 معاملة كمتجر: ${hostname} (subdomain: ${subdomain})`);
+        // إذا كان هناك نطاق فرعي، نفترض أنه متجر ونترك تحميل البيانات للمكونات المختصة
+        if (isSubdomainStore && subdomain) {
           setHasSubdomain(true);
           // ضمان توافق المعرف مع النطاق الحالي: نُفرغ المعرف المخزن لتجنب جلب مكرر بالمعرف
           try {
@@ -247,18 +229,8 @@ const StoreRouter = React.memo(() => {
           return;
         }
 
-        // النطاقات العامة أو نطاقات Cloudflare Pages التلقائية - عرض صفحة الهبوط مباشرة
-        const isPublicDomain = PUBLIC_DOMAINS.includes(hostname);
-        
-        console.log(`🔍 فحص النطاق: ${hostname}`, {
-          isPublicDomain,
-          isCloudflarePages,
-          isSubdomainStore,
-          subdomain
-        });
-        
-        if (isPublicDomain || isCloudflarePages) {
-          console.log(`🏠 عرض صفحة الهبوط للنطاق: ${hostname}`);
+        // النطاقات العامة - عرض صفحة الهبوط مباشرة
+        if (PUBLIC_DOMAINS.includes(hostname)) {
           setIsStore(false);
           setIsLoading(false);
           domainChecked.current = true;

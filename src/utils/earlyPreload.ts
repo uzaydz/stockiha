@@ -58,7 +58,6 @@ class EarlyPreloader {
       
       if (!storeIdentifier) {
         const executionTime = performance.now() - startTime;
-        console.log('🚫 [earlyPreload] لا يوجد store identifier - تخطي preload');
         return {
           success: false,
           error: 'No store identifier found',
@@ -139,21 +138,7 @@ class EarlyPreloader {
     try {
       // 🔥 إصلاح: فحص النطاق الحالي أولاً، ثم استخدام localStorage كـ fallback
       const hostname = window.location.hostname.split(':')[0];
-      
-      // 🔥 إضافة منطق خاص للتعامل مع نطاقات Cloudflare Pages التلقائية
-      if (hostname.endsWith('.stockiha.pages.dev')) {
-        const parts = hostname.split('.');
-        if (parts.length === 3 && parts[0] && parts[0] !== 'www') {
-          // التحقق من أن الجزء الأول هو hash عشوائي (8 أحرف hex)
-          const firstPart = parts[0];
-          if (/^[a-f0-9]{8}$/i.test(firstPart)) {
-            // هذا نطاق Cloudflare Pages تلقائي - لا نعتبره متجر
-            return { storeIdentifier: null, domainType: 'localhost' };
-          }
-        }
-      }
-      
-      const baseDomains = ['.ktobi.online', '.stockiha.com', '.bazaar.dev', '.vercel.app', '.bazaar.com', '.stockiha.pages.dev'];
+      const baseDomains = ['.ktobi.online', '.stockiha.com', '.bazaar.dev', '.vercel.app', '.bazaar.com'];
       const isBaseDomain = baseDomains.some((d) => hostname.endsWith(d));
       const isLocalhost = hostname.includes('localhost') || hostname.startsWith('127.');
       const isCustomDomain = !isLocalhost && !isBaseDomain;

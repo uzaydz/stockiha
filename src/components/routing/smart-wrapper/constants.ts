@@ -33,8 +33,7 @@ export const PLATFORM_DOMAINS = [
   'stockiha.com',
   'www.stockiha.com',
   'ktobi.online',
-  'www.ktobi.online',
-  'stockiha.pages.dev'
+  'www.ktobi.online'
 ] as const;
 
 /**

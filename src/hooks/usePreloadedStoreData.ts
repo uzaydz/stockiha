@@ -66,21 +66,7 @@ export const usePreloadedStoreData = (options: UsePreloadedStoreDataOptions = {}
     
     try {
       const hostname = window.location.hostname.split(':')[0];
-      
-      // 🔥 إضافة منطق خاص للتعامل مع نطاقات Cloudflare Pages التلقائية
-      if (hostname.endsWith('.stockiha.pages.dev')) {
-        const parts = hostname.split('.');
-        if (parts.length === 3 && parts[0] && parts[0] !== 'www') {
-          // التحقق من أن الجزء الأول هو hash عشوائي (8 أحرف hex)
-          const firstPart = parts[0];
-          if (/^[a-f0-9]{8}$/i.test(firstPart)) {
-            // هذا نطاق Cloudflare Pages تلقائي - لا نعتبره متجر
-            return null;
-          }
-        }
-      }
-      
-      const baseDomains = ['.ktobi.online', '.stockiha.com', '.bazaar.dev', '.vercel.app', '.bazaar.com', '.stockiha.pages.dev'];
+      const baseDomains = ['.ktobi.online', '.stockiha.com', '.bazaar.dev', '.vercel.app', '.bazaar.com'];
       const isBaseDomain = baseDomains.some((d) => hostname.endsWith(d));
       const isLocalhost = hostname.includes('localhost') || hostname.startsWith('127.');
       const isCustomDomain = !isLocalhost && !isBaseDomain;
@@ -173,7 +159,7 @@ export const usePreloadedStoreData = (options: UsePreloadedStoreDataOptions = {}
           try {
             // استيراد earlyPreloader ومسح البيانات
             import('@/utils/earlyPreload').then(({ earlyPreloader }) => {
-              earlyPreloader.clearPreloadedData();
+              earlyPreloader.clearPreloadedData(storeIdentifier);
             });
           } catch (e) {
             console.warn('⚠️ فشل في مسح البيانات من earlyPreload:', e);

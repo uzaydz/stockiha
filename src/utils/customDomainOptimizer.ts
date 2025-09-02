@@ -28,24 +28,6 @@ class CustomDomainOptimizer {
    * تحسين النطاق المخصص باستخدام استراتيجيات متعددة
    */
   async optimizeCustomDomain(hostname: string): Promise<CustomDomainResult> {
-    // 🔥 إضافة منطق خاص للتعامل مع نطاقات Cloudflare Pages التلقائية
-    if (hostname.endsWith('.stockiha.pages.dev')) {
-      const parts = hostname.split('.');
-      if (parts.length === 3 && parts[0] && parts[0] !== 'www') {
-        // التحقق من أن الجزء الأول هو hash عشوائي (8 أحرف hex)
-        const firstPart = parts[0];
-        if (/^[a-f0-9]{8}$/i.test(firstPart)) {
-          // هذا نطاق Cloudflare Pages تلقائي - لا نعتبره متجر
-          console.log('🚫 [customDomainOptimizer] نطاق Cloudflare Pages تلقائي - تخطي تحسين');
-          return {
-            success: false,
-            error: 'Cloudflare Pages auto domain - not a store',
-            strategy: 'cloudflare-pages-skip'
-          };
-        }
-      }
-    }
-    
     // فحص cache أولاً
     const cached = this.cache.get(hostname);
     if (cached && (Date.now() - cached.timestamp) < this.CACHE_TTL) {
