@@ -94,24 +94,26 @@ export const useProductData = ({
   // استخدام البيانات المحملة مسبقاً
   const usePreloadedData = useCallback((pid: string) => {
     if (!preloadedProduct) return false;
-    
+
     const matches = checkPreloadedData(pid);
     if (matches) {
-      
+      console.log('✅ [useProductData] استخدام البيانات المحملة مسبقاً:', pid);
+
       setProduct(preloadedProduct);
       setLoading(false);
       setError(null);
-      
+
       // حفظ في cache
       const cacheKey = createCacheKey(pid, organizationId);
       cache.set(cacheKey, preloadedProduct, organizationId);
-      
+
       // حفظ في global cache أيضاً
       saveToGlobalCache(cacheKey, preloadedProduct);
-      
+
       return true;
     }
-    
+
+    console.log('⚠️ [useProductData] البيانات المحملة مسبقاً غير متوفرة أو غير متطابقة:', pid);
     return false;
   }, [preloadedProduct, checkPreloadedData, createCacheKey, organizationId, cache, saveToGlobalCache]);
 
@@ -126,7 +128,10 @@ export const useProductData = ({
 
   // جلب بيانات المنتج
   const fetchProduct = useCallback(async () => {
+    console.log('🔄 [useProductData] بدء جلب المنتج:', productId, { enabled, preloadedProduct: !!preloadedProduct });
+
     if (!productId || !enabled) {
+      console.log('⚠️ [useProductData] معرف المنتج غير صحيح أو الجلب معطل:', { productId, enabled });
       setError('معرف المنتج غير صحيح أو الجلب معطل');
       setLoading(false);
       return;
@@ -198,11 +203,11 @@ export const useProductData = ({
 
               // محاولة جلب البيانات مع fallback strategies
               try {
-                // المحاولة الأولى: الدالة المحسنة
+                // المحاولة الأولى: الدالة المحسنة (بدون forceRefresh للسماح باستخدام Cache)
                 response = await (getProductCompleteDataOptimized as any)(productId, {
                   organizationId,
                   dataScope: dataScope,
-                  forceRefresh: retryCount > 0
+                  forceRefresh: false // ✅ عدم إجبار تحديث البيانات للسماح باستخدام Cache
                 });
               } catch (optimizedError) {
                 

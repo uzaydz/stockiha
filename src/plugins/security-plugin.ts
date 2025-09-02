@@ -19,7 +19,7 @@ function calculateSRI(filePath: string, algorithm: 'sha256' | 'sha384' | 'sha512
   }
 }
 
-// إنشاء CSP مع nonce ديناميكي
+// إنشاء CSP مع nonce ديناميكي - محسن لدعم إنستغرام
 function generateCSP(nonce: string, isDev: boolean = false): string {
   return [
     "default-src 'self'",
@@ -28,11 +28,12 @@ function generateCSP(nonce: string, isDev: boolean = false): string {
     "img-src 'self' data: https: blob: https://*.supabase.co",
     "font-src 'self' https://fonts.gstatic.com data:",
     "connect-src 'self' https://api.yalidine.app https://connect.ktobi.online wss://connect.ktobi.online https://*.supabase.co wss://*.supabase.co ws://localhost:* wss://localhost:* ws://0.0.0.0:* wss://0.0.0.0:*",
-    "frame-src 'none'",
+    "frame-src 'self' https://www.facebook.com https://connect.facebook.net https://www.instagram.com https://*.instagram.com",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
-    "frame-ancestors 'self'",
+    // السماح بتحميل الموقع في iframe من إنستغرام وفيسبوك
+    "frame-ancestors 'self' https://www.instagram.com https://*.instagram.com https://www.facebook.com https://*.facebook.com",
     ...(isDev ? [] : ["upgrade-insecure-requests", "require-trusted-types-for 'script'", "trusted-types default"])
   ].join('; ');
 }
@@ -61,7 +62,18 @@ export function securityPlugin(): Plugin {
         
         // إضافة headers أمان إضافية (أخف في بيئة التطوير)
         res.setHeader('X-Content-Type-Options', 'nosniff');
-        res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+        
+        // تحديد User-Agent للسماح بإنستغرام
+        const userAgent = req.headers['user-agent'] || '';
+        const isInstagram = userAgent.includes('Instagram') || userAgent.includes('FBAN') || userAgent.includes('FBAV');
+        
+        if (isInstagram) {
+          // السماح بتحميل الموقع في إنستغرام
+          res.setHeader('X-Frame-Options', 'ALLOWALL');
+        } else {
+          res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+        }
+        
         res.setHeader('X-XSS-Protection', '1; mode=block');
         res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
         

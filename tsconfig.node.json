@@ -24,6 +24,6 @@
     "noFallthroughCasesInSwitch": true,
     "typeRoots": ["./node_modules/@types"]
   },
-  "include": ["vite.config.ts", "env.d.ts", "src/plugins/**/*"],
+  "include": ["vite.config.ts", "env.d.ts", "src/plugins/**/*", "src/middleware/**/*"],
   "exclude": ["node_modules"]
 }

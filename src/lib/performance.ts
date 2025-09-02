@@ -49,7 +49,6 @@ class PerformanceTracker {
     if (process.env.NODE_ENV === 'development') {
       const status = success ? '✅' : '❌';
       const color = success ? 'color: #22c55e' : 'color: #ef4444';
-      console.log(`%c${status} [Performance] ${operation}: ${duration.toFixed(2)}ms`, color);
     }
   }
   

@@ -64,7 +64,6 @@ export class CacheMonitor {
     this.setupPerformanceObserver();
     this.startPeriodicReporting();
 
-    console.log('📊 تم تشغيل مراقبة الكاش');
   }
 
   /**
@@ -78,7 +77,6 @@ export class CacheMonitor {
       this.performanceObserver = null;
     }
 
-    console.log('📊 تم إيقاف مراقبة الكاش');
   }
 
   /**
@@ -107,9 +105,6 @@ export class CacheMonitor {
       recommendations,
       issues
     };
-
-    console.log('🔍 تم إكمال التشخيص الشامل للكاش');
-    console.table(diagnostic);
 
     return diagnostic;
   }
@@ -177,8 +172,6 @@ export class CacheMonitor {
       } catch (error) {
         errors.push(`React Query cleanup failed: ${error}`);
       }
-
-      console.log('🧹 تم تنظيف شامل لجميع أنظمة الكاش');
 
     } catch (error) {
       errors.push(`General cleanup error: ${error}`);
@@ -454,7 +447,6 @@ export class CacheMonitor {
 
       this.performanceObserver.observe({ entryTypes: ['measure'] });
     } catch (error) {
-      console.warn('⚠️ فشل في إعداد Performance Observer:', error);
     }
   }
 
@@ -462,7 +454,6 @@ export class CacheMonitor {
     setInterval(() => {
       if (this.monitoringEnabled) {
         const report = this.getPerformanceReport();
-        console.log('📊 تقرير أداء الكاش:', report);
       }
     }, 60 * 1000); // كل دقيقة
   }

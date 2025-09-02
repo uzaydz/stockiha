@@ -146,7 +146,7 @@ const CoursesSection = memo(() => {
   const courses = useMemo(() => COURSES, []);
 
   return (
-    <section dir="rtl" className="relative py-20 bg-gradient-to-b from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 overflow-hidden">
+    <section dir="rtl" className="relative py-20 landing-bg-secondary landing-section-transition overflow-hidden">
       {/* خلفيات ناعمة */}
       <div className="absolute inset-0 pointer-events-none">
         <motion.div

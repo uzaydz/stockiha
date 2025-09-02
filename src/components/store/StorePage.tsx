@@ -13,7 +13,6 @@ interface StorePageProps {
 
 // 🔥 تحسين: استخدام React.memo مع مقارنة مناسبة لمنع إعادة الإنشاء
 const StorePage: React.FC<StorePageProps> = React.memo(() => {
-  console.log('🚀 StorePage: بدء التهيئة');
   
   // 🔥 استخدام useRef لمنع إعادة الإنشاء المتكرر
   const isInitialized = useRef(false);
@@ -23,12 +22,7 @@ const StorePage: React.FC<StorePageProps> = React.memo(() => {
   
   // الحصول على حالة TenantContext
   const { isLoading: tenantLoading, currentOrganization } = useTenant();
-  
-  console.log('🔍 StorePage: حالة TenantContext', { 
-    tenantLoading, 
-    currentOrganization: currentOrganization ? { id: currentOrganization.id, name: currentOrganization.name } : null 
-  });
-  
+
   // استخدام الـ hook المخصص لجلب جميع البيانات
   const {
     // بيانات أساسية
@@ -54,22 +48,6 @@ const StorePage: React.FC<StorePageProps> = React.memo(() => {
     isAppReady,
   } = useStorePageData();
 
-  console.log('🔍 StorePage: بيانات المتجر', { 
-    storeInfo: storeInfo ? { id: storeInfo.id, name: storeInfo.name } : null,
-    organizationSettings: organizationSettings ? { id: organizationSettings.id, site_name: organizationSettings.site_name } : null,
-    storeName,
-    logoUrl,
-    centralOrgId,
-    componentsToRender: componentsToRender?.length || 0,
-    categories: categories?.length || 0,
-    featuredProducts: featuredProducts?.length || 0,
-    unifiedLoading: {
-      shouldShowGlobalLoader: unifiedLoading.shouldShowGlobalLoader,
-      getLoadingProgress: unifiedLoading.getLoadingProgress()
-    },
-    isAppReady
-  });
-
   // استخدام النظام المركزي للتحميل
   const { showLoader, hideLoader, setPhase, updateProgress, isLoaderVisible } = useGlobalLoading();
 
@@ -79,24 +57,15 @@ const StorePage: React.FC<StorePageProps> = React.memo(() => {
       return;
     }
     isInitialized.current = true;
-    console.log('✅ StorePage: تم التهيئة');
   }, []);
 
   // إدارة مؤشر التحميل المركزي
   useEffect(() => {
-    console.log('📊 StorePage: إدارة مؤشر التحميل', {
-      shouldShowLoader: unifiedLoading.shouldShowGlobalLoader,
-      tenantLoading,
-      hasCurrentOrganization: !!currentOrganization,
-      hasStoreInfo: !!storeInfo,
-      isLoaderVisible
-    });
     
     // 🔥 تحسين: استدعاء مباشر بدلاً من الاعتماد على handleLoaderVisibility
     const shouldShowLoader = unifiedLoading.shouldShowGlobalLoader || tenantLoading || (!currentOrganization && !storeInfo);
     
     if (shouldShowLoader) {
-      console.log('📊 StorePage: إظهار مؤشر التحميل');
       // إظهار مؤشر التحميل مع معلومات المتجر
       showLoader({
         storeName: storeName || 'جاري تحميل المتجر...',
@@ -119,7 +88,6 @@ const StorePage: React.FC<StorePageProps> = React.memo(() => {
         setPhase('complete');
       }
     } else if (isLoaderVisible) {
-      console.log('📊 StorePage: إخفاء مؤشر التحميل');
       // إخفاء مؤشر التحميل عند اكتمال التحميل
       hideLoader();
     }
@@ -226,7 +194,6 @@ const StorePage: React.FC<StorePageProps> = React.memo(() => {
 
   // 🔥 إصلاح: عرض مؤشر التحميل بدلاً من null لمنع الشاشة البيضاء
   if (shouldShowLoader) {
-    console.log('⏳ StorePage: عرض مؤشر التحميل', { shouldShowLoader });
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary/10 via-background to-secondary/10 flex flex-col items-center justify-center p-4">
         <div className="w-16 h-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin mb-6"></div>
@@ -242,18 +209,10 @@ const StorePage: React.FC<StorePageProps> = React.memo(() => {
 
   // إذا كان مؤشر التحميل مرئي، لا تعرض محتوى
   if (isLoaderVisible) {
-    console.log('⏳ StorePage: إرجاع null - مؤشر التحميل مرئي', { isLoaderVisible });
     return null;
   }
 
   // البيانات جاهزة، عرض المتجر
-  console.log('✅ StorePage: عرض المتجر - البيانات جاهزة', {
-    storeName,
-    centralOrgId,
-    componentsCount: componentsToRender?.length || 0,
-    categoriesCount: categories?.length || 0,
-    productsCount: featuredProducts?.length || 0
-  });
   
   return memoizedStoreContent;
 });

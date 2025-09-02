@@ -158,74 +158,75 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
   const unifiedData = useUnifiedProductPageData({
     productId: actualProductId,
     organizationId: organizationId,
-    enabled: !!actualProductId && !!organizationId && !isPreloaded && !isCurrentlyPreloading, // تعطيل إذا كانت البيانات محملة مسبقاً أو قيد التحميل
+    enabled: !!actualProductId && !!organizationId, // إزالة تعطيل isPreloaded و isCurrentlyPreloading لضمان تحميل البيانات دائماً
     dataScope: 'ultra' // الاعتماد على ultra فقط
   });
 
-  // دمج البيانات المحملة مسبقاً مع البيانات العادية - تحريكه لأعلى
+  // دمج البيانات المحملة مسبقاً مع البيانات العادية - تحسين المنطق
   const effectiveData = useMemo(() => {
-    if (isPreloaded && preloadedData) {
-      const enhancedPreloadedData = {
-        ...unifiedData,
-        product: preloadedData.product || unifiedData.product,
-        organization: preloadedData.organization || unifiedData.organization,
-        organizationSettings: preloadedData.organizationSettings || unifiedData.organizationSettings,
-        categories: preloadedData.categories || unifiedData.categories,
-        provinces: preloadedData.provinces || unifiedData.provinces,
-        visitorAnalytics: preloadedData.visitorAnalytics || unifiedData.visitorAnalytics,
-        trackingData: preloadedData.trackingData || unifiedData.trackingData,
-        isLoading: false, // البيانات محملة مسبقاً
-        error: null
-      };
+    // استخدم unifiedData كمصدر أساسي دائماً
+    let result = unifiedData;
 
-      // التحقق من اكتمال البيانات المحملة مسبقاً - تحسين المنطق
-      if (preloadedData.product) {
-        const product = preloadedData.product;
-        // نعتبر البيانات مكتملة إذا كانت تحتوي على البيانات الأساسية
-        // المتغيرات يمكن أن تأتي لاحقاً من البيانات الفعلية
-        const hasBasicData = !!(
-          product.description &&
-          product.images
-        );
+    // إذا كانت البيانات المحملة مسبقاً تحتوي على بيانات أكثر اكتمالاً، استخدمها لتعزيز البيانات
+    if (isPreloaded && preloadedData && preloadedData.product) {
+      const product = preloadedData.product;
+      const hasBasicData = !!(
+        product.description &&
+        product.images
+      );
 
-        if (!hasBasicData) {
+      // إذا كانت البيانات المحملة مسبقاً مكتملة، استخدمها لتعزيز unifiedData
+      if (hasBasicData && !unifiedData.product) {
+        // استخدام البيانات المحملة مسبقاً - لا حاجة لرسالة console
 
-          // إذا كانت البيانات الأساسية مفقودة، استخدم البيانات العادية
-          return unifiedData;
-        }
-
-        // إذا كانت البيانات الأساسية موجودة، سجل معلومات للمتابعة فقط
-        if (process.env.NODE_ENV === 'development') {
-        }
+        result = {
+          ...unifiedData,
+          product: preloadedData.product,
+          organization: preloadedData.organization || unifiedData.organization,
+          organizationSettings: preloadedData.organizationSettings || unifiedData.organizationSettings,
+          categories: preloadedData.categories || unifiedData.categories,
+          provinces: preloadedData.provinces || unifiedData.provinces,
+          visitorAnalytics: preloadedData.visitorAnalytics || unifiedData.visitorAnalytics,
+          trackingData: preloadedData.trackingData || unifiedData.trackingData,
+          isLoading: false, // البيانات محملة مسبقاً
+          error: null
+        };
       }
-
-      return enhancedPreloadedData;
     }
-    return unifiedData;
+
+    return result;
   }, [isPreloaded, preloadedData, unifiedData]);
 
-  // تحديد isDataFullyLoaded فوراً للبيانات المحملة مسبقاً - تحسين المنطق
+  // تحديد isDataFullyLoaded بناءً على unifiedData أولاً - تحسين المنطق
   useEffect(() => {
+    // تحقق من unifiedData أولاً (المصدر الأساسي)
+    if (unifiedData.product && !unifiedData.isLoading &&
+        unifiedData.product.description && unifiedData.product.images && !isDataFullyLoaded) {
+      // البيانات مكتملة من unifiedData - لا حاجة لرسالة console
+      setIsDataFullyLoaded(true);
+      return;
+    }
+
+    // إذا لم تكن unifiedData مكتملة، تحقق من البيانات المحملة مسبقاً كـ fallback
     if (isPreloaded && preloadedData && preloadedData.product && !isDataFullyLoaded) {
       const product = preloadedData.product;
-      // نعتبر البيانات مكتملة إذا كانت تحتوي على البيانات الأساسية فقط
       const hasBasicData = !!(
         product.description &&
         product.images
       );
 
       if (hasBasicData) {
+        // البيانات مكتملة من البيانات المحملة مسبقاً - لا حاجة لرسالة console
         setIsDataFullyLoaded(true);
         return;
       }
     }
 
-    // أيضاً تحقق من effectiveData إذا كانت مكتملة
-    if (!isPreloaded && effectiveData.product && !effectiveData.isLoading &&
-        effectiveData.product.description && effectiveData.product.images && !isDataFullyLoaded) {
-      setIsDataFullyLoaded(true);
+    // إعادة تعيين إلى false إذا كانت البيانات غير مكتملة
+    if (!unifiedData.product || unifiedData.isLoading) {
+      setIsDataFullyLoaded(false);
     }
-  }, [isPreloaded, preloadedData, effectiveData.product, effectiveData.isLoading, isDataFullyLoaded]);
+  }, [unifiedData.product, unifiedData.isLoading, isPreloaded, preloadedData, isDataFullyLoaded]);
 
   // إضافة debug log لمعرفة حالة effectiveData
   useEffect(() => {
@@ -359,22 +360,30 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
     preloadedData
   ]);
 
-  // استخدام hook المنتج مع تمرير البيانات المحملة مسبقاً - منع التكرار
+  // استخدام hook المنتج مع تمرير البيانات المحملة مسبقاً - تحسين المنطق
   const stableParams = useMemo(() => {
     const hasRequiredData = !!organizationId && !!actualProductId && !isOrganizationLoading;
-    const hasUnifiedData = !!effectiveData.product; // التحقق من توفر البيانات في effectiveData
-    
+
     // إضافة debug log لمعرفة سبب عدم التعطيل
     if (process.env.NODE_ENV === 'development') {
+      console.log('🔧 [ProductPurchasePageV3] stableParams:', {
+        hasRequiredData,
+        organizationId,
+        actualProductId,
+        isOrganizationLoading,
+        unifiedDataProduct: !!unifiedData.product,
+        effectiveDataProduct: !!effectiveData.product,
+        isCurrentlyPreloading
+      });
     }
-    
+
     return {
       productId: hasRequiredData ? actualProductId : undefined,
       organizationId: hasRequiredData ? organizationId : undefined,
-      dataScope: 'ultra' as const, // تغيير إلى 'ultra' لضمان جلب جميع البيانات المطلوبة
-      enabled: hasRequiredData && !hasUnifiedData && !isCurrentlyPreloading // تعطيل إذا كانت البيانات متوفرة أو preload قيد التشغيل
+      dataScope: 'ultra' as const, // الاعتماد على ultra لضمان جلب جميع البيانات
+      enabled: hasRequiredData // إزالة تعطيل hasUnifiedData و isCurrentlyPreloading لضمان تحميل البيانات دائماً
     };
-  }, [organizationId, actualProductId, isOrganizationLoading, effectiveData.product, isCurrentlyPreloading]);
+  }, [organizationId, actualProductId, isOrganizationLoading, unifiedData.product, effectiveData.product, isCurrentlyPreloading]);
   
   const [state, actions] = useProductPurchase({
     ...stableParams,
@@ -582,16 +591,6 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
   // إضافة console logs لفهم البيانات
   useEffect(() => {
     if (process.env.NODE_ENV === 'development') {
-      console.log('🔍 [ProductPurchasePageV3] useDeliveryCalculation data:', {
-        organizationId,
-        hasProduct: !!effectiveProduct,
-        formData: pageState.submittedFormData,
-        formDataKeys: Object.keys(pageState.submittedFormData || {}),
-        submittedFormDataKeys: Object.keys(pageState.submittedFormData || {}),
-        quantity,
-        userAgent: navigator.userAgent,
-        isMobile: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-      });
     }
   }, [organizationId, effectiveProduct, pageState.submittedFormData, quantity]);
 
@@ -684,16 +683,6 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
   const handleFormChange = useCallback((data: Record<string, any>) => {
     // إضافة console logs لفهم البيانات
     if (process.env.NODE_ENV === 'development') {
-      console.log('🔍 [ProductPurchasePageV3] handleFormChange called with:', {
-        data,
-        dataKeys: Object.keys(data || {}),
-        hasProvince: !!data.province,
-        hasMunicipality: !!data.municipality,
-        province: data.province,
-        municipality: data.municipality,
-        userAgent: navigator.userAgent,
-        isMobile: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-      });
     }
     
     // الحفاظ على البيانات الموجودة مسبقاً (province و municipality)
@@ -741,28 +730,33 @@ const ProductPurchasePageV3: React.FC = React.memo(() => {
     );
   }, [handleBuyNowBase, canPurchase, pageState.submittedFormData]);
 
-  // حالة التحميل - تأكد من اكتمال تحميل جميع البيانات المطلوبة
-  // تحسين: التعامل مع البيانات المحملة مسبقاً بشكل أفضل وإزالة الاعتماد على productTracking
+  // حالة التحميل - تحسين المنطق للاعتماد على unifiedData كمصدر أساسي
   const shouldShowLoading = (() => {
-    // إذا كانت البيانات محملة مسبقاً ومكتملة، لا تعرض التحميل
-    if (isPreloaded && preloadedData && isDataFullyLoaded) {
+    // إذا كانت unifiedData جاهزة ومكتملة، لا تعرض التحميل
+    if (unifiedData.product && !unifiedData.isLoading &&
+        unifiedData.product.description && unifiedData.product.images) {
+      // unifiedData جاهزة - إخفاء التحميل
       return false;
     }
 
-    // إذا كانت البيانات محملة مسبقاً وتحتوي على البيانات الأساسية، لا تعرض التحميل
+    // إذا كانت البيانات محملة مسبقاً ومكتملة (كـ fallback)، لا تعرض التحميل
     if (isPreloaded && preloadedData && preloadedData.product &&
-        preloadedData.product.description && preloadedData.product.images) {
+        preloadedData.product.description && preloadedData.product.images && isDataFullyLoaded) {
+      // البيانات المحملة مسبقاً جاهزة - إخفاء التحميل
       return false;
     }
 
-    // إذا كانت unifiedData مكتملة، لا تعرض التحميل
-    if (effectiveData.product && effectiveData.product.description &&
-        effectiveData.product.images && !effectiveData.isLoading) {
-      return false;
+    // في الحالات العادية، تحقق من حالة unifiedData
+    const isUnifiedLoading = unifiedData.isLoading || !unifiedData.product;
+    const isUnifiedIncomplete = unifiedData.product && (!unifiedData.product.description || !unifiedData.product.images);
+
+    if (isUnifiedLoading || isUnifiedIncomplete) {
+      // unifiedData قيد التحميل أو غير مكتملة - عرض التحميل
+      return true;
     }
 
-    // في الحالات العادية، تحقق من الشروط المعتادة
-    return effectiveLoading || !isDataFullyLoaded || effectiveData.isLoading || !effectiveProduct;
+    // التحقق النهائي من isDataFullyLoaded
+    return !isDataFullyLoaded;
   })();
 
   if (shouldShowLoading) {

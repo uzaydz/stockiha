@@ -146,7 +146,7 @@ const SimpleHeroSection = memo(() => {
   return (
     <section
       ref={sectionRef}
-      className="relative hero-section pt-20 md:pt-28 pb-16 md:pb-20 overflow-hidden min-h-screen flex items-center"
+      className="relative landing-bg-primary landing-section-transition pt-20 md:pt-28 pb-16 md:pb-20 overflow-hidden min-h-screen flex items-center"
       style={{
         background: 'linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%)',
         position: 'relative'

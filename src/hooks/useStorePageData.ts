@@ -3,9 +3,10 @@ import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
 import { useTranslation } from 'react-i18next';
 import { getSupabaseClient } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-unified';
 import { StoreComponent, ComponentType } from '@/types/store-editor';
 import { useSharedStoreDataContext } from '@/context/SharedStoreDataContext';
-import { useStoreInfo, useOrganizationSettings } from '@/hooks/useAppInitData';
+
 import { getDefaultFooterSettings, mergeFooterSettings } from '@/lib/footerSettings';
 import { convertDatabaseProductToStoreProduct } from '@/components/store/productUtils';
 import { useUnifiedLoading } from './useUnifiedLoading';
@@ -39,7 +40,6 @@ export interface UseStorePageDataReturn {
 }
 
 export const useStorePageData = (): UseStorePageDataReturn => {
-  console.log('🚀 useStorePageData: بدء التهيئة');
   
   // 🔥 استخدام useRef لمنع إعادة الإنشاء المتكرر
   const isInitialized = useRef(false);
@@ -47,11 +47,6 @@ export const useStorePageData = (): UseStorePageDataReturn => {
   const { currentSubdomain } = useAuth();
   const { currentOrganization } = useTenant();
   const { t } = useTranslation();
-
-  console.log('🔍 useStorePageData: البيانات الأساسية', {
-    currentSubdomain,
-    currentOrganization: currentOrganization ? { id: currentOrganization.id, name: currentOrganization.name } : null
-  });
 
   // النظام الموحد للتحميل
   const unifiedLoading = useUnifiedLoading();
@@ -62,55 +57,25 @@ export const useStorePageData = (): UseStorePageDataReturn => {
       return;
     }
     isInitialized.current = true;
-    console.log('✅ useStorePageData: تم التهيئة');
   }, []);
 
-  // البيانات الأساسية
-  const storeInfo = useStoreInfo();
-  const organizationSettingsFromInit = useOrganizationSettings();
-  
-  console.log('🔍 useStorePageData: البيانات من AppInit', {
-    storeInfo: storeInfo ? { id: storeInfo.id, name: storeInfo.name } : null,
-    organizationSettingsFromInit: organizationSettingsFromInit ? { id: organizationSettingsFromInit.id, site_name: organizationSettingsFromInit.site_name } : null
-  });
-  
-  // 🔥 أولوية: إعدادات المؤسسة من الـ RPC (SharedStoreDataContext) ثم من AppInit
+  // البيانات الأساسية من useSharedStoreDataContext
   const { organizationSettings: sharedOrgSettings, organization: sharedOrg } = useSharedStoreDataContext();
-  const organizationSettings = sharedOrgSettings || organizationSettingsFromInit;
-  
-  console.log('🔍 useStorePageData: البيانات المشتركة', {
-    sharedOrgSettings: sharedOrgSettings ? { id: sharedOrgSettings.id, site_name: sharedOrgSettings.site_name } : null,
-    sharedOrg: sharedOrg ? { id: sharedOrg.id, name: sharedOrg.name } : null,
-    finalOrganizationSettings: organizationSettings ? { id: organizationSettings.id, site_name: organizationSettings.site_name } : null
-  });
-  
+  const organizationSettings = sharedOrgSettings;
+
   // 🔥 تحسين: استخدام useMemo لاستخراج البيانات المطلوبة
   const extractedData = useMemo(() => {
-    const storeName = organizationSettings?.site_name || storeInfo?.name || currentOrganization?.name || 'المتجر';
-    const logoUrl = organizationSettings?.logo_url || storeInfo?.logo_url || null;
-    const centralOrgId = storeInfo?.id || currentOrganization?.id || sharedOrg?.id || null;
-    
-    console.log('🔍 useStorePageData: البيانات المستخرجة', {
-      storeName,
-      logoUrl,
-      centralOrgId,
-      sources: {
-        fromOrgSettings: !!organizationSettings?.site_name,
-        fromStoreInfo: !!storeInfo?.name,
-        fromCurrentOrg: !!currentOrganization?.name,
-        fromSharedOrg: !!sharedOrg?.name
-      }
-    });
-    
+    const storeName = organizationSettings?.site_name || currentOrganization?.name || sharedOrg?.name || 'المتجر';
+    const logoUrl = organizationSettings?.logo_url || sharedOrg?.logo_url || null;
+    const centralOrgId = sharedOrg?.id || currentOrganization?.id || null;
+
     return { storeName, logoUrl, centralOrgId };
-  }, [organizationSettings, storeInfo, currentOrganization, sharedOrg]);
+  }, [organizationSettings, currentOrganization, sharedOrg]);
   
   const { storeName, logoUrl, centralOrgId } = extractedData;
   
   // 🔥 تحسين: إنشاء storeInfo محسن للـ components
   const enhancedStoreInfo = useMemo(() => {
-    if (storeInfo) return storeInfo; // إذا كان متوفر من useStoreInfo
-    
     // إنشاء storeInfo من البيانات المتوفرة للنطاقات المخصصة
     if (centralOrgId && (currentOrganization || organizationSettings || sharedOrg)) {
       return {
@@ -120,9 +85,9 @@ export const useStorePageData = (): UseStorePageDataReturn => {
         logo_url: organizationSettings?.logo_url || sharedOrg?.logo_url || null
       };
     }
-    
+
     return null;
-  }, [storeInfo, centralOrgId, currentOrganization, organizationSettings, currentSubdomain, sharedOrg]);
+  }, [centralOrgId, currentOrganization, organizationSettings, currentSubdomain, sharedOrg]);
   
   // 🔥 تحسين: تطبيق الثيم باستخدام useCallback
   const applyTheme = useCallback(async () => {
@@ -156,6 +121,8 @@ export const useStorePageData = (): UseStorePageDataReturn => {
     isLoading: sharedDataLoading,
     refreshData: refreshSharedData
   } = useSharedStoreDataContext();
+
+  // إزالة الاستدعاء المكرر - البيانات تأتي من useSharedStoreData
   
   // حالات محلية
   const [footerSettings, setFooterSettings] = useState<any>(null);
@@ -227,7 +194,7 @@ export const useStorePageData = (): UseStorePageDataReturn => {
   
   // تحديد المكونات للعرض
   const componentsToRender = useMemo(() => {
-    const components = customComponents.length > 0 
+    const components = customComponents.length > 0
       ? customComponents
           .filter(component => {
             const normalizedType = component.type.toLowerCase();
@@ -238,13 +205,18 @@ export const useStorePageData = (): UseStorePageDataReturn => {
             if (normalizedType === 'categories') {
               normalizedType = 'product_categories';
             }
+
+            // البيانات تأتي من useSharedStoreData (RPC)
+
             return {
               ...component,
               type: normalizedType as ComponentType
             };
           })
           .sort((a, b) => a.orderIndex - b.orderIndex)
-      : defaultStoreComponents;
+      : defaultStoreComponents.map(component => {
+          return component;
+        });
     
     // تحديث عدد المكونات الإجمالي باستخدام ref
     if (unifiedLoadingRef.current) {
@@ -307,8 +279,9 @@ export const useStorePageData = (): UseStorePageDataReturn => {
       // fallback خفيف: لا نطلق أي نداء هنا إذا لم تتوفر بيانات RPC. يمكن ترك المكوّنات الافتراضية
     }
 
-    // 2) المنتجات المميزة: استخدم القادمة من الـ RPC إن توفرت
+    // 2) المنتجات المميزة: استخدم المنتجات المميزة من RPC فقط
     if (sharedFeaturedProducts && sharedFeaturedProducts.length > 0) {
+      // استخدم المنتجات المميزة من RPC
       const convertedProducts = sharedFeaturedProducts.map((dbProd: any) => {
         try {
           return convertDatabaseProductToStoreProduct(dbProd);
@@ -360,20 +333,14 @@ export const useStorePageData = (): UseStorePageDataReturn => {
   }, [storeName]);
   
   // تحديد ما إذا كان التطبيق جاهز للعرض
-  const isAppReady = storeInfo && organizationSettings && centralOrgId && storeName;
+  const isAppReady = enhancedStoreInfo && organizationSettings && centralOrgId && storeName;
   
   // تحديث حالة تحميل الصفحة - إصلاح dependency issue مع timeout أمان
   useEffect(() => {
-    console.log('🔄 useStorePageData: تحديث حالة التحميل', {
-      isAppReady,
-      sharedDataLoading,
-      hasUnifiedLoadingRef: !!unifiedLoadingRef.current
-    });
     
     // إعداد timeout أمان لإيقاف التحميل حتى لو لم تكن الشروط مكتملة
     const safetyTimer = setTimeout(() => {
       if (unifiedLoadingRef.current) {
-        console.log('🚨 useStorePageData: إيقاف التحميل بسبب timeout الأمان');
         unifiedLoadingRef.current.setPageLoading(false);
         unifiedLoadingRef.current.setDataLoading(false);
       }
@@ -383,7 +350,6 @@ export const useStorePageData = (): UseStorePageDataReturn => {
       // إعطاء وقت قصير للمكونات الأساسية للتحميل
       const timer = setTimeout(() => {
         if (unifiedLoadingRef.current) {
-          console.log('✅ useStorePageData: إيقاف التحميل - التطبيق جاهز');
           unifiedLoadingRef.current.setPageLoading(false);
           unifiedLoadingRef.current.setDataLoading(false); // ✅ إضافة إيقاف dataLoading
         }
@@ -400,7 +366,6 @@ export const useStorePageData = (): UseStorePageDataReturn => {
     if (!sharedDataLoading && !isAppReady) {
       const errorTimer = setTimeout(() => {
         if (unifiedLoadingRef.current) {
-          console.log('⚠️ useStorePageData: إيقاف التحميل - البيانات غير مكتملة');
           unifiedLoadingRef.current.setPageLoading(false);
           unifiedLoadingRef.current.setDataLoading(false);
         }
@@ -419,7 +384,6 @@ export const useStorePageData = (): UseStorePageDataReturn => {
   // 🔥 إضافة: إيقاف dataLoading عندما تكون البيانات جاهزة من useSharedStoreData
   useEffect(() => {
     if (unifiedLoadingRef.current && !sharedDataLoading) {
-      console.log('✅ useStorePageData: إيقاف dataLoading - البيانات جاهزة من useSharedStoreData');
       unifiedLoadingRef.current.setDataLoading(false);
     }
   }, [sharedDataLoading]);
@@ -463,20 +427,7 @@ export const useStorePageData = (): UseStorePageDataReturn => {
       // وظائف
       refreshData: refreshSharedData,
     };
-    
-    console.log('🔍 useStorePageData: القيمة المرجعة', {
-      storeInfo: result.storeInfo ? { id: result.storeInfo.id, name: result.storeInfo.name } : null,
-      organizationSettings: result.organizationSettings ? { id: result.organizationSettings.id, site_name: result.organizationSettings.site_name } : null,
-      storeName: result.storeName,
-      logoUrl: result.logoUrl,
-      centralOrgId: result.centralOrgId,
-      componentsToRender: result.componentsToRender?.length || 0,
-      customComponents: result.customComponents?.length || 0,
-      categories: result.categories?.length || 0,
-      featuredProducts: result.featuredProducts?.length || 0,
-      isAppReady: result.isAppReady
-    });
-    
+
     return result;
   }, [
     enhancedStoreInfo,

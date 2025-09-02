@@ -3,12 +3,12 @@ import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { BannerImageProps } from './types';
 import OptimizedImage from './OptimizedImage';
-import { useSharedStoreDataContext } from '@/context/SharedStoreDataContext';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Heart, ShoppingCart, Star, ArrowRight, ChevronLeft, ChevronRight, Loader2, RefreshCw } from 'lucide-react';
+import { Heart, ShoppingCart, Star, ArrowRight, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { supabase } from '@/lib/supabase-unified';
 
 /**
  * مكون صورة البانر المحسن مع سلايد شو بسيط وجميل
@@ -22,143 +22,186 @@ const BannerImage = React.memo<BannerImageProps>(({
   objectPosition = 'top',
   containerSize = 'medium',
   blurLevel = 'medium',
-  isPreview = false
+  isPreview = false,
+  // خصائص المنتجات
+  selectedProducts,
+  showProducts = false,
+  productsDisplay = 'grid',
+  productsLimit = 4,
+  productsType = 'featured', // نوع المنتجات الافتراضي
+  organizationId
 }) => {
   const { t } = useTranslation();
   const [imageLoaded, setImageLoaded] = useState(false);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [hasAttemptedLoad, setHasAttemptedLoad] = useState(false);
   
-  // في وضع المعاينة، نستخدم بيانات وهمية بسيطة
-  const { organization, organizationSettings, featuredProducts, isLoading, refreshData } = useSharedStoreDataContext();
-  
+  // جلب المنتجات حسب النوع المحدد
+  const [dynamicProductsData, setDynamicProductsData] = useState<any[]>([]);
+  const [loadingDynamicProducts, setLoadingDynamicProducts] = useState(false);
+
+  // جلب المنتجات عند تغيير النوع أو المؤسسة
+  useEffect(() => {
+    const fetchProducts = async () => {
+
+      if (!isPreview || !showProducts || !organizationId) {
+        setDynamicProductsData([]);
+        return;
+      }
+
+      setLoadingDynamicProducts(true);
+      try {
+        let query = supabase
+          .from('products')
+          .select('id, name, description, price, images, thumbnail_image, is_featured, is_new, category, sku, stock_quantity, slug, created_at, updated_at')
+          .eq('is_active', true)
+          .eq('organization_id', organizationId)
+          .order('updated_at', { ascending: false });
+
+        switch (productsType) {
+          case 'featured':
+            query = query.eq('is_featured', true);
+            break;
+          case 'selected':
+            if (selectedProducts && selectedProducts.length > 0) {
+              query = query.in('id', selectedProducts);
+            } else {
+              setDynamicProductsData([]);
+              return;
+            }
+            break;
+          case 'latest':
+            query = query.order('created_at', { ascending: false });
+            break;
+          case 'new':
+            query = query.eq('is_new', true);
+            break;
+          default:
+            query = query.eq('is_featured', true);
+        }
+
+        if (productsLimit && productsLimit > 0) {
+          query = query.limit(productsLimit);
+        }
+
+        const { data, error } = await query;
+
+        if (error) {
+          setDynamicProductsData([]);
+        } else {
+          setDynamicProductsData(data || []);
+        }
+      } catch (error) {
+        setDynamicProductsData([]);
+      } finally {
+        setLoadingDynamicProducts(false);
+      }
+    };
+
+    // استخدام timeout قصير لتجنب الجلب المتكرر
+    const timeoutId = setTimeout(fetchProducts, 100);
+    return () => clearTimeout(timeoutId);
+  }, [isPreview, showProducts, productsType, organizationId, selectedProducts, productsLimit]);
+
   // استخدام useMemo لتجنب إعادة الحساب مع كل render
   const memoizedData = useMemo(() => {
+
     if (isPreview) {
-      // بيانات وهمية للمعاينة
-      return {
-        organization: { name: 'متجر المعاينة' },
-        organizationSettings: { logo_url: null },
-        featuredProducts: [
+      // في وضع المعاينة، استخدم المنتجات المناسبة حسب النوع
+      let displayProducts = [];
+
+      if (showProducts && dynamicProductsData.length > 0) {
+        // استخدم المنتجات المجلبة ديناميكياً
+        displayProducts = dynamicProductsData;
+      } else if (showProducts && productsType === 'selected' && (!selectedProducts || selectedProducts.length === 0)) {
+        // بيانات وهمية للمنتجات المختارة عندما لا توجد منتجات محددة
+        displayProducts = [
           {
+            id: 'preview-1',
             name: 'منتج تجريبي 1',
             thumbnail_url: imageUrl || '/images/placeholder-product.jpg',
             thumbnail_image: imageUrl || '/images/placeholder-product.jpg',
             price: 99.99,
             compare_at_price: 149.99,
-            slug: 'product-1'
+            slug: 'product-1',
+            is_featured: true
           },
           {
+            id: 'preview-2',
             name: 'منتج تجريبي 2',
             thumbnail_url: imageUrl || '/images/placeholder-product.jpg',
             thumbnail_image: imageUrl || '/images/placeholder-product.jpg',
             price: 79.99,
             compare_at_price: null,
-            slug: 'product-2'
+            slug: 'product-2',
+            is_featured: true
           }
-        ],
-        isLoading: false
+        ];
+      } else if (showProducts) {
+        // بيانات وهمية عامة للأنواع الأخرى
+        displayProducts = [
+          {
+            id: 'preview-1',
+            name: 'منتج تجريبي 1',
+            thumbnail_url: imageUrl || '/images/placeholder-product.jpg',
+            thumbnail_image: imageUrl || '/images/placeholder-product.jpg',
+            price: 99.99,
+            compare_at_price: 149.99,
+            slug: 'product-1',
+            is_featured: productsType === 'featured',
+            is_new: productsType === 'new'
+          }
+        ];
+      }
+
+      return {
+        organization: { name: 'متجر المعاينة' },
+        organizationSettings: { logo_url: null },
+        featuredProducts: displayProducts,
+        isLoading: loadingDynamicProducts,
+        showProducts,
+        productsDisplay,
+        productsLimit,
+        productsType
       };
     }
-    
-    return { organization, organizationSettings, featuredProducts, isLoading };
-  }, [isPreview, imageUrl, organization, organizationSettings, featuredProducts, isLoading]);
-  
-  // في وضع المعاينة، نعطل جميع آلية إعادة التحميل والمراقبة لتحسين الأداء
-  const retryAttempts = useRef(0);
-  const maxRetries = 3;
-  
-  useEffect(() => {
-    if (isPreview) return; // تخطي جميع المنطق في وضع المعاينة
-    
-    // إذا لم تكن البيانات محملة، حاول إعادة التحميل مع تأخير متزايد
-    if (!memoizedData.isLoading && (!memoizedData.featuredProducts || memoizedData.featuredProducts.length === 0) && retryAttempts.current < maxRetries) {
-      const delay = Math.min(1000 * (retryAttempts.current + 1), 5000); // 1s, 2s, 3s كحد أقصى 5s
-      const timer = setTimeout(() => {
-        retryAttempts.current++;
-        refreshData();
-      }, delay);
-      
-      return () => clearTimeout(timer);
-    }
-    
-    // إعادة تعيين العداد عند نجاح التحميل
-    if (memoizedData.featuredProducts && memoizedData.featuredProducts.length === 0) {
-      retryAttempts.current = 0;
-    }
-  }, [isPreview, memoizedData.isLoading, memoizedData.featuredProducts?.length, refreshData]);
+
+    return {
+      organization: { name: 'المتجر' },
+      organizationSettings: { logo_url: null },
+      featuredProducts: [],
+      isLoading: false,
+      showProducts: false,
+      productsDisplay: 'grid',
+      productsLimit: 4,
+      productsType: 'featured'
+    };
+  }, [
+    isPreview,
+    imageUrl,
+    dynamicProductsData,
+    loadingDynamicProducts,
+    showProducts,
+    productsDisplay,
+    productsLimit,
+    productsType,
+    selectedProducts
+  ]);
   
   // تتبع محاولات التحميل
   useEffect(() => {
-    if (isPreview) return; // تخطي في وضع المعاينة
-    
     if (!memoizedData.isLoading) {
       setHasAttemptedLoad(true);
     }
-  }, [isPreview, memoizedData.isLoading]);
+  }, [memoizedData.isLoading]);
   
-  // إعادة تعيين hasAttemptedLoad عند إعادة تحميل البيانات بشكل صريح
+  // إدارة currentSlide
   useEffect(() => {
-    if (isPreview) return; // تخطي في وضع المعاينة
-    
-    if (memoizedData.isLoading) {
-      // لا نعيد تعيين hasAttemptedLoad إلا إذا لم تكن هناك بيانات موجودة
-      if (!memoizedData.featuredProducts || memoizedData.featuredProducts.length === 0) {
-        setHasAttemptedLoad(false);
-      }
+    const featuredProducts = memoizedData.featuredProducts || [];
+    if (featuredProducts.length > 0 && currentSlide >= featuredProducts.length) {
+      setCurrentSlide(0);
     }
-  }, [isPreview, memoizedData.isLoading, memoizedData.featuredProducts?.length]);
-  
-  // إضافة مراقبة للتغييرات في البيانات ومراقبة العودة للصفحة
-  const dataLoadedRef = useRef(false);
-  const lastVisitTime = useRef(Date.now());
-  
-  useEffect(() => {
-    if (isPreview) return; // تخطي في وضع المعاينة
-    
-    if (memoizedData.featuredProducts && memoizedData.featuredProducts.length > 0 && !dataLoadedRef.current) {
-      dataLoadedRef.current = true;
-      // إعادة تعيين currentSlide إذا كان خارج النطاق
-      if (currentSlide >= memoizedData.featuredProducts.length) {
-        setCurrentSlide(0);
-      }
-    }
-  }, [isPreview, memoizedData.featuredProducts?.length, currentSlide]);
-  
-  // مراقبة العودة للصفحة وإعادة التحميل إذا لزم الأمر
-  useEffect(() => {
-    if (isPreview) return; // تخطي في وضع المعاينة
-    
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        const timeSinceLastVisit = Date.now() - lastVisitTime.current;
-        // إذا مر أكثر من دقيقة منذ آخر زيارة ولا توجد منتجات مميزة، أعد التحميل
-        if (timeSinceLastVisit > 60000 && (!memoizedData.featuredProducts || memoizedData.featuredProducts.length === 0)) {
-          refreshData();
-        }
-        lastVisitTime.current = Date.now();
-      }
-    };
-    
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    // مراقبة تغيير المسار للعودة إلى الصفحة الرئيسية
-    const handleRouteChange = () => {
-      if (window.location.pathname === '/' || window.location.pathname.includes('/store')) {
-        // إذا كنا في الصفحة الرئيسية أو صفحة المتجر ولا توجد منتجات مميزة
-        if (!memoizedData.featuredProducts || memoizedData.featuredProducts.length === 0) {
-          setTimeout(() => refreshData(), 500); // تأخير بسيط للسماح للمكون بالتحديث
-        }
-      }
-    };
-    
-    window.addEventListener('popstate', handleRouteChange);
-    
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('popstate', handleRouteChange);
-    };
-  }, [isPreview, memoizedData.featuredProducts?.length, refreshData]);
+  }, [memoizedData.featuredProducts?.length, currentSlide]);
 
   // تمكين الحركة فقط على الشاشات الكبيرة وبدون "تقليل الحركة"
   // في وضع المعاينة، نعطل الحركة لتحسين الأداء
@@ -562,22 +605,10 @@ const BannerImage = React.memo<BannerImageProps>(({
                       <p className="text-muted-foreground text-sm mb-4">
                         سنضيف منتجات مميزة قريباً
                       </p>
-                      {!isPreview && (
-                        <div className="flex flex-col gap-2">
-                          <Button 
-                            onClick={refreshData}
-                            variant="outline"
-                            className="text-sm"
-                          >
-                            <RefreshCw className="h-4 w-4 ml-2" />
-                            إعادة تحميل
-                          </Button>
-                          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-300">
-                            <ArrowRight className="h-4 w-4 ml-2" />
-                            تصفح جميع المنتجات
-                          </Button>
-                        </div>
-                      )}
+                      <Button className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-300">
+                        <ArrowRight className="h-4 w-4 ml-2" />
+                        تصفح جميع المنتجات
+                      </Button>
                     </div>
                   </div>
                 )}

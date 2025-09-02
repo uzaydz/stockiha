@@ -42,7 +42,7 @@ const MarketplaceSection = () => {
   ];
 
   return (
-    <section className="py-20 bg-muted/30">
+    <section className="py-20 landing-bg-accent landing-section-transition">
       <div className="container px-4 mx-auto">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           <motion.div

@@ -5,15 +5,11 @@ export interface SubscriptionPlan {
   name: string;
   code: string;
   description: string;
-  features: string[];
+  features: any; // Supabase returns Json type which can be string[] or other
   monthly_price: number;
   yearly_price: number;
   trial_period_days: number;
-  limits: {
-    max_users?: number;
-    max_products?: number;
-    max_pos?: number;
-  };
+  limits: any; // Supabase returns Json type
   is_active: boolean;
   is_popular?: boolean;
   display_order?: number;
@@ -22,17 +18,24 @@ export interface SubscriptionPlan {
 }
 
 export interface Subscription {
-  id: string;
+  id?: string;
   organization_id: string;
   plan_id: string;
-  status: 'pending' | 'active' | 'expired' | 'cancelled';
-  billing_cycle: 'monthly' | 'yearly';
-  start_date: string;
+  status?: string;
+  billing_cycle?: string;
+  start_date?: string;
   end_date: string;
-  payment_method_id: string;
-  payment_details: Record<string, any>;
-  amount: number;
-  plan?: SubscriptionPlan;
+  payment_method?: string; // Matches Supabase database schema
+  payment_method_id?: string;
+  payment_details?: Record<string, any>;
+  payment_reference?: string;
+  amount?: number;
+  amount_paid?: number;
+  currency?: string;
+  is_auto_renew?: boolean;
+  created_at?: string;
+  updated_at?: string;
+  plan?: any; // Supabase returns partial plan data
 }
 
 export interface PaymentMethod {
@@ -42,13 +45,10 @@ export interface PaymentMethod {
   description: string;
   instructions: string;
   icon: string;
-  fields: {
-    name: string;
-    type: string;
-    label: string;
-    required: boolean;
-    placeholder: string;
-  }[];
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+  fields: any; // Supabase returns Json type
 }
 
 interface SubscriptionValidationResult {
@@ -60,9 +60,37 @@ interface SubscriptionValidationResult {
   source: 'subscription' | 'trial' | 'cache' | 'organization';
 }
 
-// تخزين مؤقت لنتائج حساب الأيام المتبقية
+// تخزين مؤقت محسّن لنتائج حساب الأيام المتبقية
 let daysLeftCache: { [key: string]: { data: any, timestamp: number } } = {};
-const DAYS_LEFT_CACHE_DURATION = 2 * 60 * 1000; // دقيقتان
+const DAYS_LEFT_CACHE_DURATION = 15 * 60 * 1000; // 15 دقيقة بدلاً من دقيقتين
+
+// تخزين مؤقت إضافي لنتائج RPC function
+let subscriptionDetailsCache: { [key: string]: { data: any, timestamp: number } } = {};
+const SUBSCRIPTION_DETAILS_CACHE_DURATION = 20 * 60 * 1000; // 20 دقيقة لتقليل استدعاءات RPC
+
+/**
+ * تنظيف الكاش المنتهي الصلاحية
+ */
+const cleanExpiredCache = () => {
+  const now = Date.now();
+
+  // تنظيف كاش الأيام المتبقية
+  Object.keys(daysLeftCache).forEach(key => {
+    if (now - daysLeftCache[key].timestamp > DAYS_LEFT_CACHE_DURATION) {
+      delete daysLeftCache[key];
+    }
+  });
+
+  // تنظيف كاش تفاصيل الاشتراك
+  Object.keys(subscriptionDetailsCache).forEach(key => {
+    if (now - subscriptionDetailsCache[key].timestamp > SUBSCRIPTION_DETAILS_CACHE_DURATION) {
+      delete subscriptionDetailsCache[key];
+    }
+  });
+};
+
+// تنظيف الكاش المنتهي الصلاحية كل 10 دقائق
+setInterval(cleanExpiredCache, 10 * 60 * 1000);
 
 /**
  * خدمة إدارة الاشتراكات
@@ -133,39 +161,49 @@ export const SubscriptionService = {
   async createSubscription(subscriptionData: {
     organization_id: string;
     plan_id: string;
-    billing_cycle: 'monthly' | 'yearly';
-    payment_method_id: string;
-    payment_details: Record<string, any>;
-    amount: number;
+    billing_cycle?: string;
+    payment_method: string;
+    payment_details?: Record<string, any>;
+    amount_paid: number;
+    payment_reference?: string;
+    currency?: string;
   }): Promise<{ id: string }> {
     // حساب تواريخ الاشتراك
     const today = new Date();
     const startDate = today.toISOString().split('T')[0];
-    
+
     const endDate = new Date(today);
     if (subscriptionData.billing_cycle === 'monthly') {
       endDate.setMonth(endDate.getMonth() + 1);
     } else {
       endDate.setFullYear(endDate.getFullYear() + 1);
     }
-    
+
     const { data, error } = await supabase
       .from('organization_subscriptions')
       .insert([
         {
-          ...subscriptionData,
+          organization_id: subscriptionData.organization_id,
+          plan_id: subscriptionData.plan_id,
+          billing_cycle: subscriptionData.billing_cycle,
+          payment_method: subscriptionData.payment_method,
+          payment_details: subscriptionData.payment_details || {},
+          amount_paid: subscriptionData.amount_paid,
+          payment_reference: subscriptionData.payment_reference || '',
+          currency: subscriptionData.currency || 'USD',
           status: 'pending',
           start_date: startDate,
-          end_date: endDate.toISOString().split('T')[0]
+          end_date: endDate.toISOString().split('T')[0],
+          is_auto_renew: true
         }
       ])
       .select('id')
       .single();
-    
+
     if (error) {
       throw error;
     }
-    
+
     return data;
   },
   
@@ -173,15 +211,15 @@ export const SubscriptionService = {
    * تفعيل الاشتراك باستخدام كود التفعيل
    */
   async activateWithCode(organizationId: string, code: string): Promise<any> {
-    const { data, error } = await supabase.rpc('activate_subscription_with_code', {
+    const { data, error } = await (supabase as any).rpc('activate_subscription_with_code', {
       org_id: organizationId,
       code: code.trim()
     });
-    
+
     if (error) {
       throw error;
     }
-    
+
     return data;
   },
   
@@ -270,7 +308,6 @@ export const SubscriptionService = {
           };
         }
       } catch (enhancedError) {
-        console.warn('فشل في استخدام الدالة المحسنة، استخدام الطريقة التقليدية:', enhancedError);
       }
 
       // المحاولة الثانية: استخدام البيانات المرسلة (cachedSubscriptions)
@@ -446,13 +483,34 @@ export const SubscriptionService = {
     let status: 'trial' | 'active' | 'expired' = 'expired';
     let message = '';
 
-    // أولاً: التحقق من وجود اشتراك نشط باستخدام RPC function
+    // أولاً: التحقق من وجود اشتراك نشط باستخدام RPC function مع كاش محسّن
     try {
-      
-      // استخدام RPC function للحصول على بيانات الاشتراك (تتجاوز RLS policies)
-      const { data: subscriptionData, error } = await supabase.rpc('get_organization_subscription_details', {
-        org_id: organizationData.id
-      });
+      // فحص الكاش أولاً لتجنب استدعاء RPC المتكرر
+      const subscriptionCacheKey = `subscription_details_${organizationData.id}`;
+      const cachedSubscription = subscriptionDetailsCache[subscriptionCacheKey];
+
+      let subscriptionData, error;
+
+      if (cachedSubscription && (Date.now() - cachedSubscription.timestamp) < SUBSCRIPTION_DETAILS_CACHE_DURATION) {
+        // استخدام البيانات من الكاش
+        subscriptionData = cachedSubscription.data;
+        error = null;
+      } else {
+        // استدعاء RPC function إذا لم تكن البيانات في الكاش أو انتهت صلاحيتها
+        const result = await (supabase as any).rpc('get_organization_subscription_details', {
+          org_id: organizationData.id
+        });
+        subscriptionData = result.data;
+        error = result.error;
+
+        // حفظ النتيجة في الكاش إذا كانت ناجحة
+        if (!error && subscriptionData) {
+          subscriptionDetailsCache[subscriptionCacheKey] = {
+            data: subscriptionData,
+            timestamp: Date.now()
+          };
+        }
+      }
 
       // التحقق من وجود اشتراك نشط صحيح
       if (error) {

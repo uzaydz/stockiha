@@ -63,11 +63,9 @@ class SessionMonitor {
       this.scheduleValidation();
       
       if (process.env.NODE_ENV === 'development') {
-        console.log('✅ [SessionMonitor] تم تهيئة المراقب بنجاح');
       }
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('❌ [SessionMonitor] فشل في التهيئة:', error);
       }
     }
   }
@@ -128,7 +126,6 @@ class SessionMonitor {
       }
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
-        console.warn('⚠️ [SessionMonitor] فشل في فحص صحة الجلسة:', error);
       }
     }
   }
@@ -148,14 +145,12 @@ class SessionMonitor {
     
     try {
       if (process.env.NODE_ENV === 'development') {
-        console.log('🔄 [SessionMonitor] بدء تجديد الجلسة...');
       }
       
       const { data, error } = await supabase.auth.refreshSession();
       
       if (error) {
         if (process.env.NODE_ENV === 'development') {
-          console.error('❌ [SessionMonitor] فشل في تجديد الجلسة:', error);
         }
         this.isValid = false;
       } else if (data.session) {
@@ -163,14 +158,12 @@ class SessionMonitor {
         this.isValid = this.validateSession(data.session);
         
         if (process.env.NODE_ENV === 'development') {
-          console.log('✅ [SessionMonitor] تم تجديد الجلسة بنجاح');
         }
       }
       
       this.notifyListeners();
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('❌ [SessionMonitor] خطأ في تجديد الجلسة:', error);
       }
       this.isValid = false;
     } finally {
@@ -195,7 +188,6 @@ class SessionMonitor {
         listener(this.session, this.isValid);
       } catch (error) {
         if (process.env.NODE_ENV === 'development') {
-          console.warn('⚠️ [SessionMonitor] خطأ في المستمع:', error);
         }
       }
     });

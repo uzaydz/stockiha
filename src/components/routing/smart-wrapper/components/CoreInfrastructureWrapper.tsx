@@ -19,18 +19,14 @@ interface CoreInfrastructureWrapperProps {
 }
 
 export const CoreInfrastructureWrapper = memo<CoreInfrastructureWrapperProps>(({ children }) => {
-  console.log('🚀 CoreInfrastructureWrapper: بدء التهيئة');
   
   // تفعيل التحميل المبكر
   React.useEffect(() => {
-    console.log('✅ CoreInfrastructureWrapper: إرسال event البنية التحتية جاهزة');
     // إرسال event للكشف عن البنية التحتية
     window.dispatchEvent(new CustomEvent('bazaar:infrastructure-ready', {
       detail: { timestamp: Date.now() }
     }));
   }, []);
-
-  console.log('🎨 CoreInfrastructureWrapper: إرجاع المزودات الأساسية');
 
   return (
     <QueryClientProvider client={queryClient}>

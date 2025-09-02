@@ -30,18 +30,6 @@ const OrdersLimitNotifications: React.FC<OrdersLimitNotificationsProps> = ({
   const isEcommerceStarterPlan = organization?.subscription_tier === 'starter';
   
   // تسجيل للتأكد من المنطق
-  console.log('🔍 OrdersLimitNotifications Debug:', {
-    organizationId: organization?.id,
-    subscriptionTier: organization?.subscription_tier,
-    subscriptionStatus: organization?.subscription_status,
-    isEcommerceStarterPlan,
-    limitInfo: limitInfo ? {
-      maxOrders: limitInfo.maxOrders,
-      currentOrders: limitInfo.currentOrders,
-      remainingOrders: limitInfo.remainingOrders,
-      isBlocked: limitInfo.isBlocked
-    } : null
-  });
 
   // تحديد نوع التنبيه المطلوب
   const getAlertType = () => {
@@ -142,25 +130,15 @@ const OrdersLimitNotifications: React.FC<OrdersLimitNotificationsProps> = ({
 
   // عدم عرض المكون إذا لم يكن المستخدم مشتركاً في الخطة المطلوبة
   if (!isEcommerceStarterPlan || !limitInfo?.maxOrders) {
-    console.log('❌ OrdersLimitNotifications: إخفاء المكون - المستخدم ليس في خطة التجار المبتدئين', {
-      isEcommerceStarterPlan,
-      hasMaxOrders: !!limitInfo?.maxOrders
-    });
     return null;
   }
 
   // عدم عرض التنبيه إذا تم تجاهله أو لا يوجد تنبيه
   if (!alertType || dismissedAlerts.has(alertType) || !showAlerts) {
-    console.log('❌ OrdersLimitNotifications: إخفاء التنبيه - لا يوجد تنبيه أو تم تجاهله', {
-      alertType,
-      isDismissed: dismissedAlerts.has(alertType),
-      showAlerts
-    });
     return null;
   }
 
   if (!alertConfig) {
-    console.log('❌ OrdersLimitNotifications: إخفاء التنبيه - لا يوجد تكوين للتنبيه');
     return null;
   }
 

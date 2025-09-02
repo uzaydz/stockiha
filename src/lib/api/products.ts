@@ -241,6 +241,9 @@ export interface WholesaleTier {
 export type Category = Database['public']['Tables']['product_categories']['Row'];
 export type Subcategory = Database['public']['Tables']['product_subcategories']['Row'];
 
+import { throttledRequest } from '../request-throttle';
+import { attackProtectionManager } from '../attack-protection';
+
 export const getProducts = async (organizationId?: string, includeInactive: boolean = false): Promise<Product[]> => {
 
   try {
@@ -248,32 +251,70 @@ export const getProducts = async (organizationId?: string, includeInactive: bool
       return [];
     }
 
-    // Use a simpler approach with consistent logging
+    // فحص الحماية من الهجمات أولاً
+    const clientIP = typeof window !== 'undefined' ? 
+      (window as any).clientIP || 'unknown' : 'server';
+    const userAgent = typeof navigator !== 'undefined' ? 
+      navigator.userAgent : 'unknown';
 
-    // Always use the same query pattern for consistent behavior
-    let query = supabase
-      .from('products')
-      .select(`
-        *,
-        category:category_id(id, name, slug),
-        subcategory:subcategory_id(id, name, slug)
-      `);
-    
-    // Add organization filter
-    query = query.eq('organization_id', organizationId);
-    
-    // Add active filter if needed
-    if (!includeInactive) {
-      query = query.eq('is_active', true);
-    }
+    const protectionResult = attackProtectionManager.analyzeRequest(
+      clientIP,
+      '/rest/v1/products',
+      userAgent,
+      organizationId
+    );
 
-    const { data, error } = await query;
-    
-    if (error) {
+    if (!protectionResult.allowed) {
+      console.warn('🚫 [getProducts] طلب محظور بواسطة نظام الحماية:', protectionResult.reason);
       return [];
     }
 
-    return (data as any) || [];
+    if (protectionResult.action === 'throttle') {
+      console.warn('⚠️ [getProducts] طلب مقيد:', protectionResult.reason);
+      // يمكن إضافة تأخير إضافي هنا
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
+
+    // تطبيق نظام التحكم في معدل الطلبات
+    const result = await throttledRequest(
+      async () => {
+        // Use a simpler approach with consistent logging
+        // Always use the same query pattern for consistent behavior
+        let query = supabase
+          .from('products')
+          .select(`
+            *,
+            category:category_id(id, name, slug),
+            subcategory:subcategory_id(id, name, slug)
+          `);
+        
+        // Add organization filter
+        query = query.eq('organization_id', organizationId);
+        
+        // Add active filter if needed
+        if (!includeInactive) {
+          query = query.eq('is_active', true);
+        }
+
+        const { data, error } = await query;
+        
+        if (error) {
+          return [];
+        }
+
+        return (data as any) || [];
+      },
+      `/rest/v1/products`,
+      organizationId,
+      { maxRequestsPerMinute: 5, maxRequestsPerHour: 100 } // حدود أكثر صرامة للمنتجات
+    );
+
+    if (result === null) {
+      console.warn('🚫 [getProducts] طلب محظور بواسطة نظام التحكم في المعدل');
+      return [];
+    }
+
+    return result;
   } catch (error) {
     return []; // Return empty array to prevent UI from hanging
   }
@@ -577,7 +618,7 @@ export const getProductsPaginated = async (
       await new Promise(resolve => setTimeout(resolve, 2));
 
       const result = {
-        products: (data as Product[]) || [],
+        products: (data as any[] || []).filter(item => !item?.error) as Product[],
         totalCount,
         totalPages,
         currentPage: page,
@@ -999,7 +1040,6 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
     });
 
     if (createError) {
-      console.error('خطأ في إنشاء المنتج:', createError);
       
       // ✅ معالجة خاصة لأخطاء UUID
       if (createError.message?.includes('invalid input syntax for type uuid')) {
@@ -1135,7 +1175,6 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
       p_images: additional_images && additional_images.length > 0 ? 
         additional_images.map((url, index) => ({ image_url: url, sort_order: index + 1 })) : null,
       p_wholesale_tiers: wholesale_tiers && wholesale_tiers.length > 0 ? JSON.parse(JSON.stringify(wholesale_tiers)) : null,
-      p_special_offers_config: updates.special_offers_config || null,
       p_user_id: user.id
     });
 

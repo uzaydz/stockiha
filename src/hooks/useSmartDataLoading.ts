@@ -41,8 +41,20 @@ interface SmartLoadingConfig {
   enableOptimisticUpdates: boolean;
 }
 
+// تعريف نوع متطلبات الصفحة
+type PageDataRequirement = {
+  appData: boolean;
+  posData: boolean;
+  ordersData: boolean;
+  priority: {
+    appData: 'high' | 'medium' | 'low';
+    posData: 'high' | 'medium' | 'low';
+    ordersData: 'high' | 'medium' | 'low';
+  };
+};
+
 // تعريف متطلبات كل صفحة
-const PAGE_DATA_REQUIREMENTS = {
+const PAGE_DATA_REQUIREMENTS: Record<string, PageDataRequirement> = {
   // الصفحة الرئيسية
   '/': {
     appData: true,
@@ -50,7 +62,7 @@ const PAGE_DATA_REQUIREMENTS = {
     ordersData: false,
     priority: { appData: 'high', posData: 'low', ordersData: 'low' }
   },
-  
+
   // لوحة التحكم الرئيسية
   '/dashboard': {
     appData: true,
@@ -58,7 +70,7 @@ const PAGE_DATA_REQUIREMENTS = {
     ordersData: true,
     priority: { appData: 'high', posData: 'medium', ordersData: 'medium' }
   },
-  
+
   // صفحة POS
   '/dashboard/pos': {
     appData: true,
@@ -66,7 +78,7 @@ const PAGE_DATA_REQUIREMENTS = {
     ordersData: false,
     priority: { appData: 'medium', posData: 'high', ordersData: 'low' }
   },
-  
+
   // صفحة الطلبيات
   '/dashboard/orders': {
     appData: true,
@@ -74,7 +86,7 @@ const PAGE_DATA_REQUIREMENTS = {
     ordersData: true,
     priority: { appData: 'medium', posData: 'low', ordersData: 'high' }
   },
-  
+
   // صفحة المنتجات
   '/dashboard/products': {
     appData: true,
@@ -82,7 +94,7 @@ const PAGE_DATA_REQUIREMENTS = {
     ordersData: false,
     priority: { appData: 'medium', posData: 'high', ordersData: 'low' }
   },
-  
+
   // صفحة المخزون
   '/dashboard/inventory': {
     appData: true,
@@ -90,7 +102,7 @@ const PAGE_DATA_REQUIREMENTS = {
     ordersData: false,
     priority: { appData: 'medium', posData: 'high', ordersData: 'low' }
   },
-  
+
   // صفحة الإعدادات
   '/dashboard/settings': {
     appData: true,
@@ -98,7 +110,7 @@ const PAGE_DATA_REQUIREMENTS = {
     ordersData: false,
     priority: { appData: 'high', posData: 'low', ordersData: 'low' }
   },
-  
+
   // صفحة التقارير
   '/dashboard/reports': {
     appData: true,
@@ -106,7 +118,7 @@ const PAGE_DATA_REQUIREMENTS = {
     ordersData: true,
     priority: { appData: 'medium', posData: 'medium', ordersData: 'high' }
   },
-  
+
   // صفحة الاشتراكات
   '/dashboard/subscriptions': {
     appData: true,
@@ -114,7 +126,7 @@ const PAGE_DATA_REQUIREMENTS = {
     ordersData: false,
     priority: { appData: 'medium', posData: 'high', ordersData: 'low' }
   }
-} as const;
+};
 
 // إعدادات التخزين المؤقت حسب الأولوية
 const CACHE_SETTINGS_BY_PRIORITY = {
@@ -139,7 +151,7 @@ export const useSmartDataLoading = (): SmartLoadingConfig => {
     const currentPath = location.pathname;
     
     // البحث عن أفضل تطابق للمسار
-    let bestMatch = PAGE_DATA_REQUIREMENTS['/'] || {
+    let bestMatch: PageDataRequirement = PAGE_DATA_REQUIREMENTS['/'] || {
       appData: true,
       posData: false,
       ordersData: false,
@@ -147,8 +159,8 @@ export const useSmartDataLoading = (): SmartLoadingConfig => {
     };
     
     // البحث عن تطابق دقيق أولاً
-    if (PAGE_DATA_REQUIREMENTS[currentPath as keyof typeof PAGE_DATA_REQUIREMENTS]) {
-      bestMatch = PAGE_DATA_REQUIREMENTS[currentPath as keyof typeof PAGE_DATA_REQUIREMENTS];
+    if (PAGE_DATA_REQUIREMENTS[currentPath]) {
+      bestMatch = PAGE_DATA_REQUIREMENTS[currentPath];
     } else {
       // البحث عن تطابق جزئي
       const partialMatches = Object.entries(PAGE_DATA_REQUIREMENTS).filter(([path]) => 

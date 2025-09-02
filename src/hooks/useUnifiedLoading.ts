@@ -33,19 +33,15 @@ export const useUnifiedLoading = (): UseUnifiedLoadingReturn => {
   loadingStateRef.current = loadingState;
 
   const setPageLoading = useCallback((loading: boolean) => {
-    console.log('🔄 useUnifiedLoading: تحديث حالة تحميل الصفحة:', loading);
     setLoadingState(prev => {
       const newState = { ...prev, isPageLoading: loading };
-      console.log('🔄 useUnifiedLoading: الحالة الجديدة:', newState);
       return newState;
     });
   }, []);
 
   const setDataLoading = useCallback((loading: boolean) => {
-    console.log('🔄 useUnifiedLoading: تحديث حالة تحميل البيانات:', loading);
     setLoadingState(prev => {
       const newState = { ...prev, isDataLoading: loading };
-      console.log('🔄 useUnifiedLoading: الحالة الجديدة:', newState);
       return newState;
     });
   }, []);
@@ -117,27 +113,15 @@ export const useUnifiedLoading = (): UseUnifiedLoadingReturn => {
 
   // إضافة console.log لتتبع حالة التحميل
   useEffect(() => {
-    console.log('🔄 useUnifiedLoading: تحديث shouldShowGlobalLoader', {
-      isPageLoading: loadingState.isPageLoading,
-      isDataLoading: loadingState.isDataLoading,
-      loadedComponentsSize: loadingState.loadedComponents.size,
-      shouldShowGlobalLoader
-    });
   }, [shouldShowGlobalLoader, loadingState.isPageLoading, loadingState.isDataLoading, loadingState.loadedComponents.size]);
 
   // إيقاف تحميل الصفحة تلقائياً بمجرد تحميل البيانات أو أول مكون
   useEffect(() => {
     const { isDataLoading, loadedComponents } = loadingState;
-    
-    console.log('🔄 useUnifiedLoading: فحص إيقاف التحميل', {
-      isDataLoading,
-      loadedComponentsSize: loadedComponents.size
-    });
-    
+
     // إيقاف التحميل بمجرد تحميل البيانات أو أول مكون
     if (!isDataLoading || loadedComponents.size > 0) {
       const timer = setTimeout(() => {
-        console.log('✅ useUnifiedLoading: إيقاف تحميل الصفحة - البيانات جاهزة أو تم تحميل أول مكون');
         setPageLoading(false);
       }, 0); // ✅ إزالة التأخير لتحسين الأداء
       
@@ -148,7 +132,6 @@ export const useUnifiedLoading = (): UseUnifiedLoadingReturn => {
   // إضافة timeout أمان عام مُحسن - وقت قصير
   useEffect(() => {
     const safetyTimeout = setTimeout(() => {
-      console.log('🚨 useUnifiedLoading: انتهت مهلة التحميل الأمان - إيقاف جميع مؤشرات التحميل');
       setLoadingState({
         isPageLoading: false,
         isDataLoading: false,
@@ -165,7 +148,6 @@ export const useUnifiedLoading = (): UseUnifiedLoadingReturn => {
   useEffect(() => {
     if (isAnyLoading) {
       const activityTimeout = setTimeout(() => {
-        console.log('🔄 useUnifiedLoading: إيقاف التحميل بسبب عدم النشاط');
         setLoadingState(prev => ({
           ...prev,
           isPageLoading: false,

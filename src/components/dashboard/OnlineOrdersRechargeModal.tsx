@@ -143,18 +143,15 @@ const OnlineOrdersRechargeModal: React.FC<OnlineOrdersRechargeModalProps> = ({
           .order('created_at', { ascending: false });
         
         if (historyError) {
-          console.warn('خطأ في جلب تاريخ إعادة الشحن:', historyError);
           setRechargeHistory([]);
         } else {
           setRechargeHistory((historyData as RechargeHistory[]) || []);
         }
       } catch (err) {
-        console.warn('خطأ في جلب تاريخ إعادة الشحن:', err);
         setRechargeHistory([]);
       }
 
     } catch (error) {
-      console.error('خطأ في جلب البيانات:', error);
       toast.error('حدث خطأ في جلب البيانات');
     } finally {
       setLoading(false);
@@ -197,7 +194,6 @@ const OnlineOrdersRechargeModal: React.FC<OnlineOrdersRechargeModalProps> = ({
       fetchData(); // تحديث البيانات
 
     } catch (error) {
-      console.error('خطأ في عملية الدفع:', error);
       toast.error('حدث خطأ في عملية الدفع');
     } finally {
       setLoading(false);

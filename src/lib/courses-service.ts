@@ -1,6 +1,56 @@
 import { supabase } from './supabase';
-import { ActivationService } from './activation-service';
-import { CourseAccess, CoursesAccessType } from '@/types/activation';
+import { CoursesAccessType } from '@/types/activation';
+
+// Cache للبيانات
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+  ttl: number; // Time to live in milliseconds
+}
+
+class SimpleCache {
+  private cache = new Map<string, CacheEntry<any>>();
+  private readonly DEFAULT_TTL = 5 * 60 * 1000; // 5 minutes
+
+  set<T>(key: string, data: T, ttl: number = this.DEFAULT_TTL): void {
+    this.cache.set(key, {
+      data,
+      timestamp: Date.now(),
+      ttl
+    });
+  }
+
+  get<T>(key: string): T | null {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+
+    const isExpired = Date.now() - entry.timestamp > entry.ttl;
+    if (isExpired) {
+      this.cache.delete(key);
+      return null;
+    }
+
+    return entry.data;
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+
+  delete(key: string): void {
+    this.cache.delete(key);
+  }
+
+  size(): number {
+    return this.cache.size;
+  }
+
+  keys(): string[] {
+    return Array.from(this.cache.keys());
+  }
+}
+
+const coursesCache = new SimpleCache();
 
 export interface Course {
   id: string;
@@ -65,9 +115,17 @@ export interface CourseAccessInfo {
  */
 export const CoursesService = {
   /**
-   * جلب جميع الدورات النشطة
+   * جلب جميع الدورات النشطة مع Cache
    */
   async getAllCourses(): Promise<Course[]> {
+    const cacheKey = 'all_courses';
+    
+    // تحقق من الـ Cache أولاً
+    const cachedData = coursesCache.get<Course[]>(cacheKey);
+    if (cachedData) {
+      return cachedData;
+    }
+
     try {
       const { data, error } = await supabase
         .from('courses')
@@ -77,9 +135,13 @@ export const CoursesService = {
       
       if (error) throw error;
       
-      return data || [];
+      const courses = data || [];
+      
+      // حفظ في الـ Cache
+      coursesCache.set(cacheKey, courses, 10 * 60 * 1000); // 10 minutes
+      
+      return courses;
     } catch (error) {
-      console.error('Error fetching courses:', error);
       return [];
     }
   },
@@ -100,7 +162,6 @@ export const CoursesService = {
       
       return data;
     } catch (error) {
-      console.error('Error fetching course:', error);
       return null;
     }
   },
@@ -121,7 +182,6 @@ export const CoursesService = {
       
       return data || [];
     } catch (error) {
-      console.error('Error fetching course sections:', error);
       return [];
     }
   },
@@ -142,8 +202,79 @@ export const CoursesService = {
       
       return data || [];
     } catch (error) {
-      console.error('Error fetching section lessons:', error);
       return [];
+    }
+  },
+
+  /**
+   * جلب جميع معلومات الوصول للدورات في استدعاء واحد
+   */
+  async getAllCourseAccessInfo(organizationId: string): Promise<Map<string, CourseAccessInfo>> {
+    try {
+      // جلب جميع معلومات الوصول المباشر للدورات
+      const { data: directAccess, error: directError } = await supabase
+        .from('organization_course_access')
+        .select('*')
+        .eq('organization_id', organizationId);
+      
+      if (directError) throw directError;
+      
+      // جلب معلومات الاشتراك
+      const { data: subscription, error: subError } = await supabase
+        .from('organization_subscriptions')
+        .select('*')
+        .eq('organization_id', organizationId)
+        .eq('status', 'active')
+        .single();
+      
+      if (subError && subError.code !== 'PGRST116') {
+        throw subError;
+      }
+      
+      const accessMap = new Map<string, CourseAccessInfo>();
+      
+      // معالجة الوصول المباشر
+      if (directAccess) {
+        for (const access of directAccess) {
+          const is_expired = access.expires_at ? new Date(access.expires_at) < new Date() : false;
+          
+          accessMap.set(access.course_id, {
+            course_id: access.course_id,
+            access_type: access.access_type as CoursesAccessType,
+            is_accessible: !is_expired,
+            expires_at: access.expires_at,
+            is_lifetime: access.expires_at === null,
+            granted_at: access.granted_at
+          });
+        }
+      }
+      
+      // معالجة الوصول عبر الاشتراك
+      if (subscription) {
+        const subscriptionAccess: CourseAccessInfo = {
+          course_id: '', // سيتم تعيينه لكل دورة
+          access_type: subscription.lifetime_courses_access ? CoursesAccessType.LIFETIME : CoursesAccessType.STANDARD,
+          is_accessible: new Date(subscription.end_date) > new Date(),
+          expires_at: subscription.end_date,
+          is_lifetime: subscription.lifetime_courses_access || false,
+          granted_at: subscription.start_date
+        };
+        
+        // تطبيق الوصول عبر الاشتراك على جميع الدورات التي ليس لها وصول مباشر
+        const courses = await this.getAllCourses();
+        for (const course of courses) {
+          if (!accessMap.has(course.id)) {
+            accessMap.set(course.id, {
+              ...subscriptionAccess,
+              course_id: course.id
+            });
+          }
+        }
+      }
+      
+      return accessMap;
+    } catch (error) {
+      return new Map();
     }
   },
 
@@ -181,7 +312,6 @@ export const CoursesService = {
         granted_at: data.granted_at
       };
     } catch (error) {
-      console.error('Error checking course access:', error);
       return null;
     }
   },
@@ -226,29 +356,24 @@ export const CoursesService = {
         granted_at: data.start_date
       };
     } catch (error) {
-      console.error('Error checking subscription access:', error);
       return null;
     }
   },
 
   /**
-   * جلب جميع الدورات مع معلومات الوصول
+   * جلب جميع الدورات مع معلومات الوصول (محسنة)
    */
   async getCoursesWithAccess(organizationId: string): Promise<CourseWithAccess[]> {
     try {
       // جلب جميع الدورات
       const courses = await this.getAllCourses();
       
-      // جلب معلومات الوصول لجميع الدورات
-      const accessPromises = courses.map(course => 
-        this.checkCourseAccess(course.id, organizationId)
-      );
-      
-      const accessResults = await Promise.all(accessPromises);
+      // جلب جميع معلومات الوصول في استدعاء واحد
+      const accessMap = await this.getAllCourseAccessInfo(organizationId);
       
       // دمج المعلومات
-      return courses.map((course, index) => {
-        const access = accessResults[index];
+      return courses.map(course => {
+        const access = accessMap.get(course.id);
         
         return {
           ...course,
@@ -259,7 +384,6 @@ export const CoursesService = {
         };
       });
     } catch (error) {
-      console.error('Error fetching courses with access:', error);
       return [];
     }
   },
@@ -272,7 +396,6 @@ export const CoursesService = {
       const coursesWithAccess = await this.getCoursesWithAccess(organizationId);
       return coursesWithAccess.filter(course => course.is_accessible);
     } catch (error) {
-      console.error('Error fetching accessible courses:', error);
       return [];
     }
   },
@@ -285,7 +408,6 @@ export const CoursesService = {
       const coursesWithAccess = await this.getCoursesWithAccess(organizationId);
       return coursesWithAccess.filter(course => course.is_lifetime);
     } catch (error) {
-      console.error('Error fetching lifetime courses:', error);
       return [];
     }
   },
@@ -307,15 +429,17 @@ export const CoursesService = {
           course_id: courseId,
           access_type: accessType,
           expires_at: expiresAt,
-          granted_by: (await supabase.auth.getUser()).data.user?.id,
+          granted_by: null, // سيتم تعيينه من الخادم
           notes: 'تم منح الوصول تلقائياً'
         });
       
       if (error) throw error;
       
+      // مسح الـ Cache المتعلق بهذه المؤسسة
+      this.clearCacheForOrganization(organizationId);
+      
       return true;
     } catch (error) {
-      console.error('Error granting course access:', error);
       return false;
     }
   },
@@ -333,10 +457,65 @@ export const CoursesService = {
       
       if (error) throw error;
       
+      // مسح الـ Cache المتعلق بهذه المؤسسة
+      this.clearCacheForOrganization(organizationId);
+      
       return true;
     } catch (error) {
-      console.error('Error revoking course access:', error);
       return false;
     }
+  },
+
+  /**
+   * مسح جميع الـ Cache
+   */
+  clearAllCache(): void {
+    coursesCache.clear();
+  },
+
+  /**
+   * مسح الـ Cache المتعلق بمؤسسة معينة
+   */
+  clearCacheForOrganization(organizationId: string): void {
+    coursesCache.delete(`course_access_${organizationId}`);
+    coursesCache.delete(`courses_with_access_${organizationId}`);
+  },
+
+  /**
+   * الحصول على إحصائيات الـ Cache والأداء
+   */
+  getCacheStats(): {
+    cacheSize: number;
+    cacheKeys: string[];
+    performance: {
+      totalRequests: number;
+      cacheHits: number;
+      cacheHitRate: string;
+    };
+  } {
+    return {
+      cacheSize: coursesCache.size(),
+      cacheKeys: coursesCache.keys(),
+      performance: {
+        totalRequests: 0, // يمكن تطويرها لاحقاً
+        cacheHits: 0,     // يمكن تطويرها لاحقاً
+        cacheHitRate: '0%' // يمكن تطويرها لاحقاً
+      }
+    };
+  },
+
+  /**
+   * دالة مساعدة لقياس الأداء
+   */
+  async measurePerformance<T>(
+    operation: () => Promise<T>,
+    operationName: string
+  ): Promise<{ result: T; duration: number }> {
+    const startTime = performance.now();
+    const result = await operation();
+    const endTime = performance.now();
+    const duration = endTime - startTime;
+
+    return { result, duration };
   }
 };

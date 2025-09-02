@@ -38,7 +38,6 @@ const TraditionalBusinessCourse: React.FC = () => {
             });
           }
         } catch (error) {
-          console.error('Error fetching course:', error);
         } finally {
           setLoading(false);
         }

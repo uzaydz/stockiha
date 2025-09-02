@@ -127,6 +127,7 @@ const arTranslations = {
     "currency": "د.ج",
     "stock": {
       "outOfStock": "نفذ",
+      "lowStock": "مخزون قليل",
       "limitedQuantity": "كمية محدودة",
       "available": "متوفر"
     },
@@ -158,7 +159,9 @@ const arTranslations = {
         "available": "متوفر",
         "productOutOfStock": "هذا المنتج غير متوفر حالياً",
         "colorOutOfStock": "هذا اللون غير متوفر حالياً",
-        "sizeOutOfStock": "هذا المقاس غير متوفر حالياً"
+        "sizeOutOfStock": "هذا المقاس غير متوفر حالياً",
+        "productUnavailable": "المنتج غير متوفر حالياً",
+        "productOutOfStockMessage": "هذا المنتج نفد من المخزون ولا يمكن طلبه في الوقت الحالي"
       },
       "pricing": {
         "pricesMayVary": "الأسعار قد تختلف حسب المقاس المختار"
@@ -671,6 +674,7 @@ const enTranslations = {
     "currency": "DZD",
     "stock": {
       "outOfStock": "Out of Stock",
+      "lowStock": "Low Stock",
       "limitedQuantity": "Limited Quantity",
       "available": "Available"
     },
@@ -702,7 +706,9 @@ const enTranslations = {
         "available": "Available",
         "productOutOfStock": "This product is currently out of stock",
         "colorOutOfStock": "This color is currently out of stock",
-        "sizeOutOfStock": "This size is currently out of stock"
+        "sizeOutOfStock": "This size is currently out of stock",
+        "productUnavailable": "Product is currently unavailable",
+        "productOutOfStockMessage": "This product is out of stock and cannot be ordered at this time"
       },
       "pricing": {
         "pricesMayVary": "Prices may vary based on selected size"
@@ -1204,6 +1210,7 @@ const frTranslations = {
     "currency": "DZD",
     "stock": {
       "outOfStock": "Rupture de stock",
+      "lowStock": "Stock Faible",
       "limitedQuantity": "Quantité limitée",
       "available": "Disponible"
     },
@@ -1235,7 +1242,9 @@ const frTranslations = {
         "available": "Disponible",
         "productOutOfStock": "Ce produit n'est actuellement pas en stock",
         "colorOutOfStock": "Cette couleur n'est actuellement pas en stock",
-        "sizeOutOfStock": "Cette taille n'est actuellement pas en stock"
+        "sizeOutOfStock": "Cette taille n'est actuellement pas en stock",
+        "productUnavailable": "Le produit n'est pas disponible actuellement",
+        "productOutOfStockMessage": "Ce produit est en rupture de stock et ne peut pas être commandé pour le moment"
       },
       "pricing": {
         "pricesMayVary": "Les prix peuvent varier selon la taille sélectionnée"

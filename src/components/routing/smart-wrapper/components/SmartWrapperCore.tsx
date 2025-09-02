@@ -20,7 +20,6 @@ interface SmartWrapperCoreProps {
 }
 
 export const SmartWrapperCore = memo<SmartWrapperCoreProps>(({ children }) => {
-  console.log('🚀 SmartWrapperCore: بدء التهيئة');
   
   const location = useLocation();
   
@@ -46,7 +45,6 @@ export const SmartWrapperCore = memo<SmartWrapperCoreProps>(({ children }) => {
     initializationPromiseRef.current = (async () => {
       try {
         isInitialized.current = true;
-        console.log('✅ SmartWrapperCore: تم التهيئة');
       } finally {
         initializationPromiseRef.current = null;
       }
@@ -56,10 +54,6 @@ export const SmartWrapperCore = memo<SmartWrapperCoreProps>(({ children }) => {
   // 🔄 تنظيف عند تغيير المسار
   useEffect(() => {
     if (lastPathname.current !== location.pathname) {
-      console.log('🔄 SmartWrapperCore: تغيير المسار', { 
-        from: lastPathname.current, 
-        to: location.pathname 
-      });
       lastPathname.current = location.pathname;
     }
   }, [location.pathname]);
@@ -70,17 +64,9 @@ export const SmartWrapperCore = memo<SmartWrapperCoreProps>(({ children }) => {
     
     // التحقق من التغييرات
     if (lastPathname.current === location.pathname && isInitialized.current) {
-      console.log('⏭️ SmartWrapperCore: تخطي إعادة التحديد - نفس المسار');
       return { pageType: newPageType, config: PROVIDER_CONFIGS[newPageType] || PROVIDER_CONFIGS.minimal };
     }
-    
-    console.log('🎯 SmartWrapperCore: تحديد نوع صفحة جديد', {
-      pathname: location.pathname,
-      newPageType,
-      lastPathname: lastPathname.current,
-      lastPageType: null
-    });
-    
+
     return { pageType: newPageType, config: PROVIDER_CONFIGS[newPageType] || PROVIDER_CONFIGS.minimal };
   }, [location.pathname]);
 
@@ -103,13 +89,6 @@ export const SmartWrapperCore = memo<SmartWrapperCoreProps>(({ children }) => {
       {infrastructureContent}
     </I18nSEOWrapper>
   ), [infrastructureContent]);
-
-  console.log('🎨 SmartWrapperCore: إرجاع المحتوى', {
-    pageType,
-    config,
-    hasChildren: !!children,
-    renderCount: renderCount.current
-  });
 
   return (
     <>

@@ -31,11 +31,8 @@ class CustomDomainOptimizer {
     // فحص cache أولاً
     const cached = this.cache.get(hostname);
     if (cached && (Date.now() - cached.timestamp) < this.CACHE_TTL) {
-      console.log('✅ [CustomDomainOptimizer] استخدام النتيجة من cache:', hostname);
       return cached.result;
     }
-
-    console.log('🔍 [CustomDomainOptimizer] بدء تحسين النطاق المخصص:', hostname);
 
     // الاستراتيجية 1: البحث المباشر في النطاق
     let result = await this.strategyDirectDomain(hostname);
@@ -81,7 +78,6 @@ class CustomDomainOptimizer {
    */
   private async strategyDirectDomain(hostname: string): Promise<CustomDomainResult> {
     try {
-      console.log('🔄 [CustomDomainOptimizer] الاستراتيجية 1: البحث المباشر في النطاق');
       
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -115,7 +111,6 @@ class CustomDomainOptimizer {
         }
       }
     } catch (error) {
-      console.warn('⚠️ [CustomDomainOptimizer] فشل الاستراتيجية 1:', error);
     }
 
     return { success: false };
@@ -126,12 +121,10 @@ class CustomDomainOptimizer {
    */
   private async strategyExtractSubdomain(hostname: string): Promise<CustomDomainResult> {
     try {
-      console.log('🔄 [CustomDomainOptimizer] الاستراتيجية 2: استخراج subdomain من النطاق');
       
       const domainParts = hostname.split('.');
       if (domainParts.length > 2 && domainParts[0] && domainParts[0] !== 'www') {
         const possibleSubdomain = domainParts[0].toLowerCase().trim();
-        console.log('🔍 [CustomDomainOptimizer] subdomain محتمل:', possibleSubdomain);
         
         // محاولة استخدام subdomain
         const subdomainResult = await this.strategyDirectDomain(possibleSubdomain);
@@ -146,7 +139,6 @@ class CustomDomainOptimizer {
         }
       }
     } catch (error) {
-      console.warn('⚠️ [CustomDomainOptimizer] فشل الاستراتيجية 2:', error);
     }
 
     return { success: false };
@@ -157,7 +149,6 @@ class CustomDomainOptimizer {
    */
   private async strategySimilarDomains(hostname: string): Promise<CustomDomainResult> {
     try {
-      console.log('🔄 [CustomDomainOptimizer] الاستراتيجية 3: البحث في النطاقات المشابهة');
       
       // البحث في localStorage عن نطاقات مشابهة
       const keys = Object.keys(localStorage);
@@ -173,7 +164,6 @@ class CustomDomainOptimizer {
             
             // البحث عن نطاق مشابه
             if (parsed.domain && this.isSimilarDomain(hostname, parsed.domain)) {
-              console.log('🔍 [CustomDomainOptimizer] نطاق مشابه:', parsed.domain);
               
               // محاولة استخدام النطاق المشابه
               const similarResult = await this.strategyDirectDomain(parsed.domain);
@@ -193,7 +183,6 @@ class CustomDomainOptimizer {
         }
       }
     } catch (error) {
-      console.warn('⚠️ [CustomDomainOptimizer] فشل الاستراتيجية 3:', error);
     }
 
     return { success: false };
@@ -204,12 +193,10 @@ class CustomDomainOptimizer {
    */
   private async strategyLocalStorage(hostname: string): Promise<CustomDomainResult> {
     try {
-      console.log('🔄 [CustomDomainOptimizer] الاستراتيجية 4: البحث في localStorage');
       
       // البحث عن معرف المؤسسة المحفوظ
       const orgId = localStorage.getItem('bazaar_organization_id');
       if (orgId && orgId.length > 10) {
-        console.log('🔍 [CustomDomainOptimizer] معرف مؤسسة محفوظ:', orgId);
         
         // محاولة الحصول على معلومات المؤسسة
         const orgInfo = await this.getOrganizationInfo(orgId);
@@ -233,7 +220,6 @@ class CustomDomainOptimizer {
             if (value) {
               const parsed = JSON.parse(value);
               if (parsed.id && parsed.id.length > 10) {
-                console.log('🔍 [CustomDomainOptimizer] مؤسسة في localStorage:', key);
                 
                 const orgInfo = await this.getOrganizationInfo(parsed.id);
                 if (orgInfo) {
@@ -253,7 +239,6 @@ class CustomDomainOptimizer {
         }
       }
     } catch (error) {
-      console.warn('⚠️ [CustomDomainOptimizer] فشل الاستراتيجية 4:', error);
     }
 
     return { success: false };
@@ -288,7 +273,6 @@ class CustomDomainOptimizer {
         }
       }
     } catch (error) {
-      console.warn('⚠️ [CustomDomainOptimizer] فشل في الحصول على معلومات المؤسسة:', error);
     }
 
     return null;

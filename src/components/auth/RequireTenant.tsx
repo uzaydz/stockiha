@@ -49,12 +49,6 @@ const RequireTenant = ({ children }: RequireTenantProps) => {
     // إذا كانت المؤسسة متاحة في AuthContext لكن ليس في TenantContext
     if (organization && !currentOrganization && !isLoading && !waitingForOrgData && requiresOrganization) {
       if (import.meta.env.DEV) {
-        console.log('🔄 [RequireTenant] انتظار تزامن المؤسسة', {
-          authOrgId: organization.id,
-          tenantOrgId: currentOrganization?.id,
-          timeSinceLogin,
-          hasWaitedTooLong
-        });
       }
 
       // إذا مر وقت طويل، نعطي TenantProvider فرصة أخيرة للتحديث
@@ -88,26 +82,6 @@ const RequireTenant = ({ children }: RequireTenantProps) => {
 
   // تشخيص شامل لـ RequireTenant - محسن لتسجيل الدخول الأول
   if (import.meta.env.DEV) {
-    console.log('🔍 [RequireTenant] Debug info:', {
-      hasOrganization: !!hasOrganization,
-      currentOrganization: !!currentOrganization,
-      authOrganization: !!organization,
-      hasAuthUser: !!user,
-      hasAuthUserProfile: !!userProfile,
-      isAuthLoading,
-      canProceedEarly,
-      shouldAllowProceed,
-      canSkipLoading,
-      isLoading: !!isLoading,
-      isRefreshing: !!isRefreshing,
-      waitingForOrgData: !!waitingForOrgData,
-      requiresOrganization: !!requiresOrganization,
-      timeSinceLogin,
-      hasWaitedTooLong,
-      pathname: location.pathname,
-      organizationId: organization?.id,
-      currentOrganizationId: currentOrganization?.id
-    });
   }
 
   // محاولة إعادة تحميل بيانات المؤسسة

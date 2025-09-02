@@ -260,45 +260,86 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
     return { provinceField, municipalityField };
   }, [processedFormData.fields]);
 
-  // --- منطق التحقق من المخزون ---
+  // --- منطق التحقق من المخزون المحسن ---
+  // التحقق من وجود بيانات المنتج
+  const hasProductData = Boolean(product && typeof product === 'object');
+
+
+
   // إذا كان المنتج بدون متغيرات، نتحقق من المخزون الأساسي
   const isProductOutOfStock = Boolean(
-    product && 
-    !product.has_variants && // فقط للمنتجات بدون متغيرات
+    hasProductData &&
+    product.has_variants === false && // فقط للمنتجات بدون متغيرات
     (
       product.stock_quantity === undefined ||
       product.stock_quantity === null ||
-      product.stock_quantity <= 0
+      Number(product.stock_quantity) <= 0
     )
   );
-  
+
+  // تحقق إضافي: إذا كان المنتج مع متغيرات لكن المخزون الأساسي نفد
+  // للمنتجات مع متغيرات، نفحص إذا كان جميع الألوان والمقاسات نفدت
+  const isProductWithVariantsOutOfStock = Boolean(
+    hasProductData &&
+    product.has_variants === true && // منتج مع متغيرات
+    product.colors && // يجب أن يكون هناك ألوان
+    product.colors.length > 0 && // يجب أن يكون هناك ألوان متاحة
+    product.colors.every(color => // تحقق إذا كانت جميع الألوان نفدت
+      !color.quantity ||
+      color.quantity <= 0 ||
+      (color.sizes && color.sizes.length > 0 && color.sizes.every(size => !size.quantity || size.quantity <= 0))
+    )
+  );
+
   // للمنتجات مع متغيرات، نتحقق من مخزون اللون/المقاس المحدد
   const isColorOutOfStock = Boolean(
-    selectedColor && 
+    hasProductData &&
+    product.has_variants === true && // فقط للمنتجات مع متغيرات
+    !isProductWithVariantsOutOfStock && // فقط إذا لم يكن المنتج نفسه غير متوفر
+    selectedColor &&
     (
       selectedColor.quantity === undefined ||
       selectedColor.quantity === null ||
-      selectedColor.quantity <= 0
+      Number(selectedColor.quantity) <= 0
     )
   );
-  
+
   const isSizeOutOfStock = Boolean(
-    selectedSize && 
+    hasProductData &&
+    product.has_variants === true && // فقط للمنتجات مع متغيرات
+    !isProductWithVariantsOutOfStock && // فقط إذا لم يكن المنتج نفسه غير متوفر
+    selectedSize &&
     (
       selectedSize.quantity === undefined ||
       selectedSize.quantity === null ||
-      selectedSize.quantity <= 0
+      Number(selectedSize.quantity) <= 0
     )
   );
 
-  const isOutOfStock = isProductOutOfStock || isColorOutOfStock || isSizeOutOfStock;
+  // تحقق شامل من حالة المخزون
+  const isOutOfStock = Boolean(
+    isProductOutOfStock ||
+    isProductWithVariantsOutOfStock ||
+    isColorOutOfStock ||
+    isSizeOutOfStock
+  );
 
-  // تحسين معالج الإرسال
+  // تحقق من وجود مشكلة في المخزون يجب إظهار تحذير لها
+  const hasStockWarning = Boolean(
+    isProductOutOfStock ||
+    (isProductWithVariantsOutOfStock && !selectedColor && !selectedSize) || // مخزون مشترك نفد ولكن لم يتم اختيار متغير
+    (selectedColor && isColorOutOfStock) || // فقط إذا تم اختيار لون وهو نفد
+    (selectedSize && isSizeOutOfStock)     // فقط إذا تم اختيار مقاس وهو نفد
+  );
+
+
+
+  // تحسين معالج الإرسال مع التحقق من المخزون
   const handleFormSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (isOutOfStock) {
-      // يمكنك هنا عرض رسالة توست أو رسالة خطأ
+    // التحقق من المخزون قبل المعالجة
+    if (hasStockWarning) {
       return;
     }
 
@@ -341,17 +382,74 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
     form: isInternalSubmitting || isSubmitting
   }), [isLoading, isLoadingDeliveryFee, isCalculatingDelivery, isLoadingPrices, isSubmitting, isInternalSubmitting]);
 
-  // تحسين النص المناسب للزر
+  // تحسين النص المناسب للزر مع التحقق من المخزون
   const buttonText = useMemo(() => {
+    // إذا كان المنتج غير متوفر، أظهر نص مناسب
+    if (hasStockWarning) {
+      if (isProductOutOfStock || isProductWithVariantsOutOfStock) {
+        return t('storeProducts.stock.productOutOfStock', 'غير متوفر');
+      }
+      if (isColorOutOfStock) {
+        return t('storeProducts.stock.colorOutOfStock', 'اللون غير متوفر');
+      }
+      if (isSizeOutOfStock) {
+        return t('storeProducts.stock.sizeOutOfStock', 'المقاس غير متوفر');
+      }
+    }
+
+    // حالات التحميل العادية
     if (loadingStates.delivery) return productFormRenderer.processing();
     if (loadingStates.prices) return productFormRenderer.processing();
     if (loadingStates.overall) return productFormRenderer.processing();
+
     return processedFormData.submitButtonText;
-  }, [loadingStates.delivery, loadingStates.prices, loadingStates.overall, processedFormData.submitButtonText, productFormRenderer]);
+  }, [
+    loadingStates.delivery,
+    loadingStates.prices,
+    loadingStates.overall,
+    processedFormData.submitButtonText,
+    productFormRenderer,
+    isOutOfStock,
+    isProductOutOfStock,
+    isProductWithVariantsOutOfStock,
+    isColorOutOfStock,
+    isSizeOutOfStock,
+    t
+  ]);
 
   // إذا لم تكن هناك حقول، لا نعرض شيئاً
   if (!processedFormData.fields || processedFormData.fields.length === 0) {
     return null;
+  }
+
+  // فحص مبكر: إذا كان المنتج غير متوفر تماماً، لا نعرض النموذج
+  // فقط للمنتجات بدون متغيرات أو المنتجات مع متغيرات حيث نفد المخزون الأساسي ولم يتم اختيار لون أو مقاس
+  const shouldHideForm = Boolean(
+    !hasProductData || // لا توجد بيانات المنتج
+    (hasProductData && product.has_variants === false && isProductOutOfStock) || // منتج بدون متغيرات ونفد
+    (hasProductData && product.has_variants === true && isProductWithVariantsOutOfStock && !selectedColor && !selectedSize) // منتج مع متغيرات ونفد المخزون الأساسي ولكن لم يتم اختيار أي متغير
+  );
+
+
+
+  if (shouldHideForm) {
+    return (
+      <div className="w-full p-6 text-center">
+        <div className="max-w-md mx-auto">
+          <div className="mb-4">
+            <svg className="w-16 h-16 mx-auto text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 12h6m-6-4h6m2 5.291A7.962 7.962 0 0112 15c-2.34 0-4.29-.882-5.5-2.316" />
+            </svg>
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+            {t('featuredProducts.storeProducts.stock.productUnavailable')}
+          </h3>
+          <p className="text-gray-600 dark:text-gray-400">
+            {t('featuredProducts.storeProducts.stock.productOutOfStockMessage')}
+          </p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -363,14 +461,22 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
         animate="visible"
       >
         <div className="space-y-4">
-          {isOutOfStock && (
-            <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-center text-base font-bold dark:bg-red-900/20 dark:border-red-800 dark:text-red-300">
-              {isProductOutOfStock && t('featuredProducts.storeProducts.stock.productOutOfStock')}
-              {isColorOutOfStock && !isProductOutOfStock && t('featuredProducts.storeProducts.stock.colorOutOfStock')}
-              {isSizeOutOfStock && !isProductOutOfStock && !isColorOutOfStock && t('featuredProducts.storeProducts.stock.sizeOutOfStock')}
+          {hasStockWarning && (
+            <div className="mb-4 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-center text-base font-bold dark:bg-red-900/20 dark:border-red-800 dark:text-red-300">
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+                <span>{t('featuredProducts.storeProducts.stock.productUnavailable')}</span>
+              </div>
+              <div className="text-sm font-normal">
+                {(isProductOutOfStock || isProductWithVariantsOutOfStock) && t('featuredProducts.storeProducts.stock.productOutOfStockMessage')}
+                {isColorOutOfStock && !isProductOutOfStock && !isProductWithVariantsOutOfStock && t('featuredProducts.storeProducts.stock.colorOutOfStock')}
+                {isSizeOutOfStock && !isProductOutOfStock && !isProductWithVariantsOutOfStock && !isColorOutOfStock && t('featuredProducts.storeProducts.stock.sizeOutOfStock')}
+              </div>
             </div>
           )}
-          
+
           <Shimmer 
             isLoading={loadingStates.overall && !hasDataChanged} 
             rounded="2xl"
@@ -420,7 +526,7 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
 
                   {(onFormSubmit || onSubmit) && (
                     <SubmitButton
-                      disabled={loadingStates.overall || isOutOfStock}
+                      disabled={loadingStates.overall || hasStockWarning}
                       loading={loadingStates.overall}
                       buttonText={buttonText}
                       t={t}

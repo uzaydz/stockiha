@@ -11,16 +11,12 @@
 (function() {
   'use strict';
 
-  console.log('🚀 بدء إعداد نظام الكاش الموحد...');
-
   // 1. التحقق من وجود النظام
   if (typeof window === 'undefined') {
-    console.error('❌ هذا الملف يجب تشغيله في المتصفح');
     return;
   }
 
   // 2. تنظيف الكاش القديم
-  console.log('🧹 تنظيف الكاش القديم...');
 
   // مسح localStorage القديم
   try {
@@ -34,12 +30,9 @@
 
     oldKeys.forEach(key => {
       localStorage.removeItem(key);
-      console.log(`🗑️ تم حذف: ${key}`);
     });
 
-    console.log(`✅ تم مسح ${oldKeys.length} مفتاح قديم من localStorage`);
   } catch (error) {
-    console.warn('⚠️ خطأ في مسح localStorage:', error);
   }
 
   // مسح sessionStorage القديم
@@ -52,37 +45,29 @@
 
     oldKeys.forEach(key => {
       sessionStorage.removeItem(key);
-      console.log(`🗑️ تم حذف: ${key}`);
     });
 
-    console.log(`✅ تم مسح ${oldKeys.length} مفتاح قديم من sessionStorage`);
   } catch (error) {
-    console.warn('⚠️ خطأ في مسح sessionStorage:', error);
   }
 
   // 3. إلغاء تسجيل Service Workers القديمة
-  console.log('🔧 إلغاء تسجيل Service Workers القديمة...');
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.getRegistrations().then(registrations => {
       const promises = registrations.map(registration => {
-        console.log(`🗑️ إلغاء تسجيل: ${registration.scope}`);
         return registration.unregister();
       });
 
       Promise.all(promises).then(results => {
         const successful = results.filter(Boolean).length;
-        console.log(`✅ تم إلغاء تسجيل ${successful} Service Worker`);
       });
     });
   }
 
   // 4. إعداد الدوال العامة
-  console.log('🎯 إعداد الدوال العامة...');
 
   // دالة مساعدة للتشخيص السريع
   window.quickCacheCheck = async function() {
-    console.log('🔍 تشخيص سريع للكاش...');
 
     const results = {
       unifiedCache: typeof window.UnifiedCache !== 'undefined',
@@ -92,15 +77,11 @@
       sessionStorage: typeof sessionStorage !== 'undefined'
     };
 
-    console.table(results);
-
     // محاولة تشغيل تشخيص شامل
     if (typeof window.runCacheDiagnostic !== 'undefined') {
       try {
         const diagnostic = await window.runCacheDiagnostic();
-        console.log('📊 نتائج التشخيص الشامل:', diagnostic);
       } catch (error) {
-        console.error('❌ فشل في التشخيص:', error);
       }
     }
 
@@ -109,7 +90,6 @@
 
   // دالة مساعدة للتنظيف السريع
   window.quickCacheClear = async function() {
-    console.log('🧹 تنظيف سريع للكاش...');
 
     const results = {
       localStorage: false,
@@ -125,9 +105,7 @@
       const cacheKeys = keys.filter(key => key.startsWith('ucm_'));
       cacheKeys.forEach(key => localStorage.removeItem(key));
       results.localStorage = true;
-      console.log(`✅ تم مسح ${cacheKeys.length} مفتاح من localStorage`);
     } catch (error) {
-      console.warn('⚠️ خطأ في مسح localStorage:', error);
     }
 
     // تنظيف sessionStorage
@@ -136,9 +114,7 @@
       const cacheKeys = keys.filter(key => key.startsWith('ucm_'));
       cacheKeys.forEach(key => sessionStorage.removeItem(key));
       results.sessionStorage = true;
-      console.log(`✅ تم مسح ${cacheKeys.length} مفتاح من sessionStorage`);
     } catch (error) {
-      console.warn('⚠️ خطأ في مسح sessionStorage:', error);
     }
 
     // تنظيف UnifiedCache
@@ -146,9 +122,7 @@
       try {
         window.UnifiedCache.clearAll();
         results.unifiedCache = true;
-        console.log('✅ تم مسح UnifiedCache');
       } catch (error) {
-        console.warn('⚠️ خطأ في مسح UnifiedCache:', error);
       }
     }
 
@@ -157,9 +131,7 @@
       try {
         await window.serviceWorkerCache.clearAll();
         results.serviceWorker = true;
-        console.log('✅ تم مسح Service Worker Cache');
       } catch (error) {
-        console.warn('⚠️ خطأ في مسح Service Worker:', error);
       }
     }
 
@@ -168,19 +140,15 @@
       try {
         window.queryClient.clear();
         results.reactQuery = true;
-        console.log('✅ تم مسح React Query Cache');
       } catch (error) {
-        console.warn('⚠️ خطأ في مسح React Query:', error);
       }
     }
 
-    console.table(results);
     return results;
   };
 
   // دالة اختبار النظام
   window.testCacheSystem = async function() {
-    console.log('🧪 اختبار نظام الكاش الموحد...');
 
     const testResults = {
       unifiedCache: { status: 'pending', message: '' },
@@ -260,14 +228,10 @@
       testResults.performance = { status: 'error', message: error.message };
     }
 
-    console.log('📊 نتائج اختبار النظام:');
-    console.table(testResults);
-
     return testResults;
   };
 
   // 5. إعداد المراقبة التلقائية
-  console.log('📊 إعداد المراقبة التلقائية...');
 
   // مراقبة الأداء كل 5 دقائق
   if (typeof window !== 'undefined') {
@@ -276,7 +240,6 @@
         if (typeof window.getCachePerformanceReport !== 'undefined') {
           const report = await window.getCachePerformanceReport();
           if (report.health !== 'excellent') {
-            console.warn('⚠️ تحذير أداء الكاش:', report);
           }
         }
       } catch (error) {
@@ -286,17 +249,6 @@
   }
 
   // 6. إشعار بإكمال الإعداد
-  console.log('✅ تم إكمال إعداد نظام الكاش الموحد!');
-  console.log('');
-  console.log('🎯 الدوال المتاحة:');
-  console.log('- quickCacheCheck(): تشخيص سريع');
-  console.log('- quickCacheClear(): تنظيف سريع');
-  console.log('- testCacheSystem(): اختبار شامل');
-  console.log('- runCacheDiagnostic(): تشخيص مفصل');
-  console.log('- emergencyCacheCleanup(): تنظيف طارئ');
-  console.log('- getCachePerformanceReport(): تقرير الأداء');
-  console.log('');
-  console.log('📖 اقرأ المزيد في: CACHE_SYSTEM_README.md');
 
   // تشغيل اختبار تلقائي بعد ثانيتين
   setTimeout(() => {

@@ -26,7 +26,7 @@ export async function fetchUnifiedProductData(
   options: ProductFetchOptions = {}
 ): Promise<UnifiedProductPageData> {
   
-      const { organizationId, dataScope = 'ultra' as const, forceRefresh = true } = options; // 🚀 تحسين: إجبار تحديث البيانات لتشمل صور الألوان الجديدة
+      const { organizationId, dataScope = 'ultra' as const, forceRefresh = false } = options; // ✅ عدم إجبار تحديث البيانات للسماح باستخدام Cache
   
   if (process.env.NODE_ENV === 'development') {
   }
@@ -38,7 +38,7 @@ export async function fetchUnifiedProductData(
     const productResponse = await getProductCompleteDataOptimized(productId, {
       organizationId,
       dataScope,
-      forceRefresh: true // 🚀 إجبار تحديث البيانات لتشمل صور الألوان الجديدة
+      forceRefresh // ✅ استخدام قيمة forceRefresh من المعاملات
     });
 
     if (!productResponse || productResponse.success === false) {

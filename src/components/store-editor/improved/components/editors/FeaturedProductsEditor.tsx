@@ -36,7 +36,6 @@ import {
 
 import { PropertySection } from '../PropertySection'
 import { getProducts } from '@/lib/api/products'
-import { useTenant } from '@/context/TenantContext'
 
 interface Product {
   id: string
@@ -56,11 +55,13 @@ interface Product {
 interface FeaturedProductsEditorProps {
   settings: any
   onUpdate: (key: string, value: any) => void
+  organizationId?: string
 }
 
 export const FeaturedProductsEditor: React.FC<FeaturedProductsEditorProps> = ({
   settings,
-  onUpdate
+  onUpdate,
+  organizationId: propOrganizationId
 }) => {
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(['content', 'display', 'selection'])
@@ -75,8 +76,52 @@ export const FeaturedProductsEditor: React.FC<FeaturedProductsEditorProps> = ({
   const [showProductPicker, setShowProductPicker] = useState(false)
   const [productPickerView, setProductPickerView] = useState<'grid' | 'list'>('grid')
   
-  const { currentOrganization } = useTenant()
-  const organizationId = currentOrganization?.id || localStorage.getItem('bazaar_organization_id')
+  // استخدام organizationId من props أو من localStorage كـ fallback
+  const organizationId = propOrganizationId || localStorage.getItem('bazaar_organization_id')
+
+  // تنظيف البيانات القديمة من localStorage عند تغيير organizationId
+  useEffect(() => {
+    if (!organizationId) return;
+
+    // البحث عن جميع المفاتيح المتعلقة بالمنتجات في localStorage
+    const keysToRemove: string[] = [];
+    const currentTime = Date.now();
+
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('featured_editor_products_')) {
+        // إزالة البيانات الخاصة بمنظمات أخرى
+        if (!key.includes(organizationId)) {
+          keysToRemove.push(key);
+          // إزالة البيانات والـ timestamp المرتبطة
+          if (key.endsWith('_data')) {
+            const baseKey = key.replace('_data', '');
+            keysToRemove.push(baseKey);
+            keysToRemove.push(`${baseKey}_timestamp`);
+          } else if (!key.endsWith('_timestamp')) {
+            keysToRemove.push(`${key}_data`);
+            keysToRemove.push(`${key}_timestamp`);
+          }
+        } else {
+          // التحقق من أن البيانات ليست قديمة جداً (أكثر من 30 دقيقة)
+          const storedTime = localStorage.getItem(`${key}_timestamp`);
+          if (storedTime && (currentTime - parseInt(storedTime)) > 30 * 60 * 1000) {
+            keysToRemove.push(key);
+            if (!key.endsWith('_timestamp') && !key.endsWith('_data')) {
+              keysToRemove.push(`${key}_data`);
+              keysToRemove.push(`${key}_timestamp`);
+            }
+          }
+        }
+      }
+    }
+
+    // إزالة المفاتيح القديمة (تجنب التكرار)
+    const uniqueKeys = [...new Set(keysToRemove)];
+    uniqueKeys.forEach(key => localStorage.removeItem(key));
+  }, [organizationId]);
+
+  // Logging للتتبع
 
   const toggleSection = (section: string) => {
     setExpandedSections(prev => {
@@ -92,18 +137,25 @@ export const FeaturedProductsEditor: React.FC<FeaturedProductsEditorProps> = ({
 
   // تحميل المنتجات المتاحة
   const loadAvailableProducts = async () => {
+
     if (!organizationId) {
       setProductsError('لا يوجد معرف مؤسسة متاح')
       return
     }
-    
+
     setProductsLoading(true)
     setProductsError(null)
-    
+
     try {
       const products = await getProducts(organizationId)
+
       setAvailableProducts(products || [])
-      
+
+      // حفظ البيانات في localStorage
+      const cacheKey = `featured_editor_products_${organizationId}`;
+      localStorage.setItem(`${cacheKey}_data`, JSON.stringify(products || []));
+      localStorage.setItem(`${cacheKey}_timestamp`, Date.now().toString());
+
       if (!products || products.length === 0) {
         setProductsError('لا توجد منتجات متاحة')
       }
@@ -124,11 +176,31 @@ export const FeaturedProductsEditor: React.FC<FeaturedProductsEditorProps> = ({
     }
   }, [settings.selectedProducts, availableProducts])
 
-  // تحميل المنتجات عند تحميل المكون
+  // تحميل المنتجات عند تحميل المكون مع نظام كاش
   useEffect(() => {
-    if (organizationId) {
-      loadAvailableProducts()
-    }
+    const loadProductsWithCache = async () => {
+      if (!organizationId) return;
+
+      const cacheKey = `featured_editor_products_${organizationId}`;
+      const cachedProducts = localStorage.getItem(`${cacheKey}_data`);
+      const cacheTimestamp = localStorage.getItem(`${cacheKey}_timestamp`);
+      const isCacheValid = cacheTimestamp &&
+        (Date.now() - parseInt(cacheTimestamp)) < 30 * 60 * 1000; // 30 دقيقة
+
+      if (cachedProducts && isCacheValid) {
+        try {
+          const products = JSON.parse(cachedProducts);
+          setAvailableProducts(products);
+          return;
+        } catch (error) {
+        }
+      }
+
+      // جلب المنتجات إذا لم تكن في الكاش أو انتهت صلاحيتها
+      await loadAvailableProducts();
+    };
+
+    loadProductsWithCache();
   }, [organizationId])
 
   // تحميل المنتجات عند فتح الحوار إذا لم تكن محملة

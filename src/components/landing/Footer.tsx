@@ -44,7 +44,7 @@ const Footer = () => {
   return (
     <footer 
       ref={containerRef}
-      className="relative bg-gradient-to-br from-white dark:from-gray-900 via-white/99 dark:via-gray-900/99 to-[#fc5d41]/5 dark:to-[#fc5d41]/10 border-t border-gray-200 dark:border-gray-700 overflow-hidden"
+      className="relative landing-bg-secondary landing-section-transition border-t border-gray-200 dark:border-gray-700 overflow-hidden"
     >
       
       {/* Enhanced Background Effects */}

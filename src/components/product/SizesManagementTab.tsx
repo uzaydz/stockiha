@@ -1,14 +1,12 @@
 import React, { useState } from 'react';
 import { 
-  Ruler, Palette, Plus, ArrowLeft, AlertCircle, Eye, BarChart3
+  Ruler, Palette, Plus, ArrowLeft, AlertCircle, Eye, BarChart3, Settings
 } from 'lucide-react';
 import { ProductColor, ProductSize } from '@/types/product';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ProductSizeManager from './ProductSizeManager';
-import { toast } from 'sonner';
 
 interface SizesManagementTabProps {
   colors: ProductColor[];
@@ -45,18 +43,18 @@ const SizesManagementTab: React.FC<SizesManagementTabProps> = ({
   // التحقق من حالة عدم تفعيل المقاسات
   if (!useSizes) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-center border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-2xl bg-gray-50 dark:bg-gray-900/20">
-        <div className="w-20 h-20 bg-gray-200 dark:bg-gray-800 rounded-full flex items-center justify-center mb-6">
-          <Ruler className="h-10 w-10 text-gray-400" />
+      <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed rounded-xl">
+        <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+          <Ruler className="h-8 w-8 text-muted-foreground" />
         </div>
-        <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-3">
+        <h3 className="text-lg font-semibold mb-2">
           المقاسات غير مفعلة
         </h3>
-        <p className="text-gray-600 dark:text-gray-400 mb-8 max-w-md text-base">
-          يجب تفعيل استخدام المقاسات أولاً من تبويبة الألوان
+        <p className="text-muted-foreground mb-4">
+          يجب تفعيل استخدام المقاسات أولاً من إعدادات المنتج
         </p>
-        <Button onClick={onBackToVariants} variant="outline" size="lg">
-          <ArrowLeft className="h-5 w-5 ml-2" />
+        <Button onClick={onBackToVariants} variant="outline">
+          <ArrowLeft className="h-4 w-4 ml-2" />
           العودة للألوان
         </Button>
       </div>
@@ -83,31 +81,29 @@ const SizesManagementTab: React.FC<SizesManagementTabProps> = ({
   };
 
   return (
-    <div className="space-y-8" dir="rtl">
-      {/* رأس بسيط */}
+    <div className="space-y-6">
+      {/* رأس الصفحة */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-[#fc5d41]/10 rounded-xl flex items-center justify-center">
-            <Ruler className="h-6 w-6 text-[#fc5d41]" />
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+            <Ruler className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-              إدارة المقاسات
-            </h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            <h2 className="text-xl font-bold">إدارة المقاسات</h2>
+            <p className="text-sm text-muted-foreground">
               إدارة مقاسات ومخزون جميع الألوان
             </p>
           </div>
         </div>
         
-        <div className="flex items-center gap-3">
-          <Button onClick={onAddColor} className="bg-[#fc5d41] hover:bg-[#fc5d41]/90" size="lg">
-            <Plus className="h-5 w-5 ml-2" />
+        <div className="flex gap-2">
+          <Button onClick={onAddColor} size="sm">
+            <Plus className="h-4 w-4 ml-2" />
             إضافة لون
           </Button>
-          <Button onClick={onBackToVariants} variant="outline" size="lg">
-            <ArrowLeft className="h-5 w-5 ml-2" />
-            العودة للألوان
+          <Button onClick={onBackToVariants} variant="outline" size="sm">
+            <ArrowLeft className="h-4 w-4 ml-2" />
+            العودة
           </Button>
         </div>
       </div>
@@ -125,87 +121,88 @@ const SizesManagementTab: React.FC<SizesManagementTabProps> = ({
           </TabsTrigger>
         </TabsList>
         
-        <TabsContent value="overview" className="space-y-6 mt-6">
+        <TabsContent value="overview" className="space-y-6 mt-4">
           {/* إحصائيات سريعة */}
           {colors.length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Card className="p-4 text-center">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <Card className="p-3 text-center">
                 <div className="flex items-center justify-center mb-2">
-                  <Palette className="h-5 w-5 text-[#fc5d41]" />
+                  <Palette className="h-4 w-4 text-primary" />
                 </div>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">{sizesStats.totalColors}</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">إجمالي الألوان</div>
+                <div className="text-xl font-bold">{sizesStats.totalColors}</div>
+                <div className="text-xs text-muted-foreground">الألوان</div>
               </Card>
               
-              <Card className="p-4 text-center">
+              <Card className="p-3 text-center">
                 <div className="flex items-center justify-center mb-2">
-                  <Ruler className="h-5 w-5 text-green-600" />
+                  <Ruler className="h-4 w-4 text-green-500" />
                 </div>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">{sizesStats.colorsWithSizes}</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">بمقاسات</div>
+                <div className="text-xl font-bold">{sizesStats.colorsWithSizes}</div>
+                <div className="text-xs text-muted-foreground">بمقاسات</div>
               </Card>
               
-              <Card className="p-4 text-center">
+              <Card className="p-3 text-center">
                 <div className="flex items-center justify-center mb-2">
-                  <BarChart3 className="h-5 w-5 text-blue-600" />
+                  <BarChart3 className="h-4 w-4 text-blue-500" />
                 </div>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">{sizesStats.totalSizes}</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">إجمالي المقاسات</div>
+                <div className="text-xl font-bold">{sizesStats.totalSizes}</div>
+                <div className="text-xs text-muted-foreground">المقاسات</div>
               </Card>
               
-              <Card className="p-4 text-center">
+              <Card className="p-3 text-center">
                 <div className="flex items-center justify-center mb-2">
-                  <AlertCircle className="h-5 w-5 text-amber-600" />
+                  <AlertCircle className="h-4 w-4 text-amber-500" />
                 </div>
-                <div className="text-2xl font-bold text-gray-900 dark:text-white">{sizesStats.lowStockColors}</div>
-                <div className="text-sm text-gray-600 dark:text-gray-400">مخزون قليل</div>
+                <div className="text-xl font-bold">{sizesStats.lowStockColors}</div>
+                <div className="text-xs text-muted-foreground">مخزون قليل</div>
               </Card>
             </div>
           )}
 
           {/* قائمة الألوان مع مقاساتها */}
           {colors.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-2xl bg-gray-50 dark:bg-gray-900/20">
-              <div className="w-20 h-20 bg-gray-200 dark:bg-gray-800 rounded-full flex items-center justify-center mb-6">
-                <Palette className="h-10 w-10 text-gray-400" />
+            <div className="flex flex-col items-center justify-center py-12 text-center border-2 border-dashed rounded-xl">
+              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                <Palette className="h-8 w-8 text-muted-foreground" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-3">
+              <h3 className="text-lg font-semibold mb-2">
                 لا توجد ألوان
               </h3>
-              <p className="text-gray-600 dark:text-gray-400 mb-8 max-w-md text-base">
+              <p className="text-muted-foreground mb-4">
                 أضف ألوان أولاً لإدارة مقاساتها
               </p>
-              <Button onClick={onAddColor} className="bg-[#fc5d41] hover:bg-[#fc5d41]/90" size="lg">
-                <Plus className="h-5 w-5 ml-2" />
+              <Button onClick={onAddColor}>
+                <Plus className="h-4 w-4 ml-2" />
                 إضافة لون
               </Button>
             </div>
           ) : (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                جميع الألوان ومقاساتها
-              </h3>
+              <div className="flex items-center gap-2">
+                <Palette className="h-5 w-5 text-primary" />
+                <h3 className="text-lg font-semibold">
+                  جميع الألوان ومقاساتها
+                </h3>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {colors.map((color) => (
                   <Card 
                     key={color.id} 
-                    className="cursor-pointer hover:shadow-lg transition-all duration-200 border-2 hover:border-[#fc5d41]/50"
+                    className="cursor-pointer hover:shadow-md transition-shadow"
                     onClick={() => {
                       onSelectColor(color.id);
                       setActiveTab('manage');
                     }}
                   >
-                    <CardContent className="p-5">
+                    <CardContent className="p-4">
                       <div className="flex items-center gap-3 mb-3">
                         <div 
-                          className="w-10 h-10 rounded-lg border-2 border-gray-200 shadow-sm"
+                          className="w-10 h-10 rounded-lg border shadow-sm"
                           style={{ backgroundColor: color.color_code }}
                         />
                         <div className="flex-1">
-                          <h3 className="font-semibold text-gray-900 dark:text-white text-sm">
-                            {color.name}
-                          </h3>
-                          <p className="text-xs text-gray-600 dark:text-gray-400">
+                          <h3 className="font-medium">{color.name}</h3>
+                          <p className="text-xs text-muted-foreground">
                             {color.has_sizes && color.sizes?.length 
                               ? `${color.sizes.length} مقاس`
                               : 'بدون مقاسات'
@@ -216,8 +213,8 @@ const SizesManagementTab: React.FC<SizesManagementTabProps> = ({
                       
                       <div className="space-y-2">
                         <div className="flex items-center justify-between text-xs">
-                          <span className="text-gray-600 dark:text-gray-400">الكمية:</span>
-                          <span className="font-bold text-gray-900 dark:text-white">
+                          <span className="text-muted-foreground">الكمية:</span>
+                          <span className="font-medium">
                             {color.has_sizes && color.sizes?.length 
                               ? color.sizes.reduce((sum, size) => sum + size.quantity, 0)
                               : color.quantity || 0
@@ -226,13 +223,13 @@ const SizesManagementTab: React.FC<SizesManagementTabProps> = ({
                         </div>
                         
                         {color.has_sizes && color.sizes?.length > 0 && (
-                          <div className="pt-2 border-t border-gray-100 dark:border-gray-800">
-                            <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">المقاسات:</div>
+                          <div className="pt-2 border-t">
+                            <div className="text-xs text-muted-foreground mb-1">المقاسات:</div>
                             <div className="flex flex-wrap gap-1">
                               {color.sizes.map((size, index) => (
                                 <span 
                                   key={size.id || index}
-                                  className="text-xs px-2 py-1 bg-gray-100 dark:bg-gray-800 rounded text-gray-700 dark:text-gray-300"
+                                  className="text-xs px-2 py-1 bg-muted rounded"
                                 >
                                   {size.size_name}: {size.quantity}
                                 </span>
@@ -249,31 +246,32 @@ const SizesManagementTab: React.FC<SizesManagementTabProps> = ({
           )}
         </TabsContent>
         
-        <TabsContent value="manage" className="space-y-6 mt-6">
+        <TabsContent value="manage" className="space-y-6 mt-4">
           {/* اختيار اللون لإدارة مقاساته */}
           {!selectedColorId ? (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                اختر لون لإدارة مقاساته
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              <div className="flex items-center gap-2">
+                <Settings className="h-5 w-5 text-primary" />
+                <h3 className="text-lg font-semibold">
+                  اختر لون لإدارة مقاساته
+                </h3>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {colors.map((color) => (
                   <Card 
                     key={color.id} 
-                    className="cursor-pointer hover:shadow-lg transition-all duration-200 border-2 hover:border-[#fc5d41]/50"
+                    className="cursor-pointer hover:shadow-md transition-shadow"
                     onClick={() => onSelectColor(color.id)}
                   >
                     <CardContent className="p-4">
                       <div className="flex items-center gap-3 mb-3">
                         <div 
-                          className="w-10 h-10 rounded-lg border-2 border-gray-200 shadow-sm"
+                          className="w-10 h-10 rounded-lg border shadow-sm"
                           style={{ backgroundColor: color.color_code }}
                         />
                         <div className="flex-1">
-                          <h3 className="font-semibold text-gray-900 dark:text-white text-sm">
-                            {color.name}
-                          </h3>
-                          <p className="text-xs text-gray-600 dark:text-gray-400">
+                          <h3 className="font-medium">{color.name}</h3>
+                          <p className="text-xs text-muted-foreground">
                             {color.has_sizes && color.sizes?.length 
                               ? `${color.sizes.length} مقاس`
                               : 'بدون مقاسات'
@@ -283,8 +281,8 @@ const SizesManagementTab: React.FC<SizesManagementTabProps> = ({
                       </div>
                       
                       <div className="flex items-center justify-between text-xs">
-                        <span className="text-gray-600 dark:text-gray-400">الكمية:</span>
-                        <span className="font-bold text-gray-900 dark:text-white">
+                        <span className="text-muted-foreground">الكمية:</span>
+                        <span className="font-medium">
                           {color.has_sizes && color.sizes?.length 
                             ? color.sizes.reduce((sum, size) => sum + size.quantity, 0)
                             : color.quantity || 0
@@ -300,25 +298,25 @@ const SizesManagementTab: React.FC<SizesManagementTabProps> = ({
             /* إدارة مقاسات لون محدد */
             <div className="space-y-6">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3">
                   <Button 
                     variant="ghost" 
-                    size="lg" 
+                    size="sm" 
                     onClick={() => onSelectColor(null)}
-                    className="p-3 hover:bg-gray-100 dark:hover:bg-gray-800"
+                    className="p-2"
                   >
-                    <ArrowLeft className="h-6 w-6" />
+                    <ArrowLeft className="h-5 w-5" />
                   </Button>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3">
                     <div 
-                      className="w-14 h-14 rounded-xl border-2 border-gray-200 shadow-sm"
+                      className="w-12 h-12 rounded-xl border shadow-sm"
                       style={{ backgroundColor: selectedColor?.color_code }}
                     />
                     <div>
-                      <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                      <h2 className="text-xl font-bold">
                         مقاسات {selectedColor?.name}
                       </h2>
-                      <p className="text-base text-gray-600 dark:text-gray-400 mt-1">
+                      <p className="text-sm text-muted-foreground">
                         إدارة المقاسات والمخزون
                       </p>
                     </div>

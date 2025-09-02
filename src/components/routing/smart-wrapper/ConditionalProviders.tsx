@@ -55,7 +55,6 @@ const AuthTenantWrapper = memo<ConditionalProviderProps>(({
   pageType,
   pathname 
 }) => {
-  console.log('🚀 AuthTenantWrapper: بدء التهيئة', { pageType, pathname, config });
   
   // 🔥 استخدام useRef لمنع إعادة الإنشاء المتكرر
   const renderCount = useRef(0);
@@ -68,14 +67,7 @@ const AuthTenantWrapper = memo<ConditionalProviderProps>(({
   renderCount.current++;
   
   // تم إزالة منطق منع الرندر المفرط لتجنب مشاكل React hooks
-  
-  console.log('🔄 AuthTenantWrapper: render', {
-    renderCount: renderCount.current,
-    pageType,
-    pathname,
-    config
-  });
-  
+
   // تعيين العلم مبكراً قبل تركيب مزودات أخرى لتسريع قراراتها
   try {
     if (typeof window !== 'undefined') {
@@ -87,10 +79,6 @@ const AuthTenantWrapper = memo<ConditionalProviderProps>(({
   useEffect(() => {
     try {
       (window as any).__PUBLIC_PRODUCT_PAGE__ = pageType === 'public-product';
-      console.log('🏷️ AuthTenantWrapper: تعيين علامة الصفحة العامة', { 
-        pageType, 
-        isPublicProduct: pageType === 'public-product' 
-      });
     } catch {}
   }, [pageType]);
 
@@ -108,7 +96,6 @@ const AuthTenantWrapper = memo<ConditionalProviderProps>(({
     initializationPromiseRef.current = (async () => {
       try {
         isInitialized.current = true;
-        console.log('✅ AuthTenantWrapper: تم التهيئة');
       } finally {
         initializationPromiseRef.current = null;
       }
@@ -133,7 +120,6 @@ const AuthTenantWrapper = memo<ConditionalProviderProps>(({
 
   // 🔥 منع إعادة الإنشاء إذا لم تتغير البيانات
   if (!shouldRecreate && isInitialized.current) {
-    console.log('⏭️ AuthTenantWrapper: تخطي إعادة الإنشاء - نفس البيانات');
     return (
       <AuthProvider>
         <UserProvider>
@@ -145,13 +131,6 @@ const AuthTenantWrapper = memo<ConditionalProviderProps>(({
       </AuthProvider>
     );
   }
-
-  console.log('🎨 AuthTenantWrapper: إرجاع المزودات', { 
-    pageType, 
-    pathname, 
-    hasAuth: true, 
-    hasTenant: true 
-  });
 
   return (
     <AuthProvider>
@@ -186,7 +165,6 @@ const SharedStoreDataWrapper = memo<{
 }>(({ children, pageType, pathname }) => {
   // 🔥 تحسين: تقليل console.log في الإنتاج
   if (process.env.NODE_ENV === 'development') {
-    console.log('🚀 SharedStoreDataWrapper: بدء التهيئة', { pageType, pathname });
   }
   
   // 🔥 استخدام useRef لمنع إعادة الإنشاء المتكرر
@@ -317,7 +295,6 @@ export const SpecializedProviders = memo<ConditionalProviderProps>(({
   children, 
   config 
 }) => {
-  console.log('🚀 SpecializedProviders: بدء التهيئة', { config });
   
   // 🔥 استخدام useRef لمنع إعادة الإنشاء المتكرر
   const lastConfig = useRef(config);
@@ -327,17 +304,13 @@ export const SpecializedProviders = memo<ConditionalProviderProps>(({
   const content = useMemo(() => {
     // التحقق من التغييرات لتجنب إعادة الإنشاء
     if (lastConfig.current === config && lastContent.current) {
-      console.log('♻️ SpecializedProviders: استخدام المحتوى المحفوظ');
       return lastContent.current;
     }
-    
-    console.log('🔄 SpecializedProviders: إنشاء محتوى جديد', { config });
-    
+
     let result = children;
 
     // Product Page Provider - للمنتجات
     if (config.productPage) {
-      console.log('🎯 SpecializedProviders: إضافة ProductPageProvider');
       result = (
         <ProductPageProvider>
           {result}
@@ -347,7 +320,6 @@ export const SpecializedProviders = memo<ConditionalProviderProps>(({
 
     // Store Page Provider - لصفحات المتجر
     if (config.storePage) {
-      console.log('🎯 SpecializedProviders: إضافة StorePageProvider');
       result = (
         <StorePageProvider>
           {result}
@@ -357,7 +329,6 @@ export const SpecializedProviders = memo<ConditionalProviderProps>(({
 
     // Products Page Provider - لصفحة المنتجات المتعددة
     if (config.productsPage) {
-      console.log('🎯 SpecializedProviders: إضافة ProductsPageProvider');
       result = (
         <ProductsPageProvider>
           {result}
@@ -368,17 +339,9 @@ export const SpecializedProviders = memo<ConditionalProviderProps>(({
     // تحديث القيم المرجعية
     lastConfig.current = config;
     lastContent.current = result;
-    
-    console.log('✅ SpecializedProviders: تم إنشاء المحتوى', {
-      hasProductPage: config.productPage,
-      hasStorePage: config.storePage,
-      hasProductsPage: config.productsPage
-    });
-    
+
     return result;
   }, [config, children]);
-
-  console.log('🎨 SpecializedProviders: إرجاع المحتوى', { config });
 
   return <>{content}</>;
 });
@@ -392,7 +355,6 @@ export const DataProviders = memo<ConditionalProviderProps>(({
   children, 
   config 
 }) => {
-  console.log('🚀 DataProviders: بدء التهيئة', { config });
   
   // 🔥 استخدام useRef لمنع إعادة الإنشاء المتكرر
   const lastConfig = useRef(config);
@@ -402,17 +364,13 @@ export const DataProviders = memo<ConditionalProviderProps>(({
   const content = useMemo(() => {
     // التحقق من التغييرات لتجنب إعادة الإنشاء
     if (lastConfig.current === config && lastContent.current) {
-      console.log('♻️ DataProviders: استخدام المحتوى المحفوظ');
       return lastContent.current;
     }
-    
-    console.log('🔄 DataProviders: إنشاء محتوى جديد', { config });
-    
+
     let result = children;
 
     // Super Unified Data Provider - الحل الموحد الشامل
     if (config.unifiedData) {
-      console.log('🎯 DataProviders: إضافة SuperUnifiedDataProvider');
       result = (
         <SuperUnifiedDataProvider>
           {result}
@@ -422,7 +380,6 @@ export const DataProviders = memo<ConditionalProviderProps>(({
 
     // Organization Data Provider
     if (config.organizationData) {
-      console.log('🎯 DataProviders: إضافة OrganizationDataProvider');
       result = (
         <OrganizationDataProvider>
           {result}
@@ -432,7 +389,6 @@ export const DataProviders = memo<ConditionalProviderProps>(({
 
     // Dashboard Data Provider
     if (config.dashboard) {
-      console.log('🎯 DataProviders: إضافة DashboardDataProvider');
       result = (
         <DashboardDataProvider>
           {result}
@@ -441,7 +397,6 @@ export const DataProviders = memo<ConditionalProviderProps>(({
     }
 
     // Shared Store Data Provider - مطلوب لجميع صفحات المتجر
-    console.log('🎯 DataProviders: إضافة SharedStoreDataWrapper');
     result = (
       <SharedStoreDataWrapper pageType="minimal" pathname="/">
         {result}
@@ -451,17 +406,9 @@ export const DataProviders = memo<ConditionalProviderProps>(({
     // تحديث القيم المرجعية
     lastConfig.current = config;
     lastContent.current = result;
-    
-    console.log('✅ DataProviders: تم إنشاء المحتوى', {
-      hasUnifiedData: config.unifiedData,
-      hasOrganizationData: config.organizationData,
-      hasDashboard: config.dashboard
-    });
-    
+
     return result;
   }, [config, children]);
-
-  console.log('🎨 DataProviders: إرجاع المحتوى', { config });
 
   return <>{content}</>;
 });
@@ -475,7 +422,6 @@ export const ShopProviders = memo<ConditionalProviderProps>(({
   children, 
   config 
 }) => {
-  console.log('🚀 ShopProviders: بدء التهيئة', { config });
   
   // 🔥 استخدام useRef لمنع إعادة الإنشاء المتكرر
   const lastConfig = useRef(config);
@@ -485,18 +431,14 @@ export const ShopProviders = memo<ConditionalProviderProps>(({
   const content = useMemo(() => {
     // إذا لم يكن shop مفعل، إرجاع children مباشرة
     if (!config.shop) {
-      console.log('⏭️ ShopProviders: تخطي - shop غير مفعل');
       return <>{children}</>;
     }
     
     // التحقق من التغييرات لتجنب إعادة الإنشاء
     if (lastConfig.current === config && lastContent.current) {
-      console.log('♻️ ShopProviders: استخدام المحتوى المحفوظ');
       return lastContent.current;
     }
-    
-    console.log('🔄 ShopProviders: إنشاء محتوى جديد');
-    
+
     const result = (
       <ShopProvider>
         <StoreProvider>
@@ -508,13 +450,9 @@ export const ShopProviders = memo<ConditionalProviderProps>(({
     // تحديث القيم المرجعية
     lastConfig.current = config;
     lastContent.current = result;
-    
-    console.log('✅ ShopProviders: تم إنشاء المحتوى');
-    
+
     return result;
   }, [config, children]);
-
-  console.log('🎨 ShopProviders: إرجاع المحتوى');
 
   return content;
 });
@@ -528,7 +466,6 @@ export const AppsProviders = memo<ConditionalProviderProps>(({
   children, 
   config 
 }) => {
-  console.log('🚀 AppsProviders: بدء التهيئة', { config });
   
   // 🔥 استخدام useRef لمنع إعادة الإنشاء المتكرر
   const lastConfig = useRef(config);
@@ -538,18 +475,14 @@ export const AppsProviders = memo<ConditionalProviderProps>(({
   const content = useMemo(() => {
     // إذا لم تكن apps مفعلة، إرجاع children مباشرة
     if (!config.apps) {
-      console.log('⏭️ AppsProviders: تخطي - apps غير مفعل');
       return <>{children}</>;
     }
     
     // التحقق من التغييرات لتجنب إعادة الإنشاء
     if (lastConfig.current === config && lastContent.current) {
-      console.log('♻️ AppsProviders: استخدام المحتوى المحفوظ');
       return lastContent.current;
     }
-    
-    console.log('🔄 AppsProviders: إنشاء محتوى جديد');
-    
+
     const result = (
       <AppsProvider>
         {children}
@@ -559,13 +492,9 @@ export const AppsProviders = memo<ConditionalProviderProps>(({
     // تحديث القيم المرجعية
     lastConfig.current = config;
     lastContent.current = result;
-    
-    console.log('✅ AppsProviders: تم إنشاء المحتوى');
-    
+
     return result;
   }, [config, children]);
-
-  console.log('🎨 AppsProviders: إرجاع المحتوى');
 
   return content;
 });
@@ -578,7 +507,6 @@ AppsProviders.displayName = 'AppsProviders';
 export const ThemeProviderWrapper = memo<{ children: ReactNode }>(({ 
   children 
 }) => {
-  console.log('🚀 ThemeProviderWrapper: بدء التهيئة');
   
   // 🔥 استخدام useRef لمنع إعادة الإنشاء المتكرر
   const lastChildren = useRef(children);
@@ -588,12 +516,9 @@ export const ThemeProviderWrapper = memo<{ children: ReactNode }>(({
   const content = useMemo(() => {
     // التحقق من التغييرات لتجنب إعادة الإنشاء
     if (lastChildren.current === children && lastContent.current) {
-      console.log('♻️ ThemeProviderWrapper: استخدام المحتوى المحفوظ');
       return lastContent.current;
     }
-    
-    console.log('🔄 ThemeProviderWrapper: إنشاء محتوى جديد');
-    
+
     const result = (
       <ThemeProvider>
         {children}
@@ -603,13 +528,9 @@ export const ThemeProviderWrapper = memo<{ children: ReactNode }>(({
     // تحديث القيم المرجعية
     lastChildren.current = children;
     lastContent.current = result;
-    
-    console.log('✅ ThemeProviderWrapper: تم إنشاء المحتوى');
-    
+
     return result;
   }, [children]);
-
-  console.log('🎨 ThemeProviderWrapper: إرجاع المحتوى');
 
   return content;
 });
@@ -625,7 +546,6 @@ export const ProviderComposition = memo<ConditionalProviderProps>(({
   pageType, 
   pathname 
 }) => {
-  console.log('🚀 ProviderComposition: بدء التهيئة', { pageType, pathname, config });
   
   // 🔥 استخدام useRef لمنع إعادة الإنشاء المتكرر
   const lastConfig = useRef(config);
@@ -644,19 +564,9 @@ export const ProviderComposition = memo<ConditionalProviderProps>(({
       lastChildren.current === children &&
       lastContent.current
     ) {
-      console.log('♻️ ProviderComposition: استخدام المحتوى المحفوظ');
       return lastContent.current;
     }
-    
-    console.log('🔄 ProviderComposition: إنشاء محتوى جديد', {
-      lastConfig: lastConfig.current,
-      newConfig: config,
-      lastPageType: lastPageType.current,
-      newPageType: pageType,
-      lastPathname: lastPathname.current,
-      newPathname: pathname
-    });
-    
+
     const result = (
       <AuthTenantWrapper 
         config={config} 
@@ -686,11 +596,8 @@ export const ProviderComposition = memo<ConditionalProviderProps>(({
     lastChildren.current = children;
     lastContent.current = result;
     
-    console.log('✅ ProviderComposition: تم إنشاء المحتوى الجديد');
     return result;
   }, [config, pageType, pathname, children]);
-
-  console.log('🎨 ProviderComposition: إرجاع المحتوى', { pageType, pathname });
 
   return content;
 });

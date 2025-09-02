@@ -70,10 +70,6 @@ const OnlineOrdersRechargePage: React.FC = () => {
 
   // إضافة console.log للتأكد من أن البيانات تصل
   React.useEffect(() => {
-    console.log('🔍 [OnlineOrdersRechargePage] currentOrganization:', currentOrganization);
-    console.log('🔍 [OnlineOrdersRechargePage] packages:', packages);
-    console.log('🔍 [OnlineOrdersRechargePage] limits:', limits);
-    console.log('🔍 [OnlineOrdersRechargePage] rechargeHistory:', rechargeHistory);
   }, [currentOrganization, packages, limits, rechargeHistory]);
 
   const fetchData = async () => {
@@ -88,7 +84,6 @@ const OnlineOrdersRechargePage: React.FC = () => {
         .order('display_order');
 
       if (packagesError) {
-        console.warn('خطأ في جلب حزم إعادة الشحن:', packagesError);
         toast.error('فشل في جلب حزم إعادة الشحن');
       } else {
         setPackages(packagesData || []);
@@ -101,7 +96,6 @@ const OnlineOrdersRechargePage: React.FC = () => {
         });
 
       if (limitsError) {
-        console.warn('خطأ في فحص حدود الطلبيات:', limitsError);
         toast.error('فشل في فحص حدود الطلبيات');
       } else {
         setLimits(limitsData);
@@ -121,13 +115,11 @@ const OnlineOrdersRechargePage: React.FC = () => {
         historyData = result.data;
         historyError = result.error;
       } catch (err) {
-        console.warn('خطأ في جلب تاريخ إعادة الشحن:', err);
         historyData = [];
         historyError = null;
       }
 
       if (historyError) {
-        console.warn('خطأ في جلب تاريخ إعادة الشحن:', historyError);
         // لا نرمي الخطأ، فقط نضع مصفوفة فارغة
       }
       
@@ -166,7 +158,6 @@ const OnlineOrdersRechargePage: React.FC = () => {
       });
 
     } catch (error) {
-      console.error('خطأ في جلب البيانات:', error);
       toast.error('فشل في جلب بيانات إعادة الشحن');
     } finally {
       setLoading(false);

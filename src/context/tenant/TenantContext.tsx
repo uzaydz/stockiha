@@ -45,7 +45,6 @@ export const TenantProvider: React.FC<TenantProviderProps> = React.memo(({ child
       try {
         const { organization: orgData } = event.detail;
         if (orgData && orgData.id) {
-          console.log('✅ [TenantContext] تم استلام بيانات المؤسسة من AppInitializer:', orgData.id);
           
           // إنشاء كائن المؤسسة من البيانات المستلمة
           const newOrg: Organization = {
@@ -72,7 +71,6 @@ export const TenantProvider: React.FC<TenantProviderProps> = React.memo(({ child
           sessionStorage.setItem('bazaar_organization_data', JSON.stringify(newOrg));
         }
       } catch (error) {
-        console.error('❌ [TenantContext] خطأ في معالجة بيانات AppInitializer:', error);
       }
     };
 
@@ -89,7 +87,6 @@ export const TenantProvider: React.FC<TenantProviderProps> = React.memo(({ child
     
     const preloadData = () => {
       try {
-        console.log('🔄 [TenantContext] بدء preload البيانات');
         
         // تحسين: تحميل أسرع من localStorage فقط
         const storedOrgId = localStorage.getItem('bazaar_organization_id');
@@ -101,13 +98,11 @@ export const TenantProvider: React.FC<TenantProviderProps> = React.memo(({ child
             // تحسين: التحقق من صحة البيانات بسرعة
             if (fullData && fullData.id === storedOrgId) {
               const preloadTime = performance.now() - preloadStartTime;
-              console.log('✅ [TenantContext] تم تحميل البيانات المحفوظة:', fullData.id, `(${preloadTime.toFixed(2)}ms)`);
               setPreloadedOrganization(fullData);
               setIsPreloading(false);
               return;
             }
           } catch (e) {
-            console.warn('⚠️ [TenantContext] خطأ في parsing البيانات المحفوظة:', e);
             // تجاهل أخطاء parsing وتنظيف البيانات التالفة
             localStorage.removeItem('bazaar_organization_data');
           }
@@ -117,7 +112,6 @@ export const TenantProvider: React.FC<TenantProviderProps> = React.memo(({ child
         if (storedOrgId) {
           const storedOrgName = localStorage.getItem('bazaar_organization_name');
           if (storedOrgName) {
-            console.log('🔄 [TenantContext] إنشاء كائن مؤقت من البيانات الأساسية');
             // إنشاء كائن مؤقت بسيط
             const tempOrg: Organization = {
               id: storedOrgId,
@@ -140,15 +134,12 @@ export const TenantProvider: React.FC<TenantProviderProps> = React.memo(({ child
         }
         
         // إذا لم تكن هناك بيانات محفوظة، نتوقف عن التحميل
-        console.log('⏳ [TenantContext] لا توجد بيانات محفوظة، انتظار AppInitializer');
         setIsPreloading(false);
         
       } catch (error) {
-        console.error('❌ [TenantContext] خطأ في preload البيانات:', error);
         setIsPreloading(false);
       } finally {
         const totalPreloadTime = performance.now() - preloadStartTime;
-        console.log('🏁 [TenantContext] انتهاء preload:', `${totalPreloadTime.toFixed(2)}ms`);
       }
     };
 

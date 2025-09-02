@@ -22,18 +22,15 @@ export const SubscriptionDataRefresher: React.FC = () => {
     const timeSinceLastUpdate = lastUpdate ? now - parseInt(lastUpdate) : Infinity;
     
     if (timeSinceLastUpdate < 30 * 1000) { // 30 ثانية
-      console.log('⏭️ تخطي التحديث - تم التحديث مؤخراً');
       return;
     }
 
     try {
-      console.log('🔄 تحديث بيانات الاشتراك في الواجهة...');
       
       // تحديث البيانات باستخدام الخدمة
       const result = await SubscriptionRefreshService.refreshAllData(organization.id);
       
       if (result.success) {
-        console.log('✅ تم تحديث بيانات الاشتراك بنجاح');
         
         // تحديث البيانات في سياق المستأجر
         if (refreshOrganizationData) {
@@ -49,7 +46,6 @@ export const SubscriptionDataRefresher: React.FC = () => {
         localStorage.setItem(`last_subscription_update_${organization.id}`, now.toString());
       }
     } catch (error) {
-      console.error('❌ فشل في تحديث بيانات الاشتراك:', error);
     }
   }, [organization?.id, refreshOrganizationData]);
 
@@ -58,13 +54,11 @@ export const SubscriptionDataRefresher: React.FC = () => {
     if (!organization?.id) return;
 
     try {
-      console.log('🔄 إعادة تحميل قوية لبيانات الاشتراك...');
       
       // إعادة تحميل البيانات مباشرة من قاعدة البيانات
       const result = await SubscriptionRefreshService.forceRefreshFromDatabase(organization.id);
       
       if (result.success) {
-        console.log('✅ تم إعادة تحميل بيانات الاشتراك بنجاح');
         
         // تحديث البيانات في سياق المستأجر
         if (refreshOrganizationData) {
@@ -80,14 +74,12 @@ export const SubscriptionDataRefresher: React.FC = () => {
         localStorage.setItem(`last_subscription_update_${organization.id}`, Date.now().toString());
       }
     } catch (error) {
-      console.error('❌ فشل في إعادة تحميل بيانات الاشتراك:', error);
     }
   }, [organization?.id, refreshOrganizationData]);
 
   // الاستماع لأحداث تحديث البيانات
   useEffect(() => {
     const handleSubscriptionActivated = (event: CustomEvent) => {
-      console.log('📡 تم استلام حدث تفعيل الاشتراك:', event.detail);
       if (event.detail.success) {
         // تأخير قليل لضمان اكتمال العملية في قاعدة البيانات
         setTimeout(() => {
@@ -99,18 +91,15 @@ export const SubscriptionDataRefresher: React.FC = () => {
           if (timeSinceLastUpdate > 10 * 1000) { // 10 ثواني
             refreshData();
           } else {
-            console.log('⏭️ تخطي التحديث - تم التحديث مؤخراً');
           }
         }, 1000);
       }
     };
 
     const handleSubscriptionDataRefreshed = (event: CustomEvent) => {
-      console.log('📡 تم استلام حدث تحديث بيانات الاشتراك:', event.detail);
     };
 
     const handleSubscriptionDataForceRefreshed = (event: CustomEvent) => {
-      console.log('📡 تم استلام حدث إعادة تحميل قوية لبيانات الاشتراك:', event.detail);
     };
 
     // إضافة مستمعي الأحداث

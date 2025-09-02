@@ -7,6 +7,7 @@ import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Product } from '@/api/store';
 import { useTranslation } from 'react-i18next';
+import { cn } from '@/lib/utils';
 import ProductImage from './ProductImage';
 
 // دوال مساعدة
@@ -25,9 +26,9 @@ const calculateDiscountPercentage = (originalPrice: number, discountPrice: numbe
 };
 
 const getStockStatusText = (stockQuantity: number, t: any) => {
-  if (stockQuantity <= 0) return t('products.outOfStock');
-  if (stockQuantity <= 10) return t('products.lowStock');
-  return t('products.inStock');
+  if (stockQuantity <= 0) return t('featuredProducts.stock.outOfStock');
+  if (stockQuantity <= 10) return t('featuredProducts.stock.lowStock');
+  return t('featuredProducts.stock.available');
 };
 
 interface ProductCardProps {
@@ -37,17 +38,22 @@ interface ProductCardProps {
   priority?: boolean;
 }
 
-const ProductCard = ({ 
-  product, 
-  isFavorite, 
+const ProductCard = ({
+  product,
+  isFavorite,
   onToggleFavorite,
-  priority = false 
+  priority = false
 }: ProductCardProps) => {
   const { t } = useTranslation();
+
   const productSlug = getProductSlug(product);
   const discountPercentage = calculateDiscountPercentage(Number(product.price), Number(product.discount_price));
   const stockStatus = getStockStatusText(product.stock_quantity, t);
   const categoryName = getCategoryName(product.category);
+
+  // تحديد حالة المخزون للألوان
+  const stockStatusType = product.stock_quantity <= 0 ? 'outOfStock' :
+                         product.stock_quantity <= 10 ? 'lowStock' : 'available';
 
   const [enableMotion, setEnableMotion] = useState(false);
   useEffect(() => {
@@ -90,9 +96,14 @@ const ProductCard = ({
   const CardWrapper = enableMotion ? motion.div : 'div';
 
   return (
-    <CardWrapper variants={itemVariants}>
-      <Card 
-        className={`group h-full overflow-hidden border border-border/50 hover:border-primary/30 bg-card/90 backdrop-blur-sm shadow-md hover:shadow-2xl transition-all duration-300 rounded-xl sm:rounded-2xl relative focus-within:ring-2 focus-within:ring-primary/50 focus-within:border-primary ${
+    <CardWrapper
+      variants={itemVariants}
+      initial={{ opacity: 1, scale: 1 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 1, scale: 1 }}
+    >
+        <Card
+        className={`group h-full overflow-hidden border border-border hover:border-primary bg-white dark:bg-gray-800 shadow-md hover:shadow-xl transition-all duration-300 rounded-xl sm:rounded-2xl relative focus-within:ring-2 focus-within:ring-primary focus-within:border-primary ${
           isMobile ? 'active:scale-[0.98]' : 'hover:scale-[1.02] active:scale-[0.98]'
         }`}
         style={{
@@ -106,7 +117,7 @@ const ProductCard = ({
         <div className="absolute inset-0 bg-gradient-to-br from-primary/8 to-secondary/8 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-2xl"></div>
         <div className="absolute inset-0 bg-gradient-to-t from-black/0 via-transparent to-white/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-2xl"></div>
         
-        <div className="relative overflow-hidden aspect-[4/3] bg-gradient-to-br from-muted/30 to-muted/10 rounded-t-xl sm:rounded-t-2xl">
+        <div className="relative overflow-hidden aspect-[4/3] bg-gray-100 dark:bg-gray-700 rounded-t-xl sm:rounded-t-2xl">
           <Link 
             to={`/product-purchase-max-v2/${productSlug}`} 
             className="block w-full h-full focus:outline-none focus:ring-2 focus:ring-primary/50 rounded-t-2xl"
@@ -146,7 +157,7 @@ const ProductCard = ({
               <div className="flex items-center gap-1.5">
                 <Button 
                   size="icon" 
-                  className="h-9 w-9 rounded-xl bg-background/95 hover:bg-primary hover:text-primary-foreground text-foreground shadow-xl backdrop-blur-md border border-border/30 transition-all duration-200 hover:scale-110 focus:ring-2 focus:ring-primary/50"
+                  className="h-9 w-9 rounded-xl bg-background hover:bg-primary hover:text-primary-foreground text-foreground shadow-xl backdrop-blur-md border border-border/30 transition-all duration-200 hover:scale-110 focus:ring-2 focus:ring-primary/50"
                   aria-label={`إضافة ${product.name} إلى السلة`}
                   tabIndex={-1}
                 >
@@ -154,7 +165,7 @@ const ProductCard = ({
                 </Button>
                 <Button 
                   size="icon" 
-                  className="h-9 w-9 rounded-xl bg-background/95 hover:bg-red-500 hover:text-white text-foreground shadow-xl backdrop-blur-md border border-border/30 transition-all duration-200 hover:scale-110 focus:ring-2 focus:ring-red-500/50"
+                  className="h-9 w-9 rounded-xl bg-background hover:bg-red-500 hover:text-white text-foreground shadow-xl backdrop-blur-md border border-border/30 transition-all duration-200 hover:scale-110 focus:ring-2 focus:ring-red-500/50"
                   onClick={(e) => {
                     e.preventDefault();
                     onToggleFavorite(product.id);
@@ -167,7 +178,7 @@ const ProductCard = ({
               </div>
               <Button 
                 size="icon" 
-                className="h-9 w-9 rounded-xl bg-primary text-primary-foreground hover:bg-primary-hover hover:text-primary-hover-foreground shadow-xl backdrop-blur-md border border-primary/20 transition-all duration-200 hover:scale-110 focus:ring-2 focus:ring-primary/50"
+                className="h-9 w-9 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 shadow-xl backdrop-blur-md border border-primary/20 transition-all duration-200 hover:scale-110 focus:ring-2 focus:ring-primary/50"
                 aria-label={`معاينة سريعة لـ ${product.name}`}
                 tabIndex={-1}
               >
@@ -177,11 +188,11 @@ const ProductCard = ({
           </div>
         </div>
         
-        <CardContent className="p-3 sm:p-4 lg:p-5 relative z-10 min-h-[120px] sm:min-h-[140px] flex flex-col justify-between">
+        <CardContent className="p-3 sm:p-4 lg:p-5 relative z-10 min-h-[120px] sm:min-h-[140px] flex flex-col justify-between bg-white dark:bg-gray-800">
           {categoryName && (
             <Link 
               to={`/product-purchase-max-v2/${productSlug}`} 
-              className="block mb-1.5 text-xs sm:text-sm text-muted-foreground hover:text-primary transition-colors font-medium uppercase tracking-wide focus:outline-none focus:text-primary"
+              className="block mb-1.5 text-xs sm:text-sm text-gray-600 dark:text-gray-400 hover:text-primary transition-colors font-medium uppercase tracking-wide focus:outline-none focus:text-primary"
               tabIndex={-1}
             >
               {categoryName}
@@ -189,7 +200,7 @@ const ProductCard = ({
           )}
           <Link 
             to={`/product-purchase-max-v2/${productSlug}`} 
-            className="block font-bold text-base sm:text-lg mb-2.5 hover:text-primary transition-colors line-clamp-2 leading-tight group-hover:text-primary focus:outline-none focus:text-primary"
+            className="block font-bold text-base sm:text-lg mb-2.5 text-gray-900 dark:text-white hover:text-primary transition-colors line-clamp-2 leading-tight group-hover:text-primary focus:outline-none focus:text-primary"
             tabIndex={-1}
           >
             {product.name}
@@ -225,8 +236,14 @@ const ProductCard = ({
               )}
             </div>
             
-            <div className="text-xs px-2 py-1 rounded-full font-medium bg-emerald-100 text-emerald-700 border border-emerald-200 shrink-0">
-              {t('featuredProducts.stock.available')}
+            <div className={`text-xs px-2 py-1 rounded-full font-medium shrink-0 ${
+              stockStatusType === 'outOfStock'
+                ? "bg-red-100 text-red-700 border border-red-200"
+                : stockStatusType === 'lowStock'
+                ? "bg-yellow-100 text-yellow-700 border border-yellow-200"
+                : "bg-emerald-100 text-emerald-700 border border-emerald-200"
+            }`}>
+              {stockStatus}
             </div>
           </div>
         </CardContent>
@@ -255,4 +272,5 @@ const ProductCard = ({
 
 ProductCard.displayName = 'ProductCard';
 
+export { ProductCard };
 export default ProductCard;

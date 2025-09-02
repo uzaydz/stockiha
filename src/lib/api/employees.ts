@@ -575,25 +575,48 @@ export const createEmployee = async (
 
 // دالة محسنة لإنشاء الموظفين - تقلل الاستدعاءات والتعقيد
 export const createEmployeeOptimized = async (
-  email: string, 
+  email: string,
   password: string,
   userData: Omit<Employee, 'id' | 'created_at' | 'updated_at' | 'user_id'>
 ): Promise<Employee> => {
   // مسح Cache عند إضافة موظف جديد
-  clearEmployeeCache(); 
+  clearEmployeeCache();
 
   try {
     if (process.env.NODE_ENV === 'development') {
     }
 
-    // استدعاء الدالة الموحدة
+    // الحصول على بيانات المستخدم الحالي
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
+    if (!currentUser) {
+      throw new Error('المستخدم غير مصادق عليه');
+    }
+
+    // الحصول على بيانات المستخدم من جدول users
+    const { data: currentUserData, error: userError } = await supabase
+      .from('users')
+      .select('organization_id, role')
+      .eq('auth_user_id', currentUser.id)
+      .single();
+
+    if (userError || !currentUserData) {
+      throw new Error('فشل في الحصول على بيانات المستخدم الحالي');
+    }
+
+    // التحقق من صلاحيات المستخدم الحالي
+    if (!['admin', 'super_admin'].includes(currentUserData.role)) {
+      throw new Error('ليس لديك صلاحية لإضافة موظفين');
+    }
+
+    // استدعاء الدالة الموحدة مع تمرير معرف المؤسسة
     const { data, error } = await supabase.rpc('create_employee_unified' as any, {
       p_email: email,
       p_password: password,
       p_name: userData.name,
       p_phone: userData.phone || null,
       p_job_title: (userData as any).job_title || null,
-      p_permissions: userData.permissions || {}
+      p_permissions: userData.permissions || {},
+      p_organization_id: currentUserData.organization_id
     });
 
     if (error) {
@@ -606,13 +629,13 @@ export const createEmployeeOptimized = async (
     }
 
     const employee = data.employee;
-    
+
     if (process.env.NODE_ENV === 'development') {
     }
 
     // DISABLED: إنشاء مستخدم المصادقة بشكل منفصل لتجنب تسجيل الدخول التلقائي
     // سيتم إنشاء مستخدم المصادقة عبر دعوة بالبريد الإلكتروني أو Admin Panel
-    
+
     if (process.env.NODE_ENV === 'development') {
     }
 
@@ -656,58 +679,106 @@ export const inviteEmployeeAuth = async (
     if (process.env.NODE_ENV === 'development') {
     }
 
-    // الحصول على معرف المؤسسة من الموظف
+    // الحصول على بيانات المستخدم الحالي للتأكد من صلاحياته
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
+    if (!currentUser) {
+      return {
+        success: false,
+        message: 'المستخدم غير مصادق عليه'
+      };
+    }
+
+    // التحقق من صلاحيات المستخدم الحالي
+    const { data: currentUserData, error: userError } = await supabase
+      .from('users')
+      .select('role, organization_id')
+      .eq('auth_user_id', currentUser.id)
+      .single();
+
+    if (userError || !currentUserData) {
+      return {
+        success: false,
+        message: 'فشل في التحقق من صلاحيات المستخدم'
+      };
+    }
+
+    if (!['admin', 'super_admin'].includes(currentUserData.role)) {
+      return {
+        success: false,
+        message: 'ليس لديك صلاحية لإرسال دعوات للموظفين'
+      };
+    }
+
+    // الحصول على بيانات الموظف
     const { data: employeeData, error: employeeError } = await supabase
       .from('users')
-      .select('organization_id')
+      .select('organization_id, email')
       .eq('id', employeeId)
+      .eq('organization_id', currentUserData.organization_id) // التأكد من أن الموظف في نفس المؤسسة
       .single();
 
     if (employeeError || !employeeData?.organization_id) {
       return {
         success: false,
-        message: 'فشل في الحصول على معرف المؤسسة للموظف'
+        message: 'فشل في العثور على الموظف أو ليس لديك صلاحية الوصول إليه'
       };
     }
 
-    // استخدام Admin API لإرسال دعوة بدون تسجيل دخول تلقائي
-    const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, {
-      data: { 
-        name: name, 
-        role: 'employee',
-        employee_id: employeeId,
-        organization_id: employeeData.organization_id // ✅ إضافة معرف المؤسسة
-      },
-      redirectTo: `${window.location.origin}/auth/callback`
-    });
+    // استخدام API endpoint الآمن لإرسال الدعوة
+    try {
+      const response = await fetch('/api/admin/invite-employee', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          employeeId,
+          email,
+          name,
+          organizationId: employeeData.organization_id
+        })
+      });
 
-    if (error) {
+      const result = await response.json();
+
+      if (!response.ok) {
+        return {
+          success: false,
+          message: result.message || 'فشل في إرسال الدعوة'
+        };
+      }
+
+      if (result.success) {
+        // تحديث معرف المصادقة في قاعدة البيانات إذا تم إرجاعه
+        if (result.data?.user_id) {
+          await supabase
+            .from('users')
+            .update({ auth_user_id: result.data.user_id })
+            .eq('id', employeeId);
+        }
+
+        return {
+          success: true,
+          message: 'تم إرسال دعوة بالبريد الإلكتروني للموظف بنجاح'
+        };
+      } else {
+        return {
+          success: false,
+          message: result.message || 'فشل في إرسال الدعوة'
+        };
+      }
+
+    } catch (apiError) {
       return {
         success: false,
-        message: `فشل إرسال الدعوة: ${error.message}`
+        message: `فشل في الاتصال بالخادم: ${apiError.message}. يمكنك إعادة المحاولة لاحقاً.`
       };
     }
-
-    if (process.env.NODE_ENV === 'development') {
-    }
-
-    // تحديث معرف المصادقة في قاعدة البيانات
-    if (data?.user?.id) {
-      await supabase
-        .from('users')
-        .update({ auth_user_id: data.user.id })
-        .eq('id', employeeId);
-    }
-
-    return {
-      success: true,
-      message: 'تم إرسال دعوة بالبريد الإلكتروني للموظف'
-    };
 
   } catch (err) {
     return {
       success: false,
-      message: 'فشل في إرسال الدعوة'
+      message: `حدث خطأ غير متوقع: ${err.message}`
     };
   }
 };

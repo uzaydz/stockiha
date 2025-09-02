@@ -1,9 +1,12 @@
 import React, { useMemo } from 'react';
-import { 
-  BannerContentLazy, 
+import {
+  BannerContentLazy,
   BannerImageLazy,
   HeroData
 } from './banner';
+
+// استيراد مكونات FeaturedProducts للمعاينة
+// import FeaturedProductsPreview from './FeaturedProductsPreview';
 import { useBannerData } from './banner/useBannerData';
 import { cn } from '@/lib/utils';
 
@@ -19,6 +22,9 @@ const PreviewStoreBanner = React.memo<PreviewStoreBannerProps>(({ heroData }) =>
   // استخدام useBannerData في المستوى الأعلى (قاعدة React)
   const processedData = useBannerData(heroData);
 
+  // الحصول على organizationId من localStorage أو استخدام قيمة افتراضية للمعاينة
+  const organizationId = localStorage.getItem('bazaar_organization_id') || '6c2ed605-0880-4e40-af50-78f80f7283bb';
+
   // استخدام useMemo للبيانات المعالجة لتجنب إعادة الحساب
   const memoizedData = useMemo(() => ({
     title: processedData.title,
@@ -30,8 +36,15 @@ const PreviewStoreBanner = React.memo<PreviewStoreBannerProps>(({ heroData }) =>
     primaryButtonStyle: processedData.primaryButtonStyle,
     secondaryButtonStyle: processedData.secondaryButtonStyle,
     isRTL: processedData.isRTL,
-    imageUrl: processedData.imageUrl
-  }), [processedData]);
+    imageUrl: processedData.imageUrl,
+    // إضافة بيانات المنتجات
+    selectedProducts: processedData.selectedProducts,
+    showProducts: processedData.showProducts,
+    productsDisplay: processedData.productsDisplay,
+    productsLimit: processedData.productsLimit,
+    productsType: processedData.productsType,
+    organizationId: organizationId
+  }), [processedData, organizationId]);
 
   return (
     <section className="relative w-full bg-background overflow-hidden">
@@ -53,6 +66,11 @@ const PreviewStoreBanner = React.memo<PreviewStoreBannerProps>(({ heroData }) =>
             secondaryButtonStyle={memoizedData.secondaryButtonStyle}
             isRTL={memoizedData.isRTL}
             isPreview={true} // إشارة للمكونات الفرعية أن هذا معاينة
+            // تمرير بيانات المنتجات
+            selectedProducts={memoizedData.selectedProducts}
+            showProducts={memoizedData.showProducts}
+            productsDisplay={memoizedData.productsDisplay}
+            productsLimit={memoizedData.productsLimit}
           />
 
           {/* قسم الصورة مع Lazy Loading */}
@@ -62,6 +80,13 @@ const PreviewStoreBanner = React.memo<PreviewStoreBannerProps>(({ heroData }) =>
             isRTL={memoizedData.isRTL}
             onImageLoad={() => {}} // دالة فارغة للمعاينة
             isPreview={true} // إشارة للمكونات الفرعية أن هذا معاينة
+            // تمرير خصائص المنتجات
+            selectedProducts={memoizedData.selectedProducts}
+            showProducts={memoizedData.showProducts}
+            productsDisplay={memoizedData.productsDisplay}
+            productsLimit={memoizedData.productsLimit}
+            productsType={memoizedData.productsType}
+            organizationId={memoizedData.organizationId}
           />
 
         </div>

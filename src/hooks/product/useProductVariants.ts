@@ -121,11 +121,8 @@ export const useProductVariants = ({
 
   // تعيين المقاس مع التحقق من المخزون
   const setSelectedSize = useCallback((size: ProductSize | undefined) => {
-    console.log('🔧 useProductVariants: setSelectedSize called with:', size?.size_name);
-    console.log('🔧 useProductVariants: current selectedColor:', selectedColor?.name);
 
     // نقبل المقاس دائماً - التحقق سيتم لاحقاً في useEffect إذا لزم الأمر
-    console.log('🔧 useProductVariants: Setting size to:', size?.size_name);
 
     // تحديد أن المقاس تم تعيينه يدوياً
     sizeSetManually.current = true;
@@ -166,14 +163,12 @@ export const useProductVariants = ({
   useEffect(() => {
     // لا نحدث المقاس إذا تم تعيينه يدوياً مؤخراً
     if (sizeSetManually.current) {
-      console.log('🔄 useProductVariants: Skipping automatic size update (size set manually)');
       return;
     }
 
     if (selectedColor && selectedColor.has_sizes) {
       const defaultSize = getDefaultSize(selectedColor);
       if (defaultSize && defaultSize.id !== selectedSize?.id) {
-        console.log('🔄 useProductVariants: Auto-updating size for new color:', defaultSize.size_name);
         setSelectedSizeState(defaultSize);
       }
     } else {

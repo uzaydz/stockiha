@@ -59,32 +59,26 @@ const ACTIVE_REQUESTS = new Map<string, Promise<any>>();
  */
 async function fetchAppInitData(organizationId?: string): Promise<AppInitData | null> {
   try {
-    console.log('🔍 [AppInitializer] بدء fetchAppInitData:', { organizationId });
     const supabase = getSupabaseClient();
 
     // إذا لم يتم توفير معرف المؤسسة، حاول الحصول عليه
     if (!organizationId) {
-      console.log('⚠️ [AppInitializer] لم يتم توفير organizationId، البحث في localStorage');
       // من localStorage
       organizationId = localStorage.getItem(STORAGE_KEYS.ORGANIZATION_ID) || undefined;
-      console.log('🔍 [AppInitializer] organizationId من localStorage:', organizationId);
       
       // من subdomain
       if (!organizationId) {
-        console.log('🔍 [AppInitializer] البحث في subdomain');
         const hostname = window.location.hostname;
 
         // للتطوير المحلي، لا نستخدم أي subdomain افتراضي
         // يجب أن يعتمد النظام على بيانات المستخدم الحقيقية فقط
         if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.includes('localhost')) {
-          console.log('🏠 [AppInitializer] localhost - إرجاع null');
           return null;
         }
         
         // فحص النطاقات العامة أولاً
         const publicDomains = ['stockiha.com', 'www.stockiha.com', 'ktobi.online', 'www.ktobi.online'];
         if (publicDomains.includes(hostname)) {
-          console.log('🌐 [AppInitializer] نطاق عام - إرجاع null');
           return null;
         }
         
@@ -98,11 +92,9 @@ async function fetchAppInitData(organizationId?: string): Promise<AppInitData | 
         }
         
         if (!subdomain) {
-          console.log('❌ [AppInitializer] لم يتم العثور على subdomain');
           return null;
         }
 
-        console.log('🔍 [AppInitializer] البحث عن المؤسسة بـ subdomain:', subdomain);
         // البحث عن المؤسسة بـ subdomain (فقط في الإنتاج)
         const { data: orgData, error } = await supabase
           .from('organizations')
@@ -111,20 +103,15 @@ async function fetchAppInitData(organizationId?: string): Promise<AppInitData | 
           .single();
           
         if (error) {
-          console.error('❌ [AppInitializer] خطأ في البحث عن المؤسسة:', error);
         }
         
         organizationId = orgData?.id;
-        console.log('🔍 [AppInitializer] organizationId من subdomain:', organizationId);
       }
     }
     
     if (!organizationId) {
-      console.log('❌ [AppInitializer] لم يتم العثور على organizationId');
       return null;
     }
-
-    console.log('✅ [AppInitializer] organizationId متاح:', organizationId);
 
     // ✨ استخدام cache للبيانات المكتملة
     const cacheKey = `app-init-data-${organizationId}`;
@@ -337,7 +324,6 @@ function loadAppInitData(): AppInitData | null {
  */
 async function applyAppInitData(data: AppInitData): Promise<void> {
   try {
-    console.log('🎯 [AppInitializer] بدء تطبيق البيانات:', { orgId: data.organization.id });
     
     // منع التطبيق المتكرر لنفس البيانات
     const dataHash = JSON.stringify({
@@ -348,12 +334,10 @@ async function applyAppInitData(data: AppInitData): Promise<void> {
     });
     
     if (lastAppliedDataHash === dataHash) {
-      console.log('⏭️ [AppInitializer] البيانات مطبقة مسبقاً');
       return;
     }
 
     // 1. تطبيق الثيم فوراً
-    console.log('🎨 [AppInitializer] تطبيق الثيم');
     updateOrganizationTheme(data.organization.id, {
       theme_primary_color: data.theme.primaryColor,
       theme_secondary_color: data.theme.secondaryColor,
@@ -362,30 +346,24 @@ async function applyAppInitData(data: AppInitData): Promise<void> {
     
     // 2. تطبيق اللغة فوراً (بدون تكرار)
     if (i18n.isInitialized && data.language !== i18n.language) {
-      console.log('🌐 [AppInitializer] تغيير اللغة إلى:', data.language);
       await i18n.changeLanguage(data.language);
     } else {
-      console.log('🌐 [AppInitializer] اللغة محدثة بالفعل أو i18n غير مهيأ');
     }
     
     // 3. تحديث document title
     if (data.organization.settings.site_name) {
-      console.log('📝 [AppInitializer] تحديث عنوان الصفحة:', data.organization.settings.site_name);
       document.title = data.organization.settings.site_name;
     }
     
     // 4. إرسال أحداث للمكونات الأخرى (مرة واحدة فقط)
-    console.log('📢 [AppInitializer] إرسال حدث appInitDataReady');
     window.dispatchEvent(new CustomEvent('appInitDataReady', {
       detail: data
     }));
     
     // حفظ hash البيانات المطبقة
     lastAppliedDataHash = dataHash;
-    console.log('✅ [AppInitializer] تم تطبيق البيانات بنجاح');
 
   } catch (error) {
-    console.error('❌ [AppInitializer] خطأ في تطبيق البيانات:', error);
   }
 }
 

@@ -1,0 +1,936 @@
+{
+  "auditReportVersion": 2,
+  "vulnerabilities": {
+    "bin-build": {
+      "name": "bin-build",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "download",
+        "execa"
+      ],
+      "effects": [
+        "cwebp-bin",
+        "gifsicle",
+        "jpegtran-bin",
+        "mozjpeg",
+        "optipng-bin",
+        "pngquant-bin"
+      ],
+      "range": ">=2.1.2",
+      "nodes": [
+        "node_modules/bin-build"
+      ],
+      "fixAvailable": {
+        "name": "vite-plugin-imagemin",
+        "version": "0.3.2",
+        "isSemVerMajor": true
+      }
+    },
+    "bin-check": {
+      "name": "bin-check",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "execa"
+      ],
+      "effects": [
+        "bin-wrapper"
+      ],
+      "range": ">=4.1.0",
+      "nodes": [
+        "node_modules/bin-check"
+      ],
+      "fixAvailable": {
+        "name": "vite-plugin-imagemin",
+        "version": "0.3.2",
+        "isSemVerMajor": true
+      }
+    },
+    "bin-version": {
+      "name": "bin-version",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "find-versions"
+      ],
+      "effects": [
+        "bin-version-check"
+      ],
+      "range": "<=4.0.0",
+      "nodes": [
+        "node_modules/bin-version"
+      ],
+      "fixAvailable": {
+        "name": "vite-plugin-imagemin",
+        "version": "0.3.2",
+        "isSemVerMajor": true
+      }
+    },
+    "bin-version-check": {
+      "name": "bin-version-check",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "bin-version"
+      ],
+      "effects": [
+        "bin-wrapper"
+      ],
+      "range": "<=4.0.0",
+      "nodes": [
+        "node_modules/bin-version-check"
+      ],
+      "fixAvailable": {
+        "name": "vite-plugin-imagemin",
+        "version": "0.3.2",
+        "isSemVerMajor": true
+      }
+    },
+    "bin-wrapper": {
+      "name": "bin-wrapper",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "bin-check",
+        "bin-version-check",
+        "download"
+      ],
+      "effects": [
+        "cwebp-bin",
+        "gifsicle",
+        "jpegtran-bin",
+        "mozjpeg",
+        "optipng-bin",
+        "pngquant-bin"
+      ],
+      "range": ">=0.4.0",
+      "nodes": [
+        "node_modules/bin-wrapper"
+      ],
+      "fixAvailable": {
+        "name": "vite-plugin-imagemin",
+        "version": "0.3.2",
+        "isSemVerMajor": true
+      }
+    },
+    "cacheable-request": {
+      "name": "cacheable-request",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "http-cache-semantics"
+      ],
+      "effects": [
+        "got"
+      ],
+      "range": "0.1.0 - 2.1.4",
+      "nodes": [
+        "node_modules/bin-wrapper/node_modules/cacheable-request"
+      ],
+      "fixAvailable": {
+        "name": "vite-plugin-imagemin",
+        "version": "0.3.2",
+        "isSemVerMajor": true
+      }
+    },
+    "cross-spawn": {
+      "name": "cross-spawn",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1104663,
+          "name": "cross-spawn",
+          "dependency": "cross-spawn",
+          "title": "Regular Expression Denial of Service (ReDoS) in cross-spawn",
+          "url": "https://github.com/advisories/GHSA-3xgq-45jj-v275",
+          "severity": "high",
+          "cwe": [
+            "CWE-1333"
+          ],
+          "cvss": {
+            "score": 7.5,
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+          },
+          "range": "<6.0.6"
+        }
+      ],
+      "effects": [
+        "execa"
+      ],
+      "range": "<6.0.6",
+      "nodes": [
+        "node_modules/bin-build/node_modules/cross-spawn",
+        "node_modules/bin-check/node_modules/cross-spawn",
+        "node_modules/exec-buffer/node_modules/cross-spawn"
+      ],
+      "fixAvailable": {
+        "name": "vite-plugin-imagemin",
+        "version": "0.3.2",
+        "isSemVerMajor": true
+      }
+    },
+    "cwebp-bin": {
+      "name": "cwebp-bin",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "bin-build",
+        "bin-wrapper"
+      ],
+      "effects": [
+        "imagemin-webp"
+      ],
+      "range": ">=3.0.0",
+      "nodes": [
+        "node_modules/cwebp-bin"
+      ],
+      "fixAvailable": true
+    },
+    "download": {
+      "name": "download",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "got"
+      ],
+      "effects": [
+        "bin-build",
+        "bin-wrapper"
+      ],
+      "range": ">=4.0.0",
+      "nodes": [
+        "node_modules/bin-wrapper/node_modules/download",
+        "node_modules/download"
+      ],
+      "fixAvailable": {
+        "name": "vite-plugin-imagemin",
+        "version": "0.3.2",
+        "isSemVerMajor": true
+      }
+    },
+    "exec-buffer": {
+      "name": "exec-buffer",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "execa"
+      ],
+      "effects": [],
+      "range": ">=3.1.0",
+      "nodes": [
+        "node_modules/exec-buffer"
+      ],
+      "fixAvailable": true
+    },
+    "execa": {
+      "name": "execa",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "cross-spawn"
+      ],
+      "effects": [
+        "bin-build",
+        "bin-check",
+        "exec-buffer"
+      ],
+      "range": "0.5.0 - 0.9.0",
+      "nodes": [
+        "node_modules/bin-build/node_modules/execa",
+        "node_modules/bin-check/node_modules/execa",
+        "node_modules/exec-buffer/node_modules/execa"
+      ],
+      "fixAvailable": {
+        "name": "vite-plugin-imagemin",
+        "version": "0.3.2",
+        "isSemVerMajor": true
+      }
+    },
+    "find-versions": {
+      "name": "find-versions",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "semver-regex"
+      ],
+      "effects": [
+        "bin-version"
+      ],
+      "range": "<=3.2.0",
+      "nodes": [
+        "node_modules/find-versions"
+      ],
+      "fixAvailable": {
+        "name": "vite-plugin-imagemin",
+        "version": "0.3.2",
+        "isSemVerMajor": true
+      }
+    },
+    "form-data": {
+      "name": "form-data",
+      "severity": "critical",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1106509,
+          "name": "form-data",
+          "dependency": "form-data",
+          "title": "form-data uses unsafe random function in form-data for choosing boundary",
+          "url": "https://github.com/advisories/GHSA-fjxv-7rqg-78g4",
+          "severity": "critical",
+          "cwe": [
+            "CWE-330"
+          ],
+          "cvss": {
+            "score": 0,
+            "vectorString": null
+          },
+          "range": "<2.5.4"
+        }
+      ],
+      "effects": [
+        "request"
+      ],
+      "range": "<2.5.4",
+      "nodes": [
+        "node_modules/request/node_modules/form-data"
+      ],
+      "fixAvailable": true
+    },
+    "gifsicle": {
+      "name": "gifsicle",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "bin-build",
+        "bin-wrapper"
+      ],
+      "effects": [
+        "imagemin-gifsicle"
+      ],
+      "range": ">=3.0.0",
+      "nodes": [
+        "node_modules/gifsicle"
+      ],
+      "fixAvailable": true
+    },
+    "got": {
+      "name": "got",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1088948,
+          "name": "got",
+          "dependency": "got",
+          "title": "Got allows a redirect to a UNIX socket",
+          "url": "https://github.com/advisories/GHSA-pfrx-2q88-qq97",
+          "severity": "moderate",
+          "cwe": [],
+          "cvss": {
+            "score": 5.3,
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:L/A:N"
+          },
+          "range": "<11.8.5"
+        },
+        "cacheable-request"
+      ],
+      "effects": [
+        "download"
+      ],
+      "range": "<=11.8.3",
+      "nodes": [
+        "node_modules/bin-wrapper/node_modules/got",
+        "node_modules/download/node_modules/got"
+      ],
+      "fixAvailable": {
+        "name": "vite-plugin-imagemin",
+        "version": "0.3.2",
+        "isSemVerMajor": true
+      }
+    },
+    "http-cache-semantics": {
+      "name": "http-cache-semantics",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1102456,
+          "name": "http-cache-semantics",
+          "dependency": "http-cache-semantics",
+          "title": "http-cache-semantics vulnerable to Regular Expression Denial of Service",
+          "url": "https://github.com/advisories/GHSA-rc47-6667-2j5j",
+          "severity": "high",
+          "cwe": [
+            "CWE-1333"
+          ],
+          "cvss": {
+            "score": 7.5,
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+          },
+          "range": "<4.1.1"
+        }
+      ],
+      "effects": [
+        "cacheable-request"
+      ],
+      "range": "<4.1.1",
+      "nodes": [
+        "node_modules/bin-wrapper/node_modules/http-cache-semantics"
+      ],
+      "fixAvailable": {
+        "name": "vite-plugin-imagemin",
+        "version": "0.3.2",
+        "isSemVerMajor": true
+      }
+    },
+    "imagemin-gifsicle": {
+      "name": "imagemin-gifsicle",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "gifsicle"
+      ],
+      "effects": [],
+      "range": ">=6.0.0",
+      "nodes": [
+        "node_modules/imagemin-gifsicle"
+      ],
+      "fixAvailable": true
+    },
+    "imagemin-jpegtran": {
+      "name": "imagemin-jpegtran",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "jpegtran-bin"
+      ],
+      "effects": [
+        "vite-plugin-imagemin"
+      ],
+      "range": ">=6.0.0",
+      "nodes": [
+        "node_modules/imagemin-jpegtran"
+      ],
+      "fixAvailable": {
+        "name": "vite-plugin-imagemin",
+        "version": "0.3.2",
+        "isSemVerMajor": true
+      }
+    },
+    "imagemin-mozjpeg": {
+      "name": "imagemin-mozjpeg",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "mozjpeg"
+      ],
+      "effects": [
+        "vite-plugin-imagemin"
+      ],
+      "range": ">=7.0.0",
+      "nodes": [
+        "node_modules/imagemin-mozjpeg"
+      ],
+      "fixAvailable": {
+        "name": "vite-plugin-imagemin",
+        "version": "0.3.2",
+        "isSemVerMajor": true
+      }
+    },
+    "imagemin-optipng": {
+      "name": "imagemin-optipng",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "optipng-bin"
+      ],
+      "effects": [],
+      "range": ">=6.0.0",
+      "nodes": [
+        "node_modules/imagemin-optipng"
+      ],
+      "fixAvailable": true
+    },
+    "imagemin-pngquant": {
+      "name": "imagemin-pngquant",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "pngquant-bin"
+      ],
+      "effects": [],
+      "range": ">=5.1.0",
+      "nodes": [
+        "node_modules/imagemin-pngquant"
+      ],
+      "fixAvailable": true
+    },
+    "imagemin-webp": {
+      "name": "imagemin-webp",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "cwebp-bin"
+      ],
+      "effects": [],
+      "range": ">=4.1.0",
+      "nodes": [
+        "node_modules/imagemin-webp"
+      ],
+      "fixAvailable": true
+    },
+    "jimp": {
+      "name": "jimp",
+      "severity": "critical",
+      "isDirect": false,
+      "via": [
+        "jpeg-js",
+        "mkdirp",
+        "request",
+        "url-regex"
+      ],
+      "effects": [
+        "potrace"
+      ],
+      "range": "<=0.3.5",
+      "nodes": [
+        "node_modules/potrace/node_modules/jimp"
+      ],
+      "fixAvailable": true
+    },
+    "jpeg-js": {
+      "name": "jpeg-js",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1088964,
+          "name": "jpeg-js",
+          "dependency": "jpeg-js",
+          "title": "Infinite loop in jpeg-js",
+          "url": "https://github.com/advisories/GHSA-xvf7-4v9q-58w6",
+          "severity": "high",
+          "cwe": [
+            "CWE-835"
+          ],
+          "cvss": {
+            "score": 7.5,
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+          },
+          "range": "<0.4.4"
+        },
+        {
+          "source": 1093580,
+          "name": "jpeg-js",
+          "dependency": "jpeg-js",
+          "title": "Uncontrolled resource consumption in jpeg-js",
+          "url": "https://github.com/advisories/GHSA-w7q9-p3jq-fmhm",
+          "severity": "moderate",
+          "cwe": [
+            "CWE-400"
+          ],
+          "cvss": {
+            "score": 5.5,
+            "vectorString": "CVSS:3.1/AV:L/AC:L/PR:N/UI:R/S:U/C:N/I:N/A:H"
+          },
+          "range": "<0.4.0"
+        }
+      ],
+      "effects": [
+        "jimp"
+      ],
+      "range": "<=0.4.3",
+      "nodes": [
+        "node_modules/potrace/node_modules/jpeg-js"
+      ],
+      "fixAvailable": true
+    },
+    "jpegtran-bin": {
+      "name": "jpegtran-bin",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "bin-build",
+        "bin-wrapper"
+      ],
+      "effects": [
+        "imagemin-jpegtran"
+      ],
+      "range": ">=3.0.0",
+      "nodes": [
+        "node_modules/jpegtran-bin"
+      ],
+      "fixAvailable": {
+        "name": "vite-plugin-imagemin",
+        "version": "0.3.2",
+        "isSemVerMajor": true
+      }
+    },
+    "meow": {
+      "name": "meow",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        "trim-newlines"
+      ],
+      "effects": [],
+      "range": "3.4.0 - 5.0.0",
+      "nodes": [
+        "node_modules/lpad-align/node_modules/meow"
+      ],
+      "fixAvailable": true
+    },
+    "minimist": {
+      "name": "minimist",
+      "severity": "critical",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1096466,
+          "name": "minimist",
+          "dependency": "minimist",
+          "title": "Prototype Pollution in minimist",
+          "url": "https://github.com/advisories/GHSA-vh95-rmgr-6w4m",
+          "severity": "moderate",
+          "cwe": [
+            "CWE-1321"
+          ],
+          "cvss": {
+            "score": 5.6,
+            "vectorString": "CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:L/A:L"
+          },
+          "range": "<0.2.1"
+        },
+        {
+          "source": 1097677,
+          "name": "minimist",
+          "dependency": "minimist",
+          "title": "Prototype Pollution in minimist",
+          "url": "https://github.com/advisories/GHSA-xvch-5gv4-984h",
+          "severity": "critical",
+          "cwe": [
+            "CWE-1321"
+          ],
+          "cvss": {
+            "score": 9.8,
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+          },
+          "range": "<0.2.4"
+        }
+      ],
+      "effects": [
+        "mkdirp"
+      ],
+      "range": "<=0.2.3",
+      "nodes": [
+        "node_modules/potrace/node_modules/minimist"
+      ],
+      "fixAvailable": true
+    },
+    "mkdirp": {
+      "name": "mkdirp",
+      "severity": "critical",
+      "isDirect": false,
+      "via": [
+        "minimist"
+      ],
+      "effects": [
+        "jimp"
+      ],
+      "range": "0.4.1 - 0.5.1",
+      "nodes": [
+        "node_modules/potrace/node_modules/mkdirp"
+      ],
+      "fixAvailable": true
+    },
+    "mozjpeg": {
+      "name": "mozjpeg",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "bin-build",
+        "bin-wrapper"
+      ],
+      "effects": [
+        "imagemin-mozjpeg"
+      ],
+      "range": ">=4.0.0",
+      "nodes": [
+        "node_modules/mozjpeg"
+      ],
+      "fixAvailable": {
+        "name": "vite-plugin-imagemin",
+        "version": "0.3.2",
+        "isSemVerMajor": true
+      }
+    },
+    "optipng-bin": {
+      "name": "optipng-bin",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "bin-build",
+        "bin-wrapper"
+      ],
+      "effects": [
+        "imagemin-optipng"
+      ],
+      "range": ">=3.0.0",
+      "nodes": [
+        "node_modules/optipng-bin"
+      ],
+      "fixAvailable": true
+    },
+    "pngquant-bin": {
+      "name": "pngquant-bin",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        "bin-build",
+        "bin-wrapper"
+      ],
+      "effects": [
+        "imagemin-pngquant"
+      ],
+      "range": ">=3.0.0",
+      "nodes": [
+        "node_modules/pngquant-bin"
+      ],
+      "fixAvailable": true
+    },
+    "potrace": {
+      "name": "potrace",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "jimp"
+      ],
+      "effects": [],
+      "range": "<=2.1.1",
+      "nodes": [
+        "node_modules/potrace"
+      ],
+      "fixAvailable": true
+    },
+    "request": {
+      "name": "request",
+      "severity": "critical",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1096727,
+          "name": "request",
+          "dependency": "request",
+          "title": "Server-Side Request Forgery in Request",
+          "url": "https://github.com/advisories/GHSA-p8p7-x288-28g6",
+          "severity": "moderate",
+          "cwe": [
+            "CWE-918"
+          ],
+          "cvss": {
+            "score": 6.1,
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N"
+          },
+          "range": "<=2.88.2"
+        },
+        "form-data",
+        "tough-cookie"
+      ],
+      "effects": [
+        "jimp"
+      ],
+      "range": "*",
+      "nodes": [
+        "node_modules/request"
+      ],
+      "fixAvailable": true
+    },
+    "semver-regex": {
+      "name": "semver-regex",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1092475,
+          "name": "semver-regex",
+          "dependency": "semver-regex",
+          "title": "semver-regex Regular Expression Denial of Service (ReDOS)",
+          "url": "https://github.com/advisories/GHSA-44c6-4v22-4mhx",
+          "severity": "high",
+          "cwe": [
+            "CWE-400",
+            "CWE-1333"
+          ],
+          "cvss": {
+            "score": 7.5,
+            "vectorString": "CVSS:3.0/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+          },
+          "range": "<3.1.3"
+        },
+        {
+          "source": 1092605,
+          "name": "semver-regex",
+          "dependency": "semver-regex",
+          "title": "Regular expression denial of service in semver-regex",
+          "url": "https://github.com/advisories/GHSA-4x5v-gmq8-25ch",
+          "severity": "low",
+          "cwe": [
+            "CWE-1333"
+          ],
+          "cvss": {
+            "score": 0,
+            "vectorString": null
+          },
+          "range": "<3.1.4"
+        }
+      ],
+      "effects": [
+        "find-versions"
+      ],
+      "range": "<=3.1.3",
+      "nodes": [
+        "node_modules/semver-regex"
+      ],
+      "fixAvailable": {
+        "name": "vite-plugin-imagemin",
+        "version": "0.3.2",
+        "isSemVerMajor": true
+      }
+    },
+    "tough-cookie": {
+      "name": "tough-cookie",
+      "severity": "moderate",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1097682,
+          "name": "tough-cookie",
+          "dependency": "tough-cookie",
+          "title": "tough-cookie Prototype Pollution vulnerability",
+          "url": "https://github.com/advisories/GHSA-72xf-g2v4-qvf3",
+          "severity": "moderate",
+          "cwe": [
+            "CWE-1321"
+          ],
+          "cvss": {
+            "score": 6.5,
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N"
+          },
+          "range": "<4.1.3"
+        }
+      ],
+      "effects": [
+        "request"
+      ],
+      "range": "<4.1.3",
+      "nodes": [
+        "node_modules/request/node_modules/tough-cookie"
+      ],
+      "fixAvailable": true
+    },
+    "trim-newlines": {
+      "name": "trim-newlines",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1095100,
+          "name": "trim-newlines",
+          "dependency": "trim-newlines",
+          "title": "Uncontrolled Resource Consumption in trim-newlines",
+          "url": "https://github.com/advisories/GHSA-7p7h-4mm5-852v",
+          "severity": "high",
+          "cwe": [
+            "CWE-400"
+          ],
+          "cvss": {
+            "score": 7.5,
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+          },
+          "range": "<3.0.1"
+        }
+      ],
+      "effects": [
+        "meow"
+      ],
+      "range": "<3.0.1",
+      "nodes": [
+        "node_modules/lpad-align/node_modules/trim-newlines"
+      ],
+      "fixAvailable": true
+    },
+    "url-regex": {
+      "name": "url-regex",
+      "severity": "high",
+      "isDirect": false,
+      "via": [
+        {
+          "source": 1087482,
+          "name": "url-regex",
+          "dependency": "url-regex",
+          "title": "Regular expression denial of service in url-regex",
+          "url": "https://github.com/advisories/GHSA-v4rh-8p82-6h5w",
+          "severity": "high",
+          "cwe": [
+            "CWE-400"
+          ],
+          "cvss": {
+            "score": 7.5,
+            "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+          },
+          "range": "<=5.0.0"
+        }
+      ],
+      "effects": [],
+      "range": "*",
+      "nodes": [
+        "node_modules/url-regex"
+      ],
+      "fixAvailable": true
+    },
+    "vite-plugin-imagemin": {
+      "name": "vite-plugin-imagemin",
+      "severity": "moderate",
+      "isDirect": true,
+      "via": [
+        "imagemin-gifsicle",
+        "imagemin-jpegtran",
+        "imagemin-mozjpeg",
+        "imagemin-optipng",
+        "imagemin-pngquant",
+        "imagemin-webp"
+      ],
+      "effects": [],
+      "range": ">=0.2.0",
+      "nodes": [
+        "node_modules/vite-plugin-imagemin"
+      ],
+      "fixAvailable": {
+        "name": "vite-plugin-imagemin",
+        "version": "0.3.2",
+        "isSemVerMajor": true
+      }
+    }
+  },
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 16,
+      "high": 17,
+      "critical": 5,
+      "total": 38
+    },
+    "dependencies": {
+      "prod": 1145,
+      "dev": 1080,
+      "optional": 122,
+      "peer": 0,
+      "peerOptional": 0,
+      "total": 2313
+    }
+  }
+}

@@ -5,6 +5,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { CalendarClock, AlertTriangle, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SubscriptionService } from '@/lib/subscription-service';
+import { globalCache, CacheKeys } from '@/lib/globalCache';
 
 // واجهة المؤسسة بالإعدادات الإضافية
 interface OrganizationWithSettings {
@@ -22,15 +23,8 @@ interface OrganizationWithSettings {
   };
 }
 
-// 🔥 Cache مركزي لمنع التكرار المفرط في TrialNotification
-const TRIAL_NOTIFICATION_CACHE = new Map<string, {
-  data: any;
-  timestamp: number;
-  isCalculating: boolean;
-}>();
-
-const TRIAL_CACHE_DURATION = 10 * 60 * 1000; // 10 دقائق بدلاً من دقيقتين
-const CALCULATION_DEBOUNCE_TIME = 5000; // 5 ثواني بدلاً من ثانيتين
+// ثوابت محسنة للأداء
+const CALCULATION_DEBOUNCE_TIME = 10000; // 10 ثواني بدلاً من 5 لتقليل التكرار
 
 export const TrialNotification: React.FC = () => {
   const { organization } = useAuth();
@@ -42,93 +36,126 @@ export const TrialNotification: React.FC = () => {
   const [showNotification, setShowNotification] = useState<boolean>(false);
   const [isCalculating, setIsCalculating] = useState<boolean>(false);
   
-  // مرجع للتحكم في debouncing
+  // مراجع محسّنة للتحكم في debouncing ومنع التكرار
   const calculationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastOrganizationIdRef = useRef<string | null>(null);
   const lastCalculationTimeRef = useRef<number>(0);
   const hasCalculatedRef = useRef(false);
   const calculationDebounceTime = 10000; // 10 ثواني بدلاً من 5
 
-  // 🔥 دالة محسنة للحصول على بيانات التجربة من الكاش أو الخادم
+  // refs إضافية لمنع الاستدعاءات المتكررة
+  const trialDataLoadingRef = useRef(false);
+  const lastTrialDataCallRef = useRef<number>(0);
+
+  // متغيرات إضافية لمنع الاستدعاءات المتكررة في نفس الجلسة
+  const lastSuccessfulCallRef = useRef<number>(0);
+  const MIN_TIME_BETWEEN_CALLS = 30000; // 30 ثانية على الأقل بين الاستدعاءات
+
+    // 🔥 دالة محسنة للحصول على بيانات التجربة من global cache
   const getTrialData = async (org: OrganizationWithSettings): Promise<any> => {
-    const cacheKey = `trial_${org.id}`;
+    const cacheKey = CacheKeys.TRIAL_DATA(org.id);
+
+    // منع الاستدعاءات المتكررة
     const now = Date.now();
-    
-    // التحقق من الكاش المركزي أولاً
-    const cached = TRIAL_NOTIFICATION_CACHE.get(cacheKey);
-    if (cached && (now - cached.timestamp) < TRIAL_CACHE_DURATION) {
-      // إذا كان هناك حساب جاري، انتظر
-      if (cached.isCalculating) {
-        return null;
-      }
-      return cached.data;
+    if (trialDataLoadingRef.current || (now - lastTrialDataCallRef.current) < 10000) {
+      return null; // استدعاء حديث جداً
     }
 
-    // إذا كان هناك حساب جاري بالفعل، لا نكرر
-    if (cached?.isCalculating) {
-      return null;
-    }
-
-    // تسجيل أن الحساب جاري
-    TRIAL_NOTIFICATION_CACHE.set(cacheKey, {
-      data: cached?.data || null,
-      timestamp: cached?.timestamp || 0,
-      isCalculating: true
-    });
+    trialDataLoadingRef.current = true;
+    lastTrialDataCallRef.current = now;
 
     try {
+      // التحقق من global cache أولاً
+      const cached = globalCache.get<any>(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
+      // استدعاء خدمة البيانات
       const result = await SubscriptionService.calculateTotalDaysLeft(org, null);
-      
-      // حفظ النتيجة في الكاش
-      TRIAL_NOTIFICATION_CACHE.set(cacheKey, {
-        data: result,
-        timestamp: now,
-        isCalculating: false
-      });
-      
+
+      // حفظ النتيجة في global cache
+      globalCache.set(cacheKey, result);
+
       return result;
     } catch (error) {
-      // في حالة الخطأ، نزيل علامة الحساب الجاري
-      TRIAL_NOTIFICATION_CACHE.set(cacheKey, {
-        data: cached?.data || null,
-        timestamp: cached?.timestamp || 0,
-        isCalculating: false
-      });
       return null;
+    } finally {
+      trialDataLoadingRef.current = false;
     }
   };
 
-  // تحسين useMemo للتحقق من تغيير المؤسسة
-  const organizationChanged = useMemo(() => {
-    return organization?.id !== lastOrganizationIdRef.current;
-  }, [organization?.id]);
+  // تحسين useMemo لتثبيت organization.id ومنع re-renders غير ضرورية
+  const organizationId = useMemo(() => organization?.id, [organization?.id]);
 
   useEffect(() => {
     if (!organization || isCalculating) return;
-    
+
     const now = Date.now();
     const timeSinceLastCalculation = now - lastCalculationTimeRef.current;
-    
-    // منع إعادة الحساب للمؤسسة نفسها في وقت قصير
-    if (!organizationChanged && 
-        hasCalculatedRef.current && 
+    const timeSinceLastCall = now - lastSuccessfulCallRef.current;
+
+    // فحص إضافي: منع الاستدعاءات المتكررة جداً في نفس الجلسة
+    if (timeSinceLastCall < MIN_TIME_BETWEEN_CALLS && hasCalculatedRef.current) {
+      return;
+    }
+
+    // تحقق من عدم تغيير المؤسسة أو وجود حساب حديث - محسّن
+    if (organization.id === lastOrganizationIdRef.current &&
+        hasCalculatedRef.current &&
         timeSinceLastCalculation < calculationDebounceTime) {
       return;
     }
-    
+
+    // تحقق من الكاش المحلي أولاً - محسّن
+    const cacheKey = `trial_notification_${organization.id}`;
+    const cached = localStorage.getItem(cacheKey);
+    if (cached && organization.id === lastOrganizationIdRef.current) {
+      try {
+        const parsed = JSON.parse(cached);
+        const cacheTime = parsed.timestamp || 0;
+        // الكاش صالح لمدة 30 دقيقة بدلاً من 15 لتقليل الاستدعاءات
+        if ((now - cacheTime) < 30 * 60 * 1000) {
+          // فحص إضافي: إذا كان الكاش حديث جداً (أقل من 5 دقائق)، لا نحتاج لإعادة التحقق
+          if ((now - cacheTime) < 5 * 60 * 1000) {
+            setDaysLeft(parsed.daysLeft);
+            setTrialDaysLeft(parsed.trialDaysLeft);
+            setSubscriptionDaysLeft(parsed.subscriptionDaysLeft);
+            setStatus(parsed.status);
+            setMessage(parsed.message);
+            setShowNotification(parsed.showNotification);
+            setIsCalculating(false);
+            return;
+          }
+
+          setDaysLeft(parsed.daysLeft);
+          setTrialDaysLeft(parsed.trialDaysLeft);
+          setSubscriptionDaysLeft(parsed.subscriptionDaysLeft);
+          setStatus(parsed.status);
+          setMessage(parsed.message);
+          setShowNotification(parsed.showNotification);
+          setIsCalculating(false);
+          return;
+        }
+      } catch (error) {
+        // تجاهل أخطاء الكاش
+      }
+    }
+
     lastOrganizationIdRef.current = organization.id;
 
     const calculateDays = async () => {
       // منع الاستدعاءات المتعددة
       if (isCalculating) return;
-      
+
       setIsCalculating(true);
       lastCalculationTimeRef.current = now;
       hasCalculatedRef.current = true;
-      
+      lastSuccessfulCallRef.current = now; // تحديث وقت آخر استدعاء ناجح
+
       try {
         const result = await getTrialData(organization as unknown as OrganizationWithSettings);
-        
+
         if (!result) {
           // لا توجد بيانات أو جاري الحساب، لا نفعل شيئاً
           return;
@@ -143,13 +170,22 @@ export const TrialNotification: React.FC = () => {
         // عرض الإشعار في الحالات التالية:
         // 1. الفترة التجريبية: إذا كان متبقي 3 أيام أو أقل
         // 2. الاشتراك المدفوع: إذا كان متبقي 7 أيام أو أقل
-        if (result.status === 'trial' && result.trialDaysLeft <= 3 && result.trialDaysLeft > 0) {
-          setShowNotification(true);
-        } else if (result.status === 'active' && result.subscriptionDaysLeft <= 7 && result.subscriptionDaysLeft > 0) {
-          setShowNotification(true);
-        } else {
-          setShowNotification(false);
-        }
+        const showNotificationValue = (result.status === 'trial' && result.trialDaysLeft <= 3 && result.trialDaysLeft > 0) ||
+                                    (result.status === 'active' && result.subscriptionDaysLeft <= 7 && result.subscriptionDaysLeft > 0);
+
+        setShowNotification(showNotificationValue);
+
+        // حفظ في الكاش
+        const cacheData = {
+          daysLeft: result.totalDaysLeft,
+          trialDaysLeft: result.trialDaysLeft,
+          subscriptionDaysLeft: result.subscriptionDaysLeft,
+          status: result.status,
+          message: result.message,
+          showNotification: showNotificationValue,
+          timestamp: now
+        };
+        localStorage.setItem(cacheKey, JSON.stringify(cacheData));
 
       } catch (error) {
         setShowNotification(false);
@@ -158,21 +194,21 @@ export const TrialNotification: React.FC = () => {
       }
     };
 
-    // تأخير الحساب لتجنب الاستدعاءات المتكررة
+    // تأخير أكبر لتجنب الاستدعاءات المتكررة
     if (calculationTimeoutRef.current) {
       clearTimeout(calculationTimeoutRef.current);
     }
 
     calculationTimeoutRef.current = setTimeout(() => {
       calculateDays();
-    }, 500); // زيادة التأخير إلى 500ms
+    }, 1000); // زيادة التأخير إلى 1000ms
 
     return () => {
       if (calculationTimeoutRef.current) {
         clearTimeout(calculationTimeoutRef.current);
       }
     };
-  }, [organization?.id, organizationChanged, isCalculating]);
+  }, [organizationId]); // اعتماد على organizationId المُحسّن بدلاً من organization كامل
 
   // تنظيف المراجع عند إلغاء تحميل المكون
   useEffect(() => {

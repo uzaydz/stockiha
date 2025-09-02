@@ -66,7 +66,6 @@ export const createCustomer = async (customerData: { name: string; email?: strin
 
     if (!organizationId) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('⚠️ [userService] فشل في الحصول على معرف المؤسسة، محاولة البدائل...');
       }
 
       // محاولة أولى: البحث عن المستخدم في جدول users
@@ -82,13 +81,11 @@ export const createCustomer = async (customerData: { name: string; email?: strin
           if (!error && userData?.organization_id) {
             organizationId = userData.organization_id;
             if (process.env.NODE_ENV === 'development') {
-              console.log('✅ [userService] تم العثور على معرف المؤسسة من جدول users:', organizationId);
             }
           }
         }
       } catch (error) {
         if (process.env.NODE_ENV === 'development') {
-          console.log('⚠️ [userService] فشل في البحث في جدول users:', error);
         }
       }
 
@@ -98,7 +95,6 @@ export const createCustomer = async (customerData: { name: string; email?: strin
         if (storedOrgId) {
           organizationId = storedOrgId;
           if (process.env.NODE_ENV === 'development') {
-            console.log('✅ [userService] استخدام معرف المؤسسة من التخزين المحلي:', organizationId);
           }
         }
       }
@@ -114,12 +110,10 @@ export const createCustomer = async (customerData: { name: string; email?: strin
           if (!error && orgs && orgs.length > 0) {
             organizationId = orgs[0].id;
             if (process.env.NODE_ENV === 'development') {
-              console.log('✅ [userService] استخدام أول مؤسسة كبديل:', organizationId);
             }
           }
         } catch (error) {
           if (process.env.NODE_ENV === 'development') {
-            console.log('⚠️ [userService] فشل في البحث عن أول مؤسسة:', error);
           }
         }
       }
@@ -182,7 +176,6 @@ export const createCustomer = async (customerData: { name: string; email?: strin
         
       if (customerError) {
         // إذا فشلت الإضافة، نضيف العميل محلياً ونضيفه إلى طابور المزامنة
-        console.log('فشل في إضافة العميل عبر Supabase، إضافة محلية:', customerError);
 
         const localCustomer = await createLocalCustomer({
           name: customerData.name,

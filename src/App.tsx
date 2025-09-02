@@ -2,13 +2,12 @@ import React, { Suspense, useRef, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 
-
-
 // Import core components (lightweight)
 import SmartProviderWrapper from './components/routing/SmartProviderWrapper';
 import EarlyDomainDetector from './components/routing/EarlyDomainDetector';
 import StorePage from './components/store/StorePage';
-
+import NetworkErrorHandler from './components/NetworkErrorHandler';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Lazy load non-critical components
 const LocalStorageMonitor = React.lazy(() => import('./components/auth/LocalStorageMonitor').then(module => ({ default: module.LocalStorageMonitor })));
@@ -131,9 +130,11 @@ const App = () => {
   }, []);
   
   return (
-    <EarlyDomainDetector onDomainDetected={handleDomainDetected}>
-        {/* <ConsoleRemover /> */}
-        <SmartProviderWrapper>
+    <ErrorBoundary>
+      <NetworkErrorHandler>
+        <EarlyDomainDetector onDomainDetected={handleDomainDetected}>
+          {/* <ConsoleRemover /> */}
+          <SmartProviderWrapper>
           <AppCore>
             <Routes>
               {/* مسار إعادة التوجيه للفئات */}
@@ -239,6 +240,8 @@ const App = () => {
           </AppCore>
         </SmartProviderWrapper>
       </EarlyDomainDetector>
+    </NetworkErrorHandler>
+  </ErrorBoundary>
   );
 };
 

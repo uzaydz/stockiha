@@ -16,13 +16,11 @@ export class SubscriptionRefreshService {
       });
 
       if (error) {
-        console.error('خطأ في تحديث بيانات المؤسسة:', error);
         throw error;
       }
 
       return data;
     } catch (error) {
-      console.error('فشل في تحديث بيانات المؤسسة:', error);
       throw error;
     }
   }
@@ -37,13 +35,11 @@ export class SubscriptionRefreshService {
       });
 
       if (error) {
-        console.error('خطأ في تحديث بيانات الاشتراك:', error);
         throw error;
       }
 
       return data;
     } catch (error) {
-      console.error('فشل في تحديث بيانات الاشتراك:', error);
       throw error;
     }
   }
@@ -65,7 +61,6 @@ export class SubscriptionRefreshService {
         success: true
       };
     } catch (error) {
-      console.error('فشل في تحديث جميع البيانات:', error);
       throw error;
     }
   }
@@ -123,7 +118,6 @@ export class SubscriptionRefreshService {
         success: true
       };
     } catch (error) {
-      console.error('فشل في إعادة تحميل البيانات من قاعدة البيانات:', error);
       throw error;
     }
   }
@@ -144,7 +138,6 @@ export const useSubscriptionRefresh = () => {
 
       return result;
     } catch (error) {
-      console.error('فشل في تحديث البيانات:', error);
       throw error;
     }
   };
@@ -160,7 +153,6 @@ export const useSubscriptionRefresh = () => {
 
       return result;
     } catch (error) {
-      console.error('فشل في إعادة تحميل البيانات:', error);
       throw error;
     }
   };

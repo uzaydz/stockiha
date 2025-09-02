@@ -307,9 +307,9 @@ const AllInOneSection = memo(() => {
   }, [isPlaying]);
   
   return (
-    <section 
-      ref={containerRef} 
-      className="relative py-20 md:py-32 bg-gradient-to-br from-white dark:from-gray-900 via-white/98 dark:via-gray-900/99 to-[#fc5d41]/5 dark:to-[#fc5d41]/10 overflow-hidden"
+    <section
+      ref={containerRef}
+      className="relative py-20 md:py-32 landing-bg-accent landing-section-transition overflow-hidden"
     >
       
       {/* Enhanced Background Effects */}

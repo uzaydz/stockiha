@@ -58,17 +58,18 @@ export const useQueryOptions = (
         }
       }
 
-      // 🚀 إجبار تحديث البيانات - تجاهل Cache لتشمل صور الألوان الجديدة
-      // const cached = productDataCache.get(cacheKey);
-      // if (cached) {
-      //   return cached;
-      // }
+      // ✅ التحقق من البيانات المحفوظة في Cache أولاً لمنع التحميل المتكرر
+      const cached = productDataCache.get(cacheKey);
+      if (cached) {
+        console.log('✅ [useUnifiedProductPageData] استخدام البيانات من Cache:', cacheKey);
+        return cached;
+      }
 
       // إنشاء طلب جديد
       const requestPromise = fetchUnifiedProductData(productId, {
         organizationId,
         dataScope,
-        forceRefresh: true // 🚀 إجبار تحديث البيانات لتشمل صور الألوان الجديدة
+        forceRefresh: false // ✅ عدم إجبار التحديث للسماح باستخدام Cache
       });
       productDataCache.setActiveRequest(cacheKey, requestPromise);
 

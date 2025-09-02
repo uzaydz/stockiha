@@ -350,7 +350,7 @@ const Products = memo(() => {
         loadData();
       }, 100);
     }
-  }, [currentOrganization?.id, currentPage, debouncedSearchQuery, filters.categoryFilter, filters.stockFilter, filters.sortOption, pageSize]);
+  }, [currentOrganization?.id]); // تقليل dependencies لمنع التحديث المتكرر
 
   // Page navigation handlers
   const handlePageChange = useCallback((page: number) => {
@@ -449,10 +449,10 @@ const Products = memo(() => {
       // استخدام ref للحصول على أحدث قيمة للصفحة الحالية
       const currentPageValue = currentPageRef.current || 1;
       
-      // تأخير قصير لضمان أن العملية تمت في قاعدة البيانات
+      // تأخير أطول لتقليل الطلبات المتكررة وضمان اكتمال العملية
       setTimeout(() => {
         fetchProducts(currentPageValue, {}, true);
-      }, 50);
+      }, 1000);
     };
 
     window.addEventListener('products-updated', handleProductUpdated);

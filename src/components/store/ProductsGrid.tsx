@@ -3,8 +3,8 @@ import { motion } from 'framer-motion';
 import { ShoppingCart, Loader2 } from 'lucide-react';
 import { Product } from '@/api/store';
 import { useTranslation } from 'react-i18next';
-import ProductCard from './ProductCard';
-import ProductListItem from './ProductListItem';
+import { ProductCard } from './ProductCard';
+import { ProductListItem } from './ProductListItem';
 
 interface ProductsGridProps {
   products: Product[];
@@ -135,13 +135,9 @@ const ProductsGrid = memo(({
 
   if (enableMotion) {
     return (
-      <motion.div 
-        variants={containerVariants}
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true, margin: isMobile ? "-50px" : "-100px", amount: 0.1 }}
-        className={viewType === 'grid' 
-          ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 sm:gap-6 lg:gap-8 px-2 sm:px-0" 
+      <div
+        className={viewType === 'grid'
+          ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 sm:gap-6 lg:gap-8 px-2 sm:px-0"
           : "space-y-4 sm:space-y-6 px-2 sm:px-0"
         }
         role="grid"
@@ -152,44 +148,40 @@ const ProductsGrid = memo(({
           const priority = index < 6; // زيادة عدد العناصر ذات الأولوية للتحميل السريع
           
           const ProductComponent = viewType === 'grid' ? ProductCard : ProductListItem;
-          
+
           return (
-            <motion.div
+            <div
               key={product.id}
-              variants={itemVariants}
-              layout
-              whileHover={{ scale: isMobile ? 1 : 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              style={{ willChange: 'transform' }}
+              className="w-full"
             >
               <ProductComponent
-                product={product} 
-                isFavorite={isFavorite} 
-                onToggleFavorite={handleToggleFavorite} 
-                priority={priority} 
+                product={product}
+                isFavorite={isFavorite}
+                onToggleFavorite={handleToggleFavorite}
+                priority={priority}
               />
-            </motion.div>
+            </div>
           );
         })}
-      </motion.div>
+      </div>
     );
   }
 
   return (
-    <div 
-      className={viewType === 'grid' 
-        ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 sm:gap-6 lg:gap-8 px-2 sm:px-0" 
+    <div
+      className={viewType === 'grid'
+        ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 sm:gap-6 lg:gap-8 px-2 sm:px-0"
         : "space-y-4 sm:space-y-6 px-2 sm:px-0"
       }
       role="grid"
-              aria-label={viewType === 'grid' ? t('featuredProducts.storeProducts.gridView') : t('featuredProducts.storeProducts.listView')}
+      aria-label={viewType === 'grid' ? t('featuredProducts.storeProducts.gridView') : t('featuredProducts.storeProducts.listView')}
     >
       {memoizedProducts.map((product, index) => {
         const isFavorite = memoizedFavorites.has(product.id);
         const priority = index < 6; // زيادة عدد العناصر ذات الأولوية للتحميل السريع
         
         const ProductComponent = viewType === 'grid' ? ProductCard : ProductListItem;
-        
+
         return (
           <ProductComponent
             key={product.id}

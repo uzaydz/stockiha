@@ -26,15 +26,28 @@ DECLARE
     v_auth_user_id UUID;
     v_result JSON;
     v_existing_user RECORD;
+    v_current_user_id UUID;
+    v_current_user_role TEXT;
 BEGIN
+    -- الحصول على معرف المستخدم الحالي
+    v_current_user_id := auth.uid();
+
+    IF v_current_user_id IS NULL THEN
+        RETURN json_build_object(
+            'success', false,
+            'error', 'المستخدم غير مصادق عليه',
+            'code', 'NOT_AUTHENTICATED'
+        );
+    END IF;
+
     -- تحديد معرف المؤسسة
     IF p_organization_id IS NULL THEN
         -- الحصول على معرف المؤسسة من المستخدم الحالي
-        SELECT organization_id INTO v_org_id
+        SELECT organization_id, role INTO v_org_id, v_current_user_role
         FROM public.users
-        WHERE id = auth.uid()
+        WHERE auth_user_id = v_current_user_id
         LIMIT 1;
-        
+
         IF v_org_id IS NULL THEN
             RETURN json_build_object(
                 'success', false,
@@ -42,18 +55,41 @@ BEGIN
                 'code', 'NO_ORGANIZATION'
             );
         END IF;
+
+        -- التحقق من صلاحيات المستخدم الحالي
+        IF v_current_user_role NOT IN ('admin', 'super_admin') THEN
+            RETURN json_build_object(
+                'success', false,
+                'error', 'ليس لديك صلاحية لإضافة موظفين',
+                'code', 'NOT_ADMIN'
+            );
+        END IF;
     ELSE
         v_org_id := p_organization_id;
+        -- التحقق من أن المستخدم الحالي admin في المؤسسة المحددة
+        SELECT role INTO v_current_user_role
+        FROM public.users
+        WHERE auth_user_id = v_current_user_id
+        AND organization_id = v_org_id
+        LIMIT 1;
+
+        IF v_current_user_role NOT IN ('admin', 'super_admin') THEN
+            RETURN json_build_object(
+                'success', false,
+                'error', 'ليس لديك صلاحية لإضافة موظفين في هذه المؤسسة',
+                'code', 'NOT_ADMIN'
+            );
+        END IF;
     END IF;
     
     -- التحقق من عدم وجود موظف بنفس البريد الإلكتروني في نفس المؤسسة
     SELECT * INTO v_existing_user
     FROM public.users
-    WHERE email = p_email 
+    WHERE email = p_email
     AND organization_id = v_org_id
     AND role = 'employee'
     LIMIT 1;
-    
+
     IF FOUND THEN
         IF v_existing_user.is_active THEN
             RETURN json_build_object(
@@ -63,8 +99,8 @@ BEGIN
             );
         ELSE
             -- إعادة تفعيل الموظف الموجود
-            UPDATE public.users 
-            SET 
+            UPDATE public.users
+            SET
                 is_active = true,
                 name = p_name,
                 phone = p_phone,
@@ -73,7 +109,7 @@ BEGIN
                 updated_at = NOW()
             WHERE id = v_existing_user.id
             RETURNING id INTO v_employee_id;
-            
+
             -- إرجاع بيانات الموظف المُعاد تفعيله
             SELECT json_build_object(
                 'success', true,
@@ -96,7 +132,7 @@ BEGIN
             ) INTO v_result
             FROM public.users
             WHERE id = v_employee_id;
-            
+
             RETURN v_result;
         END IF;
     END IF;

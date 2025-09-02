@@ -111,9 +111,9 @@ const TestimonialsSection = memo(() => {
   }, [testimonials.length]);
 
   return (
-    <section 
+    <section
       ref={containerRef}
-      className="relative py-16 landing-section"
+      className="relative py-16 landing-bg-accent landing-section-transition"
     >
       <div className="container px-6 mx-auto relative z-10">
         {/* العنوان الرئيسي */}

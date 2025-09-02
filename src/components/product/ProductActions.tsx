@@ -109,8 +109,6 @@ const findPurchaseFormElement = (): Element | null => {
 
   const allSelectors = [...prioritySelectors, ...secondarySelectors, ...fallbackSelectors];
 
-
-
   // First pass: try all selectors with validation
   for (const selector of allSelectors) {
     try {
@@ -282,10 +280,6 @@ const scrollElementIntoView = (el: Element, preferSmooth = true) => {
     }
   }, preferSmooth ? 500 : 100);
 };
-
-
-
-
 
 const ProductActions = memo(({
   totalPrice,

@@ -1,0 +1,93 @@
+name = "stockiha"
+compatibility_date = "2024-01-15"
+compatibility_flags = ["nodejs_compat"]
+
+[env.production]
+name = "stockiha"
+
+[env.preview]
+name = "stockiha-preview"
+
+# إعدادات البناء
+[build]
+command = "pnpm run build"
+cwd = "."
+
+# إعدادات النشر
+pages_build_output_dir = "dist"
+
+# متغيرات البيئة العامة (غير حساسة)
+[vars]
+NODE_ENV = "production"
+VITE_ENABLE_SECURITY_HEADERS = "true"
+VITE_ENABLE_CSP = "true"
+VITE_ENABLE_RATE_LIMITING = "true"
+
+# إعدادات Functions مع أمان متقدم
+[[pages.functions]]
+pattern = "/api/*"
+compatibility_date = "2024-01-15"
+compatibility_flags = ["nodejs_compat"]
+
+# إعدادات Rate Limiting
+[pages.functions.limits]
+cpu_ms = 50
+memory_mb = 128
+
+# 🔒 Security Headers - إعدادات أمان متقدمة
+[[pages.headers]]
+for = "/*"
+[pages.headers.values]
+# Security Headers
+X-Frame-Options = "SAMEORIGIN"
+X-Content-Type-Options = "nosniff"
+X-XSS-Protection = "1; mode=block"
+Referrer-Policy = "strict-origin-when-cross-origin"
+Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=()"
+Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
+
+# Custom Headers
+X-Store-Type = "dynamic"
+X-Instagram-WebView = "enabled"
+
+# Content Security Policy - أمان متقدم
+Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://connect.facebook.net https://www.googletagmanager.com https://www.google-analytics.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https: blob:; font-src 'self' https://fonts.gstatic.com data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.yalidine.app; frame-src 'self' https://www.facebook.com https://connect.facebook.net; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self' https://www.instagram.com https://*.instagram.com https://www.facebook.com https://*.facebook.com; upgrade-insecure-requests;"
+
+# إعدادات Cache للـ Assets
+[[pages.headers]]
+for = "/assets/*"
+[pages.headers.values]
+Cache-Control = "public, max-age=31536000, immutable"
+
+# إعدادات Cache للخطوط
+[[pages.headers]]
+for = "/assets/fonts/*"
+[pages.headers.values]
+Cache-Control = "public, max-age=31536000, immutable"
+Access-Control-Allow-Origin = "*"
+
+# إعدادات Content-Type للـ JavaScript
+[[pages.headers]]
+for = "/*.js"
+[pages.headers.values]
+Content-Type = "text/javascript; charset=utf-8"
+
+# إعدادات Content-Type للـ CSS
+[[pages.headers]]
+for = "/*.css"
+[pages.headers.values]
+Content-Type = "text/css; charset=utf-8"
+
+# إعدادات Rewrites
+[[pages.redirects]]
+from = "/yalidine-api/*"
+to = "/api/yalidine-fees-proxy"
+status = 200
+
+# إعدادات CORS
+[[pages.headers]]
+for = "/api/*"
+[pages.headers.values]
+Access-Control-Allow-Origin = "*"
+Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+Access-Control-Allow-Headers = "Content-Type, Authorization, X-Requested-With, Accept, Origin, X-API-ID, X-API-TOKEN"

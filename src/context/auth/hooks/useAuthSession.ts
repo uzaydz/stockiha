@@ -110,7 +110,6 @@ export const useAuthSession = (): UseAuthSessionReturn => {
       }
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
-        console.warn('⚠️ [useAuthSession] خطأ في الحصول على الجلسة:', error);
       }
     }
   }, []);

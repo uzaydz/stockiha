@@ -91,14 +91,12 @@ export class UnifiedCacheManager {
     // الاستماع لأحداث التطبيق
     this.setupEventListeners();
 
-    console.log('🚀 تم تهيئة نظام الكاش الموحد');
   }
 
   private setupReactQueryIntegration() {
     // الحصول على QueryClient من الـ window إذا كان متوفراً
     if (typeof window !== 'undefined' && (window as any).queryClient) {
       this.queryClient = (window as any).queryClient;
-      console.log('✅ تم ربط نظام الكاش الموحد مع React Query');
     }
   }
 
@@ -169,7 +167,6 @@ export class UnifiedCacheManager {
     }
 
     if (import.meta.env.DEV) {
-      console.log(`💾 تم تخزين في الكاش الموحد: ${key} (${type})`);
     }
   }
 
@@ -206,7 +203,6 @@ export class UnifiedCacheManager {
     }
 
     if (import.meta.env.DEV) {
-      console.log(`📖 تم استرجاع من الكاش الموحد: ${key}`);
     }
 
     return entry.data;
@@ -231,7 +227,6 @@ export class UnifiedCacheManager {
     this.deleteFromServiceWorker(key);
 
     if (import.meta.env.DEV) {
-      console.log(`🗑️ تم حذف من الكاش الموحد: ${key}`);
     }
 
     return deletedFromMemory;
@@ -253,7 +248,6 @@ export class UnifiedCacheManager {
     // حذف المفاتيح
     keysToDelete.forEach(key => this.delete(key));
 
-    console.log(`🧹 تم مسح ${keysToDelete.length} عنصر من نوع ${type}`);
   }
 
   /**
@@ -274,7 +268,6 @@ export class UnifiedCacheManager {
     // مسح Service Worker
     this.clearServiceWorker();
 
-    console.log('🧹 تم مسح جميع الكاش الموحد');
   }
 
   /**
@@ -347,7 +340,6 @@ export class UnifiedCacheManager {
           break;
       }
     } catch (error) {
-      console.warn(`⚠️ فشل في حفظ ${key} في ${storage}:`, error);
     }
   }
 
@@ -367,7 +359,6 @@ export class UnifiedCacheManager {
         }
       }
     } catch (error) {
-      console.warn(`⚠️ فشل في تحميل ${key} من التخزين:`, error);
     }
 
     return null;
@@ -391,7 +382,6 @@ export class UnifiedCacheManager {
           break;
       }
     } catch (error) {
-      console.warn(`⚠️ فشل في حذف ${key} من ${storage}:`, error);
     }
   }
 
@@ -419,7 +409,6 @@ export class UnifiedCacheManager {
           break;
       }
     } catch (error) {
-      console.warn(`⚠️ فشل في مسح ${storage}:`, error);
     }
   }
 
@@ -560,7 +549,6 @@ export class UnifiedCacheManager {
     this.cleanupPersistentStorage();
 
     if (expiredKeys.length > 0) {
-      console.log(`🧹 تم تنظيف ${expiredKeys.length} عنصر منتهي الصلاحية من الكاش الموحد`);
     }
   }
 
@@ -596,7 +584,6 @@ export class UnifiedCacheManager {
         }
       });
     } catch (error) {
-      console.warn('⚠️ فشل في تنظيف التخزين الدائم:', error);
     }
   }
 
@@ -614,7 +601,6 @@ export class UnifiedCacheManager {
       try {
         localStorage.setItem('ucm_backup', JSON.stringify(importantEntries));
       } catch (error) {
-        console.warn('⚠️ فشل في حفظ النسخة الاحتياطية:', error);
       }
     }
   }
@@ -633,7 +619,6 @@ export class UnifiedCacheManager {
         }
       }
     } catch (error) {
-      console.warn('⚠️ فشل في تحميل النسخة الاحتياطية:', error);
     }
   }
 

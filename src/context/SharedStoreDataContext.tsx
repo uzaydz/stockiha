@@ -81,7 +81,6 @@ export const SharedStoreDataProvider: React.FC<{ children: ReactNode }> = React.
       const cacheKey = `store-data-${sharedData.organization.id}`;
       // الاحتفاظ بالبيانات الحالية فقط
       if (process.env.NODE_ENV === 'development') {
-        console.log(`🔒 [SharedStoreDataProvider] تأمين cache للمؤسسة: ${sharedData.organization.id}`);
       }
     }
   }, [sharedData.organization?.id ?? null]);

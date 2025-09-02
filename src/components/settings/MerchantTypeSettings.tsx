@@ -102,16 +102,23 @@ const MerchantTypeSettings: React.FC<MerchantTypeSettingsProps> = ({ className }
 
     setIsSaving(true);
     try {
-      const updateData: OrganizationSettingsUpdate = {
+      const updateData = {
+        organization_id: currentOrganization.id,
         merchant_type: selectedType
       };
-      
+
       const { error } = await supabase
         .from('organization_settings')
-        .update(updateData)
-        .eq('organization_id', currentOrganization.id);
+        .upsert(updateData, { onConflict: 'organization_id' });
 
       if (error) throw error;
+
+      // تحديث الكاش في localStorage لضمان الاستمرارية
+      const cacheKey = `merchant_type_${currentOrganization.id}`;
+      localStorage.setItem(cacheKey, JSON.stringify({
+        merchantType: selectedType,
+        timestamp: Date.now()
+      }));
 
       toast({
         title: 'تم الحفظ بنجاح',

@@ -5,6 +5,7 @@ import { BannerImageProps } from './types';
 import OptimizedImage from './OptimizedImage';
 import { useSharedStoreDataContext } from '@/context/SharedStoreDataContext';
 import { usePreloadedFeaturedProducts } from '@/hooks/usePreloadedStoreData';
+import { supabase } from '@/lib/supabase-unified';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,7 +23,15 @@ const BannerImage = React.memo<BannerImageProps>(({
   fit = 'contain',
   objectPosition = 'top',
   containerSize = 'medium',
-  blurLevel = 'medium'
+  blurLevel = 'medium',
+  // خصائص المنتجات
+  selectedProducts,
+  showProducts = false,
+  productsDisplay = 'grid',
+  productsLimit = 4,
+  productsType = 'featured',
+  organizationId,
+  featuredProducts
 }) => {
   const { t } = useTranslation();
   const [imageLoaded, setImageLoaded] = useState(false);
@@ -30,21 +39,118 @@ const BannerImage = React.memo<BannerImageProps>(({
   const [hasAttemptedLoad, setHasAttemptedLoad] = useState(false);
   const [showNoProducts, setShowNoProducts] = useState(false);
   const { organization, organizationSettings } = useSharedStoreDataContext();
-  
+
+  // جلب المنتجات حسب النوع المحدد
+  const [dynamicProductsData, setDynamicProductsData] = useState<any[]>([]);
+  const [loadingDynamicProducts, setLoadingDynamicProducts] = useState(false);
+
+  // دالة جلب المنتجات حسب النوع
+  const fetchProductsByType = async (type: string, orgId?: string, selectedIds?: string[]) => {
+    setLoadingDynamicProducts(true);
+    try {
+      let query = supabase
+        .from('products')
+        .select('id, name, description, price, images, thumbnail_image, is_featured, is_new, category, sku, stock_quantity, slug, created_at, updated_at')
+        .eq('is_active', true)
+        .order('updated_at', { ascending: false });
+
+      // إضافة فلتر المؤسسة - استخدم organizationId من الخصائص أو من localStorage
+      const effectiveOrgId = orgId || localStorage.getItem('bazaar_organization_id');
+      if (effectiveOrgId) {
+        query = query.eq('organization_id', effectiveOrgId);
+      }
+
+      switch (type) {
+        case 'featured':
+          query = query.eq('is_featured', true);
+          break;
+        case 'selected':
+          if (selectedIds && selectedIds.length > 0) {
+            query = query.in('id', selectedIds);
+          } else {
+            return [];
+          }
+          break;
+        case 'latest':
+          // أحدث المنتجات - مرتبة حسب created_at تنازلياً
+          query = query.order('created_at', { ascending: false });
+          break;
+        case 'new':
+          // المنتجات الجديدة - is_new = true
+          query = query.eq('is_new', true);
+          break;
+        default:
+          query = query.eq('is_featured', true);
+      }
+
+      // تطبيق الحد الأقصى
+      if (productsLimit && productsLimit > 0) {
+        query = query.limit(productsLimit);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        return [];
+      }
+
+      return data || [];
+    } catch (error) {
+      return [];
+    } finally {
+      setLoadingDynamicProducts(false);
+    }
+  };
+
+  // جلب المنتجات عند تغيير النوع أو المؤسسة
+  useEffect(() => {
+    const fetchProducts = async () => {
+      if (!showProducts) {
+        setDynamicProductsData([]);
+        return;
+      }
+
+      const products = await fetchProductsByType(productsType, organization?.id, selectedProducts);
+      setDynamicProductsData(products);
+    };
+
+    fetchProducts();
+  }, [productsType, organization?.id, selectedProducts, showProducts, productsLimit]);
+
   // استخدام البيانات المحفوظة مسبقاً للمنتجات المميزة
-  const { 
-    featuredProducts: preloadedFeaturedProducts, 
-    isLoading: preloadedLoading, 
+  const {
+    featuredProducts: preloadedFeaturedProducts,
+    isLoading: preloadedLoading,
     refreshData: preloadedRefreshData,
-    isFromPreload 
+    isFromPreload
   } = usePreloadedFeaturedProducts();
   
   // fallback إلى البيانات العادية إذا لم تكن البيانات المحفوظة متوفرة
   const { featuredProducts: fallbackFeaturedProducts, isLoading: fallbackLoading, refreshData: fallbackRefreshData } = useSharedStoreDataContext();
   
-  // استخدام البيانات المناسبة
-  const featuredProducts = preloadedFeaturedProducts?.length > 0 ? preloadedFeaturedProducts : fallbackFeaturedProducts;
-  const isLoading = preloadedFeaturedProducts?.length > 0 ? preloadedLoading : fallbackLoading;
+  // استخدام البيانات المناسبة - أولوية للمنتجات المختارة حسب النوع
+  const getDisplayProducts = () => {
+    if (showProducts && productsType === 'selected' && dynamicProductsData.length > 0) {
+      // استخدم المنتجات المختارة
+      return dynamicProductsData;
+    } else if (showProducts && featuredProducts && featuredProducts.length > 0) {
+      // استخدم المنتجات المميزة المرسلة من البيانات الرئيسية
+      return featuredProducts;
+    } else if (showProducts && dynamicProductsData.length > 0) {
+      // استخدم المنتجات المجلبة حسب النوع
+      return dynamicProductsData;
+    } else if (preloadedFeaturedProducts?.length > 0) {
+      // fallback للمنتجات المحفوظة مسبقاً
+      return preloadedFeaturedProducts;
+    } else {
+      // fallback للمنتجات العادية
+      return fallbackFeaturedProducts;
+    }
+  };
+
+  const displayProducts = getDisplayProducts();
+  const isLoading = (showProducts && displayProducts.length > 0) ? loadingDynamicProducts :
+                    (preloadedFeaturedProducts?.length > 0 ? preloadedLoading : fallbackLoading);
   const refreshData = preloadedFeaturedProducts?.length > 0 ? preloadedRefreshData : fallbackRefreshData;
 
   // تحسين آلية إعادة التحميل - محاولات متعددة مع تأخير متزايد
@@ -310,7 +416,7 @@ const BannerImage = React.memo<BannerImageProps>(({
                     <div className="absolute inset-0 flex items-center justify-center p-6">
                       <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-lg group bg-white" >
                         <OptimizedImage
-                          src={featuredProducts[currentSlide]?.thumbnail_url || featuredProducts[currentSlide]?.thumbnail_image}
+                          src={featuredProducts[currentSlide]?.thumbnail_image || featuredProducts[currentSlide]?.imageUrl}
                           alt={featuredProducts[currentSlide]?.name || 'منتج مميز'}
                           className="group-hover:scale-105 transition-transform duration-500"
                           fit="contain"
@@ -507,7 +613,7 @@ const BannerImage = React.memo<BannerImageProps>(({
                     <div className="absolute inset-0 flex items-center justify-center p-6">
                       <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-lg group bg-white" >
                         <OptimizedImage
-                          src={featuredProducts[currentSlide]?.thumbnail_url || featuredProducts[currentSlide]?.thumbnail_image}
+                          src={featuredProducts[currentSlide]?.thumbnail_image || featuredProducts[currentSlide]?.imageUrl}
                           alt={featuredProducts[currentSlide]?.name || 'منتج مميز'}
                           className="group-hover:scale-105 transition-transform duration-500"
                           fit="contain"

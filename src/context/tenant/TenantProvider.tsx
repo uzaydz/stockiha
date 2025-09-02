@@ -7,6 +7,7 @@ import React, { createContext, useContext, useEffect, useRef, useMemo, useCallba
 import { useAuth } from '../AuthContext';
 import { useUser } from '../UserContext';
 import type { TenantContextType } from '@/types/tenant';
+import { globalCache, CacheKeys } from '@/lib/globalCache';
 
 // استيراد المكونات المنفصلة
 import { useTenantState, updateOrganization, setLoading, setError, resetState } from './TenantState';
@@ -92,11 +93,9 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = React.mem
     }
     
     initializationCount.current++;
-    console.log('🔄 [TenantProvider] محاولة تهيئة رقم:', initializationCount.current);
     
     // ⚡ تقليل حد المحاولات من 3 إلى 2
     if (initializationCount.current > 2) {
-      console.warn('⚠️ [TenantProvider] تم تجاوز حد التهيئة، إيقاف المحاولات');
       isInitialized.current = true;
       refs.initialized.current = true;
       return;
@@ -139,7 +138,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = React.mem
     if (refs.initialized.current && organization && organization.id === authOrganization.id) {
       if (!refs.authContextProcessed.current) {
         if (process.env.NODE_ENV === 'development') {
-          console.log('🔄 [TenantProvider] تحديث علامة المعالجة للمؤسسة الموجودة');
         }
         refs.authContextProcessed.current = true;
       }
@@ -149,23 +147,20 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = React.mem
     // منع معالجة نفس المؤسسة مرتين - تحسين لتسجيل الدخول الأول
     if (lastAuthOrgId.current === authOrganization.id && refs.initialized.current && organization) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('⏭️ [TenantProvider] تجاهل التحديث - نفس المؤسسة');
       }
       return;
     }
 
     if (process.env.NODE_ENV === 'development') {
-      console.log('🔄 [TenantProvider] مزامنة مع AuthContext - تحديث المؤسسة', {
-        authOrgId: authOrganization.id,
-        currentOrgId: organization?.id,
-        hasCurrentOrg: !!organization,
-        isInitialized: refs.initialized.current
-      });
     }
 
-    // تحديث المؤسسة مباشرة
+    // تحديث المؤسسة مباشرة مع حفظ في global cache
     const processedOrg = updateOrganizationFromData(authOrganization);
     updateOrganization(setState, processedOrg);
+
+    // حفظ في global cache لتجنب الاستدعاءات المتكررة
+    globalCache.set(CacheKeys.ORGANIZATION(authOrganization.id), authOrganization);
+
     lastAuthOrgId.current = authOrganization.id;
     lastOrgId.current = authOrganization.id;
     refs.authContextProcessed.current = true;
@@ -192,17 +187,11 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = React.mem
     // إذا كان المستخدم موجود ولم يتم التهيئة بعد، ابدأ عملية التهيئة
     if (user && !authLoading && !refs.initialized.current && !refs.authContextProcessed.current) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('🚀 [TenantProvider] بدء تهيئة المستخدم الجديد:', {
-          userId: user.id,
-          hasAuthOrg: !!authOrganization,
-          isLoading: authLoading
-        });
       }
 
       // إذا كانت المؤسسة متاحة، قم بتحديثها فوراً
       if (authOrganization) {
         if (process.env.NODE_ENV === 'development') {
-          console.log('✅ [TenantProvider] تهيئة فورية بالمؤسسة المتاحة');
         }
 
         const processedOrg = updateOrganizationFromData(authOrganization);
@@ -238,7 +227,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = React.mem
     // إذا كانت المؤسسة متاحة في AuthContext، لا نحتاج للتحميل الاحتياطي
     if (authOrganization) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('⏭️ [TenantProvider] تخطي التحميل الاحتياطي - المؤسسة متاحة في AuthContext');
       }
       refs.fallbackProcessed.current = true;
       return;
@@ -246,7 +234,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = React.mem
 
     // في حالة عدم وجود مؤسسة في AuthContext، قم بالتحميل الاحتياطي
     if (process.env.NODE_ENV === 'development') {
-      console.log('🔄 [TenantProvider] بدء التحميل الاحتياطي للمؤسسة...');
     }
     loadFallbackOrganization();
   }, [authOrganization?.id, refs, loadFallbackOrganization]); // تحسين التبعيات
@@ -263,7 +250,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = React.mem
     }
     
     if (process.env.NODE_ENV === 'development') {
-      console.log('👂 [TenantProvider] إعداد مستمع للحدث authOrganizationReady');
     }
 
     const handleAuthOrganizationReady = (event: CustomEvent) => {
@@ -272,24 +258,15 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = React.mem
       // 🔥 تحسين: منع معالجة نفس المؤسسة مرتين - تحسين لتسجيل الدخول الأول
       if (lastAuthOrgId.current === authOrg?.id && refs.initialized.current) {
         if (process.env.NODE_ENV === 'development') {
-          console.log('⏭️ [TenantProvider] تجاهل التحديث - نفس المؤسسة');
         }
         return;
       }
 
       if (process.env.NODE_ENV === 'development') {
-        console.log('🏢 [TenantProvider] استلام حدث authOrganizationReady:', {
-          authOrgName: authOrg?.name,
-          authOrgId: authOrg?.id,
-          currentOrgId: lastOrgId.current,
-          currentOrgName: authOrg?.name,
-          isInitialized: refs.initialized.current
-        });
       }
 
       if (authOrg && lastOrgId.current !== authOrg.id) {
         if (process.env.NODE_ENV === 'development') {
-          console.log('🔄 [TenantProvider] تحديث المؤسسة من AuthContext:', authOrg.name);
         }
         lastAuthOrgId.current = authOrg.id;
         lastOrgId.current = authOrg.id;
@@ -314,7 +291,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = React.mem
         }));
       } else {
         if (process.env.NODE_ENV === 'development') {
-          console.log('⏭️ [TenantProvider] تجاهل التحديث - المؤسسة موجودة بالفعل أو مطابقة');
         }
       }
     };
@@ -352,7 +328,6 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = React.mem
 
   // 🔥 إصلاح: نقل منطق التحقق من حد الرندر إلى هنا بعد جميع الـ hooks
   if (isInitialized.current && renderCount.current > 3) {
-    console.warn('⚠️ [TenantProvider] تم تجاوز حد الرندر، إيقاف العمليات');
     return (
       <TenantContext.Provider value={{} as TenantContextType}>
         {children}

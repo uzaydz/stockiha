@@ -25,9 +25,9 @@ const CTASection = memo(() => {
   const isInView = useInView(containerRef, { once: true, amount: 0.2 });
 
   return (
-    <section 
+    <section
       ref={containerRef}
-      className="relative py-20 landing-section"
+      className="relative py-20 landing-bg-primary landing-section-transition"
     >
       <div className="container px-6 mx-auto relative z-10">
         <motion.div

@@ -13,6 +13,7 @@ import {
   useUnifiedOrganizationApps,
   UnifiedRequestManager
 } from '@/lib/unifiedRequestManager';
+import { globalCache, CacheKeys } from '@/lib/globalCache';
 
 interface UnifiedDataContextType {
   // البيانات
@@ -51,6 +52,23 @@ interface UnifiedDataProviderProps {
 export const UnifiedDataProvider: React.FC<UnifiedDataProviderProps> = ({ children }) => {
   const { currentOrganization } = useTenant();
   const orgId = currentOrganization?.id || '';
+
+  // محاولة الحصول من global cache أولاً
+  const cachedData = React.useMemo(() => {
+    if (!orgId) return null;
+
+    const categories = globalCache.get(CacheKeys.CATEGORIES(orgId));
+    const settings = globalCache.get(CacheKeys.ORGANIZATION_SETTINGS(orgId));
+    const subscriptions = globalCache.get(CacheKeys.SUBSCRIPTION_DETAILS(orgId));
+    const apps = globalCache.get(CacheKeys.APPS(orgId));
+    const subcategories = globalCache.get(CacheKeys.SUBCATEGORIES());
+
+    if (categories && settings && subscriptions && apps && subcategories) {
+      return { categories, settings, subscriptions, apps, subcategories };
+    }
+
+    return null;
+  }, [orgId]);
 
   // استخدام hooks الموحدة
   const {
@@ -207,7 +225,7 @@ export const useAllSettings = () => {
   if (!context) {
     throw new Error('useAllSettings must be used within UnifiedDataProvider');
   }
-  return context.settings;
+  return context.organizationSettings;
 };
 
 export const useAllSubscriptions = () => {
@@ -215,7 +233,7 @@ export const useAllSubscriptions = () => {
   if (!context) {
     throw new Error('useAllSubscriptions must be used within UnifiedDataProvider');
   }
-  return context.subscriptions;
+  return context.organizationSubscriptions;
 };
 
 export const useAllApps = () => {
@@ -223,5 +241,5 @@ export const useAllApps = () => {
   if (!context) {
     throw new Error('useAllApps must be used within UnifiedDataProvider');
   }
-  return context.apps;
+  return context.organizationApps;
 };

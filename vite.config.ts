@@ -1,7 +1,7 @@
 import { defineConfig, loadEnv, Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import * as path from "path";
-
+import { instagramCompatibilityPlugin } from './src/middleware/instagram-compatibility';
 
 // import csp from 'vite-plugin-csp-guard'; // مُعطل مؤقتاً
 import type { Connect, ViteDevServer } from 'vite';
@@ -313,6 +313,9 @@ export default defineConfig(({ command, mode }) => {
       }
     },
     plugins: [
+      // Instagram Compatibility Plugin - يجب أن يكون أولاً
+      instagramCompatibilityPlugin(),
+      
       // Million.js للتحسين الفائق
       million.vite({ 
         auto: true,
@@ -335,7 +338,6 @@ export default defineConfig(({ command, mode }) => {
           }
         })
       }),
-      
 
       lodashResolverPlugin(),
       contentTypePlugin(),

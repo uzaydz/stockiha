@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/context/TenantContext';
 import { OrganizationSettingsUpdate } from '@/types/organization-settings';
 import { createPortal } from 'react-dom';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 interface MerchantTypeToggleProps {
   currentType: MerchantType;
@@ -42,6 +43,7 @@ const MerchantTypeToggle: React.FC<MerchantTypeToggleProps> = ({
   const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
   const { toast } = useToast();
   const { currentOrganization } = useTenant();
+  const isMobile = useMediaQuery('(max-width: 768px)');
 
   const currentTypeData = merchantTypes.find(t => t.type === currentType) || merchantTypes[2];
   const CurrentIcon = currentTypeData.icon;
@@ -51,19 +53,26 @@ const MerchantTypeToggle: React.FC<MerchantTypeToggleProps> = ({
 
     setIsLoading(true);
     try {
-      const updateData: OrganizationSettingsUpdate = {
+      const updateData = {
+        organization_id: currentOrganization.id,
         merchant_type: newType
       };
-      
+
       const { error } = await supabase
         .from('organization_settings')
-        .update(updateData)
-        .eq('organization_id', currentOrganization.id);
+        .upsert(updateData, { onConflict: 'organization_id' });
 
       if (error) throw error;
 
       onTypeChange(newType);
       setIsOpen(false);
+
+      // تحديث الكاش في localStorage لضمان الاستمرارية
+      const cacheKey = `merchant_type_${currentOrganization.id}`;
+      localStorage.setItem(cacheKey, JSON.stringify({
+        merchantType: newType,
+        timestamp: Date.now()
+      }));
 
       toast({
         title: 'تم التحديث',
@@ -99,20 +108,33 @@ const MerchantTypeToggle: React.FC<MerchantTypeToggleProps> = ({
         onClick={handleButtonClick}
         disabled={isLoading}
         className={cn(
-          "w-full flex items-center justify-between px-3 py-2.5 rounded-md",
-          "text-sm font-medium transition-colors duration-200",
+          "w-full flex items-center justify-between rounded-md",
+          // تحسين الحجم للهاتف المحمول
+          isMobile 
+            ? "px-2 py-2 text-xs" 
+            : "px-3 py-2.5 text-sm",
+          "font-medium transition-colors duration-200",
           "bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground",
           "border border-border/50",
           isLoading && "opacity-50 cursor-not-allowed"
         )}
       >
         <div className="flex items-center gap-2">
-          <CurrentIcon className="w-4 h-4" />
-          <span>نوع التاجر: {currentTypeData.label}</span>
+          <CurrentIcon className={cn(
+            "text-current",
+            isMobile ? "w-3.5 h-3.5" : "w-4 h-4"
+          )} />
+          <span className={cn(
+            // تحسين حجم الخط للهاتف المحمول
+            isMobile && "text-xs"
+          )}>
+            نوع التاجر: {currentTypeData.label}
+          </span>
         </div>
         <ChevronDown 
           className={cn(
-            "w-4 h-4 transition-transform duration-200", 
+            "transition-transform duration-200", 
+            isMobile ? "w-3.5 h-3.5" : "w-4 h-4",
             isOpen && "rotate-180"
           )} 
         />
@@ -129,12 +151,16 @@ const MerchantTypeToggle: React.FC<MerchantTypeToggleProps> = ({
           
           {/* القائمة المنسدلة */}
           <div 
-            className="fixed bg-card border border-border rounded-lg shadow-2xl z-[99999] overflow-hidden backdrop-blur-sm"
+            className={cn(
+              "fixed bg-card border border-border rounded-lg shadow-2xl z-[99999] overflow-hidden backdrop-blur-sm",
+              // تحسين الحجم للهاتف المحمول
+              isMobile && "min-w-[180px]"
+            )}
             style={{
               top: buttonRect.bottom + 8,
               left: buttonRect.left,
               width: buttonRect.width,
-              minWidth: '200px'
+              minWidth: isMobile ? '180px' : '200px'
             }}
           >
             {merchantTypes.map((type) => {
@@ -147,7 +173,9 @@ const MerchantTypeToggle: React.FC<MerchantTypeToggleProps> = ({
                   onClick={() => handleTypeChange(type.type)}
                   disabled={isLoading || isSelected}
                   className={cn(
-                    "w-full flex items-center gap-2 px-3 py-2.5 text-sm",
+                    "w-full flex items-center gap-2 text-sm",
+                    // تحسين الحجم للهاتف المحمول
+                    isMobile ? "px-2.5 py-2" : "px-3 py-2.5",
                     "transition-all duration-200",
                     "hover:bg-muted/80 focus:outline-none focus:bg-muted/60",
                     "border-b border-border/30 last:border-b-0",
@@ -156,12 +184,23 @@ const MerchantTypeToggle: React.FC<MerchantTypeToggleProps> = ({
                   )}
                 >
                   <Icon className={cn(
-                    "w-4 h-4 transition-colors duration-200",
+                    "transition-colors duration-200",
+                    isMobile ? "w-3.5 h-3.5" : "w-4 h-4",
                     isSelected && "text-primary"
                   )} />
-                  <span className="flex-1 text-right">{type.label}</span>
+                  <span className={cn(
+                    "flex-1 text-right",
+                    // تحسين حجم الخط للهاتف المحمول
+                    isMobile && "text-xs"
+                  )}>
+                    {type.label}
+                  </span>
                   {isSelected && (
-                    <div className="w-2 h-2 bg-primary rounded-full" />
+                    <div className={cn(
+                      "bg-primary rounded-full",
+                      // تحسين الحجم للهاتف المحمول
+                      isMobile ? "w-1.5 h-1.5" : "w-2 h-2"
+                    )} />
                   )}
                 </button>
               );

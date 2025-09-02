@@ -115,6 +115,24 @@ const ProductFormSection: React.FC<ProductFormSectionProps> = React.memo(({
         isCalculatingDelivery={summaryData?.isCalculating || false}
         deliveryFee={summaryData?.deliveryFee || 0}
         className="mb-4"
+        product={{
+          has_variants: product.has_variants,
+          colors: product.colors,
+          stock_quantity: product.inventory?.stock_quantity || product.stock_quantity
+        }}
+        selectedColor={selectedColor}
+        selectedSize={selectedSize}
+        subtotal={priceInfo.price * quantity}
+        total={totalPrice + (summaryData?.deliveryFee || 0)}
+        quantity={quantity}
+        selectedProvince={summaryData?.selectedProvince ? {
+          id: summaryData.selectedProvince.id.toString(),
+          name: summaryData.selectedProvince.name
+        } : undefined}
+        selectedMunicipality={summaryData?.selectedMunicipality ? {
+          id: summaryData.selectedMunicipality.id.toString(),
+          name: summaryData.selectedMunicipality.name
+        } : undefined}
       />
       
       {/* إظهار معلومات النموذج للتطوير */}

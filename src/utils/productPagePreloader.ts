@@ -41,18 +41,15 @@ class ProductPagePreloader {
     
     // إذا كان هناك preload قيد التشغيل، انتظره
     if (this.activePreloads.has(cacheKey)) {
-      console.log(`⏳ [ProductPagePreloader] انتظار preload قيد التشغيل: ${cacheKey}`);
       return this.activePreloads.get(cacheKey)!;
     }
 
     // إذا كان preload مكتمل، أرجع النتيجة
     if (this.preloadCache.has(cacheKey)) {
       const cached = this.preloadCache.get(cacheKey)!;
-      console.log(`💾 [ProductPagePreloader] استخدام النتيجة المحفوظة: ${cacheKey}`);
       return cached;
     }
 
-    console.log(`🚀 [ProductPagePreloader] بدء preload لصفحة المنتج:`, options);
     const startTime = performance.now();
 
     // إنشاء promise جديد
@@ -80,14 +77,20 @@ class ProductPagePreloader {
     try {
       const { productId, organizationId, dataScope = 'ultra', forceUltraOnly = false } = options;
 
-      console.log(`📦 [ProductPagePreloader] جلب بيانات المنتج: ${productId} للمؤسسة: ${organizationId}`);
+      // فحص Cache أولاً قبل استدعاء API
+      const cacheKey = this.createCacheKey(options);
+      const cachedResult = this.preloadCache.get(cacheKey);
+
+      if (cachedResult && cachedResult.success && !forceUltraOnly) {
+        console.log('✅ [productPagePreloader] استخدام البيانات من Cache:', cacheKey);
+        return cachedResult;
+      }
 
       // استدعاء API مباشرة بدون dependencies
       const response = await this.callProductAPI(productId, organizationId, dataScope, forceUltraOnly);
       const executionTime = performance.now() - startTime;
 
       if (response.success) {
-        console.log(`✅ [ProductPagePreloader] اكتمل preload في ${executionTime.toFixed(2)}ms`);
         
         // حفظ البيانات في localStorage مؤقتاً
         try {
@@ -98,7 +101,6 @@ class ProductPagePreloader {
             dataScope
           }));
         } catch (e) {
-          console.warn('⚠️ [ProductPagePreloader] فشل في حفظ البيانات في localStorage');
         }
 
         // إرسال حدث للإعلام عن اكتمال التحميل المبكر
@@ -125,7 +127,6 @@ class ProductPagePreloader {
 
     } catch (error: any) {
       const executionTime = performance.now() - startTime;
-      console.error('❌ [ProductPagePreloader] خطأ في preload:', error);
       
       return {
         success: false,
@@ -162,8 +163,6 @@ class ProductPagePreloader {
         p_data_scope: dataScope
       };
 
-      console.log('📝 [ProductPagePreloader] معاملات RPC:', rpcParams);
-
       // المحاولة الأولى: dataScope المطلوب مع timeout أطول للـ ultra
       let rpcCall = supabase.rpc('get_product_complete_data_ultra_optimized' as any, rpcParams);
 
@@ -182,16 +181,8 @@ class ProductPagePreloader {
       // إذا كان forceUltraOnly مفعل، لا نستخدم fallback
       if (error) {
         if (forceUltraOnly) {
-          console.warn('⚠️ [ProductPagePreloader] فشل dataScope ultra، forceUltraOnly مفعل، لن نستخدم fallback:', {
-            requestedScope: dataScope,
-            error: error.message
-          });
         } else {
           // إذا لم يكن forceUltraOnly مفعل، يمكن استخدام fallback مستقبلاً
-          console.warn('⚠️ [ProductPagePreloader] فشل dataScope ultra، يمكن استخدام fallback:', {
-            requestedScope: dataScope,
-            error: error.message
-          });
         }
         // لا نحاول basic، نعيد الخطأ كما هو
       }
@@ -199,21 +190,11 @@ class ProductPagePreloader {
       const executionTime = performance.now() - startTime;
 
       if (error) {
-        console.error('❌ [ProductPagePreloader] خطأ من RPC:', error);
         return {
           success: false,
           error: error.message || 'خطأ في RPC'
         };
       }
-
-      console.log(`✅ [ProductPagePreloader] تم جلب البيانات بنجاح من Ultra Optimized:`, {
-        productId: data?.product?.id || 'غير محدد',
-        productName: data?.product?.name || 'غير محدد',
-        dataScope: data?.dataScope || 'غير محدد',
-        optimized: data?.optimized || false,
-        version: data?.version || 'غير محدد',
-        executionTime: `${executionTime.toFixed(2)}ms`
-      });
 
       return {
         success: true,
@@ -221,7 +202,6 @@ class ProductPagePreloader {
       };
 
     } catch (error: any) {
-      console.error('❌ [ProductPagePreloader] خطأ في استدعاء API:', error);
       return {
         success: false,
         error: error.message || 'خطأ في استدعاء API'
@@ -250,7 +230,6 @@ class ProductPagePreloader {
     
     keysToDelete.forEach(key => {
       this.preloadCache.delete(key);
-      console.log(`🧹 [ProductPagePreloader] تم مسح cache: ${key}`);
     });
   }
 
@@ -260,7 +239,6 @@ class ProductPagePreloader {
   clearAllCache(): void {
     this.preloadCache.clear();
     this.activePreloads.clear();
-    console.log('🧹 [ProductPagePreloader] تم مسح جميع cache');
   }
 
   /**

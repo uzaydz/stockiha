@@ -198,6 +198,7 @@ const ProductFormTabContent = memo<ProductFormTabContentProps>(({
   onHasVariantsChange,
   onUseVariantPricesChange,
   onUseSizesChange,
+  onAddColor,
 }) => {
   useEffect(() => {
   }, [watchHasVariants, productColors]);
@@ -340,6 +341,7 @@ const ProductFormTabContent = memo<ProductFormTabContentProps>(({
                   useSizes={useSizes}
                   onUseSizesChange={onUseSizesChange}
                   productId={productId || ''}
+                  onAddColor={onAddColor}
                 />
               </div>
             </SafeSuspense>

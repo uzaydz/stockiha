@@ -176,7 +176,3 @@ export const ProductMainSection = memo<ProductMainSectionProps>(({
 });
 
 ProductMainSection.displayName = 'ProductMainSection';
-
-
-
-

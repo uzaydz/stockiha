@@ -184,7 +184,6 @@ export const ActivationService = {
           }
           
         } catch (cacheError) {
-          console.warn('تحذير: فشل في تحديث البيانات في الواجهة:', cacheError);
           // إذا فشل التحديث، قم بإعادة تحميل الصفحة كحل بديل
           if (typeof window !== 'undefined' && window.location) {
             setTimeout(() => {

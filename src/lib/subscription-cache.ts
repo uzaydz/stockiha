@@ -125,8 +125,6 @@ class SubscriptionCacheService {
            subscription.days_left > 0;
   }
 
-
-
   /**
    * الحصول من التخزين المؤقت في الذاكرة
    */

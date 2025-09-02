@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import { coursesList } from '@/data/coursesListData';
-import { PlayCircle, Clock, BookOpen, Users, Badge as BadgeIcon, ArrowLeft, GraduationCap, Crown, Zap, Lock, AlertTriangle } from 'lucide-react';
+import { PlayCircle, Clock, BookOpen, Users, Badge as BadgeIcon, ArrowLeft, GraduationCap, Crown, Zap, Lock, AlertTriangle, Smartphone, Store, Music, Wrench } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -51,7 +51,6 @@ const CoursesIndex: React.FC = () => {
           setSubscriptionInfo(subscriptionData[0]);
         }
       } catch (error) {
-        console.error('Error fetching organization info:', error);
       }
     };
 
@@ -67,7 +66,6 @@ const CoursesIndex: React.FC = () => {
           const courses = await CoursesService.getCoursesWithAccess(organizationId);
           setCoursesWithAccess(courses);
         } catch (error) {
-          console.error('Error fetching courses with access:', error);
         } finally {
           setLoading(false);
         }
@@ -189,50 +187,58 @@ const CoursesIndex: React.FC = () => {
 
   return (
     <Layout>
-      <div className="container mx-auto px-4 py-8">
+      <div className="container mx-auto px-4 py-6 max-w-5xl">
         {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
+        <div className="text-center mb-6">
+          <h1 className="text-xl md:text-2xl font-bold text-foreground mb-3">
             الدورات التعليمية
           </h1>
-          <p className="text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+          <p className="text-sm text-muted-foreground max-w-2xl mx-auto">
             دورات تعليمية شاملة ومجانية مصممة خصيصاً لمشتركي سطوكيها وكتوبي
             لتطوير مهاراتكم في التسويق الرقمي والتجارة الإلكترونية
           </p>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-center">
-            <BookOpen className="w-8 h-8 mx-auto mb-2 text-blue-600 dark:text-blue-400" />
-            <div className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-card border border-border rounded-lg p-4 text-center">
+            <div className="w-8 h-8 bg-blue-50 rounded-md flex items-center justify-center mx-auto mb-1.5">
+              <BookOpen className="w-4 h-4 text-blue-500" />
+            </div>
+            <div className="text-lg font-bold text-foreground mb-1">
               {coursesWithAccess.length}
             </div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">دورة متاحة</div>
+            <div className="text-xs text-muted-foreground">دورة متاحة</div>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-center">
-            <PlayCircle className="w-8 h-8 mx-auto mb-2 text-green-600 dark:text-green-400" />
-            <div className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
+          <div className="bg-card border border-border rounded-lg p-4 text-center">
+            <div className="w-8 h-8 bg-green-50 rounded-md flex items-center justify-center mx-auto mb-1.5">
+              <PlayCircle className="w-4 h-4 text-green-500" />
+            </div>
+            <div className="text-lg font-bold text-foreground mb-1">
               {coursesWithAccess.reduce((acc, course) => {
                 const localData = getLocalCourseData(course.slug);
                 return acc + (localData?.totalVideos || 0);
               }, 0)}+
             </div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">فيديو تعليمي</div>
+            <div className="text-xs text-muted-foreground">فيديو تعليمي</div>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-center">
-            <Users className="w-8 h-8 mx-auto mb-2 text-purple-600 dark:text-purple-400" />
-            <div className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
+          <div className="bg-card border border-border rounded-lg p-4 text-center">
+            <div className="w-8 h-8 bg-purple-50 rounded-md flex items-center justify-center mx-auto mb-1.5">
+              <Users className="w-4 h-4 text-purple-500" />
+            </div>
+            <div className="text-lg font-bold text-foreground mb-1">
               {coursesWithAccess.filter(c => c.is_accessible).length}
             </div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">دورة متاحة لك</div>
+            <div className="text-xs text-muted-foreground">دورة متاحة لك</div>
           </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-center">
-            <GraduationCap className="w-8 h-8 mx-auto mb-2 text-blue-600 dark:text-blue-400" />
-            <div className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
+          <div className="bg-card border border-border rounded-lg p-4 text-center">
+            <div className="w-8 h-8 bg-blue-50 rounded-md flex items-center justify-center mx-auto mb-1.5">
+              <GraduationCap className="w-4 h-4 text-blue-500" />
+            </div>
+            <div className="text-lg font-bold text-foreground mb-1">
               {coursesWithAccess.filter(c => c.is_lifetime).length}
             </div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">مدى الحياة</div>
+            <div className="text-xs text-muted-foreground">مدى الحياة</div>
           </div>
         </div>
 
@@ -243,6 +249,7 @@ const CoursesIndex: React.FC = () => {
               variant={filter === 'all' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setFilter('all')}
+              className="text-xs px-3 py-1.5"
             >
               جميع الدورات ({coursesWithAccess.length})
             </Button>
@@ -250,6 +257,7 @@ const CoursesIndex: React.FC = () => {
               variant={filter === 'accessible' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setFilter('accessible')}
+              className="text-xs px-3 py-1.5"
             >
               الدورات المتاحة ({coursesWithAccess.filter(c => c.is_accessible).length})
             </Button>
@@ -257,6 +265,7 @@ const CoursesIndex: React.FC = () => {
               variant={filter === 'lifetime' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setFilter('lifetime')}
+              className="text-xs px-3 py-1.5"
             >
               الدورات مدى الحياة ({coursesWithAccess.filter(c => c.is_lifetime).length})
             </Button>
@@ -264,23 +273,27 @@ const CoursesIndex: React.FC = () => {
         )}
 
         {/* Courses Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
           {filteredCourses.map((course) => {
             const localData = getLocalCourseData(course.slug);
             
             return (
               <div
                 key={course.id}
-                className={`bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm hover:shadow-lg transition-shadow duration-300 ${
+                className={`bg-card border border-border rounded-lg overflow-hidden hover:shadow-md transition-all duration-200 ${
                   !course.is_accessible ? 'opacity-60' : ''
                 }`}
               >
                 {/* Course Header */}
-                <div className="p-6">
+                <div className="p-4">
                   {/* Course Icon & Status */}
-                  <div className="flex items-start justify-between mb-4">
-                    <div className={`w-12 h-12 rounded-lg flex items-center justify-center text-white text-2xl ${localData?.color || 'bg-gray-500'}`}>
-                      {localData?.icon || '📚'}
+                  <div className="flex items-start justify-between mb-3">
+                    <div className={`w-8 h-8 rounded-md flex items-center justify-center text-white ${localData?.color || 'bg-gray-500'}`}>
+                      {localData?.iconComponent === 'Smartphone' && <Smartphone className="w-4 h-4" />}
+                      {localData?.iconComponent === 'Store' && <Store className="w-4 h-4" />}
+                      {localData?.iconComponent === 'Music' && <Music className="w-4 h-4" />}
+                      {localData?.iconComponent === 'Wrench' && <Wrench className="w-4 h-4" />}
+                      {!localData?.iconComponent && <BookOpen className="w-4 h-4" />}
                     </div>
                     
                     {/* Access Badge */}
@@ -296,36 +309,40 @@ const CoursesIndex: React.FC = () => {
                   </div>
 
                   {/* Course Title */}
-                  <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
+                  <h3 className="text-sm font-bold text-foreground mb-2 leading-tight">
                     {course.title}
                   </h3>
 
                   {/* Course Description */}
-                  <p className="text-gray-600 dark:text-gray-400 text-sm mb-4 line-clamp-2">
+                  <p className="text-muted-foreground text-xs mb-3 line-clamp-2 leading-relaxed">
                     {course.description}
                   </p>
 
                   {/* Course Stats */}
-                  <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mb-4">
-                    <div className="flex items-center gap-1">
-                      <PlayCircle className="w-4 h-4" />
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <div className="w-5 h-5 bg-blue-50 rounded-md flex items-center justify-center flex-shrink-0">
+                        <PlayCircle className="w-3 h-3 text-blue-500" />
+                      </div>
                       <span>{localData?.totalVideos || 0} فيديو</span>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Clock className="w-4 h-4" />
-                      <span>{localData?.totalDuration || 'غير محدد'}</span>
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <div className="w-5 h-5 bg-green-50 rounded-md flex items-center justify-center flex-shrink-0">
+                        <Clock className="w-3 h-3 text-green-500" />
+                      </div>
+                      <span>{localData?.totalDuration || 'غير محدد'} ساعة</span>
                     </div>
                   </div>
 
                   {/* Course Level & Status */}
-                  <div className="flex items-center gap-2 mb-4">
+                  <div className="flex items-center gap-2 mb-3">
                     {localData?.level && (
-                      <Badge className={getLevelColor(localData.level)}>
+                      <Badge className="text-xs px-2 py-1 bg-muted text-muted-foreground border-0">
                         {localData.level}
                       </Badge>
                     )}
                     {localData?.status && (
-                      <Badge className={getStatusColor(localData.status)}>
+                      <Badge className="text-xs px-2 py-1 bg-muted text-muted-foreground border-0">
                         {localData.status}
                       </Badge>
                     )}
@@ -335,7 +352,7 @@ const CoursesIndex: React.FC = () => {
                   <div className="flex gap-2">
                     {course.is_accessible ? (
                       <Button 
-                        className="flex-1"
+                        className="flex-1 text-xs px-3 py-1.5 h-8 bg-blue-500 hover:bg-blue-600"
                         onClick={() => navigate(`/dashboard/courses/${course.slug}`)}
                       >
                         ابدأ الدورة
@@ -343,7 +360,7 @@ const CoursesIndex: React.FC = () => {
                     ) : (
                       <Button 
                         variant="outline" 
-                        className="flex-1"
+                        className="flex-1 text-xs px-3 py-1.5 h-8"
                         disabled
                       >
                         غير متاحة
@@ -353,6 +370,7 @@ const CoursesIndex: React.FC = () => {
                     <Button 
                       variant="outline" 
                       size="sm"
+                      className="text-xs px-3 py-1.5 h-8 border-border text-foreground hover:bg-muted"
                       onClick={() => navigate(`/dashboard/courses/${course.slug}`)}
                     >
                       التفاصيل
@@ -366,12 +384,14 @@ const CoursesIndex: React.FC = () => {
 
         {/* No Courses Message */}
         {filteredCourses.length === 0 && (
-          <div className="text-center py-12">
-            <BookOpen className="w-16 h-16 mx-auto mb-4 text-gray-400" />
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+          <div className="text-center py-8">
+            <div className="w-12 h-12 bg-muted rounded-lg flex items-center justify-center mx-auto mb-3">
+              <BookOpen className="w-6 h-6 text-muted-foreground" />
+            </div>
+            <h3 className="text-base font-semibold text-foreground mb-2">
               لا توجد دورات متاحة
             </h3>
-            <p className="text-gray-600 dark:text-gray-400">
+            <p className="text-sm text-muted-foreground">
               {filter === 'accessible' 
                 ? 'لا توجد دورات متاحة لك حالياً. تأكد من أن اشتراكك نشط.'
                 : 'لا توجد دورات تطابق الفلتر المحدد.'

@@ -259,7 +259,8 @@ const OrdersV2: React.FC = () => {
   // ===============================
   // Pagination handlers
   // ===============================
-  const hasNextPage = currentPage < Math.ceil((totalCount || 0) / (pageSize || 20));
+  const totalPages = Math.ceil((totalCount || 0) / (pageSize || 20));
+  const hasNextPage = currentPage < totalPages;
   const hasPreviousPage = currentPage > 1;
 
   const handlePageChange = useCallback((newPage: number) => {
@@ -350,8 +351,6 @@ const OrdersV2: React.FC = () => {
             shippingProviders={sharedData?.shippingProviders || []}
             onSearchTermChange={(q) => applyFilters({ searchTerm: q })}
             // إعدادات العرض المتجاوب
-            forceViewMode="auto"
-            defaultMobileViewMode="grid"
             autoLoadMoreOnScroll={false}
           />
         </Suspense>

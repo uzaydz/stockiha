@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { z } from 'zod';
 import { ProductColor, ProductSize } from '@/types/product';
-import { getProductSizes, deleteProductSize, createProductSize } from '@/lib/api/productVariants';
+import { getProductSizes } from '@/lib/api/productVariants';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ColorFormDialog from './ColorFormDialog';
@@ -58,7 +58,14 @@ const ProductColorManager: React.FC<ProductColorManagerProps> = ({
   const loadedColorIds = useRef<Set<string>>(new Set());
 
   // إضافة لون جديد
-  const handleAddColor = () => {
+  const handleAddColor = (e?: React.MouseEvent) => {
+    // منع إرسال النموذج إذا تم استدعاء الدالة من زر
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    // افتح النافذة لإضافة لون جديد
     setEditingColor(null);
     setTempSizesForNewColor([]); // إعادة تعيين المقاسات المؤقتة
     setIsDialogOpen(true);
@@ -348,19 +355,13 @@ const ProductColorManager: React.FC<ProductColorManagerProps> = ({
   return (
     <div className="w-full">
       <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "variants" | "sizes")} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-6 h-12">
-          <TabsTrigger 
-            value="variants" 
-            className="text-base font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground"
-          >
+        <TabsList className="grid w-full grid-cols-2 mb-6">
+          <TabsTrigger value="variants">
             الألوان والمتغيرات
           </TabsTrigger>
           <TabsTrigger 
             value="sizes" 
             disabled={!useSizes || colors.length === 0}
-            className={`text-base font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground ${
-              !useSizes || colors.length === 0 ? 'opacity-50 cursor-not-allowed' : ''
-            }`}
           >
             إدارة المقاسات
           </TabsTrigger>

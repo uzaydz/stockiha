@@ -183,29 +183,23 @@ export const DeliveryTypeField: React.FC<DeliveryTypeFieldProps> = ({
   
   // دالة لمعالجة تغيير نوع التوصيل
   const handleDeliveryTypeChange = async (type: string) => {
-    console.log('🚚 DeliveryTypeField: تغيير نوع التوصيل من', selectedDeliveryType, 'إلى', type);
 
     // الحصول على القيم الحالية للولاية والبلدية قبل التحديث
     const provinceValue = provinceField?.value || '';
     const municipalityValue = municipalityField?.value || '';
 
-    console.log('📍 DeliveryTypeField: القيم الحالية - province:', provinceValue, 'municipality:', municipalityValue);
-
     updateDeliveryOption(type);
 
     // إعادة حساب سعر التوصيل باستخدام القيم المحفوظة
     if (provinceValue && municipalityValue) {
-      console.log('🔄 DeliveryTypeField: إعادة حساب سعر التوصيل بالقيم المحفوظة...');
       recalculateAndSetDeliveryPrice(type, provinceValue, municipalityValue);
     } else if (provinceValue) {
-      console.log('🔄 DeliveryTypeField: إعادة حساب سعر التوصيل بالولاية فقط...');
       if (municipalityField && municipalityField.id) {
         await handleProvinceChange(provinceValue, municipalityField.id, type);
       } else {
         recalculateAndSetDeliveryPrice(type, provinceValue, municipalityValue);
       }
     } else {
-      console.log('⚠️ DeliveryTypeField: لا توجد قيمة للولاية، لن يتم إعادة حساب السعر');
     }
   };
   

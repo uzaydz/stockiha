@@ -73,7 +73,6 @@ class SupabaseProtector {
     (window as any).createClient = function(...args: any[]) {
       // السماح فقط للعميل الرئيسي
       if ((window as any).__BAZAAR_MAIN_SUPABASE_CLIENT__) {
-        console.warn('⚠️ [SupabaseProtector] محاولة إنشاء عميل إضافي - إرجاع العميل الرئيسي');
         return (window as any).__BAZAAR_MAIN_SUPABASE_CLIENT__;
       }
 
@@ -151,7 +150,6 @@ class AdvancedSupabaseMonitor {
 
     // تحذير عند وجود أكثر من عميل واحد
     if (this.instances.size > 1 && !this.warningShown) {
-      console.warn('⚠️ [SupabaseMonitor] تم اكتشاف عدة عملاء Supabase - هذا قد يسبب مشاكل');
       this.warningShown = true;
     }
 
@@ -189,7 +187,6 @@ class AdvancedSupabaseMonitor {
           const value = obj[key];
           if (value && value.constructor && value.constructor.name === 'GoTrueClient') {
             goTrueCount++;
-            console.warn(`⚠️ [SupabaseMonitor] GoTrueClient detected at ${path}.${key}`);
           }
         } catch (e) {
           // تجاهل الأخطاء
@@ -200,7 +197,6 @@ class AdvancedSupabaseMonitor {
     checkObject(window);
     
     if (goTrueCount > 1) {
-      console.error('❌ [SupabaseMonitor] تم اكتشاف عدة GoTrueClient instances - هذا خطير!');
     }
   }
 
@@ -281,7 +277,6 @@ try {
   // فحص العميل الموجود
   if (typeof window !== 'undefined' && (window as any).__BAZAAR_MAIN_SUPABASE_CLIENT__) {
     mainClient = (window as any).__BAZAAR_MAIN_SUPABASE_CLIENT__;
-    console.log('✅ [Supabase] استخدام العميل الموجود');
   } else {
     // إنشاء عميل جديد
     mainClient = createOptimizedSupabaseClient();
@@ -291,15 +286,31 @@ try {
       (window as any).__BAZAAR_SUPABASE_CLIENTS_COUNT__ = 1;
     }
     
-    console.log('✅ [Supabase] تم إنشاء العميل الرئيسي بنجاح');
   }
 } catch (error) {
-  console.error('❌ [Supabase] فشل في إنشاء العميل:', error);
   
-  // إنشاء عميل fallback آمن
+  // إنشاء عميل fallback آمن مع جميع الطرق المطلوبة
   mainClient = {
-    from: () => ({
-      select: () => Promise.resolve({ data: [], error: new Error('Supabase غير متاح') }),
+    from: (table: string) => ({
+      select: (columns?: string) => {
+        const queryBuilder = {
+          eq: (column: string, value: any) => {
+            const nestedBuilder = {
+              eq: (column2: string, value2: any) => ({
+                order: (column: string, options?: any) => ({
+                  order: (column2: string, options2?: any) => Promise.resolve({ data: [], error: new Error('Supabase غير متاح') })
+                })
+              }),
+              order: (column: string, options?: any) => Promise.resolve({ data: [], error: new Error('Supabase غير متاح') }),
+              then: (resolve: any) => resolve({ data: [], error: new Error('Supabase غير متاح') })
+            };
+            return nestedBuilder;
+          },
+          order: (column: string, options?: any) => Promise.resolve({ data: [], error: new Error('Supabase غير متاح') }),
+          then: (resolve: any) => resolve({ data: [], error: new Error('Supabase غير متاح') })
+        };
+        return queryBuilder;
+      },
       insert: () => Promise.resolve({ data: null, error: new Error('Supabase غير متاح') }),
       update: () => Promise.resolve({ data: null, error: new Error('Supabase غير متاح') }),
       delete: () => Promise.resolve({ data: null, error: new Error('Supabase غير متاح') }),
@@ -347,7 +358,6 @@ export const cleanupSupabaseClients = (): void => {
         }
       } catch (error) {
         if (process.env.NODE_ENV === 'development') {
-          console.warn('⚠️ [Supabase] خطأ في إغلاق WebSocket:', error);
         }
       }
     }
@@ -359,17 +369,14 @@ export const cleanupSupabaseClients = (): void => {
         delete (window as any).__BAZAAR_SUPABASE_CLIENTS_COUNT__;
       } catch (error) {
         if (process.env.NODE_ENV === 'development') {
-          console.warn('⚠️ [Supabase] خطأ في حذف المراجع العالمية:', error);
         }
       }
     }
     
     if (process.env.NODE_ENV === 'development') {
-      console.log('✅ [Supabase] تم تنظيف جميع العملاء بنجاح');
     }
   } catch (error) {
     if (process.env.NODE_ENV === 'development') {
-      console.error('❌ [Supabase] خطأ في التنظيف:', error);
     }
   }
 };

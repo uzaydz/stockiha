@@ -328,12 +328,12 @@ import OptimizedImage from '@/components/ui/optimized-image';
 
 ### 3. **Service Worker** (اختياري):
 ```typescript
-// تسجيل service worker لتحسين التخزين المؤقت
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js');
-  });
-}
+// Service Worker تم حذفه مؤقتاً لأنه كان يسبب مشاكل في الأداء
+// if ('serviceWorker' in navigator) {
+//   window.addEventListener('load', () => {
+//     navigator.serviceWorker.register('/sw.js');
+//   });
+// }
 ```
 
 ## 🔍 مراقبة الأداء

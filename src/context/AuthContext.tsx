@@ -36,7 +36,6 @@ import { useAuthSession } from './auth/hooks/useAuthSession';
 import { useUserProfile } from './auth/hooks/useUserProfile';
 import { useUserOrganization } from './auth/hooks/useUserOrganization';
 
-
 // استيراد المساعدات
 import { 
   loadAuthFromStorage, 
@@ -95,24 +94,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // مراقبة تغيير المؤسسة وتحديث authReady - محسن لإرسال الحدث مرة واحدة فقط
   useEffect(() => {
     if (process.env.NODE_ENV === 'development') {
-      console.log('🔍 [AuthContext] مراقبة المؤسسة:', {
-        hasOrganization: !!organization,
-        hasUserProfile: !!userProfile,
-        isLoadingProfile,
-        isLoadingOrganization,
-        profileLoading,
-        orgLoading,
-        dataLoadingComplete,
-        authReady,
-        organizationName: organization?.name
-      });
     }
 
     // تحديث authReady عندما تكون البيانات جاهزة - إرسال الحدث مرة واحدة فقط
     if (userProfile && organization && !profileLoading && !isLoadingProfile && !dataLoadingComplete && !authReady) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('🎉 [AuthContext] البيانات الكاملة جاهزة - تعيين authReady إلى true');
-        console.log('📢 [AuthContext] إرسال حدث authOrganizationReady لـ TenantContext:', organization?.name);
       }
       setDataLoadingComplete(true);
       setAuthReady(true);
@@ -140,7 +126,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (userProfile && !profileLoading && isLoadingProfile) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('👤 [AuthContext] تم تحميل الملف الشخصي:', userProfile.email);
       }
       setProfileLoaded(true);
       setIsLoadingProfile(false);
@@ -170,7 +155,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const handleOrganizationLoaded = (event: CustomEvent) => {
       const { organization: loadedOrg } = event.detail;
       if (process.env.NODE_ENV === 'development') {
-        console.log('🏢 [AuthContext] استلام حدث organizationLoaded من useUserOrganization:', loadedOrg?.name);
       }
       setOrganizationLoaded(true);
       setIsLoadingOrganization(false);
@@ -184,7 +168,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       window.removeEventListener('organizationLoaded', handleOrganizationLoaded as EventListener);
     };
   }, []); // إزالة التبعيات لتجنب إعادة إنشاء المستمع
-
 
   // مراجع للتحكم في دورة الحياة ومنع التكرار
   const initializedRef = useRef(false);
@@ -233,7 +216,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // منع معالجة متزامنة
     if (isProcessingToken) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('⚠️ [AuthContext] تجاهل تحديث - معالجة قيد التشغيل');
       }
       return;
     }
@@ -254,9 +236,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       (newSession && session && newSession.access_token !== session.access_token) ||
       (!newUser && user) || (!newSession && session);
 
-    if (!isImportantUpdate && timeSinceLastUpdate < 200) {
+    if (!isImportantUpdate && timeSinceLastUpdate < 500) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('⚠️ [AuthContext] تجاهل تحديث غير مهم - debouncing');
       }
       return;
     }
@@ -312,11 +293,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const startTime = performance.now();
 
     if (process.env.NODE_ENV === 'development') {
-      console.log('⚡ [AuthContext] forceUpdateAuthState:', {
-        hasSession: !!newSession,
-        hasUser: !!newUser,
-        clearAll
-      });
     }
 
     setIsProcessingToken(true);
@@ -429,7 +405,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           } catch (error) {
             if (process.env.NODE_ENV === 'development') {
-              console.warn('⚠️ [AuthContext] فشل في التحقق من الجلسة:', error);
             }
           }
         }, 2000); // زيادة من 1000ms إلى 2000ms
@@ -439,7 +414,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // إذا كانت صفحة منتج عامة، نتجاوز أي انتظار طويل ونعلن عدم وجود مستخدم بسرعة
         if ((window as any).__PUBLIC_PRODUCT_PAGE__) {
           if (process.env.NODE_ENV === 'development') {
-            console.log('[AuthContext] public-product: skip server session fetch');
           }
           setUser(null);
           setSession(null);
@@ -453,7 +427,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // ⚡ لا توجد بيانات محفوظة - فحص سريع من sessionManager
         // نتحقق من المستخدم أولاً قبل الإعلان عن عدم وجود مستخدم
         if (process.env.NODE_ENV === 'development') {
-          console.log('⚡ [AuthContext] فحص سريع لوجود مستخدم في sessionManager...');
         }
         
         // فحص سريع (بدون انتظار طويل)
@@ -476,7 +449,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               cacheUser(currentUser.id, currentUser);
               
               if (process.env.NODE_ENV === 'development') {
-                console.log('✅ [AuthContext] تم العثور على مستخدم:', currentUser.email);
               }
               
               // جلب الجلسة أيضاً - مع cache
@@ -503,7 +475,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           } catch (error) {
             if (process.env.NODE_ENV === 'development') {
-              console.warn('⚠️ [AuthContext] فشل في فحص المستخدم:', error);
             }
             
             setUser(null);
@@ -520,7 +491,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('❌ [AuthContext] خطأ في التهيئة:', error);
       }
       
       setUser(null);
@@ -542,7 +512,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     if (result.success) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('✅ [AuthContext] تسجيل دخول ناجح - بدء تحميل البيانات الكاملة');
       }
 
       try {
@@ -559,8 +528,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setHasInitialSessionCheck(true);
 
           if (process.env.NODE_ENV === 'development') {
-            console.log('✅ [AuthContext] تم تحديث المستخدم والجلسة:', userResult.user.email);
-            console.log('🔄 [AuthContext] بدء تحميل البيانات الكاملة...');
           }
 
           // انتظار تحميل جميع البيانات قبل إرجاع النتيجة
@@ -573,7 +540,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             setDataLoadingComplete(false);
 
             if (process.env.NODE_ENV === 'development') {
-              console.log('🔄 [AuthContext] بدء تحميل البيانات المطلوبة...');
             }
 
             // تحميل البيانات بالتوازي لتوفير الوقت
@@ -593,13 +559,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             ]);
 
             if (process.env.NODE_ENV === 'development') {
-              console.log('✅ [AuthContext] تم تحميل الملف الشخصي والمؤسسة');
-              console.log('🔄 [AuthContext] في انتظار تحديث المؤسسة في الـ hooks...');
             }
 
           } catch (dataError) {
             if (process.env.NODE_ENV === 'development') {
-              console.warn('⚠️ [AuthContext] خطأ في تحميل البيانات الإضافية:', dataError);
             }
             // حتى لو فشل تحميل البيانات الإضافية، نقوم بتنظيف حالة التحميل
             setIsLoadingProfile(false);
@@ -609,13 +572,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         } else {
           if (process.env.NODE_ENV === 'development') {
-            console.error('❌ [AuthContext] فشل في الحصول على المستخدم:', userResult.error);
           }
           // في حالة فشل الحصول على المستخدم، لا نضع authReady
         }
       } catch (error) {
         if (process.env.NODE_ENV === 'development') {
-          console.error('❌ [AuthContext] خطأ في تحديث البيانات:', error);
         }
         // في حالة الخطأ، لا نضع authReady
       }
@@ -649,7 +610,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setDataLoadingComplete(false);
 
     if (process.env.NODE_ENV === 'development') {
-      console.log('✅ [AuthContext] تم تسجيل الخروج وتنظيف الحالة');
     }
   }, []);
 
@@ -670,7 +630,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       trackPerformance('refreshData', startTime);
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
-        console.error('❌ [AuthContext] خطأ في تحديث البيانات:', error);
       }
     }
   }, [isLoading, isProcessingToken, refetchProfile, refetchOrganization]);
@@ -693,7 +652,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await initPromise;
       } catch (error) {
         if (process.env.NODE_ENV === 'development') {
-          console.error('❌ [AuthContext] خطأ في التهيئة:', error);
         }
       } finally {
         initPromise = null;
@@ -723,7 +681,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSession(currentSession);
       
       if (process.env.NODE_ENV === 'development') {
-        console.log('🔄 [AuthContext] تم تحديث الجلسة من المراقب الموحد');
       }
     }
   }, [session?.access_token]); // ✅ تقليل التبعيات
@@ -734,16 +691,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const currentOrgId = (window as any).__CURRENT_ORG_ID__;
     if (organization?.id && organization.id !== currentOrgId) {
-      // debounce للتحديثات السريعة - زيادة من 100ms إلى 500ms
+      // debounce محسّن للتحديثات - زيادة من 500ms إلى 2000ms لمنع التحديثات المتكررة
       const timeoutId = setTimeout(() => {
         setCurrentOrganizationId(organization.id);
         (window as any).__CURRENT_ORG_ID__ = organization.id;
         // تخزين كامل بيانات المؤسسة للاستخدام من قبل دوال أخرى
         (window as any).__AUTH_CONTEXT_ORG__ = organization;
         if (process.env.NODE_ENV === 'development') {
-          console.log('🔄 [AuthContext] تحديث window object بمعرف المؤسسة:', organization.id);
         }
-      }, 500);
+      }, 2000); // زيادة التأخير لمنع التحديثات المتكررة
 
       return () => clearTimeout(timeoutId);
     }
@@ -763,7 +719,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           userDataManager.cleanExpiredCache();
         } catch (error) {
           if (process.env.NODE_ENV === 'development') {
-            console.warn('⚠️ [AuthContext] خطأ في تنظيف Cache:', error);
           }
         }
       }, 15 * 60 * 1000); // ✅ زيادة من 10 دقائق إلى 15 دقيقة
@@ -854,8 +809,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     forceUpdateAuthState, // إضافة للتبعيات
     initializeFromStorage
   ]);
-
-
 
   return (
     <AuthContext.Provider value={value}>

@@ -33,7 +33,6 @@ const ErrorScreen: React.FC<{ onRetry: () => void }> = ({ onRetry }) => (
 );
 
 const AppWrapper: React.FC<AppWrapperProps> = ({ children }) => {
-  console.log('🚀 AppWrapper: بدء التهيئة');
   
   const [isReady, setIsReady] = useState(false);
   const [hasError, setHasError] = useState(false);
@@ -51,22 +50,14 @@ const AppWrapper: React.FC<AppWrapperProps> = ({ children }) => {
 
   // 🔥 دالة محسنة لتهيئة البيانات
   const initializeData = async (isRetry = false, forceOrgId?: string) => {
-    console.log('🔍 AppWrapper: بدء تهيئة البيانات', {
-      isRetry,
-      retryCount: retryCountRef.current,
-      organizationId: forceOrgId || organizationId,
-      isInitializing
-    });
 
     // منع التشغيل المتكرر
     if (isInitializing && !forceOrgId) {
-      console.log('⏭️ AppWrapper: التهيئة قيد التشغيل بالفعل');
       return;
     }
 
     // منع التشغيل المتوازي
     if (initializationPromiseRef.current) {
-      console.log('⏭️ AppWrapper: التهيئة قيد التشغيل بالفعل (promise)');
       return initializationPromiseRef.current;
     }
 
@@ -85,11 +76,8 @@ const AppWrapper: React.FC<AppWrapperProps> = ({ children }) => {
         const hostname = window.location.hostname;
         const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.includes('localhost');
 
-        console.log('🔍 AppWrapper: معلومات النطاق', { hostname, isLocalhost });
-
         // ⚡ تحسين: تسريع localhost - متابعة فورية
         if (isLocalhost) {
-          console.log('🏠 AppWrapper: localhost - متابعة فورية');
           setIsReady(true);
           return;
         }
@@ -97,44 +85,35 @@ const AppWrapper: React.FC<AppWrapperProps> = ({ children }) => {
         // ⚡ تحسين: متابعة فورية إذا كان organizationId متاحاً
         const currentOrgId = forceOrgId || organizationId;
         if (currentOrgId) {
-          console.log('🏢 AppWrapper: معرف المؤسسة متاح - متابعة فورية:', currentOrgId);
           setIsReady(true);
           return;
         }
 
         // 🔥 محاولة استخدام initializeApp إذا كان organizationId متاحاً
         if (currentOrgId) {
-          console.log('🏢 AppWrapper: نطاق أساسي للمنصة - تطبيق initializeApp:', currentOrgId);
           
           // محاولة الحصول على البيانات المحفوظة أولاً
           const existingData = getAppInitData();
           if (existingData && isAppInitDataValid()) {
-            console.log('✅ AppWrapper: استخدام البيانات المحفوظة');
             setIsReady(true);
             return;
           }
           
           // جلب البيانات الجديدة باستخدام organizationId
-          console.log('🔄 AppWrapper: جلب بيانات جديدة من initializeApp');
           const data = await initializeApp(currentOrgId);
           
           if (data) {
-            console.log('✅ AppWrapper: تم جلب البيانات بنجاح:', data.organization.id);
             setIsReady(true);
             return;
           } else {
-            console.log('⚠️ AppWrapper: لم يتم العثور على بيانات المؤسسة');
           }
         } else {
-          console.log('⏳ AppWrapper: انتظار organizationId...');
         }
         
         // إذا لم نتمكن من جلب البيانات، نتابع مع البيانات الأساسية
-        console.log('🔄 AppWrapper: متابعة مع البيانات الأساسية');
         setIsReady(true);
 
       } catch (error) {
-        console.error('❌ AppWrapper: خطأ في تهيئة البيانات', error);
         
         if (mountedRef.current) {
           const hostname = window.location.hostname;
@@ -143,10 +122,8 @@ const AppWrapper: React.FC<AppWrapperProps> = ({ children }) => {
           const isPlatformDomain = platformDomains.includes(hostname);
           
           if (isPlatformDomain) {
-            console.log('❌ AppWrapper: عرض خطأ للنطاق الأساسي');
             setHasError(true);
           } else {
-            console.log('⚠️ AppWrapper: تجاهل الخطأ للنطاق المخصص/المحلي');
             setIsReady(true);
           }
         }
@@ -160,7 +137,6 @@ const AppWrapper: React.FC<AppWrapperProps> = ({ children }) => {
   };
 
   const handleRetry = () => {
-    console.log('🔄 AppWrapper: إعادة المحاولة');
     retryCountRef.current = 0;
     setIsReady(false);
     setHasError(false);
@@ -169,14 +145,12 @@ const AppWrapper: React.FC<AppWrapperProps> = ({ children }) => {
 
   // 🔥 useEffect محسن للتهيئة الأولية
   useEffect(() => {
-    console.log('🔧 AppWrapper: useEffect mount');
     mountedRef.current = true;
 
     // تشغيل التهيئة الأولية
     initializeData();
 
     return () => {
-      console.log('🔧 AppWrapper: useEffect cleanup');
       mountedRef.current = false;
     };
   }, []); // فقط عند mount الأول
@@ -185,32 +159,27 @@ const AppWrapper: React.FC<AppWrapperProps> = ({ children }) => {
   useEffect(() => {
     // ⚡ تحسين: إذا كان organizationId متاحاً، تعيين setIsReady فوراً
     if (organizationId && !isReady) {
-      console.log('🔧 AppWrapper: organizationId متاح، تعيين setIsReady فوراً:', organizationId);
       setIsReady(true);
       return;
     }
 
     // إذا لم يكن organizationId متاحاً، تشغيل التهيئة
     if (!organizationId && !isReady && !isInitializing) {
-      console.log('🔧 AppWrapper: organizationId غير متاح، تشغيل التهيئة العامة');
       initializeData();
     }
   }, [organizationId, isReady, isInitializing]);
 
   // شاشة الخطأ
   if (hasError) {
-    console.log('❌ AppWrapper: عرض شاشة الخطأ');
     return <ErrorScreen onRetry={handleRetry} />;
   }
 
   // شاشة التحميل - يتم التعامل معها بواسطة النظام المركزي
   if (!isReady) {
-    console.log('⏳ AppWrapper: انتظار جاهزية البيانات');
     return null; // النظام المركزي سيعرض مؤشر التحميل
   }
 
   // عرض المحتوى
-  console.log('✅ AppWrapper: عرض المحتوى - البيانات جاهزة');
   return <>{children}</>;
 };
 

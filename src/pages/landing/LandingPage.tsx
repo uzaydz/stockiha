@@ -2,7 +2,7 @@ import { useEffect, Suspense, lazy, memo } from 'react';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
 import Footer from '@/components/landing/Footer';
-import SimpleHeroSection from '@/components/landing/SimpleHeroSection';
+import HeroSection from '@/components/landing/HeroSection';
 import FeaturesSection from '@/components/landing/FeaturesSection';
 import Navbar from '@/components/landing/Navbar';
 import '@/styles/landing-background.css';
@@ -13,9 +13,6 @@ const AllInOneSection = lazy(() =>
 );
 const TestimonialsSection = lazy(() => 
   import('@/components/landing/TestimonialsSection').then(module => ({ default: module.default }))
-);
-const CoursesSection = lazy(() => 
-  import('@/components/landing/CoursesSection').then(module => ({ default: module.default }))
 );
 const CTASection = lazy(() => 
   import('@/components/landing/CTASection').then(module => ({ default: module.default }))
@@ -48,7 +45,7 @@ const LandingPage = memo(() => {
 
   return (
     <div className="relative flex flex-col min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 font-[Tajawal] antialiased scroll-smooth transform-gpu">
-      {/* خلفية مطابقة لـ SimpleHeroSection */}
+      {/* خلفية مطابقة لـ HeroSection */}
       <div className="absolute inset-0 -z-10 pointer-events-none">
         {/* تأثيرات خلفية متدرجة ومتحركة */}
         <motion.div
@@ -211,9 +208,9 @@ const LandingPage = memo(() => {
       <div className="landing-section-content">
         <Navbar />
         
-        <main className="flex-1 transform-gpu">
+        <main className="flex-1 transform-gpu pt-16">
           {/* المحتوى الأساسي - يحمل فوراً */}
-          <SimpleHeroSection />
+          <HeroSection />
           <FeaturesSection />
           
           {/* المكونات الثانوية - تحميل كسول */}
@@ -223,10 +220,6 @@ const LandingPage = memo(() => {
           
           <Suspense fallback={<SectionSkeleton />}>
             <TestimonialsSection />
-          </Suspense>
-          
-          <Suspense fallback={<SectionSkeleton />}>
-            <CoursesSection />
           </Suspense>
           
           <Suspense fallback={<SectionSkeleton />}>

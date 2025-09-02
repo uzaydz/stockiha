@@ -19,7 +19,7 @@ import { useProductFormEventHandlers } from '@/hooks/product/useProductFormEvent
 import Layout from '@/components/Layout';
 import ProductFormTabs from '@/components/product/form/ProductFormTabs';
 import ProductFormHeader from '@/components/product/form/ProductFormHeader';
-import ProductFormSidebar from '@/components/product/form/ProductFormSidebar';
+
 import ProductFormActions from '@/components/product/form/ProductFormActions';
 import ProductFormMobileActions from '@/components/product/form/ProductFormMobileActions';
 import ProductFormMobileStatus from '@/components/product/form/ProductFormMobileStatus';
@@ -258,6 +258,19 @@ const ProductForm = () => {
     await submitForm(data);
   };
 
+  // Handler for adding colors (opens dialog instead of creating directly)
+  const handleAddColor = (e?: React.MouseEvent) => {
+    // منع إرسال النموذج إذا تم استدعاء الدالة من زر
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+
+    // لا نحتاج لإنشاء اللون هنا - سيتم إنشاؤه في ColorFormDialog
+    // فقط نحتاج لفتح النافذة من خلال ProductColorManager
+    // هذا سيتم التعامل معه في ProductColorManager
+  };
+
   // Loading states
   if (isCheckingPermission) {
     return <ProductFormLoadingState message="جاري التحقق من الصلاحيات..." />;
@@ -294,13 +307,15 @@ const ProductForm = () => {
           onSubmit={(e) => {
             e.preventDefault();
             const currentOrgIdInFormState = form.getValues('organization_id');
-            
+
             if (!currentOrgIdInFormState && organizationIdFromTenant) {
-              form.setValue('organization_id', organizationIdFromTenant, { 
-                shouldValidate: false, 
-                shouldDirty: false 
+              form.setValue('organization_id', organizationIdFromTenant, {
+                shouldValidate: false,
+                shouldDirty: false
               });
             }
+            // Set manual submit flag for both desktop and mobile versions
+            setIsManualSubmit(true);
             form.handleSubmit(onSubmit, handleFormError)(e);
           }}
           className="min-h-screen bg-muted/30"
@@ -338,22 +353,9 @@ const ProductForm = () => {
             />
 
             {/* Responsive Grid Layout */}
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-              {/* Quick Info Sidebar - Hidden on mobile */}
-              <ProductFormSidebar
-                form={form}
-                isEditMode={isEditMode}
-                productId={productId}
-                thumbnailImage={watchThumbnailImage}
-                progress={progress}
-                isDirty={isDirty}
-                isValid={isValid}
-                autoSaveDrafts={autoSaveDrafts}
-                onAutoSaveChange={setAutoSaveDrafts}
-              />
-
-              {/* Main Form Content - Full width on mobile, 3/4 on desktop */}
-              <div className="col-span-1 lg:col-span-3 space-y-6 pb-24 lg:pb-6">
+            <div className="grid grid-cols-1 gap-6">
+              {/* Main Form Content - Full width */}
+              <div className="col-span-1 space-y-6 pb-24 lg:pb-6">
                 <ProductFormTabs
                   form={form}
                   organizationId={organizationIdFromTenant}
@@ -378,6 +380,7 @@ const ProductForm = () => {
                   onHasVariantsChange={handleHasVariantsChange}
                   onUseVariantPricesChange={handleUseVariantPricesChange}
                   onUseSizesChange={handleUseSizesChange}
+                  onAddColor={handleAddColor}
                 />
               </div>
             </div>
@@ -392,7 +395,12 @@ const ProductForm = () => {
             permissionWarning={permissionWarning}
             isEditMode={isEditMode}
             onSubmit={() => {
-              setIsManualSubmit(true);
+              // Trigger form submission programmatically for desktop
+              const formElement = document.getElementById('product-form') as HTMLFormElement;
+              if (formElement) {
+                const submitEvent = new Event('submit', { cancelable: true, bubbles: true });
+                formElement.dispatchEvent(submitEvent);
+              }
             }}
             onCancel={() => navigate('/dashboard/products')}
             disabled={!form.getValues('organization_id') && !organizationIdFromTenant}
@@ -408,7 +416,12 @@ const ProductForm = () => {
         disabled={!form.getValues('organization_id') && !organizationIdFromTenant}
         permissionWarning={permissionWarning}
         onSubmit={() => {
-          setIsManualSubmit(true);
+          // Trigger form submission programmatically
+          const formElement = document.getElementById('product-form') as HTMLFormElement;
+          if (formElement) {
+            const submitEvent = new Event('submit', { cancelable: true, bubbles: true });
+            formElement.dispatchEvent(submitEvent);
+          }
         }}
         onCancel={() => navigate('/dashboard/products')}
       />

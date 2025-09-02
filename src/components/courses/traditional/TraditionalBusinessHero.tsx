@@ -12,125 +12,129 @@ const TraditionalBusinessHero: React.FC = () => {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 mb-6">
-      <div className="text-center">
-        <div className="inline-flex items-center gap-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-full px-3 py-1 mb-4">
-          <Gift className="w-4 h-4 text-green-600 dark:text-green-400" />
-          <span className="text-sm text-green-700 dark:text-green-300 font-medium">دورة مجانية</span>
+    <div className="bg-card border border-border rounded-lg p-6 mb-6">
+      <div className="text-center max-w-4xl mx-auto">
+        {/* Free Badge */}
+        <div className="inline-flex items-center gap-1.5 bg-green-50 border border-green-200 rounded-md px-3 py-1.5 mb-4">
+          <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+          <span className="text-xs text-green-700 font-medium">دورة مجانية تماماً</span>
+          <Gift className="w-3.5 h-3.5 text-green-600" />
         </div>
-        
-        {/* Traditional to Digital Transformation Visual */}
-        <div className="flex justify-center items-center gap-4 mb-6">
-          <div className="bg-orange-100 dark:bg-orange-900/20 p-4 rounded-xl">
-            <Store className="w-10 h-10 text-orange-600 dark:text-orange-400" />
+
+        {/* Logo */}
+        <div className="flex justify-center items-center gap-3 mb-4">
+          <div className="w-10 h-10 bg-orange-50 rounded-lg flex items-center justify-center">
+            <Store className="w-6 h-6 text-orange-600" />
           </div>
-          <ArrowRight className="w-6 h-6 text-gray-400" />
-          <div className="text-3xl font-bold text-primary">سطوكيها</div>
-          <ArrowRight className="w-6 h-6 text-gray-400" />
-          <div className="bg-blue-100 dark:bg-blue-900/20 p-4 rounded-xl">
-            <Monitor className="w-10 h-10 text-blue-600 dark:text-blue-400" />
+          <div className="text-xl font-bold text-orange-600">
+            سطوكيها
           </div>
         </div>
 
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">
+        {/* Title */}
+        <h1 className="text-xl md:text-2xl font-bold text-foreground mb-3 leading-tight">
           {traditionalBusinessCourseData.title}
         </h1>
-        <p className="text-gray-600 dark:text-gray-300 mb-6 max-w-3xl mx-auto text-lg">
+
+        {/* Subtitle */}
+        <p className="text-sm text-muted-foreground mb-6 max-w-2xl mx-auto">
+          التحول من التجارة التقليدية للرقمية
+        </p>
+
+        {/* Description */}
+        <p className="text-sm text-muted-foreground mb-6 leading-relaxed max-w-2xl mx-auto">
           {traditionalBusinessCourseData.description}
         </p>
 
         {/* Target Audience */}
         <div className="flex flex-wrap justify-center gap-2 mb-6">
           {traditionalBusinessCourseData.targetAudience.map((audience, index) => (
-            <span key={index} className="inline-flex items-center gap-1 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 px-3 py-1 rounded-full text-sm">
-              <Users className="w-3 h-3" />
+            <div key={index} className="inline-flex items-center gap-1.5 bg-muted text-muted-foreground px-3 py-1.5 rounded-md text-xs font-medium">
+              <Users className="w-3.5 h-3.5 text-orange-500" />
               {audience}
-            </span>
+            </div>
           ))}
         </div>
 
-        {/* Course Stats */}
+        {/* Quick Stats */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6 max-w-lg mx-auto">
           <div className="text-center">
-            <div className="text-2xl font-bold text-primary mb-1">
-              {traditionalBusinessCourseData.totalVideos}
+            <div className="w-8 h-8 bg-orange-50 rounded-md flex items-center justify-center mx-auto mb-1.5">
+              <PlayCircle className="w-4 h-4 text-orange-500" />
             </div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">فيديو</div>
+            <div className="text-lg font-bold text-foreground">{traditionalBusinessCourseData.totalVideos}</div>
+            <div className="text-xs text-muted-foreground">فيديو</div>
           </div>
           <div className="text-center">
-            <div className="text-2xl font-bold text-primary mb-1">
-              {traditionalBusinessCourseData.totalDuration}
+            <div className="w-8 h-8 bg-blue-50 rounded-md flex items-center justify-center mx-auto mb-1.5">
+              <Monitor className="w-4 h-4 text-blue-500" />
             </div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">من المحتوى</div>
+            <div className="text-lg font-bold text-foreground">{traditionalBusinessCourseData.totalDuration}</div>
+            <div className="text-xs text-muted-foreground">محتوى</div>
           </div>
           <div className="text-center md:col-span-1 col-span-2">
-            <div className="text-2xl font-bold text-primary mb-1">
-              {traditionalBusinessCourseData.modules.length}
+            <div className="w-8 h-8 bg-green-50 rounded-md flex items-center justify-center mx-auto mb-1.5">
+              <BarChart3 className="w-4 h-4 text-green-500" />
             </div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">محور</div>
+            <div className="text-lg font-bold text-foreground">{traditionalBusinessCourseData.modules.length}</div>
+            <div className="text-xs text-muted-foreground">محور</div>
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row gap-3 justify-center items-center mb-6">
+        {/* CTA Buttons */}
+        <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
           <Button
             onClick={handleStartCourse}
-            className="bg-gradient-to-r from-orange-600 to-blue-600 hover:from-orange-700 hover:to-blue-700 text-white px-8 py-3 text-lg"
+            className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-2.5 text-sm font-semibold rounded-md"
           >
-            <PlayCircle className="w-5 h-5 mr-2" />
+            <PlayCircle className="w-4 h-4 mr-1.5" />
             ابدأ رحلة التحول الرقمي
           </Button>
-          <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400">
-            <GraduationCap className="w-5 h-5" />
-            <span className="text-sm">مخصصة للتجار التقليديين</span>
-          </div>
+
+          <Button
+            variant="outline"
+            className="border-border text-foreground hover:bg-muted px-5 py-2.5 text-sm font-semibold rounded-md"
+          >
+            <GraduationCap className="w-4 h-4 mr-1.5" />
+            مخصصة للتجار التقليديين
+          </Button>
         </div>
 
-        {/* Key Transformation Steps */}
-        <div className="bg-gradient-to-r from-orange-50 to-blue-50 dark:from-orange-900/20 dark:to-blue-900/20 rounded-xl p-6 border border-orange-200 dark:border-orange-800">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            رحلة التحول من التقليدي إلى الرقمي
+        {/* Key Features */}
+        <div className="mt-6 bg-muted rounded-md p-4">
+          <h3 className="text-sm font-semibold text-foreground mb-3 flex items-center justify-center gap-2">
+            <Store className="w-4 h-4 text-orange-500" />
+            مميزات التحول الرقمي
           </h3>
-          <div className="grid md:grid-cols-3 gap-4 text-sm">
-            <div className="flex items-center gap-3">
-              <div className="bg-orange-100 dark:bg-orange-900/30 p-2 rounded-lg">
-                <CreditCard className="w-5 h-5 text-orange-600 dark:text-orange-400" />
+          <div className="grid md:grid-cols-3 gap-3 text-xs">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 bg-orange-50 rounded-md flex items-center justify-center flex-shrink-0">
+                <CreditCard className="w-3.5 h-3.5 text-orange-600" />
               </div>
               <div>
-                <div className="font-medium text-gray-900 dark:text-white">نقطة البيع POS</div>
-                <div className="text-gray-600 dark:text-gray-300">كاشير ذكي متطور</div>
+                <div className="font-medium text-foreground">نقطة البيع POS</div>
+                <div className="text-muted-foreground">كاشير ذكي متطور</div>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-lg">
-                <Package className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 bg-blue-50 rounded-md flex items-center justify-center flex-shrink-0">
+                <Package className="w-3.5 h-3.5 text-blue-600" />
               </div>
               <div>
-                <div className="font-medium text-gray-900 dark:text-white">إدارة المخزون</div>
-                <div className="text-gray-600 dark:text-gray-300">تزامن تلقائي</div>
+                <div className="font-medium text-foreground">إدارة المخزون</div>
+                <div className="text-muted-foreground">تزامن تلقائي</div>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <div className="bg-green-100 dark:bg-green-900/30 p-2 rounded-lg">
-                <BarChart3 className="w-5 h-5 text-green-600 dark:text-green-400" />
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 bg-green-50 rounded-md flex items-center justify-center flex-shrink-0">
+                <BarChart3 className="w-3.5 h-3.5 text-green-600" />
               </div>
               <div>
-                <div className="font-medium text-gray-900 dark:text-white">المحاسبة الذكية</div>
-                <div className="text-gray-600 dark:text-gray-300">تقارير تلقائية</div>
+                <div className="font-medium text-foreground">المحاسبة الذكية</div>
+                <div className="text-muted-foreground">تقارير تلقائية</div>
               </div>
             </div>
           </div>
-        </div>
-
-        {/* Stockiha Special Features */}
-        <div className="mt-6 p-4 bg-gradient-to-r from-blue-600 to-orange-600 text-white rounded-lg">
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <Store className="w-5 h-5" />
-            <span className="font-bold">مميزات سطوكيها للتجار</span>
-          </div>
-          <p className="text-sm opacity-90">
-            منصة متكاملة تربط بين متجرك التقليدي والإلكتروني مع تزامن فوري للمخزون والمبيعات
-          </p>
         </div>
       </div>
     </div>

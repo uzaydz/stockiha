@@ -66,14 +66,11 @@ class EarlyPreloader {
         };
       }
 
-      console.log(`🔍 [earlyPreload] بدء preload للنطاق: ${storeIdentifier} (النوع: ${domainType})`);
-
       // استدعاء API مباشرة بدون dependencies
       const response = await this.callStoreInitAPI(storeIdentifier, domainType);
       const executionTime = performance.now() - startTime;
 
       if (response.success) {
-        console.log(`✅ [earlyPreload] اكتمل preload للنطاق: ${storeIdentifier} في ${executionTime.toFixed(2)}ms`);
         
         // حفظ البيانات في localStorage مؤقتاً
         try {
@@ -93,11 +90,9 @@ class EarlyPreloader {
           // حفظ معرف المؤسسة في localStorage للمراجعة السريعة
           if (response.data?.organization_details?.id) {
             localStorage.setItem('bazaar_organization_id', response.data.organization_details.id);
-            console.log(`✅ [earlyPreload] تم حفظ معرف المؤسسة: ${response.data.organization_details.id}`);
           }
 
         } catch (e) {
-          console.warn('⚠️ [earlyPreload] فشل في حفظ البيانات في localStorage:', e);
         }
 
         // إرسال حدث للإعلام عن اكتمال التحميل المبكر
@@ -118,7 +113,6 @@ class EarlyPreloader {
           domainType
         };
       } else {
-        console.warn(`⚠️ [earlyPreload] فشل preload للنطاق: ${storeIdentifier} - ${response.error}`);
         return {
           success: false,
           error: response.error,
@@ -129,7 +123,6 @@ class EarlyPreloader {
       }
     } catch (error: any) {
       const executionTime = performance.now() - startTime;
-      console.error('❌ [earlyPreload] خطأ في preload:', error);
       return {
         success: false,
         error: error?.message || 'Unknown error',
@@ -150,17 +143,8 @@ class EarlyPreloader {
       const isLocalhost = hostname.includes('localhost') || hostname.startsWith('127.');
       const isCustomDomain = !isLocalhost && !isBaseDomain;
 
-      console.log('🔍 [earlyPreload] تحليل النطاق الحالي:', {
-        hostname,
-        isLocalhost,
-        isBaseDomain,
-        isCustomDomain,
-        baseDomains
-      });
-
       // 🔥 إصلاح: للنطاقات المخصصة، نستخدم النطاق الكامل مباشرة
       if (isCustomDomain) {
-        console.log('🔍 [earlyPreload] نطاق مخصص - استخدام النطاق الكامل:', hostname);
         return { storeIdentifier: hostname, domainType: 'custom-domain' };
       }
 
@@ -176,7 +160,6 @@ class EarlyPreloader {
             .replace(/^-+|-+$/g, '')
             .replace(/-+/g, '-');
 
-          console.log('🔍 [earlyPreload] نطاق أساسي مع subdomain:', cleanSubdomain);
           return { storeIdentifier: cleanSubdomain, domainType: 'subdomain' };
         }
       }
@@ -186,7 +169,6 @@ class EarlyPreloader {
         if (hostname.includes('localhost')) {
           const subdomain = hostname.split('.')[0];
           if (subdomain && subdomain !== 'localhost') {
-            console.log('🔍 [earlyPreload] نطاق محلي مع subdomain:', subdomain);
             return { storeIdentifier: subdomain, domainType: 'subdomain' };
           }
         }
@@ -196,11 +178,9 @@ class EarlyPreloader {
       // 🔥 fallback: استخدام النطاق المخزن في localStorage فقط إذا لم نتمكن من تحديد النطاق الحالي
       const stored = localStorage.getItem('bazaar_current_subdomain');
       if (stored && stored !== 'main' && stored !== 'www') {
-        console.log('🔍 [earlyPreload] استخدام النطاق المخزن كـ fallback:', stored);
         return { storeIdentifier: stored, domainType: 'subdomain' };
       }
     } catch (error) {
-      console.warn('⚠️ [earlyPreload] خطأ في resolveStoreIdentifier:', error);
     }
 
     return { storeIdentifier: null, domainType: 'localhost' };
@@ -223,13 +203,9 @@ class EarlyPreloader {
         throw new Error('VITE_SUPABASE_ANON_KEY environment variable is required');
       }
 
-      console.log(`🔄 [earlyPreload] استدعاء API للنطاق: ${storeIdentifier} (النوع: ${domainType})`);
-      console.log(`🔄 [earlyPreload] البحث في قاعدة البيانات باستخدام:`, storeIdentifier);
-
       const requestBody = JSON.stringify({
         org_identifier: storeIdentifier
       });
-      console.log(`🔄 [earlyPreload] جسم الطلب:`, requestBody);
 
       const response = await fetch(`${supabaseUrl}/rest/v1/rpc/get_store_init_data`, {
         method: 'POST',
@@ -241,15 +217,11 @@ class EarlyPreloader {
         body: requestBody
       });
 
-      console.log(`🔄 [earlyPreload] استجابة HTTP:`, response.status, response.statusText);
-
       if (!response.ok) {
         const errorText = await response.text();
-        console.warn(`⚠️ [earlyPreload] HTTP error ${response.status}:`, errorText);
         
         // محاولة fallback للنطاق المخصص
         if (domainType === 'custom-domain' && response.status === 400) {
-          console.log('🔄 [earlyPreload] محاولة fallback للنطاق المخصص...');
           return await this.tryCustomDomainFallback(storeIdentifier);
         }
         
@@ -257,20 +229,11 @@ class EarlyPreloader {
       }
 
       const data = await response.json();
-      console.log(`🔄 [earlyPreload] بيانات الاستجابة:`, JSON.stringify(data, null, 2));
 
       if (data.error) {
-        console.warn(`⚠️ [earlyPreload] RPC error:`, data.error);
-        console.warn(`⚠️ [earlyPreload] تفاصيل الخطأ:`, {
-          error: data.error,
-          storeIdentifier,
-          domainType,
-          hostname: window.location.hostname
-        });
         
         // محاولة fallback للنطاق المخصص
         if (domainType === 'custom-domain' && data.error.includes('Organization not found')) {
-          console.log('🔄 [earlyPreload] محاولة fallback للنطاق المخصص بعد RPC error...');
           return await this.tryCustomDomainFallback(storeIdentifier);
         }
         
@@ -280,20 +243,11 @@ class EarlyPreloader {
         };
       }
 
-      console.log(`✅ [earlyPreload] تم العثور على المنظمة بنجاح!`);
-      console.log(`✅ [earlyPreload] بيانات المنظمة:`, {
-        organizationId: data.organization_details?.id,
-        organizationName: data.organization_details?.name,
-        subdomain: data.organization_details?.subdomain,
-        domain: data.organization_details?.domain
-      });
-
       return {
         success: true,
         data: data
       };
     } catch (error: any) {
-      console.error('❌ [earlyPreload] خطأ في callStoreInitAPI:', error);
       return {
         success: false,
         error: error?.message || 'Network error'
@@ -306,13 +260,11 @@ class EarlyPreloader {
    */
   private async tryCustomDomainFallback(hostname: string): Promise<{ success: boolean; data?: any; error?: string }> {
     try {
-      console.log('🔄 [earlyPreload] محاولة fallback للنطاق المخصص باستخدام محسن النطاق المخصص:', hostname);
       
       // استخدام محسن النطاق المخصص
       const optimizationResult = await optimizeCustomDomain(hostname);
       
       if (optimizationResult.success && optimizationResult.organizationId) {
-        console.log('✅ [earlyPreload] نجح fallback مع محسن النطاق المخصص:', optimizationResult);
         
         // محاولة الحصول على بيانات المتجر باستخدام معرف المؤسسة
         const storeData = await this.getStoreDataByOrganizationId(optimizationResult.organizationId);

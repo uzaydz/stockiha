@@ -22,7 +22,6 @@ export const ProviderComposer = memo<ProviderComposerProps>(({
   pathname, 
   children 
 }) => {
-  console.log('🚀 ProviderComposer: بدء التهيئة', { pageType, pathname });
   
   // 🔥 استخدام useRef لمنع إعادة الإنشاء المتكرر
   const renderCount = useRef(0);
@@ -33,14 +32,7 @@ export const ProviderComposer = memo<ProviderComposerProps>(({
   const initializationPromiseRef = useRef<Promise<void> | null>(null);
   
   renderCount.current++;
-  
-  console.log('🔄 ProviderComposer: render', { 
-    renderCount: renderCount.current,
-    pageType,
-    pathname,
-    config
-  });
-  
+
   // 🔥 منع إعادة الإنشاء المتكرر
   useEffect(() => {
     if (isInitialized.current) {
@@ -55,7 +47,6 @@ export const ProviderComposer = memo<ProviderComposerProps>(({
     initializationPromiseRef.current = (async () => {
       try {
         isInitialized.current = true;
-        console.log('✅ ProviderComposer: تم التهيئة');
       } finally {
         initializationPromiseRef.current = null;
       }
@@ -80,7 +71,6 @@ export const ProviderComposer = memo<ProviderComposerProps>(({
 
   // 🔥 منع إعادة الإنشاء إذا لم تتغير البيانات
   if (!shouldRecreate && isInitialized.current && lastConfig.current) {
-    console.log('⏭️ ProviderComposer: تخطي إعادة الإنشاء - نفس البيانات');
     return (
       <SmartErrorBoundary
         pageType={pageType}
@@ -104,21 +94,12 @@ export const ProviderComposer = memo<ProviderComposerProps>(({
 
   // إنشاء محتوى جديد
   const newConfig = useMemo(() => {
-    console.log('🔄 ProviderComposer: إنشاء محتوى جديد', {
-      lastConfig: lastConfig.current,
-      newConfig: config,
-      lastPageType: lastPageType.current,
-      newPageType: pageType,
-      lastPathname: lastPathname.current,
-      newPathname: pathname
-    });
     
     return config;
   }, [config, pageType, pathname]);
 
   // 🛡️ Error boundary wrapped content مع memoization محسن
   const errorBoundaryContent = useMemo(() => {
-    console.log('🛡️ ProviderComposer: إنشاء Error Boundaries');
     return (
       <SmartErrorBoundary
         pageType={pageType}
@@ -139,12 +120,6 @@ export const ProviderComposer = memo<ProviderComposerProps>(({
       </SmartErrorBoundary>
     );
   }, [pageType, pathname, newConfig, children]);
-
-  console.log('🎨 ProviderComposer: إرجاع المحتوى', {
-    pageType,
-    pathname,
-    renderCount: renderCount.current
-  });
 
   // إرجاع المحتوى المغلف بالحماية من الأخطاء
   return errorBoundaryContent;

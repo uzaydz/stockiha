@@ -242,6 +242,91 @@ input[inputmode="tel"]::placeholder {
   }
 }
 
+/* تحسينات Switch المطورة مع دعم RTL */
+[data-radix-switch-root] {
+  position: relative;
+  overflow: hidden;
+}
+
+[data-radix-switch-root]:before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+[data-radix-switch-root]:hover:before {
+  opacity: 1;
+}
+
+[data-radix-switch-thumb] {
+  position: relative;
+  overflow: hidden;
+}
+
+[data-radix-switch-thumb]:before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0.4) 100%);
+  opacity: 0.7;
+}
+
+/* إصلاحات RTL محسنة */
+[dir="rtl"] [data-radix-switch-thumb][data-state="checked"] {
+  transform: translateX(0px) !important;
+}
+
+[dir="rtl"] [data-radix-switch-thumb][data-state="unchecked"] {
+  transform: translateX(20px) !important;
+}
+
+.rtl [data-radix-switch-thumb][data-state="checked"] {
+  transform: translateX(0px) !important;
+}
+
+.rtl [data-radix-switch-thumb][data-state="unchecked"] {
+  transform: translateX(20px) !important;
+}
+
+/* تأثيرات متقدمة للـ Switch */
+html[dir="rtl"] [data-radix-switch-thumb] {
+  transition: all 300ms cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+html[dir="rtl"] [data-radix-switch-thumb][data-state="checked"] {
+  transform: translateX(0px) !important;
+}
+
+html[dir="rtl"] [data-radix-switch-thumb][data-state="unchecked"] {
+  transform: translateX(20px) !important;
+}
+
+/* تحسينات الأداء */
+[data-radix-switch-root],
+[data-radix-switch-thumb] {
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+/* تأثيرات النجاح والخطر */
+[data-radix-switch-root][data-state="checked"][class*="bg-green"] {
+  box-shadow: 0 0 20px rgba(34, 197, 94, 0.4);
+}
+
+[data-radix-switch-root][data-state="checked"][class*="bg-red"] {
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.4);
+}
+
+[data-radix-switch-root][data-state="checked"][class*="bg-yellow"] {
+  box-shadow: 0 0 20px rgba(234, 179, 8, 0.4);
+}
+
 /* تحسينات للشاشات الصغيرة */
 @media (max-width: 768px) {
   .cart-tab {
@@ -253,5 +338,54 @@ input[inputmode="tel"]::placeholder {
     font-size: 0.6rem;
     min-width: 16px;
     height: 16px;
+  }
+  
+  /* تحسينات خاصة بالهاتف المحمول للقائمة الجانبية */
+  .sidebar-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.1) transparent;
+  }
+  
+  .sidebar-scrollbar::-webkit-scrollbar {
+    width: 4px; /* تقليل عرض شريط التمرير للهاتف */
+  }
+  
+  .sidebar-scrollbar::-webkit-scrollbar-thumb {
+    background-color: rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+  }
+  
+  .sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(0, 0, 0, 0.2);
+  }
+  
+  /* تحسين التمرير للهاتف المحمول */
+  .sidebar-scrollbar {
+    -webkit-overflow-scrolling: touch; /* تمكين التمرير السلس على iOS */
+    overscroll-behavior: contain; /* منع التمرير الزائد */
+  }
+  
+  /* تحسين أحجام العناصر للهاتف المحمول */
+  .mobile-optimized {
+    font-size: 0.875rem;
+    line-height: 1.4;
+  }
+  
+  /* تحسين المسافات للهاتف المحمول */
+  .mobile-spacing {
+    padding: 0.75rem;
+    margin: 0.5rem 0;
+  }
+  
+  /* تحسين الأزرار للهاتف المحمول */
+  .mobile-button {
+    min-height: 44px; /* الحد الأدنى لحجم اللمس */
+    padding: 0.75rem 1rem;
+  }
+  
+  /* تحسين القوائم المنسدلة للهاتف المحمول */
+  .mobile-dropdown {
+    max-height: 60vh; /* تقليل الارتفاع الأقصى */
+    overflow-y: auto;
   }
 } 

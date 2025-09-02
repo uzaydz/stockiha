@@ -65,7 +65,7 @@ const FeaturedProducts = memo(({
   }, []);
 
   return (
-    <section className="py-10 sm:py-14 md:py-20 lg:py-24 relative overflow-hidden bg-background">
+    <section className="py-10 sm:py-14 md:py-20 lg:py-24 relative overflow-hidden bg-white dark:bg-gray-900">
       {/* خلفية متدرجة محسنة - إخفاء على الموبايل لتقليل العمل */}
       <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-background to-secondary/5 hidden md:block"></div>
       <div className="absolute top-20 -left-40 w-80 h-80 bg-gradient-to-br from-primary/10 to-secondary/10 rounded-full blur-3xl opacity-60 hidden md:block"></div>
@@ -75,7 +75,7 @@ const FeaturedProducts = memo(({
       <div className="absolute top-48 right-32 w-1 h-1 bg-secondary/30 rounded-full hidden md:block"></div>
       <div className="absolute bottom-40 left-20 w-3 h-3 bg-primary/15 rounded-full hidden md:block"></div>
 
-      <div className="container px-3 sm:px-4 mx-auto relative z-10">
+      <div className="container px-3 sm:px-4 mx-auto relative z-10 min-h-[400px]">
         {/* العنوان وأدوات التحكم */}
         <FeaturedProductsHeader
           title={title}

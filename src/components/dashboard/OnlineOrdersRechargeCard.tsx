@@ -57,7 +57,6 @@ export const OnlineOrdersRechargeCard: React.FC = () => {
         if (error) throw error;
         setPackages(data || []);
       } catch (error) {
-        console.error('خطأ في جلب حزم إعادة الشحن:', error);
         toast.error('فشل في جلب حزم إعادة الشحن');
       }
     };
@@ -81,7 +80,6 @@ export const OnlineOrdersRechargeCard: React.FC = () => {
         if (error) throw error;
         setHistory(data || []);
       } catch (error) {
-        console.error('خطأ في جلب تاريخ إعادة الشحن:', error);
       } finally {
         setLoading(false);
       }
@@ -131,7 +129,6 @@ export const OnlineOrdersRechargeCard: React.FC = () => {
       setHistory(historyData || []);
 
     } catch (error) {
-      console.error('خطأ في إعادة الشحن:', error);
       toast.error('فشل في إعادة الشحن');
     } finally {
       setRecharging(false);

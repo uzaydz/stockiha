@@ -98,23 +98,35 @@ export const usePreloadedStoreData = (options: UsePreloadedStoreDataOptions = {}
   
   // التحقق من وجود بيانات محفوظة مسبقاً
   const hasPreloadedData = useMemo(() => {
-    return storeIdentifier ? hasPreloadedStoreData(storeIdentifier) : false;
+    if (!storeIdentifier) return false;
+
+    // التحقق من preloadService أولاً
+    if (hasPreloadedStoreData(storeIdentifier)) return true;
+
+    // التحقق من earlyPreload كـ fallback
+    const earlyData = getEarlyPreloadedData(storeIdentifier);
+    return !!earlyData;
   }, [storeIdentifier]);
 
   // الحصول على البيانات المحفوظة مسبقاً (من preloadService أو earlyPreload)
   const preloadedData = useMemo(() => {
     if (!storeIdentifier) return null;
-    
+
     // أولوية للبيانات من preloadService
     const serviceData = getPreloadedStoreData(storeIdentifier);
-    if (serviceData) return serviceData;
-    
+    if (serviceData) {
+      console.log(`🔍 [usePreloadedStoreData] استخدام بيانات من preloadService: ${storeIdentifier}`);
+      return serviceData;
+    }
+
     // fallback للبيانات المحفوظة مبكراً
     const earlyData = getEarlyPreloadedData(storeIdentifier);
     if (earlyData) {
+      console.log(`🔍 [usePreloadedStoreData] استخدام بيانات من earlyPreload: ${storeIdentifier}`);
       return earlyData;
     }
-    
+
+    console.log(`⚠️ [usePreloadedStoreData] لم يتم العثور على بيانات محملة مسبقاً: ${storeIdentifier}`);
     return null;
   }, [storeIdentifier, hasPreloadedData]);
 
@@ -135,27 +147,53 @@ export const usePreloadedStoreData = (options: UsePreloadedStoreDataOptions = {}
 
   // دالة إعادة التحميل محسنة
   const refreshData = useCallback(async () => {
-    
+    console.log(`🔄 [usePreloadedStoreData] بدء إعادة التحميل: ${storeIdentifier}`);
+
     if (storeIdentifier) {
-      // مسح البيانات المحفوظة مسبقاً وإعادة تحميلها
-      preloadService.clearPreloadedData(storeIdentifier);
-      
       try {
-        await preloadService.preloadStoreData({
+        // مسح البيانات المحفوظة مسبقاً من كلا النظامين
+        preloadService.clearPreloadedData(storeIdentifier);
+
+        // مسح البيانات من earlyPreload أيضاً
+        if (typeof window !== 'undefined') {
+          try {
+            // استيراد earlyPreloader ومسح البيانات
+            import('@/utils/earlyPreload').then(({ earlyPreloader }) => {
+              earlyPreloader.clearPreloadedData(storeIdentifier);
+            });
+          } catch (e) {
+            console.warn('⚠️ فشل في مسح البيانات من earlyPreload:', e);
+          }
+        }
+
+        console.log(`💾 [usePreloadedStoreData] تم مسح البيانات القديمة`);
+
+        // إعادة تحميل البيانات باستخدام preloadService
+        const preloadResult = await preloadService.preloadStoreData({
           storeIdentifier,
           forceRefresh: true
         });
-        
-        // إعادة تحميل البيانات في React Query أيضاً
-        await queryClient.refetchQueries({
-          queryKey: ['shared-store-data'],
-          type: 'active'
-        });
-        
+
+        if (preloadResult.success) {
+          console.log(`✅ [usePreloadedStoreData] تم تحديث البيانات بنجاح`);
+
+          // إعادة تحميل البيانات في React Query أيضاً
+          await queryClient.refetchQueries({
+            queryKey: ['shared-store-data'],
+            type: 'active'
+          });
+
+          console.log(`🔄 [usePreloadedStoreData] تم تحديث React Query`);
+        } else {
+          console.warn(`⚠️ [usePreloadedStoreData] فشل تحديث البيانات:`, preloadResult.error);
+        }
+
       } catch (error) {
+        console.error('❌ [usePreloadedStoreData] خطأ في إعادة التحميل:', error);
       }
     } else {
       // fallback إلى refreshData العادي
+      console.log(`🔄 [usePreloadedStoreData] استخدام fallback refresh`);
       fallbackData.refreshData();
     }
   }, [storeIdentifier, queryClient, fallbackData.refreshData]);

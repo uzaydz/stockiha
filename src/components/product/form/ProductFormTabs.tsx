@@ -5,7 +5,7 @@ import { UseFormReturn, FormProvider } from 'react-hook-form';
 
 // Import new modular components
 import { useProductFormTabs } from '@/hooks/useProductFormTabs';
-import ProductFormTabsHeader from './components/ProductFormTabsHeader';
+
 import ProductFormTabsList from './components/ProductFormTabsList';
 import ProductFormTabContent from './components/ProductFormTabContent';
 
@@ -37,6 +37,7 @@ interface ProductFormTabsProps {
   onHasVariantsChange: (hasVariants: boolean) => void;
   onUseVariantPricesChange: (use: boolean) => void;
   onUseSizesChange: (use: boolean) => void;
+  onAddColor?: (e?: React.MouseEvent) => void;
 }
 
 const ProductFormTabs = memo<ProductFormTabsProps>(({
@@ -63,6 +64,7 @@ const ProductFormTabs = memo<ProductFormTabsProps>(({
   onHasVariantsChange,
   onUseVariantPricesChange,
   onUseSizesChange,
+  onAddColor,
 }) => {
   const thumbnailImageRef = useRef<ImageUploaderRef>(null);
 
@@ -98,13 +100,7 @@ const ProductFormTabs = memo<ProductFormTabsProps>(({
     <TooltipProvider>
       <FormProvider {...form}>
         <div className="space-y-6">
-          {/* Enhanced Progress Header */}
-          <ProductFormTabsHeader
-            progress={progress}
-            validationSummary={validationSummary}
-            isTransitioning={isTransitioning}
-            onGoToFirstIncomplete={goToFirstIncompleteTab}
-          />
+
 
           {/* Enhanced Tabs Interface */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -150,6 +146,7 @@ const ProductFormTabs = memo<ProductFormTabsProps>(({
               onHasVariantsChange={onHasVariantsChange}
               onUseVariantPricesChange={onUseVariantPricesChange}
               onUseSizesChange={onUseSizesChange}
+              onAddColor={onAddColor}
             />
           </Tabs>
         </div>

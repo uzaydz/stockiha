@@ -371,7 +371,6 @@ async function executeRequestWithDeduplication<T>(
     const activeRequest = ACTIVE_REQUESTS.get(key);
     if (activeRequest) {
       if (import.meta.env.DEV) {
-        console.log(`🔄 انتظار طلب نشط: ${key}`);
       }
       return await activeRequest;
     }
@@ -381,7 +380,6 @@ async function executeRequestWithDeduplication<T>(
   const unifiedCached = UnifiedCacheManager.get<T>(key);
   if (unifiedCached !== null) {
     if (import.meta.env.DEV) {
-      console.log(`✅ تم العثور على البيانات في الكاش الموحد: ${key}`);
     }
     return unifiedCached;
   }
@@ -398,7 +396,6 @@ async function executeRequestWithDeduplication<T>(
   const existingRequest = ACTIVE_REQUESTS.get(key);
   if (existingRequest) {
     if (import.meta.env.DEV) {
-      console.log(`⏳ انتظار طلب نشط آخر: ${key}`);
     }
     return await existingRequest;
   }
@@ -409,7 +406,6 @@ async function executeRequestWithDeduplication<T>(
       LAST_REQUEST_TIMES.set(key, now);
 
       if (import.meta.env.DEV) {
-        console.log(`🚀 بدء طلب جديد: ${key}`);
       }
 
       const result = await requestFn();
@@ -424,13 +420,11 @@ async function executeRequestWithDeduplication<T>(
       });
 
       if (import.meta.env.DEV) {
-        console.log(`💾 تم حفظ النتيجة في الكاش: ${key}`);
       }
 
       return result;
     } catch (error) {
       if (import.meta.env.DEV) {
-        console.error(`❌ فشل الطلب: ${key}`, error);
       }
       throw error;
     } finally {
@@ -463,7 +457,6 @@ export class UnifiedRequestManager {
       cacheKey,
       async () => {
         if (import.meta.env.DEV) {
-          console.log(`🔍 جلب فئات المنتجات للمؤسسة: ${orgId}`);
         }
 
         const { data, error } = await supabase
@@ -475,12 +468,10 @@ export class UnifiedRequestManager {
           .limit(1000);
 
         if (error) {
-          console.warn(`⚠️ خطأ في جلب الفئات:`, error);
           return [];
         }
 
         if (import.meta.env.DEV) {
-          console.log(`✅ تم جلب ${data?.length || 0} فئة`);
         }
 
         return data || [];
@@ -563,27 +554,58 @@ export class UnifiedRequestManager {
     if (!orgId) {
       return [];
     }
-    
+
     return executeRequestWithDeduplication(
       `unified_org_apps_${orgId}`,
       async () => {
         if (import.meta.env.DEV) {
         }
-        
-        const { data, error } = await supabase
-          .from('organization_apps')
-          .select('*')
-          .eq('organization_id', orgId)
-          .order('created_at', { ascending: false });
 
-        if (error) {
+        // استخدام REST API مباشر لتجنب مشاكل TypeScript
+        const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/organization_apps?organization_id=eq.${orgId}&order=created_at.desc`;
+
+        try {
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+          const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+          if (!supabaseUrl || !supabaseKey) {
+            throw new Error('Missing Supabase configuration');
+          }
+
+          let authToken = supabaseKey;
+          // استخدام anonymous key لتجنب مشاكل TypeScript
+          // const { data: { session } } = await supabase.auth.getSession();
+          // if (session?.access_token) {
+          //   authToken = session.access_token;
+          // }
+
+          const response = await fetch(url, {
+            headers: {
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${authToken}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=representation'
+            }
+          });
+
+          if (!response.ok) {
+            if (response.status === 400 || response.status === 404) {
+              return [];
+            }
+            throw new Error(`REST API error: ${response.status} ${response.statusText}`);
+          }
+
+          const data = await response.json();
+
+          if (import.meta.env.DEV) {
+          }
+
+          return Array.isArray(data) ? data : [];
+        } catch (error) {
+          if (import.meta.env.DEV) {
+          }
           return [];
         }
-        
-        if (import.meta.env.DEV) {
-        }
-        
-        return data || [];
       },
       30 * 60 * 1000 // 30 دقيقة cache للتطبيقات
     );
@@ -624,6 +646,135 @@ export class UnifiedRequestManager {
     );
   }
   
+  /**
+   * جلب اشتراكات المؤسسة - موحد مع cache
+   */
+  static async getOrganizationSubscriptions(orgId: string) {
+    if (!orgId) {
+      return [];
+    }
+
+    return executeRequestWithDeduplication(
+      `unified_org_subscriptions_${orgId}`,
+      async () => {
+        if (import.meta.env.DEV) {
+        }
+
+        // استخدام REST API مباشر لتجنب مشاكل TypeScript
+        const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/organization_subscriptions?organization_id=eq.${orgId}&status=in.(active,trial)&order=created_at.desc&limit=1`;
+
+        try {
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+          const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+          if (!supabaseUrl || !supabaseKey) {
+            throw new Error('Missing Supabase configuration');
+          }
+
+          let authToken = supabaseKey;
+          // استخدام anonymous key لتجنب مشاكل TypeScript
+          // const { data: { session } } = await supabase.auth.getSession();
+          // if (session?.access_token) {
+          //   authToken = session.access_token;
+          // }
+
+          const response = await fetch(url, {
+            headers: {
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${authToken}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=representation'
+            }
+          });
+
+          if (!response.ok) {
+            if (response.status === 400 || response.status === 404) {
+              return [];
+            }
+            throw new Error(`REST API error: ${response.status} ${response.statusText}`);
+          }
+
+          const data = await response.json();
+
+          if (import.meta.env.DEV) {
+          }
+
+          return Array.isArray(data) ? data : [];
+        } catch (error) {
+          if (import.meta.env.DEV) {
+          }
+          return [];
+        }
+      },
+      30 * 60 * 1000 // 30 دقيقة cache للاشتراكات
+    );
+  }
+
+  /**
+   * جلب فئات المنتجات الفرعية - موحد مع cache
+   */
+  static async getProductSubcategories(orgId?: string) {
+    return executeRequestWithDeduplication(
+      orgId ? `unified_subcategories_${orgId}` : 'unified_subcategories_all',
+      async () => {
+        if (import.meta.env.DEV) {
+        }
+
+        // استخدام REST API مباشر لتجنب مشاكل TypeScript
+        const baseUrl = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/product_subcategories`;
+        const params = orgId
+          ? `?organization_id=eq.${orgId}&is_active=eq.true&order=name&limit=1000`
+          : `?is_active=eq.true&order=name&limit=1000`;
+        const url = `${baseUrl}${params}`;
+
+        try {
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+          const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+          if (!supabaseUrl || !supabaseKey) {
+            throw new Error('Missing Supabase configuration');
+          }
+
+          let authToken = supabaseKey;
+          // استخدام anonymous key لتجنب مشاكل TypeScript
+          // const { data: { session } } = await supabase.auth.getSession();
+          // if (session?.access_token) {
+          //   authToken = session.access_token;
+          // }
+
+          const response = await fetch(url, {
+            headers: {
+              'apikey': supabaseKey,
+              'Authorization': `Bearer ${authToken}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=representation'
+            }
+          });
+
+          if (!response.ok) {
+            if (response.status === 400 || response.status === 404) {
+              return [];
+            }
+            throw new Error(`REST API error: ${response.status} ${response.statusText}`);
+          }
+
+          const data = await response.json();
+
+          if (import.meta.env.DEV) {
+          }
+
+          return Array.isArray(data) ? data : [];
+        } catch (error) {
+          if (import.meta.env.DEV) {
+          }
+          return [];
+        }
+      },
+      15 * 60 * 1000, // 15 دقيقة cache للفئات الفرعية
+      'api'
+    );
+  }
+
   /**
    * تنظيف Cache عند الحاجة
    */
@@ -673,6 +824,26 @@ export class UnifiedRequestManager {
       lastRequestTimes: LAST_REQUEST_TIMES.size,
       cacheKeys: Array.from(globalCache.keys()),
       activeRequestKeys: Array.from(ACTIVE_REQUESTS.keys())
+    };
+  }
+
+  /**
+   * معلومات مفصلة عن الكاش
+   */
+  static getCacheInfo() {
+    return {
+      size: globalCache.size,
+      activeRequests: ACTIVE_REQUESTS.size,
+      deduplicationRequests: globalRequestDeduplication.size,
+      cacheEntries: Array.from(globalCache.keys()).map(key => {
+        const entry = globalCache.get(key);
+        return {
+          key,
+          age: Date.now() - (entry?.timestamp || 0),
+          ttl: entry?.ttl || 0,
+          isExpired: entry ? (Date.now() - entry.timestamp) > (entry.ttl || 0) : true
+        };
+      })
     };
   }
 
@@ -890,4 +1061,25 @@ if (typeof window !== 'undefined') {
   
   // دالة لتنظيف cache يدوياً
   (window as any).cleanUnifiedCache = cleanExpiredCache;
+
+  // دالة للحصول على معلومات Cache
+  const getCacheInfo = () => {
+    return {
+      size: globalCache.size,
+      activeRequests: ACTIVE_REQUESTS.size,
+      deduplicationRequests: globalRequestDeduplication.size,
+      cacheEntries: Array.from(globalCache.keys()).map(key => {
+        const entry = globalCache.get(key);
+        return {
+          key,
+          age: Date.now() - (entry?.timestamp || 0),
+          ttl: entry?.ttl || 0,
+          isExpired: entry ? (Date.now() - entry.timestamp) > (entry.ttl || 0) : true
+        };
+      })
+    };
+  };
+
+  // تصدير دالة معلومات Cache
+  (window as any).getUnifiedCacheInfo = getCacheInfo;
 }

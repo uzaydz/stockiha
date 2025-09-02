@@ -4,6 +4,7 @@
  */
 
 import { getStoreInitData, clearStoreCache } from '@/lib/api/deduplicatedApi';
+import { getEarlyPreloadedData } from '@/utils/earlyPreload';
 
 interface PreloadOptions {
   storeIdentifier: string;
@@ -116,18 +117,45 @@ class PreloadService {
   }
 
   /**
-   * الحصول على البيانات المحفوظة مسبقاً
+   * مزامنة البيانات من earlyPreload إلى preloadService
    */
-  getPreloadedData(storeIdentifier: string): any | null {
-    const cacheKey = `preload-${storeIdentifier}`;
-    return this.preloadedData.get(cacheKey) || null;
+  syncFromEarlyPreload(storeIdentifier: string): void {
+    const earlyData = getEarlyPreloadedData(storeIdentifier);
+    if (earlyData) {
+      const cacheKey = `preload-${storeIdentifier}`;
+      this.preloadedData.set(cacheKey, earlyData);
+      console.log(`🔄 [preloadService] تم مزامنة البيانات من earlyPreload: ${storeIdentifier}`);
+    }
   }
 
   /**
-   * التحقق من وجود بيانات محفوظة مسبقاً
+   * الحصول على البيانات المحفوظة مسبقاً مع مزامنة تلقائية
+   */
+  getPreloadedData(storeIdentifier: string): any | null {
+    const cacheKey = `preload-${storeIdentifier}`;
+
+    // التحقق من البيانات في preloadService أولاً
+    let data = this.preloadedData.get(cacheKey);
+    if (data) return data;
+
+    // إذا لم تكن متوفرة، حاول المزامنة من earlyPreload
+    this.syncFromEarlyPreload(storeIdentifier);
+    data = this.preloadedData.get(cacheKey);
+
+    return data || null;
+  }
+
+  /**
+   * التحقق من وجود بيانات محفوظة مسبقاً مع مزامنة تلقائية
    */
   hasPreloadedData(storeIdentifier: string): boolean {
     const cacheKey = `preload-${storeIdentifier}`;
+
+    // التحقق من البيانات في preloadService أولاً
+    if (this.preloadedData.has(cacheKey)) return true;
+
+    // إذا لم تكن متوفرة، حاول المزامنة من earlyPreload
+    this.syncFromEarlyPreload(storeIdentifier);
     return this.preloadedData.has(cacheKey);
   }
 

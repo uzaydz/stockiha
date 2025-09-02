@@ -1,4 +1,4 @@
-import React, { useState, useRef, memo, useCallback } from 'react';
+import React, { useState, useRef, memo, useCallback, useEffect } from 'react';
 import { Package } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -26,6 +26,7 @@ const ProductImage = memo(({
 }: ProductImageProps) => {
   const [imageLoaded, setImageLoaded] = useState(() => imageCache.has(src));
   const [imageError, setImageError] = useState(false);
+  const [isInView, setIsInView] = useState(priority); // ابدأ بالتحميل إذا كانت ذات أولوية
   const imgRef = useRef<HTMLImageElement>(null);
 
   // تحسين بسيط للصور - تقليل الجودة للصور الكبيرة فقط
@@ -48,6 +49,32 @@ const ProductImage = memo(({
     
     return src;
   }, [src]);
+
+  // Intersection Observer للتحميل الكسول الذكي
+  useEffect(() => {
+    if (priority || isInView) return; // لا نحتاج إلى مراقبة إذا كانت ذات أولوية أو محملة
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setIsInView(true);
+            observer.disconnect();
+          }
+        });
+      },
+      {
+        rootMargin: '50px', // ابدأ التحميل قبل 50px من الظهور
+        threshold: 0.1
+      }
+    );
+
+    if (imgRef.current?.parentElement) {
+      observer.observe(imgRef.current.parentElement);
+    }
+
+    return () => observer.disconnect();
+  }, [priority, isInView]);
 
   // معالج تحميل الصورة
   const handleImageLoad = useCallback(() => {
@@ -103,25 +130,27 @@ const ProductImage = memo(({
         </div>
       )}
       
-      {/* الصورة الفعلية */}
-      <img 
-        ref={imgRef}
-        src={optimizedSrc} 
-        alt={alt}
-        className={cn(
-          "w-full h-full object-contain p-4 transition-all duration-300",
-          imageLoaded ? "opacity-100 scale-100" : "opacity-0 scale-95",
-          className
-        )}
-        loading={priority ? "eager" : "lazy"}
-        decoding={priority ? "sync" : "async"}
-        onLoad={handleImageLoad}
-        onError={handleImageError}
-        style={{
-          imageRendering: 'crisp-edges',
-          willChange: imageLoaded ? 'auto' : 'opacity, transform'
-        }}
-      />
+      {/* الصورة الفعلية - تظهر فقط عندما تكون في مجال الرؤية أو ذات أولوية */}
+      {(isInView || priority) && (
+        <img
+          ref={imgRef}
+          src={optimizedSrc}
+          alt={alt}
+          className={cn(
+            "w-full h-full object-contain p-4 transition-all duration-300",
+            imageLoaded ? "opacity-100 scale-100" : "opacity-0 scale-95",
+            className
+          )}
+          loading={priority ? "eager" : "lazy"}
+          decoding={priority ? "sync" : "async"}
+          onLoad={handleImageLoad}
+          onError={handleImageError}
+          style={{
+            imageRendering: 'crisp-edges',
+            willChange: imageLoaded ? 'auto' : 'opacity, transform'
+          }}
+        />
+      )}
     </>
   );
 });

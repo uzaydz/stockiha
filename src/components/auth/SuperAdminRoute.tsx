@@ -21,12 +21,6 @@ export default function SuperAdminRoute() {
   // إضافة logging للتشخيص
   useEffect(() => {
     if (process.env.NODE_ENV === 'development') {
-      console.log('🔍 [SuperAdminRoute] تحديث:', {
-        user: !!user,
-        session: !!session,
-        userProfile: !!userProfile,
-        pathname: location.pathname
-      });
     }
   }, [user, session, userProfile, location]);
 
@@ -38,10 +32,6 @@ export default function SuperAdminRoute() {
       // التحقق من وجود المستخدم - لا نحتاج session
       if (!user) {
         if (process.env.NODE_ENV === 'development') {
-          console.log('⏳ SuperAdminRoute: انتظار المستخدم...', {
-            user: !!user,
-            timestamp: new Date().toISOString()
-          });
         }
         
         // انتظار قليل قبل إعلان الخطأ
@@ -105,12 +95,6 @@ export default function SuperAdminRoute() {
           lastCheckedUserId.current = user.id;
           
           if (process.env.NODE_ENV === 'development') {
-            console.log('✅ [SuperAdminRoute] تم التحقق من الصلاحيات:', {
-              userId: user.id,
-              isSuperAdmin: isSuper,
-              role: data?.role,
-              is_super_admin: data?.is_super_admin
-            });
           }
         }
       } catch (error) {
@@ -156,11 +140,6 @@ export default function SuperAdminRoute() {
 
   if (!user) {
     if (process.env.NODE_ENV === 'development') {
-      console.log('⚠️ SuperAdminRoute: إعادة توجيه - لا يوجد مستخدم', {
-        user: !!user,
-        authError,
-        debugInfo
-      });
     }
     
     // إعطاء وقت إضافي لـ AuthContext لتهيئة نفسه

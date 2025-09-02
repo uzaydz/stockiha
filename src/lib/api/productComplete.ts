@@ -503,14 +503,16 @@ export const getTotalStock = (product: CompleteProduct): number => {
         }, 0);
       }
 
-      return totalWithSizes;
+      // إذا كان مجموع المخزون من المتغيرات صفر، استخدم المخزون الأساسي
+      return totalWithSizes > 0 ? totalWithSizes : (product.inventory?.stock_quantity || 0);
     } else {
       // جمع كميات الألوان فقط
       const totalColors = product.variants.colors.reduce((total, color) => {
         return total + (color.quantity || 0);
       }, 0);
 
-      return totalColors;
+      // إذا كان مجموع مخزون الألوان صفر، استخدم المخزون الأساسي
+      return totalColors > 0 ? totalColors : (product.inventory?.stock_quantity || 0);
     }
   }
 
@@ -602,7 +604,9 @@ export const getVariantStock = (
       // إذا كان المنتج يستخدم المقاسات وتم تحديد مقاس
       if (sizeId && color.sizes && Array.isArray(color.sizes) && color.sizes.length > 0) {
         const size = color.sizes.find(s => s.id === sizeId);
-        return size ? (size.quantity || 0) : 0;
+        const sizeStock = size ? (size.quantity || 0) : 0;
+        // إذا كان المخزون في المقاس صفر، استخدم المخزون الأساسي
+        return sizeStock > 0 ? sizeStock : (product.inventory?.stock_quantity || 0);
       }
 
       // إذا كان المنتج يستخدم المقاسات لكن لم يتم تحديد مقاس، أو إذا لم تكن هناك مقاسات فعلية
@@ -611,17 +615,22 @@ export const getVariantStock = (
         const colorTotalStock = color.sizes.reduce((total, size) => {
           return total + (size.quantity || 0);
         }, 0);
-        return colorTotalStock;
+        // إذا كان مجموع مخزون المقاسات صفر، استخدم المخزون الأساسي
+        return colorTotalStock > 0 ? colorTotalStock : (product.inventory?.stock_quantity || 0);
       }
 
       // استخدام كمية اللون مباشرة
-      return color.quantity || 0;
+      const colorStock = color.quantity || 0;
+      // إذا كان مخزون اللون صفر، استخدم المخزون الأساسي
+      return colorStock > 0 ? colorStock : (product.inventory?.stock_quantity || 0);
     } else {
       return 0;
     }
   }
 
-  return getTotalStock(product);
+  // حساب المخزون الإجمالي مع fallback للمخزون الأساسي
+  const totalStock = getTotalStock(product);
+  return totalStock > 0 ? totalStock : (product.inventory?.stock_quantity || 0);
 };
 
 export const isProductAvailable = (product: CompleteProduct): boolean => {

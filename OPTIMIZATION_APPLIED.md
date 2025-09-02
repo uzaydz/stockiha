@@ -13,7 +13,7 @@
 - `src/styles/index-optimized.css` - CSS محسن
 - `src/utils/lazy-css-loader.ts` - محمل CSS مؤجل
 - `src/utils/performance-monitor.ts` - مراقب الأداء
-- `public/sw.js` - Service Worker للتخزين المؤقت
+- `public/sw.js` - Service Worker لحذف (تم حذفه لأنه كان يسبب مشاكل في الأداء)
 - `public/manifest.json` - PWA Manifest
 
 ### 📦 ملفات CSS المقسمة (12 ملف):

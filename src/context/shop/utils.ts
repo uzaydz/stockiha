@@ -37,7 +37,6 @@ export const getOrganizationId = async (currentUser: any = null): Promise<string
     const windowOrgId = (window as any).__CURRENT_ORG_ID__;
     if (windowOrgId && isValidUuid(windowOrgId)) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('✅ [getOrganizationId] استخدام معرف المؤسسة من window object:', windowOrgId);
       }
       return windowOrgId;
     }
@@ -46,7 +45,6 @@ export const getOrganizationId = async (currentUser: any = null): Promise<string
     const authContextOrg = getOrganizationFromAuthContext();
     if (authContextOrg) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('✅ [getOrganizationId] استخدام معرف المؤسسة من AuthContext:', authContextOrg);
       }
       return authContextOrg;
     }
@@ -55,7 +53,6 @@ export const getOrganizationId = async (currentUser: any = null): Promise<string
     const userContextOrg = getOrganizationFromUserContext();
     if (userContextOrg) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('✅ [getOrganizationId] استخدام معرف المؤسسة من UserContext:', userContextOrg);
       }
       return userContextOrg;
     }
@@ -64,7 +61,6 @@ export const getOrganizationId = async (currentUser: any = null): Promise<string
     const tenantContextOrg = getOrganizationFromTenantContext();
     if (tenantContextOrg) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('✅ [getOrganizationId] استخدام معرف المؤسسة من TenantContext:', tenantContextOrg);
       }
       return tenantContextOrg;
     }
@@ -95,7 +91,6 @@ export const getOrganizationId = async (currentUser: any = null): Promise<string
         }
       } catch (customDomainError) {
         if (process.env.NODE_ENV === 'development') {
-          console.log('⚠️ [getOrganizationId] فشل في الحصول على المؤسسة من النطاق المخصص:', customDomainError);
         }
       }
     }
@@ -134,12 +129,10 @@ export const getOrganizationId = async (currentUser: any = null): Promise<string
         // حذف المعرف غير الصالح
         localStorage.removeItem('bazaar_organization_id');
         if (process.env.NODE_ENV === 'development') {
-          console.log('⚠️ [getOrganizationId] حذف معرف المؤسسة غير الصالح من التخزين المحلي');
         }
       } else {
         // المعرف صالح
         if (process.env.NODE_ENV === 'development') {
-          console.log('✅ [getOrganizationId] استخدام معرف المؤسسة من التخزين المحلي:', storedOrgId);
         }
         return storedOrgId;
       }
@@ -152,7 +145,6 @@ export const getOrganizationId = async (currentUser: any = null): Promise<string
     if (userInfo && userInfo.organization_id) {
       localStorage.setItem('bazaar_organization_id', userInfo.organization_id);
       if (process.env.NODE_ENV === 'development') {
-        console.log('✅ [getOrganizationId] استخدام معرف المؤسسة من session metadata:', userInfo.organization_id);
       }
       return userInfo.organization_id;
     }
@@ -162,7 +154,6 @@ export const getOrganizationId = async (currentUser: any = null): Promise<string
     if (orgWithServices) {
       localStorage.setItem('bazaar_organization_id', orgWithServices);
       if (process.env.NODE_ENV === 'development') {
-        console.log('✅ [getOrganizationId] استخدام معرف المؤسسة من orgWithServices:', orgWithServices);
       }
       return orgWithServices;
     }
@@ -177,7 +168,6 @@ export const getOrganizationId = async (currentUser: any = null): Promise<string
 
     if (error) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('❌ [getOrganizationId] خطأ في الحصول على أول مؤسسة:', error);
       }
       return null;
     }
@@ -186,18 +176,15 @@ export const getOrganizationId = async (currentUser: any = null): Promise<string
       // حفظ المعرف في التخزين المحلي للاستخدام اللاحق
       localStorage.setItem('bazaar_organization_id', orgs.id);
       if (process.env.NODE_ENV === 'development') {
-        console.log('✅ [getOrganizationId] استخدام أول مؤسسة كاحتياطي:', orgs.id);
       }
       return orgs.id;
     }
 
     if (process.env.NODE_ENV === 'development') {
-      console.log('❌ [getOrganizationId] لم يتم العثور على أي معرف مؤسسة');
     }
     return null;
   } catch (error) {
     if (process.env.NODE_ENV === 'development') {
-      console.error('❌ [getOrganizationId] خطأ في دالة getOrganizationId:', error);
     }
     return null;
   }
@@ -309,7 +296,6 @@ export const ensureGuestCustomer = async () => {
 
       if (!organizationId) {
         if (process.env.NODE_ENV === 'development') {
-          console.log('⚠️ [ensureGuestCustomer] لم يتم العثور على معرف المؤسسة');
         }
         return;
       }
@@ -340,7 +326,6 @@ export const ensureGuestCustomer = async () => {
 
       if (updateError) {
         if (process.env.NODE_ENV === 'development') {
-          console.log('⚠️ [ensureGuestCustomer] فشل في تحديث العميل الزائر:', updateError);
         }
       }
     }

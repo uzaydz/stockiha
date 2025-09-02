@@ -8,6 +8,7 @@ import { getSupabaseClient } from '@/lib/supabase';
 import { useTenant } from '@/context/TenantContext';
 import { playNotificationForType, enableNotificationSounds, setNotificationVolume, initializeNotificationSounds } from '@/lib/notification-sounds';
 import { useToastNotifications } from '@/hooks/useToastNotifications';
+import { localCache } from '@/lib/cacheManager';
 
 // Define the notification interface based on the migration schema
 export interface NotificationItem {
@@ -118,9 +119,18 @@ export function useRealTimeNotifications() {
     };
   }, [settings.soundEnabled]);
 
-  // تحميل الإشعارات
+  // تحميل الإشعارات مع الكاش
   const loadNotifications = useCallback(async () => {
     if (!currentOrganization?.id || !settings.enabled) return;
+
+    const cacheKey = `notifications_${currentOrganization.id}`;
+
+    // التحقق من الكاش أولاً
+    const cachedNotifications = localCache.get<NotificationItem[]>(cacheKey);
+    if (cachedNotifications) {
+      setNotifications(cachedNotifications);
+      return;
+    }
 
     try {
       // Use raw SQL to bypass strict typing
@@ -136,7 +146,10 @@ export function useRealTimeNotifications() {
       }
 
       if (data) {
-        setNotifications(data as unknown as NotificationItem[]);
+        const notificationsData = data as unknown as NotificationItem[];
+        setNotifications(notificationsData);
+        // حفظ في الكاش لمدة 2 دقيقة
+        localCache.set(cacheKey, notificationsData, 2 * 60 * 1000);
       }
     } catch (error) {
     }
@@ -267,9 +280,18 @@ export function useRealTimeNotifications() {
     };
   }, [currentOrganization?.id, settings.realtimeEnabled, settings.newOrderSound, settings.toastEnabled, reconnect]);
 
-  // تحميل الإشعارات عند التهيئة
+  // تحميل الإشعارات عند التهيئة مع الكاش
   useEffect(() => {
     if (!currentOrganization?.id) return;
+
+    const cacheKey = `notifications_${currentOrganization.id}`;
+
+    // التحقق من الكاش أولاً
+    const cachedNotifications = localCache.get<NotificationItem[]>(cacheKey);
+    if (cachedNotifications) {
+      setNotifications(cachedNotifications);
+      return;
+    }
 
     const loadNotifications = async () => {
       try {
@@ -285,7 +307,11 @@ export function useRealTimeNotifications() {
           return;
         }
 
-        setNotifications((data || []) as unknown as NotificationItem[]);
+        const notificationsData = (data || []) as unknown as NotificationItem[];
+        setNotifications(notificationsData);
+
+        // حفظ في الكاش لمدة 2 دقيقة
+        localCache.set(cacheKey, notificationsData, 2 * 60 * 1000);
       } catch (error) {
       }
     };

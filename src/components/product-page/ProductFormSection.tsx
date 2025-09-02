@@ -59,7 +59,6 @@ export const ProductFormSection = memo<ProductFormSectionProps>(({
         formStrategy={formStrategy}
         onFormSubmit={onFormSubmit}
         onFormChange={onFormChange}
-        onCurrentFormDataChange={updateCurrentFormData}
         isLoading={buyingNow}
         isSubmitting={buyingNow}
         isLoadingDeliveryFee={summaryData?.isCalculating || false}
@@ -70,7 +69,7 @@ export const ProductFormSection = memo<ProductFormSectionProps>(({
         product={{
           has_variants: product.variants?.has_variants,
           colors: product.variants?.colors,
-          stock_quantity: product.inventory?.stock_quantity
+          stock_quantity: product.inventory?.stock_quantity || product.stock_quantity
         }}
         selectedColor={selectedColor}
         selectedSize={selectedSize}

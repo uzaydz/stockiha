@@ -80,12 +80,10 @@ export const ProductContentSection = memo<ProductContentSectionProps>(({
 
   // إنشاء دوال مع تسجيل للتتبع
   const handleSetSelectedColor = (color: any) => {
-    console.log('🎨 ProductContentSection: Setting color:', color?.name);
     setSelectedColor(color);
   };
 
   const handleSetSelectedSize = (size: any) => {
-    console.log('📏 ProductContentSection: Setting size:', size?.size_name);
     setSelectedSize(size);
   };
 

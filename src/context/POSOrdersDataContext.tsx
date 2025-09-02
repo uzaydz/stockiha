@@ -205,7 +205,7 @@ const fetchPOSOrderStats = async (orgId: string): Promise<POSOrderStats> => {
           for (const [orderId, returnedAmount] of orderReturnsMap) {
             const order = returnsData?.find(o => o.id === orderId);
             if (order) {
-              const originalTotal = parseFloat(order.total);
+              const originalTotal = parseFloat(String(order.total || 0));
               totalReturnedAmount += returnedAmount;
               
               if (returnedAmount >= originalTotal) {
@@ -366,7 +366,7 @@ const fetchPOSOrders = async (
       const processedOrders = (orders || []).map(order => {
         const orderReturns = returnsData.filter(ret => ret.original_order_id === order.id);
         const totalReturnedAmount = orderReturns.reduce((sum, ret) => sum + parseFloat(ret.refund_amount || '0'), 0);
-        const originalTotal = parseFloat(order.total);
+        const originalTotal = parseFloat(String(order.total || 0));
         const effectiveTotal = originalTotal - totalReturnedAmount;
         
         // حساب عدد العناصر
@@ -387,7 +387,7 @@ const fetchPOSOrders = async (
           is_fully_returned: totalReturnedAmount >= originalTotal,
           total_returned_amount: totalReturnedAmount
         };
-      }) as POSOrderWithDetails[];
+      }) as any[];
 
       const result = {
         orders: processedOrders,
@@ -716,7 +716,7 @@ const fetchPOSOrdersOptimized = async (
         const processedOrders = (orders || []).map(order => {
           const orderReturns = returnsData.filter(ret => ret.original_order_id === order.id);
           const totalReturnedAmount = orderReturns.reduce((sum, ret) => sum + parseFloat(ret.refund_amount || '0'), 0);
-          const originalTotal = parseFloat(order.total);
+          const originalTotal = parseFloat(String(order.total || 0));
           const effectiveTotal = originalTotal - totalReturnedAmount;
           
           // عدد العناصر من الحساب المنفصل (منتجات + اشتراكات)
@@ -748,7 +748,7 @@ const fetchPOSOrdersOptimized = async (
             is_fully_returned: totalReturnedAmount >= originalTotal,
             total_returned_amount: totalReturnedAmount
           };
-        }) as POSOrderWithDetails[];
+        }) as any[];
 
       const result = {
         orders: processedOrders,
@@ -879,7 +879,7 @@ const fetchOrderDetails = async (orderId: string): Promise<any[]> => {
 
       // رابعاً: دمج جميع العناصر
       const productItems = (orderItems || []).map(item => ({
-        ...item,
+        ...(item as any),
         item_type: 'product' // إضافة نوع العنصر
       }));
 
@@ -893,7 +893,7 @@ const fetchOrderDetails = async (orderId: string): Promise<any[]> => {
         }
         
         // قد تكون طلبية خدمة رقمية أو نوع خاص آخر
-        if (orderInfo?.total && parseFloat(orderInfo.total) > 0) {
+        if (orderInfo?.total && parseFloat(String(orderInfo.total || 0)) > 0) {
           
           // إنشاء عنصر وهمي للخدمة الرقمية
           return [{

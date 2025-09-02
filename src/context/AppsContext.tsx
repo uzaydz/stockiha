@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase-unified';
 import { useUser } from '@/context/UserContext';
 import { toast } from 'sonner';
 import { UnifiedRequestManager } from '@/lib/unifiedRequestManager';
+import { initializationUtils } from '@/lib/initializationManager';
 
 // تعريف التطبيقات المتاحة
 export interface AppDefinition {
@@ -63,7 +64,7 @@ interface AppsContextType {
 }
 
 // التطبيقات المتاحة في النظام
-const AVAILABLE_APPS: AppDefinition[] = [
+export const AVAILABLE_APPS: AppDefinition[] = [
   {
     id: 'pos-system',
     name: 'نظام نقطة البيع',
@@ -218,10 +219,6 @@ export function AppsProvider({ children }: AppsProviderProps) {
 
   // إضافة تشخيص لمعرفة قيمة organizationId
   useEffect(() => {
-    console.log('🔍 [AppsContext] organizationId:', organizationId);
-    console.log('🔍 [AppsContext] organizationId type:', typeof organizationId);
-    console.log('🔍 [AppsContext] organizationId is null:', organizationId === null);
-    console.log('🔍 [AppsContext] organizationId is undefined:', organizationId === undefined);
   }, [organizationId]);
 
   // مرجع لتجنب استدعاءات متعددة
@@ -267,7 +264,7 @@ export function AppsProvider({ children }: AppsProviderProps) {
     }
   };
 
-  // جلب التطبيقات - نسخة محسنة
+  // جلب التطبيقات - نسخة محسنة مع منع الاستدعاءات المكررة
   const fetchOrganizationApps = useCallback(async () => {
     if (!organizationId) {
       // إنشاء قائمة افتراضية عندما لا يوجد organizationId
@@ -285,9 +282,14 @@ export function AppsProvider({ children }: AppsProviderProps) {
       return;
     }
 
+    // التحقق من initializationManager أولاً
+    if (!initializationUtils.shouldInitialize(organizationId)) {
+      return; // لا نحتاج للتحميل
+    }
+
     // منع التحميل المتكرر
     const now = Date.now();
-    if (loadingRef.current || 
+    if (loadingRef.current ||
         (hasLoadedRef.current && (now - lastLoadTimeRef.current) < 10000) || // 10 ثواني
         organizationId === lastOrgIdRef.current) {
       return;
@@ -319,8 +321,7 @@ export function AppsProvider({ children }: AppsProviderProps) {
       }
 
       // محاولة جلب البيانات من قاعدة البيانات
-      // @ts-ignore - تجاهل أخطاء TypeScript مؤقتاً
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('organization_apps')
         .select('*')
         .eq('organization_id', organizationId);
@@ -410,33 +411,57 @@ export function AppsProvider({ children }: AppsProviderProps) {
     } finally {
       setIsLoading(false);
       loadingRef.current = false;
+      // إنهاء عملية التحميل
+      initializationUtils.finishInitialization(organizationId);
     }
   }, [organizationId]);
 
-  // useEffect موحد ومحسن
+  // useEffect موحد ومحسن مع منع الاستدعاءات المتكررة
   useEffect(() => {
-    if (organizationId && organizationId !== lastOrgIdRef.current) {
-      // تنظيف المراجع عند تغيير المنظمة
-      loadingRef.current = false;
-      hasLoadedRef.current = false;
-      
-      // إلغاء أي timeout سابق
-      if (fetchTimeoutRef.current) {
-        clearTimeout(fetchTimeoutRef.current);
-      }
-      
-      // تحميل فوري للبيانات مع تأخير صغير
-      fetchTimeoutRef.current = setTimeout(() => {
-        fetchOrganizationApps();
-      }, 0); // ✅ إزالة التأخير لحل مشكلة عرض المتجر
+    // تحقق إذا كانت المؤسسة الجديدة مختلفة
+    if (!organizationId || organizationId === lastOrgIdRef.current) {
+      return;
     }
+
+    // تحقق من وجود بيانات في sessionStorage أولاً
+    const sessionKey = `${SESSION_CACHE_KEY}_${organizationId}`;
+    const cached = sessionStorage.getItem(sessionKey);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        const now = Date.now();
+        if (parsed.timestamp && (now - parsed.timestamp) < CACHE_DURATION) {
+          // استخدم البيانات المحفوظة مباشرة بدون استدعاء API
+          setOrganizationApps(parsed.data);
+          setIsLoading(false);
+          lastOrgIdRef.current = organizationId;
+          return;
+        }
+      } catch (error) {
+        // تجاهل أخطاء التحليل
+      }
+    }
+
+    // تنظيف المراجع عند تغيير المنظمة
+    loadingRef.current = false;
+    hasLoadedRef.current = false;
+
+    // إلغاء أي timeout سابق
+    if (fetchTimeoutRef.current) {
+      clearTimeout(fetchTimeoutRef.current);
+    }
+
+    // تحميل فوري للبيانات مع تأخير صغير
+    fetchTimeoutRef.current = setTimeout(() => {
+      fetchOrganizationApps();
+    }, 100); // زيادة التأخير قليلاً لمنع الاستدعاءات المتكررة
 
     return () => {
       if (fetchTimeoutRef.current) {
         clearTimeout(fetchTimeoutRef.current);
       }
     };
-  }, [organizationId, fetchOrganizationApps]);
+  }, [organizationId]); // إزالة fetchOrganizationApps من dependencies لمنع إعادة التشغيل
 
   // دالة لإنشاء الإعدادات الافتراضية لتطبيق الألعاب
   const createGameDownloadsDefaultSettings = async (organizationId: string, organizationName: string, subdomain: string) => {
@@ -463,7 +488,7 @@ export function AppsProvider({ children }: AppsProviderProps) {
         is_active: true
       };
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('game_downloads_settings')
         .insert([defaultSettings]);
 
@@ -478,33 +503,24 @@ export function AppsProvider({ children }: AppsProviderProps) {
 
   // تفعيل تطبيق - نسخة محسنة مع إنشاء الإعدادات الافتراضية
   const enableApp = useCallback(async (appId: string): Promise<boolean> => {
-    console.log('🔍 [enableApp] بدء تفعيل التطبيق:', appId);
-    console.log('🔍 [enableApp] organizationId:', organizationId);
-    console.log('🔍 [enableApp] organizationId type:', typeof organizationId);
     
     if (!organizationId) {
-      console.error('❌ [enableApp] معرف المنظمة غير متوفر');
       toast.error('معرف المنظمة غير متوفر');
       return false;
     }
 
     const appDefinition = availableApps.find(app => app.id === appId);
     if (!appDefinition) {
-      console.error('❌ [enableApp] التطبيق المطلوب غير متوفر:', appId);
       toast.error('التطبيق المطلوب غير متوفر');
       return false;
     }
 
-    console.log('✅ [enableApp] تم العثور على التطبيق:', appDefinition.name);
-
     // التحقق من الصلاحيات المطلوبة للتطبيق
     if (appDefinition.permissions && appDefinition.permissions.length > 0) {
-      console.log('🔍 [enableApp] فحص الصلاحيات المطلوبة:', appDefinition.permissions);
       
       // الحصول على بيانات المستخدم الحالي
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
-        console.error('❌ [enableApp] المستخدم غير متوفر');
         toast.error('المستخدم غير متوفر');
         return false;
       }
@@ -517,36 +533,30 @@ export function AppsProvider({ children }: AppsProviderProps) {
         .eq('organization_id', organizationId)
         .maybeSingle();
 
-      console.log('🔍 [enableApp] ملف المستخدم:', userProfile);
-
       // التحقق من الصلاحيات
       const hasRequiredPermissions = appDefinition.permissions.some(permission => {
         // فحص الأدوار الإدارية
         if (['admin', 'owner', 'org_admin', 'super_admin'].includes(userProfile?.role || '')) {
-          console.log('✅ [enableApp] المستخدم لديه دور إداري:', userProfile?.role);
           return true;
         }
 
         // فحص الصلاحيات المحددة
         const hasPermission = userProfile?.permissions?.[permission] === true;
-        console.log('🔍 [enableApp] فحص الصلاحية:', permission, 'النتيجة:', hasPermission);
         return hasPermission;
       });
 
       if (!hasRequiredPermissions) {
-        console.error('❌ [enableApp] المستخدم لا يملك الصلاحيات المطلوبة');
         toast.error(`لا يمكن تفعيل ${appDefinition.name} - الصلاحيات غير كافية`);
         return false;
       }
 
-      console.log('✅ [enableApp] تم التحقق من الصلاحيات بنجاح');
     }
 
     // التحقق من صلاحيات خطة الاشتراك
     try {
-      console.log('🔍 [enableApp] فحص صلاحيات خطة الاشتراك');
       
       // الحصول على خطة الاشتراك الحالية للمؤسسة
+      // @ts-ignore - جداول organization_subscriptions و subscription_plans موجودة في قاعدة البيانات
       const { data: subscriptionData, error: subscriptionError } = await supabase
         .from('organization_subscriptions')
         .select(`
@@ -565,42 +575,33 @@ export function AppsProvider({ children }: AppsProviderProps) {
         .maybeSingle();
 
       if (subscriptionError) {
-        console.error('❌ [enableApp] خطأ في الحصول على بيانات الاشتراك:', subscriptionError);
         toast.error('خطأ في التحقق من خطة الاشتراك');
         return false;
       }
 
       if (!subscriptionData) {
-        console.error('❌ [enableApp] لا توجد خطة اشتراك نشطة');
         toast.error('لا توجد خطة اشتراك نشطة');
         return false;
       }
 
       const plan = subscriptionData.subscription_plans;
-      console.log('🔍 [enableApp] خطة الاشتراك:', plan);
 
       // التحقق من أن خطة الاشتراك تتضمن الصلاحيات المطلوبة للتطبيق
       if (appDefinition.permissions && appDefinition.permissions.length > 0) {
-        const planPermissions = plan.permissions || {};
-        console.log('🔍 [enableApp] صلاحيات الخطة:', planPermissions);
-        console.log('🔍 [enableApp] الصلاحيات المطلوبة للتطبيق:', appDefinition.permissions);
+        const planPermissions = (plan as any).permissions || {};
 
         const planHasRequiredPermissions = appDefinition.permissions.some(permission => {
           const hasPermission = planPermissions[permission] === true;
-          console.log('🔍 [enableApp] فحص الصلاحية في الخطة:', permission, 'النتيجة:', hasPermission);
           return hasPermission;
         });
 
         if (!planHasRequiredPermissions) {
-          console.error('❌ [enableApp] خطة الاشتراك لا تتضمن الصلاحيات المطلوبة');
           toast.error(`لا يمكن تفعيل ${appDefinition.name} - خطة الاشتراك الحالية لا تتضمن الصلاحيات المطلوبة`);
           return false;
         }
 
-        console.log('✅ [enableApp] تم التحقق من صلاحيات خطة الاشتراك بنجاح');
       }
     } catch (subscriptionCheckError) {
-      console.error('❌ [enableApp] خطأ في فحص صلاحيات خطة الاشتراك:', subscriptionCheckError);
       toast.error('خطأ في التحقق من صلاحيات خطة الاشتراك');
       return false;
     }
@@ -614,16 +615,15 @@ export function AppsProvider({ children }: AppsProviderProps) {
       );
 
           // حفظ في قاعدة البيانات
-    // @ts-ignore - تجاهل أخطاء TypeScript مؤقتاً - جدول organization_apps موجود في قاعدة البيانات
-    const { error } = await supabase
-      .from('organization_apps')
-      .upsert({
-        organization_id: organizationId,
-        app_id: appId,
-        is_enabled: true,
-        installed_at: new Date().toISOString(),
-        configuration: {}
-      }, { onConflict: 'organization_id,app_id' });
+      const { error } = await (supabase as any)
+        .from('organization_apps')
+        .upsert({
+          organization_id: organizationId,
+          app_id: appId,
+          is_enabled: true,
+          installed_at: new Date().toISOString(),
+          configuration: {}
+        }, { onConflict: 'organization_id,app_id' });
 
       if (error) {
         throw error;
@@ -643,7 +643,7 @@ export function AppsProvider({ children }: AppsProviderProps) {
           }
 
           // التحقق من عدم وجود إعدادات مسبقة
-          const { data: existingSettings, error: checkError } = await supabase
+          const { data: existingSettings, error: checkError } = await (supabase as any)
             .from('game_downloads_settings')
             .select('id')
             .eq('organization_id', organizationId)
@@ -694,21 +694,20 @@ export function AppsProvider({ children }: AppsProviderProps) {
       return false;
     }
 
-    try {
+        try {
       // تحديث الحالة المحلية فوراً
-      setOrganizationApps(prev => 
-        prev.map(app => 
+      setOrganizationApps(prev =>
+        prev.map(app =>
           app.app_id === appId ? { ...app, is_enabled: false } : app
         )
       );
 
           // حفظ في قاعدة البيانات
-    // @ts-ignore - تجاهل أخطاء TypeScript مؤقتاً - جدول organization_apps موجود في قاعدة البيانات
-    const { error } = await supabase
-      .from('organization_apps')
-      .update({ is_enabled: false })
-      .eq('organization_id', organizationId)
-      .eq('app_id', appId);
+      const { error } = await (supabase as any)
+        .from('organization_apps')
+        .update({ is_enabled: false })
+        .eq('organization_id', organizationId)
+        .eq('app_id', appId);
 
       if (error) {
         throw error;
@@ -774,10 +773,9 @@ export function AppsProvider({ children }: AppsProviderProps) {
         setTimeout(async () => {
           try {
             // 🎯 استخدام update مباشر آمن
-            // @ts-ignore - جدول organization_apps موجود في قاعدة البيانات وسيتم تحديث Types لاحقاً
-            await supabase
+            await (supabase as any)
               .from('organization_apps')
-              .update({ 
+              .update({
                 configuration: config,
                 updated_at: new Date().toISOString()
               })
@@ -856,6 +854,4 @@ export function useApps(): AppsContextType {
   return context;
 }
 
-// تصدير واضح لجميع المكونات
-export { AppsContext, AVAILABLE_APPS };
-export type { AppDefinition, OrganizationApp, AppsContextType };
+// جميع المكونات والأنواع مصدرة بالفعل في تعريفها

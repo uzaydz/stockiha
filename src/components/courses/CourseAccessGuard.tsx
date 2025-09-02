@@ -47,7 +47,6 @@ const CourseAccessGuard: React.FC<CourseAccessGuardProps> = ({
         setAccessInfo(access);
       } catch (err) {
         setError('حدث خطأ أثناء فحص الوصول للدورة');
-        console.error('Error checking course access:', err);
       } finally {
         setLoading(false);
       }

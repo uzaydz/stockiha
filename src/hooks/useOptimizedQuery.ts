@@ -34,9 +34,7 @@ export function useOptimizedQuery<T>(
       cacheKey,
       fetcher,
       {
-        dependencies,
-        ttl: queryOptions.staleTime,
-        staleWhileRevalidate: queryOptions.gcTime
+        ttl: typeof queryOptions.staleTime === 'number' ? queryOptions.staleTime : 300000 // 5 دقائق افتراضي
       }
     );
   }, [cacheKey, fetcher, dependencies, queryOptions.staleTime, queryOptions.gcTime]);
@@ -104,7 +102,7 @@ export function useBatchQueries<T extends Record<string, any>>(
 
   const data = results.reduce((acc, result, index) => {
     if (result.data) {
-      acc[queries[index].key] = result.data;
+      (acc as any)[queries[index].key] = result.data;
     }
     return acc;
   }, {} as T);
@@ -130,9 +128,9 @@ export function useDashboardData(organizationId: string | null) {
     },
     {
       enabled: !!organizationId,
-      staleTime: 30 * 1000, // 30 seconds
+      staleTime: 10 * 60 * 1000, // 10 دقائق - تقليل الطلبات المتكررة
       gcTime: 5 * 60 * 1000, // 5 minutes
-      refetchInterval: 60 * 1000, // 1 minute
+      refetchInterval: false, // إيقاف التحديث التلقائي لتوفير الموارد
       invalidateOn: ['orders', 'products', 'customers', 'services']
     }
   );
@@ -155,20 +153,23 @@ export function useProductsWithCategories(
   const offset = (page - 1) * limit;
 
   return useOptimizedQuery(
-    ['products', organizationId, filterParams, page, limit],
+    ['products', organizationId, JSON.stringify(filterParams), page.toString(), limit.toString()],
     async () => {
       if (!organizationId) return null;
       
-      const { data, error } = await optimizedSupabase.executeWithRetry(() =>
-        optimizedSupabase.client.rpc('get_products_with_categories', {
+      const result = await optimizedSupabase.executeWithRetry(async () => {
+        const response = await optimizedSupabase.client.rpc('get_products_with_categories', {
           p_organization_id: organizationId,
           p_limit: limit,
           p_offset: offset,
           p_search: filterParams.search || null,
           p_category_id: filterParams.categoryId || null,
           p_is_active: filterParams.isActive ?? null
-        })
-      );
+        });
+        return response;
+      });
+      
+      const { data, error } = (result as any) || { data: null, error: null };
 
       if (error) throw error;
       return data;

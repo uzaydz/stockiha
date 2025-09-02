@@ -44,7 +44,6 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // إذا كانت المؤسسة متاحة في AuthContext، استخدمها فوراً
     if (organization?.id) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('✅ [UserContext] استخدام organizationId من AuthContext فوراً:', organization.id);
       }
       setOrganizationId(organization.id);
       setOrgLoading(false);
@@ -56,7 +55,6 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // إذا كانت البيانات جاهزة لكن المؤسسة غير متاحة، لا تحتاج للتحميل الاحتياطي
     if (dataLoadingComplete && !organization?.id) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('⚠️ [UserContext] البيانات جاهزة لكن المؤسسة غير متاحة');
       }
       setOrganizationId(null);
       setOrgLoading(false);
@@ -67,7 +65,6 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (!dataLoadingComplete) {
       setOrgLoading(true);
       if (process.env.NODE_ENV === 'development') {
-        console.log('⏳ [UserContext] انتظار جاهزية البيانات من AuthContext...');
       }
       return;
     }
@@ -89,9 +86,6 @@ export const UserProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // تشخيص محسن - عرض المعلومات المهمة فقط
   useEffect(() => {
     if (process.env.NODE_ENV === 'development') {
-      console.log('🔍 [UserContext] authUser:', authUser?.id);
-      console.log('🔍 [UserContext] organizationId:', organizationId);
-      console.log('🔍 [UserContext] userData:', userData);
     }
   }, [authUser?.id, organizationId, userData]);
 
