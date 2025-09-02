@@ -281,25 +281,40 @@ export async function getCloudflareProjectDomains(
 
 /**
  * الحصول على تعليمات DNS للنطاق
+ * @param domain النطاق المخصص للمستخدم
+ * @param organizationId معرف المؤسسة (سيستخدم كـ subdomain)
  */
-export function getCloudflareDnsInstructions(domain: string): Array<{
+export function getCloudflareDnsInstructions(
+  domain: string, 
+  organizationId?: string
+): Array<{
   type: string;
   name: string;
   value: string;
   description: string;
 }> {
+  // إنشاء subdomain فريد للمستخدم
+  const userSubdomain = organizationId ? `${organizationId}.stockiha.com` : `${getCloudflareProjectName()}.pages.dev`;
+  
   return [
     {
       type: 'CNAME',
       name: domain,
-      value: `${getCloudflareProjectName()}.pages.dev`,
+      value: userSubdomain,
       description: 'سجل CNAME الرئيسي للنطاق'
     },
     {
       type: 'CNAME',
       name: `www.${domain}`,
-      value: `${getCloudflareProjectName()}.pages.dev`,
+      value: userSubdomain,
       description: 'سجل CNAME للنطاق الفرعي www'
     }
   ];
+}
+
+/**
+ * الحصول على النطاق الوسيط للمستخدم
+ */
+export function getUserIntermediateDomain(organizationId: string): string {
+  return `${organizationId}.stockiha.com`;
 }

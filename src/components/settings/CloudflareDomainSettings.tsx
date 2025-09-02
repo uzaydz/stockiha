@@ -17,7 +17,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { linkDomainCloudflare, removeDomainCloudflare } from '@/api/link-domain-cloudflare';
-import { getCloudflareDnsInstructions } from '@/api/cloudflare-domain-api';
+import { getCloudflareDnsInstructions, getUserIntermediateDomain } from '@/api/cloudflare-domain-api';
 import { hasCloudflareConfig } from '@/lib/api/cloudflare-config';
 
 // نمط للتحقق من صحة تنسيق النطاق
@@ -144,7 +144,9 @@ const CloudflareDomainSettings: React.FC = () => {
           setDomainStatus(verificationData.status as DomainStatusType || 'pending');
           setStatusMessage(verificationData.error_message || '');
           setLastChecked(verificationData.updated_at || '');
-          setVerificationData(verificationData.verification_data ? JSON.parse(verificationData.verification_data) : null);
+          // التحقق من وجود verification_data قبل محاولة تحليلها
+          const verificationDataField = (verificationData as any).verification_data;
+          setVerificationData(verificationDataField ? JSON.parse(verificationDataField) : null);
         } else {
           setDomainStatus('pending');
         }
@@ -280,8 +282,11 @@ const CloudflareDomainSettings: React.FC = () => {
   
   // الحصول على سجلات DNS الموصى بها
   const dnsInstructions = organization?.domain 
-    ? getCloudflareDnsInstructions(organization.domain) 
+    ? getCloudflareDnsInstructions(organization.domain, organization.id) 
     : [];
+    
+  // الحصول على النطاق الوسيط للمستخدم
+  const userIntermediateDomain = organization?.id ? getUserIntermediateDomain(organization.id) : '';
   
   if (!isCloudflareAvailable) {
     return (
@@ -403,36 +408,48 @@ const CloudflareDomainSettings: React.FC = () => {
                   </div>
                   
                   {/* معلومات سجل CNAME */}
-                  <div className="space-y-1">
-                    <Label htmlFor="cname-value">قيمة سجل CNAME:</Label>
-                    <div className="relative">
-                      <Input
-                        id="cname-value"
-                        value={`${organization?.domain || 'yourdomain.com'}.pages.dev`}
-                        readOnly
-                        className="pr-20 font-mono text-sm"
-                      />
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        className="absolute right-1 top-1 h-7"
-                        onClick={() => {
-                          navigator.clipboard.writeText(`${organization?.domain || 'yourdomain.com'}.pages.dev`);
-                          toast({
-                            title: "تم النسخ",
-                            description: "تم نسخ قيمة CNAME إلى الحافظة",
-                            variant: "default",
-                          });
-                        }}
-                      >
-                        <Copy className="h-4 w-4 ml-2" />
-                        نسخ
-                      </Button>
+                  <div className="space-y-4">
+                    <div className="p-4 border rounded-md bg-blue-50">
+                      <h4 className="font-semibold text-blue-900 mb-2">النطاق الوسيط الخاص بك:</h4>
+                      <div className="relative">
+                        <Input
+                          value={userIntermediateDomain}
+                          readOnly
+                          className="pr-20 font-mono text-sm bg-white"
+                        />
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          className="absolute right-1 top-1 h-7"
+                          onClick={() => {
+                            navigator.clipboard.writeText(userIntermediateDomain);
+                            toast({
+                              title: "تم النسخ",
+                              description: "تم نسخ النطاق الوسيط إلى الحافظة",
+                              variant: "default",
+                            });
+                          }}
+                        >
+                          <Copy className="h-4 w-4 ml-2" />
+                          نسخ
+                        </Button>
+                      </div>
+                      <p className="text-sm text-blue-700 mt-2">
+                        هذا هو النطاق الوسيط الفريد الخاص بك. استخدمه في إعدادات CNAME.
+                      </p>
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      قم بإضافة سجل CNAME في إعدادات DNS لنطاقك ليشير إلى مشروع Cloudflare Pages.
-                    </p>
+
+                    <div className="space-y-2">
+                      <Label>مثال على إعداد DNS:</Label>
+                      <div className="p-3 bg-gray-50 rounded-md font-mono text-sm">
+                        <div className="space-y-1">
+                          <div><span className="text-blue-600">النوع:</span> CNAME</div>
+                          <div><span className="text-blue-600">الاسم:</span> {domain || 'yourdomain.com'}</div>
+                          <div><span className="text-blue-600">القيمة:</span> {userIntermediateDomain}</div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   
                   {/* نصائح سريعة */}

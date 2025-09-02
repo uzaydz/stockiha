@@ -12,7 +12,8 @@ import {
   linkDomainToCloudflareProject, 
   verifyCloudflareDomainStatus,
   getCloudflareDnsInstructions,
-  removeDomainFromCloudflareProject
+  removeDomainFromCloudflareProject,
+  getUserIntermediateDomain
 } from './cloudflare-domain-api';
 import { 
   getCloudflareToken, 
@@ -151,7 +152,8 @@ export async function linkDomainCloudflare(domain, organizationId) {
               cloudflare: true,
               project_name: CLOUDFLARE_PROJECT_NAME,
               zone_id: CLOUDFLARE_ZONE_ID,
-              dns_instructions: getCloudflareDnsInstructions(cleanDomain)
+              intermediate_domain: getUserIntermediateDomain(organizationId),
+              dns_instructions: getCloudflareDnsInstructions(cleanDomain, organizationId)
             })
           }])
           .select();
@@ -167,7 +169,8 @@ export async function linkDomainCloudflare(domain, organizationId) {
       data: {
         domain: cleanDomain,
         verification: linkResult.data?.verification || null,
-        dns_instructions: getCloudflareDnsInstructions(cleanDomain),
+        intermediate_domain: getUserIntermediateDomain(organizationId),
+        dns_instructions: getCloudflareDnsInstructions(cleanDomain, organizationId),
         cloudflare_project: CLOUDFLARE_PROJECT_NAME
       }
     };
