@@ -1,0 +1,90 @@
+{
+  "waf_rules": {
+    "description": "إعدادات Web Application Firewall لـ Stockiha",
+    "rules": [
+      {
+        "name": "Block Malicious Bots",
+        "expression": "(cf.bot_management.score lt 30) or (http.user_agent contains \"curl\") or (http.user_agent contains \"wget\") or (http.user_agent contains \"scrapy\")",
+        "action": "block",
+        "description": "حجب البوتات الضارة وأدوات الكشط"
+      },
+      {
+        "name": "Rate Limit API Endpoints",
+        "expression": "http.request.uri.path matches \"/api/.*\"",
+        "action": "rate_limit",
+        "rate_limit": {
+          "threshold": 100,
+          "period": 60,
+          "action": "challenge"
+        },
+        "description": "تحديد معدل طلبات API"
+      },
+      {
+        "name": "Block SQL Injection Attempts",
+        "expression": "(http.request.uri.query contains \"union\") or (http.request.uri.query contains \"select\") or (http.request.body contains \"drop table\")",
+        "action": "block",
+        "description": "حجب محاولات SQL Injection"
+      },
+      {
+        "name": "Block XSS Attempts",
+        "expression": "(http.request.uri.query contains \"<script\") or (http.request.body contains \"javascript:\") or (http.request.uri.query contains \"onload=\")",
+        "action": "block",
+        "description": "حجب محاولات XSS"
+      },
+      {
+        "name": "Geo Block Suspicious Countries",
+        "expression": "ip.geoip.country in {\"CN\" \"RU\" \"KP\"}",
+        "action": "challenge",
+        "description": "تحدي الدول المشبوهة"
+      },
+      {
+        "name": "Allow Algeria and Friendly Countries",
+        "expression": "ip.geoip.country in {\"DZ\" \"FR\" \"US\" \"CA\" \"GB\" \"DE\" \"IT\" \"ES\"}",
+        "action": "allow",
+        "description": "السماح للجزائر والدول الصديقة"
+      },
+      {
+        "name": "Challenge High Risk Requests",
+        "expression": "(cf.threat_score gt 10) and not (ip.geoip.country eq \"DZ\")",
+        "action": "js_challenge",
+        "description": "تحدي الطلبات عالية المخاطر"
+      },
+      {
+        "name": "Block Admin Panel Access from Outside Algeria",
+        "expression": "(http.request.uri.path matches \"/admin.*\") and not (ip.geoip.country eq \"DZ\")",
+        "action": "block",
+        "description": "حجب الوصول لوحة الإدارة من خارج الجزائر"
+      }
+    ],
+    "managed_rules": [
+      {
+        "name": "Cloudflare Managed Ruleset",
+        "enabled": true,
+        "action": "block"
+      },
+      {
+        "name": "Cloudflare OWASP Core Ruleset",
+        "enabled": true,
+        "action": "block"
+      },
+      {
+        "name": "Cloudflare Exposed Credentials Check",
+        "enabled": true,
+        "action": "log"
+      }
+    ]
+  },
+  "bot_management": {
+    "enabled": true,
+    "fight_mode": true,
+    "static_resource_protection": false,
+    "javascript_detections": true,
+    "auto_update_model": true
+  },
+  "ddos_protection": {
+    "enabled": true,
+    "sensitivity": "high",
+    "http_ddos_attack_protection": true,
+    "l7_ddos_attack_protection": true
+  }
+}

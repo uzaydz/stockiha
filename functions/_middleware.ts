@@ -1,6 +1,28 @@
 // 🔒 Cloudflare Pages Security Middleware
 // middleware آمن مع Rate Limiting وحماية متقدمة
 
+// إضافة Types للـ Cloudflare Pages
+interface Env {
+  [key: string]: string;
+}
+
+interface ExecutionContext {
+  waitUntil(promise: Promise<any>): void;
+  passThroughOnException(): void;
+}
+
+interface PagesFunction<Env = any> {
+  (context: {
+    request: Request;
+    env: Env;
+    params: Record<string, string>;
+    data: Record<string, any>;
+    next: (input?: Request | string, init?: RequestInit) => Promise<Response>;
+    waitUntil: ExecutionContext['waitUntil'];
+    passThroughOnException: ExecutionContext['passThroughOnException'];
+  }): Response | Promise<Response>;
+}
+
 interface RateLimitStore {
   [key: string]: {
     count: number;
