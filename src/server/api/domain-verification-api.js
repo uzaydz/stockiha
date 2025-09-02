@@ -127,26 +127,58 @@ router.post('/link-domain', async (req, res) => {
     // تنظيف النطاق
     const cleanDomain = customDomain.replace(/^https?:\/\//i, '').replace(/\/$/, '').toLowerCase();
 
-    // الحصول على معلومات المشروع و token من البيئة
-    const VERCEL_TOKEN = process.env.VERCEL_API_TOKEN;
-    const VERCEL_PROJECT_ID = process.env.VERCEL_PROJECT_ID;
+    // التحقق من منصة النشر
+    const deploymentPlatform = process.env.VITE_DEPLOYMENT_PLATFORM || 'cloudflare';
+    
+    if (deploymentPlatform === 'cloudflare') {
+      // إعداد النطاق في Cloudflare
+      const CLOUDFLARE_TOKEN = process.env.CLOUDFLARE_API_TOKEN || process.env.VITE_CLOUDFLARE_API_TOKEN;
+      const CLOUDFLARE_ZONE_ID = process.env.CLOUDFLARE_ZONE_ID || process.env.VITE_CLOUDFLARE_ZONE_ID;
 
-    if (!VERCEL_TOKEN || !VERCEL_PROJECT_ID) {
-      return res.status(500).json({
-        success: false,
-        error: 'لم يتم تكوين متغيرات البيئة اللازمة للاتصال بـ Vercel API.'
+      if (!CLOUDFLARE_TOKEN || !CLOUDFLARE_ZONE_ID) {
+        return res.status(500).json({
+          success: false,
+          error: 'لم يتم تكوين متغيرات البيئة اللازمة للاتصال بـ Cloudflare API.'
+        });
+      }
+
+      // إضافة سجل DNS في Cloudflare
+      const response = await fetch(`https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/dns_records`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${CLOUDFLARE_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          type: 'CNAME',
+          name: cleanDomain,
+          content: 'stockiha.pages.dev',
+          ttl: 1,
+          proxied: true
+        })
+      });
+    } else {
+      // الكود القديم لـ Vercel (للتوافق مع الإصدارات القديمة)
+      const VERCEL_TOKEN = process.env.VERCEL_API_TOKEN;
+      const VERCEL_PROJECT_ID = process.env.VERCEL_PROJECT_ID;
+
+      if (!VERCEL_TOKEN || !VERCEL_PROJECT_ID) {
+        return res.status(500).json({
+          success: false,
+          error: 'لم يتم تكوين متغيرات البيئة اللازمة للاتصال بـ Vercel API.'
+        });
+      }
+
+      // ربط النطاق بمشروع Vercel
+      const response = await fetch(`https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}/domains`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${VERCEL_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ name: cleanDomain })
       });
     }
-
-    // ربط النطاق بمشروع Vercel
-    const response = await fetch(`https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}/domains`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${VERCEL_TOKEN}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ name: cleanDomain })
-    });
     
     const data = await response.json();
     

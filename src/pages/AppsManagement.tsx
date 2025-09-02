@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import Layout from '@/components/Layout';
 import { useQueryClient } from '@tanstack/react-query';
-import { AppDefinition, AVAILABLE_APPS, useApps } from '@/context/AppsContext';
+import { AppDefinition, useApps } from '@/context/AppsContext';
 import { toast } from 'sonner';
 import EnhancedLoader from '@/components/EnhancedLoader';
 import { 
@@ -97,10 +97,7 @@ const AppsManagement: React.FC = () => {
   const queryClient = useQueryClient();
   
   // استخدام دوال تفعيل وإلغاء تفعيل التطبيقات من AppsContext
-  const { enableApp, disableApp, refreshApps, isAppEnabled, organizationApps } = useApps();
-  
-  // استخدام AVAILABLE_APPS كمصدر للتطبيقات المتاحة
-  const availableApps = AVAILABLE_APPS;
+  const { enableApp, disableApp, refreshApps, isAppEnabled, organizationApps, availableApps } = useApps();
   const isLoading = false; // نظراً لأننا نستخدم البيانات المُحملة مُسبقاً
 
   // إضافة useEffect لتحديث البيانات عند تغيير organizationApps

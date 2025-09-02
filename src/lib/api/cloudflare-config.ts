@@ -45,3 +45,28 @@ export const getCloudflareApiUrl = (): string => {
 export const getCloudflarePagesApiUrl = (): string => {
   return `${getCloudflareApiUrl()}/accounts/${getCloudflareZoneId()}/pages/projects`;
 };
+
+// الحصول على منصة النشر الحالية
+export const getDeploymentPlatform = (): 'cloudflare' | 'vercel' => {
+    const platform = (typeof process !== 'undefined' && process.env?.VITE_DEPLOYMENT_PLATFORM) || 
+                    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_DEPLOYMENT_PLATFORM) || 
+                    'cloudflare';
+    return platform as 'cloudflare' | 'vercel';
+};
+
+// تحديد ما إذا كان التطبيق يعمل على Cloudflare
+export const isCloudflareDeployment = (): boolean => {
+    return getDeploymentPlatform() === 'cloudflare';
+};
+
+// الحصول على URL الأساسي للـ API
+export const getApiBaseUrl = (): string => {
+    if (typeof window === 'undefined') {
+        // Server-side
+        return '/api';
+    }
+    
+    // Client-side
+    const apiUrl = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) || '/api';
+    return apiUrl;
+};

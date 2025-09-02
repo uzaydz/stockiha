@@ -1,156 +1,193 @@
-// Cloudflare Pages Function - Yalidine Fees Proxy
-// محول من Vercel API إلى Cloudflare Pages Function
+/**
+ * Cloudflare Pages Function لـ Yalidine API Proxy
+ * يحل محل Vercel API Route
+ */
 
-export const onRequest: PagesFunction = async (context) => {
-  const { request, env } = context;
+interface Env {
+  // يمكن إضافة متغيرات البيئة هنا إذا لزم الأمر
+}
+
+export async function onRequestGet(context: {
+  request: Request;
+  env: Env;
+  params: any;
+  waitUntil: (promise: Promise<any>) => void;
+}) {
+  const { request } = context;
   const url = new URL(request.url);
-
-  // السماح فقط بطلبات GET
-  if (request.method !== 'GET') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-      status: 405,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
-    });
-  }
-
-  const from_wilaya_id = url.searchParams.get('from_wilaya_id');
-  const to_wilaya_id = url.searchParams.get('to_wilaya_id');
-  const api_id = url.searchParams.get('api_id');
-  const api_token = url.searchParams.get('api_token');
-
-  // التحقق من المعاملات المطلوبة
-  if (!from_wilaya_id || !to_wilaya_id || !api_id || !api_token) {
-    return new Response(JSON.stringify({ 
-      error: 'Missing required parameters: from_wilaya_id, to_wilaya_id, api_id, api_token' 
-    }), {
-      status: 400,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
-    });
-  }
-
+  
   try {
-    // إنشاء URL لـ API ياليدين
-    const yalidineUrl = `https://api.yalidine.app/v1/fees/?from_wilaya_id=${from_wilaya_id}&to_wilaya_id=${to_wilaya_id}`;
+    // استخراج المعاملات من URL
+    const fromWilayaId = url.searchParams.get('from_wilaya_id');
+    const toWilayaId = url.searchParams.get('to_wilaya_id');
+    const apiId = url.searchParams.get('api_id');
+    const apiToken = url.searchParams.get('api_token');
+
+    if (!fromWilayaId || !toWilayaId || !apiId || !apiToken) {
+      return new Response(
+        JSON.stringify({
+          error: true,
+          message: 'المعاملات المطلوبة مفقودة: from_wilaya_id, to_wilaya_id, api_id, api_token'
+        }),
+        {
+          status: 400,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, X-API-ID, X-API-TOKEN'
+          }
+        }
+      );
+    }
+
+    // إنشاء URL للـ Yalidine API
+    const yalidineUrl = new URL('https://api.yalidine.app/v1/deliveryfees');
+    yalidineUrl.searchParams.set('from_wilaya_id', fromWilayaId);
+    yalidineUrl.searchParams.set('to_wilaya_id', toWilayaId);
+
+    // طلب إلى Yalidine API
+    const yalidineResponse = await fetch(yalidineUrl.toString(), {
+      method: 'GET',
+      headers: {
+        'X-API-ID': apiId,
+        'X-API-TOKEN': apiToken,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+      }
+    });
+
+    const data = await yalidineResponse.json();
+
+    return new Response(JSON.stringify(data), {
+      status: yalidineResponse.status,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, X-API-ID, X-API-TOKEN',
+        'Access-Control-Expose-Headers': 'day-quota-left, hour-quota-left, minute-quota-left, second-quota-left',
+        // نسخ headers الخاصة بـ rate limiting
+        ...(yalidineResponse.headers.get('day-quota-left') && {
+          'day-quota-left': yalidineResponse.headers.get('day-quota-left')!
+        }),
+        ...(yalidineResponse.headers.get('hour-quota-left') && {
+          'hour-quota-left': yalidineResponse.headers.get('hour-quota-left')!
+        }),
+        ...(yalidineResponse.headers.get('minute-quota-left') && {
+          'minute-quota-left': yalidineResponse.headers.get('minute-quota-left')!
+        }),
+        ...(yalidineResponse.headers.get('second-quota-left') && {
+          'second-quota-left': yalidineResponse.headers.get('second-quota-left')!
+        })
+      }
+    });
+
+  } catch (error) {
+    console.error('خطأ في Yalidine API Proxy:', error);
     
-    // إرسال الطلب إلى API ياليدين
-    const response = await fetch(yalidineUrl, {
+    return new Response(
+      JSON.stringify({
+        error: true,
+        message: 'خطأ في الاتصال بـ API ياليدين',
+        details: error instanceof Error ? error.message : 'خطأ غير معروف',
+        timestamp: new Date().toISOString()
+      }),
+      {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        }
+      }
+    );
+  }
+}
+
+// دعم POST requests أيضاً
+export async function onRequestPost(context: {
+  request: Request;
+  env: Env;
+  params: any;
+  waitUntil: (promise: Promise<any>) => void;
+}) {
+  const { request } = context;
+  
+  try {
+    const body = await request.json();
+    const { from_wilaya_id, to_wilaya_id, api_id, api_token } = body;
+
+    if (!from_wilaya_id || !to_wilaya_id || !api_id || !api_token) {
+      return new Response(
+        JSON.stringify({
+          error: true,
+          message: 'المعاملات المطلوبة مفقودة في body'
+        }),
+        {
+          status: 400,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*'
+          }
+        }
+      );
+    }
+
+    // إنشاء URL للـ Yalidine API
+    const yalidineUrl = new URL('https://api.yalidine.app/v1/deliveryfees');
+    yalidineUrl.searchParams.set('from_wilaya_id', from_wilaya_id);
+    yalidineUrl.searchParams.set('to_wilaya_id', to_wilaya_id);
+
+    const yalidineResponse = await fetch(yalidineUrl.toString(), {
       method: 'GET',
       headers: {
         'X-API-ID': api_id,
         'X-API-TOKEN': api_token,
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'User-Agent': 'Stockiha-Console/1.0'
+        'Accept': 'application/json'
       }
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      return new Response(JSON.stringify({ 
-        error: 'Yalidine API error', 
-        status: response.status,
-        statusText: response.statusText,
-        details: errorText 
-      }), {
-        status: response.status,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-      });
-    }
+    const data = await yalidineResponse.json();
 
-    // قراءة الاستجابة
-    const data = await response.json();
-
-    // التحقق من صحة البيانات المستلمة
-    if (!data || Object.keys(data).length === 0 || !data.per_commune) {
-      return new Response(JSON.stringify({ 
-        error: 'No fees data available for this route',
-        from_wilaya_id: parseInt(from_wilaya_id),
-        to_wilaya_id: parseInt(to_wilaya_id),
-        raw_data: data
-      }), {
-        status: 404,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
-      });
-    }
-
-    // تحويل البيانات إلى التنسيق المتوقع
-    const communeData = data.per_commune;
-    const communeValues = Object.values(communeData);
-    const firstCommune = communeValues.length > 0 ? communeValues[0] : {};
-
-    // إنشاء استجابة موحدة بالتنسيق المتوقع
-    const responseData = {
-      success: true,
-      from_wilaya_id: parseInt(from_wilaya_id),
-      to_wilaya_id: parseInt(to_wilaya_id),
-      data: {
-        from_wilaya: {
-          id: parseInt(from_wilaya_id),
-          name: data.from_wilaya_name || `Wilaya ${from_wilaya_id}`
-        },
-        to_wilaya: {
-          id: parseInt(to_wilaya_id),
-          name: data.to_wilaya_name || `Wilaya ${to_wilaya_id}`
-        },
-        fees: {
-          home_delivery: {
-            price: (firstCommune && firstCommune.express_home) ? firstCommune.express_home : 500,
-            currency: "DZD",
-            description: "التوصيل للمنزل"
-          },
-          stopdesk_delivery: {
-            price: (firstCommune && firstCommune.express_desk) ? firstCommune.express_desk : 350,
-            currency: "DZD",
-            description: "التوصيل لمكتب التوقف"
-          }
-        },
-        zone: data.zone || 1,
-        estimated_delivery_days: "1-3",
-        insurance_rate: data.insurance_percentage ? (data.insurance_percentage + "%") : "1%",
-        max_weight: "30kg",
-        max_dimensions: "100x100x100cm",
-        per_commune: communeData,
-        cod_percentage: data.cod_percentage,
-        retour_fee: data.retour_fee,
-        oversize_fee: data.oversize_fee
-      },
-      timestamp: new Date().toISOString(),
-      source: 'yalidine_api_cloudflare'
-    };
-
-    return new Response(JSON.stringify(responseData), {
-      status: 200,
+    return new Response(JSON.stringify(data), {
+      status: yalidineResponse.status,
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET',
-        'Access-Control-Allow-Headers': 'Content-Type',
-      },
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, X-API-ID, X-API-TOKEN'
+      }
     });
 
   } catch (error) {
-    return new Response(JSON.stringify({ 
-      error: 'Internal proxy error', 
-      details: error.message,
-      timestamp: new Date().toISOString()
-    }), {
-      status: 500,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
-    });
+    return new Response(
+      JSON.stringify({
+        error: true,
+        message: 'خطأ في معالجة الطلب',
+        details: error instanceof Error ? error.message : 'خطأ غير معروف'
+      }),
+      {
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*'
+        }
+      }
+    );
   }
-};
+}
+
+// دعم OPTIONS للـ CORS preflight
+export async function onRequestOptions() {
+  return new Response(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, X-API-ID, X-API-TOKEN',
+      'Access-Control-Max-Age': '86400'
+    }
+  });
+}

@@ -417,11 +417,13 @@ export default defineConfig(({ command, mode }) => {
       // 🌐 تحسين للويب فقط
       'global': 'globalThis',
       
-      // ⚡ متغيرات البيئة الأساسية
+      // ⚡ متغيرات البيئة الأساسية - محدثة لـ Cloudflare
       'import.meta.env.VITE_DOMAIN_PROXY': JSON.stringify(env.VITE_DOMAIN_PROXY || 'connect.ktobi.online'),
-      'import.meta.env.VITE_API_URL': JSON.stringify(env.VITE_API_URL || 'http://localhost:3001/api'),
-      'import.meta.env.VITE_VERCEL_PROJECT_ID': JSON.stringify(env.VITE_VERCEL_PROJECT_ID || ''),
-      'import.meta.env.VITE_VERCEL_API_TOKEN': JSON.stringify(env.VITE_VERCEL_API_TOKEN || ''),
+      'import.meta.env.VITE_API_URL': JSON.stringify(env.VITE_API_URL || '/api'),
+      'import.meta.env.VITE_DEPLOYMENT_PLATFORM': JSON.stringify(env.VITE_DEPLOYMENT_PLATFORM || 'cloudflare'),
+      'import.meta.env.VITE_CLOUDFLARE_API_TOKEN': JSON.stringify(env.VITE_CLOUDFLARE_API_TOKEN || ''),
+      'import.meta.env.VITE_CLOUDFLARE_ZONE_ID': JSON.stringify(env.VITE_CLOUDFLARE_ZONE_ID || ''),
+      'import.meta.env.VITE_CLOUDFLARE_PROJECT_NAME': JSON.stringify(env.VITE_CLOUDFLARE_PROJECT_NAME || 'stockiha'),
       
       // 🎯 متغيرات التطبيق
       __DEV__: isDev,
