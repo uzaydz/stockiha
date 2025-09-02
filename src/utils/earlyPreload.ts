@@ -58,6 +58,7 @@ class EarlyPreloader {
       
       if (!storeIdentifier) {
         const executionTime = performance.now() - startTime;
+        console.log('🚫 [earlyPreload] لا يوجد store identifier - تخطي preload');
         return {
           success: false,
           error: 'No store identifier found',
