@@ -6,6 +6,21 @@ const MAIN_START_TIME = performance.now();
 // ⚡ تحسين: استخدام Promise.all لتحميل متوازي
 const startEarlyPreloads = async () => {
   try {
+    // 🔥 إضافة منطق خاص للتعامل مع نطاقات Cloudflare Pages التلقائية
+    const hostname = window.location.hostname;
+    if (hostname.endsWith('.stockiha.pages.dev')) {
+      const parts = hostname.split('.');
+      if (parts.length === 3 && parts[0] && parts[0] !== 'www') {
+        // التحقق من أن الجزء الأول هو hash عشوائي (8 أحرف hex)
+        const firstPart = parts[0];
+        if (/^[a-f0-9]{8}$/i.test(firstPart)) {
+          // هذا نطاق Cloudflare Pages تلقائي - لا نبدأ preload
+          console.log('🚫 [main.tsx] نطاق Cloudflare Pages تلقائي - تخطي preload');
+          return;
+        }
+      }
+    }
+    
     const [earlyPreloadResult, productPreloadResult] = await Promise.allSettled([
       import('./utils/earlyPreload').then(m => m.startEarlyPreload()),
       // تخطي product page preload هنا لأنه يحتاج إلى معاملات محددة
@@ -51,7 +66,21 @@ const extractProductIdFromPath = (): string | null => {
 const extractOrganizationIdFromDomain = async (): Promise<string | null> => {
   try {
     const hostname = window.location.hostname;
-    const baseDomains = ['.ktobi.online', '.stockiha.com', '.bazaar.dev', '.vercel.app', '.bazaar.com'];
+    
+    // 🔥 إضافة منطق خاص للتعامل مع نطاقات Cloudflare Pages التلقائية
+    if (hostname.endsWith('.stockiha.pages.dev')) {
+      const parts = hostname.split('.');
+      if (parts.length === 3 && parts[0] && parts[0] !== 'www') {
+        // التحقق من أن الجزء الأول هو hash عشوائي (8 أحرف hex)
+        const firstPart = parts[0];
+        if (/^[a-f0-9]{8}$/i.test(firstPart)) {
+          // هذا نطاق Cloudflare Pages تلقائي - لا نعتبره متجر
+          return null;
+        }
+      }
+    }
+    
+    const baseDomains = ['.ktobi.online', '.stockiha.com', '.bazaar.dev', '.vercel.app', '.bazaar.com', '.stockiha.pages.dev'];
     const isBaseDomain = baseDomains.some((d) => hostname.endsWith(d));
     const isLocalhost = hostname.includes('localhost') || hostname.startsWith('127.');
     const isCustomDomain = !isLocalhost && !isBaseDomain;
