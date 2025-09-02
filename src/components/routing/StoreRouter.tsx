@@ -19,7 +19,7 @@ const PUBLIC_DOMAINS = [
 const isCloudflarePagesDomain = (hostname: string): boolean => {
   if (hostname.endsWith('.stockiha.pages.dev')) {
     const parts = hostname.split('.');
-    if (parts.length === 3 && parts[0] && parts[0] !== 'www') {
+    if (parts.length === 4 && parts[0] && parts[0] !== 'www') {
       // التحقق من أن الجزء الأول هو hash عشوائي (8 أحرف hex)
       const firstPart = parts[0];
       return /^[a-f0-9]{8}$/i.test(firstPart);
@@ -104,7 +104,7 @@ const StoreRouter = React.memo(() => {
   const hostname = useMemo(() => window.location.hostname, []);
   const subdomain = useMemo(() => extractSubdomainFromHostname(hostname), [hostname]);
   const isSubdomainStore = useMemo(() => Boolean(subdomain && subdomain !== 'www'), [subdomain]);
-  const isCustomDomain = useMemo(() => !isSubdomainStore && !PUBLIC_DOMAINS.includes(hostname) && !isLocalhostDomain(hostname), [isSubdomainStore, hostname]);
+  const isCustomDomain = useMemo(() => !isSubdomainStore && !PUBLIC_DOMAINS.includes(hostname) && !isLocalhostDomain(hostname) && !isCloudflarePagesDomain(hostname), [isSubdomainStore, hostname]);
 
   // 🔥 تحسين: فحص الكشف المبكر للنطاق
   const earlyDomainDetection = useMemo(() => {
@@ -243,8 +243,9 @@ const StoreRouter = React.memo(() => {
           return;
         }
 
-        // النطاقات العامة - عرض صفحة الهبوط مباشرة
+        // النطاقات العامة أو نطاقات Cloudflare Pages التلقائية - عرض صفحة الهبوط مباشرة
         if (PUBLIC_DOMAINS.includes(hostname) || isCloudflarePagesDomain(hostname)) {
+          console.log(`🏠 عرض صفحة الهبوط للنطاق: ${hostname}`);
           setIsStore(false);
           setIsLoading(false);
           domainChecked.current = true;
