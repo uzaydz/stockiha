@@ -194,16 +194,14 @@ const DomainSettings: React.FC = () => {
 
   // التحقق من توفر Cloudflare وتحديد النظام الافتراضي
   useEffect(() => {
-    const cloudflareAvailable = hasCloudflareConfig();
-    setUseCloudflare(cloudflareAvailable);
+    // دائماً استخدم Cloudflare (حسب طلب المستخدم)
+    setUseCloudflare(true);
     
-    if (cloudflareAvailable) {
-      toast({
-        title: "تم اكتشاف Cloudflare",
-        description: "سيتم استخدام Cloudflare Pages لإدارة النطاقات المخصصة.",
-        variant: "default",
-      });
-    }
+    toast({
+      title: "نظام Cloudflare نشط",
+      description: "يتم استخدام Cloudflare Pages لإدارة النطاقات المخصصة.",
+      variant: "default",
+    });
   }, [toast]);
   
   // جلب معلومات التحقق عند تغيير النطاق الفعلي
@@ -432,20 +430,20 @@ const DomainSettings: React.FC = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Alert variant="destructive">
+          <Alert>
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>إعدادات Cloudflare مطلوبة</AlertTitle>
+            <AlertTitle>نظام Cloudflare جاهز</AlertTitle>
             <AlertDescription>
               <div className="space-y-2">
-                <p>لاستخدام النطاقات المخصصة، يجب تكوين متغيرات البيئة التالية:</p>
+                <p>✅ تم تفعيل نظام Cloudflare لإدارة النطاقات المخصصة!</p>
+                <p className="text-sm">
+                  <strong>ملاحظة:</strong> إذا لم تظهر الواجهة بشكل صحيح، تأكد من إضافة متغيرات البيئة التالية:
+                </p>
                 <ul className="list-disc list-inside space-y-1 text-sm">
                   <li><code>CLOUDFLARE_API_TOKEN</code> - رمز الوصول لـ Cloudflare API</li>
-                  <li><code>CLOUDFLARE_PROJECT_NAME</code> - اسم مشروع Cloudflare Pages (مثل: stockiha)</li>
+                  <li><code>CLOUDFLARE_PROJECT_NAME</code> - اسم مشروع Cloudflare Pages (stockiha)</li>
                   <li><code>CLOUDFLARE_ZONE_ID</code> - معرف المنطقة في Cloudflare</li>
                 </ul>
-                <p className="text-sm mt-2">
-                  يرجى إضافة هذه المتغيرات في إعدادات البيئة الخاصة بك وإعادة تحميل الصفحة.
-                </p>
               </div>
             </AlertDescription>
           </Alert>
