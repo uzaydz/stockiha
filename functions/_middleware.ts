@@ -50,6 +50,7 @@ function isValidOrigin(origin: string | null): boolean {
   
   const allowedOrigins = [
     'https://stockiha.pages.dev',
+    'https://96bab160.stockiha.pages.dev', // Current deployment
     'https://stockiha.com',
     'https://www.stockiha.com',
     'http://localhost:8080',
@@ -64,10 +65,41 @@ export const onRequest: PagesFunction = async (context) => {
   const url = new URL(request.url);
   const origin = request.headers.get('Origin');
 
-  // 🛡️ Security checks
+  // 🚫 Skip security checks for static assets
+  if (url.pathname.startsWith('/assets/') || 
+      url.pathname.startsWith('/fonts/') || 
+      url.pathname.startsWith('/images/') ||
+      url.pathname.startsWith('/icons/') ||
+      url.pathname.endsWith('.js') ||
+      url.pathname.endsWith('.css') ||
+      url.pathname.endsWith('.woff2') ||
+      url.pathname.endsWith('.woff') ||
+      url.pathname.endsWith('.ttf') ||
+      url.pathname.endsWith('.svg') ||
+      url.pathname.endsWith('.png') ||
+      url.pathname.endsWith('.jpg') ||
+      url.pathname.endsWith('.jpeg') ||
+      url.pathname.endsWith('.webp') ||
+      url.pathname.endsWith('.ico')) {
+    
+    const response = await next();
+    
+    // Add basic security headers for static assets
+    response.headers.set('X-Content-Type-Options', 'nosniff');
+    response.headers.set('X-Frame-Options', 'SAMEORIGIN');
+    
+    // Add caching headers for assets
+    if (url.pathname.startsWith('/assets/')) {
+      response.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+    }
+    
+    return response;
+  }
+
+  // 🛡️ Security checks for non-static requests only
   
-  // 1. Origin validation
-  if (!isValidOrigin(origin)) {
+  // 1. Origin validation (only for API and form submissions)
+  if ((url.pathname.startsWith('/api/') || request.method === 'POST') && !isValidOrigin(origin)) {
     return new Response(JSON.stringify({ error: 'Invalid origin' }), {
       status: 403,
       headers: { 'Content-Type': 'application/json' }
