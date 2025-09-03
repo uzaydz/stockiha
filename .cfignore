@@ -1,0 +1,56 @@
+# 🔒 Cloudflare Pages Ignore - Prevent Secret Files from Deployment
+
+# Environment Variables & Secrets
+.env
+.env.*
+.env.local
+.env.development
+.env.staging
+.env.production
+.env.test
+*.env
+*.env.*
+
+# Development Files
+node_modules/
+*.local
+*.log
+*.tmp
+*.temp
+
+# API Keys & Credentials
+**/secrets/
+**/credentials/
+**/*secret*
+**/*credential*
+**/*private*
+
+# Security Configuration Files
+**/*security-config*
+**/*auth-config*
+wrangler.toml.local
+wrangler.toml.dev
+
+# Development Tools
+.vscode/
+.idea/
+*.swp
+*~
+
+# Backup Files
+*.bak
+*.backup
+
+# Git Files
+.git/
+.gitignore
+
+# Documentation (optional - remove if you want docs deployed)
+*.md
+docs/
+
+# Test Files (optional)
+**/*.test.*
+**/*.spec.*
+test/
+tests/

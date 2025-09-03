@@ -12,6 +12,34 @@ dist
 dist-ssr
 *.local
 
+# 🔒 Environment Variables & Secrets (CRITICAL SECURITY)
+.env
+.env.*
+.env.local
+.env.development
+.env.staging
+.env.production
+.env.test
+*.env
+*.env.*
+
+# 🔑 API Keys & Credentials
+**/secrets/
+**/credentials/
+**/*secret*
+**/*credential*
+**/*private*
+**/config/secrets.js
+**/config/secrets.ts
+**/config/keys.js
+**/config/keys.ts
+
+# 🛡️ Security Files
+**/*security-config*
+**/*auth-config*
+**/wrangler.toml.local
+**/wrangler.toml.dev
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -25,3 +53,11 @@ dist-ssr
 .vercel
 
 dist_electron/
+
+# 🚨 Backup & Temp Files (may contain secrets)
+*.bak
+*.backup
+*.tmp
+*.temp
+*~
+.#*
