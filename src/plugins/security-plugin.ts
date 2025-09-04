@@ -23,15 +23,15 @@ function calculateSRI(filePath: string, algorithm: 'sha256' | 'sha384' | 'sha512
 function generateCSP(nonce: string, isDev: boolean = false): string {
   return [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' ${isDev ? "'unsafe-inline'" : ""}`,
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://connect.facebook.net https://www.googletagmanager.com https://www.google-analytics.com https://js.sentry-cdn.com https://static.cloudflareinsights.com https://www.gstatic.com https://www.google.com ${isDev ? "'unsafe-inline'" : ""}`,
     `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com ${isDev ? "" : `'nonce-${nonce}'`}`,
-    "img-src 'self' data: https: blob: https://*.supabase.co",
-    "font-src 'self' https://fonts.gstatic.com data:",
-    "connect-src 'self' https://api.yalidine.app https://connect.ktobi.online wss://connect.ktobi.online https://*.supabase.co wss://*.supabase.co ws://localhost:* wss://localhost:* ws://0.0.0.0:* wss://0.0.0.0:*",
-    "frame-src 'self' https://www.facebook.com https://connect.facebook.net https://www.instagram.com https://*.instagram.com",
+    "img-src 'self' data: https: blob: https://*.supabase.co https://*.cloudflareinsights.com https://www.gravatar.com https://*.gravatar.com",
+    "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:",
+    "connect-src 'self' https://api.yalidine.app https://connect.ktobi.online wss://connect.ktobi.online https://*.supabase.co wss://*.supabase.co https://procolis.com https://www.google-analytics.com https://region1.google-analytics.com https://stats.g.doubleclick.net https://sentry.io https://*.sentry.io https://cloudflareinsights.com https://*.cloudflareinsights.com https://cloudflare-dns.com ws://localhost:* wss://localhost:* ws://0.0.0.0:* wss://0.0.0.0:*",
+    "frame-src 'self' https://www.facebook.com https://connect.facebook.net https://www.instagram.com https://*.instagram.com https://www.google.com https://www.gstatic.com",
     "object-src 'none'",
     "base-uri 'self'",
-    "form-action 'self'",
+    "form-action 'self' https://api.yalidine.app",
     // السماح بتحميل الموقع في iframe من إنستغرام وفيسبوك
     "frame-ancestors 'self' https://www.instagram.com https://*.instagram.com https://www.facebook.com https://*.facebook.com",
     ...(isDev ? [] : ["upgrade-insecure-requests", "require-trusted-types-for 'script'", "trusted-types default"])
@@ -57,8 +57,10 @@ export function securityPlugin(): Plugin {
       
       // إضافة middleware للأمان
       server.middlewares.use((req, res, next) => {
-        // إضافة CSP header مع nonce ديناميكي
-        res.setHeader('Content-Security-Policy', generateCSP(nonce, isDev));
+        // تعطيل CSP تماماً في وضع التطوير لتجنب مشاكل inline scripts
+        if (!isDev) {
+          res.setHeader('Content-Security-Policy', generateCSP(nonce, isDev));
+        }
         
         // إضافة headers أمان إضافية (أخف في بيئة التطوير)
         res.setHeader('X-Content-Type-Options', 'nosniff');

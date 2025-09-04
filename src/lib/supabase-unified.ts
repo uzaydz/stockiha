@@ -8,11 +8,17 @@ import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database.types';
 
-// متغيرات البيئة مع فحص صارم
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// متغيرات البيئة مع فحص و fallback آمن
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://wrnssatuvmumsczyldth.supabase.co';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndybnNzYXR1dm11bXNjenlsZHRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMyNTgxMTYsImV4cCI6MjA1ODgzNDExNn0.zBT3h3lXQgcFqzdpXARVfU9kwRLvNiQrSdAJwMdojYY';
 
 if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('❌ خطأ في إعدادات Supabase:', {
+    hasUrl: !!supabaseUrl,
+    hasKey: !!supabaseAnonKey,
+    url: supabaseUrl,
+    env: import.meta.env
+  });
   throw new Error('Supabase URL and anonymous key are required.');
 }
 
@@ -227,7 +233,8 @@ const createOptimizedSupabaseClient = (): SupabaseClient<Database> => {
 
   const client = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     auth: {
-      autoRefreshToken: false, // ✅ تعطيل التحديث التلقائي لمنع التكرار
+      // تفعيل التحديث التلقائي للتوكن لضمان بقاء الجلسة صالحة
+      autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: false, // تعطيل لمنع مشاكل URL
       flowType: 'pkce',

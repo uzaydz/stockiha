@@ -11,8 +11,7 @@ function getSecurityHeaders(nonce: string): Record<string, string> {
     // Content Security Policy محسنة مع دعم inline scripts المطلوبة
     'Content-Security-Policy': [
       "default-src 'self'",
-      `script-src 'self' 'nonce-${nonce}' 'sha256-vRKmGhO0Jt0ZJLajz37rSXGS0J2GkdjuvALzlXD9Ymg=' 'sha256-HEP/a7uzebOhHt9bVmS6zyymv90YmGWEAkZHYjfdd6g=' 'sha256-oToowZlM1h/gvo9UizVDTa7MltyVSmKouu4seQ8jBtw=' 'sha256-gkpPSL93wBndrOdeNSZNvORHPYYQJFZFeuGGo/EZIOI=' https://connect.facebook.net https://www.googletagmanager.com https://www.google-analytics.com https://js.sentry-cdn.com https://static.cloudflareinsights.com https://www.gstatic.com https://www.google.com 'unsafe-inline'`,
-      `script-src-elem 'self' 'sha256-vRKmGhO0Jt0ZJLajz37rSXGS0J2GkdjuvALzlXD9Ymg=' 'sha256-HEP/a7uzebOhHt9bVmS6zyymv90YmGWEAkZHYjfdd6g=' 'sha256-oToowZlM1h/gvo9UizVDTa7MltyVSmKouu4seQ8jBtw=' 'sha256-gkpPSL93wBndrOdeNSZNvORHPYYQJFZFeuGGo/EZIOI=' https://static.cloudflareinsights.com https://connect.facebook.net https://www.googletagmanager.com https://www.google-analytics.com https://js.sentry-cdn.com https://www.gstatic.com https://www.google.com`,
+      `script-src 'self' 'nonce-${nonce}' https://connect.facebook.net https://www.googletagmanager.com https://www.google-analytics.com https://js.sentry-cdn.com https://static.cloudflareinsights.com https://www.gstatic.com https://www.google.com`,
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net", // unsafe-inline ضروري للـ CSS الديناميكي
       "img-src 'self' data: https: blob: https://*.supabase.co https://*.cloudflareinsights.com https://www.gravatar.com https://*.gravatar.com",
       "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:",
