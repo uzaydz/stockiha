@@ -10,12 +10,18 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState, lazy, Suspense } from "react";
 import { generateSlugFromText, cleanSlug, isValidSlug } from "@/utils/slugUtils";
-import { AdvancedDescriptionBuilder } from "@/components/advanced-description/AdvancedDescriptionBuilder";
+const AdvancedDescriptionBuilder = lazy(async () => ({
+  default: (await import("@/components/advanced-description/AdvancedDescriptionBuilder")).AdvancedDescriptionBuilder,
+}));
 import { AdvancedDescription } from "@/types/advanced-description";
-import { DescriptionGenerator } from "./DescriptionGenerator";
-import { ProductInfoGenerator } from "./ProductInfoGenerator";
+const DescriptionGeneratorLazy = lazy(async () => ({
+  default: (await import("./DescriptionGenerator")).DescriptionGenerator,
+}));
+const ProductInfoGeneratorLazy = lazy(async () => ({
+  default: (await import("./ProductInfoGenerator")).ProductInfoGenerator,
+}));
 
 interface BasicProductInfoProps {
   form: UseFormReturn<ProductFormValues>;
@@ -51,11 +57,11 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
     }
   }, [watchedName, isSlugManual, isFromProductInfoGenerator, form]);
 
-  // Sync advanced description from form data
+  // Sync advanced description from form data (avoid watch() in deps)
+  const watchedAdvancedDescription = form.watch('advanced_description');
   useEffect(() => {
-    const formAdvancedDescription = form.getValues('advanced_description');
-    setAdvancedDescription(formAdvancedDescription || null);
-  }, [form.watch('advanced_description')]);
+    setAdvancedDescription(watchedAdvancedDescription || null);
+  }, [watchedAdvancedDescription]);
 
   const handleSlugChange = (value: string) => {
     setIsSlugManual(true);
@@ -525,6 +531,7 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
         </Card>
 
         {/* Advanced Description Builder Dialog */}
+        <Suspense fallback={null}>
         <AdvancedDescriptionBuilder
           open={showAdvancedBuilder}
           onOpenChange={setShowAdvancedBuilder}
@@ -538,21 +545,26 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
             });
           }}
         />
+        </Suspense>
 
         {/* AI Description Generator Dialog */}
-        <DescriptionGenerator
+        <Suspense fallback={null}>
+        <DescriptionGeneratorLazy
           open={showDescriptionGenerator}
           onOpenChange={setShowDescriptionGenerator}
           productName={watchedName || ''}
           onDescriptionGenerated={handleDescriptionGenerated}
         />
+        </Suspense>
 
         {/* AI Product Info Generator Dialog */}
-        <ProductInfoGenerator
+        <Suspense fallback={null}>
+        <ProductInfoGeneratorLazy
           open={showProductInfoGenerator}
           onOpenChange={setShowProductInfoGenerator}
           onInfoGenerated={handleProductInfoGenerated}
         />
+        </Suspense>
 
         {/* Product Settings Section */}
         <Card className="border-border/50 shadow-lg dark:shadow-2xl dark:shadow-black/20 bg-card/50 backdrop-blur-sm">

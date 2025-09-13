@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { CompleteProduct, ProductColor, ProductSize } from '@/lib/api/productComplete';
+import { addItem as addCartItem } from '@/lib/cart/cartStorage';
 
 interface UseProductActionsProps {
   product: CompleteProduct | null;
@@ -62,11 +63,37 @@ export const useProductActions = ({
 
     try {
       setAddingToCart(true);
-      
-      // هنا يمكن إضافة منطق إضافة المنتج إلى السلة
-      // مثال: استدعاء API لإضافة المنتج إلى السلة
-      await new Promise(resolve => setTimeout(resolve, 1000)); // محاكاة API call
-      
+      // حفظ في تخزين العربة المحلي سريع وآمن للأداء
+      const selectedPrice = Number((priceInfo as any)?.price ?? 0);
+      const image = (product.images && product.images[0]) || product.thumbnail_url || product.thumbnail_image || null;
+      addCartItem({
+        productId: product.id,
+        organizationId: (product.organization as any)?.id || (product as any)?.organization_id || null,
+        name: product.name,
+        slug: (product as any)?.slug || null,
+        image: image || undefined,
+        unitPrice: selectedPrice || 0,
+        quantity,
+        variant: {
+          colorId: selectedColor?.id || null,
+          colorName: (selectedColor as any)?.name || null,
+          colorCode: (selectedColor as any)?.color_code || null,
+          colorImage: (selectedColor as any)?.image_url || null,
+          sizeId: selectedSize?.id || null,
+          sizeName: (selectedSize as any)?.size_name || null,
+          selectedPrice: selectedPrice || null
+        }
+      });
+
+      // تتبع إضافة إلى السلة إن كان متاحاً
+      try {
+        const g: any = typeof window !== 'undefined' ? (window as any) : {};
+        if (typeof g.__trackAddToCart === 'function') {
+          // لا تنتظر التتبع لكي لا تؤخر تجربة المستخدم
+          setTimeout(() => { try { g.__trackAddToCart(); } catch {} }, 0);
+        }
+      } catch {}
+
       toast({
         title: "تم بنجاح",
         description: "تم إضافة المنتج إلى السلة",
@@ -80,7 +107,19 @@ export const useProductActions = ({
     } finally {
       setAddingToCart(false);
     }
-  }, [canPurchase, product, toast]);
+  }, [
+    canPurchase,
+    product,
+    toast,
+    selectedColor?.id,
+    selectedColor?.name,
+    selectedColor?.color_code,
+    selectedColor?.image_url,
+    selectedSize?.id,
+    selectedSize?.size_name,
+    quantity,
+    (priceInfo as any)?.price
+  ]);
 
   // الشراء المباشر
   const buyNow = useCallback(async (): Promise<{ success: boolean; data?: any }> => {

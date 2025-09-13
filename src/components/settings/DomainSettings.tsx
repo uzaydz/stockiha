@@ -12,7 +12,7 @@ import {
   CardTitle 
 } from '@/components/ui/card';
 import { getSupabaseClient } from '@/lib/supabase';
-import { Loader2, Check, Globe, AlertCircle, ExternalLink, Copy, Cloud } from 'lucide-react';
+import { Loader2, Check, Globe, AlertCircle, ExternalLink, Copy, Cloud, Zap, Settings } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { checkDomainStatus, updateOrganizationDomain, checkDomainAvailability } from '@/lib/api/domain-verification';
 import CustomDomainHelp from './CustomDomainHelp';
@@ -28,6 +28,7 @@ import { getDomainInfo } from '@/api/get-domain-direct';
 import { linkDomain } from '@/api/link-domain-direct';
 import { removeDomain } from '@/api/remove-domain-direct';
 import CloudflareDomainSettings from './CloudflareDomainSettings';
+import NameserverDomainSettings from './NameserverDomainSettings';
 import { hasCloudflareConfig } from '@/lib/api/cloudflare-config';
 
 // نمط للتحقق من صحة تنسيق النطاق
@@ -252,6 +253,72 @@ const DomainSettings: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['organization', organization?.id] });
     }
   });
+
+  // التحقق الفوري من النطاق باستخدام النظام الجديد
+  const verifyDomainNowMutation = useMutation({
+    mutationFn: async () => {
+      if (!organization?.id || !organization?.domain) return null;
+      
+      setIsChecking(true);
+      try {
+        const response = await fetch('/api/verify-domain-now', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            domain: organization.domain,
+            organizationId: organization.id
+          })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+          // تم التحقق بنجاح
+          setDomainStatus('verified');
+          setStatusMessage('تم التحقق من النطاق بنجاح!');
+          setLastChecked(new Date().toISOString());
+          
+          toast({
+            title: "تم التحقق من النطاق",
+            description: "النطاق المخصص يعمل الآن بشكل صحيح!",
+          });
+        } else {
+          // فشل التحقق
+          setDomainStatus('pending');
+          setStatusMessage(result.message || 'فشل في التحقق من النطاق');
+          
+          toast({
+            title: "فشل التحقق",
+            description: result.message || 'يرجى التحقق من إعدادات DNS والمحاولة مرة أخرى',
+            variant: 'destructive'
+          });
+        }
+        
+        return result;
+      } catch (error) {
+        setDomainStatus('error');
+        setStatusMessage('حدث خطأ أثناء التحقق من النطاق');
+        
+        toast({
+          title: "خطأ في التحقق",
+          description: "حدث خطأ أثناء التحقق من النطاق",
+          variant: 'destructive'
+        });
+        
+        throw error;
+      } finally {
+        setIsChecking(false);
+      }
+    },
+    onSuccess: () => {
+      // تحديث ذاكرة التخزين المؤقت للاستعلام
+      queryClient.invalidateQueries({ queryKey: ['organization', organization?.id] });
+      // إعادة تحميل معلومات التاجر
+      refreshTenant();
+    }
+  });
   
   // التحقق من صحة تنسيق النطاق وتوفره
   const handleDomainChange = (value: string) => {
@@ -411,44 +478,173 @@ const DomainSettings: React.FC = () => {
     checkDomainStatusMutation.mutate();
   };
   
-  // إذا كان Cloudflare متاح، استخدم مكون Cloudflare المخصص
-  if (useCloudflare) {
-    return <CloudflareDomainSettings />;
-  }
-
-  // إذا لم يكن Cloudflare متاحاً، اعرض رسالة تحذيرية
+  // النظام الجديد: عرض خيارات متعددة للمستخدم
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Cloud className="w-5 h-5" />
-            النطاق المخصص - Cloudflare
-          </CardTitle>
-          <CardDescription>
-            استخدم نطاقك الخاص مع Cloudflare Pages
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>نظام Cloudflare جاهز</AlertTitle>
-            <AlertDescription>
-              <div className="space-y-2">
-                <p>✅ تم تفعيل نظام Cloudflare لإدارة النطاقات المخصصة!</p>
-                <p className="text-sm">
-                  <strong>ملاحظة:</strong> إذا لم تظهر الواجهة بشكل صحيح، تأكد من إضافة متغيرات البيئة التالية:
-                </p>
-                <ul className="list-disc list-inside space-y-1 text-sm">
-                  <li><code>CLOUDFLARE_API_TOKEN</code> - رمز الوصول لـ Cloudflare API</li>
-                  <li><code>CLOUDFLARE_PROJECT_NAME</code> - اسم مشروع Cloudflare Pages (stockiha)</li>
-                  <li><code>CLOUDFLARE_ZONE_ID</code> - معرف المنطقة في Cloudflare</li>
-                </ul>
-              </div>
-            </AlertDescription>
-          </Alert>
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="nameserver" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="nameserver" className="flex items-center gap-2">
+            <Zap className="w-4 h-4" />
+            Nameserver (الأحدث)
+          </TabsTrigger>
+          <TabsTrigger value="cloudflare" className="flex items-center gap-2">
+            <Cloud className="w-4 h-4" />
+            Cloudflare (التقليدي)
+          </TabsTrigger>
+          <TabsTrigger value="advanced" className="flex items-center gap-2">
+            <Settings className="w-4 h-4" />
+            إعدادات متقدمة
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="nameserver" className="mt-6">
+          <div className="space-y-4">
+            <Alert className="border-blue-200 bg-blue-50/50">
+              <Zap className="w-4 h-4 text-blue-600" />
+              <AlertTitle className="text-blue-900">النظام الجديد - Nameserver (مُوصى به)</AlertTitle>
+              <AlertDescription className="text-blue-700">
+                <div className="space-y-2">
+                  <p>✨ <strong>النظام الأحدث والأسهل:</strong> غيّر الـ Nameservers فقط وسيتم إعداد كل شيء تلقائياً!</p>
+                  <ul className="list-disc list-inside space-y-1 text-sm">
+                    <li>SSL تلقائي فوري</li>
+                    <li>دعم النطاق الجذري و www معاً</li>
+                    <li>لا حاجة لإعدادات DNS معقدة</li>
+                    <li>يعمل مع جميع مزودي النطاقات</li>
+                  </ul>
+                </div>
+              </AlertDescription>
+            </Alert>
+            
+            <NameserverDomainSettings
+              organizationId={organization?.id || ''}
+              currentDomain={organization?.domain}
+              onDomainUpdate={(newDomain) => {
+                if (newDomain) {
+                  setActualDomain(newDomain);
+                  setDomain(newDomain);
+                }
+                refreshTenant();
+              }}
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="cloudflare" className="mt-6">
+          <div className="space-y-4">
+            <Alert className="border-orange-200 bg-orange-50/50">
+              <Cloud className="w-4 h-4 text-orange-600" />
+              <AlertTitle className="text-orange-900">النظام التقليدي - Cloudflare</AlertTitle>
+              <AlertDescription className="text-orange-700">
+                النظام القديم الذي يتطلب إعداد CNAME records يدوياً. لا يُنصح به للمستخدمين الجدد.
+              </AlertDescription>
+            </Alert>
+            
+            {useCloudflare && <CloudflareDomainSettings />}
+            
+            {!useCloudflare && (
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-center text-gray-500">
+                    <Cloud className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                    <p>النظام التقليدي غير متاح حالياً</p>
+                    <p className="text-sm">يُرجى استخدام النظام الجديد (Nameserver) بدلاً من ذلك</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="advanced" className="mt-6">
+          <div className="space-y-4">
+            <Alert>
+              <Settings className="w-4 h-4" />
+              <AlertTitle>إعدادات متقدمة</AlertTitle>
+              <AlertDescription>
+                معلومات تقنية وأدوات للمطورين والمستخدمين المتقدمين
+              </AlertDescription>
+            </Alert>
+            
+            <Card>
+              <CardHeader>
+                <CardTitle>معلومات النطاق الحالي</CardTitle>
+                <CardDescription>
+                  تفاصيل النطاق المخصص المُكوّن حالياً
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {actualDomain ? (
+                  <div className="space-y-4">
+                    <div>
+                      <Label>النطاق المخصص</Label>
+                      <div className="flex items-center gap-2 mt-1">
+                        <code className="px-2 py-1 bg-gray-100 rounded text-sm">{actualDomain}</code>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => navigator.clipboard.writeText(actualDomain)}
+                        >
+                          <Copy className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <Label>الحالة</Label>
+                      <div className="mt-1">
+                        <DomainStatus status={domainStatus} message={statusMessage} domain={actualDomain} />
+                      </div>
+                    </div>
+                    
+                    {lastChecked && (
+                      <div>
+                        <Label>آخر فحص</Label>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {new Date(lastChecked).toLocaleString('ar-SA')}
+                        </p>
+                      </div>
+                    )}
+                    
+                    <div className="flex gap-2 flex-wrap">
+                      <Button
+                        variant="outline"
+                        onClick={checkCurrentDomainStatus}
+                        disabled={isChecking}
+                      >
+                        {isChecking && <Loader2 className="w-4 h-4 animate-spin ml-2" />}
+                        فحص الحالة
+                      </Button>
+                      
+                      <Button
+                        variant="default"
+                        onClick={() => verifyDomainNowMutation.mutate()}
+                        disabled={isChecking || verifyDomainNowMutation.isPending}
+                      >
+                        {(isChecking || verifyDomainNowMutation.isPending) && <Loader2 className="w-4 h-4 animate-spin ml-2" />}
+                        <Check className="w-4 h-4 ml-2" />
+                        تحقق فوري
+                      </Button>
+                      
+                      <Button
+                        variant="outline"
+                        onClick={handlePreviewStore}
+                      >
+                        <ExternalLink className="w-4 h-4 ml-2" />
+                        معاينة المتجر
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <Globe className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                    <p>لا يوجد نطاق مخصص مُكوّن</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };

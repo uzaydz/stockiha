@@ -53,7 +53,7 @@ export interface OptimizedImageProps {
   widths?: number[];         // أحجام srcset المسموحة
   baseWidth?: number;        // العرض الافتراضي للصورة الأساسية
   quality?: number;          // جودة WebP الافتراضية
-  priority?: boolean;        // يجعل الصورة eager + fetchpriority=high
+  priority?: boolean;        // يجعل الصورة eager + fetchPriority=high
   sizes?: string;            // قيمة sizes المخصصة
   fit?: 'contain' | 'cover'; // طريقة عرض الصورة: contain للصورة كاملة، cover لتغطية الحاوية
   objectPosition?: string;   // موضع الصورة داخل الحاوية (مثل: center, top, bottom, left, right)

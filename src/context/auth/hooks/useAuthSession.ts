@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Session } from '@supabase/supabase-js';
+import type { Session } from '@supabase/supabase-js';
 import { sessionManager } from '../services/sessionManager';
 import { isValidSession } from '../types';
 import { trackPerformance } from '../../../lib/performance';

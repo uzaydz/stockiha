@@ -6,8 +6,7 @@
     
     <!-- إزالة وسوم http-equiv غير الصحيحة للضغط لتفادي سلوك غير متوقع في المتصفحات/الوكلاء -->
     
-    <!-- سياسة أمان المحتوى المُحسّنة للعمل في بيئتي التطوير والإنتاج مع دعم إنستغرام -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://connect.facebook.net https://www.googletagmanager.com https://www.google-analytics.com https://analytics.tiktok.com https://ads.tiktok.com https://www.facebook.com https://player.vimeo.com https://vimeo.com https://api.vadoo.tv https://vadoo.tv blob:; script-src-elem 'self' 'unsafe-inline' 'unsafe-eval' data: https://connect.facebook.net https://www.googletagmanager.com https://www.google-analytics.com https://analytics.tiktok.com https://ads.tiktok.com https://www.facebook.com https://player.vimeo.com https://vimeo.com https://api.vadoo.tv https://vadoo.tv; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com https://fonts.googleapis.com data:; connect-src 'self' https://api.vercel.com https://*.vercel.com https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://api.yalidine.app https://procolis.com https://*.ecotrack.dz https://api.ecotrack.dz https://*.vercel.app https://*.sentry.io https://www.facebook.com https://graph.facebook.com https://www.google-analytics.com https://analytics.google.com https://ads.tiktok.com https://analytics.tiktok.com https://fonts.googleapis.com https://fonts.gstatic.com https://images.unsplash.com https://www.gravatar.com https://secure.gravatar.com https://api.ipify.org https://player.vimeo.com https://vimeo.com https://api.vadoo.tv https://vadoo.tv https://openrouter.ai ws://localhost:* wss://localhost:* http://localhost:* http://127.0.0.1:* ws://127.0.0.1:* ws://0.0.0.0:* wss://0.0.0.0:* http://0.0.0.0:*; img-src 'self' data: blob: https://*.supabase.co https://*.supabase.in https://cdn.jsdelivr.net https://images.unsplash.com https://*.unsplash.com https://maps.googleapis.com https://*.googleusercontent.com https://www.gravatar.com https://www.facebook.com https://t.co https://analytics.tiktok.com https://ads.tiktok.com https://api.qrserver.com https://bwipjs-api.metafloor.com https://cdn.salla.sa https://i.vimeocdn.com https://f.vimeocdn.com https://api.vadoo.tv https://vadoo.tv; frame-src https://www.facebook.com https://connect.facebook.net https://player.vimeo.com https://vimeo.com https://api.vadoo.tv https://vadoo.tv; frame-ancestors 'self' https://www.instagram.com https://*.instagram.com https://www.facebook.com https://*.facebook.com;" />
+    <!-- سياسة الأمان تُدار من خلال Vite middleware بدلاً من meta element لتجنب مشاكل frame-ancestors -->
 
     <title>جاري التحميل...</title>
     <meta name="description" content="سطوكيها - منصة إدارة المتاجر الذكية لإنشاء متجرك الإلكتروني وإدارة المبيعات والمخزون بكل سهولة" />
@@ -18,15 +17,56 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/images/logo-new.webp">
     <link rel="icon" type="image/png" sizes="16x16" href="/images/logo-new.webp">
     
-    <!-- 🚀 Preconnect للخطوط - يقلل render blocking بنسبة كبيرة -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- 🚀 تحميل الخطوط المحلية محسن للأداء - preload أساسي فقط -->
+    <link rel="preload" as="font" href="/fonts/tajawal-regular.woff2" type="font/woff2" crossorigin="anonymous">
     
-    <!-- 🔤 تحميل خطوط بـ font-display: swap لمنع FOIT -->
-    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- تحميل CSS الخطوط فوراً لتجنب FOUT -->
+    <link rel="stylesheet" href="/fonts/tajawal.css">
+    
+    <!-- تحميل CSS الرئيسي - ضروري للتطبيق -->
+    <link rel="stylesheet" href="/src/index.css">
+    
+    <!-- تحسين إضافي: تحميل الخطوط الإضافية عند الحاجة -->
+    <script nonce="{{CSP_NONCE}}">
+      // Smart font loading strategy
+      (function() {
+        var fontsLoaded = false;
+        
+        // Function to load additional fonts
+        function loadAdditionalFonts() {
+          if (fontsLoaded) return;
+          fontsLoaded = true;
+          
+          var additionalFonts = [
+            '/fonts/tajawal-medium.woff2',
+            '/fonts/tajawal-bold.woff2'
+          ];
+          
+          additionalFonts.forEach(function(fontUrl) {
+            var link = document.createElement('link');
+            // استخدم prefetch بدلاً من preload لتجنّب تحذير "preloaded but not used"
+            link.rel = 'prefetch';
+            link.as = 'font';
+            link.type = 'font/woff2';
+            link.crossOrigin = 'anonymous';
+            link.href = fontUrl;
+            document.head.appendChild(link);
+          });
+        }
+        
+        // Load additional fonts on user interaction or after delay
+        var events = ['mousedown', 'touchstart', 'keydown', 'wheel'];
+        events.forEach(function(event) {
+          document.addEventListener(event, loadAdditionalFonts, { once: true, passive: true });
+        });
+        
+        // Fallback: load after 2 seconds if no interaction
+        setTimeout(loadAdditionalFonts, 2000);
+      })();
+    </script>
     
     <!-- إضافة سكريبت للتعامل مع وضع الإضاءة -->
-    <script>
+    <script nonce="{{CSP_NONCE}}">
       // حاول تطبيق الوضع المحفوظ قبل تحميل الصفحة لمنع وميض الشاشة
       const storedTheme = localStorage.getItem('theme') || 'light';
       const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
@@ -35,84 +75,111 @@
       document.documentElement.style.colorScheme = initialTheme;
     </script>
     
-    <!-- 🚀 DNS prefetch للموارد الخارجية -->
+    <!-- 🚀 Resource Hints محسنة للأداء -->
     <link rel="dns-prefetch" href="//cdn.jsdelivr.net">
+    <link rel="dns-prefetch" href="//api.vercel.com">
     
-    <!-- إزالة polyfills الخاصة ببيئة CommonJS (module/exports/require) لأنها تكسر اكتشاف الوحدات ESM في المتصفح -->
-    <script>
-      // احتفظ فقط بالحد الأدنى الآمن
+    <!-- 🚀 Preconnect للموارد الحرجة -->
+    <link rel="preconnect" href="%VITE_SUPABASE_URL%" crossorigin>
+    
+    <!-- إعدادات JavaScript الأساسية -->
+    <script nonce="{{CSP_NONCE}}">
+      // إعدادات أساسية للأداء
       window.process = window.process || { env: {} };
       window.global = window.global || window;
+      
+      // تحسين أداء الخطوط
+      if ('fonts' in document) {
+        document.fonts.ready.then(() => {
+          document.documentElement.classList.add('fonts-loaded');
+        });
+      }
     </script>
     
-    <!-- 🚀 PERFORMANCE OPTIMIZATION: Resource Hints -->
-    <link rel="dns-prefetch" href="//api.vercel.com">
-    <link rel="dns-prefetch" href="//cdn.jsdelivr.net">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <!-- 🎯 تحسين تحميل الموارد - إزالة preload غير الضروري -->
+    <!-- تم إزالة preload للملفات التي يتم تحميلها بواسطة Vite تلقائياً -->
     
-    <!-- 🎯 Preload Critical Resources: إزالة preload الخط غير المستخدم -->
-    <!-- <link rel="preload" href="/fonts/tajawal-regular.woff2" as="font" type="font/woff2" crossorigin> -->
+    <!-- ❌ إزالة Google Fonts: نعتمد على الخطوط المحلية فقط للأداء -->
     
     <!-- 🚀 Critical CSS will be loaded via React imports -->
     
-    <!-- 🚀 CRITICAL CSS INLINE for instant FCP -->
+    <!-- 🚀 CRITICAL CSS INLINE (مصغّر جداً: الأساسيات واللودر فقط) -->
     <style>
-      /* Critical layout styles optimized for speed */
-      html { 
-        font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+      html {
+        font-family: 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif;
+        line-height: 1.5;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
       }
       body {
-        font-family: 'TajawalForced', 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
         margin: 0;
         padding: 0;
         direction: rtl;
         text-align: right;
-        background-color: #ffffff;
+        min-height: 100vh;
+        background: #ffffff;
         color: #000000;
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
+        overflow-x: hidden;
       }
-      
-      /* 🚀 Optimized loading screen - minimal styles */
       #root { min-height: 100vh; }
-      
       .loading-container {
         position: fixed;
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
         z-index: 9999;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        background: #ffffff;
       }
-      
       .loading-spinner {
         width: 32px;
         height: 32px;
-        border: 2px solid #f0f0f0;
-        border-top: 2px solid #6b21a8;
+        border: 2px solid #e5e7eb;
+        border-top-color: #6b21a8;
         border-radius: 50%;
         animation: spin 0.8s linear infinite;
       }
-      
-      @keyframes spin {
-        to { transform: rotate(360deg); }
-      }
-      
-      /* Dark mode support */
-      .dark body {
-        background-color: #0a0a0a;
-        color: #ffffff;
-      }
-      
-      .dark .loading-container {
-        background-color: #0a0a0a;
-      }
-      
-      /* Performance optimization: will-change for animated elements */
-      .loading-spinner {
-        will-change: transform;
-      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      * { box-sizing: border-box; }
     </style>
+    
+    <!-- 🚀 تحميل CSS محسن لتقليل Render Blocking (تعطيل في التطوير) -->
+    <script nonce="{{CSP_NONCE}}">
+      (function(){
+        // لا تُحمِّل CSS الإضافي في بيئة التطوير (localhost/127.*)
+        var host = location.hostname || '';
+        // اعتبر subdomain.localhost بيئة تطوير أيضاً (asraycollection.localhost)
+        var isDev = host === 'localhost' || host.endsWith('.localhost') || host.indexOf('127.') === 0 || host === '::1' || host === '0.0.0.0';
+        if (isDev) return;
+
+        // تحميل CSS الأساسي للتطبيق
+        function loadNonCriticalCSS() {
+          // تحميل CSS الرئيسي المُنتج من Vite
+          var mainCSS = document.querySelector('link[rel="stylesheet"][href*="main-"]');
+          if (!mainCSS) {
+            // إذا لم يتم تحميل CSS الرئيسي، ابحث عنه وحمّله
+            loadCSS('/assets/css/main-CbztG7-1.css');
+          }
+        }
+
+        function loadCSS(href) {
+          var link = document.createElement('link');
+          link.rel = 'stylesheet';
+          link.href = href;
+          link.media = 'print';
+          link.onload = function(){ this.media = 'all'; this.onload = null; };
+          link.onerror = function(){ console.warn('Failed to load CSS:', href); };
+          document.head.appendChild(link);
+        }
+
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', loadNonCriticalCSS);
+        } else {
+          loadNonCriticalCSS();
+        }
+      })();
+    </script>
 
     <meta property="og:title" content="سطوكيها - منصة إدارة المتاجر الذكية" />
     <meta property="og:description" content="منصة إدارة المتاجر الذكية لإنشاء متجرك الإلكتروني وإدارة المبيعات والمخزون بكل سهولة" />
@@ -140,7 +207,7 @@
     </div>
     
     <!-- Remove loading screen when React loads -->
-    <script>
+    <script nonce="{{CSP_NONCE}}">
       // 🚀 دالة عامة لإزالة شاشة التحميل - سيتم استدعاؤها من React
       window.removeInitialLoading = function() {
         const loadingScreen = document.getElementById('initial-loading');
@@ -155,34 +222,181 @@
         }
       };
 
-      // 🚀 تغيير العنوان فوراً عند اكتشاف النطاق
-      const updateTitleImmediately = () => {
+      // ⛑️ احتياط: إزالة شاشة التحميل تلقائياً بعد مهلة قصيرة حتى لو لم يستدعها React
+      setTimeout(() => {
+        try { if (typeof window.removeInitialLoading === 'function') window.removeInitialLoading(); } catch {}
+      }, 2500);
+
+      // 🚀 تحديث مبكر للعنوان/الوصف/الفافيكون بناءً على cache أو اكتشاف النطاق
+      const earlyHeadUpdate = () => {
         try {
           const hostname = window.location.hostname;
           
           // فحص النطاقات العامة
-          const isPublicDomain = ['ktobi.online', 'www.ktobi.online', 'stockiha.com', 'www.stockiha.com'].includes(hostname);
+          const isPublicDomain = ['ktobi.online', 'www.ktobi.online', 'stockiha.com', 'www.stockiha.com', 'stockiha.pages.dev'].includes(hostname);
           
-          if (!isPublicDomain && !hostname.includes('localhost')) {
-            // نطاق مخصص أو subdomain - تغيير العنوان فوراً
-            const detectedSubdomain = hostname.split('.')[0];
-            document.title = `متجر ${detectedSubdomain} - جاري التحميل...`;
-            console.log('🚀 تم تغيير العنوان فوراً:', document.title);
-          } else if (hostname.includes('localhost') && hostname.includes('.')) {
-            // localhost مع subdomain
+          // لا نعدل شيئاً على الدومين العام (صفحة المنصة)
+          if (isPublicDomain) return;
+
+          // استنتاج معرف المتجر للاستخدام مع التخزين المحلي
+          const baseDomains = ['.ktobi.online', '.stockiha.com'];
+          const isLocalhost = hostname.includes('localhost') || hostname.startsWith('127.');
+          const isBaseDomain = baseDomains.some(d => hostname.endsWith(d));
+          const isCustomDomain = !isLocalhost && !isBaseDomain;
+
+          let storeIdentifier = '';
+          if (isCustomDomain) {
+            storeIdentifier = hostname.startsWith('www.') ? hostname.substring(4) : hostname;
+          } else if (isBaseDomain) {
             const parts = hostname.split('.');
-            if (parts.length > 1 && parts[0] !== 'localhost') {
-              document.title = `متجر ${parts[0]} - جاري التحميل...`;
-              console.log('🚀 تم تغيير العنوان فوراً:', document.title);
+            if (parts.length > 2 && parts[0] !== 'www') storeIdentifier = parts[0];
+          } else if (isLocalhost && hostname.includes('.')) {
+            const parts = hostname.split('.');
+            if (parts.length > 1 && parts[0] !== 'localhost') storeIdentifier = parts[0];
+          }
+
+          // دوال مساعدة صغيرة لتحديث الفافيكون والميتا
+          const setFavicon = (iconUrl, name) => {
+            try {
+              // إزالة أيقونات سابقة لتفادي التكرار
+              document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"]').forEach(el => el.remove());
+              const link = document.createElement('link');
+              link.rel = 'icon';
+              link.type = 'image/x-icon';
+              if (iconUrl) {
+                link.href = `${iconUrl}?v=${Date.now()}`;
+              } else {
+                const initial = (name || 'م').charAt(0);
+                const svg = `
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+                    <defs>
+                      <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#22c55e;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#16a34a;stop-opacity:1" />
+                      </linearGradient>
+                    </defs>
+                    <rect width="100" height="100" rx="20" fill="url(#grad)"/>
+                    <path d="M25 35h50l-5 30H30z" fill="white" opacity="0.9"/>
+                    <circle cx="35" cy="75" r="5" fill="white"/>
+                    <circle cx="65" cy="75" r="5" fill="white"/>
+                    <path d="M35 25l5 10h20l5-10" stroke="white" stroke-width="3" fill="none"/>
+                    <text x="50" y="55" text-anchor="middle" font-family="Arial" font-size="38" font-weight="bold" fill="white">${initial}</text>
+                  </svg>
+                `;
+                link.href = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+              }
+              document.head.appendChild(link);
+              // إضافة shortcut icon لدعم أوسع
+              const shortcut = link.cloneNode();
+              shortcut.rel = 'shortcut icon';
+              document.head.appendChild(shortcut);
+            } catch {}
+          };
+
+          const setMeta = (desc, title, ogImage) => {
+            try {
+              if (title) document.title = title;
+              if (desc) {
+                let m = document.querySelector('meta[name="description"]');
+                if (!m) { m = document.createElement('meta'); m.setAttribute('name','description'); document.head.appendChild(m); }
+                m.setAttribute('content', desc);
+              }
+              if (title) {
+                let ogt = document.querySelector('meta[property="og:title"]');
+                if (!ogt) { ogt = document.createElement('meta'); ogt.setAttribute('property','og:title'); document.head.appendChild(ogt); }
+                ogt.setAttribute('content', title);
+              }
+              if (desc) {
+                let ogd = document.querySelector('meta[property="og:description"]');
+                if (!ogd) { ogd = document.createElement('meta'); ogd.setAttribute('property','og:description'); document.head.appendChild(ogd); }
+                ogd.setAttribute('content', desc);
+              }
+              if (ogImage) {
+                let ogi = document.querySelector('meta[property="og:image"]');
+                if (!ogi) { ogi = document.createElement('meta'); ogi.setAttribute('property','og:image'); document.head.appendChild(ogi); }
+                ogi.setAttribute('content', ogImage);
+              }
+            } catch {}
+          };
+
+          // 0) إن تم حقن بيانات منتج من Cloudflare Worker، استخدمها فوراً
+          try {
+            const pre = document.getElementById('__PRELOADED_PRODUCT__');
+            if (pre && pre.textContent) {
+              const json = JSON.parse(pre.textContent.trim());
+              const data = json?.data || null;
+              const p = data?.product || data || null;
+              const pname = p?.name || null;
+              const pdesc = (p?.description || '').toString().replace(/<[^>]*>/g, '').trim().slice(0, 140);
+              const pimg = p?.images?.thumbnail_image || (p?.images?.additional_images && p?.images?.additional_images[0]?.url) || null;
+              if (pname) {
+                // لا تغيّر إن كان العنوان يحتوي الاسم بالفعل (حقن الحافة سبقنا)
+                if (!document.title || !document.title.includes(pname)) {
+                  setMeta(pdesc || '', pname, pimg || '');
+                }
+                return;
+              }
+            }
+          } catch {}
+
+          // 1) حاول استخدام بيانات محفوظة مسبقاً
+          if (storeIdentifier) {
+            const keysToTry = [
+              `early_preload_${storeIdentifier}`,
+              // في النطاقات المخصصة جرّب أيضاً أول جزء كـ subdomain احتياطي
+              ...(isCustomDomain ? [`early_preload_${storeIdentifier.split('.')[0]}`] : [])
+            ];
+            for (const k of keysToTry) {
+              const raw = localStorage.getItem(k) || sessionStorage.getItem(k);
+              if (raw) {
+                try {
+                  const parsed = JSON.parse(raw);
+                  const data = parsed?.data || parsed; // دعم كلا الشكلين
+                  const siteName = data?.organization_settings?.site_name || data?.organization_details?.name;
+                  const seoTitle = data?.seo_meta?.title || siteName;
+                  const seoDesc = data?.seo_meta?.description || data?.organization_details?.description;
+                  const icon = data?.organization_settings?.favicon_url || data?.organization_settings?.logo_url || data?.organization_details?.logo_url;
+                  const ogImage = data?.seo_meta?.image || data?.organization_settings?.logo_url || data?.organization_details?.logo_url;
+                  if (seoTitle || seoDesc || icon) {
+                    setMeta(seoDesc || '', seoTitle || siteName || '', ogImage || '');
+                    setFavicon(icon, siteName);
+                    return; // تم التحديث بنجاح من الـ cache
+                  }
+                } catch {}
+              }
             }
           }
+
+          // 2) لا يوجد cache:
+          // على النطاقات العامة (بدون subdomain) لا نبدّل الفافيكون الافتراضي الخاص بالمنصة
+          if (!storeIdentifier) {
+            // اترك روابط الفافيكون الثابتة من index.html كما هي
+            // يمكن تحديث العنوان فقط إن أردت، لكن لا تلمس الأيقونة
+            try {
+              let rawName = hostname.startsWith('www.') ? hostname.substring(4) : hostname;
+              const fallbackName = (rawName.split('.')[0] || 'متجر');
+              if (!document.title || document.title === 'جاري التحميل...') {
+                document.title = `سطوكيها`;
+              }
+            } catch {}
+            return;
+          }
+
+          // نطاقات المتاجر: عنوان وفافيكون محايدان حتى يبدأ React
+          let rawName = hostname.startsWith('www.') ? hostname.substring(4) : hostname;
+          const fallbackName = (rawName.split('.')[0] || 'متجر');
+          // لا تسبق الاسم بكلمة "متجر" لتجنب وميض العنوان
+          if (!document.title || document.title === 'جاري التحميل...') {
+            document.title = `${fallbackName}`;
+          }
+          setFavicon(null, fallbackName);
         } catch (error) {
           console.warn('خطأ في تغيير العنوان المبكر:', error);
         }
       };
 
-      // تشغيل تغيير العنوان فوراً
-      updateTitleImmediately();
+      // تشغيل التحديث المبكر مباشرةً
+      earlyHeadUpdate();
     </script>
     
     <!-- Main Application Entry -->

@@ -1,7 +1,16 @@
 import * as React from "react"
-import * as RechartsPrimitive from "recharts"
-
 import { cn } from "@/lib/utils"
+
+// Lazy load recharts components
+let RechartsPrimitive: any = null;
+
+// Load recharts dynamically
+const loadRecharts = async () => {
+  if (!RechartsPrimitive) {
+    RechartsPrimitive = await import("recharts");
+  }
+  return RechartsPrimitive;
+};
 
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: "", dark: ".dark" } as const
@@ -36,13 +45,20 @@ const ChartContainer = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div"> & {
     config: ChartConfig
-    children: React.ComponentProps<
-      typeof RechartsPrimitive.ResponsiveContainer
-    >["children"]
+    children: React.ReactNode
   }
 >(({ id, className, children, config, ...props }, ref) => {
   const uniqueId = React.useId()
   const chartId = `chart-${id || uniqueId.replace(/:/g, "")}`
+  const [isLoaded, setIsLoaded] = React.useState(false)
+  const [ResponsiveContainer, setResponsiveContainer] = React.useState<any>(null)
+
+  React.useEffect(() => {
+    loadRecharts().then((recharts) => {
+      setResponsiveContainer(() => recharts.ResponsiveContainer)
+      setIsLoaded(true)
+    })
+  }, [])
 
   return (
     <ChartContext.Provider value={{ config }}>
@@ -56,9 +72,13 @@ const ChartContainer = React.forwardRef<
         {...props}
       >
         <ChartStyle id={chartId} config={config} />
-        <RechartsPrimitive.ResponsiveContainer>
-          {children}
-        </RechartsPrimitive.ResponsiveContainer>
+        {isLoaded && ResponsiveContainer ? (
+          <ResponsiveContainer>
+            {children}
+          </ResponsiveContainer>
+        ) : (
+          <div className="flex items-center justify-center">Loading chart...</div>
+        )}
       </div>
     </ChartContext.Provider>
   )
@@ -98,18 +118,27 @@ ${colorConfig
   )
 }
 
-const ChartTooltip = RechartsPrimitive.Tooltip
+const ChartTooltip = React.lazy(async () => {
+  const recharts = await loadRecharts()
+  return { default: recharts.Tooltip }
+})
 
 const ChartTooltipContent = React.forwardRef<
   HTMLDivElement,
-  React.ComponentProps<typeof RechartsPrimitive.Tooltip> &
-    React.ComponentProps<"div"> & {
-      hideLabel?: boolean
-      hideIndicator?: boolean
-      indicator?: "line" | "dot" | "dashed"
-      nameKey?: string
-      labelKey?: string
-    }
+  React.ComponentProps<"div"> & {
+    active?: boolean
+    payload?: any[]
+    label?: any
+    labelFormatter?: (value: any, payload: any[]) => React.ReactNode
+    formatter?: (value: any, name: any, item: any, index: number, payload: any) => React.ReactNode
+    hideLabel?: boolean
+    hideIndicator?: boolean
+    indicator?: "line" | "dot" | "dashed"
+    nameKey?: string
+    labelKey?: string
+    color?: string
+    labelClassName?: string
+  }
 >(
   (
     {
@@ -254,15 +283,19 @@ const ChartTooltipContent = React.forwardRef<
 )
 ChartTooltipContent.displayName = "ChartTooltip"
 
-const ChartLegend = RechartsPrimitive.Legend
+const ChartLegend = React.lazy(async () => {
+  const recharts = await loadRecharts()
+  return { default: recharts.Legend }
+})
 
 const ChartLegendContent = React.forwardRef<
   HTMLDivElement,
-  React.ComponentProps<"div"> &
-    Pick<RechartsPrimitive.LegendProps, "payload" | "verticalAlign"> & {
-      hideIcon?: boolean
-      nameKey?: string
-    }
+  React.ComponentProps<"div"> & {
+    payload?: any[]
+    verticalAlign?: "top" | "bottom"
+    hideIcon?: boolean
+    nameKey?: string
+  }
 >(
   (
     { className, hideIcon = false, payload, verticalAlign = "bottom", nameKey },

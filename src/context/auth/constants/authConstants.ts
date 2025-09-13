@@ -6,7 +6,7 @@
 export const DEFAULT_ORGANIZATION_ID = 'aacf0931-91aa-4da3-94e6-eef5d8956443';
 
 // Main Domain Detection
-export const MAIN_DOMAINS = ['www.ktobi.online', 'ktobi.online'] as const;
+export const MAIN_DOMAINS = ['www.ktobi.online', 'ktobi.online', 'www.stockiha.com', 'stockiha.com', 'stockiha.pages.dev'] as const;
 
 // Development Domains
 export const DEV_DOMAINS = ['localhost', '127.0.0.1'] as const;

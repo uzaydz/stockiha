@@ -52,30 +52,9 @@ export async function getOrganizationDefaultLanguage(
   organizationId: string,
   forceRefresh = false
 ): Promise<string> {
-  const key = `organization_default_language:${organizationId}`;
-  
-  return requestDeduplicator.execute(
-    key,
-    async () => {
-      
-      const { data, error } = await supabase
-        .from('organization_settings')
-        .select('default_language')
-        .eq('organization_id', organizationId)
-        .maybeSingle();
-      
-      if (error) {
-        return 'ar'; // fallback
-      }
-      
-      return data?.default_language || 'ar';
-    },
-    {
-      ttl: requestDeduplicator.getLongTTL(), // 15 دقيقة
-      forceRefresh,
-      useCache: true
-    }
-  );
+  // اعتمد على نفس كاش الإعدادات لتجنب ضربة ثانية
+  const settings = await getOrganizationSettings(organizationId, forceRefresh);
+  return (settings as any)?.default_language || 'ar';
 }
 
 /**
@@ -210,6 +189,83 @@ export async function getOrganizationById(
 }
 
 /**
+ * جلب بيانات المؤسسة حسب النطاق الفرعي مع منع التكرار
+ */
+export async function getOrganizationBySubdomain(
+  subdomain: string,
+  forceRefresh = false
+): Promise<Organization | null> {
+  const cleanSubdomain = (subdomain || '')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '')
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/^-+|-+$/g, '')
+    .replace(/-+/g, '-');
+
+  if (!cleanSubdomain) return null;
+
+  const key = `organization_subdomain:${cleanSubdomain}`;
+  return requestDeduplicator.execute(
+    key,
+    async () => {
+      const { data, error } = await supabase
+        .from('organizations')
+        .select('*')
+        .eq('subdomain', cleanSubdomain)
+        .maybeSingle();
+
+      if (error) {
+        throw error;
+      }
+      return data;
+    },
+    {
+      ttl: requestDeduplicator.getLongTTL(),
+      forceRefresh,
+      useCache: true
+    }
+  );
+}
+
+/**
+ * جلب بيانات المؤسسة حسب النطاق الرئيسي مع منع التكرار
+ */
+export async function getOrganizationByDomain(
+  domain: string,
+  forceRefresh = false
+): Promise<Organization | null> {
+  if (!domain) return null;
+
+  let cleanDomain = domain.toLowerCase();
+  cleanDomain = cleanDomain.replace(/^https?:\/\//i, '');
+  if (cleanDomain.startsWith('www.')) cleanDomain = cleanDomain.substring(4);
+  cleanDomain = cleanDomain.split(':')[0].split('/')[0];
+  if (!cleanDomain) return null;
+
+  const key = `organization_domain:${cleanDomain}`;
+  return requestDeduplicator.execute(
+    key,
+    async () => {
+      const { data, error } = await supabase
+        .from('organizations')
+        .select('*')
+        .eq('domain', cleanDomain)
+        .maybeSingle();
+      if (error) {
+        throw error;
+      }
+      return data;
+    },
+    {
+      ttl: requestDeduplicator.getLongTTL(),
+      forceRefresh,
+      useCache: true
+    }
+  );
+}
+
+/**
  * جلب وكلاء مركز الاتصال للمؤسسة مع منع التكرار
  * Note: call_center_agents table doesn't exist, returning empty array
  */
@@ -264,7 +320,7 @@ export function getCacheStats() {
 
 /**
  * جلب بيانات المنتج الكاملة المحسنة مع منع التكرار
- * تستخدم الدالة الأصلية من productCompleteOptimized.ts
+ * تستخدم الدالة الأصلية من productCompleteOptimized.ts مباشرة
  */
 export async function getProductCompleteDataOptimized(
   productIdentifier: string,
@@ -277,23 +333,16 @@ export async function getProductCompleteDataOptimized(
   forceRefresh = false
 ): Promise<any> {
   const key = `product_complete_optimized:${productIdentifier}:${options.organizationId}:${options.dataScope}`;
-  
+
   return requestDeduplicator.execute(
     key,
     async () => {
-      
-      // 🚀 تحسين: استخدام الدالة المحدثة لتحميل جميع صور الألوان
+      // استخدام الدالة المحسنة مباشرة عبر Supabase client
       const { getProductCompleteSmartColorLoading } = await import('./productCompleteOptimized');
-      const result = await getProductCompleteSmartColorLoading(productIdentifier, {
+      return await getProductCompleteSmartColorLoading(productIdentifier, {
         ...options,
-        colorImagesStrategy: 'full' // جلب جميع صور الألوان دائماً
+        colorImagesStrategy: 'thumbnails'
       });
-
-      // 🚀 إضافة logging لتشخيص مشكلة صور الألوان
-      if (result?.product?.variants?.colors) {
-      }
-      
-      return result;
     },
     {
       ttl: requestDeduplicator.getLongTTL(), // 15 دقيقة - البيانات مستقرة نسبياً
@@ -311,44 +360,37 @@ export async function getStoreInitData(
   forceRefresh = false
 ): Promise<any> {
   const key = `store_init_data:${orgSubdomain}`;
-  
+
   return requestDeduplicator.execute(
     key,
     async () => {
       const startTime = performance.now();
-      
-      // إضافة timeout محسّن (10 ثوان)
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('RPC timeout after 10 seconds')), 10000)
-      );
-      
-      const rpcPromise = supabase.rpc('get_store_init_data', {
-        org_identifier: orgSubdomain
-      });
-      
-      // استخدام Promise.race للتنافس بين RPC و timeout
-      let data: any = null;
-      let error: any = null;
+
       try {
-        ({ data, error } = await Promise.race([rpcPromise, timeoutPromise]) as any);
-      } catch (err: any) {
-        error = err;
-      }
-      
-      const executionTime = performance.now() - startTime;
-      
-      if (error) {
-        // استخدام fallback المبني على REST في حال فشل RPC
+        // استخدام الـ RPC مباشرة عبر Supabase client
+        const { data, error } = await supabase.rpc('get_store_init_data', { org_identifier: orgSubdomain });
+
+        if (error) {
+          console.warn('RPC get_store_init_data failed, using fallback:', error);
+          // في حالة فشل الـ RPC، استخدم fallback
+          const fallback = await getStoreInitDataFallback(orgSubdomain);
+          return fallback;
+        }
+
+        return data;
+      } catch (error) {
+        console.error('Error in getStoreInitData:', error);
+        // في حالة أي خطأ، استخدم fallback
         const fallback = await getStoreInitDataFallback(orgSubdomain);
         return fallback;
       }
-      
-      return data;
     },
     {
       ttl: requestDeduplicator.getLongTTL(), // 15 دقيقة - البيانات مستقرة
       forceRefresh,
-      useCache: true
+      useCache: true,
+      // إضافة timeout لمنع التعليق
+      timeout: 10000 // 10 ثوان
     }
   );
 }
@@ -421,7 +463,7 @@ async function getStoreInitDataFallback(orgIdentifier: string): Promise<any> {
     const organizationId = organization.id as string;
 
     // جلب البيانات الأساسية بالتوازي
-    const [settingsRes, categoriesRes, featuredRes] = await Promise.all([
+    const [settingsRes, categoriesRes, featuredRes, productsFirstRes] = await Promise.all([
       supabase
         .from('organization_settings')
         .select('*')
@@ -447,7 +489,20 @@ async function getStoreInitDataFallback(orgIdentifier: string): Promise<any> {
         .eq('is_active', true)
         .eq('is_featured', true)
         .order('created_at', { ascending: false })
-        .limit(50)
+        .limit(50),
+      supabase
+        .from('products')
+        .select(`
+          id, name, description, price, compare_at_price,
+          thumbnail_image, images, stock_quantity,
+          is_featured, is_new, category_id, slug,
+          category:category_id(id, name, slug),
+          subcategory:subcategory_id(id, name, slug)
+        `)
+        .eq('organization_id', organizationId)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(48)
     ]);
 
     const fallbackData = {
@@ -455,6 +510,7 @@ async function getStoreInitDataFallback(orgIdentifier: string): Promise<any> {
       organization_settings: settingsRes.data || null,
       categories: categoriesRes.data || [],
       featured_products: featuredRes.data || [],
+      products_first_page: productsFirstRes.data || [],
       store_layout_components: [],
       footer_settings: null,
       testimonials: [],

@@ -135,71 +135,54 @@ export const GifComponentEditor: React.FC<GifComponentEditorProps> = ({
       {/* Settings Tab */}
       {activeTab === 'settings' && (
         <div className="space-y-6">
-          {/* Width */}
+          {/* Max Width */}
           <div className="space-y-2">
-            <Label>العرض (بكسل)</Label>
+            <Label>الحد الأقصى للعرض (بكسل)</Label>
             <Slider
-              value={[component.settings.width]}
-              onValueChange={([value]) => updateSettings({ width: value })}
+              value={[component.settings.maxWidth || 500]}
+              onValueChange={([value]) => updateSettings({ maxWidth: value })}
               min={100}
               max={800}
               step={10}
               className="w-full"
             />
             <div className="text-xs text-muted-foreground text-center">
-              {component.settings.width} بكسل
+              {component.settings.maxWidth || 500} بكسل
             </div>
           </div>
 
-          {/* Height */}
+          {/* Alignment */}
           <div className="space-y-2">
-            <Label>الارتفاع (بكسل)</Label>
-            <Slider
-              value={[component.settings.height]}
-              onValueChange={([value]) => updateSettings({ height: value })}
-              min={100}
-              max={600}
-              step={10}
-              className="w-full"
-            />
-            <div className="text-xs text-muted-foreground text-center">
-              {component.settings.height} بكسل
-            </div>
-          </div>
-
-          {/* Border Radius */}
-          <div className="space-y-2">
-            <Label>تقويس الحواف</Label>
+            <Label>المحاذاة</Label>
             <Select
-              value={component.settings.borderRadius}
-              onValueChange={(value) => updateSettings({ borderRadius: value as any })}
+              value={component.settings.alignment || 'center'}
+              onValueChange={(value) => updateSettings({ alignment: value as any })}
             >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">بدون</SelectItem>
-                <SelectItem value="sm">صغير</SelectItem>
-                <SelectItem value="md">متوسط</SelectItem>
-                <SelectItem value="lg">كبير</SelectItem>
-                <SelectItem value="xl">كبير جداً</SelectItem>
-                <SelectItem value="full">دائري</SelectItem>
+                <SelectItem value="left">يسار</SelectItem>
+                <SelectItem value="center">وسط</SelectItem>
+                <SelectItem value="right">يمين</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          {/* Show Border */}
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <Label>إظهار الحدود</Label>
-              <p className="text-xs text-muted-foreground">
-                إضافة حدود حول GIF
-              </p>
-            </div>
-            <Switch
-              checked={component.settings.showBorder}
-              onCheckedChange={(checked) => updateSettings({ showBorder: checked })}
+          {/* Border Radius */}
+          <div className="space-y-2">
+            <Label>تقويس الحواف (بكسل)</Label>
+            <Slider
+              value={[component.settings.borderRadius || 8]}
+              onValueChange={([value]) => updateSettings({ borderRadius: value })}
+              min={0}
+              max={50}
+              step={1}
+              className="w-full"
             />
+            <div className="text-xs text-muted-foreground text-center">
+              {component.settings.borderRadius || 8} بكسل
+            </div>
           </div>
 
           {/* Auto Play */}
@@ -207,26 +190,26 @@ export const GifComponentEditor: React.FC<GifComponentEditorProps> = ({
             <div className="space-y-1">
               <Label>التشغيل التلقائي</Label>
               <p className="text-xs text-muted-foreground">
-                تشغيل GIF تلقائياً
+                تشغيل GIF تلقائياً عند التحميل
               </p>
             </div>
             <Switch
-              checked={component.settings.autoPlay}
-              onCheckedChange={(checked) => updateSettings({ autoPlay: checked })}
+              checked={component.data.autoPlay !== false}
+              onCheckedChange={(checked) => updateData({ autoPlay: checked })}
             />
           </div>
 
-          {/* Loop */}
+          {/* Controls */}
           <div className="flex items-center justify-between">
             <div className="space-y-1">
-              <Label>التكرار</Label>
+              <Label>إظهار عناصر التحكم</Label>
               <p className="text-xs text-muted-foreground">
-                تكرار GIF
+                إظهار عناصر التحكم (إن وجدت)
               </p>
             </div>
             <Switch
-              checked={component.settings.loop}
-              onCheckedChange={(checked) => updateSettings({ loop: checked })}
+              checked={component.settings.controls !== false}
+              onCheckedChange={(checked) => updateSettings({ controls: checked })}
             />
           </div>
         </div>

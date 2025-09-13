@@ -9,4 +9,5 @@ export * from './NavbarMain';
 export * from './StoreNavbar';
 export * from './AdminNavbar';
 export * from './SmartNavbar';
+export * from './MobileBottomNavigation';
 export { default as Navbar } from '../Navbar';

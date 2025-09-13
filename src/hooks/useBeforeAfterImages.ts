@@ -126,9 +126,9 @@ export function useBeforeAfterImages(images: string[]) {
           loadFullSizeImages(validImages);
         }
       };
-      // الاستفادة من التحميل المتزامن مع fetchpriority للصورتين الأولى والثانية
+      // الاستفادة من التحميل المتزامن مع fetchPriority للصورتين الأولى والثانية
       if (validImages.indexOf(imageSrc) < 2) {
-        thumbImg.setAttribute('fetchpriority', 'high');
+        thumbImg.setAttribute('fetchPriority', 'high');
       }
       thumbImg.src = thumbSrc;
     });

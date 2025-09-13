@@ -49,7 +49,7 @@ const ColorCard: React.FC<ColorCardProps> = ({
           <div className="relative flex-shrink-0">
             {color.image_url ? (
               <div className="relative w-12 h-12 rounded-lg overflow-hidden border shadow-sm">
-                <img src={color.image_url} alt={color.name} className="w-full h-full object-cover" />
+                <img src={color.image_url} alt={color.name} className="w-full h-full object-cover" width={56} height={56} />
                 <div 
                   className="absolute bottom-0 right-0 w-4 h-4 rounded-full border-2 border-white shadow-sm"
                   style={{ backgroundColor: color.color_code }}

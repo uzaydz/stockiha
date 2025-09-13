@@ -4,7 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Helmet } from 'react-helmet-async';
 import { Button } from '@/components/ui/button';
 import { RefreshCw, AlertCircle } from 'lucide-react';
-import { updateOrganizationTheme } from '@/lib/themeManager';
+import { updateOrganizationTheme } from '@/lib/themeManager/index';
 import { cn } from '@/lib/utils';
 
 // استيراد المكونات المحسنة من ImprovedStoreEditor

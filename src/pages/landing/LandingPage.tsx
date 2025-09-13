@@ -11,6 +11,9 @@ import '@/styles/landing-background.css';
 const AllInOneSection = lazy(() => 
   import('@/components/landing/AllInOneSection').then(module => ({ default: module.default }))
 );
+const CoursesSection = lazy(() => 
+  import('@/components/landing/CoursesSection').then(module => ({ default: module.default }))
+);
 const TestimonialsSection = lazy(() => 
   import('@/components/landing/TestimonialsSection').then(module => ({ default: module.default }))
 );
@@ -203,6 +206,43 @@ const LandingPage = memo(() => {
         <meta name="keywords" content="إدارة متجر، نقطة بيع، متجر إلكتروني، POS، إدارة مخزون، سطوكيها" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <link rel="dns-prefetch" href="//fonts.googleapis.com" />
+        {/* Canonical */}
+        <link rel="canonical" href={(typeof window !== 'undefined' ? (new URL(window.location.href)).origin : 'https://stockiha.com') + '/'} />
+        {/* Open Graph */}
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content="سطوكيها - منصة إدارة المتاجر الذكية" />
+        <meta property="og:description" content="منصة إدارة المتاجر الذكية لإنشاء متجرك الإلكتروني وإدارة المبيعات والمخزون بكل سهولة" />
+        <meta property="og:url" content={(typeof window !== 'undefined' ? (new URL(window.location.href)).origin : 'https://stockiha.com') + '/'} />
+        <meta property="og:image" content="/images/logo-new.webp" />
+        <meta property="og:site_name" content="سطوكيها" />
+        <meta property="og:locale" content="ar_DZ" />
+        {/* Twitter */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:site" content="@stockiha" />
+        <meta name="twitter:image" content="/images/logo-new.webp" />
+        {/* JSON-LD */}
+        <script type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "WebSite",
+            "name": "سطوكيها",
+            "url": (typeof window !== 'undefined' ? (new URL(window.location.href)).origin : 'https://stockiha.com') + '/',
+            "potentialAction": {
+              "@type": "SearchAction",
+              "target": (typeof window !== 'undefined' ? (new URL(window.location.href)).origin : 'https://stockiha.com') + '/search?q={search_term_string}',
+              "query-input": "required name=search_term_string"
+            }
+          })}
+        </script>
+        <script type="application/ld+json">
+          {JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "Organization",
+            "name": "سطوكيها",
+            "url": (typeof window !== 'undefined' ? (new URL(window.location.href)).origin : 'https://stockiha.com') + '/',
+            "logo": "/images/logo-new.webp"
+          })}
+        </script>
       </Helmet>
       
       <div className="landing-section-content">
@@ -216,6 +256,10 @@ const LandingPage = memo(() => {
           {/* المكونات الثانوية - تحميل كسول */}
           <Suspense fallback={<SectionSkeleton />}>
             <AllInOneSection />
+          </Suspense>
+          
+          <Suspense fallback={<SectionSkeleton />}>
+            <CoursesSection />
           </Suspense>
           
           <Suspense fallback={<SectionSkeleton />}>

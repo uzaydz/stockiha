@@ -323,6 +323,12 @@ export const getOrganizationByDomain = async (domain: string): Promise<Organizat
   if (!domain) {
     return null;
   }
+  
+  // 🔥 فحص النطاقات العامة أولاً - لا تحتاج organization lookup
+  const publicDomains = ['stockiha.pages.dev', 'ktobi.online', 'www.ktobi.online', 'stockiha.com', 'www.stockiha.com'];
+  if (publicDomains.includes(domain)) {
+    return null; // لا توجد organization للنطاقات العامة
+  }
 
   let cleanDomain = domain.toLowerCase();
   cleanDomain = cleanDomain.replace(/^https?:\/\//i, '');
@@ -467,6 +473,12 @@ export const extractSubdomainFromHostname = (hostname: string) => {
   
   // التحقق أولاً إذا كان يستخدم النطاق الرئيسي الذي نمتلكه
   const baseDomains = ['.bazaar.com', '.bazaar.dev', '.vercel.app', '.ktobi.online', '.stockiha.com'];
+  const publicDomains = ['stockiha.pages.dev', 'ktobi.online', 'www.ktobi.online', 'stockiha.com', 'www.stockiha.com'];
+  
+  // 🔥 فحص النطاقات العامة أولاً - لا تحتاج subdomain extraction
+  if (publicDomains.includes(hostname)) {
+    return null; // لا يوجد subdomain للنطاقات العامة
+  }
   
   for (const baseDomain of baseDomains) {
     if (hostname.endsWith(baseDomain)) {

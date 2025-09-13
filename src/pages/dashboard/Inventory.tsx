@@ -16,10 +16,11 @@ import {
   Zap
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { checkUserPermissions } from '@/lib/api/permissions';
+import { usePermissions } from '@/hooks/usePermissions';
 
 const Inventory = () => {
   const { user } = useAuth();
+  const perms = usePermissions();
   
   // صلاحيات المستخدم
   const [canViewInventory, setCanViewInventory] = useState(false);
@@ -39,19 +40,53 @@ const Inventory = () => {
         return;
       }
 
-      // التحقق من صلاحية مشاهدة المخزون
-      const hasViewPermission = await checkUserPermissions(user, 'viewInventory');
-      setCanViewInventory(hasViewPermission);
+      // 🔥 إصلاح: فحص الصلاحيات من مصادر متعددة
+      let canView = false;
+      let canManage = false;
+
+      // 1. فحص محلي من user metadata أولاً (أسرع وأكثر موثوقية)
+      const isOrgAdmin = user?.user_metadata?.is_org_admin === true || 
+                        user?.app_metadata?.is_org_admin === true;
+      const isSuperAdmin = user?.user_metadata?.is_super_admin === true || 
+                          user?.app_metadata?.is_super_admin === true;
+      const userRole = user?.user_metadata?.role || user?.app_metadata?.role || user?.role;
       
-      // التحقق من صلاحية إدارة المخزون
-      const hasManagePermission = await checkUserPermissions(user, 'manageInventory');
-      setCanManageInventory(hasManagePermission);
+      // المسؤولون لهم جميع الصلاحيات
+      if (isOrgAdmin || isSuperAdmin || userRole === 'admin' || userRole === 'owner') {
+        canView = true;
+        canManage = true;
+      } else {
+        // فحص الصلاحيات المحددة
+        const permissions = user?.user_metadata?.permissions || user?.app_metadata?.permissions || {};
+        canView = permissions.viewInventory === true || 
+                 permissions.manageInventory === true || 
+                 permissions.manageProducts === true;
+        canManage = permissions.manageInventory === true || 
+                   permissions.manageProducts === true;
+      }
+
+      // 2. إذا لم تكن هناك صلاحيات محلية، جرب PermissionsContext
+      if (!canView && perms.ready && perms.data) {
+        canView = perms.isOrgAdmin || 
+                 perms.isSuperAdmin ||
+                 perms.data?.has_inventory_access || 
+                 perms.data?.can_manage_products || 
+                 perms.anyOf(['viewInventory', 'manageInventory', 'manageProducts']);
+                 
+        canManage = perms.isOrgAdmin || 
+                   perms.isSuperAdmin ||
+                   perms.data?.can_manage_products || 
+                   perms.anyOf(['manageInventory', 'manageProducts']);
+      }
       
+      
+      setCanViewInventory(canView);
+      setCanManageInventory(canManage);
       setIsCheckingPermissions(false);
     };
     
     checkPermissions();
-  }, [user]);
+  }, [user, perms.ready, perms.role, perms.isOrgAdmin, perms.isSuperAdmin, perms.data]);
 
   // عرض رسالة عدم وجود صلاحية
   if (!canViewInventory && !isCheckingPermissions) {

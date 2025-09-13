@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { Separator } from '@/components/ui/separator';
 import ProductFormRenderer from '@/components/product/ProductFormRenderer';
+import { ProductDescription } from '@/components/product/ProductDescription';
 
 interface ProductFormSectionProps {
   formData: any;
@@ -118,8 +119,10 @@ const ProductFormSection: React.FC<ProductFormSectionProps> = React.memo(({
         product={{
           has_variants: product.has_variants,
           colors: product.colors,
-          stock_quantity: product.inventory?.stock_quantity || product.stock_quantity
-        }}
+          stock_quantity: product.inventory?.stock_quantity || product.stock_quantity,
+          // إضافة معلومات الشحن للمنتج
+          shipping_and_templates: product.shipping_and_templates
+        } as any}
         selectedColor={selectedColor}
         selectedSize={selectedSize}
         subtotal={priceInfo.price * quantity}
@@ -134,6 +137,17 @@ const ProductFormSection: React.FC<ProductFormSectionProps> = React.memo(({
           name: summaryData.selectedMunicipality.name
         } : undefined}
       />
+      
+      {/* وصف المنتج (يدعم الوصف المتقدم) */}
+      {product?.description && (
+        <div className="mt-6">
+          <ProductDescription 
+            description={product.description}
+            advancedDescription={(product as any).advanced_description}
+            product={product}
+          />
+        </div>
+      )}
       
       {/* إظهار معلومات النموذج للتطوير */}
       {developmentInfo}

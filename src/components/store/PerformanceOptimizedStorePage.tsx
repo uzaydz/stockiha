@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { RefreshCw } from 'lucide-react';
 import SkeletonLoader from './SkeletonLoader';
-import { updateOrganizationTheme } from '@/lib/themeManager';
+import { updateOrganizationTheme } from '@/lib/themeManager/index';
 import { getSupabaseClient } from '@/lib/supabase';
 import { 
   getStoreDataProgressive, 
@@ -525,9 +525,9 @@ const PerformanceOptimizedStorePage = React.memo(({
     };
   }, [currentSubdomain, initialStoreData, currentOrganization?.id, applyOrganizationTheme, checkCustomDomainAndLoadData]);
   
-  // Update page title
+  // Update page title without brand suffix to avoid flicker
   useEffect(() => {
-    document.title = `${storeName} | سطوكيها - المتجر الإلكتروني`;
+    if (storeName) document.title = `${storeName}`;
   }, [storeName]);
   
   // Timer to limit loading time

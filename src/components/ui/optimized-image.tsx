@@ -219,6 +219,8 @@ export function OptimizedImage({
         onLoad={handleLoad}
         onError={handleError}
         loading={priority ? 'eager' : 'lazy'}
+        // تحسين LCP: إعطاء أولوية عالية للصورة الحرجة
+        fetchPriority={priority ? 'high' : undefined}
         decoding="async"
       />
       

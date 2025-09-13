@@ -100,6 +100,8 @@ export function NavbarLogo({
               "hover:drop-shadow-md"
             )}
             style={{ willChange: 'transform' }}
+            width={size === 'sm' ? 24 : size === 'md' ? 32 : 40}
+            height={size === 'sm' ? 24 : size === 'md' ? 32 : 40}
             onLoad={() => setHasLoaded(true)}
           />
           <div className={cn(

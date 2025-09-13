@@ -114,115 +114,35 @@ const GifUploader = forwardRef<GifUploaderRef, GifUploaderProps>(({
     };
   }, [isUploading, preview, toast]);
 
-  // دالة لضغط GIF مع الحفاظ على الحركة
+  // دالة للتعامل مع GIF - لا نضغط GIF للحفاظ على الحركة
   const compressGif = async (file: File): Promise<File> => {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       // التحقق من أن الملف هو GIF
       if (file.type !== 'image/gif') {
-        reject(new Error('الملف ليس GIF'));
-        return;
-      }
-
-      // إذا كان الملف صغير جداً، استخدمه كما هو
-      if (file.size <= 1024 * 1024) { // أقل من 1MB
         resolve(file);
         return;
       }
 
-      // للـ GIF، نحن نضغط فقط عن طريق تقليل الأبعاد
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = (event) => {
-        const img = new Image();
-        img.src = event.target?.result as string;
-        img.onload = () => {
-          // تحديد أبعاد الصورة المضغوطة
-          let width = img.width;
-          let height = img.height;
-          
-          // تحديد الحد الأقصى للأبعاد بناءً على حجم الملف الأصلي
-          let MAX_DIMENSION = 800; // أصغر من الصور العادية للـ GIF
-          
-          if (file.size > 10 * 1024 * 1024) { // أكبر من 10MB
-            MAX_DIMENSION = 600;
-          } else if (file.size > 5 * 1024 * 1024) { // أكبر من 5MB
-            MAX_DIMENSION = 700;
-          }
-          
-          if (width > height && width > MAX_DIMENSION) {
-            height = Math.round((height * MAX_DIMENSION) / width);
-            width = MAX_DIMENSION;
-          } else if (height > MAX_DIMENSION) {
-            width = Math.round((width * MAX_DIMENSION) / height);
-            height = MAX_DIMENSION;
-          }
-          
-          // إنشاء canvas لرسم الصورة المضغوطة
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          
-          if (!ctx) {
-            reject(new Error('فشل إنشاء سياق الرسم'));
-            return;
-          }
-          
-          // تحسين جودة الرسم
-          ctx.imageSmoothingEnabled = true;
-          ctx.imageSmoothingQuality = 'high';
-          
-          // رسم الصورة
-          ctx.drawImage(img, 0, 0, width, height);
-          
-          // تحويل Canvas إلى Blob بتنسيق GIF
-          canvas.toBlob(
-            (blob) => {
-              if (!blob) {
-                reject(new Error('فشل تحويل الصورة المضغوطة إلى ملف'));
-                return;
-              }
-              
-              // إنشاء اسم ملف بالتنسيق المناسب
-              const timestamp = Date.now();
-              const baseName = file.name.replace(/\.[^/.]+$/, ''); // إزالة الامتداد الأصلي
-              // تنظيف اسم الملف من الأحرف الخاصة والمسافات
-              const cleanBaseName = baseName
-                .replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '_') // استبدال الأحرف الخاصة بـ _
-                .replace(/_+/g, '_') // دمج الشرطات السفلية المتتالية
-                .replace(/^_|_$/g, '') // إزالة الشرطات من البداية والنهاية
-                .substring(0, 20); // تحديد الطول لتجنب أسماء الملفات الطويلة
-              
-              const fileName = `${timestamp}_${cleanBaseName || 'gif'}.gif`;
-              
-              const compressedFile = new File([blob], fileName, {
-                type: 'image/gif',
-                lastModified: Date.now()
-              });
-
-              // حساب نسبة الضغط
-              const compressionRatio = ((file.size - compressedFile.size) / file.size * 100).toFixed(2);
-
-              // تنظيف الذاكرة
-              canvas.width = 0;
-              canvas.height = 0;
-              img.src = '';
-
-              resolve(compressedFile);
-            },
-            'image/gif',
-            0.8 // جودة عالية للـ GIF
-          );
-        };
-        
-        img.onerror = () => {
-          resolve(file); // استخدام الملف الأصلي في حالة الفشل
-        };
-      };
+      // للـ GIF، نستخدم الملف كما هو للحفاظ على الحركة
+      // فقط نقوم بتحسين اسم الملف
+      const timestamp = Date.now();
+      const baseName = file.name.replace(/\.[^/.]+$/, ''); // إزالة الامتداد الأصلي
+      // تنظيف اسم الملف من الأحرف الخاصة والمسافات
+      const cleanBaseName = baseName
+        .replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '_') // استبدال الأحرف الخاصة بـ _
+        .replace(/_+/g, '_') // دمج الشرطات السفلية المتتالية
+        .replace(/^_|_$/g, '') // إزالة الشرطات من البداية والنهاية
+        .substring(0, 20); // تحديد الطول لتجنب أسماء الملفات الطويلة
       
-      reader.onerror = () => {
-        resolve(file); // استخدام الملف الأصلي في حالة الفشل
-      };
+      const fileName = `${timestamp}_${cleanBaseName || 'gif'}.gif`;
+      
+      // إنشاء ملف جديد بنفس المحتوى ولكن باسم محسن
+      const optimizedFile = new File([file], fileName, {
+        type: 'image/gif',
+        lastModified: Date.now()
+      });
+
+      resolve(optimizedFile);
     });
   };
 
@@ -233,7 +153,13 @@ const GifUploader = forwardRef<GifUploaderRef, GifUploaderProps>(({
         .upload(filePath, file, {
           cacheControl: '31536000',
           upsert: false,
-          contentType: 'image/gif'
+          contentType: 'image/gif',
+          // إضافة خصائص مهمة للـ GIF
+          metadata: {
+            'content-type': 'image/gif',
+            'cache-control': 'public, max-age=31536000',
+            'content-disposition': 'inline'
+          }
         });
 
       if (error) {
@@ -265,9 +191,11 @@ const GifUploader = forwardRef<GifUploaderRef, GifUploaderProps>(({
   const getDisplayUrl = (imageUrl: string): string => {
     if (!imageUrl) return '';
     
-    // إضافة معاملات التحسين للـ GIF مع الحفاظ على التنسيق
+    // للـ Supabase، نتأكد من عدم إضافة معاملات قد تؤثر على حركة GIF
     if (imageUrl.includes('supabase.co')) {
-      return `${imageUrl}?format=gif&optimize=medium`;
+      // إزالة أي معاملات موجودة وإضافة timestamp للتأكد من التحديث
+      const cleanUrl = imageUrl.split('?')[0];
+      return `${cleanUrl}?t=${Date.now()}`;
     }
     
     return imageUrl;
@@ -330,7 +258,7 @@ const GifUploader = forwardRef<GifUploaderRef, GifUploaderProps>(({
 
       toast({
         title: "تم رفع GIF بنجاح",
-        description: `تم رفع الملف بنجاح. نسبة الضغط: ${((file.size - compressedFile.size) / file.size * 100).toFixed(2)}%`,
+        description: "تم رفع الملف بنجاح مع الحفاظ على الحركة والجودة الأصلية.",
       });
 
     } catch (error) {

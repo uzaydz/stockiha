@@ -66,6 +66,8 @@ export const useProductTracking = (options: ProductTrackingOptions) => {
     try {
       if (!productLike) return false;
       const marketingSettings = productLike?.marketing_settings || productLike?.data?.product?.marketing_settings || productLike?.product?.marketing_settings;
+      
+      
       if (!marketingSettings) return false;
 
       const trackingSettings: TrackingSettings = {
@@ -138,20 +140,71 @@ export const useProductTracking = (options: ProductTrackingOptions) => {
     setError(null);
 
     try {
-      // تعطيل أي جلب للإعدادات: سنعتمد على setSettingsFromProduct أو الإعدادات الافتراضية
-      const defaultSettings: TrackingSettings = {
-        facebook: { enabled: false },
-        google: { enabled: false },
-        tiktok: { enabled: false },
-        test_mode: true
-      };
-      setSettings(defaultSettings);
+      // ✅ تحسين: محاولة جلب إعدادات التتبع من مصادر متعددة
+      let trackingSettings: TrackingSettings | null = null;
+      
+      // أولاً: محاولة الحصول من early preload data
+      try {
+        const { getEarlyPreloadedData } = await import('@/utils/earlyPreload');
+        const preloadedData = getEarlyPreloadedData();
+        const orgSettings = preloadedData?.organization_settings;
+        
+        if (orgSettings) {
+          trackingSettings = {
+            facebook: {
+              enabled: orgSettings.facebook_pixel_enabled || false,
+              pixel_id: orgSettings.facebook_pixel_id || undefined,
+              conversion_api_enabled: orgSettings.facebook_conversion_api_enabled || false,
+              access_token: orgSettings.facebook_access_token || 
+                           orgSettings.facebook_conversion_api_access_token || 
+                           orgSettings.conversion_api_access_token || undefined,
+              test_event_code: orgSettings.facebook_test_event_code || undefined
+            },
+            google: {
+              enabled: orgSettings.google_analytics_enabled || false,
+              gtag_id: orgSettings.google_gtag_id || undefined,
+              ads_conversion_id: orgSettings.google_ads_conversion_id || undefined,
+              ads_conversion_label: orgSettings.google_ads_conversion_label || undefined
+            },
+            tiktok: {
+              enabled: orgSettings.tiktok_pixel_enabled || false,
+              pixel_id: orgSettings.tiktok_pixel_id || undefined,
+              events_api_enabled: orgSettings.tiktok_events_api_enabled || false,
+              access_token: orgSettings.tiktok_access_token || undefined,
+              test_event_code: orgSettings.tiktok_test_event_code || undefined
+            },
+            test_mode: orgSettings.conversion_tracking_test_mode !== false
+          };
+          
+        }
+      } catch (e) {
+        console.warn('⚠️ [useProductTracking] فشل في جلب إعدادات من preload:', e);
+      }
+      
+      // إذا لم نجد إعدادات، استخدم افتراضية محسنة
+      if (!trackingSettings) {
+        trackingSettings = {
+          facebook: { 
+            enabled: typeof window !== 'undefined' && typeof window.fbq === 'function',
+            conversion_api_enabled: false // سيتم تحديثها لاحقاً إذا توفرت
+          },
+          google: { 
+            enabled: typeof window !== 'undefined' && typeof window.gtag === 'function'
+          },
+          tiktok: { 
+            enabled: typeof window !== 'undefined' && typeof (window as any).ttq?.track === 'function'
+          },
+          test_mode: true
+        };
+      }
+      
+      setSettings(trackingSettings);
       settingsLoadedRef.current = true;
       
       // تعيين الإعدادات في window.__productTrackingSettings
       try {
-        (window as any).__productTrackingSettings = defaultSettings;
-        const evt = new CustomEvent('trackingSettingsReady', { detail: defaultSettings });
+        (window as any).__productTrackingSettings = trackingSettings;
+        const evt = new CustomEvent('trackingSettingsReady', { detail: trackingSettings });
         window.dispatchEvent(evt);
       } catch {}
       
@@ -163,18 +216,30 @@ export const useProductTracking = (options: ProductTrackingOptions) => {
     }
   }, [productId, organizationId, autoLoadSettings]);
 
-  // تحميل الإعدادات تلقائياً
+  // تحميل الإعدادات تلقائياً - محسن للموثوقية
   useEffect(() => {
-    if (autoLoadSettings && productId && organizationId && !settingsLoadedRef.current) {
-      loadTrackingSettings();
-    } else if (!autoLoadSettings && !settingsLoadedRef.current) {
-      // إذا كان التحميل التلقائي معطل، استخدم إعدادات افتراضية فوراً
+    const initializeSettings = () => {
+      if (settingsLoadedRef.current) return;
+      
+      // إعدادات افتراضية محسنة - تفعيل البكسلات المحملة على مستوى المتجر
       const defaultSettings: TrackingSettings = {
-        facebook: { enabled: false },
-        google: { enabled: false },
-        tiktok: { enabled: false },
+        facebook: { 
+          enabled: typeof window !== 'undefined' && typeof window.fbq === 'function',
+          pixel_id: undefined 
+        },
+        google: { 
+          enabled: typeof window !== 'undefined' && typeof window.gtag === 'function',
+          gtag_id: undefined 
+        },
+        tiktok: { 
+          enabled: typeof window !== 'undefined' && typeof (window as any).ttq?.track === 'function',
+          pixel_id: undefined 
+        },
         test_mode: true
       };
+      
+      
+      
       setSettings(defaultSettings);
       settingsLoadedRef.current = true;
       
@@ -184,6 +249,12 @@ export const useProductTracking = (options: ProductTrackingOptions) => {
         const evt = new CustomEvent('trackingSettingsReady', { detail: defaultSettings });
         window.dispatchEvent(evt);
       } catch {}
+    };
+    
+    if (autoLoadSettings && productId && organizationId) {
+      loadTrackingSettings();
+    } else {
+      initializeSettings();
     }
   }, [autoLoadSettings, productId, organizationId, loadTrackingSettings]);
 

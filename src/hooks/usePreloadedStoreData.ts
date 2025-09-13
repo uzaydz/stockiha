@@ -4,7 +4,6 @@
  */
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useTenant } from '@/context/TenantContext';
 import { useEffect, useMemo, useCallback } from 'react';
 import { preloadService, getPreloadedStoreData, hasPreloadedStoreData } from '@/services/preloadService';
 import { getEarlyPreloadedData } from '@/utils/earlyPreload';
@@ -52,7 +51,6 @@ export const usePreloadedStoreData = (options: UsePreloadedStoreDataOptions = {}
     storeIdentifier: propStoreIdentifier
   } = options;
 
-  const { currentOrganization } = useTenant();
   const queryClient = useQueryClient();
 
   // تحديد store identifier
@@ -86,8 +84,29 @@ export const usePreloadedStoreData = (options: UsePreloadedStoreDataOptions = {}
         }
       }
       
+      // إصلاح: التعامل مع localhost مع subdomain
+      if (isLocalhost && hostname.includes('.')) {
+        const parts = hostname.split('.');
+        if (parts.length > 1 && parts[0] && parts[0] !== 'localhost') {
+          const cleanSubdomain = parts[0]
+            .toLowerCase()
+            .trim()
+            .replace(/\s+/g, '')
+            .replace(/[^a-z0-9-]/g, '')
+            .replace(/^-+|-+$/g, '')
+            .replace(/-+/g, '-');
+          
+          return cleanSubdomain;
+        }
+      }
+      
       if (isCustomDomain) {
-        return hostname;
+        // 🔥 إصلاح: إزالة www. من النطاق المخصص لمطابقة قاعدة البيانات
+        let cleanHostname = hostname;
+        if (cleanHostname.startsWith('www.')) {
+          cleanHostname = cleanHostname.substring(4);
+        }
+        return cleanHostname;
       }
     } catch {}
     
@@ -96,16 +115,30 @@ export const usePreloadedStoreData = (options: UsePreloadedStoreDataOptions = {}
 
   const storeIdentifier = resolveStoreIdentifier();
   
+  // 🔍 تسجيل إضافي لمعرفة ما يحدث
+  
+  
   // التحقق من وجود بيانات محفوظة مسبقاً
   const hasPreloadedData = useMemo(() => {
     if (!storeIdentifier) return false;
 
+    
+
     // التحقق من preloadService أولاً
-    if (hasPreloadedStoreData(storeIdentifier)) return true;
+    if (hasPreloadedStoreData(storeIdentifier)) {
+      
+      return true;
+    }
 
     // التحقق من earlyPreload كـ fallback
     const earlyData = getEarlyPreloadedData(storeIdentifier);
-    return !!earlyData;
+    if (earlyData) {
+      
+      return true;
+    }
+
+    
+    return false;
   }, [storeIdentifier]);
 
   // الحصول على البيانات المحفوظة مسبقاً (من preloadService أو earlyPreload)
@@ -115,18 +148,68 @@ export const usePreloadedStoreData = (options: UsePreloadedStoreDataOptions = {}
     // أولوية للبيانات من preloadService
     const serviceData = getPreloadedStoreData(storeIdentifier);
     if (serviceData) {
-      console.log(`🔍 [usePreloadedStoreData] استخدام بيانات من preloadService: ${storeIdentifier}`);
+      
       return serviceData;
     }
 
     // fallback للبيانات المحفوظة مبكراً
     const earlyData = getEarlyPreloadedData(storeIdentifier);
     if (earlyData) {
-      console.log(`🔍 [usePreloadedStoreData] استخدام بيانات من earlyPreload: ${storeIdentifier}`);
+      
       return earlyData;
     }
 
-    console.log(`⚠️ [usePreloadedStoreData] لم يتم العثور على بيانات محملة مسبقاً: ${storeIdentifier}`);
+    // 🔍 محاولة البحث بمفاتيح بديلة للنطاقات مع www
+    if (storeIdentifier && storeIdentifier.includes('.')) {
+      // جرب البحث مع www. إذا لم يكن موجود
+      const withWww = storeIdentifier.startsWith('www.') ? storeIdentifier : `www.${storeIdentifier}`;
+      const withoutWww = storeIdentifier.startsWith('www.') ? storeIdentifier.substring(4) : storeIdentifier;
+      
+      
+      
+      // جرب مع www في preloadService
+      const serviceDataWithWww = getPreloadedStoreData(withWww);
+      if (serviceDataWithWww) {
+        
+        return serviceDataWithWww;
+      }
+      
+      // جرب بدون www في preloadService
+      const serviceDataWithoutWww = getPreloadedStoreData(withoutWww);
+      if (serviceDataWithoutWww) {
+        
+        return serviceDataWithoutWww;
+      }
+
+      // 🔥 جديد: محاولة البحث في useSharedStoreData cache
+      try {
+        const unifiedCacheKey = `store-data-unified-${withoutWww}`;
+        const cachedData = localStorage.getItem(unifiedCacheKey);
+        if (cachedData) {
+          const parsedData = JSON.parse(cachedData);
+          
+          return parsedData;
+        }
+      } catch (error) {
+        
+      }
+      
+      // جرب earlyPreload مع www
+      const earlyDataWithWww = getEarlyPreloadedData(withWww);
+      if (earlyDataWithWww) {
+        
+        return earlyDataWithWww;
+      }
+      
+      // جرب earlyPreload بدون www
+      const earlyDataWithoutWww = getEarlyPreloadedData(withoutWww);
+      if (earlyDataWithoutWww) {
+        
+        return earlyDataWithoutWww;
+      }
+    }
+
+    
     return null;
   }, [storeIdentifier, hasPreloadedData]);
 
@@ -147,7 +230,7 @@ export const usePreloadedStoreData = (options: UsePreloadedStoreDataOptions = {}
 
   // دالة إعادة التحميل محسنة
   const refreshData = useCallback(async () => {
-    console.log(`🔄 [usePreloadedStoreData] بدء إعادة التحميل: ${storeIdentifier}`);
+    
 
     if (storeIdentifier) {
       try {
@@ -159,14 +242,14 @@ export const usePreloadedStoreData = (options: UsePreloadedStoreDataOptions = {}
           try {
             // استيراد earlyPreloader ومسح البيانات
             import('@/utils/earlyPreload').then(({ earlyPreloader }) => {
-              earlyPreloader.clearPreloadedData(storeIdentifier);
+              earlyPreloader.clearPreloadedData();
             });
           } catch (e) {
             console.warn('⚠️ فشل في مسح البيانات من earlyPreload:', e);
           }
         }
 
-        console.log(`💾 [usePreloadedStoreData] تم مسح البيانات القديمة`);
+        
 
         // إعادة تحميل البيانات باستخدام preloadService
         const preloadResult = await preloadService.preloadStoreData({
@@ -175,7 +258,7 @@ export const usePreloadedStoreData = (options: UsePreloadedStoreDataOptions = {}
         });
 
         if (preloadResult.success) {
-          console.log(`✅ [usePreloadedStoreData] تم تحديث البيانات بنجاح`);
+          
 
           // إعادة تحميل البيانات في React Query أيضاً
           await queryClient.refetchQueries({
@@ -183,7 +266,7 @@ export const usePreloadedStoreData = (options: UsePreloadedStoreDataOptions = {}
             type: 'active'
           });
 
-          console.log(`🔄 [usePreloadedStoreData] تم تحديث React Query`);
+          
         } else {
           console.warn(`⚠️ [usePreloadedStoreData] فشل تحديث البيانات:`, preloadResult.error);
         }
@@ -193,7 +276,7 @@ export const usePreloadedStoreData = (options: UsePreloadedStoreDataOptions = {}
       }
     } else {
       // fallback إلى refreshData العادي
-      console.log(`🔄 [usePreloadedStoreData] استخدام fallback refresh`);
+      
       fallbackData.refreshData();
     }
   }, [storeIdentifier, queryClient, fallbackData.refreshData]);
@@ -201,6 +284,8 @@ export const usePreloadedStoreData = (options: UsePreloadedStoreDataOptions = {}
   // استخراج البيانات من البيانات المحفوظة مسبقاً
   const extractPreloadedData = useCallback((data: any) => {
     if (!data) return null;
+    
+    // تشخيص البيانات المحملة مسبقاً
     
     return {
       organization: data.organization_details || null,
@@ -213,7 +298,7 @@ export const usePreloadedStoreData = (options: UsePreloadedStoreDataOptions = {}
       testimonials: includeTestimonials ? (data.testimonials || []) : [],
       seoMeta: includeSeoMeta ? (data.seo_meta || null) : null
     };
-  }, [includeCategories, includeProducts, includeFeaturedProducts, includeComponents, includeFooterSettings, includeTestimonials, includeSeoMeta]);
+  }, [storeIdentifier, includeCategories, includeProducts, includeFeaturedProducts, includeComponents, includeFooterSettings, includeTestimonials, includeSeoMeta]);
 
   // إرجاع البيانات المناسبة
   return useMemo(() => {

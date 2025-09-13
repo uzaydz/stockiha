@@ -8,19 +8,57 @@ import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database.types';
 
-// متغيرات البيئة مع فحص و fallback آمن
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://wrnssatuvmumsczyldth.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndybnNzYXR1dm11bXNjenlsZHRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMyNTgxMTYsImV4cCI6MjA1ODgzNDExNn0.zBT3h3lXQgcFqzdpXARVfU9kwRLvNiQrSdAJwMdojYY';
+// 🔍 تشخيص متقدم لمتغيرات البيئة مع حماية من undefined
+const getEnvSafely = (): Record<string, any> => {
+  try {
+    return typeof import.meta !== 'undefined' && import.meta.env ? import.meta.env : {};
+  } catch (error) {
+    console.warn('⚠️ import.meta.env غير متاح، استخدام fallback values');
+    return {};
+  }
+};
+
+const env = getEnvSafely();
+
+if (env?.DEV) {
+}
+
+// متغيرات البيئة مع فحص و fallback آمن محسن
+const supabaseUrl = env.VITE_SUPABASE_URL || 'https://wrnssatuvmumsczyldth.supabase.co';
+const supabaseAnonKey = env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndybnNzYXR1dm11bXNjenlsZHRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMyNTgxMTYsImV4cCI6MjA1ODgzNDExNn0.zBT3h3lXQgcFqzdpXARVfU9kwRLvNiQrSdAJwMdojYY';
+
+if (env?.DEV) {
+}
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.error('❌ خطأ في إعدادات Supabase:', {
     hasUrl: !!supabaseUrl,
     hasKey: !!supabaseAnonKey,
     url: supabaseUrl,
-    env: import.meta.env
+    env: env,
+    envKeys: Object.keys(env)
   });
   throw new Error('Supabase URL and anonymous key are required.');
 }
+
+// ⚡️ تحسين الشبكة: إضافة preconnect/dns-prefetch ديناميكياً لنطاق Supabase
+try {
+  if (typeof document !== 'undefined' && typeof URL !== 'undefined' && supabaseUrl) {
+    const origin = new URL(supabaseUrl).origin;
+    const ensureLink = (rel: string) => {
+      const exists = document.querySelector(`link[rel="${rel}"][href="${origin}"]`);
+      if (!exists) {
+        const link = document.createElement('link');
+        link.rel = rel as any;
+        link.href = origin;
+        if (rel === 'preconnect') link.crossOrigin = '';
+        document.head.appendChild(link);
+      }
+    };
+    ensureLink('preconnect');
+    ensureLink('dns-prefetch');
+  }
+} catch {}
 
 // 🔒 نظام حماية مبسط ومنطقي
 class SupabaseProtector {
@@ -247,11 +285,11 @@ const createOptimizedSupabaseClient = (): SupabaseClient<Database> => {
       timeout: 60000, // زيادة إلى دقيقة واحدة
       heartbeatIntervalMs: 60000, // ✅ زيادة إلى دقيقة واحدة
       params: {
-        eventsPerSecond: 1, // ✅ تقليل إلى حدث واحد/ثانية
-        maxRetries: 1, // ✅ تقليل المحاولات
-        retryDelay: 5000, // ✅ زيادة التأخير
-        backoffMultiplier: 1.2, // ✅ تقليل المضاعف
-        maxBackoffDelay: 30000 // ✅ تقليل التأخير الأقصى
+        eventsPerSecond: 1,
+        maxRetries: 1,
+        retryDelay: 8000,
+        backoffMultiplier: 1.5,
+        maxBackoffDelay: 45000
       }
     },
     global: {
@@ -264,6 +302,22 @@ const createOptimizedSupabaseClient = (): SupabaseClient<Database> => {
       }
     }
   });
+
+  // 🛡️ Throttle getSession لمنع الاستدعاءات المتعددة والتجديد المبكر
+  try {
+    const originalGetSession = client.auth.getSession.bind(client.auth);
+    let lastGetSessionPromise: Promise<any> | null = null;
+    let lastGetSessionTs = 0;
+    (client.auth as any).getSession = async () => {
+      const now = Date.now();
+      if (lastGetSessionPromise && (now - lastGetSessionTs) < 1500) {
+        return lastGetSessionPromise;
+      }
+      lastGetSessionTs = now;
+      lastGetSessionPromise = originalGetSession();
+      try { return await lastGetSessionPromise; } finally { /* keep promise cached briefly */ }
+    };
+  } catch { /* لا شيء */ }
 
   // تسجيل العميل في المراقب
   AdvancedSupabaseMonitor.registerClient(client, 'MainClient');

@@ -1,15 +1,27 @@
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
-import { useAuth } from '@/context/AuthContext';
-import { useTenant } from '@/context/TenantContext';
 import { useTranslation } from 'react-i18next';
-import { getSupabaseClient } from '@/lib/supabase';
-import { supabase } from '@/lib/supabase-unified';
 import { StoreComponent, ComponentType } from '@/types/store-editor';
 import { useSharedStoreDataContext } from '@/context/SharedStoreDataContext';
+import { extractSubdomainFromHostname } from '@/lib/api/subdomain';
 
 import { getDefaultFooterSettings, mergeFooterSettings } from '@/lib/footerSettings';
 import { convertDatabaseProductToStoreProduct } from '@/components/store/productUtils';
 import { useUnifiedLoading } from './useUnifiedLoading';
+
+// دالة لتحويل أسماء المكونات من قاعدة البيانات إلى التنسيق المتوقع
+function normalizeComponentType(dbType: string): string {
+  const typeMap: { [key: string]: string } = {
+    'featuredproducts': 'featured_products',
+    'categories': 'product_categories',
+    'hero': 'hero',
+    'about': 'about',
+    'testimonials': 'testimonials',
+    'footer': 'footer',
+    'seo_settings': 'seo_settings'
+  };
+  
+  return typeMap[dbType] || dbType;
+}
 
 export interface UseStorePageDataReturn {
   // بيانات أساسية
@@ -18,6 +30,7 @@ export interface UseStorePageDataReturn {
   storeName: string;
   logoUrl: string;
   centralOrgId: string;
+  currentOrganization: any;
   
   // بيانات المكونات
   componentsToRender: StoreComponent[];
@@ -44,8 +57,9 @@ export const useStorePageData = (): UseStorePageDataReturn => {
   // 🔥 استخدام useRef لمنع إعادة الإنشاء المتكرر
   const isInitialized = useRef(false);
   
-  const { currentSubdomain } = useAuth();
-  const { currentOrganization } = useTenant();
+  // Lightweight subdomain detection (avoids heavy AuthContext on store)
+  const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+  const currentSubdomain = useMemo(() => extractSubdomainFromHostname(hostname), [hostname]);
   const { t } = useTranslation();
 
   // النظام الموحد للتحميل
@@ -65,29 +79,28 @@ export const useStorePageData = (): UseStorePageDataReturn => {
 
   // 🔥 تحسين: استخدام useMemo لاستخراج البيانات المطلوبة
   const extractedData = useMemo(() => {
-    const storeName = organizationSettings?.site_name || currentOrganization?.name || sharedOrg?.name || 'المتجر';
+    const storeName = organizationSettings?.site_name || sharedOrg?.name || '';
     const logoUrl = organizationSettings?.logo_url || sharedOrg?.logo_url || null;
-    const centralOrgId = sharedOrg?.id || currentOrganization?.id || null;
+    const centralOrgId = sharedOrg?.id || null;
 
     return { storeName, logoUrl, centralOrgId };
-  }, [organizationSettings, currentOrganization, sharedOrg]);
+  }, [organizationSettings, sharedOrg]);
   
   const { storeName, logoUrl, centralOrgId } = extractedData;
   
   // 🔥 تحسين: إنشاء storeInfo محسن للـ components
   const enhancedStoreInfo = useMemo(() => {
-    // إنشاء storeInfo من البيانات المتوفرة للنطاقات المخصصة
-    if (centralOrgId && (currentOrganization || organizationSettings || sharedOrg)) {
+    if (centralOrgId && (organizationSettings || sharedOrg)) {
       return {
         id: centralOrgId,
-        name: organizationSettings?.site_name || currentOrganization?.name || sharedOrg?.name || 'المتجر',
-        subdomain: currentOrganization?.subdomain || currentSubdomain,
+        name: organizationSettings?.site_name || sharedOrg?.name || '',
+        subdomain: sharedOrg?.subdomain || currentSubdomain,
         logo_url: organizationSettings?.logo_url || sharedOrg?.logo_url || null
       };
     }
 
     return null;
-  }, [centralOrgId, currentOrganization, organizationSettings, currentSubdomain, sharedOrg]);
+  }, [centralOrgId, organizationSettings, currentSubdomain, sharedOrg]);
   
   // 🔥 تحسين: تطبيق الثيم باستخدام useCallback
   const applyTheme = useCallback(async () => {
@@ -266,13 +279,13 @@ export const useStorePageData = (): UseStorePageDataReturn => {
     if (sharedComponents && sharedComponents.length > 0) {
       const convertedComponents: StoreComponent[] = sharedComponents
         .filter((comp: any) => comp?.isActive !== false)
-        .map((comp: any) => ({
-          id: comp.id,
-          type: (comp.type || comp.component_type) as ComponentType,
-          settings: comp.settings || {},
-          isActive: comp.isActive ?? comp.is_active ?? true,
-          orderIndex: comp.orderIndex ?? comp.order_index ?? 0
-        }))
+          .map((comp: any) => ({
+            id: comp.id,
+            type: normalizeComponentType(comp.type || comp.component_type) as ComponentType,
+            settings: comp.settings || {},
+            isActive: comp.isActive ?? comp.is_active ?? true,
+            orderIndex: comp.orderIndex ?? comp.order_index ?? 0
+          }))
         .sort((a, b) => a.orderIndex - b.orderIndex);
       setCustomComponents(convertedComponents);
     } else {
@@ -328,7 +341,8 @@ export const useStorePageData = (): UseStorePageDataReturn => {
   // تحديث عنوان الصفحة
   useEffect(() => {
     if (storeName) {
-      document.title = `${storeName} | سطوكيها - المتجر الإلكتروني`;
+      // اجعل العنوان خاصاً بالمتجر فقط لتفادي تغيّر العنوان لاحقاً وفقدان الثبات البصري
+      document.title = `${storeName}`;
     }
   }, [storeName]);
   
@@ -407,6 +421,7 @@ export const useStorePageData = (): UseStorePageDataReturn => {
       storeName,
       logoUrl,
       centralOrgId,
+      currentOrganization: sharedOrg,
       
       // بيانات المكونات
       componentsToRender,
@@ -435,6 +450,7 @@ export const useStorePageData = (): UseStorePageDataReturn => {
     storeName,
     logoUrl,
     centralOrgId,
+    sharedOrg,
     componentsToRender,
     customComponents,
     sharedCategories,

@@ -28,7 +28,12 @@ import {
   Tags,
   Loader2,
   Settings,
-  ExternalLink
+  ExternalLink,
+  FileText,
+  Clock,
+  CheckCircle, 
+  Upload,
+  Undo2
 } from 'lucide-react';
 import { 
   Card, 
@@ -47,6 +52,7 @@ import {
 import DeleteProductDialog from './DeleteProductDialog';
 import ViewProductDialog from './ViewProductDialog';
 import type { Product } from '@/lib/api/products';
+import { publishProduct, revertProductToDraft } from '@/lib/api/products';
 import { formatPrice } from '@/lib/utils';
 import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
@@ -75,6 +81,61 @@ interface ProductsListProps {
   isLoading?: boolean;
 }
 
+// دالة للحصول على حالة النشر
+const getPublicationStatus = (product: Product) => {
+  // أولوية لحقل is_active لأنه المعتمد فعلياً في الفلاتر والاستعلامات
+  if (product.is_active === false) return 'draft';
+  if (product.is_active === true) return 'published';
+
+  // إذا لم يتوفر is_active بشكل موثوق، استخدم publication_status إن وجد
+  if ((product as any).publication_status) {
+    return (product as any).publication_status;
+  }
+
+  // القيمة الافتراضية
+  return 'published';
+};
+
+// دالة للحصول على مؤشر حالة النشر
+const getPublicationStatusBadge = (status: string) => {
+  switch (status) {
+    case 'draft':
+      return (
+        <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+          <FileText className="w-3 h-3 ml-1" />
+          مسودة
+        </Badge>
+      );
+    case 'scheduled':
+      return (
+        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+          <Clock className="w-3 h-3 ml-1" />
+          مجدولة
+        </Badge>
+      );
+    case 'published':
+      return (
+        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+          <CheckCircle className="w-3 h-3 ml-1" />
+          منشورة
+        </Badge>
+      );
+    case 'archived':
+      return (
+        <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
+          <FileText className="w-3 h-3 ml-1" />
+          مؤرشفة
+        </Badge>
+      );
+    default:
+      return (
+        <Badge variant="outline" className="bg-gray-50 text-gray-700 border-gray-200">
+          غير محدد
+        </Badge>
+      );
+  }
+};
+
 const ProductsList = ({ 
   products, 
   onRefreshProducts, 
@@ -85,8 +146,6 @@ const ProductsList = ({
   
   // Debug: فحص البيانات الواردة
   useEffect(() => {
-    if (products.length > 0) {
-    }
   }, [products]);
 
   const [viewProduct, setViewProduct] = useState<Product | null>(null);
@@ -182,6 +241,52 @@ const ProductsList = ({
     // فتح الرابط في نافذة جديدة
     
     window.open(domainInfo.url, '_blank');
+  };
+
+  const handlePublish = async (product: Product) => {
+    if (!canEditProducts) {
+      toast.error("ليس لديك صلاحية نشر المنتجات");
+      return;
+    }
+
+    try {
+      toast.loading('جارٍ نشر المنتج...', { id: 'publish-product' });
+      
+      const success = await publishProduct(product.id);
+      
+      if (success) {
+        toast.success('تم نشر المنتج بنجاح!', { id: 'publish-product' });
+        
+        // إعادة تحميل القائمة لتحديث الحالة
+        await onRefreshProducts();
+      } else {
+        toast.error('فشل في نشر المنتج', { id: 'publish-product' });
+      }
+    } catch (error) {
+      console.error('Error publishing product:', error);
+      toast.error('حدث خطأ أثناء نشر المنتج', { id: 'publish-product' });
+    }
+  };
+
+  const handleRevertToDraft = async (product: Product) => {
+    if (!canEditProducts) {
+      toast.error("ليس لديك صلاحية تعديل حالة النشر");
+      return;
+    }
+
+    try {
+      toast.loading('جارٍ إرجاع المنتج إلى المسودة...', { id: 'revert-product' });
+      const success = await revertProductToDraft(product.id);
+      if (success) {
+        toast.success('تم إرجاع المنتج إلى المسودة!', { id: 'revert-product' });
+        await onRefreshProducts();
+      } else {
+        toast.error('فشل في إرجاع المنتج إلى المسودة', { id: 'revert-product' });
+      }
+    } catch (error) {
+      console.error('Error reverting product to draft:', error);
+      toast.error('حدث خطأ أثناء إرجاع المنتج إلى المسودة', { id: 'revert-product' });
+    }
   };
 
   // دالة محسنة لإنشاء slug من اسم المنتج - تعطي أولوية للـ slug من قاعدة البيانات
@@ -357,7 +462,8 @@ const ProductsList = ({
                   <TableHead className="hidden lg:table-cell">السعر</TableHead>
                   <TableHead className="hidden lg:table-cell">الكمية</TableHead>
                   <TableHead className="hidden xl:table-cell">SKU</TableHead>
-                  <TableHead className="hidden md:table-cell">الحالة</TableHead>
+                  <TableHead className="hidden lg:table-cell">حالة النشر</TableHead>
+                  <TableHead className="hidden md:table-cell">حالة المخزون</TableHead>
                   <TableHead className="text-left min-w-[120px]">إجراءات</TableHead>
                 </TableRow>
               </TableHeader>
@@ -373,7 +479,16 @@ const ProductsList = ({
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm sm:text-base">{product.name}</div>
+                          <div className={`font-medium text-sm sm:text-base flex items-center gap-2 ${
+                            getPublicationStatus(product) === 'draft' ? 'text-yellow-700' : ''
+                          }`}>
+                            {product.name}
+                            {getPublicationStatus(product) === 'draft' && (
+                              <span className="text-xs text-yellow-600 font-medium bg-yellow-100 px-1 py-0.5 rounded">
+                                مسودة
+                              </span>
+                            )}
+                          </div>
                           <div className="text-xs text-muted-foreground line-clamp-2 sm:line-clamp-1 sm:truncate sm:max-w-[250px]">
                             {product.description.substring(0, 60)}
                             {product.description.length > 60 ? '...' : ''}
@@ -416,6 +531,9 @@ const ProductsList = ({
                     <TableCell className="hidden lg:table-cell">{product.stock_quantity}</TableCell>
                     <TableCell className="hidden xl:table-cell">
                       <code className="text-xs bg-muted px-1 py-0.5 rounded">{product.sku}</code>
+                    </TableCell>
+                    <TableCell className="hidden lg:table-cell">
+                      {getPublicationStatusBadge(getPublicationStatus(product))}
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
                       <StockStatus quantity={product.stock_quantity} />
@@ -492,6 +610,48 @@ const ProductsList = ({
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
+
+                        {/* زر النشر - يظهر فقط للمنتجات المسودة */}
+                        {getPublicationStatus(product) === 'draft' && canEditProducts && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handlePublish(product)}
+                                  className="h-8 w-8 p-0 hover:bg-green-50 dark:hover:bg-green-950/20"
+                                >
+                                  <Upload className="h-4 w-4 text-green-600 dark:text-green-400" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>نشر المنتج</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+
+                        {/* زر إعادة إلى مسودة - يظهر فقط للمنتجات المنشورة */}
+                        {getPublicationStatus(product) === 'published' && canEditProducts && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleRevertToDraft(product)}
+                                  className="h-8 w-8 p-0 hover:bg-yellow-50 dark:hover:bg-yellow-950/20"
+                                >
+                                  <Undo2 className="h-4 w-4 text-yellow-700 dark:text-yellow-400" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p>إرجاع إلى مسودة</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
                         
                         {/* زر الحذف - يظهر فقط عند وجود صلاحية */}
                         {canDeleteProducts && (
@@ -550,8 +710,8 @@ const ProductsList = ({
                       SKU: {product.sku}
                     </div>
                   )}
-                  {product.category && (
-                    <div className="mt-2">
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {product.category && (
                       <Badge variant="outline" className="text-xs">
                         {(() => {
                           if (typeof product.category === 'string') return product.category;
@@ -561,8 +721,12 @@ const ProductsList = ({
                           return '';
                         })()}
                       </Badge>
+                    )}
+                    {/* إضافة مؤشر حالة النشر */}
+                    <div className="text-xs">
+                      {getPublicationStatusBadge(getPublicationStatus(product))}
                     </div>
-                  )}
+                  </div>
                 </CardContent>
                 <CardFooter className="p-3 sm:p-4 pt-2 mt-auto flex-shrink-0 product-card-footer">
                   <div className="flex items-center justify-center gap-2 w-full product-card-buttons">
@@ -636,6 +800,48 @@ const ProductsList = ({
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
+
+                    {/* زر النشر - يظهر فقط للمنتجات المسودة */}
+                    {getPublicationStatus(product) === 'draft' && canEditProducts && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => handlePublish(product)}
+                              className="h-8 w-8 p-0 hover:bg-green-50 dark:hover:bg-green-950/20"
+                            >
+                              <Upload className="h-4 w-4 text-green-600 dark:text-green-400" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>نشر المنتج</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                    
+                    {/* زر إعادة إلى مسودة - يظهر فقط للمنتجات المنشورة */}
+                    {getPublicationStatus(product) === 'published' && canEditProducts && (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => handleRevertToDraft(product)}
+                              className="h-8 w-8 p-0 hover:bg-yellow-50 dark:hover:bg-yellow-950/20"
+                            >
+                              <Undo2 className="h-4 w-4 text-yellow-700 dark:text-yellow-400" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <p>إرجاع إلى مسودة</p>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
                     
                     {/* زر الحذف */}
                     {canDeleteProducts && (

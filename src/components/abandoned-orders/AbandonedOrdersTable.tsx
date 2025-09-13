@@ -63,6 +63,7 @@ export interface AbandonedOrder {
   id: string;
   organization_id: string;
   product_id?: string;
+  productDetails?: { name: string; image_url?: string } | null;
   customer_name?: string;
   customer_phone?: string | null;
   customer_email?: string | null;
@@ -142,6 +143,23 @@ export function AbandonedOrdersTable({
 
   // تعريف الأعمدة باستخدام useMemo لتجنب إعادة الإنشاء عند التصيير
   const columns = useMemo<ColumnDef<AbandonedOrder>[]>(() => [
+    {
+      accessorKey: 'product',
+      header: 'المنتج',
+      cell: ({ row }) => {
+        const pd = row.original.productDetails;
+        if (!pd?.name) return 'غير محدد';
+        return (
+          <div className="flex items-center gap-2">
+            {pd.image_url ? (
+              // صورة خفيفة جدًا لتفادي الضغط
+              <img src={pd.image_url} alt={pd.name} className="w-8 h-8 rounded object-cover" loading="lazy" />
+            ) : null}
+            <span className="truncate max-w-[180px]" title={pd.name}>{pd.name}</span>
+          </div>
+        );
+      }
+    },
     {
       accessorKey: "created_at",
       header: "تاريخ الإنشاء",
@@ -520,7 +538,7 @@ export function AbandonedOrdersTable({
                     {selectedOrder.cart_items.map((item, index) => (
                       <div key={index} className="border-b last:border-0 pb-2">
                         <p className="font-medium">
-                          {item.product_name || `منتج ${index + 1}`}
+                          {item.product_name || item.name || `منتج ${index + 1}`}
                         </p>
                         <div className="text-sm text-muted-foreground">
                           <p>الكمية: {item.quantity || 1}</p>
@@ -535,6 +553,37 @@ export function AbandonedOrdersTable({
                     لا توجد منتجات في السلة
                   </p>
                 )}
+              </div>
+            </div>
+
+            <div>
+              <h3 className="font-semibold mb-2">بيانات إضافية</h3>
+              <div className="overflow-auto max-h-48 border rounded-md p-2 text-sm">
+                {(() => {
+                  const cf = (selectedOrder as any).custom_fields_data;
+                  if (!cf) return <p className="text-muted-foreground">لا توجد بيانات إضافية</p>;
+                  // يدعم الشكلين: مصفوفة {name, value} أو كائن مفاتيح
+                  if (Array.isArray(cf)) {
+                    return cf.length ? (
+                      <ul className="list-disc pr-5 space-y-1">
+                        {cf.map((f: any, i: number) => (
+                          <li key={i}><span className="font-medium">{f?.label || f?.name}:</span> {String(f?.value ?? '')}</li>
+                        ))}
+                      </ul>
+                    ) : <p className="text-muted-foreground">لا توجد بيانات إضافية</p>;
+                  }
+                  if (typeof cf === 'object') {
+                    const entries = Object.entries(cf);
+                    return entries.length ? (
+                      <ul className="list-disc pr-5 space-y-1">
+                        {entries.map(([k, v]) => (
+                          <li key={k}><span className="font-medium">{k}:</span> {String(v ?? '')}</li>
+                        ))}
+                      </ul>
+                    ) : <p className="text-muted-foreground">لا توجد بيانات إضافية</p>;
+                  }
+                  return <p className="text-muted-foreground">لا توجد بيانات إضافية</p>;
+                })()}
               </div>
             </div>
 

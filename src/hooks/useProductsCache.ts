@@ -15,6 +15,9 @@ interface UseProductsCacheOptions {
   page?: number;
   limit?: number;
   autoLoad?: boolean;
+  // فلاتر الفئات المتقدمة
+  selectedCategories?: string[];
+  selectedSubcategories?: string[];
 }
 
 interface UseProductsCacheResult {
@@ -44,7 +47,10 @@ export const useProductsCache = (options: UseProductsCacheOptions = {}): UseProd
     sortOption = 'name-asc',
     page = 1,
     limit = 12,
-    autoLoad = true
+    autoLoad = true,
+    // فلاتر الفئات المتقدمة
+    selectedCategories = [],
+    selectedSubcategories = []
   } = options;
 
   const { currentOrganization } = useTenant();
@@ -91,7 +97,10 @@ export const useProductsCache = (options: UseProductsCacheOptions = {}): UseProd
     stockFilter,
     sortOption,
     page,
-    limit
+    limit,
+    // فلاتر الفئات المتقدمة
+    selectedCategories,
+    selectedSubcategories
   });
 
   // معلومات الـ cache

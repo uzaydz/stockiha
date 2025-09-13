@@ -4,6 +4,7 @@
  */
 
 import { supabase } from '@/lib/supabase-unified';
+import { getPreloadedProductFromDOM } from '@/utils/productDomPreload';
 
 interface ProductPagePreloadResult {
   success: boolean;
@@ -37,6 +38,20 @@ class ProductPagePreloader {
    * بدء preload لصفحة المنتج
    */
   async startProductPagePreload(options: PreloadOptions): Promise<ProductPagePreloadResult> {
+    // إذا كان العامل السحابي حقن بيانات المنتج في DOM، لا داعي لأي استدعاء
+    try {
+      const dom = getPreloadedProductFromDOM();
+      if (dom && dom.success && dom.data && dom.data.product) {
+        return {
+          success: true,
+          data: dom.data,
+          executionTime: 0,
+          productId: options.productId,
+          organizationId: options.organizationId
+        };
+      }
+    } catch {}
+
     const cacheKey = this.createCacheKey(options);
     
     // إذا كان هناك preload قيد التشغيل، انتظره
@@ -75,14 +90,14 @@ class ProductPagePreloader {
     startTime: number
   ): Promise<ProductPagePreloadResult> {
     try {
-      const { productId, organizationId, dataScope = 'ultra', forceUltraOnly = false } = options;
+      const { productId, organizationId, dataScope = 'full', forceUltraOnly = false } = options;
 
       // فحص Cache أولاً قبل استدعاء API
       const cacheKey = this.createCacheKey(options);
       const cachedResult = this.preloadCache.get(cacheKey);
 
       if (cachedResult && cachedResult.success && !forceUltraOnly) {
-        console.log('✅ [productPagePreloader] استخدام البيانات من Cache:', cacheKey);
+        
         return cachedResult;
       }
 
@@ -148,57 +163,19 @@ class ProductPagePreloader {
     forceUltraOnly: boolean = false
   ): Promise<{ success: boolean; data?: any; error?: string }> {
     try {
-      // التحقق من أن supabase متاح
-      if (!supabase || !supabase.rpc) {
-        throw new Error('Supabase client غير متاح');
-      }
+      // استخدام الـ API الموحد مع مانع التكرار لضمان عدم تكرار الطلب
+      const { getProductCompleteDataOptimized } = await import('@/lib/api/deduplicatedApi');
 
-      // استدعاء الدالة Ultra Optimized مع timeout محسن
-      const startTime = performance.now();
-      
-      const rpcParams = {
-        p_product_identifier: productId,
-        p_organization_id: organizationId,
-        p_include_inactive: false,
-        p_data_scope: dataScope
-      };
-
-      // المحاولة الأولى: dataScope المطلوب مع timeout أطول للـ ultra
-      let rpcCall = supabase.rpc('get_product_complete_data_ultra_optimized' as any, rpcParams);
-
-      // إزالة timeout للـ ultra للسماح لها بإكمال العمل
-      let data: any = null;
-      let error: any = null;
-
-      try {
-        const result = await rpcCall;
-        data = result.data;
-        error = result.error;
-      } catch (rpcErr: any) {
-        error = rpcErr;
-      }
-      
-      // إذا كان forceUltraOnly مفعل، لا نستخدم fallback
-      if (error) {
-        if (forceUltraOnly) {
-        } else {
-          // إذا لم يكن forceUltraOnly مفعل، يمكن استخدام fallback مستقبلاً
-        }
-        // لا نحاول basic، نعيد الخطأ كما هو
-      }
-
-      const executionTime = performance.now() - startTime;
-
-      if (error) {
-        return {
-          success: false,
-          error: error.message || 'خطأ في RPC'
-        };
-      }
+      const result = await getProductCompleteDataOptimized(productId, {
+        organizationId,
+        // استخدام 'full' كافٍ لمعظم العرض الأولي
+        dataScope: (dataScope as any) || 'full',
+        // لا نستخدم forceRefresh هنا لتمكين مشاركة الطلب مع الصفحة
+      });
 
       return {
         success: true,
-        data
+        data: result
       };
 
     } catch (error: any) {

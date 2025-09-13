@@ -28,6 +28,16 @@ class CustomDomainOptimizer {
    * تحسين النطاق المخصص باستخدام استراتيجيات متعددة
    */
   async optimizeCustomDomain(hostname: string): Promise<CustomDomainResult> {
+    // 🔥 فحص النطاقات العامة أولاً - لا تحتاج تحسين
+    const publicDomains = ['stockiha.pages.dev', 'ktobi.online', 'www.ktobi.online', 'stockiha.com', 'www.stockiha.com'];
+    if (publicDomains.includes(hostname)) {
+      return {
+        success: false,
+        error: 'Public domain does not need optimization',
+        strategy: 'public-domain-skip'
+      };
+    }
+    
     // فحص cache أولاً
     const cached = this.cache.get(hostname);
     if (cached && (Date.now() - cached.timestamp) < this.CACHE_TTL) {
@@ -86,29 +96,20 @@ class CustomDomainOptimizer {
         return { success: false, error: 'Missing environment variables' };
       }
 
-      const response = await fetch(`${supabaseUrl}/rest/v1/rpc/get_store_init_data`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': supabaseAnonKey,
-          'Authorization': `Bearer ${supabaseAnonKey}`
-        },
-        body: JSON.stringify({
-          org_identifier: hostname
-        })
+      // استخدام الـ RPC مباشرة عبر Supabase client
+      const { supabase } = await import('@/lib/supabase');
+      const { data, error } = await supabase.rpc('get_store_init_data', {
+        org_identifier: hostname
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.organization_details?.id) {
-          return {
-            success: true,
-            organizationId: data.organization_details.id,
-            subdomain: data.organization_details.subdomain,
-            domain: hostname,
-            strategy: 'direct-domain'
-          };
-        }
+      if (!error && data.organization_details?.id) {
+        return {
+          success: true,
+          organizationId: data.organization_details.id,
+          subdomain: data.organization_details.subdomain,
+          domain: hostname,
+          strategy: 'direct-domain'
+        };
       }
     } catch (error) {
     }

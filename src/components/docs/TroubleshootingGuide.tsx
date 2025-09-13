@@ -121,7 +121,7 @@ const TroubleshootingGuide: React.FC = () => {
           step: 1,
           action: 'التحقق من DNS',
           description: 'تأكد أن النطاق يشير للخادم الصحيح',
-          code: 'A Record: 76.76.21.21\nCNAME Record: connect.ktobi.online'
+          code: 'A Record: 76.76.19.142\nA Record: 76.223.126.88\nCNAME Record: connect.ktobi.online'
         },
         {
           step: 2,
@@ -163,7 +163,7 @@ const TroubleshootingGuide: React.FC = () => {
           step: 1,
           action: 'مراجعة السجلات',
           description: 'تأكد من صحة جميع القيم المطلوبة',
-          code: 'A Record:\nType: A\nName: @\nValue: 76.76.21.21\n\nCNAME Record:\nType: CNAME\nName: www\nValue: connect.ktobi.online'
+          code: 'A Record:\nType: A\nName: @\nValue: 76.76.19.142\n\nA Record:\nType: A\nName: @\nValue: 76.223.126.88\n\nCNAME Record:\nType: CNAME\nName: www\nValue: connect.ktobi.online'
         },
         {
           step: 2,

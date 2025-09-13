@@ -23,6 +23,12 @@ class CSPErrorHandler {
   init() {
     if (this.isInitialized) return;
     
+    // تعطيل CSP Error Handler في وضع التطوير لتجنب الضوضاء
+    if (import.meta.env.DEV) {
+      
+      return;
+    }
+    
     try {
       // إضافة مستمع لأخطاء CSP
       document.addEventListener('securitypolicyviolation', this.handleCSPViolation.bind(this));
@@ -34,7 +40,7 @@ class CSPErrorHandler {
       this.interceptConsoleErrors();
       
       this.isInitialized = true;
-      console.log('🛡️ CSP Error Handler initialized');
+      
     } catch (error) {
       console.warn('Failed to initialize CSP Error Handler:', error);
     }
@@ -53,6 +59,15 @@ class CSPErrorHandler {
       columnNumber: event.columnNumber || 0,
       timestamp: Date.now()
     };
+
+    // تجاهل انتهاكات vendor scripts المعروفة (طبيعية ومتوقعة)
+    if (violation.sourceFile.includes('vendor-') || 
+        violation.blockedURI.includes('vendor-') ||
+        violation.sourceFile.includes('assets/') && violation.sourceFile.includes('-')) {
+      
+      // لا تسجل هذه الانتهاكات - هي طبيعية من vendor chunks
+      return;
+    }
 
     this.violations.push(violation);
     
@@ -111,7 +126,7 @@ class CSPErrorHandler {
       // فحص الأخطاء المتعلقة بـ CSP
       const message = args.join(' ').toLowerCase();
       if (message.includes('content security policy') || message.includes('csp')) {
-        console.log('🚨 CSP error detected in console:', args);
+        
       }
       
       // استدعاء الدالة الأصلية
@@ -122,7 +137,17 @@ class CSPErrorHandler {
       // فحص التحذيرات المتعلقة بـ CSP
       const message = args.join(' ').toLowerCase();
       if (message.includes('content security policy') || message.includes('csp')) {
-        console.log('⚠️ CSP warning detected in console:', args);
+        // تجاهل تحذيرات vendor scripts المعروفة
+        const messageStr = args.join(' ');
+        if (messageStr.includes('vendor-supabase') || 
+            messageStr.includes('vendor-query') || 
+            messageStr.includes('vendor-react') ||
+            messageStr.includes('vendor-ui')) {
+          // هذه تحذيرات طبيعية من vendor scripts - لا تظهرها
+          return;
+        }
+        
+        
       }
       
       // استدعاء الدالة الأصلية
@@ -158,20 +183,45 @@ class CSPErrorHandler {
    * إصلاح انتهاكات script-src
    */
   private fixScriptCSPViolation(violation: CSPViolation) {
-    // إزالة السكريبتات المحظورة
+    // تجاهل انتهاكات eval من مكتبات Forms الضرورية
+    if (violation.blockedURI === 'eval') {
+      const isFormsRelated = violation.sourceFile && (
+        violation.sourceFile.includes('vendor-forms') ||
+        violation.sourceFile.includes('react-hook-form') ||
+        violation.sourceFile.includes('zod')
+      );
+      
+      if (isFormsRelated) {
+        console.warn('⚠️ CSP: eval usage detected in forms library - this is expected behavior');
+        return; // لا تحاول إصلاح انتهاكات eval من مكتبات Forms
+      }
+    }
+
+    // معالجة خاصة لـ Facebook Pixel
+    if (violation.blockedURI.includes('connect.facebook.net') || violation.blockedURI.includes('fbevents.js')) {
+      console.warn('⚠️ CSP: Facebook Pixel blocked - this may be due to CSP policy. Check script-src-elem directive.');
+      
+      // إرسال event مخصص للتطبيق ليتعامل مع الحالة
+      window.dispatchEvent(new CustomEvent('bazaar:facebook-pixel-blocked', {
+        detail: { violation, fallbackSuggested: true }
+      }));
+      return;
+    }
+
+    // إزالة السكريبتات المحظورة (غير المرتبطة بـ Forms)
     const scripts = document.querySelectorAll('script');
     scripts.forEach(script => {
-      if (script.src && script.src.includes(violation.blockedURI)) {
-        console.log('🔄 Removing blocked script:', script.src);
+      if (script.src && script.src.includes(violation.blockedURI) && !script.src.includes('vendor-forms')) {
+        
         script.remove();
       }
     });
 
-    // إزالة السكريبتات inline المحظورة
+    // إزالة السكريبتات inline المحظورة (غير المرتبطة بـ Forms)
     const inlineScripts = document.querySelectorAll('script:not([src])');
     inlineScripts.forEach(script => {
-      if (script.textContent && script.textContent.includes('eval(')) {
-        console.log('🔄 Removing inline script with eval');
+      if (script.textContent && script.textContent.includes('eval(') && !script.textContent.includes('react-hook-form')) {
+        
         script.remove();
       }
     });
@@ -185,7 +235,7 @@ class CSPErrorHandler {
     const styles = document.querySelectorAll('link[rel="stylesheet"]');
     styles.forEach(style => {
       if (style.href && style.href.includes(violation.blockedURI)) {
-        console.log('🔄 Removing blocked stylesheet:', style.href);
+        
         style.remove();
       }
     });
@@ -194,7 +244,7 @@ class CSPErrorHandler {
     const inlineStyles = document.querySelectorAll('style');
     inlineStyles.forEach(style => {
       if (style.textContent && style.textContent.includes('@import')) {
-        console.log('🔄 Removing inline style with @import');
+        
         style.remove();
       }
     });
@@ -208,7 +258,7 @@ class CSPErrorHandler {
     const images = document.querySelectorAll('img');
     images.forEach(img => {
       if (img.src && img.src.includes(violation.blockedURI)) {
-        console.log('🔄 Replacing blocked image:', img.src);
+        
         img.src = '/images/placeholder.png'; // صورة افتراضية
         img.alt = 'صورة غير متاحة';
       }
@@ -293,7 +343,7 @@ class CSPErrorHandler {
       window.removeEventListener('error', this.handleGeneralError.bind(this));
       
       this.isInitialized = false;
-      console.log('🛡️ CSP Error Handler destroyed');
+      
     } catch (error) {
       console.warn('Failed to destroy CSP Error Handler:', error);
     }

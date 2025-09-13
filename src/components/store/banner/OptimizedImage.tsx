@@ -1,12 +1,40 @@
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Gem, Image as ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { OptimizedImageProps } from './types';
+import { getCdnImageUrl, deviceAdjustedWidth } from '@/lib/image-cdn';
 
 /**
  * مكون صورة محسّن ومبسط مع fallback قوي
  * يحل مشكلة الصور البيضاء
  */
+// Simple manifest cache to avoid multiple fetches
+let responsiveManifest: any | null = null;
+let responsiveManifestLoading: Promise<any> | null = null;
+
+async function loadResponsiveManifest(): Promise<any | null> {
+  if (responsiveManifest) return responsiveManifest;
+  if (!responsiveManifestLoading) {
+    responsiveManifestLoading = fetch('/images/responsive/manifest.json', { cache: 'force-cache' })
+      .then(async (r) => (r.ok ? r.json() : null))
+      .catch(() => null)
+      .finally(() => {
+        // no-op
+      });
+  }
+  responsiveManifest = await responsiveManifestLoading;
+  return responsiveManifest;
+}
+
+function isUnsplashUrl(u?: string) {
+  if (!u) return false;
+  try { const url = new URL(u); return url.hostname.includes('images.unsplash.com'); } catch { return false; }
+}
+
+function normalizeUnsplashUrl(u: string) {
+  try { const url = new URL(u); return `https://images.unsplash.com${url.pathname}`; } catch { return u; }
+}
+
 const OptimizedImage = React.memo<OptimizedImageProps>(({ 
   src, 
   alt, 
@@ -24,7 +52,9 @@ const OptimizedImage = React.memo<OptimizedImageProps>(({
   const [hasError, setHasError] = useState(false);
   const [currentSrc, setCurrentSrc] = useState<string>('');
   const [imgSrcSet, setImgSrcSet] = useState<string | undefined>(undefined);
+  const [imgSrcSetAvif, setImgSrcSetAvif] = useState<string | undefined>(undefined);
   const [fallbackAttempts, setFallbackAttempts] = useState(0);
+  const hasAppliedResponsive = useRef(false);
 
   const handleLoad = useCallback(() => {
     setIsLoaded(true);
@@ -37,7 +67,7 @@ const OptimizedImage = React.memo<OptimizedImageProps>(({
     setIsLoaded(false);
   }, [currentSrc]);
 
-  // تحويل رابط Supabase إلى render مع fallback قوي
+  // تحويل رابط Supabase - معطل مؤقتاً بسبب Free Plan
   const computeTransformed = useCallback((inputSrc: string) => {
     try {
       if (!inputSrc || typeof inputSrc !== 'string') {
@@ -49,48 +79,48 @@ const OptimizedImage = React.memo<OptimizedImageProps>(({
         return { href: '', srcSet: undefined };
       }
 
-      // إذا كان SVG، استخدمه مباشرة
-      if (inputSrc.includes('.svg') || inputSrc.includes('data:')) {
+      // إذا كانت الصورة من Unsplash وحضّرنا نسخًا محلية مسبقًا، سنستبدلها لاحقًا بمجرد تحميل manifest
+      if (isUnsplashUrl(inputSrc)) {
         return { href: inputSrc, srcSet: undefined };
       }
 
-      // إذا كان رابط Supabase storage
-      if (inputSrc.includes('/storage/v1/object/public/')) {
-        try {
-          const url = new URL(inputSrc);
-          const pathAfterPublic = url.pathname.split('/storage/v1/object/public/')[1];
-          
-          if (!pathAfterPublic) {
-            return { href: inputSrc, srcSet: undefined };
-          }
-
-          const encodedPath = pathAfterPublic
-            .split('/')
-            .map(seg => encodeURIComponent(seg))
-            .join('/');
-          
-          const base = `${url.origin}/storage/v1/render/image/public/${encodedPath}`;
-          const chosenBase = baseWidth || (typeof window !== 'undefined' && window.innerWidth < 768 ? 512 : 800);
-          
-          const srcSet = widths
-            .map(w => `${base}?width=${w}&quality=${quality} ${w}w`)
-            .join(', ');
-          
-          return { 
-            href: `${base}?width=${chosenBase}&quality=${quality}`, 
-            srcSet 
-          };
-        } catch (urlError) {
-          return { href: inputSrc, srcSet: undefined };
-        }
-      }
-
-      // إذا كان رابط عادي، استخدمه مباشرة
-      return { href: inputSrc, srcSet: undefined };
+      // Route via Cloudflare Worker CDN for resizing and next-gen formats
+      const adjusted = deviceAdjustedWidth(baseWidth || 512);
+      const href = getCdnImageUrl(inputSrc, { width: adjusted, quality, fit: fit === 'contain' ? 'contain' : 'cover', format: 'auto' });
+      return { href, srcSet: undefined };
+      
+      // TODO: تفعيل التحسين عند الترقية إلى Pro Plan
+      // if (inputSrc.includes('.svg') || inputSrc.includes('data:')) {
+      //   return { href: inputSrc, srcSet: undefined };
+      // }
+      // if (inputSrc.includes('/storage/v1/object/public/')) {
+      //   try {
+      //     const url = new URL(inputSrc);
+      //     const pathAfterPublic = url.pathname.split('/storage/v1/object/public/')[1];
+      //     if (!pathAfterPublic) {
+      //       return { href: inputSrc, srcSet: undefined };
+      //     }
+      //     const encodedPath = pathAfterPublic
+      //       .split('/')
+      //       .map(seg => encodeURIComponent(seg))
+      //       .join('/');
+      //     const base = `${url.origin}/storage/v1/render/image/public/${encodedPath}`;
+      //     const chosenBase = baseWidth || (typeof window !== 'undefined' && window.innerWidth < 768 ? 512 : 800);
+      //     const srcSet = widths
+      //       .map(w => `${base}?width=${w}&quality=${quality} ${w}w`)
+      //       .join(', ');
+      //     return { 
+      //       href: `${base}?width=${chosenBase}&quality=${quality}`, 
+      //       srcSet 
+      //     };
+      //   } catch (urlError) {
+      //     return { href: inputSrc, srcSet: undefined };
+      //   }
+      // }
     } catch (error) {
       return { href: inputSrc || '', srcSet: undefined };
     }
-  }, [baseWidth, widths, quality]);
+  }, []);
 
   // إعداد الصورة مع fallback
   useEffect(() => {
@@ -100,9 +130,11 @@ const OptimizedImage = React.memo<OptimizedImageProps>(({
       setHasError(false);
       return;
     }
-    
     const transformed = computeTransformed(src);
-    
+    setImgSrcSet(undefined);
+    setImgSrcSetAvif(undefined);
+    hasAppliedResponsive.current = false;
+
     // لا نعيد تعيين isLoaded إذا كانت الصورة نفسها
     if (transformed.href !== currentSrc) {
       setCurrentSrc(transformed.href);
@@ -112,6 +144,40 @@ const OptimizedImage = React.memo<OptimizedImageProps>(({
       setFallbackAttempts(0);
     }
   }, [src, computeTransformed, currentSrc]);
+
+  // Attempt to map Unsplash URLs to locally generated responsive assets via manifest
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!src || !isUnsplashUrl(src) || hasAppliedResponsive.current) return;
+      const manifest = await loadResponsiveManifest();
+      if (!manifest) return;
+      const normalized = normalizeUnsplashUrl(src);
+      const entry = manifest[normalized] || manifest[src];
+      if (!entry) return;
+
+      // Build srcset strings (prefer avif + webp). Browser will pick best via <img type> only for <picture>,
+      // but we can still provide webp as srcset; avif kept for possible <picture> integrations and future.
+      const buildSet = (list: any[]) => list.map((e: any) => `${e.path} ${e.w}w`).join(', ');
+
+      const dpr = typeof window !== 'undefined' ? Math.max(1, Math.min(2, window.devicePixelRatio || 1)) : 1;
+      const viewport = typeof window !== 'undefined' ? window.innerWidth : (baseWidth || 512);
+      const target = Math.min(960, Math.round(viewport * dpr));
+      const nearest = (entry.formats.webp.concat(entry.formats.avif)).reduce((prev: any, cur: any) => {
+        return Math.abs(cur.w - target) < Math.abs(prev.w - target) ? cur : prev;
+      }, entry.formats.webp[0]);
+
+      if (cancelled) return;
+      setImgSrcSet(buildSet(entry.formats.webp));
+      setImgSrcSetAvif(buildSet(entry.formats.avif));
+      setCurrentSrc(nearest.path);
+      hasAppliedResponsive.current = true;
+      // keep loaders consistent
+      setIsLoaded(false);
+      setHasError(false);
+    })();
+    return () => { cancelled = true; };
+  }, [src, baseWidth]);
 
   // معالجة الخطأ مع fallback محسن
   const handleImageError = useCallback(() => {
@@ -195,10 +261,11 @@ const OptimizedImage = React.memo<OptimizedImageProps>(({
           onLoad={handleLoad}
           onError={handleImageError}
           loading={priority ? 'eager' : 'lazy'}
+          // تحسين LCP: إعطاء أولوية عالية للصورة الحرجة
+          fetchPriority={priority ? 'high' : undefined}
           decoding="async"
           sizes={sizes || "(max-width: 640px) 90vw, (max-width: 1024px) 50vw, 512px"}
           srcSet={imgSrcSet}
-          crossOrigin="anonymous"
         />
       )}
 

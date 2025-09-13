@@ -23,8 +23,15 @@ import {
 } from '@/lib/api/cloudflare-config';
 
 export async function linkDomainCloudflare(domain, organizationId) {
+  console.log('🚀 بدء عملية ربط النطاق:', {
+    domain,
+    organizationId,
+    timestamp: new Date().toISOString()
+  });
+
   try {
     if (!domain || !organizationId) {
+      console.error('❌ بيانات مفقودة:', { domain, organizationId });
       return {
         success: false,
         error: 'البيانات المطلوبة غير مكتملة. يرجى توفير domain و organizationId.'
@@ -39,18 +46,22 @@ export async function linkDomainCloudflare(domain, organizationId) {
       };
     }
 
-    // الحصول على معلومات المشروع و token من وظائف متغيرات البيئة
-    const CLOUDFLARE_TOKEN = getCloudflareToken();
+    // الحصول على معلومات المشروع من متغيرات البيئة العامة
     const CLOUDFLARE_PROJECT_NAME = getCloudflareProjectName();
-    const CLOUDFLARE_ZONE_ID = getCloudflareZoneId();
-    const hasConfig = hasCloudflareConfig();
+    
+    // التحقق من إعدادات Cloudflare عبر API Route الآمن
+    const configResponse = await fetch('/api/cloudflare-config');
+    const configData = await configResponse.json();
 
-    if (!hasConfig) {
+    if (!configData.hasConfig) {
       return {
         success: false,
         error: 'لم يتم تكوين متغيرات البيئة اللازمة للاتصال بـ Cloudflare API.'
       };
     }
+
+    // سنستخدم API Route للتعامل مع Cloudflare API بدلاً من الاتصال المباشر
+    // هذا أكثر أماناً ولا يتطلب كشف المتغيرات الحساسة
 
     // التحقق من حالة المؤسسة قبل التحديث
     const { data: organizationBefore } = await supabase
@@ -59,12 +70,19 @@ export async function linkDomainCloudflare(domain, organizationId) {
       .eq('id', organizationId)
       .single();
 
-    // ربط النطاق بمشروع Cloudflare Pages
-    const linkResult = await linkDomainToCloudflareProject(
-      domain,
-      CLOUDFLARE_PROJECT_NAME,
-      CLOUDFLARE_TOKEN
-    );
+    // ربط النطاق باستخدام API Route الآمن
+    const linkResponse = await fetch('/api/cloudflare-domains', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        action: 'add-domain',
+        domain: domain
+      })
+    });
+
+    const linkResult = await linkResponse.json();
 
     if (!linkResult.success) {
       return {
@@ -81,16 +99,31 @@ export async function linkDomainCloudflare(domain, organizationId) {
       .split('/')[0];              // إزالة المسارات
 
     // تحديث النطاق في قاعدة البيانات
+    console.log('🔄 محاولة تحديث النطاق في قاعدة البيانات:', {
+      organizationId,
+      cleanDomain,
+      originalDomain: domain
+    });
+
     const { data: updateData, error: dbError } = await supabase
       .from('organizations')
       .update({ domain: cleanDomain })
       .eq('id', organizationId)
       .select('id, name, domain');
 
+    console.log('📊 نتيجة تحديث قاعدة البيانات:', {
+      updateData,
+      dbError,
+      errorCode: dbError?.code,
+      errorMessage: dbError?.message,
+      errorDetails: dbError?.details
+    });
+
     if (dbError) {
+      console.error('❌ خطأ في تحديث قاعدة البيانات:', dbError);
       return {
         success: false,
-        error: 'حدث خطأ أثناء تحديث النطاق في قاعدة البيانات'
+        error: `حدث خطأ أثناء تحديث النطاق في قاعدة البيانات: ${dbError.message}`
       };
     }
 
@@ -102,12 +135,20 @@ export async function linkDomainCloudflare(domain, organizationId) {
       .single();
 
     try {
-      // التحقق من حالة النطاق (DNS و SSL)
-      const verificationStatus = await verifyCloudflareDomainStatus(
-        domain,
-        CLOUDFLARE_PROJECT_NAME,
-        CLOUDFLARE_TOKEN
-      );
+      // التحقق من حالة النطاق عبر API Route
+      const verificationResponse = await fetch('/api/cloudflare-domains', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'verify-domain',
+          domain: cleanDomain
+        })
+      });
+
+      const verificationResult = await verificationResponse.json();
+      const verificationStatus = verificationResult.success ? { verified: true, message: null } : { verified: false, message: verificationResult.error };
 
       // تخزين معلومات التحقق في قاعدة البيانات
       const { data: existingRecord } = await supabase
@@ -130,7 +171,6 @@ export async function linkDomainCloudflare(domain, organizationId) {
             verification_data: JSON.stringify({
               cloudflare: true,
               project_name: CLOUDFLARE_PROJECT_NAME,
-              zone_id: CLOUDFLARE_ZONE_ID,
               dns_instructions: getCloudflareDnsInstructions(cleanDomain)
             })
           })
@@ -151,7 +191,6 @@ export async function linkDomainCloudflare(domain, organizationId) {
             verification_data: JSON.stringify({
               cloudflare: true,
               project_name: CLOUDFLARE_PROJECT_NAME,
-              zone_id: CLOUDFLARE_ZONE_ID,
               intermediate_domain: getUserIntermediateDomain(organizationId),
               dns_instructions: getCloudflareDnsInstructions(cleanDomain, organizationId)
             })
@@ -164,7 +203,7 @@ export async function linkDomainCloudflare(domain, organizationId) {
     }
 
     // إرجاع النتيجة
-    return {
+    const finalResult = {
       success: true,
       data: {
         domain: cleanDomain,
@@ -174,7 +213,23 @@ export async function linkDomainCloudflare(domain, organizationId) {
         cloudflare_project: CLOUDFLARE_PROJECT_NAME
       }
     };
+
+    console.log('✅ نجحت عملية ربط النطاق:', {
+      finalResult,
+      organizationAfter,
+      cleanDomain
+    });
+
+    return finalResult;
   } catch (error) {
+    console.error('💥 خطأ عام في عملية ربط النطاق:', {
+      error,
+      errorMessage: error instanceof Error ? error.message : 'حدث خطأ غير متوقع',
+      stack: error instanceof Error ? error.stack : null,
+      domain,
+      organizationId
+    });
+
     return {
       success: false,
       error: error instanceof Error ? error.message : 'حدث خطأ غير متوقع'
@@ -186,8 +241,15 @@ export async function linkDomainCloudflare(domain, organizationId) {
  * إزالة نطاق من Cloudflare Pages
  */
 export async function removeDomainCloudflare(domain, organizationId) {
+  console.log('🗑️ بدء عملية إزالة النطاق:', {
+    domain,
+    organizationId,
+    timestamp: new Date().toISOString()
+  });
+
   try {
     if (!domain || !organizationId) {
+      console.error('❌ بيانات مفقودة لإزالة النطاق:', { domain, organizationId });
       return {
         success: false,
         error: 'البيانات المطلوبة غير مكتملة. يرجى توفير domain و organizationId.'
@@ -202,30 +264,37 @@ export async function removeDomainCloudflare(domain, organizationId) {
       };
     }
 
-    // الحصول على معلومات المشروع و token
-    const CLOUDFLARE_TOKEN = getCloudflareToken();
-    const CLOUDFLARE_PROJECT_NAME = getCloudflareProjectName();
-    const hasConfig = hasCloudflareConfig();
+    // التحقق من إعدادات Cloudflare عبر API Route الآمن
+    const configResponse = await fetch('/api/cloudflare-config');
+    const configData = await configResponse.json();
 
-    if (!hasConfig) {
+    if (!configData.hasConfig) {
       return {
         success: false,
         error: 'لم يتم تكوين متغيرات البيئة اللازمة للاتصال بـ Cloudflare API.'
       };
     }
 
-    // إزالة النطاق من Cloudflare Pages
-    const removeResult = await removeDomainFromCloudflareProject(
-      domain,
-      CLOUDFLARE_PROJECT_NAME,
-      CLOUDFLARE_TOKEN
-    );
+    // إزالة النطاق عبر API Route الآمن
+    const removeResponse = await fetch('/api/cloudflare-domains', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        action: 'remove-domain',
+        domain: domain
+      })
+    });
 
+    const removeResult = await removeResponse.json();
+
+    // حتى لو فشل الحذف من Cloudflare (النطاق غير موجود)، نستمر لحذفه من قاعدة البيانات
+    
+    
     if (!removeResult.success) {
-      return {
-        success: false,
-        error: removeResult.error || 'حدث خطأ أثناء إزالة النطاق'
-      };
+      console.warn('⚠️ فشل حذف النطاق من Cloudflare (ربما غير موجود)، لكن سنحذفه من قاعدة البيانات:', removeResult.error);
+      // لا نتوقف هنا - نستمر لحذف النطاق من قاعدة البيانات
     }
 
     // تنظيف النطاق
@@ -236,16 +305,30 @@ export async function removeDomainCloudflare(domain, organizationId) {
       .split('/')[0];
 
     // تحديث النطاق في قاعدة البيانات (إزالة النطاق)
+    console.log('🗄️ محاولة حذف النطاق من قاعدة البيانات:', {
+      organizationId,
+      cleanDomain,
+      originalDomain: domain
+    });
+
     const { data: updateData, error: dbError } = await supabase
       .from('organizations')
       .update({ domain: null })
       .eq('id', organizationId)
       .select('id, name, domain');
 
+    console.log('📊 نتيجة حذف النطاق من قاعدة البيانات:', {
+      updateData,
+      dbError,
+      errorCode: dbError?.code,
+      errorMessage: dbError?.message
+    });
+
     if (dbError) {
+      console.error('❌ خطأ في حذف النطاق من قاعدة البيانات:', dbError);
       return {
         success: false,
-        error: 'حدث خطأ أثناء تحديث النطاق في قاعدة البيانات'
+        error: `حدث خطأ أثناء حذف النطاق من قاعدة البيانات: ${dbError.message}`
       };
     }
 
@@ -256,14 +339,26 @@ export async function removeDomainCloudflare(domain, organizationId) {
       .eq('organization_id', organizationId)
       .eq('domain', cleanDomain);
 
-    return {
+    const finalResult = {
       success: true,
       data: {
         domain: null,
         message: 'تم إزالة النطاق بنجاح'
       }
     };
+
+    
+
+    return finalResult;
   } catch (error) {
+    console.error('💥 خطأ عام في عملية إزالة النطاق:', {
+      error,
+      errorMessage: error instanceof Error ? error.message : 'حدث خطأ غير متوقع',
+      stack: error instanceof Error ? error.stack : null,
+      domain,
+      organizationId
+    });
+
     return {
       success: false,
       error: error instanceof Error ? error.message : 'حدث خطأ غير متوقع'

@@ -1,0 +1,156 @@
+/* Product Form Performance Optimizations */
+
+/* تحسين أداء نموذج المنتج */
+.product-form {
+  contain: layout style;
+  will-change: auto;
+}
+
+/* تحسين أداء الأزرار */
+.product-form-actions {
+  contain: layout paint;
+  will-change: auto;
+}
+
+/* تحسين القوائم المنسدلة */
+.product-form [data-radix-dropdown-trigger] {
+  contain: layout style;
+  will-change: auto;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.product-form [data-radix-dropdown-content] {
+  contain: layout paint;
+  will-change: transform, opacity;
+  animation-duration: 0.15s;
+  animation-timing-function: ease-out;
+}
+
+/* تحسين عناصر القائمة */
+.product-form [data-radix-dropdown-item] {
+  contain: paint;
+  will-change: background-color;
+  transition: background-color 0.1s ease;
+}
+
+/* منع forced reflow في النموذج */
+.product-form-container {
+  contain: layout;
+  min-height: 100vh;
+}
+
+/* تحسين الانتقالات */
+.product-form-transition {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: auto;
+}
+
+/* تحسين الأزرار العائمة على الجوال */
+.product-form-mobile-actions {
+  contain: layout paint;
+  will-change: transform;
+  transform: translateZ(0);
+}
+
+/* تحسين شريط التقدم */
+.product-form-progress {
+  contain: paint;
+  will-change: width;
+}
+
+/* تحسين التبويبات */
+.product-form-tabs {
+  contain: layout style;
+  will-change: auto;
+}
+
+/* تحسين حقول الإدخال */
+.product-form input,
+.product-form textarea,
+.product-form select {
+  contain: paint;
+  will-change: auto;
+}
+
+/* تحسين الصور */
+.product-form img {
+  contain: layout paint;
+  will-change: auto;
+}
+
+/* تحسين الجداول */
+.product-form table {
+  contain: layout paint;
+  will-change: auto;
+}
+
+/* منع CLS في المحتوى الديناميكي */
+.product-form-dynamic-content {
+  min-height: 200px;
+  contain: layout;
+}
+
+/* تحسين الـ backdrop */
+.product-form [data-radix-dropdown-content] {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* تحسين التمرير */
+.product-form-scroll-container {
+  contain: layout;
+  scroll-behavior: auto;
+}
+
+/* إزالة التحسينات الزائدة من الأيقونات */
+.product-form svg {
+  will-change: auto;
+  contain: paint;
+}
+
+/* تحسين النوافذ المنبثقة */
+.product-form [role="dialog"] {
+  contain: layout paint;
+  will-change: transform, opacity;
+}
+
+/* تحسين أداء الـ tooltips */
+.product-form [data-radix-tooltip-content] {
+  contain: layout paint;
+  will-change: transform, opacity;
+  animation-duration: 0.1s;
+}
+
+/* منع reflow في العناصر المخفية */
+.product-form [hidden],
+.product-form [style*="display: none"] {
+  contain: layout paint;
+}
+
+/* تحسين الـ focus states */
+.product-form *:focus {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  contain: paint;
+}
+
+/* تحسين الـ hover states */
+.product-form button:hover,
+.product-form [role="button"]:hover {
+  contain: paint;
+  will-change: background-color, color;
+}
+
+/* تحسين الانتقالات السريعة */
+.product-form-fast-transition {
+  transition-duration: 0.1s;
+  transition-timing-function: ease-out;
+}
+
+/* تحسين الانتقالات البطيئة */
+.product-form-slow-transition {
+  transition-duration: 0.3s;
+  transition-timing-function: ease-in-out;
+}
+
+

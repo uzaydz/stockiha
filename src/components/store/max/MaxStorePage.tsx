@@ -55,17 +55,7 @@ const useViewportOptimization = () => {
     // تحسين الـ scroll behavior
     document.documentElement.style.scrollBehavior = 'smooth';
     
-    // تحسين الـ font display - إزالة preload المزدوج
-    const existingFontLink = document.querySelector('link[href="/fonts/tajawal-regular.woff2"]');
-    if (!existingFontLink) {
-      const fontLink = document.createElement('link');
-      fontLink.rel = 'preload';
-      fontLink.as = 'font';
-      fontLink.type = 'font/woff2';
-      fontLink.href = '/fonts/tajawal-regular.woff2';
-      fontLink.crossOrigin = 'anonymous';
-      document.head.appendChild(fontLink);
-    }
+    // إزالة أي تحميل للخطوط عبر JS لتفادي التكرار، الاعتماد على StoreHead
 
     return () => {
       document.documentElement.style.scrollBehavior = '';
@@ -815,6 +805,7 @@ const MaxStorePage: React.FC<MaxStorePageProps> = ({
         customCSS={storeData.organization_settings?.custom_css}
         customJSHeader={storeData.organization_settings?.custom_js}
         themeColor={storeData.organization_settings?.theme_primary_color}
+        defaultLanguage={storeData.organization_settings?.default_language as any}
       />
       
       <Helmet>
@@ -827,13 +818,13 @@ const MaxStorePage: React.FC<MaxStorePageProps> = ({
         <link rel="dns-prefetch" href="//cdnjs.cloudflare.com" />
         <link rel="dns-prefetch" href="//unpkg.com" />
 
-        {/* Preload لصورة LCP مع fetchpriority=high لجعل الاكتشاف مبكراً */}
+        {/* Preload لصورة LCP مع fetchPriority=high لجعل الاكتشاف مبكراً */}
         {lcpImage?.href && (
           <link
             rel="preload"
             as="image"
             href={lcpImage.href}
-            imageSrcSet={lcpImage.srcSet}
+            imageSrcSet={lcpImage.srcSet as any}
             imageSizes="(max-width: 640px) 90vw, (max-width: 1024px) 50vw, 512px"
             fetchPriority="high"
           />
@@ -855,7 +846,8 @@ const MaxStorePage: React.FC<MaxStorePageProps> = ({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.5, ease: "easeInOut" }}
           >
-            {/* مؤشر اختبار الألوان المحسن */}
+            {/* مؤشر اختبار الألوان المحسن - اعرضه في التطوير فقط لتقليل الحمل */}
+            {process.env.NODE_ENV === 'development' && (
             <div className="fixed top-4 left-4 z-50 p-4 bg-white border-2 border-gray-200 rounded-xl shadow-xl text-xs max-w-sm">
               <div className="mb-3 font-bold text-gray-800 text-sm">🎨 ألوان الثيم المطبقة</div>
               
@@ -917,6 +909,7 @@ const MaxStorePage: React.FC<MaxStorePageProps> = ({
                 </div>
               </div>
             </div>
+            )}
 
             {/* النافبار مع تحسين الأداء */}
             <Suspense fallback={<ComponentSkeleton type="navbar" />}>

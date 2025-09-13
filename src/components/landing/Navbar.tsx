@@ -51,7 +51,7 @@ const Navbar = memo(() => {
                 src="/images/logo-new.webp" 
                 alt="سطوكيها" 
                 className="w-6 h-6 object-contain"
-                fetchpriority="high"
+                fetchPriority="high"
               />
             </div>
             <span className="text-xl font-bold bg-gradient-to-r from-amber-500 to-rose-500 bg-clip-text text-transparent">

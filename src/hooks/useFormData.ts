@@ -51,8 +51,8 @@ export const useFormData = ({
       const hasDeliveryField = deliveryFieldNames.some(name => initialData.hasOwnProperty(name));
       
       if (!hasDeliveryField) {
-        // تعيين قيم افتراضية محتملة للتوصيل للمكتب
-        baseData.delivery_type = 'office'; // أو 'desk' حسب تكوين النموذج
+        // تعيين قيم افتراضية للتوصيل للمكتب
+        baseData.delivery_type = 'desk';
       }
     }
     
@@ -104,12 +104,19 @@ export const useFormData = ({
     isUpdatingRef.current = true;
     
     setFormData(prev => {
-      const newData = { ...prev, [fieldName]: value };
+      const newData: any = { ...prev, [fieldName]: value };
       
       // معالجة خاصة لتغيير اللون - إعادة تعيين المقاس
       if (fieldName === 'product_color') {
         newData.product_size = ''; // مسح المقاس السابق
       }
+
+      // مزامنة نوع التوصيل الموحد: اجعل delivery_type يعكس أي حقل توصيل
+      try {
+        if (typeof fieldName === 'string' && /delivery|توصيل/i.test(fieldName)) {
+          newData.delivery_type = value as any;
+        }
+      } catch {}
       
       // تأجيل استدعاءات callback لتجنب loops وrace conditions
       setTimeout(() => {

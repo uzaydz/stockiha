@@ -131,7 +131,7 @@ const SidebarNavigation: React.FC<SidebarNavigationProps> = ({
         "flex-1 transition-all duration-300 ease-in-out",
         // تحسين الارتفاع للهاتف المحمول
         isMobile
-          ? "h-[calc(100vh-12rem)] px-2 py-3"
+          ? "h-[calc(100vh-12rem)] px-2 py-3 sidebar-navigation"
           : "h-[calc(100vh-14rem)] px-3 py-5",
         // تحسينات الأداء للقوائم الكبيرة
         shouldUseVirtualization && "overflow-hidden",

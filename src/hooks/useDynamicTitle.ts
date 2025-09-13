@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { getStoreFromCache } from '@/lib/utils/store-cache';
+import { isStoreHeadActive } from '@/lib/headGuard';
 
 // إضافة debouncing لتجنب التكرار المفرط
 let updateTimeout: NodeJS.Timeout | null = null;
@@ -14,6 +15,10 @@ export function useDynamicTitle() {
   const isInitialized = useRef(false);
   
   useEffect(() => {
+    // إذا كان StoreHead/SEOHead يسيطران على الرأس، لا تغيّر العنوان/الفافيكون
+    if (isStoreHeadActive()) {
+      return;
+    }
     if (isInitialized.current) {
       return; // تجنب إعادة التهيئة
     }
@@ -21,6 +26,7 @@ export function useDynamicTitle() {
     isInitialized.current = true;
     
     const updateTitleAndFavicon = () => {
+      if (isStoreHeadActive()) return; // حراسة ثانية أثناء التشغيل
       // Throttling: تجنب التحديث المتكرر
       const now = Date.now();
       if (now - lastUpdateTime < UPDATE_THROTTLE) {
@@ -53,7 +59,7 @@ export function useDynamicTitle() {
           if (hostParts.length > 2 && hostParts[0] !== 'www') {
             subdomain = hostParts[0];
           } else if (hostParts.length === 2) {
-            const PUBLIC_DOMAINS = ['ktobi.online', 'stockiha.com', 'bazaar.com', 'bazaar.dev'];
+            const PUBLIC_DOMAINS = ['ktobi.online', 'stockiha.com', 'stockiha.pages.dev', 'bazaar.com', 'bazaar.dev'];
             if (!PUBLIC_DOMAINS.includes(hostname)) {
               subdomain = hostParts[0];
             }

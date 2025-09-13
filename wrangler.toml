@@ -1,113 +1,24 @@
+# 🚀 Cloudflare Pages Configuration - محسن للأداء والأمان
 name = "stockiha"
-compatibility_date = "2024-01-15"
-compatibility_flags = ["nodejs_compat"]
+compatibility_date = "2025-09-05"
+# 📦 مجلد الإخراج المطلوب لـ Pages (مطلوب في الجذر)
 pages_build_output_dir = "dist"
 
-[env.production]
-name = "stockiha"
-
-[env.preview]
-name = "stockiha-preview"
-
-
-
-# متغيرات البيئة العامة (غير حساسة)
 [vars]
-NODE_ENV = "production"
-VITE_ENABLE_SECURITY_HEADERS = "true"
+VITE_SUPABASE_URL = "https://wrnssatuvmumsczyldth.supabase.co"
+VITE_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndybnNzYXR1dm11bXNjenlsZHRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMyNTgxMTYsImV4cCI6MjA1ODgzNDExNn0.zBT3h3lXQgcFqzdpXARVfU9kwRLvNiQrSdAJwMdojYY"
+VITE_API_URL = "/api"
+VITE_CLOUDFLARE_PROJECT_NAME = "stockiha"
+VITE_DOMAIN_PROXY = "connect.ktobi.online"
 VITE_ENABLE_CSP = "true"
+VITE_ENABLE_SECURITY_HEADERS = "true"
 VITE_ENABLE_RATE_LIMITING = "true"
 VITE_DEPLOYMENT_PLATFORM = "cloudflare"
-VITE_DOMAIN_PROXY = "connect.ktobi.online"
-VITE_API_URL = "/api"
-
-# إعدادات Functions مع أمان متقدم
-[[pages.functions]]
-pattern = "/api/*"
-compatibility_date = "2024-01-15"
-compatibility_flags = ["nodejs_compat"]
-
-# إعدادات Rate Limiting
-[pages.functions.limits]
-cpu_ms = 50
-memory_mb = 128
-
-# 🔒 Security Headers - إعدادات أمان متقدمة
-[[pages.headers]]
-for = "/*"
-[pages.headers.values]
-# Security Headers
-X-Frame-Options = "SAMEORIGIN"
-X-Content-Type-Options = "nosniff"
-X-XSS-Protection = "1; mode=block"
-Referrer-Policy = "strict-origin-when-cross-origin"
-Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=()"
-Strict-Transport-Security = "max-age=31536000; includeSubDomains; preload"
-
-# Frame Ancestors - منفصل عن CSP
-X-Frame-Ancestors = "self https://www.instagram.com https://*.instagram.com https://www.facebook.com https://*.facebook.com"
-
-# Custom Headers
-X-Store-Type = "dynamic"
-X-Instagram-WebView = "enabled"
-
-# Content Security Policy - أمان متقدم
-Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://connect.facebook.net https://www.googletagmanager.com https://www.google-analytics.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https: blob:; font-src 'self' https://fonts.gstatic.com data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.yalidine.app; frame-src 'self' https://www.facebook.com https://connect.facebook.net; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests;"
-
-# إعدادات Cache للـ Assets
-[[pages.headers]]
-for = "/assets/*"
-[pages.headers.values]
-Cache-Control = "public, max-age=31536000, immutable"
-
-# إعدادات Cache للخطوط
-[[pages.headers]]
-for = "/assets/fonts/*"
-[pages.headers.values]
-Cache-Control = "public, max-age=31536000, immutable"
-Access-Control-Allow-Origin = "*"
-
-# إعدادات Content-Type للـ JavaScript
-[[pages.headers]]
-for = "/*.js"
-[pages.headers.values]
-Content-Type = "text/javascript; charset=utf-8"
-
-# إعدادات Content-Type للـ CSS
-[[pages.headers]]
-for = "/*.css"
-[pages.headers.values]
-Content-Type = "text/css; charset=utf-8"
-
-# إعدادات Rewrites والنطاقات الفرعية
-[[pages.redirects]]
-from = "/yalidine-api/*"
-to = "/api/yalidine-fees-proxy"
-status = 200
-
-# دعم النطاقات الفرعية - إعادة توجيه جميع الطلبات للصفحة الرئيسية
-[[pages.redirects]]
-from = "/*"
-to = "/index.html"
-status = 200
-conditions = {Host = "*.stockiha.com"}
-
-[[pages.redirects]]
-from = "/*"
-to = "/index.html"
-status = 200
-conditions = {Host = "*.ktobi.online"}
-
-# دعم النطاقات المخصصة
-[[pages.redirects]]
-from = "/*"
-to = "/index.html"
-status = 200
-
-# إعدادات CORS
-[[pages.headers]]
-for = "/api/*"
-[pages.headers.values]
-Access-Control-Allow-Origin = "*"
-Access-Control-Allow-Methods = "GET, POST, PUT, DELETE, PATCH, OPTIONS"
-Access-Control-Allow-Headers = "Content-Type, Authorization, X-Requested-With, Accept, Origin, X-API-ID, X-API-TOKEN"
+VITE_DEFAULT_ORGANIZATION_ID = ""
+VITE_YALIDINE_DEFAULT_ORG_ID = "fed872f9-1ade-4351-b020-5598fda976fe"
+VITE_SITE_URL = "https://stockiha.com"
+VITE_CLOUDFLARE_API_TOKEN = "4scqw64VztAyUV-G8tadasQcJbxoBoxaJZoQRq6C"
+VITE_CLOUDFLARE_ZONE_ID = "e873d0f47d42ef6898c34e8f37990c40"
+NODE_ENV = "production"
+ENVIRONMENT = "production"
+VITE_ENABLE_IMG_CDN = "true"

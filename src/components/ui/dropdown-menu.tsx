@@ -100,20 +100,22 @@ const DropdownMenuSubContent = React.memo(React.forwardRef<
         contentVisibility: 'auto',
         transform: 'translateZ(0)', // Force GPU acceleration
       }}
+      onOpenAutoFocus={(e) => e.preventDefault()}
+      onCloseAutoFocus={(e) => e.preventDefault()}
       {...props}
     />
   )
 }))
 DropdownMenuSubContent.displayName = DropdownMenuPrimitive.SubContent.displayName
 
-// Content component with advanced performance optimizations
+// Content component with simplified performance optimizations
 const DropdownMenuContent = React.memo(React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Content>
 >(({ className, sideOffset = 4, ...props }, ref) => {
   const memoizedClassName = React.useMemo(() => 
     cn(
-      "z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md transform-gpu",
+      "z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md",
       className
     ),
     [className]
@@ -125,16 +127,15 @@ const DropdownMenuContent = React.memo(React.forwardRef<
         ref={ref}
         sideOffset={sideOffset}
         className={memoizedClassName}
-        avoidCollisions
+        avoidCollisions={false}
         collisionPadding={8}
         style={{ 
-          willChange: 'transform', 
-          contain: 'layout paint', 
+          contain: 'layout paint',
+          transform: 'translateZ(0)',
           contentVisibility: 'auto',
-          transform: 'translateZ(0)', // Force GPU acceleration
-          backfaceVisibility: 'hidden', // Prevent flickering
-          perspective: '1000px', // Enable 3D transforms
         }}
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onCloseAutoFocus={(e) => e.preventDefault()}
         {...props}
       />
     </DropdownMenuPrimitive.Portal>
@@ -142,7 +143,7 @@ const DropdownMenuContent = React.memo(React.forwardRef<
 }))
 DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName
 
-// Menu item component with performance optimizations
+// Menu item component with simplified performance optimizations
 const DropdownMenuItem = React.memo(React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Item>,
   React.ComponentPropsWithoutRef<typeof DropdownMenuPrimitive.Item> & {
@@ -151,7 +152,7 @@ const DropdownMenuItem = React.memo(React.forwardRef<
 >(({ className, inset, ...props }, ref) => {
   const memoizedClassName = React.useMemo(() => 
     cn(
-      "relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 transform-gpu",
+      "relative flex cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
       inset && "pl-8",
       className
     ),
@@ -163,8 +164,7 @@ const DropdownMenuItem = React.memo(React.forwardRef<
       ref={ref}
       className={memoizedClassName}
       style={{ 
-        willChange: 'transform',
-        contain: 'layout paint',
+        contain: 'paint',
       }}
       {...props}
     />

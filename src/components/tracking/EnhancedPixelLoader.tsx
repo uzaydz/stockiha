@@ -120,6 +120,9 @@ export const EnhancedPixelLoader: React.FC<EnhancedPixelLoaderProps> = ({
         const script = document.createElement('script');
         script.src = `https://www.googletagmanager.com/gtag/js?id=${gtagId}`;
         script.async = true;
+        // وسم كسكريبت غير حرج
+        script.setAttribute('data-noncritical', 'true');
+        script.setAttribute('data-source', 'gtag');
         
         script.onload = () => {
           window.gtag!('js', new Date().toISOString());
@@ -186,6 +189,18 @@ export const EnhancedPixelLoader: React.FC<EnhancedPixelLoaderProps> = ({
         }, 2000);
         
         document.head.appendChild(script);
+
+        // وسم سكريبت TikTok المُنشأ داخليًا كغير حرج إن أمكن
+        setTimeout(() => {
+          const candidates = Array.from(document.querySelectorAll('script[src*="analytics.tiktok.com/i18n/pixel/events.js"]')) as HTMLScriptElement[];
+          candidates.forEach(s => {
+            s.setAttribute('data-noncritical', 'true');
+            s.setAttribute('data-source', 'tiktok-pixel');
+            if (!s.onerror) {
+              s.onerror = () => console.warn('TikTok Pixel script failed to load');
+            }
+          });
+        }, 0);
       } catch (error) {
         reject(error);
       }

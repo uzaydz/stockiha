@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useTenant } from '@/context/TenantContext';
 import { useToast } from '@/components/ui/use-toast';
 import { 
@@ -12,7 +13,7 @@ import {
   CardTitle 
 } from '@/components/ui/card';
 import { getSupabaseClient } from '@/lib/supabase';
-import { Loader2, Check, Globe, AlertCircle, ExternalLink, Copy, Cloud } from 'lucide-react';
+import { Loader2, Check, Globe, AlertCircle, ExternalLink, Copy, Cloud, CheckCircle, Clock, XCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -25,6 +26,20 @@ const DOMAIN_REGEX = /^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+(([a-zA-
 
 // حالات واجهة المستخدم
 export type DomainStatusType = 'unconfigured' | 'pending' | 'active' | 'error' | 'verified';
+
+// مزودي DNS المدعومين
+export type DnsProviderType = 'cloudflare' | 'route53' | 'godaddy' | 'namecheap' | 'ovh' | 'google' | 'other';
+
+// معلومات مزودي DNS
+const DNS_PROVIDERS = {
+  cloudflare: { name: 'Cloudflare', supports_cname_flattening: true, icon: '☁️' },
+  route53: { name: 'AWS Route 53', supports_alias: true, icon: '🌐' },
+  godaddy: { name: 'GoDaddy', needs_www: true, icon: '🏪' },
+  namecheap: { name: 'Namecheap', needs_www: true, icon: '💰' },
+  ovh: { name: 'OVH', supports_cname_flattening: false, icon: '🇫🇷' },
+  google: { name: 'Google Domains', supports_cname_flattening: false, icon: '🔍' },
+  other: { name: 'مزود آخر', supports_cname_flattening: false, icon: '❓' }
+};
 
 interface DomainStatusProps {
   status: DomainStatusType;
@@ -96,20 +111,142 @@ const CloudflareDomainSettings: React.FC = () => {
   const [lastChecked, setLastChecked] = useState<string | null>(null);
   const [actualDomain, setActualDomain] = useState<string | null>(null);
   const [isCloudflareAvailable, setIsCloudflareAvailable] = useState<boolean>(false);
+  const [cnameTarget, setCnameTarget] = useState<string | null>(null);
+  const [selectedDnsProvider, setSelectedDnsProvider] = useState<DnsProviderType>('cloudflare');
+  const [useWww, setUseWww] = useState<boolean>(false);
+  const [dnsCheckStatus, setDnsCheckStatus] = useState<'idle' | 'checking' | 'success' | 'error'>('idle');
+  const [sslStatus, setSslStatus] = useState<'pending' | 'active' | 'error'>('pending');
   
   // التحقق من توفر إعدادات Cloudflare
   useEffect(() => {
-    const hasConfig = hasCloudflareConfig();
-    setIsCloudflareAvailable(hasConfig);
-    
-    if (!hasConfig) {
-      toast({
-        title: "تحذير",
-        description: "لم يتم تكوين إعدادات Cloudflare. يرجى إضافة متغيرات البيئة المطلوبة.",
-        variant: "destructive",
+    const checkCloudflareConfig = async () => {
+      try {
+        const hasConfig = await hasCloudflareConfig();
+        setIsCloudflareAvailable(hasConfig);
+        
+        if (!hasConfig) {
+          toast({
+            title: "تحذير",
+            description: "لم يتم تكوين إعدادات Cloudflare. يرجى إضافة متغيرات البيئة المطلوبة في Dashboard.",
+            variant: "destructive",
+          });
+        }
+      } catch (error) {
+        console.error('خطأ في فحص إعدادات Cloudflare:', error);
+        setIsCloudflareAvailable(false);
+        toast({
+          title: "خطأ",
+          description: "فشل في التحقق من إعدادات Cloudflare.",
+          variant: "destructive",
+        });
+      }
+    };
+
+    checkCloudflareConfig();
+  }, [toast]);
+  
+  // توليد التعليمات المخصصة حسب مزود DNS
+  const getDnsInstructions = (provider: DnsProviderType, domain: string, cname: string, useWww: boolean) => {
+    const instructions = [];
+    const targetDomain = useWww ? `www.${domain}` : domain;
+    const providerInfo = DNS_PROVIDERS[provider];
+
+    if (useWww) {
+      // إعداد www فقط
+      instructions.push({
+        type: 'CNAME',
+        name: 'www',
+        value: cname,
+        description: `للنطاق الفرعي www.${domain}`
+      });
+      
+      // إضافة redirect للنطاق الجذر
+      instructions.push({
+        type: 'Redirect',
+        name: '@',
+        value: `https://www.${domain}`,
+        description: `توجيه تلقائي من ${domain} إلى www.${domain}`
+      });
+    } else {
+      // إعداد النطاق الجذر
+      if (provider === 'cloudflare') {
+        instructions.push({
+          type: 'CNAME',
+          name: '@',
+          value: cname,
+          description: `للنطاق الأساسي ${domain} (Cloudflare يدعم CNAME Flattening)`
+        });
+      } else if (provider === 'route53') {
+        instructions.push({
+          type: 'ALIAS',
+          name: '@',
+          value: cname,
+          description: `للنطاق الأساسي ${domain} (استخدم ALIAS في Route 53)`
+        });
+      } else if (provider === 'godaddy' || provider === 'namecheap') {
+        instructions.push({
+          type: 'A',
+          name: '@',
+          value: '76.76.19.142',
+          description: `للنطاق الأساسي ${domain} (A Record الأول)`
+        });
+        instructions.push({
+          type: 'A',
+          name: '@',
+          value: '76.223.126.88',
+          description: `للنطاق الأساسي ${domain} (A Record الثاني)`
+        });
+      } else {
+        instructions.push({
+          type: 'CNAME أو ALIAS',
+          name: '@',
+          value: cname,
+          description: `للنطاق الأساسي ${domain} (تحقق من دعم مزود DNS)`
+        });
+      }
+      
+      // إضافة www كنسخة احتياطية
+      instructions.push({
+        type: 'CNAME',
+        name: 'www',
+        value: cname,
+        description: `للنطاق الفرعي www.${domain} (اختياري)`
       });
     }
-  }, [toast]);
+
+    return instructions;
+  };
+
+  // فحص حالة DNS و SSL
+  const checkDnsAndSsl = async () => {
+    if (!actualDomain) return;
+    
+    setDnsCheckStatus('checking');
+    
+    try {
+      const response = await fetch('/api/cloudflare-domains', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'verify-domain',
+          domain: actualDomain
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (result.success && result.data) {
+        setDnsCheckStatus('success');
+        setSslStatus(result.data.ssl_status || 'pending');
+      } else {
+        setDnsCheckStatus('error');
+      }
+    } catch (error) {
+      setDnsCheckStatus('error');
+    }
+  };
   
   // الحصول على معلومات النطاق مباشرة من قاعدة البيانات
   const fetchDomainInfoDirect = async () => {
@@ -190,13 +327,34 @@ const CloudflareDomainSettings: React.FC = () => {
         }
         
         // 2. ربط النطاق بـ Cloudflare
-        const result = await linkDomainCloudflare(organization.id, newDomain);
+
+        const result = await linkDomainCloudflare(newDomain, organization.id);
+        
+        
         
         if (!result.success) {
+          console.error('❌ فشل في ربط النطاق:', result.error);
           throw new Error(result.error || 'فشل في ربط النطاق بـ Cloudflare');
         }
         
-        // 3. تحديث الحالة والمعلومات
+        // 3. الحصول على CNAME target من Cloudflare
+        const cnameResponse = await fetch('/api/cloudflare-domains', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            action: 'get-cname-target',
+            domain: newDomain
+          })
+        });
+        
+        const cnameData = await cnameResponse.json();
+        if (cnameData.success) {
+          setCnameTarget(cnameData.data?.cname_target || userIntermediateDomain);
+        }
+        
+        // 4. تحديث الحالة والمعلومات
         setDomainStatus('pending');
         setStatusMessage('تم ربط النطاق بنجاح! يرجى إعداد سجلات DNS الخاصة بك.');
         setVerificationData(result.data?.verification || null);
@@ -306,7 +464,9 @@ const CloudflareDomainSettings: React.FC = () => {
             <AlertTitle>إعدادات Cloudflare غير متوفرة</AlertTitle>
             <AlertDescription>
               لم يتم تكوين متغيرات البيئة اللازمة للاتصال بـ Cloudflare API.
-              يرجى إضافة CLOUDFLARE_API_TOKEN و CLOUDFLARE_PROJECT_NAME و CLOUDFLARE_ZONE_ID.
+              يرجى إضافة VITE_CLOUDFLARE_API_TOKEN و VITE_CLOUDFLARE_PROJECT_NAME و VITE_CLOUDFLARE_ZONE_ID.
+              <br />
+              <strong>ملاحظة:</strong> يجب أن تبدأ المتغيرات بـ VITE_ لتعمل في Cloudflare Pages.
             </AlertDescription>
           </Alert>
         </CardContent>
@@ -384,6 +544,48 @@ const CloudflareDomainSettings: React.FC = () => {
                         أدخل النطاق بدون http:// أو https:// (مثال: yourdomain.com)
                       </p>
                     </div>
+
+                    <div className="space-y-2">
+                      <Label>مزود النطاق (DNS Provider)</Label>
+                      <Select value={selectedDnsProvider} onValueChange={(value: DnsProviderType) => setSelectedDnsProvider(value)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="اختر مزود النطاق" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.entries(DNS_PROVIDERS).map(([key, provider]) => (
+                            <SelectItem key={key} value={key}>
+                              <span className="flex items-center gap-2">
+                                <span>{provider.icon}</span>
+                                <span>{provider.name}</span>
+                              </span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-sm text-muted-foreground">
+                        اختر مزود النطاق الخاص بك للحصول على تعليمات مخصصة
+                      </p>
+                    </div>
+
+                    {(selectedDnsProvider === 'godaddy' || selectedDnsProvider === 'namecheap') && (
+                      <div className="space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id="use-www"
+                            checked={useWww}
+                            onChange={(e) => setUseWww(e.target.checked)}
+                            className="rounded"
+                          />
+                          <Label htmlFor="use-www" className="text-sm">
+                            استخدام www.{domain || 'yourdomain.com'} بدلاً من النطاق الجذر (موصى به)
+                          </Label>
+                        </div>
+                        <p className="text-sm text-amber-600">
+                          💡 {DNS_PROVIDERS[selectedDnsProvider].name} لا يدعم CNAME للنطاق الجذر. لكن يمكنك استخدام A Records بدلاً من ذلك.
+                        </p>
+                      </div>
+                    )}
                     
                     <div className="flex gap-2 justify-end">
                       {organization?.domain && (
@@ -441,27 +643,151 @@ const CloudflareDomainSettings: React.FC = () => {
                     </div>
 
                     <div className="space-y-2">
-                      <Label>مثال على إعداد DNS:</Label>
-                      <div className="p-3 bg-gray-50 rounded-md font-mono text-sm">
-                        <div className="space-y-1">
-                          <div><span className="text-blue-600">النوع:</span> CNAME</div>
-                          <div><span className="text-blue-600">الاسم:</span> {domain || 'yourdomain.com'}</div>
-                          <div><span className="text-blue-600">القيمة:</span> {userIntermediateDomain}</div>
-                        </div>
+                      <div className="flex items-center justify-between">
+                        <Label>إعدادات DNS المطلوبة:</Label>
+                        {actualDomain && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={checkDnsAndSsl}
+                            disabled={dnsCheckStatus === 'checking'}
+                          >
+                            {dnsCheckStatus === 'checking' ? (
+                              <Loader2 className="w-4 h-4 animate-spin ml-2" />
+                            ) : dnsCheckStatus === 'success' ? (
+                              <CheckCircle className="w-4 h-4 text-green-600 ml-2" />
+                            ) : dnsCheckStatus === 'error' ? (
+                              <XCircle className="w-4 h-4 text-red-600 ml-2" />
+                            ) : (
+                              <Clock className="w-4 h-4 ml-2" />
+                            )}
+                            فحص DNS
+                          </Button>
+                        )}
+                      </div>
+
+                      <div className="p-4 bg-gray-50 rounded-md text-sm space-y-3">
+                        {domain && (
+                          <>
+                            {/* عرض حالة DNS و SSL */}
+                            {actualDomain && (
+                              <div className="mb-4 p-3 bg-white rounded border">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="font-medium">حالة النطاق:</span>
+                                  <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-1">
+                                      {dnsCheckStatus === 'success' ? (
+                                        <CheckCircle className="w-4 h-4 text-green-600" />
+                                      ) : dnsCheckStatus === 'error' ? (
+                                        <XCircle className="w-4 h-4 text-red-600" />
+                                      ) : (
+                                        <Clock className="w-4 h-4 text-yellow-600" />
+                                      )}
+                                      <span className="text-xs">DNS</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      {sslStatus === 'active' ? (
+                                        <CheckCircle className="w-4 h-4 text-green-600" />
+                                      ) : sslStatus === 'error' ? (
+                                        <XCircle className="w-4 h-4 text-red-600" />
+                                      ) : (
+                                        <Clock className="w-4 h-4 text-yellow-600" />
+                                      )}
+                                      <span className="text-xs">SSL</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* التعليمات المخصصة */}
+                            {getDnsInstructions(selectedDnsProvider, domain, cnameTarget || userIntermediateDomain, useWww).map((instruction, index) => (
+                              <div key={index} className="space-y-1">
+                                <div className="font-semibold text-gray-700 flex items-center justify-between">
+                                  <span>{instruction.description}</span>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => navigator.clipboard.writeText(instruction.value)}
+                                    className="h-6 px-2"
+                                  >
+                                    <Copy className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                                <div className="bg-white p-2 rounded border font-mono text-xs">
+                                  <div><span className="text-blue-600">النوع:</span> {instruction.type}</div>
+                                  <div><span className="text-blue-600">الاسم:</span> {instruction.name}</div>
+                                  <div><span className="text-blue-600">القيمة:</span> {instruction.value}</div>
+                                </div>
+                              </div>
+                            ))}
+
+                            {/* تحذير خاص لـ GoDaddy/Namecheap */}
+                            {(selectedDnsProvider === 'godaddy' || selectedDnsProvider === 'namecheap') && !useWww && (
+                              <Alert variant="destructive">
+                                <AlertCircle className="h-4 w-4" />
+                                <AlertTitle>تحذير مهم</AlertTitle>
+                                <AlertDescription>
+                                  {DNS_PROVIDERS[selectedDnsProvider].name} لا يدعم CNAME للنطاق الجذر، لكن يمكنك استخدام A Records. 
+                                  أو يمكنك استخدام خيار "www" أعلاه كبديل أسهل.
+                                </AlertDescription>
+                              </Alert>
+                            )}
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
                   
-                  {/* نصائح سريعة */}
+                  {/* إرشادات مفصلة حسب مزود DNS */}
                   <Alert>
-                    <AlertTitle>نصائح لإعداد النطاق مع Cloudflare</AlertTitle>
+                    <AlertTitle className="flex items-center gap-2">
+                      {DNS_PROVIDERS[selectedDnsProvider].icon}
+                      إرشادات خاصة بـ {DNS_PROVIDERS[selectedDnsProvider].name}
+                    </AlertTitle>
                     <AlertDescription>
-                      <ul className="list-disc list-inside space-y-1 text-sm mt-2">
-                        <li>تأكد من أنك تمتلك النطاق وتستطيع إدارة إعدادات DNS الخاصة به.</li>
-                        <li>بعد تكوين النطاق هنا، يجب عليك تكوين سجلات CNAME على النطاق.</li>
-                        <li>قد يستغرق انتشار التغييرات على DNS حتى 48 ساعة.</li>
-                        <li>Cloudflare سيقوم بإصدار شهادة SSL تلقائياً.</li>
-                      </ul>
+                      <div className="space-y-2 text-sm mt-2">
+                        {selectedDnsProvider === 'cloudflare' && (
+                          <>
+                            <p>✅ <strong>Cloudflare يدعم CNAME Flattening:</strong> يمكنك استخدام CNAME للنطاق الجذر مباشرة.</p>
+                            <p>🚀 <strong>سرعة الانتشار:</strong> عادة 2-5 دقائق فقط.</p>
+                            <p>🔒 <strong>SSL تلقائي:</strong> يتم إصدار شهادة SSL خلال دقائق.</p>
+                          </>
+                        )}
+                        
+                        {selectedDnsProvider === 'route53' && (
+                          <>
+                            <p>✅ <strong>استخدم ALIAS Record:</strong> أفضل خيار للنطاق الجذر في AWS.</p>
+                            <p>⚡ <strong>أداء عالي:</strong> توجيه مباشر بدون إضافة latency.</p>
+                            <p>💰 <strong>مجاني:</strong> لا توجد رسوم إضافية على ALIAS queries.</p>
+                          </>
+                        )}
+                        
+                        {(selectedDnsProvider === 'godaddy' || selectedDnsProvider === 'namecheap') && (
+                          <>
+                            <p>✅ <strong>الحل المطبق:</strong> استخدام A Records للنطاق الجذر.</p>
+                            <p>💡 <strong>بديل أسهل:</strong> يمكنك استخدام www.{domain || 'yourdomain.com'} مع إعادة توجيه تلقائي.</p>
+                            <p>🔄 <strong>مرونة:</strong> كلا الخيارين يعملان بشكل مثالي.</p>
+                            {!useWww && <p>🚨 <strong>مطلوب:</strong> فعّل خيار "استخدام www" أعلاه لأفضل تجربة.</p>}
+                          </>
+                        )}
+                        
+                        {(selectedDnsProvider === 'ovh' || selectedDnsProvider === 'google') && (
+                          <>
+                            <p>📝 <strong>تحقق من الدعم:</strong> بعض مزودي DNS يدعمون ALIAS أو CNAME Flattening.</p>
+                            <p>🔍 <strong>إذا لم يعمل CNAME:</strong> اتصل بدعم {DNS_PROVIDERS[selectedDnsProvider].name} للحصول على A Record.</p>
+                          </>
+                        )}
+                        
+                        <div className="mt-3 pt-2 border-t">
+                          <p><strong>عام لجميع المزودين:</strong></p>
+                          <ul className="list-disc list-inside space-y-1 ml-2">
+                            <li>انتشار DNS: 5-10 دقائق (حد أقصى 48 ساعة)</li>
+                            <li>SSL: يتم إصداره تلقائياً بعد التحقق من DNS</li>
+                            <li>التحقق: استخدم زر "فحص DNS" للتأكد من الإعداد</li>
+                          </ul>
+                        </div>
+                      </div>
                     </AlertDescription>
                   </Alert>
                 </div>

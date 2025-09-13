@@ -48,7 +48,13 @@ const CustomDomainHelp: React.FC<CustomDomainHelpProps> = ({ domain }) => {
                     <tr className="border-b border-border/50">
                       <td className="py-3 px-4 font-medium text-blue-600 dark:text-blue-400">A</td>
                       <td className="py-3 px-4 text-foreground">@</td>
-                      <td className="py-3 px-4 font-mono bg-blue-100 dark:bg-blue-950/30 px-2 py-1 rounded text-foreground">76.76.21.21</td>
+                      <td className="py-3 px-4 font-mono bg-blue-100 dark:bg-blue-950/30 px-2 py-1 rounded text-foreground">76.76.19.142</td>
+                      <td className="py-3 px-4 text-muted-foreground">3600</td>
+                    </tr>
+                    <tr className="border-b border-border/50">
+                      <td className="py-3 px-4 font-medium text-blue-600 dark:text-blue-400">A</td>
+                      <td className="py-3 px-4 text-foreground">@</td>
+                      <td className="py-3 px-4 font-mono bg-blue-100 dark:bg-blue-950/30 px-2 py-1 rounded text-foreground">76.223.126.88</td>
                       <td className="py-3 px-4 text-muted-foreground">3600</td>
                     </tr>
                     <tr>

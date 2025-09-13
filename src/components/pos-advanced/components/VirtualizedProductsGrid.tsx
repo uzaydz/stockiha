@@ -194,8 +194,8 @@ const VirtualizedProductsGrid: React.FC<ProductsGridProps> = React.memo(({
   // تجنب إعادة الرسم إذا لم تتغير المنتجات
   const isEmpty = products.length === 0;
 
-  // مع pagination، سنستخدم العرض العادي دائماً لأن عدد المنتجات محدود
-  const shouldUseVirtualization = false;
+  // فعّل virtualization عند القوائم الكبيرة لتقليل تكلفة DOM
+  const shouldUseVirtualization = products.length > 60;
 
   if (isEmpty) {
     return (

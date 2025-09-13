@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { OrganizationSettings } from '@/types/settings';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
 
 interface AdvancedStoreSettingsProps {
   settings: OrganizationSettings;
@@ -62,6 +63,18 @@ const AdvancedStoreSettings = ({ settings, updateSetting }: AdvancedStoreSetting
       description: 'تم إعادة تعيين جميع الإعدادات المتقدمة',
     });
   };
+
+  // استخراج Meta Description بأمان من custom_header
+  const metaDescription = React.useMemo(() => {
+    try {
+      const header = settings.custom_header || '';
+      if (!header.includes('meta name="description"')) return '';
+      const match = header.match(/content="([^"]*)"/);
+      return match ? match[1] : '';
+    } catch {
+      return '';
+    }
+  }, [settings.custom_header]);
 
   return (
     <div className="space-y-8">
@@ -117,10 +130,7 @@ const AdvancedStoreSettings = ({ settings, updateSetting }: AdvancedStoreSetting
               <div className="space-y-4">
                 <Label className="text-base font-medium">Meta Description</Label>
                 <Textarea
-                  value={settings.custom_header?.includes('meta name="description"') 
-                    ? settings.custom_header.match(/content="([^"]*)"/) ?.[1] || ''
-                    : ''
-                  }
+                  value={metaDescription}
                   onChange={(e) => {
                     const metaTag = `<meta name="description" content="${e.target.value}" />`;
                     updateSetting('custom_header', metaTag);
@@ -196,12 +206,12 @@ const AdvancedStoreSettings = ({ settings, updateSetting }: AdvancedStoreSetting
                 <Textarea
                   value={settings.custom_js || ''}
                   onChange={(e) => updateSetting('custom_js', e.target.value)}
-                  placeholder="// أدخل كود JavaScript المخصص هنا
+                  placeholder={`// أدخل كود JavaScript المخصص هنا
 
 // مثال: تتبع النقرات
 document.addEventListener('click', function(e) {
   // كود التتبع هنا
-});"
+});`}
                   className="min-h-[300px] font-mono text-sm"
                   dir="ltr"
                 />
@@ -257,10 +267,10 @@ document.addEventListener('click', function(e) {
                   <Textarea
                     value={settings.custom_header || ''}
                     onChange={(e) => updateSetting('custom_header', e.target.value)}
-                    placeholder="<!-- كود HTML مخصص للرأس -->
-<meta name=&quot;description&quot; content=&quot;وصف متجرك&quot; />
-<meta name=&quot;keywords&quot; content=&quot;كلمات مفتاحية&quot; />
-<link rel=&quot;stylesheet&quot; href=&quot;custom.css&quot; />"
+                    placeholder={`<!-- كود HTML مخصص للرأس -->
+<meta name="description" content="وصف متجرك" />
+<meta name="keywords" content="كلمات مفتاحية" />
+<link rel="stylesheet" href="custom.css" />`}
                     className="min-h-[200px] font-mono text-sm"
                     dir="ltr"
                   />
@@ -299,7 +309,7 @@ document.addEventListener('click', function(e) {
                   <Textarea
                     value={settings.custom_footer || ''}
                     onChange={(e) => updateSetting('custom_footer', e.target.value)}
-                    placeholder="<!-- كود HTML مخصص للتذييل -->\n<script>\n  // أكواد التتبع والتحليلات\n  console.log('تم تحميل الصفحة');\n</script>"
+                    placeholder={`<!-- كود HTML مخصص للتذييل -->\n<script>\n  // أكواد التتبع والتحليلات\n  \n</script>`}
                     className="min-h-[200px] font-mono text-sm"
                     dir="ltr"
                   />
@@ -352,6 +362,30 @@ document.addEventListener('click', function(e) {
                     value={settings.updated_at ? new Date(settings.updated_at).toLocaleString('ar-SA') : 'غير محدد'}
                     readOnly
                     className="bg-muted"
+                  />
+                </div>
+              </div>
+
+              {/* تفعيل السلة */}
+              <div className="border-t pt-6">
+                <h4 className="font-semibold mb-4">خيارات المتجر</h4>
+                <div className="flex items-center justify-between rounded-lg border px-4 py-3 bg-muted/30">
+                  <div>
+                    <div className="font-medium">تفعيل السلة</div>
+                    <div className="text-sm text-muted-foreground">السماح بوضع "أضف إلى السلة" بجانب "اطلب الآن"</div>
+                  </div>
+                  <Switch
+                    checked={(() => { try { const js = settings.custom_js ? JSON.parse(settings.custom_js) : {}; return !!js.enable_cart; } catch { return false; } })()}
+                    onCheckedChange={(val) => {
+                      try {
+                        const js = settings.custom_js ? JSON.parse(settings.custom_js) : {};
+                        js.enable_cart = !!val;
+                        updateSetting('custom_js' as any, JSON.stringify(js));
+                        toast({ title: 'تم الحفظ', description: val ? 'تم تفعيل السلة' : 'تم إلغاء تفعيل السلة' });
+                      } catch {
+                        updateSetting('custom_js' as any, JSON.stringify({ enable_cart: !!val }));
+                      }
+                    }}
                   />
                 </div>
               </div>
@@ -427,7 +461,8 @@ document.addEventListener('click', function(e) {
                       input.type = 'file';
                       input.accept = '.json';
                       input.onchange = (e) => {
-                        const file = (e.target as HTMLInputElement).files?.[0];
+                        const files = (e.target as HTMLInputElement).files;
+                        const file = files && files[0];
                         if (file) {
                           const reader = new FileReader();
                           reader.onload = (e) => {

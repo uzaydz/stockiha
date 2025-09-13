@@ -9,6 +9,7 @@ import { NavbarLinks } from './NavbarLinks';
 import { NavbarUserMenu } from './NavbarUserMenu';
 import { NavbarNotifications } from './NavbarNotifications';
 import { NavbarThemeToggle } from './NavbarThemeToggle';
+import { canMutateHead } from '@/lib/headGuard';
 import { NavbarMobileMenu } from './NavbarMobileMenu';
 import { QuickNavLinks } from './QuickNavLinks';
 import LanguageSwitcher from '@/components/language/LanguageSwitcher';
@@ -90,6 +91,8 @@ export function NavbarMain({
   organizationSettings: propOrganizationSettings,
   hideCategories = false
 }: NavbarMainProps) {
+  const navbarStartTime = performance.now();
+
   const { user, userProfile } = useAuthSafe();
   const { t } = useTranslation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -97,6 +100,7 @@ export function NavbarMain({
   const location = useLocation();
   const { currentOrganization } = useTenantSafe();
   const { isAppEnabled, organizationApps } = useAppsSafe();
+
 
   const [isScrolled, setIsScrolled] = useState(false);
   const lastTitleRef = useRef<string>('');
@@ -116,6 +120,9 @@ export function NavbarMain({
   
   // محاولة جلب البيانات من localStorage فقط كحل احتياطي خفيف بدون أي طلبات شبكة
   useEffect(() => {
+    const fallbackStartTime = performance.now();
+
+
     const applyLocalFallback = () => {
       try {
         const appInitData = localStorage.getItem('bazaar_app_init_data');
@@ -125,15 +132,23 @@ export function NavbarMain({
             const settings = data.organization.settings;
             setFallbackLogo(settings.logo_url || null);
             setFallbackSiteName(settings.site_name || data.organization.name || null);
+
           }
         }
-      } catch {}
+      } catch (error) {
+        console.error('❌ [NavbarMain] خطأ في قراءة البيانات الاحتياطية:', error);
+      }
     };
+
     const timeoutId = setTimeout(() => {
       if (!logoUrl && !storeName) {
+        
         applyLocalFallback();
+      } else {
+        
       }
     }, 500);
+
     return () => clearTimeout(timeoutId);
   }, [logoUrl, storeName]);
   
@@ -184,13 +199,13 @@ export function NavbarMain({
   const updatePageMetadata = useCallback(() => {
     if (finalOrganizationSettings) {
       // تحديث عنوان الصفحة فقط إذا تغير
-      if (siteName && lastTitleRef.current !== siteName) {
+      if (canMutateHead() && siteName && lastTitleRef.current !== siteName) {
         document.title = siteName;
         lastTitleRef.current = siteName;
       }
       
       // تحديث الأيقونة فقط إذا تغيرت
-      if (finalOrganizationSettings.favicon_url && lastFaviconRef.current !== finalOrganizationSettings.favicon_url) {
+      if (canMutateHead() && finalOrganizationSettings.favicon_url && lastFaviconRef.current !== finalOrganizationSettings.favicon_url) {
         const faviconElement = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
         if (faviconElement) {
           faviconElement.href = `${finalOrganizationSettings.favicon_url}?t=${Date.now()}`;
@@ -227,6 +242,8 @@ export function NavbarMain({
   // تم إزالة الإشعارات الوهمية - نستخدم النظام الحقيقي الآن
 
   if (!userProfile && user) {
+    const loadingTime = performance.now() - navbarStartTime;
+
     return (
       <div className={cn(
         "flex items-center justify-between p-3 shadow-sm bg-background/90 backdrop-blur-md",
@@ -240,6 +257,7 @@ export function NavbarMain({
 
   // Enhanced mobile quick links rendering
   const renderMobileQuickLinks = useCallback(() => {
+    
     return (
       <DropdownMenu open={isQuickLinksOpen} onOpenChange={setIsQuickLinksOpen}>
         <DropdownMenuTrigger asChild>
@@ -423,3 +441,4 @@ export function NavbarMain({
 
 // Optimize with React.memo to prevent unnecessary re-renders
 export default memo(NavbarMain);
+

@@ -177,8 +177,8 @@ export async function createYalidineShippingOrder(
         communeName = communeData.name;
       }
 
-      // console.log('📍 Using wilaya name from DB:', wilayaName);
-      // console.log('📍 Using commune name from DB:', communeName);
+      // 
+      // 
       
     } catch (error) {
       // استخدام أسماء افتراضية إذا فشل الاستعلام
@@ -312,8 +312,8 @@ export async function createShippingOrderForOrder(
     
     // Extract customer and shipping data from form_data
     const formData = (order.form_data as any) || {};
-    // console.log('📋 Original form_data:', formData);
-    // console.log('📋 Form data keys:', Object.keys(formData));
+    // 
+    // 
     
     const customerName = formData.fullName || formData.customerName || formData.name || '';
     const customerPhone = formData.phone || formData.customerPhone || formData.telephone || '';

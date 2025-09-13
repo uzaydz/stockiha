@@ -12,9 +12,9 @@ interface PreloadedResource {
 
 class PreloadManager {
   private preloadedResources = new Map<string, PreloadedResource>();
-  // تقليل العمل في الإنتاج: مهلة أطول وفترات تفقد أبطأ
-  private readonly PRELOAD_TIMEOUT = (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env.PROD) ? 10000 : 2000;
-  private readonly CHECK_INTERVAL = (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env.PROD) ? 5000 : 1000;
+  // تقليل العمل في الإنتاج: مهلة أقصر لتجنب التحذيرات
+  private readonly PRELOAD_TIMEOUT = (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env.PROD) ? 3000 : 2000;
+  private readonly CHECK_INTERVAL = (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env.PROD) ? 2000 : 1000;
   private checkTimerId: number | null = null;
   
   constructor() {

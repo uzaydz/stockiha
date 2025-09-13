@@ -57,6 +57,13 @@ interface POSOrderActionsProps {
   onRefresh: () => void;
   onEditItems?: (order: POSOrderWithDetails) => void;
   className?: string;
+  permissions?: {
+    updateStatus?: boolean;
+    updatePayment?: boolean;
+    delete?: boolean;
+    editItems?: boolean;
+    cancel?: boolean;
+  };
 }
 
 type ActionType = 'status' | 'payment' | 'delete' | 'print' | null;
@@ -90,7 +97,8 @@ export const POSOrderActions: React.FC<POSOrderActionsProps> = ({
   onPrint,
   onRefresh,
   onEditItems,
-  className = ''
+  className = '',
+  permissions
 }) => {
   const [activeAction, setActiveAction] = useState<ActionType>(null);
   const [loading, setLoading] = useState(false);
@@ -103,6 +111,13 @@ export const POSOrderActions: React.FC<POSOrderActionsProps> = ({
   const [newPaymentStatus, setNewPaymentStatus] = useState(order.payment_status);
   const [newPaymentMethod, setNewPaymentMethod] = useState(order.payment_method);
   const [amountPaid, setAmountPaid] = useState(order.amount_paid || '0');
+
+  // Permissions defaults (true if not provided)
+  const allowEditItems = (permissions?.editItems ?? true) && !!onEditItems;
+  const allowUpdateStatus = permissions?.updateStatus ?? true;
+  const allowCancel = permissions?.cancel ?? allowUpdateStatus;
+  const allowUpdatePayment = permissions?.updatePayment ?? true;
+  const allowDelete = permissions?.delete ?? true;
 
   const formatCurrency = (amount: number | string): string => {
     const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
@@ -222,7 +237,7 @@ export const POSOrderActions: React.FC<POSOrderActionsProps> = ({
               طباعة الوصل
             </Button>
 
-            {onEditItems && (
+            {allowEditItems && (
               <Button
                 variant="outline"
                 size="sm"
@@ -239,6 +254,7 @@ export const POSOrderActions: React.FC<POSOrderActionsProps> = ({
               size="sm"
               onClick={() => setActiveAction('status')}
               className="flex items-center gap-2"
+              disabled={!allowUpdateStatus}
             >
               <Edit className="h-4 w-4" />
               تحديث الحالة
@@ -249,6 +265,7 @@ export const POSOrderActions: React.FC<POSOrderActionsProps> = ({
               size="sm"
               onClick={() => setActiveAction('payment')}
               className="flex items-center gap-2"
+              disabled={!allowUpdatePayment}
             >
               <CreditCard className="h-4 w-4" />
               تحديث الدفع
@@ -260,6 +277,7 @@ export const POSOrderActions: React.FC<POSOrderActionsProps> = ({
                 size="sm"
                 onClick={() => onStatusUpdate(order.id, 'completed')}
                 className="flex items-center gap-2 text-green-600 hover:text-green-700"
+                disabled={!allowUpdateStatus}
               >
                 <CheckCircle className="h-4 w-4" />
                 تأكيد الطلبية
@@ -272,6 +290,7 @@ export const POSOrderActions: React.FC<POSOrderActionsProps> = ({
                 size="sm"
                 onClick={() => onStatusUpdate(order.id, 'cancelled')}
                 className="flex items-center gap-2 text-orange-600 hover:text-orange-700"
+                disabled={!allowCancel}
               >
                 <XCircle className="h-4 w-4" />
                 إلغاء الطلبية
@@ -283,6 +302,7 @@ export const POSOrderActions: React.FC<POSOrderActionsProps> = ({
               size="sm"
               onClick={() => setActiveAction('delete')}
               className="flex items-center gap-2 text-red-600 hover:text-red-700"
+              disabled={!allowDelete}
             >
               <Trash2 className="h-4 w-4" />
               حذف الطلبية

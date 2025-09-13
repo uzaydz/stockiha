@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import ConversionTracking from './ConversionTracking';
-import PixelLoader from './PixelLoader';
+import CSPCompliantPixelLoader from './CSPCompliantPixelLoader';
 
 interface ProductTrackingWrapperProps {
   productId: string;
@@ -159,9 +159,9 @@ export default function ProductTrackingWrapper({
 
   return (
     <>
-      {/* تحميل البكسلات مرة واحدة فقط */}
+      {/* تحميل البكسلات مرة واحدة فقط - CSP Compliant */}
       {loadPixels && pixelSettings && (
-        <PixelLoader 
+        <CSPCompliantPixelLoader 
           settings={pixelSettings}
           onLoad={() => {
           }}

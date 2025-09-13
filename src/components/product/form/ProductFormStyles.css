@@ -11,24 +11,8 @@
 }
 
 .premium-form-border {
-  position: absolute;
-  inset: 0;
-  border-radius: 1.5rem;
-  background: conic-gradient(from 0deg, 
-    hsl(var(--primary)) 0deg,
-    hsl(var(--primary)/0.8) 60deg,
-    hsl(var(--primary)/0.3) 120deg,
-    hsl(var(--primary)/0.1) 180deg,
-    hsl(var(--primary)/0.3) 240deg,
-    hsl(var(--primary)/0.8) 300deg,
-    hsl(var(--primary)) 360deg
-  );
-  animation: rotateBorder 6s linear infinite;
-  will-change: transform;
-  transform: translateZ(0);
-  pointer-events: none;
-  z-index: 1;
-  contain: layout style paint;
+  /* Disabled rotating conic border for performance */
+  display: none;
 }
 
 .premium-form-content {
@@ -36,22 +20,15 @@
   background: hsl(var(--card));
   border: 1px solid hsl(var(--border)/0.3);
   border-radius: calc(1.5rem - 2px);
-  backdrop-filter: blur(10px);
-  box-shadow: 
-    0 4px 24px -8px hsl(var(--primary)/0.15),
-    inset 0 1px 0 hsl(var(--background)/0.5);
+  /* Remove heavy blur */
+  /* backdrop-filter: blur(10px); */
+  /* Lighter shadow */
+  box-shadow: 0 4px 16px -8px hsl(var(--primary)/0.12);
   z-index: 2;
   margin: 2px;
 }
 
-@keyframes rotateBorder {
-  0% { 
-    transform: rotate(0deg) translateZ(0);
-  }
-  100% { 
-    transform: rotate(360deg) translateZ(0);
-  }
-}
+/* Removed border rotation animation */
 
 .elegant-header {
   position: relative;
@@ -198,20 +175,8 @@
 }
 
 .premium-submit-button::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: conic-gradient(from 0deg,
-    hsl(var(--primary)/0.1) 0deg,
-    hsl(var(--primary)/0.3) 120deg,
-    hsl(var(--primary)/0.1) 240deg,
-    hsl(var(--primary)/0.3) 360deg
-  );
-  animation: buttonGlow 3s ease-in-out infinite;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  z-index: -1;
+  /* Disable glow animation for performance */
+  display: none;
 }
 
 .premium-submit-button:hover::before {
@@ -271,16 +236,7 @@
   transform: translateX(2px);
 }
 
-@keyframes buttonGlow {
-  0%, 100% { 
-    transform: rotate(0deg);
-    opacity: 0.3;
-  }
-  50% { 
-    transform: rotate(180deg);
-    opacity: 0.7;
-  }
-}
+/* Removed buttonGlow animation */
 
 @keyframes spin {
   0% { transform: rotate(0deg); }

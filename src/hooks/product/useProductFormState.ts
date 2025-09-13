@@ -39,7 +39,8 @@ export const useProductFormState = (): UseProductFormStateReturn => {
   const [useVariantPrices, setUseVariantPrices] = useState(false);
   const [useSizes, setUseSizes] = useState(false);
   const [hasVariantsState, setHasVariantsState] = useState(false);
-  const [autoSaveDrafts, setAutoSaveDrafts] = useState(true);
+  // Disable autosave by default
+  const [autoSaveDrafts, setAutoSaveDrafts] = useState(false);
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [isManualSubmit, setIsManualSubmit] = useState(false);
 

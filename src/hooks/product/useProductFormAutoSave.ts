@@ -133,24 +133,23 @@ export const useProductFormAutoSave = ({
     }
   }, [organizationId]);
 
-  // Auto-save effect
+  // Auto-save effect: subscribe to form changes and debounce saves
   useEffect(() => {
-    if (form.formState.isDirty && !isEditMode && autoSaveDrafts) {
-      // Clear existing timeout
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
+    if (isEditMode || !autoSaveDrafts) return;
+
+    const subscription = form.watch(() => {
+      // On any form change, (re)start debounce timer if not submitting
+      if (!form.formState.isSubmitting) {
+        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        timeoutRef.current = setTimeout(saveDraft, 2000);
       }
-      
-      // Set new timeout for auto-save
-      timeoutRef.current = setTimeout(saveDraft, 2000);
-      
-      return () => {
-        if (timeoutRef.current) {
-          clearTimeout(timeoutRef.current);
-        }
-      };
-    }
-  }, [form.watch(), form.formState.isDirty, isEditMode, autoSaveDrafts, saveDraft]);
+    });
+
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      subscription.unsubscribe();
+    };
+  }, [form, isEditMode, autoSaveDrafts, saveDraft]);
 
   // Load draft on component mount
   useEffect(() => {

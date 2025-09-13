@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import { updateOrganizationTheme } from '@/lib/themeManager';
+import { updateOrganizationTheme } from '@/lib/themeManager/index';
 
 // Import components
 import StoreHeader from './store-components/StoreHeader';

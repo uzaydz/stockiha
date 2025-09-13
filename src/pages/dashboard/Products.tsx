@@ -4,6 +4,8 @@ import Layout from '@/components/Layout';
 import { toast } from 'sonner';
 import { getProductsPaginated } from '@/lib/api/products';
 
+
+
 import ProductsList from '@/components/product/ProductsList';
 import ProductsFilter from '@/components/product/ProductsFilter';
 import ProductsSearchHeader from '@/components/product/ProductsSearchHeader';
@@ -42,6 +44,7 @@ interface FilterState {
   searchQuery: string;
   categoryFilter: string | null;
   stockFilter: string;
+  publicationFilter: string;
   sortOption: string;
 }
 
@@ -77,6 +80,7 @@ const Products = memo(() => {
     searchQuery: searchParams.get('search') || '',
     categoryFilter: searchParams.get('category'),
     stockFilter: searchParams.get('stock') || 'all',
+    publicationFilter: searchParams.get('publication') || 'all',
     sortOption: searchParams.get('sort') || 'newest',
   }));
 
@@ -229,18 +233,26 @@ const Products = memo(() => {
 
       // الخطوة 2: تنفيذ الطلب مع تحسين الأداء
       const { getProductsPaginatedOptimized } = await import('@/lib/api/products');
+      // تحديد ما إذا كان يجب تضمين المنتجات غير النشطة بناءً على فلتر حالة النشر
+      const shouldIncludeInactive = searchFilters.publicationFilter === 'all' || 
+                                   searchFilters.publicationFilter === 'draft' || 
+                                   searchFilters.publicationFilter === 'archived';
+
+
       const result = await getProductsPaginatedOptimized(
         currentOrganization.id,
         currentPageValue,
         pageSize,
         {
-          includeInactive: false,
+          includeInactive: shouldIncludeInactive,
           searchQuery: currentDebouncedQuery.trim(),
           categoryFilter: searchFilters.categoryFilter || '',
           stockFilter: searchFilters.stockFilter,
+          publicationFilter: searchFilters.publicationFilter,
           sortOption: searchFilters.sortOption,
-        }
+        } as any
       );
+
 
       // التحقق من عدم إلغاء الطلب أو تغيير الطلب
       if (signal.aborted || lastRequestIdRef.current !== requestId) {
@@ -397,6 +409,7 @@ const Products = memo(() => {
       searchQuery: '',
       categoryFilter: null,
       stockFilter: 'all',
+      publicationFilter: 'all',
       sortOption: 'newest'
     };
     
@@ -637,6 +650,23 @@ const Products = memo(() => {
                   <SelectItem value="in-stock">متوفر</SelectItem>
                   <SelectItem value="low-stock">مخزون منخفض</SelectItem>
                   <SelectItem value="out-of-stock">نفد المخزون</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Publication Status Filter */}
+              <Select
+                value={filters.publicationFilter}
+                onValueChange={(value) => handleFilterChange('publicationFilter', value)}
+              >
+                <SelectTrigger className="w-44">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">جميع الحالات</SelectItem>
+                  <SelectItem value="published">منشورة</SelectItem>
+                  <SelectItem value="draft">مسودة</SelectItem>
+                  <SelectItem value="scheduled">مجدولة</SelectItem>
+                  <SelectItem value="archived">مؤرشفة</SelectItem>
                 </SelectContent>
               </Select>
 

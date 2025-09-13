@@ -3,9 +3,7 @@
  * يدعم الجلب بطرق مختلفة مع retry logic وإدارة أخطاء محسنة
  */
 
-import { getOrganizationById } from '@/lib/api/organization';
-import { getOrganizationBySubdomain } from '@/lib/api/subdomain';
-import { getOrganizationByDomain } from '@/lib/api/subdomain';
+import { getOrganizationById, getOrganizationBySubdomain, getOrganizationByDomain } from '@/lib/api/deduplicatedApi';
 import { organizationCache } from './OrganizationCache';
 import { API_TIMEOUTS } from '@/config/api-timeouts';
 

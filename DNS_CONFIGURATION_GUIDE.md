@@ -21,7 +21,7 @@
 
 ```
 Type: CNAME
-Name: * (أو *.stockiha.com)
+Name: * (أو )
 Content: stockiha.pages.dev
 Proxy Status: Proxied (🧡 البرتقالي)
 TTL: Auto

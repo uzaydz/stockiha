@@ -2,6 +2,8 @@
  * مكتبة تحسين الصور - تحسين الأداء وسرعة التحميل
  */
 
+import { getCdnImageUrl } from '@/lib/image-cdn';
+
 export interface ImageOptimizationOptions {
   width?: number;
   height?: number;
@@ -77,7 +79,13 @@ export const preloadImage = (url: string): Promise<void> => {
     const img = new Image();
     img.onload = () => resolve();
     img.onerror = reject;
-    img.src = url;
+    try {
+      // Route through CDN with conservative size for preloads
+      const cdn = getCdnImageUrl(url, { width: 480, quality: 70, fit: 'cover', format: 'auto' });
+      img.src = cdn;
+    } catch {
+      img.src = url;
+    }
   });
 };
 
@@ -163,12 +171,12 @@ export const addPreloadLinks = (urls: string[], delay: number = 0): void => {
         
         document.head.appendChild(link);
         
-        // إزالة تلقائية بعد 5 ثوان إذا لم يتم استخدام الصورة
+        // إزالة تلقائية بعد 3 ثوان إذا لم يتم استخدام الصورة (تقليل الوقت)
         setTimeout(() => {
           if (link.parentNode) {
             link.remove();
           }
-        }, 5000);
+        }, 3000);
       }
     });
   }, delay);
@@ -207,6 +215,11 @@ export const smartPreloadImages = (urls: string[], options: {
         img.loading = 'eager';
         img.decoding = 'sync';
         img.src = url;
+        
+        // Mark the image as used in preload manager if available
+        if (typeof window !== 'undefined' && (window as any).preloadManager) {
+          (window as any).preloadManager.markAsUsed(url);
+        }
       }
     });
   } else {
@@ -222,6 +235,11 @@ export const smartPreloadImages = (urls: string[], options: {
                 const img = new Image();
                 img.loading = 'lazy';
                 img.src = url;
+                
+                // Mark the image as used in preload manager if available
+                if (typeof window !== 'undefined' && (window as any).preloadManager) {
+                  (window as any).preloadManager.markAsUsed(url);
+                }
               }
             });
             observer.disconnect();
@@ -245,6 +263,11 @@ export const smartPreloadImages = (urls: string[], options: {
             const img = new Image();
             img.loading = 'lazy';
             img.src = url;
+            
+            // Mark the image as used in preload manager if available
+            if (typeof window !== 'undefined' && (window as any).preloadManager) {
+              (window as any).preloadManager.markAsUsed(url);
+            }
           }
         });
       }, delay);
@@ -262,7 +285,21 @@ export const loadCriticalImages = (urls: string[]): void => {
       const img = new Image();
       img.loading = 'eager';
       img.decoding = 'sync';
-      img.src = url;
+      try {
+        const optimizedUrl = getCdnImageUrl(url, { width: 640, quality: 75, fit: 'cover', format: 'auto' });
+        img.src = optimizedUrl;
+        
+        // Mark the image as used in preload manager if available
+        if (typeof window !== 'undefined' && (window as any).preloadManager) {
+          (window as any).preloadManager.markAsUsed(optimizedUrl);
+          (window as any).preloadManager.markAsUsed(url);
+        }
+      } catch {
+        img.src = url;
+        if (typeof window !== 'undefined' && (window as any).preloadManager) {
+          (window as any).preloadManager.markAsUsed(url);
+        }
+      }
     }
   });
 };
@@ -272,12 +309,35 @@ export const loadCriticalImages = (urls: string[]): void => {
  */
 export const loadLazyImages = (urls: string[], delay: number = 1000): void => {
   setTimeout(() => {
+    // Respect user's data saver and slow connections
+    try {
+      const nav: any = navigator as any;
+      const conn = nav?.connection || nav?.mozConnection || nav?.webkitConnection;
+      if (conn?.saveData) return; // skip on data saver
+      const type = (conn?.effectiveType || '').toString();
+      if (type.includes('2g') || type.includes('slow-2g')) return; // skip on very slow
+    } catch {}
+
     const lazyUrls = urls.slice(0, 4);
     lazyUrls.forEach(url => {
       if (url) {
         const img = new Image();
         img.loading = 'lazy';
-        img.src = url;
+        try {
+          const optimizedUrl = getCdnImageUrl(url, { width: 360, quality: 65, fit: 'cover', format: 'auto' });
+          img.src = optimizedUrl;
+          
+          // Mark the image as used in preload manager if available
+          if (typeof window !== 'undefined' && (window as any).preloadManager) {
+            (window as any).preloadManager.markAsUsed(optimizedUrl);
+            (window as any).preloadManager.markAsUsed(url);
+          }
+        } catch {
+          img.src = url;
+          if (typeof window !== 'undefined' && (window as any).preloadManager) {
+            (window as any).preloadManager.markAsUsed(url);
+          }
+        }
       }
     });
   }, delay);

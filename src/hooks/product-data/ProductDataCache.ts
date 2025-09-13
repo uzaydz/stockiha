@@ -69,15 +69,22 @@ class ProductDataCache {
    * الحصول على بيانات من Cache
    */
   get(key: ProductCacheKey): UnifiedProductPageData | null {
+    
+    
     const item = this.cache.get(key);
-    if (!item) return null;
+    if (!item) {
+      
+      return null;
+    }
 
     const now = Date.now();
     if (now - item.timestamp > CACHE_CONSTANTS.DURATION) {
+      
       this.cache.delete(key);
       return null;
     }
 
+    
     return item.data;
   }
 
@@ -85,8 +92,11 @@ class ProductDataCache {
    * حفظ بيانات في Cache
    */
   set(key: ProductCacheKey, data: UnifiedProductPageData): void {
+    
+    
     // التحقق من حجم Cache
     if (this.cache.size >= CACHE_CONSTANTS.MAX_SIZE) {
+      
       this.evictOldest();
     }
 
@@ -94,6 +104,8 @@ class ProductDataCache {
       data,
       timestamp: Date.now()
     });
+    
+    
   }
 
   /**
@@ -119,20 +131,25 @@ class ProductDataCache {
    * التحقق من وجود طلب نشط
    */
   hasActiveRequest(key: ProductCacheKey): boolean {
-    return this.activeRequests.has(key);
+    const hasActive = this.activeRequests.has(key);
+    
+    return hasActive;
   }
 
   /**
    * الحصول على طلب نشط
    */
   getActiveRequest(key: ProductCacheKey): Promise<UnifiedProductPageData> | undefined {
-    return this.activeRequests.get(key);
+    const request = this.activeRequests.get(key);
+    
+    return request;
   }
 
   /**
    * تعيين طلب نشط
    */
   setActiveRequest(key: ProductCacheKey, request: Promise<UnifiedProductPageData>): void {
+    
     this.activeRequests.set(key, request);
   }
 
@@ -140,6 +157,7 @@ class ProductDataCache {
    * إزالة طلب نشط
    */
   removeActiveRequest(key: ProductCacheKey): void {
+    
     this.activeRequests.delete(key);
   }
 
@@ -205,7 +223,9 @@ export const productDataCache = new ProductDataCache();
  * دوال مساعدة للـ Cache
  */
 export const createCacheKey = (productId: string, organizationId?: string): ProductCacheKey => {
-  return `unified_product_${productId}_${organizationId || 'no_org'}`;
+  const key = `unified_product_${productId}_${organizationId || 'no_org'}`;
+  
+  return key;
 };
 
 export const clearUnifiedProductCache = (productId?: string) => {

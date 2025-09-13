@@ -61,7 +61,8 @@ const DomainSetupSteps: React.FC = () => {
       icon: <Settings className="w-5 h-5" />,
       details: [
         'سجل دخول إلى لوحة تحكم مزود النطاق',
-        'أضف سجل A يشير إلى 76.76.21.21',
+        'أضف سجل A يشير إلى 76.76.19.142',
+        'أضف سجل A آخر يشير إلى 76.223.126.88',
         'أضف سجل CNAME للـ www يشير إلى connect.ktobi.online'
       ],
       time: '5-15 دقيقة'

@@ -29,11 +29,30 @@ DECLARE
   v_size_record RECORD;
   v_total_stock INTEGER := 0;
   v_has_variants BOOLEAN := FALSE;
+  v_publication_status TEXT;
+  v_publish_at TIMESTAMPTZ;
 BEGIN
   -- بدء المعاملة (Transaction)
   BEGIN
     
     -- 1. إنشاء المنتج الرئيسي
+    -- تحديد حالة النشر قبل الإدراج
+    v_publication_status := COALESCE(
+      (p_product_data->>'publication_status'),
+      CASE 
+        WHEN (p_product_data->>'publish_at') IS NOT NULL AND (p_product_data->>'publish_at') != '' THEN 'scheduled'
+        ELSE 'published'
+      END
+    );
+    IF v_publication_status NOT IN ('draft','scheduled','published','archived') THEN
+      v_publication_status := 'published';
+    END IF;
+    v_publish_at := CASE 
+      WHEN p_product_data ? 'publish_at' AND (p_product_data->>'publish_at') IS NOT NULL AND (p_product_data->>'publish_at') != ''
+      THEN (p_product_data->>'publish_at')::TIMESTAMPTZ
+      ELSE NULL
+    END;
+
     INSERT INTO products (
       organization_id,
       name,
@@ -78,6 +97,9 @@ BEGIN
       advanced_description,
       created_by_user_id,
       updated_by_user_id,
+      publication_status,
+      publish_at,
+      published_at,
       is_active,
       created_at,
       updated_at
@@ -149,7 +171,13 @@ BEGIN
       p_advanced_description,
       COALESCE(p_user_id, (p_product_data->>'created_by_user_id')::UUID),
       COALESCE(p_user_id, (p_product_data->>'updated_by_user_id')::UUID),
-      TRUE,
+      v_publication_status,
+      v_publish_at,
+      CASE WHEN v_publication_status = 'published' THEN NOW() ELSE NULL END,
+      CASE 
+        WHEN v_publication_status = 'published' THEN TRUE
+        ELSE FALSE
+      END,
       NOW(),
       NOW()
     ) RETURNING id INTO v_product_id;

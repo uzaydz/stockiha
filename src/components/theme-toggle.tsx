@@ -43,16 +43,20 @@ export function ThemeToggle() {
           // محاولة إعادة تطبيق الثيم يدوياً
           const root = document.documentElement;
           const body = document.body;
-          
+          const NO_MOTION_CLASS = 'no-motion';
+          try {
+            if (!root.classList.contains(NO_MOTION_CLASS)) {
+              root.classList.add(NO_MOTION_CLASS);
+              setTimeout(() => { try { root.classList.remove(NO_MOTION_CLASS); } catch {} }, 150);
+            }
+          } catch {}
+
           root.classList.remove('light', 'dark');
           body.classList.remove('light', 'dark');
-          
           root.classList.add(newTheme);
           body.classList.add(newTheme);
-          
           root.setAttribute('data-theme', newTheme);
           body.setAttribute('data-theme', newTheme);
-          
           root.style.colorScheme = newTheme;
           body.style.colorScheme = newTheme;
           

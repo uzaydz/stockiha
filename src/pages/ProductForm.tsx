@@ -1,8 +1,11 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
-import { Helmet } from 'react-helmet';
+import { Helmet } from 'react-helmet-async';
+
+// Performance CSS
+import '@/components/product/form/product-form-performance.css';
 
 // Custom Hooks
 import { useTenant } from '@/context/TenantContext';
@@ -11,7 +14,6 @@ import { useCategoryData } from '@/hooks/useCategoryData';
 import { useProductPermissions } from '@/hooks/useProductPermissions';
 import { useProductFormState } from '@/hooks/product/useProductFormState';
 import { useProductFormValidation } from '@/hooks/product/useProductFormValidation';
-import { useProductFormAutoSave } from '@/hooks/product/useProductFormAutoSave';
 import { useProductFormSubmission } from '@/hooks/product/useProductFormSubmission';
 import { useProductFormEventHandlers } from '@/hooks/product/useProductFormEventHandlers';
 
@@ -28,6 +30,7 @@ import ProductFormPermissionWarning from '@/components/product/form/ProductFormP
 import ProductFormValidationErrors from '@/components/product/form/ProductFormValidationErrors';
 import ProductFormLoadingState from '@/components/product/form/ProductFormLoadingState';
 import ProductFormPermissionDenied from '@/components/product/form/ProductFormPermissionDenied';
+import SchedulePublishDialog from '@/components/product/form/SchedulePublishDialog';
 
 // Types & API
 import { 
@@ -42,9 +45,15 @@ const ProductForm = () => {
   const { currentOrganization } = useTenant();
   const organizationIdFromTenant = currentOrganization?.id;
 
+  // حالة نافذة جدولة النشر
+  const [showScheduleDialog, setShowScheduleDialog] = useState(false);
+
+  // مرجع للنموذج لتجنب إعادة البحث
+  const formElementRef = useRef<HTMLFormElement | null>(null);
+
   // Form configuration
   const form = useForm<ProductFormValues>({
-    resolver: zodResolver(productSchema),
+    resolver: zodResolver(productSchema) as any,
     mode: 'onChange',
     defaultValues: {
       name: '',
@@ -92,6 +101,8 @@ const ProductForm = () => {
       min_wholesale_quantity: undefined,
       min_partial_wholesale_quantity: undefined,
       subcategory_id: undefined,
+      publication_mode: 'publish_now' as const,
+      publish_at: undefined,
     },
   });
 
@@ -102,8 +113,7 @@ const ProductForm = () => {
     }
   }, [organizationIdFromTenant, form]);
 
-  // Watch form values
-  const watchedValues = form.watch();
+  // Avoid global watch() that re-renders on every field change
   const formErrors = form.formState.errors;
   const isDirty = form.formState.isDirty;
 
@@ -178,18 +188,7 @@ const ProductForm = () => {
     hasRequiredFields,
   } = useProductFormValidation(form);
 
-  // Auto-save functionality
-  const { clearDraft } = useProductFormAutoSave({
-    form,
-    autoSaveDrafts,
-    isEditMode,
-    organizationId: organizationIdFromTenant,
-    additionalImages,
-    productColors,
-    wholesaleTiers,
-    isSavingDraft,
-    setIsSavingDraft,
-  });
+  // Auto-save disabled: no draft persistence
 
   // Form submission
   const { isSubmitting, submitForm, handleFormError } = useProductFormSubmission({
@@ -200,12 +199,7 @@ const ProductForm = () => {
     additionalImages,
     productColors,
     wholesaleTiers,
-    onSuccess: (result) => {
-      // Clear draft after successful submission
-      if (!isEditMode && autoSaveDrafts) {
-        clearDraft();
-      }
-    },
+    onSuccess: () => {},
   });
 
   // Event handlers
@@ -234,6 +228,13 @@ const ProductForm = () => {
   const watchThumbnailImage = form.watch('thumbnail_image');
   const watchName = form.watch('name');
 
+  // Debounce title updates to avoid frequent Helmet updates while typing
+  const [debouncedName, setDebouncedName] = useState<string>('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedName(watchName || ''), 300);
+    return () => clearTimeout(t);
+  }, [watchName]);
+
   // Debug logging for variants
   useEffect(() => {
   }, [watchHasVariants, hasVariantsState, productColors]);
@@ -241,6 +242,37 @@ const ProductForm = () => {
   // Debug logging for data passed to ProductFormTabs
   useEffect(() => {
   }, [productColors, watchHasVariants, useVariantPrices, useSizes]);
+
+  // معالجات محسنة للأحداث لتجنب إعادة الإنشاء
+  const triggerFormSubmit = useCallback(() => {
+    if (formElementRef.current) {
+      const submitEvent = new Event('submit', { cancelable: true, bubbles: true });
+      formElementRef.current.dispatchEvent(submitEvent);
+    }
+  }, []);
+
+  const handlePublishNow = useCallback(() => {
+    form.setValue('publication_mode', 'publish_now');
+    triggerFormSubmit();
+  }, [form, triggerFormSubmit]);
+
+  const handleSaveDraft = useCallback(() => {
+    form.setValue('publication_mode', 'draft');
+    triggerFormSubmit();
+  }, [form, triggerFormSubmit]);
+
+  const handleScheduleDialog = useCallback(() => {
+    setShowScheduleDialog(true);
+  }, []);
+
+  const handleScheduleSubmit = useCallback((options: any) => {
+    form.setValue('publication_mode', 'scheduled');
+    form.setValue('publish_at', options.dateTime.toISOString() as any);
+    
+    // TODO: حفظ إعدادات الجدولة المتقدمة في المستقبل
+    
+    triggerFormSubmit();
+  }, [form, triggerFormSubmit]);
 
   // Sync form with productColors state
   useEffect(() => {
@@ -296,7 +328,7 @@ const ProductForm = () => {
         <Helmet>
           <title>
             {isEditMode 
-              ? `تعديل: ${productNameForTitle || watchName || 'منتج'}` 
+              ? `تعديل: ${productNameForTitle || debouncedName || 'منتج'}` 
               : 'إنشاء منتج جديد'
             } - سوق
           </title>
@@ -304,6 +336,7 @@ const ProductForm = () => {
         
         <form
           id="product-form"
+          ref={formElementRef}
           onSubmit={(e) => {
             e.preventDefault();
             const currentOrgIdInFormState = form.getValues('organization_id');
@@ -318,12 +351,16 @@ const ProductForm = () => {
             setIsManualSubmit(true);
             form.handleSubmit(onSubmit, handleFormError)(e);
           }}
-          className="min-h-screen bg-muted/30"
+          className="min-h-screen bg-muted/30 product-form"
+          style={{
+            contain: 'layout style',
+            willChange: 'auto',
+          }}
         >
           {/* Header */}
           <ProductFormHeader
             isEditMode={isEditMode}
-            productName={productNameForTitle || watchName}
+            productName={productNameForTitle || debouncedName}
             progress={progress}
             isSubmitting={isSubmitting}
             isDirty={isDirty}
@@ -394,16 +431,12 @@ const ProductForm = () => {
             errorCount={errorCount}
             permissionWarning={permissionWarning}
             isEditMode={isEditMode}
-            onSubmit={() => {
-              // Trigger form submission programmatically for desktop
-              const formElement = document.getElementById('product-form') as HTMLFormElement;
-              if (formElement) {
-                const submitEvent = new Event('submit', { cancelable: true, bubbles: true });
-                formElement.dispatchEvent(submitEvent);
-              }
-            }}
+            onSubmit={triggerFormSubmit}
             onCancel={() => navigate('/dashboard/products')}
             disabled={!form.getValues('organization_id') && !organizationIdFromTenant}
+            onPublishNow={handlePublishNow}
+            onSaveDraft={handleSaveDraft}
+            onSchedule={handleScheduleDialog}
           />
         </form>
       </Layout>
@@ -415,15 +448,19 @@ const ProductForm = () => {
         isDirty={isDirty}
         disabled={!form.getValues('organization_id') && !organizationIdFromTenant}
         permissionWarning={permissionWarning}
-        onSubmit={() => {
-          // Trigger form submission programmatically
-          const formElement = document.getElementById('product-form') as HTMLFormElement;
-          if (formElement) {
-            const submitEvent = new Event('submit', { cancelable: true, bubbles: true });
-            formElement.dispatchEvent(submitEvent);
-          }
-        }}
+        onSubmit={triggerFormSubmit}
         onCancel={() => navigate('/dashboard/products')}
+        onPublishNow={handlePublishNow}
+        onSaveDraft={handleSaveDraft}
+        onSchedule={handleScheduleDialog}
+      />
+
+      {/* نافذة جدولة النشر */}
+      <SchedulePublishDialog
+        open={showScheduleDialog}
+        onOpenChange={setShowScheduleDialog}
+        productTitle={form.watch('name') || 'المنتج الجديد'}
+        onSchedule={handleScheduleSubmit}
       />
     </>
   );

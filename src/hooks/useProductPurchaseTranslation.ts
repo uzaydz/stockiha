@@ -1,24 +1,73 @@
-import { useTranslation } from 'react-i18next';
-import { productPurchaseTranslations } from '@/i18n/translations/productPurchase';
+import { useEffect, useMemo, useState } from 'react';
+import i18n from 'i18next';
+import { productPurchaseTranslations } from '@/i18n/translations';
 
-type LanguageKey = keyof typeof productPurchaseTranslations;
+type SupportedLang = keyof typeof productPurchaseTranslations; // 'ar' | 'en' | 'fr'
+
+const normalizeLang = (lang?: string): SupportedLang => {
+  const l = (lang || 'ar').toLowerCase();
+  if (l.startsWith('ar')) return 'ar';
+  if (l.startsWith('fr')) return 'fr';
+  if (l.startsWith('en')) return 'en';
+  return 'ar';
+};
 
 export const useProductPurchaseTranslation = () => {
-  const { i18n } = useTranslation();
-  const currentLanguage = (i18n.language || 'ar') as LanguageKey;
+  // Track current language without using react-i18next hooks to avoid hook order issues
+  const [lang, setLang] = useState<SupportedLang>(normalizeLang(i18n?.language));
 
-  const t = (section: string, key: string, fallback?: string) => {
-    try {
-      const sectionData = productPurchaseTranslations[currentLanguage]?.[section as keyof typeof productPurchaseTranslations[LanguageKey]];
-      if (sectionData && typeof sectionData === 'object') {
-        const value = (sectionData as any)[key];
-        return value || fallback || key;
+  useEffect(() => {
+    const handler = (lng: string) => setLang(normalizeLang(lng));
+    
+    // ✅ إصلاح: التحقق من وجود i18n وأنه كائن صحيح مع الدوال المطلوبة
+    const isValidI18n = i18n && 
+                        typeof i18n === 'object' && 
+                        typeof i18n.on === 'function' && 
+                        typeof i18n.off === 'function';
+    
+    if (isValidI18n) {
+      try {
+        i18n.on('languageChanged', handler);
+      } catch (error) {
+        console.warn('⚠️ [useProductPurchaseTranslation] خطأ في تسجيل مستمع اللغة:', error);
       }
-      return fallback || key;
-    } catch (error) {
-      return fallback || key;
     }
-  };
+    
+    // Ensure state is in sync on mount as well
+    const currentLang = isValidI18n ? i18n.language : 'ar';
+    setLang(prev => normalizeLang(currentLang) || prev);
+    
+    return () => {
+      if (isValidI18n) {
+        try { 
+          i18n.off('languageChanged', handler); 
+        } catch (error) {
+          console.warn('⚠️ [useProductPurchaseTranslation] خطأ في إزالة مستمع اللغة:', error);
+        }
+      }
+    };
+  }, []);
+
+  const currentLanguage: SupportedLang = lang;
+
+  // Safe getter with dot-path support (e.g., 'suggestions.checkLink')
+  const t = useMemo(() => {
+    const getFromSection = (section: string, key: string): string | undefined => {
+      const sectionData: any = (productPurchaseTranslations as any)[currentLanguage]?.[section];
+      if (!sectionData || typeof sectionData !== 'object') return undefined;
+      // Support nested keys with dot-notation
+      if (!key.includes('.')) return sectionData[key];
+      return key.split('.').reduce((acc: any, k: string) => (acc && typeof acc === 'object') ? acc[k] : undefined, sectionData);
+    };
+    return (section: string, key: string, fallback?: string) => {
+      try {
+        const val = getFromSection(section, key);
+        return (typeof val === 'string' && val) || fallback || key;
+      } catch {
+        return fallback || key;
+      }
+    };
+  }, [currentLanguage]);
 
   // دالة ترجمة النصوص الديناميكية
   const translateDynamicText = (text: string): string => {

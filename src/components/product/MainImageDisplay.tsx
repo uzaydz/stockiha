@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ZoomIn, Palette, Grid3X3, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MainImageDisplayProps } from '@/types/imageGallery';
+import { getCdnImageUrl } from '@/lib/image-cdn';
 
 const MainImageDisplay: React.FC<MainImageDisplayProps> = ({
   currentImage,
@@ -192,7 +193,10 @@ const MainImageDisplay: React.FC<MainImageDisplayProps> = ({
           
           <img
             ref={imageRef}
-            src={hasError ? '/images/placeholder-product.jpg' : currentImage}
+            src={hasError ? '/images/placeholder-product.jpg' : getCdnImageUrl(currentImage, { width: 800, quality: 75, fit: 'contain', format: 'auto' })}
+            srcSet={hasError ? undefined : [400, 600, 800]
+              .map(w => `${getCdnImageUrl(currentImage, { width: w, quality: 72, fit: 'contain', format: 'auto' })} ${w}w`)
+              .join(', ')}
             alt={`${productName} - الصورة ${currentIndex + 1}`}
             onLoad={onImageLoad}
             onError={() => onImageError(currentImage)}
@@ -214,9 +218,10 @@ const MainImageDisplay: React.FC<MainImageDisplayProps> = ({
               willChange: isDragging || isHovering ? 'transform' : 'auto'
             }}
             loading={currentIndex === 0 ? 'eager' : 'lazy'}
-            // eslint-disable-next-line react/no-unknown-property
-            fetchpriority={currentIndex === 0 ? 'high' : undefined}
+            fetchPriority={currentIndex === 0 ? 'high' : undefined}
             decoding="async"
+            width={800}
+            height={800}
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             draggable={false}
           />

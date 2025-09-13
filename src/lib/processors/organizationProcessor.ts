@@ -8,7 +8,8 @@ import {
   detectLanguageFromData,
   findLanguageInObject,
   dispatchLanguageUpdateEvent,
-  updateOrganizationLanguageSettings
+  updateOrganizationLanguageSettings,
+  updateLanguageFromSettings
 } from '@/lib/language/languageManager';
 import {
   saveOrganizationData,
@@ -16,6 +17,7 @@ import {
   saveStoreInfoToSession,
   dispatchOrganizationUpdateEvent
 } from '@/lib/storage/localStorageManager';
+import { getOrganizationDefaultLanguage } from '@/lib/api/deduplicatedApi';
 
 /**
  * تحديث بيانات المنظمة وإرسال إشارة تحديث اللغة
@@ -39,44 +41,66 @@ export function updateOrganizationFromData(orgData: any): Organization | null {
                          (orgData.store_settings && orgData.store_settings.language) ||
                          null;
 
-    // إذا لم نجد اللغة، جرب الجلب من قاعدة البيانات أولاً
+    // إذا لم نجد اللغة، تجنب جلب إضافي في الصفحات العامة للمتجر
     if (!defaultLanguage) {
-      // جلب غير متزامن من قاعدة البيانات باستخدام API موحد
-      setTimeout(async () => {
+      let isPublicContext = true;
+      try {
+        const path = typeof window !== 'undefined' ? window.location.pathname || '' : '';
+        // اعتبر لوحات التحكم والإداري ونقطة البيع سياقات خاصة نسمح فيها بجلب دقيق
+        isPublicContext = !(
+          path.startsWith('/dashboard') ||
+          path.startsWith('/admin') ||
+          path.startsWith('/pos') ||
+          path.startsWith('/super')
+        );
+        // دعم إشارة الصفحات العامة للمنتجات (إن وُجدت)
         try {
-          // استخدام API موحد لمنع التكرار
-          const { getOrganizationDefaultLanguage } = await import('@/lib/api/deduplicatedApi');
-          const languageFromDB = await getOrganizationDefaultLanguage(orgData.id);
-          
-          if (languageFromDB && languageFromDB !== 'ar') {
-            if (process.env.NODE_ENV === 'development') {
-            }
-            
-            // تحديث اللغة بشكل مباشر
-            import('@/lib/language/languageManager').then(({ updateLanguageFromSettings }) => {
-              updateLanguageFromSettings(languageFromDB);
-            });
-          } else {
-            // إذا لم توجد في قاعدة البيانات، استخدم التحليل الذكي
-            const fallbackLanguage = detectLanguageFromData(orgData, organizationSettings);
-            import('@/lib/language/languageManager').then(({ updateLanguageFromSettings }) => {
-              updateLanguageFromSettings(fallbackLanguage);
-            });
+          if ((window as any).__PUBLIC_PRODUCT_PAGE__ === true) {
+            isPublicContext = true;
           }
-        } catch (dbError) {
-          if (process.env.NODE_ENV === 'development') {
+        } catch {}
+      } catch {}
+
+      if (isPublicContext) {
+        // في الصفحات العامة: لا نغيّر لغة المستخدم إذا كانت مُخزنة مسبقاً وصالحة
+        let persistedLang: string | null = null;
+        try {
+          const stored = typeof window !== 'undefined' ? localStorage.getItem('i18nextLng') : null;
+          if (stored && ['ar', 'en', 'fr'].includes(stored)) {
+            persistedLang = stored;
           }
-          
-          // في حالة الخطأ، استخدم التحليل الذكي كبديل
-          const fallbackLanguage = detectLanguageFromData(orgData, organizationSettings);
-          import('@/lib/language/languageManager').then(({ updateLanguageFromSettings }) => {
-            updateLanguageFromSettings(fallbackLanguage);
-          });
+        } catch {}
+
+        // استخدم التحليل المحلي فقط إذا لم تكن هناك لغة محفوظة مسبقاً
+        const detected = detectLanguageFromData(orgData, organizationSettings);
+        const fallbackLanguage = detected && ['ar', 'en', 'fr'].includes(detected) ? detected : null;
+
+        if (!persistedLang && fallbackLanguage) {
+          // لا يوجد لغة محفوظة — طبّق اللغة المكتشفة
+          updateLanguageFromSettings(fallbackLanguage);
+          defaultLanguage = fallbackLanguage;
+        } else {
+          // حافظ على اللغة الحالية (المحفوظة) ولا تُطلق حدث تغيير لغة
+          defaultLanguage = persistedLang || defaultLanguage;
         }
-      }, 100); // تأخير بسيط لضمان تحميل المكونات
-      
-      // لا نرسل حدث الآن، سنتركه للجلب من قاعدة البيانات
-      defaultLanguage = 'ar'; // قيمة مؤقتة لتجنب الأخطاء
+      } else {
+        // في السياقات الخاصة (لوحة التحكم وغيرها) اسمح بالجلب الدقيق مرة واحدة مع إلغاء تكرار
+        setTimeout(async () => {
+          try {
+            const languageFromDB = await getOrganizationDefaultLanguage(orgData.id);
+            if (languageFromDB && languageFromDB !== 'ar') {
+              updateLanguageFromSettings(languageFromDB);
+            } else {
+              const fallbackLanguage = detectLanguageFromData(orgData, organizationSettings);
+              updateLanguageFromSettings(fallbackLanguage);
+            }
+          } catch {
+            const fallbackLanguage = detectLanguageFromData(orgData, organizationSettings);
+            updateLanguageFromSettings(fallbackLanguage);
+          }
+        }, 100);
+        defaultLanguage = 'ar';
+      }
     }
 
     // فحص خاص للبحث عن اللغة في أي مكان (للتطوير)

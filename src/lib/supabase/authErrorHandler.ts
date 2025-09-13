@@ -2,7 +2,7 @@
  * معالج أخطاء Supabase Auth المتقدم
  */
 import { supabase } from '@/lib/supabase';
-import { Session } from '@supabase/supabase-js';
+import type { Session } from '@supabase/supabase-js';
 
 export interface AuthErrorInfo {
   type: 'network' | 'session' | 'token' | 'user' | 'timeout' | 'unknown';
@@ -246,6 +246,16 @@ export function setupAuthErrorFiltering(): void {
   
   console.error = (...args: any[]) => {
     const message = args.join(' ');
+    
+    // تعطيل رسائل CSP في وضع التطوير
+    if (import.meta.env.DEV) {
+      if (message.includes('CSP Violation') || 
+          message.includes('Content Security Policy') ||
+          message.includes('script-src') ||
+          message.includes('eval')) {
+        return; // تجاهل رسائل CSP في التطوير
+      }
+    }
     
     // فحص ما إذا كان الخطأ متعلق بـ Supabase Auth
     if (message.includes('supabase') || message.includes('_getUser') || message.includes('_useSession')) {

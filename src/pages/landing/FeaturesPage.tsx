@@ -50,6 +50,16 @@ const FeaturesPage = memo(() => {
         <title>المميزات | سطوكيها - منصة إدارة المتاجر الذكية</title>
         <meta name="description" content="اكتشف جميع مميزات منصة سطوكيها: نظام نقطة البيع، المتجر الإلكتروني، إدارة المخزون، التوصيل، وأكثر." />
         <meta name="keywords" content="مميزات سطوكيها، نقطة البيع، متجر إلكتروني، إدارة مخزون، توصيل، أتمتة" />
+        <link rel="canonical" href={(typeof window !== 'undefined' ? (new URL(window.location.href)).origin : 'https://stockiha.com') + '/features'} />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content="المميزات | سطوكيها" />
+        <meta property="og:description" content="استكشف قدرات سطوكيها لإدارة متجرك بكفاءة: POS، متجر إلكتروني، المخزون والمزيد." />
+        <meta property="og:url" content={(typeof window !== 'undefined' ? (new URL(window.location.href)).origin : 'https://stockiha.com') + '/features'} />
+        <meta property="og:image" content="/images/logo-new.webp" />
+        <meta property="og:site_name" content="سطوكيها" />
+        <meta property="og:locale" content="ar_DZ" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:site" content="@stockiha" />
       </Helmet>
       
       <Navbar />

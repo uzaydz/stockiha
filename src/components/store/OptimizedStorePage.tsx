@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { ArrowRight, RefreshCw } from 'lucide-react';
 import SkeletonLoader from './SkeletonLoader';
-import { updateOrganizationTheme } from '@/lib/themeManager';
+import { updateOrganizationTheme } from '@/lib/themeManager/index';
 import { getSupabaseClient } from '@/lib/supabase';
 import { 
   getStoreDataProgressive, 
@@ -480,7 +480,7 @@ const OptimizedStorePage = React.memo(({
 
   // تحديث عنوان الصفحة
   useEffect(() => {
-    document.title = `${storeName} | سطوكيها - المتجر الإلكتروني`;
+    if (storeName) document.title = `${storeName}`;
   }, [storeName]);
 
   // جلب إعدادات الفوتر

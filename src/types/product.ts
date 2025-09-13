@@ -84,7 +84,7 @@ export const productAdvancedSettingsSchema = z.object({
     .max(100, { message: "نسبة الخصم للمشتري يجب ألا تتجاوز 100" })
     .optional().nullable().default(5),
 
-}).deepPartial().optional();
+}).partial().optional();
 
 // Schema for Product Marketing and Engagement Settings
 export const productMarketingSettingsSchema = z.object({
@@ -175,7 +175,7 @@ export const productMarketingSettingsSchema = z.object({
   // Global Test Mode
   test_mode: z.boolean().optional().default(true),
 
-}).deepPartial().optional();
+}).partial().optional();
 
 // نموذج بيانات المنتج الموسع
 export const productSchema = z.object({
@@ -224,11 +224,15 @@ export const productSchema = z.object({
   slug: z.string().optional(),
   is_digital: z.boolean().default(false),
   features: z.array(z.string()).optional(),
-  specifications: z.record(z.string()).optional(),
+  specifications: z.record(z.string(), z.string()).optional(),
   advancedSettings: productAdvancedSettingsSchema,
   marketingSettings: productMarketingSettingsSchema,
   special_offers_config: specialOffersConfigSchema.optional(),
-  advanced_description: advancedDescriptionSchema.optional().nullable(),
+  // نجعل التحقق للوصف المتقدم مرناً لتجنب منع الحفظ بسبب فروقات بسيطة في البنية
+  advanced_description: (z.any().optional().nullable()),
+  // وضع النشر في الواجهة (غير مخزن كما هو في DB)
+  publication_mode: z.enum(['publish_now','draft','scheduled']).default('publish_now').optional(),
+  publish_at: z.string().datetime().optional().nullable(),
 }).refine((data) => {
   // التحقق المشروط للألوان: إذا كان المنتج يستخدم المتغيرات، يجب أن يكون هناك لون واحد على الأقل
   if (data.has_variants && (!data.colors || data.colors.length === 0)) {

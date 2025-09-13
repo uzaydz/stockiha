@@ -97,7 +97,7 @@ export const useProductPurchase = ({
       // إعادة تعيين الحالة
       productDataActions.clearError();
     }
-  }, [preloadedProduct, productData.product, productData.loading, productDataActions]);
+  }, [preloadedProduct, productData.product, productData.loading]); // إزالة productDataActions من التبعيات لمنع الحلقة اللا نهائية
 
   // 2. إدارة المتغيرات (الألوان والمقاسات)
   const [variants, variantsActions] = useProductVariants({
@@ -143,7 +143,7 @@ export const useProductPurchase = ({
     if (quantity.quantity > pricing.availableStock && pricing.availableStock > 0) {
       quantityActions.setQuantity(pricing.availableStock);
     }
-  }, [pricing.availableStock, quantity.quantity, quantityActions]);
+  }, [pricing.availableStock, quantity.quantity]); // إزالة quantityActions لمنع الحلقة اللا نهائية
 
   // إعادة تعيين الاختيارات عند تحميل المنتج - محسن
   useEffect(() => {

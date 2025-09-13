@@ -10,6 +10,7 @@ interface SimpleProduct {
   price: number;
   stock_quantity: number;
   category_id: string;
+  subcategory_id?: string; // إضافة دعم الفئات الفرعية
   is_active: boolean;
   created_at: string;
   thumbnail_image?: string;
@@ -41,15 +42,14 @@ export const loadProductsToCache = async (organizationId: string): Promise<void>
   
   try {
     
-    // جلب جميع المنتجات النشطة
+    // جلب جميع المنتجات (بما في ذلك المسودات)
     const { data, error } = await supabase
       .from('products')
       .select(`
         id, name, sku, barcode, description, price, stock_quantity,
-        category_id, is_active, created_at, thumbnail_image, images, slug
+        category_id, subcategory_id, is_active, created_at, thumbnail_image, images, slug
       `)
       .eq('organization_id', organizationId)
-      .eq('is_active', true)
       .order('name', { ascending: true });
     
     if (error) {
@@ -74,6 +74,9 @@ export const searchProductsInCache = (
     sortOption?: string;
     page?: number;
     limit?: number;
+    // فلاتر الفئات المتقدمة
+    selectedCategories?: string[];
+    selectedSubcategories?: string[];
   } = {}
 ): {
   products: SimpleProduct[];
@@ -88,7 +91,10 @@ export const searchProductsInCache = (
     stockFilter = 'all',
     sortOption = 'name-asc',
     page = 1,
-    limit = 12
+    limit = 12,
+    // فلاتر الفئات المتقدمة
+    selectedCategories = [],
+    selectedSubcategories = []
   } = options;
   
   let filteredProducts = [...(productsCache || [])];
@@ -111,11 +117,25 @@ export const searchProductsInCache = (
   
   // تطبيق فلتر الفئة
   if (categoryFilter) {
-    filteredProducts = filteredProducts.filter(product => 
+    filteredProducts = filteredProducts.filter(product =>
       product.category_id === categoryFilter
     );
   }
-  
+
+  // تطبيق فلاتر الفئات المتقدمة
+  if (selectedCategories.length > 0) {
+    filteredProducts = filteredProducts.filter(product =>
+      product.category_id && selectedCategories.includes(product.category_id)
+    );
+  }
+
+  // تطبيق فلاتر الفئات الفرعية
+  if (selectedSubcategories.length > 0) {
+    filteredProducts = filteredProducts.filter(product =>
+      product.subcategory_id && selectedSubcategories.includes(product.subcategory_id)
+    );
+  }
+
   // تطبيق فلتر المخزون
   switch (stockFilter) {
     case 'in-stock':

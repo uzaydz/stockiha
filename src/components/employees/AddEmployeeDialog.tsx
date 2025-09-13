@@ -13,7 +13,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
-import { createEmployee, createEmployeeOptimized, inviteEmployeeAuth } from '@/lib/api/employees';
+import { createEmployeeWithAllPermissions } from '@/lib/api/employees';
 import { useToast } from '@/components/ui/use-toast';
 import { UserPlus, Plus, Box, ShoppingCart, Users, Settings, BarChart3, Phone, Truck, Wrench as ServiceIcon, UserCog, BanknoteIcon, CreditCard } from 'lucide-react';
 import { 
@@ -51,6 +51,7 @@ const defaultPermissions: EmployeePermissions = {
   deleteServices: false,
   trackServices: false,
   viewOrders: true,
+  viewPOSOrders: false,
   updateOrderStatus: false,
   cancelOrders: false,
   viewCustomers: true,
@@ -103,6 +104,7 @@ const getPermissionDisplayName = (key: keyof EmployeePermissions): string => {
     deleteServices: 'حذف الخدمات',
     trackServices: 'متابعة حالة الخدمات',
     viewOrders: 'عرض الطلبات',
+    viewPOSOrders: 'عرض طلبات نقطة البيع',
     updateOrderStatus: 'تحديث حالة الطلب',
     cancelOrders: 'إلغاء الطلبات',
     viewCustomers: 'عرض العملاء',
@@ -274,56 +276,23 @@ const AddEmployeeDialog = ({ onEmployeeAdded }: AddEmployeeDialogProps) => {
     setIsSubmitting(true);
     
     try {
-      // استخدام الدالة المحسنة الجديدة
-      
-      const newEmployee = await createEmployeeOptimized(
+      // استخدام الـ RPC الموحد: يتم منح جميع الصلاحيات افتراضياً من الجانب الخادمي
+      const newEmployee = await createEmployeeWithAllPermissions(
         formData.email,
         formData.password,
         {
           name: formData.name,
-          email: formData.email,
           phone: formData.phone || null,
-          role: 'employee',
-          permissions: permissions,
-          is_active: true,
-          job_title: undefined,
-          last_login: null,
-          organization_id: undefined
-        }
+          job_title: undefined
+        },
+        permissions
       );
 
-      // انتظار قليل للسماح لقاعدة البيانات بحفظ البيانات
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      toast({
+        title: 'تمت العملية بنجاح',
+        description: `تم إضافة الموظف ${formData.name} مع الصلاحيات المحددة.`,
+      });
 
-      // محاولة إرسال دعوة للموظف (اختياري)
-      try {
-        
-        const inviteResult = await inviteEmployeeAuth(
-          newEmployee.id,
-          newEmployee.email,
-          newEmployee.name
-        );
-        
-        if (inviteResult.success) {
-          toast({
-            title: 'تمت العملية بنجاح',
-            description: `تم إضافة الموظف ${formData.name} وإرسال دعوة بالبريد الإلكتروني.`,
-          });
-        } else {
-          toast({
-            title: 'تمت العملية جزئياً',
-            description: `تم إضافة الموظف ${formData.name} ولكن فشل إرسال الدعوة. يمكنك إرسالها لاحقاً.`,
-            variant: 'default'
-          });
-        }
-      } catch (inviteErr) {
-        toast({
-          title: 'تمت العملية جزئياً',
-          description: `تم إضافة الموظف ${formData.name} ولكن فشل إرسال الدعوة. يمكنك إرسالها لاحقاً.`,
-          variant: 'default'
-        });
-      }
-      
       onEmployeeAdded(newEmployee);
       setOpen(false);
       resetForm();

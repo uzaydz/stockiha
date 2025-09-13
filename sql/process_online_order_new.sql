@@ -41,6 +41,11 @@ DECLARE
   v_extracted_size_name TEXT;
   v_final_size_id UUID;
   v_final_size_name TEXT;
+  -- متغيرات فحص الحظر
+  v_blocked BOOLEAN;
+  v_block_reason TEXT;
+  v_block_id UUID;
+  v_block_name TEXT;
 BEGIN
   -- 🚨 DEBUG: إضافة معلومات تشخيصية لتتبع المعاملات المستلمة
   RAISE NOTICE '🔍 [process_online_order_new] بدء معالجة طلبية جديدة - معرف المؤسسة: %, معرف المنتج: %, الكمية: %', p_organization_id, p_product_id, p_quantity;
@@ -53,6 +58,22 @@ BEGIN
       'status', 'error',
       'error', 'البيانات الأساسية مفقودة',
       'detail', 'يجب توفير الاسم ورقم الهاتف والولاية ومعرف المنتج ومعرف المؤسسة'
+    );
+  END IF;
+
+  -- التحقق من حظر العميل برقم الهاتف (حظر دائم حتى إلغاء الحظر)
+  SELECT is_blocked, reason, blocked_id, name
+  INTO v_blocked, v_block_reason, v_block_id, v_block_name
+  FROM is_phone_blocked(p_organization_id, p_phone);
+
+  IF COALESCE(v_blocked, FALSE) THEN
+    RAISE NOTICE '⛔ [process_online_order_new] رقم الهاتف محظور. السبب: %', v_block_reason;
+    RETURN jsonb_build_object(
+      'status', 'error',
+      'error', 'blocked_customer',
+      'message', COALESCE('هذا الرقم محظور من الطلب: ' || v_block_reason, 'هذا الرقم محظور من الطلب'),
+      'blocked_id', v_block_id,
+      'name', v_block_name
     );
   END IF;
 

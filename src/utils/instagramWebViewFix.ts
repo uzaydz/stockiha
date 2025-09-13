@@ -50,7 +50,7 @@ class InstagramWebViewFixer {
       (window.location.href.includes('instagram.com') && ua.includes('Mobile'));
 
     if (this.isInstagramBrowser) {
-      console.log('📱 Instagram WebView detected, applying fixes...');
+      
     }
   }
 
@@ -79,11 +79,11 @@ class InstagramWebViewFixer {
       const msg = message.toString();
 
       if (msg.includes('Loading chunk') || msg.includes('ChunkLoadError')) {
-        console.log(`🔄 Chunk load error detected in Instagram WebView: ${msg}`);
+        
 
         if (this.retryCount < this.config.maxRetryAttempts) {
           this.retryCount++;
-          console.log(`🔄 Attempting retry ${this.retryCount}/${this.config.maxRetryAttempts}`);
+          
 
           setTimeout(() => {
             // إعادة تحميل مع مسح cache جزئي
@@ -108,7 +108,7 @@ class InstagramWebViewFixer {
       if (target && target.tagName === 'SCRIPT') {
         const script = target as HTMLScriptElement;
         if (script.src && script.src.includes('chunk')) {
-          console.log(`🚨 Script chunk failed to load: ${script.src}`);
+          
           this.handleChunkLoadFailure(script.src);
         }
       }
@@ -121,7 +121,7 @@ class InstagramWebViewFixer {
   private handleChunkLoadFailure(chunkUrl: string): void {
     if (this.retryCount >= this.config.maxRetryAttempts) return;
 
-    console.log(`🔄 Retrying chunk load: ${chunkUrl}`);
+    
 
     // محاولة إعادة تحميل الـ chunk
     const retryScript = document.createElement('script');
@@ -129,12 +129,12 @@ class InstagramWebViewFixer {
     retryScript.async = true;
 
     retryScript.onload = () => {
-      console.log(`✅ Chunk retry successful: ${chunkUrl}`);
+      
       this.retryCount = 0; // إعادة تعيين العداد عند النجاح
     };
 
     retryScript.onerror = () => {
-      console.log(`❌ Chunk retry failed: ${chunkUrl}`);
+      
       this.retryCount++;
 
       // إذا فشلت المحاولة الأخيرة، أعد تحميل الصفحة
@@ -158,7 +158,7 @@ class InstagramWebViewFixer {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then(registrations => {
         registrations.forEach(registration => {
-          console.log('🔧 Unregistering Service Worker for Instagram compatibility:', registration.scope);
+          
           registration.unregister();
         });
       });
@@ -166,7 +166,7 @@ class InstagramWebViewFixer {
       // منع تسجيل Service Workers جديدة
       const originalRegister = navigator.serviceWorker.register;
       navigator.serviceWorker.register = () => {
-        console.log('🚫 Service Worker registration blocked for Instagram WebView');
+        
         return Promise.reject(new Error('Service Worker disabled for Instagram WebView'));
       };
     }
@@ -180,11 +180,6 @@ class InstagramWebViewFixer {
 
     // مراقبة انتهاكات CSP
     document.addEventListener('securitypolicyviolation', (event) => {
-      console.log('🚨 CSP Violation in Instagram WebView:', {
-        directive: event.violatedDirective,
-        blockedURI: event.blockedURI,
-        sourceFile: event.sourceFile
-      });
 
       // إصلاح بعض الانتهاكات الشائعة
       this.attemptCSPFix(event);
@@ -198,7 +193,7 @@ class InstagramWebViewFixer {
     switch (violation.violatedDirective) {
       case 'script-src':
         if (violation.blockedURI.includes('inline')) {
-          console.log('🔧 Attempting to fix inline script CSP violation');
+          
           // إزالة السكريبتات inline المشبوهة
           this.removeProblematicInlineScripts();
         }
@@ -206,14 +201,14 @@ class InstagramWebViewFixer {
 
       case 'style-src':
         if (violation.blockedURI.includes('inline')) {
-          console.log('🔧 Attempting to fix inline style CSP violation');
+          
           // إزالة الأنماط inline المشبوهة
           this.removeProblematicInlineStyles();
         }
         break;
 
       case 'img-src':
-        console.log('🔧 Attempting to fix image CSP violation');
+        
         // استبدال الصور المحظورة بصور افتراضية
         this.replaceBlockedImages(violation.blockedURI);
         break;
@@ -239,7 +234,7 @@ class InstagramWebViewFixer {
       });
 
       if (totalSize > this.config.bundleSizeThreshold) {
-        console.log(`📊 Large bundle detected: ${(totalSize / 1024 / 1024).toFixed(2)}MB`);
+        
         this.optimizeForLargeBundle();
       }
     };
@@ -256,7 +251,7 @@ class InstagramWebViewFixer {
    * تحسينات للـ bundles الكبيرة
    */
   private optimizeForLargeBundle(): void {
-    console.log('⚡ Applying bundle optimizations for Instagram WebView');
+    
 
     // تقليل عدد الطلبات المتزامنة
     const originalFetch = window.fetch;
@@ -293,13 +288,13 @@ class InstagramWebViewFixer {
   private setupNetworkMonitoring(): void {
     // مراقبة حالة الاتصال
     const handleOnline = () => {
-      console.log('📱 Instagram WebView: Connection restored');
+      
       // إعادة محاولة تحميل الموارد المفقودة
       this.retryFailedResources();
     };
 
     const handleOffline = () => {
-      console.log('📱 Instagram WebView: Connection lost');
+      
     };
 
     window.addEventListener('online', handleOnline);
@@ -310,10 +305,6 @@ class InstagramWebViewFixer {
       const connection = (navigator as any).connection;
       if (connection) {
         connection.addEventListener('change', () => {
-          console.log('📱 Instagram WebView: Connection quality changed', {
-            effectiveType: connection.effectiveType,
-            downlink: connection.downlink
-          });
 
           // تكييف مع جودة الاتصال
           if (connection.effectiveType === 'slow-2g' || connection.effectiveType === '2g') {
@@ -328,7 +319,7 @@ class InstagramWebViewFixer {
    * وضع الاتصال البطيء
    */
   private enableSlowConnectionMode(): void {
-    console.log('🐌 Enabling slow connection mode for Instagram WebView');
+    
 
     // تقليل الصور
     this.reduceImageQuality();
@@ -362,7 +353,7 @@ class InstagramWebViewFixer {
   }
 
   private fullPageReload(): void {
-    console.log('🔄 Performing full page reload for Instagram WebView');
+    
     window.location.href = window.location.href;
   }
 

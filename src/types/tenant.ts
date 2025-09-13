@@ -25,6 +25,9 @@ export type TenantContextType = {
   isOrgAdmin: boolean;
   isLoading: boolean;
   error: Error | null;
+  // ✅ إضافة: للتحقق من جاهزية organization ID
+  isOrganizationReady?: boolean;
+  isReady?: boolean;
   createOrganization: (name: string, description?: string, domain?: string, subdomain?: string) => Promise<{ success: boolean, organizationId?: string, error?: Error }>;
   inviteUserToOrganization: (email: string, role?: string) => Promise<{ success: boolean, error?: Error }>;
   refreshOrganizationData: () => Promise<void>;

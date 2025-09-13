@@ -16,6 +16,7 @@ export interface UseAbandonedCartTrackingOptions {
   enabled?: boolean;
   saveInterval?: number; // بالثواني، افتراضي 3 ثوان
   minPhoneLength?: number; // الحد الأدنى لطول رقم الهاتف، افتراضي 8
+  source?: string; // مصدر الحدث (صفحة المنتج / صفحة هبوط ...)
 }
 
 export interface AbandonedCartActions {
@@ -40,7 +41,8 @@ export const useAbandonedCartTracking = (
     organizationId,
     enabled = true,
     saveInterval = 3,
-    minPhoneLength = 8
+    minPhoneLength = 8,
+    source = 'product_page_v3'
   } = options;
 
   const effectiveOrgId = organizationId || null;
@@ -89,7 +91,7 @@ export const useAbandonedCartTracking = (
       subtotal: subtotal || null,
       discount_amount: discountAmount || null,
       total_amount: totalAmount || null,
-      source: 'product_page_v3'
+      source
     };
 
     // التحقق من تغيير البيانات المهمة فقط (تجاهل الحقول الثانوية)

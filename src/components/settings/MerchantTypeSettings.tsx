@@ -6,6 +6,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Store, ShoppingBag, Layers, Info } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
+import { getOrganizationSettings } from '@/lib/api/deduplicatedApi';
 import { useTenant } from '@/context/TenantContext';
 import { MerchantType } from '@/components/sidebar/types';
 import { OrganizationSettingsDB, OrganizationSettingsUpdate } from '@/types/organization-settings';
@@ -72,17 +73,9 @@ const MerchantTypeSettings: React.FC<MerchantTypeSettingsProps> = ({ className }
 
       setIsLoading(true);
       try {
-        const { data, error } = await supabase
-          .from('organization_settings')
-          .select('merchant_type')
-          .eq('organization_id', currentOrganization.id)
-          .single() as { data: OrganizationSettingsDB | null, error: any };
-
-        if (error && error.code !== 'PGRST116') throw error; // تجاهل خطأ عدم وجود السجل
-
-        if (data?.merchant_type) {
-          setSelectedType(data.merchant_type as MerchantType);
-        }
+        const settings = await getOrganizationSettings(currentOrganization.id);
+        const type = (settings as any)?.merchant_type as MerchantType | undefined;
+        if (type) setSelectedType(type);
       } catch (error) {
         toast({
           title: 'خطأ في التحميل',

@@ -11,6 +11,13 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
+import { 
+  getBoundingClientRectOptimized, 
+  getComputedStyleOptimized,
+  isElementVisibleOptimized,
+  scheduleRead,
+  scheduleWrite
+} from '@/utils/domOptimizer';
 
 interface ProductActionsProps {
   totalPrice: number;
@@ -77,8 +84,8 @@ const buttonVariants: Variants = {
   tap: { scale: 0.98 }
 };
 
-// Enhanced form detection with immediate and comprehensive search
-const findPurchaseFormElement = (): Element | null => {
+// Enhanced form detection with immediate and comprehensive search - OPTIMIZED
+const findPurchaseFormElement = async (): Promise<Element | null> => {
   // Priority selectors - most likely to match
   const prioritySelectors = [
     '#product-purchase-form',
@@ -115,13 +122,12 @@ const findPurchaseFormElement = (): Element | null => {
       const elements = document.querySelectorAll(selector);
       for (let i = 0; i < elements.length; i++) {
         const element = elements[i];
-        if (element && isFormElementValid(element)) {
-
+        if (element && await isFormElementValid(element)) {
           return element;
         }
       }
     } catch (error) {
-
+      // Ignore selector errors
     }
   }
 
@@ -131,13 +137,12 @@ const findPurchaseFormElement = (): Element | null => {
       const elements = document.querySelectorAll(selector);
       for (let i = 0; i < elements.length; i++) {
         const element = elements[i];
-        if (element && isElementFormLike(element)) {
-
+        if (element && await isElementFormLike(element)) {
           return element;
         }
       }
     } catch (error) {
-
+      // Ignore selector errors
     }
   }
 
@@ -150,7 +155,7 @@ const findPurchaseFormElement = (): Element | null => {
         const forms = container.querySelectorAll('form, [data-form], [role="form"]');
         for (let i = 0; i < forms.length; i++) {
           const form = forms[i];
-          if (form && isFormElementValid(form)) {
+          if (form && await isFormElementValid(form)) {
             return form;
           }
         }
@@ -162,85 +167,86 @@ const findPurchaseFormElement = (): Element | null => {
   return null;
 };
 
-// Additional check for form-like elements (more lenient)
-const isElementFormLike = (element: Element): boolean => {
+// Additional check for form-like elements (more lenient) - OPTIMIZED
+const isElementFormLike = async (element: Element): Promise<boolean> => {
   if (!element) return false;
 
-  const rect = element.getBoundingClientRect();
-  const computedStyle = window.getComputedStyle(element);
-  const tagName = element.tagName?.toLowerCase();
+  try {
+    const [rect, isVisible] = await Promise.all([
+      getBoundingClientRectOptimized(element),
+      isElementVisibleOptimized(element)
+    ]);
 
-  // Check if it's a form element or has form-like attributes
-  const isForm = tagName === 'form';
-  const hasFormData = element.hasAttribute('data-form') || element.hasAttribute('data-purchase');
-  const hasFormClass = element.className?.includes('form') || element.className?.includes('purchase');
-  const hasFormRole = element.getAttribute('role') === 'form';
+    const tagName = element.tagName?.toLowerCase();
 
-  // Check if it has interactive elements
-  const hasInputs = element.querySelector('input, button, select, textarea') !== null;
+    // Check if it's a form element or has form-like attributes
+    const isForm = tagName === 'form';
+    const hasFormData = element.hasAttribute('data-form') || element.hasAttribute('data-purchase');
+    const hasFormClass = element.className?.includes('form') || element.className?.includes('purchase');
+    const hasFormRole = element.getAttribute('role') === 'form';
 
-  // Check if it has reasonable dimensions
-  const hasReasonableSize = rect.width > 100 && rect.height > 50;
+    // Check if it has interactive elements
+    const hasInputs = element.querySelector('input, button, select, textarea') !== null;
 
-  // Check if it's visible
-  const isVisible = computedStyle.display !== 'none' && computedStyle.visibility !== 'hidden';
+    // Check if it has reasonable dimensions
+    const hasReasonableSize = rect.width > 100 && rect.height > 50;
 
-  const isFormLike = (isForm || hasFormData || hasFormClass || hasFormRole) &&
-                    (hasInputs || hasReasonableSize) &&
-                    isVisible;
+    const isFormLike = (isForm || hasFormData || hasFormClass || hasFormRole) &&
+                      (hasInputs || hasReasonableSize) &&
+                      isVisible;
 
-  return isFormLike;
+    return isFormLike;
+  } catch (error) {
+    console.warn('خطأ في التحقق من النموذج:', error);
+    return false;
+  }
 };
 
-// Enhanced form validation that checks multiple conditions with ultra-lenient approach
-const isFormElementValid = (element: Element): boolean => {
+// Enhanced form validation that checks multiple conditions with ultra-lenient approach - OPTIMIZED
+const isFormElementValid = async (element: Element): Promise<boolean> => {
   if (!element) return false;
 
-  const rect = element.getBoundingClientRect();
-  const computedStyle = window.getComputedStyle(element);
-  const parentStyle = element.parentElement ? window.getComputedStyle(element.parentElement) : null;
+  try {
+    // استخدام النظام المحسن لتجنب Forced Reflow
+    const [rect, computedStyle, isVisible] = await Promise.all([
+      getBoundingClientRectOptimized(element),
+      getComputedStyleOptimized(element),
+      isElementVisibleOptimized(element)
+    ]);
 
-  // Check if element is visible in the DOM
-  const isInDOM = document.contains(element);
+    // Check if element is visible in the DOM
+    const isInDOM = document.contains(element);
+    if (!isInDOM) return false;
 
-  // Check basic visibility
-  const isVisible = computedStyle.display !== 'none' && computedStyle.visibility !== 'hidden';
+    // Basic visibility check from optimized function
+    if (!isVisible) return false;
 
-  // Check opacity (including parent opacity)
-  const opacity = parseFloat(computedStyle.opacity || '1');
-  const parentOpacity = parentStyle ? parseFloat(parentStyle.opacity || '1') : 1;
-  const effectiveOpacity = opacity * parentOpacity;
+    // Check opacity
+    const opacity = parseFloat(computedStyle.opacity || '1');
+    if (opacity < 0.1) return false;
 
-  // Check if element is animating or transitioning
-  const isTransforming = computedStyle.transform !== 'none';
-  const hasTransition = computedStyle.transition && computedStyle.transition !== 'none';
-  const isAnimating = isTransforming || hasTransition;
+    // Ultra-lenient dimension checking - accept even very small forms
+    const hasAnyDimensions = rect.width > 0 && rect.height > 0;
+    const hasValidDimensions = rect.width > 10 && rect.height > 10;
 
-  // Ultra-lenient dimension checking - accept even very small forms
-  const hasAnyDimensions = rect.width > 0 && rect.height > 0;
-  const hasValidDimensions = rect.width > 10 && rect.height > 10;
-  const hasReasonableDimensions = rect.width > 50 && rect.height > 20;
+    // Check if element is positioned on-screen
+    const isOnScreen = rect.top < window.innerHeight && rect.bottom > 0 &&
+                     rect.left < window.innerWidth && rect.right > 0;
 
-  // Check if element is positioned off-screen
-  const isOnScreen = rect.top < window.innerHeight && rect.bottom > 0 &&
-                   rect.left < window.innerWidth && rect.right > 0;
+    // Check if form has interactive elements (inputs, buttons) - be more lenient
+    const hasInteractiveElements = element.querySelector('input, button, select, textarea, [role="button"]') !== null;
 
-  // Special cases for different form states
-  const isValidAnimating = isAnimating && hasAnyDimensions;
-  const isValidLoading = hasAnyDimensions && isVisible && effectiveOpacity > 0.1;
-  const isValidInteractive = hasReasonableDimensions && isVisible;
+    // Primary validation - accept forms that have ANY dimensions and are visible
+    const isValid = hasValidDimensions && isOnScreen;
 
-  // Check if form has interactive elements (inputs, buttons) - be more lenient
-  const hasInteractiveElements = element.querySelector('input, button, select, textarea, [role="button"]') !== null;
+    // Secondary check - if form has interactive elements, be even more lenient
+    const isAcceptablyValid = isValid || (hasAnyDimensions && hasInteractiveElements);
 
-  // Primary validation - accept forms that have ANY dimensions and are visible
-  const isValid = isInDOM && isVisible && effectiveOpacity > 0.1 &&
-                 (hasValidDimensions || isValidAnimating || isValidLoading) && isOnScreen;
-
-  // Secondary check - if form has interactive elements, be even more lenient
-  const isAcceptablyValid = isValid || (hasAnyDimensions && hasInteractiveElements && isVisible);
-
-  return isAcceptablyValid;
+    return isAcceptablyValid;
+  } catch (error) {
+    console.warn('خطأ في التحقق من صحة النموذج:', error);
+    return false;
+  }
 };
 
 // العثور على أقرب حاوية قابلة للتمرير (للصفحات التي تستخدم حاوية scroll غير window)
@@ -341,11 +347,11 @@ const ProductActions = memo(({
     let retryId: number | null = null;
     let domObserver: MutationObserver | null = null;
 
-    const attachObserver = () => {
+    const attachObserver = async () => {
       if (cancelled) return false;
 
       try {
-        const formElement = findPurchaseFormElement();
+        const formElement = await findPurchaseFormElement();
         if (!formElement) return false;
 
         // Clean up previous observer
@@ -410,19 +416,19 @@ const ProductActions = memo(({
       }
     };
 
-    const boot = () => {
+    const boot = async () => {
       // Immediate attempt
-      if (attachObserver()) return;
+      if (await attachObserver()) return;
 
       // Retry with intervals for slow loading
       let attempts = 0;
       const maxAttempts = 30; // Increased attempts
       const delay = 200; // Shorter delay for faster detection
       
-      retryId = window.setInterval(() => {
+      retryId = window.setInterval(async () => {
         if (cancelled) return;
 
-        if (attachObserver()) {
+        if (await attachObserver()) {
           if (retryId) clearInterval(retryId);
           if (domObserver) domObserver.disconnect();
           retryId = null;
@@ -434,8 +440,8 @@ const ProductActions = memo(({
       }, delay);
 
       // Watch for DOM changes to start observer when form appears
-      domObserver = new MutationObserver(() => {
-        if (attachObserver() && retryId) {
+      domObserver = new MutationObserver(async () => {
+        if (await attachObserver() && retryId) {
           clearInterval(retryId);
           retryId = null;
         }
@@ -460,27 +466,26 @@ const ProductActions = memo(({
 
   // Enhanced scroll-based detection with better form position handling
   useEffect(() => {
-    const checkFormPosition = () => {
+    const checkFormPosition = async () => {
       try {
-        const formElement = findPurchaseFormElement();
+        const formElement = await findPurchaseFormElement();
         if (!formElement) {
           return;
         }
 
-        const rect = formElement.getBoundingClientRect();
-        const windowHeight = window.innerHeight;
+        const [rect, isVisible] = await Promise.all([
+          getBoundingClientRectOptimized(formElement),
+          isElementVisibleOptimized(formElement)
+        ]);
 
-        // Enhanced dimension checking with computed styles
-        const computedStyle = window.getComputedStyle(formElement);
-        const isVisible = computedStyle.display !== 'none' && computedStyle.visibility !== 'hidden';
-        const opacity = parseFloat(computedStyle.opacity || '1');
+        const windowHeight = window.innerHeight;
 
         // Ultra-lenient dimension checking - accept even very small forms
         const hasAnyDimensions = rect.width > 0 && rect.height > 0;
         const hasValidDimensions = rect.width > 10 && rect.height > 10;
 
         // Consider form ready if it has ANY dimensions and is visible
-        const isFormReady = (hasAnyDimensions || hasValidDimensions) && isVisible && opacity > 0.1;
+        const isFormReady = (hasAnyDimensions || hasValidDimensions) && isVisible;
 
         if (!isFormReady) {
           return;
@@ -535,22 +540,23 @@ const ProductActions = memo(({
   // Enhanced initial check for form position when component mounts
   useLayoutEffect(() => {
     // Wait for DOM to be fully rendered before checking form position
-    const checkInitialFormPosition = () => {
+    const checkInitialFormPosition = async () => {
       try {
-        const formElement = findPurchaseFormElement();
+        const formElement = await findPurchaseFormElement();
         if (!formElement) {
           return;
         }
 
-        const rect = formElement.getBoundingClientRect();
+        const [rect, isVisible] = await Promise.all([
+          getBoundingClientRectOptimized(formElement),
+          isElementVisibleOptimized(formElement)
+        ]);
+
         const windowHeight = window.innerHeight;
-        const computedStyle = window.getComputedStyle(formElement);
 
         // Enhanced checks for form readiness with more lenient criteria
-        const isVisible = computedStyle.display !== 'none' && computedStyle.visibility !== 'hidden';
-        const opacity = parseFloat(computedStyle.opacity || '1');
         const hasValidDimensions = rect.width > 10 && rect.height > 10;
-        const isFormPresent = hasValidDimensions && isVisible && opacity > 0.1;
+        const isFormPresent = hasValidDimensions && isVisible;
 
         if (!isFormPresent) {
           // Still mark form as found for future detection
@@ -604,21 +610,22 @@ const ProductActions = memo(({
     }
 
     // Try multiple times to find the form with increasing leniency
-    let formElement = findPurchaseFormElement();
+    let formElement = await findPurchaseFormElement();
     let attempts = 0;
     const maxAttempts = 3;
 
     while (!formElement && attempts < maxAttempts) {
       await new Promise(resolve => setTimeout(resolve, 100)); // Small delay between attempts
-      formElement = findPurchaseFormElement();
+      formElement = await findPurchaseFormElement();
       attempts++;
     }
 
     if (formElement) {
       // Navigate to form with enhanced scrolling
-      // Enhanced scroll function that works even with small forms
-      const enhancedScrollToForm = (element: Element) => {
-        const rect = element.getBoundingClientRect();
+          // Enhanced scroll function that works even with small forms - OPTIMIZED
+    const enhancedScrollToForm = async (element: Element) => {
+      try {
+        const rect = await getBoundingClientRectOptimized(element);
         const windowHeight = window.innerHeight;
 
         // Calculate optimal scroll position
@@ -632,18 +639,27 @@ const ProductActions = memo(({
         // Ensure we don't scroll above the page
         targetPosition = Math.max(0, targetPosition);
 
-        window.scrollTo({
-          top: targetPosition,
-          behavior: 'smooth'
-        });
+        scheduleWrite(() => {
+          window.scrollTo({
+            top: targetPosition,
+            behavior: 'smooth'
+          });
 
-        // Focus the form for accessibility
-        setTimeout(() => {
-          if (element instanceof HTMLElement) {
-            element.focus({ preventScroll: true });
-          }
-        }, 800);
-      };
+          // Focus the form for accessibility
+          setTimeout(() => {
+            if (element instanceof HTMLElement) {
+              element.focus({ preventScroll: true });
+            }
+          }, 800);
+        });
+      } catch (error) {
+        console.warn('خطأ في التمرير للنموذج:', error);
+        // Fallback scroll
+        scheduleWrite(() => {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+      }
+    };
 
       enhancedScrollToForm(formElement);
 
@@ -660,7 +676,7 @@ const ProductActions = memo(({
       const allForms = document.querySelectorAll('form, [data-form], [role="form"]');
       for (let i = 0; i < allForms.length; i++) {
         const potentialForm = allForms[i];
-        if (potentialForm && isElementFormLike(potentialForm)) {
+        if (potentialForm && await isElementFormLike(potentialForm)) {
           formElement = potentialForm;
           break;
         }
@@ -668,23 +684,32 @@ const ProductActions = memo(({
 
       if (formElement) {
         // Use the same enhanced scroll function
-        const enhancedScrollToForm = (element: Element) => {
-          const rect = element.getBoundingClientRect();
-          const targetPosition = Math.max(0, window.scrollY + rect.top - 150);
+        const enhancedScrollToFormFallback = async (element: Element) => {
+          try {
+            const rect = await getBoundingClientRectOptimized(element);
+            const targetPosition = Math.max(0, window.scrollY + rect.top - 150);
 
-          window.scrollTo({
-            top: targetPosition,
-            behavior: 'smooth'
-          });
+            scheduleWrite(() => {
+              window.scrollTo({
+                top: targetPosition,
+                behavior: 'smooth'
+              });
 
-          setTimeout(() => {
-            if (element instanceof HTMLElement) {
-              element.focus({ preventScroll: true });
-            }
-          }, 800);
+              setTimeout(() => {
+                if (element instanceof HTMLElement) {
+                  element.focus({ preventScroll: true });
+                }
+              }, 800);
+            });
+          } catch (error) {
+            // Final fallback
+            scheduleWrite(() => {
+              element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            });
+          }
         };
 
-        enhancedScrollToForm(formElement);
+        enhancedScrollToFormFallback(formElement);
 
         setUiState(prev => ({
           ...prev,

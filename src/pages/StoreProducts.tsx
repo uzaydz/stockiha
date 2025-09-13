@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useProductsPage } from '@/context/ProductsPageContext';
@@ -19,9 +18,9 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { useSearchDebounce } from '@/hooks/useSearchDebounce';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 
 const PRODUCTS_PER_PAGE = 12;
 
@@ -130,13 +129,18 @@ const PaginationControls = ({
 };
 
 const StoreProducts = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isRTL = i18n.dir() === 'rtl';
   const [searchParams, setSearchParams] = useSearchParams();
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const [uiPriceMin, setUiPriceMin] = useState<number>(0);
+  const [uiPriceMax, setUiPriceMax] = useState<number>(0);
   
   // 🎯 استخدام ProductsPageContext المحسن فقط - لا طلبات API إضافية
   const { 
     products, 
     categories, 
+    subcategories,
     isLoading,
     error,
     filteredProducts,
@@ -144,31 +148,94 @@ const StoreProducts = () => {
     setSearchTerm,
     selectedCategory,
     setSelectedCategory,
+    selectedSubcategory,
+    setSelectedSubcategory,
     priceRange,
-    setPriceRange
+    setPriceRange,
+    meta,
+    currentPage,
+    setCurrentPage,
+    sortOption,
+    setSortOption,
+    pageSize,
+    setPageSize
   } = useProductsPage();
 
-  // حالة العرض والصفحات
+  const debouncedSearch = useSearchDebounce(searchTerm, 350);
+  const [uiSelectedCategory, setUiSelectedCategory] = useState<string | null>(null);
+  const [uiSelectedSubcategory, setUiSelectedSubcategory] = useState<string | null>(null);
+
+  // حالة العرض فقط محلياً
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [sortOption, setSortOption] = useState('newest');
+  // الترتيب يُدار من خلال السياق لتفعيل الترتيب من الخادم
 
   // إعادة تعيين التمرير إلى الأعلى عند تحميل الصفحة
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    try {
+      const run = () => window.scrollTo({ top: 0, behavior: 'auto' });
+      if (typeof (window as any).requestIdleCallback === 'function') {
+        (window as any).requestIdleCallback(run, { timeout: 500 });
+      } else {
+        setTimeout(run, 0);
+      }
+    } catch {
+      window.scrollTo({ top: 0, behavior: 'auto' });
+    }
   }, []);
+
+  // مزامنة حجم الصفحة بين الواجهة والسياق
+  useEffect(() => {
+    setPageSize(PRODUCTS_PER_PAGE);
+  }, [setPageSize]);
+
+  // مزامنة قيم السعر الظاهرة مع قيم السياق
+  useEffect(() => {
+    setUiPriceMin(priceRange.min);
+    setUiPriceMax(priceRange.max);
+  }, [priceRange.min, priceRange.max]);
+
+  // مزامنة قيم الفئة/الفئة الفرعية الظاهرة مع القيم المطبقة
+  useEffect(() => {
+    setUiSelectedCategory(selectedCategory);
+  }, [selectedCategory]);
+  useEffect(() => {
+    setUiSelectedSubcategory(selectedSubcategory);
+  }, [selectedSubcategory]);
 
   // preload أول 6 صور للتسريع
   useEffect(() => {
-    if (filteredProducts.length > 0) {
-      const firstImages = filteredProducts.slice(0, 6)
-        .map(p => p.thumbnail_image)
-        .filter(Boolean);
-      
+    if (filteredProducts.length === 0) return;
+    const firstImages = filteredProducts.slice(0, 4)
+      .map(p => p.thumbnail_image)
+      .filter(Boolean) as string[];
+
+    const preload = () => {
       firstImages.forEach(src => {
+        // إنشاء link preload مع as="image" لتجنب التحذير
+        const link = document.createElement('link');
+        link.rel = 'preload';
+        link.as = 'image';
+        link.href = src;
+        document.head.appendChild(link);
+        
+        // أيضاً إنشاء Image object للتحميل الفعلي
         const img = new Image();
+        img.loading = 'lazy';
+        img.decoding = 'async' as any;
         img.src = src;
       });
+    };
+
+    try {
+      if (typeof (window as any).requestIdleCallback === 'function') {
+        (window as any).requestIdleCallback(preload, { timeout: 1200 });
+      } else {
+        const t = setTimeout(preload, 300);
+        return () => clearTimeout(t);
+      }
+    } catch {
+      const t = setTimeout(preload, 300);
+      return () => clearTimeout(t);
     }
   }, [filteredProducts]);
 
@@ -176,17 +243,63 @@ const StoreProducts = () => {
   useEffect(() => {
     const categoryFromUrl = searchParams.get('category');
     const searchFromUrl = searchParams.get('search');
+    const subcategoryFromUrl = searchParams.get('subcategory');
+    const sortFromUrl = searchParams.get('sort');
+    const pageFromUrl = searchParams.get('page');
+    const minPriceFromUrl = searchParams.get('min_price');
+    const maxPriceFromUrl = searchParams.get('max_price');
     
     if (categoryFromUrl && categoryFromUrl !== selectedCategory) {
       setSelectedCategory(categoryFromUrl);
+      // عند تغيير الفئة من الرابط، أعد ضبط الفئة الفرعية
+      setSelectedSubcategory(null);
+    }
+
+    if (subcategoryFromUrl && subcategoryFromUrl !== selectedSubcategory) {
+      setSelectedSubcategory(subcategoryFromUrl);
+      // تأكد من مزامنة الفئة الرئيسية مع الفئة الفرعية (لتحسين UX)
+      const sc = subcategories.find(s => s.id === subcategoryFromUrl);
+      if (sc && sc.category_id && sc.category_id !== selectedCategory) {
+        setSelectedCategory(sc.category_id);
+        updateUrlParamsBatch({ category: sc.category_id });
+      }
     }
     
     if (searchFromUrl && searchFromUrl !== searchTerm) {
       setSearchTerm(searchFromUrl);
     }
-  }, [searchParams, selectedCategory, searchTerm, setSelectedCategory, setSearchTerm]);
 
-  // تحديث URL عند تغيير الفلاتر
+    if (sortFromUrl && sortFromUrl !== sortOption) {
+      // التحقق من القيم المسموحة
+      const allowed = ['newest', 'name-asc', 'name-desc', 'price-low', 'price-high'];
+      if (allowed.includes(sortFromUrl)) {
+        setSortOption(sortFromUrl as any);
+      }
+    }
+
+    if (pageFromUrl) {
+      const p = parseInt(pageFromUrl, 10);
+      if (!isNaN(p) && p > 0 && p !== currentPage) {
+        setCurrentPage(p);
+      }
+    }
+
+    if (minPriceFromUrl) {
+      const min = parseInt(minPriceFromUrl, 10);
+      if (!isNaN(min) && min !== priceRange.min) {
+        setPriceRange({ ...priceRange, min });
+      }
+    }
+
+    if (maxPriceFromUrl) {
+      const max = parseInt(maxPriceFromUrl, 10);
+      if (!isNaN(max) && max !== priceRange.max) {
+        setPriceRange({ ...priceRange, max });
+      }
+    }
+  }, [searchParams, selectedCategory, selectedSubcategory, searchTerm, sortOption, currentPage, priceRange.min, priceRange.max, setSelectedCategory, setSelectedSubcategory, setSearchTerm, setSortOption, setCurrentPage, setPriceRange, subcategories]);
+
+  // تحديث URL عند تغيير الفلاتر (مفرد)
   const updateUrlParams = (key: string, value: string | null) => {
     setSearchParams(prev => {
       const newParams = new URLSearchParams(prev);
@@ -199,77 +312,81 @@ const StoreProducts = () => {
     });
   };
 
+  // تحديث URL بعدة مفاتيح دفعة واحدة لتقليل إعادة الرندر وثقل click handler
+  const updateUrlParamsBatch = (entries: Record<string, string | null>) => {
+    setSearchParams(prev => {
+      const newParams = new URLSearchParams(prev);
+      for (const [key, value] of Object.entries(entries)) {
+        if (value && value !== 'all' && value !== '') {
+          newParams.set(key, value);
+        } else {
+          newParams.delete(key);
+        }
+      }
+      return newParams;
+    });
+  };
+
   // معالجة تغيير الفلاتر
   const handleCategoryChange = (categoryId: string) => {
     const newCategory = categoryId === 'all' ? null : categoryId;
+    // تحديث حالة الواجهة
+    setUiSelectedCategory(newCategory);
+    setUiSelectedSubcategory(null);
+    // تطبيق مباشر + تحديث URL دفعة واحدة لتقليل الكلفة
     setSelectedCategory(newCategory);
-    updateUrlParams('category', newCategory);
+    setSelectedSubcategory(null);
     setCurrentPage(1);
+    updateUrlParamsBatch({
+      category: newCategory,
+      subcategory: null,
+      page: '1'
+    });
+    if (window.innerWidth < 1024) setShowMobileFilters(false);
   };
 
   const handleSearchChange = (term: string) => {
     setSearchTerm(term);
-    updateUrlParams('search', term);
-    setCurrentPage(1);
   };
+
+  // حدّث رابط البحث فقط بعد الهدوء (debounce) أو عند الضغط Enter
+  useEffect(() => {
+    const currentInUrl = searchParams.get('search') || '';
+    const normalized = debouncedSearch || '';
+    if (currentInUrl !== normalized) {
+      setCurrentPage(1);
+      updateUrlParamsBatch({ search: normalized || null, page: '1' });
+    }
+  }, [debouncedSearch]);
 
   const resetFilters = () => {
     setSearchTerm('');
     setSelectedCategory(null);
+    setSelectedSubcategory(null);
     setPriceRange({ min: 0, max: 1000000 });
     setSearchParams(new URLSearchParams());
     setCurrentPage(1);
   };
 
-  // ترتيب المنتجات
-  const sortedProducts = useMemo(() => {
-    let sorted = [...filteredProducts];
-    
-    switch (sortOption) {
-      case 'name-asc':
-        sorted.sort((a, b) => a.name.localeCompare(b.name));
-        break;
-      case 'name-desc':
-        sorted.sort((a, b) => b.name.localeCompare(a.name));
-        break;
-      case 'price-low':
-        sorted.sort((a, b) => a.price - b.price);
-        break;
-      case 'price-high':
-        sorted.sort((a, b) => b.price - a.price);
-        break;
-      case 'newest':
-      default:
-        // الترتيب الافتراضي من قاعدة البيانات
-        break;
-    }
-    
-    return sorted;
-  }, [filteredProducts, sortOption]);
-
-  // تقسيم المنتجات للصفحات
-  const paginatedProducts = useMemo(() => {
-    const startIndex = (currentPage - 1) * PRODUCTS_PER_PAGE;
-    const endIndex = startIndex + PRODUCTS_PER_PAGE;
-    return sortedProducts.slice(startIndex, endIndex);
-  }, [sortedProducts, currentPage]);
-
-  // حساب بيانات الصفحات
-  const totalPages = Math.ceil(sortedProducts.length / PRODUCTS_PER_PAGE);
+  // المنتجات تُعاد من السياق مصفاة ومقسمة صفحات من الخادم
+  const paginatedProducts = filteredProducts;
+  const totalPages = meta?.total_pages || 1;
 
   // حساب عدد الفلاتر النشطة
   const activeFiltersCount = useMemo(() => {
     let count = 0;
     if (searchTerm) count++;
     if (selectedCategory) count++;
+    if (selectedSubcategory) count++;
     if (priceRange.min > 0 || priceRange.max < 1000000) count++;
     return count;
-  }, [searchTerm, selectedCategory, priceRange]);
+  }, [searchTerm, selectedCategory, selectedSubcategory, priceRange]);
 
   // معالجة تغيير الصفحة
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    updateUrlParams('page', String(page));
+    window.scrollTo({ top: 0, behavior: 'auto' });
   };
 
   // حالة التحميل
@@ -302,14 +419,10 @@ const StoreProducts = () => {
 
   return (
     <StoreLayout>
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+      <div className="min-h-screen bg-background">
         <div className="container mx-auto px-4 py-6">
           {/* Header */}
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center mb-8"
-          >
+          <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-primary/10 rounded-full mb-4">
               <ShoppingBag className="h-8 w-8 text-primary" />
             </div>
@@ -319,162 +432,232 @@ const StoreProducts = () => {
             <p className="text-base md:text-lg text-muted-foreground max-w-2xl mx-auto">
               {t('featuredProducts.storeProducts.subtitle')}
             </p>
-          </motion.div>
+          </div>
 
-          {/* الفلاتر */}
-          <Card className="mb-8">
-            <CardContent className="p-6">
-              {/* شريط البحث */}
-              <div className="relative mb-4">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder={t('featuredProducts.storeProducts.searchPlaceholder')}
-                  value={searchTerm}
-                  onChange={(e) => handleSearchChange(e.target.value)}
-                  className="pl-10 pr-10"
-                />
-                {searchTerm && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleSearchChange('')}
-                    className="absolute right-2 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0"
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                )}
+          {/* تخطيط بعمود جانبي + محتوى */}
+          <div className={`flex flex-col lg:flex-row gap-6 ${isRTL ? 'lg:flex-row-reverse' : ''}`}>
+            {/* Sidebar */}
+            <aside className="lg:w-72 lg:shrink-0 lg:sticky lg:top-4 self-start">
+              {/* Mobile toggle */}
+              <div className="lg:hidden mb-4">
+                <Button variant="outline" className="w-full" onClick={() => setShowMobileFilters((s) => !s)}>
+                  {t('featuredProducts.storeProducts.filter', 'تصفية')}
+                </Button>
               </div>
 
-              {/* عناصر التحكم في الفلاتر */}
-              <div className="flex flex-wrap gap-3 mb-4">
-                {/* فلتر الفئة */}
-                <Select
-                  value={selectedCategory || 'all'}
-                  onValueChange={handleCategoryChange}
-                >
-                  <SelectTrigger className="w-48">
-                    <SelectValue placeholder="جميع الفئات" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">{t('featuredProducts.storeProducts.allCategories')}</SelectItem>
-                    {categories.map((category) => (
-                      <SelectItem key={category.id} value={category.id}>
-                        {category.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className={`space-y-4 ${showMobileFilters ? '' : 'hidden'} lg:block`}>
+                <Card>
+                  <CardContent className="p-4">
+                    {/* Search */}
+                    <div className="relative mb-4">
+                      <Search className={`absolute ${isRTL ? 'right-3' : 'left-3'} top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground`} />
+                      <Input
+                        placeholder={t('navbar.searchPlaceholder')}
+                        value={searchTerm}
+                        onChange={(e) => handleSearchChange(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const value = (e.target as HTMLInputElement).value || '';
+                            updateUrlParams('search', value || null);
+                            setCurrentPage(1);
+                            updateUrlParams('page', '1');
+                            if (window.innerWidth < 1024) setShowMobileFilters(false);
+                          }
+                        }}
+                        className={`${isRTL ? 'pr-10 pl-10' : 'pl-10 pr-10'}`}
+                      />
+                    </div>
 
-                {/* فلتر الترتيب */}
-                <Select
-                  value={sortOption}
-                  onValueChange={setSortOption}
-                >
-                  <SelectTrigger className="w-40">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="newest">{t('featuredProducts.storeProducts.newest')}</SelectItem>
-                    <SelectItem value="name-asc">الاسم (أ-ي)</SelectItem>
-                    <SelectItem value="name-desc">الاسم (ي-أ)</SelectItem>
-                    <SelectItem value="price-low">السعر (منخفض)</SelectItem>
-                    <SelectItem value="price-high">السعر (مرتفع)</SelectItem>
-                  </SelectContent>
-                </Select>
+                    {/* Category */}
+                    <div className="mb-3">
+                      <label className="block text-sm mb-2">{t('navbar.categories')}</label>
+                      <Select value={uiSelectedCategory || 'all'} onValueChange={handleCategoryChange}>
+                        <SelectTrigger>
+                          <SelectValue placeholder={t('featuredProducts.storeProducts.allCategories')} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">{t('featuredProducts.storeProducts.allCategories')}</SelectItem>
+                          {categories.map((category) => (
+                            <SelectItem key={category.id} value={category.id}>{category.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                {/* أزرار العرض */}
-                <div className="flex border rounded-md">
-                  <Button
-                    variant={viewMode === 'grid' ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => setViewMode('grid')}
-                    className="rounded-r-none"
-                  >
-                    <Grid3X3 className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant={viewMode === 'list' ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => setViewMode('list')}
-                    className="rounded-l-none border-l"
-                  >
-                    <List className="h-4 w-4" />
-                  </Button>
-                </div>
+                    {/* Subcategory */}
+                    {uiSelectedCategory && subcategories.some(sc => sc.category_id === uiSelectedCategory) && (
+                      <div className="mb-3">
+                        <label className="block text-sm mb-2">{t('featuredProducts.storeProducts.subcategory', 'الفئة الفرعية')}</label>
+                        <Select
+                          key={uiSelectedCategory || 'all'}
+                          value={uiSelectedSubcategory || 'all'}
+                          onValueChange={(val) => {
+                            const newSub = val === 'all' ? null : val;
+                            setUiSelectedSubcategory(newSub);
+                            // تطبيق مباشر للفئة الفرعية أيضاً
+                            setSelectedSubcategory(newSub);
+                            setCurrentPage(1);
+                            updateUrlParamsBatch({ subcategory: newSub, page: '1' });
+                            if (window.innerWidth < 1024) setShowMobileFilters(false);
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder={t('featuredProducts.storeProducts.allSubcategories', 'كل الفئات الفرعية')} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">{t('featuredProducts.storeProducts.allSubcategories', 'كل الفئات الفرعية')}</SelectItem>
+                            {subcategories.filter(sc => sc.category_id === uiSelectedCategory).map((sc) => (
+                              <SelectItem key={sc.id} value={sc.id}>{sc.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
 
-                {/* زر إعادة تعيين الفلاتر */}
-                {activeFiltersCount > 0 && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={resetFilters}
-                    className="flex items-center gap-2"
-                  >
-                    <RotateCcw className="h-4 w-4" />
-                    {t('featuredProducts.storeProducts.resetFilters')} ({activeFiltersCount})
-                  </Button>
-                )}
+                    {/* Price Range */}
+                    <div className="mb-3">
+                      <label className="block text-sm mb-2">{t('featuredProducts.storeProducts.priceRange', 'نطاق السعر')}</label>
+                      <div className="flex gap-2 items-center">
+                        <Input
+                          type="number"
+                          min={0}
+                          value={uiPriceMin}
+                          onChange={(e) => setUiPriceMin(Number(e.target.value) || 0)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { setPriceRange({ min: uiPriceMin, max: uiPriceMax }); setCurrentPage(1); updateUrlParamsBatch({ min_price: String(uiPriceMin), max_price: String(uiPriceMax), page: '1' }); if (window.innerWidth < 1024) setShowMobileFilters(false); } }}
+                          placeholder={t('featuredProducts.storeProducts.min', 'الأدنى')}
+                        />
+                        <Input
+                          type="number"
+                          min={0}
+                          value={uiPriceMax}
+                          onChange={(e) => setUiPriceMax(Number(e.target.value) || 0)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { setPriceRange({ min: uiPriceMin, max: uiPriceMax }); setCurrentPage(1); updateUrlParamsBatch({ min_price: String(uiPriceMin), max_price: String(uiPriceMax), page: '1' }); if (window.innerWidth < 1024) setShowMobileFilters(false); } }}
+                          placeholder={t('featuredProducts.storeProducts.max', 'الأعلى')}
+                        />
+                        <Button size="sm" onClick={() => { setPriceRange({ min: uiPriceMin, max: uiPriceMax }); setCurrentPage(1); updateUrlParamsBatch({ min_price: String(uiPriceMin), max_price: String(uiPriceMax), page: '1' }); if (window.innerWidth < 1024) setShowMobileFilters(false); }}>
+                          {t('common.apply', 'تطبيق')}
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Sort */}
+                    <div className="mb-3">
+                      <label className="block text-sm mb-2">{t('common.sort')}</label>
+                      <Select value={sortOption} onValueChange={(val) => { setSortOption(val as any); setCurrentPage(1); updateUrlParamsBatch({ sort: val, page: '1' }); }}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="newest">{t('featuredProducts.storeProducts.newest')}</SelectItem>
+                          <SelectItem value="name-asc">الاسم (أ-ي)</SelectItem>
+                          <SelectItem value="name-desc">الاسم (ي-أ)</SelectItem>
+                          <SelectItem value="price-low">السعر (منخفض)</SelectItem>
+                          <SelectItem value="price-high">السعر (مرتفع)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Apply + View + Reset */}
+                    <div className="flex items-center gap-2 mt-4 flex-wrap">
+                      <Button size="sm" onClick={() => {
+                        setSelectedCategory(uiSelectedCategory);
+                        setSelectedSubcategory(uiSelectedSubcategory);
+                        setPriceRange({ min: uiPriceMin, max: uiPriceMax });
+                        setCurrentPage(1);
+                        updateUrlParamsBatch({
+                          category: uiSelectedCategory,
+                          subcategory: uiSelectedSubcategory,
+                          min_price: String(uiPriceMin),
+                          max_price: String(uiPriceMax),
+                          page: '1'
+                        });
+                        if (window.innerWidth < 1024) setShowMobileFilters(false);
+                      }}>
+                        {t('common.apply', 'تطبيق')}
+                      </Button>
+                      <div className="flex border rounded-md">
+                        <Button
+                          variant={viewMode === 'grid' ? 'default' : 'ghost'}
+                          size="sm"
+                          onClick={() => setViewMode('grid')}
+                          className="rounded-r-none"
+                          aria-label={t('featuredProducts.storeProducts.gridView', 'عرض شبكي')}
+                        >
+                          <Grid3X3 className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant={viewMode === 'list' ? 'default' : 'ghost'}
+                          size="sm"
+                          onClick={() => setViewMode('list')}
+                          className="rounded-l-none border-l"
+                          aria-label={t('featuredProducts.storeProducts.listView', 'عرض قائم')}
+                        >
+                          <List className="h-4 w-4" />
+                        </Button>
+                      </div>
+
+                      {activeFiltersCount > 0 && (
+                        <Button variant="outline" size="sm" onClick={resetFilters} className="flex items-center gap-2">
+                          <RotateCcw className="h-4 w-4" />
+                          {t('featuredProducts.storeProducts.resetFilters')} ({activeFiltersCount})
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Results meta */}
+                <Card>
+                  <CardContent className="p-4 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <span>
+                        {t('featuredProducts.storeProducts.showingResults', { current: paginatedProducts.length, total: meta?.total_count || paginatedProducts.length })}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
+            </aside>
 
-              {/* معلومات النتائج */}
-              <div className="flex items-center justify-between pt-4 border-t">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">
-                    {t('featuredProducts.storeProducts.showingResults', { 
-                      current: paginatedProducts.length, 
-                      total: sortedProducts.length 
-                    })}
-                  </span>
-                  {selectedCategory && (
-                    <Badge variant="secondary" className="ml-2">
-                      {categories.find(c => c.id === selectedCategory)?.name}
-                    </Badge>
+            {/* Main content */}
+            <main className="flex-1">
+              {paginatedProducts.length === 0 ? (
+                <div className="text-center py-16">
+                  <div className="w-24 h-24 bg-muted rounded-full flex items-center justify-center mx-auto mb-6">
+                    <Package className="h-12 w-12 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-xl font-semibold mb-2">{t('featuredProducts.storeProducts.noProducts')}</h3>
+                  <p className="text-muted-foreground mb-6">
+                    {searchTerm || selectedCategory || selectedSubcategory
+                      ? t('featuredProducts.storeProducts.noProductsMessage')
+                      : t('featuredProducts.storeProducts.noProductsAvailable')
+                    }
+                  </p>
+                  {(searchTerm || selectedCategory || selectedSubcategory) && (
+                    <Button onClick={resetFilters} variant="outline">
+                      <RotateCcw className="h-4 w-4 ml-2" />
+                      {t('featuredProducts.storeProducts.resetFiltersButton')}
+                    </Button>
                   )}
                 </div>
-                
-                <div className="text-sm text-muted-foreground">
-                  {t('featuredProducts.storeProducts.page')} {currentPage} {t('featuredProducts.storeProducts.of')} {totalPages}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* عرض المنتجات */}
-          {paginatedProducts.length === 0 ? (
-            <div className="text-center py-16">
-              <div className="w-24 h-24 bg-muted rounded-full flex items-center justify-center mx-auto mb-6">
-                <Package className="h-12 w-12 text-muted-foreground" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">{t('featuredProducts.storeProducts.noProducts')}</h3>
-              <p className="text-muted-foreground mb-6">
-                {searchTerm || selectedCategory 
-                  ? t('featuredProducts.storeProducts.noProductsMessage')
-                  : t('featuredProducts.storeProducts.noProductsAvailable')
-                }
-              </p>
-              {(searchTerm || selectedCategory) && (
-                <Button onClick={resetFilters} variant="outline">
-                  <RotateCcw className="h-4 w-4 ml-2" />
-                  {t('featuredProducts.storeProducts.resetFiltersButton')}
-                </Button>
+              ) : (
+                <>
+                  <StoreProductGrid 
+                    products={paginatedProducts}
+                    view={viewMode}
+                    gridColumns={3}
+                  />
+                  <PaginationControls
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={handlePageChange}
+                  />
+                </>
               )}
-            </div>
-          ) : (
-            <>
-              <StoreProductGrid 
-                products={paginatedProducts}
-                view={viewMode}
-                gridColumns={4}
-              />
-              
-              {/* التنقل بين الصفحات */}
-              <PaginationControls
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={handlePageChange}
-              />
-            </>
-          )}
+            </main>
+          </div>
+
+          
         </div>
       </div>
     </StoreLayout>

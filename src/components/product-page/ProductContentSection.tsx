@@ -5,6 +5,10 @@ import { ProductVariantsSection } from './ProductVariantsSection';
 import { ProductSpecialOffersSection } from './ProductSpecialOffersSection';
 import { ProductActionsSection } from './ProductActionsSection';
 import { ProductFormSection } from './ProductFormSection';
+import { Button } from '@/components/ui/button';
+import { ShoppingCart, ArrowDownToLine } from 'lucide-react';
+import { scrollToPurchaseForm } from '@/utils/scrollToPurchaseForm';
+import { useSafeTranslation } from '@/components/safe-i18n/SafeTranslationProvider';
 
 interface ProductContentSectionProps {
   product: any;
@@ -30,6 +34,7 @@ interface ProductContentSectionProps {
   setHasTriedToSubmit: (value: boolean) => void;
   updateCurrentFormData: (data: Record<string, any>) => void;
   className?: string;
+  showAddToCart?: boolean;
 }
 
 /**
@@ -61,8 +66,15 @@ export const ProductContentSection = memo<ProductContentSectionProps>(({
   setShowValidationErrors,
   setHasTriedToSubmit,
   updateCurrentFormData,
-  className = "space-y-4"
+  // تصميم موحد ومتسق مع ألوان وتباعد النظام
+  className = "space-y-6",
+  showAddToCart = false
 }) => {
+  // ✅ إصلاح React Error #310: استدعاء hooks بشكل غير مشروط دائماً في أعلى المكون
+  // 🔒 Hook calls must always happen in the same order and before any early returns
+  const { t } = useSafeTranslation();
+  
+  // ✅ تأكد من أن جميع المتغيرات تُستخرج بعد useTranslation مباشرة
   const {
     selectedColor,
     selectedSize,
@@ -70,13 +82,13 @@ export const ProductContentSection = memo<ProductContentSectionProps>(({
     buyingNow,
     availableStock,
     canPurchase,
-  } = state;
+  } = state || {};
 
   const {
     setSelectedColor,
     setSelectedSize,
     setQuantity,
-  } = actions;
+  } = actions || {};
 
   // إنشاء دوال مع تسجيل للتتبع
   const handleSetSelectedColor = (color: any) => {
@@ -85,6 +97,11 @@ export const ProductContentSection = memo<ProductContentSectionProps>(({
 
   const handleSetSelectedSize = (size: any) => {
     setSelectedSize(size);
+  };
+
+  // تمرير سلس للنموذج السفلي (ProductFormRenderer)
+  const handleScrollToOrderForm = async () => {
+    await scrollToPurchaseForm();
   };
 
   return (
@@ -131,7 +148,7 @@ export const ProductContentSection = memo<ProductContentSectionProps>(({
 
       {/* قسم أزرار الشراء والميزات */}
       <ProductActionsSection
-        totalPrice={finalPriceCalculation.price}
+        totalPrice={finalPriceCalculation?.price ?? 0}
         deliveryFee={summaryData?.deliveryFee || 0}
         canPurchase={canPurchase}
         buyingNow={buyingNow}
@@ -140,6 +157,49 @@ export const ProductContentSection = memo<ProductContentSectionProps>(({
         product={product}
         availableStock={availableStock}
       />
+
+      {showAddToCart && (
+        <div
+          className="rounded-xl border border-border/50 bg-card/60 backdrop-blur p-3 sm:p-4 shadow-sm"
+          role="group"
+          aria-label={t('productContent.purchaseActions')}
+        >
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
+            {/* زر اطلب الآن - أساسي وواضح */}
+            <Button
+              onClick={handleScrollToOrderForm}
+              aria-label={t('productContent.orderNow')}
+              className="h-12 sm:flex-[1.3] rounded-lg text-base md:text-lg font-bold
+                         bg-gradient-to-r from-primary to-primary/90
+                         hover:from-primary/90 hover:to-primary
+                         shadow-md hover:shadow-lg
+                         transition-all duration-200
+                         focus-visible:ring-2 focus-visible:ring-primary/30"
+              size="lg"
+            >
+              <ArrowDownToLine className="w-5 h-5 ml-2" />
+              {t('productContent.orderNow')}
+            </Button>
+
+            {/* زر أضف إلى السلة - ثانوي وأنيق */}
+            <Button
+              variant="outline"
+              onClick={actions?.addToCart}
+              disabled={!canPurchase || state?.addingToCart}
+              aria-busy={state?.addingToCart ? 'true' : 'false'}
+              aria-label={state?.addingToCart ? t('productContent.addingToCart') : t('productContent.addToCart')}
+              className="h-12 sm:flex-1 rounded-lg text-base md:text-lg font-semibold
+                         border border-border/60 bg-background/80
+                         hover:bg-accent/60 hover:text-accent-foreground
+                         transition-all duration-200"
+              size="lg"
+            >
+              <ShoppingCart className="w-5 h-5 ml-2" />
+              {state?.addingToCart ? t('productContent.addingToCart') : t('productContent.addToCart')}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* قسم النماذج والوصف */}
       <ProductFormSection

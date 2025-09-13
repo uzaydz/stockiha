@@ -183,7 +183,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     
     if (errorMessage.includes('loading chunk') || errorMessage.includes('chunkloaderror')) {
       // خطأ في تحميل Chunk - إعادة تحميل تلقائي بعد تأخير قصير
-      console.log('🔄 Chunk loading error detected, reloading page...');
+      
       const timeout = setTimeout(() => {
         window.location.reload();
       }, 2000);
@@ -193,9 +193,9 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
     // يمكن إضافة تسجيل إضافي هنا (مثل Sentry)
     if (process.env.NODE_ENV === 'development') {
       console.group('🚨 Error Boundary Details');
-      console.log('Error:', error);
-      console.log('Error Info:', errorInfo);
-      console.log('Component Stack:', errorInfo.componentStack);
+      
+      
+      
       console.groupEnd();
     }
   }

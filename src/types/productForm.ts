@@ -71,6 +71,20 @@ export interface ProductVariant {
   has_variants?: boolean;
   colors?: ProductColor[];
   stock_quantity?: number;
+  // إضافة معلومات الشحن والقوالب
+  shipping_and_templates?: {
+    shipping_info?: {
+      type: 'clone' | 'provider';
+      id: number;
+      name: string;
+      original_provider?: string;
+      code?: string;
+      unified_price?: boolean;
+      home_price?: number;
+      desk_price?: number;
+    };
+    [key: string]: any;
+  };
 }
 
 // واجهات المكونات

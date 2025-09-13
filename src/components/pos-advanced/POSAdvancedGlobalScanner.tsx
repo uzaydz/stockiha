@@ -12,6 +12,8 @@ interface POSAdvancedGlobalScannerProps {
   addItemToCart: (product: Product) => void;
   addItemToReturnCart: (product: Product) => void;
   handleProductWithVariants: (product: Product) => void;
+  // اختياري: جلب منتج كامل بالمعرف لتجاوز قيود الصفحة الحالية
+  getProductById?: (id: string) => Product | undefined;
 }
 
 export const POSAdvancedGlobalScanner: React.FC<POSAdvancedGlobalScannerProps> = ({
@@ -21,12 +23,13 @@ export const POSAdvancedGlobalScanner: React.FC<POSAdvancedGlobalScannerProps> =
   scanBarcode,
   addItemToCart,
   addItemToReturnCart,
-  handleProductWithVariants
+  handleProductWithVariants,
+  getProductById
 }) => {
   // السكانر العالمي - يعمل في أي مكان في الصفحة مع البحث المحلي
   const globalScanner = useGlobalBarcodeScanner({
     onBarcodeScanned: useCallback(async (barcode, product) => {
-      let productToAdd = product;
+      let productToAdd: any = product;
       const toastId = `scan-${barcode}`;
 
       try {
@@ -43,31 +46,48 @@ export const POSAdvancedGlobalScanner: React.FC<POSAdvancedGlobalScannerProps> =
           }
         }
 
+        // دالة مساعدة لمعرفة إن كان كائن المنتج كامل المواصفات
+        const isFullProduct = (p: any) => p && typeof p === 'object' && 'name' in p && ('price' in p || 'colors' in p);
+
         // إذا تم العثور على منتج (محلياً أو عبر API)
         if (productToAdd) {
-          const fullProduct = products.find(p => p.id === productToAdd.id);
-          
-          if (fullProduct) {
-            if (isReturnMode) {
-              addItemToReturnCart(fullProduct);
-              toast.success(`✅ تم إضافة "${fullProduct.name}" إلى سلة الإرجاع`, { id: toastId, duration: 2000 });
-            } else {
-              if (fullProduct.has_variants && fullProduct.colors && fullProduct.colors.length > 0) {
-                handleProductWithVariants(fullProduct);
-                toast.dismiss(toastId); // إغلاق الإشعار لأن نافذة المتغيرات ستظهر
-              } else {
-                addItemToCart(fullProduct);
-                toast.success(`✅ تم إضافة "${fullProduct.name}" إلى السلة`, { id: toastId, duration: 2000 });
-              }
+          // حاول استخدام المنتج كما هو إن كان كاملاً (يأتي من cache المحلي مع المتغيرات)
+          let fullProduct: Product | undefined = isFullProduct(productToAdd) ? (productToAdd as Product) : undefined;
+
+          // وإلا حاول جلبه من المصفوفة الحالية أو الدالة المقدمة
+          if (!fullProduct) {
+            fullProduct = (getProductById?.(productToAdd.id)) || products.find(p => p.id === productToAdd.id);
+          }
+
+          if (!fullProduct) {
+            // كحل أخير، حاول استخدام البيانات المرتجعة مباشرة إن كانت تحتوي الحد الأدنى المطلوب
+            if (isFullProduct(productToAdd)) {
+              fullProduct = productToAdd as Product;
             }
+          }
+
+          if (!fullProduct) {
+            toast.error(`لم يتم العثور على المنتج ${productToAdd.id} في البيانات الحالية`, { id: toastId });
+            return;
+          }
+
+          if (isReturnMode) {
+            addItemToReturnCart(fullProduct);
+            toast.success(`✅ تم إضافة "${fullProduct.name}" إلى سلة الإرجاع`, { id: toastId, duration: 2000 });
           } else {
-            toast.error(`لم يتم العثور على المنتج ${productToAdd.id} في البيانات المحدثة`, { id: toastId });
+            if (fullProduct.has_variants && fullProduct.colors && fullProduct.colors.length > 0) {
+              handleProductWithVariants(fullProduct);
+              toast.dismiss(toastId); // إغلاق الإشعار لأن نافذة المتغيرات ستظهر
+            } else {
+              addItemToCart(fullProduct);
+              toast.success(`✅ تم إضافة "${fullProduct.name}" إلى السلة`, { id: toastId, duration: 2000 });
+            }
           }
         }
       } catch (error) {
         toast.error(`💥 خطأ أثناء البحث عن الباركود: ${barcode}`, { id: toastId });
       }
-    }, [products, isReturnMode, scanBarcode, addItemToCart, addItemToReturnCart, handleProductWithVariants]),
+    }, [products, isReturnMode, scanBarcode, addItemToCart, addItemToReturnCart, handleProductWithVariants, getProductById]),
     enableGlobalScanning: true,
     minBarcodeLength: 8,
     maxBarcodeLength: 20,

@@ -854,5 +854,4 @@ export function useApps(): AppsContextType {
   return context;
 }
 
-// إعادة تصدير AVAILABLE_APPS للتأكد من إتاحته للاستيراد
-export { AVAILABLE_APPS }; 
+// AVAILABLE_APPS مُصدر بالفعل في السطر 67 

@@ -9,7 +9,7 @@ import { Link } from 'react-router-dom';
 import { RefreshCw } from 'lucide-react';
 import { Helmet } from 'react-helmet-async';
 import PerformanceOptimizedImage from '@/components/ui/PerformanceOptimizedImage';
-import { updateOrganizationTheme } from '@/lib/themeManager';
+import { updateOrganizationTheme } from '@/lib/themeManager/index';
 import { getSupabaseClient } from '@/lib/supabase';
 
 // استيراد UltraFastStorePage الجديد

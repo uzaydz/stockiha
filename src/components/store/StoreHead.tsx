@@ -1,5 +1,7 @@
 import React, { useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
+import { langLog } from '@/lib/debug/langDebug';
+import { setStoreHeadActive } from '@/lib/headGuard';
 
 export interface StoreHeadProps {
   storeName?: string;
@@ -11,6 +13,8 @@ export interface StoreHeadProps {
   customCSS?: string;
   customJSHeader?: string;
   themeColor?: string;
+  // اللغة الافتراضية القادمة من إعدادات المؤسسة عبر RPC
+  defaultLanguage?: 'ar' | 'en' | 'fr';
   seoSettings?: {
     title?: string;
     description?: string;
@@ -18,6 +22,7 @@ export interface StoreHeadProps {
     og_image?: string;
     enable_open_graph?: boolean;
     enable_twitter_cards?: boolean;
+    twitter_handle?: string;
   };
 }
 
@@ -31,6 +36,7 @@ export const StoreHead: React.FC<StoreHeadProps> = ({
   customCSS,
   customJSHeader,
   themeColor = '#22c55e',
+  defaultLanguage,
   seoSettings
 }) => {
   
@@ -70,8 +76,21 @@ export const StoreHead: React.FC<StoreHeadProps> = ({
 
   // حفظ البيانات في localStorage للاستخدام الفوري في المرات القادمة
   useEffect(() => {
+    // أعلن سيطرة StoreHead على الـ head لتجنب التحديثات المتعددة من مصادر أخرى
+    try { setStoreHeadActive(true); } catch {}
     if (storeName && organizationId) {
       try {
+        // إذا كانت اللغة الافتراضية متوفرة من الـ RPC، احفظها فوراً حتى تُقرأ عند تهيئة i18n
+        if (defaultLanguage && ['ar', 'en', 'fr'].includes(defaultLanguage)) {
+          try {
+            const current = localStorage.getItem('i18nextLng');
+            if (current !== defaultLanguage) {
+              localStorage.setItem('i18nextLng', defaultLanguage);
+              localStorage.setItem('i18nextLng_timestamp', Date.now().toString());
+            }
+            langLog('StoreHead:save-defaultLanguage', { defaultLanguage, organizationId });
+          } catch {}
+        }
         
         // حفظ البيانات الأساسية للمؤسسة
         const orgData = {
@@ -89,7 +108,9 @@ export const StoreHead: React.FC<StoreHeadProps> = ({
           seo_meta_description: seoSettings?.description || storeDescription,
           meta_keywords: seoSettings?.keywords || storeKeywords,
           logo_url: logoUrl,
-          favicon_url: faviconUrl
+          favicon_url: faviconUrl,
+          // تمرير اللغة الافتراضية ضمن الإعدادات لالتقاطها من مستمع i18n
+          ...(defaultLanguage ? { default_language: defaultLanguage } : {})
         };
         
         // حفظ البيانات في localStorage
@@ -124,6 +145,11 @@ export const StoreHead: React.FC<StoreHeadProps> = ({
             subdomain
           }
         });
+        langLog('StoreHead:dispatch-organizationDataUpdated', {
+          organizationId,
+          defaultLanguage,
+          hasSeoTitle: Boolean(seoSettings?.title)
+        });
         window.dispatchEvent(updateEvent);
 
         // أيضاً تحديث فوري للعنوان والأيقونة
@@ -140,6 +166,9 @@ export const StoreHead: React.FC<StoreHeadProps> = ({
       } catch (error) {
       }
     }
+    return () => {
+      try { setStoreHeadActive(false); } catch {}
+    };
   }, [storeName, storeDescription, storeKeywords, faviconUrl, logoUrl, organizationId, seoSettings]);
 
   // دالة لتحديث الأيقونة من StoreHead
@@ -245,6 +274,8 @@ export const StoreHead: React.FC<StoreHeadProps> = ({
 
   return (
     <Helmet>
+      {/* Flag to indicate StoreHead controls head to prevent duplicate updates */}
+      <meta name="x-store-head-active" content="1" />
       {/* العنوان والوصف الأساسي */}
       <title>{finalStoreName}</title>
       <meta name="description" content={finalDescription} />
@@ -262,7 +293,7 @@ export const StoreHead: React.FC<StoreHeadProps> = ({
           <meta property="og:description" content={finalDescription} />
           <meta property="og:type" content="website" />
           <meta property="og:site_name" content={finalStoreName} />
-          <meta property="og:locale" content="ar_SA" />
+          <meta property="og:locale" content="ar_DZ" />
           {(seoSettings?.og_image || logoUrl) && (
             <meta property="og:image" content={seoSettings?.og_image || logoUrl} />
           )}
@@ -275,18 +306,20 @@ export const StoreHead: React.FC<StoreHeadProps> = ({
           <meta name="twitter:card" content="summary_large_image" />
           <meta name="twitter:title" content={finalStoreName} />
           <meta name="twitter:description" content={finalDescription} />
+          <meta name="twitter:site" content={seoSettings?.twitter_handle || '@stockiha'} />
           {(seoSettings?.og_image || logoUrl) && (
             <meta name="twitter:image" content={seoSettings?.og_image || logoUrl} />
           )}
         </>
       )}
       
-      {/* خطوط محلية لتحسين FCP/LCP */}
-      <link rel="preload" as="style" href="/fonts/tajawal.css" />
+      {/* خطوط محلية: نعتمد على التعريفات العالمية في src/styles/fonts.css */}
       <link rel="preload" as="font" type="font/woff2" href="/fonts/tajawal-regular.woff2" crossOrigin="anonymous" />
       <link rel="preload" as="font" type="font/woff2" href="/fonts/tajawal-medium.woff2" crossOrigin="anonymous" />
       <link rel="preload" as="font" type="font/woff2" href="/fonts/tajawal-bold.woff2" crossOrigin="anonymous" />
-      <link rel="stylesheet" href="/fonts/tajawal.css" />
+      {/* تحسين اتصال مبكر مع Supabase وCloudflare Insights */}
+      <link rel="preconnect" href="https://wrnssatuvmumsczyldth.supabase.co" crossOrigin="anonymous" />
+      <link rel="dns-prefetch" href="//wrnssatuvmumsczyldth.supabase.co" />
       <link rel="dns-prefetch" href="//cdnjs.cloudflare.com" />
       
       {/* الـ CSS المخصص */}

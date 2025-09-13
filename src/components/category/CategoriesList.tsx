@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   Table,
   TableBody,
@@ -50,7 +50,7 @@ import { deleteCategory, updateCategory, getSubcategories } from '@/lib/api/cate
 import EditCategoryDialog from './EditCategoryDialog';
 import { getLucideIcon } from '@/lib/utils';
 import CategoryDetailsDialog from './CategoryDetailsDialog';
-import { useOptimizedClickHandler } from "@/lib/performance-utils";
+// import { useOptimizedClickHandler } from "@/lib/performance-utils"; // Temporarily disabled
 
 interface CategoriesListProps {
   categories: Category[];
@@ -174,12 +174,11 @@ const CategoriesList = ({ categories, onRefreshCategories }: CategoriesListProps
   // Render category icon
   const renderCategoryIcon = (iconName: string | null, className: string = "h-5 w-5") => {
     if (!iconName) return <FolderRoot className={className} />;
-    
+
     const IconComponent = getLucideIcon(iconName);
     if (!IconComponent) return <FolderRoot className={className} />;
-    
-    const Icon = IconComponent as React.ElementType;
-    return <Icon className={className} />;
+
+    return <IconComponent className={className} />;
   };
 
   if (categories.length === 0) {
@@ -241,7 +240,7 @@ const CategoriesList = ({ categories, onRefreshCategories }: CategoriesListProps
                       <div className="flex items-center gap-3">
                         {category.image_url ? (
                           <Avatar className="h-9 w-9 rounded-md border border-muted">
-                            <img src={category.image_url} alt={category.name} className="object-cover" />
+                            <img src={category.image_url} alt={category.name} className="object-cover" width={128} height={96} />
                             <AvatarFallback className="rounded-md bg-primary/10 text-primary">
                               {renderCategoryIcon(category.icon, "h-5 w-5")}
                             </AvatarFallback>

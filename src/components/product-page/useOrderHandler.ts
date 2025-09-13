@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { processOrder } from '@/api/store';
 import { getSpecialOfferSummary } from '@/lib/api/productComplete';
+import { isPhoneBlocked as apiIsPhoneBlocked } from '@/lib/api/blocked-customers';
 
 interface UseOrderHandlerProps {
   product: any;
@@ -109,6 +110,23 @@ export const useOrderHandler = ({
         }
       };
       
+      // فحص الحظر قبل الإرسال (تحسين تجربة المستخدم)
+      try {
+        const phoneForCheck = (orderPayload as any).phone;
+        if (phoneForCheck && organizationId) {
+          const res = await apiIsPhoneBlocked(organizationId, phoneForCheck);
+          if (res.isBlocked) {
+            // إشعار واجهة احترافي عبر حدث مخصص + Toast بسيط
+            try {
+              const evt = new CustomEvent('blocked-customer', { detail: { reason: res.reason, phone: phoneForCheck } });
+              window.dispatchEvent(evt);
+            } catch {}
+            toast.error(res.reason ? `لا يمكن إتمام الطلب: ${res.reason}` : 'لا يمكن إتمام الطلب: هذا الرقم محظور');
+            return;
+          }
+        }
+      } catch {}
+
       const result = await processOrder(organizationId, orderPayload);
 
       if (result && !result.error) {
@@ -163,7 +181,19 @@ export const useOrderHandler = ({
       } else {
         toast.error(result?.error || 'حدث خطأ أثناء إنشاء الطلبية');
       }
-    } catch (error) {
+    } catch (error: any) {
+      try {
+        const msg = (error && error.message) ? String(error.message) : '';
+        if (msg.includes('blocked_customer')) {
+          const phoneForCheck = data.customer_phone || data.phone;
+          if (organizationId && phoneForCheck) {
+            const res = await apiIsPhoneBlocked(organizationId, phoneForCheck);
+            try { window.dispatchEvent(new CustomEvent('blocked-customer', { detail: { reason: res.reason, phone: phoneForCheck } })); } catch {}
+            toast.error(res.reason ? `لا يمكن إتمام الطلب: ${res.reason}` : 'لا يمكن إتمام الطلب: هذا الرقم محظور');
+            return;
+          }
+        }
+      } catch {}
       toast.error('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى');
     }
   }, [
@@ -253,6 +283,22 @@ export const useOrderHandler = ({
         });
       }
 
+      // فحص الحظر قبل المعالجة
+      try {
+        const phoneForCheck = submittedFormData.customer_phone;
+        if (phoneForCheck && organizationId) {
+          const res = await apiIsPhoneBlocked(organizationId, phoneForCheck);
+          if (res.isBlocked) {
+            try {
+              const evt = new CustomEvent('blocked-customer', { detail: { reason: res.reason, phone: phoneForCheck } });
+              window.dispatchEvent(evt);
+            } catch {}
+            toast.error(res.reason ? `لا يمكن إتمام الطلب: ${res.reason}` : 'لا يمكن إتمام الطلب: هذا الرقم محظور');
+            return;
+          }
+        }
+      } catch {}
+
       // معالجة الطلبية باستخدام الواجهة الصحيحة
       const result = await processOrder(organizationId, {
         fullName: submittedFormData.customer_name,
@@ -318,7 +364,19 @@ export const useOrderHandler = ({
       } else {
         toast.error(result?.error || 'حدث خطأ أثناء إنشاء الطلبية');
       }
-    } catch (error) {
+    } catch (error: any) {
+      try {
+        const msg = (error && error.message) ? String(error.message) : '';
+        if (msg.includes('blocked_customer')) {
+          const phoneForCheck = submittedFormData.customer_phone || submittedFormData.phone;
+          if (organizationId && phoneForCheck) {
+            const res = await apiIsPhoneBlocked(organizationId, phoneForCheck);
+            try { window.dispatchEvent(new CustomEvent('blocked-customer', { detail: { reason: res.reason, phone: phoneForCheck } })); } catch {}
+            toast.error(res.reason ? `لا يمكن إتمام الطلب: ${res.reason}` : 'لا يمكن إتمام الطلب: هذا الرقم محظور');
+            return;
+          }
+        }
+      } catch {}
       toast.error('حدث خطأ غير متوقع، يرجى المحاولة مرة أخرى');
     }
   }, [

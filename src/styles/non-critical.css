@@ -1,0 +1,61 @@
+/* =================================================================
+   🚀 NON-CRITICAL CSS - يتم تحميله بشكل مؤجل
+   ================================================================= */
+
+/* استيراد ملفات CSS الإضافية - مؤجل */
+@import '../components/landing-page-builder/styles/cta-button.css';
+@import './apps-management.css';
+@import './advanced-description.css';
+@import '../components/ui/global-dropdown-fix.css';
+
+/* Tailwind Components & Utilities */
+/* تم نقل @tailwind directives إلى index.css لتجنب مشاكل PostCSS */
+
+/* Custom utilities - بدون @layer لتجنب مشاكل PostCSS */
+.bg-gradient-radial {
+  background-image: radial-gradient(ellipse at center, var(--tw-gradient-stops));
+}
+
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.transform-gpu {
+  transform: translateZ(0);
+}
+
+.backface-hidden {
+  backface-visibility: hidden;
+}
+
+.preserve-3d {
+  transform-style: preserve-3d;
+}
+
+.rotate-y-180 {
+  transform: rotateY(180deg);
+}
+
+/* باقي الأنماط غير الحرجة */
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* تحسينات للشاشات عالية الدقة */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  * {
+    -webkit-font-smoothing: subpixel-antialiased;
+  }
+}
+
+/* تحسين أحجام الخطوط للشاشات المختلفة */
+@media (max-width: 640px) {
+  html {
+    font-size: 14px;
+  }
+}

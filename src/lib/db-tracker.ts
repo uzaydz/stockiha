@@ -45,7 +45,7 @@ function logRequestStart(
     method,
     timestamp: getHighResTime(),
   };
-  // console.log(`[DB_TRACKER] START: ${type} ${target} (${method}) on ${entry.page}`);
+  // 
   return entry;
 }
 
@@ -59,7 +59,7 @@ function logRequestEnd(entry: RequestLogEntry, error?: any) {
     error: !!error,
   };
   requestLog.push(finalLog);
-  // console.log(`[DB_TRACKER] END: ${entry.type} ${entry.target} (${entry.method}) on ${entry.page} - ${finalLog.duration}ms ${finalLog.error ? 'ERROR' : 'SUCCESS'}`);
+  // 
 }
 
 // دالة مغلِّفة لاستدعاء RPC

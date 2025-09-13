@@ -9,6 +9,8 @@ import { useUser } from "@/context/UserContext";
 import { Input } from "./input";
 import { UploadCloud } from "lucide-react";
 import { v4 } from "uuid";
+import { uploadFileWithAuth, validateCurrentSession, debugAuthState } from "@/utils/authHelpers";
+import { useAuth } from "@/context/AuthContext";
 
 // دالة لحذف الصورة من Supabase Storage
 const deleteImageFromStorage = async (imageUrl: string): Promise<boolean> => {
@@ -81,6 +83,7 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
   const { toast } = useToast();
   const tenantContext = useTenant();
   const userContext = useUser();
+  const authContext = useAuth();
   
   // استخدام المؤسسة من سياق المؤسسة أو معرف المؤسسة من سياق المستخدم
   const currentOrganization = tenantContext?.currentOrganization ||
@@ -435,7 +438,7 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
     }
   };
 
-  // دالة لرفع الصورة إلى Supabase فقط
+  // دالة لرفع الصورة إلى Supabase فقط - محسنة مع استخدام AuthContext مباشرة
   const uploadImageWithOfflineSupport = async (file: File, filePath: string): Promise<string> => {
     try {
       // للتأكد من أن الملف فعلاً ملف وليس شيئًا آخر
@@ -453,43 +456,121 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
         throw new Error('حجم الملف كبير جداً. الحد الأقصى 10MB.');
       }
 
-      const { data, error } = await supabase.storage
-        .from('organization-assets')
-        .upload(filePath, file, {
-          cacheControl: '31536000',
-          upsert: false
-        });
-      
-      if (error) {
-
-        // معالجة أخطاء محددة
-        if (error.message?.includes('Duplicate')) {
-          throw new Error('اسم الملف موجود بالفعل. جاري المحاولة مرة أخرى...');
-        } else if (error.message?.includes('Policy')) {
-          throw new Error('ليس لديك صلاحية لرفع الصور في هذا المجلد.');
-        } else if (error.message?.includes('size')) {
-          throw new Error('حجم الملف كبير جداً.');
-        } else if (error.message?.includes('mime')) {
-          throw new Error('نوع الملف غير مدعوم. يرجى استخدام صور بصيغة JPG, PNG, أو WebP.');
-        } else if (error.message?.includes('network') || error.message?.includes('fetch')) {
-          throw new Error('مشكلة في الاتصال بالإنترنت. يرجى المحاولة مرة أخرى.');
-        } else if (error.message?.includes('storage')) {
-          throw new Error('مشكلة في خدمة التخزين. يرجى المحاولة لاحقاً.');
-        } else if (error.message?.includes('InvalidKey') || error.message?.includes('Invalid key')) {
-          throw new Error('اسم الملف يحتوي على أحرف غير مدعومة. تم إنشاء اسم جديد تلقائياً.');
-        } else {
-          throw new Error(`فشل رفع الصورة: ${error.message}`);
-        }
+      // عرض معلومات التشخيص في بيئة التطوير
+      if (process.env.NODE_ENV === 'development') {
       }
 
-      // الحصول على الرابط العام للصورة
-      const { data: urlData } = supabase.storage
-        .from("organization-assets")
-        .getPublicUrl(filePath);
+      // التحقق من وجود المستخدم في AuthContext
+      if (!authContext?.user || !authContext?.session) {
+        console.warn('⚠️ لا يوجد مستخدم مصادق في AuthContext');
+        
+        // محاولة استخدام المساعدة التقليدية
+        const result = await uploadFileWithAuth('organization-assets', filePath, file, {
+          cacheControl: '31536000',
+          upsert: false,
+          contentType: file.type
+        });
 
-      return urlData.publicUrl;
+        if (!result.success) {
+          throw new Error(result.error || 'فشل في رفع الصورة');
+        }
+
+        return result.publicUrl || '';
+      }
+
+      
+      
+      // الحصول على الجلسة الحالية مباشرة من Supabase (تجاهل AuthContext)
+      
+      const { data: { session: currentSupabaseSession }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) {
+        console.error('❌ خطأ في الحصول على الجلسة:', sessionError);
+        throw new Error('فشل في الحصول على جلسة المصادقة');
+      }
+      
+      let validSession = currentSupabaseSession || authContext.session;
+      
+      // معلومات تشخيصية لمقارنة الجلسات
+      if (process.env.NODE_ENV === 'development') {
+      }
+      
+      // فحص إذا كان token منتهي الصلاحية
+      if (validSession?.expires_at) {
+        const expiresAt = new Date(validSession.expires_at * 1000);
+        const now = new Date();
+        const timeUntilExpiry = expiresAt.getTime() - now.getTime();
+        
+        
+        // إذا كان token سينتهي خلال دقيقة أو انتهت صلاحيته
+        if (timeUntilExpiry <= 60000) {
+          
+          
+          try {
+            // استخدام sessionMonitor لتحديث الجلسة بطريقة موحدة
+            const { sessionMonitor } = await import('@/lib/session-monitor');
+            const refreshSuccess = await sessionMonitor.manualRefresh();
+            
+            if (refreshSuccess) {
+              const { session: newSession } = sessionMonitor.getCurrentSession();
+              if (newSession) {
+                validSession = newSession;
+                
+                
+                // إجبار تحديث AuthContext
+                if ((authContext as any).updateAuthState) {
+                  (authContext as any).updateAuthState(validSession, validSession.user, false);
+                }
+              } else {
+                throw new Error('فشل في الحصول على الجلسة المحدثة');
+              }
+            } else {
+              // المحاولة التقليدية كخيار احتياطي
+              const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+              
+              if (!refreshError && refreshData?.session) {
+                validSession = refreshData.session;
+                
+              } else {
+                console.warn('⚠️ فشل تحديث الجلسة:', refreshError?.message);
+                
+                // إذا كانت الجلسة مفقودة تماماً، المستخدم يحتاج لتسجيل الدخول مرة أخرى
+                if (refreshError?.message?.includes('Auth session missing')) {
+                  throw new Error('انتهت صلاحية جلسة الدخول. يرجى تحديث الصفحة وتسجيل الدخول مرة أخرى.');
+                }
+                throw new Error('فشل في تحديث الجلسة. يرجى تحديث الصفحة.');
+              }
+            }
+          } catch (refreshErr) {
+            console.warn('⚠️ خطأ في تحديث الجلسة:', refreshErr);
+            
+            // في حالة فشل تحديث الجلسة، طلب إعادة تسجيل الدخول
+            if (String(refreshErr).includes('Auth session missing') || String(refreshErr).includes('refresh_token')) {
+              throw new Error('انتهت صلاحية جلسة الدخول. يرجى تحديث الصفحة وتسجيل الدخول مرة أخرى.');
+            }
+            throw refreshErr;
+          }
+        }
+      }
+      if (!validSession?.access_token) {
+        throw new Error('الجلسة غير صالحة أو منتهية الصلاحية');
+      }
+
+      // استخدام الوظيفة الموحّدة للرفع مع cacheControl طويل
+      const uploaded = await uploadFileWithAuth('organization-assets', filePath, file, {
+        cacheControl: '31536000',
+        upsert: false,
+        contentType: file.type
+      });
+      if (!uploaded.success) {
+        throw new Error(uploaded.error || 'فشل رفع الصورة');
+      }
+      
+      return uploaded.publicUrl || '';
+
     } catch (error: any) {
-      throw error; // إعادة إلقاء الخطأ ليتم التعامل معه بشكل مناسب
+      console.error('❌ خطأ في uploadImageWithOfflineSupport:', error);
+      throw error; // إعادة إلقاء الخطأ الأصلي
     }
   };
 
@@ -569,11 +650,21 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
           .toLowerCase(); // تحويل إلى أحرف صغيرة
       };
 
-      // إنشاء اسم ملف جديد مع الطابع الزمني
+      // حساب hash للمحتوى لتمكين cache-busting الآمن
+      const computeFileHash = async (f: File): Promise<string> => {
+        const buf = await f.arrayBuffer();
+        const hashBuf = await crypto.subtle.digest('SHA-256', buf);
+        const arr = Array.from(new Uint8Array(hashBuf)).slice(0, 8); // 8 bytes -> 16 hex chars
+        return arr.map(b => b.toString(16).padStart(2, '0')).join('');
+      };
+
+      const contentHash = await computeFileHash(compressedFile);
+
+      // إنشاء اسم ملف جديد مع الطابع الزمني + hash
       const timestamp = Date.now();
       const baseName = compressedFile.name.replace(/\.[^/.]+$/, ''); // إزالة الامتداد
       const cleanBaseName = cleanFileName(baseName);
-      const fileName = `${timestamp}_${cleanBaseName}.${fileExtension}`;
+      const fileName = `${timestamp}_${cleanBaseName}_${contentHash}.${fileExtension}`;
       const filePath = `${folder}/${currentOrganization?.id}/${fileName}`;
 
       setUploadProgress(70);
@@ -601,11 +692,31 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
       });
 
     } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "فشل رفع الصورة",
-        description: error.message || "حدث خطأ غير متوقع",
-      });
+      console.error('❌ خطأ نهائي في رفع الصورة:', error);
+      
+      // معالجة أخطاء المصادقة بشكل خاص
+      if (error.message?.includes('تسجيل الدخول') || 
+          error.message?.includes('مصادقة') ||
+          error.message?.includes('صلاحية')) {
+        toast({
+          variant: "destructive",
+          title: "مطلوب تسجيل الدخول",
+          description: error.message + " يرجى تحديث الصفحة وتسجيل الدخول مرة أخرى.",
+        });
+        
+        // إضافة زر تحديث بعد 3 ثوانٍ
+        setTimeout(() => {
+          if (confirm('هل تريد تحديث الصفحة لتسجيل الدخول مرة أخرى؟')) {
+            window.location.reload();
+          }
+        }, 3000);
+      } else {
+        toast({
+          variant: "destructive",
+          title: "فشل رفع الصورة",
+          description: error.message || "حدث خطأ غير متوقع",
+        });
+      }
     } finally {
       setIsUploading(false);
       setUploadProgress(0);

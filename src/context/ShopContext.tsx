@@ -209,8 +209,8 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       setIsLoading(true);
       
-      // الحصول على معرف المنظمة
-      const organizationId = await getOrganizationId(currentUser);
+      // الحصول على معرف المنظمة بشكل مفضل من Tenant لتجنب فروع fallback
+      const organizationId = tenant.currentOrganization?.id || await getOrganizationId(currentUser);
           
       if (!organizationId) {
         setIsLoading(false);

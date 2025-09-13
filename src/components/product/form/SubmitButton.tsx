@@ -1,5 +1,4 @@
 import React, { memo } from 'react';
-import { motion } from 'framer-motion';
 
 interface SubmitButtonProps {
   disabled?: boolean;
@@ -10,12 +9,10 @@ interface SubmitButtonProps {
 
 const SubmitButton = memo<SubmitButtonProps>(({ disabled, loading, buttonText, t }) => (
   <div className="mt-8 pt-6 border-t border-border/50">
-    <motion.button
+    <button
       type="submit"
       disabled={disabled}
       className="premium-submit-button"
-      whileTap={{ scale: 0.98 }}
-      transition={{ type: "spring", stiffness: 300, damping: 20 }}
     >
       {loading ? (
         <>
@@ -40,7 +37,7 @@ const SubmitButton = memo<SubmitButtonProps>(({ disabled, loading, buttonText, t
           </svg>
         </>
       )}
-    </motion.button>
+    </button>
   </div>
 ));
 

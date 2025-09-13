@@ -5,7 +5,8 @@ import {
   EmployeeStats, 
   EmployeeWithStats, 
   EmployeeSalary,
-  EmployeeActivity 
+  EmployeeActivity,
+  EmployeePermissions
 } from '@/types/employee';
 
 // التأكد من وجود جداول الموظفين
@@ -282,6 +283,7 @@ const performGetEmployees = async (): Promise<Employee[]> => {
         manageServices: false,
         manageEmployees: false,
         viewOrders: false,
+        viewPOSOrders: false,
         // إضافة الصلاحيات الجديدة
         viewProducts: false,
         addProducts: false,
@@ -660,13 +662,84 @@ export const createEmployeeOptimized = async (
         manageProducts: false,
         manageServices: false,
         manageEmployees: false,
-        viewOrders: false
+        viewOrders: false,
+        viewPOSOrders: false
       }
     } as Employee;
 
   } catch (err) {
     throw err;
   }
+};
+
+// إنشاء موظف جديد بصلاحيات كاملة عبر RPC الموحدة
+export const createEmployeeWithAllPermissions = async (
+  email: string,
+  password: string,
+  userData: { name: string; phone?: string | null; job_title?: string | null },
+  permissions?: EmployeePermissions
+): Promise<Employee> => {
+  // مسح Cache عند إضافة موظف جديد
+  clearEmployeeCache();
+
+  const { data, error } = await supabase.rpc('manage_employee' as any, {
+    p_action: 'create',
+    p_payload: {
+      email,
+      password,
+      name: userData.name,
+      phone: userData.phone || null,
+      job_title: userData.job_title || null,
+      create_auth: true,
+      // تمرير الصلاحيات المحددة إن وُجدت؛ إن لم تُمرر سيمنح RPC جميع الصلاحيات افتراضيًا
+      ...(permissions ? { permissions } : {})
+    }
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+  if (!data || data.success !== true || !data.employee) {
+    throw new Error((data && (data.error || data.code)) || 'فشل إنشاء الموظف');
+  }
+
+  const e = data.employee;
+  // تحويل البيانات للنوع المطلوب
+  let created: Employee = {
+    id: e.id,
+    user_id: e.user_id,
+    name: e.name,
+    email: e.email,
+    phone: e.phone,
+    role: e.role as 'employee' | 'admin',
+    is_active: e.is_active,
+    last_login: null,
+    created_at: e.created_at,
+    updated_at: e.updated_at,
+    organization_id: e.organization_id,
+    permissions: e.permissions || {}
+  } as Employee;
+
+  // إذا لم يتم إنشاء حساب Auth من داخل قاعدة البيانات، نفّذ وظيفة الحافة لربطه دون تغيير جلسة المشرف
+  try {
+    if (created.user_id === created.id) {
+      const { data: { session } } = await supabase.auth.getSession();
+      const authHeader = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+      const { data: fnRes, error: fnErr } = await (supabase.functions as any).invoke('create-auth-employee', {
+        body: { email, password, name: userData.name, employee_id: created.id },
+        headers: {
+          ...authHeader,
+        }
+      });
+      if (!fnErr && fnRes?.auth_user_id) {
+        created = { ...created, user_id: fnRes.auth_user_id } as Employee;
+      }
+    }
+  } catch (_) {
+    // تجاهل أي خطأ هنا، سنُعيد السجل على أي حال
+  }
+
+  return created;
 };
 
 // دالة منفصلة لإرسال دعوة للموظف بدون تسجيل دخول تلقائي
@@ -860,23 +933,31 @@ export const toggleEmployeeStatus = async (id: string, isActive: boolean): Promi
 export const deleteEmployee = async (id: string): Promise<void> => {
   // مسح Cache عند حذف موظف
   clearEmployeeCache();
-  // 1. حذف الموظف من جدول users
-  const { error: userError } = await supabase
-    .from('users')
-    .delete()
-    .eq('id', id)
-    .eq('role', 'employee');
-    
-  if (userError) {
-    throw new Error(userError.message);
+  // استخدام RPC الموحدة لإدارة الموظفين (تحذف من قاعدة البيانات وتحاول حذف حساب Auth إذا كان متاحًا)
+  const { data, error } = await supabase.rpc('manage_employee' as any, {
+    p_action: 'delete',
+    p_payload: { employee_id: id }
+  });
+
+  if (error) {
+    throw new Error(error.message);
   }
-  
-  // 2. حذف حساب المستخدم من Auth
-  const { error: authError } = await supabase.auth.admin.deleteUser(id);
-  
-  if (authError) {
-    throw new Error(authError.message);
+  if (!data || data.success !== true) {
+    throw new Error((data && (data.error || data.code)) || 'فشل حذف الموظف');
   }
+};
+
+// RPC موحد لإنشاء أو حذف موظف من خلال دالة واحدة
+export const manageEmployee = async (
+  action: 'create' | 'delete',
+  payload: Record<string, any>
+): Promise<any> => {
+  const { data, error } = await supabase.rpc('manage_employee' as any, {
+    p_action: action,
+    p_payload: payload
+  });
+  if (error) throw error;
+  return data;
 };
 
 /**
@@ -1363,6 +1444,7 @@ export const getEmployeesWithStats = async (): Promise<{
         manageServices: false,
         manageEmployees: false,
         viewOrders: false,
+        viewPOSOrders: false,
         // إضافة الصلاحيات الجديدة
         viewProducts: false,
         addProducts: false,

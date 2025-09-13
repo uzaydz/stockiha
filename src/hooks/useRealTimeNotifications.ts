@@ -53,6 +53,7 @@ export function useRealTimeNotifications() {
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 5;
+  const hasInitialFetchRef = useRef(false);
 
   // إعدادات الإشعارات مع القيم الافتراضية
   const [settings, setSettings] = useState<NotificationSettings>({
@@ -122,6 +123,8 @@ export function useRealTimeNotifications() {
   // تحميل الإشعارات مع الكاش
   const loadNotifications = useCallback(async () => {
     if (!currentOrganization?.id || !settings.enabled) return;
+    if (hasInitialFetchRef.current) return; // منع التكرار المبكر
+    hasInitialFetchRef.current = true;
 
     const cacheKey = `notifications_${currentOrganization.id}`;
 
@@ -280,44 +283,12 @@ export function useRealTimeNotifications() {
     };
   }, [currentOrganization?.id, settings.realtimeEnabled, settings.newOrderSound, settings.toastEnabled, reconnect]);
 
-  // تحميل الإشعارات عند التهيئة مع الكاش
+  // تحميل الإشعارات عند التهيئة مع الكاش (باستخدام الدالة المعرّفة useCallback أعلاه)
   useEffect(() => {
     if (!currentOrganization?.id) return;
-
-    const cacheKey = `notifications_${currentOrganization.id}`;
-
-    // التحقق من الكاش أولاً
-    const cachedNotifications = localCache.get<NotificationItem[]>(cacheKey);
-    if (cachedNotifications) {
-      setNotifications(cachedNotifications);
-      return;
-    }
-
-    const loadNotifications = async () => {
-      try {
-        // Use raw SQL to bypass strict typing
-        const { data, error } = await supabase
-          .from('notifications' as any)
-          .select('*')
-          .eq('organization_id', currentOrganization.id)
-          .order('created_at', { ascending: false })
-          .limit(50);
-
-        if (error) {
-          return;
-        }
-
-        const notificationsData = (data || []) as unknown as NotificationItem[];
-        setNotifications(notificationsData);
-
-        // حفظ في الكاش لمدة 2 دقيقة
-        localCache.set(cacheKey, notificationsData, 2 * 60 * 1000);
-      } catch (error) {
-      }
-    };
-
+    // اعتمد على الدالة الموحدة لتجنب تكرار تنفيذ نفس الاستعلام مرتين
     loadNotifications();
-  }, [currentOrganization?.id]);
+  }, [currentOrganization?.id, loadNotifications]);
 
   // حساب الإحصائيات
   const stats = useMemo(() => ({

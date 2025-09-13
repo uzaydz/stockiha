@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { StoreComponent } from '@/types/store-editor';
 import { 
   LazyStoreBanner, 
@@ -54,14 +54,16 @@ const StoreComponentRenderer: React.FC<StoreComponentRendererProps> = React.memo
       {/* عرض المكونات */}
       {components.map((component, index) => (
         <SimpleErrorBoundary key={component.id || `component-${index}`}>
-          <ComponentSwitch
-            component={component}
-            centralOrgId={centralOrgId}
-            storeName={storeName}
-            categories={categories}
-            featuredProducts={featuredProducts}
-            contactEmail={contactEmail}
-          />
+          <Suspense fallback={null}>
+            <ComponentSwitch
+              component={component}
+              centralOrgId={centralOrgId}
+              storeName={storeName}
+              categories={categories}
+              featuredProducts={featuredProducts}
+              contactEmail={contactEmail}
+            />
+          </Suspense>
         </SimpleErrorBoundary>
       ))}
     </>
@@ -77,18 +79,43 @@ const ComponentSwitch: React.FC<{
   featuredProducts: any[];
   contactEmail?: string;
 }> = React.memo(({ component, centralOrgId, storeName, categories, featuredProducts, contactEmail }) => {
+  
+  // 🚀 إضافة fallback من window object إذا لم تكن البيانات متوفرة
+  const windowEarlyData = (window as any).__EARLY_STORE_DATA__;
+  const windowStoreData = (window as any).__CURRENT_STORE_DATA__;
+  
+  const effectiveCategories = categories?.length > 0 ? categories : 
+    (windowEarlyData?.data?.categories || []);
+    
+  const effectiveFeaturedProducts = featuredProducts?.length > 0 ? featuredProducts : 
+    (windowEarlyData?.data?.featured_products || []);
+    
+  const effectiveStoreName = storeName || 
+    windowStoreData?.organization?.name || 
+    windowEarlyData?.data?.organization_details?.name || 
+    'المتجر';
+  
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🎯 [ComponentSwitch] البيانات المستخدمة:', {
+      componentType: component.type,
+      categoriesCount: effectiveCategories.length,
+      featuredProductsCount: effectiveFeaturedProducts.length,
+      storeName: effectiveStoreName
+    });
+  }
   switch (component.type) {
     case 'hero':
-      return <LazyStoreBanner heroData={component.settings as any} featuredProducts={featuredProducts} />;
+      return <LazyStoreBanner heroData={component.settings as any} featuredProducts={effectiveFeaturedProducts} />;
     
     case 'product_categories':
+    case 'categories':
       
       return (
         <LazyProductCategories 
           title={component.settings?.title}
           description={component.settings?.description}
           useRealCategories={true} // تأكد من استخدام الفئات الحقيقية دائماً في المتجر
-          categories={categories}
+          categories={effectiveCategories}
           settings={{
             ...component.settings,
             useRealCategories: true // تأكيد إضافي

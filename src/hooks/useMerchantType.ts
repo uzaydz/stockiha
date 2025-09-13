@@ -1,5 +1,6 @@
 import React from 'react';
 import { supabase } from '@/lib/supabase';
+import { getOrganizationSettings } from '@/lib/api/deduplicatedApi';
 import { globalCache, CacheKeys } from '@/lib/globalCache';
 import { MerchantType } from '@/components/sidebar/types';
 
@@ -51,28 +52,13 @@ export const useMerchantType = (
         return;
       }
 
-      // جلب البيانات من قاعدة البيانات
-      const { data: orgSettings, error: dbError } = await supabase
-        .from('organization_settings')
-        .select('merchant_type')
-        .eq('organization_id', currentOrganizationId)
-        .single();
+      // جلب البيانات من API الموحّد مع dedup
+      const settings = await getOrganizationSettings(currentOrganizationId);
+      const finalType = ((settings as any)?.merchant_type as MerchantType) || 'both';
+      setMerchantType(finalType);
 
-      if (dbError) {
-        // إذا كان الخطأ بسبب عدم وجود السجل، استخدم القيمة الافتراضية
-        if (dbError.code === 'PGRST116') {
-          setMerchantType('both');
-        } else {
-          // خطأ حقيقي
-          throw dbError;
-        }
-      } else {
-        const finalType = (orgSettings?.merchant_type as MerchantType) || 'both';
-        setMerchantType(finalType);
-
-        // حفظ في الكاش
-        globalCache.set(cacheKey, finalType);
-      }
+      // حفظ في الكاش
+      globalCache.set(cacheKey, finalType);
     } catch (err) {
       console.error('Error fetching merchant type:', err);
       setError(err instanceof Error ? err.message : 'خطأ في جلب نوع التاجر');

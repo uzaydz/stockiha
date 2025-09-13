@@ -34,10 +34,9 @@ export const usePOSReturn = ({
   updateProductStockInCache,
   refreshPOSData
 }: UsePOSReturnOptions) => {
-  
-  // 🔍 إزالة console.log المتكرر لتجنب spam في console
-  // سيتم عرض الرسالة فقط في حالة development وفي المرة الأولى فقط
+
   const initRef = useRef(false);
+
   if (!initRef.current && process.env.NODE_ENV === 'development') {
     initRef.current = true;
   }

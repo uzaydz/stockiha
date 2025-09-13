@@ -69,8 +69,10 @@ export const ProductFormSection = memo<ProductFormSectionProps>(({
         product={{
           has_variants: product.variants?.has_variants,
           colors: product.variants?.colors,
-          stock_quantity: product.inventory?.stock_quantity || product.stock_quantity
-        }}
+          stock_quantity: product.inventory?.stock_quantity || product.stock_quantity,
+          // إضافة معلومات الشحن للمنتج
+          shipping_and_templates: product.shipping_and_templates
+        } as any}
         selectedColor={selectedColor}
         selectedSize={selectedSize}
         onColorSelect={onColorSelect}
@@ -92,8 +94,8 @@ export const ProductFormSection = memo<ProductFormSectionProps>(({
 
       {/* مؤشر حفظ الطلب المتروك */}
       {isSavingCart && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 rounded-lg p-3 mb-4">
-          <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/40 rounded-lg p-3 mb-4">
+          <span className="inline-block w-2 h-2 rounded-full bg-primary/70" />
           <span>جاري حفظ بياناتك...</span>
         </div>
       )}

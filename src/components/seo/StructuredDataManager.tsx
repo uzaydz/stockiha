@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -39,7 +39,8 @@ import {
   Copy
 } from 'lucide-react';
 import { seoService, SEOStructuredData } from '@/api/seoService';
-import Editor from '@monaco-editor/react';
+// Lazy load Monaco editor to keep initial JS small
+const MonacoEditor = React.lazy(() => import('@monaco-editor/react'));
 
 const schemaTemplates = {
   Organization: {
@@ -317,7 +318,8 @@ export function StructuredDataManager() {
                     <div className="space-y-2">
                       <Label>محتوى JSON-LD</Label>
                       <div className="h-96 border rounded-lg overflow-hidden">
-                        <Editor
+                        <Suspense fallback={<div className="h-96 flex items-center justify-center"><span>جاري تحميل المحرر…</span></div>}>
+                        <MonacoEditor
                           defaultLanguage="json"
                           value={JSON.stringify(editingData.schema_data, null, 2)}
                           onChange={(value) => {
@@ -341,6 +343,7 @@ export function StructuredDataManager() {
                             formatOnType: true
                           }}
                         />
+                        </Suspense>
                       </div>
                     </div>
 

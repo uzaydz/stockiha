@@ -5,7 +5,7 @@
 
 import { User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
-import { getOrganizationById } from '@/lib/api/organization';
+import { getOrganizationById } from '@/lib/api/deduplicatedApi';
 import { getCurrentUserProfile } from '@/lib/api/users';
 import type { UserProfile, Organization, AuthError, UserDataCacheItem } from '../types';
 import { 

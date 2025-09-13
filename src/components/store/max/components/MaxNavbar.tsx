@@ -124,7 +124,7 @@ export const MaxNavbar: React.FC<MaxNavbarProps> = ({ storeData, categories }) =
                 </select>
               </div>
               
-              <button className="flex items-center gap-2 text-slate-600 hover:text-blue-600 transition-all duration-300 bg-white/50 rounded-full px-3 py-1 hover:bg-white/80">
+              <button aria-label="تسجيل الدخول" className="flex items-center gap-2 text-slate-600 hover:text-blue-600 transition-all duration-300 bg-white/50 rounded-full px-3 py-1 hover:bg-white/80 touch-target">
                 <User size={14} />
                 <span className="text-xs font-medium">تسجيل الدخول</span>
               </button>
@@ -191,13 +191,14 @@ export const MaxNavbar: React.FC<MaxNavbarProps> = ({ storeData, categories }) =
               <div className="flex items-center gap-3">
                 {/* زر البحث للشاشات الصغيرة */}
                 <button 
-                  className="lg:hidden p-3 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all duration-300 hover:scale-105"
+                  aria-label="بحث"
+                  className="lg:hidden p-3 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all duration-300 hover:scale-105 touch-target"
                   onClick={toggleSearch}
                 >
                   <Search size={22} />
                 </button>
 
-                <button className="relative p-3 text-slate-600 hover:text-pink-600 hover:bg-pink-50 rounded-xl transition-all duration-300 hover:scale-105 group">
+                <button aria-label="قائمة المفضلة" className="relative p-3 text-slate-600 hover:text-pink-600 hover:bg-pink-50 rounded-xl transition-all duration-300 hover:scale-105 group touch-target">
                   <Heart size={22} className="group-hover:fill-pink-100 transition-all duration-300" />
                   {wishlistCount > 0 && (
                     <span className="absolute -top-1 -right-1 bg-gradient-to-r from-pink-500 to-rose-500 text-white text-xs rounded-full h-6 w-6 flex items-center justify-center font-bold animate-pulse shadow-lg">
@@ -206,7 +207,7 @@ export const MaxNavbar: React.FC<MaxNavbarProps> = ({ storeData, categories }) =
                   )}
                 </button>
 
-                <button className="relative p-3 text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all duration-300 hover:scale-105 group">
+                <button aria-label="عربة التسوق" className="relative p-3 text-slate-600 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all duration-300 hover:scale-105 group touch-target">
                   <ShoppingBag size={22} className="group-hover:fill-emerald-100 transition-all duration-300" />
                   {cartCount > 0 && (
                     <span className="absolute -top-1 -right-1 bg-gradient-to-r from-emerald-500 to-green-500 text-white text-xs rounded-full h-6 w-6 flex items-center justify-center font-bold animate-bounce shadow-lg">
@@ -216,7 +217,7 @@ export const MaxNavbar: React.FC<MaxNavbarProps> = ({ storeData, categories }) =
                 </button>
 
                 <button 
-                  className="lg:hidden p-3 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all duration-300 hover:scale-105"
+                  className="lg:hidden p-3 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all duration-300 hover:scale-105 touch-target"
                   onClick={toggleMenu}
                   aria-label="فتح القائمة"
                 >

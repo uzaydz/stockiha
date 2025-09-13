@@ -38,7 +38,8 @@ const ProductPriceDisplay = memo<ProductPriceDisplayProps>(({
   
   // تحسين حسابات السعر بـ useMemo
   const priceData = useMemo(() => {
-    const priceInfo = getFinalPrice(product, quantity, selectedColor?.id, selectedSize?.id);
+    const qty = quantity > 0 ? quantity : 1;
+    const priceInfo = getFinalPrice(product, qty, selectedColor?.id, selectedSize?.id);
     
     // Debug console logs
     
@@ -47,8 +48,8 @@ const ProductPriceDisplay = memo<ProductPriceDisplayProps>(({
     
     // استخدام السعر النهائي مع العروض الخاصة إذا كانت مطبقة
     // إصلاح: priceInfo.price يحتوي بالفعل على السعر مضروباً في الكمية
-    const finalPrice = offerSummary.offerApplied ? offerSummary.finalPrice / offerSummary.finalQuantity : priceInfo.price / quantity;
-    const finalQuantity = offerSummary.offerApplied ? offerSummary.finalQuantity : quantity;
+    const finalPrice = offerSummary.offerApplied ? offerSummary.finalPrice / offerSummary.finalQuantity : priceInfo.price / qty;
+    const finalQuantity = offerSummary.offerApplied ? offerSummary.finalQuantity : qty;
     
     // إصلاح: استخدام السعر الصحيح بدون مضاعفة
     const totalPrice = offerSummary.offerApplied ? offerSummary.finalPrice : priceInfo.price;
@@ -63,28 +64,29 @@ const ProductPriceDisplay = memo<ProductPriceDisplayProps>(({
       }).format(price);
     };
 
-    const result = {
-      ...priceInfo,
-      price: finalPrice, // استخدام السعر النهائي مع العروض الخاصة
-      totalPrice,
-      totalOriginalPrice,
-      totalCompareAtPrice,
-      finalQuantity,
-      offerApplied: offerSummary.offerApplied,
-      offerSavings: offerSummary.savings,
-      selectedOffer,
-      formattedPrice: formatPrice(finalPrice),
-      formattedOriginalPrice: formatPrice(priceInfo.originalPrice / quantity),
-      formattedCompareAtPrice: priceInfo.compareAtPrice ? formatPrice(priceInfo.compareAtPrice / quantity) : undefined,
-      formattedTotalPrice: formatPrice(totalPrice),
-      formattedTotalOriginalPrice: formatPrice(totalOriginalPrice),
-      formattedTotalCompareAtPrice: totalCompareAtPrice ? formatPrice(totalCompareAtPrice) : undefined,
-      formattedDiscount: priceInfo.discount ? formatPrice(priceInfo.discount + offerSummary.savings) : (offerSummary.savings > 0 ? formatPrice(offerSummary.savings) : null),
-      hasDiscount: (priceInfo.originalPrice / quantity) > finalPrice || offerSummary.offerApplied,
-      hasCompareAtDiscount: priceInfo.hasCompareAtPrice && (priceInfo.compareAtPrice! / quantity) > finalPrice,
-      discountPercentage: priceInfo.discountPercentage || 0,
-      compareAtDiscountPercentage: priceInfo.compareAtDiscountPercentage || 0
-    };
+      const result = {
+        ...priceInfo,
+        price: finalPrice, // استخدام السعر النهائي مع العروض الخاصة
+        totalPrice,
+        totalOriginalPrice,
+        totalCompareAtPrice,
+        finalQuantity,
+        offerApplied: offerSummary.offerApplied,
+        offerSavings: offerSummary.savings,
+        selectedOffer,
+        formattedPrice: formatPrice(finalPrice),
+      formattedOriginalPrice: formatPrice(priceInfo.originalPrice / qty),
+      formattedCompareAtPrice: priceInfo.compareAtPrice ? formatPrice(priceInfo.compareAtPrice / qty) : undefined,
+        formattedTotalPrice: formatPrice(totalPrice),
+        formattedTotalOriginalPrice: formatPrice(totalOriginalPrice),
+        formattedTotalCompareAtPrice: totalCompareAtPrice ? formatPrice(totalCompareAtPrice) : undefined,
+        formattedDiscount: priceInfo.discount ? formatPrice(priceInfo.discount + offerSummary.savings) : (offerSummary.savings > 0 ? formatPrice(offerSummary.savings) : null),
+        hasDiscount: (priceInfo.originalPrice / qty) > finalPrice || offerSummary.offerApplied,
+        // إصلاح: لا تعتمد على priceInfo.hasCompareAtPrice (لا يعلم بالعروض الخاصة)
+        hasCompareAtDiscount: Boolean(priceInfo.compareAtPrice && (priceInfo.compareAtPrice / qty) > finalPrice),
+        discountPercentage: priceInfo.discountPercentage || 0,
+        compareAtDiscountPercentage: priceInfo.compareAtDiscountPercentage || 0
+      };
 
     // Debug final calculations
 
@@ -161,7 +163,7 @@ const ProductPriceDisplay = memo<ProductPriceDisplayProps>(({
                   {priceData.offerApplied && priceData.selectedOffer ? (
                     <>{t('productPricing.specialOffer')}: {priceData.selectedOffer.name} - {t('productPricing.save')} {priceData.offerSavings.toLocaleString('ar-DZ')} {t('productPricing.currency')}</>
                   ) : (
-                    <>{t('productPricing.save')} {((priceData.compareAtPrice! / quantity - priceData.price) * quantity).toLocaleString('ar-DZ')} {t('productPricing.currency')}</>
+                    <>{t('productPricing.save')} {((priceData.compareAtPrice! / (priceData.finalQuantity || 1) - priceData.price) * (priceData.finalQuantity || 1)).toLocaleString('ar-DZ')} {t('productPricing.currency')}</>
                   )}
                 </span>
               </div>

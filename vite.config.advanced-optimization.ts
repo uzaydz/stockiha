@@ -137,7 +137,9 @@ export default defineConfig(({ mode }: { mode: string }) => {
             'https://*.supabase.co',
             'wss://*.supabase.co',
             'https://api.yalidine.app',
-            'https://procolis.com'
+            'https://procolis.com',
+            'https://api.cloudflare.com',
+            'https://dns.google.com'
           ],
         }
       }),
@@ -198,54 +200,45 @@ export default defineConfig(({ mode }: { mode: string }) => {
         output: {
           // 🎯 تقسيم ذكي للحزم - استراتيجية التحميل التدريجي
           manualChunks: (id) => {
-            // المكتبات الأساسية - يتم تحميلها فوراً
-            if (id.includes('react') || id.includes('react-dom')) {
+            const is = (re: RegExp) => re.test(id);
+
+            // المكتبات الأساسية — React فقط
+            if (is(/[\\/]node_modules[\\/]react[\\/]/) || is(/[\\/]node_modules[\\/]react-dom[\\/]/)) {
               return 'react-core';
             }
-            
+
             // Supabase - مهم للمتجر
-            if (id.includes('@supabase')) {
+            if (is(/[\\/]node_modules[\\/]@supabase[\\/]/)) {
               return 'database';
             }
-            
+
             // مكونات المتجر الأساسية - تحميل فوري
-            if (id.includes('StorePage') || 
-                id.includes('StoreHeader') || 
-                id.includes('StoreBanner')) {
+            if (id.includes('StorePage') || id.includes('StoreHeader') || id.includes('StoreBanner')) {
               return 'store-core';
             }
-            
+
             // مكونات المتجر الثانوية - تحميل مؤجل
-            if (id.includes('store/') && 
-                (id.includes('ProductCategories') || 
-                 id.includes('FeaturedProducts') ||
-                 id.includes('CustomerTestimonials'))) {
+            if (id.includes('/store/') && (id.includes('ProductCategories') || id.includes('FeaturedProducts') || id.includes('CustomerTestimonials'))) {
               return 'store-sections';
             }
-            
+
             // مكونات UI الثقيلة - تحميل عند الطلب
-            if (id.includes('@radix-ui') || 
-                id.includes('framer-motion') ||
-                id.includes('lucide-react')) {
+            if (is(/[\\/]node_modules[\\/]@radix-ui[\\/]/) || is(/[\\/]node_modules[\\/]lucide-react[\\/]/) || is(/[\\/]node_modules[\\/]framer-motion[\\/]/)) {
               return 'ui-heavy';
             }
-            
-            // مكتبات المخططات - تحميل عند الطلب فقط
-            if (id.includes('chart') || 
-                id.includes('@nivo') ||
-                id.includes('recharts')) {
+
+            // مكتبات المخططات - تحميل عند الطلب فقط (تجنّب match عام لكلمة chart)
+            if (is(/[\\/]node_modules[\\/]recharts[\\/]/) || is(/[\\/]node_modules[\\/]@nivo[\\/]/) || is(/[\\/]node_modules[\\/]chart\.js[\\/]/) || is(/[\\/]node_modules[\\/]react-chartjs-2[\\/]/)) {
               return 'charts';
             }
-            
+
             // مكتبات الملفات والتصدير - تحميل عند الطلب
-            if (id.includes('jspdf') || 
-                id.includes('html2canvas') ||
-                id.includes('xlsx')) {
+            if (is(/[\\/]node_modules[\\/](jspdf|html2canvas|xlsx)[\\/]/)) {
               return 'export-tools';
             }
-            
+
             // باقي المكتبات
-            if (id.includes('node_modules')) {
+            if (is(/[\\/]node_modules[\\/]/)) {
               return 'vendor';
             }
           },

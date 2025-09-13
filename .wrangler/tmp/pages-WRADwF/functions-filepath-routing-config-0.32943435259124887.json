@@ -1,0 +1,189 @@
+{
+  "routes": [
+    {
+      "routePath": "/api/_rpc/get_product_complete_data",
+      "mountPath": "/api/_rpc",
+      "method": "GET",
+      "module": [
+        "api/_rpc/get_product_complete_data.ts:onRequestGet"
+      ]
+    },
+    {
+      "routePath": "/api/_rpc/get_store_init_data",
+      "mountPath": "/api/_rpc",
+      "method": "GET",
+      "module": [
+        "api/_rpc/get_store_init_data.ts:onRequestGet"
+      ]
+    },
+    {
+      "routePath": "/api/conversion-events/health",
+      "mountPath": "/api/conversion-events",
+      "method": "GET",
+      "module": [
+        "api/conversion-events/health.ts:onRequestGet"
+      ]
+    },
+    {
+      "routePath": "/api/conversion-events/tiktok",
+      "mountPath": "/api/conversion-events",
+      "method": "POST",
+      "module": [
+        "api/conversion-events/tiktok.ts:onRequestPost"
+      ]
+    },
+    {
+      "routePath": "/api/cloudflare-config",
+      "mountPath": "/api",
+      "method": "GET",
+      "module": [
+        "api/cloudflare-config.ts:onRequestGet"
+      ]
+    },
+    {
+      "routePath": "/api/cloudflare-domains",
+      "mountPath": "/api",
+      "method": "POST",
+      "module": [
+        "api/cloudflare-domains.ts:onRequestPost"
+      ]
+    },
+    {
+      "routePath": "/api/cloudflare-webhook",
+      "mountPath": "/api",
+      "method": "POST",
+      "module": [
+        "api/cloudflare-webhook.ts:onRequestPost"
+      ]
+    },
+    {
+      "routePath": "/api/conversion-events",
+      "mountPath": "/api",
+      "method": "GET",
+      "module": [
+        "api/conversion-events.ts:onRequestGet"
+      ]
+    },
+    {
+      "routePath": "/api/conversion-events",
+      "mountPath": "/api",
+      "method": "POST",
+      "module": [
+        "api/conversion-events.ts:onRequestPost"
+      ]
+    },
+    {
+      "routePath": "/api/csp-report",
+      "mountPath": "/api",
+      "method": "OPTIONS",
+      "module": [
+        "api/csp-report.ts:onRequestOptions"
+      ]
+    },
+    {
+      "routePath": "/api/csp-report",
+      "mountPath": "/api",
+      "method": "POST",
+      "module": [
+        "api/csp-report.ts:onRequestPost"
+      ]
+    },
+    {
+      "routePath": "/api/health-check",
+      "mountPath": "/api",
+      "method": "GET",
+      "module": [
+        "api/health-check.ts:onRequestGet"
+      ]
+    },
+    {
+      "routePath": "/api/verify-domain",
+      "mountPath": "/api",
+      "method": "OPTIONS",
+      "module": [
+        "api/verify-domain.ts:onRequestOptions"
+      ]
+    },
+    {
+      "routePath": "/api/verify-domain",
+      "mountPath": "/api",
+      "method": "POST",
+      "module": [
+        "api/verify-domain.ts:onRequestPost"
+      ]
+    },
+    {
+      "routePath": "/api/yalidine-fees-proxy",
+      "mountPath": "/api",
+      "method": "GET",
+      "module": [
+        "api/yalidine-fees-proxy.ts:onRequestGet"
+      ]
+    },
+    {
+      "routePath": "/api/yalidine-fees-proxy",
+      "mountPath": "/api",
+      "method": "OPTIONS",
+      "module": [
+        "api/yalidine-fees-proxy.ts:onRequestOptions"
+      ]
+    },
+    {
+      "routePath": "/api/yalidine-fees-proxy",
+      "mountPath": "/api",
+      "method": "POST",
+      "module": [
+        "api/yalidine-fees-proxy.ts:onRequestPost"
+      ]
+    },
+    {
+      "routePath": "/api/csp-report",
+      "mountPath": "/api",
+      "method": "",
+      "module": [
+        "api/csp-report.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/secure-yalidine-proxy",
+      "mountPath": "/api",
+      "method": "",
+      "module": [
+        "api/secure-yalidine-proxy.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/robots.txt",
+      "mountPath": "/",
+      "method": "",
+      "module": [
+        "robots.txt.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/sitemap.xml",
+      "mountPath": "/",
+      "method": "",
+      "module": [
+        "sitemap.xml.ts:onRequest"
+      ]
+    },
+    {
+      "routePath": "/",
+      "mountPath": "/",
+      "method": "OPTIONS",
+      "middleware": [
+        "_middleware.ts:onRequestOptions"
+      ]
+    },
+    {
+      "routePath": "/",
+      "mountPath": "/",
+      "method": "",
+      "middleware": [
+        "_middleware.ts:onRequest"
+      ]
+    }
+  ],
+  "baseURL": "/"
+}

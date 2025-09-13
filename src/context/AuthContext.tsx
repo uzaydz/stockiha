@@ -12,7 +12,7 @@ import React, {
   useMemo,
   useRef 
 } from 'react';
-import { Session, User as SupabaseUser } from '@supabase/supabase-js';
+import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 
 import { setCurrentOrganizationId } from '@/lib/requestInterceptor';
 

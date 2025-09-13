@@ -15,6 +15,7 @@ export const NetworkErrorHandler: React.FC<NetworkErrorHandlerProps> = ({ childr
   const [error, setError] = useState<NetworkError | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [retryCount, setRetryCount] = useState(0);
+  const isDev = import.meta.env.DEV || window.location.hostname.includes('localhost') || window.location.hostname.startsWith('127.');
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -39,6 +40,49 @@ export const NetworkErrorHandler: React.FC<NetworkErrorHandlerProps> = ({ childr
           const linkTarget = target as HTMLLinkElement;
           resourceUrl = linkTarget.href || '';
           errorType = resourceUrl.includes('chunk') ? 'chunk' : 'network';
+          // تجاهل أخطاء ملفات الأنماط غير الحرجة مثل Google Fonts أو CSS chunks معينة لتجنب إنذارات خاطئة
+          const isNonCriticalStyle = /fonts\.googleapis\.com|cloudflareinsights\.com|QuickExpenseDialog.*\.css/i.test(resourceUrl);
+          if (!resourceUrl || isNonCriticalStyle) {
+            // لا تُظهر طبقة خطأ كاملة بسبب CSS ثانوي محظور بواسطة CSP أو مشاكل preload
+            console.warn('🎨 Non-critical CSS resource failed to load:', resourceUrl);
+            return;
+          }
+        }
+
+        // في بيئة التطوير: تجاهل أخطاء الموارد تماماً لتجنب حلقات إعادة التحميل
+        if (isDev) {
+          console.warn('🧪 Dev mode: ignoring resource error', resourceUrl || '(no url)');
+          return;
+        }
+
+        // تجاهل الموارد الموسومة كغير حرجة عبر الخاصية المخصصة
+        const nonCriticalAttr = (target as HTMLElement).getAttribute?.('data-noncritical');
+        if (nonCriticalAttr === 'true') {
+          console.warn('📎 Non-critical script/link failed to load (tagged):', resourceUrl);
+          return;
+        }
+
+        // تجاهل أخطاء تحميل سكريبتات تتبُّع الطرف الثالث غير الحرجة (TikTok/Facebook/Google Analytics وغيرها)
+        try {
+          const urlObj = resourceUrl ? new URL(resourceUrl, window.location.href) : null;
+          const isSameOrigin = urlObj ? urlObj.origin === window.location.origin : true;
+
+          const nonCriticalThirdParty = resourceUrl && (
+            /analytics\.tiktok\.com/i.test(resourceUrl) ||
+            /connect\.facebook\.net/i.test(resourceUrl) ||
+            /www\.googletagmanager\.com/i.test(resourceUrl) ||
+            /google-analytics\.com/i.test(resourceUrl) ||
+            /stats?\.g\.doubleclick\.net/i.test(resourceUrl) ||
+            /cloudflareinsights\.com/i.test(resourceUrl) ||
+            /cdn\.segment\.com/i.test(resourceUrl)
+          );
+
+          if (!isSameOrigin && nonCriticalThirdParty) {
+            console.warn('🔍 Ignored non-critical third-party resource error:', resourceUrl);
+            return;
+          }
+        } catch (_) {
+          // تجاهل مشاكل تحليل URL
         }
 
         // تحسين كشف أخطاء Instagram in-app browser
@@ -46,19 +90,22 @@ export const NetworkErrorHandler: React.FC<NetworkErrorHandlerProps> = ({ childr
                                   navigator.userAgent.includes('FBAN') ||
                                   navigator.userAgent.includes('FBAV');
 
-        if (isInstagramBrowser && errorType === 'chunk') {
-          console.log('🚨 Instagram browser chunk error detected, attempting recovery...');
+        if (!isDev && isInstagramBrowser && errorType === 'chunk') {
+          
           // إعادة تحميل الصفحة مع تأخير أقصر لـ Instagram
           setTimeout(() => {
             window.location.reload();
           }, 1000);
         }
 
-        setError({
-          type: errorType,
-          message: `فشل في تحميل ${target.tagName === 'SCRIPT' ? 'ملف JavaScript' : 'ملف CSS'}: ${resourceUrl}`,
-          timestamp: Date.now()
-        });
+        // أظهر الخطأ فقط للسكريبتات أو ملفات CSS الحرجة
+        if (target.tagName === 'SCRIPT' || errorType === 'chunk') {
+          setError({
+            type: errorType,
+            message: `فشل في تحميل ${target.tagName === 'SCRIPT' ? 'ملف JavaScript' : 'ملف CSS'}: ${resourceUrl}`,
+            timestamp: Date.now()
+          });
+        }
       }
     };
 
@@ -123,9 +170,9 @@ export const NetworkErrorHandler: React.FC<NetworkErrorHandlerProps> = ({ childr
 
   // إعادة المحاولة التلقائية لأخطاء التحميل
   useEffect(() => {
-    if (error && error.type === 'chunk' && retryCount < 3) {
+    if (!isDev && error && error.type === 'chunk' && retryCount < 3) {
       const timeout = setTimeout(() => {
-        console.log(`🔄 Auto-retry ${retryCount + 1}/3 for chunk loading error`);
+        
         window.location.reload();
       }, 2000 + retryCount * 1000); // تأخير متزايد
 
@@ -137,7 +184,7 @@ export const NetworkErrorHandler: React.FC<NetworkErrorHandlerProps> = ({ childr
     setError(null);
     setRetryCount(prev => prev + 1);
     
-    if (error?.type === 'chunk' || error?.type === 'network') {
+    if (!isDev && (error?.type === 'chunk' || error?.type === 'network')) {
       window.location.reload();
     }
   };

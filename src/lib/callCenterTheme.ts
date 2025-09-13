@@ -71,6 +71,14 @@ function hexToHSL(hex: string): string {
 export function applyCallCenterTheme(theme: CallCenterTheme): void {
   const root = document.documentElement;
   const body = document.body;
+  // تعطيل الانتقالات مؤقتاً أثناء تبديل الثيم لتجنّب التغيّر المتدرّج للعناصر
+  const NO_MOTION_CLASS = 'no-motion';
+  if (!root.classList.contains(NO_MOTION_CLASS)) {
+    try {
+      root.classList.add(NO_MOTION_CLASS);
+      setTimeout(() => { try { root.classList.remove(NO_MOTION_CLASS); } catch {} }, 150);
+    } catch {}
+  }
   
   // تحديد الوضع الفعلي
   let effectiveMode = theme.mode;
@@ -303,11 +311,9 @@ export function applyCallCenterTheme(theme: CallCenterTheme): void {
     document.head.appendChild(baseStyle);
   }
   
-  // فرض إعادة رسم الصفحة
+  // لا تُجبر إعادة التدفق: دع المتصفح يطبّق تغييرات الثيم ضمن إطار الرسم التالي
   requestAnimationFrame(() => {
-    document.body.style.display = 'none';
-    document.body.offsetHeight; // Force reflow
-    document.body.style.display = '';
+    try { window.dispatchEvent(new Event('resize')); } catch {}
   });
 }
 

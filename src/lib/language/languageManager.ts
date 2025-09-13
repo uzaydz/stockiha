@@ -4,8 +4,9 @@
  */
 
 import { getOrganizationSettings } from '@/lib/api/unified-api';
-import { getOrganizationById } from '@/lib/api/organization';
+import { getOrganizationById } from '@/lib/api/deduplicatedApi';
 import { STORAGE_KEYS } from '@/lib/storage/localStorageManager';
+import { langLog } from '@/lib/debug/langDebug';
 
 // ثوابت اللغة
 const LANGUAGE_CACHE_TTL = 30 * 60 * 1000; // 30 دقيقة
@@ -205,6 +206,7 @@ export function dispatchLanguageUpdateEvent(language: string, organizationId: st
       }
     });
     
+    langLog('dispatchLanguageUpdateEvent', { language, organizationId });
     window.dispatchEvent(languageUpdateEvent);
     
     if (process.env.NODE_ENV === 'development') {
@@ -263,6 +265,18 @@ export function updateLanguageFromSettings(language: string): void {
   }
   
   try {
+    langLog('updateLanguageFromSettings', { language });
+    // حفظ اللغة مباشرة في localStorage لتكون متاحة قبل تهيئة i18n
+    try {
+      if (language && ['ar', 'en', 'fr'].includes(language)) {
+        const current = localStorage.getItem('i18nextLng');
+        if (current !== language) {
+          localStorage.setItem('i18nextLng', language);
+          localStorage.setItem('i18nextLng_timestamp', Date.now().toString());
+        }
+      }
+    } catch {}
+
     // منع إرسال نفس الحدث مرات متكررة
     if (lastLanguageEventSent.language === language && 
         now - lastLanguageEventSent.timestamp < LANGUAGE_UPDATE_DEBOUNCE) {

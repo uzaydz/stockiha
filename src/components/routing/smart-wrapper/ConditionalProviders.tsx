@@ -8,6 +8,7 @@ import { PageType, ProviderConfig } from './types';
 
 // Context Providers
 import { TenantProvider } from '@/context/TenantContext';
+import { PublicTenantProvider } from '@/context/tenant/TenantProvider';
 import { AuthProvider } from '@/context/AuthContext';
 import { DashboardDataProvider } from '@/context/DashboardDataContext';
 import { ThemeProvider } from '@/context/ThemeContext';
@@ -17,6 +18,7 @@ import { ShopProvider } from "@/context/ShopContext";
 import { StoreProvider } from "@/context/StoreContext";
 import { SuperUnifiedDataProvider } from '@/context/SuperUnifiedDataContext';
 import { UserProvider } from '@/context/UserContext';
+import { PermissionsProvider } from '@/context/PermissionsContext';
 
 // Subscription Data Refresher
 import SubscriptionDataRefresher from '@/components/subscription/SubscriptionDataRefresher';
@@ -118,30 +120,72 @@ const AuthTenantWrapper = memo<ConditionalProviderProps>(({
     lastPathname.current = pathname;
   }, [config, pageType, pathname]);
 
+  // مُنشئ تركيبة المزودات بناءً على التكوين (لتخفيف التغليف)
+  const buildAuthTenantTree = (cfg: ProviderConfig, node: React.ReactNode) => {
+    let result = node;
+    const needsRefresher = cfg.apps || cfg.notifications || pageType === 'dashboard' || pageType === 'pos' || pageType === 'pos-orders';
+    const needsPermissions = pageType === 'dashboard' || pageType === 'call-center' || pageType === 'pos' || pageType === 'pos-orders';
+    const hasDomPreload = (() => {
+      try {
+        if (typeof document === 'undefined') return false;
+        return !!document.getElementById('__PRELOADED_PRODUCT__');
+      } catch { return false; }
+    })();
+
+    if (cfg.tenant) {
+      // ضع SubscriptionDataRefresher داخل TenantProvider لضمان توفر TenantContext
+      const withRefresher = (
+        <>
+          {result}
+          {needsRefresher ? <SubscriptionDataRefresher /> : null}
+        </>
+      );
+
+      // استخدم PublicTenantProvider لصفحات المنتج العامة لتجنب اعتماد Auth/User
+      if (pageType === 'public-product' && hasDomPreload) {
+        result = (
+          <PublicTenantProvider>
+            {withRefresher}
+          </PublicTenantProvider>
+        );
+      } else {
+        result = (
+          <TenantProvider>
+            {withRefresher}
+          </TenantProvider>
+        );
+      }
+    }
+
+    if (needsPermissions) {
+      result = (
+        <PermissionsProvider>
+          {result}
+        </PermissionsProvider>
+      );
+    }
+
+    // في public-product بدون dom-preload، نحتاج Auth/User لتمرير organization
+    const shouldAttachAuth = cfg.auth || (pageType === 'public-product' && !hasDomPreload);
+    if (shouldAttachAuth) {
+      result = (
+        <AuthProvider>
+          <UserProvider>
+            {result}
+          </UserProvider>
+        </AuthProvider>
+      );
+    }
+
+    return result;
+  };
+
   // 🔥 منع إعادة الإنشاء إذا لم تتغير البيانات
   if (!shouldRecreate && isInitialized.current) {
-    return (
-      <AuthProvider>
-        <UserProvider>
-          <TenantProvider>
-            <SubscriptionDataRefresher />
-            {children}
-          </TenantProvider>
-        </UserProvider>
-      </AuthProvider>
-    );
+    return buildAuthTenantTree(lastConfig.current, children);
   }
 
-  return (
-    <AuthProvider>
-      <UserProvider>
-        <TenantProvider>
-          <SubscriptionDataRefresher />
-          {children}
-        </TenantProvider>
-      </UserProvider>
-    </AuthProvider>
-  );
+  return buildAuthTenantTree(config, children);
 }, (prevProps, nextProps) => {
   // 🔥 تحسين: مقارنة عميقة لمنع إعادة الإنشاء
   return (
@@ -163,73 +207,45 @@ const SharedStoreDataWrapper = memo<{
   pageType: PageType;
   pathname: string;
 }>(({ children, pageType, pathname }) => {
-  // 🔥 تحسين: تقليل console.log في الإنتاج
-  if (process.env.NODE_ENV === 'development') {
-  }
-  
-  // 🔥 استخدام useRef لمنع إعادة الإنشاء المتكرر
   const lastPageType = useRef(pageType);
   const lastPathname = useRef(pathname);
   const lastProviderComponent = useRef<any>(null);
   
-  // تحسين اختيار المزود مع useMemo والتحقق من التغييرات
-  const ProviderComponent = useMemo(() => {
+  // اختيار المزود المناسب حسب نوع الصفحة مع memoization
+  const providerConfig = useMemo(() => {
     // التحقق من التغييرات لتجنب إعادة الحساب
     if (
       lastPageType.current === pageType &&
       lastPathname.current === pathname &&
       lastProviderComponent.current
     ) {
-      // 🔥 إزالة console.log لتجنب التكرار
       return lastProviderComponent.current;
     }
-    
-    let component;
-    switch (pageType) {
-      case 'dashboard':
-      case 'pos':
-        // للوحة التحكم ونقطة البيع - استخدام المحسن
-        if (pathname.includes('/dashboard/orders-v2')) {
-          component = MinimalOptimizedSharedStoreDataProvider;
-        } else {
-          component = OptimizedSharedStoreDataProvider;
-        }
-        break;
 
-      case 'public-product':
-        // للمنتجات العامة - provider محسن للمنتجات
-        component = ProductPageSharedStoreDataProvider;
-        break;
+    // اختيار المزود المناسب حسب نوع الصفحة
+    let config = {
+      includeCategories: false,
+      includeProducts: false,
+      includeFeaturedProducts: false,
+      includeComponents: false,
+      includeFooterSettings: false,
+      includeTestimonials: false,
+      includeSeoMeta: false,
+      enabled: true
+    };
 
-      case 'landing':
-      case 'thank-you':
-      case 'auth':
-        // للصفحات الخفيفة - أدنى حد
-        component = MinimalSharedStoreDataProvider;
-        break;
-
-      default:
-        // باقي الصفحات - provider عادي
-        component = SharedStoreDataProvider;
-        break;
-    }
-    
     // تحديث القيم المرجعية
     lastPageType.current = pageType;
     lastPathname.current = pathname;
-    lastProviderComponent.current = component;
-    
-    // 🔥 إزالة console.log لتجنب التكرار
-    
-    return component;
+    lastProviderComponent.current = config;
+
+    return config;
   }, [pageType, pathname]);
 
-  // 🔥 إزالة console.log لتجنب التكرار
-
   return (
-    <ProviderComponent>
+    <MinimalOptimizedSharedStoreDataProvider {...providerConfig}>
       {children}
-    </ProviderComponent>
+    </MinimalOptimizedSharedStoreDataProvider>
   );
 });
 
@@ -251,6 +267,13 @@ const NotificationsWrapper = memo<{
   
   // الصفحات التي تحتاج NotificationsProvider مع memoization
   const needsNotifications = useMemo(() => {
+    // تخطّي النوتيفيكيشن في محرر المتجر لتفادي أي جلب إضافي
+    try {
+      if (typeof window !== 'undefined' && window.location.pathname.startsWith('/dashboard/store-editor')) {
+        return false;
+      }
+    } catch {}
+
     // التحقق من التغييرات لتجنب إعادة الحساب
     if (
       lastPageType.current === pageType &&

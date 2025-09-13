@@ -39,15 +39,13 @@ export default function ProductInventory({
     return () => subscription.unsubscribe();
   }, [form]);
 
-  const getStockStatus = () => {
-    const currentStock = form.watch('stock_quantity');
-    if (currentStock === undefined || currentStock === null) return 'not-set';
+  const stockStatus = (() => {
+    const currentStock = stockQuantity;
+    if (currentStock === undefined || currentStock === null || currentStock === ('' as any)) return 'not-set';
     if (currentStock === 0) return 'out-of-stock';
     if (currentStock <= 10) return 'low-stock';
     return 'in-stock';
-  };
-
-  const stockStatus = getStockStatus();
+  })();
 
   return (
     <TooltipProvider>

@@ -174,6 +174,17 @@ export const prepareFormSubmissionData = (
     advanced_description: data.advanced_description || null,
     // الصور الإضافية تذهب لحقل additional_images
     additional_images: imagesToSubmit,
+    // تحويل وضع النشر من الواجهة إلى حقول قاعدة البيانات
+    ...(data.publication_mode === 'publish_now' ? {
+      publication_status: 'published',
+      publish_at: null,
+    } : data.publication_mode === 'draft' ? {
+      publication_status: 'draft',
+      publish_at: null,
+    } : data.publication_mode === 'scheduled' ? {
+      publication_status: 'scheduled',
+      publish_at: data.publish_at || null,
+    } : {}),
   };
 
   return finalData;

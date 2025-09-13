@@ -1,6 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+import { useMemo } from 'react';
 import { useTenant } from '@/context/TenantContext';
+import useUnifiedPOSData from '@/hooks/useUnifiedPOSData';
 
 interface ScannerProduct {
   id: string;
@@ -52,108 +52,59 @@ interface AllProductsResponse {
 export const useAllProductsForScanner = () => {
   const { currentOrganization } = useTenant();
 
+  // إعادة استخدام المصدر الموحد نفسه وبنفس مفاتيح الاستعلام لمنع التكرار
+  // ملاحظة: نستخدم search='' وcategoryId='' لتطابق usePOSAdvancedState تماماً
   const {
-    data: response,
+    products: unifiedProducts,
     isLoading,
     error,
-    refetch
-  } = useQuery({
-    queryKey: ['all-products-scanner', currentOrganization?.id],
-    queryFn: async (): Promise<AllProductsResponse> => {
-      if (!currentOrganization?.id) {
-        throw new Error('معرف المؤسسة مطلوب');
-      }
-
-      try {
-        // استخدام دالة RPC محسنة لجلب جميع المنتجات
-        const { data, error } = await supabase.rpc('get_complete_pos_data_optimized' as any, {
-          p_organization_id: currentOrganization.id,
-          p_products_page: 1,
-          p_products_limit: 10000, // جلب عدد كبير لضمان الحصول على جميع المنتجات
-          p_search: null,
-          p_category_id: null
-        });
-
-        if (error) {
-          throw new Error(`خطأ في جلب المنتجات: ${error.message}`);
-        }
-
-        if (!data) {
-          throw new Error('لم يتم إرجاع أي بيانات');
-        }
-
-        const responseData = Array.isArray(data) ? data[0] : data;
-
-        if (responseData?.success && responseData?.data?.products) {
-          return {
-            success: true,
-            data: responseData.data.products,
-            meta: {
-              total_count: responseData.data.products.length,
-              execution_time_ms: responseData.meta?.execution_time_ms || 0,
-              organization_id: currentOrganization.id
-            }
-          };
-        }
-
-        throw new Error(responseData?.error || 'فشل في جلب المنتجات');
-
-      } catch (error: any) {
-        throw error;
-      }
-    },
+    refreshData: refetch
+  } = useUnifiedPOSData({
+    page: 1,
+    limit: 10000,
+    search: '',
+    categoryId: '',
     enabled: !!currentOrganization?.id,
-    staleTime: 5 * 60 * 1000, // 5 دقائق - البيانات مستقرة نسبياً
-    gcTime: 10 * 60 * 1000, // 10 دقائق في الذاكرة
-    retry: 2,
-    retryDelay: 1000
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000
   });
 
-  /**
-   * البحث السريع في المنتجات المحملة بالباركود
-   */
-  const searchByBarcode = (barcode: string): ScannerProduct | null => {
-    if (!response?.data || !barcode) return null;
+  // استخراج مصفوفة المنتجات من الاستجابة الموحدة
+  const productsArray: ScannerProduct[] = (unifiedProducts as unknown as ScannerProduct[]) || [];
 
-    const cleanBarcode = barcode.trim();
+  // فهرس سريع بالباركود -> المنتج/المتغير (O(1) بحث)
+  const barcodeIndex = useMemo(() => {
+    const map = new Map<string, ScannerProduct>();
+    if (!productsArray || productsArray.length === 0) return map;
 
-    // البحث في المنتجات الرئيسية
-    for (const product of response.data) {
-      // البحث في الباركود الرئيسي
-      if (product.barcode === cleanBarcode) {
-        return product;
-      }
+    for (const product of productsArray) {
+      // المنتج الرئيسي
+      if (product.barcode) map.set(product.barcode, product);
 
-      // البحث في المتغيرات (الألوان والمقاسات)
+      // الألوان والمقاسات
       if (product.has_variants && product.colors) {
         for (const color of product.colors) {
-          // البحث في باركود اللون
-          if (color.barcode === cleanBarcode) {
-            return {
+          if (color.barcode) {
+            map.set(color.barcode, {
               ...product,
               id: color.id,
               name: `${product.name} - ${color.name}`,
               stock_quantity: color.quantity,
               actual_stock_quantity: color.quantity,
-              colors: [color] // إرجاع اللون المحدد فقط
-            };
+              colors: [color]
+            });
           }
-
-          // البحث في المقاسات
           if (color.has_sizes && color.sizes) {
             for (const size of color.sizes) {
-              if (size.barcode === cleanBarcode) {
-                return {
+              if (size.barcode) {
+                map.set(size.barcode, {
                   ...product,
                   id: size.id,
                   name: `${product.name} - ${color.name} - ${size.name}`,
                   stock_quantity: size.quantity,
                   actual_stock_quantity: size.quantity,
-                  colors: [{
-                    ...color,
-                    sizes: [size] // إرجاع المقاس المحدد فقط
-                  }]
-                };
+                  colors: [{ ...color, sizes: [size] }]
+                });
               }
             }
           }
@@ -161,18 +112,27 @@ export const useAllProductsForScanner = () => {
       }
     }
 
-    return null;
+    return map;
+  }, [productsArray]);
+
+  /**
+   * البحث السريع في المنتجات المحملة بالباركود
+   */
+  const searchByBarcode = (barcode: string): ScannerProduct | null => {
+    if (!barcode) return null;
+    const clean = barcode.trim();
+    return barcodeIndex.get(clean) || null;
   };
 
   /**
    * البحث بالـ SKU
    */
   const searchBySku = (sku: string): ScannerProduct | null => {
-    if (!response?.data || !sku) return null;
+    if (!productsArray || productsArray.length === 0 || !sku) return null;
 
     const cleanSku = sku.trim().toLowerCase();
 
-    return response.data.find(product => 
+    return productsArray.find(product => 
       product.sku?.toLowerCase() === cleanSku
     ) || null;
   };
@@ -181,11 +141,11 @@ export const useAllProductsForScanner = () => {
    * البحث بالاسم (جزئي)
    */
   const searchByName = (name: string): ScannerProduct[] => {
-    if (!response?.data || !name) return [];
+    if (!productsArray || productsArray.length === 0 || !name) return [];
 
     const cleanName = name.trim().toLowerCase();
 
-    return response.data.filter(product =>
+    return productsArray.filter(product =>
       product.name.toLowerCase().includes(cleanName)
     );
   };
@@ -194,7 +154,7 @@ export const useAllProductsForScanner = () => {
    * الحصول على إحصائيات المنتجات
    */
   const getStats = () => {
-    if (!response?.data) {
+    if (!productsArray || productsArray.length === 0) {
       return {
         totalProducts: 0,
         productsWithBarcode: 0,
@@ -203,11 +163,11 @@ export const useAllProductsForScanner = () => {
       };
     }
 
-    const totalProducts = response.data.length;
-    const productsWithBarcode = response.data.filter(p => p.barcode).length;
-    const productsWithVariants = response.data.filter(p => p.has_variants).length;
+    const totalProducts = productsArray.length;
+    const productsWithBarcode = productsArray.filter(p => p.barcode).length;
+    const productsWithVariants = productsArray.filter(p => p.has_variants).length;
     
-    const totalVariants = response.data.reduce((total, product) => {
+    const totalVariants = productsArray.reduce((total, product) => {
       if (!product.has_variants || !product.colors) return total;
       
       return total + product.colors.reduce((colorTotal, color) => {
@@ -228,7 +188,7 @@ export const useAllProductsForScanner = () => {
 
   return {
     // البيانات
-    products: response?.data || [],
+    products: productsArray,
     isLoading,
     error,
     
@@ -242,7 +202,7 @@ export const useAllProductsForScanner = () => {
     stats: getStats(),
     
     // معلومات الحالة
-    isReady: !isLoading && !error && !!response?.data,
-    totalCount: response?.meta?.total_count || 0
+    isReady: !isLoading && !error && productsArray.length > 0,
+    totalCount: productsArray.length
   };
 };

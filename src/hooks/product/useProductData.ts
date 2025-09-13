@@ -5,7 +5,8 @@ import {
   DataScope,
   clearProductCache
 } from '@/lib/api/productComplete';
-import { getProductCompleteDataOptimized } from '@/lib/api/productCompleteOptimized';
+// استخدم النسخة الموحّدة المانعة للتكرار لتجنّب الازدواجية بين المكونات
+import { getProductCompleteDataOptimized as getProductCompleteDataOptimizedDedup } from '@/lib/api/deduplicatedApi';
 import { useProductCache } from './useProductCache';
 
 interface UseProductDataProps {
@@ -47,7 +48,7 @@ const PRODUCT_CACHE_TTL = 5 * 60 * 1000; // 5 دقائق
 export const useProductData = ({
   productId,
   organizationId,
-  dataScope = 'ultra', // تغيير إلى 'ultra' لضمان جلب جميع البيانات المطلوبة
+  dataScope = 'full', // تقليل الحمولة الافتراضية؛ اجلب ultra عند الحاجة فقط
   enabled = true,
   preloadedProduct
 }: UseProductDataProps): [ProductDataState, ProductDataActions] => {
@@ -97,7 +98,7 @@ export const useProductData = ({
 
     const matches = checkPreloadedData(pid);
     if (matches) {
-      console.log('✅ [useProductData] استخدام البيانات المحملة مسبقاً:', pid);
+      
 
       setProduct(preloadedProduct);
       setLoading(false);
@@ -113,7 +114,7 @@ export const useProductData = ({
       return true;
     }
 
-    console.log('⚠️ [useProductData] البيانات المحملة مسبقاً غير متوفرة أو غير متطابقة:', pid);
+    
     return false;
   }, [preloadedProduct, checkPreloadedData, createCacheKey, organizationId, cache, saveToGlobalCache]);
 
@@ -128,10 +129,10 @@ export const useProductData = ({
 
   // جلب بيانات المنتج
   const fetchProduct = useCallback(async () => {
-    console.log('🔄 [useProductData] بدء جلب المنتج:', productId, { enabled, preloadedProduct: !!preloadedProduct });
+    
 
     if (!productId || !enabled) {
-      console.log('⚠️ [useProductData] معرف المنتج غير صحيح أو الجلب معطل:', { productId, enabled });
+      
       setError('معرف المنتج غير صحيح أو الجلب معطل');
       setLoading(false);
       return;
@@ -203,8 +204,8 @@ export const useProductData = ({
 
               // محاولة جلب البيانات مع fallback strategies
               try {
-                // المحاولة الأولى: الدالة المحسنة (بدون forceRefresh للسماح باستخدام Cache)
-                response = await (getProductCompleteDataOptimized as any)(productId, {
+                // المحاولة الأولى: الدالة المحسنة عبر API الموحّد مع منع التكرار
+                response = await (getProductCompleteDataOptimizedDedup as any)(productId, {
                   organizationId,
                   dataScope: dataScope,
                   forceRefresh: false // ✅ عدم إجبار تحديث البيانات للسماح باستخدام Cache

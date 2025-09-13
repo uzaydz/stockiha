@@ -4,6 +4,7 @@ export const permissionMapping: Record<string, string[]> = {
   'viewServices': ['viewServices', 'manageServices'],
   'viewProducts': ['viewProducts', 'manageProducts', 'editProducts'],
   'viewOrders': ['viewOrders', 'manageOrders'],
+  'viewPOSOrders': ['viewPOSOrders', 'accessPOS', 'manageOrders'],
   'viewSalesReports': ['viewSalesReports', 'viewReports'],
   'viewFinancialReports': ['viewFinancialReports', 'viewReports'],
   'viewCustomers': ['viewCustomers', 'manageCustomers'],

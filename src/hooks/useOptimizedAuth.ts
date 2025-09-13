@@ -153,17 +153,12 @@ class AuthManager {
       organizationCache,
       cacheKey,
       async () => {
-        const { data, error } = await supabase
-          .from('organization_settings')
-          .select('merchant_type')
-          .eq('organization_id', orgId)
-          .single();
-
-        if (error) {
-          throw new Error(`Failed to fetch organization: ${error.message}`);
+        const { getOrganizationSettings } = await import('@/lib/api/deduplicatedApi');
+        const settings = await getOrganizationSettings(orgId);
+        if (!settings) {
+          throw new Error('Failed to fetch organization settings');
         }
-
-        return data;
+        return { merchant_type: (settings as any).merchant_type };
       },
       20 * 60 * 1000 // 20 minutes cache
     );

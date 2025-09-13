@@ -6,19 +6,8 @@
 import { supabase } from '@/lib/supabase';
 import { useQuery } from '@tanstack/react-query';
 import UnifiedCacheManager from './cache/unifiedCacheManager';
+import { globalCache } from './cacheManager';
 
-// اختبار فوري لـ Supabase - تم إزالة console.log
-
-// معلومات البيئة - تم إزالة console.log
-
-// Global Cache للبيانات - محسن ومطور
-interface CacheEntry<T = any> {
-  data: T;
-  timestamp: number;
-  ttl?: number;
-}
-
-const globalCache = new Map<string, CacheEntry<any>>();
 const globalActiveRequests = new Map<string, Promise<any>>();
 
 // إضافة نظام تنظيف Cache تلقائي
@@ -33,35 +22,28 @@ const globalRequestDeduplication = new Map<string, {
 
 // 🔥 نظام Deduplication متقدم لمنع الطلبات المتكررة
 const ACTIVE_REQUESTS = new Map<string, Promise<any>>();
-const REQUEST_DEBOUNCE_TIME = 500; // نصف ثانية
+const REQUEST_DEBOUNCE_TIME = 800; // رفع المهلة لمنع الضربات المتقاربة
 const LAST_REQUEST_TIMES = new Map<string, number>();
 
 /**
  * دالة مساعدة لتنظيف Cache المنتهي الصلاحية
  */
 function cleanExpiredCache() {
-  const now = Date.now();
-  const expiredKeys: string[] = [];
-  
-  for (const [key, entry] of globalCache.entries()) {
-    if ((now - entry.timestamp) > entry.ttl) {
-      expiredKeys.push(key);
-    }
-  }
-  
-  expiredKeys.forEach(key => globalCache.delete(key));
-  
+  // تنظيف الكاش العام باستخدام دالة cleanup المدمجة
+  globalCache.cleanup();
+
   // تنظيف الطلبات القديمة أيضاً
   for (const [key, entry] of globalRequestDeduplication.entries()) {
-    if ((now - entry.timestamp) > 60000) { // إزالة الطلبات الأقدم من دقيقة
+    if ((Date.now() - entry.timestamp) > 60000) { // إزالة الطلبات الأقدم من دقيقة
       globalRequestDeduplication.delete(key);
     }
   }
-  
+
   // الحفاظ على حد أقصى للـ cache size
-  if (globalCache.size > CACHE_MAX_SIZE) {
-    const entriesToDelete = globalCache.size - CACHE_MAX_SIZE;
-    const keysToDelete = Array.from(globalCache.keys()).slice(0, entriesToDelete);
+  const stats = globalCache.getStats();
+  if (stats.size > CACHE_MAX_SIZE) {
+    const entriesToDelete = stats.size - CACHE_MAX_SIZE;
+    const keysToDelete = stats.keys.slice(0, entriesToDelete);
     keysToDelete.forEach(key => globalCache.delete(key));
   }
   
@@ -243,16 +225,11 @@ const executeRequest = async <T>(
 ): Promise<T> => {
   
   // التحقق من الكاش أولاً
-  if (globalCache.has(key)) {
-    const cached = globalCache.get(key)!;
-    if ((Date.now() - cached.timestamp) < cached.ttl) {
-      if (import.meta.env.DEV) {
-      }
-      return cached.data;
-    } else {
-      // إزالة البيانات منتهية الصلاحية
-      globalCache.delete(key);
+  const cached = globalCache.get<any>(key);
+  if (cached !== null) {
+    if (import.meta.env.DEV) {
     }
+    return cached;
   }
 
   // استثناء خاص للفئات - لا نطبق deduplication على الفئات
@@ -286,11 +263,8 @@ const executeRequest = async <T>(
     const promise = createDirectRestRequest(key)
       .then(result => {
         // حفظ في الكاش
-        globalCache.set(key, {
-          data: result,
-          timestamp: Date.now(),
-          ttl: key.includes('users') ? 15 * 60 * 1000 : 5 * 60 * 1000 // 15 دقيقة للمستخدمين، 5 دقائق للآخرين
-        });
+        const ttl = key.includes('users') ? 15 * 60 * 1000 : 5 * 60 * 1000; // 15 دقيقة للمستخدمين، 5 دقائق للآخرين
+        globalCache.set(key, result, ttl);
         
         if (import.meta.env.DEV) {
         }
@@ -320,13 +294,9 @@ const executeRequest = async <T>(
   // للطلبات الأخرى، استخدم الطريقة العادية
   const promise = withTimeout(requestFunction(), timeout)
     .then(result => {
-      
+
       // حفظ في الكاش
-      globalCache.set(key, {
-        data: result,
-        timestamp: Date.now(),
-        ttl: 5 * 60 * 1000
-      });
+      globalCache.set(key, result, 5 * 60 * 1000);
       
       if (import.meta.env.DEV) {
       }
@@ -385,11 +355,11 @@ async function executeRequestWithDeduplication<T>(
   }
 
   // التحقق من الكاش القديم كاحتياط
-  const cached = globalCache.get(key);
-  if (cached && (now - cached.timestamp) < cacheTime) {
+  const cached = globalCache.get<any>(key);
+  if (cached !== null) {
     // نقل البيانات إلى الكاش الموحد
-    UnifiedCacheManager.set(key, cached.data, cacheType, cacheTime);
-    return cached.data;
+    UnifiedCacheManager.set(key, cached, cacheType, cacheTime);
+    return cached;
   }
 
   // إذا كان هناك طلب نشط لنفس المفتاح، انتظره
@@ -414,10 +384,7 @@ async function executeRequestWithDeduplication<T>(
       UnifiedCacheManager.set(key, result, cacheType, cacheTime);
 
       // حفظ في الكاش القديم كاحتياط
-      globalCache.set(key, {
-        data: result,
-        timestamp: now
-      });
+      globalCache.set(key, result, cacheTime);
 
       if (import.meta.env.DEV) {
       }
@@ -521,30 +488,10 @@ export class UnifiedRequestManager {
     if (!orgId) {
       return null;
     }
-    
-    return executeRequestWithDeduplication(
-      `unified_organization_${orgId}`,
-      async () => {
-        if (import.meta.env.DEV) {
-        }
-        
-        const { data, error } = await supabase
-          .from('organizations')
-          .select('*')
-          .eq('id', orgId)
-          .maybeSingle();
 
-        if (error) {
-          return null;
-        }
-        
-        if (import.meta.env.DEV) {
-        }
-        
-        return data;
-      },
-      15 * 60 * 1000 // 15 دقيقة cache للمؤسسة
-    );
+    // Delegate to the central deduplicated API to avoid duplicate queries
+    const { getOrganizationById } = await import('@/lib/api/deduplicatedApi');
+    return getOrganizationById(orgId);
   }
 
   /**
@@ -781,7 +728,8 @@ export class UnifiedRequestManager {
   static clearCache(pattern?: string) {
     if (pattern) {
       // مسح الكاش المطابق للنمط
-      for (const key of globalCache.keys()) {
+      const stats = globalCache.getStats();
+      for (const key of stats.keys) {
         if (key.includes(pattern)) {
           globalCache.delete(key);
         }
@@ -818,11 +766,12 @@ export class UnifiedRequestManager {
    * إحصائيات الكاش والطلبات النشطة
    */
   static getCacheStats() {
+    const stats = globalCache.getStats();
     return {
-      cacheSize: globalCache.size,
+      cacheSize: stats.size,
       activeRequests: ACTIVE_REQUESTS.size,
       lastRequestTimes: LAST_REQUEST_TIMES.size,
-      cacheKeys: Array.from(globalCache.keys()),
+      cacheKeys: stats.keys,
       activeRequestKeys: Array.from(ACTIVE_REQUESTS.keys())
     };
   }
@@ -831,19 +780,12 @@ export class UnifiedRequestManager {
    * معلومات مفصلة عن الكاش
    */
   static getCacheInfo() {
+    const stats = globalCache.getStats();
     return {
-      size: globalCache.size,
+      size: stats.size,
       activeRequests: ACTIVE_REQUESTS.size,
       deduplicationRequests: globalRequestDeduplication.size,
-      cacheEntries: Array.from(globalCache.keys()).map(key => {
-        const entry = globalCache.get(key);
-        return {
-          key,
-          age: Date.now() - (entry?.timestamp || 0),
-          ttl: entry?.ttl || 0,
-          isExpired: entry ? (Date.now() - entry.timestamp) > (entry.ttl || 0) : true
-        };
-      })
+      cacheKeys: stats.keys
     };
   }
 
@@ -1005,7 +947,8 @@ export default UnifiedRequestManager;
  */
 export const clearGlobalCacheKeys = (keys: string[]): void => {
   keys.forEach(key => {
-    if (globalCache.has(key)) {
+    const cached = globalCache.get(key);
+    if (cached !== null) {
       globalCache.delete(key);
     }
     globalActiveRequests.delete(key);
@@ -1017,11 +960,12 @@ export const clearGlobalCacheKeys = (keys: string[]): void => {
  * مسح جميع مفاتيح cache المرتبطة بمؤسسة معينة
  */
 export const clearOrganizationGlobalCache = (organizationId: string): void => {
-  
+
   const keysToDelete: string[] = [];
-  
+
   // البحث عن جميع المفاتيح المرتبطة بالمؤسسة
-  for (const key of globalCache.keys()) {
+  const stats = globalCache.getStats();
+  for (const key of stats.keys) {
     if (key.includes(organizationId)) {
       keysToDelete.push(key);
     }
@@ -1049,9 +993,10 @@ if (typeof window !== 'undefined') {
   
   // دالة للحصول على حالة globalCache للتشخيص
   (window as any).getUnifiedCacheStats = () => {
+    const stats = globalCache.getStats();
     return {
-      size: globalCache.size,
-      keys: Array.from(globalCache.keys()),
+      size: stats.size,
+      keys: stats.keys,
       activeRequests: globalActiveRequests.size,
       activeRequestKeys: Array.from(globalActiveRequests.keys()),
       deduplicationRequests: globalRequestDeduplication.size,
@@ -1064,19 +1009,12 @@ if (typeof window !== 'undefined') {
 
   // دالة للحصول على معلومات Cache
   const getCacheInfo = () => {
+    const stats = globalCache.getStats();
     return {
-      size: globalCache.size,
+      size: stats.size,
       activeRequests: ACTIVE_REQUESTS.size,
       deduplicationRequests: globalRequestDeduplication.size,
-      cacheEntries: Array.from(globalCache.keys()).map(key => {
-        const entry = globalCache.get(key);
-        return {
-          key,
-          age: Date.now() - (entry?.timestamp || 0),
-          ttl: entry?.ttl || 0,
-          isExpired: entry ? (Date.now() - entry.timestamp) > (entry.ttl || 0) : true
-        };
-      })
+      cacheKeys: stats.keys
     };
   };
 

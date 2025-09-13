@@ -18,6 +18,7 @@ import { PropertySection } from '../PropertySection';
 import { Type, Image as ImageIcon, MousePointer, Settings, Package, Star, Eye, Search } from 'lucide-react';
 import ImageUploader from '@/components/ui/ImageUploader';
 import { supabase } from '@/lib/supabase';
+import { useStoreEditorData } from '@/context/StoreEditorDataContext';
 
 interface HeroEditorProps {
   settings: any;
@@ -132,7 +133,7 @@ export const HeroEditor: React.FC<HeroEditorProps> = ({
     setSelectedProducts(initialSelectedProducts);
   }, [initialSelectedProducts]);
 
-  // جلب المنتجات من قاعدة البيانات حسب النوع
+  // جلب المنتجات من قاعدة البيانات حسب النوع (مع استخدام بيانات Provider إن توفرت)
   useEffect(() => {
     const fetchProducts = async () => {
       if (!organizationId) return;
@@ -151,6 +152,21 @@ export const HeroEditor: React.FC<HeroEditorProps> = ({
 
       setLoadingProducts(true);
       try {
+        // استخدام بيانات Provider للمنتجات المميزة لتفادي الاستعلام عندما يكون النوع 'featured'
+        if (productsType === 'featured') {
+          try {
+            const ctx = useStoreEditorData();
+            const pre = (ctx?.data?.featured_products as any[]) || [];
+            if (pre && pre.length > 0) {
+              setProducts(pre as any);
+              localStorage.setItem(`${fetchKey}_data`, JSON.stringify(pre));
+              localStorage.setItem(fetchKey, 'true');
+              localStorage.setItem(`${fetchKey}_timestamp`, Date.now().toString());
+              return;
+            }
+          } catch {}
+        }
+
         let query = supabase
           .from('products')
           .select('id, name, description, price, images, thumbnail_image, is_featured, is_new, is_active, category, sku, created_at')

@@ -9,6 +9,30 @@ import { I18nextProvider } from 'react-i18next';
 import { HelmetProvider } from "react-helmet-async";
 import { Toaster } from '@/components/ui/toaster';
 import { Toaster as Sonner } from "@/components/ui/sonner";
+import { SafeTranslationProvider } from '@/components/safe-i18n/SafeTranslationProvider';
+
+// إنشاء HelmetContext منفصل لضمان التهيئة الصحيحة
+const helmetContext = {
+  instances: new Set(),
+  add: (instance: any) => {
+    helmetContext.instances.add(instance);
+  },
+  remove: (instance: any) => {
+    helmetContext.instances.delete(instance);
+  },
+  update: (instance: any) => {
+    // لا حاجة لفعل شيء هنا
+  },
+  canUseDOM: typeof window !== 'undefined',
+  setHelmet: (helmet: any) => {
+    // لا حاجة لفعل شيء هنا
+  },
+  helmetInstances: {
+    get: () => helmetContext.instances,
+    add: (instance: any) => helmetContext.instances.add(instance),
+    remove: (instance: any) => helmetContext.instances.delete(instance)
+  }
+};
 
 interface I18nSEOWrapperProps {
   children: React.ReactNode;
@@ -65,7 +89,7 @@ export const I18nSEOWrapper = memo<I18nSEOWrapperProps>(({ children }) => {
   // قبل تهيئة i18n، اعرض المحتوى بدون مزود i18n لتسريع الإقلاع
   if (isLoading || !i18nInstance) {
     return (
-      <HelmetProvider>
+      <HelmetProvider context={helmetContext}>
         {content}
       </HelmetProvider>
     );
@@ -73,9 +97,11 @@ export const I18nSEOWrapper = memo<I18nSEOWrapperProps>(({ children }) => {
 
   return (
     <I18nextProvider i18n={i18nInstance}>
-      <HelmetProvider>
-        {content}
-      </HelmetProvider>
+      <SafeTranslationProvider>
+        <HelmetProvider context={helmetContext}>
+          {content}
+        </HelmetProvider>
+      </SafeTranslationProvider>
     </I18nextProvider>
   );
 });

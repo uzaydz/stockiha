@@ -46,3 +46,28 @@ export const CoreInfrastructureWrapper = memo<CoreInfrastructureWrapperProps>(({
 });
 
 CoreInfrastructureWrapper.displayName = 'CoreInfrastructureWrapper';
+
+// 🎯 Minimal wrapper for public store routes — no SupabaseProvider at bootstrap
+export const MinimalCoreInfrastructureWrapper = memo<CoreInfrastructureWrapperProps>(({ children }) => {
+  React.useEffect(() => {
+    window.dispatchEvent(new CustomEvent('bazaar:infrastructure-ready', {
+      detail: { timestamp: Date.now(), minimal: true }
+    }));
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <LoadingControllerProvider maxConcurrentRequests={PERFORMANCE_CONFIG.maxConcurrentRequests}>
+          <GlobalLoadingProvider>
+            <AppWrapper>
+              {children}
+            </AppWrapper>
+          </GlobalLoadingProvider>
+        </LoadingControllerProvider>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+});
+
+MinimalCoreInfrastructureWrapper.displayName = 'MinimalCoreInfrastructureWrapper';

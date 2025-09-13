@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
+import { getCdnImageUrl, deviceAdjustedWidth } from '@/lib/image-cdn';
 
 // =================================================================
 // 🚀 PERFORMANCE OPTIMIZED IMAGE COMPONENT
@@ -22,10 +23,16 @@ interface PerformanceOptimizedImageProps extends Omit<React.ImgHTMLAttributes<HT
   blurDataURL?: string;
   className?: string;
   objectFit?: 'contain' | 'cover' | 'fill' | 'none' | 'scale-down';
+  objectPosition?: React.CSSProperties['objectPosition'];
   quality?: number; // 1-100
   fallbackSrc?: string; // صورة احتياطية في حالة الفشل
   onLoadComplete?: () => void;
   onError?: () => void;
+  /**
+   * عندما تكون true، يتم ملء حاوية الصورة 100% من عرض وارتفاع الأب
+   * مفيد عندما يكون لديك عنصر أب مع aspect-ratio وتريد أن تغطي الصورة كامل البطاقة
+   */
+  fill?: boolean;
 }
 
 const PerformanceOptimizedImage = React.memo(({
@@ -39,10 +46,12 @@ const PerformanceOptimizedImage = React.memo(({
   blurDataURL,
   className,
   objectFit = 'cover',
+  objectPosition = 'center',
   quality = 75,
   fallbackSrc,
   onLoadComplete,
   onError,
+  fill = false,
   ...props
 }: PerformanceOptimizedImageProps) => {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -80,29 +89,21 @@ const PerformanceOptimizedImage = React.memo(({
   }, [priority, isInView]);
 
   // =================================================================
-  // 🎯 Optimized image source generation
+  // 🎯 Optimized image source generation - معطل مؤقتاً بسبب Free Plan
   // =================================================================
   const generateOptimizedSrc = useCallback((originalSrc: string, w: number, q: number = quality) => {
-    // إذا كانت الصورة من Supabase
-    if (originalSrc.includes('supabase.co') || originalSrc.includes('supabase.in')) {
-      // Supabase storage يدعم معاملات التحسين
-      const url = new URL(originalSrc);
-      url.searchParams.set('width', w.toString());
-      url.searchParams.set('quality', q.toString());
-      return url.toString();
-    }
-    
-    // إذا كانت الصورة محلية أو خارجية، ارجع كما هي
-    return originalSrc;
-  }, [quality]);
+    const adjusted = deviceAdjustedWidth(w || width);
+    // Route via Cloudflare Worker image CDN when possible
+    return getCdnImageUrl(originalSrc, { width: adjusted, quality: q, fit: objectFit === 'contain' ? 'contain' : 'cover', format: 'auto' });
+  }, [objectFit, quality, width]);
 
   // =================================================================
   // 🎯 Responsive image sources
   // =================================================================
   const generateSrcSet = useCallback((originalSrc: string) => {
-    const widths = [320, 480, 768, 1024, 1280, 1920];
+    const widths = [320, 480, 640, 768, 1024, 1280];
     return widths
-      .filter(w => w <= width * 2) // Only generate up to 2x the desired width
+      .filter(w => w <= (width ? width * 2 : 1024))
       .map(w => `${generateOptimizedSrc(originalSrc, w)} ${w}w`)
       .join(', ');
   }, [generateOptimizedSrc, width]);
@@ -141,8 +142,8 @@ const PerformanceOptimizedImage = React.memo(({
   // =================================================================
   const containerStyles = {
     position: 'relative' as const,
-    width: width ? `${width}px` : '100%',
-    height: height ? `${height}px` : 'auto',
+    width: fill ? '100%' : (width ? `${width}px` : '100%'),
+    height: fill ? '100%' : (height ? `${height}px` : 'auto'),
     overflow: 'hidden' as const,
     backgroundColor: placeholder === 'blur' ? '#f0f0f0' : 'transparent',
   };
@@ -151,6 +152,7 @@ const PerformanceOptimizedImage = React.memo(({
     width: '100%',
     height: '100%',
     objectFit,
+    objectPosition,
     transition: 'opacity 0.3s ease-in-out',
     opacity: isLoaded ? 1 : 0,
   };
@@ -162,6 +164,7 @@ const PerformanceOptimizedImage = React.memo(({
     width: '100%',
     height: '100%',
     objectFit,
+    objectPosition,
     opacity: isLoaded ? 0 : 1,
     transition: 'opacity 0.3s ease-in-out',
     filter: 'blur(2px)',
@@ -179,8 +182,8 @@ const PerformanceOptimizedImage = React.memo(({
         <img
           src={fallbackSrc}
           alt={alt}
-          width={width}
-          height={height}
+          width={fill ? undefined : width}
+          height={fill ? undefined : height}
           style={imageStyles}
           loading="lazy"
         />
@@ -232,10 +235,12 @@ const PerformanceOptimizedImage = React.memo(({
           srcSet={generateSrcSet(src)}
           sizes={sizes}
           alt={alt}
-          width={width}
-          height={height}
+          width={fill ? undefined : width}
+          height={fill ? undefined : height}
           style={imageStyles}
           loading={priority ? 'eager' : 'lazy'}
+          // تحسين LCP: إعطاء أولوية عالية للصورة الحرجة
+          fetchPriority={priority ? 'high' : undefined}
           decoding="async"
           onLoad={handleLoad}
           onError={handleError}
@@ -313,17 +318,4 @@ export default PerformanceOptimizedImage;
   height={300}
   sizes="(max-width: 768px) 100vw, 300px"
   fallbackSrc="/placeholder-product.jpg"
-  onLoadComplete={() => console.log('Product image loaded')}
-/>
-
-// 3. Profile image (small, optimized)
-<PerformanceOptimizedImage
-  src={user.avatar}
-  alt={`صورة ${user.name}`}
-  width={60}
-  height={60}
-  className="rounded-full"
-  placeholder="empty"
-  quality={90}
-/>
-*/
+/> */

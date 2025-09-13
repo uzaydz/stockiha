@@ -264,40 +264,7 @@ export const useProductFormTabs = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [goToPreviousTab, goToNextTab, changeTab, tabsData]);
 
-  // Auto-save every 2 seconds with debounce
-  useEffect(() => {
-    // Clear previous timeout
-    if (autoSaveTimeoutRef.current) {
-      clearTimeout(autoSaveTimeoutRef.current);
-    }
-
-    // Only auto-save if form has meaningful data
-    if (formState.isDirty && !formState.isSubmitting) {
-      autoSaveTimeoutRef.current = setTimeout(() => {
-        const formData = form.getValues();
-        const hasMinimalData = formData.name?.trim() || formData.description?.trim();
-        
-        if (hasMinimalData) {
-          try {
-            localStorage.setItem(`product-form-draft-${organizationId}`, JSON.stringify({
-              ...formData,
-              lastSaved: new Date().toISOString()
-            }));
-            setAutoSaveStatus('حُفظت المسودة تلقائياً');
-            
-            setTimeout(() => setAutoSaveStatus(''), 2000);
-          } catch (error) {
-          }
-        }
-      }, 2000);
-    }
-
-    return () => {
-      if (autoSaveTimeoutRef.current) {
-        clearTimeout(autoSaveTimeoutRef.current);
-      }
-    };
-  }, [formState.isDirty, formState.isSubmitting, form, organizationId]);
+  // Auto-save disabled by request: no draft persistence from tabs
 
   // Prevent memory leaks and UNSAFE lifecycle warnings
   useEffect(() => {
@@ -312,16 +279,19 @@ export const useProductFormTabs = ({
     };
   }, []);
 
-  // Auto-save integration
+  // Persist progress with light debounce to avoid frequent writes
   useEffect(() => {
     const progress = calculateProgress();
-    
-    // Store progress in localStorage for persistence
-    localStorage.setItem('product-form-progress', JSON.stringify({
-      activeTab,
-      progress,
-      timestamp: Date.now()
-    }));
+    const t = setTimeout(() => {
+      try {
+        localStorage.setItem('product-form-progress', JSON.stringify({
+          activeTab,
+          progress,
+          timestamp: Date.now(),
+        }));
+      } catch {}
+    }, 700);
+    return () => clearTimeout(t);
   }, [activeTab, calculateProgress]);
 
   // Validation summary

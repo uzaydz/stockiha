@@ -65,15 +65,15 @@ export const useProductPricing = ({
     return getFinalPrice(product, quantity, selectedColor?.id, selectedSize?.id);
   }, [product, quantity, selectedColor?.id, selectedSize?.id]);
 
-  // حساب السعر الإجمالي
+  // حساب السعر الإجمالي (priceInfo.price يحتوي على الإجمالي بالفعل)
   const totalPrice = useMemo(() => {
-    return priceInfo.price * quantity;
-  }, [priceInfo.price, quantity]);
+    return priceInfo.price;
+  }, [priceInfo.price]);
 
-  // حساب السعر الأصلي الإجمالي
+  // حساب السعر الأصلي الإجمالي (originalPrice هو الإجمالي)
   const originalTotalPrice = useMemo(() => {
-    return priceInfo.originalPrice * quantity;
-  }, [priceInfo.originalPrice, quantity]);
+    return priceInfo.originalPrice;
+  }, [priceInfo.originalPrice]);
 
   // حساب مبلغ الخصم
   const discountAmount = useMemo(() => {

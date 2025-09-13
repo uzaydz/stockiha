@@ -4,6 +4,7 @@ import { Product } from '@/api/store';
 import { getProducts } from '@/lib/api/products';
 import { useTranslation } from 'react-i18next';
 import { useSharedStoreDataContext } from '@/context/SharedStoreDataContext';
+import { usePreloadedStoreData } from '@/hooks/usePreloadedStoreData';
 import { getDefaultProducts, convertDatabaseProductToStoreProduct } from './productUtils';
 import { loadCriticalImages, loadLazyImages } from '@/lib/imageOptimization';
 import { 
@@ -32,62 +33,165 @@ export const useFeaturedProducts = ({
   const [fetchedProducts, setFetchedProducts] = useState<Product[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
 
+  // استخدام البيانات المحملة مسبقاً
+  const { 
+    featuredProducts: preloadedFeaturedProducts, 
+    isLoading: preloadedLoading,
+    isFromPreload 
+  } = usePreloadedStoreData({
+    includeFeaturedProducts: true,
+    enabled: true
+  });
+
   // جلب المنتجات حسب الطريقة المحددة (يدوي أو تلقائي)
+  // منع حلقات إعادة الجلب: نعتمد توقيعاً مستقراً لمحتوى preloadedFeaturedProducts
+  const preloadedSig = useMemo(() => {
+    try {
+      if (!preloadedFeaturedProducts || preloadedFeaturedProducts.length === 0) return '';
+      return preloadedFeaturedProducts.map((p: any) => p?.id ?? '').join(',');
+    } catch { return ''; }
+  }, [preloadedFeaturedProducts]);
+
+  const usedPreloadedOnceRef = (globalThis as any).__USED_PRELOADED_FEATURED_ONCE__ || { current: false };
+  (globalThis as any).__USED_PRELOADED_FEATURED_ONCE__ = usedPreloadedOnceRef;
+
   useEffect(() => {
     const fetchProducts = async () => {
-      if (!organizationId || initialProducts.length > 0) {
-        // لا نحتاج للجلب إذا كانت هناك منتجات من props أو لا يوجد organizationId
+      // أولاً، تحقق من البيانات المحملة مسبقاً
+      if (preloadedFeaturedProducts && preloadedFeaturedProducts.length > 0 && isFromPreload) {
+        // إذا سبق استخدام بيانات preload بنفس التوقيع، لا تعيد التعيين لتجنب حلقة الرندر
+        if (usedPreloadedOnceRef.current && fetchedProducts.length > 0) {
+          return;
+        }
+
+        // تحويل البيانات المحملة مسبقاً إلى تنسيق Product[]
+        const convertedPreloadedProducts = preloadedFeaturedProducts.map((dbProd: any) => {
+          try {
+            return convertDatabaseProductToStoreProduct(dbProd);
+          } catch {
+            // fallback بسيط إذا فشل التحويل
+            return {
+              id: dbProd.id,
+              name: dbProd.name || 'منتج',
+              description: dbProd.description || '',
+              price: Number(dbProd.price || 0),
+              discount_price: dbProd.compare_at_price ? Number(dbProd.compare_at_price) : undefined,
+              imageUrl: dbProd.thumbnail_url || dbProd.thumbnail_image || dbProd.imageUrl || '',
+              category: dbProd.product_categories?.name || dbProd.category || '',
+              is_new: !!dbProd.is_new,
+              is_featured: !!dbProd.is_featured,
+              stock_quantity: Number(dbProd.stock_quantity || 0),
+              slug: dbProd.slug || dbProd.id,
+              rating: 4.5
+            };
+          }
+        });
+        // عيّن مرة واحدة فقط
+        setFetchedProducts(convertedPreloadedProducts);
+        usedPreloadedOnceRef.current = true;
         return;
+      }
+
+      // إذا كانت هناك منتجات من props، استخدمها ولا تجلب من API
+      if (initialProducts.length > 0) {
+        return;
+      }
+
+      // إذا لم يكن هناك organizationId ولا بيانات محملة مسبقاً، حاول جلب البيانات باستخدام store identifier
+      if (!organizationId) {
+        
+        // سنحاول استخدام الـ API المباشر بدلاً من getProducts
       }
 
       setLoading(true);
       try {
-        const response = await getProducts(organizationId);
-
-        if (response && Array.isArray(response)) {
-          let filteredProducts: DBProduct[] = response;
+        
+        
+        // تحديد store identifier من النطاق الحالي
+        const hostname = window.location.hostname;
+        let storeIdentifier = hostname;
+        
+        // إزالة www. إذا كان موجوداً
+        if (storeIdentifier.startsWith('www.')) {
+          storeIdentifier = storeIdentifier.substring(4);
+        }
+        
+        
+        
+        // استخدام RPC للحصول على بيانات المتجر
+        const { getStoreInitData } = await import('@/lib/api/deduplicatedApi');
+        const storeData = await getStoreInitData(storeIdentifier);
+        
+        if (storeData && storeData.featured_products && Array.isArray(storeData.featured_products)) {
+          let filteredProducts = storeData.featured_products;
 
           if (selectionMethod === 'manual' && selectedProducts.length > 0) {
             // فلترة المنتجات المحددة يدوياً
-            filteredProducts = response.filter((product: DBProduct) =>
+            filteredProducts = storeData.featured_products.filter((product: any) =>
               selectedProducts.includes(product.id)
             );
           } else if (selectionMethod === 'automatic') {
             // فلترة المنتجات حسب المعايير التلقائية
             switch (selectionCriteria) {
               case 'featured':
-                filteredProducts = response.filter((product: DBProduct) => product.is_featured);
+                filteredProducts = storeData.featured_products.filter((product: any) => product.is_featured);
                 break;
               case 'newest':
-                filteredProducts = response.filter((product: DBProduct) => product.is_new);
+                filteredProducts = storeData.featured_products.filter((product: any) => product.is_new);
                 break;
               case 'discounted':
-                filteredProducts = response.filter((product: DBProduct) =>
+                filteredProducts = storeData.featured_products.filter((product: any) =>
                   product.compare_at_price && product.compare_at_price > product.price
                 );
                 break;
               case 'best_selling':
                 // يمكن إضافة منطق المبيعات هنا لاحقاً
-                filteredProducts = response.filter((product: DBProduct) => product.is_featured);
+                filteredProducts = storeData.featured_products.filter((product: any) => product.is_featured);
                 break;
               default:
-                filteredProducts = response.filter((product: DBProduct) => product.is_featured);
+                filteredProducts = storeData.featured_products.filter((product: any) => product.is_featured);
             }
           }
 
-          const convertedProducts = filteredProducts.map(convertDatabaseProductToStoreProduct);
+          // تحويل البيانات إلى تنسيق Product[]
+          const convertedProducts = filteredProducts.map((dbProd: any) => {
+            try {
+              return convertDatabaseProductToStoreProduct(dbProd);
+            } catch {
+              // fallback بسيط إذا فشل التحويل
+              return {
+                id: dbProd.id,
+                name: dbProd.name || 'منتج',
+                description: dbProd.description || '',
+                price: Number(dbProd.price || 0),
+                discount_price: dbProd.compare_at_price ? Number(dbProd.compare_at_price) : undefined,
+                imageUrl: dbProd.thumbnail_url || dbProd.thumbnail_image || dbProd.imageUrl || '',
+                category: dbProd.category_name || dbProd.category || '',
+                is_new: !!dbProd.is_new,
+                is_featured: !!dbProd.is_featured,
+                stock_quantity: Number(dbProd.stock_quantity || 0),
+                slug: dbProd.slug || dbProd.id,
+                rating: 4.5
+              };
+            }
+          });
+          
+          
           setFetchedProducts(convertedProducts);
         } else {
+          
           setFetchedProducts([]);
         }
       } catch (error) {
+        console.error(`❌ [useFeaturedProducts] خطأ في جلب البيانات من RPC:`, error);
         setFetchedProducts([]);
       }
       setLoading(false);
     };
 
     fetchProducts();
-  }, [selectionMethod, selectionCriteria, selectedProducts, organizationId, initialProducts.length]);
+    // ملاحظة: نعتمد على preloadedSig بدلاً من المرجع المباشر لتجنب تغيّر المرجع كل رندر
+  }, [selectionMethod, selectionCriteria, selectedProducts, organizationId, initialProducts.length, preloadedSig, isFromPreload]);
 
   // منطق عرض المنتجات المحسن
   const displayedProducts = useMemo(() => {

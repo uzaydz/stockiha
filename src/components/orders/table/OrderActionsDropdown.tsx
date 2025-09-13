@@ -31,6 +31,7 @@ import {
   Download as DownloadIcon,
   ClipboardList as ClipboardListIcon,
   Send as SendIcon,
+  Ban as BanIcon
 } from "lucide-react";
 import { OrderActionsDropdownProps, Order } from "./OrderTableTypes";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -52,6 +53,9 @@ const OrderActionsDropdown = ({
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSendingToYalidine, setIsSendingToYalidine] = useState(false);
   const [isSendingToZRExpress, setIsSendingToZRExpress] = useState(false);
+  const [showBlockConfirm, setShowBlockConfirm] = useState(false);
+  const [blocking, setBlocking] = useState(false);
+  const [blockReason, setBlockReason] = useState('');
   
   const ordersService = new OrdersService();
 
@@ -250,6 +254,46 @@ const OrderActionsDropdown = ({
     }
   };
 
+  const getCustomerPhone = (): string | null => {
+    try {
+      const formPhone = (order as any)?.form_data?.phone || (order as any)?.form_data?.customer_phone;
+      const customerPhone = (order as any)?.customer?.phone;
+      const shippingPhone = (order as any)?.shipping_address?.phone;
+      return customerPhone || formPhone || shippingPhone || null;
+    } catch { return null; }
+  };
+
+  const getCustomerName = (): string | null => {
+    try {
+      return (order as any)?.customer?.name || (order as any)?.form_data?.fullName || (order as any)?.form_data?.customer_name || null;
+    } catch { return null; }
+  };
+
+  const handleBlockCustomer = async () => {
+    const phone = getCustomerPhone();
+    const name = getCustomerName();
+    if (!currentOrganization || !phone) {
+      toast({ title: "لا يمكن الحظر", description: "لا يوجد رقم هاتف صالح", variant: "destructive" });
+      return;
+    }
+    setBlocking(true);
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      if (!supabaseUrl || !supabaseAnonKey) throw new Error('Supabase misconfigured');
+      // استخدم RPC عبر fetch مباشرةً غير ضروري هنا، سنستخدم client داخل الخدمة لاحقاً إن لزم
+      const { blockCustomer } = await import('@/lib/api/blocked-customers');
+      await blockCustomer(currentOrganization.id, phone, name || undefined, blockReason || undefined);
+      toast({ title: "تم الحظر", description: `تم حظر ${name || phone}` });
+      setShowBlockConfirm(false);
+    } catch (e: any) {
+      toast({ title: "فشل الحظر", description: e?.message || 'تعذر تنفيذ الحظر', variant: 'destructive' });
+    } finally {
+      setBlocking(false);
+      setBlockReason('');
+    }
+  };
+
   const handleViewOrderDetails = () => {
     const orderNumber = order?.customer_order_number || order?.id;
     window.open(`/dashboard/orders-v2/${orderNumber}`, "_self");
@@ -278,6 +322,7 @@ const OrderActionsDropdown = ({
     send_to_yalidine: { id: "send_to_yalidine", label: "إرسال إلى Yalidine", icon: SendIcon, action: handleSendToYalidine, className: "text-green-700 hover:bg-green-50", disabled: isSendingToYalidine },
     send_to_zrexpress: { id: "send_to_zrexpress", label: "إرسال إلى ZR Express", icon: TruckIcon, action: handleSendToZRExpress, className: "text-blue-700 hover:bg-blue-50", disabled: isSendingToZRExpress },
     cancel: { id: "cancel", label: "إلغاء الطلب", icon: X, action: () => setShowCancelConfirm(true), className: "text-rose-600 hover:bg-rose-50", separator: true },
+    block_customer: { id: "block_customer", label: "حظر العميل", icon: BanIcon, action: () => setShowBlockConfirm(true), className: "text-red-700 hover:bg-red-50" },
     delete: { id: "delete", label: "حذف الطلب نهائياً", icon: Trash2, action: () => setShowDeleteConfirm(true), className: "text-red-700 hover:bg-red-50", disabled: isDeleting },
   };
 
@@ -298,6 +343,11 @@ const OrderActionsDropdown = ({
     // Allow delete for admins (we assume hasCancelPermission means admin rights)
     if (hasCancelPermission) {
       actionKeys.push("delete");
+    }
+
+    // إتاحة خيار الحظر لمن لديه صلاحيات التحديث/الإلغاء (إداري)
+    if (hasUpdatePermission || hasCancelPermission) {
+      actionKeys.push("block_customer");
     }
 
     // التحقق من حالة إرسال الشحنات
@@ -441,6 +491,29 @@ const OrderActionsDropdown = ({
               disabled={isDeleting}
             >
               {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : "نعم، احذف نهائياً"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* تأكيد الحظر */}
+      <AlertDialog open={showBlockConfirm} onOpenChange={setShowBlockConfirm}>
+        <AlertDialogContent dir="rtl" className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2"><BanIcon className="h-5 w-5 text-red-600"/> تأكيد حظر العميل</AlertDialogTitle>
+            <AlertDialogDescription>
+              سيتم منع هذا العميل من إنشاء طلبات جديدة باستخدام نفس رقم الهاتف.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-2">
+            <label className="text-sm">سبب الحظر (اختياري)</label>
+            <input className="w-full border rounded px-3 py-2 bg-background" value={blockReason} onChange={(e) => setBlockReason(e.target.value)} placeholder="سبب الحظر" />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={blocking}>تراجع</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBlockCustomer} disabled={blocking} className="bg-red-600 text-white hover:bg-red-700 gap-2">
+              {blocking ? <Loader2 className="h-4 w-4 animate-spin"/> : <BanIcon className="h-4 w-4"/>}
+              تأكيد الحظر
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

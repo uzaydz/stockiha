@@ -117,6 +117,9 @@ function loadGoogleAnalytics(gtagId: string, testMode: boolean) {
   const script = document.createElement('script');
   script.src = `https://www.googletagmanager.com/gtag/js?id=${gtagId}`;
   script.async = true;
+  // وسم كسكريبت غير حرج
+  script.setAttribute('data-noncritical', 'true');
+  script.setAttribute('data-source', 'gtag');
   document.head.appendChild(script);
 
   // إعداد gtag
@@ -148,6 +151,18 @@ function loadTikTokPixel(pixelId: string, testMode: boolean, testEventCode?: str
     }(window, document, 'ttq');
   `;
   document.head.appendChild(script);
+  
+  // محاولة وسم سكريبت TikTok المُنشأ داخليًا كغير حرج عند إضافته (في بعض الأحيان يمكن إيجاده لاحقًا)
+  setTimeout(() => {
+    const candidates = Array.from(document.querySelectorAll('script[src*="analytics.tiktok.com/i18n/pixel/events.js"]')) as HTMLScriptElement[];
+    candidates.forEach(s => {
+      s.setAttribute('data-noncritical', 'true');
+      s.setAttribute('data-source', 'tiktok-pixel');
+      if (!s.onerror) {
+        s.onerror = () => console.warn('TikTok Pixel script failed to load');
+      }
+    });
+  }, 0);
 }
 
 // مكون للتحميل الشرطي للبكسلات حسب الصفحة

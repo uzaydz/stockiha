@@ -11,7 +11,7 @@ import { PROVIDER_CONFIGS } from '../constants';
 import type { PageType } from '../types';
 
 // استيراد المكونات المنفصلة
-import { CoreInfrastructureWrapper } from './CoreInfrastructureWrapper';
+import { CoreInfrastructureWrapper, MinimalCoreInfrastructureWrapper } from './CoreInfrastructureWrapper';
 import { I18nSEOWrapper } from './I18nSEOWrapper';
 import { ProviderComposer } from './ProviderComposer';
 
@@ -71,17 +71,25 @@ export const SmartWrapperCore = memo<SmartWrapperCoreProps>(({ children }) => {
   }, [location.pathname]);
 
   // 🌐 Infrastructure content - محسن
-  const infrastructureContent = useMemo(() => (
-    <CoreInfrastructureWrapper>
-      <ProviderComposer
-        config={config}
-        pageType={pageType}
-        pathname={location.pathname}
-      >
-        {children}
-      </ProviderComposer>
-    </CoreInfrastructureWrapper>
-  ), [config, pageType, location.pathname, children]);
+  const infrastructureContent = useMemo(() => {
+    // Choose minimal wrapper for public store routes to avoid SupabaseProvider at bootstrap
+    const minimalTypes = new Set([
+      'public-store', 'public-product', 'landing', 'thank-you', 'minimal', 'max-store'
+    ]);
+    const Wrapper = minimalTypes.has(pageType as any) ? MinimalCoreInfrastructureWrapper : CoreInfrastructureWrapper;
+
+    return (
+      <Wrapper>
+        <ProviderComposer
+          config={config}
+          pageType={pageType}
+          pathname={location.pathname}
+        >
+          {children}
+        </ProviderComposer>
+      </Wrapper>
+    );
+  }, [config, pageType, location.pathname, children]);
 
   // 🌐 Final wrapped content with I18n and SEO - محسن
   const finalContent = useMemo(() => (

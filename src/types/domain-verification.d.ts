@@ -6,6 +6,9 @@ export interface DomainVerificationTable {
     domain: string;
     status: string;
     verification_code?: string;
+    verification_data?: any;
+    verification_message?: string;
+    last_checked?: string;
     verified_at?: string;
     error_message?: string;
     created_at: string;
@@ -17,6 +20,9 @@ export interface DomainVerificationTable {
     domain: string;
     status: string;
     verification_code?: string;
+    verification_data?: any;
+    verification_message?: string;
+    last_checked?: string;
     verified_at?: string;
     error_message?: string;
     created_at?: string;
@@ -28,6 +34,9 @@ export interface DomainVerificationTable {
     domain?: string;
     status?: string;
     verification_code?: string;
+    verification_data?: any;
+    verification_message?: string;
+    last_checked?: string;
     verified_at?: string;
     error_message?: string;
     created_at?: string;

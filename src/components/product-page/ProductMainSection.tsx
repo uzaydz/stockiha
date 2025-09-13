@@ -4,6 +4,7 @@ import ProductImageGalleryV2 from '@/components/product/ProductImageGalleryV2';
 import { ProductContentSection } from './ProductContentSection';
 
 interface ProductMainSectionProps {
+  lowEnd?: boolean;
   product: any;
   state: any;
   actions: any;
@@ -26,6 +27,7 @@ interface ProductMainSectionProps {
   setShowValidationErrors: (value: boolean) => void;
   setHasTriedToSubmit: (value: boolean) => void;
   updateCurrentFormData: (data: Record<string, any>) => void;
+  showAddToCart?: boolean;
 }
 
 /**
@@ -43,7 +45,8 @@ interface ProductMainSectionProps {
  * - ProductImageGalleryV2: معرض الصور
  * - ProductContentSection: المحتوى الرئيسي (يجمع جميع الأقسام)
  */
-export const ProductMainSection = memo<ProductMainSectionProps>(({
+export const ProductMainSection = memo<ProductMainSectionProps>(({ 
+  lowEnd,
   product,
   state,
   actions,
@@ -65,23 +68,61 @@ export const ProductMainSection = memo<ProductMainSectionProps>(({
   setIsQuantityUpdatedByOffer,
   setShowValidationErrors,
   setHasTriedToSubmit,
-  updateCurrentFormData
+  updateCurrentFormData,
+  showAddToCart = false
 }) => {
+  // ✅ إصلاح: نقل جميع hooks إلى أعلى المكون قبل أي early returns
+  // تجنب استدعاء hooks بعد early returns لمنع React Error #310
+  
+  // إذا لم تكن البيانات متوفرة، عرض شاشة تحميل
+  if (!product || !state) {
+    return (
+      <div className="container mx-auto px-4 py-8 pt-20">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">جاري تحميل المنتج...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="container mx-auto px-4 py-8 pt-20">
       {/* تخطيط متجاوب: مختلف في الموبايل والحاسوب */}
       <div className="space-y-8">
         {/* في الموبايل: ProductHeader أولاً، ثم معرض الصور، ثم المحتوى */}
         <div className="lg:hidden">
-          <ProductHeader
-            name={product.name}
-            brand={product.brand?.name}
-            status={{
-              is_new: product.is_new,
-              is_featured: product.is_featured
-            }}
-            availableStock={state.availableStock || 0}
-          />
+          {lowEnd ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                {product.is_new && (
+                  <span className="text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">جديد</span>
+                )}
+                {product.is_featured && (
+                  <span className="text-xs px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">مميز</span>
+                )}
+                {Number(state?.availableStock || 0) > 0 && (
+                  <span className="text-xs px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">متوفر</span>
+                )}
+              </div>
+              <h1 className="text-2xl md:text-3xl font-bold text-foreground leading-tight">{product.name}</h1>
+              {product.brand?.name && (
+                <p className="text-sm text-muted-foreground">by {product.brand.name}</p>
+              )}
+            </div>
+          ) : (
+            <ProductHeader
+              name={product.name}
+              brand={product.brand?.name}
+              status={{
+                is_new: product.is_new,
+                is_featured: product.is_featured
+              }}
+              availableStock={state?.availableStock || 0}
+            />
+          )}
         </div>
 
         {/* معرض الصور - في الموبايل بعد ProductHeader، في الحاسوب في اليسار */}
@@ -105,15 +146,35 @@ export const ProductMainSection = memo<ProductMainSectionProps>(({
           {/* العمود الأيمن - المحتوى الرئيسي مع ProductHeader */}
           <div className="lg:col-span-1 space-y-8">
             {/* ProductHeader أولاً */}
-            <ProductHeader
-              name={product.name}
-              brand={product.brand?.name}
-              status={{
-                is_new: product.is_new,
-                is_featured: product.is_featured
-              }}
-              availableStock={state.availableStock || 0}
-            />
+            {lowEnd ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {product.is_new && (
+                    <span className="text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">جديد</span>
+                  )}
+                  {product.is_featured && (
+                    <span className="text-xs px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">مميز</span>
+                  )}
+                  {Number(state?.availableStock || 0) > 0 && (
+                    <span className="text-xs px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">متوفر</span>
+                  )}
+                </div>
+                <h1 className="text-3xl md:text-4xl font-bold text-foreground leading-tight">{product.name}</h1>
+                {product.brand?.name && (
+                  <p className="text-sm text-muted-foreground">by {product.brand.name}</p>
+                )}
+              </div>
+            ) : (
+              <ProductHeader
+                name={product.name}
+                brand={product.brand?.name}
+                status={{
+                  is_new: product.is_new,
+                  is_featured: product.is_featured
+                }}
+                availableStock={state?.availableStock || 0}
+              />
+            )}
 
             {/* ثم المحتوى الرئيسي */}
             <ProductContentSection
@@ -139,6 +200,7 @@ export const ProductMainSection = memo<ProductMainSectionProps>(({
               setShowValidationErrors={setShowValidationErrors}
               setHasTriedToSubmit={setHasTriedToSubmit}
               updateCurrentFormData={updateCurrentFormData}
+              showAddToCart={showAddToCart}
             />
           </div>
         </div>
@@ -168,6 +230,7 @@ export const ProductMainSection = memo<ProductMainSectionProps>(({
             setShowValidationErrors={setShowValidationErrors}
             setHasTriedToSubmit={setHasTriedToSubmit}
             updateCurrentFormData={updateCurrentFormData}
+            showAddToCart={showAddToCart}
           />
         </div>
       </div>

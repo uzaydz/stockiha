@@ -1,0 +1,223 @@
+/* 
+🎯 إجبار خط Tajawal على جميع العناصر
+هذا الملف يحل جميع تعارضات الخطوط
+*/
+
+/* إجبار قوي للخط على جميع العناصر */
+html,
+body,
+*,
+*::before,
+*::after,
+h1, h2, h3, h4, h5, h6,
+p, span, div, a, button, input, textarea, select, label,
+.text-sm, .text-base, .text-lg, .text-xl, .text-2xl,
+[class*="text-"], [class*="font-"],
+.prose, .prose *,
+.card, .card *,
+.modal, .modal *,
+.dropdown, .dropdown *,
+.tooltip, .tooltip *,
+.popover, .popover *,
+.dialog, .dialog *,
+.sheet, .sheet *,
+.alert, .alert *,
+.badge, .badge *,
+.button, .btn,
+.form-control,
+.input, .textarea, .select,
+.table, .table *,
+.nav, .nav *,
+.header, .header *,
+.footer, .footer *,
+.sidebar, .sidebar *,
+.main, .main *,
+.content, .content *,
+[data-component], [data-react-component],
+[class*="component"], [class*="Component"],
+[class*="ui-"], [class*="UI-"],
+[role="button"], [role="link"], [role="textbox"], [role="combobox"],
+.lucide, .lucide *:not(svg):not(path):not(circle):not(rect):not(line):not(polygon):not(polyline) {
+  font-family: 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+}
+
+/* إجبار خاص للعناصر العنيدة */
+[style*="font-family"] {
+  font-family: 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+}
+
+/* إجبار للعناصر المحملة ديناميكياً */
+.react-component,
+[data-react-component],
+[data-component] {
+  font-family: 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+}
+
+/* إجبار للنصوص العربية */
+[lang="ar"], [dir="rtl"], .arabic, .ar {
+  font-family: 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+}
+
+/* إجبار للمكونات الشائعة */
+.properties-panel, .properties-panel *,
+.dashboard, .dashboard *,
+.form, .form *,
+.list, .list *,
+.grid, .grid *,
+.flex, .flex * {
+  font-family: 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+}
+
+/* إجبار خاص للقائمة الجانبية والعناوين */
+.sidebar, .sidebar *,
+#sidebar-content, #sidebar-content *,
+[class*="sidebar"], [class*="sidebar"] *,
+[class*="navigation"], [class*="navigation"] *,
+[class*="nav"], [class*="nav"] *,
+h1, h2, h3, h4, h5, h6,
+[class*="title"], [class*="title"] *,
+[class*="header"], [class*="header"] *,
+[class*="group"], [class*="group"] *,
+[class*="item"], [class*="item"] *,
+[class*="menu"], [class*="menu"] *,
+[class*="link"], [class*="link"] *,
+[class*="button"], [class*="button"] *,
+[class*="text"], [class*="text"] *,
+span, div, p, a, button, input, textarea, select, label {
+  font-family: 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+}
+
+/* إجبار خاص للعناوين الفرعية */
+.sidebar h1, .sidebar h2, .sidebar h3, .sidebar h4, .sidebar h5, .sidebar h6,
+#sidebar-content h1, #sidebar-content h2, #sidebar-content h3, #sidebar-content h4, #sidebar-content h5, #sidebar-content h6,
+[class*="sidebar"] h1, [class*="sidebar"] h2, [class*="sidebar"] h3, [class*="sidebar"] h4, [class*="sidebar"] h5, [class*="sidebar"] h6,
+[class*="navigation"] h1, [class*="navigation"] h2, [class*="navigation"] h3, [class*="navigation"] h4, [class*="navigation"] h5, [class*="navigation"] h6,
+[class*="nav"] h1, [class*="nav"] h2, [class*="nav"] h3, [class*="nav"] h4, [class*="nav"] h5, [class*="nav"] h6 {
+  font-family: 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+  font-weight: 500 !important;
+}
+
+/* إجبار خاص للنصوص في القائمة الجانبية */
+.sidebar span, .sidebar div, .sidebar p, .sidebar a,
+#sidebar-content span, #sidebar-content div, #sidebar-content p, #sidebar-content a,
+[class*="sidebar"] span, [class*="sidebar"] div, [class*="sidebar"] p, [class*="sidebar"] a,
+[class*="navigation"] span, [class*="navigation"] div, [class*="navigation"] p, [class*="navigation"] a,
+[class*="nav"] span, [class*="nav"] div, [class*="nav"] p, [class*="nav"] a {
+  font-family: 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+}
+
+/* إجبار خاص للرسائل والنصوص المحددة */
+[class*="welcome"], [class*="welcome"] *,
+[class*="greeting"], [class*="greeting"] *,
+[class*="message"], [class*="message"] *,
+[class*="text"], [class*="text"] *,
+[class*="description"], [class*="description"] *,
+[class*="subtitle"], [class*="subtitle"] *,
+[class*="caption"], [class*="caption"] *,
+[class*="label"], [class*="label"] *,
+[class*="info"], [class*="info"] *,
+[class*="help"], [class*="help"] *,
+[class*="tooltip"], [class*="tooltip"] *,
+[class*="popover"], [class*="popover"] *,
+[class*="modal"], [class*="modal"] *,
+[class*="dialog"], [class*="dialog"] *,
+[class*="alert"], [class*="alert"] *,
+[class*="notification"], [class*="notification"] *,
+[class*="toast"], [class*="toast"] *,
+[class*="banner"], [class*="banner"] *,
+[class*="card"], [class*="card"] *,
+[class*="panel"], [class*="panel"] *,
+[class*="section"], [class*="section"] *,
+[class*="content"], [class*="content"] *,
+[class*="main"], [class*="main"] *,
+[class*="container"], [class*="container"] *,
+[class*="wrapper"], [class*="wrapper"] *,
+[class*="layout"], [class*="layout"] *,
+[class*="page"], [class*="page"] *,
+[class*="view"], [class*="view"] *,
+[class*="screen"], [class*="screen"] *,
+[class*="dashboard"], [class*="dashboard"] *,
+[class*="admin"], [class*="admin"] *,
+[class*="user"], [class*="user"] *,
+[class*="profile"], [class*="profile"] *,
+[class*="settings"], [class*="settings"] *,
+[class*="config"], [class*="config"] *,
+[class*="form"], [class*="form"] *,
+[class*="input"], [class*="input"] *,
+[class*="field"], [class*="field"] *,
+[class*="control"], [class*="control"] *,
+[class*="widget"], [class*="widget"] *,
+[class*="component"], [class*="component"] *,
+[class*="element"], [class*="element"] *,
+[class*="item"], [class*="item"] *,
+[class*="list"], [class*="list"] *,
+[class*="grid"], [class*="grid"] *,
+[class*="table"], [class*="table"] *,
+[class*="row"], [class*="row"] *,
+[class*="col"], [class*="col"] *,
+[class*="cell"], [class*="cell"] *,
+[class*="header"], [class*="header"] *,
+[class*="footer"], [class*="footer"] *,
+[class*="aside"], [class*="aside"] *,
+[class*="article"], [class*="article"] *,
+[class*="figure"], [class*="figure"] *,
+[class*="figcaption"], [class*="figcaption"] *,
+[class*="blockquote"], [class*="blockquote"] *,
+[class*="cite"], [class*="cite"] *,
+[class*="code"], [class*="code"] *,
+[class*="pre"], [class*="pre"] *,
+[class*="kbd"], [class*="kbd"] *,
+[class*="samp"], [class*="samp"] *,
+[class*="var"], [class*="var"] *,
+[class*="mark"], [class*="mark"] *,
+[class*="del"], [class*="del"] *,
+[class*="ins"], [class*="ins"] *,
+[class*="sub"], [class*="sub"] *,
+[class*="sup"], [class*="sup"] *,
+[class*="small"], [class*="small"] *,
+[class*="strong"], [class*="strong"] *,
+[class*="em"], [class*="em"] *,
+[class*="b"], [class*="b"] *,
+[class*="i"], [class*="i"] *,
+[class*="u"], [class*="u"] *,
+[class*="s"], [class*="s"] *,
+[class*="q"], [class*="q"] *,
+[class*="abbr"], [class*="abbr"] *,
+[class*="acronym"], [class*="acronym"] *,
+[class*="address"], [class*="address"] *,
+[class*="bdo"], [class*="bdo"] *,
+[class*="big"], [class*="big"] *,
+[class*="tt"], [class*="tt"] *,
+[class*="dfn"], [class*="dfn"] *,
+[class*="kbd"], [class*="kbd"] *,
+[class*="samp"], [class*="samp"] *,
+[class*="var"], [class*="var"] *,
+[class*="mark"], [class*="mark"] *,
+[class*="del"], [class*="del"] *,
+[class*="ins"], [class*="ins"] *,
+[class*="sub"], [class*="sub"] *,
+[class*="sup"], [class*="sup"] *,
+[class*="small"], [class*="small"] *,
+[class*="strong"], [class*="strong"] *,
+[class*="em"], [class*="em"] *,
+[class*="b"], [class*="b"] *,
+[class*="i"], [class*="i"] *,
+[class*="u"], [class*="u"] *,
+[class*="s"], [class*="s"] *,
+[class*="q"], [class*="q"] *,
+[class*="abbr"], [class*="abbr"] *,
+[class*="acronym"], [class*="acronym"] *,
+[class*="address"], [class*="address"] *,
+[class*="bdo"], [class*="bdo"] *,
+[class*="big"], [class*="big"] *,
+[class*="tt"], [class*="tt"] *,
+[class*="dfn"], [class*="dfn"] * {
+  font-family: 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+}
+
+/* إجبار نهائي بأولوية قصوى */
+@media screen {
+  * {
+    font-family: 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif !important;
+  }
+}

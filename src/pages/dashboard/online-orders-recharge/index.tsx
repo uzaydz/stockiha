@@ -68,9 +68,6 @@ const OnlineOrdersRechargePage: React.FC = () => {
     }
   }, [currentOrganization?.id]);
 
-  // إضافة console.log للتأكد من أن البيانات تصل
-  React.useEffect(() => {
-  }, [currentOrganization, packages, limits, rechargeHistory]);
 
   const fetchData = async () => {
     try {

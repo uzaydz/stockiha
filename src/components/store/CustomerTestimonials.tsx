@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Quote, Star, Verified } from "lucide-react";
+import { ChevronLeft, ChevronRight, Star, Verified } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { motion, AnimatePresence } from "framer-motion";
-import TestimonialCard, { Testimonial } from "./TestimonialCard";
+import type { Testimonial } from "./TestimonialCard";
 import { getTestimonials } from "@/lib/api/testimonials";
 import { useTranslation } from 'react-i18next';
 import { useSharedStoreData } from '@/hooks/useSharedStoreData';
@@ -205,194 +204,126 @@ export function CustomerTestimonials({
     );
   }
 
-  // مكون بطاقة شهادة بتصميم جديد كلياً
-  const ElegantTestimonialCard = React.forwardRef<HTMLDivElement, { testimonial: Testimonial; index: number }>(
-    ({ testimonial, index }, ref) => (
-    <motion.div
-      ref={ref}
-      initial={{ opacity: 0, y: 50 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5, delay: index * 0.1 }}
-      className="group relative"
-    >
-      {/* البطاقة الرئيسية */}
-      <div className="relative p-6 bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 hover:border-primary/20 dark:hover:border-primary/30 transition-all duration-300 hover:shadow-xl hover:shadow-primary/5 hover:-translate-y-1 group-hover:scale-[1.02]">
-        
-        {/* شريط علوي ملون */}
-        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary to-secondary rounded-t-2xl"></div>
-        
-        {/* المحتوى */}
-        <div className="space-y-4">
-          
-          {/* النجوم والتقييم */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1">
-              {[...Array(5)].map((_, i) => (
-                <Star
-                  key={i}
-                  className={cn(
-                    "w-4 h-4",
-                    i < Math.floor(testimonial.rating) 
-                      ? "text-yellow-400 fill-yellow-400" 
-                      : "text-gray-200 dark:text-gray-700"
-                  )}
-                />
-              ))}
-            </div>
-            {testimonial.verified && (
-              <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                <Verified className="w-4 h-4" />
-                <span className="text-xs font-medium">مؤكد</span>
+  // أدوات مساعدة للأفاتار الحرفي
+  const stringToHsl = (str: string, s = 65, l = 55) => {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const h = Math.abs(hash) % 360;
+    return `hsl(${h} ${s}% ${l}%)`;
+  };
+  const getInitial = (name?: string) => {
+    if (!name) return "؟";
+    const trimmed = name.trim();
+    if (!trimmed) return "؟";
+    // دعم أسماء عربية/لاتينية، خذ أول حرف مرئي
+    return trimmed.charAt(0).toUpperCase();
+  };
+  const PlainTestimonialCard: React.FC<{ testimonial: Testimonial }> = ({ testimonial }) => {
+    return (
+      <li className="h-full list-none">
+        <article className="h-full rounded-xl border border-border/60 bg-card text-card-foreground p-5 shadow-sm">
+          {/* العنوان: الاسم + تحقق + التقييم */}
+          <header className="flex items-start justify-between gap-3 mb-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div
+                aria-hidden
+                className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold shadow-sm select-none flex-shrink-0"
+                style={{
+                  background: `linear-gradient(135deg, ${stringToHsl(testimonial.customerName || '')} 0%, ${stringToHsl((testimonial.customerName || '') + 'x', 60, 45)} 100%)`
+                }}
+              >
+                <span className="text-sm leading-none">{getInitial(testimonial.customerName)}</span>
               </div>
-            )}
-          </div>
-
-          {/* نص الشهادة */}
-          <blockquote className="text-gray-700 dark:text-gray-300 leading-relaxed relative">
-            <Quote className="absolute -top-2 -right-2 w-8 h-8 text-primary/20 transform rotate-180" />
-            <p className="text-base relative z-10 pr-4">
-              {testimonial.comment}
-            </p>
-          </blockquote>
-
-          {/* خط فاصل رفيع */}
-          <div className="h-px bg-gradient-to-r from-transparent via-gray-200 dark:via-gray-700 to-transparent"></div>
-
-          {/* معلومات العميل */}
-          <div className="flex items-center gap-3">
-            <img
-              src={testimonial.customerAvatar}
-              alt={testimonial.customerName}
-              className="w-10 h-10 rounded-full object-cover"
-              loading="lazy"
-            />
-            <div className="flex-1">
-              <h4 className="font-medium text-gray-900 dark:text-gray-100 text-sm">
-                {testimonial.customerName}
-              </h4>
-              {testimonial.productName && (
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  اشترى {testimonial.productName}
-                </p>
+              <div className="min-w-0">
+                <h3 className="text-sm font-medium truncate">{testimonial.customerName}</h3>
+                {testimonial.productName && (
+                  <p className="text-xs text-muted-foreground truncate">اشترى {testimonial.productName}</p>
+                )}
+              </div>
+              {testimonial.verified && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 text-[10px] font-medium">
+                  <Verified className="w-3 h-3" /> موثّق
+                </span>
               )}
             </div>
-            <div className="text-right">
-              <div className="text-lg font-bold text-primary">
-                {testimonial.rating}
-              </div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">
-                من 5
-              </div>
+            <div className="flex items-center gap-1 text-yellow-500">
+              {[...Array(5)].map((_, i) => (
+                <Star key={i} className={cn("w-3.5 h-3.5", i < Math.round(testimonial.rating) ? "fill-yellow-400" : "text-muted-foreground/30")}/>
+              ))}
+              <span className="sr-only">تقييم {testimonial.rating} من 5</span>
             </div>
-          </div>
-        </div>
-      </div>
-    </motion.div>
-    )
-  );
+          </header>
 
-  ElegantTestimonialCard.displayName = 'ElegantTestimonialCard';
+          {/* التعليق */}
+          <p className="text-sm leading-6 text-muted-foreground">
+            {testimonial.comment}
+          </p>
+        </article>
+      </li>
+    );
+  };
 
   return (
-    <section className={cn("py-16 px-4", getSectionClassNames())} dir="rtl">
+    <section className={cn("py-16 px-4", getSectionClassNames())} dir="rtl" aria-labelledby="testimonials-title">
       <div className="max-w-6xl mx-auto">
-        
-        {/* العنوان والوصف بتصميم بسيط */}
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.5 }}
-          className="text-center mb-12"
-        >
-          <h2 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-gray-100 mb-4">
+        {/* العنوان والوصف */}
+        <div className="text-center mb-10">
+          <h2 id="testimonials-title" className="text-2xl md:text-3xl font-semibold tracking-tight">
             {displayTitle}
           </h2>
-          <p className="text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+          <p className="text-muted-foreground max-w-2xl mx-auto mt-3">
             {displayDescription}
           </p>
-        </motion.div>
+        </div>
 
         {testimonials.length > 0 ? (
           <div className="relative">
-            
-            {/* أزرار التنقل المبسطة */}
             {testimonials.length > displayedCount && (
-              <div className="flex justify-center gap-4 mb-8">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handlePrevious}
-                  aria-label={t('customerTestimonials.previousItem')}
-                  className="rounded-full"
-                >
+              <div className="flex justify-center gap-3 mb-6">
+                <Button variant="outline" size="icon" onClick={handlePrevious} aria-label={t('customerTestimonials.previousItem')}>
                   <ChevronRight className="w-4 h-4" />
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleNext}
-                  aria-label={t('customerTestimonials.nextItem')}
-                  className="rounded-full"
-                >
+                <Button variant="outline" size="icon" onClick={handleNext} aria-label={t('customerTestimonials.nextItem')}>
                   <ChevronLeft className="w-4 h-4" />
                 </Button>
               </div>
             )}
 
-            {/* الشهادات */}
-            <div className={cn(
-              "grid gap-6",
+            <ul className={cn(
+              "grid gap-5",
               displayedCount === 1 ? "grid-cols-1 max-w-2xl mx-auto" :
-                displayedCount === 2 ? "grid-cols-1 md:grid-cols-2" :
-                  "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
+              displayedCount === 2 ? "grid-cols-1 md:grid-cols-2" :
+              "grid-cols-1 md:grid-cols-2 lg:grid-cols-3"
             )}>
-              <AnimatePresence mode="popLayout">
-                {visibleTestimonials.map((testimonial, index) => (
-                  <ElegantTestimonialCard
-                    key={`testimonial-${testimonial.id}-${activeIndex + index}`}
-                    testimonial={testimonial}
-                    index={index}
-                  />
-                ))}
-              </AnimatePresence>
-            </div>
+              {visibleTestimonials.map((testimonial) => (
+                <PlainTestimonialCard key={`testimonial-${testimonial.id}`} testimonial={testimonial} />
+              ))}
+            </ul>
 
-            {/* مؤشرات التنقل المبسطة */}
             {testimonials.length > displayedCount && (
-              <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.3 }}
-                className="flex justify-center mt-8 gap-2"
-              >
+              <div className="flex justify-center mt-6 gap-2">
                 {Array.from({ length: Math.ceil(testimonials.length / displayedCount) }).map((_, index) => (
                   <button
                     key={`nav-dot-${index}`}
                     onClick={() => setActiveIndex(index * displayedCount)}
                     className={cn(
-                      "w-2 h-2 rounded-full transition-all duration-300",
+                      "w-2.5 h-2.5 rounded-full transition-colors",
                       Math.floor(activeIndex / displayedCount) === index
-                        ? "bg-primary scale-125"
-                        : "bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500"
+                        ? "bg-primary"
+                        : "bg-muted-foreground/30 hover:bg-muted-foreground/50"
                     )}
                     aria-label={`${t('customerTestimonials.item')} ${index + 1}`}
                   />
                 ))}
-              </motion.div>
+              </div>
             )}
           </div>
         ) : (
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center py-16 border border-dashed border-gray-300 dark:border-gray-600 rounded-2xl"
-          >
-            <Quote className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500 dark:text-gray-400">
-              {t('customerTestimonials.noTestimonials')}
-            </p>
-          </motion.div>
+          <div className="text-center py-12 border border-dashed border-border/60 rounded-xl">
+            <p className="text-muted-foreground">{t('customerTestimonials.noTestimonials')}</p>
+          </div>
         )}
       </div>
     </section>

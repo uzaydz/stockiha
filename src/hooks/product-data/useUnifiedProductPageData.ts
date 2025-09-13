@@ -14,11 +14,24 @@ export const useUnifiedProductPageData = ({
   productId,
   organizationId,
   enabled = true,
-  dataScope = 'full'
+  dataScope = 'full',
+  initialData,
+  initialDataUpdatedAt
 }: UseUnifiedProductPageDataProps) => {
   
+  // 🔍 Debug: تشخيص استدعاء useUnifiedProductPageData
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🔍 [useUnifiedProductPageData] استدعاء Hook:', {
+      productId,
+      organizationId,
+      enabled,
+      dataScope,
+      hasInitialData: !!initialData
+    });
+  }
+  
   // استخدام الـ hooks المساعدة
-  const queryOptions = useQueryOptions(productId, organizationId, enabled, dataScope);
+  const queryOptions = useQueryOptions(productId, organizationId, enabled, dataScope, initialData, initialDataUpdatedAt);
   
   // استخدام React Query مع deduplication قوي
   const {
@@ -28,8 +41,30 @@ export const useUnifiedProductPageData = ({
     refetch
   } = useQuery(queryOptions);
 
+
+  // 🔍 Debug: تشخيص نتيجة useQuery
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🔍 [useUnifiedProductPageData] نتيجة useQuery:', {
+      hasData: !!data,
+      isLoading,
+      hasError: !!error,
+      dataKeys: data ? Object.keys(data) : 'no data',
+      dataValue: data
+    });
+  }
+
   // استخراج البيانات المنفصلة
   const extractedData = useExtractedData(data);
+
+  // 🔍 Debug: تشخيص البيانات المستخرجة
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🔍 [useUnifiedProductPageData] البيانات المستخرجة:', {
+      hasProduct: !!extractedData.product,
+      productId: extractedData.product?.id,
+      hasOrganization: !!extractedData.organization,
+      extractedKeys: Object.keys(extractedData)
+    });
+  }
 
   return {
     data,

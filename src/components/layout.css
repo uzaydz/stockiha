@@ -111,3 +111,161 @@
 .layout-main * {
   contain: layout paint;
 }
+
+/* القائمة الثابتة في الأسفل للهاتف */
+.mobile-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background: hsl(var(--background) / 0.95);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid hsl(var(--border) / 0.2);
+  box-shadow: 0 -4px 20px hsl(var(--foreground) / 0.1);
+  contain: layout paint;
+}
+
+/* تأثيرات بصرية للقائمة */
+.mobile-bottom-nav::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    hsl(var(--primary) / 0.3) 50%,
+    transparent 100%
+  );
+}
+
+.mobile-bottom-nav::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    hsl(var(--border) / 0.3) 50%,
+    transparent 100%
+  );
+}
+
+/* تحسينات للأداء */
+.mobile-bottom-nav * {
+  contain: layout paint;
+}
+
+/* إخفاء القائمة في الشاشات الكبيرة */
+@media (min-width: 768px) {
+  .mobile-bottom-nav {
+    display: none;
+  }
+}
+
+/* إضافة مساحة في الأسفل للمحتوى عند وجود القائمة */
+@media (max-width: 767px) {
+  .layout-main {
+    padding-bottom: 80px; /* مساحة للقائمة الثابتة */
+  }
+  
+  /* إضافة مساحة للصفحات التي تستخدم StoreLayout */
+  main {
+    padding-bottom: 80px !important;
+  }
+  
+  /* إضافة مساحة في الأسفل للقائمة الجانبية في الهاتف */
+  .layout-mobile-sidebar {
+    padding-bottom: 80px !important;
+  }
+  
+  /* إضافة مساحة للقائمة الجانبية في الهاتف */
+  .layout-mobile-sidebar nav {
+    padding-bottom: 80px !important;
+  }
+  
+  /* إضافة مساحة في الأسفل للقائمة الجانبية في الهاتف - محتوى القائمة */
+  .layout-mobile-sidebar .sidebar-navigation {
+    padding-bottom: 80px !important;
+  }
+  
+  /* تحسينات إضافية للقائمة الجانبية في الهاتف */
+  .layout-mobile-sidebar {
+    /* إضافة مساحة في الأسفل */
+    padding-bottom: 80px !important;
+    /* تحسين الارتفاع */
+    height: calc(100vh - 80px) !important;
+    /* إضافة scroll */
+    overflow-y: auto !important;
+  }
+  
+  /* تحسين محتوى القائمة الجانبية */
+  .layout-mobile-sidebar #sidebar-container {
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+  }
+  
+  /* تحسين التنقل في القائمة الجانبية */
+  .layout-mobile-sidebar #sidebar-content {
+    flex: 1 !important;
+    overflow-y: auto !important;
+    padding-bottom: 80px !important;
+  }
+  
+  /* تحسينات إضافية للقائمة الثابتة */
+  .mobile-bottom-nav {
+    /* تأثيرات بصرية متقدمة */
+    background: linear-gradient(
+      180deg,
+      hsl(var(--background) / 0.8) 0%,
+      hsl(var(--background) / 0.95) 100%
+    );
+    
+    /* تأثير الضبابية المحسن */
+    backdrop-filter: blur(24px) saturate(180%);
+    -webkit-backdrop-filter: blur(24px) saturate(180%);
+    
+    /* ظل محسن */
+    box-shadow: 
+      0 -8px 32px hsl(var(--foreground) / 0.08),
+      0 -4px 16px hsl(var(--foreground) / 0.04),
+      inset 0 1px 0 hsl(var(--background) / 0.8);
+  }
+  
+  /* تأثيرات التفاعل للأزرار */
+  .mobile-bottom-nav button,
+  .mobile-bottom-nav a {
+    position: relative;
+    overflow: hidden;
+  }
+  
+  .mobile-bottom-nav button::before,
+  .mobile-bottom-nav a::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      hsl(var(--primary) / 0.1),
+      transparent
+    );
+    transition: left 0.5s;
+  }
+  
+  .mobile-bottom-nav button:hover::before,
+  .mobile-bottom-nav a:hover::before {
+    left: 100%;
+  }
+}

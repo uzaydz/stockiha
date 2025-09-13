@@ -50,6 +50,16 @@ const PricingPage = () => {
       <Helmet>
         <title>الأسعار وخطط الاشتراك | stockiha</title>
         <meta name="description" content="اكتشف خطط أسعار منصة سطوكيها المرنة للأعمال من مختلف الأحجام. خطط اشتراك شفافة بميزات متكاملة تناسب احتياجات عملك." />
+        <link rel="canonical" href={(typeof window !== 'undefined' ? (new URL(window.location.href)).origin : 'https://stockiha.com') + '/pricing'} />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content="الأسعار | سطوكيها" />
+        <meta property="og:description" content="خطط اشتراك مرنة مع فترة تجريبية مجانية. اختر ما يناسب عملك." />
+        <meta property="og:url" content={(typeof window !== 'undefined' ? (new URL(window.location.href)).origin : 'https://stockiha.com') + '/pricing'} />
+        <meta property="og:image" content="/images/logo-new.webp" />
+        <meta property="og:site_name" content="سطوكيها" />
+        <meta property="og:locale" content="ar_DZ" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:site" content="@stockiha" />
       </Helmet>
 
       <Navbar />

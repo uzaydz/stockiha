@@ -11,6 +11,42 @@ import { cn } from '@/lib/utils';
 import { playTestNotificationSound } from '@/lib/notification-sounds';
 import './notifications.css';
 
+// Hook آمن للإشعارات
+const useNotificationsSafe = () => {
+  try {
+    return useNotifications();
+  } catch (error) {
+    // إذا لم يكن NotificationsProvider متوفر، إرجاع قيم افتراضية
+    return {
+      notifications: [],
+      loading: false,
+      error: null,
+      toasts: [],
+      stats: { unread: 0, urgent: 0, total: 0 },
+      settings: {
+        enabled: false,
+        realtimeEnabled: false,
+        soundEnabled: false,
+        newOrderSound: false,
+        lowStockSound: false,
+        toastEnabled: false,
+        soundVolume: 0.5
+      },
+      isRealtimeConnected: false,
+      removeToast: () => {},
+      markAsRead: async () => {},
+      markAllAsRead: async () => {},
+      clearAllNotifications: async () => {},
+      updateSettings: () => {},
+      getNotificationIcon: () => 'bell',
+      loadNotifications: async () => {},
+      deleteNotification: async () => {},
+      deleteReadNotifications: async () => {},
+      playTestSound: () => {}
+    };
+  }
+};
+
 // Import sub-components
 import { NotificationHeader } from './NotificationHeader';
 import { NotificationSettings } from './NotificationSettings';
@@ -32,11 +68,11 @@ export function NavbarNotifications({ className, maxItems = 8 }: NavbarNotificat
     isRealtimeConnected,
     markAsRead,
     markAllAsRead,
-    removeNotification,
+    deleteNotification,
     clearAllNotifications,
     updateSettings,
     getNotificationIcon
-  } = useNotifications();
+  } = useNotificationsSafe();
 
   const [showSettings, setShowSettings] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
@@ -235,7 +271,7 @@ export function NavbarNotifications({ className, maxItems = 8 }: NavbarNotificat
                     notification={notification}
                     index={index}
                     onMarkAsRead={markAsRead}
-                    onRemove={removeNotification}
+                    onRemove={deleteNotification}
                     onClick={handleNotificationClick}
                   />
                 ))}

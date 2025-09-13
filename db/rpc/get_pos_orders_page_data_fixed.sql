@@ -26,6 +26,7 @@ LANGUAGE plpgsql
 AS $$
 DECLARE
     v_start_time TIMESTAMP := NOW();
+    v_effective_user_id UUID := NULL;
     v_result JSONB;
     v_orders_data JSONB;
     v_stats_data JSONB;
@@ -49,12 +50,15 @@ DECLARE
     v_employee_id UUID;
     v_search TEXT;
 BEGIN
-    -- ✅ 1. التحقق من الصلاحيات
+    -- ✅ 1. التحقق من الصلاحيات/الانتماء إلى المؤسسة
+    -- دعم كلا المعرفين: users.id و users.auth_user_id
+    v_effective_user_id := COALESCE(p_user_id, auth.uid());
+
     IF NOT EXISTS (
-        SELECT 1 FROM users u 
-        WHERE u.id = p_user_id 
-        AND u.organization_id = p_org_id 
-        AND u.is_active = true
+        SELECT 1 FROM users u
+        WHERE u.organization_id = p_org_id
+          AND u.is_active = true
+          AND (u.id = v_effective_user_id OR u.auth_user_id = v_effective_user_id)
     ) THEN
         RETURN jsonb_build_object(
             'success', false,
@@ -350,12 +354,11 @@ BEGIN
             'name', u.name,
             'email', u.email,
             'role', u.role
-        )
+        ) ORDER BY u.name
     ) INTO v_employees_data
     FROM users u
     WHERE u.organization_id = p_org_id 
-    AND u.is_active = true
-    ORDER BY u.name;
+    AND u.is_active = true;
     
     -- ✅ 9. جلب الإعدادات (إذا مطلوبة)
     IF (p_include->>'settings')::BOOLEAN THEN

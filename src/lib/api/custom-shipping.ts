@@ -158,11 +158,14 @@ export async function calculateCustomShippingPrice(
   provinceId: string,
   deliveryType: 'home' | 'desk'
 ): Promise<number> {
+
   try {
     
     const settings = await getCustomShippingSettings(organizationId);
 
+
     if (!settings.success || !settings.data) {
+      
       return 0;
     }
 

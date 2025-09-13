@@ -21,8 +21,14 @@ export const useProductFormValidation = (
   const { formState, getValues, watch } = form;
   const { errors, isValid } = formState;
   
-  // Watch required fields for real-time validation
-  const watchedValues = watch();
+  // Watch only required fields (avoid global watch of all fields)
+  const watchedRequired = watch([
+    'name',
+    'description',
+    'price',
+    'category_id',
+    'thumbnail_image',
+  ]);
   
   // Define required fields
   const requiredFields: (keyof ProductFormValues)[] = [
@@ -43,7 +49,7 @@ export const useProductFormValidation = (
   }, [getValues]);
 
   // Memoized progress calculation
-  const progress = useMemo(() => calculateProgress(), [calculateProgress, watchedValues]);
+  const progress = useMemo(() => calculateProgress(), [calculateProgress, watchedRequired]);
 
   // Count errors
   const errorCount = useMemo(() => Object.keys(errors).length, [errors]);

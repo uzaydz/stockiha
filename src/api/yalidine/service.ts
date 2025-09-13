@@ -47,6 +47,7 @@ export interface DeliveryFee {
 export type DeliveryType = 'home' | 'desk';
 
 import { supabase } from '@/lib/supabase-unified';
+import { requestDeduplicator } from '@/lib/requestDeduplicator';
 import { yalidineRateLimiter } from './rate-limiter';
 
 // ===========================================
@@ -474,19 +475,20 @@ export async function getYalidineSettingsForProductPurchase(
 } | null> {
   
   try {
-    
-    const { data, error } = await supabase
-      .rpc('get_yalidine_settings_for_product_purchase' as any, {
-        p_organization_id: organizationId
-      }) as { data: any; error: any };
-
-    if (error) {
-      return null;
-    }
-
-    if (!data) {
-      return null;
-    }
+    const key = `yalidine_settings:${organizationId}`;
+    const data = await requestDeduplicator.execute(
+      key,
+      async () => {
+        const { data, error } = await supabase
+          .rpc('get_yalidine_settings_for_product_purchase' as any, {
+            p_organization_id: organizationId
+          }) as { data: any; error: any };
+        if (error) throw error;
+        if (!data) throw new Error('No yalidine settings');
+        return data as any;
+      },
+      { ttl: requestDeduplicator.getLongTTL(), useCache: true }
+    );
 
     return data as {
       success: boolean;
@@ -550,22 +552,29 @@ async function fetchYalidineFeesFromAPIOptimized(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 8000); // timeout 8 ثواني
     
-    const response = await fetch(proxyUrl, {
-      method: 'GET',
-      signal: controller.signal,
-      headers: {
-        // تمرير بيانات الاعتماد عبر الترويسات ليستقبلها Vite proxy ويحوّلها إلى X-API-ID و X-API-TOKEN upstream
-        'x-api-id': api_credentials.api_token,
-        'x-api-token': api_credentials.api_key,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',  // منع الـ cache تماماً
-        'Pragma': 'no-cache',                  // للمتصفحات القديمة
-        'Expires': '0',                        // انتهاء فوري
-        'X-Request-ID': `yalidine-${fromWilayaId}-${toWilayaId}-${uniqueTimestamp}`, // معرف فريد
-        'X-Unique-Request': `${Math.random()}`  // عشوائية إضافية
-      }
-    });
+    const response = await requestDeduplicator.execute(
+      `yalidine:fees:${organizationId}:${fromWilayaId}:${toWilayaId}`,
+      async () => {
+        const res = await fetch(proxyUrl, {
+          method: 'GET',
+          signal: controller.signal,
+          headers: {
+            // تمرير بيانات الاعتماد عبر الترويسات ليستقبلها Vite proxy ويحوّلها إلى X-API-ID و X-API-TOKEN upstream
+            'x-api-id': api_credentials.api_token,
+            'x-api-token': api_credentials.api_key,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',  // منع الـ cache تماماً
+            'Pragma': 'no-cache',                  // للمتصفحات القديمة
+            'Expires': '0',                        // انتهاء فوري
+            'X-Request-ID': `yalidine-${fromWilayaId}-${toWilayaId}-${uniqueTimestamp}`, // معرف فريد
+            'X-Unique-Request': `${Math.random()}`  // عشوائية إضافية
+          }
+        });
+        return res;
+      },
+      { ttl: requestDeduplicator.getShortTTL(), useCache: true }
+    );
     
     clearTimeout(timeoutId); // إلغاء الـ timeout عند النجاح
 

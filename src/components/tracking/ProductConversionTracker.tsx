@@ -78,19 +78,25 @@ export const ProductConversionTracker = React.forwardRef<any, ProductConversionT
         
         // انتظار توفر الإعدادات من useProductTracking لمدة أقصاها 1 ثانية فقط
         let trackingSettings = (window as any).__productTrackingSettings;
-        let attempts = 0;
-        const maxAttempts = 10; // 1 ثانية (10 * 100ms) - تقليل من 5 ثوان
         
-        if (process.env.NODE_ENV === 'development') {
-        }
-        
-        while ((!trackingSettings) && attempts < maxAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 100));
-          trackingSettings = (window as any).__productTrackingSettings;
-          attempts++;
-          
-          if (process.env.NODE_ENV === 'development' && attempts % 5 === 0) {
-          }
+        // استخدام Promise-based waiting بدلاً من busy-wait loop
+        if (!trackingSettings) {
+          trackingSettings = await new Promise((resolve) => {
+            let attempts = 0;
+            const maxAttempts = 5; // تقليل المحاولات
+            
+            const checkSettings = () => {
+              const settings = (window as any).__productTrackingSettings;
+              if (settings || attempts >= maxAttempts) {
+                resolve(settings);
+                return;
+              }
+              attempts++;
+              setTimeout(checkSettings, 50); // تقليل التأخير إلى 50ms
+            };
+            
+            checkSettings();
+          });
         }
         
         if (process.env.NODE_ENV === 'development') {
@@ -153,12 +159,55 @@ export const ProductConversionTracker = React.forwardRef<any, ProductConversionT
             return;
           }
 
-          // وضع علامة فوراً لمنع التكرار
-          viewContentTrackedRef.current = true;
+        // وضع علامة فوراً لمنع التكرار
+        viewContentTrackedRef.current = true;
 
-          // إذا كانت جميع المنصات معطلة، لا ترسل أي حدث لتجنب أي استدعاءات جانبية
+        // انتظار بسيط وموثوق للبكسل - إزالة الاعتماد على الأحداث المعقدة
+        const waitForPixelReady = async () => {
+          return new Promise<void>((resolve) => {
+            let attempts = 0;
+            const maxAttempts = 10; // 10 محاولات (ثانية واحدة)
+            
+            const checkPixelReady = () => {
+              attempts++;
+              
+              // فحص توفر أي بكسل (محلي أو على مستوى المتجر)
+              const fbqReady = typeof window !== 'undefined' && typeof window.fbq === 'function';
+              const gtagReady = typeof window !== 'undefined' && typeof window.gtag === 'function';
+              const ttqReady = typeof window !== 'undefined' && typeof (window as any).ttq?.track === 'function';
+              
+              const anyPixelReady = fbqReady || gtagReady || ttqReady;
+              
+              if (anyPixelReady || attempts >= maxAttempts) {
+                if (anyPixelReady) {
+                } else {
+                  
+                }
+                resolve();
+                return;
+              }
+              
+              // إعادة المحاولة بعد 100ms
+              setTimeout(checkPixelReady, 100);
+            };
+            
+            checkPixelReady();
+          });
+        };
+
+        await waitForPixelReady();
+
+          // إذا كانت جميع المنصات معطلة ولا توجد بكسلات محمّلة على مستوى المتجر، لا ترسل أي حدث
           const settings = (window as any).__productTrackingSettings;
-          if (!settings || (!settings.facebook?.enabled && !settings.google?.enabled && !settings.tiktok?.enabled)) {
+          const hasEnabledInSettings = !!settings && (
+            !!settings.facebook?.enabled || !!settings.google?.enabled || !!settings.tiktok?.enabled
+          );
+          const hasAnyPixelLoaded = typeof window !== 'undefined' && (
+            typeof (window as any).fbq === 'function' ||
+            typeof (window as any).gtag === 'function' ||
+            typeof (window as any).ttq?.track === 'function'
+          );
+          if (!hasEnabledInSettings && !hasAnyPixelLoaded) {
             return;
           }
 
@@ -187,7 +236,9 @@ export const ProductConversionTracker = React.forwardRef<any, ProductConversionT
             }
           };
 
-          await trackerRef.current.trackEvent(event);
+              
+              await trackerRef.current.trackEvent(event);
+              
           
         } catch (error) {
           // إعادة تعيين العلامة في حالة الخطأ
@@ -195,9 +246,11 @@ export const ProductConversionTracker = React.forwardRef<any, ProductConversionT
         }
       };
 
-      // تأخير صغير لتجنب التكرار السريع
-      const timeoutId = setTimeout(trackViewContent, 100);
-      return () => clearTimeout(timeoutId);
+      // استخدام requestAnimationFrame بدلاً من setTimeout للأداء الأفضل
+      const rafId = requestAnimationFrame(() => {
+        setTimeout(trackViewContent, 50); // تقليل التأخير
+      });
+      return () => cancelAnimationFrame(rafId);
     }
   }, [isTrackerReady, product, productId, currency]);
 

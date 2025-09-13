@@ -29,6 +29,7 @@ import POSPureLayout from '@/components/pos-layout/POSPureLayout';
 // Context
 import { useTenant } from '@/context/TenantContext';
 import { useAuth } from '@/context/AuthContext';
+import { usePermissions } from '@/hooks/usePermissions';
 
 // Services
 import { supabase } from '@/lib/supabase-unified';
@@ -186,7 +187,8 @@ export const POSOrdersOptimized: React.FC = () => {
   useTitle('طلبيات نقطة البيع');
   
   const { tenant } = useTenant();
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
+  const perms = usePermissions();
   const queryClient = useQueryClient();
 
   // الحالات المحلية
@@ -206,12 +208,34 @@ export const POSOrdersOptimized: React.FC = () => {
   const queryKey = useMemo(() => [
     'pos-orders-page-data',
     tenant?.id,
-    user?.id,
+    userProfile?.id,
     currentPage,
     pageSize,
     filters,
     sortConfig
-  ], [tenant?.id, user?.id, currentPage, pageSize, filters, sortConfig]);
+  ], [tenant?.id, userProfile?.id, currentPage, pageSize, filters, sortConfig]);
+
+  // صلاحيات الطلبيات
+  const canUpdateStatus = useMemo(
+    () => perms.anyOf(["updateOrderStatus", "manageOrders"]),
+    [perms]
+  );
+  const canCancelOrder = useMemo(
+    () => perms.anyOf(["cancelOrders", "manageOrders"]),
+    [perms]
+  );
+  const canEditOrder = useMemo(
+    () => perms.anyOf(["editOrders", "manageOrders"]),
+    [perms]
+  );
+  const canDeleteOrder = useMemo(
+    () => perms.anyOf(["deleteOrders", "manageOrders"]),
+    [perms]
+  );
+  const canUpdatePayment = useMemo(
+    () => perms.anyOf(["processPayments", "manageOrders"]),
+    [perms]
+  );
 
   // الاستعلام الرئيسي المحسن - مع تحسينات لتجنب الاستدعاءات المكررة
   const {
@@ -224,13 +248,13 @@ export const POSOrdersOptimized: React.FC = () => {
     queryKey,
     queryFn: () => fetchPOSOrdersPageData(
       tenant?.id || '',
-      user?.id || '',
+      userProfile?.id || '',
       currentPage,
       pageSize,
       filters,
       sortConfig
     ),
-    enabled: !!(tenant?.id && user?.id),
+    enabled: !!(tenant?.id && userProfile?.id),
     staleTime: 120 * 1000, // زيادة من 60 إلى 120 ثانية
     gcTime: 15 * 60 * 1000, // زيادة من 10 إلى 15 دقيقة
     refetchOnWindowFocus: false,
@@ -258,7 +282,7 @@ export const POSOrdersOptimized: React.FC = () => {
       const nextPageKey = [
         'pos-orders-page-data',
         tenant?.id,
-        user?.id,
+        userProfile?.id,
         currentPage + 1,
         pageSize,
         filters,
@@ -277,7 +301,7 @@ export const POSOrdersOptimized: React.FC = () => {
               queryKey: nextPageKey,
               queryFn: () => fetchPOSOrdersPageData(
                 tenant?.id || '',
-                user?.id || '',
+                userProfile?.id || '',
                 currentPage + 1,
                 pageSize,
                 filters,
@@ -289,7 +313,7 @@ export const POSOrdersOptimized: React.FC = () => {
         }, 1000); // تأخير إضافي
       }
     }
-  }, [pagination.has_next_page, currentPage, pageSize, filters, sortConfig, tenant?.id, user?.id, queryClient]);
+  }, [pagination.has_next_page, currentPage, pageSize, filters, sortConfig, tenant?.id, userProfile?.id, queryClient]);
 
   // تأثير Prefetch - محسن لتجنب الاستدعاءات غير الضرورية
   React.useEffect(() => {
@@ -439,6 +463,10 @@ export const POSOrdersOptimized: React.FC = () => {
 
   // تعديل الطلبية
   const handleOrderEdit = useCallback((order: OptimizedPOSOrder) => {
+    if (!canEditOrder) {
+      toast.error('ليس لديك صلاحية لتعديل الطلبية');
+      return;
+    }
     setDialogState({ 
       selectedOrder: order, 
       showOrderActions: false,
@@ -446,10 +474,14 @@ export const POSOrdersOptimized: React.FC = () => {
       showEditItems: false,
       showEditOrder: true
     });
-  }, []);
+  }, [canEditOrder]);
 
   // حذف الطلبية
   const handleOrderDelete = useCallback(async (order: OptimizedPOSOrder) => {
+    if (!canDeleteOrder) {
+      toast.error('ليس لديك صلاحية لحذف الطلبية');
+      return false as any;
+    }
     try {
       const { error } = await supabase
         .from('orders')
@@ -467,7 +499,7 @@ export const POSOrdersOptimized: React.FC = () => {
     } catch (error) {
       toast.error('حدث خطأ أثناء حذف الطلبية');
     }
-  }, [handleRefresh, dialogState.selectedOrder]);
+  }, [handleRefresh, dialogState.selectedOrder, canDeleteOrder]);
 
   // طباعة الطلبية
   const handleOrderPrint = useCallback((order: OptimizedPOSOrder) => {
@@ -476,6 +508,15 @@ export const POSOrdersOptimized: React.FC = () => {
 
   // تحديث حالة الطلبية - محسن لتجنب الاستدعاءات المكررة
   const handleStatusUpdate = useCallback(async (orderId: string, status: string, notes?: string) => {
+    if (status === 'cancelled') {
+      if (!canCancelOrder) {
+        toast.error('ليس لديك صلاحية لإلغاء الطلبية');
+        return false;
+      }
+    } else if (!canUpdateStatus) {
+      toast.error('ليس لديك صلاحية لتحديث حالة الطلبية');
+      return false;
+    }
     try {
       const { error } = await supabase
         .from('orders')
@@ -514,7 +555,7 @@ export const POSOrdersOptimized: React.FC = () => {
       toast.error('حدث خطأ أثناء تحديث الطلبية');
       return false;
     }
-  }, [queryClient, queryKey]);
+  }, [queryClient, queryKey, canUpdateStatus, canCancelOrder]);
 
   // تحديث حالة الدفع - محسن لتجنب الاستدعاءات المكررة
   const handlePaymentUpdate = useCallback(async (
@@ -523,6 +564,10 @@ export const POSOrdersOptimized: React.FC = () => {
     amountPaid?: number, 
     paymentMethod?: string
   ) => {
+    if (!canUpdatePayment) {
+      toast.error('ليس لديك صلاحية لتحديث الدفع');
+      return false;
+    }
     try {
       const updateData: any = { 
         payment_status: paymentStatus,
@@ -571,7 +616,7 @@ export const POSOrdersOptimized: React.FC = () => {
       toast.error('حدث خطأ أثناء تحديث الدفع');
       return false;
     }
-  }, [queryClient, queryKey]);
+  }, [queryClient, queryKey, canUpdatePayment]);
 
   // تصدير البيانات
   const handleExport = useCallback(() => {
@@ -591,6 +636,10 @@ export const POSOrdersOptimized: React.FC = () => {
 
   // فتح نافذة تعديل العناصر
   const handleEditItems = useCallback((order: OptimizedPOSOrder) => {
+    if (!canEditOrder) {
+      toast.error('ليس لديك صلاحية لتعديل عناصر الطلبية');
+      return;
+    }
     setDialogState({ 
       selectedOrder: order, 
       showEditItems: true,
@@ -598,7 +647,7 @@ export const POSOrdersOptimized: React.FC = () => {
       showOrderActions: false,
       showEditOrder: false
     });
-  }, []);
+  }, [canEditOrder]);
 
   // حفظ عناصر الطلبية المحدثة - محسن لتجنب الاستدعاءات المكررة
   const handleSaveItems = useCallback(async (orderId: string, updatedItems: any[]) => {
@@ -845,6 +894,13 @@ export const POSOrdersOptimized: React.FC = () => {
                 onPrint={handleOrderPrint as any}
                 onRefresh={handleRefresh}
                 onEditItems={handleEditItems as any}
+                permissions={{
+                  updateStatus: canUpdateStatus,
+                  cancel: canCancelOrder,
+                  updatePayment: canUpdatePayment,
+                  delete: canDeleteOrder,
+                  editItems: canEditOrder,
+                }}
               />
             </DialogContent>
           </Dialog>
@@ -936,6 +992,11 @@ export const POSOrdersOptimized: React.FC = () => {
           onOrderUpdated={async () => {
             await handleRefresh();
             setDialogState(prev => ({ ...prev, showEditOrder: false, selectedOrder: null }));
+          }}
+          permissions={{
+            edit: canEditOrder,
+            updateStatus: canUpdateStatus,
+            updatePayment: canUpdatePayment,
           }}
         />
 

@@ -39,6 +39,16 @@ const ContactPage = memo(() => {
         <title>تواصل معنا | سطوكيها - منصة إدارة المتاجر الذكية</title>
         <meta name="description" content="تواصل مع فريق سطوكيها للحصول على الدعم والمساعدة. نحن هنا لخدمتك على مدار الساعة." />
         <meta name="keywords" content="تواصل معنا، دعم سطوكيها، خدمة العملاء، الدعم الفني" />
+        <link rel="canonical" href={(typeof window !== 'undefined' ? (new URL(window.location.href)).origin : 'https://stockiha.com') + '/contact'} />
+        <meta property="og:type" content="website" />
+        <meta property="og:title" content="تواصل معنا | سطوكيها" />
+        <meta property="og:description" content="نحن هنا لمساعدتك. تواصل معنا في أي وقت." />
+        <meta property="og:url" content={(typeof window !== 'undefined' ? (new URL(window.location.href)).origin : 'https://stockiha.com') + '/contact'} />
+        <meta property="og:image" content="/images/logo-new.webp" />
+        <meta property="og:site_name" content="سطوكيها" />
+        <meta property="og:locale" content="ar_DZ" />
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:site" content="@stockiha" />
       </Helmet>
       
       <Navbar />

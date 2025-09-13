@@ -1,12 +1,23 @@
 import { Link, useLocation } from 'react-router-dom';
 import { 
   Store, Package, ShoppingBag, 
-  BarChart3, ShoppingCart
+  BarChart3, ShoppingCart, Database
+  
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useEffect, useState } from 'react';
 import { useIsAppEnabled } from '@/context/SuperUnifiedDataContext';
 import { useTenant } from '@/context/TenantContext';
+
+// Hook آمن للتحقق من تفعيل التطبيقات
+const useIsAppEnabledSafe = (appId: string): boolean => {
+  try {
+    return useIsAppEnabled(appId);
+  } catch (error) {
+    // إذا لم يكن SuperUnifiedDataProvider متوفر، إرجاع false
+    return false;
+  }
+};
 
 interface QuickLink {
   title: string;
@@ -55,6 +66,11 @@ export function QuickNavLinks({
       return `https://${currentOrganization.subdomain}.stockiha.com`;
     }
     
+    // إذا كنا على stockiha.pages.dev، استخدم النطاق الفرعي مع stockiha.com
+    if (window.location.hostname.includes('stockiha.pages.dev')) {
+      return `https://${currentOrganization.subdomain}.stockiha.com`;
+    }
+    
     // إذا كنا على ktobi.online، استخدم النطاق الفرعي
     if (window.location.hostname.includes('ktobi.online')) {
       return `https://${currentOrganization.subdomain}.ktobi.online`;
@@ -89,6 +105,15 @@ export function QuickNavLinks({
       bgColor: 'bg-purple-100 dark:bg-purple-900/30',
       hoverColor: 'text-purple-600 dark:text-purple-400',
       hoverBgColor: 'bg-purple-200 dark:bg-purple-800/40'
+    },
+    {
+      title: 'المخزون',
+      href: '/dashboard/inventory',
+      icon: Database,
+      color: 'text-orange-500',
+      bgColor: 'bg-orange-100 dark:bg-orange-900/30',
+      hoverColor: 'text-orange-600 dark:text-orange-400',
+      hoverBgColor: 'bg-orange-200 dark:bg-orange-800/40'
     },
     {
       title: 'الطلبيات',
@@ -127,7 +152,7 @@ export function QuickNavLinks({
   // نمط عرض القائمة في النافبار - أصغر وأكثر أناقة
   const renderNavbarLinks = () => {
     // التحقق من تفعيل التطبيقات
-    const isPOSEnabled = useIsAppEnabled('pos');
+    const isPOSEnabled = useIsAppEnabledSafe('pos');
     
     // تصفية الروابط حسب التطبيقات المفعلة
     const filteredLinks = quickNavLinks.filter(link => {
@@ -222,7 +247,7 @@ export function QuickNavLinks({
   
   const renderGridLinks = () => {
     // التحقق من تفعيل التطبيقات
-    const isPOSEnabled = useIsAppEnabled('pos');
+    const isPOSEnabled = useIsAppEnabledSafe('pos');
     
     // تصفية الروابط حسب التطبيقات المفعلة
     const filteredLinks = quickNavLinks.filter(link => {
@@ -365,7 +390,7 @@ export function QuickNavLinks({
   
   const renderHorizontalLinks = () => {
     // التحقق من تفعيل التطبيقات
-    const isPOSEnabled = useIsAppEnabled('pos');
+    const isPOSEnabled = useIsAppEnabledSafe('pos');
     
     // تصفية الروابط حسب التطبيقات المفعلة
     const filteredLinks = quickNavLinks.filter(link => {
@@ -486,7 +511,7 @@ export function QuickNavLinks({
   
   const renderVerticalLinks = () => {
     // التحقق من تفعيل التطبيقات
-    const isPOSEnabled = useIsAppEnabled('pos');
+    const isPOSEnabled = useIsAppEnabledSafe('pos');
     
     // تصفية الروابط حسب التطبيقات المفعلة
     const filteredLinks = quickNavLinks.filter(link => {

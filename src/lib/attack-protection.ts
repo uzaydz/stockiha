@@ -30,12 +30,15 @@ class AttackProtectionManager {
   private blockedIPs: Set<string> = new Set();
   
   private config: AttackDetectionConfig = {
-    maxRequestsPerMinute: 30,
-    maxRequestsPerHour: 500,
-    maxRequestsPerDay: 5000,
-    suspiciousThreshold: 70,
-    autoBlockThreshold: 85,
+    maxRequestsPerMinute: 100,  // زيادة إلى 100 طلب في الدقيقة
+    maxRequestsPerHour: 2000,   // زيادة إلى 2000 طلب في الساعة
+    maxRequestsPerDay: 20000,   // زيادة إلى 20000 طلب في اليوم
+    suspiciousThreshold: 85,    // رفع العتبة المشبوهة
+    autoBlockThreshold: 95,     // رفع عتبة الحظر التلقائي
     whitelist: [
+      "localhost",
+      "127.0.0.1",
+      "::1",
       // إضافة IPs موثوقة هنا
     ],
     blacklist: [
@@ -290,7 +293,7 @@ class AttackProtectionManager {
     if (pattern) {
       pattern.isBlocked = false;
     }
-    console.log(`✅ [AttackProtection] تم إلغاء حظر IP: ${ipAddress}`);
+    
   }
 
   /**

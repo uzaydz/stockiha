@@ -1,5 +1,5 @@
 import React, { Suspense } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 
 // Import components that don't need lazy loading (lightweight)
@@ -15,8 +15,8 @@ import StoreRouter from '../components/routing/StoreRouter';
 import RoleBasedRedirect from '../components/auth/RoleBasedRedirect';
 import POSOrdersWrapper from '../components/pos/POSOrdersWrapper';
 
-// Import lazy routes
-import * as LazyRoutes from './LazyRoutes';
+// Import optimized lazy routes للأداء المحسن
+import * as LazyRoutes from './LazyRoutes.optimized';
 
 // 🚀 مكون تحميل محسن
 export const PageLoader = ({ message }: { message?: string }) => (
@@ -31,49 +31,67 @@ export const PageLoader = ({ message }: { message?: string }) => (
 );
 
 // ============ المسارات العامة ============
-export const PublicRoutes = () => (
+export const PublicRoutes = () => {
+  // كشف سريع إن كان المضيف هو متجر (ساب دومين أو دومين مخصص)
+  const isStoreHost = (() => {
+    try {
+      const hostname = window.location.hostname;
+      const publicDomains = ['ktobi.online', 'www.ktobi.online', 'stockiha.com', 'www.stockiha.com', 'stockiha.pages.dev'];
+      const isLocalhost = hostname.includes('localhost');
+      if (publicDomains.includes(hostname) || isLocalhost) return false;
+      const parts = hostname.split('.');
+      const isSubOfStockiha = hostname.endsWith('.stockiha.com') && parts.length > 2 && parts[0] !== 'www';
+      const isSubOfKtobi = hostname.endsWith('.ktobi.online') && parts.length > 2 && parts[0] !== 'www';
+      const isCustomDomain = !isSubOfStockiha && !isSubOfKtobi && !publicDomains.includes(hostname);
+      return isSubOfStockiha || isSubOfKtobi || isCustomDomain;
+    } catch {
+      return false;
+    }
+  })();
+
+  return (
   <Routes>
     {/* الصفحة الرئيسية */}
     <Route path="/" element={<StoreRouter />} />
     
     {/* صفحات الهبوط */}
     <Route path="/features" element={
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={isStoreHost ? null : <PageLoader />}>
         <LazyRoutes.FeaturesPage />
       </Suspense>
     } />
     <Route path="/offline-features" element={
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={isStoreHost ? null : <PageLoader />}>
         <LazyRoutes.OfflineFeatures />
       </Suspense>
     } />
     <Route path="/features/pos" element={
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={isStoreHost ? null : <PageLoader />}>
         <LazyRoutes.POSFeaturesPage />
       </Suspense>
     } />
     <Route path="/features/online-store" element={
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={isStoreHost ? null : <PageLoader />}>
         <LazyRoutes.OnlineStorePage />
       </Suspense>
     } />
     <Route path="/features/advanced-analytics" element={
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={isStoreHost ? null : <PageLoader />}>
         <LazyRoutes.AdvancedAnalyticsFeaturesPage />
       </Suspense>
     } />
     <Route path="/pricing" element={
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={isStoreHost ? null : <PageLoader />}>
         <LazyRoutes.PricingPage />
       </Suspense>
     } />
     <Route path="/contact" element={
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={isStoreHost ? null : <PageLoader />}>
         <LazyRoutes.ContactLandingPage />
       </Suspense>
     } />
     <Route path="/contact-old" element={
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={isStoreHost ? null : <PageLoader />}>
         <LazyRoutes.ContactPage />
       </Suspense>
     } />
@@ -87,133 +105,151 @@ export const PublicRoutes = () => (
     
     {/* صفحات المنتجات العامة */}
     <Route path="/products" element={
-      <Suspense fallback={<PageLoader message="جاري تحميل المنتجات..." />}>
+      <Suspense fallback={isStoreHost ? null : <PageLoader message="جاري تحميل المنتجات..." />}>
         <LazyRoutes.StoreProducts />
       </Suspense>
     } />
+    <Route path="/cart" element={
+      <Suspense fallback={isStoreHost ? null : <PageLoader message="جاري تحميل العربة..." />}>
+        <LazyRoutes.CartPage />
+      </Suspense>
+    } />
+    <Route path="/cart/checkout" element={
+      <Suspense fallback={isStoreHost ? null : <PageLoader message="جاري تحميل إتمام الطلب..." />}>
+        <LazyRoutes.CartCheckoutPage />
+      </Suspense>
+    } />
     <Route path="/products/details/:productId" element={
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={isStoreHost ? null : <PageLoader />}>
         <LazyRoutes.ProductDetails />
       </Suspense>
     } />
     <Route path="/products/:slug" element={
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={isStoreHost ? null : <PageLoader />}>
         <LazyRoutes.ProductPurchase />
       </Suspense>
     } />
     <Route path="/product-max/:productId" element={
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={null}>
         <LazyRoutes.ProductPurchasePageMax />
       </Suspense>
     } />
     <Route path="/product-purchase-max/:productId" element={
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={null}>
         <LazyRoutes.ProductPurchasePageMax />
       </Suspense>
     } />
     <Route path="/product-purchase-max-v2/:productId" element={
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={null}>
+        <LazyRoutes.ProductPurchasePageV3 />
+      </Suspense>
+    } />
+    {/* مسار صريح v3 للتوضيح والتوافق */}
+    <Route path="/product-purchase-max-v3/:productId" element={
+      <Suspense fallback={null}>
         <LazyRoutes.ProductPurchasePageV3 />
       </Suspense>
     } />
     {/* دعم slug بالإضافة إلى ID */}
     <Route path="/product/:productIdentifier" element={
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={null}>
         <LazyRoutes.ProductPurchasePageV3 />
       </Suspense>
     } />
     <Route path="/product-public/:productId" element={
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={isStoreHost ? null : <PageLoader />}>
         <LazyRoutes.ProductPurchasePageMaxPublic />
       </Suspense>
     } />
     
     {/* صفحة الشكر */}
     <Route path="/thank-you" element={
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={isStoreHost ? null : <PageLoader />}>
         <LazyRoutes.ThankYouPage />
       </Suspense>
     } />
     
     {/* صفحات الخدمات العامة */}
     <Route path="/service-tracking/:trackingId" element={
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={isStoreHost ? null : <PageLoader />}>
         <LazyRoutes.PublicServiceTrackingPage />
       </Suspense>
     } />
     <Route path="/service-tracking-public" element={
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={isStoreHost ? null : <PageLoader />}>
         <LazyRoutes.PublicServiceTrackingPage />
       </Suspense>
     } />
     <Route path="/services" element={
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={isStoreHost ? null : <PageLoader />}>
         <LazyRoutes.PublicServiceTrackingPage />
       </Suspense>
     } />
     <Route path="/repair-tracking" element={
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={isStoreHost ? null : <PageLoader />}>
         <LazyRoutes.RepairTrackingPage />
       </Suspense>
     } />
     <Route path="/repair-tracking/:trackingCode" element={
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={isStoreHost ? null : <PageLoader />}>
         <LazyRoutes.RepairTrackingPage />
       </Suspense>
     } />
     <Route path="/repair-complete/:orderId" element={
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={isStoreHost ? null : <PageLoader />}>
         <LazyRoutes.RepairComplete />
       </Suspense>
     } />
     
     {/* صفحات الألعاب العامة */}
     <Route path="/games" element={
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={isStoreHost ? null : <PageLoader />}>
         <LazyRoutes.PublicGameStorePage />
       </Suspense>
     } />
     <Route path="/games/:organizationId" element={
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={isStoreHost ? null : <PageLoader />}>
         <LazyRoutes.PublicGameStorePage />
       </Suspense>
     } />
     <Route path="/game-tracking" element={
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={isStoreHost ? null : <PageLoader />}>
         <LazyRoutes.PublicGameTracking />
       </Suspense>
     } />
     <Route path="/game-tracking/:trackingNumber" element={
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={isStoreHost ? null : <PageLoader />}>
         <LazyRoutes.PublicGameTracking />
       </Suspense>
     } />
     
     {/* صفحات QR للألعاب */}
     <Route path="/game-download-start/:orderId" element={
-      <Suspense fallback={<PageLoader message="جاري تحميل بدء التحميل..." />}>
+      <Suspense fallback={isStoreHost ? null : <PageLoader message="جاري تحميل بدء التحميل..." />}>
         <LazyRoutes.GameDownloadStart />
       </Suspense>
     } />
     <Route path="/game-complete/:orderId" element={
-      <Suspense fallback={<PageLoader message="جاري تحميل إتمام الطلب..." />}>
+      <Suspense fallback={isStoreHost ? null : <PageLoader message="جاري تحميل إتمام الطلب..." />}>
         <LazyRoutes.GameOrderComplete />
       </Suspense>
     } />
     
     {/* الصفحات المخصصة */}
     <Route path="/page/:slug" element={
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={isStoreHost ? null : <PageLoader />}>
         <LazyRoutes.CustomPageView />
       </Suspense>
     } />
     <Route path="/:slug" element={
-      <Suspense fallback={<PageLoader />}>
+      <Suspense fallback={isStoreHost ? null : <PageLoader />}>
         <LazyRoutes.LandingPageView />
       </Suspense>
     } />
   </Routes>
-);
+  );
+};
+
 
 // ============ مسارات التوثيق ============
 export const AuthRoutes = () => (
@@ -416,9 +452,11 @@ export const DashboardMainRoutes = () => (
     
     <Route path="/dashboard/inventory" element={
       <SubscriptionCheck>
-        <Suspense fallback={<PageLoader message="جاري تحميل المخزون..." />}>
-          <LazyRoutes.Inventory />
-        </Suspense>
+        <PermissionGuard requiredPermissions={['viewInventory']}>
+          <Suspense fallback={<PageLoader message="جاري تحميل المخزون..." />}>
+            <LazyRoutes.Inventory />
+          </Suspense>
+        </PermissionGuard>
       </SubscriptionCheck>
     } />
     

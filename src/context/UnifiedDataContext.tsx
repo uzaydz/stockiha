@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './AuthContext';
 import { useTenant } from './TenantContext';
 import { supabase } from '@/lib/supabase';
+import { getOrganizationById, getOrganizationSettings } from '@/lib/api/deduplicatedApi';
 import { deduplicateRequest } from '../lib/cache/deduplication';
 
 // =================================================================
@@ -204,21 +205,12 @@ const fetchAppInitializationData = async (userId: string, orgId: string): Promis
 
       if (userError) throw userError;
 
-      const { data: orgData, error: orgError } = await supabase
-        .from('organizations')
-        .select('*')
-        .eq('id', orgId)
-        .single();
-
-      if (orgError) throw orgError;
+      // استخدام API موحد بديدوب للحصول على المؤسسة
+      const orgData = await getOrganizationById(orgId);
+      if (!orgData) throw new Error('فشل في جلب بيانات المؤسسة');
 
       // جلب إعدادات المؤسسة
-      const orgSettingsResult = await supabase
-        .from('organization_settings')
-        .select('*')
-        .eq('organization_id', orgId)
-        .limit(1);
-      const orgSettings = orgSettingsResult.data?.[0] || null;
+      const orgSettings = await getOrganizationSettings(orgId);
 
       // جلب إعدادات POS
       const posSettingsResult = await supabase

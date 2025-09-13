@@ -20,9 +20,9 @@ class RequestThrottleManager {
   private cooldowns: Map<string, number> = new Map();
   
   private defaultConfig: ThrottleConfig = {
-    maxRequestsPerMinute: 10, // 10 طلبات في الدقيقة كحد أقصى
-    maxRequestsPerHour: 200,  // 200 طلب في الساعة كحد أقصى
-    cooldownPeriod: 2000,     // 2 ثانية بين الطلبات المتشابهة
+    maxRequestsPerMinute: 30, // 30 طلب في الدقيقة (مضاعف 3x)
+    maxRequestsPerHour: 600,  // 600 طلب في الساعة (مضاعف 3x)
+    cooldownPeriod: 200,      // 0.2 ثانية فقط بين الطلبات المتشابهة (تقليل أكثر)
   };
 
   /**
@@ -91,7 +91,7 @@ class RequestThrottleManager {
     this.requests.set(key, requestHistory);
     this.cooldowns.set(key, now);
 
-    console.log(`✅ [RequestThrottle] طلب مسجل: ${endpoint} (المجموع: ${requestHistory.length})`);
+    
   }
 
   /**
@@ -112,7 +112,7 @@ class RequestThrottleManager {
       }
     }
 
-    console.log(`🧹 [RequestThrottle] تنظيف مكتمل. المفاتيح المتبقية: ${this.requests.size}`);
+    
   }
 
   /**

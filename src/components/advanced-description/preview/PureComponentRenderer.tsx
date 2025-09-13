@@ -237,7 +237,7 @@ const PureImageComponent: React.FC<{ component: any; className?: string }> = ({ 
               }
             }}
             decoding="async"
-            fetchpriority={settings?.lazyLoad ? "low" : "high"}
+            fetchPriority={settings?.lazyLoad ? "low" : "high"}
             title={data.caption || data.alt || 'صورة المنتج'}
           />
           {settings?.showCaption && data.caption && (
@@ -464,23 +464,278 @@ const PureFeaturesComponent: React.FC<{ component: any; className?: string }> = 
 
 // Pure Specifications Component
 const PureSpecificationsComponent: React.FC<{ component: any; className?: string }> = ({ component, className }) => {
-  const { data } = component;
+  const { data, settings } = component;
   
-  if (!data.specifications || data.specifications.length === 0) return null;
+  // التحقق من وجود المواصفات
+  const hasSpecifications = (data?.specifications && data.specifications.length > 0) || 
+                           (data?.categories && data.categories.length > 0);
+  
+  if (!hasSpecifications) {
+    return (
+      <div className={cn(
+        'relative overflow-hidden transition-all duration-500 group',
+        'bg-gradient-to-br from-background via-background/80 to-muted/20',
+        'border border-border/40 rounded-xl shadow-sm hover:shadow-lg',
+        'backdrop-blur-sm',
+        className
+      )}>
+        {/* خلفية تدرجية خفيفة */}
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+        
+        <div className="relative p-8 text-center">
+          {data?.title && (
+            <h3 className="text-xl font-bold mb-6 bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+              {data.title}
+            </h3>
+          )}
+          <div className="text-muted-foreground space-y-4">
+            <div className="relative mx-auto w-16 h-16 mb-4">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-secondary/20 rounded-2xl rotate-3 group-hover:rotate-6 transition-transform duration-300" />
+              <div className="relative w-full h-full bg-gradient-to-br from-background to-muted/50 rounded-2xl flex items-center justify-center text-2xl">
+                📋
+              </div>
+            </div>
+            <p className="text-sm font-medium">لا توجد مواصفات مضافة بعد</p>
+            <p className="text-xs opacity-60">أضف المواصفات لعرضها هنا</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // تحديد نوع التخطيط
+  const layoutType = data?.layoutType || 'simple';
+  
+  // تجميع المواصفات حسب نوع التخطيط
+  let displayData: any = {};
+  
+  if (layoutType === 'categorized' && data?.categories && data.categories.length > 0) {
+    // استخدام الفئات المحددة
+    displayData = data.categories.reduce((acc: Record<string, any[]>, category: any) => {
+      if (category.specifications && category.specifications.length > 0) {
+        acc[category.name] = category.specifications.map((spec: any) => ({
+          id: spec.id || Math.random().toString(),
+          name: spec.name,
+          value: spec.value,
+          unit: spec.unit,
+          description: spec.description
+        }));
+      }
+      return acc;
+    }, {});
+  } else if (data?.specifications && data.specifications.length > 0) {
+    // استخدام المواصفات البسيطة
+    if (settings?.showCategories) {
+      // تجميع حسب الفئة
+      displayData = data.specifications.reduce((acc: Record<string, any[]>, spec: any) => {
+        const categoryName = (spec.category || '').trim() || 'عام';
+        if (!acc[categoryName]) acc[categoryName] = [];
+        acc[categoryName].push(spec);
+        return acc;
+      }, {});
+    } else {
+      // عرض بسيط بدون فئات
+      displayData = { '': data.specifications };
+    }
+  }
+
+  // التحقق من وجود بيانات للعرض
+  const hasDisplayData = Object.keys(displayData).length > 0;
+  if (!hasDisplayData) {
+    return (
+      <div className={cn(
+        'overflow-hidden transition-all duration-300',
+        'border border-border/50 bg-card/50 backdrop-blur-sm rounded-lg',
+        className
+      )}>
+        <div className="p-6 text-center">
+          {data?.title && (
+            <h3 className="text-lg font-semibold mb-4">{data.title}</h3>
+          )}
+          <div className="text-muted-foreground">
+            <div className="w-12 h-12 mx-auto mb-2 opacity-50">📋</div>
+            <p className="text-sm">لا توجد مواصفات للعرض</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // تحديد نمط العرض
+  const isTableLayout = settings?.layout === 'table' || layoutType === 'table';
+
+  // تطبيق الإعدادات على الأنماط
+  const containerStyles: React.CSSProperties = {
+    backgroundColor: settings?.backgroundColor !== 'transparent' ? 
+      (settings?.backgroundColor === 'background' ? 'hsl(var(--background))' :
+       settings?.backgroundColor === 'muted' ? 'hsl(var(--muted))' :
+       settings?.backgroundColor === 'primary/5' ? 'hsl(var(--primary) / 0.05)' :
+       settings?.backgroundColor === 'secondary/5' ? 'hsl(var(--secondary) / 0.05)' :
+       settings?.backgroundColor === 'accent/5' ? 'hsl(var(--accent) / 0.05)' :
+       settings?.backgroundColor) : undefined,
+    padding: settings?.padding ? `${settings.padding}px` : '24px',
+    borderRadius: settings?.borderRadius === 'none' ? '0' :
+                 settings?.borderRadius === 'sm' ? '0.25rem' :
+                 settings?.borderRadius === 'md' ? '0.75rem' :
+                 settings?.borderRadius === 'lg' ? '1rem' :
+                 settings?.borderRadius === 'xl' ? '1.5rem' :
+                 settings?.borderRadius === 'full' ? '9999px' : '0.75rem'
+  };
+
+  const borderClasses = cn(
+    'relative overflow-hidden transition-all duration-500 group',
+    settings?.borderStyle === 'none' ? 'border-0' :
+    settings?.borderStyle === 'separated' ? 'border-0' :
+    'border border-border/30 hover:border-border/60',
+    'bg-gradient-to-br from-background/95 via-background/90 to-muted/10',
+    'backdrop-blur-md shadow-sm hover:shadow-xl',
+    'rounded-xl'
+  );
 
   return (
-    <div className={cn(
-      "overflow-hidden transition-all duration-300",
-      "border border-border/50 bg-card/50 backdrop-blur-sm rounded-lg",
-      className
-    )}>
-      <div className="p-4">
-        <h3 className="text-lg font-semibold text-center mb-4">{data.title}</h3>
-        <div className="space-y-2">
-          {data.specifications.map((spec: any, index: number) => (
-            <div key={spec.id || index} className="flex justify-between items-center py-2 px-3 rounded bg-muted/30">
-              <span className="text-sm font-medium">{spec.label}</span>
-              <span className="text-sm text-muted-foreground">{spec.value}</span>
+    <div className={cn(borderClasses, className)} style={containerStyles}>
+      {/* خلفية تدرجية متحركة */}
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/3 via-transparent to-secondary/3 opacity-0 group-hover:opacity-100 transition-all duration-700" />
+      
+      {/* نقاط زخرفية */}
+      <div className="absolute top-4 right-4 w-2 h-2 bg-primary/20 rounded-full animate-pulse" />
+      <div className="absolute top-6 right-8 w-1 h-1 bg-secondary/30 rounded-full animate-pulse delay-300" />
+      
+      <div className="relative space-y-6">
+        {/* العنوان والعنوان الفرعي */}
+        {data?.title && (
+          <div className="text-center space-y-3">
+            <div className="relative inline-block">
+              <h3 className="text-2xl font-bold bg-gradient-to-r from-foreground via-foreground/90 to-foreground/70 bg-clip-text text-transparent">
+                {data.title}
+              </h3>
+              <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-12 h-0.5 bg-gradient-to-r from-primary/60 to-secondary/60 rounded-full" />
+            </div>
+            {data?.subtitle && (
+              <p className="text-sm text-muted-foreground/80 font-medium max-w-md mx-auto leading-relaxed">
+                {data.subtitle}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* عرض المواصفات */}
+        <div className="space-y-4">
+          {Object.entries(displayData).map(([categoryName, items]) => (
+            <div key={categoryName} className="space-y-3">
+              {/* عنوان الفئة */}
+              {categoryName && settings?.showCategories && layoutType === 'categorized' && (
+                <div className="relative group/category">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="flex items-center gap-2">
+                      <div className="w-1.5 h-6 bg-gradient-to-b from-primary to-secondary rounded-full" />
+                      <h4 className="text-lg font-bold text-foreground/90 tracking-wide">
+                        {categoryName}
+                      </h4>
+                    </div>
+                    <div className="flex-1 h-px bg-gradient-to-r from-border/50 to-transparent" />
+                  </div>
+                </div>
+              )}
+
+              {/* المواصفات */}
+              {isTableLayout ? (
+                <div className="overflow-hidden rounded-xl border border-border/30 shadow-sm bg-background/50 backdrop-blur-sm">
+                  <div className={cn(
+                    settings?.borderStyle === 'separated' ? 'divide-y divide-border/20' : ''
+                  )}>
+                    {(items as any[]).map((spec: any, idx: number) => (
+                      <div
+                        key={spec.id || idx}
+                        className={cn(
+                          'grid grid-cols-2 gap-4 p-4 transition-all duration-300 hover:bg-muted/20 group/row',
+                          settings?.alternatingColors && idx % 2 === 1 ? 
+                            'bg-gradient-to-r from-muted/20 to-muted/10' : 
+                            'bg-gradient-to-r from-background/80 to-background/60'
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-2 h-2 bg-primary/40 rounded-full opacity-0 group-hover/row:opacity-100 transition-opacity duration-300" />
+                          <div className="text-sm font-semibold text-foreground/90">
+                            {spec.name}
+                          </div>
+                        </div>
+                        <div className="text-sm text-muted-foreground text-left flex items-center justify-between">
+                          <span className="font-medium text-foreground/80">
+                            {spec.value}
+                            {settings?.showUnits && spec.unit && (
+                              <span className="text-xs text-primary/60 mr-2 font-normal bg-primary/10 px-1.5 py-0.5 rounded-md">
+                                {spec.unit}
+                              </span>
+                            )}
+                          </span>
+                        </div>
+                        {settings?.showDescriptions && spec.description && (
+                          <div className="col-span-2 text-xs text-muted-foreground/70 pt-2 border-t border-border/10 bg-muted/10 -mx-4 px-4 pb-2 mt-2 rounded-b-lg">
+                            <div className="flex items-start gap-2">
+                              <div className="w-1 h-1 bg-muted-foreground/40 rounded-full mt-1.5 flex-shrink-0" />
+                              <span className="leading-relaxed">{spec.description}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {(items as any[]).map((spec: any, idx: number) => (
+                    <div
+                      key={spec.id || idx}
+                      className={cn(
+                        'group/card relative overflow-hidden rounded-xl border border-border/30 p-4 transition-all duration-300 hover:shadow-lg hover:scale-[1.02]',
+                        'bg-gradient-to-br from-background/80 to-muted/20 backdrop-blur-sm',
+                        settings?.alternatingColors && idx % 2 === 1 ? 
+                          'hover:from-primary/5 hover:to-secondary/5' : 
+                          'hover:from-secondary/5 hover:to-primary/5'
+                      )}
+                    >
+                      {/* خلفية تفاعلية */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5 opacity-0 group-hover/card:opacity-100 transition-opacity duration-500" />
+                      
+                      {/* نقطة زخرفية */}
+                      <div className="absolute top-3 right-3 w-1.5 h-1.5 bg-primary/30 rounded-full opacity-0 group-hover/card:opacity-100 transition-all duration-300 delay-100" />
+                      
+                      <div className="relative space-y-3">
+                        {/* اسم المواصفة */}
+                        <div className="flex items-center gap-2">
+                          <div className="w-1 h-4 bg-gradient-to-b from-primary/60 to-secondary/60 rounded-full opacity-60 group-hover/card:opacity-100 transition-opacity duration-300" />
+                          <div className="text-xs font-semibold text-muted-foreground/80 uppercase tracking-wider">
+                            {spec.name}
+                          </div>
+                        </div>
+                        
+                        {/* قيمة المواصفة */}
+                        <div className="flex items-baseline justify-between">
+                          <span className="text-lg font-bold text-foreground/90 group-hover/card:text-foreground transition-colors duration-300">
+                            {spec.value}
+                          </span>
+                          {settings?.showUnits && spec.unit && (
+                            <span className="text-xs font-medium text-primary/70 bg-primary/10 px-2 py-1 rounded-md border border-primary/20">
+                              {spec.unit}
+                            </span>
+                          )}
+                        </div>
+                        
+                        {/* الوصف */}
+                        {settings?.showDescriptions && spec.description && (
+                          <div className="text-xs text-muted-foreground/70 leading-relaxed border-t border-border/20 pt-2">
+                            <div className="flex items-start gap-2">
+                              <div className="w-1 h-1 bg-muted-foreground/40 rounded-full mt-1.5 flex-shrink-0" />
+                              <span>{spec.description}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -521,32 +776,48 @@ const PureReviewsComponent: React.FC<{ component: any; className?: string }> = (
   );
 };
 
-// Pure GIF Component
+// Pure GIF Component - مبسط للغاية
 const PureGifComponent: React.FC<{ component: any; className?: string }> = ({ component, className }) => {
   const { data, settings } = component;
   
   if (!data.url) return null;
 
+  // حساب الأنماط الأساسية فقط
+  const imageStyles: React.CSSProperties = {
+    maxWidth: settings?.maxWidth ? `${settings.maxWidth}px` : '100%',
+    height: 'auto',
+    borderRadius: typeof settings?.borderRadius === 'number' 
+      ? `${settings.borderRadius}px` 
+      : '8px',
+    display: 'block',
+  };
+
+  // حساب classes للمحاذاة
+  const alignmentClass = cn(
+    "flex",
+    settings?.alignment === 'left' && "justify-start",
+    settings?.alignment === 'center' && "justify-center", 
+    settings?.alignment === 'right' && "justify-end",
+    !settings?.alignment && "justify-center"
+  );
+
   return (
-    <div className={cn("flex justify-center", className)}>
+    <div className={cn(alignmentClass, className)}>
       <div className="relative">
+        {/* عرض GIF مباشر بدون تعقيدات */}
         <img
           src={data.url}
-          alt={data.altText || data.caption || 'GIF'}
-          className="max-w-full h-auto rounded-lg"
-          style={{
-            width: settings?.width || 'auto',
-            height: settings?.height || 'auto',
-            borderRadius: settings?.borderRadius === 'none' ? '0' : 
-                        settings?.borderRadius === 'small' ? '4px' :
-                        settings?.borderRadius === 'medium' ? '8px' :
-                        settings?.borderRadius === 'large' ? '12px' : '8px'
-          }}
-          // إضافة معاملات لضمان عرض GIF مع الحركة
-          {...(data.url.includes('supabase.co') && {
-            src: data.url.replace(/\?.*$/, '') + '?format=gif&optimize=medium'
-          })}
+          alt={data.alt || data.caption || 'GIF متحرك'}
+          style={imageStyles}
+          // خصائص أساسية فقط
+          loading="eager"
+          decoding="auto"
+          draggable={false}
+          data-gif="true"
+          // إزالة crossOrigin التي قد تسبب مشاكل
         />
+
+        {/* عرض التسمية التوضيحية */}
         {data.caption && (
           <div className="mt-2 text-sm text-muted-foreground text-center">
             {data.caption}
@@ -771,8 +1042,6 @@ const PureGalleryComponent: React.FC<{ component: any; className?: string; produ
       {/* Use ProductImageGalleryV2 directly */}
       <ProductImageGalleryV2 
         product={product}
-        disableAutoColorSwitch={true}
-        enableScrollFollow={false}
         className="advanced-description-gallery"
       />
     </div>

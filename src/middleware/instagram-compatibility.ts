@@ -35,11 +35,11 @@ function isSocialMediaBrowser(userAgent: string): boolean {
 function createSocialMediaCSP(): string {
   return [
     "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://connect.facebook.net https://www.googletagmanager.com https://www.google-analytics.com https://js.sentry-cdn.com https://static.cloudflareinsights.com https://www.gstatic.com https://www.google.com",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://connect.facebook.net https://www.googletagmanager.com https://www.google-analytics.com https://js.sentry-cdn.com https://www.gstatic.com https://www.google.com https://analytics.tiktok.com",
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
-    "img-src 'self' data: https: blob: https://*.supabase.co https://*.cloudflareinsights.com https://www.gravatar.com https://*.gravatar.com",
+    "img-src 'self' data: https: blob: https://*.supabase.co https://www.gravatar.com https://*.gravatar.com",
     "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:",
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.yalidine.app https://procolis.com https://www.google-analytics.com https://region1.google-analytics.com https://stats.g.doubleclick.net https://sentry.io https://*.sentry.io https://cloudflareinsights.com https://*.cloudflareinsights.com https://cloudflare-dns.com",
+    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.yalidine.app https://procolis.com https://www.google-analytics.com https://region1.google-analytics.com https://stats.g.doubleclick.net https://sentry.io https://*.sentry.io https://cloudflare-dns.com https://analytics.tiktok.com",
     "frame-src 'self' https://www.facebook.com https://connect.facebook.net https://www.instagram.com https://*.instagram.com https://www.google.com https://www.gstatic.com",
     "object-src 'none'",
     "base-uri 'self'",
@@ -77,7 +77,7 @@ export function instagramCompatibilityPlugin(): Plugin {
           res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
           res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
           
-          console.log(`🔗 [Instagram Compatibility] طلب من: ${userAgent.slice(0, 50)}...`);
+          
         }
         
         next();
@@ -101,7 +101,7 @@ export function instagramCompatibilityMiddleware() {
       res.setHeader('Access-Control-Allow-Origin', '*');
       
       // تسجيل للمراقبة
-      console.log(`📱 [Instagram Request] من: ${userAgent.slice(0, 100)}`);
+      
     }
     
     next();

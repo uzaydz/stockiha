@@ -1,7 +1,7 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode, useCallback, useRef, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { getOrganizationSettings } from '@/lib/api/settings';
-import { updateOrganizationTheme, initializeSystemThemeListener } from '@/lib/themeManager';
+import { updateOrganizationTheme, initializeSystemThemeListener } from '@/lib/themeManager/index';
 import type { OrganizationThemeMode } from '@/types/settings';
 
 type Theme = 'light' | 'dark' | 'system';
@@ -52,7 +52,7 @@ function convertThemeMode(orgMode: OrganizationThemeMode): Theme {
 // دالة تطبيق الثيم بشكل فوري ومتزامن - محسنة لأقصى سرعة مع منع forced reflow
 function applyThemeImmediate(theme: Theme): void {
   const root = document.documentElement;
-  const body = document.body;
+  const body = document.body || null;
 
   // تحديد الثيم الفعلي
   let effectiveTheme = theme;
@@ -60,23 +60,20 @@ function applyThemeImmediate(theme: Theme): void {
     effectiveTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
 
-  // تجنب الوصول المباشر للخصائص التي تسبب reflow
-  // استخدام classList بدلاً من className لتجنب forced reflow
-
-  // إزالة الفئات القديمة
+  // إزالة الفئات القديمة بأمان
   root.classList.remove('light', 'dark');
-  body.classList.remove('light', 'dark');
+  if (body) body.classList.remove('light', 'dark');
 
   // إضافة الفئة الجديدة
   root.classList.add(effectiveTheme);
-  body.classList.add(effectiveTheme);
+  if (body) body.classList.add(effectiveTheme);
 
   // تعيين data attributes - تجميع العمليات
   const updates = [
     () => root.setAttribute('data-theme', effectiveTheme),
-    () => body.setAttribute('data-theme', effectiveTheme),
+    () => { if (body) body.setAttribute('data-theme', effectiveTheme); },
     () => { root.style.colorScheme = effectiveTheme; },
-    () => { body.style.colorScheme = effectiveTheme; },
+    () => { if (body) body.style.colorScheme = effectiveTheme; },
     () => {
       const metaThemeColor = document.querySelector('meta[name="theme-color"]');
       if (metaThemeColor) {
@@ -89,6 +86,15 @@ function applyThemeImmediate(theme: Theme): void {
       root.style.setProperty('--theme-transition-timing', 'ease-out');
     }
   ];
+
+  // تعطيل الانتقالات مؤقتًا لتجنّب التغيّر المتدرج للعناصر
+  const NO_MOTION_CLASS = 'no-motion';
+  if (!root.classList.contains(NO_MOTION_CLASS)) {
+    root.classList.add(NO_MOTION_CLASS);
+    setTimeout(() => {
+      try { root.classList.remove(NO_MOTION_CLASS); } catch {}
+    }, 150);
+  }
 
   // تطبيق التحديثات في batch واحد مع تجنب forced reflow تماماً
   // استخدام microtask بدلاً من requestAnimationFrame للتحكم الأفضل
@@ -136,15 +142,15 @@ function applyThemeToDOM(theme: Theme): void {
 
   // إضافة attributes إضافية للتأكيد
   const root = document.documentElement;
-  const body = document.body;
-
+  const body = document.body || null;
+  
   let effectiveTheme = theme;
   if (theme === 'system') {
     effectiveTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
 
   root.setAttribute('data-theme-applied', effectiveTheme);
-  body.setAttribute('data-theme-applied', effectiveTheme);
+  if (body) body.setAttribute('data-theme-applied', effectiveTheme);
 }
 
 // إضافة دالة تحويل HEX إلى HSL
@@ -207,7 +213,6 @@ function hexToHSL(hex: string): string {
 }
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialOrganizationId }) => {
-  // استخدام console.log مباشرة في التطوير لتجنب تغيير dependencies
   const isDebug = process.env.NODE_ENV === 'development';
   const initLogRef = useRef(false);
 
@@ -560,13 +565,13 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
       // تجميع جميع العمليات لتجنب multiple reflows
       const operations = [
         () => root.classList.remove('light', 'dark'),
-        () => body.classList.remove('light', 'dark'),
+        () => body && body.classList.remove('light', 'dark'),
         () => root.classList.add(effectiveTheme),
-        () => body.classList.add(effectiveTheme),
+        () => body && body.classList.add(effectiveTheme),
         () => root.setAttribute('data-theme', effectiveTheme),
-        () => body.setAttribute('data-theme', effectiveTheme),
+        () => body && body.setAttribute('data-theme', effectiveTheme),
         () => { root.style.colorScheme = effectiveTheme; },
-        () => { body.style.colorScheme = effectiveTheme; }
+        () => { if (body) body.style.colorScheme = effectiveTheme; }
       ];
 
       // تطبيق جميع العمليات في microtask واحد
@@ -583,11 +588,9 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
     toggleFast: () => {
       // تعطيل التأثيرات المؤقتة للتبديل السريع
       const root = document.documentElement;
-      const body = document.body;
 
       // إزالة التأثيرات المؤقتة
       root.style.setProperty('--theme-transition-duration', '0s');
-      body.style.setProperty('--theme-transition-duration', '0s');
 
       const newTheme = theme === 'dark' ? 'light' : 'dark';
       setTheme(newTheme);
@@ -595,7 +598,6 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
       // إعادة التأثيرات بعد فترة قصيرة جداً
       setTimeout(() => {
         root.style.setProperty('--theme-transition-duration', '0.1s');
-        body.style.setProperty('--theme-transition-duration', '0.1s');
       }, 50);
 
       return newTheme;

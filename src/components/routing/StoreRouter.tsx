@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 // import { Navigate } from 'react-router-dom'; // Navigate غير مستخدمة حاليًا
 import { extractSubdomainFromHostname } from '@/lib/api/subdomain';
-import StorePage from '@/components/store/StorePage';
-import LandingPage from '@/pages/landing/LandingPage';
+const StorePage = React.lazy(() => import('@/components/store/StorePage'));
+const LandingPage = React.lazy(() => import('@/pages/landing/LandingPage'));
 import { useGlobalLoading } from '@/components/store/GlobalLoadingManager';
 import { useDynamicTitle } from '@/hooks/useDynamicTitle';
 
@@ -11,7 +11,8 @@ const PUBLIC_DOMAINS = [
   'ktobi.online',
   'www.ktobi.online',
   'stockiha.com',
-  'www.stockiha.com'
+  'www.stockiha.com',
+  'stockiha.pages.dev'
 ];
 
 // دالة للتحقق من localhost (مع أو بدون منفذ)
@@ -56,8 +57,12 @@ async function retryWithBackoff<T>(
  * 🚀 مكون تحميل محسن للمتاجر - يعرض المتجر مباشرة عند الكشف المبكر
  */
 const OptimizedStoreLoader = React.memo(({ subdomain, hostname }: { subdomain?: string; hostname: string }) => {
-  // 🔥 عرض المتجر فوراً بدون تأخير
-  return <StorePage />;
+  // عرض المتجر فوراً بدون أي مؤشرات تحميل إضافية لتفادي الوميض
+  return (
+    <React.Suspense fallback={null}>
+      <StorePage />
+    </React.Suspense>
+  );
 });
 
 OptimizedStoreLoader.displayName = 'OptimizedStoreLoader';
@@ -67,9 +72,34 @@ OptimizedStoreLoader.displayName = 'OptimizedStoreLoader';
  * محسن للاستفادة من الكشف المبكر للنطاق
  */
 const StoreRouter = React.memo(() => {
+  const storeRouterStartTime = useRef(performance.now());
+  
+  console.log('🛣️ [STORE-ROUTER] بدء تشغيل موجه المتجر', {
+    startTime: storeRouterStartTime.current,
+    url: window.location.href,
+    pathname: window.location.pathname
+  });
   
   // استخدام Hook لضمان تحديث العنوان والأيقونة
   useDynamicTitle();
+  
+  // 🔥 إضافة فحص للمسار - إذا كان مسار إداري في نطاق عام، لا تعرض StoreRouter
+  const pathname = useMemo(() => window.location.pathname, []);
+  const hostname = useMemo(() => window.location.hostname, []);
+  
+  // إذا كان النطاق عام والمسار إداري، لا تعرض StoreRouter
+  const isPublicDomain = PUBLIC_DOMAINS.includes(hostname);
+  const isAdminPath = pathname.startsWith('/dashboard') || pathname.startsWith('/admin') || pathname.startsWith('/login') || pathname.startsWith('/forgot-password') || pathname.startsWith('/reset-password');
+  
+  if (isPublicDomain && isAdminPath) {
+    console.log('🚫 [STORE-ROUTER] تخطي المسار الإداري في النطاق العام', {
+      hostname,
+      pathname,
+      isPublicDomain,
+      isAdminPath
+    });
+    return null; // لا تعرض StoreRouter للمسارات الإدارية في النطاقات العامة
+  }
   
   const [isStore, setIsStore] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -87,7 +117,6 @@ const StoreRouter = React.memo(() => {
   const { showLoader, hideLoader, setPhase } = useGlobalLoading();
   
   // التحقق الفوري من النطاق الفرعي
-  const hostname = useMemo(() => window.location.hostname, []);
   const subdomain = useMemo(() => extractSubdomainFromHostname(hostname), [hostname]);
   const isSubdomainStore = useMemo(() => Boolean(subdomain && subdomain !== 'www'), [subdomain]);
   const isCustomDomain = useMemo(() => !isSubdomainStore && !PUBLIC_DOMAINS.includes(hostname) && !isLocalhostDomain(hostname), [isSubdomainStore, hostname]);
@@ -98,43 +127,44 @@ const StoreRouter = React.memo(() => {
     if (earlyDetectionProcessed.current) {
       return { isEarlyDetected: false, earlySubdomain: null };
     }
-    
+
     try {
       const isEarlyDetected = sessionStorage.getItem('bazaar_early_domain_detection') === 'true';
       const earlyHostname = sessionStorage.getItem('bazaar_early_hostname');
       const earlySubdomain = sessionStorage.getItem('bazaar_early_subdomain');
 
       if (isEarlyDetected && earlyHostname === hostname) {
-        // ✅ إزالة console.log المفرط
-        earlyDetectionProcessed.current = true; // 🔥 تمييز الكشف المبكر كمعالج
         return { isEarlyDetected: true, earlySubdomain };
       }
-    } catch (e) {
+
+      return { isEarlyDetected: false, earlySubdomain: null };
+    } catch {
+      return { isEarlyDetected: false, earlySubdomain: null };
     }
-    return { isEarlyDetected: false, earlySubdomain: null };
   }, [hostname]);
 
   // 🔥 إرسال event لتتبع العرض - مرة واحدة فقط
   useEffect(() => {
-    renderCount.current++;
+    if (earlyDomainDetection.isEarlyDetected) {
+      renderCount.current++;
 
-    // إرسال event لتتبع العرض
-    window.dispatchEvent(new CustomEvent('bazaar:store-router-render', {
-      detail: {
-        renderCount: renderCount.current,
-        timestamp: Date.now()
+      // إرسال event لتتبع العرض
+      window.dispatchEvent(new CustomEvent('bazaar:store-router-render', {
+        detail: {
+          renderCount: renderCount.current,
+          timestamp: Date.now()
+        }
+      }));
+
+      // إذا كان هذا هو العرض الأول، قم بتهيئة المكون
+      if (renderCount.current === 1) {
+        isInitialized.current = true;
       }
-    }));
-    
-    // إذا كان هذا هو العرض الأول، قم بتهيئة المكون
-    if (renderCount.current === 1) {
-      isInitialized.current = true;
     }
-  }, []);
+  }, [earlyDomainDetection.isEarlyDetected]);
 
   // 🔥 إضافة مراقب للأداء - مرة واحدة فقط
   useEffect(() => {
-    
     // إرسال event بداية StoreRouter
     window.dispatchEvent(new CustomEvent('bazaar:store-router-start', {
       detail: {
@@ -155,21 +185,11 @@ const StoreRouter = React.memo(() => {
     isInitialized.current = true;
   }, []);
 
-  // إدارة مؤشر التحميل
+  // إدارة مؤشر التحميل — إيقافه للمتاجر (subdomain/custom) لتفادي طبقات تحميل إضافية
   useEffect(() => {
-    
     if (isLoading) {
-      if (isSubdomainStore) {
-        // إظهار مؤشر تحميل للمتجر
-        showLoader({
-          storeName: `متجر ${subdomain}`,
-          progress: 20,
-          message: `جاري تحميل متجر ${subdomain}...`,
-          primaryColor: '#fc5a3e'
-        });
-        setPhase('store');
-      } else {
-        // إظهار مؤشر تحميل للنظام
+      // للنطاقات العامة فقط استخدم اللودر العام
+      if (!isSubdomainStore && !isCustomDomain) {
         showLoader({
           storeName: 'النظام',
           progress: 10,
@@ -181,7 +201,7 @@ const StoreRouter = React.memo(() => {
     } else {
       hideLoader();
     }
-  }, [isLoading, isSubdomainStore, subdomain, showLoader, hideLoader, setPhase]);
+  }, [isLoading, isSubdomainStore, isCustomDomain, showLoader, hideLoader, setPhase]);
 
   // دالة إعادة المحاولة اليدوية
   const handleRetry = useCallback(() => {
@@ -204,10 +224,19 @@ const StoreRouter = React.memo(() => {
     domainChecked.current = true;
 
     const checkDomain = async () => {
+      const domainCheckStartTime = performance.now();
       try {
+        console.log('🔍 [STORE-ROUTER] بدء فحص النطاق', {
+          hostname,
+          subdomain,
+          isSubdomainStore,
+          isCustomDomain,
+          checkStartTime: domainCheckStartTime
+        });
         
         // التحقق من النطاقات المحلية الخالصة (بدون subdomain)
         if (isPlainLocalhost(hostname)) {
+          console.log('🏠 [STORE-ROUTER] نطاق محلي خالص - عرض صفحة الهبوط');
           setIsStore(false);
           setIsLoading(false);
           domainChecked.current = true;
@@ -216,12 +245,18 @@ const StoreRouter = React.memo(() => {
 
         // إذا كان هناك نطاق فرعي، نفترض أنه متجر ونترك تحميل البيانات للمكونات المختصة
         if (isSubdomainStore && subdomain) {
+          console.log('🏪 [STORE-ROUTER] كشف متجر بنطاق فرعي', {
+            subdomain,
+            hostname,
+            checkTime: performance.now() - domainCheckStartTime
+          });
           setHasSubdomain(true);
           // ضمان توافق المعرف مع النطاق الحالي: نُفرغ المعرف المخزن لتجنب جلب مكرر بالمعرف
           try {
             localStorage.removeItem('bazaar_organization_id');
             localStorage.setItem('bazaar_current_subdomain', subdomain);
           } catch (e) {
+            console.warn('⚠️ [STORE-ROUTER] خطأ في localStorage:', e);
           }
           setIsStore(true);
           setIsLoading(false);
@@ -231,6 +266,10 @@ const StoreRouter = React.memo(() => {
 
         // النطاقات العامة - عرض صفحة الهبوط مباشرة
         if (PUBLIC_DOMAINS.includes(hostname)) {
+          console.log('🌐 [STORE-ROUTER] نطاق عام - عرض صفحة الهبوط', {
+            hostname,
+            checkTime: performance.now() - domainCheckStartTime
+          });
           setIsStore(false);
           setIsLoading(false);
           domainChecked.current = true;
@@ -239,10 +278,15 @@ const StoreRouter = React.memo(() => {
 
         // النطاقات المخصصة بدون نطاق فرعي: اعتبرها متجر (سيتم حل المؤسسة عبر الدومين)
         if (isCustomDomain) {
+          console.log('🎯 [STORE-ROUTER] كشف نطاق مخصص', {
+            hostname,
+            checkTime: performance.now() - domainCheckStartTime
+          });
           try {
             // حفظ النطاق كاملاً للنطاقات المخصصة
             localStorage.setItem('bazaar_current_subdomain', hostname);
           } catch (e) {
+            console.warn('⚠️ [STORE-ROUTER] خطأ في localStorage للنطاق المخصص:', e);
           }
           setIsStore(true);
           setIsLoading(false);
@@ -265,8 +309,9 @@ const StoreRouter = React.memo(() => {
     checkDomain();
   }, [hostname, subdomain, isSubdomainStore, isCustomDomain, earlyDomainDetection]);
 
-  // 🔥 منع التكرار: التحقق من أن المكون لم يتم تهيئته
+  // 🔥 إصلاح: منع التكرار بطريقة أفضل
   if (isInitialized.current && renderCount.current > 1) {
+    // إرجاع null بدلاً من إعادة التحميل
     return null;
   }
 
@@ -357,7 +402,11 @@ const StoreRouter = React.memo(() => {
     
     // 🔥 إذا كان متجر، نعرض StorePage مباشرة لتتولى عرض المحتوى عند الانتهاء
     if (isSubdomainStore || isCustomDomain) {
-      return <StorePage />;
+      return (
+        <React.Suspense fallback={null}>
+          <StorePage />
+        </React.Suspense>
+      );
     }
     
     // للنطاقات الأخرى، نعتمد على مؤشر التحميل المركزي
@@ -366,7 +415,11 @@ const StoreRouter = React.memo(() => {
   
   // 🔥 إذا كان متجر، اعرض StorePage
   if (isStore === true) {
-    return <StorePage />;
+    return (
+      <React.Suspense fallback={null}>
+        <StorePage />
+      </React.Suspense>
+    );
   }
   
   // 🔥 لا نعرض صفحة الهبوط إذا كان هناك نطاق فرعي وما زلنا نحمل
@@ -375,7 +428,11 @@ const StoreRouter = React.memo(() => {
   }
 
   // 🔥 عرض صفحة الهبوط للنطاقات العامة فقط
-  return <LandingPage />;
+  return (
+    <React.Suspense fallback={<div className="min-h-[50vh] bg-background flex items-center justify-center p-4"><div className="w-8 h-8 rounded-full border-4 border-primary/20 border-t-primary animate-spin" /></div>}>
+      <LandingPage />
+    </React.Suspense>
+  );
 });
 
 StoreRouter.displayName = 'StoreRouter';

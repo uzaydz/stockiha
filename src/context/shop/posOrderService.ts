@@ -44,172 +44,82 @@ export async function createPOSOrder(orderData: POSOrderData): Promise<POSOrderR
   const startTime = performance.now();
 
   try {
-    // التحقق من وجود organization_id
     if (!orderData.organizationId) {
       throw new Error('Organization ID is required but was not provided');
     }
-    
-    // التحقق من وجود العميل وإنشائه إذا لم يكن موجودًا
+
+    // تأكيد وجود العميل (إنشاء زائر عند الحاجة)
     const customerId = await ensureCustomerExists(orderData.customerId, orderData.organizationId);
-    
-    // توليد slug فريد للطلبية (بأحرف صغيرة لتوافق القيد)
-    const orderSlug = `pos-${new Date().getTime()}-${Math.floor(Math.random() * 1000)}`;
-    
-    // إضافة logging للتشخيص - هذا هو الـ log القديم الذي يظهر في console
 
-    // التحقق من صحة employee_id قبل إنشاء الطلب
-    
-    let validEmployeeId = null;
-    if (orderData.employeeId && orderData.employeeId !== "") {
-      try {
-        // البحث أولاً بـ id ثم بـ auth_user_id
-        let { data: employeeExists } = await supabase
-          .from('users')
-          .select('id')
-          .eq('id', orderData.employeeId)
-          .single();
-        
-        if (employeeExists) {
-          validEmployeeId = orderData.employeeId;
-        } else {
-          // إذا لم يوجد، البحث بـ auth_user_id
-          const { data: employeeByAuthId } = await supabase
-            .from('users')
-            .select('id')
-            .eq('auth_user_id', orderData.employeeId)
-            .single();
-          
-          if (employeeByAuthId) {
-            validEmployeeId = employeeByAuthId.id;
-          } else {
-          }
-        }
-      } catch (error) {
-      }
+    // تجهيز عناصر الطلب بالشكل المتوقع من الدالة RPC
+    const itemsPayload = (orderData.items || []).map((item) => ({
+      product_id: (item as any).productId,
+      quantity: (item as any).quantity,
+      price: (item as any).unitPrice ?? (item as any).price,
+      total: ((item as any).unitPrice ?? (item as any).price) * (item as any).quantity,
+      is_wholesale: (item as any).isWholesale ?? false,
+      original_price: (item as any).originalPrice ?? (item as any).unitPrice ?? (item as any).price,
+      color_id: (item as any).variant_info?.colorId ?? (item as any).colorId ?? null,
+      size_id: (item as any).variant_info?.sizeId ?? (item as any).sizeId ?? null,
+      color_name: (item as any).variant_info?.colorName ?? (item as any).colorName ?? null,
+      size_name: (item as any).variant_info?.sizeName ?? (item as any).sizeName ?? null,
+      variant_display_name: (item as any).productName ?? (item as any).name ?? 'منتج',
+      variant_info: (item as any).variant_info ?? null
+    }));
+
+    const { data, error } = await supabase.rpc('create_pos_order_fast' as any, {
+      p_organization_id: orderData.organizationId,
+      p_employee_id: orderData.employeeId ?? null,
+      p_items: JSON.stringify(itemsPayload),
+      p_total_amount: orderData.total ?? (orderData.subtotal ?? 0) + ((orderData as any).tax ?? 0) - (orderData.discount ?? 0),
+      p_customer_id: customerId,
+      p_payment_method: orderData.paymentMethod ?? 'cash',
+      p_payment_status: orderData.paymentStatus ?? null,
+      p_notes: orderData.notes ?? '',
+      p_amount_paid: orderData.amountPaid ?? null,
+      p_discount: orderData.discount ?? 0,
+      p_subtotal: orderData.subtotal ?? null,
+      p_consider_remaining_as_partial: orderData.considerRemainingAsPartial ?? false,
+      p_tax: (orderData as any).tax ?? 0
+    });
+
+    if (error) {
+      throw new Error(`Failed to create POS order: ${error.message}`);
     }
 
-    // تحضير بيانات الطلبية
-    const order = {
-      customer_id: customerId,
-      organization_id: orderData.organizationId,
-      slug: orderSlug,
-      status: 'completed',
-      payment_status: orderData.paymentStatus || 'paid',
-      payment_method: orderData.paymentMethod || 'cash',
-      subtotal: orderData.subtotal || 0,
-      tax: 0,
-      discount: orderData.discount || 0,
-      total: orderData.total || 0, // استخدام القيمة المحسوبة مسبقاً
-      notes: orderData.notes || '',
-      is_online: false,
-      employee_id: validEmployeeId, // استخدام معرف الموظف المتحقق منه أو null
-      // حقول إضافية لنقطة البيع
-      pos_order_type: 'pos',
-      amount_paid: orderData.amountPaid || (orderData.total || 0),
-      remaining_amount: orderData.remainingAmount || 0,
-      consider_remaining_as_partial: orderData.considerRemainingAsPartial || false,
-      completed_at: new Date().toISOString(),
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    // إنشاء الطلب مباشرة
-    const { data: insertedOrder, error: orderError } = await supabase
-      .from('orders')
-      .insert(order)
-      .select()
-      .single();
-      
-    if (orderError) {
-      throw new Error(`Error creating order: ${orderError.message}`);
+    const res = Array.isArray(data) ? data[0] : data;
+    if (!res || res.success === false) {
+      throw new Error(res?.error || res?.message || 'Failed to create POS order');
     }
-    
-    const newOrderId = insertedOrder.id;
-    const databaseTime = performance.now();
 
-    // إضافة عناصر الطلب بشكل منفصل وآمن
-    if (orderData.items && orderData.items.length > 0) {
-      try {
-        // إدراج العناصر واحد تلو الآخر بالحقول الأساسية فقط
-        for (let index = 0; index < orderData.items.length; index++) {
-          const item = orderData.items[index];
-          
-          // توليد ID للعنصر إذا لم يكن موجوداً
-          const itemId = item.id || uuidv4();
-          
-          const itemData = {
-            id: itemId,
-            order_id: newOrderId,
-            product_id: item.productId,
-            product_name: item.productName || item.name || 'منتج',
-            name: item.productName || item.name || 'منتج',
-            quantity: item.quantity,
-            unit_price: item.unitPrice,
-            total_price: item.unitPrice * item.quantity,
-            is_digital: item.isDigital || false,
-            organization_id: orderData.organizationId,
-            slug: item.slug || `item-${Date.now()}-${index}`,
-            // إضافة الحقول الاختيارية إذا كانت موجودة
-            color_id: item.variant_info?.colorId || null,
-            size_id: item.variant_info?.sizeId || null,
-            variant_info: item.variant_info ? JSON.stringify(item.variant_info) : null,
-            is_wholesale: item.isWholesale || false,
-            original_price: item.originalPrice || item.unitPrice
-          };
+    const endTime = performance.now();
+    const fifoResults = res.fifo_results ?? [];
+    const totalFifoCost = Array.isArray(fifoResults)
+      ? fifoResults.reduce((sum: number, r: any) => sum + (parseFloat(r?.fifo_cost ?? '0') || 0), 0)
+      : 0;
 
-          const { error: itemError } = await supabase
-            .from('order_items')
-            .insert(itemData);
-
-          if (itemError) {
-            throw new Error(`فشل في إدراج العنصر: ${item.productName} - ${itemError.message}`);
-          }
-        }
-
-        // تحديث المخزون
-        await updateInventoryForOrder(orderData.items, newOrderId, orderData.organizationId);
-      } catch (error) {
-        // حذف الطلبية إذا فشل إدراج العناصر
-        await supabase.from('orders').delete().eq('id', newOrderId);
-        throw new Error(`فشل في إنشاء عناصر الطلبية: ${error instanceof Error ? error.message : 'خطأ غير معروف'}`);
-      }
-    }
-    
-    // إضافة معاملة مالية
-    try {
-      await addOrderTransactionForPOS(newOrderId, orderData, orderData.organizationId);
-    } catch (error) {
-      // لا نوقف العملية بسبب خطأ في المعاملة المالية
-    }
-    
-    // تنظيف الكاش
+    // تنظيف الكاش المهم فقط
     try {
       if (orderData.organizationId) {
         await queryClient.invalidateQueries({ queryKey: ['pos-orders', orderData.organizationId] });
         await queryClient.invalidateQueries({ queryKey: ['pos-orders-stats', orderData.organizationId] });
         await queryClient.invalidateQueries({ queryKey: ['products', orderData.organizationId] });
-        await queryClient.invalidateQueries({ queryKey: ['dashboard-data', orderData.organizationId] });
       }
-    } catch (cacheError) {
-      // لا نوقف العملية بسبب خطأ في الكاش
-    }
-    
-    const endTime = performance.now();
-    
-    // إرجاع النتيجة بالتنسيق المطلوب
+    } catch {}
+
     return {
       success: true,
-      orderId: newOrderId,
-      slug: insertedOrder.slug,
-      customerOrderNumber: insertedOrder.customer_order_number,
-      status: insertedOrder.status,
-      paymentStatus: insertedOrder.payment_status,
-      total: insertedOrder.total,
+      orderId: res.id,
+      slug: res.slug,
+      customerOrderNumber: res.customer_order_number,
+      status: res.status,
+      paymentStatus: res.payment_status,
+      total: parseFloat(String(res.total ?? 0)),
       processingTime: endTime - startTime,
-      databaseProcessingTime: databaseTime - startTime,
-      fifoResults: [],
-      totalFifoCost: 0,
-      message: 'تم إنشاء الطلب بنجاح'
+      databaseProcessingTime: 0,
+      fifoResults,
+      totalFifoCost,
+      message: res.message || 'تم إنشاء الطلب بنجاح'
     };
   } catch (error) {
     throw error;

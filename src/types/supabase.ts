@@ -2644,10 +2644,13 @@ export type Database = {
           domain: string
           error_message: string | null
           id: string
+          last_checked: string | null
           organization_id: string
           status: string
           updated_at: string | null
           verification_code: string | null
+          verification_data: any | null
+          verification_message: string | null
           verified_at: string | null
         }
         Insert: {
@@ -2655,10 +2658,13 @@ export type Database = {
           domain: string
           error_message?: string | null
           id?: string
+          last_checked?: string | null
           organization_id: string
           status?: string
           updated_at?: string | null
           verification_code?: string | null
+          verification_data?: any | null
+          verification_message?: string | null
           verified_at?: string | null
         }
         Update: {
@@ -2666,10 +2672,13 @@ export type Database = {
           domain?: string
           error_message?: string | null
           id?: string
+          last_checked?: string | null
           organization_id?: string
           status?: string
           updated_at?: string | null
           verification_code?: string | null
+          verification_data?: any | null
+          verification_message?: string | null
           verified_at?: string | null
         }
         Relationships: [

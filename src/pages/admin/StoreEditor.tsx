@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 
 // المحرر المحسن الجديد
 import { ImprovedStoreEditor } from '@/components/store-editor/improved';
+import { StoreEditorDataProvider } from '@/context/StoreEditorDataContext';
 import StoreSettings from '@/components/settings/StoreSettings';
 
 interface StoreEditorProps {
@@ -92,9 +93,9 @@ const StoreEditor: React.FC<StoreEditorProps> = ({ className }) => {
 
           {/* المحرر المحسن */}
           <div className="h-[calc(100vh-64px)]">
-            <ImprovedStoreEditor
-              organizationId={currentOrganization?.id || ''}
-            />
+            <StoreEditorDataProvider organizationId={currentOrganization?.id || ''}>
+              <ImprovedStoreEditor organizationId={currentOrganization?.id || ''} />
+            </StoreEditorDataProvider>
           </div>
         </motion.div>
       </div>

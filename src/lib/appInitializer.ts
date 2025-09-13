@@ -5,7 +5,7 @@
  */
 
 import { getSupabaseClient } from '@/lib/supabase';
-import { updateOrganizationTheme } from '@/lib/themeManager';
+import { updateOrganizationTheme, smartPrefetch } from '@/lib/themeManager/index';
 import i18n from '@/i18n';
 
 // واجهة البيانات المركزية
@@ -77,7 +77,7 @@ async function fetchAppInitData(organizationId?: string): Promise<AppInitData | 
         }
         
         // فحص النطاقات العامة أولاً
-        const publicDomains = ['stockiha.com', 'www.stockiha.com', 'ktobi.online', 'www.ktobi.online'];
+        const publicDomains = ['stockiha.com', 'www.stockiha.com', 'stockiha.pages.dev', 'ktobi.online', 'www.ktobi.online'];
         if (publicDomains.includes(hostname)) {
           return null;
         }
@@ -134,6 +134,18 @@ async function fetchAppInitData(organizationId?: string): Promise<AppInitData | 
         const globalDataContext = (window as any).__SUPER_UNIFIED_DATA__;
         if (globalDataContext && globalDataContext.organization?.id === organizationId) {
           
+          
+          // محاولة الحصول على اللغة من localStorage أولاً إذا لم تكن موجودة في organizationSettings
+          let languageToUse = globalDataContext.organizationSettings?.default_language;
+          if (!languageToUse) {
+            const savedLanguage = localStorage.getItem('i18nextLng');
+            if (savedLanguage && ['ar', 'en', 'fr'].includes(savedLanguage)) {
+              languageToUse = savedLanguage;
+            } else {
+              languageToUse = 'ar';
+            }
+          }
+          
           const result: AppInitData = {
             organization: globalDataContext.organization,
             theme: {
@@ -141,7 +153,7 @@ async function fetchAppInitData(organizationId?: string): Promise<AppInitData | 
               secondaryColor: globalDataContext.organizationSettings?.theme_secondary_color || '#6b21a8',
               mode: globalDataContext.organizationSettings?.theme_mode || 'light'
             },
-            language: globalDataContext.organizationSettings?.default_language || 'ar',
+            language: languageToUse,
             timestamp: Date.now(),
             categories: [],
             products: [],
@@ -351,8 +363,17 @@ async function applyAppInitData(data: AppInitData): Promise<void> {
     }
     
     // 3. تحديث document title
-    if (data.organization.settings.site_name) {
-      document.title = data.organization.settings.site_name;
+    try {
+      const { canMutateHead } = await import('@/lib/headGuard');
+      if (canMutateHead && canMutateHead()) {
+        if (data.organization.settings.site_name) {
+          document.title = data.organization.settings.site_name;
+        }
+      }
+    } catch {
+      if (data.organization.settings.site_name) {
+        document.title = data.organization.settings.site_name;
+      }
     }
     
     // 4. إرسال أحداث للمكونات الأخرى (مرة واحدة فقط)
@@ -409,7 +430,12 @@ export async function initializeApp(organizationId?: string): Promise<AppInitDat
   if (isInitializing && initPromise) {
     return initPromise;
   }
-  
+
+  // بدء التحميل المسبق للثيم واللغة في الخلفية
+  smartPrefetch().catch(error => {
+    console.warn('⚠️ [AppInitializer] خطأ في التحميل المسبق:', error);
+  });
+
   // فحص البيانات المحفوظة أولاً
   const existingData = loadAppInitData();
   

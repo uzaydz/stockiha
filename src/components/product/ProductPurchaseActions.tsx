@@ -10,6 +10,7 @@ interface ProductPurchaseActionsProps {
   totalPrice: number;
   onBuyNow: () => void;
   onAddToCart: () => void;
+  showAddToCart?: boolean;
 }
 
 const ProductPurchaseActions: React.FC<ProductPurchaseActionsProps> = React.memo(({
@@ -18,7 +19,8 @@ const ProductPurchaseActions: React.FC<ProductPurchaseActionsProps> = React.memo
   addingToCart,
   totalPrice,
   onBuyNow,
-  onAddToCart
+  onAddToCart,
+  showAddToCart = true
 }) => {
   const buyNowButtonContent = useMemo(() => {
     if (buyingNow) {
@@ -56,16 +58,17 @@ const ProductPurchaseActions: React.FC<ProductPurchaseActionsProps> = React.memo
       >
         {buyNowButtonContent}
       </Button>
-      
-      <Button
-        variant="outline"
-        onClick={onAddToCart}
-        disabled={!canPurchase || addingToCart}
-        className="w-full h-12 text-lg font-semibold border-2"
-        size="lg"
-      >
-        {addToCartButtonContent}
-      </Button>
+      {showAddToCart && (
+        <Button
+          variant="outline"
+          onClick={onAddToCart}
+          disabled={!canPurchase || addingToCart}
+          className="w-full h-12 text-lg font-semibold border-2"
+          size="lg"
+        >
+          {addToCartButtonContent}
+        </Button>
+      )}
     </motion.div>
   );
 });

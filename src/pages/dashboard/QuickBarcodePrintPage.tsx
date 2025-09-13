@@ -721,7 +721,7 @@ const QuickBarcodePrintPage = () => {
               
               // إضافة تحقق أفضل من وجود العنصر والبيانات
               if (qrCodeElement && productPageUrl && !isFallbackUrl) {
-                try {
+                (async () => { try {
                   // إعداد العنصر للحصول على قياسات صحيحة
                   (qrCodeElement as HTMLElement).style.display = 'flex';
                   (qrCodeElement as HTMLElement).style.justifyContent = 'center';
@@ -729,13 +729,18 @@ const QuickBarcodePrintPage = () => {
                   (qrCodeElement as HTMLElement).style.minWidth = '20mm';
                   (qrCodeElement as HTMLElement).style.minHeight = '20mm';
 
-                  // حساب الحجم مع ضمان حد أدنى آمن
-                  const containerWidth = Math.max((qrCodeElement as HTMLElement).offsetWidth || 80, 60);
-                  const containerHeight = Math.max((qrCodeElement as HTMLElement).offsetHeight || 80, 60);
-                  const containerSize = Math.min(containerWidth, containerHeight);
-                  const qrActualSize = Math.max(containerSize, 60); // حد أدنى 60 بكسل
-
-                  (printWindow as any).console.log(`[QR Debug ${uniqueSuffix}] Container: ${containerWidth}x${containerHeight}, Final Size: ${qrActualSize}`);
+                  // قياس الحجم بدون Forced Reflow: انتظر إطار الرسم ثم اقرأ القياسات
+                  const raf = (printWindow.requestAnimationFrame || window.requestAnimationFrame || ((cb: FrameRequestCallback) => setTimeout(cb, 0))).bind(printWindow);
+                  const { containerWidth, containerHeight, qrActualSize } = await new Promise<{ containerWidth: number; containerHeight: number; qrActualSize: number }>((resolve) => {
+                    raf(() => {
+                      const rect = (qrCodeElement as HTMLElement).getBoundingClientRect();
+                      const cw = Math.max(rect.width || 80, 60);
+                      const ch = Math.max(rect.height || 80, 60);
+                      const cs = Math.min(cw, ch);
+                      const size = Math.max(cs, 60);
+                      resolve({ containerWidth: cw, containerHeight: ch, qrActualSize: size });
+                    });
+                  });
 
                   // إنشاء QR Code مع إعدادات محسّنة
                   const qrCodeInstance = new QRCodeStyling({
@@ -784,7 +789,6 @@ const QuickBarcodePrintPage = () => {
                         
                         if (svgString && svgString.includes('<svg')) {
                           (qrCodeElement as HTMLElement).innerHTML = svgString;
-                          (printWindow as any).console.log(`[QR Success ${uniqueSuffix}] QR Code generated successfully`);
                           return true;
                         }
                       }
@@ -800,7 +804,6 @@ const QuickBarcodePrintPage = () => {
                       // التحقق من وجود SVG
                       const svgElement = (qrCodeElement as HTMLElement).querySelector('svg');
                       if (svgElement) {
-                        (printWindow as any).console.log(`[QR Success ${uniqueSuffix}] QR Code appended successfully`);
                         return true;
                       }
                                          } catch (appendError) {
@@ -816,7 +819,6 @@ const QuickBarcodePrintPage = () => {
                         const svgContent = await response.text();
                         if (svgContent && svgContent.includes('<svg')) {
                           (qrCodeElement as HTMLElement).innerHTML = svgContent;
-                          (printWindow as any).console.log(`[QR Success ${uniqueSuffix}] Fallback QR Code loaded`);
                           return true;
                         }
                       }
@@ -856,7 +858,7 @@ const QuickBarcodePrintPage = () => {
                       </div>
                     `;
                   }
-                }
+                } })();
               } else {
                 // عرض رسالة توضيحية عند عدم توفر البيانات
                 let reason = "بيانات غير متوفرة";

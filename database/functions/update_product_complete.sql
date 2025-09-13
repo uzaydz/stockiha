@@ -29,11 +29,34 @@ DECLARE
   v_size_record RECORD;
   v_total_stock INTEGER := 0;
   v_has_variants BOOLEAN := FALSE;
+  v_publication_status TEXT;
+  v_publish_at TIMESTAMPTZ;
 BEGIN
   -- بدء المعاملة (Transaction)
   BEGIN
     
     -- 1. تحديث المنتج الرئيسي
+    -- الحصول على البيانات الحالية للمنتج أولاً
+    SELECT publication_status INTO v_publication_status 
+    FROM products WHERE id = p_product_id;
+    
+    -- حساب حالة النشر والقيم الزمنية قبل التحديث
+    v_publication_status := COALESCE(
+      (p_product_data->>'publication_status'),
+      v_publication_status
+    );
+    IF v_publication_status IS NULL THEN
+      v_publication_status := 'published';
+    END IF;
+    IF v_publication_status NOT IN ('draft','scheduled','published','archived') THEN
+      v_publication_status := 'published';
+    END IF;
+    v_publish_at := CASE 
+      WHEN p_product_data ? 'publish_at' AND (p_product_data->>'publish_at') IS NOT NULL AND (p_product_data->>'publish_at') != ''
+      THEN (p_product_data->>'publish_at')::TIMESTAMPTZ
+      ELSE NULL
+    END;
+
     UPDATE products 
     SET 
       name = COALESCE((p_product_data->>'name')::TEXT, name),
@@ -143,6 +166,16 @@ BEGIN
       advanced_description = CASE 
         WHEN p_advanced_description IS NOT NULL THEN p_advanced_description
         ELSE advanced_description 
+      END,
+      publication_status = v_publication_status,
+      publish_at = v_publish_at,
+      published_at = CASE 
+        WHEN (p_product_data->>'publication_status') = 'published' AND published_at IS NULL THEN NOW()
+        ELSE published_at
+      END,
+      is_active = CASE 
+        WHEN v_publication_status = 'published' THEN TRUE
+        ELSE FALSE
       END,
       updated_by_user_id = CASE 
         WHEN p_user_id IS NOT NULL THEN p_user_id 

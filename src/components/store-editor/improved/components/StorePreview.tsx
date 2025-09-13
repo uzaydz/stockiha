@@ -60,6 +60,7 @@ import { clearStoreCacheByOrganizationId, clearCacheItem } from '@/lib/cache/sto
 
 import { useImprovedStoreEditor } from '../hooks/useImprovedStoreEditor'
 import { getCategories } from '@/lib/api/categories'
+import { useStoreEditorData } from '@/context/StoreEditorDataContext'
 import { useTenant } from '@/context/TenantContext'
 
 // استيراد مكونات المتجر الفعلية
@@ -93,7 +94,11 @@ interface PreviewData {
   error: string | null
 }
 
-const useStorePreviewData = (organizationId: string) => {
+const useStorePreviewData = (
+  organizationId: string,
+  preloadedCategories?: any[] | null,
+  preloadedFeatured?: any[] | null
+) => {
   const [previewData, setPreviewData] = useState<PreviewData>({
     categories: [],
     featuredProducts: [],
@@ -106,15 +111,28 @@ const useStorePreviewData = (organizationId: string) => {
 
     try {
       setPreviewData(prev => ({ ...prev, isLoading: true, error: null }))
+      // إذا كانت البيانات مُحمّلة من الـ Provider استخدمها مباشرة
+      const preCategories = preloadedCategories || null
+      const preFeatured = preloadedFeatured || null
 
-      // جلب الفئات بالتوازي
+      if (preCategories) {
+        setPreviewData({
+          categories: preCategories,
+          featuredProducts: preFeatured || [],
+          isLoading: false,
+          error: null
+        })
+        return
+      }
+
+      // وإلا ارجع للجلب المعتاد
       const [categoriesResult] = await Promise.all([
         getCategories(organizationId).catch(() => [])
       ])
 
       setPreviewData({
         categories: categoriesResult || [],
-        featuredProducts: [], // يمكن إضافة المنتجات المميزة لاحقاً
+        featuredProducts: preFeatured || [],
         isLoading: false,
         error: null
       })
@@ -125,7 +143,7 @@ const useStorePreviewData = (organizationId: string) => {
         error: error.message || 'خطأ في تحميل البيانات'
       }))
     }
-  }, [organizationId])
+  }, [organizationId, preloadedCategories, preloadedFeatured])
 
   useEffect(() => {
     loadPreviewData()
@@ -435,6 +453,7 @@ const ComponentWrapper = React.forwardRef<HTMLDivElement, ComponentProps>(({
   }), [component.settings, organizationId, viewport])
   
   // استخدام useMemo لمنع إعادة التصيير غير الضرورية للمكون
+  const storeInit = useStoreEditorData();
   const renderedComponent = useMemo(() => {
     let content = null
     
@@ -464,6 +483,7 @@ const ComponentWrapper = React.forwardRef<HTMLDivElement, ComponentProps>(({
             showAddToCart={component.settings.showAddToCart !== false}
             showBadges={component.settings.showBadges !== false}
             organizationId={organizationId}
+            preloadedProducts={(storeInit?.data?.featured_products as any[]) || []}
             key={`featured-products-preview-${JSON.stringify(component.settings).substring(0, 50)}`}
           />
         )
@@ -495,7 +515,7 @@ const ComponentWrapper = React.forwardRef<HTMLDivElement, ComponentProps>(({
               useRealCategories={component.settings.useRealCategories ?? true}
               selectedCategoryId={component.settings.selectedCategoryId}
               settings={categoriesSettings}
-              categories={component.settings._previewCategories || []}
+              categories={component.settings._previewCategories || (storeInit?.data?.categories as any[]) || []}
               key={`product-categories-${JSON.stringify(categoriesSettings).substring(0, 50)}`}
             />
           </div>
@@ -511,7 +531,9 @@ const ComponentWrapper = React.forwardRef<HTMLDivElement, ComponentProps>(({
             visibleCount={component.settings.visibleCount}
             backgroundColor={component.settings.backgroundColor}
             cardStyle={component.settings.cardStyle}
-            testimonials={component.settings.testimonials}
+            testimonials={component.settings.testimonials && component.settings.testimonials.length > 0
+              ? component.settings.testimonials
+              : ((storeInit?.data?.testimonials as any[]) || [])}
             // تم تعطيل جلب البيانات من قاعدة البيانات في المعاينة
             key={`testimonials-${JSON.stringify(component.settings).substring(0, 50)}`}
           />
@@ -716,7 +738,12 @@ ComponentWrapper.displayName = 'ComponentWrapper'
 
 export const StorePreview: React.FC<StorePreviewProps> = React.memo(({ organizationId }) => {
   // 🚀 استخدام نظام البيانات المحسن للمعاينة
-  const { categories: previewCategories, isLoading: dataLoading, error: dataError, refetch: refetchData } = useStorePreviewData(organizationId)
+  const provider = useStoreEditorData();
+  const { categories: previewCategories, isLoading: dataLoading, error: dataError, refetch: refetchData } = useStorePreviewData(
+    organizationId,
+    (provider?.data?.categories as any[]) || null,
+    (provider?.data?.featured_products as any[]) || null
+  )
   
   const [viewport, setViewport] = useState<ViewportSize>('desktop')
   const [zoom, setZoom] = useState(100)

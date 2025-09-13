@@ -14,6 +14,8 @@ import { useTenantState, updateOrganization, setLoading, setError, resetState } 
 import { useTenantActions } from './TenantActions';
 import { useTenantHooks } from './TenantHooks';
 import { updateOrganizationFromData } from '@/lib/processors/organizationProcessor';
+import { getPreloadedProductFromDOM } from '@/utils/productDomPreload';
+import { getFastOrganizationId } from '@/utils/earlyPreload';
 
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
 
@@ -26,7 +28,8 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = React.mem
   const initializationCount = useRef(0);
   const renderCount = useRef(0);
   const hasRendered = useRef(false);
-  
+  const tenantStartTime = useRef(performance.now());
+
   // 🔥 تحسين: منع زيادة renderCount في كل render
   if (!hasRendered.current) {
     renderCount.current++;
@@ -81,82 +84,138 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = React.mem
     return cleanupResources;
   }, [cleanupResources]);
 
-  // 🔥 تحسين: منع التهيئة المتكررة مع تحسين الأداء
+  // ✅ تبسيط: تهيئة مبسطة وسريعة
   useEffect(() => {
-    if (isInitialized.current || refs.initialized.current) {
+    // فحص بسيط - إذا تم التهيئة، توقف
+    if (isInitialized.current || organization) {
       return;
     }
-    
-    // 🔒 منع التهيئة المتكررة في نفس الـ tick
-    if (initializationCount.current > 0) {
-      return;
-    }
-    
-    initializationCount.current++;
-    
-    // ⚡ تقليل حد المحاولات من 3 إلى 2
-    if (initializationCount.current > 2) {
-      isInitialized.current = true;
+
+    isInitialized.current = true;
+
+    // ⚡ تحسين جديد: فحص Organization ID السريع مع البيانات الكاملة
+    const fastOrgCheck = getFastOrganizationId();
+    if (fastOrgCheck && !organization && !refs.initialized.current) {
+      
+      // ✅ محاولة الحصول على البيانات الكاملة من early preload مباشرة
+      let preloadedData = null;
+      try {
+        // استخدام dynamic import بدون await في useEffect
+        import('@/utils/earlyPreload').then((earlyPreloadModule) => {
+          preloadedData = earlyPreloadModule.getEarlyPreloadedData();
+          
+          if (preloadedData?.organization_details || preloadedData?.organization) {
+            // استخدام البيانات الكاملة المحملة مسبقاً
+            const orgData = preloadedData.organization_details || preloadedData.organization;
+            const quickOrg = {
+              id: orgData.id || fastOrgCheck.organizationId,
+              name: orgData.name || '',
+              description: orgData.description || '',
+              logo_url: orgData.logo_url || null,
+              domain: orgData.domain || null,
+              subdomain: orgData.subdomain || null,
+              subscription_tier: orgData.subscription_tier || 'free',
+              subscription_status: orgData.subscription_status || 'active',
+              settings: orgData.settings || {},
+              created_at: orgData.created_at || new Date().toISOString(),
+              updated_at: orgData.updated_at || new Date().toISOString(),
+              owner_id: orgData.owner_id || null
+            };
+            
+            updateOrganization(setState, quickOrg);
+            refs.initialized.current = true;
+            isInitialized.current = true;
+            
+            // إرسال حدث فوري
+            window.dispatchEvent(new CustomEvent('bazaar:tenant-context-ready', {
+              detail: {
+                organization: quickOrg,
+                isEarlyDetection: true,
+                loadTime: 0,
+                timestamp: Date.now(),
+                source: 'preloaded-data'
+              }
+            }));
+          }
+        }).catch((e) => {
+          console.warn('⚠️ [TenantProvider] فشل في تحميل early preload:', e);
+        });
+      } catch (e) {
+        console.warn('⚠️ [TenantProvider] خطأ في early preload:', e);
+      }
+      
+      // إنشاء organization مبسط كـ fallback فوري
+      const quickOrg = {
+        id: fastOrgCheck.organizationId,
+        name: '', // سيتم تحديثه لاحقاً عند توفر الاسم الحقيقي
+        description: '',
+        logo_url: null,
+        domain: null,
+        subdomain: null,
+        subscription_tier: 'free',
+        subscription_status: 'active',
+        settings: {},
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        owner_id: null
+      };
+      
+      updateOrganization(setState, quickOrg);
       refs.initialized.current = true;
-      return;
-    }
-    
-    // ⚡ استخدام requestIdleCallback لتحسين الأداء
-    let initTimeout: number | ReturnType<typeof setTimeout>;
-    
-    if (typeof requestIdleCallback !== 'undefined') {
-      initTimeout = requestIdleCallback(() => {
-        if (!refs.customDomainProcessed.current && !organization) {
-          checkCustomDomainOnStartup();
+      isInitialized.current = true;
+      
+      // إرسال حدث فوري
+      window.dispatchEvent(new CustomEvent('bazaar:tenant-context-ready', {
+        detail: {
+          organization: quickOrg,
+          isEarlyDetection: true,
+          loadTime: 0,
+          timestamp: Date.now(),
+          source: 'fast-org-id'
         }
-      }, { timeout: 100 });
+      }));
+    }
+
+    // ⚡ تنفيذ فوري للتهيئة الحرجة بدون requestIdleCallback
+    const immediateStartTime = performance.now();
+    if (!refs.customDomainProcessed.current && !organization) {
+      
+      checkCustomDomainOnStartup();
+      const immediateTime = performance.now() - immediateStartTime;
     } else {
-      initTimeout = setTimeout(() => {
-        if (!refs.customDomainProcessed.current && !organization) {
-          checkCustomDomainOnStartup();
-        }
-      }, 0);
+      
     }
-    
+
+    const initEffectTime = performance.now() - immediateStartTime;
+
     return () => {
-      if (typeof cancelIdleCallback !== 'undefined' && typeof initTimeout === 'number') {
-        cancelIdleCallback(initTimeout);
-      } else {
-        clearTimeout(initTimeout as ReturnType<typeof setTimeout>);
-      }
+      
     };
-  }, [checkCustomDomainOnStartup, refs, organization]);
+  }, []); // ✅ تشغيل مرة واحدة فقط عند التحميل
 
-  // مزامنة مع AuthContext - محسنة للاستجابة السريعة عند تسجيل الدخول الأول
+  // مزامنة مع AuthContext - محسنة لمنع الدورات اللانهائية
   useEffect(() => {
-    // إذا لم تكن هناك مؤسسة في AuthContext، تخطي
-    if (!authOrganization) {
+    // ✅ فحص مبكر لمنع التشغيل غير الضروري
+    if (!authOrganization || refs.authContextProcessed.current) {
       return;
     }
 
-    // إذا تم التهيئة بالفعل وكانت المؤسسة مطابقة، تأكد من تحديث العلامات فقط
-    if (refs.initialized.current && organization && organization.id === authOrganization.id) {
-      if (!refs.authContextProcessed.current) {
-        if (process.env.NODE_ENV === 'development') {
-        }
-        refs.authContextProcessed.current = true;
-      }
+    // ✅ منع معالجة نفس المؤسسة مرتين
+    if (lastAuthOrgId.current === authOrganization.id) {
+      
       return;
     }
 
-    // منع معالجة نفس المؤسسة مرتين - تحسين لتسجيل الدخول الأول
-    if (lastAuthOrgId.current === authOrganization.id && refs.initialized.current && organization) {
-      if (process.env.NODE_ENV === 'development') {
-      }
-      return;
-    }
+    const authSyncStartTime = performance.now();
 
-    if (process.env.NODE_ENV === 'development') {
-    }
+
 
     // تحديث المؤسسة مباشرة مع حفظ في global cache
     const processedOrg = updateOrganizationFromData(authOrganization);
+    const updateStartTime = performance.now();
     updateOrganization(setState, processedOrg);
+    const updateTime = performance.now() - updateStartTime;
+
 
     // حفظ في global cache لتجنب الاستدعاءات المتكررة
     globalCache.set(CacheKeys.ORGANIZATION(authOrganization.id), authOrganization);
@@ -169,6 +228,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = React.mem
     // تحديث window object للاستخدام من قبل دوال أخرى
     (window as any).__TENANT_CONTEXT_ORG__ = authOrganization;
 
+    
     // إرسال حدث تأكيد
     window.dispatchEvent(new CustomEvent('bazaar:tenant-context-ready', {
       detail: {
@@ -180,7 +240,9 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = React.mem
       }
     }));
 
-  }, [authOrganization, organization?.id, refs, setState]); // تحسين التبعيات
+    const authSyncTime = performance.now() - authSyncStartTime;
+
+  }, [authOrganization?.id]); // ✅ تحسين التبعيات لمنع إعادة التشغيل المتكررة
 
   // مراقبة حالة تسجيل الدخول الأول - لضمان التهيئة الصحيحة
   useEffect(() => {
@@ -216,32 +278,25 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = React.mem
         }));
       }
     }
-  }, [user, authLoading, authOrganization, refs, setState]);
+  }, [user?.id, authOrganization?.id]); // ✅ تحسين التبعيات
 
-  // تحميل المؤسسة الاحتياطي - معطل مؤقتاً لتجنب التداخل
+  // تحميل المؤسسة الاحتياطي - محسن لمنع الدورات اللانهائية
   useEffect(() => {
-    if (refs.fallbackProcessed.current || refs.loadingOrganization.current || refs.initialized.current) {
+    // ✅ فحص مبكر أكثر صرامة
+    if (refs.fallbackProcessed.current || refs.loadingOrganization.current || 
+        refs.initialized.current || authOrganization) {
       return;
     }
 
-    // إذا كانت المؤسسة متاحة في AuthContext، لا نحتاج للتحميل الاحتياطي
-    if (authOrganization) {
-      if (process.env.NODE_ENV === 'development') {
-      }
-      refs.fallbackProcessed.current = true;
-      return;
-    }
-
-    // في حالة عدم وجود مؤسسة في AuthContext، قم بالتحميل الاحتياطي
-    if (process.env.NODE_ENV === 'development') {
-    }
+    
+    refs.fallbackProcessed.current = true; // ✅ تعيين العلامة مبكراً لمنع التكرار
     loadFallbackOrganization();
-  }, [authOrganization?.id, refs, loadFallbackOrganization]); // تحسين التبعيات
+  }, []); // ✅ تشغيل مرة واحدة فقط
 
-  // الاستماع إلى تغييرات المؤسسة
+  // الاستماع إلى تغييرات المؤسسة - تشغيل مرة واحدة فقط
   useEffect(() => {
     return handleOrganizationChange();
-  }, [handleOrganizationChange]);
+  }, []); // ✅ تشغيل مرة واحدة فقط
 
   // 🔥 تحسين: منع إعداد المستمعين المتكررين
   useEffect(() => {
@@ -295,23 +350,74 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = React.mem
       }
     };
 
+    // ✅ إضافة مُستمع للـ Organization ID السريع
+    const handleFastOrganizationIdReady = (event: CustomEvent) => {
+      const { organizationId, storeIdentifier, source } = event.detail;
+      
+
+      if (organizationId && !organization && !refs.initialized.current) {
+        // إنشاء organization مبسط للاستخدام الفوري
+        const quickOrg = {
+          id: organizationId,
+          name: '', // سيتم تحديثه لاحقاً عند توفر الاسم الحقيقي
+          description: '',
+          logo_url: null,
+          domain: null,
+          subdomain: null,
+          subscription_tier: 'free',
+          subscription_status: 'active',
+          settings: {},
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          owner_id: null
+        };
+        
+        updateOrganization(setState, quickOrg);
+        refs.initialized.current = true;
+        isInitialized.current = true;
+        
+        // إرسال حدث فوري
+        window.dispatchEvent(new CustomEvent('bazaar:tenant-context-ready', {
+          detail: {
+            organization: quickOrg,
+            isEarlyDetection: true,
+            loadTime: 0,
+            timestamp: Date.now(),
+            source: 'fast-org-id-event'
+          }
+        }));
+      }
+    };
+
     window.addEventListener('authOrganizationReady', handleAuthOrganizationReady as EventListener);
+    window.addEventListener('fastOrganizationIdReady', handleFastOrganizationIdReady as EventListener);
 
     return () => {
       window.removeEventListener('authOrganizationReady', handleAuthOrganizationReady as EventListener);
+      window.removeEventListener('fastOrganizationIdReady', handleFastOrganizationIdReady as EventListener);
     };
-  }, [organization, setState, refs]);
+  }, []); // ✅ تشغيل مرة واحدة فقط لإعداد المستمعين
 
-  // 🔥 تحسين: قيمة السياق المحسنة مع useMemo
-  const value = useMemo(() => ({
-    currentOrganization: organization,
-    tenant: organization,
-    organization,
-    isOrgAdmin,
-    isLoading,
-    error,
-    ...actions
-  }), [
+  // 🔥 تحسين: قيمة السياق المحسنة مع isLoading محسن لتقليل شاشات التحميل
+  const value = useMemo(() => {
+    const hasValidOrgId = !!(organization?.id && organization.id.length > 10);
+    // ✅ تحسين: إخفاء isLoading إذا كان لدينا orgId سريع لتجنب شاشات تحميل متعددة
+    const effectiveLoading = isLoading && !hasValidOrgId;
+    
+    return {
+      currentOrganization: organization,
+      tenant: organization,
+      organization,
+      isOrgAdmin,
+      isLoading: effectiveLoading, // ✅ تحسين: loading محسن
+      error,
+      // ✅ إضافة: isOrganizationReady للمكونات التي تحتاج orgId
+      isOrganizationReady: hasValidOrgId,
+      // ✅ تحسين: isReady يتطلب orgId صالح
+      isReady: !effectiveLoading && hasValidOrgId,
+      ...actions
+    };
+  }, [
     organization, 
     isOrgAdmin, 
     isLoading, 
@@ -326,10 +432,11 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = React.mem
     </TenantContext.Provider>
   ), [value, children]);
 
-  // 🔥 إصلاح: نقل منطق التحقق من حد الرندر إلى هنا بعد جميع الـ hooks
-  if (isInitialized.current && renderCount.current > 3) {
+  // 🔥 تحسين: منع إعادة الرندر المفرطة
+  if (renderCount.current > 5) {
+    console.warn('⚠️ [TenantProvider] تجاوز حد الرندر - إيقاف إعادة الرندر');
     return (
-      <TenantContext.Provider value={{} as TenantContextType}>
+      <TenantContext.Provider value={value}>
         {children}
       </TenantContext.Provider>
     );
@@ -353,3 +460,80 @@ export function useTenant(): TenantContextType {
   }
   return context;
 }
+
+/**
+ * PublicTenantProvider — مزود خفيف للصفحات العامة للمنتج (بدون Auth/User/Permissions)
+ * يقرأ بيانات المؤسسة من JSON المحقون في DOM عبر العامل أو من المنتج المحمّل
+ */
+export const PublicTenantProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // اشتقاق مؤسسة عامة من JSON المحقون
+  let org: any = null;
+  try {
+    const dom = getPreloadedProductFromDOM();
+    const data = dom?.data;
+    const product = data?.product;
+    org = product?.organization || null;
+    if (org && typeof org === 'object') {
+      // تأكد من وجود الحقول الأساسية وفق نوع Organization
+      org = {
+        id: org.id || product?.organization_id || dom?.organization_id || null,
+        name: org.name || '',
+        description: org.description || '',
+        logo_url: org.logo_url || org.logo || null,
+        domain: org.domain || null,
+        subdomain: org.subdomain || null,
+        subscription_tier: org.subscription_tier || 'free',
+        subscription_status: org.subscription_status || 'active',
+        settings: org.settings || {},
+        created_at: org.created_at || new Date().toISOString(),
+        updated_at: org.updated_at || new Date().toISOString(),
+        owner_id: org.owner_id || null
+      };
+    } else if (product?.organization_id || dom?.organization_id) {
+      // إنشاء كائن مبسط للمؤسسة من organization_id فقط
+      const orgId = product?.organization_id || dom?.organization_id;
+      org = {
+        id: orgId,
+        name: '',
+        description: '',
+        logo_url: null,
+        domain: null,
+        subdomain: null,
+        subscription_tier: 'free',
+        subscription_status: 'active',
+        settings: {},
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        owner_id: null
+      };
+    }
+  } catch {
+    // ignore
+  }
+
+  const hasValidOrgId = !!(org?.id && org.id.length > 10);
+  
+  const value: TenantContextType = {
+    currentOrganization: org,
+    tenant: org,
+    organization: org,
+    isOrgAdmin: false,
+    isLoading: false,
+    error: null,
+    // ✅ إضافة: للتحقق من جاهزية organization ID
+    isOrganizationReady: hasValidOrgId,
+    isReady: hasValidOrgId,
+    createOrganization: async () => ({ success: false, error: new Error('Not available in public mode') }),
+    inviteUserToOrganization: async () => ({ success: false, error: new Error('Not available in public mode') }),
+    refreshOrganizationData: async () => {},
+    refreshTenant: async () => {}
+  };
+
+  return (
+    <TenantContext.Provider value={value}>
+      {children}
+    </TenantContext.Provider>
+  );
+};
+
+PublicTenantProvider.displayName = 'PublicTenantProvider';

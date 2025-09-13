@@ -1,6 +1,6 @@
-import React, { useState, useMemo, useCallback, memo } from 'react';
-import { motion, Variants } from 'framer-motion';
+import React, { useState, useMemo, useCallback, memo, useEffect } from 'react';
 import { cn } from '@/lib/utils';
+import { Ban } from 'lucide-react';
 
 // استيراد الأنواع والواجهات
 import { 
@@ -31,18 +31,7 @@ import Shimmer from '@/components/ui/Shimmer';
 // استيراد الأنماط
 import './form/ProductFormStyles.css';
 
-// متغيرات الحركة المحسنة والمبسطة
-const containerVariants: Variants = {
-  hidden: { opacity: 0 },
-  visible: { 
-    opacity: 1, 
-    transition: {
-      duration: 0.2,
-      ease: "easeOut",
-      staggerChildren: 0.05
-    }
-  }
-};
+// تمت إزالة الحركات الثقيلة لتحسين الأداء
 
 // واجهات المكون الرئيسي
 interface ProductFormRendererProps extends LoadingStates {
@@ -92,6 +81,9 @@ interface ProductFormRendererProps extends LoadingStates {
     id: string;
     name: string;
   };
+
+  // وضع "الدفع من السلة" لا يحتاج فحوصات مخزون المنتج
+  disableStockChecks?: boolean;
 }
 
 /**
@@ -140,11 +132,24 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
   // معلومات الموقع للتحقق من التوصيل المجاني
   selectedProvince,
   selectedMunicipality
+  ,
+  disableStockChecks = false
 }) => {
   
   const { productFormRenderer, translateDynamicText } = useProductPurchaseTranslation();
   const { t } = useTranslation();
   const [isInternalSubmitting, setIsInternalSubmitting] = useState(false);
+  const [blockedInfo, setBlockedInfo] = useState<{ reason?: string | null; phone?: string | null } | null>(null);
+
+  // استماع لحدث الحظر لعرض رسالة داخل النموذج
+  useEffect(() => {
+    const handler = (e: any) => {
+      const detail = e?.detail || {};
+      setBlockedInfo({ reason: detail?.reason || null, phone: detail?.phone || null });
+    };
+    window.addEventListener('blocked-customer', handler);
+    return () => window.removeEventListener('blocked-customer', handler);
+  }, []);
   
   // تحسين معالجة بيانات النموذج مع dependencies محكمة
   const processedFormData = useMemo(() => {
@@ -199,23 +204,6 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
     onFormChange
   });
 
-  // تم إزالة console.log لتجنب الرسائل المتكررة
-
-  // دمج بيانات الألوان والمقاسات مع بيانات النموذج
-  const enrichedFormData = useMemo(() => {
-    return {
-      ...formData,
-      // إضافة بيانات الألوان والمقاسات المحددة
-      selectedColor: selectedColor?.id || null,
-      selectedColorName: selectedColor?.name || null,
-      selectedSize: selectedSize?.id || null,
-      selectedSizeName: selectedSize?.size_name || null,
-      // إضافة معلومات إضافية مفيدة
-      colorQuantity: selectedColor?.quantity || 0,
-      sizeQuantity: selectedSize?.quantity || 0,
-      hasVariants: product?.has_variants || false
-    };
-  }, [formData, selectedColor, selectedSize, product?.has_variants]);
 
   // استخدام hook التحقق من صحة البيانات
   const {
@@ -317,7 +305,7 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
   );
 
   // تحقق شامل من حالة المخزون
-  const isOutOfStock = Boolean(
+  const isOutOfStock = disableStockChecks ? false : Boolean(
     isProductOutOfStock ||
     isProductWithVariantsOutOfStock ||
     isColorOutOfStock ||
@@ -325,7 +313,7 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
   );
 
   // تحقق من وجود مشكلة في المخزون يجب إظهار تحذير لها
-  const hasStockWarning = Boolean(
+  const hasStockWarning = disableStockChecks ? false : Boolean(
     isProductOutOfStock ||
     (isProductWithVariantsOutOfStock && !selectedColor && !selectedSize) || // مخزون مشترك نفد ولكن لم يتم اختيار متغير
     (selectedColor && isColorOutOfStock) || // فقط إذا تم اختيار لون وهو نفد
@@ -333,6 +321,59 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
   );
 
 
+
+  // إنشاء البيانات المدمجة مع الألوان والمقاسات
+  const enrichedFormData = useMemo(() => {
+    const baseData = { ...formData };
+
+    // إضافة بيانات اللون المحدد
+    if (selectedColor) {
+      baseData.product_color = selectedColor.id;
+      baseData.product_color_name = selectedColor.name;
+      baseData.product_color_hex = selectedColor.hex;
+    }
+
+    // إضافة بيانات المقاس المحدد
+    if (selectedSize) {
+      baseData.product_size = selectedSize.id;
+      baseData.product_size_name = selectedSize.name;
+    }
+
+    // إضافة بيانات المنتج إذا كانت متاحة
+    if (product) {
+      baseData.product_id = product.id;
+      baseData.product_name = product.name;
+      baseData.product_price = product.price;
+    }
+
+    // إضافة بيانات التوصيل إذا كانت متاحة
+    if (deliveryFee !== undefined) {
+      baseData.delivery_fee = deliveryFee;
+    }
+
+    if (subtotal !== undefined) {
+      baseData.subtotal = subtotal;
+    }
+
+    if (total !== undefined) {
+      baseData.total = total;
+    }
+
+    if (quantity !== undefined) {
+      baseData.quantity = quantity;
+    }
+
+    return baseData;
+  }, [
+    formData,
+    selectedColor,
+    selectedSize,
+    product,
+    deliveryFee,
+    subtotal,
+    total,
+    quantity
+  ]);
 
   // تحسين معالج الإرسال مع التحقق من المخزون
   const handleFormSubmit = useCallback(async (e: React.FormEvent) => {
@@ -346,13 +387,13 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
     if (isInternalSubmitting || isLoadingDeliveryFee || isCalculatingDelivery || isLoadingPrices) {
       return;
     }
-    
+
     const validationResult: ValidationResult = validateImmediate();
-    
+
     if (!validationResult.isValid) {
       return;
     }
-    
+
     try {
       setIsInternalSubmitting(true);
       const submitHandler = onFormSubmit || onSubmit;
@@ -365,7 +406,7 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
   }, [
     isInternalSubmitting,
     isLoadingDeliveryFee,
-    isCalculatingDelivery, 
+    isCalculatingDelivery,
     isLoadingPrices,
     validateImmediate,
     onFormSubmit,
@@ -424,7 +465,7 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
 
   // فحص مبكر: إذا كان المنتج غير متوفر تماماً، لا نعرض النموذج
   // فقط للمنتجات بدون متغيرات أو المنتجات مع متغيرات حيث نفد المخزون الأساسي ولم يتم اختيار لون أو مقاس
-  const shouldHideForm = Boolean(
+  const shouldHideForm = disableStockChecks ? false : Boolean(
     !hasProductData || // لا توجد بيانات المنتج
     (hasProductData && product.has_variants === false && isProductOutOfStock) || // منتج بدون متغيرات ونفد
     (hasProductData && product.has_variants === true && isProductWithVariantsOutOfStock && !selectedColor && !selectedSize) // منتج مع متغيرات ونفد المخزون الأساسي ولكن لم يتم اختيار أي متغير
@@ -454,12 +495,7 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
 
   return (
     <FormErrorBoundary className={className}>
-      <motion.div 
-        className={cn("w-full performance-optimized", className)}
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-      >
+      <div className={cn("w-full performance-optimized", className)}>
         <div className="space-y-4">
           {hasStockWarning && (
             <div className="mb-4 p-4 rounded-lg bg-red-50 border border-red-200 text-red-700 text-center text-base font-bold dark:bg-red-900/20 dark:border-red-800 dark:text-red-300">
@@ -488,6 +524,22 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
               <div className="premium-form-content p-6 md:p-8">
               
                 <OrderFormHeader />
+                {blockedInfo && (
+                  <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 p-3 shadow-sm">
+                    <div className="flex items-start gap-2">
+                      <Ban className="h-4 w-4 mt-0.5 text-rose-600" />
+                      <div>
+                        <p className="font-semibold">لا يمكن إتمام الطلب بهذا الرقم</p>
+                        <p className="text-sm mt-1">
+                          {blockedInfo.reason ? `السبب: ${blockedInfo.reason}` : 'هذا الرقم محظور من الطلب عبر المتجر.'}
+                        </p>
+                        {blockedInfo.phone && (
+                          <p className="text-xs mt-1 opacity-80" dir="ltr">رقم الهاتف: {blockedInfo.phone}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               
                 <form onSubmit={handleFormSubmit} className="space-y-6" data-form="product-form" id="product-purchase-form">
                   
@@ -537,7 +589,7 @@ const ProductFormRenderer = memo<ProductFormRendererProps>(({
             </div>
           </Shimmer>
         </div>
-      </motion.div>
+      </div>
     </FormErrorBoundary>
   );
 });

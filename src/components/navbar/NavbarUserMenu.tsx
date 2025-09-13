@@ -87,6 +87,11 @@ export function NavbarUserMenu({ isAdminPage = false }: NavbarUserMenuProps) {
       return `https://${currentOrganization.subdomain}.stockiha.com`;
     }
     
+    // إذا كنا على stockiha.pages.dev، استخدم النطاق الفرعي مع stockiha.com
+    if (window.location.hostname.includes('stockiha.pages.dev')) {
+      return `https://${currentOrganization.subdomain}.stockiha.com`;
+    }
+    
     // إذا كنا على ktobi.online، استخدم النطاق الفرعي
     if (window.location.hostname.includes('ktobi.online')) {
       return `https://${currentOrganization.subdomain}.ktobi.online`;

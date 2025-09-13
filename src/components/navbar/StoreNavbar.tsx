@@ -7,8 +7,10 @@ import { cn } from '@/lib/utils';
 import { NavbarLogo } from './NavbarLogo';
 import { NavbarLinks } from './NavbarLinks';
 import { NavbarUserMenu } from './NavbarUserMenu';
+import NavbarCartButton from './NavbarCartButton';
 import { NavbarNotifications } from './NavbarNotifications';
 import { NavbarThemeToggle } from './NavbarThemeToggle';
+import { canMutateHead } from '@/lib/headGuard';
 // import { NavbarMobileMenu } from './NavbarMobileMenu';
 // import LanguageSwitcher from '@/components/language/LanguageSwitcher';
 import { useAuth } from '@/context/AuthContext';
@@ -73,11 +75,14 @@ export function StoreNavbar({
   organizationSettings: propOrganizationSettings,
   hideCategories = false
 }: StoreNavbarProps) {
+  const navbarStartTime = performance.now();
+
   const { user, userProfile } = useAuthSafe();
   const { t } = useTranslation();
   // تمت إزالة قائمة الجوال المنسدلة لصالح زر أيقونة "كل المنتجات"
   const location = useLocation();
   const { currentOrganization } = useTenantSafe();
+
 
   const [isScrolled, setIsScrolled] = useState(false);
   const [isSmallScreen, setIsSmallScreen] = useState(false);
@@ -88,9 +93,44 @@ export function StoreNavbar({
   // استخدام useStoreInfo مع البنية الصحيحة + قراءة من البيانات المشتركة القادمة من RPC
   const storeInfo = useStoreInfo();
   const { organizationSettings: sharedOrgSettings, organization: sharedOrg } = useSharedStoreDataContext();
-  const storeName = storeInfo?.name || sharedOrg?.name || null;
-  const logoUrl = storeInfo?.logo_url || sharedOrgSettings?.logo_url || null;
+  
+  // 🚀 إضافة fallback من window object إذا لم تكن البيانات متوفرة
+  const windowStoreData = (window as any).__CURRENT_STORE_DATA__;
+  const windowEarlyData = (window as any).__EARLY_STORE_DATA__;
+  
   const storeInfoLoading = !storeInfo;
+  
+  // إضافة logs لتتبع البيانات في Navbar
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🎯 [StoreNavbar] البيانات المتوفرة:', {
+      hasStoreInfo: !!storeInfo,
+      hasSharedOrg: !!sharedOrg,
+      hasSharedOrgSettings: !!sharedOrgSettings,
+      storeInfoName: storeInfo?.name,
+      sharedOrgName: sharedOrg?.name,
+      logoFromStoreInfo: storeInfo?.logo_url,
+      logoFromSettings: sharedOrgSettings?.logo_url,
+      hasWindowStoreData: !!windowStoreData,
+      hasWindowEarlyData: !!windowEarlyData,
+      windowOrgName: windowStoreData?.organization?.name || windowEarlyData?.data?.organization_details?.name,
+      // إضافة معلومات إضافية للتشخيص
+      storeInfoLoading: storeInfoLoading,
+      currentOrganization: currentOrganization?.name,
+      currentOrganizationId: currentOrganization?.id
+    });
+  }
+  
+  const storeName = storeInfo?.name || 
+                   sharedOrg?.name || 
+                   windowStoreData?.organization?.name ||
+                  windowEarlyData?.data?.organization_details?.name ||
+                  null;
+                   
+  const logoUrl = storeInfo?.logo_url || 
+                  sharedOrgSettings?.logo_url || 
+                  windowStoreData?.organizationSettings?.logo_url ||
+                  windowEarlyData?.data?.organization_settings?.logo_url ||
+                  null;
   
   // 🔧 نظام احتياطي لجلب بيانات الشعار
   const [fallbackLogo, setFallbackLogo] = useState<string | null>(null);
@@ -98,6 +138,9 @@ export function StoreNavbar({
   
   // محاولة جلب بيانات احتياطية من localStorage فقط بدون أي نداءات شبكة
   useEffect(() => {
+    const fallbackStartTime = performance.now();
+
+
     const applyLocalFallback = () => {
       try {
         const appInitData = localStorage.getItem('bazaar_app_init_data');
@@ -107,15 +150,23 @@ export function StoreNavbar({
             const settings = data.organization.settings;
             setFallbackLogo(settings.logo_url || null);
             setFallbackSiteName(settings.site_name || data.organization.name || null);
+
           }
         }
-      } catch {}
+      } catch (error) {
+        console.error('❌ [StoreNavbar] خطأ في قراءة البيانات الاحتياطية:', error);
+      }
     };
+
     const timeoutId = setTimeout(() => {
       if (!logoUrl && !storeName) {
+        
         applyLocalFallback();
+      } else {
+        
       }
     }, 500);
+
     return () => clearTimeout(timeoutId);
   }, [logoUrl, storeName]);
   
@@ -136,77 +187,134 @@ export function StoreNavbar({
 
   // تعطيل إضافة المساحة التلقائية للمحتوى - سيتم التحكم بها من خلال كل صفحة حسب الحاجة
   useEffect(() => {
+    const heightStartTime = performance.now();
+
+    
+
     // تحديد ارتفاع النافبار الثابت للاستخدام في CSS variables
     const navbarHeight = '64px'; // تطابق h-16 في tailwind
     document.documentElement.style.setProperty('--navbar-height', navbarHeight);
-    
+
+
     // تنظيف التأثير عند إلغاء المكون
     return () => {
+      
       document.documentElement.style.removeProperty('--navbar-height');
     };
   }, []);
 
   // كشف حجم الشاشة وتحديثه (محسّن للهاتف)
   useEffect(() => {
+    const screenStartTime = performance.now();
+
+    
+
+    // قلل ضوضاء السجلات وأثر الأداء
+    const resizeLogCount = { current: 0 } as any;
     const checkScreen = () => {
       try {
-        setIsSmallScreen(window.innerWidth < 1024); // يطابق حد lg في Tailwind
-      } catch {}
+        const newIsSmallScreen = window.innerWidth < 1024;
+        if (process.env.NODE_ENV === 'development' && resizeLogCount.current < 4) {
+          resizeLogCount.current++;
+        }
+        setIsSmallScreen(newIsSmallScreen);
+      } catch (error) {
+        console.error('❌ [StoreNavbar] خطأ في فحص حجم الشاشة:', error);
+      }
     };
+
     checkScreen();
+
     const onResize = throttle(checkScreen, 150) as unknown as () => void;
     window.addEventListener('resize', onResize as EventListener, { passive: true } as AddEventListenerOptions);
-    return () => window.removeEventListener('resize', onResize as EventListener);
+
+
+    return () => {
+      
+      window.removeEventListener('resize', onResize as EventListener);
+    };
   }, []);
-  
+
   // Handle scroll events for advanced header effects with throttling
   useEffect(() => {
+    const scrollStartTime = performance.now();
+
+    
+
+    let scrollCount = 0;
     const handleScroll = throttle(() => {
       const scrollY = window.scrollY;
-      setIsScrolled(scrollY > 10);
+      const newIsScrolled = scrollY > 10;
+      scrollCount++;
+
+      if (process.env.NODE_ENV === 'development' && scrollCount <= 10) {
+      }
+
+      setIsScrolled(newIsScrolled);
     }, 16); // ~60fps
-    
+
     window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+
+
+    return () => {
+      
+      window.removeEventListener('scroll', handleScroll);
+    };
   }, []);
   
   // تحديث عنوان الصفحة والأيقونة عند تغيير الإعدادات - محسن
   const updatePageMetadata = useCallback(() => {
+    const metadataStartTime = performance.now();
+
+
     if (finalOrganizationSettings) {
       // تحديث عنوان الصفحة فقط إذا تغير
-      if (siteName && lastTitleRef.current !== siteName) {
+      if (canMutateHead() && siteName && lastTitleRef.current !== siteName) {
+        const oldTitle = document.title;
         document.title = siteName;
         lastTitleRef.current = siteName;
+
       }
-      
+
       // تحديث الأيقونة فقط إذا تغيرت
-      if (finalOrganizationSettings.favicon_url && lastFaviconRef.current !== finalOrganizationSettings.favicon_url) {
+      if (canMutateHead() && finalOrganizationSettings.favicon_url && lastFaviconRef.current !== finalOrganizationSettings.favicon_url) {
         const faviconElement = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
         if (faviconElement) {
           faviconElement.href = `${finalOrganizationSettings.favicon_url}?t=${Date.now()}`;
+          
         } else {
           const newFavicon = document.createElement('link');
           newFavicon.rel = 'icon';
           newFavicon.href = `${finalOrganizationSettings.favicon_url}?t=${Date.now()}`;
           document.head.appendChild(newFavicon);
+          
         }
         lastFaviconRef.current = finalOrganizationSettings.favicon_url;
       }
-      
+
       // تحديث صور الشعار فقط إذا تغيرت
       if (orgLogo && lastLogoRef.current !== orgLogo) {
+        
+
         // استخدام requestAnimationFrame لتجنب forced reflow
         requestAnimationFrame(() => {
-          document.querySelectorAll('img[data-logo="organization"]').forEach(img => {
+          const logoImages = document.querySelectorAll('img[data-logo="organization"]');
+          
+
+          logoImages.forEach(img => {
             const imgElement = img as HTMLImageElement;
             if (imgElement.src !== orgLogo) {
               imgElement.src = `${orgLogo}?t=${Date.now()}`;
             }
           });
+
+          
         });
         lastLogoRef.current = orgLogo;
       }
     }
+
+    const metadataTime = performance.now() - metadataStartTime;
   }, [finalOrganizationSettings, siteName, orgLogo]);
 
   // استخدام useCallback لتجنب إعادة التشغيل المتكررة
@@ -215,6 +323,8 @@ export function StoreNavbar({
   }, [updatePageMetadata]);
 
   if (!userProfile && user) {
+    const loadingTime = performance.now() - navbarStartTime;
+
     return (
       <div className={cn(
         "flex items-center justify-between p-3 shadow-sm bg-background/90 backdrop-blur-md",
@@ -225,6 +335,8 @@ export function StoreNavbar({
       </div>
     );
   }
+
+  const totalRenderTime = performance.now() - navbarStartTime;
 
   return (
     <header 
@@ -294,6 +406,8 @@ export function StoreNavbar({
         <div className="flex items-center gap-3 relative z-10">
           {/* Action buttons with enhanced styling */}
           <div className="hidden lg:flex items-center gap-2">
+            {/* Cart Button */}
+            <NavbarCartButton />
             {/* Theme Toggle Button - طوقل الثيم */}
             <div className="bg-gradient-to-r from-background/60 to-background/80 backdrop-blur-md rounded-full border border-border/30 shadow-lg p-1.5 hover:shadow-xl transition-all duration-300 hover:scale-105 group relative">
               <div className="relative">
@@ -322,6 +436,7 @@ export function StoreNavbar({
           
           {/* Mobile actions: إظهار زر السويتش + أيقونة كل المنتجات */}
           <div className="flex lg:hidden items-center gap-2">
+            <NavbarCartButton />
             {/* Theme Toggle Button - طوقل الثيم للهاتف */}
             <div className="bg-gradient-to-r from-background/60 to-background/80 backdrop-blur-md rounded-full border border-border/30 shadow-lg p-1.5 hover:shadow-xl transition-all duration-300 hover:scale-105 group relative">
               <div className="relative">

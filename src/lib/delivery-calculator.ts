@@ -1,6 +1,8 @@
-import { yalidineProvinces } from '@/data/yalidine-provinces';
-import { yalidineMunicipalities, getMunicipalitiesByWilayaId, YalidineMunicipality } from '@/data/yalidine-municipalities-complete';
+// Lazy-load heavy static data to avoid 1MB+ upfront cost in dev
+import type { YalidineMunicipality } from '@/data/yalidine-municipalities-complete';
 import { calculateDeliveryPrice, getYalidineSettingsForProductPurchase } from '@/api/yalidine/service';
+import { supabase } from '@/lib/supabase-unified';
+import { requestDeduplicator } from '@/lib/requestDeduplicator';
 
 // Cache للإعدادات والأسعار لتجنب الطلبات المتكررة
 const settingsCache = new Map<string, { data: any; timestamp: number }>();
@@ -31,6 +33,10 @@ function cleanExpiredCache() {
 // تنظيف الـ Cache كل 10 دقائق
 setInterval(cleanExpiredCache, 10 * 60 * 1000);
 
+function getPriceKey(provider: string, parts: Array<string | number | undefined | null>): string {
+  return `price:${provider}:${parts.map(p => (p ?? 'null')).join('_')}`;
+}
+
 /**
  * مسح جميع الـ Cache (للاستخدام عند الحاجة)
  */
@@ -50,6 +56,29 @@ export function clearSpecificPriceCache(
 ) {
   const priceCacheKey = `price_${originWilayaId}_${toWilayaId}_${deliveryType}_${weight}`;
   const deleted = priceCache.delete(priceCacheKey);
+}
+
+// ---------------------------------------------
+// Lazy data loader for Yalidine static datasets
+// ---------------------------------------------
+let yalidineDataPromise: Promise<{
+  yalidineProvinces: typeof import('@/data/yalidine-provinces')['yalidineProvinces'];
+  yalidineMunicipalities: YalidineMunicipality[];
+  getMunicipalitiesByWilayaId: (wilayaId: number) => YalidineMunicipality[];
+}> | null = null;
+
+async function loadYalidineData() {
+  if (!yalidineDataPromise) {
+    yalidineDataPromise = Promise.all([
+      import('@/data/yalidine-provinces'),
+      import('@/data/yalidine-municipalities-complete')
+    ]).then(([provincesModule, municipalitiesModule]) => ({
+      yalidineProvinces: provincesModule.yalidineProvinces,
+      yalidineMunicipalities: municipalitiesModule.yalidineMunicipalities,
+      getMunicipalitiesByWilayaId: municipalitiesModule.getMunicipalitiesByWilayaId
+    }));
+  }
+  return yalidineDataPromise;
 }
 
 /**
@@ -109,7 +138,8 @@ export interface DeliveryCalculationResult {
 /**
  * الحصول على بيانات الولاية من الملف الثابت
  */
-export function getProvinceById(provinceId: string | number): typeof yalidineProvinces[0] | null {
+export async function getProvinceById(provinceId: string | number): Promise<typeof import('@/data/yalidine-provinces')['yalidineProvinces'][0] | null> {
+  const { yalidineProvinces } = await loadYalidineData();
   const id = typeof provinceId === 'string' ? parseInt(provinceId) : provinceId;
   return yalidineProvinces.find(province => province.id === id) || null;
 }
@@ -117,20 +147,19 @@ export function getProvinceById(provinceId: string | number): typeof yalidinePro
 /**
  * الحصول على بيانات البلدية من الملف الثابت
  */
-export function getMunicipalityById(
+export async function getMunicipalityById(
   municipalityId: string | number, 
   provinceId?: string | number
-): YalidineMunicipality | null {
+): Promise<YalidineMunicipality | null> {
+  const { yalidineMunicipalities, getMunicipalitiesByWilayaId } = await loadYalidineData();
   const id = typeof municipalityId === 'string' ? parseInt(municipalityId) : municipalityId;
-  
+
   if (provinceId) {
-    // استخدام دالة getMunicipalitiesByWilayaId للبحث ضمن الولاية
     const pId = typeof provinceId === 'string' ? parseInt(provinceId) : provinceId;
     const municipalities = getMunicipalitiesByWilayaId(pId);
     return municipalities.find(municipality => municipality.id === id) || null;
   }
-  
-  // البحث في جميع البلديات
+
   return yalidineMunicipalities.find(municipality => municipality.id === id) || null;
 }
 
@@ -172,11 +201,11 @@ export async function calculateDeliveryFeesOptimized(
 
     // الحصول على بيانات الولاية والبلدية من الملفات الثابتة
     if (input.selectedProvinceId) {
-      result.selectedProvince = getProvinceById(input.selectedProvinceId);
+      result.selectedProvince = await getProvinceById(input.selectedProvinceId);
     }
 
     if (input.selectedMunicipalityId && input.selectedProvinceId) {
-      result.selectedMunicipality = getMunicipalityById(
+      result.selectedMunicipality = await getMunicipalityById(
         input.selectedMunicipalityId, 
         input.selectedProvinceId
       );
@@ -199,6 +228,7 @@ export async function calculateDeliveryFeesOptimized(
     }
 
     // 🆕 التحقق من معلومات الشحن للمنتج أولاً
+
     if (input.productShippingInfo) {
       
       // إذا كان للمنتج أسعار موحدة (Clone مع أسعار ثابتة)
@@ -357,23 +387,52 @@ async function calculateZRExpressDelivery(
   result: DeliveryCalculationResult
 ): Promise<DeliveryCalculationResult> {
   try {
-    
-    // استدعاء Edge Function الموجود عبر Supabase
-    const { createClient } = await import('@supabase/supabase-js');
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    // مفاتيح الكاش والـ dedup
+    const wilayaId = result.selectedMunicipality?.wilaya_id?.toString();
+    const weight = input.weight || 1;
+    const cacheKey = getPriceKey('zrexpress', [input.organizationId, wilayaId, input.deliveryType, weight]);
+
+    // فحص الكاش أولاً
+    const cached = priceCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
+      result.deliveryFee = cached.price;
+      result.deliveryType = input.deliveryType;
+      result.calculationMethod = 'zrexpress_api';
+      result.shippingProvider = {
+        name: 'ZR Express',
+        code: 'zrexpress',
+        logo: '/icons/zrexpress-logo.png'
+      };
+      result.debugInfo = {
+        weight,
+        basePrice: cached.price,
+        oversizeCharge: 0
+      };
+      return result;
+    }
+
+    // تنفيذ الطلب مع منع التكرار
+    const key = `zrexpress:${input.organizationId}:${wilayaId}:${input.deliveryType}`;
+    const data = await requestDeduplicator.execute(
+      key,
+      async () => {
+        const { data, error } = await supabase.functions.invoke('calculate-zrexpress-shipping', {
+          body: {
+            organizationId: input.organizationId,
+            wilayaId,
+            isHomeDelivery: input.deliveryType === 'home'
+          }
+        });
+        if (error) throw error;
+        return data as any;
+      },
+      { ttl: requestDeduplicator.getShortTTL(), useCache: true }
     );
 
-    const { data, error } = await supabase.functions.invoke('calculate-zrexpress-shipping', {
-      body: {
-        organizationId: input.organizationId,
-        wilayaId: result.selectedMunicipality?.wilaya_id?.toString(),
-        isHomeDelivery: input.deliveryType === 'home'
-      }
-    });
+    if (data && data.success && typeof data.price === 'number') {
+      // حفظ في الكاش
+      priceCache.set(cacheKey, { price: data.price, timestamp: Date.now() });
 
-    if (!error && data && data.success && typeof data.price === 'number') {
       result.deliveryFee = data.price;
       result.deliveryType = input.deliveryType;
       result.calculationMethod = 'zrexpress_api';
@@ -383,7 +442,7 @@ async function calculateZRExpressDelivery(
         logo: '/icons/zrexpress-logo.png'
       };
       result.debugInfo = {
-        weight: input.weight || 1,
+        weight,
         basePrice: data.price,
         oversizeCharge: 0
       };
@@ -436,14 +495,29 @@ async function calculateEcotrackDelivery(
   providerCode: string
 ): Promise<DeliveryCalculationResult> {
   try {
-    
-    // استدعاء دالة EcoTrack الموجودة
-    const { createClient } = await import('@supabase/supabase-js');
-    const supabase = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-    
+    const wilayaId = result.selectedMunicipality?.wilaya_id?.toString();
+    const weight = input.weight || 1;
+    const cacheKey = getPriceKey(providerCode, [input.organizationId, wilayaId, input.deliveryType, weight]);
+
+    // فحص الكاش أولاً
+    const cached = priceCache.get(cacheKey);
+    if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
+      result.deliveryFee = cached.price;
+      result.deliveryType = input.deliveryType;
+      result.calculationMethod = 'ecotrack_api';
+      result.shippingProvider = {
+        name: getEcotrackProviderName(providerCode),
+        code: providerCode,
+        logo: `/icons/${providerCode}-logo.png`
+      };
+      result.debugInfo = {
+        weight,
+        basePrice: cached.price,
+        oversizeCharge: 0
+      };
+      return result;
+    }
+
     // جلب إعدادات المزود
     const { data: providerSettings, error: settingsError } = await supabase
       .from('shipping_provider_settings')
@@ -469,13 +543,20 @@ async function calculateEcotrackDelivery(
 
     // استدعاء EcoTrack API
     const cleanBaseUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
-    const response = await fetch(`${cleanBaseUrl}/api/v1/get/fees?to_wilaya_id=${result.selectedMunicipality?.wilaya_id}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${api_token}`,
-        'Content-Type': 'application/json'
-      }
-    });
+    const response = await requestDeduplicator.execute(
+      `ecotrack:${providerCode}:${input.organizationId}:${wilayaId}:${input.deliveryType}`,
+      async () => {
+        const res = await fetch(`${cleanBaseUrl}/api/v1/get/fees?to_wilaya_id=${wilayaId}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${api_token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        return res;
+      },
+      { ttl: requestDeduplicator.getShortTTL(), useCache: false }
+    );
 
     if (response.ok) {
       const data = await response.json();
@@ -501,6 +582,7 @@ async function calculateEcotrackDelivery(
         }
 
         if (price > 0) {
+          priceCache.set(cacheKey, { price, timestamp: Date.now() });
           result.deliveryFee = price;
           result.deliveryType = input.deliveryType;
           result.calculationMethod = 'ecotrack_api';
@@ -510,7 +592,7 @@ async function calculateEcotrackDelivery(
             logo: `/icons/${providerCode}-logo.png`
           };
           result.debugInfo = {
-            weight: input.weight || 1,
+            weight,
             basePrice: price,
             oversizeCharge: 0
           };
@@ -527,6 +609,7 @@ async function calculateEcotrackDelivery(
           : parseFloat(rate.price_local || rate.price_domicile || '0');
 
         if (price > 0) {
+          priceCache.set(cacheKey, { price, timestamp: Date.now() });
           result.deliveryFee = price;
           result.deliveryType = input.deliveryType;
           result.calculationMethod = 'ecotrack_api';
@@ -536,7 +619,7 @@ async function calculateEcotrackDelivery(
             logo: `/icons/${providerCode}-logo.png`
           };
           result.debugInfo = {
-            weight: input.weight || 1,
+            weight,
             basePrice: price,
             oversizeCharge: 0
           };
@@ -560,6 +643,7 @@ async function calculateCustomDelivery(
   input: DeliveryCalculationInput,
   result: DeliveryCalculationResult
 ): Promise<DeliveryCalculationResult> {
+
   try {
     
     // استيراد دالة حساب الأسعار المخصصة
@@ -710,15 +794,15 @@ function getEcotrackProviderName(providerCode: string): string {
 /**
  * حساب سريع للأسعار التقديرية (للمعاينة السريعة)
  */
-export function calculateEstimatedDeliveryFee(
+export async function calculateEstimatedDeliveryFee(
   deliveryType: 'home' | 'desk',
   provinceId?: string,
   municipalityId?: string
-): number {
+): Promise<number> {
   
   // فحص سريع للبلدية
   if (municipalityId && provinceId) {
-    const municipality = getMunicipalityById(municipalityId, provinceId);
+    const municipality = await getMunicipalityById(municipalityId, provinceId);
     if (municipality) {
       if (deliveryType === 'desk' && !municipality.has_stop_desk) {
         return 450; // تحويل للمنزل
@@ -732,7 +816,7 @@ export function calculateEstimatedDeliveryFee(
 /**
  * التحقق من إمكانية التوصيل للموقع
  */
-export function checkDeliveryAvailability(
+export async function checkDeliveryAvailability(
   provinceId: string,
   municipalityId: string
 ): {
@@ -743,8 +827,8 @@ export function checkDeliveryAvailability(
   municipality?: YalidineMunicipality;
 } {
   
-  const province = getProvinceById(provinceId);
-  const municipality = getMunicipalityById(municipalityId, provinceId);
+  const province = await getProvinceById(provinceId);
+  const municipality = await getMunicipalityById(municipalityId, provinceId);
   
   if (!province || !municipality) {
     return {

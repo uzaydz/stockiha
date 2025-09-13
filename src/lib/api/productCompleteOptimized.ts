@@ -16,6 +16,30 @@ const getProductCompleteDataOptimized = async (
 ): Promise<ProductCompleteResponse | null> => {
 
   try {
+    try {
+      console.log('📥 [API] getProductCompleteDataOptimized:start', {
+        productIdentifier,
+        hasOrg: !!options.organizationId,
+        dataScope: options.dataScope || 'basic'
+      });
+    } catch {}
+    // ✅ Fallback ذكي: إذا لم يتوفر organizationId (غالباً في السابدومين/الدومين المخصص)
+    // استخدم الدالة القديمة التي تدعم تمرير السابدومين تلقائياً لتحديد المؤسسة
+    if (!options.organizationId) {
+      try {
+        const { getProductCompleteData } = await import('./productComplete');
+        const legacyResult = await getProductCompleteData(productIdentifier, {
+          organizationId: undefined,
+          includeInactive: options.includeInactive,
+          dataScope: options.dataScope || 'full'
+        });
+        if (legacyResult && (legacyResult as any).product) {
+          return legacyResult;
+        }
+      } catch (_e) {
+        // إذا فشل fallback القديم نكمل بالمسار المحسن بالأسفل
+      }
+    }
 
     const rpcParams = {
       p_product_identifier: productIdentifier,
@@ -25,6 +49,7 @@ const getProductCompleteDataOptimized = async (
       p_include_large_images: false // 🚀 تحسين: عدم تحميل الصور الضخمة افتراضياً
       // لكن سنحتاج لصور الألوان للمكون ProductVariantSelector - سنحل هذا بطريقة ذكية
     };
+
 
     // استدعاء الدالة Ultra Optimized مع timeout محسن
     const startTime = performance.now();
@@ -40,6 +65,24 @@ const getProductCompleteDataOptimized = async (
       const result = await rpcCall;
       data = result.data;
       error = result.error;
+      
+      // 🔥 إصلاح: معالجة البيانات المغلفة في RPC function
+      if (data && typeof data === 'object' && data.get_product_complete_data_ultra_optimized) {
+        data = data.get_product_complete_data_ultra_optimized;
+      }
+      
+      // 🔍 Debug: تسجيل تشخيص البيانات المُستلمة  
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔍 [API] البيانات المُستلمة:', {
+          hasData: !!data,
+          success: data?.success,
+          hasProduct: !!data?.product,
+          productId: data?.product?.id,
+          dataKeys: data ? Object.keys(data) : []
+        });
+      }
+      
+      
     } catch (rpcErr: any) {
       error = rpcErr;
     }
@@ -54,12 +97,14 @@ const getProductCompleteDataOptimized = async (
       )) || error.name === 'TypeError'
     ));
     if (isNetworkOrCorsError) {
+      try { console.warn('🌐 [API] Network/CORS error, using basic fallback'); } catch {}
       return await getBasicProductData(productIdentifier, options.organizationId);
     }
     
     // لا نستخدم fallback إلى basic، نعتمد على ultra فقط
     if (error) {
       // لا نحاول basic، نعيد الخطأ كما هو
+      try { console.error('🛑 [API] RPC error:', { message: error?.message || String(error) }); } catch {}
     }
     
     const executionTime = performance.now() - startTime;
@@ -68,14 +113,26 @@ const getProductCompleteDataOptimized = async (
       throw error; // إرجاع الخطأ مباشرة بدلاً من fallback
     }
 
+
     if (!data) {
-      return null;
+      throw new Error('المنتج غير موجود أو غير متاح');
     }
 
     // التحقق من بنية البيانات المُستلمة
     if (data.success === false) {
-      throw new Error(data.error?.message || 'فشل في جلب بيانات المنتج');
+      const errorMessage = data.error?.message || 'فشل في جلب بيانات المنتج';
+      
+      // إضافة معلومات إضافية للخطأ في حالة Organization ID المفقود
+      if (errorMessage.includes('Organization ID is required')) {
+        const isSlug = productIdentifier && !productIdentifier.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+        if (isSlug) {
+          throw new Error(`معرف المؤسسة مطلوب عند استخدام الاسم المختصر للمنتج "${productIdentifier}". تأكد من تحديد المؤسسة أولاً.`);
+        }
+      }
+      
+      throw new Error(errorMessage);
     }
+
 
     // تحويل البيانات لتتوافق مع النوع المتوقع
     const optimizedResponse: ProductCompleteResponse = {
@@ -91,10 +148,13 @@ const getProductCompleteDataOptimized = async (
       }
     };
 
+
+    try { console.log('✅ [API] getProductCompleteDataOptimized:success', { productId: (optimizedResponse.product as any)?.id }); } catch {}
     return optimizedResponse;
 
   } catch (error: any) {
     const errorMessage = error?.message || 'خطأ غير معروف';
+    try { console.error('💥 [API] getProductCompleteDataOptimized:catch', { error: errorMessage }); } catch {}
 
     // إرجاع الخطأ مباشرة بدلاً من fallback
     throw error;
@@ -202,6 +262,11 @@ const getProductColorImagesInfoOptimized = async (
 };
 
 // 🚀 دالة محسنة لجلب صور الألوان مع خيارات ذكية
+// إضافة كاش بسيط ومنع تكرار الطلبات لنفس المفاتيح
+const __colorImagesActive: Map<string, Promise<any>> = new Map();
+const __colorImagesCache: Map<string, { data: any; ts: number }> = new Map();
+const COLOR_IMAGES_TTL = 5 * 60 * 1000; // 5 دقائق
+
 const getProductColorImagesOptimized = async (
   productId: string,
   options: {
@@ -211,27 +276,42 @@ const getProductColorImagesOptimized = async (
   } = {}
 ): Promise<any> => {
   try {
+    const key = `color_images:${productId}:${options.includeLargeImages ? '1' : '0'}:${options.maxImageSize || 100000}:${options.imageQuality || 'standard'}`;
+    const now = Date.now();
+
+    // كاش حديث
+    const cached = __colorImagesCache.get(key);
+    if (cached && (now - cached.ts) < COLOR_IMAGES_TTL) {
+      return cached.data;
+    }
+
+    // طلب نشط لنفس المفتاح
+    if (__colorImagesActive.has(key)) {
+      return await __colorImagesActive.get(key)!;
+    }
 
     const startTime = performance.now();
+    const request = (async () => {
+      const { data, error } = await supabase.rpc('get_product_color_images_optimized' as any, {
+        p_product_id: productId,
+        p_include_large_images: options.includeLargeImages || false,
+        p_max_image_size: options.maxImageSize || 100000, // 100KB افتراضي
+        p_image_quality: options.imageQuality || 'standard'
+      });
+      const executionTime = performance.now() - startTime;
+      void executionTime;
+      if (error) throw error;
+      if (!data) return null;
+      __colorImagesCache.set(key, { data, ts: Date.now() });
+      return data;
+    })();
 
-    const { data, error } = await supabase.rpc('get_product_color_images_optimized' as any, {
-      p_product_id: productId,
-      p_include_large_images: options.includeLargeImages || false,
-      p_max_image_size: options.maxImageSize || 100000, // 100KB افتراضي
-      p_image_quality: options.imageQuality || 'standard'
-    });
-
-    const executionTime = performance.now() - startTime;
-
-    if (error) {
-      throw error;
+    __colorImagesActive.set(key, request);
+    try {
+      return await request;
+    } finally {
+      __colorImagesActive.delete(key);
     }
-
-    if (!data) {
-      return null;
-    }
-
-    return data;
 
   } catch (error: any) {
     throw error;
@@ -316,10 +396,10 @@ const getProductCompleteWithColorThumbnailsOptimized = async (
 
     const startTime = performance.now();
 
-    // جلب المنتج الأساسي أولاً
+    // جلب المنتج الأساسي أولاً بنطاق بيانات خفيف لتسريع الوصول الأولي
     const baseResult = await getProductCompleteDataOptimized(productIdentifier, {
       ...options,
-      dataScope: options.dataScope || 'ultra'
+      dataScope: options.dataScope || 'basic'
     });
 
     if (!baseResult?.product) {
@@ -337,7 +417,7 @@ const getProductCompleteWithColorThumbnailsOptimized = async (
     let colorImages: any = null;
     try {
       colorImages = await getProductColorImagesOptimized(product.id, {
-        includeLargeImages: true, // السماح بتحميل جميع الصور للألوان
+        includeLargeImages: false, // تحميل الصور المصغرة فقط لتقليل الحجم
         maxImageSize: 200000, // 200KB كحد أقصى للصور الصغيرة
         imageQuality: 'thumbnail'
       });

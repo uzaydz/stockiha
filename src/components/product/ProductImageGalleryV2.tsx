@@ -2,6 +2,7 @@ import React, { useState, useEffect, memo, useRef, useCallback, useMemo } from '
 import { CompleteProduct, ProductColor } from '@/lib/api/productComplete';
 import { cn } from '@/lib/utils';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { getCdnImageUrl } from '@/lib/image-cdn';
 
 interface ProductImageGalleryV2Props {
   product: CompleteProduct;
@@ -42,57 +43,76 @@ const ProductImageGalleryV2 = memo<ProductImageGalleryV2Props>(({
     typeof window !== 'undefined' && window.innerWidth < 768, []
   );
 
-  // إعداد قائمة الصور المحسنة - مرة واحدة فقط
+  // تهيئة حجم وجودة الصور حسب الشبكة والجهاز
+  const imageParams = useMemo(() => {
+    try {
+      const conn = (navigator as any)?.connection?.effectiveType as string | undefined;
+      const slow = conn === '2g' || conn === 'slow-2g';
+      const medium = conn === '3g';
+      const baseWidth = isMobile ? 640 : 800;
+      const width = slow ? Math.round(baseWidth * 0.6) : medium ? Math.round(baseWidth * 0.8) : baseWidth;
+      const quality = slow ? 60 : medium ? 68 : 75;
+      const thumbWidth = 64; // يكفي للمصغرات
+      const thumbQuality = 45; // تقليل الجودة للمصغرات لتقليل الحجم
+      return { width, quality, thumbWidth, thumbQuality };
+    } catch {
+      return { width: isMobile ? 640 : 800, quality: 75, thumbWidth: 64, thumbQuality: 45 };
+    }
+  }, [isMobile]);
+
+  // مساعد بسيط لاكتشاف سلاسل base64 الكبيرة (لا يمكن ضغطها عبر CDN)
+  const isLikelyLargeDataUrl = (url?: string) => {
+    if (!url) return false;
+    if (!url.startsWith('data:')) return false;
+    // عتبة تقريبية: إذا تجاوزت السلسلة 120KB نعتبرها ثقيلة
+    try { return url.length > 120_000; } catch { return true; }
+  };
+
+  // إعداد قائمة الصور المحسنة - تركيز على أولية العرض وتقليل الحمولة
   const images = useMemo(() => {
-    const imageList: string[] = [];
-    
-    // أولوية للصورة المختارة
+    const list: string[] = [];
+
+    const pushIfValid = (u?: string) => {
+      if (!u) return;
+      const url = u.trim();
+      if (!url) return;
+      if (list.includes(url)) return;
+      // تجنب إدخال صور base64 الثقيلة في القائمة الأولية
+      if (isLikelyLargeDataUrl(url)) return;
+      list.push(url);
+    };
+
+    // 1) أولوية لصورة اللون المختار إن وجدت (حتى لو كانت base64، نسمح بها لأنها مطلوبة للعرض الفوري)
     if (selectedColor?.image_url && selectedColor.image_url.trim() !== '') {
-      imageList.push(selectedColor.image_url);
+      if (!list.includes(selectedColor.image_url)) list.unshift(selectedColor.image_url);
     }
-    
-    // الصورة الرئيسية
-    if (product.images?.thumbnail_image && 
-        product.images.thumbnail_image.trim() !== '' &&
-        !imageList.includes(product.images.thumbnail_image)) {
-      imageList.push(product.images.thumbnail_image);
+
+    // 2) الصورة الرئيسية
+    pushIfValid(product.images?.thumbnail_image);
+
+    // 3) أول 4 صور إضافية فقط لتقليل العدد
+    const extras = Array.isArray(product.images?.additional_images) ? product.images!.additional_images.slice(0, 4) : [];
+    extras.forEach(img => pushIfValid(img?.url));
+
+    // 4) صور ألوان أخرى (حد أقصى 4) مع تجاهل base64 الثقيلة
+    let addedColors = 0;
+    if (Array.isArray(product.variants?.colors)) {
+      for (const color of product.variants!.colors) {
+        if (!color?.image_url) continue;
+        if (selectedColor && color.id === selectedColor.id) continue;
+        if (addedColors >= 4) break;
+        if (isLikelyLargeDataUrl(color.image_url)) continue;
+        pushIfValid(color.image_url);
+        addedColors++;
+      }
     }
-    
-    // الصور الإضافية
-    product.images?.additional_images?.forEach(img => {
-      if (img.url && img.url.trim() !== '' && !imageList.includes(img.url)) {
-        imageList.push(img.url);
-      }
-    });
 
-    // صور الألوان الأخرى
-    product.variants?.colors?.forEach(color => {
-      if (color.image_url && 
-          color.image_url.trim() !== '' && 
-          !imageList.includes(color.image_url)) {
-        imageList.push(color.image_url);
-      }
-    });
-
-    return imageList.length > 0 ? imageList : ['/images/placeholder-product.jpg'];
+    return list.length > 0 ? list : ['/images/placeholder-product.jpg'];
   }, [product, selectedColor]);
 
   const currentImage = images[currentIndex] || images[0];
 
-  // تبسيط: تحميل مسبق بسيط للصور
-  useEffect(() => {
-    if (images.length === 0) return;
-
-    // تحميل فوري لجميع الصور
-    images.forEach(url => {
-      if (!imageRefs.current.has(url)) {
-        const img = new Image();
-        img.src = url;
-        img.loading = 'eager';
-        imageRefs.current.set(url, img);
-      }
-    });
-  }, [images]);
+  // إلغاء التحميل المسبق الشامل؛ سنقوم فقط بتحميل الصورة الحالية وما جاورها
 
   // تحميل مسبق للصور المجاورة فقط - أكثر كفاءة
   useEffect(() => {
@@ -104,14 +124,14 @@ const ProductImageGalleryV2 = memo<ProductImageGalleryV2Props>(({
         images[currentIndex + 1],
       ].filter(Boolean);
 
-      toPreload.forEach(url => {
-        if (!imageRefs.current.has(url)) {
-          const img = new Image();
-          img.src = url;
-          img.loading = 'lazy';
-          imageRefs.current.set(url, img);
-        }
-      });
+          toPreload.forEach(url => {
+            if (!imageRefs.current.has(url)) {
+              const img = new Image();
+          img.src = getCdnImageUrl(url, { width: Math.min(512, imageParams.width), quality: Math.min(70, imageParams.quality), fit: 'cover' });
+              img.loading = 'lazy';
+              imageRefs.current.set(url, img);
+            }
+          });
     };
 
     const timer = setTimeout(preloadAdjacentImages, 100);
@@ -185,13 +205,13 @@ const ProductImageGalleryV2 = memo<ProductImageGalleryV2Props>(({
         // تحميل مسبق للصورة الجديدة
         if (!imageRefs.current.has(newImage)) {
           const img = new Image();
-          img.src = newImage;
+          img.src = getCdnImageUrl(newImage, { width: Math.min(512, imageParams.width), quality: Math.min(70, imageParams.quality), fit: 'cover' });
           img.loading = 'eager';
           imageRefs.current.set(newImage, img);
         }
       }
     }
-  }, [currentIndex, images, currentImage]);
+  }, [currentIndex, images, currentImage, imageParams.width, imageParams.quality]);
 
   // تحديث الصورة المعروضة عند تغيير اللون المختار
   useEffect(() => {
@@ -249,7 +269,10 @@ const ProductImageGalleryV2 = memo<ProductImageGalleryV2Props>(({
             {/* تبسيط: عرض الصورة مباشرة */}
             {currentImage && (
               <img
-                src={currentImage}
+                src={getCdnImageUrl(currentImage, { width: imageParams.width, quality: imageParams.quality, fit: imageFit === 'contain' ? 'contain' : 'cover', format: 'auto' })}
+                srcSet={[360, 480, 640, 800]
+                  .map(w => `${getCdnImageUrl(currentImage, { width: w, quality: Math.min(imageParams.quality, 72), fit: imageFit === 'contain' ? 'contain' : 'cover', format: 'auto' })} ${w}w`)
+                  .join(', ')}
                 alt={`${product.name} - صورة ${currentIndex + 1}`}
                 className={cn(
                   "w-full h-full transition-opacity duration-200",
@@ -257,8 +280,12 @@ const ProductImageGalleryV2 = memo<ProductImageGalleryV2Props>(({
                 )}
                 onLoad={handleImageLoad}
                 onError={handleImageError}
-                loading="eager" // تحميل فوري دائماً
+                loading="eager"
+                fetchPriority="high"
                 decoding="async"
+                width={imageParams.width}
+                height={imageParams.width}
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 50vw"
                 draggable={false}
               />
             )}
@@ -266,7 +293,7 @@ const ProductImageGalleryV2 = memo<ProductImageGalleryV2Props>(({
             {/* fallback للصور */}
             {!currentImage && images.length > 0 && (
               <img
-                src={images[0]}
+                src={getCdnImageUrl(images[0], { width: imageParams.width, quality: imageParams.quality, fit: 'cover' })}
                 alt={`${product.name} - صورة بديلة`}
                 className="w-full h-full object-cover opacity-100"
                 onError={(e) => {
@@ -282,16 +309,18 @@ const ProductImageGalleryV2 = memo<ProductImageGalleryV2Props>(({
             <>
               <button
                 onClick={goToPrevious}
-                className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-background/90 hover:bg-background rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-background/90 hover:bg-background rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg touch-target"
                 disabled={isTransitioning}
+                aria-label="الصورة السابقة"
               >
                 <ChevronRight className="w-5 h-5" />
               </button>
               
               <button
                 onClick={goToNext}
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-background/90 hover:bg-background rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-background/90 hover:bg-background rounded-xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg touch-target"
                 disabled={isTransitioning}
+                aria-label="الصورة التالية"
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
@@ -312,6 +341,7 @@ const ProductImageGalleryV2 = memo<ProductImageGalleryV2Props>(({
                       : "bg-muted-foreground/40 hover:bg-muted-foreground/70"
                   )}
                   disabled={isTransitioning}
+                  aria-label={`الانتقال إلى الصورة ${idx + 1}`}
                 />
               ))}
             </div>
@@ -335,13 +365,15 @@ const ProductImageGalleryV2 = memo<ProductImageGalleryV2Props>(({
                   disabled={isTransitioning}
                 >
                   <img
-                    src={imageUrl}
+                    src={getCdnImageUrl(imageUrl, { width: imageParams.thumbWidth, quality: imageParams.thumbQuality, fit: 'cover', format: 'auto' })}
                     alt={`صورة مصغرة ${idx + 1}`}
                     className="w-full h-full object-cover"
-                    loading={idx < 3 ? "eager" : "lazy"} // تحميل فوري لأول 3 صور
+                    loading={idx < 3 ? "eager" : "lazy"}
                     decoding="async"
                     onLoad={(e) => handleImageLoad(e)}
                     onError={(e) => handleImageError(e)}
+                    width={imageParams.thumbWidth}
+                    height={imageParams.thumbWidth}
                   />
                 </button>
               ))}

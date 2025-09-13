@@ -196,18 +196,38 @@ export const specificationsComponentSchema = z.object({
   type: z.literal('specifications'),
   data: z.object({
     title: z.string().default('المواصفات التقنية'),
+    subtitle: z.string().optional(),
+    layoutType: z.enum(['simple', 'categorized', 'table']).default('simple'),
     specifications: z.array(z.object({
       id: z.string(),
-      label: z.string(),
+      name: z.string(),
       value: z.string(),
+      unit: z.string().optional(),
+      description: z.string().optional(),
       category: z.string().optional(),
     })),
+    categories: z.array(z.object({
+      id: z.string(),
+      name: z.string(),
+      specifications: z.array(z.object({
+        name: z.string(),
+        value: z.string(),
+        unit: z.string().optional(),
+      })),
+    })).default([]),
   }),
   order: z.number(),
   settings: z.object({
     layout: z.enum(['table', 'cards']).default('table'),
     showCategories: z.boolean().default(true),
     alternatingRows: z.boolean().default(true),
+    showUnits: z.boolean().default(true),
+    showDescriptions: z.boolean().default(true),
+    alternatingColors: z.boolean().default(true),
+    borderStyle: z.enum(['none', 'bordered', 'separated']).default('bordered'),
+    backgroundColor: z.string().default('transparent'),
+    padding: z.number().default(16),
+    borderRadius: z.enum(['none', 'sm', 'md', 'lg', 'xl', 'full']).default('md'),
   }),
 });
 
@@ -445,13 +465,23 @@ export const createSpecificationsComponent = (order: number): SpecificationsComp
   type: 'specifications',
   data: {
     title: 'المواصفات التقنية',
+    subtitle: '',
+    layoutType: 'simple',
     specifications: [],
+    categories: [],
   },
   order,
   settings: {
     layout: 'table',
     showCategories: true,
     alternatingRows: true,
+    showUnits: true,
+    showDescriptions: true,
+    alternatingColors: true,
+    borderStyle: 'bordered',
+    backgroundColor: 'transparent',
+    padding: 16,
+    borderRadius: 'md',
   },
 });
 

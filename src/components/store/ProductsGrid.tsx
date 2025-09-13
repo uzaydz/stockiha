@@ -1,10 +1,12 @@
 import React, { memo, useEffect, useState, useMemo, useCallback } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { motion } from 'framer-motion';
 import { ShoppingCart, Loader2 } from 'lucide-react';
 import { Product } from '@/api/store';
 import { useTranslation } from 'react-i18next';
 import { ProductCard } from './ProductCard';
 import { ProductListItem } from './ProductListItem';
+import { getCdnImageUrl } from '@/lib/image-cdn';
 
 interface ProductsGridProps {
   products: Product[];
@@ -91,6 +93,23 @@ const ProductsGrid = memo(({
     }
   }), []);
 
+  // تحضير تلميح preload لصورة LCP المتوقعة (أول منتج في الشبكة)
+  const lcpPreload = useMemo(() => {
+    try {
+      if (!memoizedProducts || memoizedProducts.length === 0) return null;
+      const first = memoizedProducts[0] as any;
+      const src: string | undefined = first?.thumbnail_image || first?.imageUrl;
+      if (!src) return null;
+      const widths = [320, 480, 640, 768, 1024, 1280];
+      const href = getCdnImageUrl(src, { width: 640, quality: 72, fit: 'contain', format: 'auto' });
+      const imagesrcset = widths.map((w) => `${getCdnImageUrl(src, { width: w, quality: 70, fit: 'contain', format: 'auto' })} ${w}w`).join(', ');
+      const imagesizes = '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 300px';
+      return { href, imagesrcset, imagesizes };
+    } catch {
+      return null;
+    }
+  }, [memoizedProducts]);
+
   if (loading) {
     return (
       <motion.div 
@@ -135,7 +154,13 @@ const ProductsGrid = memo(({
 
   if (enableMotion) {
     return (
-      <div
+      <>
+        {lcpPreload && (
+          <Helmet>
+            <link rel="preload" as="image" href={lcpPreload.href} imagesrcset={lcpPreload.imagesrcset} imagesizes={lcpPreload.imagesizes} fetchpriority="high" />
+          </Helmet>
+        )}
+        <div
         className={viewType === 'grid'
           ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 sm:gap-6 lg:gap-8 px-2 sm:px-0"
           : "space-y-4 sm:space-y-6 px-2 sm:px-0"
@@ -145,7 +170,7 @@ const ProductsGrid = memo(({
       >
         {memoizedProducts.map((product, index) => {
           const isFavorite = memoizedFavorites.has(product.id);
-          const priority = index < 6; // زيادة عدد العناصر ذات الأولوية للتحميل السريع
+          const priority = index < 2; // أولوية عالية لأول عنصرين فقط لتحسين LCP
           
           const ProductComponent = viewType === 'grid' ? ProductCard : ProductListItem;
 
@@ -163,12 +188,19 @@ const ProductsGrid = memo(({
             </div>
           );
         })}
-      </div>
+        </div>
+      </>
     );
   }
 
   return (
-    <div
+    <>
+      {lcpPreload && (
+        <Helmet>
+          <link rel="preload" as="image" href={lcpPreload.href} imagesrcset={lcpPreload.imagesrcset} imagesizes={lcpPreload.imagesizes} fetchpriority="high" />
+        </Helmet>
+      )}
+      <div
       className={viewType === 'grid'
         ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 sm:gap-6 lg:gap-8 px-2 sm:px-0"
         : "space-y-4 sm:space-y-6 px-2 sm:px-0"
@@ -178,7 +210,7 @@ const ProductsGrid = memo(({
     >
       {memoizedProducts.map((product, index) => {
         const isFavorite = memoizedFavorites.has(product.id);
-        const priority = index < 6; // زيادة عدد العناصر ذات الأولوية للتحميل السريع
+        const priority = index < 2; // أولوية عالية لأول عنصرين فقط لتحسين LCP
         
         const ProductComponent = viewType === 'grid' ? ProductCard : ProductListItem;
 
@@ -192,7 +224,8 @@ const ProductsGrid = memo(({
           />
         );
       })}
-    </div>
+      </div>
+    </>
   );
 });
 

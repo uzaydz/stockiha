@@ -13,6 +13,7 @@ export interface OptimizedSharedStoreDataContextType {
   municipalities: any[];
   callConfirmationStatuses: any[];
   shippingProviders: any[];
+  components: any[]; // 🔥 إضافة المكونات المخصصة
   isLoading: boolean;
   error: string | null;
   refreshData: () => void;
@@ -36,6 +37,7 @@ export const OptimizedSharedStoreDataProvider: React.FC<{ children: ReactNode }>
     municipalities: [],
     callConfirmationStatuses: [],
     shippingProviders: [],
+    components: [], // 🔥 إضافة المكونات المخصصة
     isLoading: true,
     error: null,
   });
@@ -46,6 +48,57 @@ export const OptimizedSharedStoreDataProvider: React.FC<{ children: ReactNode }>
   const sharedDataCache = useRef<Map<string, { data: any; timestamp: number }>>(new Map());
   const CACHE_DURATION = 10 * 60 * 1000; // 10 دقائق للبيانات المشتركة
   const SESSION_CACHE_KEY = 'shared_data_cache';
+
+  // 🔥 إضافة استماع لبيانات window object من main.tsx
+  useEffect(() => {
+    const handleStoreDataReady = () => {
+      console.log('🎯 [OptimizedSharedStoreDataProvider] تم استلام حدث storeDataReady');
+      const windowEarlyData = (window as any).__EARLY_STORE_DATA__;
+      const windowSharedData = (window as any).__SHARED_STORE_DATA__;
+      
+      if (windowEarlyData?.data || windowSharedData) {
+        const data = windowEarlyData?.data || windowSharedData;
+        console.log('🔄 [OptimizedSharedStoreDataProvider] تحديث البيانات من window object');
+        
+        setSharedData({
+          organization: data.organization_details || currentOrganization,
+          organizationSettings: data.organization_settings || null,
+          products: data.featured_products || [],
+          categories: data.categories || [],
+          featuredProducts: data.featured_products || [],
+          provinces: data.provinces || [],
+          municipalities: data.municipalities || [],
+          callConfirmationStatuses: data.call_confirmation_statuses || [],
+          shippingProviders: data.shipping_providers || [],
+          components: data.store_layout_components || [], // 🔥 إضافة المكونات المخصصة
+          isLoading: false,
+          error: null,
+        });
+        
+        // ✅ إصلاح: إرسال حدث للتنبيه بأن البيانات جاهزة
+        window.dispatchEvent(new CustomEvent('optimizedStoreDataReady', {
+          detail: {
+            organization: data.organization_details || currentOrganization,
+            organizationSettings: data.organization_settings,
+            timestamp: Date.now()
+          }
+        }));
+      }
+    };
+
+    const handleStoreInitDataReady = () => {
+      console.log('🎯 [OptimizedSharedStoreDataProvider] تم استلام حدث storeInitDataReady');
+      handleStoreDataReady();
+    };
+
+    window.addEventListener('storeDataReady', handleStoreDataReady);
+    window.addEventListener('storeInitDataReady', handleStoreInitDataReady);
+
+    return () => {
+      window.removeEventListener('storeDataReady', handleStoreDataReady);
+      window.removeEventListener('storeInitDataReady', handleStoreInitDataReady);
+    };
+  }, [currentOrganization]);
 
   // دالة للحصول من sessionStorage
   const getFromSessionStorage = (orgId: string) => {
@@ -261,8 +314,7 @@ export const useOptimizedSharedStoreDataContext = (): OptimizedSharedStoreDataCo
 
 // مزود بديل للصفحات التي لا تحتاج TenantProvider
 export const MinimalOptimizedSharedStoreDataProvider: React.FC<{ children: ReactNode }> = React.memo(({ children }) => {
-  // بيانات افتراضية للصفحات البسيطة
-  const defaultData = {
+  const [sharedData, setSharedData] = useState<any>({
     organization: null,
     organizationSettings: null,
     products: [],
@@ -272,15 +324,92 @@ export const MinimalOptimizedSharedStoreDataProvider: React.FC<{ children: React
     municipalities: [],
     callConfirmationStatuses: [],
     shippingProviders: [],
+    components: [], // 🔥 إضافة المكونات المخصصة
     isLoading: false,
     error: null,
+  });
+
+  // 🔥 إضافة استماع لبيانات window object من main.tsx
+  useEffect(() => {
+    let lastSignature: string | null = null;
+    const handleStoreDataReady = () => {
+      console.log('🎯 [MinimalOptimizedSharedStoreDataProvider] تم استلام حدث storeDataReady');
+      const windowEarlyData = (window as any).__EARLY_STORE_DATA__;
+      const windowSharedData = (window as any).__SHARED_STORE_DATA__;
+      
+      if (windowEarlyData?.data || windowSharedData) {
+        const data = windowEarlyData?.data || windowSharedData;
+        console.log('🔄 [MinimalOptimizedSharedStoreDataProvider] تحديث البيانات من window object');
+        console.log('🔍 [MinimalOptimizedSharedStoreDataProvider] فحص البيانات:', {
+          hasData: !!data,
+          dataKeys: data ? Object.keys(data) : [],
+          hasStoreLayoutComponents: !!(data?.store_layout_components),
+          storeLayoutComponents: data?.store_layout_components,
+          componentsCount: data?.store_layout_components?.length || 0,
+          components: data?.store_layout_components?.map((c: any) => c.component_type) || []
+        });
+        // تجاهل التحديث إذا لم تتغير البصمة لتفادي إعادة الرندر
+        try {
+          const sig = JSON.stringify({
+            org: data.organization_details?.id || data.organization?.id || null,
+            settings: data.organization_settings?.id || null,
+            comps: (data.store_layout_components || []).length
+          });
+          if (sig === lastSignature) {
+            return;
+          }
+          lastSignature = sig;
+        } catch {}
+        
+        setSharedData({
+          organization: data.organization_details || null,
+          organizationSettings: data.organization_settings || null,
+          products: data.featured_products || [],
+          categories: data.categories || [],
+          featuredProducts: data.featured_products || [],
+          provinces: data.provinces || [],
+          municipalities: data.municipalities || [],
+          callConfirmationStatuses: data.call_confirmation_statuses || [],
+          shippingProviders: data.shipping_providers || [],
+          components: data.store_layout_components || [], // 🔥 إضافة المكونات المخصصة
+          isLoading: false,
+          error: null,
+        });
+        
+        // ✅ إصلاح: إرسال حدث للتنبيه بأن البيانات جاهزة
+        window.dispatchEvent(new CustomEvent('minimalOptimizedStoreDataReady', {
+          detail: {
+            organization: data.organization_details,
+            organizationSettings: data.organization_settings,
+            timestamp: Date.now()
+          }
+        }));
+      }
+    };
+
+    const handleStoreInitDataReady = () => {
+      console.log('🎯 [MinimalOptimizedSharedStoreDataProvider] تم استلام حدث storeInitDataReady');
+      handleStoreDataReady();
+    };
+
+    window.addEventListener('storeDataReady', handleStoreDataReady);
+    window.addEventListener('storeInitDataReady', handleStoreInitDataReady);
+
+    return () => {
+      window.removeEventListener('storeDataReady', handleStoreDataReady);
+      window.removeEventListener('storeInitDataReady', handleStoreInitDataReady);
+    };
+  }, []);
+
+  const contextValue = {
+    ...sharedData,
     refreshData: () => {},
     getCacheStats: () => ({}),
     clearCache: () => {},
   };
 
   return (
-    <OptimizedSharedStoreDataContext.Provider value={defaultData}>
+    <OptimizedSharedStoreDataContext.Provider value={contextValue}>
       {children}
     </OptimizedSharedStoreDataContext.Provider>
   );

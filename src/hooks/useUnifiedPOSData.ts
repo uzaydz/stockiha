@@ -8,6 +8,15 @@ import { useTenant } from '@/context/TenantContext';
 
 interface CompletePOSData {
   products: any[];
+  // pagination from RPC: current_page, total_pages, total_count, per_page, etc.
+  pagination?: {
+    current_page: number;
+    total_pages: number;
+    total_count: number;
+    per_page: number;
+    has_next_page: boolean;
+    has_prev_page: boolean;
+  };
   subscriptions: any[];
   subscription_categories: any[];
   product_categories: any[];
@@ -292,6 +301,7 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
 
     // البيانات المنفصلة للسهولة
     products: posData?.products || [],
+    pagination: (posData as any)?.pagination || undefined,
     subscriptions: posData?.subscriptions || [],
     subscriptionCategories: posData?.subscription_categories || [],
     productCategories: posData?.product_categories || [],

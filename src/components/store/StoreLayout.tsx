@@ -77,8 +77,25 @@ const StoreLayout: React.FC<StoreLayoutProps> = React.memo(({
 
   // تسجيل البيانات الحالية
 
-  // إذا لم يتم العثور على المؤسسة
-  if (!centralOrgId) {
+  // فحص البيانات من مصادر مختلفة قبل عرض رسالة "المتجر غير موجود"
+  const windowEarlyData = (window as any).__EARLY_STORE_DATA__;
+  const windowSharedData = (window as any).__SHARED_STORE_DATA__;
+  const windowCurrentStoreData = (window as any).__CURRENT_STORE_DATA__;
+  
+  const hasOrganizationData = !!(
+    windowEarlyData?.data?.organization_details ||
+    windowSharedData?.organization ||
+    windowCurrentStoreData?.organization
+  );
+  
+  const hasOrganizationSettings = !!(
+    windowEarlyData?.data?.organization_settings ||
+    windowSharedData?.organizationSettings ||
+    windowCurrentStoreData?.organizationSettings
+  );
+  
+  // إذا لم يتم العثور على المؤسسة في أي مصدر
+  if (!centralOrgId && !hasOrganizationData && !hasOrganizationSettings) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
         <h1 className="text-2xl font-bold mb-4">المتجر غير موجود</h1>

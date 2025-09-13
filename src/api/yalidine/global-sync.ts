@@ -11,7 +11,7 @@ import { Province, Municipality, Center } from './types';
 import { yalidineRateLimiter } from './rate-limiter';
 
 // القيمة الافتراضية لمعرف المنظمة المستخدمة للحصول على بيانات API
-const DEFAULT_ORGANIZATION_ID = process.env.NEXT_PUBLIC_YALIDINE_DEFAULT_ORG_ID || 'fed872f9-1ade-4351-b020-5598fda976fe';
+const DEFAULT_ORGANIZATION_ID = import.meta.env.VITE_YALIDINE_DEFAULT_ORG_ID || 'fed872f9-1ade-4351-b020-5598fda976fe';
 
 /**
  * وظيفة للتحقق مما إذا كانت البيانات العالمية محدثة

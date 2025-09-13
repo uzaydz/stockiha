@@ -18,6 +18,7 @@ import { useOrganizationSettings } from '@/hooks/useOrganizationSettings';
 // استيراد هوك الثيم
 import { useTheme } from '@/context/ThemeContext.tsx';
 import { getSupabaseClient } from '@/lib/supabase-client';
+import { canMutateHead } from '@/lib/headGuard';
 
 const StoreSettings = () => {
   const { toast } = useToast();
@@ -158,12 +159,11 @@ const StoreSettings = () => {
       });
       window.dispatchEvent(settingsUpdatedEvent);
       
-      // إجبار إعادة رسم التخطيط
+      // إشعار غير حاجز لتحديث التخطيط بدون forced reflow
       setTimeout(() => {
-        window.dispatchEvent(new Event('resize'));
-        document.body.style.visibility = 'hidden';
-        document.body.offsetHeight; // trigger reflow
-        document.body.style.visibility = 'visible';
+        requestAnimationFrame(() => {
+          try { window.dispatchEvent(new Event('resize')); } catch {}
+        });
       }, 100);
       
       // إغلاق النافذة مع تأخير قصير فقط
@@ -198,13 +198,15 @@ const StoreSettings = () => {
   // دالة محسنة لتطبيق الإعدادات على DOM
   const applySettingsToDOM = useCallback(async () => {
     try {
-      // تحديث عنوان الصفحة
-      if (settings.site_name && document.title !== settings.site_name) {
+      // تحديث عنوان الصفحة (محكوم بالـ head guard)
+      if (canMutateHead() && settings.site_name && document.title !== settings.site_name) {
         document.title = settings.site_name;
       }
       
       // تحديث الأيقونة
-      await updateFavicon(settings.favicon_url);
+      if (canMutateHead()) {
+        await updateFavicon(settings.favicon_url);
+      }
       
       // تحديث الشعار
       await updateLogos(settings.logo_url);
@@ -234,7 +236,7 @@ const StoreSettings = () => {
   }, [settings, currentOrganization?.id, reloadOrganizationTheme]);
 
   const updateFavicon = useCallback(async (faviconUrl: string | null) => {
-    if (!faviconUrl) return;
+    if (!faviconUrl || !canMutateHead()) return;
     
     try {
       // إزالة الأيقونة القديمة
@@ -314,10 +316,10 @@ const StoreSettings = () => {
         root.style.setProperty('--secondary-foreground', '0 0% 9%');
       }
       
-      // إجبار إعادة رسم الصفحة
-      root.style.display = 'none';
-      root.offsetHeight; // trigger reflow
-      root.style.display = '';
+      // تجنّب forced reflow: دع المتصفح يطبّق التغييرات في إطار الرسم التالي
+      requestAnimationFrame(() => {
+        try { window.dispatchEvent(new Event('resize')); } catch {}
+      });
       
     } catch (error) {
     }

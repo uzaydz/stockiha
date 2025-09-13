@@ -7,6 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
 import { Separator } from '@/components/ui/separator';
 import { useUnifiedProductPageData } from '@/hooks/useUnifiedProductPageData';
+import { useInitialQueryData } from '@/pages/product-v3/hooks/useInitialQueryData';
 
 // المكونات المحسنة المنفصلة
 import ProductNavigationBar from '@/components/product/ProductNavigationBar';
@@ -35,6 +36,7 @@ import { testDeliveryData } from '@/lib/delivery-calculator';
 // استيراد مكونات التحليلات
 
 import VisitorAnalyticsDisplay from '@/components/analytics/VisitorAnalyticsDisplay';
+import { useSharedStoreDataContext } from '@/context/SharedStoreDataContext';
 
 const ProductPurchasePageMaxV2Optimized: React.FC = () => {
   const { productId } = useParams<{ productId: string }>();
@@ -45,10 +47,14 @@ const ProductPurchasePageMaxV2Optimized: React.FC = () => {
   const [submittedFormData, setSubmittedFormData] = useState<Record<string, any>>({});
 
   // 🚀 استخدام Hook موحد لجلب جميع البيانات مع منع التكرار
+  const initialQueryData = useInitialQueryData();
   const unifiedData = useUnifiedProductPageData({
     productId,
     organizationId: organization?.id,
-    enabled: !!productId && !!organization?.id
+    enabled: !!productId && !!organization?.id && !initialQueryData,
+    dataScope: 'full',
+    initialData: initialQueryData,
+    initialDataUpdatedAt: initialQueryData ? Date.now() : undefined
   });
 
   // 🔍 تتبع حالة البيانات الموحدة
@@ -57,7 +63,8 @@ const ProductPurchasePageMaxV2Optimized: React.FC = () => {
   const [state, actions] = useProductPurchase({
     productId,
     organizationId: organization?.id || undefined,
-    dataScope: 'ultra',
+    // Keep in sync with unified hook; upgrade on-demand if needed
+    dataScope: 'full',
     preloadedProduct: unifiedData.product, // 🚀 تمرير البيانات المحملة مسبقاً
     enabled: true // ✅ السماح للـ hook بالعمل، لكنه سيستخدم البيانات المحملة مسبقاً
   });
@@ -108,6 +115,21 @@ const ProductPurchasePageMaxV2Optimized: React.FC = () => {
   // مراقبة بيانات المنظمة مع المنتج
   useEffect(() => {
   }, [organization, organizationId, product]);
+
+  // تحديد إظهار زر السلة
+  const { organizationSettings: orgSettings } = useSharedStoreDataContext();
+  const showAddToCart = useMemo(() => {
+    const skipCartProduct = !!(product?.advanced_settings?.skip_cart);
+    let enableCartOrg = false;
+    try {
+      const raw = (orgSettings as any)?.custom_js;
+      if (raw) {
+        const json = typeof raw === 'string' ? JSON.parse(raw) : raw;
+        enableCartOrg = !!json?.enable_cart;
+      }
+    } catch {}
+    return enableCartOrg && !skipCartProduct;
+  }, [product?.advanced_settings?.skip_cart, orgSettings]);
 
   // معالجة الشراء المباشر مع التنقل
   const handleBuyNow = async () => {
@@ -230,6 +252,7 @@ const ProductPurchasePageMaxV2Optimized: React.FC = () => {
               totalPrice={totalPrice}
               onBuyNow={handleBuyNow}
               onAddToCart={addToCart}
+              showAddToCart={showAddToCart}
             />
 
             {/* معلومات المخزون */}

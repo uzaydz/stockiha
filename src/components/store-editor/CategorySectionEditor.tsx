@@ -27,6 +27,7 @@ import { useTenant } from '@/context/TenantContext';
 import { useToast } from '@/components/ui/use-toast';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { getSupabaseClient } from '@/lib/supabase';
+import { useStoreEditorData } from '@/context/StoreEditorDataContext';
 
 // واجهة الإعدادات الخاصة بقسم الفئات
 interface CategorySectionSettings {
@@ -81,22 +82,33 @@ const CategorySectionEditor: React.FC<CategorySectionEditorProps> = ({
     backgroundStyle: "light"
   });
   
-  // جلب الفئات من قاعدة البيانات
+  // جلب الفئات من Provider أو قاعدة البيانات
   useEffect(() => {
     const fetchCategories = async () => {
       if (!currentOrganization?.id) return;
       
       setIsLoading(true);
       try {
+        // محاولة استخدام بيانات Provider لتفادي الاستعلام
+        let providerCategories: any[] | null = null;
+        try {
+          const ctx = useStoreEditorData();
+          providerCategories = (ctx?.data?.categories as any[]) || null;
+        } catch {}
+
+        if (providerCategories && providerCategories.length > 0) {
+          setCategories(providerCategories as any[]);
+          return;
+        }
+
+        // fallback: الاستعلام المباشر عند عدم توفر بيانات جاهزة
         const supabase = getSupabaseClient();
         const { data, error } = await supabase
           .from('product_categories')
           .select('*')
           .eq('organization_id', currentOrganization.id)
           .eq('is_active', true);
-        
         if (error) throw error;
-        
         setCategories(data || []);
       } catch (error) {
         toast({

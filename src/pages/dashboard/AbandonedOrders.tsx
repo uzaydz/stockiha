@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { useTenant } from "@/context/TenantContext";
@@ -96,6 +96,13 @@ const AbandonedOrders = () => {
     },
   });
 
+  // سياسة الحذف التلقائي (عرض فقط): يمكن ضبطها من متغير بيئة
+  const retentionDays = useMemo(() => {
+    const envVal = (import.meta as any)?.env?.VITE_ABANDONED_CART_RETENTION_DAYS;
+    const parsed = Number(envVal);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 90; // افتراضي 90 يومًا
+  }, []);
+
   // التحقق من صلاحيات المستخدم
   useEffect(() => {
     const checkPermissions = async () => {
@@ -186,150 +193,87 @@ const AbandonedOrders = () => {
     if (!currentOrganization?.id || !hasViewPermission) return;
     
     setLoading(true);
-    
+    setStatsLoading(true);
     try {
-      // تحقق من وجود الجدول المُجمع بطريقة محسنة
-      let useView = true;
-      const viewCheck = await supabase.from('abandoned_carts_view').select('id', { count: 'exact', head: true });
-      
-      // إذا كان هناك خطأ، فهذا يعني أن الجدول المُجمع غير موجود
-      if (viewCheck.error) {
-        useView = false;
-      }
-      
-      let cartsData;
-      let error;
-      
-      // استخدام الجدول المناسب بناءً على نتيجة الفحص
-      if (useView) {
-        // استخدام الجدول المُجمع
-        const result = await supabase.from('abandoned_carts_view')
-          .select('*')
-          .eq('organization_id', currentOrganization.id)
-          .eq('status', 'pending');
-          
-        cartsData = result.data;
-        error = result.error;
-      } else {
-        // استخدام الجدول الأساسي
-        const result = await supabase.from('abandoned_carts')
-          .select(`
-            id,
-            organization_id,
-            product_id,
-            customer_name,
-            customer_phone,
-            customer_email,
-            province,
-            municipality,
-            address,
-            delivery_option,
-            payment_method,
-            notes,
-            custom_fields_data,
-            calculated_delivery_fee,
-            subtotal,
-            discount_amount,
-            total_amount,
-            status,
-            last_activity_at,
-            created_at,
-            updated_at,
-            cart_items
-          `)
-          .eq('organization_id', currentOrganization.id)
-          .eq('status', 'pending');
-          
-        cartsData = result.data;
-        error = result.error;
-      }
-      
+      const limit = Number((import.meta as any)?.env?.VITE_ABANDONED_ORDERS_MAX_ROWS) || 500;
+      const { data, error } = await supabase.rpc('get_abandoned_orders_page_data', {
+        p_organization_id: currentOrganization.id,
+        p_limit: limit
+      });
       if (error) throw error;
-      
-      // استعلام مجمع واحد للحصول على كل معرفات المنتجات
-      if (cartsData && cartsData.length > 0) {
-        // جمع كل معرفات المنتجات من السلات
-        const productIds = new Set();
-        
-        cartsData.forEach((cart: any) => {
-          if (cart.product_id) productIds.add(cart.product_id);
-          
-          if (cart.cart_items && Array.isArray(cart.cart_items)) {
-            cart.cart_items.forEach((item: any) => {
-              if (item.product_id) productIds.add(item.product_id);
-            });
-          }
-        });
-        
-        // استعلام واحد للحصول على معلومات كل المنتجات
-        const { data: productsData } = await supabase
-          .from('products')
-          .select('id, name, thumbnail_image, price')
-          .in('id', Array.from(productIds));
-        
-        // تخزين معلومات المنتجات في قاموس للبحث السريع
-        const productsMap: Record<string, any> = {};
-        if (productsData) {
-          productsData.forEach(product => {
-            productsMap[product.id] = product;
-          });
-        }
-        
-        // معالجة البيانات لجميع السلات دفعة واحدة
+
+      const cartsData = (data && (data as any).carts) ? (data as any).carts : [];
+      const statsFromRpc = (data && (data as any).stats) ? (data as any).stats : null;
+
+      if (Array.isArray(cartsData) && cartsData.length > 0) {
         const processedOrders: AbandonedOrder[] = cartsData.map((cart: any) => {
-          // حساب عدد الساعات منذ آخر نشاط - يمكن الحصول عليه من الـ view
           const lastActivity = new Date(cart.last_activity_at);
           const now = new Date();
           const diffHours = cart.abandoned_hours || (now.getTime() - lastActivity.getTime()) / (1000 * 60 * 60);
-          
-          // معالجة العناصر في السلة
-          let processedCartItems = cart.cart_items;
-          if (cart.cart_items && Array.isArray(cart.cart_items)) {
-            processedCartItems = cart.cart_items.map((item: any) => {
-              const productInfo = item.product_id ? productsMap[item.product_id] : null;
-              
-              return {
-                ...item,
-                product_name: productInfo?.name || item.product_name,
-                price: productInfo?.price || item.price
-              };
-            });
+
+          // المنتج الأساسي - إن لم يوجد product_name (سلات متعددة)، نستخدم أول عنصر من cart_items
+          let productDetails: { name: string; image_url?: string } | null = null;
+          if (cart.product_name) {
+            productDetails = { name: cart.product_name as string, image_url: cart.product_image as string | undefined };
+          } else if (Array.isArray(cart.cart_items) && cart.cart_items.length > 0) {
+            const first = cart.cart_items[0];
+            const firstName = (first?.product_name || first?.name || 'منتج');
+            productDetails = { name: String(firstName), image_url: first?.image_url };
           }
-          
-          // معلومات المنتج الرئيسي
-          const mainProductInfo = cart.product_id ? productsMap[cart.product_id] : null;
-          const productDetails = mainProductInfo ? {
-            name: mainProductInfo.name,
-            image_url: mainProductInfo.thumbnail_image
-          } : null;
-          
-          // معلومات الولاية والبلدية
+
+          // أسماء الولاية/البلدية مع fallback للمحلية المخزنة
           let provinceText = cart.province_name || cart.province;
           let municipalityText = cart.municipality_name || cart.municipality;
-          
           if (cart.province && provinces[cart.province]) {
             provinceText = provinces[cart.province].name_ar || provinces[cart.province].name;
           }
-          
           if (cart.municipality && municipalities[cart.municipality]) {
             municipalityText = municipalities[cart.municipality].name_ar || municipalities[cart.municipality].name;
           }
-          
+
           return {
             ...cart,
             abandoned_hours: diffHours,
             productDetails,
-            cart_items: processedCartItems,
             province_name: provinceText,
             municipality_name: municipalityText
-          };
+          } as AbandonedOrder;
         });
-        
         setAbandonedOrders(processedOrders);
         setFilteredOrders(processedOrders);
       } else {
         setAbandonedOrders([]);
         setFilteredOrders([]);
+      }
+
+      // احصائيات من نفس RPC
+      if (statsFromRpc) {
+        let labels: string[] = [];
+        let chartData: number[] = [];
+        if (timeRange === 'today') {
+          labels = ['9 ص', '12 م', '3 م', '6 م', '9 م'];
+          chartData = [2, 4, 3, 2, 1];
+        } else if (timeRange === 'week') {
+          labels = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
+          chartData = [8, 12, 7, 9, 5, 3, 2];
+        } else if (timeRange === 'month') {
+          labels = ['الأسبوع 1', 'الأسبوع 2', 'الأسبوع 3', 'الأسبوع 4'];
+          chartData = [22, 35, 28, 14];
+        } else {
+          labels = ['يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو'];
+          chartData = [55, 70, 45, 90, 110, 85];
+        }
+        setStats({
+          totalCount: Number((statsFromRpc as any).total_count || 0),
+          totalValue: Number((statsFromRpc as any).total_value || 0),
+          todayCount: Number((statsFromRpc as any).today_count || 0),
+          weekCount: Number((statsFromRpc as any).week_count || 0),
+          monthCount: Number((statsFromRpc as any).month_count || 0),
+          averageValue: Number((statsFromRpc as any).avg_value || 0),
+          recoveryRate: 0,
+          conversionRate: 0,
+          timeSeries: { labels, data: chartData }
+        });
       }
     } catch (error) {
       toast({
@@ -339,8 +283,9 @@ const AbandonedOrders = () => {
       });
     } finally {
       setLoading(false);
+      setStatsLoading(false);
     }
-  }, [currentOrganization?.id, hasViewPermission, toast, provinces, municipalities]);
+  }, [currentOrganization?.id, hasViewPermission, toast, provinces, municipalities, timeRange]);
 
   // استرجاع إحصائيات الطلبات المتروكة
   const fetchAbandonedOrdersStats = useCallback(async () => {
@@ -469,11 +414,7 @@ const AbandonedOrders = () => {
   }, [fetchAbandonedOrders, hasViewPermission, currentOrganization?.id]);
 
   // استدعاء دالة جلب الإحصائيات عند التحميل أو تغيير المدى الزمني
-  useEffect(() => {
-    if (hasViewPermission && currentOrganization?.id) {
-      fetchAbandonedOrdersStats();
-    }
-  }, [fetchAbandonedOrdersStats, hasViewPermission, currentOrganization?.id, timeRange]);
+  // لم نعد بحاجة لاستدعاء منفصل للإحصائيات؛ تأتي مع نفس الـ RPC
 
   // تطبيق الفلاتر على قائمة الطلبات
   useEffect(() => {
@@ -750,6 +691,15 @@ const AbandonedOrders = () => {
             تحديث البيانات
           </Button>
         </div>
+
+        {/* تحذير الحذف التلقائي لتقليل الحمل على قاعدة البيانات */}
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>تنبيه الصيانة</AlertTitle>
+          <AlertDescription>
+            يتم حذف الطلبات المتروكة تلقائيًا بعد {retentionDays} يومًا لتقليل الحمل على قاعدة البيانات. احتفِظ بالطلبات المهمة قبل هذا الموعد.
+          </AlertDescription>
+        </Alert>
         
         {/* الإحصائيات */}
         <AbandonedOrdersStatsComponent

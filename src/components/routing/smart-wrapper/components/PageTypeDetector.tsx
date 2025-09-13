@@ -67,12 +67,30 @@ export const PageTypeDetector = memo<PageTypeDetectorProps>(({ onPageTypeDetecte
       lastDetectionRef.current = { hostname, pathname };
 
       // فحص سريع للنطاقات العامة
-      const isPublicDomain = ['ktobi.online', 'www.ktobi.online', 'stockiha.com', 'www.stockiha.com'].includes(hostname);
+      const isPublicDomain = ['ktobi.online', 'www.ktobi.online', 'stockiha.com', 'www.stockiha.com', 'stockiha.pages.dev'].includes(hostname);
       const isLocalhost = hostname.includes('localhost');
       
       let detectedPageType: PageType | null = null;
       
-      if (!isPublicDomain && !isLocalhost) {
+      // 🔥 إضافة فحص للمسارات الإدارية في النطاقات العامة
+      if (isPublicDomain) {
+        // النطاقات العامة - فحص المسارات الإدارية
+        if (pathname.startsWith('/dashboard')) {
+          detectedPageType = 'dashboard';
+        } else if (pathname.startsWith('/pos')) {
+          detectedPageType = 'pos';
+        } else if (pathname.startsWith('/super-admin')) {
+          detectedPageType = 'super-admin';
+        } else if (pathname.startsWith('/call-center')) {
+          detectedPageType = 'call-center';
+        } else if (pathname.startsWith('/login') || pathname.startsWith('/forgot-password') || pathname.startsWith('/reset-password')) {
+          detectedPageType = 'auth';
+        } else if (pathname === '/') {
+          detectedPageType = 'landing';
+        } else {
+          detectedPageType = 'minimal';
+        }
+      } else if (!isPublicDomain && !isLocalhost) {
         // نطاق مخصص أو subdomain
         if (pathname === '/') {
           detectedPageType = 'max-store';

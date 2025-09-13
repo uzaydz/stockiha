@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { getOrganizationSettings } from '@/lib/api/settings';
-import { updateOrganizationTheme } from '@/lib/themeManager';
+import { updateOrganizationTheme, smartPrefetch } from '@/lib/themeManager/index';
 import { useTheme } from '@/context/ThemeContext';
 import { storeInitializationManager } from '@/lib/storeInitializationManager';
 import i18n from '@/i18n';
@@ -64,13 +64,32 @@ export const useStoreInitialization = (options: UseStoreInitializationOptions) =
     setError(null);
     
     try {
+      // محاولة استخدام البيانات المحملة مسبقاً أولاً
+      let settings = null;
+      const cachedPrefetchData = localStorage.getItem('bazaar_prefetch_data');
+
+      if (cachedPrefetchData) {
+        try {
+          const prefetchData = JSON.parse(cachedPrefetchData);
+          if (prefetchData.organizationId === orgId &&
+              Date.now() - prefetchData.appliedAt < 60 * 60 * 1000) { // أقل من ساعة
+            settings = prefetchData.settings;
+            debugLog('استخدام الإعدادات المحملة مسبقاً');
+          }
+        } catch (e) {
+          // تجاهل الأخطاء واستمر في التحميل العادي
+        }
+      }
+
       // استخدام المدير المركزي لإدارة التهيئة
       await storeInitializationManager.startInitialization(orgId, async () => {
         const startTime = performance.now();
-        
-        // 1. جلب إعدادات المؤسسة
-        debugLog('جلب إعدادات المؤسسة...');
-        const settings = await getOrganizationSettings(organizationId!);
+
+        // 1. جلب إعدادات المؤسسة (أو استخدام المحملة مسبقاً)
+        if (!settings) {
+          debugLog('جلب إعدادات المؤسسة...');
+          settings = await getOrganizationSettings(organizationId!);
+        }
         
         if (!settings) {
           throw new Error('لم يتم العثور على إعدادات المؤسسة');
@@ -121,7 +140,20 @@ export const useStoreInitialization = (options: UseStoreInitializationOptions) =
         const initData: StoreInitializationData = {
           organizationId: organizationId!,
           settings,
-          language: settings.default_language || 'ar',
+          language: (() => {
+            
+            if (settings.default_language) {
+              return settings.default_language;
+            }
+            
+            // محاولة الحصول على اللغة من localStorage إذا لم تكن موجودة في settings
+            const savedLanguage = localStorage.getItem('i18nextLng');
+            if (savedLanguage && ['ar', 'en', 'fr'].includes(savedLanguage)) {
+              return savedLanguage;
+            }
+            
+            return 'ar';
+          })(),
           theme: {
             primaryColor: settings.theme_primary_color || '#0099ff',
             secondaryColor: settings.theme_secondary_color || '#6c757d',

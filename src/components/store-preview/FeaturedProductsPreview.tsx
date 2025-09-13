@@ -20,6 +20,7 @@ interface FeaturedProductsPreviewProps {
   showAddToCart?: boolean;
   showBadges?: boolean;
   organizationId?: string;
+  preloadedProducts?: Product[];
 }
 
 interface Product {
@@ -49,7 +50,8 @@ const FeaturedProductsPreview: React.FC<FeaturedProductsPreviewProps> = ({
   showRatings = true,
   showAddToCart = true,
   showBadges = true,
-  organizationId
+  organizationId,
+  preloadedProducts
 }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
@@ -66,6 +68,18 @@ const FeaturedProductsPreview: React.FC<FeaturedProductsPreviewProps> = ({
 
       setLoading(true);
       try {
+        // If preloaded products exist, prefer them
+        if (preloadedProducts && preloadedProducts.length > 0) {
+          const initial = preloadedProducts
+            .filter(p => selectionMethod === 'manual' && selectedProducts.length > 0
+              ? selectedProducts.includes(p.id)
+              : true)
+            .slice(0, displayCount);
+          setProducts(initial);
+          setLoading(false);
+          return;
+        }
+
         let query = supabase
           .from('products')
           .select('id, name, description, price, compare_at_price, images, thumbnail_image, is_featured, is_new, category, sku, stock_quantity, slug, created_at, updated_at')
@@ -119,7 +133,7 @@ const FeaturedProductsPreview: React.FC<FeaturedProductsPreviewProps> = ({
     };
 
     fetchProducts();
-  }, [organizationId, selectionMethod, selectionCriteria, selectedProducts, displayCount]);
+  }, [organizationId, selectionMethod, selectionCriteria, selectedProducts, displayCount, preloadedProducts]);
 
   // عرض منتج فردي
   const ProductCard = ({ product }: { product: Product }) => {

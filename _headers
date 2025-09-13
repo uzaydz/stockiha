@@ -1,0 +1,128 @@
+# 🚀 Headers محسنة لتحسين نقاط ضغط Gzip
+
+# إعدادات عامة لجميع الملفات
+/*
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY  
+  X-XSS-Protection: 1; mode=block
+  Referrer-Policy: strict-origin-when-cross-origin
+  Vary: Accept-Encoding
+  Content-Encoding: gzip
+  X-Unused-Preload-Policy: remove
+
+# الصفحة الرئيسية والـ HTML
+/*.html
+  Cache-Control: public, max-age=300, s-maxage=300
+  Expires: Fri, 01 Jan 2025 00:05:00 GMT
+  Vary: Accept-Encoding
+  Content-Encoding: gzip
+
+/
+  Cache-Control: public, max-age=300, s-maxage=300
+  Expires: Fri, 01 Jan 2025 00:05:00 GMT
+  Vary: Accept-Encoding
+  Content-Encoding: gzip
+
+# الملفات الثابتة (JS, CSS) - تخزين طويل المدى
+/assets/*.js
+  Cache-Control: public, max-age=31536000, immutable
+  Expires: Thu, 31 Dec 2025 23:59:59 GMT
+  Vary: Accept-Encoding
+  Content-Encoding: gzip
+
+/assets/*.css
+  Cache-Control: public, max-age=31536000, immutable
+  Expires: Thu, 31 Dec 2025 23:59:59 GMT
+  Vary: Accept-Encoding
+  Content-Encoding: gzip
+
+/*.js
+  Cache-Control: public, max-age=31536000, immutable
+  Expires: Thu, 31 Dec 2025 23:59:59 GMT
+  Vary: Accept-Encoding
+  Content-Encoding: gzip
+
+/*.css
+  Cache-Control: public, max-age=31536000, immutable
+  Expires: Thu, 31 Dec 2025 23:59:59 GMT
+  Vary: Accept-Encoding
+  Content-Encoding: gzip
+
+# الخطوط
+/assets/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
+  Expires: Thu, 31 Dec 2025 23:59:59 GMT
+  Access-Control-Allow-Origin: *
+  Vary: Accept-Encoding
+
+/*.woff2
+  Cache-Control: public, max-age=31536000, immutable
+  Expires: Thu, 31 Dec 2025 23:59:59 GMT
+  Access-Control-Allow-Origin: *
+  Vary: Accept-Encoding
+
+/*.woff
+  Cache-Control: public, max-age=31536000, immutable
+  Expires: Thu, 31 Dec 2025 23:59:59 GMT
+  Access-Control-Allow-Origin: *
+  Vary: Accept-Encoding
+
+# الصور
+/assets/images/*
+  Cache-Control: public, max-age=31536000, immutable
+  Expires: Thu, 31 Dec 2025 23:59:59 GMT
+  Vary: Accept-Encoding
+
+/images/*
+  Cache-Control: public, max-age=31536000, immutable
+  Expires: Thu, 31 Dec 2025 23:59:59 GMT
+  Vary: Accept-Encoding
+
+/*.png
+  Cache-Control: public, max-age=31536000, immutable
+  Expires: Thu, 31 Dec 2025 23:59:59 GMT
+  Vary: Accept-Encoding
+
+/*.jpg
+  Cache-Control: public, max-age=31536000, immutable
+  Expires: Thu, 31 Dec 2025 23:59:59 GMT
+  Vary: Accept-Encoding
+
+/*.jpeg
+  Cache-Control: public, max-age=31536000, immutable
+  Expires: Thu, 31 Dec 2025 23:59:59 GMT
+  Vary: Accept-Encoding
+
+/*.webp
+  Cache-Control: public, max-age=31536000, immutable
+  Expires: Thu, 31 Dec 2025 23:59:59 GMT
+  Vary: Accept-Encoding
+
+/*.svg
+  Cache-Control: public, max-age=31536000, immutable
+  Expires: Thu, 31 Dec 2025 23:59:59 GMT
+  Vary: Accept-Encoding
+
+# ملفات البيانات
+/*.json
+  Cache-Control: public, max-age=3600
+  Expires: Fri, 01 Jan 2025 01:00:00 GMT
+  Vary: Accept-Encoding
+  Content-Encoding: gzip
+
+# ملفات الضغط المسبق
+/*.gz
+  Content-Encoding: gzip
+  Cache-Control: public, max-age=31536000, immutable
+  Expires: Thu, 31 Dec 2025 23:59:59 GMT
+
+/*.br
+  Content-Encoding: br
+  Cache-Control: public, max-age=31536000, immutable
+  Expires: Thu, 31 Dec 2025 23:59:59 GMT
+
+# API
+/api/*
+  Cache-Control: no-cache
+  Expires: Thu, 01 Jan 1970 00:00:00 GMT
+  Vary: Accept-Encoding

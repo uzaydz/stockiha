@@ -233,7 +233,8 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, settings, index }) =
         >
           <button
             onClick={() => setIsWishlisted(!isWishlisted)}
-            className={`p-2 rounded-full backdrop-blur-sm transition-all ${
+            aria-label={isWishlisted ? 'إزالة من المفضلة' : 'إضافة إلى المفضلة'}
+            className={`p-3 rounded-full backdrop-blur-sm transition-all touch-target ${
               isWishlisted 
                 ? 'bg-red-500 text-white' 
                 : 'bg-white/80 text-gray-600 hover:bg-white hover:text-red-500'
@@ -242,7 +243,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, settings, index }) =
             <Heart size={16} className={isWishlisted ? 'fill-current' : ''} />
           </button>
           
-          <button className="p-2 rounded-full bg-white/80 backdrop-blur-sm text-gray-600 hover:bg-white hover:text-primary transition-all">
+          <button aria-label="عرض سريع للمنتج" className="p-3 rounded-full bg-white/80 backdrop-blur-sm text-gray-600 hover:bg-white hover:text-primary transition-all touch-target">
             <Eye size={16} />
           </button>
         </motion.div>

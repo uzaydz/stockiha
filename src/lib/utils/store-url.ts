@@ -1,4 +1,4 @@
-import { useAuth } from '@/context/AuthContext';
+import { useTenant } from '@/context/TenantContext';
 
 /**
  * بناء رابط المتجر بناءً على إعدادات النطاق المخصص أو النطاق الفرعي
@@ -30,6 +30,11 @@ export const buildStoreUrl = (organization?: {
         // استخدم النطاق الحالي كما هو
         return window.location.origin;
       } else {
+        // للنطاقات الخاصة، استخدم النطاق المناسب
+        if (hostname.includes('stockiha.pages.dev')) {
+          return `https://${organization.subdomain}.stockiha.com`;
+        }
+        
         // استخراج النطاق الرئيسي (مثل example.com)
         const domainParts = hostname.split('.');
         const mainDomain = domainParts.length >= 2 
@@ -57,7 +62,7 @@ export const buildStoreUrl = (organization?: {
  * Hook لبناء رابط المتجر باستخدام معلومات المنظمة من السياق
  */
 export const useStoreUrl = () => {
-  const { currentOrganization } = useAuth();
+  const { currentOrganization } = useTenant();
   
   return buildStoreUrl(currentOrganization);
 };

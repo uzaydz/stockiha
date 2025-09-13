@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { Organization, UseUserOrganizationReturn, AuthError, UserProfile } from '../types';
-import { getOrganizationById } from '@/lib/api/organization';
+import { getOrganizationById } from '@/lib/api/deduplicatedApi';
 import { trackPerformance, handleAuthError, debounce } from '../utils/authHelpers';
 import { AUTH_TIMEOUTS } from '../constants/authConstants';
 

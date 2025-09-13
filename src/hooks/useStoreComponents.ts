@@ -7,6 +7,7 @@ import { clearCacheItem, clearStoreCacheByOrganizationId } from '@/lib/cache/sto
 
 interface UseStoreComponentsProps {
   organizationId?: string;
+  initialComponents?: StoreComponent[]; // optional preloaded data to avoid refetch
 }
 
 interface UseStoreComponentsReturn {
@@ -24,7 +25,7 @@ interface UseStoreComponentsReturn {
   saveChanges: () => Promise<void>;
 }
 
-export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps): UseStoreComponentsReturn => {
+export const useStoreComponents = ({ organizationId, initialComponents }: UseStoreComponentsProps): UseStoreComponentsReturn => {
   const [components, setComponents] = useState<StoreComponent[]>([]);
   const [originalComponents, setOriginalComponents] = useState<StoreComponent[]>([]);
   const [activeComponent, setActiveComponent] = useState<StoreComponent | null>(null);
@@ -56,6 +57,14 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
 
     try {
       setIsLoading(true);
+      // If we already have initialComponents passed from provider, use them once and skip remote fetch
+      if (initialComponents && initialComponents.length > 0) {
+        setComponents(initialComponents);
+        setOriginalComponents(JSON.parse(JSON.stringify(initialComponents)));
+        if (!activeComponent) setActiveComponent(initialComponents[0]);
+        setHasUnsavedChanges(false);
+        return;
+      }
       
       // التحقق مما إذا كان المستخدم مسجل دخول
       const isLoggedIn = await isUserLoggedIn();
@@ -146,10 +155,18 @@ export const useStoreComponents = ({ organizationId }: UseStoreComponentsProps):
 
   // جلب مكونات المتجر من قاعدة البيانات - إصلاح useEffect اللانهائية
   useEffect(() => {
-    if (organizationId) {
-      fetchStoreComponents();
+    if (!organizationId) return;
+    // If initial components are provided, one-time hydrate without remote call
+    if (initialComponents && initialComponents.length > 0) {
+      setComponents(initialComponents);
+      setOriginalComponents(JSON.parse(JSON.stringify(initialComponents)));
+      if (!activeComponent) setActiveComponent(initialComponents[0]);
+      setHasUnsavedChanges(false);
+      setIsLoading(false);
+      return;
     }
-  }, [organizationId]); // فقط organizationId في dependencies
+    fetchStoreComponents();
+  }, [organizationId]);
 
   // تهيئة إعدادات المتجر إذا لم تكن موجودة
   const initializeStoreComponents = async () => {

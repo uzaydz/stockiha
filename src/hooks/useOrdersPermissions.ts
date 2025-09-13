@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { hasPermissions } from "@/lib/api/userPermissionsUnified";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface OrdersPermissions {
   view: boolean;
@@ -21,6 +21,8 @@ export const useOrdersPermissions = () => {
     loading: true,
   });
 
+  const perms = usePermissions();
+
   useEffect(() => {
     const checkPermissions = async () => {
       if (!user) {
@@ -32,20 +34,24 @@ export const useOrdersPermissions = () => {
         });
         return;
       }
-      
       try {
-        const [canView, canUpdate, canCancel] = await Promise.all([
-          checkUserPermissions(user, 'viewOrders' as any),
-          checkUserPermissions(user, 'updateOrderStatus' as any),
-          checkUserPermissions(user, 'cancelOrders' as any),
-        ]);
+        // Prefer unified provider if ready
+        if (perms.ready) {
+          const canView = perms.anyOf(["viewOrders", "viewPOSOrders", "manageOrders"]);
+          const canUpdate = perms.anyOf(["updateOrderStatus", "manageOrders"]);
+          const canCancel = perms.anyOf(["cancelOrders", "manageOrders"]);
 
-        setPermissions({
-          view: canView,
-          update: canUpdate,
-          cancel: canCancel,
-          loading: false,
-        });
+          setPermissions({
+            view: canView,
+            update: canUpdate,
+            cancel: canCancel,
+            loading: false,
+          });
+          return;
+        }
+
+        // Fallback: conservative defaults while provider loads
+        setPermissions(prev => ({ ...prev, loading: true }));
       } catch (error) {
         toast({
           variant: "destructive",
@@ -57,7 +63,7 @@ export const useOrdersPermissions = () => {
     };
     
     checkPermissions();
-  }, [user, toast]);
+  }, [user, toast, perms.ready, perms.role, perms.isOrgAdmin, perms.isSuperAdmin]);
 
   return permissions;
 };

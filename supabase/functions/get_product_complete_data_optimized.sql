@@ -91,6 +91,8 @@ BEGIN
     p.id, p.name, p.description, p.slug, p.sku, p.price, p.stock_quantity,
     p.thumbnail_image, p.is_active, p.has_variants, p.use_sizes, p.use_variant_prices,
     p.category_id, p.subcategory_id, p.organization_id,
+    -- الوصف المتقدم
+    p.advanced_description,
     
     -- البيانات المالية
     p.purchase_price, p.compare_at_price, p.wholesale_price, p.partial_wholesale_price,
@@ -165,10 +167,19 @@ BEGIN
   LEFT JOIN product_categories pc ON p.category_id = pc.id
   LEFT JOIN product_subcategories psc ON p.subcategory_id = psc.id
   
-  -- 🚀 تحسين 10: LATERAL JOIN للشحن (أسرع وأكثر كفاءة)
+  -- 🚀 تحسين 10: LATERAL JOIN للشحن (أسرع وأكثر كفاءة) - مع دعم الشحن المخصص
   LEFT JOIN LATERAL (
     SELECT 
       CASE 
+        -- الشحن المخصص (Custom Shipping)
+        WHEN p.shipping_method_type = 'custom' THEN
+          JSON_BUILD_OBJECT(
+            'type', 'custom',
+            'id', 0,
+            'name', 'شحن مخصص',
+            'code', 'custom'
+          )
+        -- الشحن المستنسخ (Clone)
         WHEN p.use_shipping_clone = TRUE AND p.shipping_clone_id IS NOT NULL THEN
           JSON_BUILD_OBJECT(
             'type', 'clone',
@@ -178,6 +189,7 @@ BEGIN
             'home_price', spc.unified_home_price,
             'desk_price', spc.unified_desk_price
           )
+        -- مقدم خدمة محدد
         WHEN p.shipping_provider_id IS NOT NULL THEN
           JSON_BUILD_OBJECT(
             'type', 'provider',
@@ -200,6 +212,16 @@ BEGIN
       ) as shipping_data
     FROM shipping_providers sp
     WHERE sp.id = p.shipping_provider_id
+    UNION ALL
+    -- إضافة حالة الشحن المخصص
+    SELECT 
+      JSON_BUILD_OBJECT(
+        'type', 'custom',
+        'id', 0,
+        'name', 'شحن مخصص',
+        'code', 'custom'
+      ) as shipping_data
+    WHERE p.shipping_method_type = 'custom'
     LIMIT 1
   ) sp_info ON TRUE
   
@@ -212,8 +234,17 @@ BEGIN
             'id', pcol.id,
             'name', pcol.name,
             'color_code', pcol.color_code,
-            -- 🚀 تحميل جميع صور الألوان دائماً
-            'image_url', pcol.image_url,
+            -- 🚀 تحسين: لا نعيد الصور الضخمة افتراضياً لتقليل الحمولة
+            -- إذا طُلب صراحة تضمين الصور الكبيرة عبر p_include_large_images نعيدها كما هي
+            -- وإلا نعيد فقط الصور الصغيرة (<= ~120KB) ونتجاهل الضخمة لتُجلب لاحقاً عبر دالة متخصصة
+            'image_url', CASE 
+              WHEN p_include_large_images = TRUE THEN pcol.image_url
+              WHEN pcol.image_url IS NULL OR length(pcol.image_url) = 0 THEN NULL
+              WHEN length(pcol.image_url) <= 120000 THEN pcol.image_url
+              ELSE NULL
+            END,
+            'image_size_bytes', CASE WHEN pcol.image_url IS NULL THEN 0 ELSE length(pcol.image_url) END,
+            'image_omitted_due_to_size', CASE WHEN pcol.image_url IS NOT NULL AND length(pcol.image_url) > 120000 AND p_include_large_images = FALSE THEN TRUE ELSE FALSE END,
             'has_image', CASE WHEN pcol.image_url IS NOT NULL AND length(pcol.image_url) > 0 THEN TRUE ELSE FALSE END,
             'image_size', CASE WHEN pcol.image_url IS NOT NULL THEN length(pcol.image_url) ELSE 0 END,
             'quantity', pcol.quantity,
@@ -248,7 +279,13 @@ BEGIN
         (SELECT JSON_AGG(
           JSON_BUILD_OBJECT(
             'id', pi.id,
-            'url', pi.image_url,
+            -- 🚀 تحسين: لا نعيد الصور الضخمة جداً إن كانت محفوظة كسلاسل كبيرة
+            'url', CASE 
+              WHEN pi.image_url IS NULL OR length(pi.image_url) = 0 THEN NULL
+              WHEN length(pi.image_url) <= 120000 THEN pi.image_url
+              ELSE NULL
+            END,
+            'omitted_due_to_size', CASE WHEN pi.image_url IS NOT NULL AND length(pi.image_url) > 120000 THEN TRUE ELSE FALSE END,
             'sort_order', COALESCE(pi.sort_order, 999)
           ) ORDER BY pi.sort_order NULLS LAST, pi.id
         ) FROM product_images pi WHERE pi.product_id = p.id LIMIT 10),
@@ -320,15 +357,26 @@ BEGIN
             'test_mode', COALESCE(pms.test_mode, TRUE),
             'facebook', JSON_BUILD_OBJECT(
               'enabled', COALESCE(pms.enable_facebook_pixel, FALSE),
-              'pixel_id', pms.facebook_pixel_id
+              'pixel_id', pms.facebook_pixel_id,
+              'conversion_api_enabled', COALESCE(pms.enable_facebook_conversion_api, FALSE),
+              'access_token', pms.facebook_access_token,
+              'test_event_code', pms.facebook_test_event_code,
+              'dataset_id', pms.facebook_dataset_id,
+              'advanced_matching_enabled', COALESCE(pms.facebook_advanced_matching_enabled, FALSE)
             ),
             'tiktok', JSON_BUILD_OBJECT(
               'enabled', COALESCE(pms.enable_tiktok_pixel, FALSE),
-              'pixel_id', pms.tiktok_pixel_id
+              'pixel_id', pms.tiktok_pixel_id,
+              'events_api_enabled', COALESCE(pms.tiktok_events_api_enabled, FALSE),
+              'access_token', pms.tiktok_access_token,
+              'test_event_code', pms.tiktok_test_event_code,
+              'advanced_matching_enabled', COALESCE(pms.tiktok_advanced_matching_enabled, FALSE)
             ),
             'google', JSON_BUILD_OBJECT(
               'enabled', COALESCE(pms.enable_google_ads_tracking, FALSE),
-              'gtag_id', pms.google_gtag_id
+              'gtag_id', pms.google_gtag_id,
+              'ads_conversion_id', pms.google_ads_conversion_id,
+              'ads_conversion_label', pms.google_ads_conversion_label
             )
           ) FROM product_marketing_settings pms WHERE pms.product_id = p.id LIMIT 1),
           '{}'::json
@@ -370,6 +418,7 @@ BEGIN
       'name', v_product_data.name,
       'name_for_shipping', v_product_data.name_for_shipping,
       'description', v_product_data.description,
+      'advanced_description', v_product_data.advanced_description,
       'slug', v_product_data.slug,
       'sku', v_product_data.sku,
       'barcode', v_product_data.barcode,

@@ -38,7 +38,13 @@ const ProviderGuides: React.FC = () => {
     {
       type: 'A',
       name: '@',
-      value: '76.76.21.21',
+      value: '76.76.19.142',
+      ttl: '3600'
+    },
+    {
+      type: 'A',
+      name: '@',
+      value: '76.223.126.88',
       ttl: '3600'
     },
     {
@@ -72,7 +78,12 @@ const ProviderGuides: React.FC = () => {
       description: 'انقر على "Add" واختر نوع السجل "A"',
       code: `النوع: A
 الاسم: @
-القيمة: 76.76.21.21
+القيمة: 76.76.19.142
+TTL: 1 Hour (3600)
+
+النوع: A
+الاسم: @
+القيمة: 76.223.126.88
 TTL: 1 Hour (3600)`
     },
     {
@@ -114,7 +125,12 @@ TTL: 1 Hour (3600)`
       description: 'انقر على "Add New Record" واختر "A Record"',
       code: `Type: A Record
 Host: @
-Value: 76.76.21.21
+Value: 76.76.19.142
+TTL: Automatic
+
+Type: A Record
+Host: @
+Value: 76.223.126.88
 TTL: Automatic`
     },
     {
@@ -151,7 +167,13 @@ TTL: Automatic`
       description: 'انقر على "Add record" واختر نوع "A"',
       code: `Type: A
 Name: @
-IPv4 address: 76.76.21.21
+IPv4 address: 76.76.19.142
+Proxy status: DNS only (gray cloud)
+TTL: Auto
+
+Type: A
+Name: @
+IPv4 address: 76.223.126.88
 Proxy status: DNS only (gray cloud)
 TTL: Auto`
     },

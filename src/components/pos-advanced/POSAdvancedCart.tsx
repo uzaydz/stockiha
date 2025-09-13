@@ -1,5 +1,5 @@
-import React, { useMemo, useState, useCallback } from 'react';
-import POSAdvancedPaymentDialog from './POSAdvancedPaymentDialog';
+import React, { useMemo, useState, useCallback, Suspense } from 'react';
+const POSAdvancedPaymentDialog = React.lazy(() => import('./POSAdvancedPaymentDialog'));
 import { cn } from '@/lib/utils';
 import { Product, User as AppUser } from '@/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -1153,35 +1153,39 @@ const POSAdvancedCart: React.FC<POSAdvancedCartProps> = ({
         )}
       </CardContent>
       
-      {/* Dialog الدفع المتقدم */}
-      <POSAdvancedPaymentDialog
-        isOpen={isPaymentDialogOpen}
-        onOpenChange={setIsPaymentDialogOpen}
-        subtotal={cartSubtotal}
-        currentDiscount={activeTab?.discount || 0}
-        currentDiscountType={activeTab?.discountType || 'fixed'}
-        total={cartTotal}
-        customers={customers}
-        selectedCustomerId={activeTab?.customerId}
-        onPaymentComplete={(data) => {
-          // إتمام الطلب مع معاملات الدفع الجزئي
-          submitOrder(
-            data.customerId,
-            data.notes,
-            activeTab?.discount || 0, // تمرير التخفيض من التبويب
-            activeTab?.discountType || 'fixed',
-            data.amountPaid,
-            data.paymentMethod,
-            data.isPartialPayment,
-            data.considerRemainingAsPartial
-          );
-          
-          // إغلاق الـ dialog
-          setIsPaymentDialogOpen(false);
-        }}
-        isProcessing={isSubmittingOrder}
-        onCustomerAdded={onCustomerAdded}
-      />
+      {/* Dialog الدفع المتقدم - تحميل كسول عند الحاجة فقط */}
+      {isPaymentDialogOpen && (
+        <Suspense fallback={null}>
+          <POSAdvancedPaymentDialog
+            isOpen={isPaymentDialogOpen}
+            onOpenChange={setIsPaymentDialogOpen}
+            subtotal={cartSubtotal}
+            currentDiscount={activeTab?.discount || 0}
+            currentDiscountType={activeTab?.discountType || 'fixed'}
+            total={cartTotal}
+            customers={customers}
+            selectedCustomerId={activeTab?.customerId}
+            onPaymentComplete={(data) => {
+              // إتمام الطلب مع معاملات الدفع الجزئي
+              submitOrder(
+                data.customerId,
+                data.notes,
+                activeTab?.discount || 0, // تمرير التخفيض من التبويب
+                activeTab?.discountType || 'fixed',
+                data.amountPaid,
+                data.paymentMethod,
+                data.isPartialPayment,
+                data.considerRemainingAsPartial
+              );
+              
+              // إغلاق الـ dialog
+              setIsPaymentDialogOpen(false);
+            }}
+            isProcessing={isSubmittingOrder}
+            onCustomerAdded={onCustomerAdded}
+          />
+        </Suspense>
+      )}
     </Card>
   );
 };

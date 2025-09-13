@@ -176,10 +176,25 @@ const FormField = memo<FormFieldProps>(({
   ), [field, value, handleValueChange, disabled, loading, hasError]);
 
   // رندر أزرار الراديو للتوصيل
-  const renderDeliveryRadio = useCallback(() => (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-3"> {/* تغيير إلى grid-cols-2 للعرض جنباً إلى جنب */}
-      {field.options?.map((option) => {
-        const isSelected = value === option.value;
+  const renderDeliveryRadio = useCallback(() => {
+    // إعادة ترتيب الخيارات لضمان ظهور التوصيل للمكتب أولاً دائماً
+    const orderedOptions = [...(field.options || [])].sort((a, b) => {
+      const rank = (opt: any) => {
+        const v = String(opt.value || '').toLowerCase();
+        const lbl = String(opt.label || '').toLowerCase();
+        const isDesk = v === 'desk' || v === 'office' || lbl.includes('مكتب') || lbl.includes('office');
+        const isHome = v === 'home' || lbl.includes('منزل') || lbl.includes('home');
+        if (isDesk) return 0; // المكتب أولاً
+        if (isHome) return 1; // المنزل بعده
+        return 2;
+      };
+      return rank(a) - rank(b);
+    });
+
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3"> {/* تغيير إلى grid-cols-2 للعرض جنباً إلى جنب */}
+        {orderedOptions.map((option) => {
+          const isSelected = value === option.value;
         const isHome = option.value === 'home' || option.label.toLowerCase().includes('منزل') || option.label.toLowerCase().includes('home');
         const isOffice = option.value === 'desk' || option.value === 'office' || option.label.toLowerCase().includes('مكتب') || option.label.toLowerCase().includes('office');
         
@@ -232,9 +247,10 @@ const FormField = memo<FormFieldProps>(({
             </label>
           </motion.div>
         );
-      })}
-    </div>
-  ), [field, value, handleValueChange, disabled, loading, translateDynamicText, productFormRenderer]);
+        })}
+      </div>
+    );
+  }, [field, value, handleValueChange, disabled, loading, translateDynamicText, productFormRenderer]);
 
   // رندر أزرار الراديو العادية
   const renderRegularRadio = useCallback(() => (

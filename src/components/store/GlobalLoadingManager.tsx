@@ -125,7 +125,7 @@ export const GlobalLoadingProvider: React.FC<GlobalLoadingProviderProps> = ({ ch
     isVisible: false,
     progress: 0,
     message: 'جاري التحميل...',
-    storeName: 'المتجر',
+    storeName: '',
     primaryColor: '#fc5a3e',
     phase: 'system'
   });
@@ -163,7 +163,7 @@ export const GlobalLoadingProvider: React.FC<GlobalLoadingProviderProps> = ({ ch
           storeName: storeData.storeName || prev.storeName,
           logoUrl: storeData.logoUrl || prev.logoUrl
         }));
-        // console.log('📊 تم تحديث بيانات المتجر:', storeData);
+        // 
       }
       storeDataFetched.current = true;
     }
@@ -225,7 +225,7 @@ export const GlobalLoadingProvider: React.FC<GlobalLoadingProviderProps> = ({ ch
           storeName: orgData.settings?.site_name || orgData.name || prev.storeName,
           logoUrl: orgData.logo_url || orgData.settings?.logo_url || prev.logoUrl
         }));
-        // console.log('🔄 تم تحديث بيانات المتجر من الحدث:', orgData);
+        // 
       }
     };
 
@@ -294,6 +294,15 @@ export const GlobalLoadingProvider: React.FC<GlobalLoadingProviderProps> = ({ ch
   // بدء تحميل اللودر الثقيل فقط إذا استمر المؤشر مرئياً لأكثر من 250ms
   useEffect(() => {
     if (state.isVisible && !forceHideRef.current) {
+      // 💡 في مرحلة المتجر، نُبقي اللودر خفيفاً (بدون رسائل)
+      if (state.phase === 'store') {
+        if (heavyLoaderTimerRef.current) {
+          window.clearTimeout(heavyLoaderTimerRef.current);
+          heavyLoaderTimerRef.current = null;
+        }
+        if (shouldLoadHeavyLoader) setShouldLoadHeavyLoader(false);
+        return;
+      }
       // ابدأ عدّاد التأخير إذا لم يكن قيد التشغيل
       if (heavyLoaderTimerRef.current == null && !shouldLoadHeavyLoader) {
         heavyLoaderTimerRef.current = window.setTimeout(() => {
@@ -327,7 +336,7 @@ export const GlobalLoadingProvider: React.FC<GlobalLoadingProviderProps> = ({ ch
     // تجنب عرض المؤشر إذا تم إخفاؤه بالقوة مؤخراً
     const now = Date.now();
     if (forceHideRef.current && (now - lastShowTimeRef.current) < 3000) {
-              // console.log('🚫 تجاهل عرض مؤشر التحميل - تم إخفاؤه مؤخراً');
+              // 
       return;
     }
 
@@ -344,28 +353,20 @@ export const GlobalLoadingProvider: React.FC<GlobalLoadingProviderProps> = ({ ch
         ...config,
         isVisible: true,
         // استخدام البيانات المحدثة أو القيم الممررة أو القيم الافتراضية
-        storeName: config.storeName || 
-                  latestStoreData?.storeName || 
-                  prev.storeName || 
-                  'المتجر الإلكتروني',
+        storeName: config.storeName || latestStoreData?.storeName || prev.storeName,
         logoUrl: config.logoUrl || 
                 latestStoreData?.logoUrl || 
                 prev.logoUrl,
         primaryColor: config.primaryColor || prev.primaryColor || '#fc5a3e'
       };
       
-      // console.log('🔄 عرض مؤشر التحميل:', {
-      //   storeName: newState.storeName,
-      //   logoUrl: newState.logoUrl,
-      //   progress: newState.progress
-      // });
       
       return newState;
     });
   }, []);
 
   const hideLoader = useCallback(() => {
-    // console.log('🔄 إخفاء مؤشر التحميل يدوياً');
+    // 
     forceHideRef.current = true;
     
     // تنظيف أي timers

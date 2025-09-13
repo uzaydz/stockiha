@@ -32,6 +32,7 @@ export const PERFORMANCE_THRESHOLDS = {
 export const PLATFORM_DOMAINS = [
   'stockiha.com',
   'www.stockiha.com',
+  'stockiha.pages.dev',
   'ktobi.online',
   'www.ktobi.online'
 ] as const;
@@ -79,7 +80,7 @@ export const PROVIDER_CONFIGS: ProviderConfigMap = {
    */
   'public-product': {
     core: true,
-    auth: true,        // مطلوب للمؤسسة
+    auth: false,       // ❌ تعطيل Auth/User في وضع public
     tenant: true,
     unifiedData: false,    // نستخدم ProductPageProvider بدلاً منه
     organizationData: false,
@@ -152,6 +153,39 @@ export const PROVIDER_CONFIGS: ProviderConfigMap = {
     apps: true,           // مطلوب للتطبيقات
     productPage: false,
     notifications: true,   // مطلوب للإشعارات
+  },
+
+  /**
+   * 📊 لوحة التحكم على النطاقات العامة - مع بيانات المؤسسة فقط
+   */
+  'public-dashboard': {
+    core: true,
+    auth: true,
+    tenant: true,
+    unifiedData: true,     // مطلوب للمستخدمين المسجلين دخولهم
+    organizationData: false,
+    dashboard: false,
+    shop: false,
+    apps: true,            // مطلوب للتطبيقات
+    productPage: false,
+    notifications: true,   // مطلوب للإشعارات في dashboard
+  },
+
+  /**
+   * 🏪 Store Editor - Minimal providers to avoid extra fetches
+   * Uses dedicated RPC (get_store_editor_init_data), so we disable heavy contexts
+   */
+  'store-editor': {
+    core: true,
+    auth: true,
+    tenant: true,
+    unifiedData: false,
+    organizationData: false,
+    dashboard: false,
+    shop: false,
+    apps: false,
+    productPage: false,
+    notifications: false,
   },
 
   /**
@@ -258,6 +292,7 @@ export const PATH_PATTERNS = {
   PRODUCT_PURCHASE: [
     '/product-purchase-max',
     '/product-purchase-max-v2',
+    '/product-purchase-max-v3',
     '/product-max',
     '/product-public',
     /^\/products\/[^\/]+$/    // منتج واحد محدد

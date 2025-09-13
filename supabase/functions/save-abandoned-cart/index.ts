@@ -242,9 +242,14 @@ serve(async (req: Request) => {
         product_color_id: item.product_color_id,
         product_size_id: item.product_size_id,
         variant_id: item.variant_id,
-        name: item.name,
+        // أسماء العرض والأسعار والصور
+        name: item.name || item.product_name,
+        product_name: item.product_name || item.name,
         price: item.price === null ? undefined : item.price, // Handle null price
         image_url: item.image_url,
+        // تفاصيل المتغيرات لعرض اللون/المقاس
+        color: item.color,
+        size: item.size,
       }));
     } else if (cartData.product_id && typeof cartData.quantity !== 'undefined') {
       cartData.cart_items = [{
@@ -266,6 +271,44 @@ serve(async (req: Request) => {
         status: 400,
       });
     }
+
+    // قبل أي عمليات قاعدة بيانات: التحقق من وجود طلب حقيقي بنفس الهاتف مؤخراً
+    try {
+      const twoWeeksAgoISO = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString();
+      const phoneForCheck = cartData.customer_phone;
+      if (phoneForCheck && cartData.organization_id) {
+        const orFilter = `form_data->>phone.eq.${phoneForCheck},form_data->>customer_phone.eq.${phoneForCheck}`;
+        const { data: recentOrders, error: recentErr } = await supabaseAdmin
+          .from('online_orders')
+          .select('id, created_at')
+          .eq('organization_id', cartData.organization_id)
+          .gte('created_at', twoWeeksAgoISO)
+          .or(orFilter)
+          .limit(1);
+
+        if (!recentErr && recentOrders && recentOrders.length > 0) {
+          // وُجد طلب فعلي حديث - وسم الطلبات المتروكة على أنها مستردة وتخطي الحفظ
+          try {
+            await supabaseAdmin
+              .from('abandoned_carts')
+              .update({
+                status: AbandonedCartStatus.CONVERTED,
+                recovered_at: new Date().toISOString(),
+                recovered_order_id: recentOrders[0].id,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('organization_id', cartData.organization_id)
+              .eq('customer_phone', phoneForCheck)
+              .eq('status', AbandonedCartStatus.PENDING);
+          } catch {}
+
+          return new Response(JSON.stringify({
+            message: 'Skipping abandoned save: real order already exists',
+            order_id: recentOrders[0].id,
+          }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 });
+        }
+      }
+    } catch {}
 
     // DATABASE OPERATIONS (using transformed cartData)
     const { data: existingCart, error: fetchError } = await supabaseAdmin

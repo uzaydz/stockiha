@@ -36,6 +36,7 @@ import {
 
 import { PropertySection } from '../PropertySection'
 import { getProducts } from '@/lib/api/products'
+import { useStoreEditorData } from '@/context/StoreEditorDataContext'
 
 interface Product {
   id: string
@@ -78,6 +79,10 @@ export const FeaturedProductsEditor: React.FC<FeaturedProductsEditorProps> = ({
   
   // استخدام organizationId من props أو من localStorage كـ fallback
   const organizationId = propOrganizationId || localStorage.getItem('bazaar_organization_id')
+
+  // محاولة استخدام بيانات الـ Provider إن توفرت لتفادي الجلب
+  const initCtx = (() => { try { return useStoreEditorData(); } catch { return null as any } })();
+  const preloadedProducts = (initCtx?.data?.featured_products as Product[] | undefined) || []
 
   // تنظيف البيانات القديمة من localStorage عند تغيير organizationId
   useEffect(() => {
@@ -147,7 +152,10 @@ export const FeaturedProductsEditor: React.FC<FeaturedProductsEditorProps> = ({
     setProductsError(null)
 
     try {
-      const products = await getProducts(organizationId)
+      // إذا لدينا بيانات محملة مسبقاً استخدمها
+      const products = (preloadedProducts && preloadedProducts.length > 0)
+        ? preloadedProducts
+        : await getProducts(organizationId)
 
       setAvailableProducts(products || [])
 

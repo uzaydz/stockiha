@@ -13,6 +13,7 @@ import {
   X
 } from 'lucide-react';
 import { useDebounce } from '@/hooks/useDebounce';
+import AdvancedCategoriesFilter from './AdvancedCategoriesFilter';
 
 interface ProductsSearchHeaderProps {
   searchQuery?: string;
@@ -23,6 +24,13 @@ interface ProductsSearchHeaderProps {
   isLoading?: boolean;
   isScannerLoading?: boolean;
   showBarcodeSearch?: boolean;
+  // فلتر الفئات المتقدم
+  selectedCategories?: string[];
+  selectedSubcategories?: string[];
+  onCategoriesChange?: (categories: string[]) => void;
+  onSubcategoriesChange?: (subcategories: string[]) => void;
+  onClearCategoryFilters?: () => void;
+  showAdvancedFilter?: boolean;
 }
 
 const ProductsSearchHeader: React.FC<ProductsSearchHeaderProps> = ({
@@ -33,7 +41,14 @@ const ProductsSearchHeader: React.FC<ProductsSearchHeaderProps> = ({
   productsCount = 0,
   isLoading = false,
   isScannerLoading = false,
-  showBarcodeSearch = true
+  showBarcodeSearch = true,
+  // فلتر الفئات المتقدم
+  selectedCategories = [],
+  selectedSubcategories = [],
+  onCategoriesChange,
+  onSubcategoriesChange,
+  onClearCategoryFilters,
+  showAdvancedFilter = true
 }) => {
   // حالة محلية للبحث مع debouncing
   const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery);
@@ -205,6 +220,20 @@ const ProductsSearchHeader: React.FC<ProductsSearchHeaderProps> = ({
                   {isScannerLoading ? 'جاري البحث...' : 'بحث'}
                 </Button>
               </form>
+            )}
+
+            {/* فلتر الفئات المتقدم */}
+            {showAdvancedFilter && onCategoriesChange && onSubcategoriesChange && (
+              <AdvancedCategoriesFilter
+                selectedCategories={selectedCategories}
+                selectedSubcategories={selectedSubcategories}
+                onCategoriesChange={onCategoriesChange}
+                onSubcategoriesChange={onSubcategoriesChange}
+                onClearFilters={onClearCategoryFilters || (() => {
+                  onCategoriesChange([]);
+                  onSubcategoriesChange([]);
+                })}
+              />
             )}
           </div>
         </div>

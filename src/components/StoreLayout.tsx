@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Navbar from '@/components/Navbar';
 import CustomizableStoreFooter from '@/components/store/CustomizableStoreFooter';
+import MobileBottomNavigation from '@/components/navbar/MobileBottomNavigation';
 import { useTenant } from '@/context/TenantContext';
 import { useAuth } from '@/context/AuthContext';
 import { getSupabaseClient } from '@/lib/supabase';
@@ -9,6 +10,8 @@ import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { getDefaultFooterSettings, mergeFooterSettings } from '@/lib/footerSettings';
 import { useSharedStoreData } from '@/hooks/useSharedStoreData';
+import { updateLanguageFromSettings } from '@/lib/language/languageManager';
+import './layout.css';
 
 interface StoreLayoutProps {
   children: React.ReactNode;
@@ -25,7 +28,7 @@ const StoreLayout: React.FC<StoreLayoutProps> = ({ children }) => {
   const trackedOnceRef = useRef<boolean>(false);
   
   // استخدم بيانات الـ RPC الموحّدة عندما تكون متاحة لتقليل الاستدعاءات
-  const { categories: sharedCategories, footerSettings: sharedFooterSettings } = useSharedStoreData({
+  const { categories: sharedCategories, footerSettings: sharedFooterSettings, organizationSettings: sharedOrgSettings } = useSharedStoreData({
     includeCategories: true,
     includeProducts: false,
     includeFeaturedProducts: true, // ✅ إصلاح: تفعيل المنتجات المميزة لضمان ظهورها في البانر
@@ -41,6 +44,34 @@ const StoreLayout: React.FC<StoreLayoutProps> = ({ children }) => {
       setFooterSettings(sharedFooterSettings);
     }
   }, [sharedCategories, sharedFooterSettings]);
+
+  // Apply theme and language as soon as org settings are available on store pages
+  useEffect(() => {
+    const orgId = currentOrganization?.id;
+    if (!orgId || !sharedOrgSettings) return;
+
+    // Apply theme forcefully based on org settings
+    import('@/lib/themeManager')
+      .then(({ forceApplyOrganizationTheme }) => {
+        try {
+          forceApplyOrganizationTheme(orgId, {
+            theme_primary_color: (sharedOrgSettings as any)?.theme_primary_color,
+            theme_secondary_color: (sharedOrgSettings as any)?.theme_secondary_color,
+            theme_mode: (sharedOrgSettings as any)?.theme_mode,
+            custom_css: (sharedOrgSettings as any)?.custom_css,
+          });
+        } catch {}
+      })
+      .catch(() => {});
+
+    // Apply default language if present
+    try {
+      const lang = (sharedOrgSettings as any)?.default_language;
+      if (lang && ['ar', 'en', 'fr'].includes(lang)) {
+        updateLanguageFromSettings(lang);
+      }
+    } catch {}
+  }, [currentOrganization?.id, sharedOrgSettings]);
 
   // كخطة بديلة فقط إذا لم تتوفر بيانات مشتركة
   useEffect(() => {
@@ -109,6 +140,9 @@ const StoreLayout: React.FC<StoreLayoutProps> = ({ children }) => {
       <CustomizableStoreFooter 
         {...finalFooterSettings}
       />
+      
+      {/* القائمة الثابتة في الأسفل للهاتف */}
+      <MobileBottomNavigation />
     </div>
   );
 };

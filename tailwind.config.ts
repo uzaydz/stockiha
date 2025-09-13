@@ -7,6 +7,16 @@ export default {
 		"./components/**/*.{ts,tsx}",
 		"./app/**/*.{ts,tsx}",
 		"./src/**/*.{ts,tsx}",
+		"./index.html",
+	],
+	// CSS purging for production build optimization
+	safelist: [
+		// Keep critical animation classes
+		'animate-spin', 'animate-pulse', 'animate-bounce',
+		// Keep theme-related classes
+		'dark', 'light',
+		// Keep critical utility classes
+		'sr-only', 'not-sr-only',
 	],
 	prefix: "",
 	theme: {

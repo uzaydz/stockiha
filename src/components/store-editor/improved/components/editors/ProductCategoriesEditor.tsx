@@ -36,6 +36,7 @@ import {
 
 import { PropertySection } from '../PropertySection'
 import { getCategories } from '@/lib/api/categories'
+import { useStoreEditorData } from '@/context/StoreEditorDataContext'
 import { useTenant } from '@/context/TenantContext'
 
 // تعريف واجهة الفئة
@@ -99,7 +100,19 @@ export const ProductCategoriesEditor: React.FC<ProductCategoriesEditorProps> = (
     setCategoriesError(null)
     
     try {
-      const categories = await getCategories(organizationId)
+      // استخدم البيانات المحملة مسبقاً إن توفر
+      let categories: Category[] | null = null
+      try {
+        const ctx = useStoreEditorData()
+        const pre = (ctx?.data?.categories as any[]) || []
+        if (pre && pre.length > 0) {
+          categories = pre as Category[]
+        }
+      } catch {}
+
+      if (!categories) {
+        categories = await getCategories(organizationId) as any
+      }
       
       // تشخيص الصور
       if (categories && categories.length > 0) {

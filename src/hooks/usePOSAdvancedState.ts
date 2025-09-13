@@ -78,7 +78,8 @@ export const usePOSAdvancedState = () => {
 
   // جلب البيانات الأساسية مع cache محسن
   const {
-    products: allProducts,
+    products: pagedProducts,
+    pagination,
     subscriptions,
     subscriptionCategories,
     productCategories,
@@ -97,13 +98,14 @@ export const usePOSAdvancedState = () => {
     executionTime,
     dataTimestamp
   } = useUnifiedPOSData({
-    page: 1,
-    limit: 1000,
-    search: '',
-    categoryId: '',
+    page: currentPage,
+    // استخدم حجم الصفحة الحالي بدل 10000 لتحسين سرعة التحميل
+    limit: pageSize,
+    search: searchQuery?.trim() || '',
+    categoryId: categoryFilter && categoryFilter !== 'all' ? categoryFilter : '',
     staleTime: 20 * 60 * 1000, // 20 دقيقة
     gcTime: 40 * 60 * 1000, // 40 دقيقة
-    enabled: !!currentOrganization?.id && !dataFetchedRef.current
+    enabled: !!currentOrganization?.id
   });
 
   // منع الاستدعاءات المتكررة
@@ -115,43 +117,10 @@ export const usePOSAdvancedState = () => {
     }
   }, [currentOrganization?.id]);
 
-  // البحث المحلي السريع
-  const filteredProducts = useMemo(() => {
-    if (!allProducts || allProducts.length === 0) return [];
-    
-    let filtered = allProducts;
-    
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim();
-      filtered = filtered.filter(product => {
-        const nameMatch = product.name?.toLowerCase().includes(query);
-        const descriptionMatch = product.description?.toLowerCase().includes(query);
-        const barcodeMatch = product.barcode?.toLowerCase().includes(query);
-        const skuMatch = product.sku?.toLowerCase().includes(query);
-        const brandMatch = product.brand?.toLowerCase().includes(query);
-        const keywordsMatch = product.keywords?.toLowerCase().includes(query);
-        const categoryMatch = productCategories.find(cat => 
-          cat.id === product.category_id
-        )?.name?.toLowerCase().includes(query);
-        
-        return nameMatch || descriptionMatch || barcodeMatch || skuMatch || 
-               brandMatch || keywordsMatch || categoryMatch;
-      });
-    }
-    
-    if (categoryFilter && categoryFilter !== 'all') {
-      filtered = filtered.filter(product => product.category_id === categoryFilter);
-    }
-    
-    return filtered;
-  }, [allProducts, searchQuery, categoryFilter, productCategories]);
-
-  // تطبيق pagination محلياً
-  const products = useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    return filteredProducts.slice(startIndex, endIndex);
-  }, [filteredProducts, currentPage, pageSize]);
+  // البحث والتقسيم يتمان على مستوى قاعدة البيانات الآن
+  const allProducts = useMemo(() => pagedProducts || [], [pagedProducts]);
+  const filteredProducts = allProducts;
+  const products = allProducts;
 
   // Hook السكانر
   const {
@@ -456,6 +425,7 @@ export const usePOSAdvancedState = () => {
     allProducts,
     products,
     filteredProducts,
+    pagination,
     subscriptions,
     subscriptionCategories,
     productCategories,

@@ -1,4 +1,4 @@
-import React, { Suspense, useCallback, useMemo } from 'react';
+import React, { Suspense, useCallback, useMemo, lazy } from 'react';
 import { toast } from "sonner";
 import { v4 as uuidv4 } from 'uuid';
 import { Order } from '@/types/index';
@@ -40,6 +40,7 @@ const POSAdvanced = () => {
     allProducts,
     products,
     filteredProducts,
+    pagination,
     subscriptions,
     subscriptionCategories,
     productCategories,
@@ -191,6 +192,13 @@ const POSAdvanced = () => {
     setIsVariantDialogOpen
   );
 
+  // خرائط سريعة للعثور على المنتج بالمعرف للسكانر حتى لو لم يكن في الصفحة الحالية
+  const getProductById = useMemo(() => {
+    const map = new Map<string, any>();
+    (allProducts || products || []).forEach((p: any) => map.set(p.id, p));
+    return (id: string) => map.get(id);
+  }, [allProducts, products]);
+
   // دالة submitOrder مخصصة مع حفظ بيانات الطباعة
   const handleSubmitOrderWithPrint = useCallback(async (
     customerId?: string, 
@@ -315,8 +323,8 @@ const POSAdvanced = () => {
       }}
     >
       {/* مؤشر السكانر العالمي */}
-             <POSAdvancedGlobalScanner
-         products={products}
+      <POSAdvancedGlobalScanner
+         products={allProducts || products}
          isReturnMode={isReturnMode}
          isScannerLoading={isScannerLoading}
          scanBarcode={async (barcode: string) => {
@@ -329,6 +337,7 @@ const POSAdvanced = () => {
          addItemToCart={addItemToCart}
          addItemToReturnCart={addItemToReturnCart}
          handleProductWithVariants={handleProductWithVariants}
+         getProductById={getProductById}
        />
       
       {/* تخطيط POS محسن - متناسق - بدون header إضافي */}
@@ -354,12 +363,12 @@ const POSAdvanced = () => {
                 <POSAdvancedContent
                   products={products}
                   pagination={{ 
-                    current_page: currentPage, 
-                    total_pages: Math.ceil(filteredProducts.length / pageSize), 
-                    per_page: pageSize, 
-                    total_count: filteredProducts.length,
-                    has_next_page: currentPage < Math.ceil(filteredProducts.length / pageSize),
-                    has_prev_page: currentPage > 1
+                    current_page: pagination?.current_page || currentPage, 
+                    total_pages: pagination?.total_pages || Math.ceil((pagination?.total_count || filteredProducts.length) / (pagination?.per_page || pageSize)), 
+                    per_page: pagination?.per_page || pageSize, 
+                    total_count: pagination?.total_count || filteredProducts.length,
+                    has_next_page: Boolean(pagination?.has_next_page ?? (currentPage < Math.ceil((pagination?.total_count || filteredProducts.length) / (pagination?.per_page || pageSize)))),
+                    has_prev_page: Boolean(pagination?.has_prev_page ?? (currentPage > 1))
                   }}
                   subscriptionServices={subscriptions}
                   subscriptionCategories={subscriptionCategories}
@@ -385,10 +394,10 @@ const POSAdvanced = () => {
                 
                 {/* إحصائيات البحث المحلي المحسنة */}
                 <POSAdvancedSearchStats
-                  allProductsCount={allProducts?.length || 0}
-                  filteredProductsCount={filteredProducts.length}
-                  currentPage={currentPage}
-                  totalPages={Math.ceil(filteredProducts.length / pageSize)}
+                  allProductsCount={pagination?.total_count || allProducts?.length || 0}
+                  filteredProductsCount={pagination?.total_count || filteredProducts.length}
+                  currentPage={pagination?.current_page || currentPage}
+                  totalPages={pagination?.total_pages || Math.ceil((pagination?.total_count || filteredProducts.length) / (pagination?.per_page || pageSize))}
                   searchQuery={searchQuery}
                   categoryFilter={categoryFilter}
                   categoryName={productCategories.find(c => c.id === categoryFilter)?.name}

@@ -94,7 +94,7 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
   const [originalAdditionalImages, setOriginalAdditionalImages] = useState<string[]>([]);
   const [wholesaleTiers, setWholesaleTiers] = useState<WholesaleTier[]>([]);
   const [originalWholesaleTiers, setOriginalWholesaleTiers] = useState<WholesaleTier[]>([]);
-  const [organizationId, setOrganizationId] = useState<string>(process.env.NEXT_PUBLIC_DEFAULT_ORGANIZATION_ID || '');
+  const [organizationId, setOrganizationId] = useState<string>(import.meta.env.VITE_DEFAULT_ORGANIZATION_ID || '');
   const [generatingSku, setGeneratingSku] = useState(false);
   const [generatingBarcode, setGeneratingBarcode] = useState(false);
   const [hasPermission, setHasPermission] = useState(true);
@@ -505,7 +505,7 @@ const EditProductDialog = ({ product, open, onOpenChange, onProductUpdated }: Ed
       setOrganizationId(product.organization_id);
     } else {
       // Try to get organization ID from environment variable
-      const defaultOrgId = process.env.NEXT_PUBLIC_DEFAULT_ORGANIZATION_ID;
+      const defaultOrgId = import.meta.env.VITE_DEFAULT_ORGANIZATION_ID;
       if (defaultOrgId) {
         
         setOrganizationId(defaultOrgId);

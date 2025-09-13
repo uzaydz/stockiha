@@ -47,6 +47,7 @@ export interface EmployeePermissions {
 
   // الطلبات (بدلاً من manageOrders العامة)
   viewOrders: boolean;        // عرض الطلبات والتفاصيل (من المتجر الإلكتروني أو POS)
+  viewPOSOrders?: boolean;     // عرض طلبات نقطة البيع فقط
   updateOrderStatus?: boolean; // تحديث حالة الطلب (غير الإلغاء)
   cancelOrders?: boolean;      // إلغاء الطلبات (قد يتطلب manageInventory)
 

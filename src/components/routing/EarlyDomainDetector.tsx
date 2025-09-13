@@ -10,7 +10,7 @@ interface EarlyDomainInfo {
   subdomain: string | null;
   isCustomDomain: boolean;
   isPublicDomain: boolean;
-  pageType: 'max-store' | 'public-product' | 'public-store' | 'landing';
+  pageType: 'max-store' | 'public-product' | 'public-store' | 'landing' | 'dashboard' | 'pos' | 'super-admin' | 'call-center' | 'auth' | 'minimal';
 }
 
 interface EarlyDomainDetectorProps {
@@ -32,7 +32,7 @@ export const EarlyDomainDetector: React.FC<EarlyDomainDetectorProps> = ({
         const pathname = window.location.pathname;
 
         // فحص النطاقات العامة
-        const publicDomains = ['ktobi.online', 'www.ktobi.online', 'stockiha.com', 'www.stockiha.com'];
+        const publicDomains = ['ktobi.online', 'www.ktobi.online', 'stockiha.com', 'www.stockiha.com', 'stockiha.pages.dev'];
         const isPublicDomain = publicDomains.includes(hostname);
         const isLocalhost = hostname.includes('localhost');
         
@@ -69,7 +69,24 @@ export const EarlyDomainDetector: React.FC<EarlyDomainDetectorProps> = ({
         }
         
         // تحديد نوع الصفحة
-        if (isCustomDomain) {
+        if (isPublicDomain) {
+          // النطاقات العامة - فحص المسارات الإدارية
+          if (pathname.startsWith('/dashboard')) {
+            pageType = 'dashboard';
+          } else if (pathname.startsWith('/pos')) {
+            pageType = 'pos';
+          } else if (pathname.startsWith('/super-admin')) {
+            pageType = 'super-admin';
+          } else if (pathname.startsWith('/call-center')) {
+            pageType = 'call-center';
+          } else if (pathname.startsWith('/login') || pathname.startsWith('/forgot-password') || pathname.startsWith('/reset-password')) {
+            pageType = 'auth';
+          } else if (pathname === '/') {
+            pageType = 'landing';
+          } else {
+            pageType = 'minimal';
+          }
+        } else if (isCustomDomain) {
           if (pathname === '/') {
             pageType = 'max-store';
           } else if (pathname.includes('/products/') || pathname.includes('/product/')) {
@@ -130,19 +147,9 @@ export const EarlyDomainDetector: React.FC<EarlyDomainDetectorProps> = ({
   // إذا كان جاري الكشف، اعرض شاشة تحميل محسنة
   if (isDetecting && domainInfo?.isCustomDomain) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
-        <div className="text-center">
-          <div className="mb-6">
-            <div className="w-16 h-16 mx-auto border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-          </div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">
-            {domainInfo.subdomain ? `متجر ${domainInfo.subdomain}` : 'متجر'}
-          </h2>
-          <p className="text-gray-600 mb-4">جاري تحميل المتجر...</p>
-          <div className="text-sm text-gray-500">
-            {domainInfo.hostname}
-          </div>
-        </div>
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <span className="sr-only">جار التحميل...</span>
+        <div className="w-10 h-10 mx-auto border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
       </div>
     );
   }

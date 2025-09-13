@@ -125,9 +125,9 @@ const ProductCard = ({
             onTouchStart={() => {}} // تحسين الاستجابة للمس على iOS
           >
             <ProductImage 
-              src={product.imageUrl || product.thumbnail_image} 
+              src={product.thumbnail_image || product.imageUrl} 
               alt={product.name}
-              className={`product-image w-full h-full object-contain p-2 sm:p-3 lg:p-4 transition-all duration-300 ${
+              className={`product-image w-full h-full transition-all duration-300 ${
               isMobile ? 'active:scale-105' : 'group-hover:scale-110 group-hover:rotate-1'
             }`}
               containerClassName="absolute inset-0"
@@ -157,7 +157,7 @@ const ProductCard = ({
               <div className="flex items-center gap-1.5">
                 <Button 
                   size="icon" 
-                  className="h-9 w-9 rounded-xl bg-background hover:bg-primary hover:text-primary-foreground text-foreground shadow-xl backdrop-blur-md border border-border/30 transition-all duration-200 hover:scale-110 focus:ring-2 focus:ring-primary/50"
+                  className="h-9 w-9 rounded-xl bg-background hover:bg-primary hover:text-primary-foreground text-foreground shadow-xl backdrop-blur-md border border-border/30 transition-all duration-200 hover:scale-110 focus:ring-2 focus:ring-primary/50 touch-target"
                   aria-label={`إضافة ${product.name} إلى السلة`}
                   tabIndex={-1}
                 >
@@ -165,7 +165,7 @@ const ProductCard = ({
                 </Button>
                 <Button 
                   size="icon" 
-                  className="h-9 w-9 rounded-xl bg-background hover:bg-red-500 hover:text-white text-foreground shadow-xl backdrop-blur-md border border-border/30 transition-all duration-200 hover:scale-110 focus:ring-2 focus:ring-red-500/50"
+                  className="h-9 w-9 rounded-xl bg-background hover:bg-red-500 hover:text-white text-foreground shadow-xl backdrop-blur-md border border-border/30 transition-all duration-200 hover:scale-110 focus:ring-2 focus:ring-red-500/50 touch-target"
                   onClick={(e) => {
                     e.preventDefault();
                     onToggleFavorite(product.id);
@@ -178,7 +178,7 @@ const ProductCard = ({
               </div>
               <Button 
                 size="icon" 
-                className="h-9 w-9 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 shadow-xl backdrop-blur-md border border-primary/20 transition-all duration-200 hover:scale-110 focus:ring-2 focus:ring-primary/50"
+                className="h-9 w-9 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 shadow-xl backdrop-blur-md border border-primary/20 transition-all duration-200 hover:scale-110 focus:ring-2 focus:ring-primary/50 touch-target"
                 aria-label={`معاينة سريعة لـ ${product.name}`}
                 tabIndex={-1}
               >

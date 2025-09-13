@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { Store, ShoppingBag, Layers, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MerchantType } from './types';
@@ -8,6 +8,7 @@ import { useTenant } from '@/context/TenantContext';
 import { OrganizationSettingsUpdate } from '@/types/organization-settings';
 import { createPortal } from 'react-dom';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { getBoundingClientRectOptimized } from '@/utils/domOptimizer';
 
 interface MerchantTypeToggleProps {
   currentType: MerchantType;
@@ -40,7 +41,8 @@ const MerchantTypeToggle: React.FC<MerchantTypeToggleProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [buttonRect, setButtonRect] = useState<DOMRect | null>(null);
+  const [buttonRect, setButtonRect] = useState<{ width: number; height: number; top: number; left: number; bottom: number; right: number } | null>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const { toast } = useToast();
   const { currentOrganization } = useTenant();
   const isMobile = useMediaQuery('(max-width: 768px)');
@@ -95,16 +97,33 @@ const MerchantTypeToggle: React.FC<MerchantTypeToggleProps> = ({
     }
   };
 
-  const handleButtonClick = (e: React.MouseEvent<HTMLButtonElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    setButtonRect(rect);
-    setIsOpen(!isOpen);
-  };
+  const handleButtonClick = useCallback(async (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (!buttonRef.current) return;
+    
+    try {
+      const rect = await getBoundingClientRectOptimized(buttonRef.current);
+      setButtonRect(rect);
+      setIsOpen(!isOpen);
+    } catch (error) {
+      console.warn('خطأ في الحصول على موضع الزر:', error);
+      // استخدام قيم افتراضية في حالة الخطأ
+      setButtonRect({
+        width: 200,
+        height: 40,
+        top: e.clientY,
+        left: e.clientX,
+        bottom: e.clientY + 40,
+        right: e.clientX + 200
+      });
+      setIsOpen(!isOpen);
+    }
+  }, [isOpen]);
 
   return (
     <div className={cn("relative", className)} style={{ position: 'relative' }}>
       {/* الزر الرئيسي - متناسق مع تصميم القائمة الجانبية */}
       <button
+        ref={buttonRef}
         onClick={handleButtonClick}
         disabled={isLoading}
         className={cn(

@@ -7,6 +7,11 @@
 -- - معالجة أفضل للأخطاء مع رسائل واضحة
 -- - تحسين أداء SEO meta للنطاقات المخصصة
 -- - إضافة معلومات تشخيصية مفيدة
+-- 
+-- 🔧 إصلاح النطاقات مع www:
+-- - دعم البحث عن النطاقات المخصصة مع www. (مثل www.example.com)
+-- - تلقائياً إزالة www. من النطاق للبحث في قاعدة البيانات
+-- - إصلاح مشكلة عدم جلب FeaturedProducts للنطاقات مع www
 
 -- 🚀 إصلاح 1: إزالة جميع الإصدارات المتضاربة من الدالة
 DROP FUNCTION IF EXISTS public.get_store_init_data(text);
@@ -27,11 +32,18 @@ BEGIN
   -- 🚀 تحسين 1: قياس زمن التنفيذ
   v_start_time := clock_timestamp();
   
-  -- التحقق من وجود المنظمة قبل البدء
+  -- التحقق من وجود المنظمة قبل البدء (مع دعم www.)
   SELECT COUNT(*) INTO v_org_count
   FROM organizations o
-  WHERE (o.subdomain = org_identifier OR o.domain = org_identifier)
-    AND o.subscription_status = 'active';
+  WHERE (
+    o.subdomain = org_identifier 
+    OR o.domain = org_identifier
+    OR o.domain = CASE 
+      WHEN org_identifier LIKE 'www.%' 
+      THEN substring(org_identifier from 5)
+      ELSE NULL 
+    END
+  ) AND o.subscription_status = 'active';
   
   -- إذا لم تُوجد المنظمة، أرجع رسالة خطأ واضحة
   IF v_org_count = 0 THEN
@@ -68,7 +80,10 @@ BEGIN
       COALESCE(os.enable_public_site, TRUE) as enable_public_site,
       COALESCE(os.enable_registration, TRUE) as enable_registration,
       os.theme_primary_color, os.theme_secondary_color, os.theme_mode,
-      os.custom_css, os.custom_header AS custom_js_header, os.custom_footer AS custom_js_footer,
+      os.custom_css,
+      -- تضمين custom_js الخام (يُستخدم لتخزين JSON مثل enable_cart)
+      os.custom_js,
+      os.custom_header AS custom_js_header, os.custom_footer AS custom_js_footer,
       -- 🚀 تحسين 3: حساب حالة النشاط
       CASE 
         WHEN os.enable_public_site = FALSE THEN FALSE 
@@ -82,6 +97,13 @@ BEGIN
       OR 
       -- ثم البحث في النطاق المخصص
       o.domain = org_identifier
+      OR
+      -- دعم النطاقات مع www. (إزالة www. من org_identifier)
+      o.domain = CASE 
+        WHEN org_identifier LIKE 'www.%' 
+        THEN substring(org_identifier from 5)
+        ELSE NULL 
+      END
     )
       AND o.subscription_status = 'active'
     LIMIT 1
@@ -130,6 +152,38 @@ BEGIN
       AND p.is_active = TRUE
     ORDER BY p.created_at DESC
     LIMIT 10
+  ),
+
+  -- 4.b المنتجات الأولى للعرض في صفحة المتجر (محسن)
+  products_first_page_data AS (
+    SELECT 
+      p.id,
+      p.name,
+      p.slug,
+      p.description,
+      p.price,
+      p.compare_at_price,
+      p.sku,
+      p.stock_quantity,
+      p.is_featured,
+      p.is_active,
+      p.thumbnail_image,
+      p.images,
+      p.organization_id,
+      p.category_id,
+      p.subcategory_id,
+      p.created_at,
+      p.updated_at,
+      -- كائنات فئة متداخلة لمواءمة شكل REST
+      json_build_object('id', c.id, 'name', c.name, 'slug', c.slug) AS category,
+      json_build_object('id', sc.id, 'name', sc.name, 'slug', sc.slug) AS subcategory
+    FROM products p
+    LEFT JOIN product_categories c ON p.category_id = c.id
+    LEFT JOIN product_subcategories sc ON p.subcategory_id = sc.id
+    WHERE p.organization_id = (SELECT id FROM org_data)
+      AND p.is_active = TRUE
+    ORDER BY p.created_at DESC
+    LIMIT 48
   ),
   
   -- 5. معلومات الشحن (محسن)
@@ -212,7 +266,11 @@ BEGIN
       'show_breadcrumbs', TRUE, 'show_reviews', TRUE, 'require_login_to_view', FALSE,
       'enable_wishlist', FALSE, 'enable_product_comparison', FALSE, 'checkout_process_type', 'default',
       'payment_methods', NULL, 'default_shipping_zone_id', NULL, 'tax_settings', NULL,
-      'custom_css', od.custom_css, 'custom_js_header', od.custom_js_header, 'custom_js_footer', od.custom_js_footer
+      'custom_css', od.custom_css,
+      -- تمرير custom_js كما هو (قد يكون JSON كنص)
+      'custom_js', od.custom_js,
+      'custom_js_header', od.custom_js_header,
+      'custom_js_footer', od.custom_js_footer
     ),
     'categories', COALESCE((SELECT json_agg(row_to_json(cd)) FROM categories_data cd), '[]'::json),
     'subcategories', COALESCE((SELECT json_agg(row_to_json(sd)) FROM subcategories_data sd), '[]'::json),
@@ -225,6 +283,7 @@ BEGIN
     'store_layout_components', COALESCE((SELECT json_agg(row_to_json(sld)) FROM store_layout_data sld), '[]'::json),
     'footer_settings', COALESCE((SELECT footer_settings FROM footer_data), '{}'::json),
     'testimonials', COALESCE((SELECT json_agg(row_to_json(td)) FROM testimonials_data td), '[]'::json),
+    'products_first_page', COALESCE((SELECT json_agg(row_to_json(pfpd)) FROM products_first_page_data pfpd), '[]'::json),
     'seo_meta', json_build_object(
       'title', COALESCE((SELECT site_name FROM org_data), (SELECT name FROM org_data), 'متجر إلكتروني'),
       'description', COALESCE((SELECT description FROM org_data), 'متجر إلكتروني متطور'),
@@ -269,5 +328,3 @@ EXCEPTION
     );
 END;
 $function$;
-
-

@@ -50,14 +50,17 @@ const AppWrapper: React.FC<AppWrapperProps> = ({ children }) => {
 
   // 🔥 دالة محسنة لتهيئة البيانات
   const initializeData = async (isRetry = false, forceOrgId?: string) => {
+    const startTime = performance.now();
 
     // منع التشغيل المتكرر
     if (isInitializing && !forceOrgId) {
+      
       return;
     }
 
     // منع التشغيل المتوازي
     if (initializationPromiseRef.current) {
+      
       return initializationPromiseRef.current;
     }
 
@@ -78,6 +81,7 @@ const AppWrapper: React.FC<AppWrapperProps> = ({ children }) => {
 
         // ⚡ تحسين: تسريع localhost - متابعة فورية
         if (isLocalhost) {
+          const localhostTime = performance.now() - startTime;
           setIsReady(true);
           return;
         }
@@ -85,49 +89,67 @@ const AppWrapper: React.FC<AppWrapperProps> = ({ children }) => {
         // ⚡ تحسين: متابعة فورية إذا كان organizationId متاحاً
         const currentOrgId = forceOrgId || organizationId;
         if (currentOrgId) {
+          const orgReadyTime = performance.now() - startTime;
           setIsReady(true);
           return;
         }
 
         // 🔥 محاولة استخدام initializeApp إذا كان organizationId متاحاً
         if (currentOrgId) {
-          
+          const fetchStartTime = performance.now();
+
           // محاولة الحصول على البيانات المحفوظة أولاً
           const existingData = getAppInitData();
           if (existingData && isAppInitDataValid()) {
+            const cacheTime = performance.now() - fetchStartTime;
             setIsReady(true);
             return;
           }
-          
+
           // جلب البيانات الجديدة باستخدام organizationId
+
           const data = await initializeApp(currentOrgId);
-          
+          const fetchTime = performance.now() - fetchStartTime;
+
           if (data) {
             setIsReady(true);
             return;
           } else {
           }
         } else {
+          
         }
         
         // إذا لم نتمكن من جلب البيانات، نتابع مع البيانات الأساسية
         setIsReady(true);
 
       } catch (error) {
-        
+        const errorTime = performance.now() - startTime;
+        console.error('💥 [AppWrapper] خطأ في تهيئة البيانات:', {
+          time: `${errorTime.toFixed(2)}ms`,
+          error: error instanceof Error ? error.message : String(error),
+          hostname: window.location.hostname,
+          isRetry,
+          currentRetry,
+          maxRetries
+        });
+
         if (mountedRef.current) {
           const hostname = window.location.hostname;
           const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.includes('localhost');
-          const platformDomains = ['stockiha.com', 'www.stockiha.com', 'ktobi.online', 'www.ktobi.online'];
+          const platformDomains = ['stockiha.com', 'www.stockiha.com', 'stockiha.pages.dev', 'ktobi.online', 'www.ktobi.online'];
           const isPlatformDomain = platformDomains.includes(hostname);
-          
+
           if (isPlatformDomain) {
+            
             setHasError(true);
           } else {
+            
             setIsReady(true);
           }
         }
       } finally {
+        const totalTime = performance.now() - startTime;
         setIsInitializing(false);
         initializationPromiseRef.current = null;
       }
@@ -145,28 +167,39 @@ const AppWrapper: React.FC<AppWrapperProps> = ({ children }) => {
 
   // 🔥 useEffect محسن للتهيئة الأولية
   useEffect(() => {
+    const mountStartTime = performance.now();
+
     mountedRef.current = true;
 
     // تشغيل التهيئة الأولية
     initializeData();
 
+    const mountTime = performance.now() - mountStartTime;
+
     return () => {
+      
       mountedRef.current = false;
     };
   }, []); // فقط عند mount الأول
 
   // 🔥 useEffect محسن لمراقبة organizationId
   useEffect(() => {
+    const orgEffectStartTime = performance.now();
+
     // ⚡ تحسين: إذا كان organizationId متاحاً، تعيين setIsReady فوراً
     if (organizationId && !isReady) {
+      const readyTime = performance.now() - orgEffectStartTime;
       setIsReady(true);
       return;
     }
 
     // إذا لم يكن organizationId متاحاً، تشغيل التهيئة
     if (!organizationId && !isReady && !isInitializing) {
+      
       initializeData();
     }
+
+    const orgEffectTime = performance.now() - orgEffectStartTime;
   }, [organizationId, isReady, isInitializing]);
 
   // شاشة الخطأ

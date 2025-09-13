@@ -379,7 +379,7 @@ export class POSOrdersService {
         //   .eq('transaction_type', 'sale');
         
         // subscriptionData = subscriptionTransactions || [];
-        // console.log('🔍 Debug - Subscription transactions:', subscriptionData);
+        // 
       }
 
       // إضافة debugging للتحقق من البيانات

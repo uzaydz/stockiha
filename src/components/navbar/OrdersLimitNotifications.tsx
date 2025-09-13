@@ -144,69 +144,6 @@ const OrdersLimitNotifications: React.FC<OrdersLimitNotificationsProps> = ({
 
   return (
     <div className={cn("w-full max-w-4xl mx-auto", className)}>
-      {console.log('✅ OrdersLimitNotifications: عرض التنبيه', { alertType, alertConfig })}
-      <Alert variant={alertConfig.variant} className="relative">
-        <div className="flex items-start gap-3">
-          <div className="flex-shrink-0 mt-0.5">
-            {alertConfig.icon}
-          </div>
-
-          <div className="flex-1 min-w-0">
-            <h4 className="font-medium text-sm mb-1">
-              {alertConfig.title}
-            </h4>
-            <AlertDescription className="text-sm">
-              {alertConfig.message}
-            </AlertDescription>
-          </div>
-
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={alertConfig.action}
-              className="h-7 text-xs"
-            >
-              {alertConfig.actionText}
-            </Button>
-
-            {alertConfig.autoHide && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={handleDismiss}
-                className="h-7 w-7 p-0 hover:bg-muted/80"
-              >
-                <X className="h-3 w-3" />
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* شريط التقدم للتنبيهات غير الحرجة */}
-        {alertType !== 'blocked' && alertType !== 'critical' && limitInfo.maxOrders && (
-          <div className="mt-3">
-            <div className="w-full bg-muted rounded-full h-1.5">
-              <div
-                className={cn(
-                  "h-1.5 rounded-full transition-all duration-300",
-                  limitInfo.isBlocked ? 'bg-red-600' :
-                  limitInfo.remainingOrders && limitInfo.remainingOrders <= 10 ? 'bg-orange-600' :
-                  'bg-blue-600'
-                )}
-                style={{
-                  width: `${Math.min((limitInfo.currentOrders / limitInfo.maxOrders) * 100, 100)}%`
-                }}
-              />
-            </div>
-            <div className="text-xs text-muted-foreground mt-1 text-center">
-              {limitInfo.currentOrders} من {limitInfo.maxOrders} طلبية مستخدمة
-            </div>
-          </div>
-        )}
-      </Alert>
-    </div>
-  );
 };
 
 export default OrdersLimitNotifications;

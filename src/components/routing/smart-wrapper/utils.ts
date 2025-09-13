@@ -103,8 +103,14 @@ export const extractDomainInfo = (): DomainInfo => {
     // نطاق المنصة - لا subdomain
     subdomain = null;
   } else {
-    // التحقق من subdomain أو custom domain
-    if (hostname.includes('stockiha.com') || hostname.includes('ktobi.online')) {
+    // فحص النطاقات العامة أولاً
+    const publicDomains = ['stockiha.pages.dev', 'ktobi.online', 'www.ktobi.online', 'stockiha.com', 'www.stockiha.com'];
+    if (publicDomains.includes(hostname)) {
+      // نطاق عام - لا subdomain ولا custom domain
+      subdomain = null;
+      customDomain = null;
+    } else if (hostname.includes('stockiha.com') || hostname.includes('ktobi.online')) {
+      // التحقق من subdomain
       const parts = hostname.split('.');
       if (parts.length > 2 && parts[0] !== 'www') {
         subdomain = parts[0];
@@ -169,6 +175,10 @@ export const determinePageType = (pathname: string): PageType => {
  * 🌐 تحديد نوع الصفحة لنطاقات المنصة
  */
 const determinePageTypeForPlatformDomain = (pathname: string): PageType => {
+  // Special-case: store editor routes should be minimal
+  if (pathname.startsWith('/dashboard/store-editor')) {
+    return 'store-editor';
+  }
   if (pathname === '/') return 'landing';
   
   // استخدام Map للأداء الأفضل
@@ -190,7 +200,8 @@ const determinePageTypeForPlatformDomain = (pathname: string): PageType => {
   }
   
   if (PATH_PATTERNS.DASHBOARD.some(pattern => pathname.includes(pattern))) {
-    return 'dashboard';
+    // للنطاقات العامة، استخدم public-dashboard بدلاً من dashboard العادي
+    return 'public-dashboard';
   }
   
   if (PATH_PATTERNS.LANDING.some(pattern => pathname.includes(pattern))) {
@@ -242,6 +253,10 @@ const determinePageTypeForSubdomainOrCustom = (pathname: string, domainInfo: Dom
  * 🏠 تحديد نوع الصفحة لـ localhost
  */
 const determinePageTypeForLocalhost = (pathname: string): PageType => {
+  // Special-case: store editor routes should be minimal
+  if (pathname.startsWith('/dashboard/store-editor')) {
+    return 'store-editor';
+  }
   if (PATH_PATTERNS.AUTH.some(pattern => pathname.includes(pattern))) {
     return 'auth';
   }
@@ -285,7 +300,12 @@ const isProductPath = (pathname: string): boolean => {
  * 🏪 التحقق من مسارات المتجر
  */
 const isStorePath = (pathname: string): boolean => {
-  return PATH_PATTERNS.PUBLIC_STORE.some(pattern => pathname.includes(pattern));
+  return PATH_PATTERNS.PUBLIC_STORE.some(pattern => {
+    if (pattern === '/products') {
+      return pathname === '/products' || pathname.startsWith('/products/');
+    }
+    return pathname.includes(pattern);
+  });
 };
 
 /**

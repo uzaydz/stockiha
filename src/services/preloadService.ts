@@ -124,7 +124,7 @@ class PreloadService {
     if (earlyData) {
       const cacheKey = `preload-${storeIdentifier}`;
       this.preloadedData.set(cacheKey, earlyData);
-      console.log(`🔄 [preloadService] تم مزامنة البيانات من earlyPreload: ${storeIdentifier}`);
+      
     }
   }
 

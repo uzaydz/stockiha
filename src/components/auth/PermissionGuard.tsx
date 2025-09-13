@@ -11,6 +11,7 @@ import {
   AlertDialogTitle 
 } from '@/components/ui/alert-dialog';
 import { checkUserPermissionsLocal } from '@/lib/utils/permissions-utils';
+import { usePermissions } from '@/hooks/usePermissions';
 
 interface PermissionGuardProps {
   requiredPermissions: string[];
@@ -70,18 +71,31 @@ const PermissionGuard = ({
   fallbackPath = '/dashboard' 
 }: PermissionGuardProps) => {
   const { user, userProfile } = useAuth();
+  const perms = usePermissions();
   const location = useLocation();
   const [showPermissionAlert, setShowPermissionAlert] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   
   useEffect(() => {
-    
     if (!user) {
       setHasPermission(false);
       setIsChecking(false);
       return;
     }
+
+    // استخدام مزود الصلاحيات الموحد إن كان جاهزاً
+    const checkWithProvider = (perm: string) => {
+      // إذا لم يكن PermissionsProvider متوفراً، إرجاع undefined للانتقال للفحص المحلي
+      if (!perms || !perms.ready || !perms.data) return undefined;
+      
+      // دعم بدائل الأدوار
+      if (perm === 'org_admin') return perms.isOrgAdmin;
+      if (perm === 'super_admin') return perms.isSuperAdmin;
+      if (perm === 'admin') return perms.role === 'admin';
+      if (perm === 'owner') return perms.role === 'owner';
+      return perms.has(perm);
+    };
 
     // فحص الصلاحيات المطلوبة مع الصلاحيات البديلة
     const hasRequiredPermission = requiredPermissions.some(requiredPermission => {
@@ -90,25 +104,34 @@ const PermissionGuard = ({
 
       // فحص كل صلاحية بديلة
       const hasAnyPermission = alternativePermissions.some(permission => {
-        // فحص الأدوار الإدارية أولاً
-        if (['admin', 'owner', 'org_admin', 'super_admin'].includes(permission)) {
-          const isAdmin = 
-            user.user_metadata?.role === 'admin' ||
-            user.user_metadata?.role === 'owner' ||
-            user.user_metadata?.is_org_admin === true ||
-            user.user_metadata?.is_super_admin === true;
+        // جرّب مزود الصلاحيات أولاً
+        const providerResult = checkWithProvider(permission);
+        
+        // إذا كان مزود الصلاحيات متوفر وله نتيجة، استخدمها
+        if (providerResult !== undefined) {
           
-          return isAdmin;
+          return providerResult;
         }
         
-        // فحص الصلاحية المحددة
-        const hasSpecificPermission = checkUserPermissionsLocal(user, permission as any, userProfile);
-        
-        // إضافة فحص إضافي للصلاحيات
-        if (permission === 'accessPOS') {
+        // فحص الأدوار الإدارية محلياً كحل احتياطي
+        if (['admin', 'owner', 'org_admin', 'super_admin'].includes(permission)) {
+          const isAdmin =
+            user?.user_metadata?.role === 'admin' ||
+            user?.user_metadata?.role === 'owner' ||
+            user?.user_metadata?.is_org_admin === true ||
+            user?.user_metadata?.is_super_admin === true ||
+            userProfile?.role === 'admin' ||
+            userProfile?.role === 'owner' ||
+            userProfile?.role === 'org_admin' ||
+            userProfile?.role === 'super_admin';
+          
+          return !!isAdmin;
         }
         
-        return hasSpecificPermission;
+        // فحص محلي كحل احتياطي - يجب أن يحدث لجميع الصلاحيات
+        const localResult = checkUserPermissionsLocal(user, permission as any, userProfile);
+        
+        return localResult;
       });
       
       return hasAnyPermission;
@@ -120,7 +143,7 @@ const PermissionGuard = ({
     if (!hasRequiredPermission) {
       setShowPermissionAlert(true);
     }
-  }, [user, userProfile, requiredPermissions, location.pathname]);
+  }, [user, userProfile, requiredPermissions, location.pathname, perms.ready, perms.role, perms.isOrgAdmin, perms.isSuperAdmin]);
 
   const handleDialogClose = () => {
     setShowPermissionAlert(false);

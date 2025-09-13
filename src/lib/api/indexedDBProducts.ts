@@ -3,7 +3,7 @@ import { db } from "@/lib/db/indexedDB";
 import { toast } from "sonner";
 import { fetchWithAuth } from "@/lib/api/fetchWithAuth";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000/api";
 
 // تعريف واجهة المنتج المحلي مع إضافة خصائص إضافية للتزامن
 interface LocalProduct extends Product {

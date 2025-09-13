@@ -23,7 +23,11 @@ export const useDeliveryCalculation = ({
   // حساب رسوم التوصيل مع debouncing محسن
   useEffect(() => {
     const calculateDelivery = async () => {
-      if (!organizationId || !formData.province || !formData.municipality) {
+      // دعم أسماء حقول متعددة للولاية والبلدية
+      const provinceValue = (formData as any).province || (formData as any).wilaya || (formData as any).wilaya_id || (formData as any).state;
+      const municipalityValue = (formData as any).municipality || (formData as any).commune || (formData as any).commune_id || (formData as any).city_id || (formData as any).city;
+
+      if (!organizationId || !provinceValue || !municipalityValue) {
         setDeliveryCalculation(null);
         return;
       }
@@ -31,11 +35,17 @@ export const useDeliveryCalculation = ({
       setIsCalculatingDelivery(true);
       
       try {
-        const deliveryType: 'desk' | 'home' = (
-          formData.delivery_type === 'desk' || 
-          formData.shipping_type === 'desk' ||
-          formData.fixedDeliveryType === 'desk'
-        ) ? 'desk' : 'home';
+        // قراءة نوع التوصيل من عدة حقول وقيم متنوعة
+        const rawType = (formData as any).delivery_type 
+          || (formData as any).delivery 
+          || (formData as any).delivery_method 
+          || (formData as any).shipping_type 
+          || (formData as any).fixedDeliveryType 
+          || (formData as any)['توصيل'];
+
+        const norm = String(rawType || '').toLowerCase();
+        const isDesk = norm.includes('desk') || norm.includes('office') || norm.includes('pickup');
+        const deliveryType: 'desk' | 'home' = isDesk ? 'desk' : 'home';
 
         const weight = 1; 
         const productPrice = product?.pricing?.price || 0;
@@ -51,7 +61,11 @@ export const useDeliveryCalculation = ({
           type: 'yalidine'
         };
 
+        // 🐛 Debug: طباعة معلومات الشحن
+
         if (product?.shipping_and_templates?.shipping_info) {
+          
+          
           if (product.shipping_and_templates.shipping_info.type === 'provider' && product.shipping_and_templates.shipping_info.code) {
             shippingProvider = {
               code: product.shipping_and_templates.shipping_info.code,
@@ -96,8 +110,8 @@ export const useDeliveryCalculation = ({
 
         const deliveryInput = {
           organizationId,
-          selectedProvinceId: formData.province,
-          selectedMunicipalityId: formData.municipality,
+          selectedProvinceId: provinceValue,
+          selectedMunicipalityId: municipalityValue,
           deliveryType,
           weight,
           productPrice,
@@ -105,6 +119,8 @@ export const useDeliveryCalculation = ({
           shippingProvider,
           productShippingInfo: product?.shipping_and_templates?.shipping_info || undefined
         };
+
+        // 🐛 Debug: طباعة معاملات حساب التوصيل
 
         const result = await calculateDeliveryFeesOptimized(deliveryInput);
         

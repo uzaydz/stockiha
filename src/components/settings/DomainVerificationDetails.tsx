@@ -242,7 +242,12 @@ const DomainVerificationDetails: React.FC<DomainVerificationDetailsProps> = ({
                   <tr className="border-b border-blue-100 dark:border-blue-800/50">
                     <td className="py-2 px-3 font-medium">A</td>
                     <td className="py-2 px-3">@</td>
-                    <td className="py-2 px-3 font-mono bg-blue-100 dark:bg-blue-900/20 rounded px-2">76.76.21.21</td>
+                    <td className="py-2 px-3 font-mono bg-blue-100 dark:bg-blue-900/20 rounded px-2">76.76.19.142</td>
+                  </tr>
+                  <tr>
+                    <td className="py-2 px-3 font-medium">A</td>
+                    <td className="py-2 px-3">@</td>
+                    <td className="py-2 px-3 font-mono bg-blue-100 dark:bg-blue-900/20 rounded px-2">76.223.126.88</td>
                   </tr>
                   <tr>
                     <td className="py-2 px-3 font-medium">CNAME</td>

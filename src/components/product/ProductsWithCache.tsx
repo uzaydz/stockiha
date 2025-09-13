@@ -17,6 +17,9 @@ interface FilterState {
   categoryFilter: string | null;
   stockFilter: string;
   sortOption: string;
+  // فلاتر الفئات المتقدمة
+  selectedCategories: string[];
+  selectedSubcategories: string[];
 }
 
 const ProductsWithCache: React.FC = () => {
@@ -46,7 +49,10 @@ const ProductsWithCache: React.FC = () => {
     searchQuery: '',
     categoryFilter: null,
     stockFilter: 'all',
-    sortOption: 'name-asc'
+    sortOption: 'name-asc',
+    // فلاتر الفئات المتقدمة
+    selectedCategories: [],
+    selectedSubcategories: []
   });
 
   // حالة الصفحة
@@ -75,6 +81,9 @@ const ProductsWithCache: React.FC = () => {
     categoryFilter: filters.categoryFilter || '',
     stockFilter: filters.stockFilter,
     sortOption: filters.sortOption,
+    // فلاتر الفئات المتقدمة
+    selectedCategories: filters.selectedCategories,
+    selectedSubcategories: filters.selectedSubcategories,
     page: currentPage,
     limit: pageSize,
     autoLoad: true
@@ -102,6 +111,28 @@ const ProductsWithCache: React.FC = () => {
   // معالجة تغيير الصفحة
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
+  };
+
+  // معالجة تغيير الفئات المختارة
+  const handleCategoriesChange = (categories: string[]) => {
+    setFilters(prev => ({ ...prev, selectedCategories: categories }));
+    setCurrentPage(1);
+  };
+
+  // معالجة تغيير الفئات الفرعية المختارة
+  const handleSubcategoriesChange = (subcategories: string[]) => {
+    setFilters(prev => ({ ...prev, selectedSubcategories: subcategories }));
+    setCurrentPage(1);
+  };
+
+  // معالجة مسح فلاتر الفئات
+  const handleClearCategoryFilters = () => {
+    setFilters(prev => ({
+      ...prev,
+      selectedCategories: [],
+      selectedSubcategories: []
+    }));
+    setCurrentPage(1);
   };
 
   // معالجة تحديث الـ cache
@@ -166,6 +197,13 @@ const ProductsWithCache: React.FC = () => {
         productsCount={totalCount}
         isLoading={isLoading}
         showBarcodeSearch={true}
+        // فلتر الفئات المتقدم
+        selectedCategories={filters.selectedCategories}
+        selectedSubcategories={filters.selectedSubcategories}
+        onCategoriesChange={handleCategoriesChange}
+        onSubcategoriesChange={handleSubcategoriesChange}
+        onClearCategoryFilters={handleClearCategoryFilters}
+        showAdvancedFilter={true}
       />
 
       {/* قائمة المنتجات */}

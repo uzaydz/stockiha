@@ -17,7 +17,7 @@
   font-family: 'TajawalForced';
   font-style: normal;
   font-weight: 400;
-  font-display: block; /* تغيير من swap إلى block لضمان التحميل */
+  font-display: swap; /* تغيير إلى swap لتجنب حجب النص وتحسين LCP/CLS */
   src: url('/fonts/tajawal-regular.woff2') format('woff2'),
        url('./fonts/tajawal-regular.woff2') format('woff2'),
        url('../public/fonts/tajawal-regular.woff2') format('woff2');
@@ -27,7 +27,7 @@
   font-family: 'TajawalForced';
   font-style: normal;
   font-weight: 500;
-  font-display: block;
+  font-display: swap;
   src: url('/fonts/tajawal-medium.woff2') format('woff2'),
        url('./fonts/tajawal-medium.woff2') format('woff2'),
        url('../public/fonts/tajawal-medium.woff2') format('woff2');
@@ -37,7 +37,7 @@
   font-family: 'TajawalForced';
   font-style: normal;
   font-weight: 700;
-  font-display: block;
+  font-display: swap;
   src: url('/fonts/tajawal-bold.woff2') format('woff2'),
        url('./fonts/tajawal-bold.woff2') format('woff2'),
        url('../public/fonts/tajawal-bold.woff2') format('woff2');
@@ -47,7 +47,7 @@
   font-family: 'Tajawal';
   font-style: normal;
   font-weight: 400;
-  font-display: block;
+  font-display: swap;
   src: url('/fonts/tajawal-regular.woff2') format('woff2'),
        url('./fonts/tajawal-regular.woff2') format('woff2'),
        url('../public/fonts/tajawal-regular.woff2') format('woff2');
@@ -57,7 +57,7 @@
   font-family: 'Tajawal';
   font-style: normal;
   font-weight: 500;
-  font-display: block;
+  font-display: swap;
   src: url('/fonts/tajawal-medium.woff2') format('woff2'),
        url('./fonts/tajawal-medium.woff2') format('woff2'),
        url('../public/fonts/tajawal-medium.woff2') format('woff2');
@@ -67,7 +67,7 @@
   font-family: 'Tajawal';
   font-style: normal;
   font-weight: 700;
-  font-display: block;
+  font-display: swap;
   src: url('/fonts/tajawal-bold.woff2') format('woff2'),
        url('./fonts/tajawal-bold.woff2') format('woff2'),
        url('../public/fonts/tajawal-bold.woff2') format('woff2');

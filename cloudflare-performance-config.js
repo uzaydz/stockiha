@@ -216,8 +216,7 @@ async function applyPerformanceSettings() {
 }
 
 // تصدير الدالة للاستخدام
-if (require.main === module) {
-  applyPerformanceSettings();
-}
+export { performanceSettings, applyPerformanceSettings };
 
-module.exports = { performanceSettings, applyPerformanceSettings };
+// تشغيل الدالة إذا تم استدعاء الملف مباشرة
+applyPerformanceSettings();

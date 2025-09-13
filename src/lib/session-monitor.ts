@@ -3,7 +3,7 @@
  * يضمن وجود مراقب واحد فقط للجلسة في كامل التطبيق
  */
 
-import { Session } from '@supabase/supabase-js';
+import type { Session } from '@supabase/supabase-js';
 import { supabase } from './supabase-unified';
 
 // 🔒 نمط Singleton لضمان وجود مراقب واحد فقط

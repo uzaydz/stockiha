@@ -1,11 +1,26 @@
-// 🔍 تتبع بداية التطبيق
 const MAIN_START_TIME = performance.now();
+console.log('🎯 [MAIN.TSX] بدء تشغيل التطبيق', {
+  timestamp: new Date().toISOString(),
+  startTime: MAIN_START_TIME,
+  url: window.location.href,
+  userAgent: navigator.userAgent.substring(0, 50) + '...'
+});
+
+// 🎨 تهيئة معالج أخطاء CSS — سيتم تأجيله لتقليل JS المبدئي
+// import './utils/cssErrorHandler';
+
+// font debugger removed after resolving the issue
 
 // ✅ تم تحديث النظام لتحميل جميع صور الألوان دائماً
 
-// ⚡ تحسين: استخدام Promise.all لتحميل متوازي
+// ⚡ تحسين: تحميل فوري ومتزامن للبيانات الأولية
 const startEarlyPreloads = async () => {
+  const preloadStartTime = performance.now();
   try {
+    console.log('🚀 [MAIN.TSX] بدء تحميل البيانات الأولية للمتجر', {
+      timing: preloadStartTime - MAIN_START_TIME
+    });
+    
     const [earlyPreloadResult, productPreloadResult] = await Promise.allSettled([
       import('./utils/earlyPreload').then(m => m.startEarlyPreload()),
       // تخطي product page preload هنا لأنه يحتاج إلى معاملات محددة
@@ -13,20 +28,191 @@ const startEarlyPreloads = async () => {
     ]);
 
     if (earlyPreloadResult.status === 'fulfilled' && earlyPreloadResult.value.success) {
+      const preloadEndTime = performance.now();
+      console.log('✅ [MAIN.TSX] تم تحميل البيانات الأولية بنجاح', {
+        timing: preloadEndTime - preloadStartTime,
+        totalTime: preloadEndTime - MAIN_START_TIME,
+        dataSize: JSON.stringify(earlyPreloadResult.value.data || {}).length
+      });
+      
+      // إرسال حدث لإعلام المكونات أن البيانات جاهزة
+      window.dispatchEvent(new CustomEvent('storeInitDataReady', {
+        detail: {
+          data: earlyPreloadResult.value.data,
+          timestamp: Date.now(),
+          loadTime: preloadEndTime - preloadStartTime
+        }
+      }));
+
+      // حفظ البيانات في window object للوصول السريع
+      (window as any).__EARLY_STORE_DATA__ = {
+        data: earlyPreloadResult.value.data,
+        timestamp: Date.now()
+      };
+      
+      // 🚀 تطبيق فوري للألوان والإعدادات
+      const data = earlyPreloadResult.value.data;
+      console.log('🎨 [main.tsx] فحص البيانات للألوان:', {
+        hasData: !!data,
+        hasOrgSettings: !!data?.organization_settings,
+        settingsKeys: data?.organization_settings ? Object.keys(data.organization_settings) : [],
+        primaryColor: data?.organization_settings?.theme_primary_color,
+        secondaryColor: data?.organization_settings?.theme_secondary_color,
+        accentColor: data?.organization_settings?.accent_color,
+        // إضافة معلومات إضافية للفهم
+        rawSettings: data?.organization_settings
+      });
+      
+      if (data?.organization_settings) {
+        const settings = data.organization_settings;
+        
+        // تطبيق الألوان فوراً - استخدام الأسماء الصحيحة من قاعدة البيانات
+        if (settings.theme_primary_color) {
+          console.log('🎯 [main.tsx] تطبيق فوري للون الأساسي:', settings.theme_primary_color);
+          document.documentElement.style.setProperty('--primary-color', settings.theme_primary_color);
+          document.documentElement.style.setProperty('--primary', settings.theme_primary_color);
+          document.documentElement.style.setProperty('--color-primary', settings.theme_primary_color);
+          document.documentElement.style.setProperty('--tw-color-primary', settings.theme_primary_color);
+        } else {
+          console.log('⚠️ [main.tsx] لا يوجد لون أساسي في البيانات');
+        }
+        
+        if (settings.theme_secondary_color) {
+          console.log('🎯 [main.tsx] تطبيق فوري للون الثانوي:', settings.theme_secondary_color);
+          document.documentElement.style.setProperty('--secondary-color', settings.theme_secondary_color);
+          document.documentElement.style.setProperty('--secondary', settings.theme_secondary_color);
+        } else {
+          console.log('⚠️ [main.tsx] لا يوجد لون ثانوي في البيانات');
+        }
+        
+        if (settings.accent_color) {
+          console.log('🎯 [main.tsx] تطبيق فوري للون التمييز:', settings.accent_color);
+          document.documentElement.style.setProperty('--accent-color', settings.accent_color);
+          document.documentElement.style.setProperty('--accent', settings.accent_color);
+        } else {
+          console.log('⚠️ [main.tsx] لا يوجد لون تمييز في البيانات');
+        }
+        
+        // تطبيق اتجاه النص حسب اللغة
+        const language = settings.default_language || 'en';
+        if (language === 'ar') {
+          document.documentElement.dir = 'rtl';
+          document.documentElement.lang = 'ar';
+        } else {
+          document.documentElement.dir = 'ltr';
+          document.documentElement.lang = language;
+        }
+        
+        console.log('🌐 [main.tsx] تطبيق اللغة والاتجاه:', {
+          language,
+          direction: language === 'ar' ? 'rtl' : 'ltr'
+        });
+      }
     } else {
+      const failTime = performance.now();
+      console.error('❌ [MAIN.TSX] فشل في تحميل البيانات الأولية', {
+        timing: failTime - preloadStartTime,
+        totalTime: failTime - MAIN_START_TIME,
+        error: earlyPreloadResult.status === 'rejected' ? earlyPreloadResult.reason : 'غير محدد'
+      });
     }
 
     if (productPreloadResult.status === 'fulfilled') {
+      console.log('✅ [main.tsx] منتج preload مكتمل');
     }
   } catch (error) {
+    const errorTime = performance.now();
+    console.error('❌ [MAIN.TSX] خطأ في تحميل البيانات', {
+      error: error instanceof Error ? error.message : String(error),
+      timing: errorTime - preloadStartTime,
+      totalTime: errorTime - MAIN_START_TIME,
+      stack: error instanceof Error ? error.stack?.substring(0, 200) : undefined
+    });
   }
 };
 
-// 🚀 بدء preloads بشكل متوازي
-startEarlyPreloads();
+// 🚀 بدء preloads: تأجيل إلى الخمول لتقليل زمن حظر الإقلاع وعدد الطلبات المبكرة
+try {
+  const scheduleEarlyPreload = () => startEarlyPreloads();
+  if (typeof (window as any).requestIdleCallback === 'function') {
+    (window as any).requestIdleCallback(scheduleEarlyPreload, { timeout: 1200 });
+  } else {
+    setTimeout(scheduleEarlyPreload, 800);
+  }
+} catch {
+  setTimeout(() => startEarlyPreloads(), 800);
+}
 
-// 🚀 بدء preload صفحة المنتج إذا كان المستخدم في صفحة منتج
-import { startProductPagePreload } from './utils/productPagePreloader';
+// 🎯 تطبيق فافيكون مبكراً اعتماداً على بيانات preload/الإعدادات المحلية لتفادي الأيقونة الافتراضية
+(function applyEarlyFavicon() {
+  try {
+    const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+    const parts = hostname.split('.');
+    const isLocalhost = hostname.includes('localhost') || hostname.startsWith('127.');
+    const platformDomains = ['.ktobi.online', '.stockiha.com', '.bazaar.dev', '.vercel.app', '.bazaar.com'];
+    const isPlatform = platformDomains.some(d => hostname.endsWith(d));
+    const hasSubdomain = !isLocalhost && isPlatform && parts.length > 2 && parts[0] !== 'www';
+    const isCustomDomain = !isLocalhost && !isPlatform;
+
+    // استخراج معرف المؤسسة أولاً
+    let orgId: string | null = localStorage.getItem('bazaar_organization_id');
+    let iconUrl: string | null = null;
+
+    if (orgId) {
+      try {
+        const settingsRaw = localStorage.getItem(`bazaar_org_settings_${orgId}`);
+        if (settingsRaw) {
+          const settings = JSON.parse(settingsRaw);
+          iconUrl = settings?.favicon_url || settings?.logo_url || null;
+        }
+      } catch {}
+    }
+
+    // إذا لم نجد، جرّب بيانات early preload وفق المعرّف المتاح
+    if (!iconUrl) {
+      let storeIdentifier: string | null = null;
+      if (isLocalhost && parts.length > 1 && parts[0] !== 'localhost' && parts[0] !== '127') {
+        storeIdentifier = parts[0];
+      } else if (hasSubdomain) {
+        storeIdentifier = parts[0];
+      } else if (isCustomDomain) {
+        storeIdentifier = hostname.startsWith('www.') ? hostname.substring(4) : hostname;
+      }
+
+      if (storeIdentifier) {
+        try {
+          const earlyRaw = localStorage.getItem(`early_preload_${storeIdentifier}`);
+          if (earlyRaw) {
+            const early = JSON.parse(earlyRaw);
+            const data = early?.data;
+            iconUrl = data?.organization_settings?.favicon_url || data?.organization_settings?.logo_url || null;
+          }
+        } catch {}
+      }
+    }
+
+    if (iconUrl) {
+      // إزالة أيقونات حالية مضافة في index.html
+      document.querySelectorAll('link[rel*="icon"]').forEach((el) => el.parentElement?.removeChild(el));
+
+      const withBust = `${iconUrl}?v=${Date.now()}`;
+
+      const linkIcon = document.createElement('link');
+      linkIcon.rel = 'icon';
+      linkIcon.type = 'image/png';
+      linkIcon.href = withBust;
+      document.head.appendChild(linkIcon);
+
+      const linkApple = document.createElement('link');
+      linkApple.rel = 'apple-touch-icon';
+      linkApple.href = withBust;
+      document.head.appendChild(linkApple);
+    }
+  } catch {}
+})();
+
+// 🚀 بدء preload صفحة المنتج إذا كان المستخدم في صفحة منتج (سيتم الاستيراد ديناميكياً)
+// import { startProductPagePreload } from './utils/productPagePreloader';
 
 // دالة كشف ما إذا كان المستخدم في صفحة منتج
 const isProductPage = (): boolean => {
@@ -50,6 +236,15 @@ const extractProductIdFromPath = (): string | null => {
 // دالة استخراج معرف المؤسسة من النطاق
 const extractOrganizationIdFromDomain = async (): Promise<string | null> => {
   try {
+    // محاولة فورية من window object
+    try {
+      const win: any = window as any;
+      const early = win.__EARLY_STORE_DATA__?.data || win.__EARLY_STORE_DATA__;
+      const shared = win.__SHARED_STORE_DATA__;
+      const fromWin = early?.organization_details?.id || early?.organization?.id || shared?.organization?.id;
+      if (fromWin) return String(fromWin);
+    } catch {}
+
     const hostname = window.location.hostname;
     const baseDomains = ['.ktobi.online', '.stockiha.com', '.bazaar.dev', '.vercel.app', '.bazaar.com'];
     const isBaseDomain = baseDomains.some((d) => hostname.endsWith(d));
@@ -110,388 +305,13 @@ const extractOrganizationIdFromDomain = async (): Promise<string | null> => {
   }
 };
 
-// بدء preload صفحة المنتج إذا كان المستخدم في صفحة منتج
+// خيار A: تعطيل preload الخاص بالمنتج على صفحة المنتج لتوحيد الطلبات ومنع التكرار
+const ENABLE_PRODUCT_PRELOADER = false;
+
+// بدء preload صفحة المنتج (معطل افتراضياً)
 const startProductPagePreloadIfNeeded = async () => {
-  if (!isProductPage()) {
-    return;
-  }
-
-  const productId = extractProductIdFromPath();
-  if (!productId) {
-    return;
-  }
-
-  // بدء preload مباشرة بمجرد الحصول على معرف المؤسسة من localStorage
-  const hostname = window.location.hostname;
-  let organizationId: string | null = null;
-
-  // تحديد نوع النطاق
-  const baseDomains = ['.ktobi.online', '.stockiha.com', '.bazaar.dev', '.vercel.app', '.bazaar.com'];
-  const isBaseDomain = baseDomains.some((d) => hostname.endsWith(d));
-  const isLocalhost = hostname.includes('localhost') || hostname.startsWith('127.');
-  const isCustomDomain = !isLocalhost && !isBaseDomain;
-
-  if (isLocalhost && hostname.includes('localhost')) {
-    const subdomain = hostname.split('.')[0];
-    if (subdomain && subdomain !== 'localhost') {
-      // محاولة البحث في عدة أماكن في localStorage
-      const subdomainKeys = [
-        `early_preload_${subdomain}`,
-        `organization_data_${subdomain}`,
-        `org_${subdomain}`,
-        `store_init_data_${subdomain}`,
-        `bazaar_organization_${subdomain}`,
-        `organization_${subdomain}`,
-        `org_data_${subdomain}`
-      ];
-
-      const generalKeys = [
-        `bazaar_organization_id`, // المفتاح الرئيسي المستخدم في النظام
-        `organization_id`,
-        `current_org_id`,
-        `current_organization`
-      ];
-
-      const possibleKeys = [...subdomainKeys, ...generalKeys];
-
-      for (const key of possibleKeys) {
-        const cachedData = localStorage.getItem(key);
-        if (cachedData) {
-          try {
-            let foundOrgId = null;
-
-            // معالجة خاصة لمفاتيح تحتوي على string مباشرة
-            if (key === 'bazaar_organization_id' && typeof cachedData === 'string' && cachedData.length > 10) {
-              // هذا المفتاح يحتوي على معرف المؤسسة مباشرة
-              foundOrgId = cachedData;
-            } else {
-              // محاولة تحليل JSON للمفاتيح الأخرى
-              const parsed = JSON.parse(cachedData);
-
-              // البحث عن معرف المؤسسة في أماكن مختلفة
-              if (parsed.data?.organization?.id) {
-                foundOrgId = parsed.data.organization.id;
-              } else if (parsed.organization_id) {
-                foundOrgId = parsed.organization_id;
-              } else if (parsed.organization?.id) {
-                foundOrgId = parsed.organization.id;
-              } else if (parsed.id) {
-                foundOrgId = parsed.id;
-              } else if (typeof parsed === 'string' && parsed.length > 10) {
-                // إذا كان المفتاح يحتوي على معرف المؤسسة مباشرة
-                foundOrgId = parsed;
-              }
-            }
-
-            // البحث في المفاتيح العامة إذا لم نجد في subdomain
-            if (!organizationId && key === possibleKeys[possibleKeys.length - 1]) {
-              // البحث في جميع المفاتيح العامة
-              for (const generalKey of generalKeys) {
-                const generalData = localStorage.getItem(generalKey);
-                if (generalData) {
-                  try {
-                    if (generalKey === 'bazaar_organization_id') {
-                      // هذا المفتاح يحتوي على المعرف مباشرة
-                      organizationId = generalData;
-                      break;
-                    } else {
-                      const generalParsed = JSON.parse(generalData);
-                      if (generalParsed.organization_id) {
-                        organizationId = generalParsed.organization_id;
-                        break;
-                      } else if (generalParsed.id) {
-                        organizationId = generalParsed.id;
-                        break;
-                      }
-                    }
-                  } catch (e) {
-                    // console.warn(`⚠️ خطأ في قراءة المفتاح العام ${generalKey}:`, e);
-                  }
-                }
-              }
-            }
-
-            if (foundOrgId) {
-              organizationId = foundOrgId;
-              break;
-            }
-          } catch (e) {
-          }
-        }
-      }
-
-      // إذا لم نجد في localStorage، نبحث في sessionStorage أيضاً
-      if (!organizationId) {
-        for (const key of possibleKeys) {
-          const sessionData = sessionStorage.getItem(key);
-          if (sessionData) {
-            try {
-              const parsed = JSON.parse(sessionData);
-              let foundOrgId = null;
-
-              if (parsed.data?.organization?.id) {
-                foundOrgId = parsed.data.organization.id;
-              } else if (parsed.organization_id) {
-                foundOrgId = parsed.organization_id;
-              } else if (parsed.organization?.id) {
-                foundOrgId = parsed.organization.id;
-              } else if (parsed.id) {
-                foundOrgId = parsed.id;
-              }
-
-              if (foundOrgId) {
-                organizationId = foundOrgId;
-                break;
-              }
-            } catch (e) {
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // البحث في النطاقات المخصصة
-  if (!organizationId && isCustomDomain) {
-    const domainParts = hostname.split('.');
-    if (domainParts.length > 2 && domainParts[0] && domainParts[0] !== 'www') {
-      const possibleSubdomain = domainParts[0].toLowerCase().trim();
-
-      // محاولة البحث في عدة أماكن في localStorage للنطاق المخصص
-      const customDomainKeys = [
-        `early_preload_${possibleSubdomain}`,
-        `organization_data_${possibleSubdomain}`,
-        `org_${possibleSubdomain}`,
-        `store_init_data_${possibleSubdomain}`,
-        `bazaar_organization_${possibleSubdomain}`,
-        `organization_${possibleSubdomain}`,
-        `org_data_${possibleSubdomain}`,
-        // البحث بالنطاق كاملاً أيضاً
-        `early_preload_${hostname}`,
-        `organization_data_${hostname}`,
-        `org_${hostname}`,
-        `store_init_data_${hostname}`,
-        `bazaar_organization_${hostname}`,
-        `organization_${hostname}`,
-        `org_data_${hostname}`
-      ];
-
-      for (const key of customDomainKeys) {
-        const cachedData = localStorage.getItem(key);
-        if (cachedData) {
-          try {
-            let foundOrgId = null;
-
-            // معالجة خاصة لمفاتيح تحتوي على string مباشرة
-            if (key === 'bazaar_organization_id' && typeof cachedData === 'string' && cachedData.length > 10) {
-              foundOrgId = cachedData;
-            } else {
-              // محاولة تحليل JSON للمفاتيح الأخرى
-              const parsed = JSON.parse(cachedData);
-
-              // البحث عن معرف المؤسسة في أماكن مختلفة
-              if (parsed.data?.organization?.id) {
-                foundOrgId = parsed.data.organization.id;
-              } else if (parsed.organization_id) {
-                foundOrgId = parsed.organization_id;
-              } else if (parsed.organization?.id) {
-                foundOrgId = parsed.organization.id;
-              } else if (parsed.id) {
-                foundOrgId = parsed.id;
-              } else if (typeof parsed === 'string' && parsed.length > 10) {
-                foundOrgId = parsed;
-              }
-            }
-
-            if (foundOrgId) {
-              organizationId = foundOrgId;
-              break;
-            }
-          } catch (e) {
-          }
-        }
-      }
-    }
-  }
-
-  // إضافة debug log لإظهار جميع المفاتيح المتاحة
-  if (process.env.NODE_ENV === 'development') {
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && (key.includes('org') || key.includes('organization') || key.includes('asray'))) {
-        const value = localStorage.getItem(key);
-      }
-    }
-  }
-
-  if (organizationId) {
-
-    startProductPagePreload({
-      productId,
-      organizationId,
-      dataScope: 'ultra',
-      forceUltraOnly: true // إجبار استخدام ultra فقط
-    }).then(result => {
-      if (result.success) {
-      } else {
-      }
-    }).catch(error => {
-    });
-  } else {
-
-    // انتظار قصير ثم محاولة مرة أخرى
-    setTimeout(async () => {
-      let foundOrgId = null;
-
-      // البحث في localhost
-      if (hostname.includes('localhost')) {
-        const subdomain = hostname.split('.')[0];
-        if (subdomain && subdomain !== 'localhost') {
-          const subdomainKeys = [
-            `early_preload_${subdomain}`,
-            `organization_data_${subdomain}`,
-            `org_${subdomain}`,
-            `store_init_data_${subdomain}`,
-            `bazaar_organization_${subdomain}`,
-            `organization_${subdomain}`,
-            `org_data_${subdomain}`
-          ];
-
-          const generalKeys = [
-            `bazaar_organization_id`,
-            `organization_id`,
-            `current_org_id`,
-            `current_organization`
-          ];
-
-          const possibleKeys = [...subdomainKeys, ...generalKeys];
-
-          for (const key of possibleKeys) {
-            const cachedData = localStorage.getItem(key);
-            if (cachedData) {
-              try {
-                // معالجة خاصة لمفاتيح تحتوي على string مباشرة
-                if (key === 'bazaar_organization_id' && typeof cachedData === 'string' && cachedData.length > 10) {
-                  foundOrgId = cachedData;
-                } else {
-                  // محاولة تحليل JSON للمفاتيح الأخرى
-                  const parsed = JSON.parse(cachedData);
-
-                  if (parsed.data?.organization?.id) {
-                    foundOrgId = parsed.data.organization.id;
-                  } else if (parsed.organization_id) {
-                    foundOrgId = parsed.organization_id;
-                  } else if (parsed.organization?.id) {
-                    foundOrgId = parsed.organization.id;
-                  } else if (parsed.id) {
-                    foundOrgId = parsed.id;
-                  } else if (typeof parsed === 'string' && parsed.length > 10) {
-                    foundOrgId = parsed;
-                  }
-                }
-
-                if (foundOrgId) {
-                  break;
-                }
-              } catch (e) {
-                // console.warn(`⚠️ خطأ في قراءة ${key}:`, e);
-              }
-            }
-          }
-        }
-      }
-
-      // البحث في النطاقات المخصصة إذا لم نجد في localhost
-      const baseDomains = ['.ktobi.online', '.stockiha.com', '.bazaar.dev', '.vercel.app', '.bazaar.com'];
-      const isBaseDomain = baseDomains.some((d) => hostname.endsWith(d));
-      const isLocalhost = hostname.includes('localhost') || hostname.startsWith('127.');
-      const isCustomDomain = !isLocalhost && !isBaseDomain;
-
-      if (!foundOrgId && isCustomDomain) {
-        const domainParts = hostname.split('.');
-        if (domainParts.length > 2 && domainParts[0] && domainParts[0] !== 'www') {
-          const possibleSubdomain = domainParts[0].toLowerCase().trim();
-
-          const customDomainKeys = [
-            `early_preload_${possibleSubdomain}`,
-            `organization_data_${possibleSubdomain}`,
-            `org_${possibleSubdomain}`,
-            `store_init_data_${possibleSubdomain}`,
-            `bazaar_organization_${possibleSubdomain}`,
-            `organization_${possibleSubdomain}`,
-            `org_data_${possibleSubdomain}`,
-            // البحث بالنطاق كاملاً أيضاً
-            `early_preload_${hostname}`,
-            `organization_data_${hostname}`,
-            `org_${hostname}`,
-            `store_init_data_${hostname}`,
-            `bazaar_organization_${hostname}`,
-            `organization_${hostname}`,
-            `org_data_${hostname}`
-          ];
-
-          for (const key of customDomainKeys) {
-            const cachedData = localStorage.getItem(key);
-            if (cachedData) {
-              try {
-                let foundOrgIdCustom = null;
-
-                // معالجة خاصة لمفاتيح تحتوي على string مباشرة
-                if (key === 'bazaar_organization_id' && typeof cachedData === 'string' && cachedData.length > 10) {
-                  foundOrgIdCustom = cachedData;
-                } else {
-                  // محاولة تحليل JSON للمفاتيح الأخرى
-                  const parsed = JSON.parse(cachedData);
-
-                  if (parsed.data?.organization?.id) {
-                    foundOrgIdCustom = parsed.data.organization.id;
-                  } else if (parsed.organization_id) {
-                    foundOrgIdCustom = parsed.organization_id;
-                  } else if (parsed.organization?.id) {
-                    foundOrgIdCustom = parsed.organization.id;
-                  } else if (parsed.id) {
-                    foundOrgIdCustom = parsed.id;
-                  } else if (typeof parsed === 'string' && parsed.length > 10) {
-                    foundOrgIdCustom = parsed;
-                  }
-                }
-
-                if (foundOrgIdCustom) {
-                  foundOrgId = foundOrgIdCustom;
-                  break;
-                }
-              } catch (e) {
-                // console.warn(`⚠️ خطأ في قراءة ${key}:`, e);
-              }
-            }
-          }
-        }
-      }
-
-      if (foundOrgId) {
-
-        startProductPagePreload({
-          productId,
-          organizationId: foundOrgId,
-          dataScope: 'ultra',
-          forceUltraOnly: true // إجبار استخدام ultra فقط
-        }).then(result => {
-          if (result.success) {
-          } else {
-          }
-        }).catch(error => {
-        });
-      } else {
-
-        // بدء early preload في الخلفية للحصول على معرف المؤسسة للمرة القادمة
-        import('./utils/earlyPreload').then(m => m.startEarlyPreload()).then(result => {
-          if (result.success && result.data?.organization?.id) {
-          }
-        }).catch(error => {
-        });
-      }
-    }, 500); // انتظار 500ms ثم المحاولة مرة أخرى
-  }
+  if (!isProductPage() || !ENABLE_PRODUCT_PRELOADER) return;
+  // في حال تم تفعيله لاحقاً: سيتم انتظار توفر organizationId عبر الأحداث قبل الجلب
 };
 
 // إضافة event listener للاستماع لحفظ بيانات المؤسسة
@@ -500,12 +320,13 @@ const handleOrganizationDataSaved = (event: any) => {
     const productId = extractProductIdFromPath();
     if (productId) {
 
-      startProductPagePreload({
+      import('./utils/productPagePreloader').then(({ startProductPagePreload }) => startProductPagePreload({
         productId,
         organizationId: event.detail.organizationId,
-        dataScope: 'ultra',
-        forceUltraOnly: true // إجبار استخدام ultra فقط
-      }).then(result => {
+        // توحيد النطاق مع hook الصفحة لمنع التكرار
+        dataScope: 'full',
+        forceUltraOnly: false
+      })).then(result => {
         if (result.success) {
         } else {
         }
@@ -516,14 +337,20 @@ const handleOrganizationDataSaved = (event: any) => {
 };
 
 // الاستماع لأحداث حفظ بيانات المؤسسة
-window.addEventListener('organizationDataSaved', handleOrganizationDataSaved);
-window.addEventListener('domain-detected', handleOrganizationDataSaved);
+if (ENABLE_PRODUCT_PRELOADER) {
+  window.addEventListener('organizationDataSaved', handleOrganizationDataSaved);
+  window.addEventListener('domain-detected', handleOrganizationDataSaved);
+}
 
 // بدء preload صفحة المنتج
 startProductPagePreloadIfNeeded();
 
-// 🌍 تهيئة i18n مبكراً لحل مشكلة useTranslation
-import './i18n/index';
+// i18n is initialized lazily via I18nSEOWrapper to keep initial JS small
+
+// 🎨 تحميل CSS المؤجل لتحسين الأداء (تم استيراده أعلى الملف بالفعل)
+// import { loadNonCriticalCSSAfterPageLoad } from './utils/loadNonCriticalCSS';
+// تأجيل تحسينات الأداء العامة لتقليل JS المبدئي
+// import './utils/performanceOptimizations';
 
 // 🚀 Core React - Essential Only
 import React from 'react';
@@ -621,6 +448,9 @@ if (import.meta.env.DEV && typeof window !== 'undefined') {
 const CSS_START_TIME = performance.now();
 import './index.css';
 import './App.css';
+import { loadNonCriticalCSSAfterPageLoad } from './utils/loadNonCriticalCSS';
+// تحميل CSS غير الحرج والخطوط بعد الإقلاع - معطل لأن CSS محمل مع HTML
+// loadNonCriticalCSSAfterPageLoad();
 const CSS_END_TIME = performance.now();
 
 // 🔤 Font Loading Optimization - CSS فقط، بدون JavaScript
@@ -635,24 +465,25 @@ document.fonts.ready.then(() => {
   document.documentElement.classList.add('font-error');
 });
 const ROUTER_START_TIME = performance.now();
-import { BrowserRouter } from 'react-router-dom';
+// Defer BrowserRouter import to reduce initial bundle
+const BrowserRouter = React.lazy(() => 
+  import('react-router-dom').then(module => ({ default: module.BrowserRouter }))
+);
 const ROUTER_END_TIME = performance.now();
 
 const APP_START_TIME = performance.now();
-import App from './App.tsx';
+// Defer App import to reduce initial JS execution
+const App = React.lazy(() => import('./App.tsx'));
 const APP_END_TIME = performance.now();
 
 // 🔧 Make React globally available if needed
 (window as any).React = React;
 
 // ⚡ Essential polyfills only
-import './lib/polyfills';
 
-// 🚫 نظام منع الطلبات المتكررة - يجب أن يحمل أولاً
-import { initializeRequestBlocker } from './lib/requestBlocker';
-
-// 📊 نظام إدارة preload لمنع التحذيرات
-import './lib/preloadManager';
+// 🚫 نظام منع الطلبات المتكررة + preload manager سيتم تأجيلهما لتقليل JS المبدئي
+// import { initializeRequestBlocker } from './lib/requestBlocker';
+// import './lib/preloadManager';
 
 // 🔧 إضافة polyfill لـ requestIdleCallback
 if (typeof window !== 'undefined' && !window.requestIdleCallback) {
@@ -727,8 +558,21 @@ const initPerformanceOptimizations = () => {
 
 initPerformanceOptimizations();
 
-// 🚫 تفعيل نظام منع الطلبات المتكررة
-initializeRequestBlocker();
+// 🚫 تفعيل نظام منع الطلبات المتكررة — مؤجل لتقليل Boot-up
+if (typeof window !== 'undefined') {
+  const enableBlocker = () => {
+    import('./lib/requestBlocker')
+      .then(({ initializeRequestBlocker }) => initializeRequestBlocker())
+      .catch(() => {});
+    // تفعيل preload manager بعد blocker
+    import('./lib/preloadManager').catch(() => {});
+  };
+  if ('requestIdleCallback' in window) {
+    (window as any).requestIdleCallback(enableBlocker, { timeout: 2000 });
+  } else {
+    setTimeout(enableBlocker, 1200);
+  }
+}
 
 // تم نقل إدارة QueryClient إلى SmartProviderWrapper باستخدام '@/lib/config/queryClient'
 
@@ -742,15 +586,17 @@ const browserRouterOptions = {
   basename: '/'
 };
 
-// تمت إزالة مزودات غير مستخدمة من ملف الإقلاع لتقليل حجم الحزمة
+// Simple loading component (kept for potential future use)
+const SimpleLoader = () => null;
 
-// 🎯 Essential Providers Only - تنظيف التكرار مع SmartProviderWrapper
+// 🎯 Essential Providers Only - optimized for performance
 const AppProviders = ({ children }: { children: React.ReactNode }) => {
   return (
-    <BrowserRouter future={browserRouterOptions.future}>
-      {/* إزالة المزودين المكررين - SmartProviderWrapper سيتولاهم */}
-      {children}
-    </BrowserRouter>
+    <React.Suspense fallback={null}>
+      <BrowserRouter future={browserRouterOptions.future}>
+        {children}
+      </BrowserRouter>
+    </React.Suspense>
   );
 };
 
@@ -763,7 +609,7 @@ if (rootElement && !root) {
   (rootElement as any).__reactRootContainer = root;
 }
 
-if (root) {
+  if (root) {
   const RENDER_START_TIME = performance.now();
   
   // حفظ الأوقات عالمياً
@@ -777,6 +623,14 @@ if (root) {
     totalBeforeRender: RENDER_START_TIME - MAIN_START_TIME
   };
   
+  console.log('⚡ [MAIN.TSX] بدء رندر التطبيق', {
+    timings: (window as any).__APP_TIMING__,
+    memoryUsage: (performance as any).memory ? {
+      used: Math.round((performance as any).memory.usedJSHeapSize / 1024 / 1024) + 'MB',
+      total: Math.round((performance as any).memory.totalJSHeapSize / 1024 / 1024) + 'MB'
+    } : 'غير متوفر'
+  });
+  
   // إزالة فرض الخط عبر الجافاسكربت لضمان اتساق CSS
   
   // عرض التطبيق فوراً - بدون StrictMode في التطوير
@@ -784,7 +638,9 @@ if (root) {
     // في التطوير: بدون StrictMode لتقليل إعادة الرندر
     root.render(
       <AppProviders>
-        <App />
+        <React.Suspense fallback={null}>
+          <App />
+        </React.Suspense>
       </AppProviders>
     );
   } else {
@@ -792,17 +648,59 @@ if (root) {
     root.render(
       <StrictMode>
         <AppProviders>
-          <App />
+          <React.Suspense fallback={null}>
+            <App />
+          </React.Suspense>
         </AppProviders>
       </StrictMode>
     );
   }
+  
+  // ✅ إزالة شاشة التحميل بأسرع ما يمكن بعد أول رندر
+  try {
+    const remove = (window as any).removeInitialLoading;
+    if (typeof remove === 'function') {
+      requestAnimationFrame(() => remove());
+      // احتياط: في حال لم تنجح rAF لسبب ما
+      setTimeout(() => { try { remove(); } catch {} }, 1200);
+    }
+  } catch {}
+
+  // 🎨 بدء تحميل CSS غير الحرج بعد تشغيل التطبيق - معطل لأن CSS محمل مع HTML
+  // loadNonCriticalCSSAfterPageLoad();
   
   const RENDER_END_TIME = performance.now();
   
   // حفظ وقت انتهاء الرندر
   (window as any).__APP_TIMING__.renderEnd = RENDER_END_TIME;
   (window as any).__APP_TIMING__.totalToRender = RENDER_END_TIME - MAIN_START_TIME;
+  
+  console.log('🎉 [MAIN.TSX] اكتمل رندر التطبيق', {
+    renderTime: RENDER_END_TIME - RENDER_START_TIME,
+    totalBootTime: RENDER_END_TIME - MAIN_START_TIME,
+    finalTimings: (window as any).__APP_TIMING__
+  });
+
+  // 📊 إضافة مراقبة شاملة للأداء
+  setTimeout(() => {
+    const performanceReport = {
+      totalBootTime: RENDER_END_TIME - MAIN_START_TIME,
+      memoryUsage: (performance as any).memory ? {
+        used: Math.round((performance as any).memory.usedJSHeapSize / 1024 / 1024) + 'MB',
+        total: Math.round((performance as any).memory.totalJSHeapSize / 1024 / 1024) + 'MB',
+        limit: Math.round((performance as any).memory.jsHeapSizeLimit / 1024 / 1024) + 'MB'
+      } : 'غير متوفر',
+      navigationTiming: performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming,
+      resourceTiming: performance.getEntriesByType('resource').length,
+      url: window.location.href,
+      userAgent: navigator.userAgent.substring(0, 100) + '...'
+    };
+    
+    console.log('📊 [MAIN.TSX] تقرير الأداء الشامل', performanceReport);
+    
+    // حفظ التقرير في window للوصول إليه لاحقاً
+    (window as any).__PERFORMANCE_REPORT__ = performanceReport;
+  }, 2000);
 
 } else {
 }
@@ -813,13 +711,13 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.getRegistrations().then(registrations => {
     const hasActiveWorkers = registrations.length > 0;
     registrations.forEach(registration => {
-      console.log('🗑️ إلغاء تسجيل Service Worker:', registration.scope);
+      
       registration.unregister();
     });
 
-    // إذا كان هناك Service Workers نشطة، أعد تحميل الصفحة
-    if (hasActiveWorkers) {
-      console.log('🔄 إعادة تحميل الصفحة لإزالة Service Worker القديم...');
+    // إذا كان هناك Service Workers نشطة، أعد تحميل الصفحة (تعطيل في التطوير)
+    if (hasActiveWorkers && !import.meta.env.DEV) {
+      
       setTimeout(() => {
         window.location.reload();
       }, 1000);
@@ -830,30 +728,39 @@ if ('serviceWorker' in navigator) {
   (window as any).clearServiceWorkers = () => {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then(registrations => {
-        console.log(`🗑️ العثور على ${registrations.length} Service Worker`);
+        
         registrations.forEach((registration, index) => {
-          console.log(`🗑️ إلغاء تسجيل SW ${index + 1}:`, registration.scope);
+          
           registration.unregister().then(() => {
-            console.log(`✅ تم إلغاء تسجيل SW ${index + 1}`);
+            
           });
         });
         if (registrations.length > 0) {
-          console.log('🔄 أعد تحميل الصفحة يدوياً أو انتظر إعادة التحميل التلقائي');
+          
         }
       });
     } else {
-      console.log('🚫 Service Worker غير مدعوم');
+      
     }
   };
 
-  console.log('💡 استخدم clearServiceWorkers() في console لتنظيف Service Worker يدوياً');
+  // Service Worker cleanup function available globally
 }
 
 // 🚀 تأجيل الأنظمة غير الحرجة لما بعد التفاعل الأول
 const deferNonCriticalSystems = () => {
+  const deferStartTime = performance.now();
+  console.log('⏰ [MAIN.TSX] بدء تحميل الأنظمة غير الحرجة', {
+    timing: deferStartTime - MAIN_START_TIME
+  });
+  
   // إزالة تأجيل i18n لحل مشكلة useTranslation
   // import('./i18n/index').catch(() => {});
   import('./lib/themeManager').then(({ applyInstantTheme }) => {
+    const themeTime = performance.now();
+    console.log('🎨 [MAIN.TSX] تطبيق الثيم', {
+      timing: themeTime - deferStartTime
+    });
     applyInstantTheme();
   }).catch(() => {});
 };
@@ -877,61 +784,78 @@ if (typeof window !== 'undefined') {
 // تأجيل تحميل Supabase حتى بعد اكتمال التطبيق
 setTimeout(() => {
   (window as any).loadSupabase = () => {
-    return import('./lib/supabase-unified')
+    // Load lightweight polyfills only when Supabase is actually needed
+    return import('./lib/polyfills')
+      .catch(() => undefined)
+      .then(() => import('./lib/supabase-unified'))
       .then(({ getSupabaseClient }) => getSupabaseClient())
       .catch(() => undefined);
   };
 }, 1000); // زيادة إلى 1000ms لتحسين LCP
 
-// 🛡️ تهيئة معالج أخطاء CSP
+// 🛡️ تهيئة معالج أخطاء CSP — مؤجل أكثر لتقليل Boot-up
 setTimeout(() => {
-  import('./utils/cspErrorHandler').then(({ initCSPErrorHandler }) => {
-    try {
-      initCSPErrorHandler();
-      console.log('🛡️ CSP Error Handler initialized successfully');
-    } catch (error) {
-      console.warn('Failed to initialize CSP Error Handler:', error);
-    }
-  }).catch(() => {
-    console.warn('CSP Error Handler module not found');
-  });
-}, 500);
+  import('./utils/cspErrorHandler')
+    .then(({ initCSPErrorHandler }) => {
+      try { initCSPErrorHandler(); } catch {}
+    })
+    .catch(() => {});
+}, 1500);
 
-// 📱 تهيئة إصلاحات Instagram WebView
+// 📱 تهيئة إصلاحات Instagram WebView — مؤجلة لما بعد الإقلاع
 setTimeout(() => {
-  import('./utils/instagramWebViewFix').then(({ initInstagramWebViewFix, isInstagramWebView, getInstagramWebViewInfo }) => {
-    try {
-      // فحص ما إذا كان المتصفح Instagram WebView
-      if (isInstagramWebView()) {
-        console.log('📱 Initializing Instagram WebView fixes...');
-
-        // عرض معلومات Instagram WebView للتطوير
-        if (process.env.NODE_ENV === 'development') {
-          const info = getInstagramWebViewInfo();
-          console.log('📱 Instagram WebView Info:', info);
+  import('./utils/instagramWebViewFix')
+    .then(({ initInstagramWebViewFix, isInstagramWebView }) => {
+      try {
+        if (isInstagramWebView()) {
+          initInstagramWebViewFix({
+            enableChunkRetry: true,
+            maxRetryAttempts: 3,
+            retryDelay: 2000,
+            bundleSizeThreshold: 500 * 1024,
+            enableServiceWorkerFix: true,
+            enableCSPFix: true
+          });
         }
+      } catch {}
+    })
+    .catch(() => {});
+}, 2000);
 
-        // تهيئة الإصلاحات
-        initInstagramWebViewFix({
-          enableChunkRetry: true,
-          maxRetryAttempts: 3,
-          retryDelay: 2000,
-          bundleSizeThreshold: 500 * 1024, // 500KB
-          enableServiceWorkerFix: true,
-          enableCSPFix: true
-        });
-
-        console.log('✅ Instagram WebView fixes initialized successfully');
-      }
-    } catch (error) {
-      console.warn('Failed to initialize Instagram WebView fixes:', error);
-    }
-  }).catch(() => {
-    console.warn('Instagram WebView Fix module not found');
-  });
-}, 300);
-
-// Defer non-critical systems
+// 📱 إصلاحات عامة لكل WebViews (Facebook/Instagram/TikTok/Android WebView)
 setTimeout(() => {
+  import('./utils/inAppWebView')
+    .then(({ initInAppWebViewFix, isInAppWebView }) => {
+      try {
+        if (isInAppWebView()) {
+          initInAppWebViewFix({
+            disableAnimations: true,
+            requireUserInteractionForTrackers: true,
+            interactionTimeoutMs: 8000,
+          });
+        }
+      } catch {}
+    })
+    .catch(() => {});
+}, 1800);
 
-}, 500);
+// Initialize conditional preloader (محسن للأداء)
+setTimeout(() => {
+  // فحص إذا كان المستخدم في صفحة منتج
+  const isProductPage = window.location.pathname.includes('/product-purchase-max-v3/') ||
+                       window.location.pathname.includes('/product-purchase-max-v2/') ||
+                       window.location.pathname.includes('/product-purchase/') ||
+                       window.location.pathname.includes('/product/');
+  
+  if (isProductPage) {
+    // تحسين خاص لصفحات المنتجات
+    import('./utils/productPageOptimizer').then(({ productPageOptimizer }) => {
+      // Product page optimizer initialized
+    }).catch(() => {});
+  } else {
+    // تحميل ذكي للمكونات الأخرى
+    import('./utils/conditionalPreloader').then(({ conditionalPreloader }) => {
+      // Conditional preloader initialized
+    }).catch(() => {});
+  }
+}, 200); // تقليل التأخير لتحسين الأداء

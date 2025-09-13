@@ -1,6 +1,5 @@
-import { supabase } from '@/lib/supabase';
-import { getSupabaseClient } from '@/lib/supabase';
 import { withCache, DEFAULT_CACHE_TTL, LONG_CACHE_TTL } from '@/lib/cache/storeCache';
+import { getOrganizationById as getOrganizationByIdDedup } from '@/lib/api/deduplicatedApi';
 
 // Define Organization type here or import it if defined elsewhere
 // For now, let's assume a simple type for the return
@@ -35,34 +34,24 @@ export const getActiveSubscriptionByOrgId = async (organizationId: string) => {
  */
 export const getOrganizationById = async (
   organizationId: string,
-  ttl: number = LONG_CACHE_TTL // استخدام LONG_CACHE_TTL كقيمة افتراضية، أو قيمة أخرى مناسبة
+  ttl: number = LONG_CACHE_TTL
 ): Promise<Organization | null> => {
   if (!organizationId) return null;
 
   const cacheKey = `organization_id:${organizationId}`;
 
+  // Delegate to the global deduplicated API to avoid duplicate network calls
   return withCache<Organization | null>(
     cacheKey,
     async () => {
       try {
-        const supabaseClient = getSupabaseClient();
-        const { data, error } = await supabaseClient
-          .from('organizations')
-          .select('*') // Consider selecting specific fields
-          .eq('id', organizationId)
-          .single();
-
-        if (error) {
-          if (error.code !== 'PGRST116') { // PGRST116: "The result contains 0 rows"
-          }
-          return null;
-        }
-        return data as Organization || null;
-      } catch (error) {
+        const data = await getOrganizationByIdDedup(organizationId);
+        return (data as Organization) || null;
+      } catch {
         return null;
       }
     },
-    ttl // استخدام الـ TTL الممرر أو الافتراضي للدالة
+    ttl
   );
 };
 

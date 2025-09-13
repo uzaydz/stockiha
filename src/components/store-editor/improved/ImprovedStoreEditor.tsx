@@ -43,6 +43,7 @@ import { ComponentsSidebar } from './components/ComponentsSidebar'
 import { StorePreview } from './components/StorePreview'
 import PropertiesPanel from './components/PropertiesPanel'
 import { useStoreComponents } from '@/hooks/useStoreComponents'
+import { useStoreEditorData } from '@/context/StoreEditorDataContext'
 import { supabase } from '@/lib/supabase'
 import { clearStoreCacheByOrganizationId, clearCacheItem } from '@/lib/cache/storeCache'
 import '@/styles/properties-panel-responsive.css'
@@ -101,6 +102,27 @@ export const ImprovedStoreEditor: React.FC<ImprovedStoreEditorProps> = ({
 }) => {
   const { toast } = useToast()
   const { isMobile, isTablet, isDesktop, isSmallScreen, isXs } = useResponsive()
+  // Preloaded data from RPC provider
+  const storeInitCtx = (() => { try { return useStoreEditorData(); } catch { return null as any } })();
+  const preloadedComponents = React.useMemo(() => {
+    const pre = storeInitCtx?.data?.store_layout_components || []
+    if (!pre || pre.length === 0) return undefined
+    return pre
+      .filter((c: any) => typeof c?.type === 'string')
+      .filter((c: any) => (String(c.type || '').toLowerCase()) !== 'seo_settings')
+      .map((item: any) => {
+        let normalizedType = String(item.type || '').toLowerCase()
+        if (normalizedType === 'categories') normalizedType = 'product_categories'
+        if (normalizedType === 'featuredproducts') normalizedType = 'featured_products'
+        return {
+          id: item.id,
+          type: normalizedType as any,
+          settings: item.settings || {},
+          isActive: item.is_active ?? true,
+          orderIndex: item.order_index ?? 0,
+        }
+      })
+  }, [storeInitCtx?.data?.store_layout_components])
   
   // حالة التنقل للأجهزة المحمولة
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
@@ -144,9 +166,9 @@ export const ImprovedStoreEditor: React.FC<ImprovedStoreEditorProps> = ({
     removeComponent: dbDeleteComponent,
     updateComponentSettings,
     saveChanges
-  } = useStoreComponents({ organizationId })
+  } = useStoreComponents({ organizationId, initialComponents: preloadedComponents as any })
   
-  // تحميل المكونات من قاعدة البيانات مرة واحدة فقط
+  // تحميل المكونات من قاعدة البيانات مرة واحدة فقط (إذا لم تُوفر من الـ Provider)
   useEffect(() => {
     if (dbComponents && dbComponents.length > 0 && components.length === 0) {
       // تحويل المكونات من صيغة قاعدة البيانات إلى صيغة المحرر المحسن

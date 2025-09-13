@@ -23,11 +23,11 @@ function calculateSRI(filePath: string, algorithm: 'sha256' | 'sha384' | 'sha512
 function generateCSP(nonce: string, isDev: boolean = false): string {
   return [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://connect.facebook.net https://www.googletagmanager.com https://www.google-analytics.com https://js.sentry-cdn.com https://static.cloudflareinsights.com https://www.gstatic.com https://www.google.com ${isDev ? "'unsafe-inline'" : ""}`,
+    `script-src 'self' 'nonce-${nonce}' 'unsafe-inline' 'strict-dynamic' https://connect.facebook.net https://www.googletagmanager.com https://www.google-analytics.com https://js.sentry-cdn.com https://www.gstatic.com https://www.google.com https://analytics.tiktok.com`,
     `style-src 'self' 'unsafe-inline' https://fonts.googleapis.com ${isDev ? "" : `'nonce-${nonce}'`}`,
-    "img-src 'self' data: https: blob: https://*.supabase.co https://*.cloudflareinsights.com https://www.gravatar.com https://*.gravatar.com",
+    "img-src 'self' data: https: blob: https://*.supabase.co https://www.gravatar.com https://*.gravatar.com",
     "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net data:",
-    "connect-src 'self' https://api.yalidine.app https://connect.ktobi.online wss://connect.ktobi.online https://*.supabase.co wss://*.supabase.co https://procolis.com https://www.google-analytics.com https://region1.google-analytics.com https://stats.g.doubleclick.net https://sentry.io https://*.sentry.io https://cloudflareinsights.com https://*.cloudflareinsights.com https://cloudflare-dns.com ws://localhost:* wss://localhost:* ws://0.0.0.0:* wss://0.0.0.0:*",
+    "connect-src 'self' https://api.yalidine.app https://connect.ktobi.online wss://connect.ktobi.online https://*.supabase.co wss://*.supabase.co https://procolis.com https://www.google-analytics.com https://region1.google-analytics.com https://stats.g.doubleclick.net https://sentry.io https://*.sentry.io https://cloudflare-dns.com https://api.cloudflare.com https://dns.google.com https://openrouter.ai https://api.zrexpress.dz https://api.ecotrack.dz https://*.ecotrack.dz ws://localhost:* wss://localhost:* ws://0.0.0.0:* wss://0.0.0.0:*",
     "frame-src 'self' https://www.facebook.com https://connect.facebook.net https://www.instagram.com https://*.instagram.com https://www.google.com https://www.gstatic.com",
     "object-src 'none'",
     "base-uri 'self'",

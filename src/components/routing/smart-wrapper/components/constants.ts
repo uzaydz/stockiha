@@ -37,7 +37,8 @@ export const DOMAIN_CONSTANTS = {
     'ktobi.online',
     'www.ktobi.online',
     'stockiha.com',
-    'www.stockiha.com'
+    'www.stockiha.com',
+    'stockiha.pages.dev'
   ],
   
   // النطاقات المحلية

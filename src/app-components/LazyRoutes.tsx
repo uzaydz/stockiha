@@ -24,6 +24,8 @@ export const ProductPurchasePageMaxPublic = lazy(() => import('../pages/ProductP
 export const StoreProducts = lazy(() => import('../pages/StoreProducts'));
 export const ProductDetails = lazy(() => import('../pages/ProductDetails'));
 export const ThankYouPage = lazy(() => import('../pages/ThankYouPage'));
+export const CartPage = lazy(() => import('../pages/CartPage'));
+export const CartCheckoutPage = lazy(() => import('../pages/CartCheckoutPage'));
 
 // ============ صفحات الخدمات العامة ============
 export const PublicServiceTrackingPage = lazy(() => import('../pages/PublicServiceTrackingPage'));
@@ -41,9 +43,11 @@ export const OrganizationSetup = lazy(() => import('../pages/OrganizationSetup')
 export const SetupOrganization = lazy(() => import('../pages/SetupOrganization'));
 
 // ============ صفحات لوحة التحكم ============
-export const Dashboard = lazy(() => import('../pages/Dashboard'));
+export const Dashboard = lazy(() => import('../pages/Dashboard').catch(() => {
+  // fallback في حالة فشل التحميل
+  return { default: () => <div>جاري تحميل لوحة التحكم...</div> };
+}));
 export const Products = lazy(() => import('../pages/dashboard/ProductsCached'));
-export const ProductsCached = lazy(() => import('../pages/dashboard/ProductsCached'));
 export const Inventory = lazy(() => import('../pages/dashboard/Inventory'));
 export const AdvancedInventoryTracking = lazy(() => import('../components/inventory/AdvancedInventoryTrackingPage'));
 export const Categories = lazy(() => import('../pages/dashboard/Categories'));
@@ -62,6 +66,7 @@ export const Expenses = lazy(() => import('../pages/dashboard/Expenses'));
 export const Analytics = lazy(() => import('../pages/dashboard/Analytics'));
 export const FinancialAnalytics = lazy(() => import('../pages/FinancialAnalytics'));
 export const Invoices = lazy(() => import('../pages/dashboard/Invoices'));
+export const BlockedCustomers = lazy(() => import('../pages/dashboard/BlockedCustomers'));
 
 // ============ نقطة البيع ============
 export const POSOptimized = lazy(() => import('../pages/POSOptimized'));

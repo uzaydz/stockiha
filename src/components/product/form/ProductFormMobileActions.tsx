@@ -1,7 +1,13 @@
-import React, { memo } from 'react';
+import React, { memo, useCallback, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Loader2, Save, ArrowLeft } from 'lucide-react';
+import { Loader2, Save, ArrowLeft, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
 interface ProductFormMobileActionsProps {
@@ -12,6 +18,9 @@ interface ProductFormMobileActionsProps {
   permissionWarning?: string;
   onSubmit: () => void;
   onCancel: () => void;
+  onPublishNow?: () => void;
+  onSaveDraft?: () => void;
+  onSchedule?: () => void;
 }
 
 const ProductFormMobileActions: React.FC<ProductFormMobileActionsProps> = memo(({
@@ -22,7 +31,28 @@ const ProductFormMobileActions: React.FC<ProductFormMobileActionsProps> = memo((
   permissionWarning,
   onSubmit,
   onCancel,
+  onPublishNow,
+  onSaveDraft,
+  onSchedule,
 }) => {
+  // حالة لتتبع ما إذا كانت القائمة مفتوحة
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+
+  // معالجات محسنة للأحداث
+  const handlePublishNow = useCallback(() => {
+    setIsDropdownOpen(false);
+    onPublishNow?.();
+  }, [onPublishNow]);
+
+  const handleSaveDraft = useCallback(() => {
+    setIsDropdownOpen(false);
+    onSaveDraft?.();
+  }, [onSaveDraft]);
+
+  const handleSchedule = useCallback(() => {
+    setIsDropdownOpen(false);
+    onSchedule?.();
+  }, [onSchedule]);
   // Check if we're in browser environment
   if (typeof window === 'undefined' || !document.body) {
     return null;
@@ -49,36 +79,74 @@ const ProductFormMobileActions: React.FC<ProductFormMobileActionsProps> = memo((
           <ArrowLeft className="h-5 w-5" />
         </Button>
         
-        {/* Main Action Button */}
+        {/* Main Action Button with Dropdown */}
         <div className="relative">
           {/* Glow effect */}
           <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl animate-pulse"></div>
           
-          <Button
-            type="button"
-            disabled={disabled || isSubmitting}
-            onClick={onSubmit}
-            className={cn(
-              "relative h-16 px-8 rounded-full shadow-2xl transition-all duration-300 hover:shadow-3xl hover:scale-105 active:scale-95 font-semibold text-base",
-              "bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80",
-              "border-2 border-primary-foreground/20",
-              permissionWarning && "from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800"
-            )}
+          <DropdownMenu 
+            open={isDropdownOpen} 
+            onOpenChange={setIsDropdownOpen}
           >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                <span className="text-sm sm:text-base">جاري المعالجة...</span>
-              </>
-            ) : (
-              <>
-                <Save className="h-5 w-5 mr-2" />
-                <span className="text-sm sm:text-base">
-                  {isEditMode ? 'حفظ التغييرات' : 'إنشاء المنتج'}
-                </span>
-              </>
-            )}
-          </Button>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                disabled={disabled || isSubmitting}
+                className={cn(
+                  "relative h-16 px-6 rounded-full shadow-2xl transition-all duration-300 hover:shadow-3xl hover:scale-105 active:scale-95 font-semibold text-base",
+                  "bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80",
+                  "border-2 border-primary-foreground/20 flex items-center gap-2",
+                  permissionWarning && "from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800"
+                )}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <span className="text-sm">جاري المعالجة...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-5 w-5" />
+                    <span className="text-sm">
+                      {isEditMode ? 'حفظ' : 'إنشاء'}
+                    </span>
+                    <ChevronUp className="h-4 w-4" />
+                  </>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            
+            <DropdownMenuContent 
+              align="center"
+              side="top"
+              sideOffset={12}
+              avoidCollisions
+              collisionPadding={16}
+              className="w-48 mb-2"
+            >
+              <DropdownMenuItem 
+                onClick={handlePublishNow} 
+                disabled={disabled || isSubmitting}
+                className="text-center justify-center py-3 text-base font-medium"
+              >
+                🚀 نشر الآن
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={handleSaveDraft} 
+                disabled={disabled || isSubmitting}
+                className="text-center justify-center py-3 text-base font-medium"
+              >
+                📝 حفظ كمسودة
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={handleSchedule} 
+                disabled={disabled || isSubmitting}
+                className="text-center justify-center py-3 text-base font-medium"
+              >
+                ⏰ جدولة النشر
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           
           {/* Progress indicator for mobile */}
           {isDirty && (

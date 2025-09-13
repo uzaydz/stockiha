@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // إنشاء نسخة من Axios
 const api = axios.create({
-  baseURL: process.env.VITE_API_URL,
+  baseURL: import.meta.env.VITE_API_URL,
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',

@@ -54,11 +54,6 @@ export const useCategoryDataOptimized = ({
       
       // تسجيل البيانات في بيئة التطوير (معطل لتقليل الضوضاء)
       // if (process.env.NODE_ENV === 'development') {
-      //   console.log('Category processing:', {
-      //     original: category,
-      //     processed: processedCategory,
-      //     hasImageUrl: !!processedCategory.imageUrl
-      //   });
       // }
       
       return processedCategory;
@@ -85,6 +80,17 @@ export const useCategoryDataOptimized = ({
 
   // دالة تحميل الصور مسبقاً
   const preloadImages = useCallback((categories: ExtendedCategory[]) => {
+    // احترام Data Saver والاتصالات البطيئة لتجنب استهلاك الشبكة والذاكرة
+    try {
+      const nav: any = navigator as any;
+      const conn = nav?.connection || nav?.mozConnection || nav?.webkitConnection;
+      const saveData = !!conn?.saveData;
+      const type = (conn?.effectiveType || '').toString();
+      if (saveData || type.includes('2g') || type.includes('slow-2g')) {
+        return;
+      }
+    } catch {}
+
     let loadedCount = 0;
     
     categories.forEach(category => {

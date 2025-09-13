@@ -38,7 +38,54 @@ const BannerImage = React.memo<BannerImageProps>(({
   const [currentSlide, setCurrentSlide] = useState(0);
   const [hasAttemptedLoad, setHasAttemptedLoad] = useState(false);
   const [showNoProducts, setShowNoProducts] = useState(false);
+  const [storeDataReady, setStoreDataReady] = useState(false);
   const { organization, organizationSettings } = useSharedStoreDataContext();
+
+  // 🚀 استماع لأحداث اكتمال البيانات الأولية
+  useEffect(() => {
+    const handleStoreInitReady = () => {
+      console.log('🎯 [BannerImage] البيانات الأولية جاهزة');
+      setStoreDataReady(true);
+    };
+
+    const handleSharedStoreDataReady = () => {
+      console.log('🎯 [BannerImage] البيانات المشتركة جاهزة');
+      setStoreDataReady(true);
+    };
+
+    const handleStoreDataReady = () => {
+      console.log('🎯 [BannerImage] البيانات جاهزة من useSharedStoreData');
+      setStoreDataReady(true);
+    };
+
+    window.addEventListener('storeInitDataReady', handleStoreInitReady);
+    window.addEventListener('sharedStoreDataReady', handleSharedStoreDataReady);
+    window.addEventListener('storeDataReady', handleStoreDataReady);
+    
+    // فحص إذا كانت البيانات جاهزة بالفعل
+    if (organization && organizationSettings) {
+      console.log('🎯 [BannerImage] البيانات موجودة بالفعل من Context');
+      setStoreDataReady(true);
+    } else {
+      // فحص البيانات من مصادر window object مختلفة
+      const sharedData = (window as any).__SHARED_STORE_DATA__;
+      const currentData = (window as any).__CURRENT_STORE_DATA__;
+      const earlyData = (window as any).__EARLY_STORE_DATA__;
+      
+      if ((sharedData?.organization && sharedData?.organizationSettings) ||
+          (currentData?.organization && currentData?.organizationSettings) ||
+          (earlyData?.data)) {
+        console.log('🎯 [BannerImage] البيانات موجودة في window object');
+        setStoreDataReady(true);
+      }
+    }
+
+    return () => {
+      window.removeEventListener('storeInitDataReady', handleStoreInitReady);
+      window.removeEventListener('sharedStoreDataReady', handleSharedStoreDataReady);
+      window.removeEventListener('storeDataReady', handleStoreDataReady);
+    };
+  }, [organization, organizationSettings]);
 
   // جلب المنتجات حسب النوع المحدد
   const [dynamicProductsData, setDynamicProductsData] = useState<any[]>([]);
@@ -103,6 +150,7 @@ const BannerImage = React.memo<BannerImageProps>(({
   };
 
   // جلب المنتجات عند تغيير النوع أو المؤسسة
+  // ملاحظة: نتجنب الجلب إلا عند "selected" لتفادي ازدواجية مع بيانات preload/RPC الموحدة
   useEffect(() => {
     const fetchProducts = async () => {
       if (!showProducts) {
@@ -110,12 +158,18 @@ const BannerImage = React.memo<BannerImageProps>(({
         return;
       }
 
-      const products = await fetchProductsByType(productsType, organization?.id, selectedProducts);
-      setDynamicProductsData(products);
+      // فقط في حالة "selected" نقوم بجلب مخصص
+      if (productsType === 'selected' && selectedProducts && selectedProducts.length > 0) {
+        const products = await fetchProductsByType(productsType, organization?.id, selectedProducts);
+        setDynamicProductsData(products);
+      } else {
+        // لباقي الأنواع، نعتمد على بيانات preloaded/fallback لتجنب جلب مكرر وإحداث تغيير تخطيطي
+        setDynamicProductsData([]);
+      }
     };
 
     fetchProducts();
-  }, [productsType, organization?.id, selectedProducts, showProducts, productsLimit]);
+  }, [productsType, organization?.id, selectedProducts?.join(','), showProducts, productsLimit]);
 
   // استخدام البيانات المحفوظة مسبقاً للمنتجات المميزة
   const {
@@ -395,7 +449,7 @@ const BannerImage = React.memo<BannerImageProps>(({
                 </motion.div>
                 
                 {/* السلايد شو البسيط */}
-                {isLoading || !hasAttemptedLoad ? (
+                {isLoading || !hasAttemptedLoad || !storeDataReady ? (
                   /* حالة التحميل */
                   <div className="absolute inset-0 flex items-center justify-center p-8">
                     <div className="text-center bg-white/90 backdrop-blur-md rounded-2xl p-6 shadow-xl border border-white/30 max-w-sm">
@@ -592,7 +646,7 @@ const BannerImage = React.memo<BannerImageProps>(({
                 </div>
                 
                 {/* السلايد شو البسيط */}
-                {isLoading || !hasAttemptedLoad ? (
+                {isLoading || !hasAttemptedLoad || !storeDataReady ? (
                   /* حالة التحميل */
                   <div className="absolute inset-0 flex items-center justify-center p-8">
                     <div className="text-center bg-white/90 backdrop-blur-md rounded-2xl p-6 shadow-xl border border-white/30 max-w-sm">

@@ -13,8 +13,10 @@ import {
   UpdateProductCompleteArgs 
 } from '@/types/product-functions';
 
-// نظام منع الطلبات المتزامنة المتكررة
+// نظام منع الطلبات المتزامنة المتكررة - محسن
 const ongoingRequests = new Map<string, Promise<any>>();
+const lastRequestTime = new Map<string, number>();
+const REQUEST_DEDUPLICATION_WINDOW = 1000; // 1 ثانية
 
 // Cache محسن للنتائج مع انتهاء صلاحية ذكي
 interface CacheEntry {
@@ -245,6 +247,7 @@ import { throttledRequest } from '../request-throttle';
 import { attackProtectionManager } from '../attack-protection';
 
 export const getProducts = async (organizationId?: string, includeInactive: boolean = false): Promise<Product[]> => {
+  
 
   try {
     if (!organizationId) {
@@ -275,7 +278,7 @@ export const getProducts = async (organizationId?: string, includeInactive: bool
       await new Promise(resolve => setTimeout(resolve, 2000));
     }
 
-    // تطبيق نظام التحكم في معدل الطلبات
+    // تطبيق نظام التحكم في معدل الطلبات مع حدود أكثر مرونة
     const result = await throttledRequest(
       async () => {
         // Use a simpler approach with consistent logging
@@ -287,31 +290,33 @@ export const getProducts = async (organizationId?: string, includeInactive: bool
             category:category_id(id, name, slug),
             subcategory:subcategory_id(id, name, slug)
           `);
-        
+
         // Add organization filter
         query = query.eq('organization_id', organizationId);
-        
+
         // Add active filter if needed
         if (!includeInactive) {
           query = query.eq('is_active', true);
         }
 
         const { data, error } = await query;
-        
+
         if (error) {
-          return [];
+          console.error('❌ [getProducts] خطأ في استعلام قاعدة البيانات:', error);
+          throw new Error(`خطأ في جلب المنتجات: ${error.message}`);
         }
 
         return (data as any) || [];
       },
       `/rest/v1/products`,
       organizationId,
-      { maxRequestsPerMinute: 5, maxRequestsPerHour: 100 } // حدود أكثر صرامة للمنتجات
+      { maxRequestsPerMinute: 15, maxRequestsPerHour: 300, cooldownPeriod: 100 } // حدود أكثر مرونة للمنتجات
     );
 
     if (result === null) {
       console.warn('🚫 [getProducts] طلب محظور بواسطة نظام التحكم في المعدل');
-      return [];
+      // إرجاع خطأ بدلاً من مصفوفة فارغة لتفعيل آلية إعادة المحاولة
+      throw new Error('طلب محظور بواسطة نظام التحكم في المعدل');
     }
 
     return result;
@@ -330,6 +335,7 @@ export const getProductsPaginated = async (
     searchQuery?: string;
     categoryFilter?: string;
     stockFilter?: string;
+    publicationFilter?: string;
     sortOption?: string;
   } = {}
 ): Promise<{
@@ -345,6 +351,7 @@ export const getProductsPaginated = async (
     searchQuery = '',
     categoryFilter = '',
     stockFilter = 'all',
+    publicationFilter = 'all',
     sortOption = 'newest'
   } = options;
 
@@ -354,6 +361,7 @@ export const getProductsPaginated = async (
     searchQuery: searchQuery.trim().toLowerCase(),
     categoryFilter,
     stockFilter,
+    publicationFilter,
     sortOption
   })}`;
 
@@ -464,9 +472,17 @@ export const getProductsPaginated = async (
         `, { count: 'exact' })
         .eq('organization_id', organizationId);
 
-      // إضافة فلتر الحالة النشطة
-      if (!includeInactive) {
+      // إضافة فلتر الحالة النشطة (لكن فقط إذا لم يكن لدينا فلتر محدد لحالة النشر)
+      
+      
+      // إذا كان لدينا فلتر محدد لحالة النشر، لا نضيف فلتر is_active هنا
+      if (publicationFilter === 'all' && !includeInactive) {
+        
         query = query.eq('is_active', true);
+      } else if (publicationFilter === 'all' && includeInactive) {
+        
+      } else {
+        
       }
 
       // البحث الذكي - يتجاهل الرموز الخاصة ويركز على الأحرف والأرقام
@@ -540,6 +556,30 @@ export const getProductsPaginated = async (
           break;
       }
 
+      // إضافة فلتر حالة النشر
+      
+      switch (publicationFilter) {
+        case 'published':
+          
+          query = query.eq('is_active', true);
+          break;
+        case 'draft':
+          
+          query = query.eq('is_active', false);
+          break;
+        case 'scheduled':
+          
+          query = query.eq('is_active', true);
+          break;
+        case 'archived':
+          
+          query = query.eq('is_active', false);
+          break;
+        default:
+          
+          break;
+      }
+
       // تحسين الترتيب - أولوية للبحث إذا كان موجوداً
       const isSearchActive = searchQuery.trim().length > 0;
       
@@ -597,8 +637,10 @@ export const getProductsPaginated = async (
       const { data, error, count } = await query;
 
       if (error) {
+        console.error('❌ Debug - Query error:', error);
         throw error;
       }
+
 
       // Debug: فحص البيانات المُرجعة
       if (data && data.length > 0) {
@@ -659,6 +701,7 @@ export const getProductsPaginated = async (
 };
 
 export const getProductById = async (id: string): Promise<Product | null> => {
+  // ✅ تم إصلاح المشكلة: استخدام maybeSingle() بدلاً من single() للجداول التي قد تعيد صفوف متعددة
   const { data, error } = await supabase
     .from('products')
     .select(`
@@ -672,7 +715,7 @@ export const getProductById = async (id: string): Promise<Product | null> => {
       product_marketing_settings (*)
     `)
     .eq('id', id)
-    .single();
+    .maybeSingle();
 
   if (error) {
     throw error;
@@ -1023,6 +1066,9 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
       description: productData.description || '',
       thumbnail_image: productData.thumbnail_image || '',
       slug: productData.slug || `${productData.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`,
+      // حقول وضع النشر (تم تمريرها مسبقاً من prepareFormSubmissionData)
+      // publication_status: (productData as any).publication_status, // معلق مؤقتاً
+      publish_at: (productData as any).publish_at,
     };
 
     // 🚀 الحل الجذري: استخدام Stored Procedure واحدة لجميع العمليات
@@ -1060,6 +1106,7 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
     const productId = (result as any).product_id;
 
     // 🎯 جلب المنتج المنشأ مع جميع البيانات المرتبطة في استدعاء واحد
+    // ✅ تم إصلاح المشكلة: استخدام maybeSingle() بدلاً من single() للجداول التي قد تعيد صفوف متعددة
     const { data: createdProduct, error: fetchError } = await supabase
       .from('products')
       .select(`
@@ -1076,7 +1123,7 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
         wholesale_tiers(id, min_quantity, price)
       `)
       .eq('id', productId)
-      .single();
+      .maybeSingle();
 
     if (fetchError) {
       toast.error(`تم إنشاء المنتج ولكن فشل جلب البيانات: ${fetchError.message}`);
@@ -1168,13 +1215,20 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
     // 🚀 الحل الجذري: استخدام Stored Procedure واحدة لجميع العمليات
     const { data: result, error: updateError } = await supabase.rpc('update_product_complete', {
       p_product_id: id,
-      p_product_data: mainProductUpdates,
+      p_product_data: {
+        ...mainProductUpdates,
+        // publication_status: (updates as any).publication_status, // معلق مؤقتاً
+        publish_at: (updates as any).publish_at,
+      },
       p_advanced_settings: advancedSettings && Object.keys(advancedSettings).length > 0 ? advancedSettings : null,
       p_marketing_settings: marketingSettings && Object.keys(marketingSettings).length > 0 ? marketingSettings : null,
       p_colors: colors && colors.length > 0 ? JSON.parse(JSON.stringify(colors)) : null,
       p_images: additional_images && additional_images.length > 0 ? 
         additional_images.map((url, index) => ({ image_url: url, sort_order: index + 1 })) : null,
       p_wholesale_tiers: wholesale_tiers && wholesale_tiers.length > 0 ? JSON.parse(JSON.stringify(wholesale_tiers)) : null,
+      // تمرير الحقول الإضافية التي يدعمها الإجراء المخزن
+      p_special_offers_config: (updates as any)?.special_offers_config || null,
+      p_advanced_description: (updates as any)?.advanced_description || null,
       p_user_id: user.id
     });
 
@@ -1215,6 +1269,7 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
     }
 
     // 🎯 جلب المنتج المحدث مع جميع البيانات المرتبطة في استدعاء واحد
+    // ✅ تم إصلاح المشكلة: استخدام maybeSingle() بدلاً من single() للجداول التي قد تعيد صفوف متعددة
     const { data: updatedProduct, error: fetchError } = await supabase
       .from('products')
       .select(`
@@ -1231,7 +1286,7 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
         wholesale_tiers(id, min_quantity, price)
       `)
       .eq('id', id)
-      .single();
+      .maybeSingle();
 
     if (fetchError) {
       toast.error(`تم تحديث المنتج ولكن فشل جلب البيانات: ${fetchError.message}`);
@@ -1959,6 +2014,88 @@ export const updateReview = async (
   return true;
 };
 
+// دالة نشر المنتج (تحويل من مسودة إلى منشور)
+export const publishProduct = async (productId: string): Promise<boolean> => {
+  try {
+    // المحاولة الأساسية: تحديث is_active و publication_status معاً إن وُجد العمود
+    const { error } = await supabase
+      .from('products')
+      .update({
+        is_active: true,
+        // في بعض قواعد البيانات قد لا يكون العمود موجوداً بعد؛ إن لم يكن سيُعاد خطأ ونعيد المحاولة بدون هذا الحقل
+        // @ts-ignore - الحقل اختياري بحسب المخطط
+        publication_status: 'published',
+        published_at: new Date().toISOString(),
+      } as any)
+      .eq('id', productId);
+
+    if (!error) return true;
+
+    // معالجة توافقية: في حال فشل التحديث بسبب عدم وجود العمود، أعد المحاولة بتحديث is_active فقط
+    const needsRetry =
+      typeof error?.message === 'string' &&
+      /column\s+\"?publication_status\"?\s+does not exist|invalid input|column .* does not exist/i.test(error.message);
+
+    if (needsRetry) {
+      const { error: fallbackError } = await supabase
+        .from('products')
+        .update({
+          is_active: true,
+          published_at: new Date().toISOString(),
+        })
+        .eq('id', productId);
+
+      if (!fallbackError) return true;
+      console.error('Fallback publish failed:', fallbackError);
+      return false;
+    }
+
+    console.error('Error publishing product:', error);
+    return false;
+  } catch (error) {
+    console.error('Error publishing product:', error);
+    return false;
+  }
+};
+
+// إرجاع المنتج إلى حالة المسودة
+export const revertProductToDraft = async (productId: string): Promise<boolean> => {
+  try {
+    // محاولة تعيين is_active = false وتحديث حالة النشر إن وُجد العمود
+    const { error } = await supabase
+      .from('products')
+      .update({
+        is_active: false,
+        // @ts-ignore: publication_status قد لا يكون موجوداً في كل المخططات
+        publication_status: 'draft',
+        published_at: null,
+      } as any)
+      .eq('id', productId);
+
+    if (!error) return true;
+
+    const needsFallback =
+      typeof error?.message === 'string' &&
+      /column\s+\"?publication_status\"?\s+does not exist|invalid input|column .* does not exist/i.test(error.message);
+
+    if (needsFallback) {
+      const { error: fbError } = await supabase
+        .from('products')
+        .update({ is_active: false, published_at: null })
+        .eq('id', productId);
+      if (!fbError) return true;
+      console.error('Fallback revert to draft failed:', fbError);
+      return false;
+    }
+
+    console.error('Error reverting product to draft:', error);
+    return false;
+  } catch (error) {
+    console.error('Error reverting product to draft:', error);
+    return false;
+  }
+};
+
 // 🚀 دالة محسنة لتحميل المنتجات بشكل متدرج
 export const getProductsPaginatedOptimized = async (
   organizationId: string,
@@ -1969,6 +2106,7 @@ export const getProductsPaginatedOptimized = async (
     searchQuery?: string;
     categoryFilter?: string;
     stockFilter?: string;
+    publicationFilter?: string;
     sortOption?: string;
   } = {}
 ): Promise<{

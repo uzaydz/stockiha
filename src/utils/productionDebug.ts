@@ -1,8 +1,13 @@
 /**
- * نظام تشخيص خاص للإنتاج
- * يعمل حتى مع حذف console.log من Terser
+ * نظام تشخيص خاص للإنتاج (محكوم بعلم تشغيل)
  */
 
+// تفعيل عبر VITE_ENABLE_PROD_DEBUG=true في بيئة الإنتاج فقط
+const PROD_DEBUG_ENABLED: boolean = typeof import.meta !== 'undefined'
+  && (import.meta as any).env?.PROD
+  && (import.meta as any).env?.VITE_ENABLE_PROD_DEBUG === 'true';
+
+// تعريف الأنواع المطلوبة
 interface ProductionLog {
   timestamp: number;
   level: 'info' | 'warn' | 'error' | 'debug';
@@ -18,9 +23,9 @@ interface PerformanceStats {
     failed: number;
   };
   timing: {
-    averageResponseTime: number;
     slowestRequest: { url: string; time: number };
     fastestRequest: { url: string; time: number };
+    averageResponseTime: number;
   };
   cache: {
     hitRate: number;
@@ -32,19 +37,22 @@ interface PerformanceStats {
 class ProductionDebugger {
   private static instance: ProductionDebugger;
   private logs: ProductionLog[] = [];
+  private maxLogs = 1000;
   private stats: PerformanceStats = {
     requests: { total: 0, blocked: 0, cached: 0, failed: 0 },
-    timing: { 
-      averageResponseTime: 0, 
+    timing: {
       slowestRequest: { url: '', time: 0 },
-      fastestRequest: { url: '', time: Infinity }
+      fastestRequest: { url: '', time: Infinity },
+      averageResponseTime: 0
     },
     cache: { hitRate: 0, size: 0, entries: 0 }
   };
-  private maxLogs = 1000;
 
   private constructor() {
+    // لا تفعل شيئاً إن لم يكن مُفعّلاً
+    if (!PROD_DEBUG_ENABLED) return;
     this.setupGlobalAccess();
+    this.restoreFromStorage();
   }
 
   public static getInstance(): ProductionDebugger {
@@ -55,6 +63,7 @@ class ProductionDebugger {
   }
 
   private setupGlobalAccess(): void {
+    if (!PROD_DEBUG_ENABLED) return;
     if (typeof window !== 'undefined') {
       // إتاحة النظام عالمياً حتى في الإنتاج
       (window as any).prodDebug = {
@@ -98,6 +107,7 @@ class ProductionDebugger {
   }
 
   public logToStorage(level: ProductionLog['level'], message: string, data?: any): void {
+    if (!PROD_DEBUG_ENABLED) return;
     const log: ProductionLog = {
       timestamp: Date.now(),
       level,
@@ -122,6 +132,7 @@ class ProductionDebugger {
   }
 
   public trackRequest(url: string, method: string, duration: number, status: 'success' | 'blocked' | 'cached' | 'failed'): void {
+    if (!PROD_DEBUG_ENABLED) return;
     this.stats.requests.total++;
     
     switch (status) {
@@ -155,6 +166,7 @@ class ProductionDebugger {
   }
 
   public updateCacheStats(hitRate: number, size: number, entries: number): void {
+    if (!PROD_DEBUG_ENABLED) return;
     this.stats.cache = { hitRate, size, entries };
   }
 
@@ -293,6 +305,7 @@ class ProductionDebugger {
 
   // استعادة البيانات عند التهيئة
   public restoreFromStorage(): void {
+    if (!PROD_DEBUG_ENABLED) return;
     try {
       const savedLogs = localStorage.getItem('prodDebug_logs');
       if (savedLogs) {
@@ -312,11 +325,12 @@ class ProductionDebugger {
 // إنشاء النسخة العامة
 export const productionDebugger = ProductionDebugger.getInstance();
 
-// استعادة البيانات المحفوظة
-productionDebugger.restoreFromStorage();
+// استعادة البيانات المحفوظة (لا تعمل إلا عند التفعيل)
+productionDebugger && (productionDebugger as any).restoreFromStorage?.();
 
 // تصدير دالة مساعدة للاستخدام السريع
 export const prodLog = (level: 'info' | 'warn' | 'error' | 'debug', message: string, data?: any) => {
+  if (!PROD_DEBUG_ENABLED) return;
   productionDebugger.logToStorage(level, message, data);
 };
 

@@ -6,6 +6,7 @@ import { buttonVariants } from "@/components/ui/button"
 import { VisuallyHidden } from "@/components/ui/visually-hidden"
 
 const AlertDialog = React.memo(AlertDialogPrimitive.Root)
+AlertDialog.displayName = "AlertDialog"
 
 const AlertDialogTrigger = React.memo(React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Trigger>,
@@ -170,3 +171,6 @@ export {
   AlertDialogCancel,
   VisuallyHidden,
 }
+
+// تصدير افتراضي لضمان التوافق
+export default AlertDialog

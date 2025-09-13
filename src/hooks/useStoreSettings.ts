@@ -7,6 +7,7 @@ import {
   clearStoreSettingsCache
 } from "@/lib/api/store-settings";
 import type { OrganizationSettings, UpdateSettingsPayload } from "@/types/settings";
+import { canMutateHead } from "@/lib/headGuard";
 
 // تعريف الأنواع المطلوبة
 interface UseStoreSettingsProps {
@@ -97,13 +98,13 @@ export const useStoreSettings = ({
       // تطبيق الإعدادات المحلية مباشرة
       const root = document.documentElement;
       
-      // تحديث عنوان الصفحة
-      if (settings.site_name) {
+      // تحديث عنوان الصفحة (محكوم بالـ head guard)
+      if (canMutateHead() && settings.site_name) {
         document.title = settings.site_name;
       }
 
-      // تحديث الأيقونة
-      if (settings.favicon_url) {
+      // تحديث الأيقونة (محكوم بالـ head guard)
+      if (canMutateHead() && settings.favicon_url) {
         const existingFavicons = document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"]');
         existingFavicons.forEach(favicon => favicon.remove());
 
@@ -273,10 +274,19 @@ export const useStoreSettings = ({
     setError(null);
 
     try {
-      // تحديث custom_js مع بيانات التتبع
+      // دمج custom_js الحالي مع بيانات التتبع والحفاظ على المفاتيح المخصصة (مثل enable_cart)
+      let baseCustomJs: any = {};
+      try {
+        baseCustomJs = settings.custom_js ? (typeof settings.custom_js === 'string' ? JSON.parse(settings.custom_js) : settings.custom_js) : {};
+      } catch {
+        baseCustomJs = {};
+      }
+
       const updatedCustomJs = {
+        ...baseCustomJs,
         trackingPixels,
-        auto_deduct_inventory: true // إضافة إعداد خصم المخزون التلقائي
+        // حافظ على قيمة auto_deduct_inventory الحالية إن وُجدت، وإلا فعّلها افتراضياً
+        auto_deduct_inventory: baseCustomJs?.auto_deduct_inventory ?? true
       };
 
       const payload: UpdateSettingsPayload = {

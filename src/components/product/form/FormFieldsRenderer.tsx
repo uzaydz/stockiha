@@ -1,5 +1,4 @@
-import React, { memo, useMemo, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { memo, useMemo, useCallback, useEffect } from 'react';
 import { FormField as FormFieldType } from '@/types/productForm';
 import LocationFields from './LocationFields';
 import FormFieldComponent from './FormField';
@@ -28,6 +27,38 @@ const FormFieldsRenderer = memo<FormFieldsRendererProps>(({
   touched,
   locationFields
 }) => {
+  // Ensure default for fixed/regular delivery radio is written to formData once
+  useEffect(() => {
+    try {
+      fields.forEach((field) => {
+        if (field.type !== 'radio') return;
+        const isDeliveryField = /delivery|توصيل/i.test(field.name) || /delivery|توصيل/i.test(field.label);
+        if (!isDeliveryField) return;
+
+        const current = formData[field.name as keyof typeof formData];
+        if (current !== undefined && current !== null && current !== '') return;
+
+        // Determine sensible default: prefer explicit defaultValue, then 'desk'/office, else first option
+        const officeOpt = field.options?.find((o) => {
+          const v = String(o.value ?? '').toLowerCase();
+          const lbl = String(o.label ?? '').toLowerCase();
+          return v === 'desk' || v === 'office' || lbl.includes('office') || lbl.includes('مكتب');
+        });
+        const defaultVal = field.defaultValue
+          ?? officeOpt?.value
+          ?? field.options?.[0]?.value;
+
+        if (defaultVal !== undefined && defaultVal !== null && defaultVal !== '') {
+          onFieldChange(field.name, defaultVal as any);
+          // do not mark as touched to avoid flashing validation
+        }
+      });
+    } catch {
+      // no-op: defensive guard
+    }
+    // Run when fields list changes or when formData reference changes (not on every keystroke)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fields]);
   // ترتيب الحقول
   const orderedFields = useMemo(() => {
     const nameFields = fields.filter(field => 
@@ -96,10 +127,30 @@ const FormFieldsRenderer = memo<FormFieldsRendererProps>(({
     }
     
     // الحقول العادية
+    const isDeliveryField = field.type === 'radio' && (
+      /delivery|توصيل/i.test(field.name) || /delivery|توصيل/i.test(field.label)
+    );
+    const fieldValue = (() => {
+      const v = formData[field.name];
+      if (isDeliveryField) {
+        // إظهار المكتب كافتراضي بصرياً إن لم توجد قيمة بعد
+        if (v === undefined || v === null || v === '') {
+          // ابحث عن خيار المكتب من تعريف الحقل
+          const officeOpt = field.options?.find((o) => {
+            const val = String(o.value || '').toLowerCase();
+            const lbl = String(o.label || '').toLowerCase();
+            return val === 'desk' || val === 'office' || lbl.includes('office') || lbl.includes('مكتب');
+          });
+          return officeOpt?.value ?? 'desk';
+        }
+      }
+      return v;
+    })();
+
     return (
       <FormFieldComponent
         field={field}
-        value={formData[field.name]}
+        value={fieldValue}
         onFieldChange={onFieldChange}
         onFieldTouch={onFieldTouch}
         disabled={disabled}
@@ -118,38 +169,14 @@ const FormFieldsRenderer = memo<FormFieldsRendererProps>(({
     touched
   ]);
 
-  // متغيرات الحركة
-  const fieldVariants = {
-    hidden: { opacity: 0, y: 5 },
-    visible: { 
-      opacity: 1, 
-      y: 0,
-      transition: { 
-        duration: 0.15,
-        ease: "easeOut" as const
-      }
-    }
-  };
-
   return (
-    <motion.div 
-      className="grid grid-cols-2 gap-3"
-      initial="hidden"
-      animate="visible"
-    >
-      <AnimatePresence mode="popLayout">
-        {orderedFields.map((field) => (
-          <motion.div 
-            key={field.id} 
-            className={getFieldColSpan(field)}
-            variants={fieldVariants}
-            layout
-          >
-            {renderField(field)}
-          </motion.div>
-        ))}
-      </AnimatePresence>
-    </motion.div>
+    <div className="grid grid-cols-2 gap-3">
+      {orderedFields.map((field) => (
+        <div key={field.id} className={getFieldColSpan(field)}>
+          {renderField(field)}
+        </div>
+      ))}
+    </div>
   );
 });
 

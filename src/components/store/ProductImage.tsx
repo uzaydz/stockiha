@@ -1,6 +1,7 @@
-import React, { useState, useRef, memo, useCallback, useEffect } from 'react';
+import React, { memo } from 'react';
 import { Package } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import PerformanceOptimizedImage from '@/components/ui/PerformanceOptimizedImage';
 
 interface ProductImageProps {
   src: string;
@@ -12,9 +13,6 @@ interface ProductImageProps {
   size?: 'small' | 'medium' | 'large';
 }
 
-// Cache للصور المحملة لتجنب إعادة التحميل
-const imageCache = new Map<string, boolean>();
-
 const ProductImage = memo(({ 
   src, 
   alt, 
@@ -24,71 +22,6 @@ const ProductImage = memo(({
   priority = false,
   size = 'medium'
 }: ProductImageProps) => {
-  const [imageLoaded, setImageLoaded] = useState(() => imageCache.has(src));
-  const [imageError, setImageError] = useState(false);
-  const [isInView, setIsInView] = useState(priority); // ابدأ بالتحميل إذا كانت ذات أولوية
-  const imgRef = useRef<HTMLImageElement>(null);
-
-  // تحسين بسيط للصور - تقليل الجودة للصور الكبيرة فقط
-  const optimizedSrc = React.useMemo(() => {
-    if (!src) return '';
-    
-    // إذا كانت الصورة من Supabase، أضف معاملات تحسين بسيطة
-    if (src.includes('supabase.co') || src.includes('supabase.in')) {
-      try {
-        const url = new URL(src);
-        // تقليل الجودة قليلاً لتسريع التحميل
-        url.searchParams.set('quality', '80');
-        // تحديد عرض أقصى للمنتجات
-        url.searchParams.set('width', '400');
-        return url.toString();
-      } catch {
-        return src;
-      }
-    }
-    
-    return src;
-  }, [src]);
-
-  // Intersection Observer للتحميل الكسول الذكي
-  useEffect(() => {
-    if (priority || isInView) return; // لا نحتاج إلى مراقبة إذا كانت ذات أولوية أو محملة
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            setIsInView(true);
-            observer.disconnect();
-          }
-        });
-      },
-      {
-        rootMargin: '50px', // ابدأ التحميل قبل 50px من الظهور
-        threshold: 0.1
-      }
-    );
-
-    if (imgRef.current?.parentElement) {
-      observer.observe(imgRef.current.parentElement);
-    }
-
-    return () => observer.disconnect();
-  }, [priority, isInView]);
-
-  // معالج تحميل الصورة
-  const handleImageLoad = useCallback(() => {
-    setImageLoaded(true);
-    setImageError(false);
-    imageCache.set(src, true);
-  }, [src]);
-
-  // معالج خطأ التحميل
-  const handleImageError = useCallback(() => {
-    setImageError(true);
-    setImageLoaded(false);
-  }, []);
-
   // تحديد أحجام الأيقونات حسب الحجم
   const iconSizes = {
     small: 'h-8 w-8',
@@ -102,7 +35,7 @@ const ProductImage = memo(({
     large: 'h-12 w-12'
   };
 
-  if (imageError || !optimizedSrc) {
+  if (!src) {
     return (
       <div className={cn(
         "absolute inset-0 flex items-center justify-center bg-gradient-to-br from-muted/30 to-muted/10",
@@ -117,41 +50,21 @@ const ProductImage = memo(({
   }
 
   return (
-    <>
-      {/* Skeleton placeholder أثناء التحميل */}
-      {!imageLoaded && (
-        <div className="absolute inset-0 bg-gradient-to-br from-muted/40 to-muted/20 animate-pulse flex items-center justify-center">
-          <div className={cn(
-            "bg-muted/60 rounded-full animate-pulse flex items-center justify-center",
-            iconSizes[size]
-          )}>
-            <Package className={cn(placeholderIconSizes[size], "text-muted-foreground/40")} />
-          </div>
-        </div>
-      )}
-      
-      {/* الصورة الفعلية - تظهر فقط عندما تكون في مجال الرؤية أو ذات أولوية */}
-      {(isInView || priority) && (
-        <img
-          ref={imgRef}
-          src={optimizedSrc}
-          alt={alt}
-          className={cn(
-            "w-full h-full object-contain p-4 transition-all duration-300",
-            imageLoaded ? "opacity-100 scale-100" : "opacity-0 scale-95",
-            className
-          )}
-          loading={priority ? "eager" : "lazy"}
-          decoding={priority ? "sync" : "async"}
-          onLoad={handleImageLoad}
-          onError={handleImageError}
-          style={{
-            imageRendering: 'crisp-edges',
-            willChange: imageLoaded ? 'auto' : 'opacity, transform'
-          }}
-        />
-      )}
-    </>
+    <PerformanceOptimizedImage
+      src={src}
+      alt={alt}
+      priority={priority}
+      /*
+       * نملأ مساحة البطاقة مع الحفاظ على الصورة كاملة (contain)
+       * البطاقة لديها aspect-ratio، لذا لا نحتاج أبعاد ثابتة هنا
+       */
+      fill
+      sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 300px"
+      className={cn("w-full h-full", className)}
+      placeholder="blur"
+      objectFit="contain"
+      objectPosition="center"
+    />
   );
 });
 

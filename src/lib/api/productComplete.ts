@@ -702,16 +702,17 @@ export const getFinalPrice = (
   const discountPercentage = originalTotalPrice > 0 ? (discount / originalTotalPrice) * 100 : 0;
 
   // معالجة السعر المقارن
-  const compareAtPrice = product.pricing?.compare_at_price;
-  const hasCompareAtPrice = Boolean(compareAtPrice && compareAtPrice > basePrice);
-  const compareAtDiscountPercentage = hasCompareAtPrice && compareAtPrice 
-    ? ((compareAtPrice - basePrice) / compareAtPrice) * 100 
+  // إصلاح: مقارنة السعر المقارن مع السعر النهائي للوحدة (بعد الجملة)
+  const compareAtUnitPrice = product.pricing?.compare_at_price;
+  const hasCompareAtPrice = Boolean(compareAtUnitPrice && compareAtUnitPrice > finalPrice);
+  const compareAtDiscountPercentage = hasCompareAtPrice && compareAtUnitPrice
+    ? ((compareAtUnitPrice - finalPrice) / compareAtUnitPrice) * 100
     : undefined;
 
   return {
     price: totalPrice,
     originalPrice: originalTotalPrice,
-    compareAtPrice: compareAtPrice ? compareAtPrice * quantity : undefined,
+    compareAtPrice: compareAtUnitPrice ? compareAtUnitPrice * quantity : undefined,
     isWholesale,
     wholesaleTier,
     discount: discount > 0 ? discount : undefined,

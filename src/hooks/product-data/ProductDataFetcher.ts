@@ -8,6 +8,7 @@ import type {
   ProductFetchOptions,
   ProductApiResponse 
 } from './ProductDataTypes';
+import { getProductCompleteDataOptimized } from '@/lib/api/deduplicatedApi';
 
 /**
  * ثوابت جلب البيانات
@@ -26,23 +27,45 @@ export async function fetchUnifiedProductData(
   options: ProductFetchOptions = {}
 ): Promise<UnifiedProductPageData> {
   
-      const { organizationId, dataScope = 'ultra' as const, forceRefresh = false } = options; // ✅ عدم إجبار تحديث البيانات للسماح باستخدام Cache
+      const { organizationId, dataScope = 'full' as const, forceRefresh = false } = options; // تقليل الحمولة الافتراضية؛ اجلب ultra عند الحاجة فقط
   
-  if (process.env.NODE_ENV === 'development') {
-  }
+  
 
   try {
     // استخدام الـ API الموحد لجلب بيانات المنتج مع منع التكرار
-    const { getProductCompleteDataOptimized } = await import('@/lib/api/deduplicatedApi');
-
+    
     const productResponse = await getProductCompleteDataOptimized(productId, {
       organizationId,
       dataScope,
       forceRefresh // ✅ استخدام قيمة forceRefresh من المعاملات
     });
+    
+    // 🔍 Debug: تشخيص استجابة API
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 [fetchUnifiedProductData] استجابة API الخام:', {
+        hasResponse: !!productResponse,
+        responseKeys: productResponse ? Object.keys(productResponse) : [],
+        success: productResponse?.success,
+        hasData: !!(productResponse as any)?.data,
+        hasProduct: !!(productResponse as any)?.product,
+        dataKeys: (productResponse as any)?.data ? Object.keys((productResponse as any).data) : 'no data',
+        productId: (productResponse as any)?.product?.id || (productResponse as any)?.data?.product?.id || 'no product id'
+      });
+    }
+    
 
-    if (!productResponse || productResponse.success === false) {
-      throw new Error('فشل في جلب بيانات المنتج');
+
+    // 🔥 إصلاح: معالجة أفضل للأخطاء
+    if (!productResponse) {
+      throw new Error('لم يتم استلام استجابة من الخادم');
+    }
+    
+    if (productResponse.success === false) {
+      throw new Error(productResponse.error || 'فشل في جلب بيانات المنتج');
+    }
+    
+    if (!productResponse.data && !productResponse.product) {
+      throw new Error('المنتج غير موجود أو غير متاح');
     }
 
     // معالجة البيانات المستلمة
@@ -71,11 +94,38 @@ function processProductResponse(
   organizationId?: string
 ): UnifiedProductPageData {
   
-  const { product, stats } = response;
+  // 🔥 إصلاح: معالجة متقدمة لاستخراج البيانات من مختلف الهياكل
+  let responseData = (response as any).data || response;
+  
+  // 🔥 إصلاح: معالجة البيانات المغلفة في RPC function
+  if (responseData && typeof responseData === 'object' && responseData.get_product_complete_data_ultra_optimized) {
+    responseData = responseData.get_product_complete_data_ultra_optimized;
+  }
+  
+  const { product, stats } = responseData;
+  
+  // 🔍 Debug: تشخيص بنية البيانات الواردة
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🔍 [processProductResponse] بنية البيانات الواردة:', {
+      hasResponse: !!response,
+      hasResponseData: !!responseData,
+      hasProduct: !!product,
+      productId: product?.id,
+      responseKeys: response ? Object.keys(response) : [],
+      responseDataKeys: responseData ? Object.keys(responseData) : [],
+      productKeys: product ? Object.keys(product) : []
+    });
+  }
+  
   
   // استخراج البيانات الأساسية
   const organization = product?.organization || null;
   const categories = product?.categories ? [product.categories] : [];
+  
+  // 🔥 إصلاح: التأكد من وجود المنتج قبل إنشاء البيانات الموحدة
+  if (!product) {
+    throw new Error('المنتج غير موجود في البيانات المستلمة');
+  }
   
   // إنشاء البيانات الموحدة
   const unifiedData: UnifiedProductPageData = {
@@ -87,6 +137,16 @@ function processProductResponse(
     provinces: extractProvinces(product),
     trackingData: stats || {}
   };
+
+  // 🔍 Debug: تأكيد إنشاء البيانات الموحدة
+  if (process.env.NODE_ENV === 'development') {
+    console.log('✅ [processProductResponse] البيانات الموحدة تم إنشاؤها:', {
+      hasProduct: !!unifiedData.product,
+      productId: unifiedData.product?.id,
+      hasOrganization: !!unifiedData.organization,
+      organizationId: unifiedData.organization?.id
+    });
+  }
 
   return unifiedData;
 }

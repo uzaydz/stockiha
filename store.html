@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl" class="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>جاري تحميل المتجر…</title>
+
+    <!-- استخدم أيقونة أخف (PNG/WebP) بدل favicon.ico الضخم -->
+    <link rel="icon" type="image/png" href="/icons/icon-192x192.png" sizes="192x192">
+    <link rel="apple-touch-icon" href="/icons/icon-192x192.png">
+    <!-- تحسين الشبكات الحرجة: DNS Prefetch و Preconnect -->
+    <link rel="dns-prefetch" href="//wrnssatuvmumsczyldth.supabase.co">
+    <link rel="preconnect" href="https://wrnssatuvmumsczyldth.supabase.co" crossorigin>
+    <link rel="dns-prefetch" href="//www.googletagmanager.com">
+    <link rel="preconnect" href="https://www.googletagmanager.com" crossorigin>
+    <link rel="stylesheet" href="/fonts/tajawal.css">
+    <link rel="stylesheet" href="/src/index.css">
+
+    <style>
+      html { font-family: 'Tajawal', Arial, sans-serif; }
+      body { margin:0; direction: rtl; background:#fff; color:#000; }
+      #root { min-height:100vh; }
+      .loading { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; }
+      .spin { width:32px; height:32px; border:2px solid #e5e7eb; border-top-color:#6b21a8; border-radius:50%; animation:spin .8s linear infinite }
+      @keyframes spin { to { transform: rotate(360deg) } }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <div class="loading"><div class="spin"></div></div>
+    </div>
+    <script type="module" src="/src/store-main.tsx"></script>
+  </body>
+  </html>
+

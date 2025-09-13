@@ -137,16 +137,24 @@ class ConversionTracker {
   }
 
   /**
-   * تعيين الإعدادات من مصدر خارجي (useProductTracking)
+   * تعيين الإعدادات من مصدر خارجي (useProductTracking) - محسن لضمان access_token
    */
   setExternalSettings(externalSettings: any): void {
+    
     if (externalSettings) {
+      // ✅ تحسين: البحث عن access_token في أماكن متعددة
+      const facebookAccessToken = externalSettings.facebook?.access_token 
+        || externalSettings.facebook?.conversion_api_access_token
+        || externalSettings.facebook?.capi_access_token
+        || externalSettings.conversion_api_access_token
+        || externalSettings.facebook_access_token;
+
       this.settings = {
         facebook: {
           enabled: externalSettings.facebook?.enabled || false,
           pixel_id: externalSettings.facebook?.pixel_id || undefined,
           conversion_api_enabled: externalSettings.facebook?.conversion_api_enabled || false,
-          access_token: externalSettings.facebook?.access_token || undefined,
+          access_token: facebookAccessToken || undefined,
           dataset_id: externalSettings.facebook?.dataset_id || undefined,
           test_event_code: externalSettings.facebook?.test_event_code || undefined
         },
@@ -256,17 +264,17 @@ class ConversionTracker {
     const promises: Promise<void>[] = [];
 
     // Facebook Pixel + Conversion API
-    if (this.settings?.facebook.enabled) {
+    if (this.isFacebookAvailable()) {
       promises.push(this.sendToFacebook(event));
     }
 
     // Google Ads
-    if (this.settings?.google.enabled) {
+    if (this.isGoogleAvailable()) {
       promises.push(this.sendToGoogle(event));
     }
 
     // TikTok Pixel
-    if (this.settings?.tiktok.enabled) {
+    if (this.isTikTokAvailable()) {
       promises.push(this.sendToTikTok(event));
     }
 
@@ -282,10 +290,59 @@ class ConversionTracker {
   }
 
   /**
+   * التحقق من توفر Facebook للتتبع
+   * يعتبر متاحاً إذا كانت الإعدادات مفعلة أو إذا كان fbq محملاً (بسبب بكسل المتجر)
+   */
+  private isFacebookAvailable(): boolean {
+    try {
+      const enabled = !!this.settings?.facebook?.enabled;
+      const fbqLoaded = typeof window !== 'undefined' && typeof window.fbq === 'function';
+      return enabled || fbqLoaded;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * التحقق من توفر Google للتتبع
+   */
+  private isGoogleAvailable(): boolean {
+    try {
+      const enabled = !!this.settings?.google?.enabled;
+      const gtagLoaded = typeof window !== 'undefined' && typeof window.gtag === 'function';
+      return enabled || gtagLoaded;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * التحقق من توفر TikTok للتتبع
+   */
+  private isTikTokAvailable(): boolean {
+    try {
+      const enabled = !!this.settings?.tiktok?.enabled;
+      const ttqLoaded = typeof window !== 'undefined' && typeof window.ttq?.track === 'function';
+      return enabled || !!ttqLoaded;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
    * إرسال إلى Facebook (Pixel + Conversion API)
    */
-  private async sendToFacebook(event: ConversionEvent): Promise<void> {
+  private async sendToFacebook(event: ConversionEvent, attempt: number = 0): Promise<void> {
     try {
+      // انتظار محسن للبكسل مع تقليل التأخير وزيادة المحاولات
+      if (typeof window === 'undefined' || !window.fbq) {
+        if (attempt < 20) { // زيادة المحاولات
+          setTimeout(() => this.sendToFacebook(event, attempt + 1), 100); // تقليل التأخير
+        } else {
+          this.logTrackingEvent('facebook_pixel', 'error', { reason: 'fbq_not_ready', attempts: attempt }, 'facebook');
+        }
+        return;
+      }
       // استخدام نفس event_id لكل من Pixel و Conversion API لتفعيل deduplication
       const baseEventId = this.generateEventId(event);
       const pixelEventId = baseEventId;
@@ -301,6 +358,7 @@ class ConversionTracker {
         // إضافة البيانات الأساسية
         const hasNumericValue = typeof event.value === 'number' && isFinite(event.value as number);
         if (hasNumericValue) eventData.value = event.value;
+        if (event.currency) eventData.currency = event.currency;
         if (event.order_id) eventData.order_id = event.order_id;
 
         // تعزيز بيانات المنتج لرفع EMQ: contents و num_items و content_name
@@ -371,7 +429,9 @@ class ConversionTracker {
       }
 
       // Facebook Conversion API (Server-side)
+      
       if (this.settings?.facebook.conversion_api_enabled && this.settings.facebook.access_token) {
+        
         try {
           await this.sendToFacebookConversionAPI(event, apiEventId);
           
@@ -678,6 +738,24 @@ class ConversionTracker {
    * التحقق من توفر API endpoint
    */
   private async checkApiAvailability(): Promise<boolean> {
+    // تخطي الفحص في بيئة التطوير/اللوكال لتقليل الضجيج وتحسين الأداء
+    try {
+      // @ts-ignore
+      if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.DEV) {
+        this.apiAvailable = false;
+        this.lastApiCheck = Date.now();
+        return false;
+      }
+      if (typeof window !== 'undefined') {
+        const host = window.location.hostname || '';
+        if (host.includes('localhost') || host.startsWith('127.') || host.includes('192.168')) {
+          this.apiAvailable = false;
+          this.lastApiCheck = Date.now();
+          return false;
+        }
+      }
+    } catch {}
+
     // إذا تم الفحص مؤخراً، استخدم النتيجة المحفوظة
     if (this.apiAvailable !== null && Date.now() - this.lastApiCheck < this.API_CHECK_INTERVAL) {
       return this.apiAvailable;
@@ -685,23 +763,54 @@ class ConversionTracker {
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 ثواني
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // زيادة timeout إلى 5 ثواني
 
-      const response = await fetch('/api/conversion-events/health', {
-        method: 'GET',
-        signal: controller.signal
-      });
+      // تجربة عدة endpoints محتملة
+      const endpoints = [
+        '/api/conversion-events/health',
+        './api/conversion-events/health',
+        `${window.location.origin}/api/conversion-events/health`
+      ];
+
+      let lastError: any = null;
+
+      for (const endpoint of endpoints) {
+        try {
+          const response = await fetch(endpoint, {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json'
+            },
+            signal: controller.signal
+          });
+
+          if (response.ok) {
+            clearTimeout(timeoutId);
+            this.apiAvailable = true;
+            this.lastApiCheck = Date.now();
+            return true;
+          }
+        } catch (endpointError) {
+          lastError = endpointError;
+          continue; // جرب الـ endpoint التالي
+        }
+      }
 
       clearTimeout(timeoutId);
 
-      this.apiAvailable = response.ok;
+      // إذا فشلت جميع المحاولات
+      this.apiAvailable = false;
       this.lastApiCheck = Date.now();
       
-      return this.apiAvailable;
+      console.warn('⚠️ Conversion API health check failed:', lastError?.message || 'All endpoints failed');
+      
+      return false;
     } catch (error) {
       // إذا فشل الفحص، افترض أن API غير متاح
       this.apiAvailable = false;
       this.lastApiCheck = Date.now();
+      console.warn('⚠️ API availability check failed:', error);
       return false;
     }
   }

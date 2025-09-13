@@ -109,7 +109,7 @@ const LoginForm = () => {
           subdomain = currentSubdomain;
         }
       } else {
-        const publicDomains = ['ktobi.online', 'stockiha.com'];
+        const publicDomains = ['ktobi.online', 'stockiha.com', 'stockiha.pages.dev'];
         const isPublicDomain = publicDomains.some(pd => hostname === pd || hostname === `www.${pd}`);
         
         if (!isPublicDomain) {
@@ -257,12 +257,14 @@ const LoginForm = () => {
                           if (retryData.session && retryData.user) {
                 loginFormDebugLog('✅ نجح إعادة تسجيل الدخول بعد خطأ CAPTCHA');
                 
-                // ⚡ تحديث AuthContext فوراً
-                loginFormDebugLog('⚡ تحديث AuthContext بعد إعادة المحاولة...');
+                // ⚡ تحديث AuthContext + تعيين الجلسة مباشرة على Supabase
+                loginFormDebugLog('⚡ تحديث AuthContext وتعيين الجلسة بعد إعادة المحاولة...');
                 updateAuthState(retryData.session, retryData.user);
-                
-                // انتظار تحديث AuthContext
-                await new Promise(resolve => setTimeout(resolve, 200));
+                try {
+                  await supabase.auth.setSession(retryData.session);
+                } catch {}
+                // انتظار بسيط بعد التعيين
+                await new Promise(resolve => setTimeout(resolve, 150));
                 
                 // تحديث معرف المؤسسة إذا كان متاحاً
                 try {
@@ -308,9 +310,12 @@ const LoginForm = () => {
         sessionId: data.session.access_token?.substring(0, 20) + '...'
       });
 
-      // ⚡ تحديث AuthContext فوراً لتجنب مشكلة التزامن
-      loginFormDebugLog('⚡ تحديث AuthContext فوراً...');
+      // ⚡ تحديث AuthContext + تعيين الجلسة على Supabase لضمان تزامن sessionMonitor
+      loginFormDebugLog('⚡ تحديث AuthContext وتعيين الجلسة على Supabase...');
       forceUpdateAuthState(data.session, data.user);
+      try {
+        await supabase.auth.setSession(data.session);
+      } catch {}
       
       // انتظار تحديث AuthContext وتحميل البيانات
       setLoadingMessage('جاري تحديث حالة المصادقة...');

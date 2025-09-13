@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Dialog,
   DialogContent,
@@ -42,12 +42,11 @@ const CategoryDetailsDialog = ({
   // عرض أيقونة الفئة
   const renderCategoryIcon = (iconName: string | null, className: string = "h-12 w-12") => {
     if (!iconName) return null;
-    
+
     const IconComponent = getLucideIcon(iconName);
     if (!IconComponent) return null;
-    
-    const Icon = IconComponent as React.ElementType;
-    return <Icon className={className} />;
+
+    return <IconComponent className={className} />;
   };
 
   return (

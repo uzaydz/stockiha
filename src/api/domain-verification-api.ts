@@ -4,56 +4,134 @@ import axios from 'axios';
 import { INTERMEDIATE_DOMAIN } from '@/lib/api/domain-verification';
 
 /**
- * التحقق من سجلات DNS للنطاق المخصص
- * هذه الوظيفة تحاكي عملية التحقق من سجلات DNS، في الإنتاج يمكن استخدام خدمة فعلية للتحقق من السجلات
+ * التحقق من سجل DNS محدد باستخدام Cloudflare DNS over HTTPS
+ */
+async function checkDNSRecord(domain: string, recordType: string): Promise<string[]> {
+  try {
+    const response = await fetch(
+      `https://cloudflare-dns.com/dns-query?name=${domain}&type=${recordType}`,
+      {
+        headers: {
+          'Accept': 'application/dns-json'
+        }
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    if (data.Answer && Array.isArray(data.Answer)) {
+      return data.Answer
+        .filter((record: any) => record.type === 5) // CNAME records
+        .map((record: any) => record.data.replace(/\.$/, '')); // إزالة النقطة النهائية
+    }
+    
+    return [];
+  } catch (error) {
+    console.error(`خطأ في فحص DNS للنطاق ${domain}:`, error);
+    return [];
+  }
+}
+
+/**
+ * التحقق من سجلات DNS للنطاق المخصص باستخدام Cloudflare DNS over HTTPS
+ * يقوم بفحص حقيقي للسجلات بدلاً من المحاكاة
  */
 export const verifyDomainDNS = async (domain: string): Promise<DNSVerificationResult> => {
   try {
     // تنظيف النطاق
     const cleanDomain = domain.replace(/^https?:\/\//i, '').replace(/\/$/, '').toLowerCase();
     
-    // في الإنتاج الفعلي، هنا نقوم باستعلام DNS عن طريق خدمة مثل Vercel API أو AWS Route53
-    // لأغراض العرض، نقوم بمحاكاة العملية
     
-    // سجلات DNS المتوقعة
-    const expectedRecords = [
-      {
+    
+    // التحقق من سجلات CNAME للنطاق الرئيسي وwww
+    const [apexResult, wwwResult] = await Promise.allSettled([
+      checkDNSRecord(cleanDomain, 'CNAME'),
+      checkDNSRecord(`www.${cleanDomain}`, 'CNAME')
+    ]);
+
+    const verificationResults: Array<{
+      name: string;
+      type: string;
+      value: string;
+      status: 'valid' | 'invalid' | 'pending';
+      expected: string;
+    }> = [];
+
+    // فحص النطاق الرئيسي
+    if (apexResult.status === 'fulfilled' && apexResult.value) {
+      const isValid = apexResult.value.some(record => 
+        record.includes('stockiha.pages.dev') || 
+        record.includes(`www.${cleanDomain}`)
+      );
+      
+      verificationResults.push({
         name: '@',
         type: 'CNAME',
-        expected: 'connect.ktobi.online'
-      },
-      {
+        value: apexResult.value[0] || 'لا يوجد',
+        status: isValid ? 'valid' : 'invalid',
+        expected: 'stockiha.pages.dev أو www.' + cleanDomain
+      });
+    } else {
+      verificationResults.push({
+        name: '@',
+        type: 'CNAME',
+        value: 'غير موجود',
+        status: 'invalid',
+        expected: 'stockiha.pages.dev أو www.' + cleanDomain
+      });
+    }
+
+    // فحص www
+    if (wwwResult.status === 'fulfilled' && wwwResult.value) {
+      const isValid = wwwResult.value.some(record => 
+        record.includes('stockiha.pages.dev')
+      );
+      
+      verificationResults.push({
         name: 'www',
         type: 'CNAME',
-        expected: 'connect.ktobi.online'
-      }
-    ];
-    
-    // محاكاة التحقق من سجلات DNS
-    // في الإنتاج الفعلي، ستكون هذه نتائج استعلامات DNS حقيقية
-    const verificationResults = expectedRecords.map(record => {
-      // محاكاة بعض النتائج العشوائية للأغراض التوضيحية
-      const random = Math.random();
-      const isValid = random > 0.3; // 70% فرصة أن تكون صالحة
-      
-      return {
-        name: record.name,
-        type: record.type,
-        value: isValid ? record.expected : 'invalid-value.example.com',
-        status: isValid ? 'valid' as const : 'invalid' as const,
-        expected: record.expected
-      };
-    });
+        value: wwwResult.value[0] || 'لا يوجد',
+        status: isValid ? 'valid' : 'invalid',
+        expected: 'stockiha.pages.dev'
+      });
+    } else {
+      verificationResults.push({
+        name: 'www',
+        type: 'CNAME',
+        value: 'غير موجود',
+        status: 'invalid',
+        expected: 'stockiha.pages.dev'
+      });
+    }
     
     // تحديد ما إذا كانت جميع السجلات صالحة
-    const allValid = verificationResults.every(record => record.status === 'valid');
+    const allValid = verificationResults.some(record => record.status === 'valid');
+    const hasValidApex = verificationResults.find(r => r.name === '@')?.status === 'valid';
+    const hasValidWWW = verificationResults.find(r => r.name === 'www')?.status === 'valid';
+    
+    let message = '';
+    if (allValid) {
+      if (hasValidApex && hasValidWWW) {
+        message = 'تم التحقق من جميع سجلات DNS بنجاح';
+      } else if (hasValidWWW) {
+        message = 'تم التحقق من سجل www بنجاح، النطاق الرئيسي يحتاج إعداد';
+      } else if (hasValidApex) {
+        message = 'تم التحقق من النطاق الرئيسي بنجاح، www يحتاج إعداد';
+      }
+    } else {
+      message = 'فشل التحقق من سجلات DNS - يرجى التحقق من إعدادات النطاق';
+    }
+    
+    
     
     return {
       success: allValid,
       records: verificationResults,
-      message: allValid 
-        ? 'تم التحقق من جميع سجلات DNS بنجاح' 
-        : 'بعض سجلات DNS غير صحيحة، يرجى التحقق من الإعدادات'
+      message
     };
   } catch (error) {
     return {
@@ -514,7 +592,12 @@ export function generateCustomDomainDnsInstructions(
       {
         type: 'A',
         name: '@',
-        value: '76.76.21.21'
+        value: '76.76.19.142'
+      },
+      {
+        type: 'A',
+        name: '@',
+        value: '76.223.126.88'
       },
       {
         type: 'CNAME',

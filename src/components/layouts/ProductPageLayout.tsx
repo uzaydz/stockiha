@@ -5,6 +5,29 @@ import { HelmetProvider } from "react-helmet-async";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from '@/components/ui/toaster';
 import { Toaster as Sonner } from "@/components/ui/sonner";
+
+// إنشاء HelmetContext منفصل لضمان التهيئة الصحيحة
+const helmetContext = {
+  instances: new Set(),
+  add: (instance: any) => {
+    helmetContext.instances.add(instance);
+  },
+  remove: (instance: any) => {
+    helmetContext.instances.delete(instance);
+  },
+  update: (instance: any) => {
+    // لا حاجة لفعل شيء هنا
+  },
+  canUseDOM: typeof window !== 'undefined',
+  setHelmet: (helmet: any) => {
+    // لا حاجة لفعل شيء هنا
+  },
+  helmetInstances: {
+    get: () => helmetContext.instances,
+    add: (instance: any) => helmetContext.instances.add(instance),
+    remove: (instance: any) => helmetContext.instances.delete(instance)
+  }
+};
 import { ProductPageProvider } from '@/context/ProductPageContext';
 import queryClient from "@/lib/config/queryClient";
 import i18n from '@/i18n';
@@ -36,7 +59,7 @@ export const ProductPageLayout: React.FC<ProductPageLayoutProps> = ({
           hostname={hostname}
         >
           <I18nextProvider i18n={i18n}>
-            <HelmetProvider>
+            <HelmetProvider context={helmetContext}>
               <div className="min-h-screen bg-gray-50">
                 {children}
               </div>

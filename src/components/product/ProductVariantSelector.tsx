@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { CompleteProduct, ProductColor, ProductSize } from '@/lib/api/productComplete';
 import { cn } from '@/lib/utils';
 import { useProductPurchaseTranslation } from '@/hooks/useProductPurchaseTranslation';
+import { getCdnImageUrl } from '@/lib/image-cdn';
 
 interface ProductVariantSelectorProps {
   product: CompleteProduct;
@@ -69,6 +70,23 @@ const ProductVariantSelector = memo<ProductVariantSelectorProps>(({
   // استخدام الترجمة المخصصة
   const { productVariantSelector } = useProductPurchaseTranslation();
 
+  // 🔍 Debug: تسجيل محدود لحالة المكوّن
+  const renderCount = useRef(0);
+  renderCount.current++;
+  
+  if (process.env.NODE_ENV === 'development' && renderCount.current <= 3) {
+    try {
+      // سجل موجز فقط (مرة مبكرة) لتقليل الضوضاء
+      console.log('🎨 [ProductVariantSelector] component render', {
+        hasProduct: !!product,
+        hasVariants: !!(product?.variants?.colors?.length),
+        colorsLength: product?.variants?.colors?.length || 0,
+        selectedColorId: selectedColor?.id,
+        selectedSizeId: selectedSize?.id
+      });
+    } catch {}
+  }
+
   // تسجيل معلومات البيانات الواردة للتشخيص
 
   // تتبع الاختيار التلقائي لتجنب التكرار
@@ -94,9 +112,18 @@ const ProductVariantSelector = memo<ProductVariantSelectorProps>(({
     };
   }, [product, selectedColor]);
 
-  // تتبع تغييرات selectedSize
-  useEffect(() => {
-  }, [selectedSize]);
+  // تقليل الانميشن في التطوير/عناصر كثيرة/تفضيل تقليل الحركة
+  const disableMotion = useMemo(() => {
+    try {
+      const reduce = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      return Boolean(import.meta.env.DEV) || reduce || (variantData.colors.length > 12);
+    } catch {
+      return Boolean(import.meta.env.DEV) || (variantData.colors.length > 12);
+    }
+  }, [variantData.colors.length]);
+
+  // تتبع تغييرات selectedSize (لا شيء هنا لتقليل الأثر)
+  useEffect(() => {}, [selectedSize]);
 
   // منطق الاختيار التلقائي للمقاس عند التحميل الأولي
   useEffect(() => {
@@ -208,14 +235,14 @@ const ProductVariantSelector = memo<ProductVariantSelectorProps>(({
   return (
     <motion.div 
       className={cn("space-y-8", className)}
-      variants={containerVariants}
-      initial="hidden"
-      animate="visible"
+      variants={disableMotion ? undefined : containerVariants}
+      initial={disableMotion ? undefined : 'hidden'}
+      animate={disableMotion ? undefined : 'visible'}
     >
       {/* قسم اختيار اللون */}
       <motion.div 
         className="space-y-4"
-        variants={sectionVariants}
+        variants={disableMotion ? undefined : sectionVariants}
       >
         <div className="flex items-center justify-between">
           <Label className="text-base font-semibold text-foreground dark:text-white">
@@ -236,17 +263,12 @@ const ProductVariantSelector = memo<ProductVariantSelectorProps>(({
         </div>
         
         <div className="flex flex-wrap gap-3">
-          {/* 🚀 تسجيل معلومات البيانات الواردة للتشخيص */}
-          {(() => {
-            return null;
-          })()}
+          {/* تم تقليل اللوج الثقيل لتحسين الأداء */}
 
           {variantData.colors.map((color) => {
             const isSelected = selectedColor?.id === color.id;
             const isOutOfStock = (color.quantity || 0) <= 0;
             const isLowStock = (color.quantity || 0) > 0 && (color.quantity || 0) <= 5;
-            
-            // إضافة console.log لتشخيص المشكلة
             
             return (
               <motion.button
@@ -254,117 +276,70 @@ const ProductVariantSelector = memo<ProductVariantSelectorProps>(({
                 onClick={() => handleColorSelect(color)}
                 disabled={isOutOfStock}
                 className={cn(
-                  "relative group p-1 rounded-2xl transition-all duration-300",
+                  "relative flex items-center justify-center p-3 rounded-xl border-2",
+                  "transition-all duration-300 ease-out min-w-[4rem]",
                   !isOutOfStock && "hover:shadow-lg hover:-translate-y-1",
                   isSelected 
-                    ? "bg-primary/20 shadow-lg scale-105" 
-                    : !isOutOfStock && "hover:bg-muted/50",
-                  isOutOfStock && "cursor-not-allowed opacity-40"
+                    ? "border-primary bg-primary/10 shadow-lg scale-105" 
+                    : !isOutOfStock
+                    ? "border-border/50 bg-background hover:border-primary/50 hover:bg-primary/5"
+                    : "border-red-200 bg-red-50 cursor-not-allowed opacity-50 dark:border-red-800 dark:bg-red-900/20"
                 )}
-                variants={colorVariants}
-                whileHover={!isOutOfStock ? { scale: 1.05 } : {}}
-                whileTap={!isOutOfStock ? { scale: 0.95 } : {}}
+                variants={disableMotion ? undefined : colorVariants}
+                whileHover={disableMotion || isOutOfStock ? {} : { scale: 1.05 }}
+                whileTap={disableMotion || isOutOfStock ? {} : { scale: 0.95 }}
                 title={isOutOfStock ? `${color.name} - نفد المخزون` : color.name}
               >
-                <div className={cn(
-                  "relative flex items-center justify-center w-14 h-14 rounded-xl",
-                  "border-2 transition-all duration-300 overflow-hidden",
-                  isSelected 
-                    ? "shadow-lg scale-105" 
-                    : !isOutOfStock 
-                    ? "border-border/30 group-hover:border-primary/50"
-                    : "border-red-200 dark:border-red-800",
-                  isOutOfStock && "bg-gray-100 dark:bg-gray-800"
-                )}
-                style={{
-                  borderWidth: isSelected ? '3px' : '2px',
-                  borderColor: isOutOfStock 
-                    ? 'rgb(239 68 68 / 0.3)' 
-                    : isSelected && color.color_code 
-                    ? color.color_code 
-                    : isSelected 
-                    ? 'hsl(var(--primary))' 
-                    : undefined
-                }}>
-                  {/* عرض صورة المنتج للون */}
-                  {color.image_url ? (
-                    <img
-                      src={color.image_url}
-                      alt={`${color.name} - ${product.name}`}
-                      className={cn(
-                        "w-full h-full rounded-lg object-cover",
-                        isOutOfStock && "grayscale opacity-50"
-                      )}
-                      loading="lazy"
-                    />
-                  ) : (
-                    /* عرض اللون كبديل إذا لم تكن هناك صورة */
-                    <div 
-                      className={cn(
-                        "w-10 h-10 rounded-lg shadow-sm",
-                        isOutOfStock && "grayscale opacity-50"
-                      )}
-                      style={{ backgroundColor: color.color_code || '#e5e7eb' }}
-                    />
-                  )}
-                  
-                  {/* عرض اسم اللون إذا لم تكن هناك صورة ولا لون */}
-                  {!color.image_url && !color.color_code && (
-                    <span className={cn(
-                      "text-xs font-medium text-center px-1",
-                      isOutOfStock ? "text-gray-400" : "text-foreground"
-                    )}>
-                      {color.name.slice(0, 3)}
+                {/* عرض الصورة إذا متوفرة */}
+                {color.image_url ? (
+                  <div className="flex flex-col items-center gap-2">
+                    <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100">
+                      <img
+                        src={getCdnImageUrl(color.image_url, { width: 48, height: 48, quality: 80 })}
+                        alt={color.name}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    </div>
+                    <span className="text-xs font-medium text-center leading-tight">
+                      {color.name}
                     </span>
-                  )}
-                  
-                  {/* تأثير التحديد - إضاءة لطيفة */}
-                  {isSelected && !isOutOfStock && (
-                    <motion.div 
-                      className="absolute inset-0 rounded-xl"
-                      style={{
-                        boxShadow: `0 0 0 2px ${color.color_code || 'hsl(var(--primary))'}, 0 0 20px ${color.color_code || 'hsl(var(--primary))'}33`
-                      }}
-                      initial={{ scale: 0, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      transition={{ duration: 0.2 }}
+                  </div>
+                ) : (
+                  /* عرض اللون إذا لم تكن هناك صورة */
+                  <div className="flex flex-col items-center gap-2">
+                    <div 
+                      className="w-12 h-12 rounded-lg border-2 border-gray-200"
+                      style={{ backgroundColor: color.color_code || '#f3f4f6' }}
                     />
-                  )}
-
-                  {/* مؤشر نفاد المخزون */}
-                  {isOutOfStock && (
-                    <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-red-50/80 dark:bg-red-900/20">
-                      <div className="w-8 h-0.5 bg-red-500 rotate-45 rounded-full"></div>
-                      <div className="w-8 h-0.5 bg-red-500 -rotate-45 rounded-full absolute"></div>
-                    </div>
-                  )}
-
-                  {/* مؤشر المخزون المنخفض */}
-                  {isLowStock && !isOutOfStock && (
-                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full border-2 border-white dark:border-gray-900">
-                      <div className="w-full h-full bg-orange-500 rounded-full animate-pulse"></div>
-                    </div>
-                  )}
-                </div>
+                    <span className="text-xs font-medium text-center leading-tight">
+                      {color.name}
+                    </span>
+                  </div>
+                )}
                 
-                {/* اسم اللون مع حالة المخزون */}
-                <div className={cn(
-                  "absolute -bottom-8 left-1/2 -translate-x-1/2",
-                  "px-2 py-1 rounded-md bg-background/90 backdrop-blur-sm",
-                  "border border-border/50 shadow-sm",
-                  "text-xs font-medium",
-                  "opacity-0 group-hover:opacity-100 transition-opacity duration-200",
-                  "whitespace-nowrap z-10",
-                  isOutOfStock ? "text-red-500" : "text-foreground"
-                )}>
-                  {color.name}
-                  {isOutOfStock && (
-                    <span className="block text-red-500">نفد المخزون</span>
-                  )}
-                  {isLowStock && !isOutOfStock && (
-                    <span className="block text-orange-500">مخزون منخفض ({color.quantity})</span>
-                  )}
-                </div>
+                {/* مؤشر نفاد المخزون */}
+                {isOutOfStock && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-8 h-0.5 bg-red-500 rotate-45 rounded-full"></div>
+                    <div className="w-8 h-0.5 bg-red-500 -rotate-45 rounded-full absolute"></div>
+                  </div>
+                )}
+
+                {/* مؤشر المخزون المنخفض */}
+                {isLowStock && !isOutOfStock && !isSelected && (
+                  <div className="absolute -top-1 -right-1 w-3 h-3 bg-orange-500 rounded-full animate-pulse"></div>
+                )}
+                
+                {/* تأثير التحديد */}
+                {isSelected && !isOutOfStock && (
+                  <motion.div
+                    className="absolute inset-0 rounded-xl bg-primary/20 border-2 border-primary"
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ duration: 0.2 }}
+                  />
+                )}
               </motion.button>
             );
           })}
@@ -415,9 +390,9 @@ const ProductVariantSelector = memo<ProductVariantSelectorProps>(({
                       ? "border-border/50 bg-background hover:border-primary/50 hover:bg-primary/5 text-foreground"
                       : "border-red-200 bg-red-50 text-red-400 cursor-not-allowed opacity-50 dark:border-red-800 dark:bg-red-900/20 dark:text-red-500"
                   )}
-                  variants={colorVariants}
-                  whileHover={!isOutOfStock ? { scale: 1.05 } : {}}
-                  whileTap={!isOutOfStock ? { scale: 0.95 } : {}}
+                  variants={disableMotion ? undefined : colorVariants}
+                  whileHover={disableMotion || isOutOfStock ? {} : { scale: 1.05 }}
+                  whileTap={disableMotion || isOutOfStock ? {} : { scale: 0.95 }}
                   title={isOutOfStock ? `${size.size_name} - نفد المخزون` : size.size_name}
                 >
                   {size.size_name}

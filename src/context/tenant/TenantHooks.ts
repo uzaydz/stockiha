@@ -160,30 +160,16 @@ export function useTenantHooks(
             refs.initialized.current = true;
             refs.fallbackProcessed.current = true;
             
-            // ⚡ تحسين: إرسال الحدث بشكل غير متزامن
-            requestIdleCallback ? 
-              requestIdleCallback(() => {
-                window.dispatchEvent(new CustomEvent('bazaar:tenant-context-ready', {
-                  detail: { 
-                    organization: hydratedOrg, 
-                    isEarlyDetection: false,
-                    loadTime: Date.now() - refs.startTime.current,
-                    timestamp: Date.now(),
-                    source: 'rpc-cache'
-                  }
-                }));
-              }, { timeout: 50 }) :
-              setTimeout(() => {
-                window.dispatchEvent(new CustomEvent('bazaar:tenant-context-ready', {
-                  detail: { 
-                    organization: hydratedOrg, 
-                    isEarlyDetection: false,
-                    loadTime: Date.now() - refs.startTime.current,
-                    timestamp: Date.now(),
-                    source: 'rpc-cache'
-                  }
-                }));
-              }, 0);
+            // ⚡ إرسال فوري لحدث جاهزية المؤسسة بدون انتظار闲
+            window.dispatchEvent(new CustomEvent('bazaar:tenant-context-ready', {
+              detail: { 
+                organization: hydratedOrg, 
+                isEarlyDetection: false,
+                loadTime: Date.now() - refs.startTime.current,
+                timestamp: Date.now(),
+                source: 'rpc-cache'
+              }
+            }));
             
             return;
           }
@@ -203,30 +189,16 @@ export function useTenantHooks(
           updateLocalStorageOrgId(processedOrg.id);
           saveCompleteOrganizationData(processedOrg, currentSubdomain);
           
-          // ⚡ تحسين: إرسال الحدث بشكل غير متزامن
-          requestIdleCallback ? 
-            requestIdleCallback(() => {
-              window.dispatchEvent(new CustomEvent('bazaar:tenant-context-ready', {
-                detail: { 
-                  organization: processedOrg, 
-                  isEarlyDetection: false,
-                  loadTime: Date.now() - refs.startTime.current,
-                  timestamp: Date.now(),
-                  source: 'fallback-fetch'
-                }
-              }));
-            }, { timeout: 50 }) :
-            setTimeout(() => {
-              window.dispatchEvent(new CustomEvent('bazaar:tenant-context-ready', {
-                detail: { 
-                  organization: processedOrg, 
-                  isEarlyDetection: false,
-                  loadTime: Date.now() - refs.startTime.current,
-                  timestamp: Date.now(),
-                  source: 'fallback-fetch'
-                }
-              }));
-            }, 0);
+          // ⚡ إرسال فوري لحدث جاهزية المؤسسة بدون انتظار闲
+          window.dispatchEvent(new CustomEvent('bazaar:tenant-context-ready', {
+            detail: { 
+              organization: processedOrg, 
+              isEarlyDetection: false,
+              loadTime: Date.now() - refs.startTime.current,
+              timestamp: Date.now(),
+              source: 'fallback-fetch'
+            }
+          }));
           
           clearTimeout(timeoutId);
           refs.loadingOrganization.current = false;

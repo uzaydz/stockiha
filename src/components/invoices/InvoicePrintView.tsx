@@ -14,9 +14,7 @@ import {
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { useReactToPrint } from 'react-to-print';
-import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
-import html2canvas from 'html2canvas';
+// Heavy libs are dynamically imported when needed to reduce initial JS size
 import { toast } from 'sonner';
 import type { Invoice } from '@/lib/api/invoices';
 
@@ -41,7 +39,13 @@ const InvoicePrintView = ({ invoice, onBack }: InvoicePrintViewProps) => {
 
     try {
       toast.loading('جاري إنشاء ملف PDF...');
-      
+      // Dynamic imports for heavy libraries
+      const [jspdfMod, html2canvasMod] = await Promise.all([
+        import('jspdf'),
+        import('html2canvas')
+      ]);
+      const html2canvas = (html2canvasMod as any).default || html2canvasMod;
+
       const canvas = await html2canvas(printRef.current, {
         scale: 2,
         useCORS: true,
@@ -50,6 +54,7 @@ const InvoicePrintView = ({ invoice, onBack }: InvoicePrintViewProps) => {
       
       const imgData = canvas.toDataURL('image/png');
       
+      const { jsPDF } = jspdfMod as any;
       const pdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
@@ -76,7 +81,7 @@ const InvoicePrintView = ({ invoice, onBack }: InvoicePrintViewProps) => {
       if (!printRef.current) return;
       
       toast.loading('جاري تحضير الفاتورة للمشاركة...');
-      
+      const html2canvas = (await import('html2canvas') as any).default || (await import('html2canvas'));
       const canvas = await html2canvas(printRef.current, {
         scale: 2,
         useCORS: true,

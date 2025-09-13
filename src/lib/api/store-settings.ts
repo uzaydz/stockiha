@@ -1,4 +1,5 @@
 import { supabase } from '../supabase-client';
+import { canMutateHead } from '@/lib/headGuard';
 import { OrganizationSettings, UpdateSettingsPayload } from '@/types/settings';
 
 /**
@@ -155,12 +156,12 @@ export const applyThemeSettings = async (theme: ThemeSettingsResponse['theme']) 
     const root = document.documentElement;
 
     // تحديث عنوان الصفحة
-    if (theme.site_name) {
+    if (theme.site_name && canMutateHead()) {
       document.title = theme.site_name;
     }
 
     // تحديث الأيقونة
-    if (theme.favicon_url) {
+    if (theme.favicon_url && canMutateHead()) {
       const existingFavicons = document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"]');
       existingFavicons.forEach(favicon => favicon.remove());
 
@@ -207,10 +208,12 @@ export const applyThemeSettings = async (theme: ThemeSettingsResponse['theme']) 
       });
     }
 
-    // إجبار إعادة رسم الصفحة
-    root.style.display = 'none';
-    root.offsetHeight; // trigger reflow
-    root.style.display = '';
+    // تجنب forced reflow: اترك المتصفح يطبّق التغييرات في إطار الرسم التالي
+    // دون القراءة من خصائص التخطيط التي تجبر على إعادة التدفق.
+    requestAnimationFrame(() => {
+      // يمكننا إطلاق حدث resize اختياريًا لإعلام المستمعين بدون إجبار إعادة التدفق المتزامن.
+      try { window.dispatchEvent(new Event('resize')); } catch {}
+    });
 
   } catch (error) {
   }

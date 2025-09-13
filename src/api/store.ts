@@ -716,8 +716,8 @@ export async function getProductBySlug(organizationId: string, slug: string): Pr
     // البحث 3: استخدام طلب HTTP مباشر كحل أخير
     if (!data && isUuid) {
       try {
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
-        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
         
         if (supabaseUrl && supabaseAnonKey) {
 
@@ -946,66 +946,7 @@ export async function processOrder(
       throw new Error((data as any)?.error || 'خطأ من قاعدة البيانات');
     }
 
-  // 🚨 CONSOLE LOG: فحص كمية المخزون بعد الطلبية
-  if (!error && data) {
-    
-    try {
-      const supabaseClient = getSupabaseClient();
-      
-      // فحص كمية المنتج الرئيسي
-      const { data: productAfter } = await supabaseClient
-        .from('products')
-        .select('stock_quantity')
-        .eq('id', productId)
-        .single();
-
-      // فحص كمية اللون إذا كان موجود
-      const validProductColorId = toUuidOrNull(productColorId);
-      if (validProductColorId) {
-        
-        const { data: colorAfter } = await supabaseClient
-          .from('product_colors')
-          .select('quantity, name')
-          .eq('id', validProductColorId)
-          .single();
-
-      // 🧪 CONSOLE LOG: اختبار خصم المخزون مباشرة باستخدام UPDATE
-      try {
-        
-        const { data: updateResult, error: updateError } = await supabaseClient
-          .from('product_colors')
-          .update({ quantity: colorAfter?.quantity - 1 })
-          .eq('id', validProductColorId)
-          .select('quantity, name');
-        
-        if (updateError) {
-        } else {
-          
-          // إعادة الكمية كما كانت
-          await supabaseClient
-            .from('product_colors')
-            .update({ quantity: colorAfter?.quantity })
-            .eq('id', validProductColorId);
-          
-        }
-      } catch (testError) {
-      }
-      }
-      
-      // فحص كمية المقاس إذا كان موجود
-      const validProductSizeId = toUuidOrNull(productSizeId);
-      if (validProductSizeId) {
-        
-        const { data: sizeAfter } = await supabaseClient
-          .from('product_sizes')
-          .select('quantity')
-          .eq('id', validProductSizeId)
-          .single();
-        
-      }
-    } catch (checkError) {
-    }
-  }
+  // تمت إزالة فحوصات المخزون بعد الطلب لتجنب طلبات إضافية غير ضرورية في مسار الإنتاج
 
     if (error) {
       // 🚨 CONSOLE LOG: خطأ في قاعدة البيانات

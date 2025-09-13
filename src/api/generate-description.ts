@@ -70,7 +70,7 @@ export default async function handler(
       method: "POST",
       headers: {
         "Authorization": "Bearer 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",
-        "HTTP-Referer": process.env.NEXT_PUBLIC_SITE_URL || "https://stockiha.com",
+        "HTTP-Referer": import.meta.env.VITE_SITE_URL || "https://stockiha.com",
         "X-Title": "Bazaar Console",
         "Content-Type": "application/json"
       },

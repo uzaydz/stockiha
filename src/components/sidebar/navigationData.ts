@@ -31,7 +31,8 @@ import {
   CreditCard,
   Gamepad2,
   Activity,
-  Zap
+  Zap,
+  Ban
 } from 'lucide-react';
 
 import { NavGroup, MerchantType } from './types';
@@ -134,7 +135,7 @@ export const createNavigationData = (
           title: 'طلبيات نقطة البيع',
           icon: Receipt,
           href: '/dashboard/pos-orders',
-          requiredPermission: 'accessPOS',
+          requiredPermission: 'viewPOSOrders',
           badge: null,
           allowedMerchantTypes: ['traditional', 'both'] as MerchantType[]
         },
@@ -220,6 +221,14 @@ export const createNavigationData = (
           href: '/dashboard/orders-v2',
           requiredPermission: 'viewOrders',
           badge: '12',
+          allowedMerchantTypes: ['ecommerce', 'both']
+        },
+        {
+          title: 'قائمة المحظورين',
+          icon: Ban,
+          href: '/dashboard/blocked-customers',
+          requiredPermission: 'viewOrders',
+          badge: null,
           allowedMerchantTypes: ['ecommerce', 'both']
         },
         {

@@ -24,6 +24,9 @@ export interface UseUnifiedProductPageDataProps {
   organizationId?: string;
   enabled?: boolean;
   dataScope?: 'basic' | 'ultra' | 'full';
+  // بيانات أولية جاهزة للحقن (من DOM/worker) لتسريع الظهور الأول
+  initialData?: UnifiedProductPageData;
+  initialDataUpdatedAt?: number;
 }
 
 /**
@@ -62,8 +65,12 @@ export interface ProductFetchOptions {
  */
 export interface ProductApiResponse {
   success: boolean;
-  product: any;
-  stats?: any;
+  data?: {
+    product: any;
+    stats?: any;
+  };
+  product?: any; // للتوافق مع الإصدارات القديمة
+  stats?: any;   // للتوافق مع الإصدارات القديمة
   error?: string;
 }
 

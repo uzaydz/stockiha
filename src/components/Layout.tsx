@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo, memo } from 'react';
 import Navbar from '@/components/Navbar';
 import { useAuth } from '@/context/AuthContext';
 import SideMenu from '@/components/sidebar/SideMenu';
+import MobileBottomNavigation from '@/components/navbar/MobileBottomNavigation';
 import { cn } from '@/lib/utils';
 import { X, Menu, Loader2, Store } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -215,6 +216,12 @@ const Layout = memo(({ children }: LayoutProps) => {
           )}
         </>
       )}
+      
+      {/* القائمة الثابتة في الأسفل للهاتف */}
+      <MobileBottomNavigation 
+        onMenuToggle={toggleSidebar}
+        isMenuOpen={isMobileSidebarOpen}
+      />
     </div>
   );
 });

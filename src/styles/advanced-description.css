@@ -8,6 +8,58 @@
   transform: scale(1.02);
 }
 
+/* GIF Specific Styles - منع تداخل التأثيرات مع حركة GIF */
+img[data-gif="true"] {
+  /* إزالة أي تأثيرات قد تتداخل مع حركة GIF */
+  transform: none !important;
+  animation: none !important;
+  filter: none !important;
+  transition: none !important;
+  image-rendering: auto !important;
+  will-change: auto !important;
+  /* ضمان عدم تطبيق أي تأثيرات CSS خارجية */
+  opacity: 1 !important;
+}
+
+img[data-gif="true"]:hover {
+  transform: none !important;
+  animation: none !important;
+  filter: none !important;
+  transition: none !important;
+  opacity: 1 !important;
+}
+
+/* إزالة تأثيرات hover من GIF */
+.advanced-description-image img[data-gif="true"] {
+  transition: none !important;
+}
+
+.advanced-description-image:hover img[data-gif="true"] {
+  transform: none !important;
+  animation: none !important;
+  filter: none !important;
+}
+
+/* ضمان عدم تأثر GIF بأي CSS خارجي */
+[data-gif="true"] {
+  backface-visibility: visible !important;
+  transform-style: flat !important;
+  perspective: none !important;
+}
+
+/* قاعدة شاملة لضمان عدم تداخل أي CSS مع GIF */
+* img[data-gif="true"],
+*:hover img[data-gif="true"],
+*:focus img[data-gif="true"],
+*:active img[data-gif="true"] {
+  transform: none !important;
+  animation: none !important;
+  filter: none !important;
+  transition: none !important;
+  opacity: 1 !important;
+  will-change: auto !important;
+}
+
 /* Size Mode Styles */
 .image-size-responsive {
   max-width: 100%;

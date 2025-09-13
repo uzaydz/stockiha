@@ -97,7 +97,7 @@ const HeroComponent: React.FC<{ settings: Record<string, any> }> = ({ settings }
               src={settings.imageUrl || fallbackImage} 
               alt={settings.title || 'صورة ترويجية'} 
               className="max-w-full rounded-lg shadow-md" 
-              fetchpriority="high"
+              fetchPriority="high"
             />
           </div>
         </div>
@@ -583,11 +583,6 @@ const LandingPageComponentRenderer: React.FC<{
             submitButtonText={settings.submitButtonText || 'إرسال الطلب'}
             formId={settings.formId}
             productId={settings.productId}
-            onSubmit={async (data) => {
-              // معالجة إرسال النموذج
-
-              // هنا يمكنك إضافة منطق إرسال البيانات إلى الخادم
-            }}
           />
         </Suspense>
       );

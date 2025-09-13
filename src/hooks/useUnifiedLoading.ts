@@ -28,6 +28,68 @@ export const useUnifiedLoading = (): UseUnifiedLoadingReturn => {
     totalComponents: 0,
   });
 
+  // 🚨 إضافة timeout إجباري لإنهاء التحميل مع فحص البيانات - محسن لتجنب التكرار
+  useEffect(() => {
+    const forceStopLoading = setTimeout(() => {
+      if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {
+        console.log('🚨 [useUnifiedLoading] Forcing stop loading after timeout');
+      }
+      setLoadingState(prev => ({
+        ...prev,
+        isPageLoading: false,
+        isDataLoading: false
+      }));
+    }, 3000); // تقليل إلى 3 ثوان
+
+    // فحص البيانات المتوفرة بالفعل وإيقاف التحميل فوراً
+    const checkExistingData = () => {
+      const windowEarlyData = (window as any).__EARLY_STORE_DATA__;
+      const windowSharedData = (window as any).__SHARED_STORE_DATA__;
+      const windowCurrentData = (window as any).__CURRENT_STORE_DATA__;
+      
+      if (windowEarlyData?.data || windowSharedData || windowCurrentData) {
+        if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {
+          console.log('🎯 [useUnifiedLoading] Data already available, stopping loading immediately');
+        }
+        setLoadingState(prev => ({
+          ...prev,
+          isPageLoading: false,
+          isDataLoading: false
+        }));
+        clearTimeout(forceStopLoading);
+        return true;
+      }
+      return false;
+    };
+
+    // فحص البيانات فوراً
+    if (!checkExistingData()) {
+      // 🚀 استماع لحدث البيانات الجاهزة لإنهاء التحميل مبكراً
+      const handleStoreDataReady = () => {
+        if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {
+          console.log('🎯 [useUnifiedLoading] Store data ready, stopping loading');
+        }
+        setLoadingState(prev => ({
+          ...prev,
+          isPageLoading: false,
+          isDataLoading: false
+        }));
+        clearTimeout(forceStopLoading);
+      };
+
+      window.addEventListener('storeDataReady', handleStoreDataReady);
+      window.addEventListener('storeInitDataReady', handleStoreDataReady);
+
+      return () => {
+        clearTimeout(forceStopLoading);
+        window.removeEventListener('storeDataReady', handleStoreDataReady);
+        window.removeEventListener('storeInitDataReady', handleStoreDataReady);
+      };
+    }
+
+    return () => clearTimeout(forceStopLoading);
+  }, []);
+
   // استخدام refs لتجنب dependency issues
   const loadingStateRef = useRef(loadingState);
   loadingStateRef.current = loadingState;
@@ -51,7 +113,7 @@ export const useUnifiedLoading = (): UseUnifiedLoadingReturn => {
       const newLoadedComponents = new Set(prev.loadedComponents);
       if (!loading) {
         newLoadedComponents.add(componentId);
-        // console.log('✅ تم تحميل مكون:', componentId, '- المكونات المحملة:', newLoadedComponents.size, '/', prev.totalComponents);
+        // 
       } else {
         newLoadedComponents.delete(componentId);
       }
@@ -110,10 +172,17 @@ export const useUnifiedLoading = (): UseUnifiedLoadingReturn => {
   // تحديد ما إذا كان يجب عرض مؤشر التحميل العام - إخفاء بمجرد تحميل أول مكون
   const shouldShowGlobalLoader = loadingState.isPageLoading || 
     (loadingState.isDataLoading && loadingState.loadedComponents.size === 0);
+    
+  // تقليل رسائل التصحيح لتجنب التأثير على الأداء
+  if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) { // 10% فقط
+    console.log('🎯 [useUnifiedLoading] shouldShowGlobalLoader:', {
+      isPageLoading: loadingState.isPageLoading,
+      isDataLoading: loadingState.isDataLoading,
+      loadedComponentsSize: loadingState.loadedComponents.size,
+      shouldShowGlobalLoader
+    });
+  }
 
-  // إضافة console.log لتتبع حالة التحميل
-  useEffect(() => {
-  }, [shouldShowGlobalLoader, loadingState.isPageLoading, loadingState.isDataLoading, loadingState.loadedComponents.size]);
 
   // إيقاف تحميل الصفحة تلقائياً بمجرد تحميل البيانات أو أول مكون
   useEffect(() => {

@@ -57,6 +57,8 @@ export function AdminNavbar({
   toggleSidebar,
   organizationSettings: propOrganizationSettings
 }: AdminNavbarProps) {
+  const location = useLocation();
+  const isStoreEditorPage = location.pathname.startsWith('/dashboard/store-editor');
   const { user, userProfile } = useAuthSafe();
   const { t } = useTranslation();
   const { currentOrganization } = useTenantSafe();
@@ -92,7 +94,15 @@ export function AdminNavbar({
   // تحديث عنوان الصفحة
   useEffect(() => {
     if (siteName) {
-      document.title = siteName;
+      import('@/lib/headGuard')
+        .then(({ canMutateHead }) => {
+          if (!canMutateHead || canMutateHead()) {
+            document.title = siteName;
+          }
+        })
+        .catch(() => {
+          document.title = siteName;
+        });
     }
   }, [siteName]);
 
@@ -131,25 +141,29 @@ export function AdminNavbar({
             />
           </div>
 
-          {/* Center Section - Clean Quick Navigation */}
-          <div className="hidden lg:flex flex-1 justify-center max-w-xl mx-8">
-            <QuickNavLinks variant="navbar" maxItems={5} />
-          </div>
+          {/* Center Section - Clean Quick Navigation (skip on store-editor to avoid extra fetches) */}
+          {!isStoreEditorPage && (
+            <div className="hidden lg:flex flex-1 justify-center max-w-xl mx-8">
+              <QuickNavLinks variant="navbar" maxItems={5} />
+            </div>
+          )}
 
           {/* Right Section - Clean Actions */}
           <div className="flex items-center gap-3">
-            {/* Online Orders Counter */}
-            <div className="navbar-action-item">
-              <OnlineOrdersCounter variant="compact" />
-            </div>
+            {/* Online Orders Counter (skip on store-editor) */}
+            {!isStoreEditorPage && (
+              <div className="navbar-action-item">
+                <OnlineOrdersCounter variant="compact" />
+              </div>
+            )}
 
             {/* Theme Toggle */}
             <div className="navbar-action-item">
               <NavbarThemeToggle />
             </div>
 
-            {/* Notifications */}
-            {user && (
+            {/* Notifications (skip on store-editor to avoid data load) */}
+            {user && !isStoreEditorPage && (
               <div className="navbar-action-item">
                 <NavbarNotifications />
               </div>

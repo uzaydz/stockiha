@@ -32,26 +32,30 @@ const OptimizedImage = React.memo<OptimizedImageProps>(({
     setHasError(true);
   }, []);
 
-  // تحويل رابط Supabase إلى render (مع أحجام متعددة)
+  // تحويل رابط Supabase - معطل مؤقتاً بسبب Free Plan
   const computeTransformed = useCallback((inputSrc: string) => {
     try {
       if (!inputSrc) return { href: inputSrc, srcSet: undefined as string | undefined };
-      const isSvg = /\.svg(\?|$)/i.test(inputSrc);
-      if (isSvg) return { href: inputSrc, srcSet: undefined };
-      if (inputSrc.includes('/storage/v1/object/public/')) {
-        const url = new URL(inputSrc);
-        const pathAfterPublic = url.pathname.split('/storage/v1/object/public/')[1];
-        const encodedPath = pathAfterPublic
-          .split('/')
-          .map(seg => encodeURIComponent(seg))
-          .join('/');
-        const base = `${url.origin}/storage/v1/render/image/public/${encodedPath}`;
-        const chosenBase = baseWidth || (typeof window !== 'undefined' && window.innerWidth < 768 ? 512 : 800);
-        const srcSet = widths
-          .map(w => `${base}?width=${w}&quality=${quality} ${w}w`).join(', ');
-        return { href: `${base}?width=${chosenBase}&quality=${quality}`, srcSet };
-      }
+      
+      // إرجاع الرابط الأصلي مباشرة - Render API غير متاح في Supabase Free Plan
       return { href: inputSrc, srcSet: undefined };
+      
+      // TODO: تفعيل التحسين عند الترقية إلى Pro Plan
+      // const isSvg = /\.svg(\?|$)/i.test(inputSrc);
+      // if (isSvg) return { href: inputSrc, srcSet: undefined };
+      // if (inputSrc.includes('/storage/v1/object/public/')) {
+      //   const url = new URL(inputSrc);
+      //   const pathAfterPublic = url.pathname.split('/storage/v1/object/public/')[1];
+      //   const encodedPath = pathAfterPublic
+      //     .split('/')
+      //     .map(seg => encodeURIComponent(seg))
+      //     .join('/');
+      //   const base = `${url.origin}/storage/v1/render/image/public/${encodedPath}`;
+      //   const chosenBase = baseWidth || (typeof window !== 'undefined' && window.innerWidth < 768 ? 512 : 800);
+      //   const srcSet = widths
+      //     .map(w => `${base}?width=${w}&quality=${quality} ${w}w`).join(', ');
+      //   return { href: `${base}?width=${chosenBase}&quality=${quality}`, srcSet };
+      // }
     } catch {
       return { href: inputSrc, srcSet: undefined };
     }
@@ -103,9 +107,7 @@ const OptimizedImage = React.memo<OptimizedImageProps>(({
           }
         }}
         loading={priority ? 'eager' : 'lazy'}
-        // React لا يدعم fetchPriority مُعرّفاً بشكله القياسي بعد؛ المعيار يتطلب lowercase
-        // eslint-disable-next-line react/no-unknown-property
-        fetchpriority={priority ? 'high' : undefined}
+        fetchPriority={priority ? 'high' : undefined}
         decoding="async"
         sizes={sizes || "(max-width: 640px) 90vw, (max-width: 1024px) 50vw, 512px"}
         srcSet={imgSrcSet}

@@ -5,6 +5,7 @@
 DROP FUNCTION IF EXISTS create_pos_order_fast(UUID, UUID, JSON, DECIMAL, UUID, TEXT, TEXT, TEXT);
 DROP FUNCTION IF EXISTS create_pos_order_fast(UUID, UUID, TEXT, DECIMAL, UUID, TEXT, TEXT, TEXT);
 DROP FUNCTION IF EXISTS create_pos_order_fast(UUID, UUID, TEXT, DECIMAL, UUID, TEXT, TEXT, TEXT, DECIMAL, DECIMAL, DECIMAL, BOOLEAN);
+DROP FUNCTION IF EXISTS create_pos_order_fast(UUID, UUID, TEXT, DECIMAL, UUID, TEXT, TEXT, TEXT, DECIMAL, DECIMAL, DECIMAL, BOOLEAN, DECIMAL);
 
 CREATE OR REPLACE FUNCTION create_pos_order_fast(
     p_organization_id UUID,
@@ -13,12 +14,13 @@ CREATE OR REPLACE FUNCTION create_pos_order_fast(
     p_total_amount DECIMAL,
     p_customer_id UUID DEFAULT NULL,
     p_payment_method TEXT DEFAULT 'cash',
-    p_payment_status TEXT DEFAULT 'paid',
+    p_payment_status TEXT DEFAULT NULL,
     p_notes TEXT DEFAULT '',
     p_amount_paid DECIMAL DEFAULT NULL,
     p_discount DECIMAL DEFAULT 0,
     p_subtotal DECIMAL DEFAULT NULL,
-    p_consider_remaining_as_partial BOOLEAN DEFAULT FALSE
+    p_consider_remaining_as_partial BOOLEAN DEFAULT FALSE,
+    p_tax DECIMAL DEFAULT 0
 )
 RETURNS JSON
 LANGUAGE plpgsql
@@ -38,6 +40,18 @@ DECLARE
     item_record RECORD;
     fifo_result JSON;
     fifo_results JSONB := '[]'::jsonb;
+    v_guest_id UUID := '00000000-0000-0000-0000-000000000000'::uuid;
+    v_cust_id UUID;
+    v_final_subtotal DECIMAL := 0;
+    v_final_discount DECIMAL := 0;
+    v_final_tax DECIMAL := 0;
+    v_total DECIMAL := 0;
+    v_initial_total DECIMAL := 0;
+    v_amount_paid_calc DECIMAL := 0;
+    v_remaining DECIMAL := 0;
+    v_pay_status TEXT := 'paid';
+    v_tx_id UUID;
+    v_employee_id UUID;
 BEGIN
     -- إضافة معلومات تشخيصية
     v_debug_info := 'Input items: ' || p_items || 
@@ -56,6 +70,18 @@ BEGIN
     -- توليد slug فريد للطلبية
     v_order_slug := 'pos-' || EXTRACT(EPOCH FROM NOW())::BIGINT || '-' || 
                     FLOOR(RANDOM() * 1000)::INTEGER;
+
+    -- تحديد العميل (زائر افتراضيًا إن لم يُرسل)
+    v_cust_id := COALESCE(p_customer_id, v_guest_id);
+
+    -- محاولة مطابقة employee_id مع جدول users: أولاً id ثم auth_user_id
+    v_employee_id := NULL;
+    IF p_employee_id IS NOT NULL THEN
+        SELECT id INTO v_employee_id FROM users WHERE id = p_employee_id LIMIT 1;
+        IF v_employee_id IS NULL THEN
+            SELECT id INTO v_employee_id FROM users WHERE auth_user_id = p_employee_id LIMIT 1;
+        END IF;
+    END IF;
 
     -- جمع معرفات المنتجات (مع التحقق من نوع البيانات)
     IF json_typeof(p_items::json) = 'array' THEN
@@ -98,6 +124,37 @@ BEGIN
     WHERE id = ANY(v_product_ids) 
       AND organization_id = p_organization_id;
 
+    -- حساب الإجماليات/الدفعات داخل الخادم لضمان الاتساق
+    v_final_subtotal := COALESCE(p_subtotal, 0);
+    IF v_final_subtotal = 0 THEN
+        SELECT COALESCE(SUM((elem->>'total')::DECIMAL), 0)
+        INTO v_final_subtotal
+        FROM json_array_elements(p_items::json) AS elem
+        WHERE elem->>'total' IS NOT NULL;
+    END IF;
+    v_final_discount := COALESCE(p_discount, 0);
+    v_final_tax := COALESCE(p_tax, 0);
+    v_initial_total := COALESCE(p_total_amount, v_final_subtotal + v_final_tax - v_final_discount);
+    v_total := v_final_subtotal + v_final_tax - v_final_discount;
+
+    IF COALESCE(p_consider_remaining_as_partial, FALSE) THEN
+        v_amount_paid_calc := COALESCE(p_amount_paid, 0);
+        v_remaining := GREATEST(v_total - v_amount_paid_calc, 0);
+        v_pay_status := CASE WHEN v_remaining > 0 THEN 'partial' ELSE 'paid' END;
+    ELSE
+        v_amount_paid_calc := COALESCE(p_amount_paid, v_total);
+        IF v_amount_paid_calc < v_total THEN
+            v_final_discount := v_final_discount + (v_total - v_amount_paid_calc);
+            v_total := v_amount_paid_calc;
+        END IF;
+        v_remaining := 0;
+        v_pay_status := 'paid';
+    END IF;
+
+    IF p_payment_status IS NOT NULL AND p_payment_status <> '' THEN
+        v_pay_status := p_payment_status;
+    END IF;
+
     -- إنشاء الطلبية الرئيسية
     INSERT INTO orders (
         organization_id,
@@ -122,23 +179,19 @@ BEGIN
         completed_at
     ) VALUES (
         p_organization_id,
-        p_customer_id,
-        p_employee_id,
+        v_cust_id,
+        v_employee_id,
         v_order_slug,
         'completed',
-        p_payment_status,
-        p_payment_method,
-        p_total_amount,
-        COALESCE(p_subtotal, p_total_amount + p_discount),
-        0,
-        p_discount,
-        COALESCE(p_amount_paid, CASE WHEN p_payment_status = 'paid' THEN p_total_amount ELSE 0 END),
-        CASE 
-            WHEN p_amount_paid IS NOT NULL AND p_amount_paid < p_total_amount 
-            THEN p_total_amount - p_amount_paid 
-            ELSE 0 
-        END,
-        p_consider_remaining_as_partial,
+        v_pay_status,
+        COALESCE(p_payment_method, 'cash'),
+        v_total,
+        v_final_subtotal,
+        v_final_tax,
+        v_final_discount,
+        v_amount_paid_calc,
+        v_remaining,
+        COALESCE(p_consider_remaining_as_partial, FALSE),
         'pos',
         p_notes,
         false,
@@ -178,6 +231,11 @@ BEGIN
                     THEN (item->>'size_id')::UUID 
                     ELSE NULL 
                 END,
+                'is_wholesale', COALESCE((item->>'is_wholesale')::boolean, false),
+                'original_price', COALESCE((item->>'original_price')::DECIMAL, NULL),
+                'color_name', item->>'color_name',
+                'size_name', item->>'size_name',
+                'variant_display_name', COALESCE(item->>'variant_display_name', (v_products_cache->(item->>'product_id'))->>'name'),
                 'created_at', NOW()
             )
         )
@@ -215,6 +273,11 @@ BEGIN
                 THEN (p_items::json->>'size_id')::UUID 
                 ELSE NULL 
             END,
+            'is_wholesale', COALESCE((p_items::json->>'is_wholesale')::boolean, false),
+            'original_price', COALESCE((p_items::json->>'original_price')::DECIMAL, NULL),
+            'color_name', p_items::json->>'color_name',
+            'size_name', p_items::json->>'size_name',
+            'variant_display_name', COALESCE(p_items::json->>'variant_display_name', (v_products_cache->(p_items::json->>'product_id'))->>'name'),
             'created_at', NOW()
         )]
         INTO v_items_data;
@@ -284,11 +347,16 @@ BEGIN
         unit_price,
         total_price,
         is_digital,
+        is_wholesale,
+        original_price,
         organization_id,
         slug,
         variant_info,
         color_id,
         size_id,
+        color_name,
+        size_name,
+        variant_display_name,
         created_at
     )
     SELECT 
@@ -301,6 +369,8 @@ BEGIN
         (item_data->>'unit_price')::DECIMAL,
         (item_data->>'total_price')::DECIMAL,
         false,
+        COALESCE((item_data->>'is_wholesale')::boolean, false),
+        COALESCE((item_data->>'original_price')::DECIMAL, NULL),
         (item_data->>'organization_id')::UUID,
         item_data->>'slug',
         (item_data->>'variant_info')::jsonb,
@@ -314,8 +384,34 @@ BEGIN
             THEN (item_data->>'size_id')::UUID 
             ELSE NULL 
         END,
+        item_data->>'color_name',
+        item_data->>'size_name',
+        COALESCE(item_data->>'variant_display_name', item_data->>'name'),
         (item_data->>'created_at')::timestamp
     FROM unnest(v_items_data) AS item_data;
+
+    -- إنشاء معاملة مالية تلقائيًا إن وُجد مبلغ مدفوع
+    IF v_amount_paid_calc > 0 THEN
+        INSERT INTO transactions (
+            order_id,
+            amount,
+            type,
+            payment_method,
+            description,
+            employee_id,
+            organization_id,
+            created_at
+        ) VALUES (
+            v_new_order_id,
+            v_amount_paid_calc,
+            'sale',
+            COALESCE(p_payment_method, 'cash'),
+            CASE WHEN v_pay_status = 'partial' THEN 'Partial payment for POS order' ELSE 'Payment for POS order' END,
+            p_employee_id,
+            p_organization_id,
+            NOW()
+        ) RETURNING id INTO v_tx_id;
+    END IF;
 
     -- إنشاء JSON للنتيجة
     SELECT json_build_object(
@@ -323,8 +419,11 @@ BEGIN
         'slug', v_order_slug,
         'customer_order_number', v_customer_order_number,
         'status', 'completed',
-        'payment_status', p_payment_status,
-        'total', p_total_amount,
+        'payment_status', v_pay_status,
+        'total', v_total,
+        'amount_paid', v_amount_paid_calc,
+        'remaining_amount', v_remaining,
+        'transaction_id', v_tx_id,
         'items_count', CASE 
             WHEN json_typeof(p_items::json) = 'array' THEN json_array_length(p_items::json) 
             ELSE 1 

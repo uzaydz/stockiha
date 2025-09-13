@@ -64,12 +64,14 @@ export class CentralRequestManager {
       key,
       async () => {
         
-        const { data, error } = await supabase
+        const query = supabase
           .from('organizations')
           .select('*')
           .eq('subdomain', subdomain)
           .eq('subscription_status', 'active')
           .single();
+
+        const { data, error }: { data: any | null; error: any } = await query;
 
         if (error) {
           throw new Error(`Organization not found: ${error.message}`);
@@ -91,11 +93,13 @@ export class CentralRequestManager {
       key,
       async () => {
         
-        const { data, error } = await supabase
+        const query = supabase
           .from('organization_settings')
           .select('*')
           .eq('organization_id', organizationId)
           .maybeSingle();
+
+        const { data, error }: { data: any | null; error: any } = await query;
 
         if (error) {
           return null;
@@ -117,12 +121,14 @@ export class CentralRequestManager {
       key,
       async () => {
         
-        const { data, error } = await supabase
+        const query = supabase
           .from('product_categories')
           .select('*')
           .eq('organization_id', organizationId)
           .eq('is_active', true)
-          .order('name')
+          .order('name');
+
+        const { data, error }: { data: any[] | null; error: any } = await query
           .limit(20);
 
         if (error) {
@@ -145,6 +151,7 @@ export class CentralRequestManager {
       key,
       async () => {
         
+        // @ts-ignore: Type instantiation is excessively deep - using explicit typing
         const { data, error } = await supabase
           .from('product_subcategories')
           .select('*')
@@ -173,12 +180,14 @@ export class CentralRequestManager {
       key,
       async () => {
         
-        const { data, error } = await supabase
+        const query = supabase
           .from('products')
           .select('*')
           .eq('organization_id', organizationId)
           .eq('is_active', true)
-          .eq('is_featured', true)
+          .eq('is_featured', true);
+
+        const { data, error }: { data: any[] | null; error: any } = await query
           .order('created_at', { ascending: false })
           .limit(10);
 
@@ -202,12 +211,14 @@ export class CentralRequestManager {
       key,
       async () => {
         
-        const { data, error } = await supabase
+        const query = supabase
           .from('store_settings')
           .select('*')
           .eq('organization_id', organizationId)
           .eq('is_active', true)
           .order('order_index', { ascending: true });
+
+        const { data, error }: { data: any[] | null; error: any } = await query;
 
         if (error) {
           return [];

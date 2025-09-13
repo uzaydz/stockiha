@@ -67,7 +67,12 @@ const StorePreloader: React.FC<StorePreloaderProps> = ({
       }
       
       if (isCustomDomain) {
-        return hostname;
+        // 🔥 إصلاح: إزالة www. من النطاق المخصص لمطابقة قاعدة البيانات
+        let cleanHostname = hostname;
+        if (cleanHostname.startsWith('www.')) {
+          cleanHostname = cleanHostname.substring(4);
+        }
+        return cleanHostname;
       }
     } catch {}
     
