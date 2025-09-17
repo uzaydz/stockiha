@@ -320,7 +320,7 @@ export function getCacheStats() {
 
 /**
  * جلب بيانات المنتج الكاملة المحسنة مع منع التكرار
- * تستخدم الدالة الأصلية من productCompleteOptimized.ts مباشرة
+ * ✅ تحديث: تستخدم الدالتين الجديدتين المنفصلتين للسرعة الفائقة
  */
 export async function getProductCompleteDataOptimized(
   productIdentifier: string,
@@ -337,12 +337,28 @@ export async function getProductCompleteDataOptimized(
   return requestDeduplicator.execute(
     key,
     async () => {
-      // استخدام الدالة المحسنة مباشرة عبر Supabase client
-      const { getProductCompleteSmartColorLoading } = await import('./productCompleteOptimized');
-      return await getProductCompleteSmartColorLoading(productIdentifier, {
-        ...options,
-        colorImagesStrategy: 'thumbnails'
-      });
+      // ✅ تحديث: استخدام الدالتين الجديدتين المنفصلتين
+      const { getProductCombinedDataUltraFast } = await import('./productUltraFastApi');
+
+        // تحويل خيارات dataScope إلى خيارات API الجديد
+        const fastOptions = {
+          organizationId: options.organizationId,
+          includeInactive: options.includeInactive,
+          includeExtended: options.dataScope !== 'basic',
+          includeThumbnails: true,
+          includeColorsBasic: true,
+          includeMarketingData: options.dataScope === 'full' || options.dataScope === 'ultra',
+          includeFormData: options.dataScope === 'full' || options.dataScope === 'ultra',
+          includeAdvancedSettings: options.dataScope === 'ultra',
+          dataDetailLevel: (options.dataScope === 'ultra' ? 'ultra' : 'full') as 'full' | 'ultra' | 'standard'
+        };
+
+      // تحديد السياق حسب dataScope
+      let context: 'list' | 'card' | 'detail' | 'full' = 'detail';
+      if (options.dataScope === 'basic') context = 'card';
+      else if (options.dataScope === 'ultra') context = 'full';
+
+      return await getProductCombinedDataUltraFast(productIdentifier, fastOptions);
     },
     {
       ttl: requestDeduplicator.getLongTTL(), // 15 دقيقة - البيانات مستقرة نسبياً
@@ -353,8 +369,310 @@ export async function getProductCompleteDataOptimized(
 }
 
 /**
+ * 🔥 تحسين: جلب بيانات المنتج بأداء محسن مع خيارات متعددة - نسخة محسنة
+ * تستخدم الدالتين الجديدتين المنفصلتين للسرعة الفائقة
+ */
+export async function getProductCompleteDataUltraOptimized(
+  productIdentifier: string,
+  options: {
+    organizationId?: string;
+    includeInactive?: boolean;
+    dataScope?: 'basic' | 'medium' | 'full' | 'ultra';
+    includeLargeImages?: boolean;
+    forceRefresh?: boolean;
+  } = {},
+  forceRefresh = false
+): Promise<any> {
+  const key = `product_ultra_optimized:${productIdentifier}:${options.organizationId}:${options.dataScope}`;
+
+  return requestDeduplicator.execute(
+    key,
+    async () => {
+      const startTime = performance.now();
+
+      try {
+        // ✅ تحديث: استخدام الدالتين الجديدتين المنفصلتين
+        const { getProductCombinedDataUltraFast } = await import('./productUltraFastApi');
+
+        // تحويل خيارات dataScope إلى خيارات API الجديد
+        const fastOptions = {
+          organizationId: options.organizationId,
+          includeInactive: options.includeInactive,
+          includeExtended: options.dataScope !== 'basic',
+          includeThumbnails: true,
+          includeColorsBasic: true,
+          includeLargeImages: options.includeLargeImages || false,
+          includeMarketingData: options.dataScope === 'full' || options.dataScope === 'ultra',
+          includeFormData: options.dataScope === 'full' || options.dataScope === 'ultra',
+          includeAdvancedSettings: options.dataScope === 'ultra',
+          dataDetailLevel: (options.dataScope === 'ultra' ? 'ultra' : 'full') as 'full' | 'ultra' | 'standard'
+        };
+
+        // تحديد السياق حسب dataScope
+        let context: 'list' | 'card' | 'detail' | 'full' = 'detail';
+        if (options.dataScope === 'basic') context = 'card';
+        else if (options.dataScope === 'ultra') context = 'full';
+
+        const data = await getProductCombinedDataUltraFast(productIdentifier, fastOptions);
+
+        // 🔥 تحسين: حفظ البيانات في localStorage للتحميل السريع
+        try {
+          const cacheData = {
+            data,
+            timestamp: Date.now(),
+            productId: productIdentifier,
+            scope: options.dataScope
+          };
+          localStorage.setItem(`bazaar_product_ultra_${productIdentifier}_${options.dataScope}`, JSON.stringify(cacheData));
+        } catch (e) {
+          // تجاهل أخطاء localStorage
+        }
+
+        return data;
+      } catch (error) {
+        console.error('Error in getProductCompleteDataUltraOptimized:', error);
+        throw error;
+      }
+    },
+    {
+      ttl: requestDeduplicator.getLongTTL(), // 15 دقيقة للبيانات المنتج
+      forceRefresh: options.forceRefresh || forceRefresh,
+      useCache: true
+    }
+  );
+}
+
+/**
+ * 🔥 تحسين: جلب البيانات الأساسية للمتجر فقط (للصفحات التي لا تحتاج البيانات الكاملة)
+ */
+export async function getStoreBasicData(
+  orgSubdomain: string,
+  forceRefresh = false
+): Promise<any> {
+  const key = `store_basic_data:${orgSubdomain}`;
+
+  return requestDeduplicator.execute(
+    key,
+    async () => {
+      const startTime = performance.now();
+
+      try {
+        // استدعاء RPC للبيانات الكاملة
+        const { data, error } = await supabase.rpc('get_store_init_data' as any, {
+          org_identifier: orgSubdomain
+        });
+
+        if (error) {
+          console.warn('RPC get_store_init_data failed, using fallback:', error);
+          // استخدم الدالة الجزئية كـ fallback
+          return await getStoreInitDataPartial(orgSubdomain, ['basic'], forceRefresh);
+        }
+
+        // 🔥 تحسين: حفظ البيانات في localStorage للتحميل السريع
+        try {
+          const cacheData = {
+            data,
+            timestamp: Date.now(),
+            subdomain: orgSubdomain
+          };
+          localStorage.setItem('bazaar_store_basic_data', JSON.stringify(cacheData));
+        } catch (e) {
+          // تجاهل أخطاء localStorage
+        }
+
+        return data;
+      } catch (error) {
+        console.error('Error in getStoreBasicData:', error);
+        // استخدم الدالة الجزئية كـ fallback
+        return await getStoreInitDataPartial(orgSubdomain, ['basic'], forceRefresh);
+      }
+    },
+    {
+      ttl: requestDeduplicator.getLongTTL(), // 15 دقيقة للبيانات الأساسية
+      forceRefresh,
+      useCache: true
+    }
+  );
+}
+
+/**
  * جلب بيانات تهيئة المتجر مع منع التكرار - محسن للسرعة
  */
+/**
+ * 🔥 تحسين: جلب بيانات المتجر مع تحميل جزئي للأقسام المطلوبة
+ */
+export async function getStoreInitDataPartial(
+  orgSubdomain: string,
+  sections: string[] = ['all'],
+  forceRefresh = false
+): Promise<any> {
+  const key = `store_init_partial:${orgSubdomain}:${sections.sort().join('_')}`;
+
+  return requestDeduplicator.execute(
+    key,
+    async () => {
+      const startTime = performance.now();
+
+      try {
+        // استدعاء RPC مع معامل sections
+        const { data, error } = await supabase.rpc('get_store_init_data_partial' as any, {
+          org_identifier: orgSubdomain,
+          requested_sections: sections.length > 0 ? sections : ['all']
+        });
+
+        if (error) {
+          console.warn('RPC get_store_init_data_partial failed, using fallback:', error);
+          // استخدم الدالة الكاملة كـ fallback
+          return await getStoreInitData(orgSubdomain, forceRefresh);
+        }
+
+        // 🔥 تحسين: حفظ البيانات في localStorage للتحميل السريع
+        try {
+          const cacheData = {
+            data,
+            timestamp: Date.now(),
+            subdomain: orgSubdomain,
+            sections
+          };
+          localStorage.setItem(`bazaar_store_init_partial_${sections.join('_')}`, JSON.stringify(cacheData));
+        } catch (e) {
+          // تجاهل أخطاء localStorage
+        }
+
+        return data;
+      } catch (error) {
+        console.error('Error in getStoreInitDataPartial:', error);
+        // استخدم الدالة الكاملة كـ fallback
+        return await getStoreInitData(orgSubdomain, forceRefresh);
+      }
+    },
+    {
+      ttl: requestDeduplicator.getLongTTL(), // 🔥 تحسين: استخدام Long TTL (15 دقيقة) للبيانات الجزئية
+      forceRefresh,
+      useCache: true
+    }
+  );
+}
+
+/**
+ * 🔥 دالة محسنة لجلب بيانات المتجر مع fallback للنطاقات المخصصة
+ */
+export async function getStoreInitDataWithCustomDomainFallback(
+  orgIdentifier: string,
+  forceRefresh = false
+): Promise<any> {
+  const key = `store_init_custom_domain_fallback:${orgIdentifier}`;
+
+  return requestDeduplicator.execute(
+    key,
+    async () => {
+      const startTime = performance.now();
+
+      try {
+        // استخدام الدالة الجديدة المحسنة
+        const { data, error } = await supabase.rpc('get_store_init_data_with_custom_domain_fallback' as any, { org_identifier: orgIdentifier });
+
+        if (error) {
+          console.warn('RPC get_store_init_data_with_custom_domain_fallback failed:', error);
+          // fallback للدالة العادية
+          return await getStoreInitData(orgIdentifier, forceRefresh);
+        }
+
+        // 🔥 تحسين: حفظ البيانات في localStorage للتحميل السريع
+        try {
+          const cacheData = {
+            data,
+            timestamp: Date.now(),
+            identifier: orgIdentifier,
+            fallback_used: (data as any)?.custom_domain_fallback?.fallback_used || false
+          };
+          localStorage.setItem('bazaar_store_custom_domain_fallback', JSON.stringify(cacheData));
+        } catch (e) {
+          // تجاهل أخطاء localStorage
+        }
+
+        return data;
+      } catch (error) {
+        console.error('Error in getStoreInitDataWithCustomDomainFallback:', error);
+        // fallback للدالة العادية
+        return await getStoreInitData(orgIdentifier, forceRefresh);
+      }
+    },
+    {
+      ttl: requestDeduplicator.getLongTTL() * 2, // زيادة TTL للنطاقات المخصصة
+      forceRefresh,
+      useCache: true
+    }
+  );
+}
+
+/**
+ * 🔥 دالة للبحث المباشر عن subdomain من النطاق المخصص
+ */
+export async function getStoreInitDataByCustomDomain(
+  hostname: string,
+  forceRefresh = false
+): Promise<any> {
+  const key = `store_init_custom_domain:${hostname}`;
+
+  return requestDeduplicator.execute(
+    key,
+    async () => {
+      const startTime = performance.now();
+
+      try {
+        console.log('🔍 [getStoreInitDataByCustomDomain] البحث عن subdomain من:', hostname);
+
+        // استخراج subdomain من hostname
+        const parts = hostname.split('.');
+        if (parts.length >= 3 && parts[0] && parts[0] !== 'www') {
+          const potentialSubdomain = parts[0];
+          console.log('🔍 [getStoreInitDataByCustomDomain] استخراج subdomain:', potentialSubdomain);
+
+          // أولاً جرب البحث بالـ subdomain المستخرج
+          try {
+            const subdomainData = await getStoreInitData(potentialSubdomain);
+            if (subdomainData && !subdomainData.error && subdomainData.organization_details) {
+              console.log('✅ [getStoreInitDataByCustomDomain] تم العثور على البيانات بالـ subdomain:', potentialSubdomain);
+              return subdomainData;
+            }
+          } catch (e) {
+            console.warn('⚠️ [getStoreInitDataByCustomDomain] فشل البحث بالـ subdomain:', potentialSubdomain);
+          }
+
+          // إذا لم يعمل، جرب إضافة "collection"
+          if (potentialSubdomain.length >= 3 && !potentialSubdomain.includes('collection')) {
+            const fullSubdomain = potentialSubdomain + 'collection';
+            console.log('🔍 [getStoreInitDataByCustomDomain] محاولة مع collection:', fullSubdomain);
+
+            try {
+              const fullSubdomainData = await getStoreInitData(fullSubdomain);
+              if (fullSubdomainData && !fullSubdomainData.error && fullSubdomainData.organization_details) {
+                console.log('✅ [getStoreInitDataByCustomDomain] تم العثور على البيانات بالـ full subdomain:', fullSubdomain);
+                return fullSubdomainData;
+              }
+            } catch (e) {
+              console.warn('⚠️ [getStoreInitDataByCustomDomain] فشل البحث بالـ full subdomain:', fullSubdomain);
+            }
+          }
+        }
+
+        // إذا لم يعمل أي شيء، أعد null
+        console.log('❌ [getStoreInitDataByCustomDomain] لم يتم العثور على أي بيانات');
+        return null;
+      } catch (error) {
+        console.error('🚨 [getStoreInitDataByCustomDomain] خطأ:', error);
+        return null;
+      }
+    },
+    {
+      ttl: requestDeduplicator.getLongTTL(),
+      forceRefresh,
+      useCache: true
+    }
+  );
+}
+
 export async function getStoreInitData(
   orgSubdomain: string,
   forceRefresh = false
@@ -367,8 +685,8 @@ export async function getStoreInitData(
       const startTime = performance.now();
 
       try {
-        // استخدام الـ RPC مباشرة عبر Supabase client
-        const { data, error } = await supabase.rpc('get_store_init_data', { org_identifier: orgSubdomain });
+        // 🔥 استخدام الدالة المحسنة مع fallback للنطاقات المخصصة
+        const { data, error } = await supabase.rpc('get_store_init_data_with_custom_domain_fallback' as any, { org_identifier: orgSubdomain });
 
         if (error) {
           console.warn('RPC get_store_init_data failed, using fallback:', error);
@@ -377,20 +695,43 @@ export async function getStoreInitData(
           return fallback;
         }
 
+        // 🔥 تحسين: حفظ البيانات في localStorage للتحميل السريع
+        try {
+          const cacheData = {
+            data,
+            timestamp: Date.now(),
+            subdomain: orgSubdomain
+          };
+          localStorage.setItem('bazaar_store_init_data', JSON.stringify(cacheData));
+        } catch (e) {
+          // تجاهل أخطاء localStorage
+        }
+
         return data;
       } catch (error) {
         console.error('Error in getStoreInitData:', error);
         // في حالة أي خطأ، استخدم fallback
         const fallback = await getStoreInitDataFallback(orgSubdomain);
+
+        // 🔥 تحسين: حفظ البيانات في localStorage حتى لو كانت من fallback
+        try {
+          const cacheData = {
+            data: fallback,
+            timestamp: Date.now(),
+            subdomain: orgSubdomain
+          };
+          localStorage.setItem('bazaar_store_init_data', JSON.stringify(cacheData));
+        } catch (e) {
+          // تجاهل أخطاء localStorage
+        }
+
         return fallback;
       }
     },
     {
-      ttl: requestDeduplicator.getLongTTL(), // 15 دقيقة - البيانات مستقرة
+      ttl: requestDeduplicator.getLongTTL() * 2, // 🔥 تحسين: زيادة TTL إلى 30 دقيقة - البيانات مستقرة جداً
       forceRefresh,
-      useCache: true,
-      // إضافة timeout لمنع التعليق
-      timeout: 10000 // 10 ثوان
+      useCache: true
     }
   );
 }

@@ -97,9 +97,15 @@ export const SubscriptionDataRefresher: React.FC = () => {
     };
 
     const handleSubscriptionDataRefreshed = (event: CustomEvent) => {
+      if (event.detail?.success) {
+        refreshData();
+      }
     };
 
     const handleSubscriptionDataForceRefreshed = (event: CustomEvent) => {
+      if (event.detail?.success) {
+        refreshData();
+      }
     };
 
     // إضافة مستمعي الأحداث

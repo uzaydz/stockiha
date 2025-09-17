@@ -53,7 +53,7 @@ export const OptimizedSharedStoreDataProvider: React.FC<{ children: ReactNode }>
   useEffect(() => {
     const handleStoreDataReady = () => {
       console.log('🎯 [OptimizedSharedStoreDataProvider] تم استلام حدث storeDataReady');
-      const windowEarlyData = (window as any).__EARLY_STORE_DATA__;
+      const windowEarlyData = (window as any).__EARLY_STORE_DATA__ || (window as any).__PREFETCHED_STORE_DATA__;
       const windowSharedData = (window as any).__SHARED_STORE_DATA__;
       
       if (windowEarlyData?.data || windowSharedData) {
@@ -129,7 +129,62 @@ export const OptimizedSharedStoreDataProvider: React.FC<{ children: ReactNode }>
     }
   };
 
-  // دالة جلب البيانات المشتركة المحسنة
+  // 🔥 تحسين: دالة للتحميل الأساسي السريع للبيانات الأساسية فقط
+  const fetchBasicData = useMemo(() => async () => {
+    if (!currentOrganization?.id) {
+      setSharedData(prev => ({ ...prev, isLoading: false }));
+      return;
+    }
+
+    try {
+      const { getStoreBasicData } = await import('@/lib/api/deduplicatedApi');
+      const data = await getStoreBasicData(currentOrganization.subdomain || 'default');
+
+      if (data && !data.error) {
+        setSharedData({
+          organization: data.organization_details || currentOrganization,
+          organizationSettings: data.organization_settings || null,
+          products: [], // لا نحتاج المنتجات في البيانات الأساسية
+          categories: [], // لا نحتاج الفئات في البيانات الأساسية
+          featuredProducts: [], // لا نحتاج المنتجات المميزة في البيانات الأساسية
+          provinces: [], // لا نحتاج المحافظات في البيانات الأساسية
+          municipalities: [],
+          callConfirmationStatuses: [],
+          shippingProviders: [],
+          components: [], // لا نحتاج المكونات في البيانات الأساسية
+          isLoading: false,
+          error: null,
+        });
+      }
+    } catch (error) {
+      // في حالة فشل التحميل الأساسي، استخدم البيانات الجزئية كـ fallback
+      try {
+        const { getStoreInitDataPartial } = await import('@/lib/api/deduplicatedApi');
+        const data = await getStoreInitDataPartial(currentOrganization.subdomain || 'default', ['basic']);
+        if (data && !data.error) {
+          setSharedData({
+            organization: data.organization_details || currentOrganization,
+            organizationSettings: data.organization_settings || null,
+            products: [],
+            categories: data.categories || [],
+            featuredProducts: [],
+            provinces: data.provinces || [],
+            municipalities: [],
+            callConfirmationStatuses: [],
+            shippingProviders: [],
+            components: data.store_layout_components || [],
+            isLoading: false,
+            error: null,
+          });
+        }
+      } catch (fallbackError) {
+        // في حالة فشل جميع المحاولات، استخدم البيانات الكاملة
+        fetchSharedData();
+      }
+    }
+  }, [currentOrganization]);
+
+  // دالة جلب البيانات المشتركة المحسنة الكاملة
   const fetchSharedData = useMemo(() => async () => {
     if (!currentOrganization?.id) {
       setSharedData(prev => ({ ...prev, isLoading: false }));
@@ -314,27 +369,79 @@ export const useOptimizedSharedStoreDataContext = (): OptimizedSharedStoreDataCo
 
 // مزود بديل للصفحات التي لا تحتاج TenantProvider
 export const MinimalOptimizedSharedStoreDataProvider: React.FC<{ children: ReactNode }> = React.memo(({ children }) => {
-  const [sharedData, setSharedData] = useState<any>({
-    organization: null,
-    organizationSettings: null,
-    products: [],
-    categories: [],
-    featuredProducts: [],
-    provinces: [],
-    municipalities: [],
-    callConfirmationStatuses: [],
-    shippingProviders: [],
-    components: [], // 🔥 إضافة المكونات المخصصة
-    isLoading: false,
-    error: null,
-  });
+  // 🔥 تحسين: تحميل سريع من localStorage عند التهيئة - البيانات الأساسية أولاً
+  const getInitialData = () => {
+    try {
+      // محاولة البيانات الأساسية أولاً (أسرع)
+      const basicCached = localStorage.getItem('bazaar_store_basic_data');
+      if (basicCached) {
+        const basicParsed = JSON.parse(basicCached);
+        if (basicParsed && basicParsed.data && (Date.now() - basicParsed.timestamp) < 600000) { // 10 دقائق
+          return {
+            organization: basicParsed.data.organization_details || null,
+            organizationSettings: basicParsed.data.organization_settings || null,
+            products: [],
+            categories: [],
+            featuredProducts: [],
+            provinces: [],
+            municipalities: [],
+            callConfirmationStatuses: [],
+            shippingProviders: [],
+            components: [],
+            isLoading: false,
+            error: null,
+          };
+        }
+      }
+
+      // fallback للبيانات الكاملة
+      const fullCached = localStorage.getItem('bazaar_store_init_data');
+      if (fullCached) {
+        const fullParsed = JSON.parse(fullCached);
+        if (fullParsed && fullParsed.data && (Date.now() - fullParsed.timestamp) < 300000) { // 5 دقائق
+          return {
+            organization: fullParsed.data.organization_details || null,
+            organizationSettings: fullParsed.data.organization_settings || null,
+            products: fullParsed.data.featured_products || [],
+            categories: fullParsed.data.categories || [],
+            featuredProducts: fullParsed.data.featured_products || [],
+            provinces: fullParsed.data.provinces || [],
+            municipalities: fullParsed.data.municipalities || [],
+            callConfirmationStatuses: fullParsed.data.call_confirmation_statuses || [],
+            shippingProviders: fullParsed.data.shipping_providers || [],
+            components: fullParsed.data.store_layout_components || [],
+            isLoading: false,
+            error: null,
+          };
+        }
+      }
+    } catch (e) {
+      // تجاهل أخطاء localStorage
+    }
+    return {
+      organization: null,
+      organizationSettings: null,
+      products: [],
+      categories: [],
+      featuredProducts: [],
+      provinces: [],
+      municipalities: [],
+      callConfirmationStatuses: [],
+      shippingProviders: [],
+      components: [],
+      isLoading: false,
+      error: null,
+    };
+  };
+
+  const [sharedData, setSharedData] = useState<any>(getInitialData());
 
   // 🔥 إضافة استماع لبيانات window object من main.tsx
   useEffect(() => {
     let lastSignature: string | null = null;
     const handleStoreDataReady = () => {
       console.log('🎯 [MinimalOptimizedSharedStoreDataProvider] تم استلام حدث storeDataReady');
-      const windowEarlyData = (window as any).__EARLY_STORE_DATA__;
+      const windowEarlyData = (window as any).__EARLY_STORE_DATA__ || (window as any).__PREFETCHED_STORE_DATA__;
       const windowSharedData = (window as any).__SHARED_STORE_DATA__;
       
       if (windowEarlyData?.data || windowSharedData) {

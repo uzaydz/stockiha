@@ -141,8 +141,8 @@ const AuthTenantWrapper = memo<ConditionalProviderProps>(({
         </>
       );
 
-      // استخدم PublicTenantProvider لصفحات المنتج العامة لتجنب اعتماد Auth/User
-      if (pageType === 'public-product' && hasDomPreload) {
+      // 🔥 إصلاح: استخدم PublicTenantProvider لجميع صفحات المنتج العامة لأنها تستنتج organizationId من النطاق
+      if (pageType === 'public-product' || pageType === 'public-store' || pageType === 'max-store') {
         result = (
           <PublicTenantProvider>
             {withRefresher}
@@ -165,8 +165,8 @@ const AuthTenantWrapper = memo<ConditionalProviderProps>(({
       );
     }
 
-    // في public-product بدون dom-preload، نحتاج Auth/User لتمرير organization
-    const shouldAttachAuth = cfg.auth || (pageType === 'public-product' && !hasDomPreload);
+    // 🔥 إصلاح: لا نحتاج Auth/User في الصفحات العامة لأن PublicTenantProvider يستنتج organizationId من النطاق
+    const shouldAttachAuth = cfg.auth && !['public-product', 'public-store', 'max-store'].includes(pageType);
     if (shouldAttachAuth) {
       result = (
         <AuthProvider>

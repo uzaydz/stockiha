@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Layout from '@/components/Layout';
 import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import ActivateWithCode from './ActivateWithCode';
 import OnlineOrdersLimitCard from '@/components/subscription/OnlineOrdersLimitCard';
 import OnlineOrdersRechargeModal from '@/components/dashboard/OnlineOrdersRechargeModal';
+import SubscriptionDialog from '@/components/subscription/SubscriptionDialog';
 
 interface SubscriptionPlan {
   id: string;
@@ -40,30 +41,46 @@ const SubscriptionPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [subscriptionData, setSubscriptionData] = useState<SubscriptionData | null>(null);
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
-  const [activating, setActivating] = useState<string | null>(null);
   const [showRechargeModal, setShowRechargeModal] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<SubscriptionPlan | null>(null);
+  const [selectedBillingCycle, setSelectedBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
+  const [refreshingSubscription, setRefreshingSubscription] = useState(false);
+
+  const refreshSubscriptionData = useCallback(async (
+    options: { force?: boolean; showLoader?: boolean } = {}
+  ) => {
+    if (!organization) return;
+
+    const { force = false, showLoader = true } = options;
+
+    try {
+      if (showLoader) setLoading(true);
+
+      let subscription = force
+        ? await subscriptionCache.forceRefresh(organization.id)
+        : await subscriptionCache.getSubscriptionStatus(organization.id);
+
+      if (organization.subscription_status === 'pending' && subscription.status === 'expired') {
+        subscription = {
+          ...subscription,
+          status: 'pending' as SubscriptionData['status'],
+          message: 'طلب الاشتراك قيد المراجعة'
+        };
+      }
+
+      setSubscriptionData(subscription);
+    } catch (error) {
+      toast.error('حدث خطأ في جلب بيانات الاشتراك');
+    } finally {
+      if (showLoader) setLoading(false);
+    }
+  }, [organization]);
 
   // جلب حالة الاشتراك الحالية
   useEffect(() => {
-    const fetchSubscriptionData = async () => {
-      if (!organization) return;
-
-      try {
-        setLoading(true);
-        
-        // استخدام الخدمة المحسنة للحصول على حالة الاشتراك
-        const subscription = await subscriptionCache.getSubscriptionStatus(organization.id);
-        setSubscriptionData(subscription);
-
-      } catch (error) {
-        toast.error('حدث خطأ في جلب بيانات الاشتراك');
-      } finally {
-      setLoading(false);
-    }
-  };
-
-    fetchSubscriptionData();
-  }, [organization]);
+    refreshSubscriptionData();
+  }, [refreshSubscriptionData]);
 
   // جلب خطط الاشتراك المتاحة
   useEffect(() => {
@@ -107,6 +124,46 @@ const SubscriptionPage: React.FC = () => {
 
     fetchPlans();
   }, []);
+
+  const handlePlanSelection = (plan: SubscriptionPlan, billingCycle: 'monthly' | 'yearly') => {
+    if (!organization) {
+      toast.error('لا توجد مؤسسة نشطة');
+      return;
+    }
+
+    setSelectedPlan(plan);
+    setSelectedBillingCycle(billingCycle);
+    setDialogOpen(true);
+  };
+
+  const handleDialogOpenChange = (open: boolean) => {
+    setDialogOpen(open);
+    if (!open) {
+      setSelectedPlan(null);
+    }
+  };
+
+  const handleSubscriptionCompleted = async () => {
+    if (!organization) {
+      handleDialogOpenChange(false);
+      return;
+    }
+
+    setRefreshingSubscription(true);
+    handleDialogOpenChange(false);
+
+    try {
+      await refreshSubscriptionData({ force: true, showLoader: false });
+      if (refreshOrganizationData) {
+        await refreshOrganizationData();
+      }
+      toast.success('تم تحديث بيانات الاشتراك');
+    } catch (error) {
+      toast.error('تعذر تحديث بيانات الاشتراك');
+    } finally {
+      setRefreshingSubscription(false);
+    }
+  };
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('ar-DZ', {
@@ -182,15 +239,8 @@ const SubscriptionPage: React.FC = () => {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => {
-                    if (organization) {
-                      setLoading(true);
-                      subscriptionCache.forceRefresh(organization.id)
-                        .then(setSubscriptionData)
-                        .finally(() => setLoading(false));
-                    }
-                  }}
-                  disabled={loading}
+                  onClick={() => refreshSubscriptionData({ force: true })}
+                  disabled={loading || refreshingSubscription}
                 >
                   {loading ? (
                     <>
@@ -319,12 +369,15 @@ const SubscriptionPage: React.FC = () => {
                 </CardDescription>
               </CardHeader>
           <CardContent>
-            <ActivateWithCode onActivated={() => {
-              // إعادة تحميل بيانات الاشتراك بعد التفعيل
-              if (organization) {
-                subscriptionCache.forceRefresh(organization.id).then(setSubscriptionData);
-              }
-            }} />
+            <ActivateWithCode
+              onActivated={async () => {
+                if (!organization) return;
+                await refreshSubscriptionData({ force: true, showLoader: false });
+                if (refreshOrganizationData) {
+                  await refreshOrganizationData();
+                }
+              }}
+            />
           </CardContent>
         </Card>
 
@@ -379,20 +432,19 @@ const SubscriptionPage: React.FC = () => {
                     
                     <Button 
                       className="w-full" 
-                      variant={plan.is_popular ? "default" : "outline"}
-                      disabled={activating === plan.id}
+                      variant={plan.is_popular ? 'default' : 'outline'}
+                      onClick={() => handlePlanSelection(plan, 'monthly')}
+                      disabled={
+                        refreshingSubscription ||
+                        (subscriptionData?.plan_code === plan.code && subscriptionData?.billing_cycle === 'monthly')
+                      }
                     >
-                      {activating === plan.id ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                          جاري التفعيل...
-                        </>
-                      ) : (
-                        subscriptionData?.plan_code === plan.code ? 'الخطة الحالية' : 'اختر هذه الخطة'
-                      )}
+                      {subscriptionData?.plan_code === plan.code && subscriptionData?.billing_cycle === 'monthly'
+                        ? 'الخطة الحالية'
+                        : 'اختر هذه الخطة'}
                     </Button>
-              </CardContent>
-            </Card>
+                  </CardContent>
+                </Card>
               ))}
             </div>
           </TabsContent>
@@ -433,23 +485,22 @@ const SubscriptionPage: React.FC = () => {
 
                     <Button 
                       className="w-full" 
-                      variant={plan.is_popular ? "default" : "outline"}
-                      disabled={activating === plan.id}
+                      variant={plan.is_popular ? 'default' : 'outline'}
+                      onClick={() => handlePlanSelection(plan, 'yearly')}
+                      disabled={
+                        refreshingSubscription ||
+                        (subscriptionData?.plan_code === plan.code && subscriptionData?.billing_cycle === 'yearly')
+                      }
                     >
-                      {activating === plan.id ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                          جاري التفعيل...
-                        </>
-                      ) : (
-                        subscriptionData?.plan_code === plan.code ? 'الخطة الحالية' : 'اختر هذه الخطة'
-                      )}
+                      {subscriptionData?.plan_code === plan.code && subscriptionData?.billing_cycle === 'yearly'
+                        ? 'الخطة الحالية'
+                        : 'اختر هذه الخطة'}
                     </Button>
                   </CardContent>
                 </Card>
-                    ))}
-                  </div>
-                </TabsContent>
+              ))}
+            </div>
+          </TabsContent>
             </Tabs>
 
         {/* معلومات إضافية */}
@@ -479,8 +530,23 @@ const SubscriptionPage: React.FC = () => {
       {/* نافذة إعادة الشحن */}
       <OnlineOrdersRechargeModal 
         isOpen={showRechargeModal}
-        onClose={() => setShowRechargeModal(false)}
+      onClose={() => setShowRechargeModal(false)}
       />
+
+      {organization && selectedPlan && (
+        <SubscriptionDialog
+          open={dialogOpen}
+          onOpenChange={handleDialogOpenChange}
+          plan={selectedPlan}
+          billingCycle={selectedBillingCycle}
+          organizationId={organization.id}
+          isRenewal={
+            subscriptionData?.plan_code === selectedPlan.code &&
+            subscriptionData?.billing_cycle === selectedBillingCycle
+          }
+          onSubscriptionComplete={handleSubscriptionCompleted}
+        />
+      )}
     </Layout>
   );
 };

@@ -301,7 +301,9 @@ export const PATH_PATTERNS = {
   PUBLIC_STORE: [
     '/products',
     '/category/',
-    '/products/details/'
+    '/products/details/',
+    '/cart',
+    '/cart/checkout'
   ],
   
   AUTH: [

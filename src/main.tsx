@@ -1,356 +1,84 @@
-const MAIN_START_TIME = performance.now();
-console.log('🎯 [MAIN.TSX] بدء تشغيل التطبيق', {
+// ===========================================
+// 🚀 نقطة البداية الرئيسية المبسطة
+// ===========================================
+
+// استيراد المكونات المنفصلة
+import {
+  performanceTracker,
+  earlyLoadScheduler,
+  faviconManager,
+  productPageManager,
+  reactDevToolsManager
+} from './managers';
+import { productionOptimizer } from './utils/productionOptimizer';
+
+// 🎯 بدء تتبع الأداء
+performanceTracker.log('بدء تشغيل التطبيق', {
   timestamp: new Date().toISOString(),
-  startTime: MAIN_START_TIME,
   url: window.location.href,
   userAgent: navigator.userAgent.substring(0, 50) + '...'
 });
 
-// 🎨 تهيئة معالج أخطاء CSS — سيتم تأجيله لتقليل JS المبدئي
+// 🎨 تهيئة معالج أخطاء CSS (مؤجل)
 // import './utils/cssErrorHandler';
 
-// font debugger removed after resolving the issue
+// 🚀 تهيئة الأنظمة الأساسية
+const initializeCoreSystems = () => {
+  // قائمة النطاقات العامة التي تعرض صفحة الهبوط
+  const PUBLIC_DOMAINS = [
+    'ktobi.online',
+    'www.ktobi.online',
+    'stockiha.com',
+    'www.stockiha.com',
+    'stockiha.pages.dev'
+  ];
 
-// ✅ تم تحديث النظام لتحميل جميع صور الألوان دائماً
+  // دالة للتحقق من localhost
+  const isLocalhostDomain = (hostname: string) => {
+    return hostname === 'localhost' ||
+           hostname === '127.0.0.1' ||
+           hostname.startsWith('localhost:') ||
+           hostname.startsWith('127.0.0.1:');
+  };
 
-// ⚡ تحسين: تحميل فوري ومتزامن للبيانات الأولية
-const startEarlyPreloads = async () => {
-  const preloadStartTime = performance.now();
-  try {
-    console.log('🚀 [MAIN.TSX] بدء تحميل البيانات الأولية للمتجر', {
-      timing: preloadStartTime - MAIN_START_TIME
-    });
-    
-    const [earlyPreloadResult, productPreloadResult] = await Promise.allSettled([
-      import('./utils/earlyPreload').then(m => m.startEarlyPreload()),
-      // تخطي product page preload هنا لأنه يحتاج إلى معاملات محددة
-      Promise.resolve({ success: true, data: null })
-    ]);
+  // فحص النطاق - لا نحمل بيانات المتجر في النطاقات العامة
+  const currentHostname = window.location.hostname;
+  const isPublicDomain = PUBLIC_DOMAINS.includes(currentHostname);
+  const isLocalhost = isLocalhostDomain(currentHostname);
 
-    if (earlyPreloadResult.status === 'fulfilled' && earlyPreloadResult.value.success) {
-      const preloadEndTime = performance.now();
-      console.log('✅ [MAIN.TSX] تم تحميل البيانات الأولية بنجاح', {
-        timing: preloadEndTime - preloadStartTime,
-        totalTime: preloadEndTime - MAIN_START_TIME,
-        dataSize: JSON.stringify(earlyPreloadResult.value.data || {}).length
-      });
-      
-      // إرسال حدث لإعلام المكونات أن البيانات جاهزة
-      window.dispatchEvent(new CustomEvent('storeInitDataReady', {
-        detail: {
-          data: earlyPreloadResult.value.data,
-          timestamp: Date.now(),
-          loadTime: preloadEndTime - preloadStartTime
-        }
-      }));
-
-      // حفظ البيانات في window object للوصول السريع
-      (window as any).__EARLY_STORE_DATA__ = {
-        data: earlyPreloadResult.value.data,
-        timestamp: Date.now()
-      };
-      
-      // 🚀 تطبيق فوري للألوان والإعدادات
-      const data = earlyPreloadResult.value.data;
-      console.log('🎨 [main.tsx] فحص البيانات للألوان:', {
-        hasData: !!data,
-        hasOrgSettings: !!data?.organization_settings,
-        settingsKeys: data?.organization_settings ? Object.keys(data.organization_settings) : [],
-        primaryColor: data?.organization_settings?.theme_primary_color,
-        secondaryColor: data?.organization_settings?.theme_secondary_color,
-        accentColor: data?.organization_settings?.accent_color,
-        // إضافة معلومات إضافية للفهم
-        rawSettings: data?.organization_settings
-      });
-      
-      if (data?.organization_settings) {
-        const settings = data.organization_settings;
-        
-        // تطبيق الألوان فوراً - استخدام الأسماء الصحيحة من قاعدة البيانات
-        if (settings.theme_primary_color) {
-          console.log('🎯 [main.tsx] تطبيق فوري للون الأساسي:', settings.theme_primary_color);
-          document.documentElement.style.setProperty('--primary-color', settings.theme_primary_color);
-          document.documentElement.style.setProperty('--primary', settings.theme_primary_color);
-          document.documentElement.style.setProperty('--color-primary', settings.theme_primary_color);
-          document.documentElement.style.setProperty('--tw-color-primary', settings.theme_primary_color);
-        } else {
-          console.log('⚠️ [main.tsx] لا يوجد لون أساسي في البيانات');
-        }
-        
-        if (settings.theme_secondary_color) {
-          console.log('🎯 [main.tsx] تطبيق فوري للون الثانوي:', settings.theme_secondary_color);
-          document.documentElement.style.setProperty('--secondary-color', settings.theme_secondary_color);
-          document.documentElement.style.setProperty('--secondary', settings.theme_secondary_color);
-        } else {
-          console.log('⚠️ [main.tsx] لا يوجد لون ثانوي في البيانات');
-        }
-        
-        if (settings.accent_color) {
-          console.log('🎯 [main.tsx] تطبيق فوري للون التمييز:', settings.accent_color);
-          document.documentElement.style.setProperty('--accent-color', settings.accent_color);
-          document.documentElement.style.setProperty('--accent', settings.accent_color);
-        } else {
-          console.log('⚠️ [main.tsx] لا يوجد لون تمييز في البيانات');
-        }
-        
-        // تطبيق اتجاه النص حسب اللغة
-        const language = settings.default_language || 'en';
-        if (language === 'ar') {
-          document.documentElement.dir = 'rtl';
-          document.documentElement.lang = 'ar';
-        } else {
-          document.documentElement.dir = 'ltr';
-          document.documentElement.lang = language;
-        }
-        
-        console.log('🌐 [main.tsx] تطبيق اللغة والاتجاه:', {
-          language,
-          direction: language === 'ar' ? 'rtl' : 'ltr'
-        });
-      }
-    } else {
-      const failTime = performance.now();
-      console.error('❌ [MAIN.TSX] فشل في تحميل البيانات الأولية', {
-        timing: failTime - preloadStartTime,
-        totalTime: failTime - MAIN_START_TIME,
-        error: earlyPreloadResult.status === 'rejected' ? earlyPreloadResult.reason : 'غير محدد'
-      });
-    }
-
-    if (productPreloadResult.status === 'fulfilled') {
-      console.log('✅ [main.tsx] منتج preload مكتمل');
-    }
-  } catch (error) {
-    const errorTime = performance.now();
-    console.error('❌ [MAIN.TSX] خطأ في تحميل البيانات', {
-      error: error instanceof Error ? error.message : String(error),
-      timing: errorTime - preloadStartTime,
-      totalTime: errorTime - MAIN_START_TIME,
-      stack: error instanceof Error ? error.stack?.substring(0, 200) : undefined
-    });
-  }
-};
-
-// 🚀 بدء preloads: تأجيل إلى الخمول لتقليل زمن حظر الإقلاع وعدد الطلبات المبكرة
-try {
-  const scheduleEarlyPreload = () => startEarlyPreloads();
-  if (typeof (window as any).requestIdleCallback === 'function') {
-    (window as any).requestIdleCallback(scheduleEarlyPreload, { timeout: 1200 });
+  // تحسين: بدء التحميل المبكر فوراً لجميع النطاقات غير العامة
+  if (!isPublicDomain) {
+    console.log('🏪 [MAIN.TSX] بدء تحميل البيانات الأولية للمتجر فوراً', { hostname: currentHostname, isLocalhost });
+    // بدء فوري بدلاً من التأخير
+    setTimeout(() => earlyLoadScheduler.start(), 0);
   } else {
-    setTimeout(scheduleEarlyPreload, 800);
+    console.log('🌐 [MAIN.TSX] نطاق عام - تخطي تحميل بيانات المتجر', { hostname: currentHostname });
   }
-} catch {
-  setTimeout(() => startEarlyPreloads(), 800);
-}
 
-// 🎯 تطبيق فافيكون مبكراً اعتماداً على بيانات preload/الإعدادات المحلية لتفادي الأيقونة الافتراضية
-(function applyEarlyFavicon() {
-  try {
-    const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
-    const parts = hostname.split('.');
-    const isLocalhost = hostname.includes('localhost') || hostname.startsWith('127.');
-    const platformDomains = ['.ktobi.online', '.stockiha.com', '.bazaar.dev', '.vercel.app', '.bazaar.com'];
-    const isPlatform = platformDomains.some(d => hostname.endsWith(d));
-    const hasSubdomain = !isLocalhost && isPlatform && parts.length > 2 && parts[0] !== 'www';
-    const isCustomDomain = !isLocalhost && !isPlatform;
+  // تطبيق الفافيكون مبكراً مع تأخير لإتاحة البيانات
+  setTimeout(() => {
+    faviconManager.initialize();
+  }, 500);
 
-    // استخراج معرف المؤسسة أولاً
-    let orgId: string | null = localStorage.getItem('bazaar_organization_id');
-    let iconUrl: string | null = null;
+  // بدء preload المنتج إذا لزم الأمر
+  productPageManager.preloadIfNeeded();
 
-    if (orgId) {
-      try {
-        const settingsRaw = localStorage.getItem(`bazaar_org_settings_${orgId}`);
-        if (settingsRaw) {
-          const settings = JSON.parse(settingsRaw);
-          iconUrl = settings?.favicon_url || settings?.logo_url || null;
-        }
-      } catch {}
-    }
+// تطبيق تحسينات الإنتاج إذا لزم الأمر
+  const hostname = window.location.hostname;
+  const isProduction = !hostname.includes('localhost') && hostname.includes('.com');
 
-    // إذا لم نجد، جرّب بيانات early preload وفق المعرّف المتاح
-    if (!iconUrl) {
-      let storeIdentifier: string | null = null;
-      if (isLocalhost && parts.length > 1 && parts[0] !== 'localhost' && parts[0] !== '127') {
-        storeIdentifier = parts[0];
-      } else if (hasSubdomain) {
-        storeIdentifier = parts[0];
-      } else if (isCustomDomain) {
-        storeIdentifier = hostname.startsWith('www.') ? hostname.substring(4) : hostname;
-      }
-
-      if (storeIdentifier) {
-        try {
-          const earlyRaw = localStorage.getItem(`early_preload_${storeIdentifier}`);
-          if (earlyRaw) {
-            const early = JSON.parse(earlyRaw);
-            const data = early?.data;
-            iconUrl = data?.organization_settings?.favicon_url || data?.organization_settings?.logo_url || null;
-          }
-        } catch {}
-      }
-    }
-
-    if (iconUrl) {
-      // إزالة أيقونات حالية مضافة في index.html
-      document.querySelectorAll('link[rel*="icon"]').forEach((el) => el.parentElement?.removeChild(el));
-
-      const withBust = `${iconUrl}?v=${Date.now()}`;
-
-      const linkIcon = document.createElement('link');
-      linkIcon.rel = 'icon';
-      linkIcon.type = 'image/png';
-      linkIcon.href = withBust;
-      document.head.appendChild(linkIcon);
-
-      const linkApple = document.createElement('link');
-      linkApple.rel = 'apple-touch-icon';
-      linkApple.href = withBust;
-      document.head.appendChild(linkApple);
-    }
-  } catch {}
-})();
-
-// 🚀 بدء preload صفحة المنتج إذا كان المستخدم في صفحة منتج (سيتم الاستيراد ديناميكياً)
-// import { startProductPagePreload } from './utils/productPagePreloader';
-
-// دالة كشف ما إذا كان المستخدم في صفحة منتج
-const isProductPage = (): boolean => {
-  if (typeof window === 'undefined') return false;
-  
-  const pathname = window.location.pathname;
-  return pathname.includes('/product-purchase-max-v2/') || 
-         pathname.includes('/product-purchase/') ||
-         pathname.includes('/product/');
-};
-
-// دالة استخراج معرف المنتج من المسار
-const extractProductIdFromPath = (): string | null => {
-  if (typeof window === 'undefined') return null;
-  
-  const pathname = window.location.pathname;
-  const productMatch = pathname.match(/\/(?:product-purchase-max-v2|product-purchase|product)\/([^\/]+)/);
-  return productMatch ? productMatch[1] : null;
-};
-
-// دالة استخراج معرف المؤسسة من النطاق
-const extractOrganizationIdFromDomain = async (): Promise<string | null> => {
-  try {
-    // محاولة فورية من window object
-    try {
-      const win: any = window as any;
-      const early = win.__EARLY_STORE_DATA__?.data || win.__EARLY_STORE_DATA__;
-      const shared = win.__SHARED_STORE_DATA__;
-      const fromWin = early?.organization_details?.id || early?.organization?.id || shared?.organization?.id;
-      if (fromWin) return String(fromWin);
-    } catch {}
-
-    const hostname = window.location.hostname;
-    const baseDomains = ['.ktobi.online', '.stockiha.com', '.bazaar.dev', '.vercel.app', '.bazaar.com'];
-    const isBaseDomain = baseDomains.some((d) => hostname.endsWith(d));
-    const isLocalhost = hostname.includes('localhost') || hostname.startsWith('127.');
-    const isCustomDomain = !isLocalhost && !isBaseDomain;
-
-    // إذا كان localhost، استخرج subdomain
-    if (isLocalhost && hostname.includes('localhost')) {
-      const subdomain = hostname.split('.')[0];
-      if (subdomain && subdomain !== 'localhost') {
-        // استخدم localStorage للحصول على معرف المؤسسة
-        const cachedOrg = localStorage.getItem(`early_preload_${subdomain}`);
-        if (cachedOrg) {
-          const parsed = JSON.parse(cachedOrg);
-          // استخرج معرف المؤسسة من البيانات المحفوظة
-          if (parsed.data?.organization?.id) {
-            return parsed.data.organization.id;
-          }
-        }
-      }
-    }
-
-    // للنطاقات المخصصة، نحاول استخراج subdomain أولاً
-    if (isCustomDomain) {
-      const domainParts = hostname.split('.');
-      if (domainParts.length > 2 && domainParts[0] && domainParts[0] !== 'www') {
-        const possibleSubdomain = domainParts[0].toLowerCase().trim();
-
-        // ابحث في localStorage باستخدام subdomain المستخرج
-        const cachedOrg = localStorage.getItem(`early_preload_${possibleSubdomain}`);
-        if (cachedOrg) {
-          const parsed = JSON.parse(cachedOrg);
-          if (parsed.data?.organization?.id) {
-            return parsed.data.organization.id;
-          }
-        }
-
-        // إذا لم يعمل subdomain، ابحث بالنطاق كاملاً
-        const cachedOrgFull = localStorage.getItem(`early_preload_${hostname}`);
-        if (cachedOrgFull) {
-          const parsed = JSON.parse(cachedOrgFull);
-          if (parsed.data?.organization?.id) {
-            return parsed.data.organization.id;
-          }
-        }
-      }
-    }
-
-    // ابحث في localStorage العام
-    const orgId = localStorage.getItem('bazaar_organization_id');
-    if (orgId && orgId.length > 10) {
-      return orgId;
-    }
-
-    return null;
-  } catch (error) {
-    return null;
+  if (isProduction) {
+    console.log('🏭 [MAIN.TSX] تطبيق تحسينات الإنتاج للنطاق:', hostname);
+    productionOptimizer.applyAllProductionOptimizations().catch(console.warn);
   }
 };
 
-// خيار A: تعطيل preload الخاص بالمنتج على صفحة المنتج لتوحيد الطلبات ومنع التكرار
-const ENABLE_PRODUCT_PRELOADER = false;
+// تهيئة الأنظمة الأساسية
+initializeCoreSystems();
 
-// بدء preload صفحة المنتج (معطل افتراضياً)
-const startProductPagePreloadIfNeeded = async () => {
-  if (!isProductPage() || !ENABLE_PRODUCT_PRELOADER) return;
-  // في حال تم تفعيله لاحقاً: سيتم انتظار توفر organizationId عبر الأحداث قبل الجلب
-};
-
-// إضافة event listener للاستماع لحفظ بيانات المؤسسة
-const handleOrganizationDataSaved = (event: any) => {
-  if (event.detail?.organizationId && isProductPage()) {
-    const productId = extractProductIdFromPath();
-    if (productId) {
-
-      import('./utils/productPagePreloader').then(({ startProductPagePreload }) => startProductPagePreload({
-        productId,
-        organizationId: event.detail.organizationId,
-        // توحيد النطاق مع hook الصفحة لمنع التكرار
-        dataScope: 'full',
-        forceUltraOnly: false
-      })).then(result => {
-        if (result.success) {
-        } else {
-        }
-      }).catch(error => {
-      });
-    }
-  }
-};
-
-// الاستماع لأحداث حفظ بيانات المؤسسة
-if (ENABLE_PRODUCT_PRELOADER) {
-  window.addEventListener('organizationDataSaved', handleOrganizationDataSaved);
-  window.addEventListener('domain-detected', handleOrganizationDataSaved);
-}
-
-// بدء preload صفحة المنتج
-startProductPagePreloadIfNeeded();
-
-// i18n is initialized lazily via I18nSEOWrapper to keep initial JS small
-
-// 🎨 تحميل CSS المؤجل لتحسين الأداء (تم استيراده أعلى الملف بالفعل)
-// import { loadNonCriticalCSSAfterPageLoad } from './utils/loadNonCriticalCSS';
-// تأجيل تحسينات الأداء العامة لتقليل JS المبدئي
-// import './utils/performanceOptimizations';
+// ===========================================
+// ⚛️ إعداد React وتهيئة التطبيق
+// ===========================================
 
 // 🚀 Core React - Essential Only
 import React from 'react';
@@ -359,104 +87,18 @@ import { StrictMode } from 'react';
 
 // 🔍 تتبع انتهاء الاستيراد الأساسي
 const REACT_IMPORTS_TIME = performance.now();
+performanceTracker.mark('react-imports-complete');
 
-// 🚫 تعطيل React DevTools Hook مبكراً لتفعيل Fast Refresh
-if (import.meta.env.DEV && typeof window !== 'undefined') {
-  // التحقق من وجود الخاصية قبل محاولة حذفها
-  if (window.hasOwnProperty('__REACT_DEVTOOLS_GLOBAL_HOOK__')) {
-    try {
-      // محاولة حذف الخاصية بطريقة آمنة
-      const descriptor = Object.getOwnPropertyDescriptor(window, '__REACT_DEVTOOLS_GLOBAL_HOOK__');
-      if (descriptor && descriptor.configurable) {
-        delete (window as any).__REACT_DEVTOOLS_GLOBAL_HOOK__;
-      } else if (descriptor && descriptor.writable) {
-        // إذا كانت الخاصية قابلة للكتابة، نقوم بتعطيلها
-        (window as any).__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
-          isDisabled: true,
-          supportsFiber: false,
-          supportsProfiling: false,
-          inject: () => {},
-          on: () => {},
-          off: () => {},
-          sub: () => {},
-          rendererPackageName: 'react-dom',
-          version: '18.0.0',
-          rendererConfig: {},
-          hook: null
-        };
-      } else {
-        // إذا كانت الخاصية محمية تماماً، نتجاهلها
-      }
-    } catch (e) {
-      // تجاهل الأخطاء إذا كانت الخاصية محمية
-      
-      // محاولة تعطيلها بطريقة أخرى
-      try {
-        // محاولة إعادة تعريف الخاصية إذا كانت قابلة للإعادة التعريف
-        const descriptor = Object.getOwnPropertyDescriptor(window, '__REACT_DEVTOOLS_GLOBAL_HOOK__');
-        if (descriptor && descriptor.configurable) {
-          Object.defineProperty(window, '__REACT_DEVTOOLS_GLOBAL_HOOK__', {
-            value: {
-              isDisabled: true,
-              supportsFiber: false,
-              supportsProfiling: false,
-              inject: () => {},
-              on: () => {},
-              off: () => {},
-              sub: () => {},
-              rendererPackageName: 'react-dom',
-              version: '18.0.0',
-              rendererConfig: {},
-              hook: null
-            },
-            writable: false,
-            configurable: false
-          });
-        } else {
-        }
-      } catch (disableError) {
-      }
-    }
-  }
-  
-  // إنشاء hook فارغ فقط إذا لم يكن موجوداً بالفعل
-  if (!window.hasOwnProperty('__REACT_DEVTOOLS_GLOBAL_HOOK__')) {
-    try {
-      Object.defineProperty(window, '__REACT_DEVTOOLS_GLOBAL_HOOK__', {
-        value: {
-          isDisabled: true,
-          supportsFiber: false,
-          supportsProfiling: false,
-          inject: () => {},
-          on: () => {},
-          off: () => {},
-          sub: () => {},
-          rendererPackageName: 'react-dom',
-          version: '18.0.0',
-          rendererConfig: {},
-          hook: null
-        },
-        writable: true,
-        configurable: true
-      });
-    } catch (e) {
-    }
-  }
-}
+// تعطيل React DevTools لتحسين الأداء في التطوير
+reactDevToolsManager.disable();
 
-// 🎨 تحميل CSS الأساسي أولاً
+// 🎨 تحميل CSS الأساسي
 const CSS_START_TIME = performance.now();
 import './index.css';
 import './App.css';
-import { loadNonCriticalCSSAfterPageLoad } from './utils/loadNonCriticalCSS';
-// تحميل CSS غير الحرج والخطوط بعد الإقلاع - معطل لأن CSS محمل مع HTML
-// loadNonCriticalCSSAfterPageLoad();
-const CSS_END_TIME = performance.now();
 
-// 🔤 Font Loading Optimization - CSS فقط، بدون JavaScript
+// 🔤 Font Loading Optimization
 document.documentElement.classList.add('font-loading');
-
-// تحقق سريع من تحميل الخطوط
 document.fonts.ready.then(() => {
   document.documentElement.classList.remove('font-loading');
   document.documentElement.classList.add('font-loaded');
@@ -464,28 +106,62 @@ document.fonts.ready.then(() => {
   document.documentElement.classList.remove('font-loading');
   document.documentElement.classList.add('font-error');
 });
-const ROUTER_START_TIME = performance.now();
-// Defer BrowserRouter import to reduce initial bundle
-const BrowserRouter = React.lazy(() => 
+
+// 🌐 Browser Router Configuration
+const BrowserRouter = React.lazy(() =>
   import('react-router-dom').then(module => ({ default: module.BrowserRouter }))
 );
-const ROUTER_END_TIME = performance.now();
 
-const APP_START_TIME = performance.now();
-// Defer App import to reduce initial JS execution
+// 📱 App Component
 const App = React.lazy(() => import('./App.tsx'));
-const APP_END_TIME = performance.now();
 
-// 🔧 Make React globally available if needed
-(window as any).React = React;
+// 🚀 Performance Optimizations
+const initPerformanceOptimizations = () => {
+  // تقليل console errors في production
+  if (import.meta.env.PROD) {
+    const originalError = console.error;
+    console.error = (...args) => {
+      const message = args.join(' ').toLowerCase();
+      if (
+        message.includes('websocket') ||
+        message.includes('hmr') ||
+        message.includes('vite') ||
+        message.includes('failed to connect')
+      ) {
+        return;
+      }
+      originalError.apply(console, args);
+    };
+  }
 
-// ⚡ Essential polyfills only
+  // تحسين CSS loading
+  if (typeof window !== 'undefined') {
+    document.documentElement.style.visibility = 'visible';
 
-// 🚫 نظام منع الطلبات المتكررة + preload manager سيتم تأجيلهما لتقليل JS المبدئي
-// import { initializeRequestBlocker } from './lib/requestBlocker';
-// import './lib/preloadManager';
+    // تطبيق الخطوط فوراً
+    const applyFonts = () => {
+      if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(() => {
+          document.body.classList.add('tajawal-forced');
+        });
+      } else {
+        setTimeout(() => {
+          document.body.classList.add('tajawal-forced');
+        }, 25);
+      }
+    };
 
-// 🔧 إضافة polyfill لـ requestIdleCallback
+    if (window.requestIdleCallback) {
+      window.requestIdleCallback(applyFonts, { timeout: 0 });
+    } else {
+      setTimeout(applyFonts, 0);
+    }
+  }
+};
+
+initPerformanceOptimizations();
+
+// 🔧 Polyfills
 if (typeof window !== 'undefined' && !window.requestIdleCallback) {
   (window as any).requestIdleCallback = function(callback: any, options?: any) {
     const start = Date.now();
@@ -498,85 +174,16 @@ if (typeof window !== 'undefined' && !window.requestIdleCallback) {
       });
     }, 1);
   };
-  
+
   (window as any).cancelIdleCallback = function(id: any) {
     clearTimeout(id);
   };
 }
 
-// 🚀 تطبيق تحسينات الأداء فوراً
-const initPerformanceOptimizations = () => {
-  // تقليل console errors في production
-  if (import.meta.env.PROD) {
-    const originalError = console.error;
-    console.error = (...args) => {
-      const message = args.join(' ').toLowerCase();
-      
-      // تجاهل أخطاء WebSocket و HMR في production
-      if (
-        message.includes('websocket') ||
-        message.includes('hmr') ||
-        message.includes('vite') ||
-        message.includes('failed to connect')
-      ) {
-        return;
-      }
-      
-      // عرض الأخطاء الأخرى
-      originalError.apply(console, args);
-    };
-  }
+// 🔧 Make React globally available
+(window as any).React = React;
 
-  // تحسين CSS loading
-  if (typeof window !== 'undefined') {
-    // منع FOUC (Flash of Unstyled Content)
-    document.documentElement.style.visibility = 'visible';
-    
-    // تطبيق الخطوط فوراً لخفض LCP
-    const applyFonts = () => {
-      if (document.fonts && document.fonts.ready) {
-        document.fonts.ready.then(() => {
-          // تطبيق الخطوط
-          document.body.classList.add('tajawal-forced');
-        });
-      } else {
-        // fallback للمتصفحات القديمة
-        setTimeout(() => {
-          document.body.classList.add('tajawal-forced');
-        }, 25); // ✅ تقليل من 50ms إلى 25ms لتحسين الأداء
-      }
-    };
-    
-    // استخدام requestIdleCallback إذا كان متوفراً، وإلا استخدم setTimeout
-    if (window.requestIdleCallback) {
-      window.requestIdleCallback(applyFonts, { timeout: 0 }); // ✅ إزالة التأخير لحل مشكلة عرض المتجر
-    } else {
-      setTimeout(applyFonts, 0); // ✅ إزالة التأخير لحل مشكلة عرض المتجر
-    }
-  }
-};
-
-initPerformanceOptimizations();
-
-// 🚫 تفعيل نظام منع الطلبات المتكررة — مؤجل لتقليل Boot-up
-if (typeof window !== 'undefined') {
-  const enableBlocker = () => {
-    import('./lib/requestBlocker')
-      .then(({ initializeRequestBlocker }) => initializeRequestBlocker())
-      .catch(() => {});
-    // تفعيل preload manager بعد blocker
-    import('./lib/preloadManager').catch(() => {});
-  };
-  if ('requestIdleCallback' in window) {
-    (window as any).requestIdleCallback(enableBlocker, { timeout: 2000 });
-  } else {
-    setTimeout(enableBlocker, 1200);
-  }
-}
-
-// تم نقل إدارة QueryClient إلى SmartProviderWrapper باستخدام '@/lib/config/queryClient'
-
-// 🌐 Browser Router Configuration
+// 🌐 Browser Router Options
 const browserRouterOptions = {
   future: {
     v7_startTransition: true,
@@ -586,10 +193,7 @@ const browserRouterOptions = {
   basename: '/'
 };
 
-// Simple loading component (kept for potential future use)
-const SimpleLoader = () => null;
-
-// 🎯 Essential Providers Only - optimized for performance
+// 🎯 App Providers
 const AppProviders = ({ children }: { children: React.ReactNode }) => {
   return (
     <React.Suspense fallback={null}>
@@ -609,33 +213,28 @@ if (rootElement && !root) {
   (rootElement as any).__reactRootContainer = root;
 }
 
-  if (root) {
+if (root) {
   const RENDER_START_TIME = performance.now();
-  
+
   // حفظ الأوقات عالمياً
   (window as any).__APP_TIMING__ = {
-    mainStart: MAIN_START_TIME,
+    mainStart: performanceTracker['start'],
     reactImports: REACT_IMPORTS_TIME,
-    cssLoad: CSS_END_TIME - CSS_START_TIME,
-    routerLoad: ROUTER_END_TIME - ROUTER_START_TIME,
-    appLoad: APP_END_TIME - APP_START_TIME,
+    cssLoad: performance.now() - CSS_START_TIME,
     renderStart: RENDER_START_TIME,
-    totalBeforeRender: RENDER_START_TIME - MAIN_START_TIME
+    totalBeforeRender: RENDER_START_TIME - performanceTracker['start']
   };
-  
-  console.log('⚡ [MAIN.TSX] بدء رندر التطبيق', {
+
+  performanceTracker.log('بدء رندر التطبيق', {
     timings: (window as any).__APP_TIMING__,
     memoryUsage: (performance as any).memory ? {
       used: Math.round((performance as any).memory.usedJSHeapSize / 1024 / 1024) + 'MB',
       total: Math.round((performance as any).memory.totalJSHeapSize / 1024 / 1024) + 'MB'
     } : 'غير متوفر'
   });
-  
-  // إزالة فرض الخط عبر الجافاسكربت لضمان اتساق CSS
-  
-  // عرض التطبيق فوراً - بدون StrictMode في التطوير
+
+  // عرض التطبيق فوراً
   if (import.meta.env.DEV) {
-    // في التطوير: بدون StrictMode لتقليل إعادة الرندر
     root.render(
       <AppProviders>
         <React.Suspense fallback={null}>
@@ -644,7 +243,6 @@ if (rootElement && !root) {
       </AppProviders>
     );
   } else {
-    // في الإنتاج: مع StrictMode للأمان
     root.render(
       <StrictMode>
         <AppProviders>
@@ -655,207 +253,292 @@ if (rootElement && !root) {
       </StrictMode>
     );
   }
-  
-  // ✅ إزالة شاشة التحميل بأسرع ما يمكن بعد أول رندر
+
+  // إزالة شاشة التحميل
   try {
     const remove = (window as any).removeInitialLoading;
     if (typeof remove === 'function') {
       requestAnimationFrame(() => remove());
-      // احتياط: في حال لم تنجح rAF لسبب ما
       setTimeout(() => { try { remove(); } catch {} }, 1200);
     }
   } catch {}
 
-  // 🎨 بدء تحميل CSS غير الحرج بعد تشغيل التطبيق - معطل لأن CSS محمل مع HTML
-  // loadNonCriticalCSSAfterPageLoad();
-  
   const RENDER_END_TIME = performance.now();
-  
-  // حفظ وقت انتهاء الرندر
   (window as any).__APP_TIMING__.renderEnd = RENDER_END_TIME;
-  (window as any).__APP_TIMING__.totalToRender = RENDER_END_TIME - MAIN_START_TIME;
-  
-  console.log('🎉 [MAIN.TSX] اكتمل رندر التطبيق', {
+  (window as any).__APP_TIMING__.totalToRender = RENDER_END_TIME - performanceTracker['start'];
+
+  performanceTracker.log('اكتمل رندر التطبيق', {
     renderTime: RENDER_END_TIME - RENDER_START_TIME,
-    totalBootTime: RENDER_END_TIME - MAIN_START_TIME,
+    totalBootTime: RENDER_END_TIME - performanceTracker['start'],
     finalTimings: (window as any).__APP_TIMING__
   });
 
-  // 📊 إضافة مراقبة شاملة للأداء
-  setTimeout(() => {
-    const performanceReport = {
-      totalBootTime: RENDER_END_TIME - MAIN_START_TIME,
-      memoryUsage: (performance as any).memory ? {
-        used: Math.round((performance as any).memory.usedJSHeapSize / 1024 / 1024) + 'MB',
-        total: Math.round((performance as any).memory.totalJSHeapSize / 1024 / 1024) + 'MB',
-        limit: Math.round((performance as any).memory.jsHeapSizeLimit / 1024 / 1024) + 'MB'
-      } : 'غير متوفر',
-      navigationTiming: performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming,
-      resourceTiming: performance.getEntriesByType('resource').length,
-      url: window.location.href,
-      userAgent: navigator.userAgent.substring(0, 100) + '...'
-    };
-    
-    console.log('📊 [MAIN.TSX] تقرير الأداء الشامل', performanceReport);
-    
-    // حفظ التقرير في window للوصول إليه لاحقاً
-    (window as any).__PERFORMANCE_REPORT__ = performanceReport;
-  }, 2000);
-
-} else {
 }
 
-// 🚀 تنظيف Service Workers القديمة (تم حذف Service Worker لأنه يسبب مشاكل في الأداء)
+// 🚀 Service Workers Cleanup
 if ('serviceWorker' in navigator) {
-  // إلغاء تسجيل جميع Service Workers القديمة أولاً
   navigator.serviceWorker.getRegistrations().then(registrations => {
     const hasActiveWorkers = registrations.length > 0;
     registrations.forEach(registration => {
-      
       registration.unregister();
     });
 
-    // إذا كان هناك Service Workers نشطة، أعد تحميل الصفحة (تعطيل في التطوير)
     if (hasActiveWorkers && !import.meta.env.DEV) {
-      
       setTimeout(() => {
         window.location.reload();
       }, 1000);
     }
   });
 
-  // أداة تنظيف Service Worker متاحة عبر console
   (window as any).clearServiceWorkers = () => {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then(registrations => {
-        
         registrations.forEach((registration, index) => {
-          
           registration.unregister().then(() => {
-            
+            console.log(`تم إلغاء تسجيل Service Worker ${index + 1}`);
           });
         });
         if (registrations.length > 0) {
-          
+          console.log(`تم إلغاء تسجيل ${registrations.length} Service Worker`);
         }
       });
     } else {
-      
+      console.log('Service Workers غير مدعوم');
     }
   };
-
-  // Service Worker cleanup function available globally
 }
 
-// 🚀 تأجيل الأنظمة غير الحرجة لما بعد التفاعل الأول
-const deferNonCriticalSystems = () => {
-  const deferStartTime = performance.now();
-  console.log('⏰ [MAIN.TSX] بدء تحميل الأنظمة غير الحرجة', {
-    timing: deferStartTime - MAIN_START_TIME
-  });
-  
-  // إزالة تأجيل i18n لحل مشكلة useTranslation
-  // import('./i18n/index').catch(() => {});
+// 🚀 تحسين: انتظار محسّن للبيانات المبكرة - أسرع وأكثر فعالية
+if (typeof window !== 'undefined') {
+  const waitForEarlyData = () => {
+    const startWait = performance.now();
+    // تقليل الوقت المسموح بشكل كبير لتحسين الأداء
+    let maxWait = 500; // تقليل إلى 500ms بدلاً من 1000ms
+
+    try {
+      const connection = (navigator as any).connection;
+      if (connection) {
+        const effectiveType = connection.effectiveType;
+        const downlink = connection.downlink || 0;
+
+        if (effectiveType === 'slow-2g' || effectiveType === '2g') {
+          maxWait = 2000; // تقليل إلى 2 ثانية بدلاً من 8 ثوانٍ
+        } else if (effectiveType === '3g' || (effectiveType === '4g' && downlink < 0.5)) {
+          maxWait = 1500; // تقليل إلى 1.5 ثانية بدلاً من 5 ثوانٍ
+        } else if (effectiveType === '4g' && downlink >= 0.5) {
+          maxWait = 800; // تقليل إلى 800ms بدلاً من 3 ثوانٍ
+        }
+      }
+
+      // فحص الأجهزة المحمولة - تقليل التأخير
+      const userAgent = navigator.userAgent.toLowerCase();
+      if (userAgent.includes('mobile') || userAgent.includes('android')) {
+        maxWait = Math.max(maxWait, 1000); // تقليل إلى 1 ثانية بدلاً من 4 ثوانٍ
+      }
+
+      if (!navigator.onLine) {
+        maxWait = 500; // تقليل إلى 500ms
+      }
+    } catch {
+      maxWait = 800; // fallback محسّن
+    }
+
+    const checkData = () => {
+      const win = window as any;
+      const hasData = !!(
+        win.__EARLY_STORE_DATA__?.data ||
+        win.__CURRENT_STORE_DATA__ ||
+        win.__PREFETCHED_STORE_DATA__
+      );
+
+      if (hasData || (performance.now() - startWait) > maxWait) {
+        // البيانات متوفرة أو انتهى الوقت - ابدأ الرندر
+        if (!hasData) {
+          console.log('⏳ [MAIN.TSX] بدء الرندر بدون بيانات مبكرة');
+        } else {
+          console.log('✅ [MAIN.TSX] البيانات المبكرة متوفرة - بدء الرندر');
+        }
+        return;
+      }
+
+      // انتظر قليلاً وتحقق مرة أخرى
+      setTimeout(checkData, 50); // تسريع الفحص إلى 50ms بدلاً من 100ms
+    };
+
+    checkData();
+  };
+
+  // ابدأ فحص البيانات المبكرة
+  waitForEarlyData();
+}
+
+// 🚀 Immediate Theme Application - تطبيق الثيم فوراً لتجنب التأخير
+const applyThemeImmediately = () => {
+  // تطبيق الثيم فوراً بدلاً من التأخير
   import('./lib/themeManager').then(({ applyInstantTheme }) => {
-    const themeTime = performance.now();
-    console.log('🎨 [MAIN.TSX] تطبيق الثيم', {
-      timing: themeTime - deferStartTime
-    });
     applyInstantTheme();
   }).catch(() => {});
 };
 
-// استخدام requestIdleCallback إذا كان متوفراً، وإلا استخدم setTimeout
+// تطبيق الثيم فوراً
 if (typeof window !== 'undefined') {
+  setTimeout(applyThemeImmediately, 0);
+}
+
+// 🚀 Deferred Systems - تحميل باقي الأنظمة غير الحرجة لاحقاً (محسن للأداء)
+const deferNonCriticalSystems = () => {
+  // الأنظمة غير الحرجة - تقليل العمليات
+};
+
+// تحميل الأنظمة غير الحرجة مع تأخير محسّن حسب الشبكة - تسريع
+if (typeof window !== 'undefined') {
+  const isSlowNetwork = () => {
+    try {
+      const connection = (navigator as any).connection;
+      if (connection) {
+        const effectiveType = connection.effectiveType;
+        return effectiveType === 'slow-2g' || effectiveType === '2g' ||
+               (effectiveType === '3g' && connection.downlink < 0.5);
+      }
+      return !navigator.onLine; // افتراضياً سريعة إلا إذا كانت غير متصلة
+    } catch {
+      return false; // افتراضياً سريعة
+    }
+  };
+
+  const deferDelay = isSlowNetwork() ? 200 : 50; // تقليل التأخير بشكل كبير
+  const idleTimeout = isSlowNetwork() ? 100 : 50; // timeout أقصر
+
   if (window.requestIdleCallback) {
-    window.requestIdleCallback(deferNonCriticalSystems, { timeout: 500 }); // زيادة لتحسين LCP
+    window.requestIdleCallback(deferNonCriticalSystems, { timeout: idleTimeout });
   } else {
-    setTimeout(deferNonCriticalSystems, 500); // زيادة لتحسين LCP
+    setTimeout(deferNonCriticalSystems, deferDelay);
   }
 }
 
-// 🔌 تحميل Supabase عند الطلب فقط لتقليل LCP
-// (window as any).loadSupabase = () => {
-//   return import('./lib/supabase-unified')
-//     .then(({ getSupabaseClient }) => getSupabaseClient())
-//     .catch(() => undefined);
-// };
+// 🔌 Supabase Loader (محسن للأداء)
+const getSupabaseLoadDelay = () => {
+  try {
+    const connection = (navigator as any).connection;
+    if (connection) {
+      const effectiveType = connection.effectiveType;
+      if (effectiveType === 'slow-2g' || effectiveType === '2g' || effectiveType === '3g') {
+        return 1000; // تقليل إلى 1 ثانية بدلاً من 3 ثوانٍ
+      }
+      if (effectiveType === '4g' && connection.downlink < 1) {
+        return 500; // تقليل إلى 500ms بدلاً من 2 ثانية
+      }
+    }
+    return !navigator.onLine ? 1000 : 200; // تسريع للشبكات السريعة
+  } catch {
+    return 300; // تأخير افتراضي محسّن
+  }
+};
 
-// تأجيل تحميل Supabase حتى بعد اكتمال التطبيق
 setTimeout(() => {
   (window as any).loadSupabase = () => {
-    // Load lightweight polyfills only when Supabase is actually needed
     return import('./lib/polyfills')
       .catch(() => undefined)
       .then(() => import('./lib/supabase-unified'))
       .then(({ getSupabaseClient }) => getSupabaseClient())
       .catch(() => undefined);
   };
-}, 1000); // زيادة إلى 1000ms لتحسين LCP
+}, getSupabaseLoadDelay());
 
-// 🛡️ تهيئة معالج أخطاء CSP — مؤجل أكثر لتقليل Boot-up
-setTimeout(() => {
-  import('./utils/cspErrorHandler')
-    .then(({ initCSPErrorHandler }) => {
-      try { initCSPErrorHandler(); } catch {}
-    })
-    .catch(() => {});
-}, 1500);
+// 🚀 Optimized System Loading - دمج جميع التحميلات المتأخرة في دفعة واحدة (محسن)
+const loadOptimizedSystems = () => {
+  // تحديد التأخير حسب نوع الشبكة - تقليل التأخيرات
+  const getOptimalDelay = () => {
+    try {
+      const connection = (navigator as any).connection;
+      if (connection) {
+        const effectiveType = connection.effectiveType;
+        if (effectiveType === 'slow-2g' || effectiveType === '2g') return 1000; // تقليل من 3000ms
+        if (effectiveType === '3g') return 800; // تقليل من 2000ms
+        if (effectiveType === '4g' && connection.downlink < 1) return 500; // تقليل من 1500ms
+      }
+      return navigator.onLine ? 200 : 800; // تسريع كبير للشبكات السريعة
+    } catch {
+      return 300; // تأخير افتراضي محسّن
+    }
+  };
 
-// 📱 تهيئة إصلاحات Instagram WebView — مؤجلة لما بعد الإقلاع
-setTimeout(() => {
-  import('./utils/instagramWebViewFix')
-    .then(({ initInstagramWebViewFix, isInstagramWebView }) => {
-      try {
-        if (isInstagramWebView()) {
-          initInstagramWebViewFix({
-            enableChunkRetry: true,
-            maxRetryAttempts: 3,
-            retryDelay: 2000,
-            bundleSizeThreshold: 500 * 1024,
-            enableServiceWorkerFix: true,
-            enableCSPFix: true
-          });
-        }
-      } catch {}
-    })
-    .catch(() => {});
-}, 2000);
+  const optimalDelay = getOptimalDelay();
 
-// 📱 إصلاحات عامة لكل WebViews (Facebook/Instagram/TikTok/Android WebView)
-setTimeout(() => {
-  import('./utils/inAppWebView')
-    .then(({ initInAppWebViewFix, isInAppWebView }) => {
-      try {
-        if (isInAppWebView()) {
-          initInAppWebViewFix({
-            disableAnimations: true,
-            requireUserInteractionForTrackers: true,
-            interactionTimeoutMs: 8000,
-          });
-        }
-      } catch {}
-    })
-    .catch(() => {});
-}, 1800);
+  setTimeout(async () => {
+    const startTime = performance.now();
+    console.log('🚀 [MAIN.TSX] بدء تحميل الأنظمة المتأخرة - TIME:', startTime);
 
-// Initialize conditional preloader (محسن للأداء)
-setTimeout(() => {
-  // فحص إذا كان المستخدم في صفحة منتج
-  const isProductPage = window.location.pathname.includes('/product-purchase-max-v3/') ||
-                       window.location.pathname.includes('/product-purchase-max-v2/') ||
-                       window.location.pathname.includes('/product-purchase/') ||
-                       window.location.pathname.includes('/product/');
-  
-  if (isProductPage) {
-    // تحسين خاص لصفحات المنتجات
-    import('./utils/productPageOptimizer').then(({ productPageOptimizer }) => {
-      // Product page optimizer initialized
-    }).catch(() => {});
-  } else {
-    // تحميل ذكي للمكونات الأخرى
-    import('./utils/conditionalPreloader').then(({ conditionalPreloader }) => {
-      // Conditional preloader initialized
-    }).catch(() => {});
-  }
-}, 200); // تقليل التأخير لتحسين الأداء
+    try {
+      // تحميل جميع الأنظمة المتأخرة بالتوازي
+      const systemPromises = [
+        // CSP Error Handler
+        import('./utils/cspErrorHandler').then(({ initCSPErrorHandler }) => {
+          try { initCSPErrorHandler(); } catch {}
+        }).catch(() => {}),
+
+        // WebView Fixes - Instagram
+        import('./utils/instagramWebViewFix').then(({ initInstagramWebViewFix, isInstagramWebView }) => {
+          try {
+            if (isInstagramWebView()) {
+              initInstagramWebViewFix({
+                enableChunkRetry: true,
+                maxRetryAttempts: 3,
+                retryDelay: 2000,
+                bundleSizeThreshold: 500 * 1024,
+                enableServiceWorkerFix: true,
+                enableCSPFix: true
+              });
+            }
+          } catch {}
+        }).catch(() => {}),
+
+        // General WebView Fixes
+        import('./utils/inAppWebView').then(({ initInAppWebViewFix, isInAppWebView }) => {
+          try {
+            if (isInAppWebView()) {
+              initInAppWebViewFix({
+                disableAnimations: true,
+                requireUserInteractionForTrackers: true,
+                interactionTimeoutMs: 8000,
+              });
+            }
+          } catch {}
+        }).catch(() => {}),
+      ];
+
+      // تحميل الأنظمة بالتوازي
+      await Promise.all(systemPromises);
+      console.log('✅ [MAIN.TSX] اكتمل تحميل الأنظمة الأساسية - TIME:', performance.now());
+
+      // تحميل Conditional Preloader بناءً على نوع الصفحة
+      const isProductPage = window.location.pathname.includes('/product-purchase-max-v3/') ||
+                           window.location.pathname.includes('/product-purchase-max-v2/') ||
+                           window.location.pathname.includes('/product-purchase/') ||
+                           window.location.pathname.includes('/product/');
+
+      if (isProductPage) {
+        import('./utils/productPageOptimizer' as any).then((module: any) => {
+          console.log('📦 [MAIN.TSX] تم تحميل Product Page Optimizer');
+        }).catch(() => {});
+      } else {
+        import('./utils/conditionalPreloader' as any).then((module: any) => {
+          console.log('🔄 [MAIN.TSX] تم تحميل Conditional Preloader');
+        }).catch(() => {});
+      }
+
+      const totalTime = performance.now() - startTime;
+      console.log('🏁 [MAIN.TSX] اكتمل تحميل جميع الأنظمة:', {
+        totalTime,
+        systemsCount: systemPromises.length,
+        time: performance.now()
+      });
+
+    } catch (error) {
+      console.warn('⚠️ [MAIN.TSX] خطأ في تحميل الأنظمة:', error);
+    }
+  }, optimalDelay);
+};
+
+// تشغيل التحميل المحسن
+loadOptimizedSystems();

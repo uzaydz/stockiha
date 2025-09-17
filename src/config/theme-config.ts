@@ -61,24 +61,16 @@ export function detectDomainType(hostname: string): {
       };
     }
     
-    // نطاق مخصص أو نطاق فرعي من مستوى واحد
+    // نطاق مخصص (apex domain مثل example.com) وليس من النطاقات العامة
     const baseDomain = parts.slice(-2).join('.');
-    const isPublicDomain = THEME_CONFIG.PUBLIC_DOMAINS.includes(hostname) || 
-                          THEME_CONFIG.PUBLIC_DOMAINS.includes(baseDomain);
-    
-    if (!isPublicDomain) {
+    const isPublicDomain = THEME_CONFIG.PUBLIC_DOMAINS.includes(hostname) ||
+                           THEME_CONFIG.PUBLIC_DOMAINS.includes(baseDomain);
+
+    if (!isPublicDomain && parts.length === 2) {
+      // اعتبره نطاق متجر بدون subdomain (custom domain)
       return {
         type: 'store',
-        subdomain: parts[0] !== 'www' ? parts[0] : undefined,
-        isLocalhost: false
-      };
-    }
-    
-    // نطاق فرعي من نطاق عام
-    if (parts[0] !== 'www' && parts.length === 2) {
-      return {
-        type: 'store',
-        subdomain: parts[0],
+        subdomain: undefined,
         isLocalhost: false
       };
     }

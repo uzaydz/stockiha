@@ -33,9 +33,9 @@ export const SafeTranslationProvider: React.FC<SafeTranslationProviderProps> = (
   // تتبع حالة الجاهزية
   useEffect(() => {
     // ✅ التحقق من صحة i18n instance قبل استخدامه
-    const isValidI18n = i18n && 
-                        typeof i18n === 'object' && 
-                        typeof i18n.on === 'function' && 
+    const isValidI18n = i18n &&
+                        typeof i18n === 'object' &&
+                        typeof i18n.on === 'function' &&
                         typeof i18n.off === 'function';
 
     if (!isValidI18n) {
@@ -45,22 +45,31 @@ export const SafeTranslationProvider: React.FC<SafeTranslationProviderProps> = (
       return;
     }
 
-    if (i18n.isInitialized) {
+    // 🔥 تحسين: إذا كان i18n مهيأ بالفعل، اجعله جاهز فوراً
+    if (i18n.isInitialized && i18n.language) {
       setIsReady(true);
-      setCurrentLanguage(i18n.language || 'ar');
+      setCurrentLanguage(i18n.language);
+    } else if (i18n.isInitialized) {
+      // إذا كان مهيأ لكن بدون لغة، استخدم fallback
+      setIsReady(true);
+      setCurrentLanguage('ar');
     }
-    
-    // 🔍 Debug: حالة التهيئة
-    try {
-      console.log('🌐 [SafeTranslationProvider] i18n state', {
-        isInitialized: i18n.isInitialized,
-        language: i18n.language,
-        isReady
-      });
-    } catch {}
+
+    // 🔍 Debug: حالة التهيئة (DEV فقط)
+    if (process.env.NODE_ENV === 'development') {
+      try {
+        console.log('🌐 [SafeTranslationProvider] i18n state', {
+          isInitialized: i18n.isInitialized,
+          language: i18n.language,
+          isReady
+        });
+      } catch {}
+    }
 
     const handleLanguageChange = (lng: string) => {
       setCurrentLanguage(lng || 'ar');
+      // 🔥 تحسين: اجعل الـ provider جاهز فوراً عند تغيير اللغة
+      setIsReady(true);
     };
 
     const handleInitialized = () => {
@@ -75,7 +84,17 @@ export const SafeTranslationProvider: React.FC<SafeTranslationProviderProps> = (
       console.warn('⚠️ [SafeTranslationProvider] خطأ في تسجيل مستمعي الأحداث:', error);
     }
 
+    // 🔥 تحسين: إذا لم يكن جاهز بعد ثانية واحدة، اجعله جاهز بالقوة
+    const forceReadyTimeout = setTimeout(() => {
+      if (!isReady) {
+        console.log('🌐 [SafeTranslationProvider] فرض الجاهزية بعد timeout');
+        setIsReady(true);
+        setCurrentLanguage(i18n.language || 'ar');
+      }
+    }, 1000);
+
     return () => {
+      clearTimeout(forceReadyTimeout);
       try {
         i18n.off('languageChanged', handleLanguageChange);
         i18n.off('initialized', handleInitialized);

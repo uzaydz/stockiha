@@ -445,7 +445,7 @@ export const extractSubdomainFromUrl = (url: string) => {
 };
 
 /**
- * استخراج النطاق الفرعي من اسم المضيف
+ * استخراج النطاق الفرعي من اسم المضيف - محسن للنطاقات المخصصة
  */
 export const extractSubdomainFromHostname = (hostname: string) => {
   // التعامل مع localhost بشكل خاص لاستخراج النطاق الفرعي منه في بيئة التطوير
@@ -470,16 +470,16 @@ export const extractSubdomainFromHostname = (hostname: string) => {
   if (hostname === 'localhost' || hostname.includes('localhost:')) {
     return null;
   }
-  
+
   // التحقق أولاً إذا كان يستخدم النطاق الرئيسي الذي نمتلكه
   const baseDomains = ['.bazaar.com', '.bazaar.dev', '.vercel.app', '.ktobi.online', '.stockiha.com'];
   const publicDomains = ['stockiha.pages.dev', 'ktobi.online', 'www.ktobi.online', 'stockiha.com', 'www.stockiha.com'];
-  
+
   // 🔥 فحص النطاقات العامة أولاً - لا تحتاج subdomain extraction
   if (publicDomains.includes(hostname)) {
     return null; // لا يوجد subdomain للنطاقات العامة
   }
-  
+
   for (const baseDomain of baseDomains) {
     if (hostname.endsWith(baseDomain)) {
       const parts = hostname.replace(baseDomain, '').split('.');
@@ -498,7 +498,29 @@ export const extractSubdomainFromHostname = (hostname: string) => {
       }
     }
   }
-  
-  // إذا لم يكن النطاق من نطاقاتنا الأساسية، فقد يكون نطاقًا مخصصًا ولا نحتاج لاستخراج نطاق فرعي منه
+
+  // 🔥 إصلاح للنطاقات المخصصة: محاولة استخراج subdomain محتمل
+  // للنطاقات مثل "subdomain.example.com" حيث example.com قد يكون نطاق مخصص
+  // نحاول استخراج الجزء الأول كـ subdomain محتمل
+  const parts = hostname.split('.');
+  if (parts.length >= 3 && parts[0] && parts[0] !== 'www') {
+    const potentialSubdomain = parts[0]
+      .toLowerCase()
+      .trim()
+      .replace(/\s+/g, '') // إزالة جميع المسافات
+      .replace(/[^a-z0-9-]/g, '') // إزالة الأحرف غير المسموحة
+      .replace(/^-+|-+$/g, '') // إزالة الشرطات من البداية والنهاية
+      .replace(/-+/g, '-'); // تحويل الشرطات المتعددة إلى شرطة واحدة
+
+    if (potentialSubdomain && potentialSubdomain.length >= 3) {
+      console.log('🔍 [extractSubdomainFromHostname] تم استخراج subdomain محتمل من النطاق المخصص:', {
+        hostname,
+        potentialSubdomain
+      });
+      return potentialSubdomain;
+    }
+  }
+
+  // إذا لم يكن النطاق من نطاقاتنا الأساسية وليس نطاق مخصص مع subdomain، فلا نحتاج لاستخراج نطاق فرعي منه
   return null;
 };

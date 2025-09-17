@@ -42,7 +42,7 @@ export default {
 if (typeof window !== 'undefined') {
   // تحميل script الخارجي للثيم المبكر
   const script = document.createElement('script');
-  script.src = '/src/lib/themeManager/earlyThemeLoader.js';
+  script.src = '/lib/themeManager/earlyThemeLoader.js';
   script.async = true;
   document.head.appendChild(script);
 

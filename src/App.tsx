@@ -111,15 +111,28 @@ const App = () => {
   // تطهير الحالة القديمة عند بدء التطبيق
   useAuthStateCleanup();
 
+  const currentRenderTime = performance.now();
   renderCount.current++;
-  
-  // تسجيل معلومات رندر التطبيق
-  if (renderCount.current <= 3) {
-    console.log('🎭 [APP.TSX] رندر التطبيق', {
+
+  // تسجيل معلومات رندر التطبيق مع تفاصيل أكثر
+  console.log('🎭 [APP.TSX] رندر التطبيق', {
+    renderNumber: renderCount.current,
+    timeSinceStart: currentRenderTime - appStartTime.current,
+    url: window.location.href,
+    isInitialized: isInitialized.current,
+    timestamp: new Date().toISOString(),
+    memory: (performance as any).memory ? {
+      used: Math.round((performance as any).memory.usedJSHeapSize / 1024 / 1024) + 'MB',
+      total: Math.round((performance as any).memory.totalJSHeapSize / 1024 / 1024) + 'MB'
+    } : 'غير متوفر',
+    currentTime: currentRenderTime
+  });
+
+  // تحذير إذا كان الرندر متكرراً جداً
+  if (renderCount.current > 5) {
+    console.warn('⚠️ [APP.TSX] رندر متكرر جداً!', {
       renderNumber: renderCount.current,
-      timeSinceStart: performance.now() - appStartTime.current,
-      url: window.location.href,
-      isInitialized: isInitialized.current
+      warning: 'قد يؤثر على الأداء'
     });
   }
 
@@ -164,17 +177,20 @@ const App = () => {
   // معالج الكشف المبكر للنطاق
   const handleDomainDetected = React.useCallback((domainInfo: any) => {
     const domainDetectTime = performance.now() - appStartTime.current;
-    
-    console.log('🌐 [APP.TSX] كشف النطاق مكتمل', {
-      domainInfo: {
-        hostname: domainInfo.hostname,
-        subdomain: domainInfo.subdomain,
-        isCustomDomain: domainInfo.isCustomDomain,
-        isSubdomain: domainInfo.isSubdomain
-      },
-      detectionTime: domainDetectTime,
-      currentTitle: document.title
-    });
+
+    // تسجيل بسيط في التطوير فقط لتجنب إبطاء الإنتاج
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🌐 [APP.TSX] كشف النطاق مكتمل', {
+        domainInfo: {
+          hostname: domainInfo.hostname,
+          subdomain: domainInfo.subdomain,
+          isCustomDomain: domainInfo.isCustomDomain,
+          isSubdomain: domainInfo.isSubdomain
+        },
+        detectionTime: domainDetectTime,
+        currentTitle: document.title
+      });
+    }
 
     // إذا كان نطاق مخصص، يمكننا تحسين التحميل
     if (domainInfo.isCustomDomain) {

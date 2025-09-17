@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import type { Testimonial } from "./TestimonialCard";
 import { getTestimonials } from "@/lib/api/testimonials";
 import { useTranslation } from 'react-i18next';
-import { useSharedStoreData } from '@/hooks/useSharedStoreData';
+import { useSharedStoreDataContext } from '@/context/SharedStoreDataContext';
 
 interface CustomerTestimonialsProps {
   title?: string;
@@ -74,10 +74,7 @@ export function CustomerTestimonials({
   const [displayedCount, setDisplayedCount] = useState(visibleCount);
 
   // 🔒 استخدام البيانات من useSharedStoreData بدلاً من الاستدعاءات المنفصلة
-  const { testimonials: sharedTestimonials, isLoading: sharedLoading } = useSharedStoreData({
-    includeTestimonials: true,
-    enabled: !initialTestimonials // تفعيل فقط إذا لم تكن هناك بيانات أولية
-  });
+  const { testimonials: sharedTestimonials, isLoading: sharedLoading } = useSharedStoreDataContext();
 
   // إضافة القيم المترجمة
   const displayTitle = title || t('customerTestimonials.title');
@@ -164,34 +161,37 @@ export function CustomerTestimonials({
   };
 
   const handlePrevious = () => {
-    setActiveIndex((prev) =>
-      prev === 0 ? testimonials.length - displayedCount : prev - 1
-    );
+    setActiveIndex((prev) => {
+      if (!testimonials || testimonials.length === 0) return prev;
+      return prev === 0 ? Math.max(0, testimonials.length - displayedCount) : prev - 1;
+    });
   };
 
   const handleNext = () => {
-    setActiveIndex((prev) =>
-      prev >= testimonials.length - displayedCount ? 0 : prev + 1
-    );
+    setActiveIndex((prev) => {
+      if (!testimonials || testimonials.length === 0) return prev;
+      return prev >= testimonials.length - displayedCount ? 0 : prev + 1;
+    });
   };
 
   // Auto-scroll للشهادات كل 5 ثوان
   useEffect(() => {
-    if (testimonials.length <= displayedCount) return;
-    
+    if (!testimonials || testimonials.length <= displayedCount) return;
+
     const interval = setInterval(() => {
       handleNext();
     }, 5000);
-    
+
     return () => clearInterval(interval);
-  }, [testimonials.length, displayedCount]);
+  }, [testimonials?.length, displayedCount]);
 
   const visibleTestimonials = Array.from({ length: displayedCount }).map(
     (_, index) => {
+      if (!testimonials || testimonials.length === 0) return null;
       const testimonialIndex = (activeIndex + index) % testimonials.length;
       return testimonials[testimonialIndex];
     }
-  );
+  ).filter(Boolean);
 
   if (loading) {
     return (
@@ -278,9 +278,9 @@ export function CustomerTestimonials({
           </p>
         </div>
 
-        {testimonials.length > 0 ? (
+        {testimonials && testimonials.length > 0 ? (
           <div className="relative">
-            {testimonials.length > displayedCount && (
+            {testimonials && testimonials.length > displayedCount && (
               <div className="flex justify-center gap-3 mb-6">
                 <Button variant="outline" size="icon" onClick={handlePrevious} aria-label={t('customerTestimonials.previousItem')}>
                   <ChevronRight className="w-4 h-4" />
@@ -302,7 +302,7 @@ export function CustomerTestimonials({
               ))}
             </ul>
 
-            {testimonials.length > displayedCount && (
+            {testimonials && testimonials.length > displayedCount && (
               <div className="flex justify-center mt-6 gap-2">
                 {Array.from({ length: Math.ceil(testimonials.length / displayedCount) }).map((_, index) => (
                   <button

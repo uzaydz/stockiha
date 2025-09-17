@@ -19,7 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { linkDomainCloudflare, removeDomainCloudflare } from '@/api/link-domain-cloudflare';
 import { getCloudflareDnsInstructions, getUserIntermediateDomain } from '@/api/cloudflare-domain-api';
-import { hasCloudflareConfig } from '@/lib/api/cloudflare-config';
+import { hasCloudflareConfig, hasCloudflareConfigSync } from '@/lib/api/cloudflare-config';
 
 // نمط للتحقق من صحة تنسيق النطاق
 const DOMAIN_REGEX = /^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+(([a-zA-Z]{2,})|(xn--[a-zA-Z0-9]+))$/;
@@ -121,9 +121,17 @@ const CloudflareDomainSettings: React.FC = () => {
   useEffect(() => {
     const checkCloudflareConfig = async () => {
       try {
+        // أولاً، جرب التحقق السريع (متزامن)
+        const hasConfigSync = hasCloudflareConfigSync();
+        if (hasConfigSync) {
+          setIsCloudflareAvailable(true);
+          return;
+        }
+
+        // إذا فشل التحقق السريع، جرب التحقق عبر API
         const hasConfig = await hasCloudflareConfig();
         setIsCloudflareAvailable(hasConfig);
-        
+
         if (!hasConfig) {
           toast({
             title: "تحذير",
@@ -133,12 +141,17 @@ const CloudflareDomainSettings: React.FC = () => {
         }
       } catch (error) {
         console.error('خطأ في فحص إعدادات Cloudflare:', error);
-        setIsCloudflareAvailable(false);
-        toast({
-          title: "خطأ",
-          description: "فشل في التحقق من إعدادات Cloudflare.",
-          variant: "destructive",
-        });
+        // في حالة الخطأ، جرب التحقق السريع كبديل أخير
+        const hasConfigSync = hasCloudflareConfigSync();
+        setIsCloudflareAvailable(hasConfigSync);
+
+        if (!hasConfigSync) {
+          toast({
+            title: "خطأ",
+            description: "فشل في التحقق من إعدادات Cloudflare.",
+            variant: "destructive",
+          });
+        }
       }
     };
 
@@ -217,12 +230,12 @@ const CloudflareDomainSettings: React.FC = () => {
     return instructions;
   };
 
-  // فحص حالة DNS و SSL
+  // فحص حالة DNS و SSL (محاولة اختيارية)
   const checkDnsAndSsl = async () => {
     if (!actualDomain) return;
-    
+
     setDnsCheckStatus('checking');
-    
+
     try {
       const response = await fetch('/api/cloudflare-domains', {
         method: 'POST',
@@ -234,17 +247,27 @@ const CloudflareDomainSettings: React.FC = () => {
           domain: actualDomain
         })
       });
-      
-      const result = await response.json();
-      
-      if (result.success && result.data) {
-        setDnsCheckStatus('success');
-        setSslStatus(result.data.ssl_status || 'pending');
+
+      if (response.ok) {
+        const result = await response.json();
+
+        if (result.success && result.data) {
+          setDnsCheckStatus('success');
+          setSslStatus(result.data.ssl_status || 'pending');
+        } else {
+          setDnsCheckStatus('error');
+        }
       } else {
-        setDnsCheckStatus('error');
+        console.warn('DNS/SSL check API not available:', response.status);
+        // في حالة عدم توفر API، نعتبر الفحص مكتملاً مع حالة غير محددة
+        setDnsCheckStatus('idle');
+        setSslStatus('pending');
       }
     } catch (error) {
-      setDnsCheckStatus('error');
+      console.warn('DNS/SSL check failed:', error);
+      // في حالة فشل الفحص، نضع حالة idle
+      setDnsCheckStatus('idle');
+      setSslStatus('pending');
     }
   };
   
@@ -281,9 +304,31 @@ const CloudflareDomainSettings: React.FC = () => {
           setDomainStatus(verificationData.status as DomainStatusType || 'pending');
           setStatusMessage(verificationData.error_message || '');
           setLastChecked(verificationData.updated_at || '');
+
           // التحقق من وجود verification_data قبل محاولة تحليلها
           const verificationDataField = (verificationData as any).verification_data;
-          setVerificationData(verificationDataField ? JSON.parse(verificationDataField) : null);
+
+          try {
+            if (verificationDataField) {
+              // التحقق من نوع البيانات
+              if (typeof verificationDataField === 'string') {
+                // إذا كانت string، نحاول تحليلها كـ JSON
+                setVerificationData(JSON.parse(verificationDataField));
+              } else if (typeof verificationDataField === 'object') {
+                // إذا كانت object بالفعل، نستخدمها مباشرة
+                setVerificationData(verificationDataField);
+              } else {
+                // إذا كانت null أو undefined، نستخدم null
+                setVerificationData(null);
+              }
+            } else {
+              setVerificationData(null);
+            }
+          } catch (parseError) {
+            console.error('خطأ في تحليل verification_data:', parseError, verificationDataField);
+            // في حالة الخطأ، نستخدم null ونحذر المستخدم
+            setVerificationData(null);
+          }
         } else {
           setDomainStatus('pending');
         }
@@ -337,21 +382,31 @@ const CloudflareDomainSettings: React.FC = () => {
           throw new Error(result.error || 'فشل في ربط النطاق بـ Cloudflare');
         }
         
-        // 3. الحصول على CNAME target من Cloudflare
-        const cnameResponse = await fetch('/api/cloudflare-domains', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            action: 'get-cname-target',
-            domain: newDomain
-          })
-        });
-        
-        const cnameData = await cnameResponse.json();
-        if (cnameData.success) {
-          setCnameTarget(cnameData.data?.cname_target || userIntermediateDomain);
+        // 3. الحصول على CNAME target من Cloudflare (محاولة اختيارية)
+        try {
+          const cnameResponse = await fetch('/api/cloudflare-domains', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              action: 'get-cname-target',
+              domain: newDomain
+            })
+          });
+
+          if (cnameResponse.ok) {
+            const cnameData = await cnameResponse.json();
+            if (cnameData.success) {
+              setCnameTarget(cnameData.data?.cname_target || userIntermediateDomain);
+            }
+          } else {
+            console.warn('CNAME API not available, using fallback:', cnameResponse.status);
+            setCnameTarget(userIntermediateDomain);
+          }
+        } catch (cnameError) {
+          console.warn('Failed to get CNAME target, using fallback:', cnameError);
+          setCnameTarget(userIntermediateDomain);
         }
         
         // 4. تحديث الحالة والمعلومات

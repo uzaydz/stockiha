@@ -3,7 +3,7 @@ import { Star, StarHalf, Loader2 } from 'lucide-react';
 import './testimonials.css';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
-import { useSharedStoreData } from '@/hooks/useSharedStoreData';
+import { useSharedStoreDataContext } from '@/context/SharedStoreDataContext';
 
 export interface TestimonialItem {
   id: string;
@@ -47,10 +47,7 @@ export const TestimonialsComponent: React.FC<TestimonialsComponentProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   // 🔒 استخدام البيانات من useSharedStoreData بدلاً من الاستدعاءات المنفصلة
-  const { testimonials: sharedTestimonials, isLoading: sharedLoading } = useSharedStoreData({
-    includeTestimonials: true,
-    enabled: settings.useDbTestimonials && !settings.items // تفعيل فقط إذا كان مطلوباً وليس هناك بيانات أولية
-  });
+  const { testimonials: sharedTestimonials, isLoading: sharedLoading } = useSharedStoreDataContext();
 
   useEffect(() => {
     if (settings.useDbTestimonials && settings.organizationId) {

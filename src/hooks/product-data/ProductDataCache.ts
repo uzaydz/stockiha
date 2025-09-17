@@ -13,7 +13,7 @@ import type {
  * ثوابت Cache
  */
 const CACHE_CONSTANTS = {
-  DURATION: 5 * 60 * 1000, // 5 دقائق
+  DURATION: 15 * 60 * 1000, // 15 دقيقة - زيادة لتقليل الطلبات
   MAX_SIZE: 100, // أقصى عدد من العناصر
   CLEANUP_INTERVAL: 10 * 60 * 1000, // 10 دقائق
 } as const;

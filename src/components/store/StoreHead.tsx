@@ -2,6 +2,8 @@ import React, { useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { langLog } from '@/lib/debug/langDebug';
 import { setStoreHeadActive } from '@/lib/headGuard';
+import { optimizeFacebookSharing, cacheStoreInfoForSharing } from '@/utils/facebookOptimizer';
+import { updateFavicon } from '@/utils/faviconManager';
 
 export interface StoreHeadProps {
   storeName?: string;
@@ -119,8 +121,8 @@ export const StoreHead: React.FC<StoreHeadProps> = ({
         localStorage.setItem(`bazaar_org_settings_${organizationId}`, JSON.stringify(orgSettings));
         
         // حفظ في session storage أيضاً للوصول السريع
-        const subdomain = window.location.hostname.split('.')[0];
-        if (subdomain && subdomain !== 'localhost' && subdomain !== 'www') {
+        const currentSubdomain = window.location.hostname.split('.')[0];
+        if (currentSubdomain && currentSubdomain !== 'localhost' && currentSubdomain !== 'www') {
           const storeInfo = {
             name: storeName,
             description: storeDescription,
@@ -133,7 +135,7 @@ export const StoreHead: React.FC<StoreHeadProps> = ({
               og_image: seoSettings?.og_image || logoUrl
             }
           };
-          sessionStorage.setItem(`store_${subdomain}`, JSON.stringify(storeInfo));
+          sessionStorage.setItem(`store_${currentSubdomain}`, JSON.stringify(storeInfo));
           
         }
         
@@ -142,7 +144,7 @@ export const StoreHead: React.FC<StoreHeadProps> = ({
           detail: {
             organization: orgData,
             settings: orgSettings,
-            subdomain
+            subdomain: currentSubdomain
           }
         });
         langLog('StoreHead:dispatch-organizationDataUpdated', {
@@ -153,15 +155,66 @@ export const StoreHead: React.FC<StoreHeadProps> = ({
         window.dispatchEvent(updateEvent);
 
         // أيضاً تحديث فوري للعنوان والأيقونة
-        setTimeout(() => {
-          const newTitle = seoSettings?.title || storeName;
-          if (document.title !== newTitle) {
-            document.title = newTitle;
+        const newTitle = seoSettings?.title || storeName;
+        if (document.title !== newTitle) {
+          document.title = newTitle;
+        }
+        
+        // تحديث الأيقونة فوراً باستخدام المدير الجديد
+        updateFavicon({
+          faviconUrl,
+          logoUrl,
+          storeName,
+          forceUpdate: true
+        });
+        
+        // تحسين Facebook sharing فوراً
+        optimizeFacebookSharing({
+          title: newTitle,
+          description: storeDescription || seoSettings?.description || `${storeName} - متجر إلكتروني متخصص`,
+          image: seoSettings?.og_image || logoUrl,
+          siteName: storeName,
+          type: 'website'
+        });
+        
+        // حفظ معلومات المشاركة
+        cacheStoreInfoForSharing({
+          title: newTitle,
+          description: storeDescription || seoSettings?.description || `${storeName} - متجر إلكتروني متخصص`,
+          image: seoSettings?.og_image || logoUrl,
+          siteName: storeName
+        });
+        
+        // حفظ البيانات في instant cache للاستخدام السريع في المستقبل
+        const storeSubdomain = window.location.hostname.split('.')[0];
+        if (storeSubdomain && storeSubdomain !== 'localhost' && storeSubdomain !== 'www') {
+          try {
+            const instantStoreData = {
+              name: storeName,
+              description: storeDescription || seoSettings?.description,
+              logo_url: logoUrl,
+              favicon_url: faviconUrl,
+              timestamp: Date.now()
+            };
+            
+            // حفظ في sessionStorage للجلسة الحالية
+            sessionStorage.setItem(`store_${storeSubdomain}`, JSON.stringify(instantStoreData));
+            sessionStorage.setItem(`instant_store_${storeSubdomain}`, JSON.stringify(instantStoreData));
+            
+            // حفظ في localStorage أيضاً للزيارات القادمة
+            localStorage.setItem(`store_quick_${storeSubdomain}`, JSON.stringify(instantStoreData));
+            
+            // حفظ favicon URL بشكل منفصل للوصول السريع
+            if (faviconUrl || logoUrl) {
+              try {
+                localStorage.setItem(`favicon_${storeSubdomain}`, faviconUrl || logoUrl);
+                sessionStorage.setItem(`favicon_${storeSubdomain}`, faviconUrl || logoUrl);
+              } catch (e) {}
+            }
+          } catch (e) {
+            // تجاهل أخطاء Storage
           }
-          
-          // تحديث الأيقونة فوراً
-          updateFaviconFromStoreHead(faviconUrl || logoUrl, storeName);
-        }, 0); // ✅ إزالة التأخير لحل مشكلة العنوان
+        }
         
       } catch (error) {
       }
@@ -314,9 +367,6 @@ export const StoreHead: React.FC<StoreHeadProps> = ({
       )}
       
       {/* خطوط محلية: نعتمد على التعريفات العالمية في src/styles/fonts.css */}
-      <link rel="preload" as="font" type="font/woff2" href="/fonts/tajawal-regular.woff2" crossOrigin="anonymous" />
-      <link rel="preload" as="font" type="font/woff2" href="/fonts/tajawal-medium.woff2" crossOrigin="anonymous" />
-      <link rel="preload" as="font" type="font/woff2" href="/fonts/tajawal-bold.woff2" crossOrigin="anonymous" />
       {/* تحسين اتصال مبكر مع Supabase وCloudflare Insights */}
       <link rel="preconnect" href="https://wrnssatuvmumsczyldth.supabase.co" crossOrigin="anonymous" />
       <link rel="dns-prefetch" href="//wrnssatuvmumsczyldth.supabase.co" />

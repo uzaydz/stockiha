@@ -136,13 +136,42 @@ body {
   backface-visibility: hidden;
 }
 
-/* تحسينات للصور */
+/* تحسينات للصور (محسن للشبكات البطيئة) */
 img {
   max-width: 100%;
   height: auto;
   loading: lazy;
   decoding: async;
   content-visibility: auto;
+}
+
+/* تحسينات للشبكات البطيئة */
+@media (max-width: 768px) {
+  /* تقليل الحركات للأجهزة المحمولة على شبكات بطيئة */
+  * {
+    animation-duration: 0.2s !important;
+    transition-duration: 0.2s !important;
+  }
+
+  /* تحسينات الأداء للأجهزة المحمولة */
+  img {
+    loading: eager; /* تحميل الصور مبكراً للأجهزة المحمولة */
+  }
+}
+
+/* تحسينات للنصوص العربية على الشبكات البطيئة */
+html {
+  font-display: swap; /* تحسين تحميل الخطوط */
+}
+
+body {
+  font-display: swap;
+}
+
+/* تحسينات الذاكرة والأداء */
+.performance-critical {
+  contain: layout style paint;
+  will-change: auto;
 }
 
 /* تحسينات للأزرار */

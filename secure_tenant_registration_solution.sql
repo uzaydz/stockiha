@@ -441,6 +441,26 @@ CREATE POLICY "Users can view their organization subscription" ON organization_s
         )
     );
 
+-- سياسة خاصة بالسوبر أدمين تسمح بالإدارة الكاملة للاشتراكات
+DROP POLICY IF EXISTS "Super admin manage organization subscriptions" ON organization_subscriptions;
+CREATE POLICY "Super admin manage organization subscriptions" ON organization_subscriptions
+    FOR ALL USING (
+        EXISTS (
+            SELECT 1 FROM users
+            WHERE users.id = auth.uid()
+              AND users.is_super_admin = TRUE
+        )
+        OR auth.role() = 'service_role'
+    )
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM users
+            WHERE users.id = auth.uid()
+              AND users.is_super_admin = TRUE
+        )
+        OR auth.role() = 'service_role'
+    );
+
 -- 8. منح الصلاحيات للوظائف
 GRANT EXECUTE ON FUNCTION validate_tenant_registration_data TO authenticated, anon;
 GRANT EXECUTE ON FUNCTION create_organization_secure TO authenticated, anon;

@@ -2,6 +2,7 @@ import React, { memo } from 'react';
 import { ProductHeader } from '@/components/product/ProductHeader';
 import ProductImageGalleryV2 from '@/components/product/ProductImageGalleryV2';
 import { ProductContentSection } from './ProductContentSection';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 interface ProductMainSectionProps {
   lowEnd?: boolean;
@@ -73,6 +74,7 @@ export const ProductMainSection = memo<ProductMainSectionProps>(({
 }) => {
   // ✅ إصلاح: نقل جميع hooks إلى أعلى المكون قبل أي early returns
   // تجنب استدعاء hooks بعد early returns لمنع React Error #310
+  const isLgUp = useMediaQuery('(min-width: 1024px)');
   
   // إذا لم تكن البيانات متوفرة، عرض شاشة تحميل
   if (!product || !state) {
@@ -90,11 +92,10 @@ export const ProductMainSection = memo<ProductMainSectionProps>(({
 
   return (
     <div className="container mx-auto px-4 py-8 pt-20">
-      {/* تخطيط متجاوب: مختلف في الموبايل والحاسوب */}
       <div className="space-y-8">
-        {/* في الموبايل: ProductHeader أولاً، ثم معرض الصور، ثم المحتوى */}
-        <div className="lg:hidden">
-          {lowEnd ? (
+        {/* رأس مبسّط للموبايل فقط لتفادي التكرار الثقيل */}
+        {!isLgUp && (
+          lowEnd ? (
             <div className="space-y-2">
               <div className="flex items-center gap-2 flex-wrap">
                 {product.is_new && (
@@ -122,61 +123,55 @@ export const ProductMainSection = memo<ProductMainSectionProps>(({
               }}
               availableStock={state?.availableStock || 0}
             />
-          )}
-        </div>
+          )
+        )}
 
-        {/* معرض الصور - في الموبايل بعد ProductHeader، في الحاسوب في اليسار */}
-        <div className="lg:hidden">
-          <ProductImageGalleryV2
-            product={product}
-            selectedColor={state.selectedColor}
-          />
-        </div>
-
-        {/* في الحاسوب: تخطيط بعمودين */}
-        <div className="hidden lg:grid lg:grid-cols-2 gap-8 lg:gap-12">
-          {/* العمود الأيسر - معرض الصور */}
-          <div className="lg:col-span-1">
+        {/* تخطيط واحد مع ترتيب مختلف بين الموبايل والحاسوب */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+          {/* معرض الصور: بعد العنوان في الموبايل، وعلى اليسار في الحاسوب */}
+          <div className="order-2 lg:order-1">
             <ProductImageGalleryV2
               product={product}
               selectedColor={state.selectedColor}
             />
           </div>
 
-          {/* العمود الأيمن - المحتوى الرئيسي مع ProductHeader */}
-          <div className="lg:col-span-1 space-y-8">
-            {/* ProductHeader أولاً */}
-            {lowEnd ? (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 flex-wrap">
-                  {product.is_new && (
-                    <span className="text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">جديد</span>
-                  )}
-                  {product.is_featured && (
-                    <span className="text-xs px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">مميز</span>
-                  )}
-                  {Number(state?.availableStock || 0) > 0 && (
-                    <span className="text-xs px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">متوفر</span>
+          {/* المحتوى الرئيسي + رأس سطح المكتب */}
+          <div className="order-3 lg:order-2 space-y-8">
+            {/* رأس سطح المكتب فقط */}
+            {isLgUp && (
+              lowEnd ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {product.is_new && (
+                      <span className="text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">جديد</span>
+                    )}
+                    {product.is_featured && (
+                      <span className="text-xs px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">مميز</span>
+                    )}
+                    {Number(state?.availableStock || 0) > 0 && (
+                      <span className="text-xs px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">متوفر</span>
+                    )}
+                  </div>
+                  <h1 className="text-3xl md:text-4xl font-bold text-foreground leading-tight">{product.name}</h1>
+                  {product.brand?.name && (
+                    <p className="text-sm text-muted-foreground">by {product.brand.name}</p>
                   )}
                 </div>
-                <h1 className="text-3xl md:text-4xl font-bold text-foreground leading-tight">{product.name}</h1>
-                {product.brand?.name && (
-                  <p className="text-sm text-muted-foreground">by {product.brand.name}</p>
-                )}
-              </div>
-            ) : (
-              <ProductHeader
-                name={product.name}
-                brand={product.brand?.name}
-                status={{
-                  is_new: product.is_new,
-                  is_featured: product.is_featured
-                }}
-                availableStock={state?.availableStock || 0}
-              />
+              ) : (
+                <ProductHeader
+                  name={product.name}
+                  brand={product.brand?.name}
+                  status={{
+                    is_new: product.is_new,
+                    is_featured: product.is_featured
+                  }}
+                  availableStock={state?.availableStock || 0}
+                />
+              )
             )}
 
-            {/* ثم المحتوى الرئيسي */}
+            {/* المحتوى الرئيسي - نسخة واحدة فقط لكل المقاسات */}
             <ProductContentSection
               product={product}
               state={state}
@@ -203,35 +198,6 @@ export const ProductMainSection = memo<ProductMainSectionProps>(({
               showAddToCart={showAddToCart}
             />
           </div>
-        </div>
-
-        {/* في الموبايل: المحتوى الرئيسي بعد معرض الصور */}
-        <div className="lg:hidden">
-          <ProductContentSection
-            product={product}
-            state={state}
-            actions={actions}
-            formData={formData}
-            formStrategy={formStrategy}
-            summaryData={summaryData}
-            finalPriceCalculation={finalPriceCalculation}
-            selectedOffer={selectedOffer}
-            isQuantityUpdatedByOffer={isQuantityUpdatedByOffer}
-            showValidationErrors={showValidationErrors}
-            hasTriedToSubmit={hasTriedToSubmit}
-            submittedFormData={submittedFormData}
-            isSavingCart={isSavingCart}
-            onFormChange={onFormChange}
-            onFormSubmit={onFormSubmit}
-            onBuyNow={onBuyNow}
-            onQuantityChange={onQuantityChange}
-            setSelectedOffer={setSelectedOffer}
-            setIsQuantityUpdatedByOffer={setIsQuantityUpdatedByOffer}
-            setShowValidationErrors={setShowValidationErrors}
-            setHasTriedToSubmit={setHasTriedToSubmit}
-            updateCurrentFormData={updateCurrentFormData}
-            showAddToCart={showAddToCart}
-          />
         </div>
       </div>
     </div>

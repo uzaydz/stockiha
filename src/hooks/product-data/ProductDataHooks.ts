@@ -36,60 +36,36 @@ export const useQueryKey = (productId?: string, organizationId?: string) => {
  * Hook لإنشاء query options
  */
 export const useQueryOptions = (
-  productId?: string, 
-  organizationId?: string, 
+  productId?: string,
+  organizationId?: string,
   enabled: boolean = true,
   dataScope: 'basic' | 'ultra' | 'full' = 'ultra',
   initialData?: UnifiedProductPageData,
-  initialDataUpdatedAt?: number
+  initialDataUpdatedAt?: number,
+  queryKey?: string[]
 ) => {
   return useMemo(() => {
-    // إنشاء cache key ثابت لهذا المنتج  
-    const cacheKey = createCacheKey(productId, organizationId);
     // لا نستخدم initialData كقيمة أولية إلا إذا احتوت على product
     const safeInitial = initialData && (initialData as any).product ? initialData : undefined;
-    
-    // 🔍 Debug: تشخيص إنشاء queryOptions
-    if (process.env.NODE_ENV === 'development') {
-      console.log('🔍 [useQueryOptions] إنشاء Query Options:', {
-        productId,
-        organizationId,
-        enabled,
-        dataScope,
-        cacheKey,
-        finalEnabled: enabled && !!productId
-      });
-    }
-    
+
     return {
-      queryKey: ['unified-product-page', productId, organizationId, dataScope],
+      queryKey: queryKey || ['unified-product-page', productId, organizationId, dataScope],
       queryFn: async (): Promise<UnifiedProductPageData> => {
-        // 🔍 Debug: تشخيص تشغيل queryFn
-        if (process.env.NODE_ENV === 'development') {
-          console.log('🔥 [queryFn] بدء تشغيل fetchUnifiedProductData:', {
-            productId,
-            organizationId,
-            dataScope
-          });
-        }
-        
-        
         if (!productId) {
           throw new Error('Product ID is required');
         }
 
-        
+        // إنشاء cache key للاستخدام داخل queryFn
+        const cacheKey = queryKey ? queryKey.join('-') : createCacheKey(productId, organizationId);
 
         // ✅ أولوية أعلى للبيانات المحفوظة في Cache
         const cached = productDataCache.get(cacheKey);
         if (cached) {
-          
           return cached;
         }
 
         // التحقق من الطلبات النشطة
         if (productDataCache.hasActiveRequest(cacheKey)) {
-          
           const activeRequest = productDataCache.getActiveRequest(cacheKey);
           if (activeRequest) {
             return await activeRequest;
@@ -121,9 +97,9 @@ export const useQueryOptions = (
         }
       },
       enabled: enabled && !!productId,
-      // 🔍 Debug: إضافة callback لمراقبة حالة Query
+      // 🔍 Debug: إضافة callback لمراقبة حالة Query - مفعل في الإنتاج مؤقتاً
       onSuccess: (data) => {
-        if (process.env.NODE_ENV === 'development') {
+        if (process.env.NODE_ENV === 'development' || true) { // مؤقتاً في الإنتاج
           console.log('✅ [useQuery] Query نجح:', {
             hasData: !!data,
             productId: data?.product?.id,
@@ -132,12 +108,12 @@ export const useQueryOptions = (
         }
       },
       onError: (error) => {
-        if (process.env.NODE_ENV === 'development') {
+        if (process.env.NODE_ENV === 'development' || true) { // مؤقتاً في الإنتاج
           console.error('❌ [useQuery] Query فشل:', error);
         }
       },
-      staleTime: 8 * 60 * 1000, // 8 دقائق - زيادة طفيفة للتقليل من re-fetch
-      gcTime: 20 * 60 * 1000, // 20 دقيقة - زيادة لحفظ البيانات أطول
+      staleTime: 15 * 60 * 1000, // 15 دقيقة - زيادة أكثر لتقليل re-fetch
+      gcTime: 30 * 60 * 1000, // 30 دقيقة - زيادة لحفظ البيانات أطول
       refetchOnWindowFocus: false,
       refetchOnMount: false,
       refetchOnReconnect: false, // ✅ منع إعادة التحميل عند إعادة الاتصال
@@ -155,8 +131,7 @@ export const useQueryOptions = (
       initialData: safeInitial,
       initialDataUpdatedAt: safeInitial ? initialDataUpdatedAt : undefined,
       // ✅ منع re-render غير ضروري عند تغيير البيانات
-      structuralSharing: true,
-      networkMode: 'online'
+      structuralSharing: true
     };
   }, [productId, organizationId, enabled, dataScope, initialData, initialDataUpdatedAt]);
 };
@@ -202,39 +177,85 @@ export const useEnhancedQueryOptions = (
  * Hook لاستخراج البيانات المنفصلة
  */
 export const useExtractedData = (data: UnifiedProductPageData | undefined) => {
-  
-  
+
+
   return useMemo(() => {
-    // 🔥 إصلاح: معالجة البيانات المغلفة في RPC function
-    let actualData: any = data;
-    
-    // التحقق من البيانات المغلفة في RPC
-    if (data && typeof data === 'object' && (data as any).get_product_complete_data_ultra_optimized) {
-      actualData = (data as any).get_product_complete_data_ultra_optimized;
+    // 🔥 إصلاح: معالجة البيانات المغلفة في RPC function مع تحسينات للسرعة
+    if (!data) {
+      return {
+        product: null,
+        organization: null,
+        organizationSettings: null,
+        visitorAnalytics: null,
+        categories: [],
+        provinces: [],
+        trackingData: null,
+      };
     }
-    
-    // 🔍 Debug: تسجيل تشخيص استخراج البيانات
-    if (process.env.NODE_ENV === 'development') {
-      console.log('🔍 [useExtractedData] تشخيص استخراج البيانات:', {
-        hasOriginalData: !!data,
-        hasActualData: !!actualData,
-        hasProduct: !!actualData?.product,
-        productId: actualData?.product?.id,
-        originalDataKeys: data ? Object.keys(data) : [],
-        actualDataKeys: actualData ? Object.keys(actualData) : []
+
+    let actualData: any = data;
+
+    // التحقق من البيانات المغلفة في API الجديد أو القديم - تحسين المنطق للسرعة
+    // استخدام type assertion لأن البيانات الخام قد تحتوي على خصائص إضافية
+    const rawData = data as any;
+    if (typeof rawData === 'object') {
+      // ✅ تحديث: التحقق من البيانات الجديدة المدمجة أولاً
+      if (rawData.basic && rawData.extended !== undefined) {
+        // البيانات من API الجديد المدمج - استخدم المنتج المدمج مباشرة
+        actualData = {
+          product: rawData.product || rawData.basic.product,
+          stats: rawData.stats || rawData.basic.stats,
+          // إضافة البيانات المتقدمة
+          ...(rawData.extended?.product_extended && {
+            extended: rawData.extended.product_extended
+          })
+        };
+      }
+      // التحقق من البنية المباشرة لـ RPC القديم (للتوافق)
+      else if (rawData.get_product_complete_data_ultra_optimized) {
+        actualData = rawData.get_product_complete_data_ultra_optimized;
+      }
+      // التحقق من البيانات المباشرة في data
+      else if (rawData.data && typeof rawData.data === 'object') {
+        const innerData = rawData.data;
+        // التحقق من البيانات الجديدة في data
+        if (innerData.basic && innerData.extended !== undefined) {
+          actualData = {
+            product: innerData.product || innerData.basic.product,
+            stats: innerData.stats || innerData.basic.stats,
+            ...(innerData.extended?.product_extended && {
+              extended: innerData.extended.product_extended
+            })
+          };
+        }
+        // التحقق من البيانات القديمة في data
+        else if (innerData.get_product_complete_data_ultra_optimized) {
+          actualData = innerData.get_product_complete_data_ultra_optimized;
+        } else {
+          actualData = innerData;
+        }
+      }
+    }
+
+    // 🔍 Debug: تسجيل تشخيص استخراج البيانات - تقليل التسجيل للسرعة
+    if (process.env.NODE_ENV === 'development' && actualData?.product?.id) {
+      console.log('🔍 [useExtractedData] تم استخراج المنتج:', {
+        productId: actualData.product.id,
+        hasOrganization: !!actualData.organization,
+        hasCategories: !!actualData.categories?.length
       });
     }
-    
+
     return {
-      product: actualData?.product,
-      organization: actualData?.organization || actualData?.product?.organization,
-      organizationSettings: actualData?.organizationSettings,
-      visitorAnalytics: actualData?.visitorAnalytics,
+      product: actualData?.product || null,
+      organization: actualData?.organization || actualData?.product?.organization || null,
+      organizationSettings: actualData?.organizationSettings || null,
+      visitorAnalytics: actualData?.visitorAnalytics || null,
       categories: actualData?.categories || [],
       provinces: actualData?.provinces || [],
-      trackingData: actualData?.trackingData || actualData?.stats,
+      trackingData: actualData?.trackingData || actualData?.stats || null,
     };
-  }, [data]);
+  }, [data]); // استخدام data كامل لضمان التحديث عند تغيير البيانات
 };
 
 /**

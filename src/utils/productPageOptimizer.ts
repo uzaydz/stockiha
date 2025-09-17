@@ -103,9 +103,9 @@ class ProductPageOptimizer {
         
         if (unnecessaryCSS.some(pattern => href.includes(pattern))) {
           // تأخير تحميل هذا CSS حتى يُطلب
-          (link as HTMLLinkElement).media = 'print';
-          (link as HTMLLinkElement).onload = function() {
-            this.media = 'all';
+          (link as any).media = 'print';
+          (link as any).onload = function() {
+            (this as any).media = 'all';
           };
         }
       });
@@ -266,6 +266,9 @@ class ProductPageOptimizer {
 // إنشاء instance عام
 export const productPageOptimizer = new ProductPageOptimizer();
 
+// تصدير default للتوافق مع الاستيراد
+export default productPageOptimizer;
+
 // وظائف مساعدة للاستخدام في المكونات
 export const optimizeProductPage = (config?: Partial<ProductPageOptimizationConfig>) => {
   return new ProductPageOptimizer(config);
@@ -278,5 +281,3 @@ export const enableProductAnalytics = () => {
 export const cleanupProductOptimization = () => {
   productPageOptimizer.cleanup();
 };
-
-export default productPageOptimizer;

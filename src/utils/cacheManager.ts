@@ -8,7 +8,7 @@ export class CacheManager {
   private static domainCache: Map<string, CacheData> = new Map();
 
   /**
-   * الحصول على البيانات المحفوظة مسبقاً
+   * الحصول على البيانات المحفوظة مسبقاً - محسّن للأداء
    */
   static getPreloadedData(storeIdentifier?: string, preloadResult?: any): any | null {
     // أولوية قصوى للبيانات الحالية في الذاكرة
@@ -16,29 +16,56 @@ export class CacheManager {
       return preloadResult.data;
     }
 
+    // تحسين: فحص window object أولاً (أسرع)
+    try {
+      const windowData = (window as any).__EARLY_STORE_DATA__ ||
+                        (window as any).__CURRENT_STORE_DATA__ ||
+                        (window as any).__PREFETCHED_STORE_DATA__;
+
+      if (windowData?.data) {
+        // التحقق من أن البيانات حديثة (أقل من 30 دقيقة)
+        if (!windowData.timestamp || (Date.now() - windowData.timestamp) < 30 * 60 * 1000) {
+          return windowData.data;
+        }
+      }
+    } catch {}
+
     // محاولة الحصول على البيانات من cache محلي
     if (storeIdentifier && this.domainCache.has(storeIdentifier)) {
       const cached = this.domainCache.get(storeIdentifier)!;
-      if (Date.now() - cached.timestamp < 10 * 60 * 1000) {
+      if (Date.now() - cached.timestamp < 15 * 60 * 1000) { // زيادة الوقت إلى 15 دقيقة
         return cached.data;
       }
     }
 
-    // البحث في localStorage
+    // البحث في localStorage كخيار أخير
     return this.getFromLocalStorage(storeIdentifier);
   }
 
   /**
-   * البحث في localStorage
+   * البحث في localStorage - محسّن للنطاقات المخصصة
    */
   private static getFromLocalStorage(storeIdentifier?: string): any | null {
     const possibleKeys = storeIdentifier ? [
       `early_preload_${storeIdentifier}`,
       `organization_data_${storeIdentifier}`,
-      `store_init_data_${storeIdentifier}`
+      `store_init_data_${storeIdentifier}`,
+      // مفاتيح خاصة بالنطاقات المخصصة
+      `custom_domain_${storeIdentifier}`,
+      `custom_domain_org_${storeIdentifier}`
     ] : [];
 
     possibleKeys.push('bazaar_app_init_data', 'bazaar_organization_id');
+
+    // إضافة مفاتيح للنطاق الحالي
+    const currentHostname = window.location.hostname;
+    if (currentHostname && currentHostname !== 'localhost') {
+      possibleKeys.push(
+        `domain_${currentHostname}`,
+        `custom_domain_${currentHostname}`,
+        `store_${currentHostname.replace(/[^a-zA-Z0-9]/g, '_')}`
+      );
+    }
 
     for (const key of possibleKeys) {
       try {
@@ -104,16 +131,33 @@ export class CacheManager {
   }
 
   /**
-   * حفظ البيانات في cache
+   * حفظ البيانات في cache - محسّن للنطاقات المخصصة
    */
   static setCacheData(storeIdentifier: string, data: any, executionTime: number, domainType: string): void {
     try {
-      localStorage.setItem(`early_preload_${storeIdentifier}`, JSON.stringify({
+      const cacheData = {
         data,
         timestamp: Date.now(),
         executionTime,
         domainType
-      }));
+      };
+
+      // حفظ البيانات بالمفاتيح الأساسية
+      localStorage.setItem(`early_preload_${storeIdentifier}`, JSON.stringify(cacheData));
+
+      // حفظ البيانات بالمفاتيح الخاصة بالنطاقات المخصصة
+      if (domainType === 'custom-domain') {
+        localStorage.setItem(`custom_domain_${storeIdentifier}`, JSON.stringify(cacheData));
+        localStorage.setItem(`custom_domain_org_${storeIdentifier}`, JSON.stringify(cacheData));
+
+        // حفظ بالنطاق الحالي أيضاً
+        const currentHostname = window.location.hostname;
+        if (currentHostname && currentHostname !== 'localhost') {
+          localStorage.setItem(`domain_${currentHostname}`, JSON.stringify(cacheData));
+          localStorage.setItem(`custom_domain_${currentHostname}`, JSON.stringify(cacheData));
+          localStorage.setItem(`store_${currentHostname.replace(/[^a-zA-Z0-9]/g, '_')}`, JSON.stringify(cacheData));
+        }
+      }
 
       this.domainCache.set(storeIdentifier, {
         data,
@@ -123,6 +167,12 @@ export class CacheManager {
       if (data?.organization_details?.id) {
         localStorage.setItem('bazaar_organization_id', data.organization_details.id);
       }
+
+      console.log('💾 [CacheManager] تم حفظ البيانات:', {
+        storeIdentifier,
+        domainType,
+        keysCount: domainType === 'custom-domain' ? 6 : 1
+      });
     } catch (e) {
       console.warn('فشل حفظ البيانات في cache:', e);
     }

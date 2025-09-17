@@ -8,14 +8,16 @@ export interface NavbarProps {
   isSidebarOpen?: boolean;
   categories?: Category[];
   isMobile?: boolean;
+  organizationSettings?: any;
 }
 
-const Navbar = ({ 
-  className, 
-  toggleSidebar, 
-  isSidebarOpen, 
-  categories, 
-  isMobile 
+const Navbar = ({
+  className,
+  toggleSidebar,
+  isSidebarOpen,
+  categories,
+  isMobile,
+  organizationSettings
 }: NavbarProps) => {
   // تتبع عدد التحديثات
   const renderCount = useRef(0);
@@ -30,9 +32,10 @@ const Navbar = ({
       className,
       toggleSidebar,
       isSidebarOpen,
-      isMobile
+      isMobile,
+      organizationSettings
     };
-  }, [className, toggleSidebar, isSidebarOpen, isMobile]);
+  }, [className, toggleSidebar, isSidebarOpen, isMobile, organizationSettings]);
   
   useEffect(() => {
     

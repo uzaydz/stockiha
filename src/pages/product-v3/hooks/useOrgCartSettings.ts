@@ -49,28 +49,60 @@ export function useOrgCartSettings(organizationId: string | null, effectiveData:
   const showAddToCart = useMemo(() => {
     // 🔥 إصلاح: فحص effectiveData داخل useMemo بدلاً من early return
     if (!effectiveData) {
+      console.log('🔍 [useOrgCartSettings] showAddToCart: لا توجد effectiveData، إرجاع true افتراضياً');
       return true; // افتراضياً أظهر الزر
     }
-    
+
     try {
       const raw = (organizationSettings as any)?.custom_js;
       const js = raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : {};
       const enabled = !!js?.enable_cart;
       const productSkip = !!(effectiveData?.product as any)?.advanced_settings?.skip_cart;
-      
+
+      console.log('🔍 [useOrgCartSettings] showAddToCart تفاصيل:', {
+        hasOrganizationSettings: !!organizationSettings,
+        raw: raw,
+        rawType: typeof raw,
+        parsedJs: js,
+        enableCart: enabled,
+        productSkip: productSkip,
+        productSkipPath: 'effectiveData.product.advanced_settings.skip_cart',
+        hostname: window.location.hostname,
+        pathname: window.location.pathname,
+        timestamp: new Date().toISOString()
+      });
+
       // إذا كان لدينا إعدادات من organizationSettings، استخدمها
       if (raw && (typeof raw === 'string' ? raw.length > 0 : !!raw)) {
-        return enabled && !productSkip;
+        const result = enabled && !productSkip;
+        console.log('🔍 [useOrgCartSettings] showAddToCart: استخدام organizationSettings:', {
+          enabled: enabled,
+          productSkip: productSkip,
+          result: result
+        });
+        return result;
       }
-      
+
       // إذا لم تكن متوفرة بعد وأجرينا fetch، استخدم النتيجة
       if (enableCartFallback !== null) {
-        return enableCartFallback && !productSkip;
+        const result = enableCartFallback && !productSkip;
+        console.log('🔍 [useOrgCartSettings] showAddToCart: استخدام enableCartFallback:', {
+          enableCartFallback: enableCartFallback,
+          productSkip: productSkip,
+          result: result
+        });
+        return result;
       }
-      
+
       // افتراضياً، أظهر الزر (لتفادي التذبذب)
-      return !productSkip;
-    } catch {
+      const result = !productSkip;
+      console.log('🔍 [useOrgCartSettings] showAddToCart: استخدام الافتراضي:', {
+        productSkip: productSkip,
+        result: result
+      });
+      return result;
+    } catch (error) {
+      console.error('❌ [useOrgCartSettings] showAddToCart خطأ:', error);
       return false;
     }
   }, [organizationSettings, effectiveData?.product, enableCartFallback, effectiveData]);

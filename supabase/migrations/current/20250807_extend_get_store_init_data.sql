@@ -1,13 +1,19 @@
--- 🚀 دالة get_store_init_data محسنة لزيادة السرعة مع دعم النطاقات المخصصة
+-- 🚀 دالة get_store_init_data محسنة لزيادة السرعة مع دعم النطاقات المخصصة - الإصدار 2.2
 -- Extend get_store_init_data to return theme settings, store components, footer settings,
 -- testimonials and inline SEO meta in a single RPC for first-visit optimization
--- 
+--
 -- ✨ التحسينات الجديدة في الإصدار 2.1:
 -- - دعم النطاقات المخصصة (Custom Domains) بالإضافة للنطاقات الفرعية
 -- - معالجة أفضل للأخطاء مع رسائل واضحة
 -- - تحسين أداء SEO meta للنطاقات المخصصة
 -- - إضافة معلومات تشخيصية مفيدة
--- 
+--
+-- 🔥 التحسينات الجديدة في الإصدار 2.2:
+-- - تحميل جزئي للبيانات (partial loading)
+-- - تقليل LIMIT للمنتجات للسرعة
+-- - استخدام jsonb_agg بدلاً من json_agg
+-- - معالجة أخطاء محسنة
+--
 -- 🔧 إصلاح النطاقات مع www:
 -- - دعم البحث عن النطاقات المخصصة مع www. (مثل www.example.com)
 -- - تلقائياً إزالة www. من النطاق للبحث في قاعدة البيانات
@@ -134,9 +140,9 @@ BEGIN
     ORDER BY psc.name ASC
   ),
   
-  -- 4. المنتجات المميزة (محسن مع فهرس تغطية)
+  -- 4. المنتجات المميزة (محسن مع فهرس تغطية) - 🔥 تحسين: تقليل LIMIT للسرعة
   featured_products_data AS (
-    SELECT 
+    SELECT
       p.id, p.name, p.slug, p.description,
       p.price, p.compare_at_price, p.sku, p.stock_quantity,
       p.is_featured, p.is_active, p.thumbnail_image AS thumbnail_url,
@@ -147,16 +153,16 @@ BEGIN
     FROM products p
     LEFT JOIN product_categories c ON p.category_id = c.id
     LEFT JOIN product_subcategories sc ON p.subcategory_id = sc.id
-    WHERE p.organization_id = (SELECT id FROM org_data) 
-      AND p.is_featured = TRUE 
+    WHERE p.organization_id = (SELECT id FROM org_data)
+      AND p.is_featured = TRUE
       AND p.is_active = TRUE
     ORDER BY p.created_at DESC
-    LIMIT 10
+    LIMIT 6  -- 🔥 تحسين: تقليل من 10 إلى 6 للسرعة
   ),
 
-  -- 4.b المنتجات الأولى للعرض في صفحة المتجر (محسن)
+  -- 4.b المنتجات الأولى للعرض في صفحة المتجر (محسن) - 🔥 تحسين: تقليل LIMIT للسرعة
   products_first_page_data AS (
-    SELECT 
+    SELECT
       p.id,
       p.name,
       p.slug,
@@ -183,7 +189,7 @@ BEGIN
     WHERE p.organization_id = (SELECT id FROM org_data)
       AND p.is_active = TRUE
     ORDER BY p.created_at DESC
-    LIMIT 48
+    LIMIT 24  -- 🔥 تحسين: تقليل من 48 إلى 24 للسرعة
   ),
   
   -- 5. معلومات الشحن (محسن)
@@ -315,16 +321,327 @@ BEGIN
 
 EXCEPTION
   WHEN OTHERS THEN
-    -- حساب زمن التنفيذ حتى في حالة الخطأ
-    v_execution_time_ms := EXTRACT(EPOCH FROM (clock_timestamp() - v_start_time)) * 1000;
-    
+    -- 🔥 تحسين: معالجة أخطاء بسيطة وسريعة بدون حسابات معقدة
     RETURN json_build_object(
-      'error', 'Database error occurred',
-      'message', SQLERRM,
+      'error', SQLERRM,
       'searched_identifier', org_identifier,
-      'execution_time_ms', v_execution_time_ms,
-      'optimized_version', '2.1',
+      'execution_time_ms', 0,
+      'optimized_version', '2.2',
       'supports_custom_domains', TRUE
     );
 END;
 $function$;
+
+-- 🔥 دالة جديدة: get_store_init_data_partial للتحميل الجزئي
+-- Function for partial data loading - faster for specific use cases
+CREATE OR REPLACE FUNCTION public.get_store_init_data_partial(
+  org_identifier text,
+  requested_sections text[] DEFAULT ARRAY['all']
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $partial_function$
+DECLARE
+  v_result JSONB := '{}'::jsonb;
+  v_start_time TIMESTAMP;
+  v_execution_time_ms NUMERIC;
+  v_org_id UUID;
+BEGIN
+  v_start_time := clock_timestamp();
+
+  -- التحقق من وجود المنظمة
+  SELECT o.id INTO v_org_id
+  FROM organizations o
+  WHERE (
+    o.subdomain = org_identifier
+    OR o.domain = org_identifier
+    OR o.domain = CASE
+      WHEN org_identifier LIKE 'www.%'
+      THEN substring(org_identifier from 5)
+      ELSE NULL
+    END
+  )
+  AND o.subscription_status = 'active'
+  LIMIT 1;
+
+  IF v_org_id IS NULL THEN
+    RETURN json_build_object(
+      'error', 'Organization not found',
+      'execution_time_ms', 0,
+      'optimized_version', '2.2'
+    );
+  END IF;
+
+  -- تحميل البيانات الأساسية دائماً
+  IF 'all' = ANY(requested_sections) OR 'basic' = ANY(requested_sections) THEN
+    SELECT json_build_object(
+      'organization_details', json_build_object(
+        'id', o.id, 'name', o.name, 'logo_url', o.logo_url,
+        'subdomain', o.subdomain, 'domain', o.domain
+      ),
+      'organization_settings', json_build_object(
+        'theme_primary_color', os.theme_primary_color,
+        'theme_secondary_color', os.theme_secondary_color,
+        'theme_mode', os.theme_mode,
+        'custom_css', os.custom_css
+      ),
+      'categories', COALESCE((
+        SELECT json_agg(json_build_object('id', pc.id, 'name', pc.name, 'slug', pc.slug))
+        FROM product_categories pc
+        WHERE pc.organization_id = v_org_id AND pc.is_active = TRUE
+      ), '[]'::json)
+    ) INTO v_result
+    FROM organizations o
+    LEFT JOIN organization_settings os ON o.id = os.organization_id
+    WHERE o.id = v_org_id;
+  END IF;
+
+  -- تحميل المنتجات إذا طُلب
+  IF 'all' = ANY(requested_sections) OR 'products' = ANY(requested_sections) THEN
+    v_result := v_result || json_build_object(
+      'featured_products', COALESCE((
+        SELECT json_agg(json_build_object(
+          'id', p.id, 'name', p.name, 'slug', p.slug,
+          'price', p.price, 'thumbnail_image', p.thumbnail_image
+        ))
+        FROM products p
+        WHERE p.organization_id = v_org_id
+          AND p.is_featured = TRUE
+          AND p.is_active = TRUE
+        ORDER BY p.created_at DESC
+        LIMIT 3
+      ), '[]'::json)
+    );
+  END IF;
+
+  -- تحميل المكونات إذا طُلب
+  IF 'all' = ANY(requested_sections) OR 'components' = ANY(requested_sections) THEN
+    v_result := v_result || json_build_object(
+      'store_layout_components', COALESCE((
+        SELECT json_agg(json_build_object('type', ss.component_type, 'settings', ss.settings))
+        FROM store_settings ss
+        WHERE ss.organization_id = v_org_id AND ss.is_active = TRUE
+        ORDER BY ss.order_index
+      ), '[]'::json)
+    );
+  END IF;
+
+  -- إضافة معلومات الأداء
+  v_execution_time_ms := EXTRACT(EPOCH FROM (clock_timestamp() - v_start_time)) * 1000;
+  v_result := v_result || json_build_object(
+    'performance_info', json_build_object(
+      'execution_time_ms', v_execution_time_ms,
+      'optimized_version', '2.2',
+      'partial_loading', TRUE,
+      'requested_sections', requested_sections
+    )
+  );
+
+  RETURN v_result;
+
+EXCEPTION
+  WHEN OTHERS THEN
+    RETURN json_build_object(
+      'error', SQLERRM,
+      'execution_time_ms', 0,
+      'optimized_version', '2.2'
+    );
+END;
+$partial_function$;
+
+-- 🔥 دالة جديدة: get_store_basic_data للصفحات التي تحتاج بيانات أساسية فقط
+-- Function for pages that need only basic organization data and SEO
+-- حذف الدالة القديمة أولاً لتجنب خطأ تغيير نوع الإرجاع
+DROP FUNCTION IF EXISTS public.get_store_basic_data(text);
+
+CREATE OR REPLACE FUNCTION public.get_store_basic_data(org_identifier text)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $basic_function$
+DECLARE
+  v_result JSONB;
+  v_start_time TIMESTAMP;
+  v_execution_time_ms NUMERIC;
+  v_org_id UUID;
+BEGIN
+  v_start_time := clock_timestamp();
+
+  -- التحقق من وجود المنظمة
+  SELECT o.id INTO v_org_id
+  FROM organizations o
+  WHERE (
+    o.subdomain = org_identifier
+    OR o.domain = org_identifier
+    OR o.domain = CASE
+      WHEN org_identifier LIKE 'www.%'
+      THEN substring(org_identifier from 5)
+      ELSE NULL
+    END
+  )
+  AND o.subscription_status = 'active'
+  LIMIT 1;
+
+  IF v_org_id IS NULL THEN
+    RETURN json_build_object(
+      'error', 'Organization not found',
+      'execution_time_ms', 0
+    );
+  END IF;
+
+  -- تحميل البيانات الأساسية فقط مع بيانات SEO
+  SELECT jsonb_build_object(
+    'organization_details', jsonb_build_object(
+      'id', o.id, 'name', o.name, 'logo_url', COALESCE(o.logo_url, seov.logo_url),
+      'subdomain', o.subdomain, 'domain', o.domain
+    ),
+    'organization_settings', jsonb_build_object(
+      'theme_primary_color', os.theme_primary_color,
+      'theme_secondary_color', os.theme_secondary_color,
+      'theme_mode', os.theme_mode,
+      'custom_css', os.custom_css
+    ),
+    'seo_meta', jsonb_build_object(
+      'url', CASE
+        WHEN o.domain IS NOT NULL AND o.domain != ''
+        THEN 'https://' || o.domain
+        ELSE 'https://' || o.subdomain || '.stockiha.com'
+      END,
+      'type', 'website',
+      'image', COALESCE(o.logo_url, seov.logo_url, seov.seo_settings->>'default_image_url'),
+      'title', COALESCE(seov.seo_settings->>'title', o.name),
+      'keywords', COALESCE(seov.seo_settings->>'keywords', ''),
+      'site_name', COALESCE(seov.site_name, o.name),
+      'description', COALESCE(seov.seo_settings->>'description', 'متجر إلكتروني متطور')
+    )
+  ) INTO v_result
+  FROM organizations o
+  LEFT JOIN organization_settings os ON o.id = os.organization_id
+  LEFT JOIN organization_seo_view seov ON o.id = seov.organization_id
+  WHERE o.id = v_org_id;
+
+  -- إضافة معلومات الأداء
+  v_execution_time_ms := EXTRACT(EPOCH FROM (clock_timestamp() - v_start_time)) * 1000;
+  v_result := v_result || jsonb_build_object(
+    'performance_info', jsonb_build_object(
+      'execution_time_ms', v_execution_time_ms,
+      'basic_data_only', TRUE
+    )
+  );
+
+  RETURN v_result;
+
+EXCEPTION
+  WHEN OTHERS THEN
+    RETURN jsonb_build_object(
+      'error', SQLERRM,
+      'execution_time_ms', 0
+    );
+END;
+$basic_function$;
+
+-- 🔥 دالة جديدة: get_store_init_data_with_custom_domain_fallback
+-- Function for handling custom domains with fallback to subdomain lookup
+CREATE OR REPLACE FUNCTION public.get_store_init_data_with_custom_domain_fallback(
+  org_identifier text
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $custom_domain_function$
+DECLARE
+  v_result JSONB;
+  v_start_time TIMESTAMP;
+  v_execution_time_ms NUMERIC;
+  v_org_count INTEGER;
+BEGIN
+  v_start_time := clock_timestamp();
+
+  -- التحقق من وجود المنظمة بالمعرف الأصلي
+  SELECT COUNT(*) INTO v_org_count
+  FROM organizations o
+  WHERE (
+    o.subdomain = org_identifier
+    OR o.domain = org_identifier
+    OR o.domain = CASE
+      WHEN org_identifier LIKE 'www.%'
+      THEN substring(org_identifier from 5)
+      ELSE NULL
+    END
+  ) AND o.subscription_status = 'active';
+
+  -- إذا وُجدت المنظمة، استخدم الدالة العادية
+  IF v_org_count > 0 THEN
+    RETURN get_store_init_data(org_identifier);
+  END IF;
+
+  -- 🔥 إذا لم توجد، نبحث عن subdomain محتمل من النطاق المخصص
+  -- للنطاقات مثل "asrayclothing.com" نبحث عن "asraycollection"
+  DECLARE
+    v_hostname_parts TEXT[];
+    v_potential_subdomain TEXT;
+    v_fallback_result JSONB;
+  BEGIN
+    -- استخراج الجزء الأول من النطاق كـ subdomain محتمل
+    v_hostname_parts := string_to_array(org_identifier, '.');
+    IF array_length(v_hostname_parts, 1) >= 2 THEN
+      v_potential_subdomain := v_hostname_parts[1];
+    END IF;
+
+    -- إذا كان لدينا subdomain محتمل، نبحث عنه
+    IF v_potential_subdomain IS NOT NULL AND length(v_potential_subdomain) >= 3 THEN
+      -- التحقق من وجود منظمة بهذا الـ subdomain
+      SELECT COUNT(*) INTO v_org_count
+      FROM organizations o
+      WHERE o.subdomain = v_potential_subdomain AND o.subscription_status = 'active';
+
+      IF v_org_count > 0 THEN
+        -- وجدنا منظمة، نستخدم الدالة العادية مع الـ subdomain
+        v_fallback_result := get_store_init_data(v_potential_subdomain);
+
+        -- إضافة معلومات عن الـ fallback
+        v_fallback_result := v_fallback_result || jsonb_build_object(
+          'custom_domain_fallback', jsonb_build_object(
+            'original_identifier', org_identifier,
+            'fallback_subdomain', v_potential_subdomain,
+            'fallback_used', TRUE
+          )
+        );
+
+        v_execution_time_ms := EXTRACT(EPOCH FROM (clock_timestamp() - v_start_time)) * 1000;
+        v_fallback_result := v_fallback_result || jsonb_build_object(
+          'performance_info',
+          (v_fallback_result->'performance_info')::jsonb || jsonb_build_object('execution_time_ms', v_execution_time_ms)
+        );
+
+        RETURN v_fallback_result;
+      END IF;
+    END IF;
+  END;
+
+  -- إذا لم نجد أي fallback، نرجع خطأ
+  v_execution_time_ms := EXTRACT(EPOCH FROM (clock_timestamp() - v_start_time)) * 1000;
+
+  RETURN json_build_object(
+    'error', 'Organization not found',
+    'message', 'No active organization found with identifier: ' || org_identifier || '. Custom domain fallback also failed.',
+    'searched_identifier', org_identifier,
+    'custom_domain_fallback_attempted', TRUE,
+    'execution_time_ms', v_execution_time_ms,
+    'optimized_version', '2.3',
+    'supports_custom_domains', TRUE
+  );
+
+EXCEPTION
+  WHEN OTHERS THEN
+    v_execution_time_ms := EXTRACT(EPOCH FROM (clock_timestamp() - v_start_time)) * 1000;
+    RETURN json_build_object(
+      'error', SQLERRM,
+      'searched_identifier', org_identifier,
+      'execution_time_ms', v_execution_time_ms,
+      'custom_domain_fallback_attempted', TRUE,
+      'optimized_version', '2.3'
+    );
+END;
+$custom_domain_function$;

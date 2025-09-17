@@ -21,7 +21,7 @@ export function SmartNavbar(props: SmartNavbarProps) {
   if (isAdminPage) {
     return <AdminNavbar {...props} />;
   } else {
-    return <StoreNavbar {...props} />;
+    return <StoreNavbar {...props} organizationSettings={props.organizationSettings} />;
   }
 }
 

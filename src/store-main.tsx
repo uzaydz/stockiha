@@ -23,6 +23,11 @@ import { GlobalLoadingProvider } from '@/components/store/GlobalLoadingManager';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { SafeTranslationProvider } from '@/components/safe-i18n/SafeTranslationProvider';
 
+// Tenant and Auth providers - required for ProductsPageProvider
+import { TenantProvider } from '@/context/TenantContext';
+import { AuthProvider } from '@/context/AuthContext';
+import { UserProvider } from '@/context/UserContext';
+
 // Store app
 import StoreApp from '@/store/StoreApp';
 
@@ -83,7 +88,13 @@ if (root) {
               <GlobalLoadingProvider>
                 <ThemeProvider>
                   <SafeTranslationProvider>
-                    <StoreApp />
+                    <AuthProvider>
+                      <UserProvider>
+                        <TenantProvider>
+                          <StoreApp />
+                        </TenantProvider>
+                      </UserProvider>
+                    </AuthProvider>
                   </SafeTranslationProvider>
                 </ThemeProvider>
               </GlobalLoadingProvider>

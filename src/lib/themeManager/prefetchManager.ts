@@ -2,7 +2,7 @@
 import { getOrganizationSettings } from '@/lib/api/settings';
 import { applyInstantTheme, updateOrganizationTheme } from './themeController';
 import { getOrganizationIdSync } from './detectionUtils';
-import i18n from '@/i18n';
+import i18n, { changeLanguageSafely } from '@/i18n';
 
 interface PrefetchData {
   organizationId: string;
@@ -68,6 +68,13 @@ export async function applyPrefetchedSettings(prefetchData: PrefetchData): Promi
   const { settings } = prefetchData;
   const startTime = performance.now();
 
+  // التحقق من النطاق العام - لا نطبق الإعدادات في النطاقات العامة
+  const currentHostname = window.location.hostname;
+  if (isPublicDomain(currentHostname)) {
+    console.log('🎨 [PrefetchManager] نطاق عام - تخطي تطبيق الإعدادات المحملة مسبقاً', { hostname: currentHostname });
+    return;
+  }
+
   try {
     // تطبيق اللغة فوراً إذا كانت مختلفة
     if (settings.default_language && settings.default_language !== i18n.language) {
@@ -83,7 +90,7 @@ export async function applyPrefetchedSettings(prefetchData: PrefetchData): Promi
 
       // جدولة تحديث اللغة الكامل في الخلفية
       setTimeout(() => {
-        i18n.changeLanguage(settings.default_language).catch(console.warn);
+        changeLanguageSafely(settings.default_language).catch(console.warn);
       }, 0);
     }
 
@@ -112,12 +119,28 @@ export async function applyPrefetchedSettings(prefetchData: PrefetchData): Promi
  */
 export async function smartPrefetch(): Promise<PrefetchData | null> {
   try {
-    // الحصول على معرف المؤسسة من النطاق أو التخزين المحلي
-    const orgId = getOrganizationIdSync();
-
-    if (!orgId) {
-      console.log('🎨 [PrefetchManager] لا يوجد معرف مؤسسة للتحميل المسبق');
+    // التحقق من النطاق العام - لا نحمل مسبقاً في النطاقات العامة
+    const currentHostname = window.location.hostname;
+    if (isPublicDomain(currentHostname)) {
+      console.log('🎨 [PrefetchManager] نطاق عام - تخطي التحميل المسبق الذكي', { hostname: currentHostname });
       return null;
+    }
+
+    // الحصول على معرف المؤسسة من النطاق أو التخزين المحلي
+    let orgId = getOrganizationIdSync();
+
+    // إذا لم يكن هناك معرف مؤسسة، حاول جلبها من النطاق
+    if (!orgId) {
+      const hostname = window.location.hostname;
+      const { getOrganizationIdFromDomainAsync } = await import('./detectionUtils');
+      orgId = await getOrganizationIdFromDomainAsync(hostname);
+
+      if (!orgId) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('🎨 [PrefetchManager] لا يوجد معرف مؤسسة - تخطي التحميل المسبق');
+        }
+        return null;
+      }
     }
 
     console.log('🎨 [PrefetchManager] بدء التحميل المسبق للمؤسسة:', orgId);
@@ -125,6 +148,39 @@ export async function smartPrefetch(): Promise<PrefetchData | null> {
     const prefetchData = await prefetchOrganizationSettings(orgId);
 
     if (prefetchData) {
+      // حفظ البيانات في window object للوصول السريع من قبل المكونات الأخرى
+      (window as any).__PREFETCHED_STORE_DATA__ = {
+        ...prefetchData.settings,
+        organization: { id: prefetchData.organizationId },
+        organization_details: { id: prefetchData.organizationId },
+        timestamp: Date.now(),
+        source: 'prefetch_manager'
+      };
+
+      // 🔥 إضافة: حفظ البيانات في sessionStorage للاستمرارية عند التنقل بين الصفحات
+      try {
+        const hostname = window.location.hostname;
+        const storeKey = `store_${hostname.replace(/[^a-zA-Z0-9]/g, '_')}`;
+        sessionStorage.setItem(storeKey, JSON.stringify({
+          data: {
+            ...prefetchData.settings,
+            organization: { id: prefetchData.organizationId },
+            organization_details: { id: prefetchData.organizationId },
+            organizationId: prefetchData.organizationId
+          },
+          timestamp: Date.now(),
+          source: 'prefetch_manager'
+        }));
+      } catch (sessionError) {
+        console.warn('⚠️ [PrefetchManager] فشل في حفظ البيانات في sessionStorage:', sessionError);
+      }
+
+      console.log('💾 [PrefetchManager] حفظ البيانات في window object و sessionStorage:', {
+        hasData: true,
+        organizationId: prefetchData.organizationId,
+        hasSettings: !!prefetchData.settings
+      });
+
       // تطبيق الإعدادات فوراً
       await applyPrefetchedSettings(prefetchData);
 
@@ -186,13 +242,54 @@ export function clearPrefetchCache(): void {
   localStorage.removeItem('bazaar_prefetch_data');
 }
 
+// متغير لتتبع ما إذا تم عرض التحذير بالفعل
+let hasShownNoOrgWarning = false;
+
+/**
+ * عرض تحذير عدم وجود معرف مؤسسة مرة واحدة فقط
+ */
+function logNoOrganizationWarning() {
+  if (!hasShownNoOrgWarning) {
+    console.log('🎨 [PrefetchManager] لا يوجد معرف مؤسسة للتحميل المسبق');
+    hasShownNoOrgWarning = true;
+  }
+}
+
+// قائمة النطاقات العامة التي لا يجب تطبيق الإعدادات عليها
+const PUBLIC_DOMAINS = [
+  'ktobi.online',
+  'www.ktobi.online',
+  'stockiha.com',
+  'www.stockiha.com',
+  'stockiha.pages.dev'
+];
+
+// دالة للتحقق من localhost
+const isLocalhostDomain = (hostname: string) => {
+  return hostname === 'localhost' ||
+         hostname === '127.0.0.1' ||
+         hostname.startsWith('localhost:') ||
+         hostname.startsWith('127.0.0.1:');
+};
+
+// دالة للتحقق من النطاق العام
+const isPublicDomain = (hostname: string) => {
+  return PUBLIC_DOMAINS.includes(hostname) || isLocalhostDomain(hostname);
+};
+
 // بدء التحميل المسبق عند تحميل الصفحة
 if (typeof window !== 'undefined') {
-  // تطبيق البيانات المحفوظة فوراً
-  applyCachedPrefetchData().then(() => {
-    // ثم بدء التحميل المسبق الجديد
-    smartPrefetch();
-  });
+  const currentHostname = window.location.hostname;
+
+  // تطبيق البيانات المحفوظة فقط إذا لم نكن في نطاق عام
+  if (!isPublicDomain(currentHostname)) {
+    applyCachedPrefetchData().then(() => {
+      // ثم بدء التحميل المسبق الجديد
+      smartPrefetch();
+    });
+  } else {
+    console.log('🎨 [PrefetchManager] نطاق عام - تخطي تطبيق الإعدادات المحملة مسبقاً', { hostname: currentHostname });
+  }
 
   // ربط مع window للاستخدام في التطوير
   (window as any).prefetchManager = {

@@ -11,7 +11,7 @@ import {
   X
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/context/AuthContext';
+// import { useAuth } from '@/context/AuthContext'; // مُعطل للصفحات العامة
 import { useTenant } from '@/context/TenantContext';
 
 interface MobileBottomNavigationProps {
@@ -26,7 +26,7 @@ export function MobileBottomNavigation({
   isMenuOpen = false 
 }: MobileBottomNavigationProps) {
   const location = useLocation();
-  const { user, userProfile } = useAuth();
+  // const { user, userProfile } = useAuth(); // مُعطل للصفحات العامة
   const { currentOrganization } = useTenant();
   const [isMobile, setIsMobile] = useState(false);
 
@@ -72,8 +72,8 @@ export function MobileBottomNavigation({
     return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
 
-  // إخفاء القائمة فقط إذا لم يكن المستخدم مسجل دخول
-  if (!isMobile || !user) {
+  // إخفاء القائمة فقط على الشاشات الكبيرة
+  if (!isMobile) {
     return null;
   }
 

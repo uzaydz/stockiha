@@ -191,10 +191,27 @@ const ProductPurchase = () => {
 
   // معالجة تغيير الكمية
   const handleProductQuantityChange = (newQuantity: number) => {
+    console.log('🔍 [ProductPurchase] تغيير الكمية:', {
+      oldQuantity: quantity,
+      newQuantity: newQuantity,
+      productId: effectiveProduct?.id || product.id,
+      hostname: window.location.hostname,
+      pathname: window.location.pathname,
+      timestamp: new Date().toISOString()
+    });
+
     handleQuantityChange(newQuantity, getAvailableQuantity());
-    
+
     // تتبع add_to_cart عند زيادة الكمية
     if (newQuantity > quantity && product && typeof window !== 'undefined') {
+      console.log('🔍 [ProductPurchase] إضافة للسلة - بدء تتبع التحويلات:', {
+        productId: effectiveProduct?.id || product.id,
+        productName: product.name,
+        quantity: newQuantity,
+        unitPrice: calculatePrice(),
+        totalPrice: calculatePrice() * newQuantity
+      });
+
       try {
         fetch('/api/conversion-events', {
           method: 'POST',
@@ -218,6 +235,12 @@ const ProductPurchase = () => {
 
         // تتبع البكسل أيضاً
         if ((window as any).trackConversion) {
+          console.log('🔍 [ProductPurchase] تتبع البكسل:', {
+            value: calculatePrice() * newQuantity,
+            contentIds: [effectiveProduct?.id || product.id],
+            numItems: newQuantity
+          });
+
           (window as any).trackConversion('add_to_cart', {
             value: calculatePrice() * newQuantity,
             currency: 'DZD',
@@ -225,8 +248,11 @@ const ProductPurchase = () => {
             content_ids: [effectiveProduct?.id || product.id],
             num_items: newQuantity
           });
+        } else {
+          console.log('🔍 [ProductPurchase] trackConversion غير متوفر');
         }
       } catch (error) {
+        console.error('❌ [ProductPurchase] خطأ في تتبع التحويلات:', error);
       }
     }
   };

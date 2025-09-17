@@ -21,7 +21,10 @@ export function useTenantSafe(): {
   } catch (_e) {
     // Fallback: derive organization from early store data or localStorage
     const win: any = typeof window !== 'undefined' ? window : {};
-    const org = win.__EARLY_STORE_DATA__?.data?.organization_details || win.__CURRENT_STORE_DATA__?.organization || null;
+  const org = win.__EARLY_STORE_DATA__?.data?.organization_details ||
+              win.__PREFETCHED_STORE_DATA__?.organization_details ||
+              win.__CURRENT_STORE_DATA__?.organization ||
+              null;
     const currentOrganization = org || (() => {
       try {
         const raw = localStorage.getItem('bazaar_organization_id');
@@ -36,4 +39,3 @@ export function useTenantSafe(): {
     };
   }
 }
-

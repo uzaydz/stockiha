@@ -8,11 +8,36 @@ import { getCount } from '@/lib/cart/cartStorage';
 
 function parseEnableCart(settings: any | null): boolean {
   try {
+    console.log('🔧 [parseEnableCart] بدء تحليل إعدادات السلة:', {
+      hasSettings: !!settings,
+      settingsKeys: settings ? Object.keys(settings) : [],
+      customJs: settings?.custom_js,
+      customJsType: typeof settings?.custom_js,
+      hostname: window.location.hostname,
+      pathname: window.location.pathname,
+      timestamp: new Date().toISOString()
+    });
+
     const raw = settings?.custom_js;
-    if (!raw) return false;
+    if (!raw) {
+      console.log('❌ [parseEnableCart] لا يوجد custom_js في الإعدادات');
+      return false;
+    }
+
     const json = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    return Boolean(json?.enable_cart);
-  } catch {
+    const enableCart = Boolean(json?.enable_cart);
+
+    console.log('✅ [parseEnableCart] نتيجة تحليل السلة:', {
+      raw: raw,
+      parsedJson: json,
+      enableCart: enableCart,
+      enableCartValue: json?.enable_cart,
+      enableCartType: typeof json?.enable_cart
+    });
+
+    return enableCart;
+  } catch (error) {
+    console.error('❌ [parseEnableCart] خطأ في تحليل إعدادات السلة:', error);
     return false;
   }
 }
@@ -35,12 +60,25 @@ export const NavbarCartButton: React.FC<{ className?: string }>= ({ className })
       (window as any).__lastCartDebug__ = (window as any).__lastCartDebug__ || { enableCart: undefined, count: undefined };
       const last = (window as any).__lastCartDebug__;
       if (last.enableCart !== enableCart || last.count !== count) {
-        
+
+        console.log('🔍 [NavbarCartButton] حالة السلة:', {
+          enableCart: enableCart,
+          count: count,
+          organizationSettings: organizationSettings,
+          customJs: organizationSettings?.custom_js,
+          timestamp: new Date().toISOString(),
+          hostname: window.location.hostname,
+          pathname: window.location.pathname,
+          hasSettings: !!organizationSettings,
+          settingsType: typeof organizationSettings,
+          enableCartParsed: parseEnableCart(organizationSettings)
+        });
+
         last.enableCart = enableCart;
         last.count = count;
       }
     } catch {}
-  }, [enableCart, count]);
+  }, [enableCart, count, organizationSettings]);
 
   if (!enableCart) return null;
 

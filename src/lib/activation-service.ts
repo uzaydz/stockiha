@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { generateActivationCode, generateMultipleActivationCodes, isValidActivationCodeFormat } from './code-generator';
+import { subscriptionCache } from './subscription-cache';
 import {
   ActivationCode,
   ActivationCodeBatch,
@@ -167,10 +168,15 @@ export const ActivationService = {
       if (activationResult?.success) {
         // إذا نجح التفعيل، قم بتحديث البيانات في الواجهة
         try {
-          // حذف الكاش القديم
-          const cacheKey = `subscription_${organizationId}`;
-          localStorage.removeItem(cacheKey);
-          
+          // حذف جميع أنواع التخزين المؤقت للاشتراك
+          try {
+            subscriptionCache.clearCache(organizationId);
+          } catch (_) {
+            // في حال فشل تنظيف الكاش الداخلي، نحاول على الأقل حذف localStorage
+            const cacheKey = `subscription_${organizationId}`;
+            localStorage.removeItem(cacheKey);
+          }
+
           // تحديث البيانات في الواجهة
           if (typeof window !== 'undefined') {
             // إرسال حدث لتحديث البيانات في السياقات
@@ -178,11 +184,12 @@ export const ActivationService = {
               detail: {
                 success: true,
                 organizationId,
-                message: 'تم تفعيل الاشتراك بنجاح'
+                message: 'تم تفعيل الاشتراك بنجاح',
+                subscriptionId: activationResult.subscription_id ?? null
               }
             }));
           }
-          
+
         } catch (cacheError) {
           // إذا فشل التحديث، قم بإعادة تحميل الصفحة كحل بديل
           if (typeof window !== 'undefined' && window.location) {

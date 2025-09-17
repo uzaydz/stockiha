@@ -4,7 +4,6 @@ import { Product } from '@/api/store';
 import { getProducts } from '@/lib/api/products';
 import { useTranslation } from 'react-i18next';
 import { useSharedStoreDataContext } from '@/context/SharedStoreDataContext';
-import { usePreloadedStoreData } from '@/hooks/usePreloadedStoreData';
 import { getDefaultProducts, convertDatabaseProductToStoreProduct } from './productUtils';
 import { loadCriticalImages, loadLazyImages } from '@/lib/imageOptimization';
 import { 
@@ -33,24 +32,22 @@ export const useFeaturedProducts = ({
   const [fetchedProducts, setFetchedProducts] = useState<Product[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
 
-  // استخدام البيانات المحملة مسبقاً
-  const { 
-    featuredProducts: preloadedFeaturedProducts, 
-    isLoading: preloadedLoading,
-    isFromPreload 
-  } = usePreloadedStoreData({
-    includeFeaturedProducts: true,
-    enabled: true
-  });
+  // استخدام البيانات من الـ context الموحد
+  const { featuredProducts: preloadedFeaturedProducts } = useSharedStoreDataContext();
 
   // جلب المنتجات حسب الطريقة المحددة (يدوي أو تلقائي)
   // منع حلقات إعادة الجلب: نعتمد توقيعاً مستقراً لمحتوى preloadedFeaturedProducts
   const preloadedSig = useMemo(() => {
     try {
       if (!preloadedFeaturedProducts || preloadedFeaturedProducts.length === 0) return '';
-      return preloadedFeaturedProducts.map((p: any) => p?.id ?? '').join(',');
+      // استخدام JSON.stringify للمقارنة العميقة مع تحسين الأداء
+      return JSON.stringify(preloadedFeaturedProducts.map((p: any) => ({
+        id: p?.id,
+        name: p?.name,
+        featured: p?.is_featured
+      })));
     } catch { return ''; }
-  }, [preloadedFeaturedProducts]);
+  }, [preloadedFeaturedProducts?.length]); // استخدام length فقط لتجنب التغيير المستمر
 
   const usedPreloadedOnceRef = (globalThis as any).__USED_PRELOADED_FEATURED_ONCE__ || { current: false };
   (globalThis as any).__USED_PRELOADED_FEATURED_ONCE__ = usedPreloadedOnceRef;
@@ -58,7 +55,7 @@ export const useFeaturedProducts = ({
   useEffect(() => {
     const fetchProducts = async () => {
       // أولاً، تحقق من البيانات المحملة مسبقاً
-      if (preloadedFeaturedProducts && preloadedFeaturedProducts.length > 0 && isFromPreload) {
+      if (preloadedFeaturedProducts && preloadedFeaturedProducts.length > 0) {
         // إذا سبق استخدام بيانات preload بنفس التوقيع، لا تعيد التعيين لتجنب حلقة الرندر
         if (usedPreloadedOnceRef.current && fetchedProducts.length > 0) {
           return;
@@ -191,7 +188,7 @@ export const useFeaturedProducts = ({
 
     fetchProducts();
     // ملاحظة: نعتمد على preloadedSig بدلاً من المرجع المباشر لتجنب تغيّر المرجع كل رندر
-  }, [selectionMethod, selectionCriteria, selectedProducts, organizationId, initialProducts.length, preloadedSig, isFromPreload]);
+  }, [selectionMethod, selectionCriteria, selectedProducts, organizationId, initialProducts.length]);
 
   // منطق عرض المنتجات المحسن
   const displayedProducts = useMemo(() => {

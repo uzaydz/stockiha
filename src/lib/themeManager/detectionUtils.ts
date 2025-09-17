@@ -43,7 +43,7 @@ export function getCurrentPageType(): PageType {
 }
 
 /**
- * الحصول على معرف المؤسسة من التخزين المحلي أو النطاق
+ * الحصول على معرف المؤسسة من التخزين المحلي أو النطاق (محسن)
  */
 export function getOrganizationIdSync(): string | null {
   // أولاً، التحقق من التخزين المحلي
@@ -68,23 +68,79 @@ export function getOrganizationIdSync(): string | null {
       return orgId;
     }
 
-    return null; // سنحتاج لجلب معرف المؤسسة لاحقاً
+    // محاولة جلب معرف المؤسسة من قاعدة البيانات بشكل async
+    // سنعيد null هنا ونجلب المعرف لاحقاً
+    // PrefetchManager سيحاول جلب المعرف لاحقاً
+    return null;
   }
 
   return null;
 }
 
 /**
- * الحصول على معرف المؤسسة من النطاق
+ * جلب معرف المؤسسة من النطاق من قاعدة البيانات (دالة async)
+ */
+export async function getOrganizationIdFromDomainAsync(hostname: string): Promise<string | null> {
+  try {
+    const domainInfo = detectDomainType(hostname);
+
+    if (domainInfo.type === 'store' && domainInfo.subdomain) {
+      // للنطاق الفرعي dalelousc1samag، نرجع المعرف المعروف فوراً
+      if (domainInfo.subdomain === 'dalelousc1samag') {
+        return 'b87869bc-a69e-4310-a67a-81c2ab927faf';
+      }
+
+      // جلب معرف المؤسسة من قاعدة البيانات بناءً على النطاق الفرعي
+      const { supabase } = await import('@/lib/supabase-client');
+      const query = supabase
+        .from('organizations')
+        .select('id')
+        .eq('subdomain', domainInfo.subdomain!)
+        .maybeSingle();
+
+      const { data, error } = await query;
+
+      if (data && !error) {
+        // حفظ في التخزين المحلي للمرات القادمة
+        const orgData = data as { id: string };
+        localStorage.setItem(THEME_CONFIG.STORAGE_KEYS.ORGANIZATION_ID, orgData.id);
+        return orgData.id;
+      }
+    }
+
+    // للنطاقات المخصصة، جرب البحث بالنطاق الكامل (باستخدام الحقل الصحيح "domain")
+    if (domainInfo.type === 'store' && !domainInfo.subdomain) {
+      const { supabase } = await import('@/lib/supabase-unified');
+      // إزالة www. إن وجدت لضمان التطابق مع القيم المخزنة
+      const cleanHostname = hostname.startsWith('www.') ? hostname.substring(4) : hostname;
+      const { data, error } = await (supabase as any)
+        .from('organizations')
+        .select('id')
+        .eq('domain', cleanHostname)
+        .maybeSingle();
+
+      if (data && !error) {
+        const orgData = data as { id: string };
+        localStorage.setItem(THEME_CONFIG.STORAGE_KEYS.ORGANIZATION_ID, orgData.id);
+        return orgData.id;
+      }
+    }
+
+    return null;
+  } catch (error) {
+    console.warn('خطأ في جلب معرف المؤسسة من النطاق:', error);
+    return null;
+  }
+}
+
+/**
+ * الحصول على معرف المؤسسة من النطاق (الدالة القديمة - deprecated)
  */
 export function getOrganizationIdFromDomain(hostname: string): string | null {
+  // للنطاق الفرعي dalelousc1samag، نرجع المعرف المعروف
   const domainInfo = detectDomainType(hostname);
-
-  if (domainInfo.type === 'store' && domainInfo.subdomain) {
-    // للنطاق الفرعي dalelousc1samag، نرجع المعرف المعروف
-    if (domainInfo.subdomain === 'dalelousc1samag') {
-      return 'b87869bc-a69e-4310-a67a-81c2ab927faf';
-    }
+  if (domainInfo.type === 'store' && domainInfo.subdomain === 'dalelousc1samag') {
+    return 'b87869bc-a69e-4310-a67a-81c2ab927faf';
   }
 
   return null;

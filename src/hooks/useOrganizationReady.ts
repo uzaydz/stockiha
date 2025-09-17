@@ -1,5 +1,5 @@
 import { useContext } from 'react';
-import { TenantContext } from '@/context/tenant/TenantContext';
+import TenantContext from '@/context/tenant/TenantContext';
 
 /**
  * Hook للتحقق من جاهزية المؤسسة للاستخدام في API
@@ -8,11 +8,10 @@ import { TenantContext } from '@/context/tenant/TenantContext';
 export function useOrganizationReady() {
   const { organization } = useContext(TenantContext);
   
-  const isReady = organization && 
-    organization.id && 
-    organization.id.length > 0 && 
-    !organization.id.startsWith('temp-') && 
-    !organization.isTempOrganization;
+  const isReady = organization &&
+    organization.id &&
+    organization.id.length > 0 &&
+    !organization.id.startsWith('temp-');
   
   return {
     isReady,

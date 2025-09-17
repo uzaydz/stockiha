@@ -47,9 +47,58 @@ ON shipping_provider_settings (organization_id, is_enabled, provider_id)
 WHERE is_enabled = true;
 
 -- 8. فهرس محسن للشهادات مع الترتيب
-CREATE INDEX IF NOT EXISTS idx_customer_testimonials_org_active_ultra_store 
-ON customer_testimonials (organization_id, is_active, created_at DESC) 
+CREATE INDEX IF NOT EXISTS idx_customer_testimonials_org_active_ultra_store
+ON customer_testimonials (organization_id, is_active, created_at DESC)
 WHERE is_active = true;
+
+-- =====================================================
+-- 🔥 فهارس محسنة لدالة get_product_complete_data_ultra_optimized
+-- =====================================================
+
+-- 28. فهرس مركب للمنتجات مع جميع الحقول المستخدمة في JOIN
+CREATE INDEX IF NOT EXISTS idx_products_complete_join_ultra
+ON products (organization_id, is_active, has_variants, use_sizes, id)
+INCLUDE (
+  name, description, slug, sku, price, stock_quantity, thumbnail_image,
+  category_id, subcategory_id, shipping_method_type, use_shipping_clone,
+  shipping_provider_id, shipping_clone_id
+);
+
+-- 29. فهرس محسن للألوان مع الصور والكميات
+CREATE INDEX IF NOT EXISTS idx_product_colors_ultra_optimized
+ON product_colors (product_id, is_default DESC, id)
+INCLUDE (name, color_code, quantity, price, image_url)
+WHERE image_url IS NOT NULL;
+
+-- 30. فهرس محسن للأحجام مع JOIN للألوان
+CREATE INDEX IF NOT EXISTS idx_product_sizes_color_join_ultra
+ON product_sizes (color_id, is_default DESC, id)
+INCLUDE (size_name, quantity, price);
+
+-- 31. فهرس محسن للصور مع الترتيب
+CREATE INDEX IF NOT EXISTS idx_product_images_ultra_optimized
+ON product_images (product_id, sort_order NULLS LAST, id)
+WHERE image_url IS NOT NULL;
+
+-- 32. فهرس مركب للنماذج مع JSON search
+CREATE INDEX IF NOT EXISTS idx_form_settings_org_product_json_ultra
+ON form_settings (organization_id, is_active, is_default, updated_at DESC)
+WHERE is_active = true;
+
+-- 33. فهرس محسن للإعدادات المتقدمة للمنتجات
+CREATE INDEX IF NOT EXISTS idx_product_advanced_settings_ultra
+ON product_advanced_settings (product_id)
+INCLUDE (use_custom_currency, skip_cart);
+
+-- 34. فهرس محسن للإعدادات التسويقية للمنتجات
+CREATE INDEX IF NOT EXISTS idx_product_marketing_settings_ultra
+ON product_marketing_settings (product_id)
+INCLUDE (offer_timer_enabled, offer_timer_title, offer_timer_type, offer_timer_end_date, enable_reviews);
+
+-- 35. فهرس محسن للأسعار الجملة
+CREATE INDEX IF NOT EXISTS idx_wholesale_tiers_product_ultra
+ON wholesale_tiers (product_id, min_quantity)
+INCLUDE (price);
 
 -- =====================================================
 -- 📋 فهارس متخصصة إضافية

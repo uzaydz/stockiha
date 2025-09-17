@@ -1,15 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import Navbar from '@/components/Navbar';
 import CustomizableStoreFooter from '@/components/store/CustomizableStoreFooter';
-import MobileBottomNavigation from '@/components/navbar/MobileBottomNavigation';
+// import MobileBottomNavigation from '@/components/navbar/MobileBottomNavigation'; // مُعطل - خاص بلوحة التحكم فقط
 import { useTenant } from '@/context/TenantContext';
-import { useAuth } from '@/context/AuthContext';
+// import { useAuth } from '@/context/AuthContext'; // مُعطل لعدم الحاجة إليه في الصفحات العامة
 import { getSupabaseClient } from '@/lib/supabase';
 
 import { useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { getDefaultFooterSettings, mergeFooterSettings } from '@/lib/footerSettings';
-import { useSharedStoreData } from '@/hooks/useSharedStoreData';
+import { useSharedStoreDataContext } from '@/context/SharedStoreDataContext';
 import { updateLanguageFromSettings } from '@/lib/language/languageManager';
 import './layout.css';
 
@@ -19,7 +19,7 @@ interface StoreLayoutProps {
 
 const StoreLayout: React.FC<StoreLayoutProps> = ({ children }) => {
   const { currentOrganization } = useTenant();
-  const { currentSubdomain } = useAuth();
+  // const { currentSubdomain } = useAuth(); // مُعطل لعدم الحاجة إليه في الصفحات العامة
   const { t } = useTranslation();
   const [categories, setCategories] = useState<any[]>([]);
   const [footerSettings, setFooterSettings] = useState<any>(null);
@@ -28,12 +28,7 @@ const StoreLayout: React.FC<StoreLayoutProps> = ({ children }) => {
   const trackedOnceRef = useRef<boolean>(false);
   
   // استخدم بيانات الـ RPC الموحّدة عندما تكون متاحة لتقليل الاستدعاءات
-  const { categories: sharedCategories, footerSettings: sharedFooterSettings, organizationSettings: sharedOrgSettings } = useSharedStoreData({
-    includeCategories: true,
-    includeProducts: false,
-    includeFeaturedProducts: true, // ✅ إصلاح: تفعيل المنتجات المميزة لضمان ظهورها في البانر
-    enabled: true
-  } as any);
+  const { categories: sharedCategories, footerSettings: sharedFooterSettings, organizationSettings: sharedOrgSettings } = useSharedStoreDataContext();
   
   // تهيئة الفئات وإعدادات الفوتر من البيانات المشتركة أولاً
   useEffect(() => {
@@ -141,8 +136,8 @@ const StoreLayout: React.FC<StoreLayoutProps> = ({ children }) => {
         {...finalFooterSettings}
       />
       
-      {/* القائمة الثابتة في الأسفل للهاتف */}
-      <MobileBottomNavigation />
+      {/* القائمة الثابتة في الأسفل للهاتف - مُعطلة للصفحات العامة */}
+      {/* <MobileBottomNavigation /> */}
     </div>
   );
 };

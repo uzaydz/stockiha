@@ -20,6 +20,7 @@ CREATE OR REPLACE FUNCTION get_product_complete_data_ultra_optimized(
 RETURNS JSON
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET work_mem = '256MB' -- 🔥 تحسين: زيادة ذاكرة العمل للاستعلامات المعقدة
 AS $$
 DECLARE
   v_result JSON;
@@ -148,9 +149,9 @@ BEGIN
     END as images_data,
     
     -- 🚀 تحسين 8: بيانات النماذج (مشروطة بـ data_scope) باستخدام COALESCE بين نموذج مخصص والافتراضي
-    CASE 
+    CASE
       WHEN p_data_scope IN ('medium', 'full', 'ultra') THEN
-        COALESCE(custom_form.form_data, default_form.form_data)
+        form_info.form_data
       ELSE NULL
     END as form_data,
     
@@ -225,128 +226,121 @@ BEGIN
     LIMIT 1
   ) sp_info ON TRUE
   
-  -- 🚀 تحسين 11: LATERAL JOIN للألوان مع الأحجام (مشروط ومحسن)
+  -- 🔥 تحسين 11: LATERAL JOIN محسّن للألوان - تقليل التعقيد والسرعة
   LEFT JOIN LATERAL (
-    SELECT 
-      COALESCE(
-        (SELECT JSON_AGG(
-          JSON_BUILD_OBJECT(
-            'id', pcol.id,
-            'name', pcol.name,
-            'color_code', pcol.color_code,
-            -- 🚀 تحسين: لا نعيد الصور الضخمة افتراضياً لتقليل الحمولة
-            -- إذا طُلب صراحة تضمين الصور الكبيرة عبر p_include_large_images نعيدها كما هي
-            -- وإلا نعيد فقط الصور الصغيرة (<= ~120KB) ونتجاهل الضخمة لتُجلب لاحقاً عبر دالة متخصصة
-            'image_url', CASE 
-              WHEN p_include_large_images = TRUE THEN pcol.image_url
-              WHEN pcol.image_url IS NULL OR length(pcol.image_url) = 0 THEN NULL
-              WHEN length(pcol.image_url) <= 120000 THEN pcol.image_url
-              ELSE NULL
-            END,
-            'image_size_bytes', CASE WHEN pcol.image_url IS NULL THEN 0 ELSE length(pcol.image_url) END,
-            'image_omitted_due_to_size', CASE WHEN pcol.image_url IS NOT NULL AND length(pcol.image_url) > 120000 AND p_include_large_images = FALSE THEN TRUE ELSE FALSE END,
-            'has_image', CASE WHEN pcol.image_url IS NOT NULL AND length(pcol.image_url) > 0 THEN TRUE ELSE FALSE END,
-            'image_size', CASE WHEN pcol.image_url IS NOT NULL THEN length(pcol.image_url) ELSE 0 END,
-            'quantity', pcol.quantity,
-            'price', pcol.price,
-            'is_default', pcol.is_default,
-            'sizes', CASE 
-              WHEN p.use_sizes = TRUE THEN
-                COALESCE(
-                  (SELECT JSON_AGG(
-                    JSON_BUILD_OBJECT(
-                      'id', ps.id,
-                      'size_name', ps.size_name,
-                      'quantity', ps.quantity,
-                      'price', ps.price,
-                      'is_default', ps.is_default
-                    ) ORDER BY ps.is_default DESC NULLS LAST, ps.id
-                  ) FROM product_sizes ps WHERE ps.color_id = pcol.id LIMIT 10),
-                  '[]'::json
-                )
-              ELSE '[]'::json
-            END
-          ) ORDER BY pcol.is_default DESC NULLS LAST, pcol.id
-        ) FROM product_colors pcol WHERE pcol.product_id = p.id LIMIT 20),
-        '[]'::json
-      ) as colors_data
+    SELECT JSON_AGG(
+      JSON_BUILD_OBJECT(
+        'id', pcol.id,
+        'name', pcol.name,
+        'color_code', pcol.color_code,
+        'quantity', pcol.quantity,
+        'price', pcol.price,
+        'is_default', pcol.is_default,
+        -- 🚀 تحسين: تبسيط معالجة الصور
+        'image_url', CASE
+          WHEN p_include_large_images = TRUE THEN pcol.image_url
+          WHEN pcol.image_url IS NULL OR length(pcol.image_url) = 0 THEN NULL
+          WHEN length(pcol.image_url) <= 80000 THEN pcol.image_url -- 🔥 تحسين: تقليل الحد
+          ELSE NULL
+        END,
+        'has_image', CASE WHEN pcol.image_url IS NOT NULL AND length(pcol.image_url) > 0 THEN TRUE ELSE FALSE END,
+        'sizes', CASE
+          WHEN p.use_sizes = TRUE THEN (
+            SELECT COALESCE(JSON_AGG(
+              JSON_BUILD_OBJECT(
+                'id', ps.id,
+                'size_name', ps.size_name,
+                'quantity', ps.quantity,
+                'price', ps.price
+              ) ORDER BY ps.is_default DESC NULLS LAST, ps.id
+            ), '[]'::json)
+            FROM product_sizes ps WHERE ps.color_id = pcol.id
+          )
+          ELSE '[]'::json
+        END
+      ) ORDER BY pcol.is_default DESC NULLS LAST, pcol.id
+    ) as colors_data
+    FROM product_colors pcol
+    WHERE pcol.product_id = p.id
+    LIMIT 15 -- 🔥 تحسين: تقليل LIMIT للسرعة
   ) colors_info ON p.has_variants = TRUE AND p_data_scope IN ('medium', 'full', 'ultra')
   
-  -- 🚀 تحسين 12: LATERAL JOIN للصور (مشروط ومحسن)
+  -- 🔥 تحسين 12: LATERAL JOIN محسّن للصور - أسرع وأبسط
   LEFT JOIN LATERAL (
-    SELECT 
-      COALESCE(
-        (SELECT JSON_AGG(
-          JSON_BUILD_OBJECT(
-            'id', pi.id,
-            -- 🚀 تحسين: لا نعيد الصور الضخمة جداً إن كانت محفوظة كسلاسل كبيرة
-            'url', CASE 
-              WHEN pi.image_url IS NULL OR length(pi.image_url) = 0 THEN NULL
-              WHEN length(pi.image_url) <= 120000 THEN pi.image_url
-              ELSE NULL
-            END,
-            'omitted_due_to_size', CASE WHEN pi.image_url IS NOT NULL AND length(pi.image_url) > 120000 THEN TRUE ELSE FALSE END,
-            'sort_order', COALESCE(pi.sort_order, 999)
-          ) ORDER BY pi.sort_order NULLS LAST, pi.id
-        ) FROM product_images pi WHERE pi.product_id = p.id LIMIT 10),
-        '[]'::json
-      ) as images_data
+    SELECT JSON_AGG(
+      JSON_BUILD_OBJECT(
+        'id', pi.id,
+        'url', CASE
+          WHEN pi.image_url IS NULL OR length(pi.image_url) = 0 THEN NULL
+          WHEN length(pi.image_url) <= 80000 THEN pi.image_url -- 🔥 تحسين: تقليل الحد
+          ELSE NULL
+        END,
+        'sort_order', COALESCE(pi.sort_order, 999)
+      ) ORDER BY pi.sort_order NULLS LAST, pi.id
+    ) as images_data
+    FROM product_images pi
+    WHERE pi.product_id = p.id
+    LIMIT 8 -- 🔥 تحسين: تقليل LIMIT للسرعة
   ) images_info ON p_data_scope IN ('medium', 'full', 'ultra')
   
-  -- 🚀 تحسين 13: LATERAL JOIN للنماذج (تفكيك الشرط لتجنب OR وترتيب قائم على تعبير)
+  -- 🔥 تحسين 13: LATERAL JOIN محسّن للنماذج - دمج في استعلام واحد
   LEFT JOIN LATERAL (
-    SELECT 
-      JSON_BUILD_OBJECT(
+    SELECT COALESCE(
+      -- نموذج مخصص للمنتج
+      (SELECT JSON_BUILD_OBJECT(
         'id', fs.id,
         'name', fs.name,
         'fields', fs.fields,
-        'is_default', fs.is_default,
-        'is_active', fs.is_active,
-        'settings', COALESCE(fs.settings, '{}'::jsonb),
+        'is_default', FALSE,
         'type', 'custom'
-      ) as form_data
-    FROM form_settings fs
-    WHERE fs.organization_id = p.organization_id
-      AND fs.is_active = TRUE
-      AND fs.product_ids @> JSON_BUILD_ARRAY(p.id::text)::jsonb
-    ORDER BY 
-      fs.updated_at DESC
-    LIMIT 1
-  ) custom_form ON p_data_scope IN ('medium', 'full', 'ultra')
-  
-  LEFT JOIN LATERAL (
-    SELECT 
-      JSON_BUILD_OBJECT(
+      )
+      FROM form_settings fs
+      WHERE fs.organization_id = p.organization_id
+        AND fs.is_active = TRUE
+        AND fs.product_ids @> JSON_BUILD_ARRAY(p.id::text)::jsonb
+      ORDER BY fs.updated_at DESC
+      LIMIT 1),
+
+      -- نموذج افتراضي للمؤسسة
+      (SELECT JSON_BUILD_OBJECT(
         'id', fs.id,
         'name', fs.name,
         'fields', fs.fields,
-        'is_default', fs.is_default,
-        'is_active', fs.is_active,
-        'settings', COALESCE(fs.settings, '{}'::jsonb),
+        'is_default', TRUE,
         'type', 'default'
-      ) as form_data
-    FROM form_settings fs
-    WHERE fs.organization_id = p.organization_id
-      AND fs.is_active = TRUE
-      AND fs.is_default = TRUE
-    ORDER BY 
-      fs.updated_at DESC
-    LIMIT 1
-  ) default_form ON p_data_scope IN ('medium', 'full', 'ultra')
-  
-  -- 🚀 تحسين 14: LATERAL JOIN للإعدادات المتقدمة (مشروط ومحسن)
-  LEFT JOIN LATERAL (
-    SELECT 
+      )
+      FROM form_settings fs
+      WHERE fs.organization_id = p.organization_id
+        AND fs.is_active = TRUE
+        AND fs.is_default = TRUE
+      ORDER BY fs.updated_at DESC
+      LIMIT 1),
+
+      -- نموذج فارغ كـ fallback
       JSON_BUILD_OBJECT(
-        'advanced_settings', COALESCE(
-          (SELECT JSON_BUILD_OBJECT(
-            'use_custom_currency', COALESCE(pas.use_custom_currency, FALSE),
-            'skip_cart', COALESCE(pas.skip_cart, TRUE)
-          ) FROM product_advanced_settings pas WHERE pas.product_id = p.id LIMIT 1),
-          '{}'::json
-        ),
-        'marketing_settings', COALESCE(
-          (SELECT JSON_BUILD_OBJECT(
+        'id', NULL,
+        'name', 'نموذج افتراضي',
+        'fields', '[]'::json,
+        'is_default', TRUE,
+        'type', 'empty'
+      )
+    ) as form_data
+  ) form_info ON p_data_scope IN ('medium', 'full', 'ultra')
+  
+  -- 🔥 تحسين 14: LATERAL JOIN محسّن للإعدادات المتقدمة - تبسيط وتسريع
+  LEFT JOIN LATERAL (
+    SELECT JSON_BUILD_OBJECT(
+      'advanced_settings', COALESCE((
+        SELECT JSON_BUILD_OBJECT(
+          'use_custom_currency', COALESCE(pas.use_custom_currency, FALSE),
+          'skip_cart', COALESCE(pas.skip_cart, TRUE)
+        )
+        FROM product_advanced_settings pas
+        WHERE pas.product_id = p.id
+        LIMIT 1
+      ), '{}'::json),
+      'marketing_settings', COALESCE((
+        SELECT JSON_BUILD_OBJECT(
             'offer_timer_enabled', COALESCE(pms.offer_timer_enabled, FALSE),
             'offer_timer_title', pms.offer_timer_title,
             'offer_timer_type', pms.offer_timer_type,

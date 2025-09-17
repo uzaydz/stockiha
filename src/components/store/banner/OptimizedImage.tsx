@@ -43,7 +43,7 @@ const OptimizedImage = React.memo<OptimizedImageProps>(({
   widths = [360, 512, 768, 1024, 1280],
   baseWidth,
   quality = 75,
-  priority = true,
+  priority = false,
   sizes,
   fit = 'contain',
   objectPosition = 'top'

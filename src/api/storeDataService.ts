@@ -39,6 +39,7 @@ export interface OrganizationSettings {
   organization_id: string;
   theme_primary_color: string | null;
   theme_secondary_color: string | null;
+  theme_mode: 'light' | 'dark' | 'auto';
   theme_font?: string | null;
   store_layout?: string | null;
   show_featured_products?: boolean | null;
@@ -56,9 +57,9 @@ export interface OrganizationSettings {
   enable_wishlist?: boolean | null;
   enable_product_comparison?: boolean | null;
   checkout_process_type?: string | null;
-  payment_methods?: any | null; 
+  payment_methods?: any | null;
   default_shipping_zone_id?: string | null;
-  tax_settings?: any | null; 
+  tax_settings?: any | null;
   seo_store_title?: string | null;
   seo_meta_description?: string | null;
   custom_css: string | null;
@@ -88,9 +89,27 @@ export interface SubCategory {
   icon: string | null;
   image_url: string | null;
   is_active: boolean;
-  organization_id: string; 
+  organization_id: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface FeaturedProduct {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  compare_at_price: number;
+  sku: string;
+  slug: string;
+  thumbnail_image: string;
+  stock_quantity: number;
+  is_featured: boolean;
+  created_at: string;
+  product_categories: {
+    name: string;
+    slug: string;
+  };
 }
 
 export interface ShippingZone {
@@ -107,14 +126,14 @@ export interface StoreInitializationData {
   organization_settings: OrganizationSettings | null;
   categories: Category[];
   subcategories: SubCategory[];
-  featured_products: Product[];
+  featured_products: FeaturedProduct[];
   shipping_info: {
     has_shipping_providers: boolean;
     default_shipping_zone_id: string | null;
     default_shipping_zone_details: ShippingZone | null;
   } | null;
   store_layout_components?: StoreComponent[];
-  error?: string; 
+  error?: string;
 }
 // --- نهاية تعريف الأنواع ---
 

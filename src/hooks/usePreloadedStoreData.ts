@@ -7,7 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useCallback } from 'react';
 import { preloadService, getPreloadedStoreData, hasPreloadedStoreData } from '@/services/preloadService';
 import { getEarlyPreloadedData } from '@/utils/earlyPreload';
-import { useSharedStoreData } from './useSharedStoreData';
+import { useSharedStoreDataContext } from '@/context/SharedStoreDataContext';
 
 interface UsePreloadedStoreDataOptions {
   includeCategories?: boolean;
@@ -216,17 +216,21 @@ export const usePreloadedStoreData = (options: UsePreloadedStoreDataOptions = {}
   // استخدام البيانات المحفوظة مسبقاً إذا كانت متوفرة (من أي مصدر)
   const shouldUsePreloaded = preloadedData && enabled;
 
-  // fallback إلى useSharedStoreData العادي إذا لم تكن البيانات محفوظة مسبقاً
-  const fallbackData = useSharedStoreData({
-    includeCategories,
-    includeProducts,
-    includeFeaturedProducts,
-    includeComponents,
-    includeFooterSettings,
-    includeTestimonials,
-    includeSeoMeta,
-    enabled: enabled && !shouldUsePreloaded
-  });
+  // fallback إلى useSharedStoreDataContext العادي إذا لم تكن البيانات محفوظة مسبقاً
+  const sharedData = useSharedStoreDataContext();
+  const fallbackData = {
+    ...sharedData,
+    components: sharedData.components || [],
+    footerSettings: sharedData.footerSettings || null,
+    testimonials: sharedData.testimonials || [],
+    seoMeta: sharedData.seoMeta || null,
+    isFromPreload: false,
+    preloadStats: {
+      preloadedStores: 0,
+      pendingRequests: 0,
+      storeIdentifiers: []
+    }
+  };
 
   // دالة إعادة التحميل محسنة
   const refreshData = useCallback(async () => {

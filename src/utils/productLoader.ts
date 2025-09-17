@@ -56,27 +56,49 @@ export class ProductLoader {
         };
       }
 
-      // استخدام الـ RPC مباشرة عبر Supabase client مع fallback
-      const { supabase } = await import('@/lib/supabase');
-      
-      // محاولة استخدام الدالة المحسنة أولاً
-      let { data, error } = await supabase.rpc('get_product_complete_data_ultra_optimized' as any, {
-        p_product_identifier: productSlug,
-        p_organization_id: orgParam,
-        p_include_inactive: false,
-        p_data_scope: 'full',
-        p_include_large_images: false
-      });
+      // ✅ تحديث: استخدام الدالتين الجديدتين المنفصلتين
+      const { getProductCombinedDataUltraFast } = await import('@/lib/api/productUltraFastApi');
 
-      // إذا فشلت الدالة المحسنة، جرب دالة بديلة
-      if (error && error.message?.includes('function') && error.message?.includes('does not exist')) {
-        const fallbackResult = await supabase.rpc('get_product_data_optimized' as any, {
-          product_identifier: productSlug,
-          organization_id: orgParam
-        });
-        
-        data = fallbackResult.data;
-        error = fallbackResult.error;
+      // تحويل الخيارات للدالة الجديدة
+      const fastOptions = {
+        organizationId: orgParam,
+        includeInactive: false,
+        includeExtended: true,
+        includeThumbnails: true,
+        includeColorsBasic: true,
+        includeMarketingData: true,
+        includeFormData: true,
+        includeAdvancedSettings: false,
+        dataDetailLevel: 'full' as 'full' | 'ultra' | 'standard'
+      };
+
+      let data, error;
+
+      try {
+        // استخدام الدالة الجديدة أولاً
+        data = await getProductCombinedDataUltraFast(productSlug, fastOptions);
+        error = null;
+      } catch (rpcErr: any) {
+        console.warn('⚠️ [ProductLoader] فشل API الجديد، استخدام fallback:', rpcErr.message);
+        error = rpcErr;
+
+        // إذا فشل API الجديد، جرب الدالة القديمة كـ fallback
+        try {
+          const { supabase } = await import('@/lib/supabase');
+          const fallbackResult = await supabase.rpc('get_product_complete_data_ultra_optimized' as any, {
+            p_product_identifier: productSlug,
+            p_organization_id: orgParam,
+            p_include_inactive: false,
+            p_data_scope: 'full',
+            p_include_large_images: false
+          });
+
+          data = fallbackResult.data;
+          error = fallbackResult.error;
+        } catch (fallbackErr: any) {
+          console.warn('⚠️ [ProductLoader] فشل fallback أيضاً:', fallbackErr.message);
+          error = fallbackErr;
+        }
       }
 
       const executionTime = performance.now() - startTime;

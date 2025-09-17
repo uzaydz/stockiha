@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect, useRef } from 'react';
 import { useSearchDebounce } from '@/hooks/useSearchDebounce';
-import { useSharedStoreData } from '@/hooks/useSharedStoreData';
+import { useSharedStoreDataContext } from '@/context/SharedStoreDataContext';
 import { useTenant } from '@/context/TenantContext';
 import { getStoreProductsPage } from '@/lib/api/store-products';
 import { updateLanguageFromSettings } from '@/lib/language/languageManager';
@@ -94,16 +94,7 @@ export const ProductsPageProvider: React.FC<{
   });
   
   // استخدام البيانات المشتركة أولاً - تفعيل جلب المنتجات الكاملة
-  const { products: sharedProducts, categories, isLoading: sharedLoading, error: sharedError, refreshData } = useSharedStoreData({
-    includeProducts: true, // ✅ تفعيل جلب المنتجات الكاملة من البداية
-    includeFeaturedProducts: true,
-    includeCategories: true,
-    enabled: true,
-    forceStoreFetch: true, // ✅ إجبار الجلب حتى على النطاقات العامة عندما نكون في صفحة المتجر
-    // إعطاء الأولوية للبيانات المحملة مسبقاً
-    staleTime: 5 * 60 * 1000, // 5 دقائق
-    cacheTime: 10 * 60 * 1000, // 10 دقائق
-  } as any);
+  const { products: sharedProducts, categories, isLoading: sharedLoading, error: sharedError, refreshData } = useSharedStoreDataContext();
   const { currentOrganization } = useTenant();
 
   // جلب إضافي فقط إذا لم تكن البيانات متوفرة من useSharedStoreData
@@ -114,10 +105,32 @@ export const ProductsPageProvider: React.FC<{
   const [fullError, setFullError] = useState<string | null>(null);
   const [meta, setMeta] = useState<{ total_count: number; total_pages: number; current_page: number; page_size: number } | null>(null);
 
-  // تتبع ديناميكي لمعرف المؤسسة: من props، context، أو localStorage أو حدث system
-  const [resolvedOrgId, setResolvedOrgId] = useState<string | null>(
-    propOrganizationId || currentOrganization?.id || (typeof window !== 'undefined' ? localStorage.getItem('bazaar_organization_id') : null) || null
-  );
+  // 🔥 إصلاح: تحسين الحصول على organizationId مع إضافة subdomain detection
+  const [resolvedOrgId, setResolvedOrgId] = useState<string | null>(() => {
+    // أولوية للمعرف المرسل من props أو context
+    if (propOrganizationId || currentOrganization?.id) {
+      return propOrganizationId || currentOrganization?.id;
+    }
+    
+    // محاولة الحصول على organizationId من subdomain/hostname
+    try {
+      const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+      if (hostname.includes('.stockiha.com')) {
+        const subdomain = hostname.split('.')[0];
+        if (subdomain && subdomain !== 'www' && subdomain !== 'stockiha') {
+          // البحث في localStorage أو early data للحصول على organizationId المطابق للsubdomain
+          const win: any = typeof window !== 'undefined' ? window : {};
+          const earlyData = win.__EARLY_STORE_DATA__?.data || win.__PREFETCHED_STORE_DATA__ || null;
+          if (earlyData?.organization_details?.id) {
+            return earlyData.organization_details.id;
+          }
+        }
+      }
+    } catch {}
+    
+    // fallback إلى localStorage
+    return typeof window !== 'undefined' ? localStorage.getItem('bazaar_organization_id') : null;
+  });
 
   // استمع لتحديثات المؤسسة القادمة من useSharedStoreData (organizationDataUpdated)
   useEffect(() => {
@@ -234,20 +247,31 @@ export const ProductsPageProvider: React.FC<{
 
       abortControllerRef.current = new AbortController();
       try {
-        // تحديد المعرّف للنطاقات المخصصة أو subdomain
+        // 🔥 إصلاح: تحديد المعرّف للنطاقات المخصصة أو subdomain بشكل محسن
         let orgIdentifier = orgId;
         try {
           const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
           const isLocal = hostname.includes('localhost') || hostname.startsWith('127.');
+          
           if (!isLocal && hostname) {
             if (hostname.includes('stockiha.com')) {
               const parts = hostname.split('.');
-              if (parts.length >= 3) orgIdentifier = parts[0];
+              if (parts.length >= 3 && parts[0] !== 'www') {
+                // استخدام subdomain مباشرة للمتاجر
+                orgIdentifier = parts[0];
+                console.log('🏪 [PRODUCTS-CONTEXT] استخدام subdomain كمعرف:', orgIdentifier);
+              }
             } else {
+              // نطاق مخصص
               orgIdentifier = hostname.startsWith('www.') ? hostname.substring(4) : hostname;
+              console.log('🌐 [PRODUCTS-CONTEXT] استخدام نطاق مخصص كمعرف:', orgIdentifier);
             }
+          } else {
+            console.log('💻 [PRODUCTS-CONTEXT] استخدام organizationId كمعرف:', orgIdentifier);
           }
-        } catch {}
+        } catch (error) {
+          console.warn('⚠️ [PRODUCTS-CONTEXT] خطأ في تحديد المعرف:', error);
+        }
 
         const sortMap: Record<string, 'newest' | 'name_asc' | 'name_desc' | 'price_low' | 'price_high'> = {
           'newest': 'newest',

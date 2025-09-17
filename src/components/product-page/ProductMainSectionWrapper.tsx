@@ -84,6 +84,7 @@ export const ProductMainSectionWrapper = memo<ProductMainSectionWrapperProps>((p
     };
   }, [props]);
 
+
   // إذا البيانات غير صحيحة، اعرض loading (تجاهل حالة الترجمة مؤقتًا)
   if (!safeProps) {
     return (

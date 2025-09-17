@@ -4,8 +4,8 @@ import { Routes, Route } from 'react-router-dom';
 // Router that renders StorePage or Landing based on hostname
 import StoreRouter from '@/components/routing/StoreRouter';
 
-// Provide store shared data once at app level
-import { SharedStoreDataProvider } from '@/context/SharedStoreDataContext';
+// Data providers are handled by ConditionalProviders - no need for duplicate
+import { ProductsPageProvider } from '@/context/ProductsPageContext';
 import { Navigate, useParams } from 'react-router-dom';
 
 const ProductV3 = React.lazy(() => import('@/pages/product-v3/ProductPurchasePageV3Container'));
@@ -25,50 +25,50 @@ const StoreApp: React.FC = () => {
     return <Navigate to={`/product-purchase-max-v3/${productId ?? ''}`} replace />;
   };
   return (
-    <SharedStoreDataProvider>
-      <Routes>
-        {/* Legacy product routes redirect to v3 */}
-        <Route path="/product-purchase-max-v2/:productId" element={<RedirectToV3 />} />
-        <Route path="/product-purchase-max/:productId" element={<RedirectToV3 />} />
-        <Route path="/product-max/:productId" element={<RedirectToV3 />} />
-        {/* Product V3 explicit routes used in production links */}
-        <Route path="/product-purchase-max-v3/:productId" element={
-          <Suspense fallback={<Loader />}>
-            <ProductV3 />
-          </Suspense>
-        } />
-        {/* Legacy/alternative product routes */}
-        <Route path="/product/:productIdentifier" element={
-          <Suspense fallback={<Loader />}>
-            <ProductV3 />
-          </Suspense>
-        } />
-        <Route path="/product/*" element={
-          <Suspense fallback={<Loader />}>
-            <ProductV3 />
-          </Suspense>
-        } />
-        {/* Store products page */}
-        <Route path="/products" element={
-          <Suspense fallback={<Loader />}>
+    <Routes>
+      {/* Legacy product routes redirect to v3 */}
+      <Route path="/product-purchase-max-v2/:productId" element={<RedirectToV3 />} />
+      <Route path="/product-purchase-max/:productId" element={<RedirectToV3 />} />
+      <Route path="/product-max/:productId" element={<RedirectToV3 />} />
+      {/* Product V3 explicit routes used in production links */}
+      <Route path="/product-purchase-max-v3/:productId" element={
+        <Suspense fallback={<Loader />}>
+          <ProductV3 />
+        </Suspense>
+      } />
+      {/* Legacy/alternative product routes */}
+      <Route path="/product/:productIdentifier" element={
+        <Suspense fallback={<Loader />}>
+          <ProductV3 />
+        </Suspense>
+      } />
+      <Route path="/product/*" element={
+        <Suspense fallback={<Loader />}>
+          <ProductV3 />
+        </Suspense>
+      } />
+      {/* Store products page */}
+      <Route path="/products" element={
+        <Suspense fallback={<Loader />}>
+          <ProductsPageProvider>
             <StoreProducts />
-          </Suspense>
-        } />
-        {/* Cart pages */}
-        <Route path="/cart" element={
-          <Suspense fallback={<Loader />}>
-            <CartPage />
-          </Suspense>
-        } />
-        <Route path="/cart/checkout" element={
-          <Suspense fallback={<Loader />}>
-            <CartCheckoutPage />
-          </Suspense>
-        } />
-        {/* Default: store/landing router */}
-        <Route path="/*" element={<StoreRouter />} />
-      </Routes>
-    </SharedStoreDataProvider>
+          </ProductsPageProvider>
+        </Suspense>
+      } />
+      {/* Cart pages */}
+      <Route path="/cart" element={
+        <Suspense fallback={<Loader />}>
+          <CartPage />
+        </Suspense>
+      } />
+      <Route path="/cart/checkout" element={
+        <Suspense fallback={<Loader />}>
+          <CartCheckoutPage />
+        </Suspense>
+      } />
+      {/* Default: store/landing router */}
+      <Route path="/*" element={<StoreRouter />} />
+    </Routes>
   );
 };
 

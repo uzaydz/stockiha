@@ -31,6 +31,9 @@ export default {
       return handleApiProxy(request, url, ctx, optimizationContext);
     }
 
+    // 4) 🛠️ Cloudflare API Routes for domain management (now handled by Functions)
+    // Note: These are now handled by /functions/api/ routes, no need for Worker handling
+
     if (isMainDomain(hostname)) {
       return handleMainDomain(request, url, ctx, env, optimizationContext);
     } else if (isSubdomain(hostname)) {
@@ -55,7 +58,7 @@ const MAX_LINK_HINTS = 8;
 const ASSET_REGEX =
   /\.(?:js|mjs|css|png|jpe?g|webp|gif|ico|woff2?|ttf|otf|svg|wasm|map)$/i;
 
-// WebView User Agents for social media apps
+// WebView User Agents for social media apps - improved detection to avoid false positives
 const WEBVIEW_PATTERNS = [
   /FBAN|FBAV/i, // Facebook
   /Instagram/i, // Instagram
@@ -67,7 +70,9 @@ const WEBVIEW_PATTERNS = [
   /LinkedInApp/i, // LinkedIn
   /Snapchat/i, // Snapchat
   /Pinterest/i, // Pinterest
-  /wv|Version.*Chrome.*Mobile/i // Generic WebView
+  // More specific WebView detection - exclude regular Chrome Android
+  /(wv|WebView).*(Version|Chrome).*Mobile/i, // Generic WebView with better specificity
+  /Android.*wv.*Chrome/i // Android WebView with wv flag
 ];
 
 // Critical resources that should be preloaded aggressively in WebView
@@ -80,9 +85,9 @@ const CRITICAL_RESOURCES = {
 // Cache durations for different content types (in seconds)
 const CACHE_DURATIONS = {
   html: {
-    browser: 300,    // 5 minutes
-    edge: 900,       // 15 minutes  
-    staleTime: 120   // 2 minutes
+    browser: 60,     // 1 minute (reduced for freshness)
+    edge: 120,       // 2 minutes (reduced for SWR)
+    staleTime: 30    // 30 seconds
   },
   api: {
     browser: 60,     // 1 minute
@@ -131,6 +136,25 @@ function extractSubdomain(h) {
   if (!h.endsWith(".stockiha.com")) return null;
   const [first] = h.split(".");
   return first === "www" ? null : first;
+}
+
+function extractOrganizationId(hostname) {
+  // First try subdomain extraction for stockiha.com domains
+  if (hostname.endsWith(".stockiha.com")) {
+    const subdomain = extractSubdomain(hostname);
+    if (subdomain) return subdomain;
+  }
+
+  // For custom domains, return the hostname without www for client-side processing
+  // The client-side script will handle the organization lookup via API
+  let cleanHostname = hostname;
+  if (cleanHostname.startsWith("www.")) {
+    cleanHostname = cleanHostname.substring(4);
+  }
+  
+  // Return the clean hostname as identifier for custom domains
+  // This allows the client-side to make the proper API call
+  return cleanHostname;
 }
 function buildPagesUrl(url) {
   return PAGES_ORIGIN + url.pathname + url.search;
@@ -213,64 +237,7 @@ function applyExpires(headers, secondsFromNow) {
   headers.set('Expires', expires);
 }
 
-// Decide if content is compressible
-function isCompressibleContentType(contentType, pathname = '') {
-  const ct = (contentType || '').toLowerCase();
-  if (!ct && pathname) {
-    const lower = pathname.toLowerCase();
-    if (lower.endsWith('.css') || lower.endsWith('.js') || lower.endsWith('.mjs') || lower.endsWith('.html') || lower.endsWith('.svg') || lower.endsWith('.json')) {
-      return true;
-    }
-  }
-  return (
-    ct.startsWith('text/') ||
-    ct.includes('javascript') ||
-    ct.includes('json') ||
-    ct === 'image/svg+xml' ||
-    ct.includes('xml') ||
-    ct === 'application/xhtml+xml'
-  );
-}
 
-// Enhanced Gzip compression with better performance
-async function maybeCompressResponse(response, request, pathname = '') {
-  try {
-    const acceptEncoding = request.headers.get('accept-encoding') || '';
-    if (!/gzip/i.test(acceptEncoding)) return response;
-
-    const alreadyEncoded = response.headers.get('Content-Encoding');
-    if (alreadyEncoded) return response;
-
-    if (!response.body) return response;
-
-    const status = response.status || 200;
-    if (status === 204 || status === 304) return response;
-
-    const ct = response.headers.get('Content-Type') || '';
-    if (!isCompressibleContentType(ct, pathname)) return response;
-
-    // Use Web Streams CompressionStream API
-    if (typeof CompressionStream === 'undefined') return response;
-    
-    // Enhanced compression for better ratio
-    const gzip = new CompressionStream('gzip');
-    const compressedBody = response.body.pipeThrough(gzip);
-
-    const h = new Headers(response.headers);
-    h.set('Content-Encoding', 'gzip');
-    h.set('Vary', 'Accept-Encoding');
-    h.delete('Content-Length');
-    
-    // Add compression quality indicator
-    h.set('X-Compression-Applied', 'gzip');
-    h.set('X-Compression-Quality', 'high');
-
-    return new Response(compressedBody, { status: response.status, headers: h });
-  } catch (err) {
-    console.error('Compression failed:', err);
-    return response;
-  }
-}
 
 // Enhanced performance optimization for problem URLs
 function getPerformanceHeaders(pathname, isWebView) {
@@ -328,9 +295,10 @@ async function handleCustomDomain(request, url, ctx, env, hostname, optimization
   const isHtmlLike = isHtmlNavigationRequest(request, url.pathname);
   upstream.pathname = isHtmlLike ? '/store.html' : url.pathname;
   upstream.search = url.search;
-  return proxyTurbo(upstream.toString(), request, ctx, {
+  
+  // مبسط للنطاقات المخصصة - تقليل الـ headers للحد الأدنى
+  return proxyTurboSimple(upstream.toString(), request, ctx, {
     "X-Domain-Type": "custom",
-    "X-Custom-Domain": hostname,
     "X-Forwarded-Host": hostname,
   }, optimizationContext);
 }
@@ -338,6 +306,81 @@ async function handleCustomDomain(request, url, ctx, env, hostname, optimization
 /* =========================
    Turbo Proxy Core
    ========================= */
+
+// دالة مبسطة للنطاقات المخصصة فقط - بدون تعقيدات HTMLRewriter
+async function proxyTurboSimple(pagesUrl, inboundRequest, ctx, extraHeaders = {}, optimizationContext = {}) {
+  const method = inboundRequest.method || "GET";
+  const urlObj = new URL(pagesUrl);
+  const { isWebView = false } = optimizationContext;
+
+  // ── STATIC ASSETS: مخزن مؤقت بسيط ──────────────────────────────
+  const isAsset = method === "GET" && ASSET_REGEX.test(urlObj.pathname);
+  if (isAsset) {
+    return serveAssetWithEdgeCache(urlObj, inboundRequest, ctx, extraHeaders, optimizationContext);
+  }
+
+  // ── HTML/JSON/API: جلب مباشر بدون تعديلات معقدة ─────────────────────────
+  let response;
+  try {
+    response = await fetch(urlObj.toString(), {
+      method,
+      headers: stripAndForwardHeaders(inboundRequest.headers),
+      cf: {
+        cacheEverything: false,
+        minify: { 
+          html: false, // تعطيل minify للنطاقات المخصصة
+          css: false, 
+          javascript: false 
+        },
+        polish: "off", // تعطيل polish للنطاقات المخصصة
+        mirage: false, // تعطيل mirage للنطاقات المخصصة
+        scrapeShield: false,
+      },
+      redirect: "follow",
+    });
+  } catch (e) {
+    return new Response("Fetch Failed for Custom Domain", { status: 502 });
+  }
+
+  if (!response) return new Response("No response", { status: 502 });
+
+  if (!response.ok && response.status >= 500) {
+    return new Response(`Error from Pages: ${response.status}`, { status: response.status });
+  }
+
+  const headers = new Headers(response.headers);
+
+  // ✅ Headers أساسية ومبسطة للنطاقات المخصصة
+  const accept = inboundRequest.headers.get("accept") || "";
+  const isLikelyHTML = accept.includes("text/html") || urlObj.pathname.endsWith(".html");
+
+  if (isLikelyHTML) {
+    headers.set("Cache-Control", "public, max-age=60, s-maxage=120"); // كاش بسيط
+  } else if (urlObj.pathname.endsWith(".json") || urlObj.pathname.includes("/rpc/")) {
+    headers.set("Cache-Control", "public, max-age=300, s-maxage=600"); // كاش API بسيط
+  }
+
+  // Headers أمان أساسية فقط
+  headers.set("X-Content-Type-Options", "nosniff");
+  headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  
+  // إضافة CSP محسن للنطاقات المخصصة يدعم Cloudflare Insights
+  if (isLikelyHTML) {
+    const cspPolicy = `default-src 'self' data: blob:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://connect.facebook.net https://www.googletagmanager.com https://www.google-analytics.com https://analytics.tiktok.com https://js.sentry-cdn.com https://static.cloudflareinsights.com; script-src-elem 'self' 'unsafe-inline' https://connect.facebook.net https://www.googletagmanager.com https://www.google-analytics.com https://analytics.tiktok.com https://js.sentry-cdn.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https: blob: https://*.cloudflareinsights.com; font-src 'self' https://fonts.gstatic.com data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.yalidine.app https://api.cloudflare.com https://dns.google.com https://cloudflareinsights.com https://*.cloudflareinsights.com https://analytics.tiktok.com https://openrouter.ai https://api.zrexpress.dz https://api.ecotrack.dz https://*.ecotrack.dz https://www.google-analytics.com https://stats.g.doubleclick.net https://region1.google-analytics.com https://connect.facebook.net https://www.facebook.com; frame-src 'self' https://www.facebook.com https://connect.facebook.net https://www.instagram.com https://*.instagram.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self' https://www.instagram.com https://*.instagram.com https://www.facebook.com https://*.facebook.com; upgrade-insecure-requests`;
+    headers.set("Content-Security-Policy", cspPolicy);
+  }
+
+  // Vary للضغط
+  ensureVaryAcceptEncoding(headers);
+
+  // إضافة headers إضافية مبسطة
+  for (const [k, v] of Object.entries(extraHeaders || {})) {
+    if (v != null) headers.set(k, String(v));
+  }
+
+  return new Response(response.body, { status: response.status, headers });
+}
+
 async function proxyTurbo(pagesUrl, inboundRequest, ctx, extraHeaders = {}, optimizationContext = {}) {
   const method = inboundRequest.method || "GET";
   const urlObj = new URL(pagesUrl);
@@ -369,7 +412,14 @@ async function proxyTurbo(pagesUrl, inboundRequest, ctx, extraHeaders = {}, opti
       redirect: "follow",
     });
   } catch (e) {
-    return new Response("Upstream Fetch Failed", { status: 502 });
+    // Try to return cached version on fetch failure
+    const cache = caches.default;
+    const cacheKey = new Request(urlObj.toString(), { method });
+    const cached = await cache.match(cacheKey);
+    if (cached) {
+      return cached;
+    }
+    return new Response("Upstream Fetch Failed - No cache available", { status: 502 });
   }
 
   if (!response) return new Response("No response", { status: 502 });
@@ -414,10 +464,33 @@ async function proxyTurbo(pagesUrl, inboundRequest, ctx, extraHeaders = {}, opti
       // Enhanced image optimization for WebView
       .on("img", {
         element(el) {
-          const src = el.getAttribute("src") || "";
+          let src = el.getAttribute("src") || "";
           const cls = el.getAttribute("class") || "";
           const sizes = el.getAttribute("sizes") || "";
           const alt = el.getAttribute("alt") || "";
+
+          // Optimize images from Supabase by routing through Cloudflare Image Resizer
+          if (src.includes("wrnssatuvmumsczyldth.supabase.co")) {
+            try {
+              // Extract width from sizes attribute or use default
+              let width = 800; // default width
+              if (sizes) {
+                const sizeMatch = sizes.match(/(\d+)px/);
+                if (sizeMatch) {
+                  width = parseInt(sizeMatch[1]);
+                }
+              }
+
+              // Build Cloudflare Image Resizer URL
+              const imageResizerUrl = `/img?url=${encodeURIComponent(src)}&w=${width}&q=75&f=auto`;
+              el.setAttribute("src", imageResizerUrl);
+
+              // Update src for preload hints too
+              src = imageResizerUrl;
+            } catch (e) {
+              console.warn('Failed to optimize image URL:', e);
+            }
+          }
 
           // More aggressive optimization for WebView
           const isCritical = cls.includes("optimized-image") || 
@@ -434,9 +507,12 @@ async function proxyTurbo(pagesUrl, inboundRequest, ctx, extraHeaders = {}, opti
               el.setAttribute("decoding", "sync");
             }
 
-            // Only preload hero/banner images that are immediately visible
-            // Further reduced to prevent unused preload warnings
-            if (mainAssets.length < 1 && (cls.includes("hero") || cls.includes("banner") || alt.includes("logo"))) {
+            // تحسين preload للصور - فقط في النطاقات الفرعية وليس المخصصة
+            const hostname = new URL(inboundRequest.url).hostname;
+            const isCustomDomain = !hostname.endsWith('.stockiha.com') && hostname !== 'stockiha.com';
+            
+            // تجنب preload في النطاقات المخصصة لمنع تحذيرات الموارد غير المستخدمة
+            if (!isCustomDomain && mainAssets.length < 1 && (cls.includes("hero") || cls.includes("banner") || alt.includes("logo"))) {
               const priority = isWebView ? "high" : "high";
               linkHints.add(`<${src}>; rel=preload; as=image; fetchpriority=${priority}`);
               mainAssets.push(src);
@@ -457,20 +533,15 @@ async function proxyTurbo(pagesUrl, inboundRequest, ctx, extraHeaders = {}, opti
         element(el) {
           const src = el.getAttribute("src");
           const type = el.getAttribute("type") || "";
-          // Bust potentially bad CDN entries for store bundle
-          if (src) {
-            try {
-              if ((src.startsWith('/assets/store-') || src.includes('/assets/store-')) && !src.includes('__cfv=')) {
-                const joiner = src.includes('?') ? '&' : '?';
-                el.setAttribute('src', `${src}${joiner}__cfv=2`);
-              }
-            } catch {}
-          }
+          // Removed cache busting injection to avoid cache issues
           
-          // Reduce script preloads to prevent unused warnings
-          if (src && mainAssets.length < Math.min(maxHints, 3)) {
-            // Only preload truly critical scripts
-            if ((src.includes('store-') || src.includes('main') || src.includes('app')) && 
+          // تحسين preload للسكريبتات - فقط في النطاقات الفرعية
+          const hostname = new URL(inboundRequest.url).hostname;
+          const isCustomDomain = !hostname.endsWith('.stockiha.com') && hostname !== 'stockiha.com';
+          
+          if (!isCustomDomain && src && mainAssets.length < 1) {
+            // Only preload the most critical script (main app script)
+            if ((src.includes('store-') || src.includes('main') || src.includes('app')) &&
                 !src.includes('chunk') && !src.includes('vendor')) {
               linkHints.add(`<${src}>; rel=preload; as=script; fetchpriority=high`);
               el.setAttribute("fetchpriority", "high");
@@ -491,19 +562,40 @@ async function proxyTurbo(pagesUrl, inboundRequest, ctx, extraHeaders = {}, opti
         element(el) {
           const href = el.getAttribute("href");
           const media = el.getAttribute("media") || "";
+
+          // تحسين preload للـ CSS - فقط في النطاقات الفرعية
+          const hostname = new URL(inboundRequest.url).hostname;
+          const isCustomDomain = !hostname.endsWith('.stockiha.com') && hostname !== 'stockiha.com';
           
-          // Reduce CSS preloads to prevent unused warnings
-          if (href && mainAssets.length < Math.min(maxHints, 2)) {
-            // Only preload critical CSS
+          if (!isCustomDomain && href && mainAssets.length < 1) {
+            // Only preload the most critical CSS
             if (href.includes('main') || href.includes('app') || href.includes('critical') || href.includes('index')) {
               linkHints.add(`<${href}>; rel=preload; as=style; fetchpriority=high`);
               mainAssets.push(href);
             }
           }
-          
+
           // Optimize CSS loading for WebView
           if (isWebView && media !== "print") {
             el.setAttribute("fetchpriority", href.includes('critical') ? "high" : "low");
+          }
+        },
+      })
+      // Add font-display: swap for better font loading performance
+      .on('link[rel="stylesheet"][href*="fonts.googleapis.com"]', {
+        element(el) {
+          const href = el.getAttribute("href");
+          if (href && href.includes('fonts.googleapis.com')) {
+            try {
+              // Add font-display=swap parameter to Google Fonts URLs
+              const url = new URL(href);
+              if (!url.searchParams.has('display')) {
+                url.searchParams.set('display', 'swap');
+                el.setAttribute("href", url.toString());
+              }
+            } catch (e) {
+              console.warn('Failed to add font-display to Google Fonts URL:', e);
+            }
           }
         },
       })
@@ -520,6 +612,127 @@ async function proxyTurbo(pagesUrl, inboundRequest, ctx, extraHeaders = {}, opti
               <meta name="theme-color" content="#ffffff">
               <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
             `, { html: true });
+          }
+
+          // ✅ Open Graph optimization for product pages
+          if (urlObj.pathname.includes('product-purchase-max-v3')) {
+            try {
+              // Extract organizationId and productSlug from URL
+              const pathParts = urlObj.pathname.split('/');
+              const productSlug = pathParts[pathParts.length - 1];
+              const organizationId = extractOrganizationId(urlObj.hostname);
+
+              if (organizationId && productSlug) {
+                // Add Open Graph meta tags with fallback values
+                // These will be replaced by React Helmet when the page loads
+                el.append(`
+                  <meta property="og:type" content="product" />
+                  <meta property="og:site_name" content="متجر إلكتروني" />
+                  <meta name="twitter:card" content="summary_large_image" />
+                  <meta name="robots" content="index, follow" />
+                `, { html: true });
+
+                // Add script to fetch and update OG data dynamically
+                const script = `
+                  <script>
+                    (function() {
+                      try {
+                        // Extract organizationId from URL or window object
+                        let organizationId = null;
+                        const hostname = window.location.hostname;
+
+                        // Try to get from subdomain
+                        if (hostname.endsWith('.stockiha.com')) {
+                          const parts = hostname.split('.');
+                          if (parts.length > 2 && parts[0] !== 'www') {
+                            organizationId = parts[0];
+                          }
+                        }
+
+                        // Try to get from window object (set by the app)
+                        if (!organizationId && window.__TENANT_CONTEXT_ORG__) {
+                          organizationId = window.__TENANT_CONTEXT_ORG__.id;
+                        }
+
+                        // Extract productSlug from URL
+                        const pathParts = window.location.pathname.split('/');
+                        const productSlug = pathParts[pathParts.length - 1];
+
+                        if (organizationId && productSlug) {
+                          const ogApiUrl = '/api/product-og?organizationId=' + organizationId + '&productSlug=' + productSlug;
+                          fetch(ogApiUrl, {
+                            method: 'GET',
+                            headers: { 'Accept': 'application/json' }
+                          })
+                          .then(function(response) {
+                            return response.ok ? response.json() : null;
+                          })
+                          .then(function(data) {
+                            if (data) {
+                              updateMetaTags(data);
+                            }
+                          })
+                          .catch(function(err) {
+                            console.warn('Failed to fetch OG data:', err);
+                          });
+                        }
+
+                        function updateMetaTags(ogData) {
+                          const head = document.head;
+                          if (!head) return;
+
+                          // Helper to update or create meta tag
+                          function setMetaTag(name, content, isProperty) {
+                            const selector = isProperty ? 'meta[property="' + name + '"]' : 'meta[name="' + name + '"]';
+                            let meta = head.querySelector(selector);
+                            if (!meta) {
+                              meta = document.createElement('meta');
+                              if (isProperty) meta.setAttribute('property', name);
+                              else meta.setAttribute('name', name);
+                              head.appendChild(meta);
+                            }
+                            meta.setAttribute('content', content);
+                          }
+
+                          // Update title
+                          if (ogData.title) {
+                            document.title = ogData.title;
+                          }
+
+                          // Update Open Graph tags
+                          setMetaTag('og:title', ogData.title, true);
+                          setMetaTag('og:description', ogData.description, true);
+                          setMetaTag('og:image', ogData.image, true);
+                          setMetaTag('og:url', ogData.url, true);
+                          setMetaTag('og:site_name', ogData.site_name, true);
+
+                          // Update Twitter tags
+                          setMetaTag('twitter:title', ogData.title);
+                          setMetaTag('twitter:description', ogData.description);
+                          setMetaTag('twitter:image', ogData.image);
+
+                          // Update product specific tags
+                          if (ogData.price) {
+                            setMetaTag('product:price:amount', ogData.price.amount, true);
+                            setMetaTag('product:price:currency', ogData.price.currency, true);
+                          }
+                          if (ogData.availability) {
+                            setMetaTag('product:availability', ogData.availability, true);
+                          }
+
+                          console.log('✅ [OG] Meta tags updated for social sharing');
+                        }
+                      } catch (e) {
+                        console.warn('Error updating OG tags:', e);
+                      }
+                    })();
+                  </script>
+                `;
+                el.append(script, { html: true });
+              }
+            } catch (e) {
+              console.warn('Error in OG meta injection:', e);
+            }
           }
           
           // Performance optimization meta tags for all browsers
@@ -655,11 +868,9 @@ async function proxyTurbo(pagesUrl, inboundRequest, ctx, extraHeaders = {}, opti
     if (v != null) headers.set(k, String(v));
   }
 
-  // Apply compression for all responses
+  // Return response with headers (compression handled by Cloudflare Brotli)
   const responseWithHeaders = new Response(response.body, { status: response.status, headers });
-  const compressedResponse = await maybeCompressResponse(responseWithHeaders, inboundRequest, urlObj.pathname);
-  
-  return compressedResponse;
+  return responseWithHeaders;
 }
 
 /* =========================
@@ -719,11 +930,9 @@ async function serveAssetWithEdgeCache(urlObj, inboundRequest, ctx, extraHeaders
 
   const out = new Response(resp.body, { status: resp.status, headers });
   
-  // Apply compression for assets too
-  const compressedAsset = await maybeCompressResponse(out, inboundRequest, urlObj.pathname);
-  
-  ctx.waitUntil(cache.put(cacheKey, compressedAsset.clone()));
-  return compressedAsset;
+  // Cache and return asset (compression handled by Cloudflare Brotli)
+  ctx.waitUntil(cache.put(cacheKey, out.clone()));
+  return out;
 }
 
 /* =========================
@@ -737,12 +946,10 @@ async function handleApiProxy(request, url, ctx, optimizationContext = {}) {
     const proxyPath = url.pathname.replace('/api-proxy/', '');
     const supabaseUrl = `https://wrnssatuvmumsczyldth.supabase.co/${proxyPath}${url.search}`;
     
-    // Create cache key based on URL and important headers
+    // Create cache key based on URL only (exclude sensitive headers to prevent fragmentation)
     const cacheKey = new Request(supabaseUrl, {
       method: request.method,
       headers: {
-        'authorization': request.headers.get('authorization') || '',
-        'apikey': request.headers.get('apikey') || '',
         'content-type': request.headers.get('content-type') || ''
       }
     });
@@ -763,12 +970,18 @@ async function handleApiProxy(request, url, ctx, optimizationContext = {}) {
       }
     }
     
-    // Forward request to Supabase
+    // Forward request to Supabase with timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
     const supabaseResponse = await fetch(supabaseUrl, {
       method: request.method,
-      headers: request.headers,
+      headers: stripAndForwardHeaders(request.headers), // Filter sensitive headers
       body: request.method !== 'GET' ? request.body : undefined,
+      signal: controller.signal,
     });
+
+    clearTimeout(timeoutId);
     
     const headers = new Headers(supabaseResponse.headers);
     
@@ -801,6 +1014,9 @@ async function handleApiProxy(request, url, ctx, optimizationContext = {}) {
     return passthrough;
     
   } catch (error) {
+    if (error.name === 'AbortError') {
+      return new Response('API Proxy Timeout: Request took too long', { status: 504 });
+    }
     return new Response('API Proxy Error: ' + error.message, { status: 502 });
   }
 }
@@ -910,18 +1126,18 @@ function stripAndForwardHeaders(inHeaders) {
 
 function applySecurityHeaders(h, isWebView = false) {
   h.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
-  
-  // Adjust security headers for WebView compatibility
+
+  // Use CSP frame-ancestors instead of X-Frame-Options for better security
   if (isWebView) {
-    // More relaxed frame options for WebView embedding
-    h.set("X-Frame-Options", "SAMEORIGIN");
+    // More relaxed frame ancestors for WebView embedding
+    h.set("Content-Security-Policy", "frame-ancestors 'self' *.stockiha.com;");
     // Simplified permissions policy for WebView
     h.set("Permissions-Policy", "geolocation=(), microphone=(), camera=()");
   } else {
-    h.set("X-Frame-Options", "DENY");
+    h.set("Content-Security-Policy", "frame-ancestors 'none';");
     h.set("Permissions-Policy", "geolocation=(), microphone=(), camera=(), payment=()");
   }
-  
+
   h.set("X-Content-Type-Options", "nosniff");
   h.set("Referrer-Policy", "strict-origin-when-cross-origin");
 }

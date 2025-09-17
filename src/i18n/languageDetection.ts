@@ -21,10 +21,20 @@ export const getDefaultLanguageFromDatabase = async (useImmediateCache = false):
   try {
     // الحصول على subdomain من URL الحالي أو حل المؤسسة من الدومين المخصص
     const currentHost = window.location.hostname;
-    subdomain = currentHost.split('.')[0];
     const isLocalhost = currentHost.includes('localhost') || currentHost.startsWith('127.');
     const platformDomains = ['.ktobi.online', '.stockiha.com', '.bazaar.dev', '.vercel.app', '.bazaar.com'];
     const isPlatform = platformDomains.some(d => currentHost.endsWith(d));
+
+    // تحقق إذا كان النطاق المخصص أم لا
+    const isCustomDomain = !isLocalhost && !isPlatform && currentHost !== 'ktobi.online' && currentHost !== 'www.ktobi.online' && currentHost !== 'stockiha.com' && currentHost !== 'www.stockiha.com';
+
+    if (isCustomDomain) {
+      // للنطاقات المخصصة، استخدم النطاق كاملاً
+      subdomain = currentHost;
+    } else {
+      // للنطاقات الفرعية، استخدم الجزء الأول فقط
+      subdomain = currentHost.split('.')[0];
+    }
 
     langLog('getDefaultLanguageFromDatabase:start', { currentHost, useImmediateCache });
 
@@ -93,19 +103,40 @@ export const getDefaultLanguageFromDatabase = async (useImmediateCache = false):
         targetOrgId = localStorage.getItem('bazaar_organization_id');
         if (!targetOrgId) return 'ar'; // fallback
       } else {
-        // عند الدومين المخصص: لا تبحث بـ subdomain، حاول حل المؤسسة بالدومين
-        if (!isPlatform && !isLocalhost) {
+        // استخدام نفس منطق isCustomDomain المحدد في البداية
+        if (isCustomDomain) {
+          // للنطاقات المخصصة، ابحث في عمود domain
+          langLog('getDefaultLanguageFromDatabase:using-custom-domain-search', { currentHost });
           const org = await getOrganizationByDomain(currentHost).catch(() => null);
-          targetOrgId = org?.id || localStorage.getItem('bazaar_organization_id');
-          if (!targetOrgId) return 'ar';
-        } else {
-          // المنصة: البحث التقليدي بـ subdomain (قد يكون UUID في حالات التطوير)
+          targetOrgId = org?.id;
+          if (!targetOrgId) {
+            langWarn('getDefaultLanguageFromDatabase:custom-domain-not-found -> ar', { currentHost });
+            return 'ar';
+          }
+        } else if (isPlatform) {
+          // للنطاقات الفرعية في المنصة، ابحث في عمود subdomain
           if (subdomain === 'www') {
             return 'ar';
           }
+          langLog('getDefaultLanguageFromDatabase:using-subdomain-search', { subdomain });
           const org = await getOrganizationBySubdomain(subdomain).catch(() => null);
           targetOrgId = org?.id;
-          if (!targetOrgId) { langWarn('getDefaultLanguageFromDatabase:no-targetOrgId(platform) -> ar'); return 'ar'; }
+          if (!targetOrgId) { 
+            langWarn('getDefaultLanguageFromDatabase:no-targetOrgId(platform) -> ar', { subdomain }); 
+            return 'ar'; 
+          }
+        } else {
+          // fallback: محاولة البحث بالنطاق أولاً، ثم بالsubdomain
+          langLog('getDefaultLanguageFromDatabase:using-fallback-search', { currentHost, subdomain });
+          let org = await getOrganizationByDomain(currentHost).catch(() => null);
+          if (!org && subdomain && subdomain !== currentHost) {
+            org = await getOrganizationBySubdomain(subdomain).catch(() => null);
+          }
+          targetOrgId = org?.id || localStorage.getItem('bazaar_organization_id');
+          if (!targetOrgId) {
+            langWarn('getDefaultLanguageFromDatabase:fallback-failed -> ar', { currentHost, subdomain });
+            return 'ar';
+          }
         }
       }
     }

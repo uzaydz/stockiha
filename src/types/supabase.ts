@@ -21879,10 +21879,6 @@ export type Database = {
           order_index: number
         }[]
       }
-      get_store_basic_data: {
-        Args: { org_subdomain: string }
-        Returns: Json
-      }
       get_store_categories: {
         Args: { org_id: string; limit_count?: number }
         Returns: Json
@@ -21926,6 +21922,24 @@ export type Database = {
         Returns: Json
       }
       get_store_init_data: {
+        Args: { org_identifier: string }
+        Returns: Json
+      }
+      get_store_init_data_partial: {
+        Args: { org_identifier: string; requested_sections?: string[] }
+        Returns: Json
+      }
+      get_product_complete_data_ultra_optimized: {
+        Args: {
+          p_product_identifier: string;
+          p_organization_id?: string;
+          p_include_inactive?: boolean;
+          p_data_scope?: string;
+          p_include_large_images?: boolean
+        }
+        Returns: Json
+      }
+      get_store_basic_data: {
         Args: { org_identifier: string }
         Returns: Json
       }

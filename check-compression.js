@@ -5,7 +5,10 @@
 
 const urls = [
   'https://aaa75b28.stockiha.pages.dev/',
-  'https://aaa75b28.stockiha.pages.dev/assets/index-BCrguqEN.js'
+  'https://aaa75b28.stockiha.pages.dev/assets/index-BCrguqEN.js',
+  'https://aaa75b28.stockiha.pages.dev/assets/App-DlYqrMdk.css',
+  'https://aaa75b28.stockiha.pages.dev/images/logo-new.webp',
+  'https://aaa75b28.stockiha.pages.dev/assets/main-MJUAg7Cp.js'
 ];
 
 async function checkCompression(url) {

@@ -70,7 +70,7 @@ const BannerImage = React.memo<BannerImageProps>(({
       // فحص البيانات من مصادر window object مختلفة
       const sharedData = (window as any).__SHARED_STORE_DATA__;
       const currentData = (window as any).__CURRENT_STORE_DATA__;
-      const earlyData = (window as any).__EARLY_STORE_DATA__;
+      const earlyData = (window as any).__EARLY_STORE_DATA__ || (window as any).__PREFETCHED_STORE_DATA__;
       
       if ((sharedData?.organization && sharedData?.organizationSettings) ||
           (currentData?.organization && currentData?.organizationSettings) ||

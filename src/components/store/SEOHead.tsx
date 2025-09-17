@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { useSharedStoreData } from '@/hooks/useSharedStoreData';
+import { useSharedStoreDataContext } from '@/context/SharedStoreDataContext';
 import { setStoreHeadActive } from '@/lib/headGuard';
 
 interface SEOHeadProps {
@@ -12,28 +12,24 @@ interface SEOHeadProps {
   useGlobalFallback?: boolean;
 }
 
-const SEOHead: React.FC<SEOHeadProps> = ({ 
-  seoSettings, 
-  storeName, 
+const SEOHead: React.FC<SEOHeadProps> = ({
+  seoSettings,
+  storeName,
   organizationId,
-  customCSS, 
+  customCSS,
   customJSHeader,
   useGlobalFallback = true
 }) => {
-  // 🔒 استخدام البيانات من useSharedStoreData بدلاً من الاستدعاءات المنفصلة
-  const { organizationSettings, seoMeta, isLoading: sharedLoading } = useSharedStoreData({
-    includeSeoMeta: true,
-    includeFooterSettings: true,
-    enabled: useGlobalFallback
-  });
-
-  // Flag head control while SEOHead is mounted
+  // Flag head control while SEOHead is mounted - يجب أن يكون أول hook
   useEffect(() => {
     try { setStoreHeadActive(true); } catch {}
     return () => {
       try { setStoreHeadActive(false); } catch {}
     };
   }, []);
+
+  // 🔒 استخدام البيانات من useSharedStoreDataContext بدلاً من إنشاء instance جديد
+  const { organizationSettings, seoMeta, isLoading: sharedLoading } = useSharedStoreDataContext();
 
   // دمج الإعدادات مع البيانات المشتركة
   const finalSeoSettings = React.useMemo(() => {

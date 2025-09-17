@@ -19,11 +19,27 @@ CREATE POLICY "subscription_plans_public_read"
 
 -- Create authenticated write policy for subscription plans
 -- Only authenticated users can create/update/delete subscription plans
-CREATE POLICY "subscription_plans_authenticated_write"
+CREATE POLICY "subscription_plans_super_admin_write"
   ON subscription_plans
   FOR ALL
-  USING (auth.role() = 'authenticated')
-  WITH CHECK (auth.role() = 'authenticated');
+  USING (
+    EXISTS (
+      SELECT 1
+      FROM users
+      WHERE users.id = auth.uid()
+        AND users.is_super_admin = TRUE
+    )
+    OR auth.role() = 'service_role'
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1
+      FROM users
+      WHERE users.id = auth.uid()
+        AND users.is_super_admin = TRUE
+    )
+    OR auth.role() = 'service_role'
+  );
 
 -- Verify the fix by checking policies
 DO $$

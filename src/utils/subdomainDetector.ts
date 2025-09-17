@@ -5,7 +5,7 @@
 export interface SubdomainInfo {
   subdomain: string | null;
   isSubdomain: boolean;
-  domainType: 'main' | 'subdomain';
+  domainType: 'main' | 'subdomain' | 'custom-domain';
   originalHost?: string;
 }
 
@@ -47,11 +47,25 @@ export function getSubdomainInfo(): SubdomainInfo {
   }
 
   // النطاق الرئيسي stockiha.com
-  if (hostname === 'stockiha.com') {
+  if (hostname === 'stockiha.com' || hostname === 'www.stockiha.com') {
     return {
       subdomain: null,
       isSubdomain: false,
       domainType: 'main',
+      originalHost: hostname
+    };
+  }
+
+  // 🔥 دعم النطاقات المخصصة
+  // النطاقات التي ليست من النطاقات الأساسية تعتبر نطاقات مخصصة
+  const baseDomains = ['.ktobi.online', '.stockiha.com', '.bazaar.dev', '.vercel.app', '.bazaar.com'];
+  const isBaseDomain = baseDomains.some(domain => hostname.endsWith(domain));
+
+  if (!isBaseDomain && !hostname.includes('localhost') && !hostname.includes('127.0.0.1')) {
+    return {
+      subdomain: hostname.replace(/^www\./, ''), // إزالة www إذا كان موجوداً
+      isSubdomain: true,
+      domainType: 'custom-domain',
       originalHost: hostname
     };
   }

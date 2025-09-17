@@ -27,6 +27,7 @@ export interface UseUnifiedProductPageDataProps {
   // بيانات أولية جاهزة للحقن (من DOM/worker) لتسريع الظهور الأول
   initialData?: UnifiedProductPageData;
   initialDataUpdatedAt?: number;
+  queryKey?: string[];
 }
 
 /**

@@ -280,10 +280,10 @@ const createOptimizedSupabaseClient = (): SupabaseClient<Database> => {
       debug: false, // تعطيل debug في production
     },
     realtime: {
-      // ✅ تحسين إعدادات WebSocket لتقليل الاستهلاك
+      // ✅ تحسين إعدادات WebSocket للشبكات البطيئة
       transport: typeof window !== 'undefined' ? window.WebSocket : undefined,
-      timeout: 60000, // زيادة إلى دقيقة واحدة
-      heartbeatIntervalMs: 60000, // ✅ زيادة إلى دقيقة واحدة
+      timeout: 300000, // زيادة إلى 5 دقائق للشبكات البطيئة
+      heartbeatIntervalMs: 120000, // زيادة إلى 2 دقيقة للشبكات البطيئة
       params: {
         eventsPerSecond: 1,
         maxRetries: 1,
@@ -299,6 +299,19 @@ const createOptimizedSupabaseClient = (): SupabaseClient<Database> => {
         'X-Creation-Time': new Date().toISOString(),
         'x-application-name': 'bazaar-console',
         'X-Client-Version': '3.0.0'
+      },
+      // 🚀 تحسين timeout للشبكات البطيئة
+      fetch: (url: RequestInfo | URL, options: RequestInit = {}) => {
+        // زيادة timeout بشكل كبير للشبكات البطيئة
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 240000); // 4 دقائق
+
+        return fetch(url, {
+          ...options,
+          signal: controller.signal,
+        }).finally(() => {
+          clearTimeout(timeoutId);
+        });
       }
     }
   });

@@ -48,17 +48,30 @@ export async function linkDomainCloudflare(domain, organizationId) {
 
     // الحصول على معلومات المشروع من متغيرات البيئة العامة
     const CLOUDFLARE_PROJECT_NAME = getCloudflareProjectName();
-    
-    // التحقق من إعدادات Cloudflare عبر API Route الآمن
-    const configResponse = await fetch('/api/cloudflare-config');
-    const configData = await configResponse.json();
 
-    if (!configData.hasConfig) {
+    // التحقق المباشر من إعدادات Cloudflare باستخدام الدوال المساعدة
+    const CLOUDFLARE_API_TOKEN = getCloudflareToken();
+    const CLOUDFLARE_ZONE_ID = getCloudflareZoneId();
+    const CLOUDFLARE_PROJECT_NAME_CHECK = getCloudflareProjectName();
+
+    if (!CLOUDFLARE_API_TOKEN || !CLOUDFLARE_ZONE_ID || !CLOUDFLARE_PROJECT_NAME_CHECK) {
+      console.error('❌ متغيرات البيئة المطلوبة مفقودة:', {
+        hasToken: !!CLOUDFLARE_API_TOKEN,
+        hasZoneId: !!CLOUDFLARE_ZONE_ID,
+        hasProjectName: !!CLOUDFLARE_PROJECT_NAME_CHECK
+      });
+
       return {
         success: false,
-        error: 'لم يتم تكوين متغيرات البيئة اللازمة للاتصال بـ Cloudflare API.'
+        error: 'لم يتم تكوين متغيرات البيئة اللازمة للاتصال بـ Cloudflare API. يرجى إضافة VITE_CLOUDFLARE_API_TOKEN و VITE_CLOUDFLARE_PROJECT_NAME و VITE_CLOUDFLARE_ZONE_ID.'
       };
     }
+
+    console.log('✅ إعدادات Cloudflare متوفرة:', {
+      hasToken: !!CLOUDFLARE_API_TOKEN,
+      hasZoneId: !!CLOUDFLARE_ZONE_ID,
+      hasProjectName: !!CLOUDFLARE_PROJECT_NAME_CHECK
+    });
 
     // سنستخدم API Route للتعامل مع Cloudflare API بدلاً من الاتصال المباشر
     // هذا أكثر أماناً ولا يتطلب كشف المتغيرات الحساسة
@@ -135,20 +148,32 @@ export async function linkDomainCloudflare(domain, organizationId) {
       .single();
 
     try {
-      // التحقق من حالة النطاق عبر API Route
-      const verificationResponse = await fetch('/api/cloudflare-domains', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action: 'verify-domain',
-          domain: cleanDomain
-        })
-      });
+      // التحقق من حالة النطاق عبر API Route (محاولة اختيارية)
+      let verificationStatus = { verified: false, message: null };
 
-      const verificationResult = await verificationResponse.json();
-      const verificationStatus = verificationResult.success ? { verified: true, message: null } : { verified: false, message: verificationResult.error };
+      try {
+        const verificationResponse = await fetch('/api/cloudflare-domains', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            action: 'verify-domain',
+            domain: cleanDomain
+          })
+        });
+
+        if (verificationResponse.ok) {
+          const verificationResult = await verificationResponse.json();
+          verificationStatus = verificationResult.success ? { verified: true, message: null } : { verified: false, message: verificationResult.error };
+        } else {
+          console.warn('Verification API not available:', verificationResponse.status);
+          verificationStatus = { verified: false, message: 'API غير متوفر - سيتم التحقق يدوياً' };
+        }
+      } catch (verificationError) {
+        console.warn('Verification failed:', verificationError);
+        verificationStatus = { verified: false, message: 'فشل في التحقق - سيتم التحقق يدوياً' };
+      }
 
       // تخزين معلومات التحقق في قاعدة البيانات
       const { data: existingRecord } = await supabase
@@ -264,16 +289,29 @@ export async function removeDomainCloudflare(domain, organizationId) {
       };
     }
 
-    // التحقق من إعدادات Cloudflare عبر API Route الآمن
-    const configResponse = await fetch('/api/cloudflare-config');
-    const configData = await configResponse.json();
+    // التحقق المباشر من إعدادات Cloudflare لعملية الإزالة
+    const CLOUDFLARE_API_TOKEN_REMOVE = getCloudflareToken();
+    const CLOUDFLARE_ZONE_ID_REMOVE = getCloudflareZoneId();
+    const CLOUDFLARE_PROJECT_NAME_REMOVE = getCloudflareProjectName();
 
-    if (!configData.hasConfig) {
+    if (!CLOUDFLARE_API_TOKEN_REMOVE || !CLOUDFLARE_ZONE_ID_REMOVE || !CLOUDFLARE_PROJECT_NAME_REMOVE) {
+      console.error('❌ متغيرات البيئة المطلوبة مفقودة لعملية الإزالة:', {
+        hasToken: !!CLOUDFLARE_API_TOKEN_REMOVE,
+        hasZoneId: !!CLOUDFLARE_ZONE_ID_REMOVE,
+        hasProjectName: !!CLOUDFLARE_PROJECT_NAME_REMOVE
+      });
+
       return {
         success: false,
-        error: 'لم يتم تكوين متغيرات البيئة اللازمة للاتصال بـ Cloudflare API.'
+        error: 'لم يتم تكوين متغيرات البيئة اللازمة للاتصال بـ Cloudflare API. يرجى إضافة VITE_CLOUDFLARE_API_TOKEN و VITE_CLOUDFLARE_PROJECT_NAME و VITE_CLOUDFLARE_ZONE_ID.'
       };
     }
+
+    console.log('✅ إعدادات Cloudflare متوفرة لعملية الإزالة:', {
+      hasToken: !!CLOUDFLARE_API_TOKEN_REMOVE,
+      hasZoneId: !!CLOUDFLARE_ZONE_ID_REMOVE,
+      hasProjectName: !!CLOUDFLARE_PROJECT_NAME_REMOVE
+    });
 
     // إزالة النطاق عبر API Route الآمن
     const removeResponse = await fetch('/api/cloudflare-domains', {

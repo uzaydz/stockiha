@@ -96,10 +96,29 @@ export function StoreNavbar({
   
   // 🚀 إضافة fallback من window object إذا لم تكن البيانات متوفرة
   const windowStoreData = (window as any).__CURRENT_STORE_DATA__;
-  const windowEarlyData = (window as any).__EARLY_STORE_DATA__;
+  const windowEarlyData = (window as any).__EARLY_STORE_DATA__ || (window as any).__PREFETCHED_STORE_DATA__;
   
   const storeInfoLoading = !storeInfo;
   
+  let storeName: string | null = null;
+  let logoUrl: string | null = null;
+
+  // البحث عن اسم المتجر من مصادر متعددة
+  storeName = storeInfo?.name ||
+              sharedOrg?.name ||
+              windowStoreData?.organization?.name ||
+              windowEarlyData?.data?.organization_details?.name ||
+              (window as any).__STORE_ORGANIZATION__?.name ||
+              null;
+
+  // البحث عن رابط الشعار من مصادر متعددة
+  logoUrl = storeInfo?.logo_url ||
+            sharedOrgSettings?.logo_url ||
+            windowStoreData?.organizationSettings?.logo_url ||
+            windowEarlyData?.data?.organization_settings?.logo_url ||
+            (window as any).__STORE_SETTINGS__?.logo_url ||
+            null;
+
   // إضافة logs لتتبع البيانات في Navbar
   if (process.env.NODE_ENV === 'development') {
     console.log('🎯 [StoreNavbar] البيانات المتوفرة:', {
@@ -116,21 +135,26 @@ export function StoreNavbar({
       // إضافة معلومات إضافية للتشخيص
       storeInfoLoading: storeInfoLoading,
       currentOrganization: currentOrganization?.name,
-      currentOrganizationId: currentOrganization?.id
+      currentOrganizationId: currentOrganization?.id,
+      // البيانات الجديدة
+      hasStoreOrganization: !!(window as any).__STORE_ORGANIZATION__,
+      hasStoreSettings: !!(window as any).__STORE_SETTINGS__,
+      storeOrgName: (window as any).__STORE_ORGANIZATION__?.name,
+      storeSettingsLogo: (window as any).__STORE_SETTINGS__?.logo_url,
+      storeSettingsSiteName: (window as any).__STORE_SETTINGS__?.site_name,
+      // إعدادات السلة
+      sharedOrgSettingsCustomJs: sharedOrgSettings?.custom_js,
+      sharedOrgSettingsType: typeof sharedOrgSettings?.custom_js,
+      windowStoreDataCustomJs: windowStoreData?.organizationSettings?.custom_js,
+      windowEarlyDataCustomJs: windowEarlyData?.data?.organization_settings?.custom_js,
+      storeSettingsCustomJs: (window as any).__STORE_SETTINGS__?.custom_js,
+      finalStoreName: storeName,
+      finalLogoUrl: logoUrl,
+      hostname: window.location.hostname,
+      pathname: window.location.pathname,
+      timestamp: new Date().toISOString()
     });
   }
-  
-  const storeName = storeInfo?.name || 
-                   sharedOrg?.name || 
-                   windowStoreData?.organization?.name ||
-                  windowEarlyData?.data?.organization_details?.name ||
-                  null;
-                   
-  const logoUrl = storeInfo?.logo_url || 
-                  sharedOrgSettings?.logo_url || 
-                  windowStoreData?.organizationSettings?.logo_url ||
-                  windowEarlyData?.data?.organization_settings?.logo_url ||
-                  null;
   
   // 🔧 نظام احتياطي لجلب بيانات الشعار
   const [fallbackLogo, setFallbackLogo] = useState<string | null>(null);

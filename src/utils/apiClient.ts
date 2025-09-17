@@ -7,18 +7,44 @@ import type { ApiResponse } from './types/interfaces';
 
 export class ApiClient {
   /**
-   * استدعاء API مع استراتيجية محسنة للنطاق المخصص
+   * استدعاء API مع استراتيجية محسنة للنطاق المخصص - استخدام البيانات المناسبة حسب نوع الصفحة
    */
   static async callStoreInitAPI(storeIdentifier: string, domainType: string): Promise<ApiResponse> {
     try {
       const { supabase } = await import('@/lib/supabase');
-      const { data, error } = await supabase.rpc('get_store_init_data', {
-        org_identifier: storeIdentifier
+
+      // 🔥 تحسين: استخدام البيانات الكاملة مع دعم النطاقات المخصصة
+      const rpcFunction = domainType === 'custom-domain' ? 'get_store_init_data_with_custom_domain_fallback' : 'get_store_init_data';
+      const rpcParams = { org_identifier: storeIdentifier };
+
+      console.log('🔍 [ApiClient] بدء استدعاء API للمتجر:', {
+        storeIdentifier,
+        rpcFunction,
+        timestamp: new Date().toISOString()
       });
 
+      const { data, error } = await supabase.rpc(rpcFunction as any, rpcParams);
+
+      if (data) {
+        console.log('✅ [ApiClient] نجح استدعاء API:', {
+          hasData: !!data,
+          dataSize: JSON.stringify(data).length,
+          timestamp: new Date().toISOString()
+        });
+      }
+
       if (error) {
+        console.log('❌ [ApiClient] فشل استدعاء API:', {
+          error: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+          timestamp: new Date().toISOString()
+        });
+
         // محاولة fallback للنطاق المخصص
         if (domainType === 'custom-domain' && error.message?.includes('Organization not found')) {
+          console.log('🔄 [ApiClient] محاولة fallback للنطاق المخصص');
           return await this.tryCustomDomainFallback(storeIdentifier);
         }
 
@@ -33,6 +59,13 @@ export class ApiClient {
         data: data
       };
     } catch (error: any) {
+      console.log('💥 [ApiClient] خطأ عام في استدعاء API:', {
+        error: error?.message,
+        stack: error?.stack,
+        name: error?.name,
+        timestamp: new Date().toISOString()
+      });
+
       return {
         success: false,
         error: error?.message || 'Network error'
@@ -77,7 +110,7 @@ export class ApiClient {
   private static async getStoreDataByOrganizationId(organizationId: string): Promise<ApiResponse> {
     try {
       const { supabase } = await import('@/lib/supabase');
-      const { data, error } = await supabase.rpc('get_store_init_data', {
+      const { data, error } = await supabase.rpc('get_store_init_data_with_custom_domain_fallback' as any, {
         org_identifier: organizationId
       });
 
@@ -105,7 +138,7 @@ export class ApiClient {
     try {
       // استخدام الـ RPC مباشرة عبر Supabase client
       const { supabase } = await import('@/lib/supabase');
-      const { data, error } = await supabase.rpc('get_store_init_data', {
+      const { data, error } = await supabase.rpc('get_store_init_data_with_custom_domain_fallback' as any, {
         org_identifier: storeIdentifier
       });
 

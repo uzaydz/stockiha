@@ -5,7 +5,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useTenant } from '@/context/TenantContext';
-import { useSharedStoreData } from '@/hooks/useSharedStoreData';
+import { useSharedStoreDataContext } from '@/context/SharedStoreDataContext';
 import { supabase } from '@/lib/supabase-client';
 
 // أنواع البيانات الموحدة
@@ -228,12 +228,7 @@ export const OrganizationDataProvider: React.FC<{ children: ReactNode }> = ({ ch
     organizationSettings,
     isLoading: sharedLoading,
     error: sharedError
-  } = useSharedStoreData({
-    includeProducts: true,
-    includeCategories: true,
-    includeFooterSettings: true,
-    enabled: !!currentOrganization?.id
-  });
+  } = useSharedStoreDataContext();
 
   // تحديث حالة التحميل
   useEffect(() => {

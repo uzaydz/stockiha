@@ -22,3 +22,8 @@ VITE_CLOUDFLARE_ZONE_ID = "e873d0f47d42ef6898c34e8f37990c40"
 NODE_ENV = "production"
 ENVIRONMENT = "production"
 VITE_ENABLE_IMG_CDN = "true"
+
+# متغيرات البيئة للـ Functions
+CF_API_TOKEN = "4scqw64VztAyUV-G8tadasQcJbxoBoxaJZoQRq6C"
+CF_ZONE_ID = "e873d0f47d42ef6898c34e8f37990c40"
+CF_PROJECT_NAME = "stockiha"

@@ -12,6 +12,16 @@ interface CustomDomainResult {
   strategy?: string;
 }
 
+interface OrganizationDetails {
+  id: string;
+  subdomain: string;
+  domain?: string;
+}
+
+interface StoreInitData {
+  organization_details: OrganizationDetails;
+}
+
 class CustomDomainOptimizer {
   private static instance: CustomDomainOptimizer;
   private cache: Map<string, { result: CustomDomainResult; timestamp: number }> = new Map();
@@ -25,9 +35,11 @@ class CustomDomainOptimizer {
   }
 
   /**
-   * تحسين النطاق المخصص باستخدام استراتيجيات متعددة
+   * تحسين النطاق المخصص باستخدام استراتيجيات متعددة - محسّن للإنتاج
    */
   async optimizeCustomDomain(hostname: string): Promise<CustomDomainResult> {
+    console.log('🌐 [CustomDomainOptimizer] بدء تحسين النطاق:', hostname);
+
     // 🔥 فحص النطاقات العامة أولاً - لا تحتاج تحسين
     const publicDomains = ['stockiha.pages.dev', 'ktobi.online', 'www.ktobi.online', 'stockiha.com', 'www.stockiha.com'];
     if (publicDomains.includes(hostname)) {
@@ -37,6 +49,10 @@ class CustomDomainOptimizer {
         strategy: 'public-domain-skip'
       };
     }
+
+    // إضافة استراتيجية جديدة: البحث بالنطاق بدون www أولاً
+    const cleanHostname = hostname.replace(/^www\./, '');
+    console.log('🔄 [CustomDomainOptimizer] البحث بالنطاق النظيف:', cleanHostname);
     
     // فحص cache أولاً
     const cached = this.cache.get(hostname);
@@ -44,11 +60,29 @@ class CustomDomainOptimizer {
       return cached.result;
     }
 
-    // الاستراتيجية 1: البحث المباشر في النطاق
+    // الاستراتيجية 0: البحث بالنطاق النظيف (بدون www) إذا كان مختلفاً
+    if (cleanHostname !== hostname) {
+      let result = await this.strategyDirectDomain(cleanHostname);
+      if (result.success) {
+        this.cacheResult(hostname, result, 'clean-domain-first');
+        return result;
+      }
+    }
+
+    // الاستراتيجية 1: البحث المباشر في النطاق الأصلي
     let result = await this.strategyDirectDomain(hostname);
     if (result.success) {
       this.cacheResult(hostname, result, 'direct-domain');
       return result;
+    }
+
+    // الاستراتيجية 1.5: البحث بالنطاق النظيف إذا لم ينجح الأصلي
+    if (cleanHostname !== hostname) {
+      result = await this.strategyDirectDomain(cleanHostname);
+      if (result.success) {
+        this.cacheResult(hostname, result, 'clean-domain-fallback');
+        return result;
+      }
     }
 
     // الاستراتيجية 2: استخراج subdomain من النطاق
@@ -88,30 +122,55 @@ class CustomDomainOptimizer {
    */
   private async strategyDirectDomain(hostname: string): Promise<CustomDomainResult> {
     try {
+      console.log('🌐 [CustomDomainOptimizer] البحث المباشر بالنطاق:', hostname);
       
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
       if (!supabaseUrl || !supabaseAnonKey) {
+        console.warn('⚠️ [CustomDomainOptimizer] متغيرات البيئة مفقودة');
         return { success: false, error: 'Missing environment variables' };
       }
 
       // استخدام الـ RPC مباشرة عبر Supabase client
       const { supabase } = await import('@/lib/supabase');
-      const { data, error } = await supabase.rpc('get_store_init_data', {
+      
+      console.log('🔍 [CustomDomainOptimizer] استدعاء get_store_init_data_with_custom_domain_fallback مع:', hostname);
+      const { data, error } = await supabase.rpc('get_store_init_data_with_custom_domain_fallback' as any, {
         org_identifier: hostname
       });
 
-      if (!error && data.organization_details?.id) {
+      console.log('📊 [CustomDomainOptimizer] نتيجة RPC:', { 
+        hasData: !!data, 
+        hasError: !!error, 
+        error: error?.message || error 
+      });
+
+      const typedData = data as unknown as StoreInitData | null;
+
+      if (!error && typedData?.organization_details?.id) {
+        console.log('✅ [CustomDomainOptimizer] تم العثور على المؤسسة:', {
+          id: typedData.organization_details.id,
+          subdomain: typedData.organization_details.subdomain,
+          domain: hostname
+        });
+        
         return {
           success: true,
-          organizationId: data.organization_details.id,
-          subdomain: data.organization_details.subdomain,
+          organizationId: typedData.organization_details.id,
+          subdomain: typedData.organization_details.subdomain,
           domain: hostname,
           strategy: 'direct-domain'
         };
+      } else {
+        console.warn('⚠️ [CustomDomainOptimizer] لم يتم العثور على المؤسسة في RPC:', { 
+          error: error?.message || error,
+          hasData: !!data,
+          dataError: typeof data === 'object' && data && 'error' in data ? (data as any).error : 'no error field'
+        });
       }
     } catch (error) {
+      console.error('❌ [CustomDomainOptimizer] خطأ في البحث المباشر:', error);
     }
 
     return { success: false };

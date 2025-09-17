@@ -1226,9 +1226,6 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
       p_images: additional_images && additional_images.length > 0 ? 
         additional_images.map((url, index) => ({ image_url: url, sort_order: index + 1 })) : null,
       p_wholesale_tiers: wholesale_tiers && wholesale_tiers.length > 0 ? JSON.parse(JSON.stringify(wholesale_tiers)) : null,
-      // تمرير الحقول الإضافية التي يدعمها الإجراء المخزن
-      p_special_offers_config: (updates as any)?.special_offers_config || null,
-      p_advanced_description: (updates as any)?.advanced_description || null,
       p_user_id: user.id
     });
 

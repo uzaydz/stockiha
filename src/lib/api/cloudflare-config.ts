@@ -6,7 +6,17 @@
 export const getCloudflareToken = (): string => {
   // في التطوير، نستخدم المتغيرات المحلية
   // في الإنتاج، نستخدم API Route الآمن
-  return import.meta.env?.VITE_CLOUDFLARE_API_TOKEN || '';
+  const token = import.meta.env?.VITE_CLOUDFLARE_API_TOKEN || '';
+
+  // Debug logging
+  console.log('🔑 getCloudflareToken:', {
+    hasToken: !!token,
+    tokenLength: token?.length || 0,
+    env: typeof import.meta.env,
+    viteToken: import.meta.env?.VITE_CLOUDFLARE_API_TOKEN
+  });
+
+  return token;
 };
 
 // الحصول على معرف مشروع Cloudflare Pages
@@ -19,31 +29,50 @@ export const getCloudflareProjectName = (): string => {
 export const getCloudflareZoneId = (): string => {
   // في التطوير، نستخدم المتغيرات المحلية
   // في الإنتاج، نستخدم API Route الآمن
-  return import.meta.env?.VITE_CLOUDFLARE_ZONE_ID || '';
+  const zoneId = import.meta.env?.VITE_CLOUDFLARE_ZONE_ID || '';
+
+  // Debug logging
+  console.log('🏠 getCloudflareZoneId:', {
+    hasZoneId: !!zoneId,
+    zoneIdLength: zoneId?.length || 0,
+    viteZoneId: import.meta.env?.VITE_CLOUDFLARE_ZONE_ID
+  });
+
+  return zoneId;
 };
 
-// التحقق من توفر متغيرات Cloudflare API (عبر API Route الآمن)
+// التحقق من توفر متغيرات Cloudflare API (مباشرة دون API Route)
 export const hasCloudflareConfig = async (): Promise<boolean> => {
   try {
-    const response = await fetch('/api/cloudflare-config');
-    const data = await response.json();
-    
-    
-    return data.hasConfig;
+    // التحقق المباشر من المتغيرات دون الاعتماد على API endpoint
+    const token = getCloudflareToken();
+    const zoneId = getCloudflareZoneId();
+    const projectName = getCloudflareProjectName();
+
+    const hasConfig = !!(token && zoneId && projectName);
+
+    console.log('🔍 فحص إعدادات Cloudflare:', {
+      hasToken: !!token,
+      hasZoneId: !!zoneId,
+      hasProjectName: !!projectName,
+      hasConfig
+    });
+
+    return hasConfig;
   } catch (error) {
     console.error('❌ خطأ في التحقق من إعدادات Cloudflare:', error);
     return false;
   }
 };
 
-// النسخة المتزامنة للتحقق السريع (تعتمد فقط على PROJECT_NAME)
+// النسخة المتزامنة للتحقق السريع (تعتمد على جميع المتغيرات)
 export const hasCloudflareConfigSync = (): boolean => {
+  const token = getCloudflareToken();
+  const zoneId = getCloudflareZoneId();
   const projectName = getCloudflareProjectName();
-  
-  
-  // نعتبر الإعدادات متوفرة إذا كان اسم المشروع موجود
-  // الفحص الكامل يتم عبر hasCloudflareConfig()
-  return !!projectName;
+
+  // نعتبر الإعدادات متوفرة إذا كانت جميع المتغيرات موجودة
+  return !!(token && zoneId && projectName);
 };
 
 // الحصول على عنوان Cloudflare API

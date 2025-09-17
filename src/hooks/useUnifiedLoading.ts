@@ -46,8 +46,9 @@ export const useUnifiedLoading = (): UseUnifiedLoadingReturn => {
       const windowEarlyData = (window as any).__EARLY_STORE_DATA__;
       const windowSharedData = (window as any).__SHARED_STORE_DATA__;
       const windowCurrentData = (window as any).__CURRENT_STORE_DATA__;
+      const windowPrefetchedData = (window as any).__PREFETCHED_STORE_DATA__;
       
-      if (windowEarlyData?.data || windowSharedData || windowCurrentData) {
+      if (windowEarlyData?.data || windowSharedData || windowCurrentData || windowPrefetchedData) {
         if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {
           console.log('🎯 [useUnifiedLoading] Data already available, stopping loading immediately');
         }

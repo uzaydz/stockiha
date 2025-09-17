@@ -1,123 +1,82 @@
-// ملف JavaScript لتحميل الثيم مبكراً قبل تحميل React
-// يتم تضمينه في HTML لتحسين الأداء
+// earlyThemeLoader.js - ملف تحميل الثيم المبكر
+// يتم تحميل هذا الملف مبكراً لتطبيق الثيم قبل عرض الصفحة
 
 (function() {
   'use strict';
 
-  // دالة لتحويل HEX إلى HSL
-  function hexToHSL(hex) {
-    hex = hex.replace(/^#/, '');
-    if (!/^[0-9A-F]{6}$/i.test(hex)) {
-      return '0 0% 50%';
-    }
-
-    const r = parseInt(hex.substring(0, 2), 16) / 255;
-    const g = parseInt(hex.substring(2, 4), 16) / 255;
-    const b = parseInt(hex.substring(4, 6), 16) / 255;
-
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    let h = 0, s = 0, l = (max + min) / 2;
-
-    if (max !== min) {
-      const d = max - min;
-      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-
-      switch (max) {
-        case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-        case g: h = (b - r) / d + 2; break;
-        case b: h = (r - g) / d + 4; break;
-      }
-
-      h /= 6;
-    }
-
-    h = Math.round(h * 360);
-    s = Math.round(s * 100);
-    l = Math.round(l * 100);
-
-    return `${h} ${s}% ${l}%`;
-  }
-
-  // دالة للحصول على مفتاح التخزين للثيم
-  function getThemeStorageKey(hostname) {
-    return `org_theme_${hostname}`;
-  }
-
-  // دالة لتطبيق الثيم على DOM مباشرة
+  // دالة لتطبيق الثيم المبكر من البيانات المحفوظة
   function applyEarlyTheme() {
     try {
-      // الحصول على البيانات المحفوظة من التحميل المسبق
-      const prefetchData = localStorage.getItem('bazaar_prefetch_data');
-      if (!prefetchData) return;
+      // الحصول على البيانات من localStorage أو window object
+      const earlyData = window.__EARLY_STORE_DATA__?.data || window.__PREFETCHED_STORE_DATA__;
+      const cachedData = localStorage.getItem('bazaar_prefetch_data');
 
-      const data = JSON.parse(prefetchData);
-      if (!data.settings) return;
+      let themeSettings = null;
 
-      const settings = data.settings;
-      const root = document.documentElement;
-
-      // تطبيق اللغة فوراً
-      if (settings.default_language) {
-        const direction = settings.default_language === 'ar' ? 'rtl' : 'ltr';
-        root.setAttribute('dir', direction);
-        if (document.body) {
-          document.body.setAttribute('dir', direction);
+      if (earlyData?.organization_settings) {
+        themeSettings = earlyData.organization_settings;
+      } else if (cachedData) {
+        const parsed = JSON.parse(cachedData);
+        if (parsed.settings) {
+          themeSettings = parsed.settings;
         }
       }
 
-      // تطبيق الألوان فوراً
-      if (settings.theme_primary_color || settings.theme_secondary_color) {
-        const primaryHSL = hexToHSL(settings.theme_primary_color || '#fc5a3e');
-        const secondaryHSL = hexToHSL(settings.theme_secondary_color || '#6b21a8');
+      if (!themeSettings) return;
 
-        // تطبيق الألوان الأساسية
-        root.style.setProperty('--primary', primaryHSL, 'important');
-        root.style.setProperty('--secondary', secondaryHSL, 'important');
-        root.style.setProperty('--ring', primaryHSL, 'important');
-
-        // تطبيق وضع الثيم
-        const themeMode = settings.theme_mode || 'light';
-        const effectiveMode = themeMode === 'system' ?
-          (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light') :
-          themeMode;
-
-        root.classList.add(effectiveMode);
-        if (document.body) {
-          document.body.classList.add(effectiveMode);
-        }
-
-        root.setAttribute('data-theme', effectiveMode);
-        if (document.body) {
-          document.body.setAttribute('data-theme', effectiveMode);
-        }
-
-        // تحديث meta theme-color
-        const metaThemeColor = document.querySelector('meta[name="theme-color"]');
-        if (metaThemeColor) {
-          const themeColor = effectiveMode === 'dark' ? '#111827' : '#ffffff';
-          metaThemeColor.setAttribute('content', themeColor);
-        }
-
-        console.log('🎨 [EarlyThemeLoader] تم تطبيق الثيم المبكر بنجاح');
+      // تطبيق الألوان الأساسية فوراً
+      if (themeSettings.theme_primary_color) {
+        document.documentElement.style.setProperty('--primary', themeSettings.theme_primary_color);
+        document.documentElement.style.setProperty('--primary-foreground', getContrastColor(themeSettings.theme_primary_color));
       }
 
-      // وضع علامة أن الثيم قد تم تطبيقه مبكراً
-      root.setAttribute('data-early-theme-applied', 'true');
+      if (themeSettings.theme_secondary_color) {
+        document.documentElement.style.setProperty('--secondary', themeSettings.theme_secondary_color);
+        document.documentElement.style.setProperty('--secondary-foreground', getContrastColor(themeSettings.theme_secondary_color));
+      }
+
+      // تطبيق اللغة إذا كانت متوفرة
+      if (themeSettings.default_language) {
+        const direction = themeSettings.default_language === 'ar' ? 'rtl' : 'ltr';
+        document.documentElement.setAttribute('dir', direction);
+        document.body.setAttribute('dir', direction);
+      }
+
+      // تطبيق الثيم (فاتح/داكن)
+      if (themeSettings.theme_mode) {
+        document.documentElement.setAttribute('data-theme', themeSettings.theme_mode);
+      }
+
+      // تطبيق CSS مخصص إذا كان متوفراً
+      if (themeSettings.custom_css) {
+        const style = document.createElement('style');
+        style.textContent = themeSettings.custom_css;
+        document.head.appendChild(style);
+      }
 
     } catch (error) {
-      console.warn('⚠️ [EarlyThemeLoader] خطأ في تطبيق الثيم المبكر:', error);
+      console.warn('[earlyThemeLoader] خطأ في تطبيق الثيم المبكر:', error);
     }
   }
 
-  // تشغيل التحميل المبكر للثيم
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', applyEarlyTheme);
-  } else {
-    applyEarlyTheme();
+  // دالة لحساب لون النص المناسب
+  function getContrastColor(hexColor) {
+    try {
+      const r = parseInt(hexColor.slice(1, 3), 16);
+      const g = parseInt(hexColor.slice(3, 5), 16);
+      const b = parseInt(hexColor.slice(5, 7), 16);
+
+      const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+      return brightness > 128 ? '#000000' : '#ffffff';
+    } catch {
+      return '#ffffff'; // لون افتراضي
+    }
   }
 
-  // ربط مع window للاستخدام في التطوير
+  // تطبيق الثيم فوراً عند تحميل الملف
+  applyEarlyTheme();
+
+  // إتاحة الدالة عالمياً للاستخدام اللاحق
   window.applyEarlyTheme = applyEarlyTheme;
 
 })();

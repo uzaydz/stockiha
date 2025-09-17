@@ -20,3 +20,11 @@ export { default as ProductFeatures } from './ProductFeatures';
 export { default as ProductShippingInfo } from './ProductShippingInfo';
 export { default as ProductFormRenderer } from './ProductFormRenderer';
 export { default as ProductOfferTimer } from './ProductOfferTimer';
+
+// مكونات ProductVariantSelector المقسمة
+export { ColorButton } from './ColorButton';
+export { SizeButton } from './SizeButton';
+export { ColorSelector } from './ColorSelector';
+export { SizeSelector } from './SizeSelector';
+export { ValidationErrors } from './ValidationErrors';
+export { useVariantSelector } from './useVariantSelector';

@@ -35,6 +35,7 @@ const SubscriptionStatus: React.FC<SubscriptionStatusProps> = ({ organization, s
   // حساب الأيام المتبقية في الاشتراك
   let daysLeft = 0;
   let isTrialActive = false;
+  const isPending = subscription?.status === 'pending' || organization.subscription_status === 'pending';
   
   if (subscription?.end_date) {
     daysLeft = SubscriptionService.calculateDaysLeft(subscription.end_date);
@@ -53,7 +54,34 @@ const SubscriptionStatus: React.FC<SubscriptionStatusProps> = ({ organization, s
   const handleManageSubscription = () => {
     navigate('/dashboard/subscription');
   };
-  
+
+  if (isPending) {
+    return (
+      <div>
+        <div className="flex items-center space-x-2 mb-2">
+          <Badge variant="outline" className="ml-2">
+            في انتظار التفعيل
+          </Badge>
+          <span className="text-sm text-muted-foreground">
+            جارٍ مراجعة عملية الدفع الخاصة بك
+          </span>
+        </div>
+
+        <Alert className="mb-4">
+          <Clock className="h-4 w-4 ml-2" />
+          <AlertTitle>طلب الاشتراك قيد المراجعة</AlertTitle>
+          <AlertDescription>
+            تم استلام طلب الاشتراك. خلال وقت قصير سيتم تفعيل الخطة وإعلامك فوراً.
+          </AlertDescription>
+        </Alert>
+
+        <Button onClick={handleManageSubscription} variant="outline" size="sm">
+          متابعة حالة الاشتراك
+        </Button>
+      </div>
+    );
+  }
+
   // إذا كان هناك اشتراك نشط
   if (subscription && subscription.status === 'active') {
     return (

@@ -16,15 +16,24 @@ const StorePage: React.FC<StorePageProps> = React.memo(() => {
   const storePageStartTime = useRef(performance.now());
   const renderCount = useRef(0);
   renderCount.current++;
-  
-  console.log('🏪 [STORE-PAGE] تهيئة صفحة المتجر', {
-    renderCount: renderCount.current,
-    startTime: storePageStartTime.current,
-    url: window.location.href,
-    memoryUsage: (performance as any).memory ? {
-      used: Math.round((performance as any).memory.usedJSHeapSize / 1024 / 1024) + 'MB'
-    } : 'غير متوفر'
-  });
+
+  // تقليل رسائل التصحيح لتحسين الأداء - عرض كل 10 renders فقط
+  const shouldLogRender = renderCount.current === 1 || renderCount.current % 10 === 0;
+  if (shouldLogRender) {
+    console.log('🏪 [STORE-PAGE] تهيئة صفحة المتجر', {
+      renderCount: renderCount.current,
+      startTime: storePageStartTime.current,
+      url: window.location.href,
+      memoryUsage: (performance as any).memory ? {
+        used: Math.round((performance as any).memory.usedJSHeapSize / 1024 / 1024) + 'MB'
+      } : 'غير متوفر'
+    });
+  }
+
+  // تحذير للـ renders المتكررة جداً
+  if (renderCount.current > 20) {
+    console.warn('⚠️ [STORE-PAGE] عدد renders مرتفع جداً:', renderCount.current);
+  }
   
   // 🔥 استخدام useRef لمنع إعادة الإنشاء المتكرر
   const isInitialized = useRef(false);
@@ -44,52 +53,47 @@ const StorePage: React.FC<StorePageProps> = React.memo(() => {
     logoUrl,
     centralOrgId,
     currentOrganization,
-    
+
     // بيانات المكونات
     componentsToRender,
-    
+
     // بيانات الفئات والمنتجات
     categories,
     featuredProducts,
-    
+
     // إعدادات
     footerSettings,
     seoSettings,
-    
+
     // حالات التحميل - موحدة
     unifiedLoading,
     isAppReady,
   } = useStorePageData();
 
+  // 🔍 DEBUG: تحليل البيانات المستلمة - عرض كل 5 renders فقط
+  const shouldLogDataAnalysis = renderCount.current === 1 || renderCount.current % 5 === 0;
+  if (shouldLogDataAnalysis) {
+    console.log('🔍 [StorePage] تحليل البيانات من useStorePageData:', {
+      renderCount: renderCount.current,
+      storeName,
+      centralOrgId,
+      componentsToRenderCount: componentsToRender?.length || 0,
+      categoriesCount: categories?.length || 0,
+      featuredProductsCount: featuredProducts?.length || 0,
+      storeInfo: !!storeInfo,
+      organizationSettings: !!organizationSettings,
+      isAppReady,
+      unifiedLoading: {
+        shouldShowGlobalLoader: unifiedLoading?.shouldShowGlobalLoader
+      }
+    });
+  }
+
   // استخدام النظام المركزي للتحميل
   const { showLoader, hideLoader, setPhase, updateProgress, isLoaderVisible } = useGlobalLoading();
   
-  // 🚨 إضافة حالة لإجبار re-render عند وصول البيانات - محسنة لتقليل التكرار
-  const [forceRender, setForceRender] = React.useState(0);
-  const lastDataReadyTime = useRef(0);
-  
-  // 🚨 استماع لأحداث البيانات لإجبار re-calculation - محسن لتجنب التكرار المفرط
-  useEffect(() => {
-    const handleDataReady = () => {
-      const now = Date.now();
-      // منع إعادة الرسم المتكرر خلال 100ms
-      if (now - lastDataReadyTime.current > 100) {
-        lastDataReadyTime.current = now;
-        if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {
-          console.log('🚨 [StorePage] Data ready event received, forcing re-render');
-        }
-        setForceRender(prev => prev + 1);
-      }
-    };
-
-    window.addEventListener('storeDataReady', handleDataReady);
-    window.addEventListener('storeInitDataReady', handleDataReady);
-
-    return () => {
-      window.removeEventListener('storeDataReady', handleDataReady);
-      window.removeEventListener('storeInitDataReady', handleDataReady);
-    };
-  }, []);
+  // 🔥 إصلاح: إزالة forceRender لمنع إعادة render المتكررة
+  // البيانات تأتي الآن مباشرة من useStorePageData دون حاجة لإجبار re-render
 
   // 🔥 إصلاح: منع إعادة الإنشاء المتكرر مع تحسين الـ hydration
   useEffect(() => {
@@ -151,108 +155,111 @@ const StorePage: React.FC<StorePageProps> = React.memo(() => {
     storeName
   ]);
 
-  // 🔥 تحسين: قرار عرض المؤشر محسن مع فحص البيانات المتقدم
+  // 🔥 تحسين: حساب البيانات الصحيحة خارج useMemo
+  const hasBasicData = !!(
+    storeInfo ||
+    currentOrganization ||
+    organizationSettings ||
+    (componentsToRender && componentsToRender.length > 0)
+  );
+
+  const windowData = (window as any);
+  const hasWindowData = !!(
+    windowData.__EARLY_STORE_DATA__?.data ||
+    windowData.__SHARED_STORE_DATA__ ||
+    windowData.__CURRENT_STORE_DATA__ ||
+    windowData.__PREFETCHED_STORE_DATA__
+  );
+
+  const hasValidData = hasBasicData || (hasWindowData && componentsToRender && componentsToRender.length > 0 &&
+    !componentsToRender.every(comp => comp?.id?.startsWith('fallback-')));
+
+  // 🔥 تحسين: قرار عرض المؤشر مبسط ومحسن مع فحص المكونات
   const shouldShowLoader = useMemo(() => {
-    // 🚨 فحص إضافي: البيانات من مصادر مختلفة
-    const windowEarlyData = (window as any).__EARLY_STORE_DATA__;
-    const windowSharedData = (window as any).__SHARED_STORE_DATA__;
-    const windowCurrentStoreData = (window as any).__CURRENT_STORE_DATA__;
-    
-    // فحص وجود البيانات في أي من المصادر
-    const hasWindowData = !!(windowEarlyData?.data || windowSharedData || windowCurrentStoreData);
-    
-    // فحص البيانات الأساسية للمتجر
-    const hasOrganizationData = !!(
-      windowEarlyData?.data?.organization_details ||
-      windowSharedData?.organization ||
-      windowCurrentStoreData?.organization ||
-      currentOrganization
-    );
-    
-    const hasOrganizationSettings = !!(
-      windowEarlyData?.data?.organization_settings ||
-      windowSharedData?.organizationSettings ||
-      windowCurrentStoreData?.organizationSettings
-    );
-    
-    // إذا كانت البيانات متوفرة، لا نحتاج loader
-    const hasValidStoreData = hasOrganizationData || hasOrganizationSettings || storeInfo;
-    
-    // منطق محسن للتحديد
-    let result = false;
-    
-    // أظهر loader فقط إذا:
-    // 1. النظام الموحد يطلب ذلك
-    // 2. أو إذا كان tenant loading ولا توجد بيانات صالحة
-    // 3. أو إذا لم توجد أي بيانات للمتجر
+    // فحص مبسط: إذا كان النظام الموحد يطلب loader، أظهره
     if (unifiedLoading.shouldShowGlobalLoader) {
-      result = true;
-    } else if (tenantLoading && !hasValidStoreData) {
-      result = true;
-    } else if (!hasValidStoreData && !hasWindowData) {
-      result = true;
+      return true;
     }
+
+    // 🔥 إصلاح حاسم: إظهار loader إذا لم تكن هناك مكونات للعرض
+    // هذا يضمن عدم عرض صفحة فارغة أثناء انتظار get_store_init_data
+    const hasComponentsToRender = componentsToRender && componentsToRender.length > 0;
     
-    // 🚀 إجبار عدم إظهار loader إذا كانت البيانات متوفرة
-    if (hasValidStoreData || hasWindowData) {
-      result = false;
-    }
-    
-    // تقليل رسائل التصحيح لتجنب التأثير على الأداء
-    if (process.env.NODE_ENV === 'development' && Math.random() < 0.05) { // 5% فقط
-      console.log('🎯 [StorePage] shouldShowLoader calculation:', {
-        unifiedLoadingShouldShow: unifiedLoading.shouldShowGlobalLoader,
-        tenantLoading,
-        hasCurrentOrganization: !!currentOrganization,
-        hasStoreInfo: !!storeInfo,
+    // أظهر loader إذا:
+    // 1. لا توجد بيانات أساسية
+    // 2. لا توجد بيانات صحيحة 
+    // 3. لا توجد مكونات للعرض (جديد)
+    const shouldShow = !hasBasicData && (!hasValidData || !hasComponentsToRender);
+
+    // تقليل رسائل التصحيح - عرض كل 10 renders فقط
+    if (process.env.NODE_ENV === 'development' && renderCount.current % 10 === 0) {
+      console.log('🎯 [StorePage] shouldShowLoader:', {
+        renderCount: renderCount.current,
+        unifiedLoading: unifiedLoading.shouldShowGlobalLoader,
+        hasBasicData,
         hasWindowData,
-        hasOrganizationData,
-        hasOrganizationSettings,
-        hasValidStoreData,
-        finalResult: result,
-        dataBreakdown: {
-          windowEarlyData: !!windowEarlyData?.data,
-          windowSharedData: !!windowSharedData,
-          windowCurrentStoreData: !!windowCurrentStoreData,
-          currentOrganization: !!currentOrganization,
-          storeInfo: !!storeInfo
-        }
+        hasValidData,
+        hasComponentsToRender,
+        componentsToRenderCount: componentsToRender?.length || 0,
+        shouldShow
       });
     }
-    
-    return result;
-  }, [unifiedLoading.shouldShowGlobalLoader, tenantLoading, currentOrganization?.id, storeInfo?.id, forceRender]);
+
+    return shouldShow;
+  }, [
+    unifiedLoading.shouldShowGlobalLoader,
+    hasBasicData,
+    hasValidData,
+    componentsToRender?.length
+  ]);
 
   // 🔥 تحسين: استخدام useMemo للمكون الرئيسي لمنع إعادة الإنشاء
-  const memoizedStoreContent = useMemo(() => (
-    <>
-      {/* SEO Head */}
-      <SEOHead 
-        storeName={storeName}
-        seoSettings={seoSettings}
-        organizationId={centralOrgId}
-      />
-      
-      {/* Store Layout */}
-      <StoreLayout
-        storeName={storeName}
-        categories={categories}
-        footerSettings={footerSettings}
-        centralOrgId={centralOrgId}
-      >
-        {/* Store Component Renderer */}
-        <StoreComponentRenderer
-          components={componentsToRender}
-          centralOrgId={centralOrgId}
+  const memoizedStoreContent = useMemo(() => {
+    // تقليل رسائل التصحيح - عرض كل 3 renders فقط
+    const shouldLogMemo = renderCount.current === 1 || renderCount.current % 3 === 0;
+    if (shouldLogMemo) {
+      console.log('🔍 [StorePage] إنشاء memoizedStoreContent:', {
+        renderCount: renderCount.current,
+        storeName,
+        centralOrgId,
+        componentsToRenderLength: componentsToRender?.length || 0,
+        categoriesLength: categories?.length || 0,
+        featuredProductsLength: featuredProducts?.length || 0
+      });
+    }
+
+    return (
+      <>
+        {/* SEO Head */}
+        <SEOHead
+          storeName={storeName}
+          seoSettings={seoSettings}
+          organizationId={centralOrgId}
+        />
+
+        {/* Store Layout */}
+        <StoreLayout
           storeName={storeName}
           categories={categories}
-          featuredProducts={featuredProducts}
+          footerSettings={footerSettings}
+          centralOrgId={centralOrgId}
           organizationSettings={organizationSettings}
-          unifiedLoading={unifiedLoading}
-        />
-      </StoreLayout>
-    </>
-  ), [
+          logoUrl={logoUrl}
+        >
+          {/* Store Component Renderer */}
+          <StoreComponentRenderer
+            components={componentsToRender}
+            centralOrgId={centralOrgId}
+            storeName={storeName}
+            categories={categories}
+            featuredProducts={featuredProducts}
+            organizationSettings={organizationSettings}
+            unifiedLoading={unifiedLoading}
+          />
+        </StoreLayout>
+      </>
+    );
+  }, [
     storeName,
     seoSettings?.id,
     centralOrgId,
@@ -264,9 +271,10 @@ const StorePage: React.FC<StorePageProps> = React.memo(() => {
     unifiedLoading.shouldShowGlobalLoader
   ]);
 
-  // تقليل رسائل التصحيح لتجنب التأثير على الأداء
-  if (process.env.NODE_ENV === 'development' && Math.random() < 0.05) {
+  // تقليل رسائل التصحيح لتجنب التأثير على الأداء - عرض كل 8 renders فقط
+  if (process.env.NODE_ENV === 'development' && renderCount.current % 8 === 0) {
     console.log('🎯 [StorePage] Rendering decision:', {
+      renderCount: renderCount.current,
       shouldShowLoader,
       isLoaderVisible,
       willRenderContent: !shouldShowLoader && !isLoaderVisible
@@ -275,8 +283,12 @@ const StorePage: React.FC<StorePageProps> = React.memo(() => {
 
   // 🔥 إصلاح: إظهار مؤشر خفيف جداً فقط لتجنب نصوص متغيرة وفلاشينغ
   if (shouldShowLoader) {
-    if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {
-      console.log('🎯 [StorePage] Showing loader due to shouldShowLoader');
+    // تقليل رسائل التصحيح - عرض كل 5 renders فقط
+    if (process.env.NODE_ENV === 'development' && renderCount.current % 5 === 0) {
+      console.log('🎯 [StorePage] Showing loader due to shouldShowLoader', {
+        renderCount: renderCount.current,
+        shouldShowLoader
+      });
     }
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -288,13 +300,30 @@ const StorePage: React.FC<StorePageProps> = React.memo(() => {
 
   // إذا كان مؤشر التحميل مرئي، لا تعرض محتوى
   if (isLoaderVisible) {
-    if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {
-      console.log('🎯 [StorePage] Hiding content due to isLoaderVisible');
+    // تقليل رسائل التصحيح - عرض كل 5 renders فقط
+    if (process.env.NODE_ENV === 'development' && renderCount.current % 5 === 0) {
+      console.log('🎯 [StorePage] Hiding content due to isLoaderVisible', {
+        renderCount: renderCount.current,
+        isLoaderVisible
+      });
     }
     return null;
   }
 
   // البيانات جاهزة، عرض المتجر مع SafeHydrate لمنع مشاكل الـ hydration
+  // تقليل رسائل التصحيح - عرض كل 4 renders فقط
+  if (renderCount.current % 4 === 0) {
+    console.log('🔍 [StorePage] قرار العرض النهائي:', {
+      renderCount: renderCount.current,
+      willShowLoader: false,
+      willShowContent: true,
+      componentsToRenderCount: componentsToRender?.length || 0,
+      isAppReady,
+      storeName,
+      renderTime: performance.now() - storePageStartTime.current + 'ms'
+    });
+  }
+
   return (
     <SafeHydrate>
       {memoizedStoreContent}

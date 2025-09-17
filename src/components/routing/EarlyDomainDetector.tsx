@@ -65,7 +65,8 @@ export const EarlyDomainDetector: React.FC<EarlyDomainDetectorProps> = ({
         } else if (!isPublicDomain && !isLocalhost) {
           // نطاق مخصص كامل (مثل myshop.com)
           isCustomDomain = true;
-          subdomain = hostname;
+          // لا يوجد subdomain في النطاقات المخصصة (apex)
+          subdomain = null;
         }
         
         // تحديد نوع الصفحة
@@ -133,9 +134,14 @@ export const EarlyDomainDetector: React.FC<EarlyDomainDetectorProps> = ({
       }
     };
     
-    // تشغيل الكشف فوراً
-    detectDomainEarly();
-    
+    // 🔥 تحسين: تشغيل الكشف فوراً لتسريع التحميل
+    if (window.requestIdleCallback) {
+      window.requestIdleCallback(detectDomainEarly, { timeout: 1 });
+    } else {
+      // Fallback للمتصفحات القديمة - تنفيذ فوري
+      detectDomainEarly();
+    }
+
     // تنظيف عند unmount
     return () => {
       if ((window as any).__BAZAAR_EARLY_DOMAIN__) {
@@ -144,16 +150,8 @@ export const EarlyDomainDetector: React.FC<EarlyDomainDetectorProps> = ({
     };
   }, [onDomainDetected]);
 
-  // إذا كان جاري الكشف، اعرض شاشة تحميل محسنة
-  if (isDetecting && domainInfo?.isCustomDomain) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <span className="sr-only">جار التحميل...</span>
-        <div className="w-10 h-10 mx-auto border-4 border-primary/20 border-t-primary rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-
+  // 🔥 تحسين: عرض المحتوى فوراً بدلاً من انتظار كشف النطاق
+  // الكشف سيحدث في الخلفية
   return <>{children}</>;
 };
 

@@ -4,7 +4,7 @@ import { useTenant } from './TenantContext';
 import { v4 as uuidv4 } from 'uuid';
 import { withCache, DEFAULT_CACHE_TTL, SHORT_CACHE_TTL } from '@/lib/cache/storeCache';
 import { OptimizedStoreService } from '@/services/OptimizedStoreService';
-import { useSharedStoreData } from '@/hooks/useSharedStoreData';
+import { useSharedStoreDataContext } from '@/context/SharedStoreDataContext';
 
 // استيراد الأنواع من الملفات المنفصلة
 import { 
@@ -84,10 +84,7 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     products: sharedProducts, 
     isLoading: productsLoading,
     error: productsError
-  } = useSharedStoreData({
-    includeProducts: true,
-    enabled: !!tenant.currentOrganization?.id
-  });
+  } = useSharedStoreDataContext();
 
   // وظيفة محسنة لجلب المنتجات باستخدام البيانات المشتركة
   const fetchProducts = useCallback(async (organizationId: string) => {

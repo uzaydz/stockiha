@@ -5,7 +5,16 @@ import type {
   CompleteProduct 
 } from './productComplete';
 
-// دالة محسنة لجلب بيانات المنتج باستخدام الـ API الموحد مع منع التكرار
+// استيراد API الجديد المحسن
+import { 
+  getProductSmartDataUltraFast,
+  getProductBasicDataUltraFast,
+  getProductCombinedDataUltraFast,
+  type FastFetchOptions,
+  type CombinedProductData
+} from './productUltraFastApi';
+
+// دالة محسنة لجلب بيانات المنتج باستخدام الدالتين الجديدتين المنفصلتين
 const getProductCompleteDataOptimized = async (
   productIdentifier: string, // يمكن أن يكون ID أو slug
   options: {
@@ -16,15 +25,30 @@ const getProductCompleteDataOptimized = async (
 ): Promise<ProductCompleteResponse | null> => {
 
   try {
-    try {
-      console.log('📥 [API] getProductCompleteDataOptimized:start', {
-        productIdentifier,
-        hasOrg: !!options.organizationId,
-        dataScope: options.dataScope || 'basic'
-      });
-    } catch {}
-    // ✅ Fallback ذكي: إذا لم يتوفر organizationId (غالباً في السابدومين/الدومين المخصص)
-    // استخدم الدالة القديمة التي تدعم تمرير السابدومين تلقائياً لتحديد المؤسسة
+    if (process.env.NODE_ENV === 'development') {
+      try {
+        console.log('📥 [API] getProductCompleteDataOptimized:start (NEW API)', {
+          productIdentifier,
+          hasOrg: !!options.organizationId,
+          dataScope: options.dataScope || 'basic'
+        });
+      } catch {}
+    }
+
+    // تحويل خيارات DataScope إلى خيارات API الجديد
+    const fastOptions: FastFetchOptions = {
+      organizationId: options.organizationId,
+      includeInactive: options.includeInactive,
+      includeExtended: options.dataScope !== 'basic',
+      includeThumbnails: true,
+      includeColorsBasic: true,
+      includeMarketingData: options.dataScope === 'full' || options.dataScope === 'ultra',
+      includeFormData: options.dataScope === 'full' || options.dataScope === 'ultra',
+      includeAdvancedSettings: options.dataScope === 'ultra',
+      dataDetailLevel: options.dataScope === 'ultra' ? 'ultra' : 'full'
+    };
+
+    // ✅ Fallback ذكي: إذا لم يتوفر organizationId، جرب الدالة القديمة أولاً
     if (!options.organizationId) {
       try {
         const { getProductCompleteData } = await import('./productComplete');
@@ -41,120 +65,325 @@ const getProductCompleteDataOptimized = async (
       }
     }
 
-    const rpcParams = {
-      p_product_identifier: productIdentifier,
-      p_organization_id: options.organizationId || null,
-      p_include_inactive: options.includeInactive || false,
-      p_data_scope: options.dataScope || 'basic', // تغيير الافتراضي إلى basic للسرعة
-      p_include_large_images: false // 🚀 تحسين: عدم تحميل الصور الضخمة افتراضياً
-      // لكن سنحتاج لصور الألوان للمكون ProductVariantSelector - سنحل هذا بطريقة ذكية
-    };
-
-
-    // استدعاء الدالة Ultra Optimized مع timeout محسن
     const startTime = performance.now();
     
-        // المحاولة الأولى: dataScope المطلوب مع timeout محسّن للـ ultra
-    let rpcCall = supabase.rpc('get_product_complete_data_ultra_optimized' as any, rpcParams);
-
-    // إزالة timeout للـ ultra للسماح لها بإكمال العمل
-    let data: any = null;
-    let error: any = null;
-
+    // استخدام API الجديد المحسن
+    let combinedData: CombinedProductData;
+    
+    // تحديد السياق حسب dataScope
+    let context: 'list' | 'card' | 'detail' | 'full' = 'detail';
+    if (options.dataScope === 'basic') context = 'card';
+    else if (options.dataScope === 'ultra') context = 'full';
+    
     try {
-      const result = await rpcCall;
-      data = result.data;
-      error = result.error;
-      
-      // 🔥 إصلاح: معالجة البيانات المغلفة في RPC function
-      if (data && typeof data === 'object' && data.get_product_complete_data_ultra_optimized) {
-        data = data.get_product_complete_data_ultra_optimized;
-      }
-      
-      // 🔍 Debug: تسجيل تشخيص البيانات المُستلمة  
-      if (process.env.NODE_ENV === 'development') {
-        console.log('🔍 [API] البيانات المُستلمة:', {
-          hasData: !!data,
-          success: data?.success,
-          hasProduct: !!data?.product,
-          productId: data?.product?.id,
-          dataKeys: data ? Object.keys(data) : []
-        });
-      }
-      
-      
+      combinedData = await getProductSmartDataUltraFast(productIdentifier, context, fastOptions);
     } catch (rpcErr: any) {
-      error = rpcErr;
-    }
+      // إذا فشل API الجديد، جرب الدالة القديمة كـ fallback
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('⚠️ [API] فشل API الجديد، استخدام fallback:', rpcErr.message);
+      }
+      
+      // استخدام الدالة القديمة كـ fallback
+      const rpcParams = {
+        p_product_identifier: productIdentifier,
+        p_organization_id: options.organizationId || null,
+        p_include_inactive: options.includeInactive || false,
+        p_data_scope: options.dataScope || 'basic',
+        p_include_large_images: false
+      };
+
+      let data: any = null;
+      let error: any = null;
+
+      try {
+        const result = await supabase.rpc('get_product_complete_data_ultra_optimized' as any, rpcParams);
+        data = result.data;
+        error = result.error;
+        
+        if (data && typeof data === 'object' && data.get_product_complete_data_ultra_optimized) {
+          data = data.get_product_complete_data_ultra_optimized;
+        }
+      } catch (fallbackErr: any) {
+        error = fallbackErr;
+      }
     
-    // اكتشاف أخطاء الشبكة/CORS والانتقال مباشرةً إلى REST fallback
-    const isNetworkOrCorsError = !!(error && (
-      (typeof error.message === 'string' && (
-        error.message.includes('Failed to fetch') ||
-        error.message.includes('TypeError') ||
-        error.message.includes('NetworkError') ||
-        error.message.includes('CORS')
-      )) || error.name === 'TypeError'
-    ));
-    if (isNetworkOrCorsError) {
-      try { console.warn('🌐 [API] Network/CORS error, using basic fallback'); } catch {}
-      return await getBasicProductData(productIdentifier, options.organizationId);
+      // اكتشاف أخطاء الشبكة/CORS والانتقال مباشرةً إلى REST fallback
+      const isNetworkOrCorsError = !!(error && (
+        (typeof error.message === 'string' && (
+          error.message.includes('Failed to fetch') ||
+          error.message.includes('TypeError') ||
+          error.message.includes('NetworkError') ||
+          error.message.includes('CORS')
+        )) || error.name === 'TypeError'
+      ));
+      if (isNetworkOrCorsError) {
+        if (process.env.NODE_ENV === 'development') { try { console.warn('🌐 [API] Network/CORS error, using basic fallback'); } catch {} }
+        return await getBasicProductData(productIdentifier, options.organizationId);
+      }
+      
+      if (error) {
+        if (process.env.NODE_ENV === 'development') { try { console.error('🛑 [API] RPC fallback error:', { message: error?.message || String(error) }); } catch {} }
+        throw error;
+      }
+
+      if (!data) {
+        throw new Error('المنتج غير موجود أو غير متاح');
+      }
+
+      // التحقق من بنية البيانات المُستلمة
+      if (data.success === false) {
+        const errorMessage = data.error?.message || 'فشل في جلب بيانات المنتج';
+        
+        if (errorMessage.includes('Organization ID is required')) {
+          const isSlug = productIdentifier && !productIdentifier.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+          if (isSlug) {
+            throw new Error(`معرف المؤسسة مطلوب عند استخدام الاسم المختصر للمنتج "${productIdentifier}". تأكد من تحديد المؤسسة أولاً.`);
+          }
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      // تحويل البيانات لتتوافق مع النوع المتوقع
+      const fallbackResponse: ProductCompleteResponse = {
+        success: true,
+        data_scope: data.data_scope as DataScope,
+        product: data.product as CompleteProduct,
+        stats: data.stats,
+        meta: {
+          ...data.meta,
+          performance_info: data.performance_info,
+          execution_time: performance.now() - startTime,
+          optimized_version: false,
+          fallback_used: true
+        }
+      };
+
+      return fallbackResponse;
     }
-    
-    // لا نستخدم fallback إلى basic، نعتمد على ultra فقط
-    if (error) {
-      // لا نحاول basic، نعيد الخطأ كما هو
-      try { console.error('🛑 [API] RPC error:', { message: error?.message || String(error) }); } catch {}
-    }
-    
+
     const executionTime = performance.now() - startTime;
 
-    if (error) {
-      throw error; // إرجاع الخطأ مباشرة بدلاً من fallback
+    // تحويل البيانات المدمجة من API الجديد إلى النوع المتوقع
+    let convertedProduct: CompleteProduct;
+
+    if (combinedData.extended) {
+      // دمج البيانات الأساسية والمتقدمة
+      const basicProduct = combinedData.basic.product as any;
+      convertedProduct = {
+        // البيانات الأساسية
+        id: basicProduct.id,
+        name: basicProduct.name,
+        name_for_shipping: basicProduct.name_for_shipping,
+        description: basicProduct.description || '',
+        slug: basicProduct.slug,
+        sku: basicProduct.sku || '',
+        barcode: basicProduct.barcode,
+        brand: basicProduct.brand,
+
+        // الأسعار
+        pricing: {
+          ...(basicProduct.pricing || {}),
+          partial_wholesale_price: combinedData.extended.product_extended.advanced_pricing?.partial_wholesale_price,
+          min_wholesale_quantity: combinedData.extended.product_extended.advanced_pricing?.min_wholesale_quantity,
+          min_partial_wholesale_quantity: combinedData.extended.product_extended.advanced_pricing?.min_partial_wholesale_quantity
+        },
+
+        // خيارات البيع
+        selling_options: {
+          allow_retail: basicProduct.selling_options?.allow_retail ?? true,
+          allow_wholesale: basicProduct.selling_options?.allow_wholesale ?? false,
+          allow_partial_wholesale: (combinedData.extended.product_extended.advanced_pricing as any)?.allow_partial_wholesale ?? false,
+          is_sold_by_unit: basicProduct.selling_options?.is_sold_by_unit ?? true,
+          unit_type: (combinedData.extended.product_extended.advanced_pricing as any)?.unit_type,
+          unit_purchase_price: (combinedData.extended.product_extended.advanced_pricing as any)?.unit_purchase_price,
+          unit_sale_price: (combinedData.extended.product_extended.advanced_pricing as any)?.unit_sale_price
+        },
+
+        // المخزون
+        inventory: basicProduct.inventory,
+
+        // التصنيفات
+        categories: basicProduct.categories,
+
+        // الصور
+        images: {
+          thumbnail_image: basicProduct.images?.thumbnail_image,
+          additional_images: combinedData.extended.product_extended.images_extended || []
+        },
+
+        // المتغيرات
+        variants: {
+          has_variants: basicProduct.variants?.has_variants ?? basicProduct.has_variants ?? false,
+          use_sizes: basicProduct.variants?.use_sizes ?? basicProduct.use_sizes ?? false,
+          use_variant_prices: basicProduct.variants?.use_variant_prices ?? basicProduct.use_variant_prices ?? false,
+          colors: combinedData.extended.product_extended.variants_extended?.colors_with_details || []
+        },
+
+        // الميزات والمواصفات
+        features_and_specs: combinedData.extended.product_extended.features_and_specs,
+
+        // حالة المنتج
+        status: basicProduct.status,
+
+        // معلومات التنظيم
+        organization: {
+          organization_id: basicProduct.organization?.id || '',
+          created_by_user_id: basicProduct.id,
+          updated_by_user_id: basicProduct.id,
+          created_at: basicProduct.timestamps?.created_at || new Date().toISOString(),
+          updated_at: basicProduct.timestamps?.updated_at || new Date().toISOString()
+        },
+
+        // الشحن والقوالب
+        shipping_and_templates: {
+          shipping_info: combinedData.extended.product_extended.shipping_extended?.shipping_provider ||
+                        combinedData.extended.product_extended.shipping_extended?.shipping_clone,
+          shipping_method_type: basicProduct.shipping_basic?.shipping_method_type || 'default',
+          use_shipping_clone: basicProduct.shipping_basic?.use_shipping_clone ?? false
+        },
+
+        // النماذج
+        form_data: combinedData.extended.product_extended.forms_extended?.custom_form ||
+                  combinedData.extended.product_extended.forms_extended?.default_form,
+
+        // البيانات المتقدمة
+        wholesale_tiers: (combinedData.extended.product_extended as any).advanced_extended?.wholesale_tiers || [],
+        advanced_settings: combinedData.extended.product_extended.settings_extended?.product_advanced_settings,
+        marketing_settings: combinedData.extended.product_extended.marketing_extended?.marketing_settings,
+        purchase_page_config: combinedData.extended.product_extended.page_configs?.purchase_page_config,
+        special_offers_config: combinedData.extended.product_extended.page_configs?.special_offers_config,
+
+        // إضافة البيانات المتقدمة الإضافية
+        advanced_pricing: combinedData.extended.product_extended.advanced_pricing,
+        shipping_extended: combinedData.extended.product_extended.shipping_extended,
+        variants_extended: combinedData.extended.product_extended.variants_extended,
+        images_extended: combinedData.extended.product_extended.images_extended,
+        forms_extended: combinedData.extended.product_extended.forms_extended,
+        settings_extended: combinedData.extended.product_extended.settings_extended,
+        marketing_extended: combinedData.extended.product_extended.marketing_extended,
+        page_configs: combinedData.extended.product_extended.page_configs
+      } as unknown as CompleteProduct;
+    } else {
+      // البيانات الأساسية فقط - إنشاء كائن كامل يتوافق مع CompleteProduct
+      const basicProductOnly = combinedData.basic.product as any;
+      convertedProduct = {
+        // البيانات الأساسية
+        id: basicProductOnly.id,
+        name: basicProductOnly.name,
+        name_for_shipping: basicProductOnly.name_for_shipping,
+        description: basicProductOnly.description || '',
+        slug: basicProductOnly.slug,
+        sku: basicProductOnly.sku || '',
+        barcode: basicProductOnly.barcode,
+        brand: basicProductOnly.brand,
+
+        // الأسعار
+        pricing: basicProductOnly.pricing,
+
+        // خيارات البيع
+        selling_options: basicProductOnly.selling_options,
+
+        // المخزون
+        inventory: basicProductOnly.inventory,
+
+        // التصنيفات
+        categories: basicProductOnly.categories,
+
+        // الصور
+        images: {
+          thumbnail_image: basicProductOnly.images?.thumbnail_image,
+          additional_images: []
+        },
+
+        // المتغيرات
+        variants: {
+          has_variants: basicProductOnly.variants?.has_variants ?? basicProductOnly.has_variants ?? false,
+          use_sizes: basicProductOnly.variants?.use_sizes ?? basicProductOnly.use_sizes ?? false,
+          use_variant_prices: basicProductOnly.variants?.use_variant_prices ?? basicProductOnly.use_variant_prices ?? false,
+          colors: basicProductOnly.variants?.colors_basic_info || []
+        },
+
+        // الميزات والمواصفات (بيانات أساسية فقط)
+        features_and_specs: {
+          features: [],
+          specifications: {},
+          has_fast_shipping: basicProductOnly.basic_features?.has_fast_shipping ?? false,
+          has_money_back: basicProductOnly.basic_features?.has_money_back ?? false,
+          has_quality_guarantee: basicProductOnly.basic_features?.has_quality_guarantee ?? false,
+          fast_shipping_text: basicProductOnly.basic_features?.fast_shipping_text,
+          money_back_text: basicProductOnly.basic_features?.money_back_text,
+          quality_guarantee_text: basicProductOnly.basic_features?.quality_guarantee_text
+        } as any,
+
+        // حالة المنتج
+        status: basicProductOnly.status,
+
+        // معلومات التنظيم
+        organization: {
+          organization_id: basicProductOnly.organization?.id || '',
+          created_by_user_id: basicProductOnly.id,
+          updated_by_user_id: basicProductOnly.id,
+          created_at: basicProductOnly.timestamps?.created_at || new Date().toISOString(),
+          updated_at: basicProductOnly.timestamps?.updated_at || new Date().toISOString()
+        },
+
+        // الشحن والقوالب
+        shipping_and_templates: {
+          shipping_method_type: basicProductOnly.shipping_basic?.shipping_method_type || 'default',
+          use_shipping_clone: basicProductOnly.shipping_basic?.use_shipping_clone ?? false
+        },
+
+        // البيانات المتقدمة (فارغة للبيانات الأساسية)
+        wholesale_tiers: [],
+        advanced_settings: undefined,
+        marketing_settings: undefined,
+        purchase_page_config: undefined,
+        special_offers_config: undefined
+      } as unknown as CompleteProduct;
     }
 
-
-    if (!data) {
-      throw new Error('المنتج غير موجود أو غير متاح');
-    }
-
-    // التحقق من بنية البيانات المُستلمة
-    if (data.success === false) {
-      const errorMessage = data.error?.message || 'فشل في جلب بيانات المنتج';
-      
-      // إضافة معلومات إضافية للخطأ في حالة Organization ID المفقود
-      if (errorMessage.includes('Organization ID is required')) {
-        const isSlug = productIdentifier && !productIdentifier.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
-        if (isSlug) {
-          throw new Error(`معرف المؤسسة مطلوب عند استخدام الاسم المختصر للمنتج "${productIdentifier}". تأكد من تحديد المؤسسة أولاً.`);
-        }
-      }
-      
-      throw new Error(errorMessage);
-    }
-
-
-    // تحويل البيانات لتتوافق مع النوع المتوقع
     const optimizedResponse: ProductCompleteResponse = {
       success: true,
-      data_scope: data.data_scope as DataScope,
-      product: data.product as CompleteProduct,
-      stats: data.stats,
+      data_scope: options.dataScope as DataScope || 'basic',
+      product: convertedProduct,
+      stats: {
+        ...((combinedData.basic.stats as any) || {}),
+        ...(combinedData.extended?.extended_stats || {}),
+        // إضافة الحقول المفقودة من ProductStats
+        total_colors: (combinedData.basic.stats as any)?.colors_count || 0,
+        total_sizes: (combinedData.extended?.extended_stats as any)?.total_sizes_count || 0,
+        total_images: (combinedData.basic.stats as any)?.images_count || 0,
+        total_wholesale_tiers: (combinedData.extended?.extended_stats as any)?.wholesale_tiers?.length || 0,
+        last_updated: (combinedData.basic.stats as any)?.last_updated || new Date().toISOString(),
+        has_advanced_settings: (combinedData.extended?.extended_stats as any)?.has_advanced_settings ?? false
+      } as any,
       meta: {
-        ...data.meta,
-        performance_info: data.performance_info,
-        execution_time: executionTime,
-        optimized_version: true
-      }
+        query_timestamp: new Date().toISOString(),
+        data_freshness: 'real-time',
+        performance_optimized: true,
+        organization_id: options.organizationId || '',
+        form_strategy: combinedData.extended?.extended_stats?.has_custom_form ? 'custom_form_found' :
+                       combinedData.extended?.product_extended?.forms_extended?.default_form ? 'default_form_used' :
+                       'no_form_available'
+      } as any
     };
 
-
-    try { console.log('✅ [API] getProductCompleteDataOptimized:success', { productId: (optimizedResponse.product as any)?.id }); } catch {}
+    if (process.env.NODE_ENV === 'development') { 
+      try { 
+        console.log('✅ [API] getProductCompleteDataOptimized:success (NEW API)', { 
+          productId: optimizedResponse.product.id,
+          combined: combinedData.combined,
+          totalTime: `${combinedData.total_execution_time.toFixed(2)}ms`
+        }); 
+      } catch {} 
+    }
+    
     return optimizedResponse;
 
   } catch (error: any) {
     const errorMessage = error?.message || 'خطأ غير معروف';
-    try { console.error('💥 [API] getProductCompleteDataOptimized:catch', { error: errorMessage }); } catch {}
+    if (process.env.NODE_ENV === 'development') { try { console.error('💥 [API] getProductCompleteDataOptimized:catch', { error: errorMessage }); } catch {} }
 
     // إرجاع الخطأ مباشرة بدلاً من fallback
     throw error;

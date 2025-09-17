@@ -119,9 +119,9 @@ export function useDynamicTitle() {
               updateMetaTagsInHook(finalData.seo);
             }
           } else {
-            // استخدام قيم افتراضية
+            // استخدام قيم افتراضية - تحديث العنوان دائماً إذا كان subdomain موجود
             const defaultTitle = `متجر ${subdomain}`;
-            if (document.title !== defaultTitle && document.title === 'سطوكيها - منصة إدارة المتاجر الذكية') {
+            if (document.title !== defaultTitle) {
               document.title = defaultTitle;
               updateFaviconInHook(null, defaultTitle);
             }

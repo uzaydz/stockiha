@@ -1,4 +1,4 @@
-import React, { createContext, useContext, ReactNode, useMemo, useEffect } from 'react';
+import React, { createContext, useContext, ReactNode, useMemo, useEffect, useRef, useState } from 'react';
 import { useSharedStoreData } from '@/hooks/useSharedStoreData';
 import { OptimizedSharedStoreDataContext, type OptimizedSharedStoreDataContextType } from '@/context/OptimizedSharedStoreDataContext';
 
@@ -18,77 +18,41 @@ export interface SharedStoreDataContextType {
   refreshData: () => void;
 }
 
-// دالة آمنة لاستخدام useSharedStoreData مع معالجة الأخطاء
+// دالة آمنة لاستخدام useSharedStoreData مع معالجة الأخطاء المبسطة
 function useSharedStoreDataSafe() {
   try {
-    // استخدام خيارات أخف: فئات + منتجات مميزة فقط (بدون قائمة منتجات كاملة)
-    // إزالة تعطيل جلب البيانات في صفحات المنتجات لضمان عرض المنتجات المميزة دائماً
-    
     const result = useSharedStoreData({
       includeCategories: true,
       includeProducts: false,
       includeFeaturedProducts: true,
-      enabled: true // دائماً مفعل لضمان ظهور المنتجات المميزة
+      includeComponents: true,
+      enabled: true
     });
-    
-    // 🔥 إضافة استماع لبيانات window object إذا لم تكن البيانات متوفرة
+
+    // تبسيط الاستماع للأحداث - تقليل التكرار - إصلاح: إزالة dependencies لمنع loop
     useEffect(() => {
-      // إذا لم تكن البيانات متوفرة، جرب استخدام البيانات من window
-      if (!result.organization && !result.isLoading) {
-        const windowEarlyData = (window as any).__EARLY_STORE_DATA__;
-        const windowSharedData = (window as any).__SHARED_STORE_DATA__;
-        if (windowEarlyData?.data || windowSharedData) {
-          if (process.env.NODE_ENV === 'development') {
-            console.debug('🔄 [useSharedStoreDataSafe] استخدام بيانات window بدل إعادة الجلب');
-          }
-          // استخدم بيانات window ضمن provider عبر refresh واحد فقط عند الحاجة
-          result.refreshData?.();
-        }
-      }
-      
-      // 🎯 استماع لأحداث تحديث البيانات من main.tsx
-      const handleStoreDataReady = () => {
+      const handleDataReady = () => {
+        // فقط إعادة الجلب إذا لم تكن البيانات متوفرة ولم نكن في حالة تحميل
         if (!result.organization && !result.isLoading) {
-          if (process.env.NODE_ENV === 'development') {
-            console.debug('🎯 [useSharedStoreDataSafe] storeDataReady -> refresh once');
-          }
           result.refreshData?.();
         }
       };
-      
-      const handleStoreInitDataReady = () => {
-        if (!result.organization && !result.isLoading) {
-          if (process.env.NODE_ENV === 'development') {
-            console.debug('🎯 [useSharedStoreDataSafe] storeInitDataReady -> refresh once');
-          }
-          result.refreshData?.();
-        }
-      };
-      
-      window.addEventListener('storeDataReady', handleStoreDataReady);
-      window.addEventListener('storeInitDataReady', handleStoreInitDataReady);
-      
+
+      window.addEventListener('storeDataReady', handleDataReady);
+      window.addEventListener('storeInitDataReady', handleDataReady);
+
       return () => {
-        window.removeEventListener('storeDataReady', handleStoreDataReady);
-        window.removeEventListener('storeInitDataReady', handleStoreInitDataReady);
+        window.removeEventListener('storeDataReady', handleDataReady);
+        window.removeEventListener('storeInitDataReady', handleDataReady);
       };
-    }, [result.organization, result.isLoading, result.refreshData]);
-    
-    // إضافة logs لتتبع البيانات
-    if (process.env.NODE_ENV === 'development') {
-      console.log('🎯 [useSharedStoreDataSafe] البيانات المستلمة:', {
-        hasOrganization: !!result.organization,
-        hasOrganizationSettings: !!result.organizationSettings,
-        isLoading: result.isLoading,
-        error: result.error,
-        organizationName: result.organization?.name
-      });
-    }
-    
+    }, []); // إزالة dependencies لمنع إعادة التشغيل المتكرر
+
+    // إزالة logging للإنتاج
+
     return result;
   } catch (error) {
-    // إذا كان الخطأ متعلق بـ TenantProvider، أرجع قيم افتراضية
-    if (error instanceof Error && error.message.includes('useTenant must be used within a TenantProvider')) {
+    // معالجة أبسط للأخطاء
+    if (error instanceof Error && error.message.includes('useTenant')) {
       return {
         organization: null,
         organizationSettings: null,
@@ -104,7 +68,6 @@ function useSharedStoreDataSafe() {
         refreshData: () => {}
       };
     }
-    // إعادة رمي الأخطاء الأخرى
     throw error;
   }
 }
@@ -114,26 +77,213 @@ export const SharedStoreDataContext = createContext<SharedStoreDataContextType |
 
 // مزود السياق المركزي - يستدعي useSharedStoreData مرة واحدة فقط
 export const SharedStoreDataProvider: React.FC<{ children: ReactNode }> = React.memo(({ children }) => {
+  // 🚨 حقن مباشر للبيانات من window object
+  const [injectedData, setInjectedData] = useState<SharedStoreDataContextType | null>(null);
+  
+  // متغير لتتبع تحديثات window object
+  const [windowDataVersion, setWindowDataVersion] = useState<number>(0);
+
+  // مراقبة تحديثات window object - إصلاح: إزالة windowDataVersion من dependencies
+  useEffect(() => {
+    const handleStoreDataUpdates = () => {
+      setWindowDataVersion(prev => prev + 1);
+    };
+
+    window.addEventListener('storeDataReady', handleStoreDataUpdates);
+    window.addEventListener('storeInitDataReady', handleStoreDataUpdates);
+
+    return () => {
+      window.removeEventListener('storeDataReady', handleStoreDataUpdates);
+      window.removeEventListener('storeInitDataReady', handleStoreDataUpdates);
+    };
+  }, []); // إزالة windowDataVersion من dependencies لمنع loop
+  
+  // 🔥 إصلاح: منع إرسال الأحداث المتكررة
+  const hasInjectedData = useRef(false);
+
+  // حقن مباشر للبيانات من window object
+  useEffect(() => {
+    const injectDataFromWindow = () => {
+      try {
+        const win: any = typeof window !== 'undefined' ? window : {};
+        const windowData = win.__EARLY_STORE_DATA__?.data ||
+                           win.__CURRENT_STORE_DATA__ ||
+                           win.__PREFETCHED_STORE_DATA__ ||
+                           win.__STORE_DATA__ ||
+                           null;
+
+        if (windowData && !hasInjectedData.current) {
+          const orgData = windowData.organization_details ||
+                         windowData.organization ||
+                         win.__STORE_ORGANIZATION__;
+          const orgSettings = windowData.organization_settings ||
+                            windowData.organizationSettings ||
+                            win.__STORE_SETTINGS__;
+
+          if (orgData && !injectedData) {
+            hasInjectedData.current = true; // منع إرسال الحدث مرة أخرى
+
+            // حقن البيانات مباشرة
+            const injected: SharedStoreDataContextType = {
+              organization: orgData,
+              organizationSettings: orgSettings || null,
+              products: windowData.products || [],
+              categories: windowData.categories || [],
+              featuredProducts: windowData.featured_products || windowData.featuredProducts || [],
+              components: windowData.store_layout_components || windowData.components || [],
+              footerSettings: windowData.footer_settings || windowData.footerSettings || null,
+              testimonials: windowData.testimonials || [],
+              seoMeta: windowData.seo_meta || windowData.seoMeta || null,
+              isLoading: false,
+              error: null,
+              refreshData: () => {}
+            };
+
+            setInjectedData(injected);
+
+            // حقن البيانات أيضاً في تنسيق مباشر للمكونات الأخرى
+            (window as any).__BAZAAR_STORE_CONTEXT__ = injected;
+
+            // إشعار العالم أن البيانات جاهزة - مرة واحدة فقط
+            window.dispatchEvent(new CustomEvent('injectedDataReady', {
+              detail: injected
+            }));
+            window.dispatchEvent(new CustomEvent('bazaarStoreContextReady', {
+              detail: injected
+            }));
+
+            // 🔥 إعادة استدعاء FaviconManager بعد حقن البيانات
+            setTimeout(() => {
+              try {
+                // استخدام import() بدلاً من require في ES modules
+                import('../managers/FaviconManager').then(({ faviconManager }) => {
+                  faviconManager.initialize();
+                }).catch(error => {
+                  console.warn('⚠️ [SharedStoreDataContext] فشل إعادة استدعاء FaviconManager:', error);
+                });
+              } catch (error) {
+                console.warn('⚠️ [SharedStoreDataContext] خطأ في إعادة استدعاء FaviconManager:', error);
+              }
+            }, 200);
+          }
+        }
+      } catch (error) {
+        // تجاهل الأخطاء
+      }
+    };
+    
+    // حقن فوري
+    injectDataFromWindow();
+    
+    // حقن دوري كل 500ms لمدة 10 ثوان
+    const interval = setInterval(injectDataFromWindow, 500);
+    setTimeout(() => clearInterval(interval), 10000);
+    
+    return () => clearInterval(interval);
+  }, [injectedData]);
+
   // استدعاء آمن لـ useSharedStoreData في كامل التطبيق
   const sharedData = useSharedStoreDataSafe();
   
+  // 🚨 إضافة state مباشر للبيانات من window object
+  const [directWindowData, setDirectWindowData] = useState<any>(null);
+  
+  // فحص window object مباشرة عند التحميل وعند التحديثات
+  useEffect(() => {
+    const checkWindowData = () => {
+      try {
+        const win: any = typeof window !== 'undefined' ? window : {};
+        const windowData = win.__EARLY_STORE_DATA__?.data ||
+                           win.__CURRENT_STORE_DATA__ ||
+                           win.__PREFETCHED_STORE_DATA__ ||
+                           win.__STORE_DATA__ ||
+                           null;
+        
+        if (windowData && (windowData.organization_details || windowData.organization)) {
+          setDirectWindowData(windowData);
+        }
+      } catch (error) {
+        console.error('❌ [DEBUG] خطأ في فحص window object:', error);
+      }
+    };
+    
+    // فحص فوري
+    checkWindowData();
+    
+    // فحص دوري كل ثانية لمدة 10 ثوان
+    const interval = setInterval(checkWindowData, 1000);
+    setTimeout(() => clearInterval(interval), 10000);
+    
+    return () => clearInterval(interval);
+  }, [windowDataVersion]);
+  
   // 🔥 تحسين: استخدام useMemo مع dependencies محسنة لمنع إعادة الإنشاء المتكرر
   const contextValue = useMemo(() => {
-    // إضافة logs لتتبع البيانات
-    if (process.env.NODE_ENV === 'development') {
-      console.log('🎯 [SharedStoreDataContext] contextValue created:', {
-        organization: !!sharedData.organization,
-        organizationSettings: !!sharedData.organizationSettings,
-        isLoading: sharedData.isLoading,
-        error: sharedData.error,
-        organizationName: sharedData.organization?.name,
-        settingsLang: sharedData.organizationSettings?.default_language
-      });
+    // أولوية للبيانات المحقونة مباشرة
+    if (injectedData) {
+      return injectedData;
     }
+    
+    // 🚨 استخدام directWindowData إذا كانت البيانات من sharedData فارغة
+    if ((!sharedData.organization && !sharedData.organizationSettings && !sharedData.isLoading) || directWindowData) {
+      const windowData = directWindowData || (() => {
+        try {
+          const win: any = typeof window !== 'undefined' ? window : {};
+          return win.__EARLY_STORE_DATA__?.data ||
+                 win.__CURRENT_STORE_DATA__ ||
+                 win.__PREFETCHED_STORE_DATA__ ||
+                 null;
+        } catch {
+          return null;
+        }
+      })();
+      
+      if (windowData) {
+        const orgData = windowData.organization_details || windowData.organization;
+        const orgSettings = windowData.organization_settings || windowData.organizationSettings;
+        
+        if (orgData || orgSettings) {
+          // استخدام البيانات من window object
+          console.log('🎯 [DEBUG] استخدام fallback من window object:', {
+            hasOrgData: !!orgData,
+            hasOrgSettings: !!orgSettings,
+            orgId: orgData?.id,
+            orgName: orgData?.name,
+            settingsSiteName: orgSettings?.site_name
+          });
+          
+          return {
+            organization: orgData || null,
+            organizationSettings: orgSettings || null,
+            products: windowData.products || [],
+            categories: windowData.categories || [],
+            featuredProducts: windowData.featured_products || windowData.featuredProducts || [],
+            components: windowData.store_layout_components || windowData.components || [],
+            footerSettings: windowData.footer_settings || windowData.footerSettings || null,
+            testimonials: windowData.testimonials || [],
+            seoMeta: windowData.seo_meta || windowData.seoMeta || null,
+            isLoading: false,
+            error: null,
+            refreshData: sharedData.refreshData || (() => {})
+          } as SharedStoreDataContextType;
+        }
+      }
+    }
+    
+    console.log('🔍 [DEBUG] إرجاع sharedData العادية:', {
+      hasOrganization: !!sharedData.organization,
+      hasOrganizationSettings: !!sharedData.organizationSettings,
+      isLoading: sharedData.isLoading,
+      orgId: sharedData.organization?.id
+    });
+    
     return sharedData;
   }, [
     // 🔥 تبسيط dependencies لضمان التحديث
-    sharedData
+    injectedData, // أولوية للبيانات المحقونة
+    sharedData,
+    windowDataVersion, // إضافة windowDataVersion لإجبار إعادة التقييم عند تحديث window object
+    directWindowData // إضافة directWindowData لإجبار إعادة التقييم عند توفر البيانات
   ]);
 
   // إضافة useEffect لمنع الاستدعاءات المكررة
@@ -175,15 +325,118 @@ export const useSharedStoreDataContext = (): SharedStoreDataContextType => {
     OptimizedSharedStoreDataContext as React.Context<OptimizedSharedStoreDataContextType | null>
   );
 
-  return useMemo(() => {
-    // 1) Preferred shared context (store entry)
-    if (sharedContext) return sharedContext;
+  // 🔥 إصلاح: إزالة setForceUpdate لمنع re-renders المستمرة - الآن نعتمد على dependencies المستقرة في useMemo
 
+  // 🔥 تحسين: استخدام useMemo لضمان إرجاع نفس الكائن المرجعي
+  const renderCount = useRef(0);
+  const lastWarningTime = useRef(0);
+  renderCount.current++;
+
+  return useMemo(() => {
+    // تقليل رسائل التصحيح لتحسين الأداء - عرض كل 15 renders فقط
+    const shouldLogContext = renderCount.current === 1 || renderCount.current % 15 === 0;
+
+    // تحذير للاستدعاءات المتكررة جداً - مع تقليل التكرار باستخدام الوقت
+    const now = Date.now();
+    if (renderCount.current > 50 && (now - lastWarningTime.current) > 5000) { // تحذير كل 5 ثوانٍ
+      console.warn('⚠️ [useSharedStoreDataContext] عدد استدعاءات مرتفع جداً:', renderCount.current);
+      lastWarningTime.current = now;
+    }
+
+    // 🔥 تحسين: التحقق من البيانات الجديدة مرة واحدة فقط
+    const win: any = typeof window !== 'undefined' ? window : {};
+    const latestEarlyData = win.__EARLY_STORE_DATA__?.data;
+    const latestPrefetchedData = win.__PREFETCHED_STORE_DATA__;
+
+    let result: SharedStoreDataContextType;
+
+    // 🔥 تحسين: التحقق من sessionStorage أولاً للاستمرارية عند التنقل بين الصفحات
+    let sessionData = null;
+    try {
+      const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+      const storeKey = `store_${hostname.replace(/[^a-zA-Z0-9]/g, '_')}`;
+      const storedData = typeof window !== 'undefined' ? sessionStorage.getItem(storeKey) : null;
+
+      if (storedData) {
+        const parsedData = JSON.parse(storedData);
+        if (parsedData && parsedData.data && (parsedData.data.components?.length > 0 || parsedData.data.products?.length > 0)) {
+          sessionData = parsedData.data;
+        }
+      }
+    } catch (error) {
+      // تجاهل أخطاء sessionStorage
+    }
+
+    // 🔥 تحسين: التحقق من البيانات الجديدة من early preload أولاً (تحقق من البيانات الأساسية)
+    if (latestEarlyData && (latestEarlyData.organization_details || latestEarlyData.organization || latestEarlyData.components?.length > 0 || latestEarlyData.products?.length > 0 || latestEarlyData.categories?.length > 0)) {
+      const orgData = latestEarlyData.organization_details || latestEarlyData.organization || null;
+      const orgSettings = latestEarlyData.organization_settings || latestEarlyData.organizationSettings || null;
+      
+      // إزالة logging للإنتاج
+      
+      result = {
+        organization: orgData,
+        organizationSettings: orgSettings,
+        products: latestEarlyData.products || [],
+        categories: latestEarlyData.categories || [],
+        featuredProducts: latestEarlyData.featured_products || latestEarlyData.featuredProducts || [],
+        components: latestEarlyData.store_layout_components || latestEarlyData.components || [],
+        footerSettings: latestEarlyData.footer_settings || latestEarlyData.footerSettings,
+        testimonials: latestEarlyData.testimonials || [],
+        seoMeta: latestEarlyData.seo_meta || latestEarlyData.seoMeta,
+        isLoading: false,
+        error: null,
+        refreshData: () => {},
+      } as SharedStoreDataContextType;
+    }
+    // ثم تحقق من البيانات المحملة مسبقاً من prefetchManager (فقط إذا كانت تحتوي على بيانات حقيقية)
+    else if (latestPrefetchedData && (latestPrefetchedData.components?.length > 0 || latestPrefetchedData.products?.length > 0 || latestPrefetchedData.categories?.length > 0)) {
+      result = {
+        organization: latestPrefetchedData.organization_details || latestPrefetchedData.organization || null,
+        organizationSettings: latestPrefetchedData.organization_settings || latestPrefetchedData.organizationSettings || latestPrefetchedData,
+        products: latestPrefetchedData.products || [],
+        categories: latestPrefetchedData.categories || [],
+        featuredProducts: latestPrefetchedData.featured_products || latestPrefetchedData.featuredProducts || [],
+        components: latestPrefetchedData.store_layout_components || latestPrefetchedData.components || [],
+        footerSettings: latestPrefetchedData.footer_settings || latestPrefetchedData.footerSettings,
+        testimonials: latestPrefetchedData.testimonials || [],
+        seoMeta: latestPrefetchedData.seo_meta || latestPrefetchedData.seoMeta,
+        isLoading: false,
+        error: null,
+        refreshData: () => {},
+      } as SharedStoreDataContextType;
+    }
+    // 🔥 إضافة: استخدام sessionStorage كمصدر أساسي للاستمرارية
+    else if (sessionData) {
+      const parsedData = JSON.parse(sessionData);
+      if (parsedData && parsedData.data) {
+        const data = parsedData.data;
+        result = {
+          organization: data.organization_details || data.organization || null,
+          organizationSettings: data.organization_settings || data.organizationSettings || null,
+          products: data.products || [],
+          categories: data.categories || [],
+          featuredProducts: data.featured_products || data.featuredProducts || [],
+          components: data.store_layout_components || data.components || [],
+          footerSettings: data.footer_settings || data.footerSettings,
+          testimonials: data.testimonials || [],
+          seoMeta: data.seo_meta || data.seoMeta,
+          isLoading: false,
+          error: null,
+          refreshData: () => {},
+        } as SharedStoreDataContextType;
+      }
+    }
+    // 1) Preferred shared context (store entry)
+    else if (sharedContext) {
+      result = sharedContext;
+    }
     // 2) Fallback to optimized context (platform entry)
-    if (optimizedContext) {
+    else if (optimizedContext) {
       // If optimized context has data, surface it using the same shape
-      if (optimizedContext.organization || optimizedContext.organizationSettings) {
-        return {
+      if (optimizedContext.organization || optimizedContext.organizationSettings ||
+          optimizedContext.components?.length > 0 || optimizedContext.categories?.length > 0) {
+        result = {
           organization: optimizedContext.organization,
           organizationSettings: optimizedContext.organizationSettings,
           products: optimizedContext.products,
@@ -197,45 +450,155 @@ export const useSharedStoreDataContext = (): SharedStoreDataContextType => {
           error: null,
           refreshData: optimizedContext.refreshData,
         } as SharedStoreDataContextType;
+      } else {
+        // إذا لم تكن البيانات جاهزة بعد، استخدم البيانات من window
+        let data = win.__EARLY_STORE_DATA__?.data ||
+                   win.__CURRENT_STORE_DATA__ ||
+                   win.__PREFETCHED_STORE_DATA__ || null;
+
+        if (data) {
+          result = {
+            organization: data.organization_details || data.organization || null,
+            organizationSettings: data.organization_settings || data.organizationSettings || null,
+            products: data.featured_products || [],
+            categories: data.categories || [],
+            featuredProducts: data.featured_products || [],
+            components: data.store_layout_components || data.components || [],
+            footerSettings: data.footer_settings || null,
+            testimonials: data.testimonials || [],
+            seoMeta: data.seo_meta || null,
+            isLoading: false,
+            error: null,
+            refreshData: () => {},
+          } as SharedStoreDataContextType;
+        } else {
+          // Safe default placeholder with better fallback components to avoid loading screen
+          result = {
+            organization: null,
+            organizationSettings: null,
+            products: [],
+            categories: [],
+            featuredProducts: [],
+            components: [
+              {
+                id: 'fallback-hero',
+                type: 'hero',
+                content: {
+                  title: 'متجرنا',
+                  subtitle: 'جار تحميل المتجر...',
+                  background_image: null
+                },
+                position: 0
+              },
+              {
+                id: 'fallback-products',
+                type: 'featured_products',
+                content: {
+                  title: 'منتجاتنا'
+                },
+                position: 1
+              }
+            ],
+            footerSettings: null,
+            testimonials: [],
+            seoMeta: null,
+            isLoading: false,
+            error: null,
+            refreshData: () => {}
+          } as SharedStoreDataContextType;
+        }
+      }
+    }
+    // 3) Final fallback to window-injected early data
+    else {
+      const data = win.__EARLY_STORE_DATA__?.data || win.__CURRENT_STORE_DATA__ || win.__PREFETCHED_STORE_DATA__ || null;
+
+      if (data) {
+        result = {
+          organization: data.organization_details || data.organization || null,
+          organizationSettings: data.organization_settings || data.organizationSettings || null,
+          products: data.featured_products || [],
+          categories: data.categories || [],
+          featuredProducts: data.featured_products || [],
+          components: data.store_layout_components || data.components || [],
+          footerSettings: data.footer_settings || null,
+          testimonials: data.testimonials || [],
+          seoMeta: data.seo_meta || null,
+          isLoading: false,
+          error: null,
+          refreshData: () => {},
+        } as SharedStoreDataContextType;
+      } else {
+        // Safe default placeholder with fallback components to avoid loading screen
+        result = {
+          organization: null,
+          organizationSettings: null,
+          products: [],
+          categories: [],
+          featuredProducts: [],
+          components: [
+            {
+              id: 'fallback-hero-final',
+              type: 'hero',
+              content: {
+                title: 'متجرنا',
+                subtitle: 'جار تحميل المتجر...',
+                background_image: null
+              },
+              position: 0
+            },
+            {
+              id: 'fallback-products-final',
+              type: 'featured_products',
+              content: {
+                title: 'منتجاتنا'
+              },
+              position: 1
+            }
+          ],
+          footerSettings: null,
+          testimonials: [],
+          seoMeta: null,
+          isLoading: false,
+          error: null,
+          refreshData: () => {}
+        } as SharedStoreDataContextType;
       }
     }
 
-    // 3) Final fallback to window-injected early data
-    const win: any = typeof window !== 'undefined' ? window : {};
-    const data = win.__EARLY_STORE_DATA__?.data || win.__CURRENT_STORE_DATA__ || null;
-    if (data) {
-      return {
-        organization: data.organization_details || data.organization || null,
-        organizationSettings: data.organization_settings || data.organizationSettings || null,
-        products: data.featured_products || [],
-        categories: data.categories || [],
-        featuredProducts: data.featured_products || [],
-        components: data.store_layout_components || [],
-        footerSettings: data.footer_settings || null,
-        testimonials: data.testimonials || [],
-        seoMeta: data.seo_meta || null,
-        isLoading: false,
-        error: null,
-        refreshData: () => {},
-      } as SharedStoreDataContextType;
+    // تقليل console.log لتحسين الأداء
+    if (shouldLogContext && process.env.NODE_ENV === 'development') {
+      console.log('📤 [useSharedStoreDataContext] Returning result:', {
+        hasOrganization: !!result.organization,
+        hasOrganizationSettings: !!result.organizationSettings,
+        componentsLength: result.components?.length || 0,
+        categoriesLength: result.categories?.length || 0,
+        isLoading: result.isLoading
+      });
     }
 
-    // 4) Safe default placeholder to avoid crashes during very early boot
-    return {
-      organization: null,
-      organizationSettings: null,
-      products: [],
-      categories: [],
-      featuredProducts: [],
-      components: [],
-      footerSettings: null,
-      testimonials: [],
-      seoMeta: null,
-      isLoading: true,
-      error: null,
-      refreshData: () => {}
-    } as SharedStoreDataContextType;
-  }, [sharedContext, optimizedContext]);
+    return result;
+  }, [
+    // 🔥 إصلاح: استخدام dependencies مستقرة بدلاً من الكائنات الكاملة
+    sharedContext?.organization?.id ?? null,
+    sharedContext?.organizationSettings?.id ?? null,
+    sharedContext?.isLoading,
+    sharedContext?.error,
+    sharedContext?.components?.length ?? 0,
+    sharedContext?.categories?.length ?? 0,
+    sharedContext?.featuredProducts?.length ?? 0,
+    optimizedContext?.organization?.id ?? null,
+    optimizedContext?.organizationSettings?.id ?? null,
+    optimizedContext?.isLoading,
+    optimizedContext?.components?.length ?? 0,
+    optimizedContext?.categories?.length ?? 0,
+    optimizedContext?.featuredProducts?.length ?? 0,
+    // 🔥 إضافة: تحقق من البيانات المتكررة في window object بطريقة مستقرة
+    typeof window !== 'undefined' ? (window as any).__EARLY_STORE_DATA__?.data?.organization_details?.id : null,
+    typeof window !== 'undefined' ? (window as any).__EARLY_STORE_DATA__?.data?.featured_products?.length ?? 0 : null,
+    typeof window !== 'undefined' ? (window as any).__PREFETCHED_STORE_DATA__?.organization_details?.id : null,
+    typeof window !== 'undefined' ? (window as any).__PREFETCHED_STORE_DATA__?.featured_products?.length ?? 0 : null,
+  ]);
 };
 
 // مزود بديل للصفحات التي لا تحتاج TenantProvider
@@ -299,7 +662,7 @@ export const useSharedOrgSettingsOnly = () => {
   const earlyWindowData = (() => {
     try {
       const win: any = typeof window !== 'undefined' ? window : {};
-      return win.__EARLY_STORE_DATA__?.data || win.__CURRENT_STORE_DATA__ || null;
+      return win.__EARLY_STORE_DATA__?.data || win.__CURRENT_STORE_DATA__ || win.__PREFETCHED_STORE_DATA__ || null;
     } catch {
       return null;
     }

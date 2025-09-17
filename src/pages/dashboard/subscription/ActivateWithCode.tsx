@@ -4,6 +4,7 @@ import { useTenant } from '@/context/TenantContext';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { ActivationService } from '@/lib/activation-service';
+import { subscriptionCache } from '@/lib/subscription-cache';
 
 // مكونات UI
 import { Input } from '@/components/ui/input';
@@ -107,46 +108,19 @@ const ActivateWithCode: React.FC<ActivateWithCodeProps> = ({ onActivated }) => {
       
       if (result.success) {
         toast.success('تم تفعيل الاشتراك بنجاح');
-        
-        // تحديث بيانات المؤسسة في قاعدة البيانات مع معرف الاشتراك
         try {
-          if (result.subscription_id) {
-
-            const { error: updateError } = await supabase
-              .from('organizations')
-              .update({
-                subscription_status: 'active',
-                subscription_id: result.subscription_id,
-                subscription_tier: 'premium', // عادة ما تكون "premium" للاشتراكات المدفوعة
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', organizationId);
-              
-            if (updateError) {
-            } else {
-              
-            }
-          } else {
-          }
-        } catch (updateError) {
+          // تحديث الكاشات والمحاولات السابقة
+          subscriptionCache.clearCache(organizationId);
+          await subscriptionCache.forceRefresh(organizationId);
+        } catch (cacheError) {
         }
-        
-        // تحديث بيانات المؤسسة في سياق المصادقة
-        await refreshOrganizationData();
 
-        // انتظار قصير للتأكد من تطبيق التغييرات
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // محاولة إضافية لتحديث البيانات
-        await refreshOrganizationData();
-        
-        // إعادة تحميل الصفحة بطريقة كاملة للتأكد من تحديث جميع البيانات
-        setTimeout(() => {
-          // استخدام نافذة جديدة لتجاوز ذاكرة التخزين المؤقت
-          window.location.href = window.location.origin + 
-                                 window.location.pathname + 
-                                 '?refresh=' + Date.now();
-        }, 2500);
+        try {
+          await refreshOrganizationData();
+        } catch (refreshError) {
+        }
+
+        onActivated();
       } else {
         toast.error(result.message || 'حدث خطأ أثناء تفعيل الاشتراك');
       }

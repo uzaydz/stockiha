@@ -34,6 +34,18 @@ export const useProductForm = ({
   
   // استخراج بيانات النماذج
   const formData = useMemo(() => {
+    // 🔍 Debug: تسجيل بيانات النموذج للتشخيص
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔍 [useProductForm] تحليل بيانات النموذج:', {
+        hasProduct: !!product,
+        productId: product?.id,
+        hasFormData: !!product?.form_data,
+        hasFormsExtended: !!(product as any)?.forms_extended,
+        formDataKeys: product?.form_data ? Object.keys(product.form_data) : 'no form_data',
+        formsExtendedKeys: (product as any)?.forms_extended ? Object.keys((product as any).forms_extended) : 'no forms_extended'
+      });
+    }
+    
     return product?.form_data || null;
   }, [product?.form_data]);
 

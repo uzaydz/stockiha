@@ -221,6 +221,9 @@ class ConditionalPreloader {
 // إنشاء instance واحد للتطبيق
 export const conditionalPreloader = new ConditionalPreloader();
 
+// تصدير default للتوافق مع الاستيراد
+export default conditionalPreloader;
+
 // وظائف مساعدة للاستخدام في المكونات
 export const pausePreloadingForProductPage = () => {
   conditionalPreloader.pausePreloading();
@@ -234,5 +237,3 @@ export const preloadDashboardComponents = () => {
   conditionalPreloader.forcePreload('/dashboard');
   conditionalPreloader.forcePreload('/dashboard/products');
 };
-
-export default conditionalPreloader;

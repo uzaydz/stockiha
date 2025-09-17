@@ -412,25 +412,9 @@ export const createNavigationData = (
           allowedMerchantTypes: ['ecommerce', 'both']
         },
         {
-          title: 'محرر المتجر V2',
-          icon: Layout,
-          href: '/dashboard/store-editor-v2',
-          requiredPermission: 'manageOrganizationSettings',
-          badge: 'تجريبي',
-          allowedMerchantTypes: ['ecommerce', 'both']
-        },
-        {
           title: 'صفحات الهبوط',
           icon: Layout,
           href: '/dashboard/landing-pages',
-          requiredPermission: 'manageOrganizationSettings',
-          badge: 'جديد',
-          allowedMerchantTypes: ['ecommerce', 'both']
-        },
-        {
-          title: 'إعدادات النماذج',
-          icon: FileText,
-          href: '/dashboard/form-settings',
           requiredPermission: 'manageOrganizationSettings',
           badge: 'جديد',
           allowedMerchantTypes: ['ecommerce', 'both']

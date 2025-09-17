@@ -152,6 +152,10 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
 
         // إذا كان الاشتراك منتهي الصلاحية
         if (subscription.status === 'expired' || subscription.days_left <= 0) {
+          if (organization?.subscription_status === 'pending' || subscription.status === 'pending') {
+            // نسمح للمستخدمين بالاستمرار أثناء انتظار التفعيل
+            return;
+          }
           
           // إذا كان المستخدم في صفحة نقطة البيع والمستخدم موظف، أبقه هناك مع تحذير
           if (location.pathname === '/pos' && user?.role === 'employee') {
@@ -195,6 +199,25 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
       }
     };
   }, [organization?.id, navigate, isSubscriptionPage, isChecking, location.pathname, user?.role]);
+
+  // تنظيف الكاش المحلي عند استلام إشعار تفعيل الاشتراك
+  useEffect(() => {
+    const handleSubscriptionActivated = (event: Event) => {
+      const customEvent = event as CustomEvent<{ organizationId?: string }>;
+      const activatedOrgId = customEvent.detail?.organizationId;
+      // إذا تم التفعيل لنفس المؤسسة الحالية، نحذفها من الكاش المحلي
+      if (activatedOrgId && organization?.id === activatedOrgId) {
+        const cacheKey = `subscription_${activatedOrgId}`;
+        GLOBAL_SUBSCRIPTION_CACHE.delete(cacheKey);
+        hasCheckedRef.current = false;
+        lastCheckTimeRef.current = 0;
+        setSubscriptionData(null);
+      }
+    };
+
+    window.addEventListener('subscriptionActivated', handleSubscriptionActivated as EventListener);
+    return () => window.removeEventListener('subscriptionActivated', handleSubscriptionActivated as EventListener);
+  }, [organization?.id]);
 
   // إعادة تعيين حالة التحقق عند تغيير المؤسسة
   useEffect(() => {

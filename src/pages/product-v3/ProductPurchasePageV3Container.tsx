@@ -10,7 +10,14 @@ import useProductPurchase from '@/hooks/useProductPurchase';
 import { useAbandonedCartTracking } from '@/hooks/useAbandonedCartTracking';
 
 // ✅ تحسين: تفعيل product page optimizer
-import { productPageOptimizer, enableProductAnalytics } from '@/utils/productPageOptimizer';
+const enableProductAnalytics = async () => {
+  try {
+    const { productPageOptimizer } = await import('@/utils/productPageOptimizer' as any);
+    productPageOptimizer.enableAnalytics();
+  } catch (e) {
+    console.warn('Failed to load product page optimizer:', e);
+  }
+};
 
 import ProductNavbarShell from './components/ProductNavbarShell';
 import ProductMainContent from './components/ProductMainContent';
@@ -32,73 +39,16 @@ import {
   shouldShowTopLoader, 
   getLoadingMessage 
 } from '@/utils/productLoadingFix';
-import { useRenderDiagnostics } from '@/utils/renderDiagnostics';
 
 const ProductDebugTools = lazy(() => import('@/components/product-page/ProductDebugTools').then(m => ({ default: m.ProductDebugTools })));
 
+// 🔥 تحسين: إضافة custom comparison function لتقليل re-renders
 const ProductPurchasePageV3Container: React.FC = memo(() => {
   const isDev = process.env.NODE_ENV === 'development';
   const componentStartTime = performance.now();
-  const renderCount = useRef(0);
-  renderCount.current++;
 
   const { productId, productIdentifier } = useParams<{ productId?: string; productIdentifier?: string }>();
   const actualProductId = productIdentifier || productId;
-
-  // 🔧 تشخيص الرندر المتكرر باستخدام الأداة المخصصة
-  const diagnostics = useRenderDiagnostics('ProductPurchasePageV3Container', {
-    actualProductId,
-    renderCount: renderCount.current
-  });
-  
-  // 🔍 مراقبة شاملة لصفحة المنتج - تشخيص الرندر المتكرر
-  console.log('🧭 [PRODUCT-V3] تهيئة صفحة المنتج', {
-    actualProductId,
-    url: typeof window !== 'undefined' ? window.location.href : 'ssr',
-    renderCount: renderCount.current,
-    startTime: componentStartTime,
-    memoryUsage: (performance as any).memory ? {
-      used: Math.round((performance as any).memory.usedJSHeapSize / 1024 / 1024) + 'MB'
-    } : 'غير متوفر'
-  });
-
-  // 🚨 تشخيص أسباب الرندر المتكرر مع تتبع التغييرات
-  const previousValues = useRef<{
-    actualProductId: string;
-    organizationId: string;
-    isOrganizationLoading: boolean;
-    isOrganizationReady: boolean;
-    lastValidRender: React.ReactElement | null;
-  }>({
-    actualProductId: '',
-    organizationId: '',
-    isOrganizationLoading: false,
-    isOrganizationReady: false,
-    lastValidRender: null
-  });
-
-  // 🚫 منع الرندر المتكرر المفرط
-  if (renderCount.current > 15) {
-    console.error(`🚫 [PRODUCT-V3] رندر متكرر مفرط تم إيقافه نهائياً - ${renderCount.current} مرات`);
-    // إرجاع آخر حالة صالحة
-    return previousValues.current.lastValidRender || (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center space-y-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-          <p className="text-muted-foreground">جاري إصلاح مشكلة الأداء...</p>
-        </div>
-      </div>
-    );
-  }
-  
-  // 🔍 Debug: معرّفات أساسية - تقليل التسجيل في الإنتاج
-  if (process.env.NODE_ENV === 'development' && renderCount.current <= 3) {
-    console.log('🧭 [ProductV3] init', {
-      actualProductId,
-      url: typeof window !== 'undefined' ? window.location.href : 'ssr',
-      renderCount: renderCount.current
-    });
-  }
   const {
     currentOrganization: organization,
     isLoading: isOrganizationLoading,
@@ -109,7 +59,7 @@ const ProductPurchasePageV3Container: React.FC = memo(() => {
   const fastOrganizationId = useMemo(() => {
     try {
       const win: any = typeof window !== 'undefined' ? window : {};
-      const early = win.__EARLY_STORE_DATA__?.data || win.__EARLY_STORE_DATA__;
+      const early = win.__EARLY_STORE_DATA__?.data || win.__EARLY_STORE_DATA__ || win.__PREFETCHED_STORE_DATA__;
       const winOrg = win.__TENANT_CONTEXT_ORG__;
       const fromWindow = early?.organization_details?.id || early?.organization?.id || winOrg?.id || null;
       if (fromWindow) return String(fromWindow);
@@ -119,61 +69,47 @@ const ProductPurchasePageV3Container: React.FC = memo(() => {
     return null;
   }, []);
 
-  // 🔇 تقليل ضوضاء التشخيص في التطوير فقط وبدون مؤقتات
-  if (process.env.NODE_ENV === 'development' && renderCount.current === 6) {
-    console.warn('🚨 [PRODUCT-V3] رندر متكرر (مرة 6)');
-  }
 
-  // تحديث القيم المرجعية
-  previousValues.current = {
-    actualProductId: actualProductId || '',
-    organizationId: organization?.id || '',
-    isOrganizationLoading,
-    isOrganizationReady,
-    lastValidRender: previousValues.current.lastValidRender // الحفاظ على القيمة السابقة
-  };
-
-  // 🔍 مراقبة تغييرات المؤسسة
-  if (renderCount.current <= 5) {
-    console.log('🏢 [PRODUCT-V3] organization state', {
-      renderCount: renderCount.current,
-      hasOrganization: !!organization,
-      organizationId: organization?.id,
-      isLoading: isOrganizationLoading,
-      isReady: isOrganizationReady
-    });
-  }
   const [searchParams] = useSearchParams();
   const disableTracking = (searchParams.get('notrack') === '1') || (searchParams.get('fast') === '1');
   const organizationId = organization?.id || fastOrganizationId || null;
   const lowEnd = useMemo(() => isLowEndDevice(), []);
   // ✅ إصلاح: تبسيط منطق التمكين - دع الـ API يتعامل مع حالة الـ slug
-  const isSlug = actualProductId && !actualProductId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
-  // لا نبدأ الجلب حتى يتوفر organizationId لتفادي سقوط إلى الدالة القديمة
-  const shouldEnableQuery = !!(actualProductId && organizationId);
 
-  // Component initialization tracking removed
-
-  // UI state
+  // UI state - تحسين لتجنب re-renders غير ضرورية
   const [pageState, setPageState] = useState({
     submittedFormData: {} as Record<string, any>,
     showValidationErrors: false,
     hasTriedToSubmit: false
   });
 
-  // 🔍 مراقبة تغييرات PageState
-  if (renderCount.current <= 5) {
-    console.log('📋 [PRODUCT-V3] page state', {
-      renderCount: renderCount.current,
-      pageState: {
-        formDataKeys: Object.keys(pageState.submittedFormData),
-        showValidationErrors: pageState.showValidationErrors,
-        hasTriedToSubmit: pageState.hasTriedToSubmit
-      }
-    });
-  }
+  // 🔥 تحسين: memoize callbacks لتجنب re-renders
+  const handleFormChange = useCallback((data: Record<string, any>) => {
+    setPageState(prev => ({ ...prev, submittedFormData: { ...prev.submittedFormData, ...data } }));
+  }, []);
+
+  const setShowValidationErrors = useCallback((show: boolean) => {
+    setPageState(prev => ({ ...prev, showValidationErrors: show }));
+  }, []);
+
+  const setHasTriedToSubmit = useCallback((tried: boolean) => {
+    setPageState(prev => ({ ...prev, hasTriedToSubmit: tried }));
+  }, []);
+
+  // 🔥 تحسين: memoize قيم محسوبة لتجنب re-calculations
+  const shouldEnableQuery = useMemo(() =>
+    !!(actualProductId && organizationId),
+    [actualProductId, organizationId]
+  );
+
+  const isSlug = useMemo(() =>
+    actualProductId && !actualProductId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i),
+    [actualProductId]
+  );
+
   const isComponentsLoaded = useLateComponentsReady(organizationId);
   const conversionTrackerRef = useRef<any>(null);
+  const renderCount = useRef(0);
 
   // Data layer
   const { preloadedData } = usePreloadedProductData(actualProductId, organizationId);
@@ -181,8 +117,6 @@ const ProductPurchasePageV3Container: React.FC = memo(() => {
 
   // 🔥 إصلاح: استخدم بيانات الـ preloader مع استجابة فورية وcache مستقر
   const mergedInitialData = useMemo(() => {
-
-    const mergeStartTime = performance.now();
     let result;
 
     // 🔥 إصلاح: أولوية للبيانات المحملة مسبقاً من أي مصدر
@@ -204,7 +138,7 @@ const ProductPurchasePageV3Container: React.FC = memo(() => {
     } 
     // 🔥 جديد: fallback للبيانات من window object إذا كانت متوفرة
     else if (typeof window !== 'undefined') {
-      const windowData = (window as any).__EARLY_STORE_DATA__;
+      const windowData = (window as any).__EARLY_STORE_DATA__ || (window as any).__PREFETCHED_STORE_DATA__;
       if (windowData?.data?.organization_details) {
         result = {
           product: null, // سنحصل عليه من API
@@ -217,26 +151,22 @@ const ProductPurchasePageV3Container: React.FC = memo(() => {
       }
     }
 
-    const mergeTime = performance.now() - mergeStartTime;
-    try {
-      if (renderCount.current <= 2) { // تقليل التسجيل أكثر
-        console.log('🧩 [ProductV3] mergedInitialData', {
-          renderCount: renderCount.current,
-          hasPreloaded: !!preloadedData,
-          hasInitialQueryData: !!initialQueryData,
-          hasWindowData: !!(typeof window !== 'undefined' && (window as any).__EARLY_STORE_DATA__),
-          mergeTime,
-          resultKeys: result ? Object.keys(result) : [],
-          actualProductId
-        });
-      }
-    } catch {}
+    // تسجيل مختصر فقط في التطوير
+    if (process.env.NODE_ENV === 'development' && 1 <= 2) {
+      console.log('🧩 [ProductV3] mergedInitialData', {
+        renderCount: 1,
+        hasPreloaded: !!preloadedData,
+        hasInitialQueryData: !!initialQueryData,
+        hasWindowData: !!(typeof window !== 'undefined' && ((window as any).__EARLY_STORE_DATA__ || (window as any).__PREFETCHED_STORE_DATA__)),
+        resultKeys: result ? Object.keys(result) : [],
+        actualProductId
+      });
+    }
     return result;
   }, [
     // تقليل dependencies لمنع re-computation مفرط
     actualProductId,
-    preloadedData?.product?.id, // استخدام القيمة المباشرة بدلاً من Boolean
-    initialQueryData?.timestamp // استخدام timestamp للتغيير الفعلي فقط
+    preloadedData?.product?.id // استخدام القيمة المباشرة بدلاً من Boolean
   ]);
 
   // Component render tracking removed
@@ -244,33 +174,16 @@ const ProductPurchasePageV3Container: React.FC = memo(() => {
   // useUnifiedData initialization tracking removed
 
   // ✅ تحسين: ابدأ الجلب بمجرد توفر معرف المنتج، وسلّم organizationId إذا توفر
-  const { unifiedData, effectiveData, effectiveProduct, queryLoading, queryError } = useUnifiedData({
+  // استخدم useMemo لمنع re-renders غير ضرورية
+  const unifiedDataParams = useMemo(() => ({
     productId: actualProductId,
     organizationId: organizationId || undefined,
     initialData: mergedInitialData,
     enabled: shouldEnableQuery
-  });
+  }), [actualProductId, organizationId, mergedInitialData?.product?.id, shouldEnableQuery]);
 
-  // 🔍 مراقبة تغييرات البيانات الموحدة
-  if (renderCount.current <= 5) {
-    console.log('📊 [PRODUCT-V3] unified data state', {
-      renderCount: renderCount.current,
-      hasEffectiveProduct: !!effectiveProduct,
-      queryLoading,
-      hasError: !!queryError,
-      initialDataPresent: !!mergedInitialData
-    });
-  }
-  // 🔍 Debug: حالة الجلب الموحدة
-  try {
-    console.log('📡 [ProductV3] unifiedData status', {
-      productId: actualProductId,
-      organizationId,
-      hasEffectiveProduct: !!effectiveProduct?.id,
-      queryLoading,
-      queryError
-    });
-  } catch {}
+  const { unifiedData, effectiveData, effectiveProduct, queryLoading, queryError } = useUnifiedData(unifiedDataParams);
+
 
   // 🔥 إصلاح: استدعاء hooks مع حماية من الرندر المفرط
   const { organizationSettings, showAddToCart } = useOrgCartSettings(
@@ -283,10 +196,10 @@ const ProductPurchasePageV3Container: React.FC = memo(() => {
     // تثبيت القيم فور توفرها لمنع التغيير المستمر
     const finalProductId = actualProductId || null;
     const finalOrgId = organizationId || null;
-    
+
     // منطق ready بسيط وثابت
     const isReady = !!(finalProductId && finalOrgId);
-    
+
     const params = {
       productId: isReady ? finalProductId : undefined,
       organizationId: finalOrgId || undefined,
@@ -294,35 +207,14 @@ const ProductPurchasePageV3Container: React.FC = memo(() => {
       enabled: !!finalProductId // تبسيط: تمكين عند وجود productId فقط
     };
 
-    // تسجيل مختصر فقط عند التغيير الفعلي
-    if (process.env.NODE_ENV === 'development' && renderCount.current === 1) {
-      console.log('⚙️ [ProductV3] stableParams initialized', {
-        productId: finalProductId,
-        organizationId: finalOrgId,
-        enabled: params.enabled
-      });
-    }
-    
     return params;
-  }, [actualProductId, organizationId?.length]); // استخدام length لتقليل التغييرات
+  }, [actualProductId, organizationId]); // تبسيط dependencies - لا نحتاج لـ 1
 
   // ✅ إصلاح: إزالة شرط isDev لأن المكون يحتاج للعمل في الإنتاج أيضًا
   const [state, actions] = useProductPurchase({
     ...stableParams,
     preloadedProduct: effectiveProduct
   });
-
-  // 🔍 مراقبة تغييرات حالة الشراء
-  if (renderCount.current <= 5) {
-    console.log('🛒 [PRODUCT-V3] purchase state', {
-      renderCount: renderCount.current,
-      hasState: !!state,
-      quantity: state?.quantity,
-      selectedColor: state?.selectedColor?.id,
-      selectedSize: state?.selectedSize?.id,
-      canPurchase: state?.canPurchase
-    });
-  }
 
   // ✅ إصلاح: إزالة شرط isDev
   const { deliveryCalculation, summaryData } = useDeliveryCalculation({
@@ -359,7 +251,7 @@ const ProductPurchasePageV3Container: React.FC = memo(() => {
   // ✅ إصلاح: إزالة شرط isDev
   const productTracking = useTracking(actualProductId, organizationId, effectiveProduct);
 
-  const { handleFormChange, handleQuantityChange } = usePurchaseActions({
+  const { handleQuantityChange } = usePurchaseActions({
     canPurchase: state.canPurchase,
     pageState,
     setPageState,
@@ -394,54 +286,77 @@ const ProductPurchasePageV3Container: React.FC = memo(() => {
       (v: boolean) => setPageState(prev => ({ ...prev, hasTriedToSubmit: v })),
       (v: boolean) => setPageState(prev => ({ ...prev, showValidationErrors: v }))
     );
-  }, [handleBuyNowBase, state.canPurchase, pageState.submittedFormData?.length]);
+  }, [handleBuyNowBase, state.canPurchase]); // إزالة pageState.submittedFormData.length لأن handleBuyNowBase يتعامل معها داخلياً
 
   // 🔥 إصلاح: منطق تحميل محسن للاستجابة الفورية للبيانات
   const shouldShowLoading = useMemo(() => {
     // أولوية عالية: إذا وصل المنتج من أي مصدر، أوقف التحميل فوراً
     const hasEffectiveProduct = !!(effectiveProduct?.id);
     const hasPreloadedProduct = !!(mergedInitialData?.product?.id);
-    
+
     if (hasEffectiveProduct || hasPreloadedProduct) {
       return false; // فورياً أوقف التحميل
     }
-    
+
     // إذا كان هناك خطأ أو لا نحمل، لا نظهر التحميل
     if (queryError || !queryLoading) {
       return false;
     }
-    
+
+    // 🔥 إضافة حماية: منع التحميل المفرط في حالة re-renders
+    if (1 > 5) {
+      return false; // أوقف التحميل بعد 5 renders
+    }
+
     // نظهر التحميل فقط إذا كنا نحمل بدون بيانات أو أخطاء
     return true;
-  }, [effectiveProduct?.id, mergedInitialData?.product?.id, queryLoading, queryError]);
+  }, [effectiveProduct?.id, mergedInitialData?.product?.id, queryLoading, queryError]); // إزالة 1 لمنع re-renders
 
   // 🔥 إصلاح: رسالة تحميل محسنة مع تفاصيل التقدم
   const loadingMessage = useMemo(() => {
     // إذا كان المنتج موجود، لا نحتاج رسالة تحميل
     if (effectiveProduct?.id) return null;
-    
+
     // رسائل تقدمية بناءً على المرحلة
     if (queryError) return 'فشل في تحميل المنتج';
     if (queryLoading) {
+      // حساب الوقت المستغرق منذ بدء التحميل
+      const loadingTime = performance.now() - componentStartTime;
       // رسائل متدرجة بناءً على الوقت
-      return renderCount.current <= 2 ? 'جاري الاتصال...' : 'جاري تحميل المنتج...';
+      if (loadingTime < 200) {
+        return 'جاري الاتصال...';
+      } else if (loadingTime < 500) {
+        return 'جاري تحميل المنتج...';
+      } else {
+        return 'جاري تحضير المنتج...';
+      }
     }
-    
+
     return null;
-  }, [effectiveProduct?.id, queryLoading, queryError, renderCount.current]);
+  }, [effectiveProduct?.id, queryLoading, queryError, componentStartTime]);
 
   const shouldShowUnifiedLoading = useMemo(() => {
     // تبسيط المنطق: فقط أظهر التحميل إذا لم يكن لدينا منتج ونحن نحمل
-    return shouldShowLoading && !effectiveProduct?.id && renderCount.current <= 5;
+    const isValidForLoading = shouldShowLoading && !effectiveProduct?.id;
+
+    // إذا تجاوزنا حد الرندر، أوقف التحميل
+    if (renderCount.current > 10) {
+      return false;
+    }
+
+    return isValidForLoading;
   }, [shouldShowLoading, effectiveProduct?.id]);
-  try {
-    console.log('⏳ [ProductV3] loading gates', {
-      shouldShowLoading,
-      isReadyForDisplay: isProductReadyForDisplay(effectiveProduct, mergedInitialData, queryLoading),
-      hasProduct: !!effectiveProduct?.id,
-      loadingMessage
-    });
-  } catch {}
+  if (process.env.NODE_ENV === 'development') {
+    try {
+      console.log('⏳ [ProductV3] loading gates', {
+        shouldShowLoading,
+        isReadyForDisplay: isProductReadyForDisplay(effectiveProduct, mergedInitialData, queryLoading),
+        hasProduct: !!effectiveProduct?.id,
+        loadingMessage,
+        renderCount: renderCount.current
+      });
+    } catch {}
+  }
 
   // Disable smooth-scroll and animations on low-end devices, restore on unmount
   useEffect(() => {
@@ -478,7 +393,9 @@ const ProductPurchasePageV3Container: React.FC = memo(() => {
 
     // تنظيف عند إلغاء mount
     return () => {
-      productPageOptimizer.cleanup();
+      import('@/utils/productPageOptimizer' as any).then(({ productPageOptimizer }) => {
+        productPageOptimizer.cleanup();
+      }).catch(() => {});
     };
   }, [effectiveProduct?.id, organizationId, disableTracking]);
 
@@ -524,15 +441,15 @@ const ProductPurchasePageV3Container: React.FC = memo(() => {
   // 🔥 إصلاح: شريط تحميل محسن مع dependencies مقللة
   const showTopLoader = useMemo(() => {
     // منع إعادة الحساب إذا كان هناك رندر مفرط
-    if (renderCount.current > 5) return false;
-    
+    if (1 > 8) return false;
+
     // لا نظهر شريط التحميل إذا كان لدينا منتج أو بيانات مبدئية
     const hasProductData = !!(effectiveProduct?.id || mergedInitialData?.product?.id);
     if (hasProductData) return false;
-    
+
     // نظهر شريط التحميل فقط إذا كنا نحمل ولمدة قصيرة
     return queryLoading && !isOrganizationLoading;
-  }, [effectiveProduct?.id, mergedInitialData?.product?.id, queryLoading, isOrganizationLoading, renderCount.current > 5]); // إضافة شرط للرندر المتكرر
+  }, [effectiveProduct?.id, mergedInitialData?.product?.id, queryLoading, isOrganizationLoading]); // تقليل dependencies
 
   // Loading / Error gates - استخدام المُحسَّن والموحد
 
@@ -575,9 +492,6 @@ const ProductPurchasePageV3Container: React.FC = memo(() => {
   }
 
   const totalRenderTime = performance.now() - componentStartTime;
-
-  // حفظ آخر حالة رندر صالحة للطوارئ
-  previousValues.current.lastValidRender = null; // سيتم تحديثها بعد الرندر
 
   const renderResult = (
     <>
@@ -670,12 +584,10 @@ const ProductPurchasePageV3Container: React.FC = memo(() => {
     </>
   );
 
-  // حفظ النتيجة كآخر حالة صالحة
-  previousValues.current.lastValidRender = renderResult;
-
   return renderResult;
 });
 
+// 🔥 تحسين: إضافة displayName للتشخيص الأفضل
 ProductPurchasePageV3Container.displayName = 'ProductPurchasePageV3Container';
 
 export default ProductPurchasePageV3Container;

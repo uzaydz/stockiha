@@ -72,32 +72,36 @@ OptimizedStoreLoader.displayName = 'OptimizedStoreLoader';
  * محسن للاستفادة من الكشف المبكر للنطاق
  */
 const StoreRouter = React.memo(() => {
-  const storeRouterStartTime = useRef(performance.now());
-  
-  console.log('🛣️ [STORE-ROUTER] بدء تشغيل موجه المتجر', {
-    startTime: storeRouterStartTime.current,
-    url: window.location.href,
-    pathname: window.location.pathname
-  });
+  // 🔥 منع التهيئة المتكررة باستخدام ref عالمي
+  const globalInitRef = useRef(false);
+
+  // إذا تم التهيئة مسبقاً، لا نعيد تسجيل الـ logs
+  if (globalInitRef.current) {
+    // السماح بإعادة التشغيل فقط في التطوير مع فحص محدود
+    if (process.env.NODE_ENV === 'development' && Math.random() < 0.01) {
+      console.log('🛣️ [STORE-ROUTER] إعادة تشغيل محدودة في التطوير');
+    }
+  } else {
+    globalInitRef.current = true;
+    console.log('🛣️ [STORE-ROUTER] بدء تشغيل موجه المتجر', {
+      startTime: performance.now(),
+      url: window.location.href,
+      pathname: window.location.pathname
+    });
+  }
   
   // استخدام Hook لضمان تحديث العنوان والأيقونة
   useDynamicTitle();
   
-  // 🔥 إضافة فحص للمسار - إذا كان مسار إداري في نطاق عام، لا تعرض StoreRouter
-  const pathname = useMemo(() => window.location.pathname, []);
-  const hostname = useMemo(() => window.location.hostname, []);
-  
+  // 🔥 تحسين فوري: فحص سريع للمسار - إذا كان مسار إداري في نطاق عام، لا تعرض StoreRouter
+  const pathname = window.location.pathname;
+  const hostname = window.location.hostname;
+
   // إذا كان النطاق عام والمسار إداري، لا تعرض StoreRouter
   const isPublicDomain = PUBLIC_DOMAINS.includes(hostname);
   const isAdminPath = pathname.startsWith('/dashboard') || pathname.startsWith('/admin') || pathname.startsWith('/login') || pathname.startsWith('/forgot-password') || pathname.startsWith('/reset-password');
-  
+
   if (isPublicDomain && isAdminPath) {
-    console.log('🚫 [STORE-ROUTER] تخطي المسار الإداري في النطاق العام', {
-      hostname,
-      pathname,
-      isPublicDomain,
-      isAdminPath
-    });
     return null; // لا تعرض StoreRouter للمسارات الإدارية في النطاقات العامة
   }
   
@@ -133,7 +137,10 @@ const StoreRouter = React.memo(() => {
       const earlyHostname = sessionStorage.getItem('bazaar_early_hostname');
       const earlySubdomain = sessionStorage.getItem('bazaar_early_subdomain');
 
-      if (isEarlyDetected && earlyHostname === hostname) {
+      // التحقق من أن النطاق المحفوظ يطابق النطاق الحالي وليس نطاق عام
+      const isPublicDomain = PUBLIC_DOMAINS.includes(hostname);
+
+      if (isEarlyDetected && earlyHostname === hostname && !isPublicDomain) {
         return { isEarlyDetected: true, earlySubdomain };
       }
 
@@ -215,99 +222,62 @@ const StoreRouter = React.memo(() => {
     isInitialized.current = false;
   }, []);
 
-  useEffect(() => {
-    // 🔥 منع التكرار: التحقق من أن النطاق لم يتم فحصه
-    if (domainChecked.current) {
-      return;
-    }
-    
-    domainChecked.current = true;
-
-    const checkDomain = async () => {
-      const domainCheckStartTime = performance.now();
-      try {
-        console.log('🔍 [STORE-ROUTER] بدء فحص النطاق', {
-          hostname,
-          subdomain,
-          isSubdomainStore,
-          isCustomDomain,
-          checkStartTime: domainCheckStartTime
-        });
-        
-        // التحقق من النطاقات المحلية الخالصة (بدون subdomain)
-        if (isPlainLocalhost(hostname)) {
-          console.log('🏠 [STORE-ROUTER] نطاق محلي خالص - عرض صفحة الهبوط');
-          setIsStore(false);
-          setIsLoading(false);
-          domainChecked.current = true;
-          return;
-        }
-
-        // إذا كان هناك نطاق فرعي، نفترض أنه متجر ونترك تحميل البيانات للمكونات المختصة
-        if (isSubdomainStore && subdomain) {
-          console.log('🏪 [STORE-ROUTER] كشف متجر بنطاق فرعي', {
-            subdomain,
-            hostname,
-            checkTime: performance.now() - domainCheckStartTime
-          });
-          setHasSubdomain(true);
-          // ضمان توافق المعرف مع النطاق الحالي: نُفرغ المعرف المخزن لتجنب جلب مكرر بالمعرف
-          try {
-            localStorage.removeItem('bazaar_organization_id');
-            localStorage.setItem('bazaar_current_subdomain', subdomain);
-          } catch (e) {
-            console.warn('⚠️ [STORE-ROUTER] خطأ في localStorage:', e);
-          }
-          setIsStore(true);
-          setIsLoading(false);
-          domainChecked.current = true;
-          return;
-        }
-
-        // النطاقات العامة - عرض صفحة الهبوط مباشرة
-        if (PUBLIC_DOMAINS.includes(hostname)) {
-          console.log('🌐 [STORE-ROUTER] نطاق عام - عرض صفحة الهبوط', {
-            hostname,
-            checkTime: performance.now() - domainCheckStartTime
-          });
-          setIsStore(false);
-          setIsLoading(false);
-          domainChecked.current = true;
-          return;
-        }
-
-        // النطاقات المخصصة بدون نطاق فرعي: اعتبرها متجر (سيتم حل المؤسسة عبر الدومين)
-        if (isCustomDomain) {
-          console.log('🎯 [STORE-ROUTER] كشف نطاق مخصص', {
-            hostname,
-            checkTime: performance.now() - domainCheckStartTime
-          });
-          try {
-            // حفظ النطاق كاملاً للنطاقات المخصصة
-            localStorage.setItem('bazaar_current_subdomain', hostname);
-          } catch (e) {
-            console.warn('⚠️ [STORE-ROUTER] خطأ في localStorage للنطاق المخصص:', e);
-          }
-          setIsStore(true);
-          setIsLoading(false);
-          domainChecked.current = true;
-          return;
-        }
-        
-        // إذا لم نجد أي متجر، عرض صفحة الهبوط
+  // 🔥 تحسين فوري: فحص النطاق بشكل مباشر بدون useEffect معقد
+  const checkDomain = () => {
+    try {
+      // التحقق من النطاقات المحلية الخالصة (بدون subdomain)
+      if (isPlainLocalhost(hostname)) {
         setIsStore(false);
         setIsLoading(false);
-        domainChecked.current = true;
-      } catch (error) {
-        setError(`خطأ في فحص النطاق: ${error instanceof Error ? error.message : 'خطأ غير معروف'}`);
-        setIsLoading(false);
-        domainChecked.current = true;
+        return;
       }
-    };
 
-    // بدء فحص النطاق
+      // إذا كان هناك نطاق فرعي، نفترض أنه متجر
+      if (isSubdomainStore && subdomain) {
+        setHasSubdomain(true);
+        try {
+          localStorage.removeItem('bazaar_organization_id');
+          localStorage.setItem('bazaar_current_subdomain', subdomain);
+        } catch (e) {
+          // تجاهل أخطاء localStorage
+        }
+        setIsStore(true);
+        setIsLoading(false);
+        return;
+      }
+
+      // النطاقات العامة - عرض صفحة الهبوط مباشرة
+      if (PUBLIC_DOMAINS.includes(hostname)) {
+        setIsStore(false);
+        setIsLoading(false);
+        return;
+      }
+
+      // النطاقات المخصصة بدون نطاق فرعي: اعتبرها متجر
+      if (isCustomDomain) {
+        try {
+          localStorage.setItem('bazaar_current_subdomain', hostname);
+        } catch (e) {
+          // تجاهل أخطاء localStorage
+        }
+        setIsStore(true);
+        setIsLoading(false);
+        return;
+      }
+
+      // إذا لم نجد أي متجر، عرض صفحة الهبوط
+      setIsStore(false);
+      setIsLoading(false);
+    } catch (error) {
+      setError(`خطأ في فحص النطاق: ${error instanceof Error ? error.message : 'خطأ غير معروف'}`);
+      setIsLoading(false);
+    }
+  };
+
+  // فحص النطاق فوراً
+  React.useEffect(() => {
     checkDomain();
-  }, [hostname, subdomain, isSubdomainStore, isCustomDomain, earlyDomainDetection]);
+  }, []); // تشغيل مرة واحدة فقط
 
   // 🔥 إصلاح: منع التكرار بطريقة أفضل
   if (isInitialized.current && renderCount.current > 1) {

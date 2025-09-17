@@ -40,16 +40,20 @@ export async function fetchUnifiedProductData(
       forceRefresh // ✅ استخدام قيمة forceRefresh من المعاملات
     });
     
-    // 🔍 Debug: تشخيص استجابة API
-    if (process.env.NODE_ENV === 'development') {
+    // 🔍 Debug: تشخيص استجابة API - مفصل أكثر في الإنتاج
+    if (process.env.NODE_ENV === 'development' || true) { // تمكين في الإنتاج مؤقتاً للتشخيص
       console.log('🔍 [fetchUnifiedProductData] استجابة API الخام:', {
         hasResponse: !!productResponse,
         responseKeys: productResponse ? Object.keys(productResponse) : [],
         success: productResponse?.success,
+        dataType: (productResponse as any)?.data_type,
         hasData: !!(productResponse as any)?.data,
         hasProduct: !!(productResponse as any)?.product,
+        hasBasic: !!(productResponse as any)?.basic,
+        hasExtended: !!(productResponse as any)?.extended || !!(productResponse as any)?.product_extended,
+        combined: !!(productResponse as any)?.combined,
         dataKeys: (productResponse as any)?.data ? Object.keys((productResponse as any).data) : 'no data',
-        productId: (productResponse as any)?.product?.id || (productResponse as any)?.data?.product?.id || 'no product id'
+        productId: (productResponse as any)?.product?.id || (productResponse as any)?.data?.product?.id || (productResponse as any)?.basic?.product?.id || 'no product id'
       });
     }
     
@@ -80,8 +84,12 @@ export async function fetchUnifiedProductData(
     return processedData;
 
   } catch (error) {
-    if (process.env.NODE_ENV === 'development') {
-    }
+    console.error('❌ [fetchUnifiedProductData] خطأ في جلب البيانات:', {
+      error: error instanceof Error ? error.message : error,
+      productId,
+      options,
+      stack: error instanceof Error ? error.stack : undefined
+    });
     throw error;
   }
 }
@@ -96,12 +104,112 @@ function processProductResponse(
   
   // 🔥 إصلاح: معالجة متقدمة لاستخراج البيانات من مختلف الهياكل
   let responseData = (response as any).data || response;
-  
-  // 🔥 إصلاح: معالجة البيانات المغلفة في RPC function
-  if (responseData && typeof responseData === 'object' && responseData.get_product_complete_data_ultra_optimized) {
-    responseData = responseData.get_product_complete_data_ultra_optimized;
+
+  // 🔥 إصلاح: معالجة البيانات المغلفة في API الجديد
+  if (responseData && typeof responseData === 'object') {
+    console.log('🔍 [processProductResponse] فحص بنية البيانات:', {
+      hasProduct: !!responseData.product,
+      hasBasic: !!responseData.basic,
+      hasExtended: responseData.extended !== undefined,
+      hasCombined: !!responseData.combined,
+      dataType: responseData.data_type,
+      hasProductExtended: !!responseData.product_extended
+    });
+    
+    // ✅ تحديث: التحقق من البيانات الجديدة المدمجة مع المنتج المدمج
+    if (responseData.product && responseData.basic && responseData.extended !== undefined) {
+      console.log('🚀 [processProductResponse] استخدام البيانات المدمجة');
+      // البيانات من API الجديد المدمج - استخدم المنتج المدمج مباشرة
+      responseData = {
+        product: responseData.product, // المنتج المدمج الذي تم إنشاؤه في productUltraFastApi.ts
+        stats: responseData.stats || responseData.basic.stats,
+        // الاحتفاظ بالبيانات المتقدمة المنفصلة للتوافق
+        ...(responseData.extended?.product_extended && {
+          extended: responseData.extended.product_extended
+        })
+      };
+    }
+    // 🚀 إصلاح جديد: التعامل مع البيانات المتقدمة فقط (data_type: "extended")
+    else if (responseData.data_type === 'extended' && responseData.product_extended) {
+      console.log('🚀 [processProductResponse] استخدام البيانات المتقدمة فقط (extended)');
+      // إنشاء منتج وهمي بناءً على البيانات المتقدمة
+      const extendedProduct = responseData.product_extended;
+      const pseudoProduct = {
+        id: extendedProduct.product_id,
+        organization_id: extendedProduct.organization_id,
+        // استخراج البيانات الأساسية من البيانات المتقدمة
+        variants: {
+          has_variants: extendedProduct.variants_extended?.has_variants || false,
+          use_sizes: extendedProduct.variants_extended?.use_sizes || false,
+          use_variant_prices: false,
+          // استخدام colors_with_details كألوان أساسية
+          colors: extendedProduct.variants_extended?.colors_with_details || []
+        },
+        // 🚀 إصلاح: تحويل forms_extended إلى form_data
+        form_data: (() => {
+          const formsExtended = extendedProduct.forms_extended;
+          if (!formsExtended) return null;
+          
+          // إعطاء الأولوية للنموذج المخصص، وإلا استخدم الافتراضي
+          if (formsExtended.custom_form) {
+            return {
+              ...formsExtended.custom_form,
+              type: 'custom'
+            };
+          } else if (formsExtended.default_form) {
+            return {
+              ...formsExtended.default_form,
+              type: 'default'
+            };
+          }
+          return null;
+        })(),
+        // إضافة الحقول الضرورية الأخرى
+        ...extendedProduct,
+        // دمج البيانات المتقدمة
+        features_and_specs: extendedProduct.features_and_specs,
+        advanced_pricing: extendedProduct.advanced_pricing,
+        shipping_extended: extendedProduct.shipping_extended,
+        variants_extended: extendedProduct.variants_extended,
+        images_extended: extendedProduct.images_extended,
+        forms_extended: extendedProduct.forms_extended
+      };
+      
+      responseData = {
+        product: pseudoProduct,
+        stats: responseData.extended_stats || {},
+        extended: extendedProduct
+      };
+    }
+    // التحقق من البيانات الجديدة بدون دمج (للتوافق مع الإصدارات القديمة)
+    else if (responseData.basic && responseData.extended !== undefined) {
+      console.log('🔍 [processProductResponse] استخدام البيانات الجديدة بدون دمج');
+      // البيانات من API الجديد بدون دمج - استخدم البيانات الأساسية
+      responseData = {
+        product: responseData.basic.product,
+        stats: responseData.basic.stats,
+        // دمج البيانات المتقدمة إذا كانت متوفرة
+        ...(responseData.extended?.product_extended && {
+          extended: responseData.extended.product_extended
+        })
+      };
+    }
+    // التحقق من البنية المباشرة لـ RPC القديم (للتوافق)
+    else if (responseData.get_product_complete_data_ultra_optimized) {
+      console.log('🔍 [processProductResponse] استخدام البيانات القديمة المباشرة');
+      responseData = responseData.get_product_complete_data_ultra_optimized;
+    }
+    // التحقق من البيانات المغلفة في RPC داخل data
+    else if (responseData.data && typeof responseData.data === 'object' && responseData.data.get_product_complete_data_ultra_optimized) {
+      console.log('🔍 [processProductResponse] استخدام البيانات القديمة في data');
+      responseData = responseData.data.get_product_complete_data_ultra_optimized;
+    }
+    // 🚀 Fallback: إذا لم تطابق أي حالة
+    else {
+      console.log('🔄 [processProductResponse] لم تطابق أي حالة معروفة، استخدام البيانات كما هي');
+    }
   }
-  
+
   const { product, stats } = responseData;
   
   // 🔍 Debug: تشخيص بنية البيانات الواردة
@@ -124,6 +232,11 @@ function processProductResponse(
   
   // 🔥 إصلاح: التأكد من وجود المنتج قبل إنشاء البيانات الموحدة
   if (!product) {
+    console.error('❌ [processProductResponse] المنتج غير موجود:', {
+      responseKeys: responseData ? Object.keys(responseData) : [],
+      hasResponseData: !!responseData,
+      responseDataType: typeof responseData
+    });
     throw new Error('المنتج غير موجود في البيانات المستلمة');
   }
   
