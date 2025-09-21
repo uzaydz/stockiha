@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { useUnifiedProductPageData } from '@/hooks/useUnifiedProductPageData';
 
 export function useUnifiedData({
@@ -14,6 +14,8 @@ export function useUnifiedData({
   enabled?: boolean;
   queryKey?: string[];
 }) {
+  // PERF: علّم بداية استخدام hook (بدون await داخل الدالة)
+  try { void import('@/utils/perfDebug').then(m => m.default.log('useUnifiedData.start', { productId, hasInitial: !!(initialData as any)?.product })); } catch {}
   // لا نمرر initialData إلا إذا احتوت على product فعلي، حتى لا تمنع الجلب
   const safeInitialData = useMemo(() =>
     (initialData && (initialData as any).product) ? initialData : undefined,
@@ -36,7 +38,8 @@ export function useUnifiedData({
     if (!unifiedData) return null;
 
     // 🔥 إصلاح: منع إعادة الإنشاء إلا عند التغيير الفعلي
-    if (process.env.NODE_ENV === 'development') {
+    // تقليل اللوجات لتجنب إعادة التصيير المتكررة
+    if (process.env.NODE_ENV === 'development' && Math.random() < 0.05) { // 5% فقط من المرات
       console.log('🔍 [effectiveData] unifiedData:', {
         hasData: !!unifiedData,
         hasProduct: !!unifiedData?.product,
@@ -55,8 +58,16 @@ export function useUnifiedData({
     unifiedData?.error
   ]);
 
-  // 🔥 إصلاح: تحسين استخراج المنتج من مختلف مصادر البيانات
+  // 🔥 تحسين: استخدم useRef لمنع إعادة الحساب المفرط
+  const effectiveProductRef = useRef<any>(null);
+  const lastProductIdRef = useRef<string | null>(null);
+  
   const effectiveProduct = useMemo(() => {
+    // إذا لم يتغير productId، استخدم المنتج المحفوظ
+    if (lastProductIdRef.current === productId && effectiveProductRef.current) {
+      return effectiveProductRef.current;
+    }
+
     // البحث في مختلف الأماكن المحتملة للمنتج
     let product = null;
 
@@ -86,16 +97,24 @@ export function useUnifiedData({
       }
     }
 
+    // حفظ النتيجة في ref
+    effectiveProductRef.current = product;
+    lastProductIdRef.current = productId;
+
     return product;
   }, [
     // تقليل dependencies للحد الأدنى لمنع re-computation
     effectiveData?.product?.id,
-    effectiveData?.data?.product?.id
+    effectiveData?.data?.product?.id,
+    productId
   ]);
 
   // ✅ إصلاح: تحسين منطق التحميل ليعرض المنتج فوراً إذا كان متوفراً
   const queryLoading = unifiedData?.isLoading && !effectiveProduct && !safeInitialData?.product;
   const queryError = unifiedData?.error ? String(unifiedData.error) : null;
+
+  // PERF: علّم نهاية استخدام hook
+  try { void import('@/utils/perfDebug').then(m => m.default.log('useUnifiedData.end', { queryLoading, hasProduct: !!effectiveProduct })); } catch {}
 
   return { unifiedData, effectiveData, effectiveProduct, queryLoading, queryError };
 }

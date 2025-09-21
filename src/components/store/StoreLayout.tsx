@@ -13,6 +13,8 @@ interface StoreLayoutProps {
   organizationSettings?: any;
   logoUrl?: string;
   customJSFooter?: string;
+  isCheckingStore?: boolean;
+  hasStoreError?: boolean;
 }
 
 const StoreLayout: React.FC<StoreLayoutProps> = React.memo(({
@@ -23,7 +25,9 @@ const StoreLayout: React.FC<StoreLayoutProps> = React.memo(({
   storeName,
   organizationSettings,
   logoUrl,
-  customJSFooter
+  customJSFooter,
+  isCheckingStore = false,
+  hasStoreError = false
 }) => {
   // تتبع عدد التحديثات
   const renderCount = useRef(0);
@@ -104,7 +108,14 @@ const StoreLayout: React.FC<StoreLayoutProps> = React.memo(({
   
   // إذا لم يتم العثور على المؤسسة في أي مصدر
   // 🔥 إصلاح: معاملة string فارغ كما لو كان null
-  if ((!centralOrgId || centralOrgId === '') && !hasOrganizationData && !hasOrganizationSettings) {
+  const shouldShowNotFound = hasStoreError || (
+    !isCheckingStore &&
+    (!centralOrgId || centralOrgId === '') &&
+    !hasOrganizationData &&
+    !hasOrganizationSettings
+  );
+
+  if (shouldShowNotFound) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
         <h1 className="text-2xl font-bold mb-4">المتجر غير موجود</h1>

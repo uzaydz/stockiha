@@ -1,0 +1,521 @@
+{
+  "analysis": {
+    "timestamp": "2025-09-17T17:06:45.479Z",
+    "totalSize": 7967110,
+    "totalFiles": 242,
+    "chunks": {
+      "js": [
+        {
+          "name": "AllInOneSection-CrLTqIUI.js",
+          "path": "assets/AllInOneSection-CrLTqIUI.js",
+          "size": 22958,
+          "formattedSize": "22.42 KB"
+        },
+        {
+          "name": "BannerContent-DyUYxGtE.js",
+          "path": "assets/BannerContent-DyUYxGtE.js",
+          "size": 7231,
+          "formattedSize": "7.06 KB"
+        },
+        {
+          "name": "BannerImage-D0ZMmhdu.js",
+          "path": "assets/BannerImage-D0ZMmhdu.js",
+          "size": 26101,
+          "formattedSize": "25.49 KB"
+        },
+        {
+          "name": "CSPCompliantPixelLoader-B3vVHDpw.js",
+          "path": "assets/CSPCompliantPixelLoader-B3vVHDpw.js",
+          "size": 4528,
+          "formattedSize": "4.42 KB"
+        },
+        {
+          "name": "CTASection-AdObmlpz.js",
+          "path": "assets/CTASection-AdObmlpz.js",
+          "size": 6613,
+          "formattedSize": "6.46 KB"
+        },
+        {
+          "name": "CartCheckoutPage-DEjxux4z.js",
+          "path": "assets/CartCheckoutPage-DEjxux4z.js",
+          "size": 8417,
+          "formattedSize": "8.22 KB"
+        },
+        {
+          "name": "CartPage-BXIqzK4j.js",
+          "path": "assets/CartPage-BXIqzK4j.js",
+          "size": 4512,
+          "formattedSize": "4.41 KB"
+        },
+        {
+          "name": "ConversionTracker-ASh-kydD.js",
+          "path": "assets/ConversionTracker-ASh-kydD.js",
+          "size": 14081,
+          "formattedSize": "13.75 KB"
+        },
+        {
+          "name": "CountdownOffersSection-E2Zz94pI.js",
+          "path": "assets/CountdownOffersSection-E2Zz94pI.js",
+          "size": 6128,
+          "formattedSize": "5.98 KB"
+        },
+        {
+          "name": "CoursesSection-CF6IJCIw.js",
+          "path": "assets/CoursesSection-CF6IJCIw.js",
+          "size": 9853,
+          "formattedSize": "9.62 KB"
+        },
+        {
+          "name": "CustomerTestimonials-N4msSaUg.js",
+          "path": "assets/CustomerTestimonials-N4msSaUg.js",
+          "size": 8280,
+          "formattedSize": "8.09 KB"
+        },
+        {
+          "name": "FacebookConversionAPI-MfLnWUWy.js",
+          "path": "assets/FacebookConversionAPI-MfLnWUWy.js",
+          "size": 11418,
+          "formattedSize": "11.15 KB"
+        },
+        {
+          "name": "FaviconManager-CUFUGTj0.js",
+          "path": "assets/FaviconManager-CUFUGTj0.js",
+          "size": 5741,
+          "formattedSize": "5.61 KB"
+        },
+        {
+          "name": "FeaturedProducts-JBdORS0A.js",
+          "path": "assets/FeaturedProducts-JBdORS0A.js",
+          "size": 19887,
+          "formattedSize": "19.42 KB"
+        },
+        {
+          "name": "LandingPage-D7ohtft2.js",
+          "path": "assets/LandingPage-D7ohtft2.js",
+          "size": 50828,
+          "formattedSize": "49.64 KB"
+        },
+        {
+          "name": "LazyComponentPreviewWrapper-BsDdYVcs.js",
+          "path": "assets/LazyComponentPreviewWrapper-BsDdYVcs.js",
+          "size": 9738,
+          "formattedSize": "9.51 KB"
+        },
+        {
+          "name": "OrderForm-D1anerCS.js",
+          "path": "assets/OrderForm-D1anerCS.js",
+          "size": 105637,
+          "formattedSize": "103.16 KB"
+        },
+        {
+          "name": "ProductCategoriesOptimized-Bq0FBi_R.js",
+          "path": "assets/ProductCategoriesOptimized-Bq0FBi_R.js",
+          "size": 20363,
+          "formattedSize": "19.89 KB"
+        },
+        {
+          "name": "ProductConversionTracker-CuZUmkic.js",
+          "path": "assets/ProductConversionTracker-CuZUmkic.js",
+          "size": 5316,
+          "formattedSize": "5.19 KB"
+        },
+        {
+          "name": "ProductDebugTools-BHGZgz8I.js",
+          "path": "assets/ProductDebugTools-BHGZgz8I.js",
+          "size": 226,
+          "formattedSize": "226 Bytes"
+        },
+        {
+          "name": "ProductTrackingContainer-BJJOBtyJ.js",
+          "path": "assets/ProductTrackingContainer-BJJOBtyJ.js",
+          "size": 2589,
+          "formattedSize": "2.53 KB"
+        },
+        {
+          "name": "StoreAbout-B_bioO3c.js",
+          "path": "assets/StoreAbout-B_bioO3c.js",
+          "size": 4124,
+          "formattedSize": "4.03 KB"
+        },
+        {
+          "name": "StoreBanner-7oVbQDA6.js",
+          "path": "assets/StoreBanner-7oVbQDA6.js",
+          "size": 6693,
+          "formattedSize": "6.54 KB"
+        },
+        {
+          "name": "StoreContact-D7p0GDXd.js",
+          "path": "assets/StoreContact-D7p0GDXd.js",
+          "size": 6789,
+          "formattedSize": "6.63 KB"
+        },
+        {
+          "name": "StorePage-Db3Cdi13.js",
+          "path": "assets/StorePage-Db3Cdi13.js",
+          "size": 45736,
+          "formattedSize": "44.66 KB"
+        },
+        {
+          "name": "TestimonialsSection-Bwace3NM.js",
+          "path": "assets/TestimonialsSection-Bwace3NM.js",
+          "size": 9288,
+          "formattedSize": "9.07 KB"
+        },
+        {
+          "name": "ThankYouPage-BJxlM9Cv.js",
+          "path": "assets/ThankYouPage-BJxlM9Cv.js",
+          "size": 27477,
+          "formattedSize": "26.83 KB"
+        },
+        {
+          "name": "UnifiedLoader-B_CwN0ir.js",
+          "path": "assets/UnifiedLoader-B_CwN0ir.js",
+          "size": 7474,
+          "formattedSize": "7.3 KB"
+        },
+        {
+          "name": "VisitorAnalyticsDisplay-Kbrcf-tB.js",
+          "path": "assets/VisitorAnalyticsDisplay-Kbrcf-tB.js",
+          "size": 7926,
+          "formattedSize": "7.74 KB"
+        },
+        {
+          "name": "app-products-CKZniH1a.js",
+          "path": "assets/app-products-CKZniH1a.js",
+          "size": 986210,
+          "formattedSize": "963.1 KB"
+        },
+        {
+          "name": "custom-shipping-CQx7foOh.js",
+          "path": "assets/custom-shipping-CQx7foOh.js",
+          "size": 1777,
+          "formattedSize": "1.74 KB"
+        },
+        {
+          "name": "eventMatchQualityReport-CV8WoShk.js",
+          "path": "assets/eventMatchQualityReport-CV8WoShk.js",
+          "size": 4694,
+          "formattedSize": "4.58 KB"
+        },
+        {
+          "name": "index-Su21dJcx.js",
+          "path": "assets/index-Su21dJcx.js",
+          "size": 843,
+          "formattedSize": "843 Bytes"
+        },
+        {
+          "name": "main-jpJGr4Tp.js",
+          "path": "assets/main-jpJGr4Tp.js",
+          "size": 1759,
+          "formattedSize": "1.72 KB"
+        },
+        {
+          "name": "productPageOptimizer-AbuUosFX.js",
+          "path": "assets/productPageOptimizer-AbuUosFX.js",
+          "size": 5244,
+          "formattedSize": "5.12 KB"
+        },
+        {
+          "name": "productUltraFastApi-nrGRb-is.js",
+          "path": "assets/productUltraFastApi-nrGRb-is.js",
+          "size": 6318,
+          "formattedSize": "6.17 KB"
+        },
+        {
+          "name": "store-COTLTTBN.js",
+          "path": "assets/store-COTLTTBN.js",
+          "size": 24112,
+          "formattedSize": "23.55 KB"
+        },
+        {
+          "name": "themeManager-DKfO-eCJ.js",
+          "path": "assets/themeManager-DKfO-eCJ.js",
+          "size": 916,
+          "formattedSize": "916 Bytes"
+        },
+        {
+          "name": "vendor-animation-0ydGt73c.js",
+          "path": "assets/vendor-animation-0ydGt73c.js",
+          "size": 115545,
+          "formattedSize": "112.84 KB"
+        },
+        {
+          "name": "vendor-forms-C5SlOE8Q.js",
+          "path": "assets/vendor-forms-C5SlOE8Q.js",
+          "size": 79497,
+          "formattedSize": "77.63 KB"
+        },
+        {
+          "name": "vendor-http-l0sNRNKZ.js",
+          "path": "assets/vendor-http-l0sNRNKZ.js",
+          "size": 1,
+          "formattedSize": "1 Bytes"
+        },
+        {
+          "name": "vendor-i18n-DsKWqkP5.js",
+          "path": "assets/vendor-i18n-DsKWqkP5.js",
+          "size": 54761,
+          "formattedSize": "53.48 KB"
+        },
+        {
+          "name": "vendor-icons-SYsyUJWO.js",
+          "path": "assets/vendor-icons-SYsyUJWO.js",
+          "size": 27427,
+          "formattedSize": "26.78 KB"
+        },
+        {
+          "name": "vendor-million-eyD3KNr4.js",
+          "path": "assets/vendor-million-eyD3KNr4.js",
+          "size": 18454,
+          "formattedSize": "18.02 KB"
+        },
+        {
+          "name": "vendor-misc-small-CkDHdix9.js",
+          "path": "assets/vendor-misc-small-CkDHdix9.js",
+          "size": 179647,
+          "formattedSize": "175.44 KB"
+        },
+        {
+          "name": "vendor-query-DGD2MCs_.js",
+          "path": "assets/vendor-query-DGD2MCs_.js",
+          "size": 2688,
+          "formattedSize": "2.63 KB"
+        },
+        {
+          "name": "vendor-radix-BF7Iwk0V.js",
+          "path": "assets/vendor-radix-BF7Iwk0V.js",
+          "size": 107599,
+          "formattedSize": "105.08 KB"
+        },
+        {
+          "name": "vendor-react-DCJRMf8Q.js",
+          "path": "assets/vendor-react-DCJRMf8Q.js",
+          "size": 201627,
+          "formattedSize": "196.9 KB"
+        },
+        {
+          "name": "vendor-router-BQC9SHqh.js",
+          "path": "assets/vendor-router-BQC9SHqh.js",
+          "size": 21791,
+          "formattedSize": "21.28 KB"
+        },
+        {
+          "name": "vendor-supabase-tTqd1x4_.js",
+          "path": "assets/vendor-supabase-tTqd1x4_.js",
+          "size": 127395,
+          "formattedSize": "124.41 KB"
+        },
+        {
+          "name": "vendor-ui-core-CMOTamBY.js",
+          "path": "assets/vendor-ui-core-CMOTamBY.js",
+          "size": 27656,
+          "formattedSize": "27.01 KB"
+        },
+        {
+          "name": "vendor-ui-medium-rSiO4RqM.js",
+          "path": "assets/vendor-ui-medium-rSiO4RqM.js",
+          "size": 18770,
+          "formattedSize": "18.33 KB"
+        },
+        {
+          "name": "vendor-utils-Du2-bhlf.js",
+          "path": "assets/vendor-utils-Du2-bhlf.js",
+          "size": 2698,
+          "formattedSize": "2.63 KB"
+        },
+        {
+          "name": "yalidine-provinces-DS9Vjr-D.js",
+          "path": "assets/yalidine-provinces-DS9Vjr-D.js",
+          "size": 4601,
+          "formattedSize": "4.49 KB"
+        },
+        {
+          "name": "icongen.js",
+          "path": "icongen.js",
+          "size": 412,
+          "formattedSize": "412 Bytes"
+        },
+        {
+          "name": "instant-store-title.js",
+          "path": "instant-store-title.js",
+          "size": 6270,
+          "formattedSize": "6.12 KB"
+        },
+        {
+          "name": "legacy-polyfills.js",
+          "path": "legacy-polyfills.js",
+          "size": 14600,
+          "formattedSize": "14.26 KB"
+        },
+        {
+          "name": "earlyThemeLoader.js",
+          "path": "lib/themeManager/earlyThemeLoader.js",
+          "size": 3092,
+          "formattedSize": "3.02 KB"
+        }
+      ],
+      "css": [
+        {
+          "name": "LandingPage-Dea_kxtx.css",
+          "path": "assets/css/LandingPage-Dea_kxtx.css",
+          "size": 4855,
+          "formattedSize": "4.74 KB"
+        },
+        {
+          "name": "OrderForm--dKyRrZR.css",
+          "path": "assets/css/OrderForm--dKyRrZR.css",
+          "size": 3004,
+          "formattedSize": "2.93 KB"
+        },
+        {
+          "name": "app-products-Dzsjlnq9.css",
+          "path": "assets/css/app-products-Dzsjlnq9.css",
+          "size": 17503,
+          "formattedSize": "17.09 KB"
+        },
+        {
+          "name": "index-BePeDxux.css",
+          "path": "assets/css/index-BePeDxux.css",
+          "size": 569449,
+          "formattedSize": "556.1 KB"
+        },
+        {
+          "name": "store-Bqc7pggQ.css",
+          "path": "assets/css/store-Bqc7pggQ.css",
+          "size": 2553,
+          "formattedSize": "2.49 KB"
+        },
+        {
+          "name": "tajawal.css",
+          "path": "fonts/tajawal.css",
+          "size": 1846,
+          "formattedSize": "1.8 KB"
+        }
+      ],
+      "largeChunks": []
+    },
+    "assets": {
+      ".png": {
+        "count": 5,
+        "size": 250012
+      },
+      ".js": {
+        "count": 58,
+        "size": 2512356
+      },
+      ".br": {
+        "count": 67,
+        "size": 750505
+      },
+      ".gz": {
+        "count": 79,
+        "size": 1041572
+      },
+      ".css": {
+        "count": 6,
+        "size": 599210
+      },
+      ".svg": {
+        "count": 4,
+        "size": 315534
+      },
+      ".woff2": {
+        "count": 12,
+        "size": 113900
+      },
+      ".html": {
+        "count": 5,
+        "size": 2054375
+      },
+      ".ico": {
+        "count": 1,
+        "size": 274284
+      },
+      ".json": {
+        "count": 2,
+        "size": 1106
+      },
+      ".webp": {
+        "count": 2,
+        "size": 54236
+      },
+      ".md": {
+        "count": 1,
+        "size": 20
+      }
+    },
+    "issues": [],
+    "recommendations": [],
+    "largeFiles": [
+      {
+        "path": "assets/app-products-CKZniH1a.js",
+        "size": 986210,
+        "formattedSize": "963.1 KB"
+      },
+      {
+        "path": "assets/css/index-BePeDxux.css",
+        "size": 569449,
+        "formattedSize": "556.1 KB"
+      },
+      {
+        "path": "bundle-analysis.html",
+        "size": 1967288,
+        "formattedSize": "1.88 MB"
+      }
+    ]
+  },
+  "issues": [
+    {
+      "type": "large_files",
+      "severity": "medium",
+      "message": "ملفات كبيرة: 3 ملف",
+      "impact": "بطء في التحميل",
+      "details": [
+        {
+          "path": "assets/app-products-CKZniH1a.js",
+          "size": "963.1 KB"
+        },
+        {
+          "path": "assets/css/index-BePeDxux.css",
+          "size": "556.1 KB"
+        },
+        {
+          "path": "bundle-analysis.html",
+          "size": "1.88 MB"
+        }
+      ]
+    },
+    {
+      "type": "no_compression",
+      "severity": "medium",
+      "message": "ملفات غير مضغوطة: 58 ملف",
+      "impact": "زيادة حجم التحميل"
+    }
+  ],
+  "recommendations": [
+    {
+      "priority": "medium",
+      "category": "compression",
+      "title": "تفعيل الضغط",
+      "description": "ضغط الملفات لتقليل الحجم",
+      "actions": [
+        "تفعيل Gzip compression",
+        "تفعيل Brotli compression",
+        "ضغط الصور",
+        "تحسين الخطوط"
+      ]
+    },
+    {
+      "priority": "medium",
+      "category": "performance",
+      "title": "تحسينات الأداء العامة",
+      "description": "تحسينات إضافية للأداء",
+      "actions": [
+        "استخدام CDN",
+        "تفعيل HTTP/2",
+        "تحسين الصور",
+        "استخدام Service Workers"
+      ]
+    }
+  ]
+}

@@ -79,6 +79,30 @@ if (root) {
     }
   } as const;
 
+  // Debug group: environment + domain classification at store entry
+  if ((import.meta as any)?.env?.DEV) {
+    try {
+      const host = typeof window !== 'undefined' ? window.location.hostname : 'unknown';
+      const parts = host.split('.');
+      const isLocal = host === 'localhost' || host.startsWith('127.') || host === '::1' || host === '0.0.0.0' || host.endsWith('.localhost');
+      const isSubOnLocalhost = isLocal && parts.length > 1 && parts[0] !== 'localhost';
+      const isBaseKnown = ['ktobi.online', 'stockiha.com'].some(d => host.endsWith('.' + d));
+      const isRealSubdomain = !isLocal && parts.length > 2 && parts[0] !== 'www';
+      const isCustomDomain = !isLocal && !isRealSubdomain && parts.length >= 2 && parts[0] !== 'www' && !isBaseKnown;
+      console.groupCollapsed('\u{1F4F0} [STORE-ENTRY] معلومات البيئة والنطاق');
+      console.log({
+        mode: (import.meta as any)?.env?.MODE,
+        hostname: host,
+        isLocal,
+        isSubOnLocalhost,
+        isRealSubdomain,
+        isCustomDomain,
+        isBaseKnown
+      });
+      console.groupEnd();
+    } catch {}
+  }
+
   root.render(
     <BrowserRouter future={routerOptions.future}>
       <HelmetProvider>

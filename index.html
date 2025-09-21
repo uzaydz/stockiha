@@ -326,34 +326,41 @@
     <!-- Favicon - سيتم تحديده ديناميكياً -->
     <!-- تم إزالة الفافيكونات الثابتة لتجنب ظهور الفافيكون الأخضر الافتراضي -->
     
-    <!-- 🚀 تحميل الخطوط المحلية محسن للأداء - استخدام dns-prefetch بدلاً من preload -->
-    <link rel="dns-prefetch" href="/fonts/tajawal-regular.woff2">
-    
-    <!-- تحميل CSS الخطوط فوراً لتجنب FOUT -->
-    <link rel="stylesheet" href="/fonts/tajawal.css">
+    <!-- 🚀 تحميل الخطوط المحلية محسن للأداء - استخدام preload مع font-display -->
+    <link rel="preload" href="/fonts/tajawal-regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+    <link rel="preload" href="/fonts/tajawal-medium.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+    <link rel="preload" href="/fonts/tajawal-bold.woff2" as="font" type="font/woff2" crossorigin="anonymous">
     
     <!-- تحميل CSS الرئيسي - ضروري للتطبيق -->
-    <link rel="stylesheet" href="/src/index.css">
+    <link rel="preload" href="/src/index.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="/src/index.css"></noscript>
     
     <!-- تحسين إضافي: تحميل الخطوط الإضافية عند الحاجة -->
     <script nonce="{{CSP_NONCE}}">
-      // Smart font loading strategy
+      // Smart font loading strategy - محسن لتجنب التحميل المتكرر
       (function() {
+        // تحقق من وجود الخطوط في الكاش
+        var fontsAlreadyLoaded = sessionStorage.getItem('fonts_loaded');
+
+        if (fontsAlreadyLoaded === 'true') {
+          console.log('Fonts already preloaded, skipping...');
+          return;
+        }
+
         var fontsLoaded = false;
-        
+
         // Function to load additional fonts
         function loadAdditionalFonts() {
           if (fontsLoaded) return;
           fontsLoaded = true;
-          
+
           var additionalFonts = [
             '/fonts/tajawal-medium.woff2',
             '/fonts/tajawal-bold.woff2'
           ];
-          
+
           additionalFonts.forEach(function(fontUrl) {
             var link = document.createElement('link');
-            // استخدم prefetch بدلاً من preload لتجنّب تحذير "preloaded but not used"
             link.rel = 'prefetch';
             link.as = 'font';
             link.type = 'font/woff2';
@@ -361,16 +368,20 @@
             link.href = fontUrl;
             document.head.appendChild(link);
           });
+
+          // حفظ في sessionStorage لتجنب التحميل المتكرر
+          sessionStorage.setItem('fonts_loaded', 'true');
+          console.log('Fonts preloaded and cached for session');
         }
-        
+
         // Load additional fonts on user interaction or after delay
         var events = ['mousedown', 'touchstart', 'keydown', 'wheel'];
         events.forEach(function(event) {
           document.addEventListener(event, loadAdditionalFonts, { once: true, passive: true });
         });
-        
-        // Fallback: load after 2 seconds if no interaction
-        setTimeout(loadAdditionalFonts, 2000);
+
+        // Fallback: load after 1 second if no interaction (أقل من 2s)
+        setTimeout(loadAdditionalFonts, 1000);
       })();
     </script>
     
@@ -488,6 +499,21 @@
           loadNonCriticalCSS();
         }
       })();
+    </script>
+
+    <!-- 🚀 Service Worker للتخزين المؤقت -->
+    <script nonce="{{CSP_NONCE}}">
+      if ('serviceWorker' in navigator && !location.hostname.includes('localhost')) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js')
+            .then(function(registration) {
+              console.log('SW registered: ', registration);
+            })
+            .catch(function(registrationError) {
+              console.log('SW registration failed: ', registrationError);
+            });
+        });
+      }
     </script>
 
     <meta property="og:title" content="سطوكيها - منصة إدارة المتاجر الذكية" />
@@ -708,8 +734,58 @@
       earlyHeadUpdate();
     </script>
     
-    <!-- Main Application Entry -->
-    <script type="module" src="/src/main.tsx"></script>
+    <!-- Dynamic Application Entry: main vs store-main (dev) -->
+    <script type="module">
+      (function() {
+        const host = location.hostname || '';
+        const parts = host.split('.');
+        const isLocal = host === 'localhost' || host.endsWith('.localhost') || host.startsWith('127.') || host === '::1' || host === '0.0.0.0';
+        // subdomain.localhost يعتبر نطاق فرعي في التطوير
+        const isSubOnLocalhost = isLocal && host.endsWith('.localhost') ? (parts.length > 1 && parts[0] !== 'localhost') : false;
+        const isRealSubdomain = !isLocal && parts.length > 2 && parts[0] !== 'www';
+        const shouldUseStoreEntry = isSubOnLocalhost || isRealSubdomain;
+
+        const entry = shouldUseStoreEntry ? '/src/store-main.tsx' : '/src/main.tsx';
+        const loadDefaultEntry = () => import('/src/main.tsx');
+        const loadStoreEntry = () => import('/src/store-main.tsx');
+        const loadEntry = shouldUseStoreEntry ? loadStoreEntry : loadDefaultEntry;
+
+        // Debug logs for domain classification and entry choice
+        try {
+          const meta = {
+            hostname: host,
+            env: import.meta && import.meta.env && import.meta.env.MODE,
+            isLocal,
+            isSubOnLocalhost,
+            isRealSubdomain,
+            isCustomDomain: !isLocal && !isRealSubdomain && parts.length >= 2 && parts[0] !== 'www',
+            chosenEntry: entry
+          };
+          console.groupCollapsed('\u{1F50D} [ENTRY] اختيار نقطة الدخول');
+          console.log(meta);
+          console.groupEnd();
+          // طباعة صريحة إضافية تسهّل رؤية القرار حتى دون فتح المجموعة
+          console.log('[ENTRY] chosenEntry =', entry, '| isLocal:', isLocal, '| isSubOnLocalhost:', isSubOnLocalhost, '| isRealSubdomain:', isRealSubdomain);
+        } catch {}
+
+        // ملاحظة: document.currentScript قد يكون null في inline module scripts
+        // لذا نستخدم dynamic import لضمان العمل في التطوير والإنتاج
+        try {
+          // سيحمّل Vite/ESM نقطة الدخول المناسبة مباشرةً
+          (window).__ENTRY_CHOSEN__ = entry;
+          (window).__STORE_ENTRY__ = shouldUseStoreEntry === true;
+          // ثبّت عنوان المنصة فوراً عندما لا يكون متجر لتفادي وميض "متجر إلكتروني"
+          if (!(window).__STORE_ENTRY__) {
+            try { if (!document.title || document.title === 'متجر إلكتروني') document.title = 'سطوكيها'; } catch {}
+          }
+          // استخدام إستيراد ثابت داخل دوال منفصلة يسمح لـ Vite بضم
+          // كلتا النقطتين أثناء build وبالتالي يعمل `vite preview`
+          loadEntry();
+        } catch (e) {
+          console.error('[ENTRY] فشل تحميل نقطة الدخول:', entry, e);
+        }
+      })();
+    </script>
 
 
   </body>

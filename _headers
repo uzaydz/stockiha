@@ -23,19 +23,25 @@
   Content-Type: text/html; charset=utf-8
   Vary: Accept-Encoding
 
-# الملفات الثابتة (JS, CSS) - تخزين طويل المدى
+# الملفات الثابتة (JS, CSS) - تخزين طويل المدى محسن
 /assets/*.js
   Cache-Control: public, max-age=31536000, immutable
   Expires: Mon, 01 Jan 2030 00:00:00 GMT
   Content-Type: application/javascript; charset=utf-8
   Vary: Accept-Encoding
+  # تحسينات HTTP/2 Server Push
+  Link: </assets/react-core-CQ_KtV-u.js>; rel=preload; as=script
+  Link: </assets/main-BoN-3Mza.js>; rel=preload; as=script
 
 /assets/*.css
   Cache-Control: public, max-age=31536000, immutable
   Expires: Mon, 01 Jan 2030 00:00:00 GMT
   Content-Type: text/css; charset=utf-8
   Vary: Accept-Encoding
+  # تحسين تحميل CSS الحرج
+  Link: </assets/css/index-DzXS1-O1.css>; rel=preload; as=style
 
+# قواعد عامة للملفات الأخرى
 /*.js
   Cache-Control: public, max-age=31536000, immutable
   Expires: Mon, 01 Jan 2030 00:00:00 GMT
@@ -48,13 +54,28 @@
   Content-Type: text/css; charset=utf-8
   Vary: Accept-Encoding
 
-# الخطوط
+# الخطوط - محسنة لتجنب التحميل المتكرر
 /assets/fonts/*
   Cache-Control: public, max-age=31536000, immutable
   Expires: Mon, 01 Jan 2030 00:00:00 GMT
   Access-Control-Allow-Origin: *
   Content-Type: font/woff2
   Vary: Accept-Encoding
+  # تحسين تحميل الخطوط
+  Link: </fonts/tajawal-regular.woff2>; rel=preload; as=font; type=font/woff2; crossorigin=anonymous
+  Link: </fonts/tajawal-medium.woff2>; rel=preload; as=font; type=font/woff2; crossorigin=anonymous
+  Link: </fonts/tajawal-bold.woff2>; rel=preload; as=font; type=font/woff2; crossorigin=anonymous
+
+/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
+  Expires: Mon, 01 Jan 2030 00:00:00 GMT
+  Access-Control-Allow-Origin: *
+  Content-Type: font/woff2
+  Vary: Accept-Encoding
+  # تحسين تحميل الخطوط
+  Link: </fonts/tajawal-regular.woff2>; rel=preload; as=font; type=font/woff2; crossorigin=anonymous
+  Link: </fonts/tajawal-medium.woff2>; rel=preload; as=font; type=font/woff2; crossorigin=anonymous
+  Link: </fonts/tajawal-bold.woff2>; rel=preload; as=font; type=font/woff2; crossorigin=anonymous
 
 /*.woff2
   Cache-Control: public, max-age=31536000, immutable

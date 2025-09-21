@@ -39,12 +39,14 @@ export const ProductMainSectionWrapper = memo<ProductMainSectionWrapperProps>((p
   // ✅ Hook calls في أعلى المكون دائماً وبنفس الترتيب
   const { isReady } = useSafeTranslation();
   
-  // 🔍 Debug: حالة نظام الترجمة
+  // 🔍 Debug: حالة نظام الترجمة - تقليل اللوجات
   try {
-    console.log('🌐 [ProductMainSectionWrapper] translation state', {
-      isReady,
-      timestamp: Date.now()
-    });
+    if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) { // 10% فقط من المرات
+      console.log('🌐 [ProductMainSectionWrapper] translation state', {
+        isReady,
+        timestamp: Date.now()
+      });
+    }
   } catch {}
 
   // تحقق من صحة البيانات الأساسية قبل التمرير
@@ -60,13 +62,15 @@ export const ProductMainSectionWrapper = memo<ProductMainSectionWrapperProps>((p
       ...rest
     } = props;
 
-    // التأكد من وجود البيانات الأساسية
+    // التأكد من وجود البيانات الأساسية - تقليل اللوجات
     try {
-      console.log('🧱 [ProductMainSectionWrapper] props gate', {
-        hasProduct: !!product,
-        hasState: !!state,
-        hasActions: !!actions
-      });
+      if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) { // 10% فقط من المرات
+        console.log('🧱 [ProductMainSectionWrapper] props gate', {
+          hasProduct: !!product,
+          hasState: !!state,
+          hasActions: !!actions
+        });
+      }
     } catch {}
     if (!product || !state || !actions) {
       return null;

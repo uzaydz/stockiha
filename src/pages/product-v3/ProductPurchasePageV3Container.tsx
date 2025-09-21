@@ -3,7 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { useTenantSafe } from '@/context/tenant/useTenantSafe';
 import { ProductPageProvider } from '@/context/ProductPageContext';
 import { ProductErrorPage } from '@/components/product/ProductErrorPage';
-import { useDeliveryCalculation } from '@/components/product-page/useDeliveryCalculation';
+import { useDeliveryCalculation } from '@/hooks/useDeliveryCalculation';
 import { useSpecialOffers } from '@/components/product-page/useSpecialOffers';
 import { useOrderHandler } from '@/components/product-page/useOrderHandler';
 import useProductPurchase from '@/hooks/useProductPurchase';
@@ -23,6 +23,11 @@ import ProductNavbarShell from './components/ProductNavbarShell';
 import ProductMainContent from './components/ProductMainContent';
 const ProductTrackers = lazy(() => import('./components/ProductTrackers'));
 import ProductSEO from './components/ProductSEO';
+
+// استيراد المكونات المطلوبة للـ memo
+import { ProductMainSectionWrapper } from '@/components/product-page/ProductMainSectionWrapper';
+import { StoreNavbar } from '@/components/navbar/StoreNavbar';
+import { NavbarCartButton } from '@/components/navbar/NavbarCartButton';
 
 import { isLowEndDevice } from './utils/device';
 import { usePreloadedProductData } from './hooks/usePreloadedProductData';
@@ -46,6 +51,11 @@ const ProductDebugTools = lazy(() => import('@/components/product-page/ProductDe
 const ProductPurchasePageV3Container: React.FC = memo(() => {
   const isDev = process.env.NODE_ENV === 'development';
   const componentStartTime = performance.now();
+  try { 
+    if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) { // 10% فقط من المرات
+      void import('@/utils/perfDebug').then(m => m.default.time('ProductV3Container.mount')); 
+    }
+  } catch {}
 
   const { productId, productIdentifier } = useParams<{ productId?: string; productIdentifier?: string }>();
   const actualProductId = productIdentifier || productId;
@@ -115,8 +125,16 @@ const ProductPurchasePageV3Container: React.FC = memo(() => {
   const { preloadedData } = usePreloadedProductData(actualProductId, organizationId);
   const initialQueryData = useInitialQueryData();
 
-  // 🔥 إصلاح: استخدم بيانات الـ preloader مع استجابة فورية وcache مستقر
+  // 🔥 تحسين: استخدم useRef لمنع إعادة الحساب المفرط
+  const mergedInitialDataRef = useRef<any>(null);
+  const lastProductIdRef = useRef<string | null>(null);
+  
   const mergedInitialData = useMemo(() => {
+    // إذا لم يتغير productId، استخدم البيانات المحفوظة
+    if (lastProductIdRef.current === actualProductId && mergedInitialDataRef.current) {
+      return mergedInitialDataRef.current;
+    }
+
     let result;
 
     // 🔥 إصلاح: أولوية للبيانات المحملة مسبقاً من أي مصدر
@@ -151,10 +169,13 @@ const ProductPurchasePageV3Container: React.FC = memo(() => {
       }
     }
 
+    // حفظ النتيجة في ref
+    mergedInitialDataRef.current = result;
+    lastProductIdRef.current = actualProductId;
+
     // تسجيل مختصر فقط في التطوير
-    if (process.env.NODE_ENV === 'development' && 1 <= 2) {
+    if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {
       console.log('🧩 [ProductV3] mergedInitialData', {
-        renderCount: 1,
         hasPreloaded: !!preloadedData,
         hasInitialQueryData: !!initialQueryData,
         hasWindowData: !!(typeof window !== 'undefined' && ((window as any).__EARLY_STORE_DATA__ || (window as any).__PREFETCHED_STORE_DATA__)),
@@ -213,14 +234,15 @@ const ProductPurchasePageV3Container: React.FC = memo(() => {
   // ✅ إصلاح: إزالة شرط isDev لأن المكون يحتاج للعمل في الإنتاج أيضًا
   const [state, actions] = useProductPurchase({
     ...stableParams,
-    preloadedProduct: effectiveProduct
+    preloadedProduct: effectiveProduct,
+    skipInitialFetch: true
   });
 
   // ✅ إصلاح: إزالة شرط isDev
   const { deliveryCalculation, summaryData } = useDeliveryCalculation({
     organizationId,
     product: effectiveProduct,
-    formData: pageState.submittedFormData,
+    submittedFormData: pageState.submittedFormData,
     quantity: state.quantity
   });
 
@@ -288,7 +310,7 @@ const ProductPurchasePageV3Container: React.FC = memo(() => {
     );
   }, [handleBuyNowBase, state.canPurchase]); // إزالة pageState.submittedFormData.length لأن handleBuyNowBase يتعامل معها داخلياً
 
-  // 🔥 إصلاح: منطق تحميل محسن للاستجابة الفورية للبيانات
+  // 🔥 تحسين: منطق تحميل محسن مع حماية من re-renders
   const shouldShowLoading = useMemo(() => {
     // أولوية عالية: إذا وصل المنتج من أي مصدر، أوقف التحميل فوراً
     const hasEffectiveProduct = !!(effectiveProduct?.id);
@@ -304,13 +326,13 @@ const ProductPurchasePageV3Container: React.FC = memo(() => {
     }
 
     // 🔥 إضافة حماية: منع التحميل المفرط في حالة re-renders
-    if (1 > 5) {
-      return false; // أوقف التحميل بعد 5 renders
+    if (renderCount.current > 3) {
+      return false; // أوقف التحميل بعد 3 renders
     }
 
     // نظهر التحميل فقط إذا كنا نحمل بدون بيانات أو أخطاء
     return true;
-  }, [effectiveProduct?.id, mergedInitialData?.product?.id, queryLoading, queryError]); // إزالة 1 لمنع re-renders
+  }, [effectiveProduct?.id, mergedInitialData?.product?.id, queryLoading, queryError]);
 
   // 🔥 إصلاح: رسالة تحميل محسنة مع تفاصيل التقدم
   const loadingMessage = useMemo(() => {
@@ -340,7 +362,7 @@ const ProductPurchasePageV3Container: React.FC = memo(() => {
     const isValidForLoading = shouldShowLoading && !effectiveProduct?.id;
 
     // إذا تجاوزنا حد الرندر، أوقف التحميل
-    if (renderCount.current > 10) {
+    if (renderCount.current > 5) {
       return false;
     }
 
@@ -584,10 +606,31 @@ const ProductPurchasePageV3Container: React.FC = memo(() => {
     </>
   );
 
+  try { 
+    if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) { // 10% فقط من المرات
+      void import('@/utils/perfDebug').then(m => m.default.timeEnd('ProductV3Container.mount', { productReady: !!effectiveProduct?.id })); 
+    }
+  } catch {}
   return renderResult;
 });
 
 // 🔥 تحسين: إضافة displayName للتشخيص الأفضل
 ProductPurchasePageV3Container.displayName = 'ProductPurchasePageV3Container';
+
+// 🔥 تحسين: إضافة React.memo للمكونات الفرعية لتقليل re-renders
+const MemoizedProductMainSection = memo(ProductMainSectionWrapper, (prevProps, nextProps) => {
+  // مقارنة مخصصة لتقليل إعادة التصيير
+  return JSON.stringify(prevProps) === JSON.stringify(nextProps);
+});
+
+const MemoizedStoreNavbar = memo(StoreNavbar, (prevProps, nextProps) => {
+  // مقارنة مخصصة لتقليل إعادة التصيير
+  return JSON.stringify(prevProps) === JSON.stringify(nextProps);
+});
+
+const MemoizedNavbarCartButton = memo(NavbarCartButton, (prevProps, nextProps) => {
+  // مقارنة مخصصة لتقليل إعادة التصيير
+  return JSON.stringify(prevProps) === JSON.stringify(nextProps);
+});
 
 export default ProductPurchasePageV3Container;

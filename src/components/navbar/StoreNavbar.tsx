@@ -119,8 +119,8 @@ export function StoreNavbar({
             (window as any).__STORE_SETTINGS__?.logo_url ||
             null;
 
-  // إضافة logs لتتبع البيانات في Navbar
-  if (process.env.NODE_ENV === 'development') {
+  // إضافة logs لتتبع البيانات في Navbar - تقليل اللوجات
+  if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) { // 10% فقط من المرات
     console.log('🎯 [StoreNavbar] البيانات المتوفرة:', {
       hasStoreInfo: !!storeInfo,
       hasSharedOrg: !!sharedOrg,

@@ -8,7 +8,7 @@
  * 3. كاش محسن ومنع التكرار
  */
 
-import { supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase-unified';
 
 // أنواع البيانات للدالتين الجديدتين
 export interface BasicProductData {
@@ -158,19 +158,37 @@ export interface FastFetchOptions {
 const activeRequests = new Map<string, Promise<any>>();
 const dataCache = new Map<string, { data: any; timestamp: number; ttl: number }>();
 
-// مدة الاحتفاظ بالكاش (بالمللي ثانية)
+// مدة الاحتفاظ بالكاش (بالمللي ثانية) - محسنة للسرعة
 const CACHE_TTL = {
-  basic: 5 * 60 * 1000,    // 5 دقائق للبيانات الأساسية
-  extended: 10 * 60 * 1000, // 10 دقائق للبيانات المتقدمة
-  combined: 15 * 60 * 1000  // 15 دقيقة للبيانات المدمجة
+  basic: 5 * 60 * 1000,    // 5 دقائق للبيانات الأساسية (زيادة للاستقرار)
+  extended: 10 * 60 * 1000, // 10 دقائق للبيانات المتقدمة (زيادة للاستقرار)
+  combined: 5 * 60 * 1000  // 5 دقائق للبيانات المدمجة (زيادة للاستقرار)
 };
 
 /**
  * إنشاء مفتاح الكاش
  */
 function createCacheKey(identifier: string, type: 'basic' | 'extended' | 'combined', options?: FastFetchOptions): string {
-  const optionsStr = options ? JSON.stringify(options) : '';
+  const optionsStr = options ? JSON.stringify(normalizeFastOptions(options)) : '';
   return `${type}:${identifier}:${optionsStr}`;
+}
+
+/**
+ * توحيد الخيارات لضمان مفاتيح كاش مستقرة ومنع التكرار بين undefined/false
+ */
+function normalizeFastOptions(options: FastFetchOptions): Required<FastFetchOptions> {
+  return {
+    organizationId: options.organizationId || '',
+    includeInactive: options.includeInactive ?? false,
+    includeThumbnails: options.includeThumbnails ?? true,
+    includeColorsBasic: options.includeColorsBasic ?? true,
+    includeExtended: options.includeExtended ?? false,
+    includeLargeImages: options.includeLargeImages ?? false,
+    includeMarketingData: options.includeMarketingData ?? true,
+    includeFormData: options.includeFormData ?? true,
+    includeAdvancedSettings: options.includeAdvancedSettings ?? true,
+    dataDetailLevel: options.dataDetailLevel || 'full'
+  };
 }
 
 /**
@@ -233,17 +251,26 @@ export async function getProductBasicDataUltraFast(
       return await activeRequests.get(cacheKey)!;
     }
 
-    // إنشاء طلب جديد
+    // إنشاء طلب جديد مع timeout محسن
     const requestPromise = (async (): Promise<BasicProductData> => {
+      const opts = normalizeFastOptions(options);
       const rpcParams = {
         p_product_identifier: productIdentifier,
-        p_organization_id: options.organizationId || null,
-        p_include_inactive: options.includeInactive || false,
-        p_include_thumbnails: options.includeThumbnails ?? true,
-        p_include_colors_basic: options.includeColorsBasic ?? true
+        p_organization_id: opts.organizationId || null,
+        p_include_inactive: opts.includeInactive,
+        p_include_thumbnails: opts.includeThumbnails,
+        p_include_colors_basic: opts.includeColorsBasic
       };
 
-      const { data, error } = await supabase.rpc('get_product_basic_data_ultra_fast' as any, rpcParams);
+      // إضافة timeout للطلب (3 ثوانٍ للبيانات الأساسية - زيادة للاستقرار)
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Timeout: البيانات الأساسية تأخذ وقتاً طويلاً')), 3000);
+      });
+
+      const { data, error } = await Promise.race([
+        supabase.rpc('get_product_basic_data_ultra_fast' as any, rpcParams),
+        timeoutPromise
+      ]);
 
       if (error) {
         throw new Error(`خطأ في جلب البيانات الأساسية: ${error.message}`);
@@ -324,18 +351,27 @@ export async function getProductExtendedDataUltraFast(
       return await activeRequests.get(cacheKey)!;
     }
 
-    // إنشاء طلب جديد
+    // إنشاء طلب جديد مع timeout محسن
     const requestPromise = (async (): Promise<ExtendedProductData> => {
+      const opts = normalizeFastOptions(options);
       const rpcParams = {
         p_product_id: productId,
-        p_include_large_images: options.includeLargeImages || false,
-        p_include_marketing_data: options.includeMarketingData ?? true,
-        p_include_form_data: options.includeFormData ?? true,
-        p_include_advanced_settings: options.includeAdvancedSettings ?? true,
-        p_data_detail_level: options.dataDetailLevel || 'full'
+        p_include_large_images: opts.includeLargeImages,
+        p_include_marketing_data: opts.includeMarketingData,
+        p_include_form_data: opts.includeFormData,
+        p_include_advanced_settings: opts.includeAdvancedSettings,
+        p_data_detail_level: opts.dataDetailLevel
       };
 
-      const { data, error } = await supabase.rpc('get_product_extended_data_ultra_fast' as any, rpcParams);
+      // إضافة timeout للطلب (5 ثوانٍ للبيانات المتقدمة - زيادة للاستقرار)
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Timeout: البيانات المتقدمة تأخذ وقتاً طويلاً')), 5000);
+      });
+
+      const { data, error } = await Promise.race([
+        supabase.rpc('get_product_extended_data_ultra_fast' as any, rpcParams),
+        timeoutPromise
+      ]);
 
       if (error) {
         throw new Error(`خطأ في جلب البيانات المتقدمة: ${error.message}`);
@@ -408,137 +444,141 @@ export async function getProductCombinedDataUltraFast(
       return cached;
     }
 
-    // جلب البيانات الأساسية أولاً (سريع جداً)
-    const basicData = await getProductBasicDataUltraFast(productIdentifier, options);
+    // منع التكرار: إذا كان هناك طلب نشط لنفس المفتاح فانتظر نفس الـ Promise
+    if (activeRequests.has(cacheKey)) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('⏳ [API] انتظار طلب نشط للبيانات المدمجة:', { productIdentifier });
+      }
+      return await activeRequests.get(cacheKey)!;
+    }
 
-    // إذا كان المطلوب البيانات الأساسية فقط
-    if (!options.includeExtended) {
-      // تحويل بنية المتغيرات لتتوافق مع المتوقع
-      const normalizedProduct = {
+    // إنشاء طلب جديد واحتجازه ضمن activeRequests مع timeout محسن
+    const requestPromise = (async (): Promise<CombinedProductData> => {
+      // إضافة timeout شامل للبيانات المدمجة (6 ثوانٍ - زيادة للاستقرار)
+      const overallTimeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Timeout: البيانات المدمجة تأخذ وقتاً طويلاً')), 6000);
+      });
+
+      const dataPromise = (async (): Promise<CombinedProductData> => {
+        // جلب البيانات الأساسية أولاً (سريع جداً)
+        const basicData = await getProductBasicDataUltraFast(productIdentifier, normalizeFastOptions(options));
+
+      // إذا كان المطلوب البيانات الأساسية فقط
+      if (!options.includeExtended) {
+        const normalizedProduct = {
+          ...basicData.product,
+          variants: basicData.product.variants ? {
+            ...basicData.product.variants,
+            colors: basicData.product.variants.colors_basic_info || []
+          } : undefined
+        };
+        
+        const result: CombinedProductData = {
+          basic: basicData,
+          combined: false,
+          total_execution_time: performance.now() - startTime,
+          product: normalizedProduct,
+          stats: basicData.stats
+        };
+
+        // حفظ في الكاش (استخدم TTL الأساسية)
+        setCachedData(cacheKey, result, CACHE_TTL.basic);
+        return result;
+      }
+
+      // جلب البيانات المتقدمة
+      const extendedData = await getProductExtendedDataUltraFast(basicData.product.id, normalizeFastOptions(options));
+
+      // دمج البيانات المتقدمة مع الأساسية
+      const mergedProduct = {
         ...basicData.product,
-        variants: basicData.product.variants ? {
-          ...basicData.product.variants,
-          // تحويل colors_basic_info إلى colors
-          colors: basicData.product.variants.colors_basic_info || []
-        } : undefined
+        ...(extendedData?.product_extended && {
+          ...extendedData.product_extended,
+          variants: (() => {
+            const basicVariants = basicData.product.variants;
+            const extendedVariants = extendedData.product_extended?.variants_extended;
+            if (!extendedVariants) return basicVariants;
+            const basicColors = basicVariants?.colors_basic_info || [];
+            const extendedColors = extendedVariants?.colors_with_details || [];
+            return {
+              has_variants: extendedVariants.has_variants || basicVariants?.has_variants || false,
+              use_sizes: extendedVariants.use_sizes || basicVariants?.use_sizes || false,
+              use_variant_prices: (basicVariants as any)?.use_variant_prices || false,
+              colors: extendedColors.length > 0 ? extendedColors : basicColors
+            };
+          })(),
+          variants_extended: extendedData.product_extended?.variants_extended,
+          images: {
+            ...basicData.product.images,
+            additional_images_info: basicData.product.images?.additional_images_info || [],
+            images_extended: extendedData.product_extended.images_extended || []
+          },
+          features_and_specs: extendedData.product_extended.features_and_specs,
+          advanced_pricing: extendedData.product_extended.advanced_pricing,
+          shipping_extended: extendedData.product_extended.shipping_extended,
+          forms_extended: extendedData.product_extended.forms_extended,
+          form_data: (() => {
+            const formsExtended = extendedData.product_extended.forms_extended;
+            if (!formsExtended) return null;
+            if (formsExtended.custom_form) {
+              return { ...formsExtended.custom_form, type: 'custom' };
+            } else if (formsExtended.default_form) {
+              return { ...formsExtended.default_form, type: 'default' };
+            }
+            return null;
+          })(),
+          settings_extended: extendedData.product_extended.settings_extended,
+          marketing_extended: extendedData.product_extended.marketing_extended,
+          page_configs: extendedData.product_extended.page_configs
+        })
       };
-      
+
       const result: CombinedProductData = {
         basic: basicData,
-        combined: false,
+        extended: extendedData,
+        combined: true,
         total_execution_time: performance.now() - startTime,
-        // إضافة الحقول المباشرة للتوافق مع البيانات المُطبعة
-        product: normalizedProduct,
-        stats: basicData.stats
+        product: mergedProduct,
+        stats: { ...basicData.stats, ...(extendedData?.extended_stats && { extended: extendedData.extended_stats }) },
+        ...(extendedData?.product_extended && {
+          features_and_specs: extendedData.product_extended.features_and_specs,
+          advanced_pricing: extendedData.product_extended.advanced_pricing,
+          shipping_extended: extendedData.product_extended.shipping_extended,
+          variants_extended: extendedData.product_extended.variants_extended,
+          images_extended: extendedData.product_extended.images_extended,
+          forms_extended: extendedData.product_extended.forms_extended,
+          settings_extended: extendedData.product_extended.settings_extended,
+          marketing_extended: extendedData.product_extended.marketing_extended,
+          page_configs: extendedData.product_extended.page_configs,
+          extended_stats: extendedData.extended_stats
+        })
       };
 
       // حفظ في الكاش
-      setCachedData(cacheKey, result, CACHE_TTL.basic);
-      
-      return result;
+      setCachedData(cacheKey, result, CACHE_TTL.combined);
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log('✅ [API] getProductCombinedDataUltraFast:success', {
+          productId: basicData.product.id,
+          hasExtended: !!extendedData,
+          totalTime: `${result.total_execution_time.toFixed(2)}ms`
+        });
+      }
+
+        return result;
+      })();
+
+      // استخدام Promise.race مع timeout شامل
+      return await Promise.race([dataPromise, overallTimeoutPromise]);
+    })();
+
+    activeRequests.set(cacheKey, requestPromise);
+    try {
+      const finalResult = await requestPromise;
+      return finalResult;
+    } finally {
+      activeRequests.delete(cacheKey);
     }
-
-    // جلب البيانات المتقدمة بالتوازي
-    const extendedData = await getProductExtendedDataUltraFast(basicData.product.id, options);
-
-    // دمج البيانات المتقدمة مع البيانات الأساسية
-    const mergedProduct = {
-      ...basicData.product,
-      // دمج البيانات المتقدمة في المنتج الأساسي
-      ...(extendedData?.product_extended && {
-        ...extendedData.product_extended,
-        // دمج المتغيرات المتقدمة مع المتغيرات الأساسية بشكل صحيح
-        variants: (() => {
-          const basicVariants = basicData.product.variants;
-          const extendedVariants = extendedData.product_extended?.variants_extended;
-          
-          if (!extendedVariants) return basicVariants;
-          
-          // دمج الألوان من المصدرين بشكل صحيح
-          const basicColors = basicVariants?.colors_basic_info || [];
-          const extendedColors = extendedVariants?.colors_with_details || [];
-          
-          return {
-            has_variants: extendedVariants.has_variants || basicVariants?.has_variants || false,
-            use_sizes: extendedVariants.use_sizes || basicVariants?.use_sizes || false,
-            use_variant_prices: (basicVariants as any)?.use_variant_prices || false,
-            // استخدم الألوان المتقدمة إذا توفرت، وإلا استخدم الأساسية
-            colors: extendedColors.length > 0 ? extendedColors : basicColors
-          };
-        })(),
-        variants_extended: extendedData.product_extended?.variants_extended,
-        // الاحتفاظ ببنية الصور الأساسية وإضافة الصور المتقدمة
-        images: {
-          ...basicData.product.images,
-          additional_images_info: basicData.product.images?.additional_images_info || [],
-          images_extended: extendedData.product_extended.images_extended || []
-        },
-        // باقي البيانات المتقدمة
-        features_and_specs: extendedData.product_extended.features_and_specs,
-        advanced_pricing: extendedData.product_extended.advanced_pricing,
-        shipping_extended: extendedData.product_extended.shipping_extended,
-        forms_extended: extendedData.product_extended.forms_extended,
-        // 🚀 إصلاح: إضافة form_data للتوافق مع useProductForm
-        form_data: (() => {
-          const formsExtended = extendedData.product_extended.forms_extended;
-          if (!formsExtended) return null;
-          
-          // إعطاء الأولوية للنموذج المخصص، وإلا استخدم الافتراضي
-          if (formsExtended.custom_form) {
-            return {
-              ...formsExtended.custom_form,
-              type: 'custom'
-            };
-          } else if (formsExtended.default_form) {
-            return {
-              ...formsExtended.default_form,
-              type: 'default'
-            };
-          }
-          return null;
-        })(),
-        settings_extended: extendedData.product_extended.settings_extended,
-        marketing_extended: extendedData.product_extended.marketing_extended,
-        page_configs: extendedData.product_extended.page_configs
-      })
-    };
-
-    // دمج البيانات لتتوافق مع الهيكل المتوقع
-    const result: CombinedProductData = {
-      basic: basicData,
-      extended: extendedData,
-      combined: true,
-      total_execution_time: performance.now() - startTime,
-      // إضافة الحقول المباشرة للتوافق
-      product: mergedProduct,
-      stats: { ...basicData.stats, ...(extendedData?.extended_stats && { extended: extendedData.extended_stats }) },
-      // إضافة البيانات المتقدمة كحقول منفصلة أيضاً للتوافق
-      ...(extendedData?.product_extended && {
-        features_and_specs: extendedData.product_extended.features_and_specs,
-        advanced_pricing: extendedData.product_extended.advanced_pricing,
-        shipping_extended: extendedData.product_extended.shipping_extended,
-        variants_extended: extendedData.product_extended.variants_extended,
-        images_extended: extendedData.product_extended.images_extended,
-        forms_extended: extendedData.product_extended.forms_extended,
-        settings_extended: extendedData.product_extended.settings_extended,
-        marketing_extended: extendedData.product_extended.marketing_extended,
-        page_configs: extendedData.product_extended.page_configs,
-        extended_stats: extendedData.extended_stats
-      })
-    };
-
-    // حفظ في الكاش
-    setCachedData(cacheKey, result, CACHE_TTL.combined);
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log('✅ [API] getProductCombinedDataUltraFast:success', {
-        productId: basicData.product.id,
-        hasExtended: !!extendedData,
-        totalTime: `${result.total_execution_time.toFixed(2)}ms`
-      });
-    }
-
-    return result;
 
   } catch (error: any) {
     const executionTime = performance.now() - startTime;

@@ -53,11 +53,12 @@ export function useSharedStoreData(options: UseSharedStoreDataOptions = {}): Sha
       const storeSettings = (window as any).__STORE_SETTINGS__;
 
       // البحث عن أحدث timestamp من جميع المصادر
+      // 🔥 إصلاح: استخدام timestamps ثابتة ومنفصلة لكل مصدر لمنع الرندر المفرط
       const timestamps = [
         early?.timestamp,
         prefetched?.timestamp,
-        storeData ? Date.now() : 0,
-        storeSettings ? Date.now() : 0
+        storeData ? (early?.timestamp || prefetched?.timestamp || Date.now()) : 0,
+        storeSettings ? (early?.timestamp || prefetched?.timestamp || Date.now()) : 0
       ].filter(ts => ts > 0);
 
       const newTs = Math.max(...timestamps, 0);
@@ -105,14 +106,23 @@ export function useSharedStoreData(options: UseSharedStoreDataOptions = {}): Sha
       });
     }
     return result;
-  }, [windowDataTimestamp]);
+  }, [windowDataTimestamp]); // 🔥 تحسين: يُعاد الحساب فقط عند تغير windowDataTimestamp بشكل حقيقي
   
   const { organizationId, subdomain, storeIdentifier } = domainInfo;
 
-  // 🔥 تحسين: فحص الـ cache العالمي أولاً
+  // 🔥 تحسين: فحص الـ cache العالمي أولاً مع حماية من التغييرات المتكررة
   const cacheKey = `${organizationId || 'no-org'}-${subdomain || 'no-subdomain'}`;
   const cachedData = globalSharedDataCache.get(cacheKey);
   const shouldUseCache = cachedData && !forceStoreFetch;
+
+  // 🔥 إصلاح: منع إعادة الاستعلام عند تغيير cacheKey فقط
+  const stableCacheKey = useRef(cacheKey);
+  const isCacheKeyChanged = stableCacheKey.current !== cacheKey;
+
+  // تحديث stableCacheKey فقط عند تغيير حقيقي
+  if (isCacheKeyChanged && organizationId && subdomain) {
+    stableCacheKey.current = cacheKey;
+  }
 
   const queryClient = useQueryClient();
 

@@ -15,6 +15,7 @@ export interface UseProductPurchaseProps {
   dataScope?: DataScope;
   enabled?: boolean;
   preloadedProduct?: CompleteProduct;
+  skipInitialFetch?: boolean;
 }
 
 export interface ProductPurchaseState {
@@ -78,7 +79,8 @@ export const useProductPurchase = ({
   organizationId,
   dataScope = 'full', // تحسين: تغيير من 'ultra' إلى 'full' لتحسين الأداء
   enabled = true,
-  preloadedProduct
+  preloadedProduct,
+  skipInitialFetch = false
 }: UseProductPurchaseProps): [ProductPurchaseState, ProductPurchaseActions] => {
   
   // 1. جلب بيانات المنتج
@@ -87,17 +89,17 @@ export const useProductPurchase = ({
     organizationId,
     dataScope,
     enabled,
-    preloadedProduct
+    preloadedProduct,
+    skipInitialFetch
   });
 
-  // إضافة مراقبة إضافية للبيانات المحملة مسبقاً
+  // إضافة مراقبة إضافية للبيانات المحملة مسبقاً - محسن
   useEffect(() => {
     if (preloadedProduct && !productData.product && !productData.loading) {
-      
       // إعادة تعيين الحالة
       productDataActions.clearError();
     }
-  }, [preloadedProduct, productData.product, productData.loading]); // إزالة productDataActions من التبعيات لمنع الحلقة اللا نهائية
+  }, [preloadedProduct?.id, productData.product?.id, productData.loading]); // استخدام IDs بدلاً من الكائنات الكاملة
 
   // 2. إدارة المتغيرات (الألوان والمقاسات)
   const [variants, variantsActions] = useProductVariants({

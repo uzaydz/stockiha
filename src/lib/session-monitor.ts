@@ -6,6 +6,11 @@
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './supabase-unified';
 
+const isDevelopment = import.meta.env.DEV;
+const BASE_VALIDATION_INTERVAL = isDevelopment ? 5 * 60 * 1000 : 12 * 60 * 1000;
+const MIN_VALIDATION_INTERVAL = 60 * 1000;
+const EXPIRY_BUFFER = 5 * 60 * 1000;
+
 // 🔒 نمط Singleton لضمان وجود مراقب واحد فقط
 class SessionMonitor {
   private static instance: SessionMonitor | null = null;
@@ -15,8 +20,7 @@ class SessionMonitor {
   private isValid: boolean = false;
   private isRefreshing: boolean = false;
   private lastRefresh: number = 0;
-  private refreshInterval: NodeJS.Timeout | null = null;
-  private validationInterval: NodeJS.Timeout | null = null;
+  private validationTimeout: ReturnType<typeof setTimeout> | null = null;
   private listeners: Set<(session: Session | null, isValid: boolean) => void> = new Set();
   
   // ✅ منع إنشاء أكثر من مراقب واحد
@@ -97,14 +101,17 @@ class SessionMonitor {
   // 🔒 جدولة التحقق من صحة الجلسة
   private scheduleValidation(): void {
     // إلغاء الجدولة السابقة
-    if (this.validationInterval) {
-      clearInterval(this.validationInterval);
+    if (this.validationTimeout) {
+      clearTimeout(this.validationTimeout);
+      this.validationTimeout = null;
     }
-    
-    // جدولة جديدة كل 10 دقائق
-    this.validationInterval = setInterval(() => {
-      this.checkSessionHealth();
-    }, 10 * 60 * 1000); // 10 دقائق
+
+    const delay = this.getNextValidationDelay();
+
+    this.validationTimeout = setTimeout(() => {
+      this.validationTimeout = null;
+      void this.checkSessionHealth();
+    }, delay);
   }
   
   // 🔒 فحص صحة الجلسة
@@ -128,6 +135,8 @@ class SessionMonitor {
       if (process.env.NODE_ENV === 'development') {
       }
     }
+
+    this.scheduleValidation();
   }
   
   // 🔒 تجديد الجلسة (مرة واحدة فقط)
@@ -209,14 +218,9 @@ class SessionMonitor {
   
   // 🔒 تنظيف الموارد
   cleanup(): void {
-    if (this.refreshInterval) {
-      clearInterval(this.refreshInterval);
-      this.refreshInterval = null;
-    }
-    
-    if (this.validationInterval) {
-      clearInterval(this.validationInterval);
-      this.validationInterval = null;
+    if (this.validationTimeout) {
+      clearTimeout(this.validationTimeout);
+      this.validationTimeout = null;
     }
     
     this.listeners.clear();
@@ -232,6 +236,26 @@ class SessionMonitor {
       listenersCount: this.listeners.size,
       uptime: Date.now() - (this.session?.created_at ? this.session.created_at * 1000 : Date.now())
     };
+  }
+
+  private getNextValidationDelay(): number {
+    if (!this.session?.expires_at) {
+      return BASE_VALIDATION_INTERVAL;
+    }
+
+    const expiresAt = this.session.expires_at * 1000;
+    const timeUntilExpiry = expiresAt - Date.now();
+
+    if (timeUntilExpiry <= 0) {
+      return MIN_VALIDATION_INTERVAL;
+    }
+
+    const buffered = timeUntilExpiry - EXPIRY_BUFFER;
+    if (buffered <= 0) {
+      return MIN_VALIDATION_INTERVAL;
+    }
+
+    return Math.max(MIN_VALIDATION_INTERVAL, Math.min(buffered, BASE_VALIDATION_INTERVAL));
   }
 }
 

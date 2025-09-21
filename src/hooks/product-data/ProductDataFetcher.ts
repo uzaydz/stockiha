@@ -9,6 +9,9 @@ import type {
   ProductApiResponse 
 } from './ProductDataTypes';
 import { getProductCompleteDataOptimized } from '@/lib/api/deduplicatedApi';
+import perf from '@/utils/perfDebug';
+
+const isDevEnvironment = typeof import.meta !== 'undefined' && Boolean((import.meta as any).env?.DEV);
 
 /**
  * ثوابت جلب البيانات
@@ -32,6 +35,8 @@ export async function fetchUnifiedProductData(
   
 
   try {
+    perf.time('fetchUnifiedProductData.total');
+    perf.log('fetchUnifiedProductData.start', { productId, options });
     // استخدام الـ API الموحد لجلب بيانات المنتج مع منع التكرار
     
     const productResponse = await getProductCompleteDataOptimized(productId, {
@@ -39,9 +44,8 @@ export async function fetchUnifiedProductData(
       dataScope,
       forceRefresh // ✅ استخدام قيمة forceRefresh من المعاملات
     });
-    
-    // 🔍 Debug: تشخيص استجابة API - مفصل أكثر في الإنتاج
-    if (process.env.NODE_ENV === 'development' || true) { // تمكين في الإنتاج مؤقتاً للتشخيص
+
+    if (isDevEnvironment) {
       console.log('🔍 [fetchUnifiedProductData] استجابة API الخام:', {
         hasResponse: !!productResponse,
         responseKeys: productResponse ? Object.keys(productResponse) : [],
@@ -75,12 +79,11 @@ export async function fetchUnifiedProductData(
     // معالجة البيانات المستلمة
     const processedData = processProductResponse(productResponse, organizationId);
 
-    // 🚀 تسجيل معلومات صور الألوان للتشخيص
-    if (process.env.NODE_ENV === 'development') {
-      if (productResponse.product?.variants?.colors) {
-      }
+    if (isDevEnvironment && productResponse.product?.variants?.colors) {
+      // يمكن إضافة تسجيل تفصيلي لاحقاً عند الحاجة
     }
 
+    perf.timeEnd('fetchUnifiedProductData.total', { productId, hasProduct: !!processedData?.product });
     return processedData;
 
   } catch (error) {
@@ -107,18 +110,22 @@ function processProductResponse(
 
   // 🔥 إصلاح: معالجة البيانات المغلفة في API الجديد
   if (responseData && typeof responseData === 'object') {
-    console.log('🔍 [processProductResponse] فحص بنية البيانات:', {
-      hasProduct: !!responseData.product,
-      hasBasic: !!responseData.basic,
-      hasExtended: responseData.extended !== undefined,
-      hasCombined: !!responseData.combined,
-      dataType: responseData.data_type,
-      hasProductExtended: !!responseData.product_extended
-    });
+    if (isDevEnvironment) {
+      console.log('🔍 [processProductResponse] فحص بنية البيانات:', {
+        hasProduct: !!responseData.product,
+        hasBasic: !!responseData.basic,
+        hasExtended: responseData.extended !== undefined,
+        hasCombined: !!responseData.combined,
+        dataType: responseData.data_type,
+        hasProductExtended: !!responseData.product_extended
+      });
+    }
     
     // ✅ تحديث: التحقق من البيانات الجديدة المدمجة مع المنتج المدمج
     if (responseData.product && responseData.basic && responseData.extended !== undefined) {
-      console.log('🚀 [processProductResponse] استخدام البيانات المدمجة');
+      if (isDevEnvironment) {
+        console.log('🚀 [processProductResponse] استخدام البيانات المدمجة');
+      }
       // البيانات من API الجديد المدمج - استخدم المنتج المدمج مباشرة
       responseData = {
         product: responseData.product, // المنتج المدمج الذي تم إنشاؤه في productUltraFastApi.ts
@@ -131,7 +138,9 @@ function processProductResponse(
     }
     // 🚀 إصلاح جديد: التعامل مع البيانات المتقدمة فقط (data_type: "extended")
     else if (responseData.data_type === 'extended' && responseData.product_extended) {
-      console.log('🚀 [processProductResponse] استخدام البيانات المتقدمة فقط (extended)');
+      if (isDevEnvironment) {
+        console.log('🚀 [processProductResponse] استخدام البيانات المتقدمة فقط (extended)');
+      }
       // إنشاء منتج وهمي بناءً على البيانات المتقدمة
       const extendedProduct = responseData.product_extended;
       const pseudoProduct = {
@@ -183,7 +192,9 @@ function processProductResponse(
     }
     // التحقق من البيانات الجديدة بدون دمج (للتوافق مع الإصدارات القديمة)
     else if (responseData.basic && responseData.extended !== undefined) {
-      console.log('🔍 [processProductResponse] استخدام البيانات الجديدة بدون دمج');
+      if (isDevEnvironment) {
+        console.log('🔍 [processProductResponse] استخدام البيانات الجديدة بدون دمج');
+      }
       // البيانات من API الجديد بدون دمج - استخدم البيانات الأساسية
       responseData = {
         product: responseData.basic.product,
@@ -196,24 +207,30 @@ function processProductResponse(
     }
     // التحقق من البنية المباشرة لـ RPC القديم (للتوافق)
     else if (responseData.get_product_complete_data_ultra_optimized) {
-      console.log('🔍 [processProductResponse] استخدام البيانات القديمة المباشرة');
+      if (isDevEnvironment) {
+        console.log('🔍 [processProductResponse] استخدام البيانات القديمة المباشرة');
+      }
       responseData = responseData.get_product_complete_data_ultra_optimized;
     }
     // التحقق من البيانات المغلفة في RPC داخل data
     else if (responseData.data && typeof responseData.data === 'object' && responseData.data.get_product_complete_data_ultra_optimized) {
-      console.log('🔍 [processProductResponse] استخدام البيانات القديمة في data');
+      if (isDevEnvironment) {
+        console.log('🔍 [processProductResponse] استخدام البيانات القديمة في data');
+      }
       responseData = responseData.data.get_product_complete_data_ultra_optimized;
     }
     // 🚀 Fallback: إذا لم تطابق أي حالة
     else {
-      console.log('🔄 [processProductResponse] لم تطابق أي حالة معروفة، استخدام البيانات كما هي');
+      if (isDevEnvironment) {
+        console.log('🔄 [processProductResponse] لم تطابق أي حالة معروفة، استخدام البيانات كما هي');
+      }
     }
   }
 
   const { product, stats } = responseData;
   
   // 🔍 Debug: تشخيص بنية البيانات الواردة
-  if (process.env.NODE_ENV === 'development') {
+  if (isDevEnvironment) {
     console.log('🔍 [processProductResponse] بنية البيانات الواردة:', {
       hasResponse: !!response,
       hasResponseData: !!responseData,
@@ -252,7 +269,7 @@ function processProductResponse(
   };
 
   // 🔍 Debug: تأكيد إنشاء البيانات الموحدة
-  if (process.env.NODE_ENV === 'development') {
+  if (isDevEnvironment) {
     console.log('✅ [processProductResponse] البيانات الموحدة تم إنشاؤها:', {
       hasProduct: !!unifiedData.product,
       productId: unifiedData.product?.id,

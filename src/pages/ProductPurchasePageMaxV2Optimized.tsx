@@ -66,7 +66,8 @@ const ProductPurchasePageMaxV2Optimized: React.FC = () => {
     // Keep in sync with unified hook; upgrade on-demand if needed
     dataScope: 'full',
     preloadedProduct: unifiedData.product, // 🚀 تمرير البيانات المحملة مسبقاً
-    enabled: true // ✅ السماح للـ hook بالعمل، لكنه سيستخدم البيانات المحملة مسبقاً
+    enabled: true, // ✅ السماح للـ hook بالعمل، لكنه سيستخدم البيانات المحملة مسبقاً
+    skipInitialFetch: true
   });
 
   const {

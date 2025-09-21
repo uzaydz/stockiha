@@ -1,78 +1,727 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" class="light">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/dz.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#fc5a3e" />
-    <meta name="description" content="متجر إلكتروني سريع وبسيط - سطوكيها" />
+    
+    <!-- إزالة وسوم http-equiv غير الصحيحة للضغط لتفادي سلوك غير متوقع في المتصفحات/الوكلاء -->
+    
+    <!-- سياسة الأمان تُدار من خلال Vite middleware بدلاً من meta element لتجنب مشاكل frame-ancestors -->
 
-    <!-- Preconnect for performance -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <title id="page-title">متجر إلكتروني</title>
+    <meta name="description" content="سطوكيها - منصة إدارة المتاجر الذكية لإنشاء متجرك الإلكتروني وإدارة المبيعات والمخزون بكل سهولة" />
+    <meta name="author" content="سطوكيها" />
+    
+    <!-- 🚀 INSTANT STORE TITLE SCRIPT - يتم تشغيله فوراً لعرض اسم المتجر -->
+    <script nonce="{{CSP_NONCE}}">
+      (function() {
+        'use strict';
+        
+        // الحصول على subdomain الحالي
+        function getCurrentSubdomain() {
+          try {
+            const hostname = window.location.hostname;
+            const parts = hostname.split('.');
+            
+            if (parts.length > 2 && parts[0] !== 'www' && hostname !== 'localhost') {
+              return parts[0];
+            }
+            
+            return null;
+          } catch (e) {
+            return null;
+          }
+        }
+        
+        // الحصول على اسم المتجر من مصادر مختلفة
+        function getInstantStoreName() {
+          try {
+            const subdomain = getCurrentSubdomain();
+            if (!subdomain) return null;
+            
+            // 1. البحث في sessionStorage أولاً (أسرع)
+            try {
+              const sessionData = sessionStorage.getItem('store_' + subdomain);
+              if (sessionData) {
+                const storeInfo = JSON.parse(sessionData);
+                if (storeInfo.name) {
+                  return {
+                    name: storeInfo.name,
+                    description: storeInfo.description,
+                    source: 'sessionStorage'
+                  };
+                }
+              }
+            } catch (e) {}
+            
+            // 2. البحث في instant store cache
+            try {
+              const instantData = sessionStorage.getItem('instant_store_' + subdomain);
+              if (instantData) {
+                const storeInfo = JSON.parse(instantData);
+                if (storeInfo.name) {
+                  return {
+                    name: storeInfo.name,
+                    description: storeInfo.description,
+                    source: 'instant-cache'
+                  };
+                }
+              }
+            } catch (e) {}
+            
+            // 3. البحث في localStorage للمؤسسة
+            try {
+              const organizationId = localStorage.getItem('bazaar_organization_id');
+              if (organizationId) {
+                const orgData = localStorage.getItem('bazaar_organization_' + organizationId);
+                if (orgData) {
+                  const parsed = JSON.parse(orgData);
+                  if (parsed.name && parsed.subdomain === subdomain) {
+                    return {
+                      name: parsed.name,
+                      description: parsed.description,
+                      source: 'localStorage-org'
+                    };
+                  }
+                }
+                
+                const orgSettings = localStorage.getItem('bazaar_org_settings_' + organizationId);
+                if (orgSettings) {
+                  const parsed = JSON.parse(orgSettings);
+                  if (parsed.site_name) {
+                    return {
+                      name: parsed.site_name,
+                      description: parsed.seo_meta_description,
+                      source: 'localStorage-settings'
+                    };
+                  }
+                }
+              }
+            } catch (e) {}
+            
+            // 4. البحث في store_quick cache
+            try {
+              const quickData = localStorage.getItem('store_quick_' + subdomain);
+              if (quickData) {
+                const storeInfo = JSON.parse(quickData);
+                if (storeInfo.name) {
+                  return {
+                    name: storeInfo.name,
+                    description: storeInfo.description,
+                    source: 'quick-cache'
+                  };
+                }
+              }
+            } catch (e) {}
+            
+            // 5. البحث في early preload
+            try {
+              const earlyPreload = localStorage.getItem('early_preload_' + subdomain);
+              if (earlyPreload) {
+                const data = JSON.parse(earlyPreload);
+                const orgDetails = data.data && data.data.organization_details;
+                const orgSettings = data.data && data.data.organization_settings;
+                
+                if ((orgDetails && orgDetails.name) || (orgSettings && orgSettings.site_name)) {
+                  return {
+                    name: (orgDetails && orgDetails.name) || (orgSettings && orgSettings.site_name),
+                    description: (orgDetails && orgDetails.description) || (orgSettings && orgSettings.seo_meta_description),
+                    source: 'early-preload'
+                  };
+                }
+              }
+            } catch (e) {}
+            
+            // 6. استخدام subdomain كاسم احتياطي مع تحسين
+            if (subdomain && subdomain.length > 2) {
+              // تحويل subdomain إلى اسم أكثر قابلية للقراءة
+              let displayName = subdomain;
+              
+              // إزالة الأرقام والرموز الغريبة
+              displayName = displayName.replace(/[0-9\-_]/g, ' ');
+              
+              // تحويل الحرف الأول إلى capital
+              displayName = displayName.charAt(0).toUpperCase() + displayName.slice(1);
+              
+              // إضافة "متجر" إذا كان الاسم قصير
+              if (displayName.length < 5) {
+                displayName = 'متجر ' + displayName;
+              }
+              
+              return {
+                name: displayName,
+                description: 'متجر إلكتروني متخصص',
+                source: 'subdomain'
+              };
+            }
+            
+            return null;
+          } catch (error) {
+            return null;
+          }
+        }
+        
+        // دالة تحديث الفافيكون
+        function updateFavicon(iconUrl, fallbackName) {
+          try {
+            // إزالة جميع الفافيكونات الموجودة
+            document.querySelectorAll('link[rel*="icon"]').forEach(el => el.remove());
+            
+            const favicon = document.createElement('link');
+            favicon.rel = 'icon';
+            favicon.type = 'image/x-icon';
+            
+            if (iconUrl && iconUrl.trim()) {
+              // استخدام فافيكون المتجر الحقيقي
+              favicon.href = iconUrl.includes('?') ? iconUrl : iconUrl + '?v=' + Date.now();
+            } else {
+              // إنشاء فافيكون SVG احتياطي بالحرف الأول من اسم المتجر
+              const initial = (fallbackName || 'م').charAt(0);
+              const svgIcon = `
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+                  <defs>
+                    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" style="stop-color:#22c55e;stop-opacity:1" />
+                      <stop offset="100%" style="stop-color:#16a34a;stop-opacity:1" />
+                    </linearGradient>
+                  </defs>
+                  <circle cx="50" cy="50" r="45" fill="url(#grad)" stroke="#ffffff" stroke-width="2"/>
+                  <text x="50" y="50" text-anchor="middle" dominant-baseline="central" 
+                        font-family="system-ui, -apple-system, sans-serif" 
+                        font-size="40" font-weight="bold" fill="#ffffff">${initial}</text>
+                </svg>
+              `;
+              
+              const encodedSvg = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgIcon)));
+              favicon.href = encodedSvg;
+            }
+            
+            document.head.appendChild(favicon);
+            
+            // إضافة أيضاً icon لـ Safari/iOS
+            const appleTouchIcon = document.createElement('link');
+            appleTouchIcon.rel = 'apple-touch-icon';
+            appleTouchIcon.href = favicon.href;
+            document.head.appendChild(appleTouchIcon);
+            
+          } catch (error) {
+            console.warn('خطأ في تحديث الفافيكون:', error);
+          }
+        }
 
-    <!-- Critical CSS for fast rendering -->
+        // تطبيق اسم المتجر فوراً
+        function applyInstantStoreTitle() {
+          const storeInfo = getInstantStoreName();
+          
+          if (storeInfo && storeInfo.name) {
+            // تعيين عنوان الصفحة فوراً
+            document.title = storeInfo.name;
+            
+            // تحديث meta description إذا كان متوفراً
+            if (storeInfo.description) {
+              const existingDescription = document.querySelector('meta[name="description"]');
+              if (existingDescription) {
+                existingDescription.content = storeInfo.description;
+              }
+            }
+            
+            // تحديث Open Graph tags لـ Facebook
+            const updateOGMeta = (property, content) => {
+              if (!content) return;
+              let meta = document.querySelector(`meta[property="${property}"]`);
+              if (!meta) {
+                meta = document.createElement('meta');
+                meta.setAttribute('property', property);
+                document.head.appendChild(meta);
+              }
+              meta.setAttribute('content', content);
+            };
+            
+            updateOGMeta('og:title', storeInfo.name);
+            updateOGMeta('og:description', storeInfo.description || 'متجر إلكتروني متخصص');
+            updateOGMeta('og:type', 'website');
+            updateOGMeta('og:site_name', storeInfo.name);
+            
+            // استخدام دالة updateFavicon المُعرّفة خارجياً
+            
+            // البحث عن favicon URL في البيانات المحفوظة
+            let faviconUrl = null;
+            let logoUrl = null;
+            
+            // محاولة الحصول على الفافيكون من مصادر مختلفة
+            try {
+              const subdomain = getCurrentSubdomain();
+              if (subdomain) {
+                // 1. البحث في favicon cache المباشر أولاً (أسرع)
+                faviconUrl = localStorage.getItem('favicon_' + subdomain) || sessionStorage.getItem('favicon_' + subdomain);
+                
+                // 2. البحث في store_quick cache
+                if (!faviconUrl) {
+                  const quickData = localStorage.getItem('store_quick_' + subdomain);
+                  if (quickData) {
+                    const parsed = JSON.parse(quickData);
+                    faviconUrl = parsed.favicon_url;
+                    logoUrl = parsed.logo_url;
+                  }
+                }
+                
+                // 3. البحث في early_preload إذا لم نجد في quick cache
+                if (!faviconUrl && !logoUrl) {
+                  const earlyData = localStorage.getItem('early_preload_' + subdomain);
+                  if (earlyData) {
+                    const parsed = JSON.parse(earlyData);
+                    faviconUrl = parsed.data?.organization_settings?.favicon_url;
+                    logoUrl = parsed.data?.organization_settings?.logo_url || parsed.data?.organization_details?.logo_url;
+                  }
+                }
+                
+                // 4. البحث في org settings
+                const orgId = localStorage.getItem('bazaar_organization_id');
+                if (orgId && (!faviconUrl && !logoUrl)) {
+                  const orgSettings = localStorage.getItem('bazaar_org_settings_' + orgId);
+                  if (orgSettings) {
+                    const parsed = JSON.parse(orgSettings);
+                    faviconUrl = parsed.favicon_url;
+                    logoUrl = parsed.logo_url;
+                  }
+                }
+              }
+            } catch (e) {}
+            
+            // تحديث الفافيكون
+            updateFavicon(faviconUrl || logoUrl, storeInfo.name);
+            
+            // حفظ للاستخدام السريع
+            const subdomain = getCurrentSubdomain();
+            if (subdomain) {
+              try {
+                sessionStorage.setItem('instant_store_' + subdomain, JSON.stringify({
+                  name: storeInfo.name,
+                  description: storeInfo.description,
+                  timestamp: Date.now()
+                }));
+              } catch (e) {}
+            }
+            
+            return true;
+          }
+          
+          return false;
+        }
+        
+        // تشغيل فوري
+        const success = applyInstantStoreTitle();
+        
+        // تصدير الدوال للاستخدام من React
+        window.__INSTANT_STORE_UTILS__ = {
+          getInstantStoreName: getInstantStoreName,
+          applyInstantStoreTitle: applyInstantStoreTitle,
+          getCurrentSubdomain: getCurrentSubdomain,
+          updateFavicon: updateFavicon
+        };
+        
+      })();
+    </script>
+    
+    <!-- Favicon - سيتم تحديده ديناميكياً -->
+    <!-- تم إزالة الفافيكونات الثابتة لتجنب ظهور الفافيكون الأخضر الافتراضي -->
+    
+    <!-- 🚀 تحميل الخطوط المحلية محسن للأداء - استخدام preload مع font-display -->
+    <link rel="preload" href="/fonts/tajawal-regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+    <link rel="preload" href="/fonts/tajawal-medium.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+    <link rel="preload" href="/fonts/tajawal-bold.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+    
+    <!-- تحميل CSS الرئيسي - ضروري للتطبيق -->
+    <link rel="preload" href="/src/index.css" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="/src/index.css"></noscript>
+    
+    <!-- تحسين إضافي: تحميل الخطوط الإضافية عند الحاجة -->
+    <script nonce="{{CSP_NONCE}}">
+      // Smart font loading strategy - محسن لتجنب التحميل المتكرر
+      (function() {
+        // تحقق من وجود الخطوط في الكاش
+        var fontsAlreadyLoaded = sessionStorage.getItem('fonts_loaded');
+
+        if (fontsAlreadyLoaded === 'true') {
+          console.log('Fonts already preloaded, skipping...');
+          return;
+        }
+
+        var fontsLoaded = false;
+
+        // Function to load additional fonts
+        function loadAdditionalFonts() {
+          if (fontsLoaded) return;
+          fontsLoaded = true;
+
+          var additionalFonts = [
+            '/fonts/tajawal-medium.woff2',
+            '/fonts/tajawal-bold.woff2'
+          ];
+
+          additionalFonts.forEach(function(fontUrl) {
+            var link = document.createElement('link');
+            link.rel = 'prefetch';
+            link.as = 'font';
+            link.type = 'font/woff2';
+            link.crossOrigin = 'anonymous';
+            link.href = fontUrl;
+            document.head.appendChild(link);
+          });
+
+          // حفظ في sessionStorage لتجنب التحميل المتكرر
+          sessionStorage.setItem('fonts_loaded', 'true');
+          console.log('Fonts preloaded and cached for session');
+        }
+
+        // Load additional fonts on user interaction or after delay
+        var events = ['mousedown', 'touchstart', 'keydown', 'wheel'];
+        events.forEach(function(event) {
+          document.addEventListener(event, loadAdditionalFonts, { once: true, passive: true });
+        });
+
+        // Fallback: load after 1 second if no interaction (أقل من 2s)
+        setTimeout(loadAdditionalFonts, 1000);
+      })();
+    </script>
+    
+    <!-- إضافة سكريبت للتعامل مع وضع الإضاءة -->
+    <script nonce="{{CSP_NONCE}}">
+      // حاول تطبيق الوضع المحفوظ قبل تحميل الصفحة لمنع وميض الشاشة
+      const storedTheme = localStorage.getItem('theme') || 'light';
+      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      const initialTheme = storedTheme === 'system' ? systemTheme : storedTheme;
+      document.documentElement.classList.add(initialTheme);
+      document.documentElement.style.colorScheme = initialTheme;
+    </script>
+    
+    <!-- 🚀 Resource Hints محسنة للأداء -->
+    <link rel="dns-prefetch" href="//cdn.jsdelivr.net">
+    <link rel="dns-prefetch" href="//api.vercel.com">
+    
+    <!-- 🚀 Preconnect للموارد الحرجة -->
+    <link rel="preconnect" href="%VITE_SUPABASE_URL%" crossorigin>
+    
+    <!-- إعدادات JavaScript الأساسية -->
+    <script nonce="{{CSP_NONCE}}">
+      // إعدادات أساسية للأداء
+      window.process = window.process || { env: {} };
+      window.global = window.global || window;
+      
+      // تحسين أداء الخطوط
+      if ('fonts' in document) {
+        document.fonts.ready.then(() => {
+          document.documentElement.classList.add('fonts-loaded');
+        });
+      }
+    </script>
+    
+    <!-- 🎯 تحسين تحميل الموارد - إزالة preload غير الضروري -->
+    <!-- تم إزالة preload للملفات التي يتم تحميلها بواسطة Vite تلقائياً -->
+    
+    <!-- ❌ إزالة Google Fonts: نعتمد على الخطوط المحلية فقط للأداء -->
+    
+    <!-- 🚀 Critical CSS will be loaded via React imports -->
+    
+    <!-- 🚀 CRITICAL CSS INLINE (مصغّر جداً: الأساسيات واللودر فقط) -->
     <style>
-      body {
-        margin: 0;
-        font-family: 'Tajawal', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+      html {
+        font-family: 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif;
+        line-height: 1.5;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
-        background-color: #f8fafc;
       }
-
-      #root {
+      body {
+        margin: 0;
+        padding: 0;
+        direction: rtl;
+        text-align: right;
         min-height: 100vh;
+        background: #ffffff;
+        color: #000000;
+        overflow-x: hidden;
       }
-
-      /* Loading spinner */
+      #root { min-height: 100vh; }
+      .loading-container {
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        z-index: 9999;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        background: #ffffff;
+      }
       .loading-spinner {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 100vh;
-        background-color: #f8fafc;
-      }
-
-      .spinner {
-        width: 40px;
-        height: 40px;
-        border: 4px solid #e2e8f0;
-        border-top: 4px solid #fc5a3e;
+        width: 32px;
+        height: 32px;
+        border: 2px solid #e5e7eb;
+        border-top-color: #6b21a8;
         border-radius: 50%;
-        animation: spin 1s linear infinite;
+        animation: spin 0.8s linear infinite;
       }
-
-      @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      * { box-sizing: border-box; }
     </style>
 
-    <title>سطوكيها - متجر إلكتروني سريع</title>
-  </head>
-  <body>
-    <!-- Loading fallback -->
-    <div id="loading-fallback" class="loading-spinner">
-      <div class="spinner"></div>
-    </div>
+    <!-- 🚀 تحميل CSS محسن لتقليل Render Blocking (تعطيل في التطوير) -->
+    <script nonce="{{CSP_NONCE}}">
+      (function(){
+        // لا تُحمِّل CSS الإضافي في بيئة التطوير (localhost/127.*)
+        var host = location.hostname || '';
+        // اعتبر subdomain.localhost بيئة تطوير أيضاً (asraycollection.localhost)
+        var isDev = host === 'localhost' || host.endsWith('.localhost') || host.indexOf('127.') === 0 || host === '::1' || host === '0.0.0.0';
+        if (isDev) return;
 
+        // تحميل CSS الأساسي للتطبيق
+        function loadNonCriticalCSS() {
+          // تحميل CSS الرئيسي المُنتج من Vite
+          var mainCSS = document.querySelector('link[rel="stylesheet"][href*="main-"]');
+          if (!mainCSS) {
+            // إذا لم يتم تحميل CSS الرئيسي، ابحث عنه وحمّله
+            loadCSS('/assets/css/main-CbztG7-1.css');
+          }
+        }
+
+        function loadCSS(href) {
+          var link = document.createElement('link');
+          link.rel = 'stylesheet';
+          link.href = href;
+          link.media = 'print';
+          link.onload = function(){ this.media = 'all'; this.onload = null; };
+          link.onerror = function(){ console.warn('Failed to load CSS:', href); };
+          document.head.appendChild(link);
+        }
+
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', loadNonCriticalCSS);
+        } else {
+          loadNonCriticalCSS();
+        }
+      })();
+    </script>
+
+    <meta property="og:title" content="سطوكيها - منصة إدارة المتاجر الذكية" />
+    <meta property="og:description" content="منصة إدارة المتاجر الذكية لإنشاء متجرك الإلكتروني وإدارة المبيعات والمخزون بكل سهولة" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/images/logo-new.webp" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@stockiha" />
+    <meta name="twitter:image" content="/images/logo-new.webp" />
+    
+    <!-- Theme Color -->
+    <meta name="theme-color" content="#6b21a8">
+    
+    <!-- مخصص لـ Vercel و SPA -->
+    <meta name="vercel-deployment" content="true">
+    <meta name="format-detection" content="telephone=no">
+  </head>
+
+  <body>
     <div id="root">
-      <div class="loading-spinner">
-        <div class="spinner"></div>
+      <!-- PERFORMANCE OPTIMIZATION: Loading screen for better perceived performance -->
+      <div class="loading-container" id="initial-loading">
+        <div class="loading-spinner"></div>
       </div>
     </div>
 
-    <!-- Remove loading fallback when React loads -->
-    <script>
-      window.addEventListener('load', function() {
-        const fallback = document.getElementById('loading-fallback');
-        if (fallback) {
-          fallback.style.display = 'none';
+    <!-- Remove loading screen when React loads -->
+    <script nonce="{{CSP_NONCE}}">
+      // 🚀 دالة عامة لإزالة شاشة التحميل - سيتم استدعاؤها من React
+      window.removeInitialLoading = function() {
+        const loadingScreen = document.getElementById('initial-loading');
+        if (loadingScreen) {
+          loadingScreen.style.opacity = '0';
+          loadingScreen.style.transition = 'opacity 0.15s ease'; // ✅ تقليل من 0.3s إلى 0.15s
+          setTimeout(() => {
+            if (loadingScreen.parentNode) {
+              loadingScreen.remove();
+            }
+          }, 150); // ✅ تقليل من 300ms إلى 150ms لتحسين الأداء
         }
-      });
+      };
+
+      // ⛑️ احتياط: إزالة شاشة التحميل تلقائياً بعد مهلة قصيرة حتى لو لم يستدعها React
+      setTimeout(() => {
+        try { if (typeof window.removeInitialLoading === 'function') window.removeInitialLoading(); } catch {}
+      }, 2500);
+
+      // 🚀 تحديث مبكر للعنوان/الوصف/الفافيكون بناءً على cache أو اكتشاف النطاق
+      const earlyHeadUpdate = () => {
+        try {
+          const hostname = window.location.hostname;
+          
+          // فحص النطاقات العامة
+          const isPublicDomain = ['ktobi.online', 'www.ktobi.online', 'stockiha.com', 'www.stockiha.com', 'stockiha.pages.dev'].includes(hostname);
+          
+          // لا نعدل شيئاً على الدومين العام (صفحة المنصة)
+          if (isPublicDomain) return;
+
+          // استنتاج معرف المتجر للاستخدام مع التخزين المحلي
+          const baseDomains = ['.ktobi.online', '.stockiha.com'];
+          const isLocalhost = hostname.includes('localhost') || hostname.startsWith('127.');
+          const isBaseDomain = baseDomains.some(d => hostname.endsWith(d));
+          const isCustomDomain = !isLocalhost && !isBaseDomain;
+
+          let storeIdentifier = '';
+          if (isCustomDomain) {
+            storeIdentifier = hostname.startsWith('www.') ? hostname.substring(4) : hostname;
+          } else if (isBaseDomain) {
+            const parts = hostname.split('.');
+            if (parts.length > 2 && parts[0] !== 'www') storeIdentifier = parts[0];
+          } else if (isLocalhost && hostname.includes('.')) {
+            const parts = hostname.split('.');
+            if (parts.length > 1 && parts[0] !== 'localhost') storeIdentifier = parts[0];
+          }
+
+          // دوال مساعدة صغيرة لتحديث الفافيكون والميتا
+          const setFavicon = (iconUrl, name) => {
+            try {
+              // إزالة أيقونات سابقة لتفادي التكرار
+              document.querySelectorAll('link[rel="icon"], link[rel="shortcut icon"]').forEach(el => el.remove());
+              const link = document.createElement('link');
+              link.rel = 'icon';
+              link.type = 'image/x-icon';
+              if (iconUrl) {
+                link.href = `${iconUrl}?v=${Date.now()}`;
+              } else {
+                const initial = (name || 'م').charAt(0);
+                const svg = `
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+                    <defs>
+                      <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#22c55e;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#16a34a;stop-opacity:1" />
+                      </linearGradient>
+                    </defs>
+                    <rect width="100" height="100" rx="20" fill="url(#grad)"/>
+                    <path d="M25 35h50l-5 30H30z" fill="white" opacity="0.9"/>
+                    <circle cx="35" cy="75" r="5" fill="white"/>
+                    <circle cx="65" cy="75" r="5" fill="white"/>
+                    <path d="M35 25l5 10h20l5-10" stroke="white" stroke-width="3" fill="none"/>
+                    <text x="50" y="55" text-anchor="middle" font-family="Arial" font-size="38" font-weight="bold" fill="white">${initial}</text>
+                  </svg>
+                `;
+                link.href = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+              }
+              document.head.appendChild(link);
+              // إضافة shortcut icon لدعم أوسع
+              const shortcut = link.cloneNode();
+              shortcut.rel = 'shortcut icon';
+              document.head.appendChild(shortcut);
+            } catch {}
+          };
+
+          const setMeta = (desc, title, ogImage) => {
+            try {
+              if (title) document.title = title;
+              if (desc) {
+                let m = document.querySelector('meta[name="description"]');
+                if (!m) { m = document.createElement('meta'); m.setAttribute('name','description'); document.head.appendChild(m); }
+                m.setAttribute('content', desc);
+              }
+              if (title) {
+                let ogt = document.querySelector('meta[property="og:title"]');
+                if (!ogt) { ogt = document.createElement('meta'); ogt.setAttribute('property','og:title'); document.head.appendChild(ogt); }
+                ogt.setAttribute('content', title);
+              }
+              if (desc) {
+                let ogd = document.querySelector('meta[property="og:description"]');
+                if (!ogd) { ogd = document.createElement('meta'); ogd.setAttribute('property','og:description'); document.head.appendChild(ogd); }
+                ogd.setAttribute('content', desc);
+              }
+              if (ogImage) {
+                let ogi = document.querySelector('meta[property="og:image"]');
+                if (!ogi) { ogi = document.createElement('meta'); ogi.setAttribute('property','og:image'); document.head.appendChild(ogi); }
+                ogi.setAttribute('content', ogImage);
+              }
+            } catch {}
+          };
+
+          // 0) إن تم حقن بيانات منتج من Cloudflare Worker، استخدمها فوراً
+          try {
+            const pre = document.getElementById('__PRELOADED_PRODUCT__');
+            if (pre && pre.textContent) {
+              const json = JSON.parse(pre.textContent.trim());
+              const data = json?.data || null;
+              const p = data?.product || data || null;
+              const pname = p?.name || null;
+              const pdesc = (p?.description || '').toString().replace(/<[^>]*>/g, '').trim().slice(0, 140);
+              const pimg = p?.images?.thumbnail_image || (p?.images?.additional_images && p?.images?.additional_images[0]?.url) || null;
+              if (pname) {
+                // لا تغيّر إن كان العنوان يحتوي الاسم بالفعل (حقن الحافة سبقنا)
+                if (!document.title || !document.title.includes(pname)) {
+                  setMeta(pdesc || '', pname, pimg || '');
+                }
+                return;
+              }
+            }
+          } catch {}
+
+          // 1) حاول استخدام بيانات محفوظة مسبقاً
+          if (storeIdentifier) {
+            const keysToTry = [
+              `early_preload_${storeIdentifier}`,
+              // في النطاقات المخصصة جرّب أيضاً أول جزء كـ subdomain احتياطي
+              ...(isCustomDomain ? [`early_preload_${storeIdentifier.split('.')[0]}`] : [])
+            ];
+            for (const k of keysToTry) {
+              const raw = localStorage.getItem(k) || sessionStorage.getItem(k);
+              if (raw) {
+                try {
+                  const parsed = JSON.parse(raw);
+                  const data = parsed?.data || parsed; // دعم كلا الشكلين
+                  const siteName = data?.organization_settings?.site_name || data?.organization_details?.name;
+                  const seoTitle = data?.seo_meta?.title || siteName;
+                  const seoDesc = data?.seo_meta?.description || data?.organization_details?.description;
+                  const icon = data?.organization_settings?.favicon_url || data?.organization_settings?.logo_url || data?.organization_details?.logo_url;
+                  const ogImage = data?.seo_meta?.image || data?.organization_settings?.logo_url || data?.organization_details?.logo_url;
+                  if (seoTitle || seoDesc || icon) {
+                    setMeta(seoDesc || '', seoTitle || siteName || '', ogImage || '');
+                    setFavicon(icon, siteName);
+                    return; // تم التحديث بنجاح من الـ cache
+                  }
+                } catch {}
+              }
+            }
+          }
+
+          // 2) لا يوجد cache:
+          // على النطاقات العامة (بدون subdomain) لا نبدّل الفافيكون الافتراضي الخاص بالمنصة
+          if (!storeIdentifier) {
+            // اترك روابط الفافيكون الثابتة من index.html كما هي
+            // يمكن تحديث العنوان فقط إن أردت، لكن لا تلمس الأيقونة
+            try {
+              let rawName = hostname.startsWith('www.') ? hostname.substring(4) : hostname;
+              const fallbackName = (rawName.split('.')[0] || 'متجر');
+              if (!document.title || document.title === 'جاري التحميل...') {
+                document.title = `سطوكيها`;
+              }
+            } catch {}
+            return;
+          }
+
+          // نطاقات المتاجر: عنوان وفافيكون محايدان حتى يبدأ React
+          let rawName = hostname.startsWith('www.') ? hostname.substring(4) : hostname;
+          const fallbackName = (rawName.split('.')[0] || 'متجر');
+          // لا تسبق الاسم بكلمة "متجر" لتجنب وميض العنوان
+          if (!document.title || document.title === 'جاري التحميل...') {
+            document.title = `${fallbackName}`;
+          }
+          setFavicon(null, fallbackName);
+        } catch (error) {
+          console.warn('خطأ في تغيير العنوان المبكر:', error);
+        }
+      };
+
+      // تشغيل التحديث المبكر مباشرةً
+      earlyHeadUpdate();
     </script>
 
-    <script type="module" src="/src/main.tsx"></script>
+    <!-- Store Application Entry -->
+    <script type="module" src="/src/store-main.tsx"></script>
+
+
   </body>
 </html>

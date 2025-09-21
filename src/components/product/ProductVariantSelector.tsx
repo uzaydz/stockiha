@@ -51,7 +51,7 @@ const ProductVariantSelector = memo<ProductVariantSelectorProps>(({
   const renderCount = useRef(0);
   renderCount.current++;
 
-  if (process.env.NODE_ENV === 'development' && renderCount.current <= 3) {
+  if (process.env.NODE_ENV === 'development' && renderCount.current <= 1) { // تقليل من 3 إلى 1
     try {
       // سجل موجز فقط (مرة مبكرة) لتقليل الضوضاء
       console.log('🎨 [ProductVariantSelector] component render', {

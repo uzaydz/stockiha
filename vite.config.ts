@@ -1,6 +1,7 @@
 import { defineConfig, loadEnv, Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import million from "million/compiler";
+import Icons from 'unplugin-icons/vite';
 import * as path from "path";
 import { instagramCompatibilityPlugin } from './src/middleware/instagram-compatibility';
 import { securityPlugin } from './src/plugins/security-plugin';
@@ -162,6 +163,9 @@ export default defineConfig(({ command, mode }) => {
   const isProd = mode === 'production';
   const env = loadEnv(mode, process.cwd(), '');
   const isStoreBuild = process.env.VITE_BUILD_TARGET === 'store' || env.VITE_BUILD_TARGET === 'store';
+  if (process.env.VERBOSE_STORE_BUILD === '1') {
+    console.log('[vite-config] store build?', isStoreBuild, '\n  command:', command, '\n  mode:', mode);
+  }
 
   // تحميل متغيرات البيئة
   
@@ -344,6 +348,15 @@ export default defineConfig(({ command, mode }) => {
       // Dev Critical CSS Plugin - لخدمة critical.css في التطوير
       devCriticalCSSPlugin(),
       
+      // Icons plugin for tree-shaking
+      Icons({
+        compiler: 'jsx',
+        jsx: 'react',
+        autoInstall: true,
+        defaultClass: 'icon',
+        defaultStyle: 'display: inline-block; vertical-align: middle;',
+      }),
+      
       // Million.js configuration for performance optimization
       million.vite({
         auto: {
@@ -453,20 +466,20 @@ export default defineConfig(({ command, mode }) => {
         algorithm: 'brotliCompress',
         ext: '.br',
         deleteOriginFile: false,
-        threshold: 1024, // 1KB - ضغط ملفات أصغر لتحسين الأداء
-        compressionOptions: { 
+        threshold: 512, // 512B - ضغط جميع الملفات تقريباً
+        compressionOptions: {
           level: 11, // أقصى ضغط
           windowBits: 22
         },
-        filter: /\.(js|mjs|json|css|html|svg|txt|xml)$/i,
+        filter: /\.(js|mjs|json|css|html|svg|txt|xml|woff2?)$/i,
         verbose: false // تقليل logs في production
       }),
       isProd && compression({
         algorithm: 'gzip',
-        ext: '.gz', 
+        ext: '.gz',
         deleteOriginFile: false,
-        threshold: 1024, // 1KB - ضغط ملفات أصغر
-        compressionOptions: { 
+        threshold: 512, // 512B - ضغط جميع الملفات تقريباً
+        compressionOptions: {
           level: 9, // أقصى ضغط Gzip
           windowBits: 15,
           memLevel: 9, // زيادة ذاكرة الضغط
@@ -529,6 +542,8 @@ export default defineConfig(({ command, mode }) => {
         // ✅ polyfills أساسية للويب فقط
         'util': 'util',
         'buffer': 'buffer',
+        'stream': path.resolve(__dirname, './src/polyfills/stream.ts'),
+        'node:stream': path.resolve(__dirname, './src/polyfills/stream.ts'),
         // 'process': false, // تعطيل process لتجنب مشاكل unenv
         // 'unenv/node/process': false, // تعطيل unenv/node/process
         
@@ -601,7 +616,7 @@ export default defineConfig(({ command, mode }) => {
       cssMinify: true,
       assetsDir: 'assets',
       emptyOutDir: true,
-      sourcemap: isDev ? 'inline' : false,
+      sourcemap: false, // إيقاف source maps في الإنتاج لتقليل الحجم
       target: 'es2022', // تحديث للمتصفحات الحديثة لتحسين الأداء
       minify: isProd ? 'esbuild' as const : false, // esbuild أسرع من terser بـ 20-50x
       terserOptions: isProd ? {
@@ -627,10 +642,14 @@ export default defineConfig(({ command, mode }) => {
       } : undefined,
       // التأكد من أن جميع المسارات نسبية
       rollupOptions: {
-        input: {
-          main: path.resolve(__dirname, 'index.html'),
-          store: path.resolve(__dirname, 'store.html'),
-        },
+        input: isStoreBuild
+          ? {
+              store: path.resolve(__dirname, 'store.html'),
+            }
+          : {
+              main: path.resolve(__dirname, 'index.html'),
+              store: path.resolve(__dirname, 'store.html'),
+            },
         output: {
           format: 'esm' as ModuleFormat,
           entryFileNames: 'assets/[name]-[hash].js',
@@ -654,6 +673,49 @@ export default defineConfig(({ command, mode }) => {
             return `assets/[name]-[hash].${ext}`;
           },
           manualChunks: (id) => {
+            if (isStoreBuild) {
+              const matches = (pattern: RegExp) => pattern.test(id);
+
+              if (matches(/[\\/]node_modules[\\/]react(-dom)?[\\/]/) || matches(/[\\/]node_modules[\\/]scheduler[\\/]/)) {
+                return 'store-react';
+              }
+
+              if (matches(/[\\/]node_modules[\\/]@tanstack[\\/]react-query[\\/]/)) {
+                return 'store-query';
+              }
+
+              if (matches(/[\\/]node_modules[\\/]@radix-ui[\\/]/)) {
+                return 'store-radix';
+              }
+
+              if (matches(/[\\/]node_modules[\\/]react-router(-dom)?[\\/]/) || matches(/[\\/]node_modules[\\/]@remix-run[\\/]router[\\/]/)) {
+                return 'store-router';
+              }
+
+              if (matches(/[\\/]node_modules[\\/]lucide-react[\\/]/)) {
+                return 'store-icons';
+              }
+
+              if (matches(/[\\/]node_modules[\\/]/)) {
+                return 'store-vendor';
+              }
+
+              if (id.includes('/src/store/') || id.includes('/src/components/store/')) {
+                return 'store-core';
+              }
+
+              if (
+                id.includes('/src/pages/product-v3/') ||
+                id.includes('/src/components/product-page/') ||
+                id.includes('/src/components/product/') ||
+                id.includes('/src/hooks/useProductPurchase')
+              ) {
+                return 'store-product';
+              }
+
+              return undefined;
+            }
+
             // More granular chunking to reduce main bundle size
             const is = (re: RegExp) => re.test(id);
 
@@ -682,6 +744,11 @@ export default defineConfig(({ command, mode }) => {
             if (is(/[\\/]node_modules[\\/]million[\\/]/)) {
               return 'vendor-million';
             }
+            
+            // Chance library - separate to avoid initialization issues
+            if (is(/[\\/]node_modules[\\/]chance[\\/]/)) {
+              return 'vendor-utils';
+            }
 
             // Router (essential but can be separate)
             if (is(/[\\/]node_modules[\\/]react-router(-dom)?[\\/]/) || is(/[\\/]node_modules[\\/]@remix-run[\\/]router[\\/]/)) {
@@ -693,10 +760,7 @@ export default defineConfig(({ command, mode }) => {
               return 'query';
             }
 
-            // Supabase (large, separate chunk)
-            if (is(/[\\/]node_modules[\\/]@supabase[\\/]/)) {
-              return 'supabase';
-            }
+            // Supabase dependencies are widely shared; keep them with general vendor chunks to avoid circular pre-initialisation issues
 
             // Forms (used in specific pages)
             if (is(/[\\/]node_modules[\\/]react-hook-form[\\/]/) || is(/[\\/]node_modules[\\/]zod[\\/]/) || is(/[\\/]node_modules[\\/]@hookform[\\/]/)) {
@@ -779,7 +843,49 @@ export default defineConfig(({ command, mode }) => {
                 return 'vendor-ui';
               }
               
-              // Small vendor chunk
+              // Split vendor-misc into smaller chunks by category
+              const dataLibs = ['date-fns', 'dayjs', 'moment', 'luxon'];
+              if (dataLibs.some(lib => packageName?.startsWith(lib))) {
+                return 'vendor-dates';
+              }
+              
+              const validationLibs = ['zod', 'yup', 'joi', 'ajv'];
+              if (validationLibs.some(lib => packageName?.startsWith(lib))) {
+                return 'vendor-validation';
+              }
+              
+              const storageLibs = ['localforage', 'idb', 'dexie'];
+              if (storageLibs.some(lib => packageName?.startsWith(lib))) {
+                return 'vendor-storage';
+              }
+              
+              const cryptoLibs = ['crypto-js', 'bcrypt', 'uuid', 'nanoid'];
+              if (cryptoLibs.some(lib => packageName?.startsWith(lib))) {
+                return 'vendor-crypto';
+              }
+              
+              const imageLibs = ['browser-image-compression', 'qrcode', 'qr-code-styling'];
+              if (imageLibs.some(lib => packageName?.startsWith(lib))) {
+                return 'vendor-images';
+              }
+              
+              const animationLibs = ['framer-motion', 'motion', 'lottie'];
+              if (animationLibs.some(lib => packageName?.startsWith(lib))) {
+                return 'vendor-animation';
+              }
+              
+              const i18nLibs = ['i18next', 'react-i18next'];
+              if (i18nLibs.some(lib => packageName?.startsWith(lib))) {
+                return 'vendor-i18n';
+              }
+              
+              // Utility libraries that might have initialization issues
+              const utilityLibs = ['chance', 'lodash', 'ramda', 'underscore'];
+              if (utilityLibs.some(lib => packageName?.startsWith(lib))) {
+                return 'vendor-utils';
+              }
+              
+              // Remaining small libraries
               return 'vendor-misc';
             }
 
@@ -822,7 +928,10 @@ export default defineConfig(({ command, mode }) => {
         makeAbsoluteExternalsRelative: false,
       },
       // 🎯 تحسين للويب فقط (بدون Electron)
-      assetsInlineLimit: 8192, // 8KB - تجميع الصور الصغيرة لتقليل طلبات HTTP
+      assetsInlineLimit: 4096, // 4KB - تجميع الصور الصغيرة لتقليل طلبات HTTP
+      // 🚀 تحسين إضافي لتقليل الطلبات
+      reportCompressedSize: false, // إيقاف تقارير الحجم المضغوط
+      write: true, // تفعيل الكتابة المباشرة
       
       // 🎨 إعدادات خاصة لملفات الأصول
       assetsInclude: ['**/*.woff2', '**/*.woff', '**/*.ttf'],
@@ -836,7 +945,7 @@ export default defineConfig(({ command, mode }) => {
         strictRequires: false,
       },
       
-      chunkSizeWarningLimit: 2000, // زيادة الحد للويب
+      chunkSizeWarningLimit: 1500, // تقليل الحد للحصول على chunks أصغر
       
       // 🎨 تقسيم CSS للأداء - مُفعّل مع تحسينات
       cssCodeSplit: true,
@@ -877,6 +986,11 @@ export default defineConfig(({ command, mode }) => {
         // تسريع التطوير
         sourcemap: true,
         minify: false,
+        // 🚀 تحسينات للتطوير
+        watch: {
+          usePolling: false,
+          interval: 100, // تسريع مراقبة الملفات
+        }
       }),
     },
     // 🚀 PERFORMANCE OPTIMIZATION: Selective Pre-optimization
@@ -1003,13 +1117,8 @@ export default defineConfig(({ command, mode }) => {
       },
       // 🎨 إعدادات CSS محسنة للخطوط
       modules: false,
-      // تفعيل cssnano في الإنتاج لخفض حجم CSS وإزالة التكرار
-      // تم تعطيل cssnano مؤقتاً لتجنب مشكلة dynamic require
-      // postcss: isProd ? {
-      //   plugins: [
-      //     require('cssnano')({ preset: 'default' })
-      //   ]
-      // } : undefined
+      // تفعيل PostCSS - يستخدم postcss.config.cjs
+      postcss: './postcss.config.cjs'
     },
     esbuild: {
       target: 'es2020',

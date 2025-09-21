@@ -8,15 +8,18 @@ import { getCount } from '@/lib/cart/cartStorage';
 
 function parseEnableCart(settings: any | null): boolean {
   try {
-    console.log('🔧 [parseEnableCart] بدء تحليل إعدادات السلة:', {
-      hasSettings: !!settings,
-      settingsKeys: settings ? Object.keys(settings) : [],
-      customJs: settings?.custom_js,
-      customJsType: typeof settings?.custom_js,
-      hostname: window.location.hostname,
-      pathname: window.location.pathname,
-      timestamp: new Date().toISOString()
-    });
+    if (process.env.NODE_ENV === 'development') {
+      // طباعة مختصرة مرة واحدة لكل صفحة
+      (window as any).__cartDebugPrinted = (window as any).__cartDebugPrinted || false;
+      if (!(window as any).__cartDebugPrinted) {
+        console.log('🔧 [parseEnableCart] بدء تحليل إعدادات السلة:', {
+          hasSettings: !!settings,
+          settingsKeys: settings ? Object.keys(settings) : [],
+          customJsType: typeof settings?.custom_js
+        });
+        (window as any).__cartDebugPrinted = true;
+      }
+    }
 
     const raw = settings?.custom_js;
     if (!raw) {
@@ -27,13 +30,13 @@ function parseEnableCart(settings: any | null): boolean {
     const json = typeof raw === 'string' ? JSON.parse(raw) : raw;
     const enableCart = Boolean(json?.enable_cart);
 
-    console.log('✅ [parseEnableCart] نتيجة تحليل السلة:', {
-      raw: raw,
-      parsedJson: json,
-      enableCart: enableCart,
-      enableCartValue: json?.enable_cart,
-      enableCartType: typeof json?.enable_cart
-    });
+    if (process.env.NODE_ENV === 'development') {
+      console.log('✅ [parseEnableCart] نتيجة تحليل السلة:', {
+        enableCart: enableCart,
+        enableCartValue: json?.enable_cart,
+        enableCartType: typeof json?.enable_cart
+      });
+    }
 
     return enableCart;
   } catch (error) {
@@ -44,7 +47,7 @@ function parseEnableCart(settings: any | null): boolean {
 
 export const NavbarCartButton: React.FC<{ className?: string }>= ({ className }) => {
   const { organizationSettings } = useSharedStoreDataContext();
-  const enableCart = useMemo(() => parseEnableCart(organizationSettings), [organizationSettings]);
+  const enableCart = useMemo(() => parseEnableCart(organizationSettings), [organizationSettings?.custom_js]);
   const [count, setCount] = useState<number>(() => getCount());
 
   useEffect(() => {
@@ -64,14 +67,7 @@ export const NavbarCartButton: React.FC<{ className?: string }>= ({ className })
         console.log('🔍 [NavbarCartButton] حالة السلة:', {
           enableCart: enableCart,
           count: count,
-          organizationSettings: organizationSettings,
-          customJs: organizationSettings?.custom_js,
-          timestamp: new Date().toISOString(),
-          hostname: window.location.hostname,
-          pathname: window.location.pathname,
-          hasSettings: !!organizationSettings,
-          settingsType: typeof organizationSettings,
-          enableCartParsed: parseEnableCart(organizationSettings)
+          hasSettings: !!organizationSettings
         });
 
         last.enableCart = enableCart;

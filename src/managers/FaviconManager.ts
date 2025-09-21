@@ -4,6 +4,23 @@
 
 import { performanceTracker } from './PerformanceTracker';
 
+type StoreMeta = {
+  iconUrl: string | null;
+  storeName: string | null;
+};
+
+type PartialStoreMeta = Partial<StoreMeta>;
+
+const isDevEnvironment = (() => {
+  if (typeof import.meta !== 'undefined' && (import.meta as any).env) {
+    return !(import.meta as any).env.PROD;
+  }
+  if (typeof process !== 'undefined' && process.env?.NODE_ENV) {
+    return process.env.NODE_ENV !== 'production';
+  }
+  return true;
+})();
+
 /**
  * نظام إدارة الفافيكون والأيقونات المحسن
  * - يطبق الأيقونات مبكراً لتجنب الأيقونة الافتراضية
@@ -11,6 +28,169 @@ import { performanceTracker } from './PerformanceTracker';
  * - يتعامل مع أنواع النطاقات المختلفة
  */
 export class FaviconManager {
+  private log(message: string, payload?: Record<string, unknown>): void {
+    if (!isDevEnvironment) {
+      return;
+    }
+    console.log(`🧭 [FaviconManager] ${message}`, payload ?? {});
+  }
+
+  private extractMeta(payload: any): PartialStoreMeta {
+    if (!payload || typeof payload !== 'object') {
+      return {};
+    }
+
+    const organizationSettings = payload.organization_settings || payload.organizationSettings || null;
+    const organizationDetails =
+      payload.organization_details || payload.organization || payload.organizationDetails || null;
+
+    const iconUrl =
+      organizationSettings?.favicon_url ??
+      organizationSettings?.logo_url ??
+      organizationDetails?.logo_url ??
+      null;
+
+    const storeName =
+      organizationSettings?.site_name ?? organizationDetails?.name ?? payload.name ?? null;
+
+    return { iconUrl: iconUrl ?? null, storeName: storeName ?? null };
+  }
+
+  private mergeMeta(...entries: PartialStoreMeta[]): StoreMeta {
+    return entries.reduce<StoreMeta>(
+      (acc, entry) => ({
+        iconUrl: acc.iconUrl ?? entry.iconUrl ?? null,
+        storeName: acc.storeName ?? entry.storeName ?? null
+      }),
+      { iconUrl: null, storeName: null }
+    );
+  }
+
+  private readFromSessionStorage(storeIdentifier: string | null, hostname: string): PartialStoreMeta {
+    if (typeof window === 'undefined') {
+      return {};
+    }
+
+    try {
+      const keys = [
+        storeIdentifier ? `store_${storeIdentifier}` : null,
+        `store_${hostname}`,
+        `store_${hostname.replace(/\./g, '_')}`
+      ].filter(Boolean) as string[];
+
+      for (const key of keys) {
+        const raw = sessionStorage.getItem(key);
+        if (!raw) {
+          continue;
+        }
+
+        try {
+          const parsed = JSON.parse(raw);
+          if (parsed?.data) {
+            const meta = this.extractMeta(parsed.data);
+            if (meta.iconUrl || meta.storeName) {
+              this.log('sessionStorage hit', { key });
+              return meta;
+            }
+          }
+
+          const legacyMeta = this.extractMeta(parsed);
+          if (legacyMeta.iconUrl || legacyMeta.storeName) {
+            this.log('sessionStorage legacy hit', { key });
+            return legacyMeta;
+          }
+        } catch (error) {
+          this.log('sessionStorage parse error', { key, error });
+        }
+      }
+    } catch (error) {
+      this.log('sessionStorage access error', { error });
+    }
+
+    return {};
+  }
+
+  private readFromLocalStorage(storeIdentifier: string | null): PartialStoreMeta {
+    if (typeof window === 'undefined') {
+      return {};
+    }
+
+    try {
+      const orgId = localStorage.getItem('bazaar_organization_id');
+      if (!orgId && !storeIdentifier) {
+        return {};
+      }
+
+      const entries: PartialStoreMeta[] = [];
+
+      if (orgId) {
+        const settingsRaw = localStorage.getItem(`bazaar_org_settings_${orgId}`);
+        const orgRaw = localStorage.getItem(`bazaar_organization_${orgId}`);
+
+        if (settingsRaw) {
+          try {
+            entries.push(this.extractMeta(JSON.parse(settingsRaw)));
+          } catch (error) {
+            this.log('localStorage settings parse error', { error });
+          }
+        }
+
+        if (orgRaw) {
+          try {
+            entries.push(this.extractMeta(JSON.parse(orgRaw)));
+          } catch (error) {
+            this.log('localStorage organization parse error', { error });
+          }
+        }
+      }
+
+      if (storeIdentifier) {
+        const preloadRaw = localStorage.getItem(`early_preload_${storeIdentifier}`);
+        if (preloadRaw) {
+          try {
+            const parsed = JSON.parse(preloadRaw);
+            entries.push(this.extractMeta(parsed?.data));
+          } catch (error) {
+            this.log('early preload parse error', { error });
+          }
+        }
+      }
+
+      return this.mergeMeta(...entries);
+    } catch (error) {
+      this.log('localStorage access error', { error });
+      return {};
+    }
+  }
+
+  private readFromWindow(): PartialStoreMeta {
+    if (typeof window === 'undefined') {
+      return {};
+    }
+
+    const win: any = window;
+    const candidates = [
+      win.__EARLY_STORE_DATA__?.data,
+      win.__PREFETCHED_STORE_DATA__?.data ?? win.__PREFETCHED_STORE_DATA__,
+      win.__CURRENT_STORE_DATA__,
+      win.__STORE_DATA__,
+      {
+        organization_settings: win.__STORE_SETTINGS__,
+        organization_details: win.__STORE_ORGANIZATION__
+      }
+    ];
+
+    for (const payload of candidates) {
+      const meta = this.extractMeta(payload);
+      if (meta.iconUrl || meta.storeName) {
+        this.log('window data hit');
+        return meta;
+      }
+    }
+
+    return {};
+  }
+
   /**
    * تحليل نوع النطاق والمضيف
    */
@@ -55,181 +235,16 @@ export class FaviconManager {
   /**
    * البحث عن رابط الأيقونة واسم المتجر من مصادر متعددة
    */
-  findStoreInfo(): { iconUrl: string | null; storeName: string | null } {
-    const startTime = performance.now();
-    console.log('🔍 [FaviconManager] بدء البحث عن معلومات المتجر - TIME:', startTime);
-
+  findStoreInfo(): StoreMeta {
     const domainInfo = this.analyzeDomain();
-    let iconUrl: string | null = null;
-    let storeName: string | null = null;
 
-    // البحث في sessionStorage أولاً (الأسرع)
-    if (domainInfo.storeIdentifier) {
-      const sessionStart = performance.now();
-      try {
-        // البحث في عدة مفاتيح محتملة
-        const possibleKeys = [
-          `store_${domainInfo.storeIdentifier}`,
-          `store_${domainInfo.hostname}`,
-          `store_${domainInfo.hostname.replace(/\./g, '_')}`
-        ];
+    const sessionMeta = this.readFromSessionStorage(domainInfo.storeIdentifier, domainInfo.hostname);
+    const windowMeta = this.readFromWindow();
+    const localMeta = this.readFromLocalStorage(domainInfo.storeIdentifier);
 
-        let sessionData = null;
-        let foundKey = null;
-
-        for (const key of possibleKeys) {
-          sessionData = sessionStorage.getItem(key);
-          if (sessionData) {
-            foundKey = key;
-            break;
-          }
-        }
-
-        const sessionEnd = performance.now();
-        console.log('📦 [FaviconManager] بحث sessionStorage:', {
-          duration: sessionEnd - sessionStart,
-          found: !!sessionData,
-          foundKey: foundKey,
-          triedKeys: possibleKeys,
-          time: sessionEnd,
-          storeIdentifier: domainInfo.storeIdentifier,
-          hostname: domainInfo.hostname
-        });
-
-        if (sessionData) {
-          const parsed = JSON.parse(sessionData);
-          // البحث في البيانات المحفوظة من early preload
-          if (parsed.data && parsed.data.organization_settings) {
-            const settings = parsed.data.organization_settings;
-            iconUrl = settings.favicon_url || settings.logo_url;
-            storeName = settings.site_name || parsed.data.organization_details?.name;
-          } else if (parsed.favicon_url || parsed.logo_url) {
-            // البحث في البيانات القديمة المنسقة
-            iconUrl = parsed.favicon_url || parsed.logo_url;
-            storeName = parsed.name;
-          }
-
-          if (iconUrl && storeName) {
-            console.log('✅ [FaviconManager] وُجدت البيانات في sessionStorage:', {
-              iconUrl: !!iconUrl,
-              storeName: !!storeName,
-              duration: performance.now() - startTime
-            });
-            return { iconUrl, storeName };
-          }
-        }
-      } catch (error) {
-        console.log('❌ [FaviconManager] خطأ في sessionStorage:', { error, duration: performance.now() - sessionStart });
-      }
-    }
-
-    // البحث في localStorage باستخدام معرف المؤسسة
-    const localStorageStart = performance.now();
-    const orgId = localStorage.getItem('bazaar_organization_id');
-    console.log('💾 [FaviconManager] بدء بحث localStorage:', {
-      orgId: !!orgId,
-      time: localStorageStart
-    });
-
-    if (orgId) {
-      try {
-        const settingsRaw = localStorage.getItem(`bazaar_org_settings_${orgId}`);
-        const orgRaw = localStorage.getItem(`bazaar_organization_${orgId}`);
-
-        const localStorageEnd = performance.now();
-        console.log('💾 [FaviconManager] بحث localStorage مكتمل:', {
-          duration: localStorageEnd - localStorageStart,
-          hasSettings: !!settingsRaw,
-          hasOrg: !!orgRaw,
-          time: localStorageEnd
-        });
-
-        if (settingsRaw) {
-          const settings = JSON.parse(settingsRaw);
-          iconUrl = iconUrl || settings?.favicon_url || settings?.logo_url || null;
-          storeName = storeName || settings?.site_name || null;
-        }
-
-        if (orgRaw) {
-          const org = JSON.parse(orgRaw);
-          iconUrl = iconUrl || org?.logo_url || null;
-          storeName = storeName || org?.name || null;
-        }
-      } catch (error) {
-        console.log('❌ [FaviconManager] خطأ في localStorage:', { error, duration: performance.now() - localStorageStart });
-      }
-    }
-
-    // البحث في بيانات early preload
-    if (domainInfo.storeIdentifier) {
-      const earlyStart = performance.now();
-      try {
-        const earlyRaw = localStorage.getItem(`early_preload_${domainInfo.storeIdentifier}`);
-        const earlyEnd = performance.now();
-        console.log('🚀 [FaviconManager] بحث early preload:', {
-          duration: earlyEnd - earlyStart,
-          found: !!earlyRaw,
-          key: `early_preload_${domainInfo.storeIdentifier}`,
-          time: earlyEnd
-        });
-
-        if (earlyRaw) {
-          const early = JSON.parse(earlyRaw);
-          const data = early?.data;
-          iconUrl = iconUrl || data?.organization_settings?.favicon_url || data?.organization_settings?.logo_url || null;
-          storeName = storeName || data?.organization_settings?.site_name || data?.organization_details?.name || null;
-        }
-      } catch (error) {
-        console.log('❌ [FaviconManager] خطأ في early preload:', { error, duration: performance.now() - earlyStart });
-      }
-    }
-
-    // البحث في window object - جميع المصادر
-    const windowStart = performance.now();
-    try {
-      const win: any = window;
-      const windowData = win.__EARLY_STORE_DATA__?.data ||
-                        win.__PREFETCHED_STORE_DATA__?.data ||
-                        win.__STORE_DATA__ ||
-                        null;
-
-      // البحث في البيانات المباشرة أيضاً
-      const directOrgSettings = win.__STORE_SETTINGS__;
-      const directOrg = win.__STORE_ORGANIZATION__;
-
-      const windowEnd = performance.now();
-      console.log('🌐 [FaviconManager] بحث window object:', {
-        duration: windowEnd - windowStart,
-        hasData: !!windowData,
-        hasDirectSettings: !!directOrgSettings,
-        hasDirectOrg: !!directOrg,
-        time: windowEnd
-      });
-
-      if (windowData) {
-        iconUrl = iconUrl || windowData?.organization_settings?.favicon_url || windowData?.organization_settings?.logo_url || null;
-        storeName = storeName || windowData?.organization_settings?.site_name || windowData?.organization_details?.name || null;
-      }
-
-      // البحث في البيانات المباشرة إذا لم نجد شيئاً
-      if (!iconUrl || !storeName) {
-        iconUrl = iconUrl || directOrgSettings?.favicon_url || directOrgSettings?.logo_url || null;
-        storeName = storeName || directOrgSettings?.site_name || directOrg?.name || null;
-      }
-    } catch (error) {
-      console.log('❌ [FaviconManager] خطأ في window object:', { error, duration: performance.now() - windowStart });
-    }
-
-    const totalDuration = performance.now() - startTime;
-    console.log('🏁 [FaviconManager] اكتمل البحث عن معلومات المتجر:', {
-      totalDuration,
-      foundIcon: !!iconUrl,
-      foundName: !!storeName,
-      iconUrl: iconUrl ? 'موجود' : 'غير موجود',
-      storeName: storeName ? 'موجود' : 'غير موجود'
-    });
-
-    return { iconUrl, storeName };
+    const meta = this.mergeMeta(sessionMeta, windowMeta, localMeta);
+    this.log('resolved meta', meta);
+    return meta;
   }
 
   /**

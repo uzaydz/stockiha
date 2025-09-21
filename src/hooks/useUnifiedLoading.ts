@@ -1,14 +1,14 @@
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 
-interface LoadingState {
+type LoadingState = {
   isPageLoading: boolean;
   isDataLoading: boolean;
   isComponentsLoading: boolean;
   loadedComponents: Set<string>;
   totalComponents: number;
-}
+};
 
-interface UseUnifiedLoadingReturn {
+type UseUnifiedLoadingReturn = {
   loadingState: LoadingState;
   setPageLoading: (loading: boolean) => void;
   setDataLoading: (loading: boolean) => void;
@@ -17,220 +17,182 @@ interface UseUnifiedLoadingReturn {
   isAnyLoading: boolean;
   shouldShowGlobalLoader: boolean;
   getLoadingProgress: () => number;
-}
+};
+
+const FINISH_TIMEOUT_MS = 4000;
+
+const createInitialState = (): LoadingState => ({
+  isPageLoading: true,
+  isDataLoading: true,
+  isComponentsLoading: false,
+  loadedComponents: new Set<string>(),
+  totalComponents: 0,
+});
+
+const hasWindowDataReady = (): boolean => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  const win: any = window;
+  return Boolean(
+    win.__EARLY_STORE_DATA__?.data ||
+      win.__CURRENT_STORE_DATA__ ||
+      win.__PREFETCHED_STORE_DATA__ ||
+      win.__SHARED_STORE_DATA__
+  );
+};
 
 export const useUnifiedLoading = (): UseUnifiedLoadingReturn => {
-  const [loadingState, setLoadingState] = useState<LoadingState>({
-    isPageLoading: true,
-    isDataLoading: true,
-    isComponentsLoading: false,
-    loadedComponents: new Set(),
-    totalComponents: 0,
-  });
+  const [loadingState, setLoadingState] = useState<LoadingState>(createInitialState);
 
-  // 🚨 إضافة timeout إجباري لإنهاء التحميل مع فحص البيانات - محسن لتجنب التكرار
-  useEffect(() => {
-    const forceStopLoading = setTimeout(() => {
-      if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {
-        console.log('🚨 [useUnifiedLoading] Forcing stop loading after timeout');
+  const finishDataLoading = useCallback(() => {
+    console.log('🧪 [useUnifiedLoading] finishDataLoading invoked');
+    setLoadingState((prev) => {
+      console.log('🧪 [useUnifiedLoading] finishDataLoading state before', {
+        isPageLoading: prev.isPageLoading,
+        isDataLoading: prev.isDataLoading,
+        totalComponents: prev.totalComponents,
+        loadedComponents: prev.loadedComponents.size,
+      });
+      if (!prev.isPageLoading && !prev.isDataLoading) {
+        return prev;
       }
-      setLoadingState(prev => ({
+
+      const shouldKeepComponentsLoading =
+        prev.totalComponents > 0 && prev.loadedComponents.size < prev.totalComponents;
+
+      return {
         ...prev,
         isPageLoading: false,
-        isDataLoading: false
-      }));
-    }, 3000); // تقليل إلى 3 ثوان
-
-    // فحص البيانات المتوفرة بالفعل وإيقاف التحميل فوراً
-    const checkExistingData = () => {
-      const windowEarlyData = (window as any).__EARLY_STORE_DATA__;
-      const windowSharedData = (window as any).__SHARED_STORE_DATA__;
-      const windowCurrentData = (window as any).__CURRENT_STORE_DATA__;
-      const windowPrefetchedData = (window as any).__PREFETCHED_STORE_DATA__;
-      
-      if (windowEarlyData?.data || windowSharedData || windowCurrentData || windowPrefetchedData) {
-        if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {
-          console.log('🎯 [useUnifiedLoading] Data already available, stopping loading immediately');
-        }
-        setLoadingState(prev => ({
-          ...prev,
-          isPageLoading: false,
-          isDataLoading: false
-        }));
-        clearTimeout(forceStopLoading);
-        return true;
-      }
-      return false;
-    };
-
-    // فحص البيانات فوراً
-    if (!checkExistingData()) {
-      // 🚀 استماع لحدث البيانات الجاهزة لإنهاء التحميل مبكراً
-      const handleStoreDataReady = () => {
-        if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {
-          console.log('🎯 [useUnifiedLoading] Store data ready, stopping loading');
-        }
-        setLoadingState(prev => ({
-          ...prev,
-          isPageLoading: false,
-          isDataLoading: false
-        }));
-        clearTimeout(forceStopLoading);
+        isDataLoading: false,
+        isComponentsLoading: shouldKeepComponentsLoading,
       };
-
-      window.addEventListener('storeDataReady', handleStoreDataReady);
-      window.addEventListener('storeInitDataReady', handleStoreDataReady);
-
-      return () => {
-        clearTimeout(forceStopLoading);
-        window.removeEventListener('storeDataReady', handleStoreDataReady);
-        window.removeEventListener('storeInitDataReady', handleStoreDataReady);
-      };
-    }
-
-    return () => clearTimeout(forceStopLoading);
+    });
   }, []);
 
-  // استخدام refs لتجنب dependency issues
-  const loadingStateRef = useRef(loadingState);
-  loadingStateRef.current = loadingState;
-
   const setPageLoading = useCallback((loading: boolean) => {
-    setLoadingState(prev => {
-      const newState = { ...prev, isPageLoading: loading };
-      return newState;
-    });
+    setLoadingState((prev) => ({ ...prev, isPageLoading: loading }));
   }, []);
 
   const setDataLoading = useCallback((loading: boolean) => {
-    setLoadingState(prev => {
-      const newState = { ...prev, isDataLoading: loading };
-      return newState;
-    });
+    setLoadingState((prev) => ({ ...prev, isDataLoading: loading }));
   }, []);
 
   const setComponentLoading = useCallback((componentId: string, loading: boolean) => {
-    setLoadingState(prev => {
-      const newLoadedComponents = new Set(prev.loadedComponents);
-      if (!loading) {
-        newLoadedComponents.add(componentId);
-        // 
+    console.log('🧪 [useUnifiedLoading] setComponentLoading', { componentId, loading });
+    setLoadingState((prev) => {
+      const loadedComponents = new Set(prev.loadedComponents);
+
+      if (loading) {
+        loadedComponents.delete(componentId);
       } else {
-        newLoadedComponents.delete(componentId);
+        loadedComponents.add(componentId);
       }
-      
+
+      const allComponentsLoaded =
+        prev.totalComponents > 0 && loadedComponents.size >= prev.totalComponents;
+
+      console.log('🧪 [useUnifiedLoading] setComponentLoading state', {
+        totalComponents: prev.totalComponents,
+        loadedComponents: loadedComponents.size,
+        allComponentsLoaded,
+      });
+
       return {
         ...prev,
-        loadedComponents: newLoadedComponents,
-        isComponentsLoading: newLoadedComponents.size < prev.totalComponents
+        loadedComponents,
+        isComponentsLoading: prev.totalComponents > 0 ? !allComponentsLoaded : false,
+        isPageLoading: allComponentsLoaded ? false : prev.isPageLoading,
+        isDataLoading: allComponentsLoaded ? false : prev.isDataLoading,
       };
     });
   }, []);
 
   const setTotalComponents = useCallback((total: number) => {
-    setLoadingState(prev => ({ 
-      ...prev, 
-      totalComponents: total,
-      isComponentsLoading: prev.loadedComponents.size < total
-    }));
-  }, []);
+    console.log('🧪 [useUnifiedLoading] setTotalComponents', { total });
+    setLoadingState((prev) => {
+      const loadedComponents = new Set(prev.loadedComponents);
+      const boundedTotal = total < 0 ? 0 : total;
+      const allLoaded = boundedTotal > 0 && loadedComponents.size >= boundedTotal;
 
-  // حساب التقدم المحسن - إخفاء عند 60%
-  const getLoadingProgress = useCallback(() => {
-    const current = loadingStateRef.current;
-    let progress = 0;
-    
-    // مرحلة تحميل الصفحة (0-30%)
-    if (!current.isPageLoading) {
-      progress += 30;
-    } else {
-      progress += 15; // تقدم جزئي
-    }
-    
-    // مرحلة تحميل البيانات (30-60%) - الوصول إلى 60% = إخفاء
-    if (!current.isDataLoading) {
-      progress += 30;
-    } else {
-      progress += 15; // تقدم جزئي
-    }
-    
-    // مرحلة تحميل المكونات (60-100%) - بمجرد تحميل أول مكون = 60%
-    if (current.totalComponents > 0 && current.loadedComponents.size > 0) {
-      // بمجرد تحميل أول مكون، نصل إلى 60% على الأقل
-      const componentProgress = Math.max(30, (current.loadedComponents.size / current.totalComponents) * 40);
-      progress += componentProgress;
-    } else if (current.totalComponents === 0) {
-      // إذا لم تكن هناك مكونات، اعتبر هذه المرحلة مكتملة
-      progress += 40;
-    }
-    
-    return Math.min(Math.round(progress), 100);
-  }, []);
-
-  // تحديد ما إذا كان هناك أي تحميل جاري
-  const isAnyLoading = loadingState.isPageLoading || loadingState.isDataLoading || loadingState.isComponentsLoading;
-
-  // تحديد ما إذا كان يجب عرض مؤشر التحميل العام - إخفاء بمجرد تحميل أول مكون
-  const shouldShowGlobalLoader = loadingState.isPageLoading || 
-    (loadingState.isDataLoading && loadingState.loadedComponents.size === 0);
-    
-  // تقليل رسائل التصحيح لتجنب التأثير على الأداء
-  if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) { // 10% فقط
-    console.log('🎯 [useUnifiedLoading] shouldShowGlobalLoader:', {
-      isPageLoading: loadingState.isPageLoading,
-      isDataLoading: loadingState.isDataLoading,
-      loadedComponentsSize: loadingState.loadedComponents.size,
-      shouldShowGlobalLoader
-    });
-  }
-
-
-  // إيقاف تحميل الصفحة تلقائياً بمجرد تحميل البيانات أو أول مكون
-  useEffect(() => {
-    const { isDataLoading, loadedComponents } = loadingState;
-
-    // إيقاف التحميل بمجرد تحميل البيانات أو أول مكون
-    if (!isDataLoading || loadedComponents.size > 0) {
-      const timer = setTimeout(() => {
-        setPageLoading(false);
-      }, 0); // ✅ إزالة التأخير لتحسين الأداء
-      
-      return () => clearTimeout(timer);
-    }
-  }, [loadingState.isDataLoading, loadingState.loadedComponents.size, setPageLoading]);
-
-  // إضافة timeout أمان عام مُحسن - وقت قصير
-  useEffect(() => {
-    const safetyTimeout = setTimeout(() => {
-      setLoadingState({
-        isPageLoading: false,
-        isDataLoading: false,
-        isComponentsLoading: false,
-        loadedComponents: new Set(['safety-component']), // إضافة مكون وهمي لإيقاف التحميل
-        totalComponents: 1,
+      console.log('🧪 [useUnifiedLoading] setTotalComponents state', {
+        boundedTotal,
+        loadedComponents: loadedComponents.size,
+        allLoaded,
       });
-    }, 3000); // ✅ زيادة الوقت إلى 3 ثوانٍ لحل مشكلة التحميل السريع جداً
 
-    return () => clearTimeout(safetyTimeout);
-  }, []); // يتم تشغيله مرة واحدة فقط عند التحميل
+      return {
+        ...prev,
+        totalComponents: boundedTotal,
+        isComponentsLoading: boundedTotal > 0 ? !allLoaded : false,
+        isPageLoading: allLoaded ? false : prev.isPageLoading,
+        isDataLoading: allLoaded ? false : prev.isDataLoading,
+      };
+    });
+  }, []);
 
-  // إيقاف التحميل التلقائي عند عدم وجود أي نشاط لفترة قصيرة
   useEffect(() => {
-    if (isAnyLoading) {
-      const activityTimeout = setTimeout(() => {
-        setLoadingState(prev => ({
-          ...prev,
-          isPageLoading: false,
-          isDataLoading: false,
-          isComponentsLoading: false,
-          loadedComponents: new Set(['activity-timeout']), // إضافة مكون وهمي
-          totalComponents: Math.max(prev.totalComponents, 1)
-        }));
-      }, 2000); // ✅ زيادة الوقت إلى ثانيتين لحل مشكلة التحميل السريع جداً
-      
-      return () => clearTimeout(activityTimeout);
+    if (hasWindowDataReady()) {
+      console.log('🧪 [useUnifiedLoading] window data detected, finishing loading');
+      finishDataLoading();
     }
-  }, [isAnyLoading]);
+  }, [finishDataLoading]);
+
+  useEffect(() => {
+    const handleStoreDataReady = () => finishDataLoading();
+
+    window.addEventListener('storeDataReady', handleStoreDataReady);
+    window.addEventListener('storeInitDataReady', handleStoreDataReady);
+
+    return () => {
+      window.removeEventListener('storeDataReady', handleStoreDataReady);
+      window.removeEventListener('storeInitDataReady', handleStoreDataReady);
+    };
+  }, [finishDataLoading]);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(finishDataLoading, FINISH_TIMEOUT_MS);
+    return () => window.clearTimeout(timeout);
+  }, [finishDataLoading]);
+
+  const getLoadingProgress = useCallback(() => {
+    const { isPageLoading, isDataLoading, loadedComponents, totalComponents } = loadingState;
+
+    let progress = 0;
+
+    progress += isPageLoading ? 15 : 30;
+    progress += isDataLoading ? 15 : 30;
+
+    if (totalComponents === 0) {
+      progress += 40;
+    } else {
+      const ratio = Math.min(1, loadedComponents.size / Math.max(totalComponents, 1));
+      progress += Math.max(10, Math.round(ratio * 40));
+    }
+
+    return Math.min(100, Math.round(progress));
+  }, [loadingState]);
+
+  const isAnyLoading = useMemo(() => {
+    return (
+      loadingState.isPageLoading ||
+      loadingState.isDataLoading ||
+      loadingState.isComponentsLoading
+    );
+  }, [loadingState.isPageLoading, loadingState.isDataLoading, loadingState.isComponentsLoading]);
+
+  const shouldShowGlobalLoader = useMemo(() => {
+    if (loadingState.isPageLoading) {
+      return true;
+    }
+
+    if (loadingState.isDataLoading && loadingState.loadedComponents.size === 0) {
+      return true;
+    }
+
+    return false;
+  }, [loadingState.isPageLoading, loadingState.isDataLoading, loadingState.loadedComponents.size]);
 
   return {
     loadingState,
@@ -243,3 +205,5 @@ export const useUnifiedLoading = (): UseUnifiedLoadingReturn => {
     getLoadingProgress,
   };
 };
+
+export type { UseUnifiedLoadingReturn };

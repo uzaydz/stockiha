@@ -13,6 +13,8 @@ import type {
 import { productDataCache, createCacheKey } from './ProductDataCache';
 import { fetchUnifiedProductData, fetchEnhancedProductData } from './ProductDataFetcher';
 
+const isDevEnvironment = typeof import.meta !== 'undefined' && Boolean((import.meta as any).env?.DEV);
+
 /**
  * Hook لإنشاء مفتاح Cache
  */
@@ -99,7 +101,7 @@ export const useQueryOptions = (
       enabled: enabled && !!productId,
       // 🔍 Debug: إضافة callback لمراقبة حالة Query - مفعل في الإنتاج مؤقتاً
       onSuccess: (data) => {
-        if (process.env.NODE_ENV === 'development' || true) { // مؤقتاً في الإنتاج
+        if (isDevEnvironment) {
           console.log('✅ [useQuery] Query نجح:', {
             hasData: !!data,
             productId: data?.product?.id,
@@ -108,12 +110,12 @@ export const useQueryOptions = (
         }
       },
       onError: (error) => {
-        if (process.env.NODE_ENV === 'development' || true) { // مؤقتاً في الإنتاج
+        if (isDevEnvironment) {
           console.error('❌ [useQuery] Query فشل:', error);
         }
       },
-      staleTime: 15 * 60 * 1000, // 15 دقيقة - زيادة أكثر لتقليل re-fetch
-      gcTime: 30 * 60 * 1000, // 30 دقيقة - زيادة لحفظ البيانات أطول
+      staleTime: 30 * 60 * 1000, // 30 دقيقة - زيادة أكثر لتقليل re-fetch
+      gcTime: 60 * 60 * 1000, // 60 دقيقة - زيادة لحفظ البيانات أطول
       refetchOnWindowFocus: false,
       refetchOnMount: false,
       refetchOnReconnect: false, // ✅ منع إعادة التحميل عند إعادة الاتصال
@@ -238,7 +240,7 @@ export const useExtractedData = (data: UnifiedProductPageData | undefined) => {
     }
 
     // 🔍 Debug: تسجيل تشخيص استخراج البيانات - تقليل التسجيل للسرعة
-    if (process.env.NODE_ENV === 'development' && actualData?.product?.id) {
+    if (isDevEnvironment && actualData?.product?.id) {
       console.log('🔍 [useExtractedData] تم استخراج المنتج:', {
         productId: actualData.product.id,
         hasOrganization: !!actualData.organization,

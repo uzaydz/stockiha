@@ -84,14 +84,14 @@ export const SafeTranslationProvider: React.FC<SafeTranslationProviderProps> = (
       console.warn('⚠️ [SafeTranslationProvider] خطأ في تسجيل مستمعي الأحداث:', error);
     }
 
-    // 🔥 تحسين: إذا لم يكن جاهز بعد ثانية واحدة، اجعله جاهز بالقوة
+    // 🔥 تحسين: إذا لم يكن جاهز بعد 100ms، اجعله جاهز بالقوة
     const forceReadyTimeout = setTimeout(() => {
       if (!isReady) {
         console.log('🌐 [SafeTranslationProvider] فرض الجاهزية بعد timeout');
         setIsReady(true);
         setCurrentLanguage(i18n.language || 'ar');
       }
-    }, 1000);
+    }, 100); // تقليل من 300ms إلى 100ms لتسريع أكبر
 
     return () => {
       clearTimeout(forceReadyTimeout);

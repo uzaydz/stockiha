@@ -13,7 +13,8 @@ export type ComponentType =
   | 'countdownoffers' 
   | 'services' 
   | 'contact'
-  | 'footer';
+  | 'footer'
+  | 'seo_settings';  // إضافة للتوافق مع قاعدة البيانات
 
 // واجهة مكون المتجر
 export interface StoreComponent {

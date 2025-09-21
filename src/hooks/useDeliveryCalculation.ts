@@ -22,7 +22,7 @@ interface DeliveryCalculationHookResult {
     isCalculating: boolean;
     shippingProvider: {
       name: string;
-      code: string;
+      code?: string;
       logo?: string;
     };
     calculationMethod?: string;

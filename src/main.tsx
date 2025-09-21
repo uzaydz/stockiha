@@ -12,12 +12,17 @@ import {
 } from './managers';
 import { productionOptimizer } from './utils/productionOptimizer';
 
-// 🎯 بدء تتبع الأداء
-performanceTracker.log('بدء تشغيل التطبيق', {
-  timestamp: new Date().toISOString(),
-  url: window.location.href,
-  userAgent: navigator.userAgent.substring(0, 50) + '...'
-});
+// حقل يحدد ما إذا كان الدخول من تطبيق المتجر أم من منصة عامة
+const IS_STORE_ENTRY = (window as any).__STORE_ENTRY__ === true;
+
+// 🎯 بدء تتبع الأداء (المتجر فقط)
+if (IS_STORE_ENTRY) {
+  performanceTracker.log('بدء تشغيل التطبيق', {
+    timestamp: new Date().toISOString(),
+    url: window.location.href,
+    userAgent: navigator.userAgent.substring(0, 50) + '...'
+  });
+}
 
 // 🎨 تهيئة معالج أخطاء CSS (مؤجل)
 // import './utils/cssErrorHandler';
@@ -46,22 +51,34 @@ const initializeCoreSystems = () => {
   const isPublicDomain = PUBLIC_DOMAINS.includes(currentHostname);
   const isLocalhost = isLocalhostDomain(currentHostname);
 
-  // تحسين: بدء التحميل المبكر فوراً لجميع النطاقات غير العامة
-  if (!isPublicDomain) {
-    console.log('🏪 [MAIN.TSX] بدء تحميل البيانات الأولية للمتجر فوراً', { hostname: currentHostname, isLocalhost });
-    // بدء فوري بدلاً من التأخير
-    setTimeout(() => earlyLoadScheduler.start(), 0);
-  } else {
-    console.log('🌐 [MAIN.TSX] نطاق عام - تخطي تحميل بيانات المتجر', { hostname: currentHostname });
+  // إذا لم نكن في وضع متجر (entry منفصل) وكان النطاق عاماً أو localhost root، لا نطبع ولا نفعّل أنظمة المتجر
+  const isStoreEntry = (window as any).__STORE_ENTRY__ === true;
+  const isLocalRoot = isLocalhost && !currentHostname.includes('.') && currentHostname === 'localhost';
+
+  if (isStoreEntry) {
+    console.log('🏪 [MAIN.TSX] تشغيل من تطبيق المنصة ولكن تم تحديد STORE ENTRY = true - إيقاف أنظمة المتجر هنا');
   }
 
-  // تطبيق الفافيكون مبكراً مع تأخير لإتاحة البيانات
-  setTimeout(() => {
-    faviconManager.initialize();
-  }, 500);
+  if (!isPublicDomain && !isStoreEntry) {
+    // على المنصة العامة قد نرغب فقط بالـ landing؛ لذلك لا نفعّل أنظمة المتجر إن لم يكن entry المتجر
+    console.log('🌐 [MAIN.TSX] نطاق منصة/تطوير - تخطي تحميل بيانات المتجر في التطبيق العام', { hostname: currentHostname });
+  } else if (!isPublicDomain && isStoreEntry) {
+    console.log('🏪 [MAIN.TSX] بدء تحميل البيانات الأولية للمتجر فوراً', { hostname: currentHostname, isLocalhost });
+    setTimeout(() => earlyLoadScheduler.start(), 0);
+  }
+
+  // تطبيق الفافيكون: في تطبيق المنصة لا نغيّر الأيقونة ولا العنوان
+  if (isStoreEntry) {
+    setTimeout(() => {
+      faviconManager.initialize();
+    }, 50); // تقليل من 500ms إلى 50ms لتسريع أكبر
+  }
 
   // بدء preload المنتج إذا لزم الأمر
-  productPageManager.preloadIfNeeded();
+  // لا تسبق صفحات المنتج إلا في تطبيق المتجر أو عندما نكون في صفحة منتج داخل التطبيق العام صراحة
+  if (isStoreEntry) {
+    productPageManager.preloadIfNeeded();
+  }
 
 // تطبيق تحسينات الإنتاج إذا لزم الأمر
   const hostname = window.location.hostname;
@@ -89,7 +106,7 @@ import { StrictMode } from 'react';
 const REACT_IMPORTS_TIME = performance.now();
 performanceTracker.mark('react-imports-complete');
 
-// تعطيل React DevTools لتحسين الأداء في التطوير
+// تعطيل React DevTools لتحسين الأداء في التطوير والإنتاج
 reactDevToolsManager.disable();
 
 // 🎨 تحميل CSS الأساسي
@@ -97,57 +114,70 @@ const CSS_START_TIME = performance.now();
 import './index.css';
 import './App.css';
 
-// 🔤 Font Loading Optimization
+// 🔤 Font Loading Optimization - تحسين السرعة
 document.documentElement.classList.add('font-loading');
+// تقليل timeout للخطوط لتسريع العرض
+const fontTimeout = setTimeout(() => {
+  document.documentElement.classList.remove('font-loading');
+  document.documentElement.classList.add('font-loaded');
+}, 100); // timeout قصير 100ms
+
 document.fonts.ready.then(() => {
+  clearTimeout(fontTimeout);
   document.documentElement.classList.remove('font-loading');
   document.documentElement.classList.add('font-loaded');
 }).catch(() => {
+  clearTimeout(fontTimeout);
   document.documentElement.classList.remove('font-loading');
   document.documentElement.classList.add('font-error');
 });
 
-// 🌐 Browser Router Configuration
+// 🌐 Browser Router Configuration - تحميل فوري
 const BrowserRouter = React.lazy(() =>
   import('react-router-dom').then(module => ({ default: module.BrowserRouter }))
 );
 
-// 📱 App Component
+// 📱 App Component - تحميل فوري
 const App = React.lazy(() => import('./App.tsx'));
 
 // 🚀 Performance Optimizations
 const initPerformanceOptimizations = () => {
-  // تقليل console errors في production
-  if (import.meta.env.PROD) {
-    const originalError = console.error;
-    console.error = (...args) => {
-      const message = args.join(' ').toLowerCase();
-      if (
-        message.includes('websocket') ||
-        message.includes('hmr') ||
-        message.includes('vite') ||
-        message.includes('failed to connect')
-      ) {
-        return;
-      }
-      originalError.apply(console, args);
-    };
-  }
+  // تقليل console errors في production والتطوير
+  const originalError = console.error;
+  console.error = (...args) => {
+    const message = args.join(' ').toLowerCase();
+    if (
+      message.includes('websocket') ||
+      message.includes('hmr') ||
+      message.includes('vite') ||
+      message.includes('failed to connect') ||
+      message.includes('devtools') ||
+      message.includes('react devtools') ||
+      message.includes('violation') ||
+      message.includes('message handler took')
+    ) {
+      return;
+    }
+    originalError.apply(console, args);
+  };
 
   // تحسين CSS loading
   if (typeof window !== 'undefined') {
     document.documentElement.style.visibility = 'visible';
 
-    // تطبيق الخطوط فوراً
+    // تطبيق الخطوط فوراً - تحسين السرعة
     const applyFonts = () => {
+      // تطبيق الخطوط فوراً بدون انتظار
+      document.body.classList.add('tajawal-forced');
+      
       if (document.fonts && document.fonts.ready) {
         document.fonts.ready.then(() => {
-          document.body.classList.add('tajawal-forced');
+          document.body.classList.add('tajawal-loaded');
         });
       } else {
         setTimeout(() => {
-          document.body.classList.add('tajawal-forced');
-        }, 25);
+          document.body.classList.add('tajawal-loaded');
+        }, 10); // تقليل من 25ms إلى 10ms
       }
     };
 
@@ -161,7 +191,7 @@ const initPerformanceOptimizations = () => {
 
 initPerformanceOptimizations();
 
-// 🔧 Polyfills
+// 🔧 Polyfills - تحسين السرعة
 if (typeof window !== 'undefined' && !window.requestIdleCallback) {
   (window as any).requestIdleCallback = function(callback: any, options?: any) {
     const start = Date.now();
@@ -169,10 +199,10 @@ if (typeof window !== 'undefined' && !window.requestIdleCallback) {
       callback({
         didTimeout: false,
         timeRemaining: function() {
-          return Math.max(0, 50 - (Date.now() - start));
+          return Math.max(0, 25 - (Date.now() - start)); // تقليل من 50ms إلى 25ms
         }
       });
-    }, 1);
+    }, 0); // تقليل من 1ms إلى 0ms
   };
 
   (window as any).cancelIdleCallback = function(id: any) {
@@ -254,12 +284,12 @@ if (root) {
     );
   }
 
-  // إزالة شاشة التحميل
+  // إزالة شاشة التحميل - تحسين السرعة
   try {
     const remove = (window as any).removeInitialLoading;
     if (typeof remove === 'function') {
       requestAnimationFrame(() => remove());
-      setTimeout(() => { try { remove(); } catch {} }, 1200);
+      setTimeout(() => { try { remove(); } catch {} }, 300); // تقليل من 1200ms إلى 300ms
     }
   } catch {}
 
@@ -286,7 +316,7 @@ if ('serviceWorker' in navigator) {
     if (hasActiveWorkers && !import.meta.env.DEV) {
       setTimeout(() => {
         window.location.reload();
-      }, 1000);
+      }, 500); // تقليل من 1000ms إلى 500ms
     }
   });
 
@@ -313,7 +343,7 @@ if (typeof window !== 'undefined') {
   const waitForEarlyData = () => {
     const startWait = performance.now();
     // تقليل الوقت المسموح بشكل كبير لتحسين الأداء
-    let maxWait = 500; // تقليل إلى 500ms بدلاً من 1000ms
+    let maxWait = 200; // تقليل إلى 200ms بدلاً من 500ms لتسريع أكبر
 
     try {
       const connection = (navigator as any).connection;
@@ -322,25 +352,25 @@ if (typeof window !== 'undefined') {
         const downlink = connection.downlink || 0;
 
         if (effectiveType === 'slow-2g' || effectiveType === '2g') {
-          maxWait = 2000; // تقليل إلى 2 ثانية بدلاً من 8 ثوانٍ
+          maxWait = 1000; // تقليل إلى 1 ثانية بدلاً من 2 ثانية
         } else if (effectiveType === '3g' || (effectiveType === '4g' && downlink < 0.5)) {
-          maxWait = 1500; // تقليل إلى 1.5 ثانية بدلاً من 5 ثوانٍ
+          maxWait = 600; // تقليل إلى 600ms بدلاً من 1.5 ثانية
         } else if (effectiveType === '4g' && downlink >= 0.5) {
-          maxWait = 800; // تقليل إلى 800ms بدلاً من 3 ثوانٍ
+          maxWait = 400; // تقليل إلى 400ms بدلاً من 800ms
         }
       }
 
       // فحص الأجهزة المحمولة - تقليل التأخير
       const userAgent = navigator.userAgent.toLowerCase();
       if (userAgent.includes('mobile') || userAgent.includes('android')) {
-        maxWait = Math.max(maxWait, 1000); // تقليل إلى 1 ثانية بدلاً من 4 ثوانٍ
+        maxWait = Math.max(maxWait, 500); // تقليل إلى 500ms بدلاً من 1 ثانية
       }
 
       if (!navigator.onLine) {
-        maxWait = 500; // تقليل إلى 500ms
+        maxWait = 200; // تقليل إلى 200ms
       }
     } catch {
-      maxWait = 800; // fallback محسّن
+      maxWait = 300; // fallback محسّن أكثر
     }
 
     const checkData = () => {
@@ -362,7 +392,7 @@ if (typeof window !== 'undefined') {
       }
 
       // انتظر قليلاً وتحقق مرة أخرى
-      setTimeout(checkData, 50); // تسريع الفحص إلى 50ms بدلاً من 100ms
+      setTimeout(checkData, 25); // تسريع الفحص إلى 25ms بدلاً من 50ms
     };
 
     checkData();
@@ -380,9 +410,10 @@ const applyThemeImmediately = () => {
   }).catch(() => {});
 };
 
-// تطبيق الثيم فوراً
+// تطبيق الثيم فوراً - تحسين السرعة
 if (typeof window !== 'undefined') {
-  setTimeout(applyThemeImmediately, 0);
+  // تطبيق الثيم فوراً بدون setTimeout
+  applyThemeImmediately();
 }
 
 // 🚀 Deferred Systems - تحميل باقي الأنظمة غير الحرجة لاحقاً (محسن للأداء)
@@ -406,8 +437,8 @@ if (typeof window !== 'undefined') {
     }
   };
 
-  const deferDelay = isSlowNetwork() ? 200 : 50; // تقليل التأخير بشكل كبير
-  const idleTimeout = isSlowNetwork() ? 100 : 50; // timeout أقصر
+  const deferDelay = isSlowNetwork() ? 100 : 25; // تقليل التأخير بشكل أكبر
+  const idleTimeout = isSlowNetwork() ? 50 : 25; // timeout أقصر بكثير
 
   if (window.requestIdleCallback) {
     window.requestIdleCallback(deferNonCriticalSystems, { timeout: idleTimeout });
@@ -423,15 +454,15 @@ const getSupabaseLoadDelay = () => {
     if (connection) {
       const effectiveType = connection.effectiveType;
       if (effectiveType === 'slow-2g' || effectiveType === '2g' || effectiveType === '3g') {
-        return 1000; // تقليل إلى 1 ثانية بدلاً من 3 ثوانٍ
+        return 500; // تقليل إلى 500ms بدلاً من 1 ثانية
       }
       if (effectiveType === '4g' && connection.downlink < 1) {
-        return 500; // تقليل إلى 500ms بدلاً من 2 ثانية
+        return 200; // تقليل إلى 200ms بدلاً من 500ms
       }
     }
-    return !navigator.onLine ? 1000 : 200; // تسريع للشبكات السريعة
+    return !navigator.onLine ? 500 : 100; // تسريع أكبر للشبكات السريعة
   } catch {
-    return 300; // تأخير افتراضي محسّن
+    return 150; // تأخير افتراضي محسّن أكثر
   }
 };
 
@@ -453,13 +484,13 @@ const loadOptimizedSystems = () => {
       const connection = (navigator as any).connection;
       if (connection) {
         const effectiveType = connection.effectiveType;
-        if (effectiveType === 'slow-2g' || effectiveType === '2g') return 1000; // تقليل من 3000ms
-        if (effectiveType === '3g') return 800; // تقليل من 2000ms
-        if (effectiveType === '4g' && connection.downlink < 1) return 500; // تقليل من 1500ms
+        if (effectiveType === 'slow-2g' || effectiveType === '2g') return 500; // تقليل من 1000ms
+        if (effectiveType === '3g') return 300; // تقليل من 800ms
+        if (effectiveType === '4g' && connection.downlink < 1) return 200; // تقليل من 500ms
       }
-      return navigator.onLine ? 200 : 800; // تسريع كبير للشبكات السريعة
+      return navigator.onLine ? 100 : 400; // تسريع أكبر للشبكات السريعة
     } catch {
-      return 300; // تأخير افتراضي محسّن
+      return 150; // تأخير افتراضي محسّن أكثر
     }
   };
 

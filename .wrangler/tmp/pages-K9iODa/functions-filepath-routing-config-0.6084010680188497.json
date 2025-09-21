@@ -1,0 +1,37 @@
+{
+  "routes": [
+    {
+      "routePath": "/api/cloudflare-config",
+      "mountPath": "/api",
+      "method": "",
+      "module": [
+        "api/cloudflare-config.js:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/cloudflare-domains",
+      "mountPath": "/api",
+      "method": "",
+      "module": [
+        "api/cloudflare-domains.js:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/env-check",
+      "mountPath": "/api",
+      "method": "",
+      "module": [
+        "api/env-check.js:onRequest"
+      ]
+    },
+    {
+      "routePath": "/api/test",
+      "mountPath": "/api",
+      "method": "",
+      "module": [
+        "api/test.js:onRequest"
+      ]
+    }
+  ],
+  "baseURL": "/"
+}

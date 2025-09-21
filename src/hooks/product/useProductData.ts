@@ -15,6 +15,7 @@ interface UseProductDataProps {
   dataScope?: DataScope;
   enabled?: boolean;
   preloadedProduct?: CompleteProduct;
+  skipInitialFetch?: boolean;
 }
 
 interface ProductDataState {
@@ -50,7 +51,8 @@ export const useProductData = ({
   organizationId,
   dataScope = 'full', // تقليل الحمولة الافتراضية؛ اجلب ultra عند الحاجة فقط
   enabled = true,
-  preloadedProduct
+  preloadedProduct,
+  skipInitialFetch = false
 }: UseProductDataProps): [ProductDataState, ProductDataActions] => {
   const cache = useProductCache();
   
@@ -91,6 +93,14 @@ export const useProductData = ({
       ttl: PRODUCT_CACHE_TTL
     });
   }, []);
+
+  // مزامنة البيانات المحملة مسبقاً مع الحالة المحلية حتى عند تخطي الجلب الأولي
+  useEffect(() => {
+    if (!preloadedProduct) return;
+    setProduct(prev => (prev?.id === preloadedProduct.id ? prev : preloadedProduct));
+    setLoading(false);
+    setError(null);
+  }, [preloadedProduct?.id]);
 
   // استخدام البيانات المحملة مسبقاً
   const usePreloadedData = useCallback((pid: string) => {
@@ -398,6 +408,12 @@ export const useProductData = ({
       return;
     }
 
+    if (skipInitialFetch) {
+      setLoading(false);
+      initializedRef.current = true;
+      return;
+    }
+
     // جلب البيانات مع معالجة أفضل للأخطاء
     const loadProduct = async () => {
       try {
@@ -466,7 +482,7 @@ export const useProductData = ({
     };
 
     loadProduct();
-  }, [productId, organizationId, dataScope, enabled]); // إضافة enabled إلى dependencies
+  }, [productId, organizationId, dataScope, enabled, skipInitialFetch]);
 
   // مراقبة تغيير enabled
   useEffect(() => {

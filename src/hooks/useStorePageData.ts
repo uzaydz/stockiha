@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { useEffect, useMemo, useRef, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { StoreComponent, ComponentType } from '@/types/store-editor';
 import { useSharedStoreDataContext } from '@/context/SharedStoreDataContext';
@@ -47,6 +47,8 @@ export interface UseStorePageDataReturn {
   // حالات التحميل - موحدة
   unifiedLoading: ReturnType<typeof useUnifiedLoading>;
   isAppReady: boolean;
+  hasStoreError: boolean;
+  isLoadingStoreData: boolean;
   
   // وظائف
   refreshData: () => void;
@@ -206,8 +208,11 @@ export const useStorePageData = (): UseStorePageDataReturn => {
     footerSettings: sharedFooterSettings,
     seoMeta: sharedSeoMeta,
     isLoading: sharedDataLoading,
+    error: sharedDataError,
     refreshData: refreshSharedData
   } = useSharedStoreDataContext();
+
+  const hasSharedDataError = Boolean(sharedDataError);
 
   // 🔥 إصلاح: إذا لم نحصل على مكونات من useSharedStoreDataContext، فجرب البحث في window object مباشرة
   // إصلاح: استخدام sharedComponents.length بدلاً من sharedComponents لتقليل إعادة الحساب
@@ -238,13 +243,12 @@ export const useStorePageData = (): UseStorePageDataReturn => {
   // إزالة الاستدعاء المكرر - البيانات تأتي من useSharedStoreData
   
   // حالات محلية
-  const [footerSettings, setFooterSettings] = useState<any>(null);
-  const [customComponents, setCustomComponents] = useState<StoreComponent[]>([]);
-  const [featuredProducts, setFeaturedProducts] = useState<any[]>([]);
-  
-  // استخدام refs لتجنب dependency issues
   const unifiedLoadingRef = useRef(unifiedLoading);
   unifiedLoadingRef.current = unifiedLoading;
+
+  const componentsCacheRef = useRef<{ key: string; data: StoreComponent[] }>({ key: 'loading', data: [] });
+  const featuredCacheRef = useRef<{ key: string; data: any[] }>({ key: 'empty', data: [] });
+  const categoriesCacheRef = useRef<{ key: string; data: any[] }>({ key: 'empty', data: [] });
   
   // المكونات الافتراضية
   const defaultStoreComponents: StoreComponent[] = useMemo(() => [
@@ -305,155 +309,94 @@ export const useStorePageData = (): UseStorePageDataReturn => {
     },
   ], [storeName]);
   
-  // تحديد المكونات للعرض - إصلاح محسن للنطاقات المخصصة مع منع العرض المبكر
   const componentsToRender = useMemo(() => {
-    console.log('🔍 [componentsToRender] بدء تحديد المكونات للعرض:', {
-      customComponentsLength: customComponents?.length || 0,
-      sharedComponentsLength: sharedComponents?.length || 0,
-      fallbackComponentsLength: fallbackComponents?.length || 0,
-      isLoading: sharedDataLoading,
-      customComponents,
-      sharedComponents,
-      fallbackComponents
-    });
-
-    // 🔥 إصلاح حاسم: لا تعرض المكونات الافتراضية إذا كان التحميل جارياً
-    // هذا يمنع عرض المكونات الافتراضية قبل اكتمال get_store_init_data
-    if (sharedDataLoading) {
-      console.log('⏳ [componentsToRender] التحميل جاري، انتظار اكتمال get_store_init_data');
-      return []; // إرجاع مصفوفة فارغة لإجبار الـ loader على البقاء
+    if (!centralOrgId && !hasSharedDataError) {
+      if (componentsCacheRef.current.key !== 'awaiting-org') {
+        componentsCacheRef.current = { key: 'awaiting-org', data: [] };
+      }
+      return componentsCacheRef.current.data;
     }
 
-    // 🔥 إصلاح: تحقق من البيانات المخصصة أولاً من sharedComponents و fallbackComponents
-    const hasSharedComponents = sharedComponents && sharedComponents.length > 0;
-    const hasFallbackComponents = fallbackComponents && fallbackComponents.length > 0;
-    const hasValidCustomComponents = customComponents && customComponents.length > 0;
+    if (sharedDataLoading) {
+      if (componentsCacheRef.current.key !== 'loading') {
+        componentsCacheRef.current = { key: 'loading', data: [] };
+      }
+      return componentsCacheRef.current.data;
+    }
 
-    // 🔥 إصلاح: تحقق من أن fallbackComponents تحتوي على بيانات حقيقية وليست مجرد fallback
-    const isFallbackOnly = fallbackComponents?.length > 0 &&
-      fallbackComponents.every(comp => comp?.id?.startsWith('fallback-'));
+    const hasFallback = Array.isArray(fallbackComponents) && fallbackComponents.length > 0;
+    const fallbackHasOnlyPlaceholders = hasFallback &&
+      fallbackComponents!.every((comp: any) => comp?.id?.startsWith('fallback-'));
 
-    console.log('🔍 [componentsToRender] حالة المكونات:', {
-      hasValidCustomComponents,
-      hasSharedComponents,
-      hasFallbackComponents,
-      isFallbackOnly,
-      sharedComponentsCount: sharedComponents?.length || 0,
-      fallbackComponentsCount: fallbackComponents?.length || 0,
-      isLoading: sharedDataLoading
-    });
-
-    // 🔥 إصلاح: إعطاء الأولوية للمكونات من قاعدة البيانات (sharedComponents أو fallbackComponents)
-    if (hasSharedComponents || (hasFallbackComponents && !isFallbackOnly)) {
-      console.log('🎯 [componentsToRender] استخدام المكونات من قاعدة البيانات');
-
-      // استخدم sharedComponents إذا كانت متوفرة، وإلا استخدم fallbackComponents
-      const componentsToUse = sharedComponents && sharedComponents.length > 0
+    const resolvedComponents =
+      sharedComponents && sharedComponents.length > 0
         ? sharedComponents
-        : fallbackComponents;
+        : (hasFallback && !fallbackHasOnlyPlaceholders)
+          ? fallbackComponents
+          : null;
 
-      if (componentsToUse && componentsToUse.length > 0) {
-        const convertedComponents: StoreComponent[] = componentsToUse
-          .filter((comp: any) => {
-            // 🔥 إصلاح: تحقق من حالة النشاط بشكل أفضل
-            const isActive = comp?.isActive !== false && comp?.is_active !== false;
-            console.log('🔍 [componentsToRender] فحص مكون من قاعدة البيانات:', {
-              id: comp?.id,
-              type: comp?.type || comp?.component_type,
-              isActive: comp?.isActive,
-              is_active: comp?.is_active,
-              willInclude: isActive
-            });
-            return isActive;
-          })
-          .map((comp: any) => ({
+    if (resolvedComponents && resolvedComponents.length > 0) {
+      const signature = resolvedComponents
+        .map((comp: any) => {
+          const id = comp?.id || '';
+          const updated = comp?.updated_at || comp?.updatedAt || '';
+          const active = comp?.is_active ?? comp?.isActive ?? true;
+          const order = comp?.order_index ?? comp?.orderIndex ?? 0;
+          return `${id}:${updated}:${active ? 1 : 0}:${order}`;
+        })
+        .join('|');
+
+      if (componentsCacheRef.current.key === signature) {
+        return componentsCacheRef.current.data;
+      }
+
+      const normalized = resolvedComponents
+        .filter((comp: any) => comp && (comp.isActive ?? comp.is_active ?? true))
+        .map((comp: any) => {
+          let normalizedType = normalizeComponentType(comp.type || comp.component_type).toLowerCase();
+          if (normalizedType === 'categories') normalizedType = 'product_categories';
+          if (normalizedType === 'featuredproducts') normalizedType = 'featured_products';
+
+          return {
             id: comp.id,
-            type: normalizeComponentType(comp.type || comp.component_type) as ComponentType,
+            type: normalizedType as ComponentType,
             settings: comp.settings || {},
             isActive: comp.isActive ?? comp.is_active ?? true,
             orderIndex: comp.orderIndex ?? comp.order_index ?? 0
-          }))
-          .filter(component => {
-            const normalizedType = component.type.toLowerCase();
-            // 🔥 إصلاح: استبعاد seo_settings فقط
-            return normalizedType !== 'seo_settings' && component.isActive;
-          })
-          .map(component => {
-            let normalizedType = component.type.toLowerCase();
-            if (normalizedType === 'categories') {
-              normalizedType = 'product_categories';
-            }
-            if (normalizedType === 'featuredproducts') {
-              normalizedType = 'featured_products';
-            }
-            return {
-              ...component,
-              type: normalizedType as ComponentType
-            };
-          })
-          .sort((a, b) => a.orderIndex - b.orderIndex);
-
-        if (convertedComponents.length > 0) {
-          console.log('✅ [componentsToRender] تم تحويل المكونات من قاعدة البيانات:', {
-            count: convertedComponents.length,
-            types: convertedComponents.map(c => c.type),
-            ids: convertedComponents.map(c => c.id)
-          });
-
-          // تحديث عدد المكونات الإجمالي باستخدام ref
-          if (unifiedLoadingRef.current) {
-            unifiedLoadingRef.current.setTotalComponents(convertedComponents.length);
-          }
-          return convertedComponents;
-        }
-      }
-    }
-
-    // 🔥 إصلاح: استخدم المكونات المخصصة المحولة إذا كانت متوفرة
-    if (hasValidCustomComponents) {
-      console.log('🎯 [componentsToRender] استخدام المكونات المخصصة المحولة');
-      const components = customComponents
-        .filter(component => {
-          const normalizedType = component.type.toLowerCase();
-          return normalizedType !== 'seo_settings' && component.isActive;
-        })
-        .map(component => {
-          let normalizedType = component.type.toLowerCase();
-          if (normalizedType === 'categories') {
-            normalizedType = 'product_categories';
-          }
-          return {
-            ...component,
-            type: normalizedType as ComponentType
           };
         })
+        .filter(component => component.isActive && component.type !== 'seo_settings' as ComponentType)
         .sort((a, b) => a.orderIndex - b.orderIndex);
 
-      // تحديث عدد المكونات الإجمالي باستخدام ref
-      if (unifiedLoadingRef.current) {
-        unifiedLoadingRef.current.setTotalComponents(components.length);
+      componentsCacheRef.current = { key: signature, data: normalized };
+      return componentsCacheRef.current.data;
+    }
+
+    if (
+      !sharedDataLoading &&
+      centralOrgId &&
+      Array.isArray(sharedComponents) &&
+      sharedComponents.length === 0 &&
+      (!hasFallback || fallbackHasOnlyPlaceholders)
+    ) {
+      if (componentsCacheRef.current.key !== 'default') {
+        componentsCacheRef.current = { key: 'default', data: defaultStoreComponents };
       }
-
-      return components;
+      return componentsCacheRef.current.data;
     }
 
-    // 🔥 إصلاح: استخدم المكونات الافتراضية كآخر خيار فقط
-    console.log('⚠️ [componentsToRender] استخدام المكونات الافتراضية كآخر خيار');
-    console.log('🔍 [componentsToRender] المكونات الافتراضية:', defaultStoreComponents);
+    if (componentsCacheRef.current.key !== 'empty') {
+      componentsCacheRef.current = { key: 'empty', data: [] };
+    }
+    return componentsCacheRef.current.data;
+  }, [sharedComponents, fallbackComponents, sharedDataLoading, defaultStoreComponents, centralOrgId, hasSharedDataError]);
 
-    // تحديث عدد المكونات الإجمالي باستخدام ref
+  const componentsCount = componentsToRender.length;
+  useEffect(() => {
     if (unifiedLoadingRef.current) {
-      unifiedLoadingRef.current.setTotalComponents(defaultStoreComponents.length);
+      unifiedLoadingRef.current.setTotalComponents(componentsCount);
     }
-
-    console.log('✅ [componentsToRender] إرجاع المكونات النهائية:', {
-      count: defaultStoreComponents.length,
-      types: defaultStoreComponents.map(c => c.type),
-      components: defaultStoreComponents
-    });
-
-    return defaultStoreComponents;
-  }, [customComponents, defaultStoreComponents, sharedComponents, fallbackComponents, sharedDataLoading]);
+  }, [componentsCount]);
   
   // إعدادات SEO (أولوية: seoMeta القادمة من RPC)
   const seoSettings = useMemo(() => {
@@ -487,121 +430,77 @@ export const useStorePageData = (): UseStorePageDataReturn => {
     }
   }, [sharedDataLoading]); // إزالة unifiedLoading من dependencies
   
-  // جلب المكونات المخصصة والمنتجات المميزة مع الاعتماد على بيانات السياق أولاً - إصلاح للإنتاج
-  useEffect(() => {
-    if (!centralOrgId) return;
+  const featuredProducts = useMemo(() => {
+    if (!Array.isArray(sharedFeaturedProducts) || sharedFeaturedProducts.length === 0) {
+      if (featuredCacheRef.current.key !== 'empty') {
+        featuredCacheRef.current = { key: 'empty', data: [] };
+      }
+      return featuredCacheRef.current.data;
+    }
 
-    // 1) المكوّنات: استخدم القادمة من الـ RPC إن توفرت
-    console.log('🔍 [useStorePageData] فحص sharedComponents:', {
-      hasSharedComponents: !!sharedComponents,
-      sharedComponentsLength: sharedComponents?.length || 0,
-      sharedComponentsData: sharedComponents,
-      sharedComponentsType: typeof sharedComponents,
-      isArray: Array.isArray(sharedComponents),
-      hasFallbackComponents: !!fallbackComponents,
-      fallbackComponentsLength: fallbackComponents?.length || 0
+    const signature = sharedFeaturedProducts
+      .map((prod: any) => `${prod?.id ?? ''}:${prod?.updated_at ?? prod?.updatedAt ?? ''}:${prod?.price ?? ''}`)
+      .join('|');
+
+    if (featuredCacheRef.current.key === signature) {
+      return featuredCacheRef.current.data;
+    }
+
+    const converted = sharedFeaturedProducts.map((dbProd: any) => {
+      try {
+        return convertDatabaseProductToStoreProduct(dbProd);
+      } catch {
+        return {
+          id: dbProd.id,
+          name: dbProd.name,
+          description: dbProd.description || '',
+          price: Number(dbProd.price || 0),
+          discount_price: dbProd.compare_at_price ? Number(dbProd.compare_at_price) : undefined,
+          imageUrl: dbProd.thumbnail_url || dbProd.thumbnail_image || dbProd.imageUrl || '',
+          category: dbProd.product_categories?.name || dbProd.category || '',
+          is_new: !!dbProd.is_new,
+          stock_quantity: Number(dbProd.stock_quantity || 0),
+          slug: dbProd.slug || dbProd.id,
+          rating: 4.5
+        };
+      }
     });
 
-    const componentsToProcess = fallbackComponents?.length > 0 ? fallbackComponents : sharedComponents;
+    featuredCacheRef.current = { key: signature, data: converted };
+    return featuredCacheRef.current.data;
+  }, [sharedFeaturedProducts]);
 
-    if (componentsToProcess && componentsToProcess.length > 0) {
-      console.log('🎯 [useStorePageData] تحويل المكونات من RPC:', componentsToProcess.length);
-
-      const convertedComponents: StoreComponent[] = componentsToProcess
-        .filter((comp: any) => {
-          const isActive = comp?.isActive !== false && comp?.is_active !== false;
-          console.log('🔍 [useStorePageData] فحص مكون:', {
-            id: comp?.id,
-            type: comp?.type || comp?.component_type,
-            isActive: comp?.isActive,
-            is_active: comp?.is_active,
-            willInclude: isActive
-          });
-          return isActive;
-        })
-        .map((comp: any) => {
-          const normalizedType = normalizeComponentType(comp.type || comp.component_type);
-          const convertedComponent = {
-            id: comp.id,
-            type: normalizedType as ComponentType,
-            settings: comp.settings || {},
-            isActive: comp.isActive ?? comp.is_active ?? true,
-            orderIndex: comp.orderIndex ?? comp.order_index ?? 0
-          };
-
-          console.log('🔍 [useStorePageData] تم تحويل مكون:', {
-            originalType: comp.type || comp.component_type,
-            normalizedType,
-            id: comp.id,
-            settings: comp.settings
-          });
-
-          return convertedComponent;
-        })
-        .sort((a, b) => a.orderIndex - b.orderIndex);
-
-      console.log('✅ [useStorePageData] تم تحويل المكونات:', convertedComponents.length);
-      console.log('🔍 [useStorePageData] المكونات المحولة:', convertedComponents);
-
-      setCustomComponents(convertedComponents);
-    } else {
-      console.log('⚠️ [useStorePageData] لا توجد مكونات من RPC، استخدام الافتراضية');
-      console.log('🔍 [useStorePageData] sharedComponents details:', {
-        sharedComponents,
-        type: typeof sharedComponents,
-        isArray: Array.isArray(sharedComponents)
-      });
-
-      // في الإنتاج، قد تكون البيانات غير متوفرة بعد، لذلك لا نعيد تعيين customComponents
-      // سنعتمد على منطق componentsToRender لحل هذا
-    }
-
-    // 2) المنتجات المميزة: استخدم المنتجات المميزة من RPC فقط
-    if (sharedFeaturedProducts && sharedFeaturedProducts.length > 0) {
-      console.log('🎯 [useStorePageData] تحويل المنتجات المميزة من RPC:', sharedFeaturedProducts.length);
-      const convertedProducts = sharedFeaturedProducts.map((dbProd: any) => {
-        try {
-          return convertDatabaseProductToStoreProduct(dbProd);
-        } catch {
-          // fallback بسيط إذا فشل التحويل
-          return {
-            id: dbProd.id,
-            name: dbProd.name,
-            description: dbProd.description || '',
-            price: Number(dbProd.price || 0),
-            discount_price: dbProd.compare_at_price ? Number(dbProd.compare_at_price) : undefined,
-            imageUrl: dbProd.thumbnail_url || dbProd.thumbnail_image || dbProd.imageUrl || '',
-            category: dbProd.product_categories?.name || dbProd.category || '',
-            is_new: !!dbProd.is_new,
-            stock_quantity: Number(dbProd.stock_quantity || 0),
-            slug: dbProd.slug || dbProd.id,
-            rating: 4.5
-          };
-        }
-      });
-      console.log('✅ [useStorePageData] تم تحويل المنتجات المميزة:', convertedProducts.length);
-      setFeaturedProducts(convertedProducts);
-    }
-  }, [centralOrgId, sharedComponents, fallbackComponents, sharedFeaturedProducts]);
-  
-  // جلب إعدادات الفوتر دون شبكة إذا توفرت من RPC أو من المكوّنات
-  useEffect(() => {
-    if (!centralOrgId) return;
-    // 1) استخدم footerSettings القادمة من RPC إن توفرت
+  const footerSettings = useMemo(() => {
     if (sharedFooterSettings) {
-      setFooterSettings(sharedFooterSettings);
-      return;
+      return sharedFooterSettings;
     }
-    // 2) حاول استخراج الفوتر من sharedComponents إن وُجد
-    if (sharedComponents && sharedComponents.length > 0) {
-      const footerComp = sharedComponents.find((c: any) => (c.type || c.component_type) === 'footer');
-      if (footerComp?.settings) {
-        setFooterSettings(footerComp.settings);
-        return;
+
+    const candidate = (sharedComponents && sharedComponents.length > 0 ? sharedComponents : fallbackComponents) || [];
+    const footerComp = candidate.find((c: any) => normalizeComponentType(c?.type || c?.component_type) === 'footer');
+    return footerComp?.settings || null;
+  }, [sharedFooterSettings, sharedComponents, fallbackComponents]);
+
+  const categories = useMemo(() => {
+    if (!Array.isArray(sharedCategories) || sharedCategories.length === 0) {
+      if (categoriesCacheRef.current.key !== 'empty') {
+        categoriesCacheRef.current = { key: 'empty', data: [] };
       }
+      return categoriesCacheRef.current.data;
     }
-    // وإلا اترك الإعدادات الافتراضية (سيتم توليد Footer افتراضي في StoreLayout)
-  }, [centralOrgId, sharedComponents, sharedFooterSettings]);
+
+    const signature = sharedCategories
+      .map((cat: any, index: number) => `${cat?.id ?? cat?.slug ?? index}:${cat?.updated_at ?? cat?.updatedAt ?? ''}:${cat?.name ?? ''}`)
+      .join('|');
+
+    if (categoriesCacheRef.current.key === signature) {
+      return categoriesCacheRef.current.data;
+    }
+
+    categoriesCacheRef.current = { key: signature, data: sharedCategories };
+    return categoriesCacheRef.current.data;
+  }, [sharedCategories]);
+
+  const customComponents = componentsToRender;
   
   // تحديث عنوان الصفحة وفافيكون المتجر
   useEffect(() => {
@@ -714,55 +613,92 @@ export const useStorePageData = (): UseStorePageDataReturn => {
     return mergeFooterSettings(defaultFooterSettings, footerSettings);
   }, [storeName, footerSettings, t]);
   
-  // 🔥 تحسين: استخدام useMemo للقيمة المرجعة لمنع إعادة الإنشاء
-  const returnValue = useMemo(() => {
-    const result = {
-      // بيانات أساسية
-      storeInfo: enhancedStoreInfo,
-      organizationSettings,
+  const lastReturnValueRef = useRef<{ key: string; value: UseStorePageDataReturn } | null>(null);
+
+  const componentsSignature = componentsCacheRef.current.key;
+  const categoriesSignature = categoriesCacheRef.current.key;
+  const featuredSignature = featuredCacheRef.current.key;
+  const mergedFooterSignature = mergedFooterSettings ? JSON.stringify(mergedFooterSettings) : 'null';
+  const seoSignature = seoSettings
+    ? `${seoSettings.title || ''}|${seoSettings.description || ''}|${seoSettings.keywords || ''}|${seoSettings.ogImage || ''}`
+    : 'null';
+  const isLoadingStoreData = sharedDataLoading ||
+    unifiedLoading.shouldShowGlobalLoader ||
+    unifiedLoading.loadingState.isPageLoading ||
+    unifiedLoading.loadingState.isDataLoading;
+  const hasStoreError = Boolean(sharedDataError);
+  const unifiedSignature = `${unifiedLoading.shouldShowGlobalLoader ? 1 : 0}:` +
+    `${unifiedLoading.loadingState.isPageLoading ? 1 : 0}:` +
+    `${unifiedLoading.loadingState.isDataLoading ? 1 : 0}:` +
+    `${unifiedLoading.loadingState.loadedComponents.size}:` +
+    `${unifiedLoading.loadingState.totalComponents}:` +
+    `${hasStoreError ? 'err' : 'ok'}:${isLoadingStoreData ? 'load' : 'idle'}`;
+  const appReadyFlag = isAppReady ? '1' : '0';
+
+  const returnKey = [
+    enhancedStoreInfo?.id ?? '',
+    organizationSettings?.id ?? '',
+    storeName || '',
+    logoUrl || '',
+    centralOrgId || '',
+    sharedOrg?.id ?? '',
+    componentsSignature,
+    categoriesSignature,
+    featuredSignature,
+    mergedFooterSignature,
+    seoSignature,
+    unifiedSignature,
+    appReadyFlag
+  ].join('|');
+
+  const shouldCreateNewValue =
+    !lastReturnValueRef.current ||
+    lastReturnValueRef.current.key !== returnKey ||
+    lastReturnValueRef.current.value.refreshData !== refreshSharedData ||
+    lastReturnValueRef.current.value.unifiedLoading !== unifiedLoading;
+
+  if (shouldCreateNewValue) {
+    console.log('🧪 [useStorePageData] recomputing return value', {
       storeName,
-      logoUrl,
       centralOrgId,
-      currentOrganization: sharedOrg,
-      
-      // بيانات المكونات
-      componentsToRender,
-      customComponents,
-      
-      // بيانات الفئات والمنتجات
-      categories: sharedCategories || [],
-      featuredProducts,
-      
-      // إعدادات
-      footerSettings: mergedFooterSettings,
-      seoSettings,
-      
-      // حالات التحميل - موحدة
-      unifiedLoading,
-      isAppReady,
-      
-      // وظائف
-      refreshData: refreshSharedData,
+      componentsCount: componentsToRender?.length ?? 0,
+      categoriesCount: categories?.length ?? 0,
+      featuredCount: featuredProducts?.length ?? 0,
+      hasStoreError,
+      isAppReady: Boolean(isAppReady),
+      sharedDataLoading,
+      unifiedLoadingState: {
+        globalLoader: unifiedLoading.shouldShowGlobalLoader,
+        pageLoading: unifiedLoading.loadingState.isPageLoading,
+        dataLoading: unifiedLoading.loadingState.isDataLoading,
+        componentsLoading: unifiedLoading.loadingState.isComponentsLoading,
+        loadedComponents: unifiedLoading.loadingState.loadedComponents.size,
+        totalComponents: unifiedLoading.loadingState.totalComponents
+      }
+    });
+    lastReturnValueRef.current = {
+      key: returnKey,
+      value: {
+        storeInfo: enhancedStoreInfo,
+        organizationSettings,
+        storeName,
+        logoUrl,
+        centralOrgId,
+        currentOrganization: sharedOrg,
+        componentsToRender,
+        customComponents,
+        categories,
+        featuredProducts,
+        footerSettings: mergedFooterSettings,
+        seoSettings,
+        unifiedLoading,
+        isAppReady: Boolean(isAppReady),
+        hasStoreError,
+        isLoadingStoreData,
+        refreshData: refreshSharedData
+      }
     };
+  }
 
-    return result;
-  }, [
-    enhancedStoreInfo,
-    organizationSettings,
-    storeName,
-    logoUrl,
-    centralOrgId,
-    sharedOrg,
-    componentsToRender,
-    customComponents,
-    sharedCategories,
-    featuredProducts,
-    mergedFooterSettings,
-    seoSettings,
-    unifiedLoading,
-    isAppReady,
-    refreshSharedData
-  ]);
-
-  return returnValue;
+  return lastReturnValueRef.current!.value;
 };

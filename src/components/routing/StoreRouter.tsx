@@ -5,6 +5,8 @@ const StorePage = React.lazy(() => import('@/components/store/StorePage'));
 const LandingPage = React.lazy(() => import('@/pages/landing/LandingPage'));
 import { useGlobalLoading } from '@/components/store/GlobalLoadingManager';
 import { useDynamicTitle } from '@/hooks/useDynamicTitle';
+import { SharedStoreDataProvider } from '@/context/SharedStoreDataContext';
+import { MinimalOptimizedSharedStoreDataProvider } from '@/context/OptimizedSharedStoreDataContext';
 
 // قائمة النطاقات العامة التي تعرض صفحة الهبوط وليس متجر
 const PUBLIC_DOMAINS = [
@@ -56,13 +58,25 @@ async function retryWithBackoff<T>(
 /**
  * 🚀 مكون تحميل محسن للمتاجر - يعرض المتجر مباشرة عند الكشف المبكر
  */
-const OptimizedStoreLoader = React.memo(({ subdomain, hostname }: { subdomain?: string; hostname: string }) => {
-  // عرض المتجر فوراً بدون أي مؤشرات تحميل إضافية لتفادي الوميض
-  return (
-    <React.Suspense fallback={null}>
+const StoreProviders: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <MinimalOptimizedSharedStoreDataProvider>
+    <SharedStoreDataProvider>
+      {children}
+    </SharedStoreDataProvider>
+  </MinimalOptimizedSharedStoreDataProvider>
+);
+
+const renderStorePageWithProviders = () => (
+  <React.Suspense fallback={null}>
+    <StoreProviders>
       <StorePage />
-    </React.Suspense>
-  );
+    </StoreProviders>
+  </React.Suspense>
+);
+
+const OptimizedStoreLoader = React.memo(({ subdomain, hostname }: { subdomain?: string; hostname: string }) => {
+  // عرض المتجر مع طبقة مزودات خفيفة لضمان توفر السياقات قبل التحميل
+  return renderStorePageWithProviders();
 });
 
 OptimizedStoreLoader.displayName = 'OptimizedStoreLoader';
@@ -372,11 +386,7 @@ const StoreRouter = React.memo(() => {
     
     // 🔥 إذا كان متجر، نعرض StorePage مباشرة لتتولى عرض المحتوى عند الانتهاء
     if (isSubdomainStore || isCustomDomain) {
-      return (
-        <React.Suspense fallback={null}>
-          <StorePage />
-        </React.Suspense>
-      );
+      return renderStorePageWithProviders();
     }
     
     // للنطاقات الأخرى، نعتمد على مؤشر التحميل المركزي
@@ -385,16 +395,12 @@ const StoreRouter = React.memo(() => {
   
   // 🔥 إذا كان متجر، اعرض StorePage
   if (isStore === true) {
-    return (
-      <React.Suspense fallback={null}>
-        <StorePage />
-      </React.Suspense>
-    );
+    return renderStorePageWithProviders();
   }
-  
+
   // 🔥 لا نعرض صفحة الهبوط إذا كان هناك نطاق فرعي وما زلنا نحمل
   if (isSubdomainStore && isLoading) {
-    return <StorePage />;
+    return renderStorePageWithProviders();
   }
 
   // 🔥 عرض صفحة الهبوط للنطاقات العامة فقط

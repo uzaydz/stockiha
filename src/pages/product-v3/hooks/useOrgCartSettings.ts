@@ -49,7 +49,7 @@ export function useOrgCartSettings(organizationId: string | null, effectiveData:
   const showAddToCart = useMemo(() => {
     // 🔥 إصلاح: فحص effectiveData داخل useMemo بدلاً من early return
     if (!effectiveData) {
-      console.log('🔍 [useOrgCartSettings] showAddToCart: لا توجد effectiveData، إرجاع true افتراضياً');
+      if (process.env.NODE_ENV === 'development') console.log('🔍 [useOrgCartSettings] showAddToCart: لا توجد effectiveData، إرجاع true افتراضياً');
       return true; // افتراضياً أظهر الزر
     }
 
@@ -59,7 +59,7 @@ export function useOrgCartSettings(organizationId: string | null, effectiveData:
       const enabled = !!js?.enable_cart;
       const productSkip = !!(effectiveData?.product as any)?.advanced_settings?.skip_cart;
 
-      console.log('🔍 [useOrgCartSettings] showAddToCart تفاصيل:', {
+      if (process.env.NODE_ENV === 'development') console.log('🔍 [useOrgCartSettings] showAddToCart تفاصيل:', {
         hasOrganizationSettings: !!organizationSettings,
         raw: raw,
         rawType: typeof raw,
@@ -75,7 +75,7 @@ export function useOrgCartSettings(organizationId: string | null, effectiveData:
       // إذا كان لدينا إعدادات من organizationSettings، استخدمها
       if (raw && (typeof raw === 'string' ? raw.length > 0 : !!raw)) {
         const result = enabled && !productSkip;
-        console.log('🔍 [useOrgCartSettings] showAddToCart: استخدام organizationSettings:', {
+        if (process.env.NODE_ENV === 'development') console.log('🔍 [useOrgCartSettings] showAddToCart: استخدام organizationSettings:', {
           enabled: enabled,
           productSkip: productSkip,
           result: result
@@ -86,7 +86,7 @@ export function useOrgCartSettings(organizationId: string | null, effectiveData:
       // إذا لم تكن متوفرة بعد وأجرينا fetch، استخدم النتيجة
       if (enableCartFallback !== null) {
         const result = enableCartFallback && !productSkip;
-        console.log('🔍 [useOrgCartSettings] showAddToCart: استخدام enableCartFallback:', {
+        if (process.env.NODE_ENV === 'development') console.log('🔍 [useOrgCartSettings] showAddToCart: استخدام enableCartFallback:', {
           enableCartFallback: enableCartFallback,
           productSkip: productSkip,
           result: result
@@ -96,7 +96,7 @@ export function useOrgCartSettings(organizationId: string | null, effectiveData:
 
       // افتراضياً، أظهر الزر (لتفادي التذبذب)
       const result = !productSkip;
-      console.log('🔍 [useOrgCartSettings] showAddToCart: استخدام الافتراضي:', {
+      if (process.env.NODE_ENV === 'development') console.log('🔍 [useOrgCartSettings] showAddToCart: استخدام الافتراضي:', {
         productSkip: productSkip,
         result: result
       });

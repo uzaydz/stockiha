@@ -5,6 +5,8 @@
 
 import UnifiedCacheManager from './unifiedCacheManager';
 
+const isDevelopment = import.meta.env.DEV;
+
 export interface CacheDiagnosticResult {
   timestamp: number;
   duration: number;
@@ -37,6 +39,7 @@ export class CacheMonitor {
   private metrics: CachePerformanceMetrics;
   private monitoringEnabled: boolean = false;
   private performanceObserver: PerformanceObserver | null = null;
+  private reportInterval: ReturnType<typeof setInterval> | null = null;
 
   private constructor() {
     this.metrics = {
@@ -58,8 +61,12 @@ export class CacheMonitor {
 
   /**
    * تشغيل المراقبة
-   */
+  */
   startMonitoring(): void {
+    if (!isDevelopment || this.monitoringEnabled) {
+      return;
+    }
+
     this.monitoringEnabled = true;
     this.setupPerformanceObserver();
     this.startPeriodicReporting();
@@ -75,6 +82,11 @@ export class CacheMonitor {
     if (this.performanceObserver) {
       this.performanceObserver.disconnect();
       this.performanceObserver = null;
+    }
+
+    if (this.reportInterval) {
+      clearInterval(this.reportInterval);
+      this.reportInterval = null;
     }
 
   }
@@ -420,6 +432,10 @@ export class CacheMonitor {
   }
 
   private setupPerformanceObserver(): void {
+    if (!isDevelopment) {
+      return;
+    }
+
     if (typeof window === 'undefined' || !window.PerformanceObserver) {
       return;
     }
@@ -451,11 +467,19 @@ export class CacheMonitor {
   }
 
   private startPeriodicReporting(): void {
-    setInterval(() => {
+    if (!isDevelopment) {
+      return;
+    }
+
+    if (this.reportInterval) {
+      clearInterval(this.reportInterval);
+    }
+
+    this.reportInterval = setInterval(() => {
       if (this.monitoringEnabled) {
-        const report = this.getPerformanceReport();
+        this.getPerformanceReport();
       }
-    }, 60 * 1000); // كل دقيقة
+    }, 60 * 1000);
   }
 
   private async callServiceWorker(action: string, data?: any): Promise<any> {
@@ -495,7 +519,7 @@ if (typeof window !== 'undefined') {
   (window as any).getCachePerformanceReport = getCachePerformanceReport;
 
   // تشغيل المراقبة تلقائياً في وضع التطوير
-  if (import.meta.env.DEV) {
+  if (isDevelopment) {
     cacheMonitor.startMonitoring();
   }
 }

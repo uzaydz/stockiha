@@ -8,81 +8,74 @@
 /* إزالة استيراد خطوط إضافية لتقليل تغييرات التخطيط وتقليل CLS */
 /* تم الإبقاء على الخطوط المحلية عبر public/fonts */
 
-/* استيراد ملفات CSS الإضافية - محسن */
-@import './components/landing-page-builder/styles/cta-button.css';
-@import './styles/apps-management.css';
-@import './styles/advanced-description.css';
-@import './components/ui/global-dropdown-fix.css';
+/* استيراد ملفات CSS الإضافية - محسن - تم تأجيل التحميل الكسل */
+/* تم إزالة الـ imports لتقليل الطلبات HTTP */
 
-/* 🎨 تعريفات خطوط Tajawal المحلية - أولوية عالية مع أكثر من مسار */
-@font-face {
-  font-family: 'TajawalForced';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('/fonts/tajawal-regular.woff2') format('woff2'),
-       url('./fonts/tajawal-regular.woff2') format('woff2'),
-       url('../public/fonts/tajawal-regular.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'TajawalForced';
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url('/fonts/tajawal-medium.woff2') format('woff2'),
-       url('./fonts/tajawal-medium.woff2') format('woff2'),
-       url('../public/fonts/tajawal-medium.woff2') format('woff2');
-}
-
-@font-face {
-  font-family: 'TajawalForced';
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url('/fonts/tajawal-bold.woff2') format('woff2'),
-       url('./fonts/tajawal-bold.woff2') format('woff2'),
-       url('../public/fonts/tajawal-bold.woff2') format('woff2');
-}
-
+/* 🎨 تعريفات خطوط Tajawal المحلية - محسنة للأداء */
 @font-face {
   font-family: 'Tajawal';
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('/fonts/tajawal-regular.woff2') format('woff2'),
-       url('./fonts/tajawal-regular.woff2') format('woff2'),
-       url('../public/fonts/tajawal-regular.woff2') format('woff2');
+  src: url('/fonts/tajawal-regular.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF, U+2000-206F, U+2070-209F;
 }
 
+/* 🎯 تحسين تحميل الخطوط - Medium فقط عند الحاجة */
 @font-face {
   font-family: 'Tajawal';
   font-style: normal;
   font-weight: 500;
-  font-display: swap;
-  src: url('/fonts/tajawal-medium.woff2') format('woff2'),
-       url('./fonts/tajawal-medium.woff2') format('woff2'),
-       url('../public/fonts/tajawal-medium.woff2') format('woff2');
+  font-display: optional;
+  src: url('/fonts/tajawal-medium.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF, U+2000-206F, U+2070-209F;
 }
 
+/* 🎯 تحسين تحميل الخطوط - Bold فقط عند الحاجة */
 @font-face {
   font-family: 'Tajawal';
   font-style: normal;
   font-weight: 700;
-  font-display: swap;
-  src: url('/fonts/tajawal-bold.woff2') format('woff2'),
-       url('./fonts/tajawal-bold.woff2') format('woff2'),
-       url('../public/fonts/tajawal-bold.woff2') format('woff2');
+  font-display: optional;
+  src: url('/fonts/tajawal-bold.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF, U+2000-206F, U+2070-209F;
 }
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* الخط يطبق عبر body فقط لتفادي التعارضات */
-
-/* إزالة فرض الخطوط العام داخل طبقة base */
+/* 🎨 تحسينات الخطوط - تطبيق الخط الأساسي فقط */
 @layer base {
+  body {
+    font-family: 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif;
+  }
+
+  /* تحسين تحميل الخطوط - تقليل FOUT */
+  .fonts-loading {
+    font-family: 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif;
+  }
+
+  .fonts-loaded {
+    font-family: 'Tajawal', 'Arial Unicode MS', 'Tahoma', 'Arial', sans-serif;
+  }
+}
+
+/* 🎯 تحسينات الصور - تحميل WebP بأولوية */
+@layer utilities {
+  .img-optimized {
+    image-rendering: optimizeQuality;
+  }
+
+  .img-responsive {
+    max-width: 100%;
+    height: auto;
+  }
+
+  .img-lazy {
+    content-visibility: auto;
+    contain-intrinsic-size: 1px 1px;
+  }
 }
 
 /* Custom gradient utilities */

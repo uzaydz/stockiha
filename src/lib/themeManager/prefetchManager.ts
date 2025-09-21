@@ -274,7 +274,12 @@ const isLocalhostDomain = (hostname: string) => {
 
 // دالة للتحقق من النطاق العام
 const isPublicDomain = (hostname: string) => {
-  return PUBLIC_DOMAINS.includes(hostname) || isLocalhostDomain(hostname);
+  // أثناء التطوير، اسمح بتطبيق الإعدادات على localhost لتحسين الاتساق
+  const allowLocalhostPrefetch = typeof window !== 'undefined' ? (window as any).__ALLOW_LOCALHOST_PREFETCH__ ?? true : true;
+  if (isLocalhostDomain(hostname)) {
+    return !allowLocalhostPrefetch;
+  }
+  return PUBLIC_DOMAINS.includes(hostname);
 };
 
 // بدء التحميل المسبق عند تحميل الصفحة
