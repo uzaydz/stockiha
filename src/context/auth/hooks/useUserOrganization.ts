@@ -8,6 +8,7 @@ import type { Organization, UseUserOrganizationReturn, AuthError, UserProfile } 
 import { getOrganizationById } from '@/lib/api/deduplicatedApi';
 import { trackPerformance, handleAuthError, debounce } from '../utils/authHelpers';
 import { AUTH_TIMEOUTS } from '../constants/authConstants';
+import { dispatchAppEvent, addAppEventListener } from '@/lib/events/eventManager';
 
 interface UseUserOrganizationProps {
   userProfile: UserProfile | null;
@@ -55,9 +56,11 @@ export const useUserOrganization = ({ userProfile, enabled = true }: UseUserOrga
 
         // إرسال حدث لـ AuthContext عند العثور على المؤسسة في cache
         setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('organizationLoaded', {
-            detail: { organization: cached.org }
-          }));
+          dispatchAppEvent('organizationLoaded', {
+            organization: cached.org
+          }, {
+            dedupeKey: `organizationLoaded:${cached.org.id}`
+          });
         }, 50);
 
         return;
@@ -88,9 +91,11 @@ export const useUserOrganization = ({ userProfile, enabled = true }: UseUserOrga
 
         // إرسال حدث مباشر لـ AuthContext عند تحميل المؤسسة
         setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('organizationLoaded', {
-            detail: { organization: orgData }
-          }));
+          dispatchAppEvent('organizationLoaded', {
+            organization: orgData
+          }, {
+            dedupeKey: `organizationLoaded:${orgData.id}`
+          });
         }, 50);
 
         // حفظ في cache
@@ -151,10 +156,12 @@ export const useUserOrganization = ({ userProfile, enabled = true }: UseUserOrga
       }
 
       // إرسال حدث تغيير المؤسسة
-      const event = new CustomEvent('organizationChanged', {
-        detail: { organizationId: newOrgId }
+      dispatchAppEvent('organizationChanged', {
+        organizationId: newOrgId
+      }, {
+        dedupeKey: `organizationChanged:${newOrgId}`,
+        dedupeWindowMs: 500
       });
-      window.dispatchEvent(event);
 
       trackPerformance('switchOrganization', startTime);
       return true;
@@ -212,9 +219,11 @@ export const useUserOrganization = ({ userProfile, enabled = true }: UseUserOrga
 
           // إرسال حدث لـ AuthContext
           setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('organizationLoaded', {
-              detail: { organization: parsed.data }
-            }));
+          dispatchAppEvent('organizationLoaded', {
+            organization: parsed.data
+          }, {
+            dedupeKey: `organizationLoaded:${parsed.data.id}`
+          });
           }, 0);
 
           return;
@@ -240,9 +249,11 @@ export const useUserOrganization = ({ userProfile, enabled = true }: UseUserOrga
 
           // إرسال حدث لـ AuthContext
           setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('organizationLoaded', {
-              detail: { organization: org }
-            }));
+          dispatchAppEvent('organizationLoaded', {
+            organization: org
+          }, {
+            dedupeKey: `organizationLoaded:${org.id}`
+          });
           }, 0);
         } else {
           if (process.env.NODE_ENV === 'development') {
@@ -307,18 +318,18 @@ export const useUserOrganization = ({ userProfile, enabled = true }: UseUserOrga
    * الاستماع لأحداث تغيير المؤسسة
    */
   useEffect(() => {
-    const handleOrganizationChange = (event: CustomEvent) => {
-      const { organizationId } = event.detail || {};
-      
-      if (organizationId && organizationId !== organization?.id) {
-        fetchOrganization(organizationId, true);
+    const unsubscribe = addAppEventListener<{ organizationId: string }>(
+      'organizationChanged',
+      (detail) => {
+        const organizationId = detail?.organizationId;
+        if (organizationId && organizationId !== organization?.id) {
+          fetchOrganization(organizationId, true);
+        }
       }
-    };
-
-    window.addEventListener('organizationChanged', handleOrganizationChange as EventListener);
+    );
     
     return () => {
-      window.removeEventListener('organizationChanged', handleOrganizationChange as EventListener);
+      unsubscribe();
     };
   }, [organization?.id, fetchOrganization]);
 

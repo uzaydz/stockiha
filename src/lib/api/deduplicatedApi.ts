@@ -4,6 +4,7 @@
 
 import { supabase } from '@/lib/supabase-unified';
 import { requestDeduplicator } from '@/lib/requestDeduplicator';
+import { isAppOnline, markNetworkOffline, markNetworkOnline } from '@/utils/networkStatus';
 import type { Database } from '@/types/database.types';
 
 type Tables = Database['public']['Tables'];
@@ -11,6 +12,120 @@ type OrganizationSettings = Tables['organization_settings']['Row'];
 type User = Tables['users']['Row'];
 type Organization = Tables['organizations']['Row'];
 // type CallCenterAgent = Tables['call_center_agents']['Row']; // Table doesn't exist
+
+const ORG_SETTINGS_CACHE_PREFIX = 'organization_settings_';
+
+const readCachedOrganizationSettings = (organizationId: string): OrganizationSettings | null => {
+  if (typeof window === 'undefined' || !organizationId) {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage?.getItem(`${ORG_SETTINGS_CACHE_PREFIX}${organizationId}`);
+    if (!raw) {
+      return null;
+    }
+    return JSON.parse(raw) as OrganizationSettings;
+  } catch {
+    return null;
+  }
+};
+
+const writeCachedOrganizationSettings = (organizationId: string, settings: OrganizationSettings | null) => {
+  if (typeof window === 'undefined' || !organizationId) {
+    return;
+  }
+
+  try {
+    if (settings) {
+      window.localStorage?.setItem(`${ORG_SETTINGS_CACHE_PREFIX}${organizationId}`, JSON.stringify(settings));
+    } else {
+      window.localStorage?.removeItem(`${ORG_SETTINGS_CACHE_PREFIX}${organizationId}`);
+    }
+  } catch {
+    // تجاهل أخطاء التخزين المحلي
+  }
+};
+
+const ORG_CACHE_PREFIX = 'organization_cache_';
+const ORG_SUBDOMAIN_CACHE_PREFIX = 'organization_subdomain_cache_';
+
+const isLikelyOfflineError = (error: unknown): boolean => {
+  if (!error) {
+    return false;
+  }
+
+  const message =
+    typeof error === 'string'
+      ? error
+      : (error as any)?.message || (error as any)?.details || '';
+
+  if (!message) {
+    return false;
+  }
+
+  const normalized = String(message).toLowerCase();
+  return (
+    normalized.includes('failed to fetch') ||
+    normalized.includes('network error') ||
+    normalized.includes('networkerror') ||
+    normalized.includes('fetch failed')
+  );
+};
+
+const readCachedOrganization = (organizationId: string): Organization | null => {
+  if (typeof window === 'undefined' || !organizationId) {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage?.getItem(`${ORG_CACHE_PREFIX}${organizationId}`);
+    if (!raw) {
+      return null;
+    }
+    return JSON.parse(raw) as Organization;
+  } catch {
+    return null;
+  }
+};
+
+const readCachedOrganizationBySubdomain = (subdomain: string): Organization | null => {
+  if (typeof window === 'undefined' || !subdomain) {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage?.getItem(`${ORG_SUBDOMAIN_CACHE_PREFIX}${subdomain}`);
+    if (!raw) {
+      return null;
+    }
+    return JSON.parse(raw) as Organization;
+  } catch {
+    return null;
+  }
+};
+
+const cacheOrganization = (organization: Organization | null) => {
+  if (typeof window === 'undefined' || !organization) {
+    return;
+  }
+
+  try {
+    window.localStorage?.setItem(
+      `${ORG_CACHE_PREFIX}${organization.id}`,
+      JSON.stringify(organization)
+    );
+
+    if (organization.subdomain) {
+      window.localStorage?.setItem(
+        `${ORG_SUBDOMAIN_CACHE_PREFIX}${organization.subdomain}`,
+        JSON.stringify(organization)
+      );
+    }
+  } catch {
+    // تجاهل أخطاء التخزين المحلي
+  }
+};
 
 /**
  * جلب إعدادات المؤسسة مع منع التكرار
@@ -20,22 +135,50 @@ export async function getOrganizationSettings(
   forceRefresh = false
 ): Promise<OrganizationSettings | null> {
   const key = `organization_settings:${organizationId}`;
-  
+
+  const cachedSettings = readCachedOrganizationSettings(organizationId);
+  if (!isAppOnline() && !forceRefresh && cachedSettings) {
+    return cachedSettings;
+  }
+
   return requestDeduplicator.execute(
     key,
     async () => {
-      
-      const { data, error } = await supabase
-        .from('organization_settings')
-        .select('*')
-        .eq('organization_id', organizationId)
-        .maybeSingle();
-      
-      if (error) {
-        throw error;
+      const latestCached = readCachedOrganizationSettings(organizationId);
+
+      if (!isAppOnline()) {
+        markNetworkOffline({ force: true });
+        return latestCached;
       }
-      
-      return data;
+
+      try {
+        const { data, error } = await supabase
+          .from('organization_settings')
+          .select('*')
+          .eq('organization_id', organizationId)
+          .maybeSingle();
+
+        if (error) {
+          if (isLikelyOfflineError(error)) {
+            markNetworkOffline({ force: true });
+            return latestCached;
+          }
+          throw error;
+        }
+
+        if (data) {
+          writeCachedOrganizationSettings(organizationId, data as OrganizationSettings);
+        }
+
+        markNetworkOnline();
+        return data;
+      } catch (fetchError) {
+        if (isLikelyOfflineError(fetchError)) {
+          markNetworkOffline({ force: true });
+          return latestCached;
+        }
+        throw fetchError;
+      }
     },
     {
       ttl: requestDeduplicator.getLongTTL(), // 15 دقيقة - البيانات مستقرة
@@ -69,18 +212,35 @@ export async function getUserById(
   return requestDeduplicator.execute(
     key,
     async () => {
-      
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
-      
-      if (error) {
-        throw error;
+      if (!isAppOnline()) {
+        markNetworkOffline({ force: true });
+        return null;
       }
-      
-      return data;
+
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle();
+
+        if (error) {
+          if (isLikelyOfflineError(error)) {
+            markNetworkOffline({ force: true });
+            return null;
+          }
+          throw error;
+        }
+
+        markNetworkOnline();
+        return data;
+      } catch (fetchError) {
+        if (isLikelyOfflineError(fetchError)) {
+          markNetworkOffline({ force: true });
+          return null;
+        }
+        throw fetchError;
+      }
     },
     {
       ttl: requestDeduplicator.getShortTTL(), // 30 ثانية - البيانات متغيرة
@@ -102,18 +262,35 @@ export async function getUserByAuthId(
   return requestDeduplicator.execute(
     key,
     async () => {
-      
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('auth_user_id', authUserId)
-        .maybeSingle();
-      
-      if (error) {
-        throw error;
+      if (!isAppOnline()) {
+        markNetworkOffline({ force: true });
+        return null;
       }
-      
-      return data;
+
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('auth_user_id', authUserId)
+          .maybeSingle();
+
+        if (error) {
+          if (isLikelyOfflineError(error)) {
+            markNetworkOffline({ force: true });
+            return null;
+          }
+          throw error;
+        }
+
+        markNetworkOnline();
+        return data;
+      } catch (fetchError) {
+        if (isLikelyOfflineError(fetchError)) {
+          markNetworkOffline({ force: true });
+          return null;
+        }
+        throw fetchError;
+      }
     },
     {
       ttl: requestDeduplicator.getShortTTL(), // 30 ثانية
@@ -135,17 +312,34 @@ export async function getOrganizationUsers(
   return requestDeduplicator.execute(
     key,
     async () => {
-      
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('organization_id', organizationId);
-      
-      if (error) {
-        throw error;
+      if (!isAppOnline()) {
+        markNetworkOffline({ force: true });
+        return [];
       }
-      
-      return data || [];
+
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('organization_id', organizationId);
+
+        if (error) {
+          if (isLikelyOfflineError(error)) {
+            markNetworkOffline({ force: true });
+            return [];
+          }
+          throw error;
+        }
+
+        markNetworkOnline();
+        return data || [];
+      } catch (fetchError) {
+        if (isLikelyOfflineError(fetchError)) {
+          markNetworkOffline({ force: true });
+          return [];
+        }
+        throw fetchError;
+      }
     },
     {
       ttl: requestDeduplicator.getShortTTL(), // 30 ثانية
@@ -163,22 +357,50 @@ export async function getOrganizationById(
   forceRefresh = false
 ): Promise<Organization | null> {
   const key = `organization:${organizationId}`;
-  
+
+  const cachedOrganization = readCachedOrganization(organizationId);
+  if (!isAppOnline() && !forceRefresh && cachedOrganization) {
+    return cachedOrganization;
+  }
+
   return requestDeduplicator.execute(
     key,
     async () => {
-      
-      const { data, error } = await supabase
-        .from('organizations')
-        .select('*')
-        .eq('id', organizationId)
-        .maybeSingle();
-      
-      if (error) {
-        throw error;
+      const latestCached = readCachedOrganization(organizationId);
+
+      if (!isAppOnline()) {
+        markNetworkOffline({ force: true });
+        return latestCached;
       }
-      
-      return data;
+
+      try {
+        const { data, error } = await supabase
+          .from('organizations')
+          .select('*')
+          .eq('id', organizationId)
+          .maybeSingle();
+
+        if (error) {
+          if (isLikelyOfflineError(error)) {
+            markNetworkOffline({ force: true });
+            return latestCached;
+          }
+          throw error;
+        }
+
+        if (data) {
+          cacheOrganization(data as Organization);
+        }
+
+        markNetworkOnline();
+        return data;
+      } catch (fetchError) {
+        if (isLikelyOfflineError(fetchError)) {
+          markNetworkOffline({ force: true });
+          return latestCached;
+        }
+        throw fetchError;
+      }
     },
     {
       ttl: requestDeduplicator.getLongTTL(), // 15 دقيقة - البيانات مستقرة
@@ -206,19 +428,50 @@ export async function getOrganizationBySubdomain(
   if (!cleanSubdomain) return null;
 
   const key = `organization_subdomain:${cleanSubdomain}`;
+
+  const cachedOrganization = readCachedOrganizationBySubdomain(cleanSubdomain);
+  if (!isAppOnline() && !forceRefresh && cachedOrganization) {
+    return cachedOrganization;
+  }
+
   return requestDeduplicator.execute(
     key,
     async () => {
-      const { data, error } = await supabase
-        .from('organizations')
-        .select('*')
-        .eq('subdomain', cleanSubdomain)
-        .maybeSingle();
+      const latestCached = readCachedOrganizationBySubdomain(cleanSubdomain);
 
-      if (error) {
-        throw error;
+      if (!isAppOnline()) {
+        markNetworkOffline({ force: true });
+        return latestCached;
       }
-      return data;
+
+      try {
+        const { data, error } = await supabase
+          .from('organizations')
+          .select('*')
+          .eq('subdomain', cleanSubdomain)
+          .maybeSingle();
+
+        if (error) {
+          if (isLikelyOfflineError(error)) {
+            markNetworkOffline({ force: true });
+            return latestCached;
+          }
+          throw error;
+        }
+
+        if (data) {
+          cacheOrganization(data as Organization);
+        }
+
+        markNetworkOnline();
+        return data;
+      } catch (fetchError) {
+        if (isLikelyOfflineError(fetchError)) {
+          markNetworkOffline({ force: true });
+          return latestCached;
+        }
+        throw fetchError;
+      }
     },
     {
       ttl: requestDeduplicator.getLongTTL(),
@@ -247,6 +500,9 @@ export async function getOrganizationByDomain(
   return requestDeduplicator.execute(
     key,
     async () => {
+      if (!isAppOnline()) {
+        return null;
+      }
       const { data, error } = await supabase
         .from('organizations')
         .select('*')

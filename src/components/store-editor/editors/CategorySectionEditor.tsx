@@ -165,7 +165,7 @@ const CategorySectionEditor: React.FC<CategorySectionEditorProps> = ({
                       id="display-count"
                       type="number"
                       min="1"
-                      max="12"
+                      max="50"
                       value={settings.displayCount || settings.maxCategories || 6}
                       onChange={(e) => updateSetting(
                         type === 'CategorySection' ? 'maxCategories' : 'displayCount', 

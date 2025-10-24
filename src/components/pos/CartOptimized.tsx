@@ -1,7 +1,9 @@
 import { useState, useCallback, useMemo, memo } from 'react';
 import { Product, Order, User, Service } from '@/types';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { useAuth } from '@/context/AuthContext';
+import { useTenant } from '@/context/TenantContext';
 import { useShop } from '@/context/ShopContext';
+import { useStaffSession } from '@/context/StaffSessionContext';
 import { usePOSOrderFast } from './hooks/usePOSOrderFast';
 import { toast } from "sonner";
 import { motion } from 'framer-motion';
@@ -49,6 +51,7 @@ const CartOptimized = memo(({
 }: CartOptimizedProps) => {
   const { createCustomer } = useShop();
   const { submitOrderFast, isSubmitting } = usePOSOrderFast(currentUser);
+  const { currentStaff } = useStaffSession();
   
   // حالة العميل والدفع
   const [selectedCustomer, setSelectedCustomer] = useState<User | null>(null);
@@ -228,6 +231,8 @@ const CartOptimized = memo(({
           : notes,
         isOnline: false,
         employeeId: currentUser?.id || "",
+        createdByStaffId: currentStaff?.id || null,
+        createdByStaffName: currentStaff?.staff_name || null,
         partialPayment: (finalCalculations.isPartialPayment && considerRemainingAsPartial) ? {
           amountPaid: numAmountPaid,
           remainingAmount: finalCalculations.remainingAmount
@@ -235,6 +240,14 @@ const CartOptimized = memo(({
         considerRemainingAsPartial: finalCalculations.isPartialPayment ? considerRemainingAsPartial : undefined,
         subscriptionAccountInfo: hasSubscriptionServices ? subscriptionAccountInfo : undefined
       };
+
+      // 🔍 تشخيص: طباعة معلومات الموظف
+      console.log('🔍 [CartOptimized] معلومات الطلبية:', {
+        currentStaff,
+        createdByStaffId: orderDetails.createdByStaffId,
+        createdByStaffName: orderDetails.createdByStaffName,
+        employeeId: orderDetails.employeeId
+      });
 
       const orderResult = await submitOrderFast(
         orderDetails,

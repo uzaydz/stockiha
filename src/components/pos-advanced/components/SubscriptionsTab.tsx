@@ -7,7 +7,6 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { SubscriptionsTabProps } from '../types';
 
@@ -168,12 +167,7 @@ const SubscriptionsTab: React.FC<SubscriptionsTabProps> = ({
                            0;
 
               return (
-                <motion.div
-                  key={subscription.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                >
+                <div key={subscription.id}>
                   <Card className="border transition-all duration-200 hover:shadow-md hover:border-primary/50">
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between mb-3">
@@ -223,7 +217,7 @@ const SubscriptionsTab: React.FC<SubscriptionsTabProps> = ({
                       </div>
                     </CardContent>
                   </Card>
-                </motion.div>
+                </div>
               );
             })}
           </div>
@@ -250,12 +244,7 @@ const SubscriptionsTab: React.FC<SubscriptionsTabProps> = ({
               const originalPrice = pricing.selling_price;
               
               return (
-                <motion.div
-                  key={pricing.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                >
+                <div key={pricing.id}>
                   <Card 
                     className={cn(
                       "border transition-all duration-200 relative",
@@ -347,7 +336,7 @@ const SubscriptionsTab: React.FC<SubscriptionsTabProps> = ({
                       )}
                     </CardContent>
                   </Card>
-                </motion.div>
+                </div>
               );
             })}
           </div>

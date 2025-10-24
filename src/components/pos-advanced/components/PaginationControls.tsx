@@ -28,17 +28,17 @@ const PaginationControls: React.FC<PaginationControlsProps> = ({
   const endItem = Math.min(currentPage * pageSize, totalItems);
 
   return (
-    <div className="flex items-center justify-between px-4 py-3 bg-card border-t border-border transition-colors backdrop-blur-sm">
+    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-3 sm:px-4 py-3 bg-card border-t border-border transition-colors backdrop-blur-sm">
       {/* معلومات العرض */}
-      <div className="flex items-center space-x-2 text-sm">
-        <span className="text-muted-foreground">
+      <div className="flex flex-col sm:flex-row items-center gap-2 sm:space-x-2 text-sm w-full sm:w-auto">
+        <span className="text-muted-foreground text-center sm:text-right">
           عرض <span className="text-foreground font-medium">{startItem}</span> إلى{' '}
           <span className="text-foreground font-medium">{endItem}</span> من{' '}
           <span className="text-foreground font-medium">{totalItems}</span> منتج
         </span>
         
         {/* اختيار حجم الصفحة */}
-        <div className="flex items-center space-x-2 mr-6">
+        <div className="flex items-center space-x-2 sm:mr-6">
           <span className="text-foreground text-xs">عدد المنتجات:</span>
           <Select 
             value={(pageSize || 30).toString()} 
@@ -67,7 +67,7 @@ const PaginationControls: React.FC<PaginationControlsProps> = ({
           size="sm"
           onClick={() => onPageChange(1)}
           disabled={currentPage === 1 || isLoading}
-          className="h-8 w-8 p-0 hover:bg-muted/50 border-border transition-colors disabled:opacity-30"
+          className="h-8 w-8 p-0 hover:bg-muted/50 border-border transition-colors disabled:opacity-30 hidden sm:flex"
           title="الصفحة الأولى"
         >
           <ChevronsRight className="h-4 w-4" />
@@ -86,11 +86,11 @@ const PaginationControls: React.FC<PaginationControlsProps> = ({
         </Button>
 
         {/* معلومات الصفحة الحالية */}
-        <div className="flex items-center px-3 mx-2 py-1 rounded-md bg-muted/30 border border-border/50">
+        <div className="flex items-center px-2 sm:px-3 mx-1 sm:mx-2 py-1 rounded-md bg-muted/30 border border-border/50">
           {isLoading && (
             <Loader2 className="h-3 w-3 animate-spin ml-2 text-primary" />
           )}
-          <span className="text-sm text-foreground font-medium whitespace-nowrap">
+          <span className="text-xs sm:text-sm text-foreground font-medium whitespace-nowrap">
             صفحة {currentPage} من {totalPages}
           </span>
         </div>
@@ -113,7 +113,7 @@ const PaginationControls: React.FC<PaginationControlsProps> = ({
           size="sm"
           onClick={() => onPageChange(totalPages)}
           disabled={currentPage === totalPages || isLoading || totalPages === 0}
-          className="h-8 w-8 p-0 hover:bg-muted/50 border-border transition-colors disabled:opacity-30"
+          className="h-8 w-8 p-0 hover:bg-muted/50 border-border transition-colors disabled:opacity-30 hidden sm:flex"
           title="الصفحة الأخيرة"
         >
           <ChevronsLeft className="h-4 w-4" />

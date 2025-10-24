@@ -4,6 +4,7 @@ import { useUser } from '@/context/UserContext';
 import { toast } from 'sonner';
 import { UnifiedRequestManager } from '@/lib/unifiedRequestManager';
 import { initializationUtils } from '@/lib/initializationManager';
+import { useOptionalSuperUnifiedData } from '@/context/SuperUnifiedDataContext';
 
 // تعريف التطبيقات المتاحة
 export interface AppDefinition {
@@ -216,6 +217,8 @@ export function AppsProvider({ children }: AppsProviderProps) {
   const [availableApps] = useState<AppDefinition[]>(AVAILABLE_APPS);
   const [organizationApps, setOrganizationApps] = useState<OrganizationApp[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const unifiedData = useOptionalSuperUnifiedData();
+  const unifiedRefresh = unifiedData?.refreshData;
 
   // إضافة تشخيص لمعرفة قيمة organizationId
   useEffect(() => {
@@ -227,6 +230,7 @@ export function AppsProvider({ children }: AppsProviderProps) {
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hasLoadedRef = useRef(false);
   const lastLoadTimeRef = useRef(0);
+  const lastUnifiedAppliedRef = useRef<string | null>(null);
   
   // إضافة كاش في sessionStorage لمنع الاستدعاءات المتكررة عند تحديث الصفحة
   const SESSION_CACHE_KEY = 'organization_apps_cache';
@@ -264,8 +268,79 @@ export function AppsProvider({ children }: AppsProviderProps) {
     }
   };
 
-  // جلب التطبيقات - نسخة محسنة مع منع الاستدعاءات المكررة
-  const fetchOrganizationApps = useCallback(async () => {
+  useEffect(() => {
+    if (!organizationId) {
+      return;
+    }
+
+    if (!unifiedData) {
+      return;
+    }
+
+    const targetOrgId = unifiedData.organization?.id;
+    if (targetOrgId && targetOrgId !== organizationId) {
+      return;
+    }
+
+    if (unifiedData.isLoading) {
+      setIsLoading(true);
+      return;
+    }
+
+    const unifiedTimestamp = unifiedData.lastFetched ? unifiedData.lastFetched.getTime() : null;
+    const unifiedAppsRaw = Array.isArray(unifiedData.organizationApps)
+      ? unifiedData.organizationApps
+      : [];
+    const unifiedSignature = unifiedTimestamp
+      ? `ts:${unifiedTimestamp}`
+      : `hash:${JSON.stringify(unifiedAppsRaw)}`;
+    
+    if (
+      hasLoadedRef.current &&
+      organizationId === lastOrgIdRef.current &&
+      lastUnifiedAppliedRef.current === unifiedSignature
+    ) {
+      return;
+    }
+
+    const mappedApps: OrganizationApp[] = unifiedAppsRaw.length > 0
+      ? unifiedAppsRaw.map((dbApp: DatabaseOrganizationApp) =>
+          transformDatabaseAppToOrganizationApp(dbApp, availableApps)
+        )
+      : AVAILABLE_APPS.map(app => ({
+          id: `default_${app.id}`,
+          organization_id: organizationId,
+          app_id: app.id,
+          is_enabled: false,
+          installed_at: new Date().toISOString(),
+          configuration: {},
+          app
+        }));
+
+    setOrganizationApps(mappedApps);
+    setIsLoading(false);
+    saveToLocalStorage(organizationId, mappedApps);
+    saveToSessionStorage(organizationId, mappedApps);
+    hasLoadedRef.current = true;
+    lastOrgIdRef.current = organizationId;
+    lastLoadTimeRef.current = Date.now();
+    loadingRef.current = false;
+    lastUnifiedAppliedRef.current = unifiedSignature;
+
+    if (!initializationUtils.isAlreadyInitialized(organizationId)) {
+      initializationUtils.finishInitialization(organizationId);
+    }
+  }, [
+    organizationId,
+    unifiedData?.organization?.id,
+    unifiedData?.organizationApps,
+    unifiedData?.isLoading,
+    unifiedData?.lastFetched,
+    availableApps,
+  ]);
+
+// جلب التطبيقات - نسخة محسنة مع منع الاستدعاءات المكررة
+const fetchOrganizationApps = useCallback(async () => {
     if (!organizationId) {
       // إنشاء قائمة افتراضية عندما لا يوجد organizationId
       const defaultApps: OrganizationApp[] = AVAILABLE_APPS.map(app => ({
@@ -741,10 +816,8 @@ export function AppsProvider({ children }: AppsProviderProps) {
   // التحقق من تفعيل التطبيق - محسن مع memoization وlogging محدود
   const isAppEnabled = useCallback((appId: string): boolean => {
     const app = organizationApps.find(app => app.app_id === appId);
-    const isEnabled = app?.is_enabled || false;
-
-    return isEnabled;
-  }, [organizationApps, organizationId]);
+    return app ? app.is_enabled : false;
+  }, [organizationApps]);
 
   // تحسين getAppConfig مع memoization
   const getAppConfig = useCallback((appId: string): Record<string, any> | null => {
@@ -800,9 +873,18 @@ export function AppsProvider({ children }: AppsProviderProps) {
     // إعادة تعيين المراجع للسماح بإعادة التحميل
     loadingRef.current = false;
     lastOrgIdRef.current = null;
-    
+    lastUnifiedAppliedRef.current = null;
+    if (organizationId) {
+      initializationUtils.resetOnError(organizationId);
+    }
+
+    if (typeof unifiedRefresh === 'function') {
+      await unifiedRefresh();
+      return;
+    }
+
     await fetchOrganizationApps();
-  }, [fetchOrganizationApps]);
+  }, [fetchOrganizationApps, unifiedRefresh, organizationId]);
 
   // إنشاء قيمة السياق مع memoization
   const value = useMemo<AppsContextType>(() => ({

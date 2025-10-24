@@ -121,16 +121,24 @@ function createMainWindow() {
     // فتح DevTools دائماً في التطوير
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
-    const prodPath = path.join(__dirname, '../dist/index.html');
-    console.log('[Electron] تحميل من ملف:', prodPath);
-    mainWindow.loadFile(prodPath);
+    // استخدام file:// protocol مع base URL صحيح للموارد الثابتة
+    const distPath = path.join(__dirname, '../dist');
+    const indexPath = path.join(distPath, 'index.html');
+    console.log('[Electron] تحميل من ملف:', indexPath);
+    console.log('[Electron] مسار dist:', distPath);
+    
+    // تحميل index.html مع تحديد base directory
+    mainWindow.loadFile(indexPath, {
+      // هذا يضمن أن المسارات النسبية تعمل بشكل صحيح
+      baseDir: distPath
+    });
     
     // إضافة fallback لأي مسار غير موجود - تحميل index.html (SPA fallback)
     mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
       console.log('[Electron] فشل التحميل:', errorCode, errorDescription, validatedURL);
       // إعادة تحميل index.html للسماح لـ React Router بالتعامل مع المسار
       if (validatedURL && !validatedURL.startsWith('file://')) {
-        mainWindow.loadFile(prodPath);
+        mainWindow.loadFile(indexPath, { baseDir: distPath });
       }
     });
   }

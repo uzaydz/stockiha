@@ -1,5 +1,4 @@
 import React, { useCallback } from 'react';
-import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -31,36 +30,55 @@ const ProductGridItem: React.FC<ProductItemProps> = React.memo(({
     onAddToCart(product);
   }, [product, onAddToCart]);
 
-  const imageUrl = product.thumbnail_image || (product.images && product.images[0]);
+  // معالجة محسّنة للصور مع دعم جميع الحالات
+  const imageUrl = React.useMemo(() => {
+    // محاولة استخدام thumbnail_image أولاً
+    if (product.thumbnail_image && product.thumbnail_image.trim()) {
+      return product.thumbnail_image;
+    }
+    
+    // محاولة استخدام thumbnailImage (camelCase)
+    if ((product as any).thumbnailImage && (product as any).thumbnailImage.trim()) {
+      return (product as any).thumbnailImage;
+    }
+    
+    // محاولة استخدام أول صورة من مصفوفة images
+    if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+      const firstImage = product.images[0];
+      if (firstImage && typeof firstImage === 'string' && firstImage.trim()) {
+        return firstImage;
+      }
+    }
+    
+    // محاولة استخدام صورة من أول لون متاح
+    if (product.colors && Array.isArray(product.colors) && product.colors.length > 0) {
+      for (const color of product.colors) {
+        if (color.image_url && color.image_url.trim()) {
+          return color.image_url;
+        }
+      }
+    }
+    
+    return null;
+  }, [product]);
 
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      whileHover={{ scale: 1.02, y: -4 }}
-      whileTap={{ scale: 0.98 }}
-      transition={{ duration: 0.2 }}
-      className="h-full"
-    >
-      <Card className={cn(
-        "group cursor-pointer transition-all duration-300 overflow-hidden h-full flex flex-col",
-        "border-0 shadow-sm hover:shadow-xl",
-        isReturnMode 
-          ? "ring-2 ring-orange-300 hover:ring-orange-400 bg-gradient-to-br from-orange-50/40 to-orange-100/20 hover:shadow-orange-200/30" 
-          : "ring-1 ring-border hover:ring-primary/30 bg-gradient-to-br from-background to-background/80 backdrop-blur-sm hover:shadow-primary/5",
-        isOutOfStock && "opacity-60 grayscale-[0.3]",
-        isLowStock && !isReturnMode && "ring-yellow-300",
-        isLowStock && isReturnMode && "ring-orange-400"
-      )}>
+    <Card className={cn(
+      "group relative cursor-pointer transition-all duration-200 overflow-hidden h-full flex flex-col",
+      "border border-slate-800/30 bg-card hover:border-slate-700/50 hover:shadow-lg",
+      isReturnMode && "border-amber-500/30 hover:border-amber-500/50",
+      isOutOfStock && "opacity-60",
+      isLowStock && !isReturnMode && "border-yellow-500/30"
+    )}>
+        
         <div onClick={handleClick} className="h-full flex flex-col">
-          {/* صورة المنتج مع تحسينات حديثة */}
-          <div className="relative aspect-square bg-gradient-to-br from-muted/50 to-muted/80 overflow-hidden">
+          {/* صورة المنتج */}
+          <div className="relative aspect-square bg-muted/30 overflow-hidden">
             {imageUrl ? (
               <img 
                 src={imageUrl} 
                 alt={product.name}
-                className="w-full h-full object-cover transition-all duration-300 group-hover:scale-110"
+                className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
                 onError={(e) => {
                   e.currentTarget.style.display = 'none';
                   e.currentTarget.nextElementSibling?.classList.remove('hidden');
@@ -68,120 +86,108 @@ const ProductGridItem: React.FC<ProductItemProps> = React.memo(({
               />
             ) : null}
             <div className={cn(
-              "w-full h-full flex items-center justify-center bg-gradient-to-br from-muted/30 to-muted/60",
+              "w-full h-full flex items-center justify-center",
               imageUrl ? 'hidden' : ''
             )}>
-              <Package2 className="h-12 w-12 text-muted-foreground/50" />
+              <Package2 className="h-12 w-12 text-muted-foreground" />
             </div>
             
             {/* طبقة تفاعلية */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
             
-            {/* شارات الحالة المحسنة للتباين */}
-            <div className="absolute top-3 right-3 flex flex-col gap-2">
+            {/* شارات الحالة */}
+            <div className="absolute top-2 right-2 flex flex-col gap-1.5 z-10">
               {isFavorite && (
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="flex items-center justify-center"
-                >
-                  <Badge className="bg-yellow-500/95 text-white text-xs backdrop-blur-md border-2 border-yellow-400/30 shadow-2xl ring-1 ring-black/10">
-                    <Heart className="h-3 w-3 fill-current" />
-                  </Badge>
-                </motion.div>
+                <Badge className="bg-yellow-500 text-white text-xs font-semibold px-1.5 py-1 rounded-md shadow-md">
+                  <Heart className="h-3 w-3 fill-current" />
+                </Badge>
               )}
               {isOutOfStock && (
-                <Badge variant="destructive" className="text-xs backdrop-blur-md shadow-2xl border-2 border-white/20 dark:border-gray-800/20 ring-1 ring-black/10 dark:ring-white/10">
-                  نفد المخزون
+                <Badge className="bg-red-500 text-white text-xs font-semibold px-2 py-0.5 rounded-md shadow-md">
+                  نفد
                 </Badge>
               )}
               {isLowStock && (
-                <Badge className="bg-yellow-500/95 text-white text-xs backdrop-blur-md shadow-2xl border-2 border-yellow-400/30 ring-1 ring-black/10">
-                  <AlertCircle className="h-3 w-3 mr-1" />
+                <Badge className="bg-yellow-500 text-white text-xs font-semibold px-1.5 py-0.5 rounded-md shadow-md flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
                   قليل
                 </Badge>
               )}
             </div>
 
-            {/* مؤشر الإضافة المحسن */}
-            <div className="absolute inset-0 flex items-center justify-center">
-              <motion.div
-                initial={{ scale: 0, opacity: 0 }}
-                whileHover={{ scale: 1, opacity: 1 }}
-                transition={{ duration: 0.2 }}
-                className={cn(
-                  "p-3 rounded-full backdrop-blur-sm border shadow-xl",
-                  isReturnMode 
-                    ? "bg-orange-500/90 border-orange-400/50 text-white" 
-                    : "bg-primary/90 border-primary-foreground/20 text-primary-foreground"
-                )}
-              >
+            {/* مؤشر الإضافة */}
+            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+              <div className={cn(
+                "p-3 rounded-lg backdrop-blur-sm shadow-lg",
+                isReturnMode 
+                  ? "bg-amber-500 text-white" 
+                  : "bg-primary text-primary-foreground"
+              )}>
                 {isReturnMode ? (
-                  <RotateCcw className="h-5 w-5 animate-spin" style={{ animationDuration: '2s' }} />
+                  <RotateCcw className="h-5 w-5" />
                 ) : (
                   <ShoppingCart className="h-5 w-5" />
                 )}
-              </motion.div>
+              </div>
             </div>
 
-            {/* شارة السعر العائمة المحسنة بتباين عالي */}
-            <div className="absolute bottom-3 left-3">
-              <Badge 
-                className="text-sm font-bold !bg-white/95 dark:!bg-gray-900/95 !text-gray-900 dark:!text-gray-100 backdrop-blur-md shadow-2xl border-2 border-gray-300/50 dark:border-gray-600/50 ring-1 ring-black/20 dark:ring-white/20"
-                style={{ 
-                  textShadow: '0 1px 2px rgba(0,0,0,0.3)', 
-                  boxShadow: '0 4px 20px rgba(0,0,0,0.25), 0 0 0 1px rgba(0,0,0,0.1)' 
-                }}
-              >
+            {/* شارة السعر */}
+            <div className="absolute bottom-2 left-2 z-10">
+              <div className={cn(
+                "px-2.5 py-1 rounded-lg font-bold text-sm backdrop-blur-sm shadow-md",
+                isReturnMode
+                  ? "bg-amber-500 text-white"
+                  : "bg-card/90 text-foreground border border-slate-700/50"
+              )}>
                 {product.price?.toLocaleString()} دج
-              </Badge>
+              </div>
             </div>
           </div>
 
-          {/* معلومات المنتج المحسنة */}
-          <CardContent className="p-4 flex-1 flex flex-col justify-between">
-            <div className="space-y-3">
+          {/* معلومات المنتج */}
+          <CardContent className="p-3 flex-1 flex flex-col justify-between">
+            <div className="space-y-2">
               <div>
                 <h3 className="font-semibold text-sm leading-tight line-clamp-2 text-foreground">
                   {product.name}
                 </h3>
                 {((product.category as any)?.name || (product as any).category_name) && (
-                  <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                    <Tag className="h-3 w-3" />
-                    {(product.category as any)?.name || (product as any).category_name}
-                  </p>
+                  <div className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-muted border border-slate-700/30">
+                    <Tag className="h-2.5 w-2.5 text-muted-foreground" />
+                    <span className="text-xs text-muted-foreground font-medium">
+                      {(product.category as any)?.name || (product as any).category_name}
+                    </span>
+                  </div>
                 )}
               </div>
 
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
                   <div className={cn(
-                    "text-xs px-2 py-1 rounded-full font-medium flex items-center gap-1",
+                    "text-xs px-2 py-0.5 rounded-md font-semibold flex items-center gap-1",
                     stock > lowStockThreshold 
-                      ? "bg-green-100 text-green-700" 
+                      ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" 
                       : stock > 0 
-                        ? "bg-yellow-100 text-yellow-700"
-                        : "bg-red-100 text-red-700"
+                        ? "bg-yellow-500/15 text-yellow-600 dark:text-yellow-400"
+                        : "bg-red-500/15 text-red-600 dark:text-red-400"
                   )}>
                     {stock > lowStockThreshold && <CheckCircle className="h-3 w-3" />}
                     {stock <= lowStockThreshold && stock > 0 && <AlertCircle className="h-3 w-3" />}
                     {stock === 0 && <AlertCircle className="h-3 w-3" />}
-                    {stock} قطعة
+                    {stock}
                   </div>
                 </div>
 
                 {product.has_variants && (
-                  <Badge variant="outline" className="text-xs bg-primary/5 border-primary/20">
-                    <Sparkles className="h-3 w-3 mr-1" />
-                    متغيرات
-                  </Badge>
+                  <div className="flex items-center justify-center w-5 h-5 rounded-md bg-primary/15">
+                    <Sparkles className="h-3 w-3 text-primary" strokeWidth={2.5} />
+                  </div>
                 )}
               </div>
             </div>
           </CardContent>
         </div>
       </Card>
-    </motion.div>
   );
 }, (prevProps, nextProps) => {
   return prevProps.product.id === nextProps.product.id &&

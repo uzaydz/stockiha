@@ -69,32 +69,32 @@ const TabSectionHeader = memo<TabSectionHeaderProps>(({
   const colorClasses = getColorClasses();
 
   return (
-    <div className="space-y-3 sm:space-y-4">
+    <div className="space-y-2.5 sm:space-y-3 lg:space-y-4">
       {/* Header */}
-      <div className={`flex items-center gap-2 sm:gap-3 p-3 sm:p-4 bg-gradient-to-r ${colorClasses.bg} rounded-lg sm:rounded-xl border ${colorClasses.border} transition-all duration-300 hover:shadow-sm`}>
-        <div className={`bg-gradient-to-br ${colorClasses.icon} p-1.5 sm:p-2 rounded-lg shadow-sm ring-1 ring-black/5 dark:ring-white/10`}>
+      <div className={`flex items-center gap-2 sm:gap-3 p-2.5 sm:p-3 lg:p-4 bg-gradient-to-r ${colorClasses.bg} rounded-lg sm:rounded-xl border ${colorClasses.border} transition-all duration-300 hover:shadow-sm`}>
+        <div className={`bg-gradient-to-br ${colorClasses.icon} p-1.5 sm:p-2 rounded-md sm:rounded-lg shadow-sm ring-1 ring-black/5 dark:ring-white/10 flex-shrink-0`}>
           <Icon className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${colorClasses.iconColor}`} />
         </div>
         
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 sm:gap-3">
-            <h3 className="font-bold text-sm sm:text-base text-foreground truncate">{title}</h3>
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <h3 className="font-bold text-xs sm:text-sm lg:text-base text-foreground">{title}</h3>
             
             {required && (
-              <Badge variant="destructive" className="text-xs shrink-0 shadow-sm">
+              <Badge variant="destructive" className="text-[10px] sm:text-xs shrink-0 shadow-sm">
                 مطلوب
               </Badge>
             )}
             
             {!required && (
-              <Badge variant="secondary" className="text-xs shrink-0 shadow-sm">
+              <Badge variant="secondary" className="text-[10px] sm:text-xs shrink-0 shadow-sm">
                 اختياري
               </Badge>
             )}
           </div>
           
           {description && (
-            <p className="text-xs sm:text-sm text-muted-foreground mt-1 line-clamp-2 sm:line-clamp-none">{description}</p>
+            <p className="text-[10px] sm:text-xs lg:text-sm text-muted-foreground mt-0.5 sm:mt-1 line-clamp-2 sm:line-clamp-none">{description}</p>
           )}
         </div>
         
@@ -103,25 +103,25 @@ const TabSectionHeader = memo<TabSectionHeaderProps>(({
             <TooltipTrigger asChild>
               <button
                 type="button"
-                className="inline-flex items-center justify-center p-1.5 sm:p-1 rounded-md transition-colors shrink-0 min-h-[44px] sm:min-h-auto"
+                className="inline-flex items-center justify-center p-2 sm:p-1.5 rounded-md transition-colors shrink-0 min-h-[44px] sm:min-h-auto -mr-1 sm:mr-0"
                 onClick={(e) => e.preventDefault()}
               >
-                <HelpCircle className={`w-4 h-4 text-muted-foreground ${colorClasses.hoverColor} transition-colors cursor-help`} />
+                <HelpCircle className={`w-4 h-4 sm:w-3.5 sm:h-3.5 text-muted-foreground ${colorClasses.hoverColor} transition-colors cursor-help`} />
               </button>
             </TooltipTrigger>
             <TooltipContent 
-              className="bg-background/95 dark:bg-background/90 backdrop-blur-md border-border/60 shadow-xl z-50 max-w-xs"
+              className="bg-background/95 dark:bg-background/90 backdrop-blur-md border-border/60 shadow-xl z-50 max-w-[280px] sm:max-w-xs"
               side="top"
               sideOffset={5}
             >
-              <p className="text-sm leading-relaxed">{tooltip}</p>
+              <p className="text-xs sm:text-sm leading-relaxed">{tooltip}</p>
             </TooltipContent>
           </Tooltip>
         )}
       </div>
       
       {/* Separator */}
-      <Separator className="bg-gradient-to-r from-transparent via-border to-transparent" />
+      <Separator className="bg-gradient-to-r from-transparent via-border to-transparent opacity-50 sm:opacity-100" />
     </div>
   );
 });

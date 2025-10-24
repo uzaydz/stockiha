@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, memo, useRef } from 'react';
+import type { ReactNode } from 'react';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import { toast } from 'sonner';
@@ -32,6 +33,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from '@/components/ui/alert-dialog';
+import { POSSharedLayoutControls } from '@/components/pos-layout/types';
 
 // Define category type
 type CategoryObject = { id: string; name: string; slug: string };
@@ -53,12 +55,21 @@ const DEBOUNCE_DELAY = 300; // زيادة debounce لتحسين الأداء
 const DEFAULT_PAGE_SIZE = 12; // زيادة عدد المنتجات في الصفحة
 const MAX_CACHE_SIZE = 20; // تقليل حجم cache
 
-const Products = memo(() => {
+interface ProductsProps extends POSSharedLayoutControls {}
+
+const ProductsComponent = ({
+  useStandaloneLayout = true,
+  onRegisterRefresh,
+  onLayoutStateChange
+}: ProductsProps) => {
   const { currentOrganization } = useTenant();
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
+  const renderWithLayout = (node: ReactNode) => (
+    useStandaloneLayout ? <Layout>{node}</Layout> : node
+  );
   
   // Enhanced request management
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -422,7 +433,7 @@ const Products = memo(() => {
 
   // Enhanced refresh handler
   const refreshProducts = useCallback(async () => {
-    
+
     // مسح cache المنتجات قبل التحديث لضمان جلب بيانات محدثة
     if (typeof window !== 'undefined' && (window as any).clearProductsCache && currentOrganization?.id) {
       try {
@@ -434,6 +445,24 @@ const Products = memo(() => {
     await fetchProducts(currentPage, {}, true);
     toast.success('تم تحديث قائمة المنتجات بنجاح');
   }, [fetchProducts, currentPage, currentOrganization?.id]);
+
+  useEffect(() => {
+    if (!onRegisterRefresh) return;
+    onRegisterRefresh(refreshProducts);
+    return () => {
+      onRegisterRefresh(null);
+    };
+  }, [onRegisterRefresh, refreshProducts]);
+
+  useEffect(() => {
+    if (!onLayoutStateChange) return;
+    queueMicrotask(() => {
+      onLayoutStateChange({
+        isRefreshing: isRefreshing || (isLoading && (!Array.isArray(products) || products.length === 0)),
+        connectionStatus: loadError ? 'disconnected' : 'connected'
+      });
+    });
+  }, [onLayoutStateChange, isRefreshing, isLoading, loadError, products.length]);
 
   // Navigation state effect for refresh
   useEffect(() => {
@@ -564,26 +593,20 @@ const Products = memo(() => {
 
   // Loading state
   if (isLoading && !isRefreshing && (!Array.isArray(products) || products.length === 0)) {
-    return (
-      <Layout>
-        <ProductsSkeleton />
-      </Layout>
-    );
+    return renderWithLayout(<ProductsSkeleton />);
   }
 
   // Error state
   if (loadError && (!Array.isArray(products) || products.length === 0)) {
-    return (
-      <Layout>
-        <div className="container mx-auto p-6">
-          {renderErrorState()}
-        </div>
-      </Layout>
+    return renderWithLayout(
+      <div className="container mx-auto p-6">
+        {renderErrorState()}
+      </div>
     );
   }
 
-  return (
-    <Layout>
+  const pageContent = (
+      <>
       <div className="container mx-auto p-6 space-y-6">
         {/* Products Search Header with enhanced features */}
         <ProductsSearchHeader
@@ -794,9 +817,13 @@ const Products = memo(() => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Layout>
+      </>
   );
-});
+
+  return renderWithLayout(pageContent);
+};
+
+const Products = memo(ProductsComponent);
 
 Products.displayName = 'Products';
 

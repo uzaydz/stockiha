@@ -23,6 +23,7 @@ import { clearOrganizationCache } from '@/lib/cache/organizationCache';
 import { throttledLog } from '@/lib/utils/duplicateLogger';
 import type { Organization } from '@/types/tenant';
 import type { TenantStateRefs } from './TenantState';
+import { dispatchAppEvent, addAppEventListener } from '@/lib/events/eventManager';
 
 // ثوابت التحسين - محسنة للسرعة القصوى
 const LOADING_TIMEOUT = 5000; // تقليل إلى 5 ثوان
@@ -88,12 +89,12 @@ export function useTenantHooks(
       return;
     }
 
-    window.dispatchEvent(new CustomEvent('bazaar:tenant-context-start', {
-      detail: {
-        timestamp: Date.now(),
-        source: 'auth-context'
-      }
-    }));
+    dispatchAppEvent('bazaar:tenant-context-start', {
+      timestamp: Date.now(),
+      source: 'auth-context'
+    }, {
+      disableDedupe: true
+    });
 
     if (process.env.NODE_ENV === 'development') {
       throttledLog('✅ [TenantContext] مزامنة مع AuthContext');
@@ -108,14 +109,14 @@ export function useTenantHooks(
         refs.initialized.current = true;
         refs.authContextProcessed.current = true;
         
-        window.dispatchEvent(new CustomEvent('bazaar:tenant-context-ready', {
-          detail: { 
-            organization: processedOrg, 
-            isEarlyDetection: false,
-            loadTime: Date.now() - refs.startTime.current,
-            timestamp: Date.now()
-          }
-        }));
+        dispatchAppEvent('bazaar:tenant-context-ready', {
+          organization: processedOrg,
+          isEarlyDetection: false,
+          loadTime: Date.now() - refs.startTime.current,
+          timestamp: Date.now()
+        }, {
+          dedupeKey: `tenant-ready:${processedOrg.id}`
+        });
       }
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
@@ -161,15 +162,15 @@ export function useTenantHooks(
             refs.fallbackProcessed.current = true;
             
             // ⚡ إرسال فوري لحدث جاهزية المؤسسة بدون انتظار闲
-            window.dispatchEvent(new CustomEvent('bazaar:tenant-context-ready', {
-              detail: { 
-                organization: hydratedOrg, 
-                isEarlyDetection: false,
-                loadTime: Date.now() - refs.startTime.current,
-                timestamp: Date.now(),
-                source: 'rpc-cache'
-              }
-            }));
+            dispatchAppEvent('bazaar:tenant-context-ready', {
+              organization: hydratedOrg,
+              isEarlyDetection: false,
+              loadTime: Date.now() - refs.startTime.current,
+              timestamp: Date.now(),
+              source: 'rpc-cache'
+            }, {
+              dedupeKey: `tenant-ready:${hydratedOrg.id}`
+            });
             
             return;
           }
@@ -190,15 +191,15 @@ export function useTenantHooks(
           saveCompleteOrganizationData(processedOrg, currentSubdomain);
           
           // ⚡ إرسال فوري لحدث جاهزية المؤسسة بدون انتظار闲
-          window.dispatchEvent(new CustomEvent('bazaar:tenant-context-ready', {
-            detail: { 
-              organization: processedOrg, 
-              isEarlyDetection: false,
-              loadTime: Date.now() - refs.startTime.current,
-              timestamp: Date.now(),
-              source: 'fallback-fetch'
-            }
-          }));
+          dispatchAppEvent('bazaar:tenant-context-ready', {
+            organization: processedOrg,
+            isEarlyDetection: false,
+            loadTime: Date.now() - refs.startTime.current,
+            timestamp: Date.now(),
+            source: 'fallback-fetch'
+          }, {
+            dedupeKey: `tenant-ready:${processedOrg.id}`
+          });
           
           clearTimeout(timeoutId);
           refs.loadingOrganization.current = false;
@@ -265,11 +266,15 @@ export function useTenantHooks(
       }, ORGANIZATION_CHANGE_DEBOUNCE);
     };
 
-    const eventType = 'organizationChanged';
-    window.addEventListener(eventType, handleOrganizationChanged as EventListener);
+    const unsubscribe = addAppEventListener<{ organizationId: string }>(
+      'organizationChanged',
+      (detail) => {
+        handleOrganizationChanged({ detail } as CustomEvent<{ organizationId: string }>);
+      }
+    );
     
     return () => {
-      window.removeEventListener(eventType, handleOrganizationChanged as EventListener);
+      unsubscribe();
       if (timeoutId) {
         clearTimeout(timeoutId);
         timeoutId = null;

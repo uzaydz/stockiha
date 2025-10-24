@@ -5,6 +5,7 @@ import { useTenant } from "@/context/TenantContext";
 import { supabase } from "@/lib/supabase";
 import { hasPermissions } from "@/lib/api/userPermissionsUnified";
 import Layout from "@/components/Layout";
+import { POSSharedLayoutControls, POSLayoutState } from '@/components/pos-layout/types';
 import {
   Card,
   CardContent,
@@ -19,14 +20,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 
-// استيراد المكونات التي أنشأناها
-import { AbandonedOrdersTable, type AbandonedOrder } from "@/components/abandoned-orders/AbandonedOrdersTable";
-import { AbandonedOrdersFilters, type AbandonedOrdersFilter } from "@/components/abandoned-orders/AbandonedOrdersFilters";
+// استيراد المكونات المحسّنة
+import AbandonedOrdersTableSimple, { type AbandonedOrder } from "@/components/abandoned-orders/AbandonedOrdersTableSimple";
 import { 
   AbandonedOrdersStats as AbandonedOrdersStatsComponent, 
   type AbandonedOrdersStats 
 } from "@/components/abandoned-orders/AbandonedOrdersStats";
-import { AbandonedOrdersActions } from "@/components/abandoned-orders/AbandonedOrdersActions";
 
 // تعريف نوع بيانات الولايات والبلديات
 interface Province {
@@ -54,7 +53,13 @@ const ORDER_SOURCES = [
 ];
 
 // صفحة الطلبات المتروكة
-const AbandonedOrders = () => {
+interface AbandonedOrdersProps extends POSSharedLayoutControls {}
+
+const AbandonedOrders: React.FC<AbandonedOrdersProps> = ({
+  useStandaloneLayout = true,
+  onRegisterRefresh,
+  onLayoutStateChange
+}) => {
   const { toast } = useToast();
   const { user } = useAuth();
   const { currentOrganization } = useTenant();
@@ -71,12 +76,11 @@ const AbandonedOrders = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [statsLoading, setStatsLoading] = useState<boolean>(true);
   
-  // حالة بيانات الولايات والبلديات
-  const [provinces, setProvinces] = useState<Record<string, Province>>({});
-  const [municipalities, setMunicipalities] = useState<Record<string, Municipality>>({});
+  // حالة بيانات الولايات والبلديات (تم تعطيلها - غير مستخدمة)
+  // const [provinces, setProvinces] = useState<Record<string, Province>>({});
+  // const [municipalities, setMunicipalities] = useState<Record<string, Municipality>>({});
   
   // حالة الفلاتر والعرض
-  const [filters, setFilters] = useState<AbandonedOrdersFilter>({});
   const [timeRange, setTimeRange] = useState<"today" | "week" | "month" | "year">("week");
   const [activeTab, setActiveTab] = useState<string>("all");
   
@@ -129,64 +133,7 @@ const AbandonedOrders = () => {
     checkPermissions();
   }, [user, toast]);
 
-  // استرجاع قوائم الولايات والبلديات
-  useEffect(() => {
-    const fetchLocations = async () => {
-      try {
-        // البحث في التخزين المؤقت أولاً
-        const cachedProvinces = localStorage.getItem('abandoned_orders_provinces');
-        const cachedMunicipalities = localStorage.getItem('abandoned_orders_municipalities');
-        const cacheExpiry = localStorage.getItem('abandoned_orders_cache_expiry');
-        
-        // التحقق من صلاحية البيانات المخزنة (7 أيام)
-        const isValidCache = cacheExpiry && parseInt(cacheExpiry) > Date.now();
-        
-        if (isValidCache && cachedProvinces && cachedMunicipalities) {
-          // استخدام البيانات المخزنة
-          setProvinces(JSON.parse(cachedProvinces));
-          setMunicipalities(JSON.parse(cachedMunicipalities));
-          return;
-        }
-        
-        // استرجاع الولايات
-        const { data: provincesData, error: provincesError } = await supabase
-          .from('yalidine_provinces_global')
-          .select('id, name, name_ar');
-        
-        if (provincesError) throw provincesError;
-        
-        // استرجاع البلديات
-        const { data: municipalitiesData, error: municipalitiesError } = await supabase
-          .from('yalidine_municipalities_global')
-          .select('id, name, name_ar, wilaya_id, wilaya_name, wilaya_name_ar');
-        
-        if (municipalitiesError) throw municipalitiesError;
-        
-        // تحويل البيانات إلى كائنات للبحث السريع
-        const provincesMap: Record<string, Province> = {};
-        provincesData.forEach((province: Province) => {
-          provincesMap[province.id.toString()] = province;
-        });
-        
-        const municipalitiesMap: Record<string, Municipality> = {};
-        municipalitiesData.forEach((municipality: Municipality) => {
-          municipalitiesMap[municipality.id.toString()] = municipality;
-        });
-        
-        // تخزين البيانات في الذاكرة المحلية لمدة 7 أيام
-        const expiryTime = Date.now() + (7 * 24 * 60 * 60 * 1000); // 7 أيام
-        localStorage.setItem('abandoned_orders_provinces', JSON.stringify(provincesMap));
-        localStorage.setItem('abandoned_orders_municipalities', JSON.stringify(municipalitiesMap));
-        localStorage.setItem('abandoned_orders_cache_expiry', expiryTime.toString());
-        
-        setProvinces(provincesMap);
-        setMunicipalities(municipalitiesMap);
-      } catch (error) {
-      }
-    };
-    
-    fetchLocations();
-  }, []);
+  // تم تعطيل استرجاع الولايات والبلديات - غير مستخدمة في الجدول المبسط
 
   // تنفيذ استعلام قاعدة البيانات لاسترجاع الطلبات المتروكة
   const fetchAbandonedOrders = useCallback(async () => {
@@ -221,15 +168,9 @@ const AbandonedOrders = () => {
             productDetails = { name: String(firstName), image_url: first?.image_url };
           }
 
-          // أسماء الولاية/البلدية مع fallback للمحلية المخزنة
-          let provinceText = cart.province_name || cart.province;
-          let municipalityText = cart.municipality_name || cart.municipality;
-          if (cart.province && provinces[cart.province]) {
-            provinceText = provinces[cart.province].name_ar || provinces[cart.province].name;
-          }
-          if (cart.municipality && municipalities[cart.municipality]) {
-            municipalityText = municipalities[cart.municipality].name_ar || municipalities[cart.municipality].name;
-          }
+          // أسماء الولاية/البلدية
+          const provinceText = cart.province_name || cart.province;
+          const municipalityText = cart.municipality_name || cart.municipality;
 
           return {
             ...cart,
@@ -285,7 +226,7 @@ const AbandonedOrders = () => {
       setLoading(false);
       setStatsLoading(false);
     }
-  }, [currentOrganization?.id, hasViewPermission, toast, provinces, municipalities, timeRange]);
+  }, [currentOrganization?.id, hasViewPermission, toast, timeRange]);
 
   // استرجاع إحصائيات الطلبات المتروكة
   const fetchAbandonedOrdersStats = useCallback(async () => {
@@ -416,7 +357,7 @@ const AbandonedOrders = () => {
   // استدعاء دالة جلب الإحصائيات عند التحميل أو تغيير المدى الزمني
   // لم نعد بحاجة لاستدعاء منفصل للإحصائيات؛ تأتي مع نفس الـ RPC
 
-  // تطبيق الفلاتر على قائمة الطلبات
+  // تطبيق الفلاتر على قائمة الطلبات (مبسط)
   useEffect(() => {
     if (!abandonedOrders.length) {
       setFilteredOrders([]);
@@ -424,78 +365,6 @@ const AbandonedOrders = () => {
     }
     
     let result = [...abandonedOrders];
-    
-    // فلترة حسب المدة
-    if (filters.duration) {
-      if (filters.duration.min !== undefined) {
-        result = result.filter(order => order.abandoned_hours >= filters.duration!.min!);
-      }
-      if (filters.duration.max !== undefined) {
-        result = result.filter(order => order.abandoned_hours <= filters.duration!.max!);
-      }
-    }
-    
-    // فلترة حسب القيمة
-    if (filters.value) {
-      if (filters.value.min !== undefined) {
-        result = result.filter(order => order.total_amount >= filters.value!.min!);
-      }
-      if (filters.value.max !== undefined) {
-        result = result.filter(order => order.total_amount <= filters.value!.max!);
-      }
-    }
-    
-    // فلترة حسب التاريخ
-    if (filters.date) {
-      if (filters.date.start) {
-        const startDate = new Date(filters.date.start);
-        startDate.setHours(0, 0, 0, 0);
-        result = result.filter(order => new Date(order.created_at) >= startDate);
-      }
-      if (filters.date.end) {
-        const endDate = new Date(filters.date.end);
-        endDate.setHours(23, 59, 59, 999);
-        result = result.filter(order => new Date(order.created_at) <= endDate);
-      }
-    }
-    
-    // فلترة حسب عدد العناصر
-    if (filters.itemCount) {
-      if (filters.itemCount.min !== undefined) {
-        result = result.filter(order => 
-          (order.cart_items && Array.isArray(order.cart_items) 
-            ? order.cart_items.length 
-            : 0) >= filters.itemCount!.min!
-        );
-      }
-      if (filters.itemCount.max !== undefined) {
-        result = result.filter(order => 
-          (order.cart_items && Array.isArray(order.cart_items) 
-            ? order.cart_items.length 
-            : 0) <= filters.itemCount!.max!
-        );
-      }
-    }
-    
-    // فلترة حسب المصدر (باستخدام custom_fields_data)
-    if (filters.source && filters.source.length > 0) {
-      result = result.filter(order => 
-        filters.source!.some(source => {
-          if (order.custom_fields_data) {
-            const customFields = order.custom_fields_data as any;
-            return customFields?.source === source || customFields?.utm_source === source;
-          }
-          return false;
-        })
-      );
-    }
-    
-    // فلترة حسب وجود معلومات اتصال
-    if (filters.hasContactInfo !== undefined) {
-      result = result.filter(order => 
-        Boolean(order.customer_phone) === filters.hasContactInfo
-      );
-    }
     
     // فلترة حسب التبويب النشط
     if (activeTab === "day") {
@@ -507,29 +376,21 @@ const AbandonedOrders = () => {
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
       result = result.filter(order => new Date(order.created_at) >= oneWeekAgo);
     } else if (activeTab === "high-value") {
-      // طلبات ذات قيمة عالية (أكثر من 5000 دج)
       result = result.filter(order => order.total_amount > 5000);
     } else if (activeTab === "recoverable") {
-      // طلبات قابلة للاسترداد (لديها معلومات اتصال وتم إنشاؤها خلال آخر 48 ساعة)
-      const twoLaysAgo = new Date();
-      twoLaysAgo.setDate(twoLaysAgo.getDate() - 2);
+      const twoDaysAgo = new Date();
+      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
       result = result.filter(order => 
         Boolean(order.customer_phone) && 
-        new Date(order.created_at) >= twoLaysAgo
+        new Date(order.created_at) >= twoDaysAgo
       );
     }
     
     setFilteredOrders(result);
-  }, [abandonedOrders, filters, activeTab]);
-
-  // معالجة تحديد الصفوف
-  const handleRowSelect = useCallback((selectedOrders: AbandonedOrder[]) => {
-    setSelectedOrders(selectedOrders);
-  }, []);
+  }, [abandonedOrders, activeTab]);
 
   // إعادة ضبط الفلاتر
   const handleResetFilters = useCallback(() => {
-    setFilters({});
     setActiveTab("all");
   }, []);
 
@@ -636,38 +497,58 @@ const AbandonedOrders = () => {
     }
   }, [toast]);
 
+  // تسجيل دالة التحديث مع الـ Layout
+  useEffect(() => {
+    if (onRegisterRefresh) {
+      onRegisterRefresh(() => fetchAbandonedOrders());
+      return () => onRegisterRefresh(null);
+    }
+  }, [onRegisterRefresh, fetchAbandonedOrders]);
+
+  // تحديث حالة الـ Layout
+  useEffect(() => {
+    const state: POSLayoutState = {
+      isRefreshing: Boolean(loading),
+      connectionStatus: 'connected',
+      executionTime: undefined
+    } as any;
+    if (onLayoutStateChange) onLayoutStateChange(state);
+  }, [onLayoutStateChange, loading]);
+
   // التحقق من الصلاحيات وعرض الصفحة وفقًا لذلك
   if (permissionLoading) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center h-96">
-          <div className="animate-pulse flex flex-col items-center">
-            <div className="h-16 w-16 rounded-full bg-primary/20"></div>
-            <div className="mt-4 h-4 w-40 bg-muted"></div>
-            <div className="mt-2 h-4 w-60 bg-muted"></div>
-          </div>
+    const loadingNode = (
+      <div className="flex items-center justify-center h-96">
+        <div className="animate-pulse flex flex-col items-center">
+          <div className="h-16 w-16 rounded-full bg-primary/20"></div>
+          <div className="mt-4 h-4 w-40 bg-muted"></div>
+          <div className="mt-2 h-4 w-60 bg-muted"></div>
         </div>
-      </Layout>
+      </div>
     );
+    return useStandaloneLayout ? <Layout>{loadingNode}</Layout> : loadingNode;
   }
 
   // عرض رسالة عدم وجود صلاحيات
   if (!hasViewPermission) {
-    return (
-      <Layout>
-        <Alert variant="destructive" className="mt-4">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>غير مصرح</AlertTitle>
-          <AlertDescription>
-            ليس لديك الصلاحيات اللازمة للوصول إلى هذه الصفحة
-          </AlertDescription>
-        </Alert>
-      </Layout>
+    const noPermNode = (
+      <Alert variant="destructive" className="mt-4">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertTitle>غير مصرح</AlertTitle>
+        <AlertDescription>
+          ليس لديك الصلاحيات اللازمة للوصول إلى هذه الصفحة
+        </AlertDescription>
+      </Alert>
     );
+    return useStandaloneLayout ? <Layout>{noPermNode}</Layout> : noPermNode;
   }
 
-  return (
-    <Layout>
+  const renderWithLayout = (node: React.ReactElement) => (
+    useStandaloneLayout ? <Layout>{node}</Layout> : node
+  );
+
+  const pageContent = (
+    <>
       <Helmet>
         <title>الطلبات المتروكة - {currentOrganization?.name}</title>
       </Helmet>
@@ -709,61 +590,34 @@ const AbandonedOrders = () => {
           onTimeRangeChange={setTimeRange}
         />
         
-        {/* الفلاتر والتبويبات */}
-        <div className="space-y-4">
-          <Tabs
-            value={activeTab}
-            onValueChange={setActiveTab}
-            className="w-full"
-          >
-            <div className="flex flex-col sm:flex-row justify-between mb-4 gap-3">
-              <TabsList className="mb-2 sm:mb-0">
-                <TabsTrigger value="all">الكل</TabsTrigger>
-                <TabsTrigger value="day">آخر 24 ساعة</TabsTrigger>
-                <TabsTrigger value="week">آخر أسبوع</TabsTrigger>
-                <TabsTrigger value="high-value">قيمة عالية</TabsTrigger>
-                <TabsTrigger value="recoverable">قابلة للإسترداد</TabsTrigger>
-              </TabsList>
-            </div>
-              
-            <AbandonedOrdersFilters
-              filters={filters}
-              onFiltersChange={setFilters}
-              sources={ORDER_SOURCES}
-              onReset={handleResetFilters}
-            />
-              
-            <Separator className="my-6" />
-            
-            {filteredOrders.length > 0 && (
-              <AbandonedOrdersActions
-                selectedOrders={selectedOrders}
-                onSendReminders={handleSendReminders}
-                onRecoverOrders={handleRecoverOrders}
-                onDeleteOrders={handleDeleteOrders}
-                onExportOrders={handleExportOrders}
-                loading={loading}
-              />
-            )}
-            
-            <div className="mt-4">
-              <AbandonedOrdersTable
-                data={filteredOrders}
-                loading={loading}
-                onRowClick={(order) => {
-                  // عند النقر على الصف، يمكن فتح نافذة تفاصيل الطلب
-                  
-                }}
-                onRecoverOrder={(order) => handleRecoverOrders([order])}
-                onSendReminder={(order) => handleSendReminders([order])}
-                onDeleteOrder={(order) => handleDeleteOrders([order])}
-              />
-            </div>
-          </Tabs>
-        </div>
+        {/* التبويبات */}
+        <Tabs
+          value={activeTab}
+          onValueChange={setActiveTab}
+          className="w-full"
+        >
+          <TabsList className="mb-6">
+            <TabsTrigger value="all">الكل</TabsTrigger>
+            <TabsTrigger value="day">آخر 24 ساعة</TabsTrigger>
+            <TabsTrigger value="week">آخر أسبوع</TabsTrigger>
+            <TabsTrigger value="high-value">قيمة عالية</TabsTrigger>
+            <TabsTrigger value="recoverable">قابلة للإسترداد</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        
+        {/* الجدول المبسط */}
+        <AbandonedOrdersTableSimple
+          data={filteredOrders}
+          loading={loading}
+          onRecoverOrder={(order) => handleRecoverOrders([order])}
+          onSendReminder={(order) => handleSendReminders([order])}
+          onDeleteOrder={(order) => handleDeleteOrders([order])}
+        />
       </div>
-    </Layout>
+    </>
   );
+
+  return renderWithLayout(pageContent);
 };
 
 export default AbandonedOrders;

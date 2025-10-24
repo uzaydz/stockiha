@@ -23,6 +23,8 @@ interface OrdersTableBodyProps {
   shippingProviders: OrdersTableProps['shippingProviders'];
   autoLoadMoreOnScroll?: boolean;
   onLoadMore?: () => void;
+  onOrderUpdated?: (orderId: string, updatedOrder: any) => void;
+  localUpdates?: Record<string, any>;
 }
 
 const OrdersTableBody = memo(({
@@ -43,6 +45,8 @@ const OrdersTableBody = memo(({
   shippingProviders = [],
   autoLoadMoreOnScroll,
   onLoadMore,
+  onOrderUpdated,
+  localUpdates = {},
 }: OrdersTableBodyProps) => {
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -113,6 +117,15 @@ const OrdersTableBody = memo(({
           </TableCell>
         )}
 
+        {visibleColumns.includes("confirmation") && (
+          <TableCell className="py-5 px-6" style={{ contain: 'layout' }}>
+            <div className="flex flex-col gap-2">
+              <Skeleton className="h-5 w-32 bg-muted/60 rounded-lg animate-pulse" />
+              <Skeleton className="h-4 w-24 bg-muted/40 rounded-md animate-pulse" />
+            </div>
+          </TableCell>
+        )}
+
         {visibleColumns.includes("call_confirmation") && (
           <TableCell className="py-5 px-6" style={{ contain: 'layout' }}>
             <Skeleton className="h-7 w-24 bg-muted/60 rounded-xl animate-pulse" />
@@ -175,6 +188,8 @@ const OrdersTableBody = memo(({
         onToggleExpand={() => onToggleExpand(order.id)}
         currentUserId={currentUserId}
         shippingProviders={shippingProviders}
+        onOrderUpdated={onOrderUpdated}
+        localUpdates={localUpdates}
       />
     ))
   );

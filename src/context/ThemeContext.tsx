@@ -60,7 +60,28 @@ function applyThemeImmediate(theme: Theme): void {
     effectiveTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
 
-  // إزالة الفئات القديمة بأمان
+  // تعطيل جميع الانتقالات والرسوم المتحركة فوراً
+  const style = document.createElement('style');
+  style.id = 'theme-transition-disable';
+  style.textContent = `
+    *, *::before, *::after {
+      animation-duration: 0s !important;
+      animation-delay: 0s !important;
+      transition-duration: 0s !important;
+      transition-delay: 0s !important;
+    }
+  `;
+  document.head.appendChild(style);
+  
+  // إزالة التعطيل بعد تطبيق الثيم
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      style.remove();
+    });
+  });
+
+  // تطبيق جميع التغييرات فوراً بدون أي تأخيرات
+  // إزالة الفئات القديمة
   root.classList.remove('light', 'dark');
   if (body) body.classList.remove('light', 'dark');
 
@@ -68,39 +89,30 @@ function applyThemeImmediate(theme: Theme): void {
   root.classList.add(effectiveTheme);
   if (body) body.classList.add(effectiveTheme);
 
-  // تعيين data attributes - تجميع العمليات
-  const updates = [
-    () => root.setAttribute('data-theme', effectiveTheme),
-    () => { if (body) body.setAttribute('data-theme', effectiveTheme); },
-    () => { root.style.colorScheme = effectiveTheme; },
-    () => { if (body) body.style.colorScheme = effectiveTheme; },
-    () => {
-      const metaThemeColor = document.querySelector('meta[name="theme-color"]');
-      if (metaThemeColor) {
-        const themeColor = effectiveTheme === 'dark' ? '#111827' : '#ffffff';
-        metaThemeColor.setAttribute('content', themeColor);
-      }
-    },
-    () => {
-      root.style.setProperty('--theme-transition-duration', '0.1s');
-      root.style.setProperty('--theme-transition-timing', 'ease-out');
-    }
-  ];
+  // تعيين data attributes فوراً
+  root.setAttribute('data-theme', effectiveTheme);
+  if (body) body.setAttribute('data-theme', effectiveTheme);
 
-  // تعطيل الانتقالات مؤقتًا لتجنّب التغيّر المتدرج للعناصر
-  const NO_MOTION_CLASS = 'no-motion';
-  if (!root.classList.contains(NO_MOTION_CLASS)) {
-    root.classList.add(NO_MOTION_CLASS);
-    setTimeout(() => {
-      try { root.classList.remove(NO_MOTION_CLASS); } catch {}
-    }, 150);
+  // تحديث color-scheme فوراً
+  root.style.colorScheme = effectiveTheme;
+  if (body) body.style.colorScheme = effectiveTheme;
+
+  // تحديث meta theme-color فوراً
+  const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+  if (metaThemeColor) {
+    const themeColor = effectiveTheme === 'dark' ? '#111827' : '#ffffff';
+    metaThemeColor.setAttribute('content', themeColor);
   }
 
-  // تطبيق التحديثات في batch واحد مع تجنب forced reflow تماماً
-  // استخدام microtask بدلاً من requestAnimationFrame للتحكم الأفضل
-  Promise.resolve().then(() => {
-    updates.forEach(update => update());
-  });
+  // تعيين خصائص الانتقال - محسنة للسرعة
+  root.style.setProperty('--theme-transition-duration', '0.05s');
+  root.style.setProperty('--theme-transition-timing', 'ease-out');
+  root.style.setProperty('--transition-duration', '0.05s');
+  root.style.setProperty('--transition-timing', 'ease-out');
+  
+  // تعطيل جميع الانتقالات مؤقتاً
+  root.style.setProperty('--global-transition-duration', '0.01ms');
+  root.style.setProperty('--global-animation-duration', '0.01ms');
 }
 
 // دالة تطبيق الثيم مع الألوان المخصصة فوراً - محسنة لتجنب forced reflow
@@ -127,11 +139,9 @@ function applyCustomColorsImmediate(primaryColor?: string, secondaryColor?: stri
     );
   }
 
-  // تطبيق جميع تحديثات الألوان في batch واحد مع microtask
+  // تطبيق جميع تحديثات الألوان فوراً بدون تأخيرات
   if (colorUpdates.length > 0) {
-    Promise.resolve().then(() => {
-      colorUpdates.forEach(update => update());
-    });
+    colorUpdates.forEach(update => update());
   }
 }
 
@@ -221,7 +231,14 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
     initLogRef.current = true;
   }
   
-  const location = useLocation();
+  // حماية من استخدام useLocation خارج Router
+  let location;
+  try {
+    location = useLocation();
+  } catch (error) {
+    // إذا لم يكن Router جاهزاً، استخدم location افتراضي
+    location = { pathname: '/', search: '', hash: '', state: null, key: 'default' };
+  }
   const [isTransitioning] = useState(false);
   
   // حالة الثيم الأساسية
@@ -385,10 +402,15 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
   // تطبيق الثيم الأولي على DOM
   useEffect(() => {
     const themeApplyStart = performance.now();
-    
+
+    // إذا تم تطبيق هذا الثيم للتو عبر setTheme، نتجنب إعادة التطبيق لتفادي reflow إضافي
+    if (lastAppliedThemeRef.current === theme) {
+      return;
+    }
+
     applyThemeToDOM(theme);
     lastAppliedThemeRef.current = theme;
-    
+
     const themeApplyEnd = performance.now();
   }, [theme]);
 
@@ -574,31 +596,23 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
         () => { if (body) body.style.colorScheme = effectiveTheme; }
       ];
 
-      // تطبيق جميع العمليات في microtask واحد
-      Promise.resolve().then(() => {
-        operations.forEach(op => op());
+      // تطبيق جميع العمليات فوراً بدون تأخيرات
+      operations.forEach(op => op());
 
-        if (isDebug) {
-          const endTime = performance.now();
-        }
-      });
+      if (isDebug) {
+        const endTime = performance.now();
+      }
     },
 
     // تبديل سريع بين الثيمين - محسن للأداء القصوى
     toggleFast: () => {
-      // تعطيل التأثيرات المؤقتة للتبديل السريع
-      const root = document.documentElement;
-
-      // إزالة التأثيرات المؤقتة
-      root.style.setProperty('--theme-transition-duration', '0s');
-
       const newTheme = theme === 'dark' ? 'light' : 'dark';
+      
+      // تطبيق الثيم فوراً بدون أي تأخيرات
+      applyThemeImmediate(newTheme);
+      
+      // تحديث الحالة
       setTheme(newTheme);
-
-      // إعادة التأثيرات بعد فترة قصيرة جداً
-      setTimeout(() => {
-        root.style.setProperty('--theme-transition-duration', '0.1s');
-      }, 50);
 
       return newTheme;
     },

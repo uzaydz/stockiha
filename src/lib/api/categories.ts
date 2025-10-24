@@ -373,6 +373,69 @@ export const getSubcategories = async (categoryId?: string, organizationId?: str
   return unifiedGetSubcategories(categoryId, organizationId);
 };
 
+/**
+ * دالة محسنة لجلب الفئات والفئات الفرعية في طلب واحد
+ * تقلل عدد الطلبات من N+1 إلى 1
+ */
+export async function getCategoriesWithSubcategories(organizationId: string): Promise<{
+  categories: Category[];
+  subcategories: Subcategory[];
+}> {
+  const cacheKey = `categories_with_subs_${organizationId}`;
+  
+  try {
+    // محاولة جلب البيانات من الـ cache أولاً
+    const cachedData = await categoriesStore.getItem<{
+      categories: Category[];
+      subcategories: Subcategory[];
+    }>(cacheKey);
+    
+    if (cachedData) {
+      return cachedData;
+    }
+
+    // جلب الفئات والفئات الفرعية في طلبات متوازية
+    const [categoriesData, subcategoriesData] = await Promise.all([
+      supabase
+        .from('product_categories')
+        .select('*')
+        .eq('organization_id', organizationId)
+        .eq('is_active', true)
+        .order('name'),
+      
+      supabase
+        .from('product_subcategories')
+        .select('*')
+        .eq('organization_id', organizationId)
+        .eq('is_active', true)
+        .order('name')
+    ]);
+
+    if (categoriesData.error) {
+      console.error('Error fetching categories:', categoriesData.error);
+      throw categoriesData.error;
+    }
+
+    if (subcategoriesData.error) {
+      console.error('Error fetching subcategories:', subcategoriesData.error);
+      throw subcategoriesData.error;
+    }
+
+    const result = {
+      categories: categoriesData.data || [],
+      subcategories: subcategoriesData.data || []
+    };
+
+    // حفظ البيانات في الـ cache
+    await categoriesStore.setItem(cacheKey, result);
+    
+    return result;
+  } catch (error) {
+    console.error('Error in getCategoriesWithSubcategories:', error);
+    throw error;
+  }
+}
+
 export const getSubcategoryById = async (id: string): Promise<Subcategory | null> => {
   try {
     // التحقق من حالة الاتصال
@@ -578,12 +641,15 @@ export const deleteSubcategory = async (id: string): Promise<void> => {
 };
 
 // مزامنة بيانات الفئات والفئات الفرعية عند بدء التطبيق
-export const syncCategoriesDataOnStartup = async (): Promise<boolean> => {
+export const syncCategoriesDataOnStartup = async (): Promise<{
+  categories: Category[];
+  subcategories: Subcategory[];
+} | null> => {
   try {
     // تحقق مما إذا كان المستخدم متصلاً بالإنترنت
     if (!isOnline()) {
       
-      return false;
+      return null;
     }
     
     // استخدام getSupabaseClient() للحصول على مثيل صالح
@@ -596,7 +662,7 @@ export const syncCategoriesDataOnStartup = async (): Promise<boolean> => {
       .order('name');
       
     if (categoriesError) {
-      return false;
+      return null;
     }
     
     // حفظ الفئات محلياً
@@ -609,7 +675,7 @@ export const syncCategoriesDataOnStartup = async (): Promise<boolean> => {
       .order('name');
       
     if (subcategoriesError) {
-      return false;
+      return null;
     }
     
     // حفظ الفئات الفرعية محلياً
@@ -632,9 +698,12 @@ export const syncCategoriesDataOnStartup = async (): Promise<boolean> => {
       await saveSubcategoriesToLocalStorage(subcategoriesByCategory[categoryId], categoryId);
     }
 
-    return true;
+    return {
+      categories: categories as Category[],
+      subcategories: subcategories as Subcategory[]
+    };
   } catch (error) {
-    return false;
+    return null;
   }
 };
 

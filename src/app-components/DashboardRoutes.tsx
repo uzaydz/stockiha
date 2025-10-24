@@ -1,33 +1,48 @@
 import React, { Suspense } from 'react';
-import { Route, Routes, Outlet } from 'react-router-dom';
+import { Route, Routes, Outlet, Navigate } from 'react-router-dom';
 import ProtectedRoute from '../components/auth/ProtectedRoute';
 import RequireTenant from '../components/auth/RequireTenant';
 import SubscriptionCheck from '../components/subscription/SubscriptionCheck';
 import PermissionGuard from '../components/auth/PermissionGuard';
 import ConditionalRoute from '../components/ConditionalRoute';
-import POSOrdersWrapper from '../components/pos/POSOrdersWrapper';
+import StaffLoginRedirect from '../components/auth/StaffLoginRedirect';
 import * as LazyRoutes from './LazyRoutes.optimized';
 import { PageLoader } from './RouteComponents';
+import { ConfirmationProvider } from '@/context/ConfirmationContext';
 
 // مكون wrapper لـ SubscriptionCheck مع Outlet
 const SubscriptionWrapper = () => (
   <SubscriptionCheck>
-    <Outlet />
+    <StaffLoginRedirect>
+      <Outlet />
+    </StaffLoginRedirect>
   </SubscriptionCheck>
 );
 
 // ============ مسارات لوحة التحكم المكتملة ============
 export const DashboardRoutes = () => (
+  <ConfirmationProvider>
   <Routes>
     <Route element={<ProtectedRoute />}>
       <Route element={<RequireTenant />}>
         {/* 🔥 SubscriptionCheck واحد فقط يغطي جميع المسارات */}
         <Route element={<SubscriptionWrapper />}>
-          {/* لوحة التحكم الرئيسية */}
+          {/* لوحة التحكم الكلاسيكية - الصفحة الرئيسية */}
           <Route index element={
             <Suspense fallback={<PageLoader message="جاري تحميل لوحة التحكم..." />}>
               <LazyRoutes.Dashboard />
             </Suspense>
+          } />
+          
+          {/* لوحة تحكم نقطة البيع - اللوحة الكلاسيكية مع POSPureLayout */}
+          <Route path="pos-dashboard" element={
+            <ConditionalRoute appId="pos-system">
+              <PermissionGuard requiredPermissions={['accessPOS']}>
+                <Suspense fallback={<PageLoader message="جاري تحميل لوحة تحكم نقطة البيع..." />}>
+                  <LazyRoutes.Dashboard />
+                </Suspense>
+              </PermissionGuard>
+            </ConditionalRoute>
           } />
           
           {/* المنتجات والمخزون */}
@@ -36,21 +51,56 @@ export const DashboardRoutes = () => (
               <LazyRoutes.Products />
             </Suspense>
           } />
+
+          {/* مركز المبيعات والطلبات */}
+          <Route path="sales-operations/:tab?" element={
+            <Suspense fallback={<PageLoader message="جاري تحميل مركز المبيعات والطلبات..." />}>
+              <LazyRoutes.SalesOperationsPage />
+            </Suspense>
+          } />
+
+          {/* مركز الخدمات */}
+          <Route path="services-operations/:tab?" element={
+            <Suspense fallback={<PageLoader message="جاري تحميل مركز الخدمات..." />}>
+              <LazyRoutes.ServicesOperationsPage />
+            </Suspense>
+          } />
+
+          {/* مركز التقارير والتحليلات */}
+          <Route path="reports-operations/:tab?" element={
+            <Suspense fallback={<PageLoader message="جاري تحميل مركز التقارير..." />}>
+              <LazyRoutes.ReportsOperationsPage />
+            </Suspense>
+          } />
+
+          {/* توجيه المسارات القديمة إلى المركز الجديد لضمان POS layout */}
+          <Route path="orders-v2" element={<Navigate to="/dashboard/sales-operations/onlineOrders" replace />} />
+          <Route path="blocked-customers" element={<Navigate to="/dashboard/sales-operations/blocked" replace />} />
+          <Route path="abandoned-orders" element={<Navigate to="/dashboard/sales-operations/abandoned" replace />} />
+          <Route path="invoices" element={<Navigate to="/dashboard/pos-operations/invoices" replace />} />
           
           {/* إضافة منتج جديد */}
           <Route path="products/new" element={
             <PermissionGuard requiredPermissions={['addProducts']}>
               <Suspense fallback={<PageLoader message="جاري تحميل نموذج المنتج..." />}>
-                <LazyRoutes.ProductForm />
+                <LazyRoutes.ProductForm useStandaloneLayout={false} />
               </Suspense>
             </PermissionGuard>
           } />
-          
+
+          <Route path="product-operations/:tab?" element={
+            <PermissionGuard requiredPermissions={['viewProducts']}>
+              <Suspense fallback={<PageLoader message="جاري تحميل مركز إدارة المنتجات..." />}>
+                <LazyRoutes.ProductOperationsPage />
+              </Suspense>
+            </PermissionGuard>
+          } />
+
           {/* تعديل منتج موجود */}
           <Route path="product/:id" element={
             <PermissionGuard requiredPermissions={['editProducts']}>
               <Suspense fallback={<PageLoader message="جاري تحميل تعديل المنتج..." />}>
-                <LazyRoutes.ProductForm />
+                <LazyRoutes.ProductForm useStandaloneLayout={false} />
               </Suspense>
             </PermissionGuard>
           } />
@@ -96,23 +146,9 @@ export const DashboardRoutes = () => (
             </PermissionGuard>
           } />
           
-          {/* خدمات الإصلاح */}
-          <Route path="repair-services" element={
-            <ConditionalRoute appId="repair-services">
-              <PermissionGuard requiredPermissions={['viewServices']}>
-                <Suspense fallback={<PageLoader message="جاري تحميل خدمات الإصلاح..." />}>
-                  <LazyRoutes.RepairServices />
-                </Suspense>
-              </PermissionGuard>
-            </ConditionalRoute>
-          } />
+          {/* خدمات الإصلاح → توجيه لمركز الخدمات */}
+          <Route path="repair-services" element={<Navigate to="/dashboard/services-operations/repair" replace />} />
           
-          {/* المبيعات والطلبات */}
-          <Route path="sales" element={
-            <Suspense fallback={<PageLoader message="جاري تحميل المبيعات..." />}>
-              <LazyRoutes.OptimizedSales />
-            </Suspense>
-          } />
           
           <Route path="orders" element={
             <Suspense fallback={<PageLoader message="جاري تحميل الطلبات..." />}>
@@ -166,13 +202,7 @@ export const DashboardRoutes = () => (
             </Suspense>
           } />
           
-          <Route path="customer-debts" element={
-            <ConditionalRoute appId="pos-system">
-              <Suspense fallback={<PageLoader message="جاري تحميل ديون العملاء..." />}>
-                <LazyRoutes.CustomerDebts />
-              </Suspense>
-            </ConditionalRoute>
-          } />
+          <Route path="customer-debts" element={<Navigate to="/dashboard/pos-operations/debts" replace />} />
           
           <Route path="customer-debt-details/:customerId" element={
             <ConditionalRoute appId="pos-system">
@@ -208,13 +238,19 @@ export const DashboardRoutes = () => (
               </Suspense>
             </PermissionGuard>
           } />
+
+          <Route path="confirmation-center" element={
+            <PermissionGuard requiredPermissions={['manageEmployees']}>
+              <Suspense fallback={<PageLoader message="جاري تحميل مركز التأكيد..." />}>
+                <LazyRoutes.ConfirmationCenter />
+              </Suspense>
+            </PermissionGuard>
+          } />
           
           {/* المالية والتقارير */}
           <Route path="expenses" element={
             <PermissionGuard requiredPermissions={['viewFinancialReports']}>
-              <Suspense fallback={<PageLoader message="جاري تحميل المصروفات..." />}>
-                <LazyRoutes.Expenses />
-              </Suspense>
+              <Navigate to="/dashboard/reports-operations/expenses" replace />
             </PermissionGuard>
           } />
           
@@ -225,21 +261,12 @@ export const DashboardRoutes = () => (
               </Suspense>
             </PermissionGuard>
           } />
-          
-          <Route path="invoices" element={
-            <Suspense fallback={<PageLoader message="جاري تحميل الفواتير..." />}>
-              <LazyRoutes.Invoices />
-            </Suspense>
-          } />
 
-          {/* التحليلات المالية الشاملة */}
-          <Route path="financial-analytics" element={
-            <PermissionGuard requiredPermissions={['viewFinancialReports']}>
-              <Suspense fallback={<PageLoader message="جاري تحميل التحليلات المالية..." />}>
-                <LazyRoutes.FinancialAnalytics />
-              </Suspense>
-            </PermissionGuard>
-          } />
+          {/* التحليلات المالية الشاملة → المركز */}
+          <Route path="financial-analytics" element={<Navigate to="/dashboard/reports-operations/financial" replace />} />
+
+          {/* نظام الزكاة → المركز */}
+          <Route path="zakat" element={<Navigate to="/dashboard/reports-operations/zakat" replace />} />
           
           {/* نقطة البيع */}
           <Route path="pos" element={
@@ -252,6 +279,8 @@ export const DashboardRoutes = () => (
             </ConditionalRoute>
           } />
           
+          {/* لوحة تحكم نقطة البيع - تم نقلها إلى /dashboard في RouteComponents */}
+          
           {/* نقطة البيع المتقدمة */}
           <Route path="pos-advanced" element={
             <ConditionalRoute appId="pos-system">
@@ -262,115 +291,98 @@ export const DashboardRoutes = () => (
               </PermissionGuard>
             </ConditionalRoute>
           } />
-          
-          <Route path="pos-orders" element={
-            <ConditionalRoute appId="pos-system">
-              <PermissionGuard requiredPermissions={['viewPOSOrders', 'viewOrders', 'accessPOS']}>
-                <POSOrdersWrapper>
-                  <Suspense fallback={<PageLoader message="جاري تحميل طلبات نقطة البيع..." />}>
-                    <LazyRoutes.POSOrdersOptimized />
-                  </Suspense>
-                </POSOrdersWrapper>
-              </PermissionGuard>
-            </ConditionalRoute>
-          } />
-          
-          <Route path="returns" element={
+
+          <Route path="pos-operations/:tab?" element={
             <ConditionalRoute appId="pos-system">
               <PermissionGuard requiredPermissions={['accessPOS']}>
-                <Suspense fallback={<PageLoader message="جاري تحميل المرتجعات..." />}>
-                  <LazyRoutes.ProductReturns />
+                <Suspense fallback={<PageLoader message="جاري تحميل مركز عمليات نقطة البيع..." />}>
+                  <LazyRoutes.POSOperationsPage />
                 </Suspense>
               </PermissionGuard>
             </ConditionalRoute>
           } />
           
-          <Route path="losses" element={
+          <Route path="pos-orders" element={<Navigate to="/dashboard/pos-operations/orders" replace />} />
+          
+          {/* كشف حساب 104 */}
+          <Route path="etat104" element={
             <ConditionalRoute appId="pos-system">
               <PermissionGuard requiredPermissions={['accessPOS']}>
-                <Suspense fallback={<PageLoader message="جاري تحميل الخسائر..." />}>
-                  <LazyRoutes.LossDeclarations />
+                <Suspense fallback={<PageLoader message="جاري تحميل كشف حساب 104..." />}>
+                  <LazyRoutes.Etat104 />
                 </Suspense>
               </PermissionGuard>
             </ConditionalRoute>
           } />
           
-          {/* الموردين */}
-          <Route path="suppliers" element={
-            <Suspense fallback={<PageLoader message="جاري تحميل الموردين..." />}>
-              <LazyRoutes.SuppliersManagement />
-            </Suspense>
+          {/* إعدادات نقطة البيع */}
+          <Route path="pos-settings" element={
+            <ConditionalRoute appId="pos-system">
+              <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+                <Suspense fallback={<PageLoader message="جاري تحميل إعدادات نقطة البيع..." />}>
+                  <LazyRoutes.POSSettingsPage />
+                </Suspense>
+              </PermissionGuard>
+            </ConditionalRoute>
           } />
           
-          {/* إضافة مورد جديد */}
-          <Route path="suppliers/new" element={
-            <PermissionGuard requiredPermissions={['manageSuppliers']}>
-              <Suspense fallback={<PageLoader message="جاري تحميل نموذج مورد جديد..." />}>
-                <LazyRoutes.SuppliersManagement />
+          {/* إعدادات المحل */}
+          <Route path="store-business-settings" element={
+            <ConditionalRoute appId="pos-system">
+              <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+                <Suspense fallback={<PageLoader message="جاري تحميل إعدادات المحل..." />}>
+                  <LazyRoutes.StoreBusinessSettings />
+                </Suspense>
+              </PermissionGuard>
+            </ConditionalRoute>
+          } />
+          
+          {/* إدارة الموظفين والجلسات */}
+          <Route path="staff-management" element={
+            <ConditionalRoute appId="pos-system">
+              <PermissionGuard requiredPermissions={['manageEmployees']}>
+                <Suspense fallback={<PageLoader message="جاري تحميل إدارة الموظفين..." />}>
+                  <LazyRoutes.StaffManagement />
+                </Suspense>
+              </PermissionGuard>
+            </ConditionalRoute>
+          } />
+          
+          <Route path="returns" element={<Navigate to="/dashboard/pos-operations/returns" replace />} />
+          
+          <Route path="losses" element={<Navigate to="/dashboard/pos-operations/losses" replace />} />
+          
+          {/* مركز إدارة الموظفين */}
+          <Route path="staff-operations/:tab?" element={
+            <ConditionalRoute appId="pos-system">
+              <PermissionGuard requiredPermissions={['manageEmployees']}>
+                <Suspense fallback={<PageLoader message="جاري تحميل مركز إدارة الموظفين..." />}>
+                  <LazyRoutes.StaffOperationsPage />
+                </Suspense>
+              </PermissionGuard>
+            </ConditionalRoute>
+          } />
+          
+          {/* مركز إدارة الموردين والمشتريات */}
+          <Route path="supplier-operations/:tab?" element={
+            <PermissionGuard requiredPermissions={['viewSuppliers']}>
+              <Suspense fallback={<PageLoader message="جاري تحميل مركز إدارة الموردين..." />}>
+                <LazyRoutes.SupplierOperationsPage />
               </Suspense>
             </PermissionGuard>
           } />
-          
-          <Route path="suppliers/purchases" element={
-            <Suspense fallback={<PageLoader message="جاري تحميل مشتريات الموردين..." />}>
-              <LazyRoutes.SupplierPurchases />
-            </Suspense>
-          } />
-          
-          {/* إضافة مشتريات جديدة من الموردين */}
-          <Route path="suppliers/purchases/new" element={
-            <PermissionGuard requiredPermissions={['manageSuppliers']}>
-              <Suspense fallback={<PageLoader message="جاري تحميل نموذج مشتريات جديدة..." />}>
-                <LazyRoutes.SupplierPurchases />
-              </Suspense>
-            </PermissionGuard>
-          } />
-          
-          {/* عرض تفاصيل مشتريات من المورد */}
-          <Route path="suppliers/purchases/:purchaseId" element={
-            <Suspense fallback={<PageLoader message="جاري تحميل تفاصيل المشتريات..." />}>
-              <LazyRoutes.SupplierPurchases />
-            </Suspense>
-          } />
-          
-          {/* تعديل مشتريات من المورد */}
-          <Route path="suppliers/purchases/:purchaseId/edit" element={
-            <PermissionGuard requiredPermissions={['manageSuppliers']}>
-              <Suspense fallback={<PageLoader message="جاري تحميل تعديل المشتريات..." />}>
-                <LazyRoutes.SupplierPurchases />
-              </Suspense>
-            </PermissionGuard>
-          } />
-          
-          <Route path="suppliers/payments" element={
-            <Suspense fallback={<PageLoader message="جاري تحميل مدفوعات الموردين..." />}>
-              <LazyRoutes.SupplierPayments />
-            </Suspense>
-          } />
-          
-          {/* إضافة دفعة جديدة للمورد */}
-          <Route path="suppliers/payments/new" element={
-            <PermissionGuard requiredPermissions={['manageSuppliers']}>
-              <Suspense fallback={<PageLoader message="جاري تحميل نموذج دفعة جديدة..." />}>
-                <LazyRoutes.SupplierPayments />
-              </Suspense>
-            </PermissionGuard>
-          } />
-          
-          {/* عرض تفاصيل دفعة للمورد */}
-          <Route path="suppliers/payments/:paymentId" element={
-            <Suspense fallback={<PageLoader message="جاري تحميل تفاصيل الدفعة..." />}>
-              <LazyRoutes.SupplierPayments />
-            </Suspense>
-          } />
-          
-          <Route path="suppliers/reports" element={
-            <PermissionGuard requiredPermissions={['viewReports']}>
-              <Suspense fallback={<PageLoader message="جاري تحميل تقارير الموردين..." />}>
-                <LazyRoutes.SupplierReports />
-              </Suspense>
-            </PermissionGuard>
-          } />
+
+          {/* توجيه المسارات القديمة إلى المركز الجديد */}
+          <Route path="suppliers" element={<Navigate to="/dashboard/supplier-operations/suppliers" replace />} />
+          <Route path="suppliers/new" element={<Navigate to="/dashboard/supplier-operations/suppliers" replace />} />
+          <Route path="suppliers/purchases" element={<Navigate to="/dashboard/supplier-operations/purchases" replace />} />
+          <Route path="suppliers/purchases/new" element={<Navigate to="/dashboard/supplier-operations/purchases" replace />} />
+          <Route path="suppliers/purchases/:purchaseId" element={<Navigate to="/dashboard/supplier-operations/purchases" replace />} />
+          <Route path="suppliers/purchases/:purchaseId/edit" element={<Navigate to="/dashboard/supplier-operations/purchases" replace />} />
+          <Route path="suppliers/payments" element={<Navigate to="/dashboard/supplier-operations/payments" replace />} />
+          <Route path="suppliers/payments/new" element={<Navigate to="/dashboard/supplier-operations/payments" replace />} />
+          <Route path="suppliers/payments/:paymentId" element={<Navigate to="/dashboard/supplier-operations/payments" replace />} />
+          <Route path="suppliers/reports" element={<Navigate to="/dashboard/supplier-operations/reports" replace />} />
           
           {/* تحميل الألعاب */}
           <Route path="game-downloads" element={
@@ -383,29 +395,39 @@ export const DashboardRoutes = () => (
             </ConditionalRoute>
           } />
           
-          {/* الإعدادات */}
-          <Route path="settings" element={
-            <Suspense fallback={<PageLoader message="جاري تحميل الإعدادات..." />}>
-              <LazyRoutes.SettingsPage />
+          {/* مركز الإعدادات العامة */}
+          <Route path="settings-operations/:tab?" element={
+            <Suspense fallback={<PageLoader message="جاري تحميل مركز الإعدادات..." />}>
+              <LazyRoutes.SettingsOperationsPage />
             </Suspense>
           } />
+
+          {/* توجيه المسارات القديمة إلى المركز الجديد */}
+          <Route path="settings" element={<Navigate to="/dashboard/settings-operations/settings" replace />} />
+          <Route path="settings/:section" element={<Navigate to="/dashboard/settings-operations/settings" replace />} />
+          <Route path="subscription" element={<Navigate to="/dashboard/settings-operations/subscription" replace />} />
+          <Route path="custom-domains" element={<Navigate to="/dashboard/settings-operations/custom-domains" replace />} />
+          <Route path="/docs/custom-domains" element={<Navigate to="/dashboard/settings-operations/domains-docs" replace />} />
           
-          <Route path="settings/:section" element={
-            <Suspense fallback={<PageLoader message="جاري تحميل الإعدادات..." />}>
-              <LazyRoutes.SettingsPage />
-            </Suspense>
-          } />
-          
-          {/* محرر المتجر */}
-          <Route path="store-editor" element={
+          {/* مركز إدارة المتجر الإلكتروني */}
+          <Route path="store-operations/:tab?" element={
             <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
-              <Suspense fallback={<PageLoader message="جاري تحميل محرر المتجر..." />}>
-                <LazyRoutes.StoreEditor />
+              <Suspense fallback={<PageLoader message="جاري تحميل مركز إدارة المتجر..." />}>
+                <LazyRoutes.StoreOperationsPage />
               </Suspense>
             </PermissionGuard>
           } />
+
+          {/* توجيه المسارات القديمة إلى المركز الجديد */}
+          <Route path="store-settings" element={<Navigate to="/dashboard/store-operations/store-settings" replace />} />
+          <Route path="store-editor" element={<Navigate to="/dashboard/store-operations/store-editor" replace />} />
+          <Route path="organization-components-editor" element={<Navigate to="/dashboard/store-operations/components" replace />} />
+          <Route path="store-themes" element={<Navigate to="/dashboard/store-operations/themes" replace />} />
+          <Route path="landing-pages" element={<Navigate to="/dashboard/store-operations/landing-pages" replace />} />
+          <Route path="thank-you-editor" element={<Navigate to="/dashboard/store-operations/thank-you" replace />} />
+          <Route path="delivery" element={<Navigate to="/dashboard/store-operations/delivery" replace />} />
           
-          {/* محرر المتجر V2 */}
+          {/* محرر المتجر V2 - keep as standalone */}
           <Route path="store-editor-v2" element={
             <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
               <Suspense fallback={<PageLoader message="جاري تحميل محرر المتجر V2..." />}>
@@ -413,43 +435,17 @@ export const DashboardRoutes = () => (
               </Suspense>
             </PermissionGuard>
           } />
-          
-          {/* إعدادات المتجر */}
-          <Route path="store-settings" element={
-            <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
-              <Suspense fallback={<PageLoader message="جاري تحميل إعدادات المتجر..." />}>
-                <LazyRoutes.StoreSettingsPage />
-              </Suspense>
-            </PermissionGuard>
+
+          {/* إعادة توجيه لواجهة المتجر */}
+          <Route path="open-store" element={
+            <Suspense fallback={<PageLoader message="جاري فتح واجهة المتجر..." />}>
+              <LazyRoutes.OpenStoreRedirect />
+            </Suspense>
           } />
           
-          {/* إدارة النطاقات */}
-          <Route path="custom-domains" element={
-            <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
-              <Suspense fallback={<PageLoader message="جاري تحميل النطاقات..." />}>
-                <LazyRoutes.DomainSettings />
-              </Suspense>
-            </PermissionGuard>
-          } />
           
-          {/* خدمات الاشتراك */}
-          <Route path="subscription-services" element={
-            <ConditionalRoute appId="subscription-services">
-              <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
-                <Suspense fallback={<PageLoader message="جاري تحميل خدمات الاشتراك..." />}>
-                  <LazyRoutes.SubscriptionServices />
-                </Suspense>
-              </PermissionGuard>
-            </ConditionalRoute>
-          } />
-          
-          <Route path="delivery" element={
-            <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
-              <Suspense fallback={<PageLoader message="جاري تحميل إدارة التوصيل..." />}>
-                <LazyRoutes.DeliveryManagement />
-              </Suspense>
-            </PermissionGuard>
-          } />
+          {/* خدمات الاشتراك → توجيه لمركز الخدمات */}
+          <Route path="subscription-services" element={<Navigate to="/dashboard/services-operations/subscription" replace />} />
           
           <Route path="apps" element={
             <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
@@ -459,27 +455,11 @@ export const DashboardRoutes = () => (
             </PermissionGuard>
           } />
           
-          {/* صفحات الهبوط والنماذج */}
-          <Route path="landing-pages" element={
-            <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
-              <Suspense fallback={<PageLoader message="جاري تحميل صفحات الهبوط..." />}>
-                <LazyRoutes.LandingPagesManager />
-              </Suspense>
-            </PermissionGuard>
-          } />
-          
+          {/* منشئ صفحة الهبوط - keep as standalone */}
           <Route path="/landing-page-builder/:id" element={
             <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
               <Suspense fallback={<PageLoader message="جاري تحميل منشئ صفحة الهبوط..." />}>
                 <LazyRoutes.LandingPageBuilder />
-              </Suspense>
-            </PermissionGuard>
-          } />
-          
-          <Route path="thank-you-editor" element={
-            <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
-              <Suspense fallback={<PageLoader message="جاري تحميل محرر صفحة الشكر..." />}>
-                <LazyRoutes.ThankYouPageEditor />
               </Suspense>
             </PermissionGuard>
           } />
@@ -559,26 +539,17 @@ export const DashboardRoutes = () => (
             </ConditionalRoute>
           } />
 
-          {/* فهرس الدورات التعليمية */}
-          <Route path="courses" element={
-            <Suspense fallback={<PageLoader message="جاري تحميل الدورات التعليمية..." />}>
-              <LazyRoutes.CoursesIndex />
+          {/* مركز دورات ستوكيها */}
+          <Route path="courses-operations/:tab?" element={
+            <Suspense fallback={<PageLoader message="جاري تحميل مركز الدورات..." />}>
+              <LazyRoutes.CoursesOperationsPage />
             </Suspense>
           } />
 
-          {/* دورة التسويق الإلكتروني */}
-          <Route path="courses/digital-marketing" element={
-            <Suspense fallback={<PageLoader message="جاري تحميل دورة التسويق الإلكتروني..." />}>
-              <LazyRoutes.DigitalMarketingCourse />
-            </Suspense>
-          } />
-
-          {/* دورة التجارة الإلكترونية والدفع عند الاستلام */}
-          <Route path="courses/e-commerce" element={
-            <Suspense fallback={<PageLoader message="جاري تحميل دورة التجارة الإلكترونية..." />}>
-              <LazyRoutes.ECommerceCourse />
-            </Suspense>
-          } />
+          {/* توجيه المسارات القديمة إلى المركز الجديد */}
+          <Route path="courses" element={<Navigate to="/dashboard/courses-operations/all" replace />} />
+          <Route path="courses/digital-marketing" element={<Navigate to="/dashboard/courses-operations/digital-marketing" replace />} />
+          <Route path="courses/e-commerce" element={<Navigate to="/dashboard/courses-operations/e-commerce" replace />} />
 
           {/* المحور الأول - أساسيات التجارة الإلكترونية */}
           <Route path="courses/e-commerce/module/1" element={
@@ -594,33 +565,10 @@ export const DashboardRoutes = () => (
             </Suspense>
           } />
 
-          {/* دورة إنشاء متجر إلكتروني عبر سطوكيها */}
-          <Route path="courses/e-commerce-store" element={
-            <Suspense fallback={<PageLoader message="جاري تحميل دورة إنشاء المتجر..." />}>
-              <LazyRoutes.ECommerceStoreCourse />
-            </Suspense>
-          } />
-
-          {/* دورة تيك توك أدس الشاملة */}
-          <Route path="courses/tiktok-marketing" element={
-            <Suspense fallback={<PageLoader message="جاري تحميل دورة تيك توك أدس..." />}>
-              <LazyRoutes.TikTokAdsCourse />
-            </Suspense>
-          } />
-
-          {/* دورة التجار التقليديين */}
-          <Route path="courses/traditional-business" element={
-            <Suspense fallback={<PageLoader message="جاري تحميل دورة التجار التقليديين..." />}>
-              <LazyRoutes.TraditionalBusinessCourse />
-            </Suspense>
-          } />
-
-          {/* دورة مقدمي الخدمات والتصليحات */}
-          <Route path="courses/service-providers" element={
-            <Suspense fallback={<PageLoader message="جاري تحميل دورة مقدمي الخدمات..." />}>
-              <LazyRoutes.ServiceProvidersCourse />
-            </Suspense>
-          } />
+          <Route path="courses/e-commerce-store" element={<Navigate to="/dashboard/courses-operations/e-commerce-store" replace />} />
+          <Route path="courses/tiktok-marketing" element={<Navigate to="/dashboard/courses-operations/tiktok-marketing" replace />} />
+          <Route path="courses/traditional-business" element={<Navigate to="/dashboard/courses-operations/traditional-business" replace />} />
+          <Route path="courses/service-providers" element={<Navigate to="/dashboard/courses-operations/service-providers" replace />} />
 
           {/* جميع محاور دورة التسويق الإلكتروني */}
           <Route path="courses/digital-marketing/module/1" element={
@@ -769,6 +717,7 @@ export const DashboardRoutes = () => (
       </Route>
     </Route>
   </Routes>
+  </ConfirmationProvider>
 );
 
 export default DashboardRoutes;

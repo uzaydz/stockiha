@@ -35,6 +35,7 @@ import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/co
 import { Separator } from '@/components/ui/separator';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { POSSharedLayoutControls } from '@/components/pos-layout/types';
 
 // استيراد مكونات الإعدادات
 import ProfileSettings from '@/components/settings/ProfileSettings';
@@ -65,7 +66,9 @@ const itemVariants = {
   animate: { opacity: 1, x: 0 }
 };
 
-const SettingsPage = () => {
+interface SettingsPageProps extends POSSharedLayoutControls {}
+
+const SettingsPage: React.FC<SettingsPageProps> = ({ useStandaloneLayout = true } = {}) => {
   const { section = 'profile' } = useParams<{ section?: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -403,15 +406,14 @@ const SettingsPage = () => {
     return currentTab || { label: 'غير محدد', description: '' };
   };
 
-  return (
-    <Layout>
-      <motion.div 
-        className="min-h-screen settings-gradient-bg settings-container"
-        variants={pageVariants}
-        initial="initial"
-        animate="animate"
-        exit="exit"
-      >
+  const content = (
+    <motion.div 
+      className="min-h-screen settings-gradient-bg settings-container"
+      variants={pageVariants}
+      initial="initial"
+      animate="animate"
+      exit="exit"
+    >
         <div className="container max-w-7xl py-4 md:py-6 px-4 md:px-6 settings-scroll-container">
           {/* رأس الصفحة المحسن للهاتف */}
           <motion.div 
@@ -588,9 +590,10 @@ const SettingsPage = () => {
              </Tabs>
            </motion.div>
         </div>
-      </motion.div>
-    </Layout>
+    </motion.div>
   );
+
+  return useStandaloneLayout ? <Layout>{content}</Layout> : content;
 };
 
 export default SettingsPage;

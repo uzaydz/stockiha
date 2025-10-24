@@ -1,28 +1,15 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { networkStatusManager } from '@/lib/events/networkStatusManager';
 
 export function useNetworkStatus() {
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [lastOnlineChange, setLastOnlineChange] = useState(new Date());
+  const [status, setStatus] = useState(() => networkStatusManager.getStatus());
 
   useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true);
-      setLastOnlineChange(new Date());
-    };
-
-    const handleOffline = () => {
-      setIsOnline(false);
-      setLastOnlineChange(new Date());
-    };
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
+    return networkStatusManager.subscribe(setStatus);
   }, []);
 
-  return { isOnline, lastOnlineChange };
+  return {
+    isOnline: status.isOnline,
+    lastOnlineChange: new Date(status.timestamp)
+  };
 }

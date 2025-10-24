@@ -16,6 +16,7 @@ interface InterceptionStats {
 class AuthInterceptorV2 {
   private static instance: AuthInterceptorV2;
   private isEnabled = false;
+  private isInInterception = false;
   private stats: InterceptionStats = {
     getUser: 0,
     getSession: 0,
@@ -96,12 +97,23 @@ class AuthInterceptorV2 {
     this.stats.total++;
 
     try {
+      // إضافة حماية من الحلقة اللانهائية
+      if (this.isInInterception) {
+        return {
+          data: { session: null },
+          error: new Error('Interception loop detected')
+        };
+      }
+      
+      this.isInInterception = true;
       const session = await authSingleton.getSession();
+      this.isInInterception = false;
       return {
         data: { session },
         error: null
       };
     } catch (error) {
+      this.isInInterception = false;
       return {
         data: { session: null },
         error

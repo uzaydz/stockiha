@@ -1,12 +1,10 @@
 import React, { useState, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import { 
   Plus, 
   Trash2, 
@@ -18,8 +16,7 @@ import {
   Crown,
   Package,
   Edit3,
-  DollarSign,
-  Percent
+  DollarSign
 } from 'lucide-react';
 import { SpecialOffer, SpecialOffersConfig } from '@/types/specialOffers';
 import { cn } from '@/lib/utils';
@@ -89,7 +86,7 @@ const SpecialOffersManager: React.FC<SpecialOffersManagerProps> = ({
     });
   }, [config, onChange]);
 
-  // عروض افتراضية ذكية
+  // عروض افتراضية مبسطة
   const generateSmartOffers = useCallback(() => {
     const smartOffers: SpecialOffer[] = [
       {
@@ -169,107 +166,104 @@ const SpecialOffersManager: React.FC<SpecialOffersManagerProps> = ({
   }, [basePrice, config, onChange]);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-r from-purple-500/10 to-pink-500/10 rounded-lg">
-              <Gift className="w-6 h-6 text-purple-600" />
-            </div>
-            <div>
-              <h3 className="text-xl font-bold">العروض الخاصة</h3>
-              <p className="text-sm text-muted-foreground font-normal">
-                إنشاء عروض جذابة لزيادة المبيعات
-              </p>
-            </div>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* تفعيل العروض */}
-          <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
-            <div>
-              <Label className="text-base font-semibold">تفعيل العروض الخاصة</Label>
-              <p className="text-sm text-muted-foreground">
-                عرض خيارات كميات مختلفة بأسعار مخفضة
-              </p>
-            </div>
-            <Switch
-              checked={config.enabled}
-              onCheckedChange={(enabled) => onChange({ ...config, enabled })}
-            />
+    <div className="space-y-2">
+      {/* Compact Header */}
+      <div className="flex items-center justify-between p-2 bg-background/50 border border-border/60 rounded-lg">
+        <div className="flex items-center gap-2">
+          <Gift className="w-4 h-4 text-primary" />
+          <div>
+            <h3 className="text-xs font-medium">إدارة العروض</h3>
+            <p className="text-[10px] text-muted-foreground">إنشاء عروض جذابة</p>
           </div>
+        </div>
+        <Switch
+          checked={config.enabled}
+          onCheckedChange={(enabled) => {
+            onChange({ ...config, enabled });
+          }}
+        />
+      </div>
 
-          {/* أزرار سريعة */}
-          {config.enabled && (
-            <div className="flex gap-3">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={generateSmartOffers}
-                className="flex items-center gap-2"
-              >
-                <Zap className="w-4 h-4" />
-                عروض ذكية
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={createNewOffer}
-                className="flex items-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                إضافة عرض
-              </Button>
+      {/* Compact Buttons */}
+      {config.enabled && (
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              generateSmartOffers();
+            }}
+            className="flex items-center gap-1 text-[10px] px-2 py-1 h-7"
+          >
+            <Zap className="w-3 h-3" />
+            عروض ذكية
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              createNewOffer();
+            }}
+            className="flex items-center gap-1 text-[10px] px-2 py-1 h-7"
+          >
+            <Plus className="w-3 h-3" />
+            إضافة عرض
+          </Button>
+        </div>
+      )}
+
+      {/* Compact Offers List */}
+      {config.enabled && (
+        <div className="space-y-2">
+          {config.offers.length === 0 ? (
+            <div className="p-3 border border-dashed border-border/60 rounded-lg bg-background/50">
+              <div className="flex flex-col items-center justify-center py-4">
+                <Package className="w-6 h-6 text-muted-foreground mb-2" />
+                <h3 className="text-xs font-semibold mb-1">لا توجد عروض بعد</h3>
+                <p className="text-[10px] text-muted-foreground text-center mb-3 max-w-xs">
+                  ابدأ بإنشاء عروض جذابة
+                </p>
+                <Button 
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    generateSmartOffers();
+                  }} 
+                  size="sm" 
+                  className="text-[10px] px-2 py-1 h-6"
+                >
+                  <Zap className="w-3 h-3 mr-1" />
+                  عروض ذكية
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {config.offers.map((offer, index) => (
+                <OfferCard
+                  key={offer.id}
+                  offer={offer}
+                  index={index}
+                  isEditing={editingOffer === offer.id}
+                  onEdit={() => setEditingOffer(offer.id)}
+                  onSave={() => setEditingOffer(null)}
+                  onCancel={() => setEditingOffer(null)}
+                  onUpdate={(updates) => updateOffer(offer.id, updates)}
+                  onDelete={() => deleteOffer(offer.id)}
+                  currency={config.currency}
+                />
+              ))}
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      {/* قائمة العروض */}
-      <AnimatePresence>
-        {config.enabled && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="space-y-4"
-          >
-            {config.offers.length === 0 ? (
-              <Card className="border-dashed">
-                <CardContent className="flex flex-col items-center justify-center py-12">
-                  <Package className="w-12 h-12 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">لا توجد عروض بعد</h3>
-                  <p className="text-muted-foreground text-center mb-4">
-                    ابدأ بإنشاء عروض جذابة لزيادة مبيعاتك
-                  </p>
-                  <Button onClick={generateSmartOffers} className="flex items-center gap-2">
-                    <Zap className="w-4 h-4" />
-                    إنشاء عروض ذكية
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid gap-4">
-                {config.offers.map((offer, index) => (
-                  <OfferCard
-                    key={offer.id}
-                    offer={offer}
-                    index={index}
-                    isEditing={editingOffer === offer.id}
-                    onEdit={() => setEditingOffer(offer.id)}
-                    onSave={() => setEditingOffer(null)}
-                    onCancel={() => setEditingOffer(null)}
-                    onUpdate={(updates) => updateOffer(offer.id, updates)}
-                    onDelete={() => deleteOffer(offer.id)}
-                    currency={config.currency}
-                  />
-                ))}
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+        </div>
+      )}
     </div>
   );
 };
@@ -311,213 +305,264 @@ const OfferCard: React.FC<OfferCardProps> = ({
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.1 }}
-    >
-      <Card className={cn(
-        "relative overflow-hidden transition-all duration-300",
-        offer.isRecommended && "ring-2 ring-green-500/50",
-        offer.isPopular && "ring-2 ring-orange-500/50"
-      )}>
-        {/* شارات */}
-        <div className="absolute top-4 left-4 z-10 flex gap-2">
-          {offer.isRecommended && (
-            <Badge className="bg-green-500 text-white flex items-center gap-1">
-              <Crown className="w-3 h-3" />
-              الأفضل
-            </Badge>
-          )}
-          {offer.isPopular && (
-            <Badge className="bg-orange-500 text-white flex items-center gap-1">
-              <Star className="w-3 h-3" />
-              شائع
-            </Badge>
-          )}
-          {offer.badgeText && (
-            <Badge variant={offer.badgeColor as any} className="flex items-center gap-1">
-              {offer.badgeText}
-            </Badge>
-          )}
-        </div>
+    <div className={cn(
+      "relative border border-border/60 rounded-lg bg-background/50 transition-all duration-300",
+      offer.isRecommended && "ring-1 ring-green-500/50",
+      offer.isPopular && "ring-1 ring-orange-500/50"
+    )}>
+      {/* Compact Badges */}
+      <div className="absolute top-1 left-1 z-10 flex gap-0.5">
+        {offer.isRecommended && (
+          <Badge className="bg-green-500 text-white text-[9px] px-1 py-0.5">
+            <Crown className="w-2 h-2 mr-0.5" />
+            الأفضل
+          </Badge>
+        )}
+        {offer.isPopular && (
+          <Badge className="bg-orange-500 text-white text-[9px] px-1 py-0.5">
+            <Star className="w-2 h-2 mr-0.5" />
+            شائع
+          </Badge>
+        )}
+        {offer.badgeText && (
+          <Badge variant={offer.badgeColor as any} className="text-[9px] px-1 py-0.5">
+            {offer.badgeText}
+          </Badge>
+        )}
+      </div>
 
-        <CardContent className="p-6">
-          {isEditing ? (
-            // وضع التحرير
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label>اسم العرض</Label>
-                  <Input
-                    value={localOffer.name}
-                    onChange={(e) => setLocalOffer({ ...localOffer, name: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label>الوصف</Label>
-                  <Input
-                    value={localOffer.description || ''}
-                    onChange={(e) => setLocalOffer({ ...localOffer, description: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label>الكمية</Label>
-                  <Input
-                    type="number"
-                    value={localOffer.quantity}
-                    onChange={(e) => setLocalOffer({ ...localOffer, quantity: parseInt(e.target.value) || 1 })}
-                  />
-                </div>
-                <div>
-                  <Label>الكمية المجانية</Label>
-                  <Input
-                    type="number"
-                    value={localOffer.bonusQuantity || 0}
-                    onChange={(e) => setLocalOffer({ ...localOffer, bonusQuantity: parseInt(e.target.value) || 0 })}
-                  />
-                </div>
-                <div>
-                  <Label>السعر الأصلي</Label>
-                  <Input
-                    type="number"
-                    value={localOffer.originalPrice}
-                    onChange={(e) => setLocalOffer({ ...localOffer, originalPrice: parseFloat(e.target.value) || 0 })}
-                  />
-                </div>
-                <div>
-                  <Label>السعر بعد الخصم</Label>
-                  <Input
-                    type="number"
-                    value={localOffer.discountedPrice}
-                    onChange={(e) => setLocalOffer({ ...localOffer, discountedPrice: parseFloat(e.target.value) || 0 })}
-                  />
-                </div>
+      <div className="p-2">
+        {isEditing ? (
+          // Compact Edit Mode
+          <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <Label className="text-[10px]">اسم العرض</Label>
+                <Input
+                  value={localOffer.name}
+                  onChange={(e) => setLocalOffer({ ...localOffer, name: e.target.value })}
+                  className="h-6 text-[10px]"
+                />
               </div>
-
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <Switch
-                    checked={localOffer.freeShipping}
-                    onCheckedChange={(checked) => setLocalOffer({ ...localOffer, freeShipping: checked })}
-                  />
-                  <Label>التوصيل مجاني</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Switch
-                    checked={localOffer.isRecommended}
-                    onCheckedChange={(checked) => setLocalOffer({ ...localOffer, isRecommended: checked })}
-                  />
-                  <Label>عرض موصى به</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Switch
-                    checked={localOffer.isPopular}
-                    onCheckedChange={(checked) => setLocalOffer({ ...localOffer, isPopular: checked })}
-                  />
-                  <Label>عرض شائع</Label>
-                </div>
+              <div>
+                <Label className="text-[10px]">الوصف</Label>
+                <Input
+                  value={localOffer.description || ''}
+                  onChange={(e) => setLocalOffer({ ...localOffer, description: e.target.value })}
+                  className="h-6 text-[10px]"
+                />
               </div>
-
-              <div className="flex gap-2 pt-4">
-                <Button onClick={handleSave} size="sm">حفظ</Button>
-                <Button variant="outline" onClick={handleCancel} size="sm">إلغاء</Button>
+              <div>
+                <Label className="text-[10px]">الكمية</Label>
+                <Input
+                  type="number"
+                  value={localOffer.quantity}
+                  onChange={(e) => setLocalOffer({ ...localOffer, quantity: parseInt(e.target.value) || 1 })}
+                  className="h-6 text-[10px]"
+                />
+              </div>
+              <div>
+                <Label className="text-[10px]">مجاني</Label>
+                <Input
+                  type="number"
+                  value={localOffer.bonusQuantity || 0}
+                  onChange={(e) => setLocalOffer({ ...localOffer, bonusQuantity: parseInt(e.target.value) || 0 })}
+                  className="h-6 text-[10px]"
+                />
+              </div>
+              <div>
+                <Label className="text-[10px]">السعر الأصلي</Label>
+                <Input
+                  type="number"
+                  value={localOffer.originalPrice}
+                  onChange={(e) => setLocalOffer({ ...localOffer, originalPrice: parseFloat(e.target.value) || 0 })}
+                  className="h-6 text-[10px]"
+                />
+              </div>
+              <div>
+                <Label className="text-[10px]">السعر الجديد</Label>
+                <Input
+                  type="number"
+                  value={localOffer.discountedPrice}
+                  onChange={(e) => setLocalOffer({ ...localOffer, discountedPrice: parseFloat(e.target.value) || 0 })}
+                  className="h-6 text-[10px]"
+                />
               </div>
             </div>
-          ) : (
-            // وضع العرض
-            <div>
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-bold">{offer.name}</h3>
-                  {offer.description && (
-                    <p className="text-sm text-muted-foreground">{offer.description}</p>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <Button variant="ghost" size="sm" onClick={onEdit}>
-                    <Edit3 className="w-4 h-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={onDelete} className="text-red-500 hover:text-red-600">
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* الكمية */}
-                <div className="text-center">
-                  <div className="flex items-center justify-center gap-2 mb-2">
-                    <Package className="w-5 h-5 text-blue-500" />
-                    <span className="text-2xl font-bold">{offer.quantity}</span>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1">
+                <Switch
+                  checked={localOffer.freeShipping}
+                  onCheckedChange={(checked) => {
+                    setLocalOffer({ ...localOffer, freeShipping: checked });
+                  }}
+                />
+                <Label className="text-[10px]">توصيل مجاني</Label>
+              </div>
+              <div className="flex items-center gap-1">
+                <Switch
+                  checked={localOffer.isRecommended}
+                  onCheckedChange={(checked) => {
+                    setLocalOffer({ ...localOffer, isRecommended: checked });
+                  }}
+                />
+                <Label className="text-[10px]">موصى به</Label>
+              </div>
+              <div className="flex items-center gap-1">
+                <Switch
+                  checked={localOffer.isPopular}
+                  onCheckedChange={(checked) => {
+                    setLocalOffer({ ...localOffer, isPopular: checked });
+                  }}
+                />
+                <Label className="text-[10px]">شائع</Label>
+              </div>
+            </div>
+
+            <div className="flex gap-1 pt-1">
+              <Button 
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleSave();
+                }} 
+                size="sm" 
+                className="text-[10px] px-2 py-1 h-6"
+              >
+                حفظ
+              </Button>
+              <Button 
+                type="button"
+                variant="outline" 
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleCancel();
+                }} 
+                size="sm" 
+                className="text-[10px] px-2 py-1 h-6"
+              >
+                إلغاء
+              </Button>
+            </div>
+          </div>
+        ) : (
+          // Compact Display Mode
+          <div>
+            <div className="flex items-start justify-between mb-2">
+              <div>
+                <h3 className="text-xs font-bold">{offer.name}</h3>
+                {offer.description && (
+                  <p className="text-[10px] text-muted-foreground">{offer.description}</p>
+                )}
+              </div>
+              <div className="flex gap-0.5">
+                <Button 
+                  type="button"
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onEdit();
+                  }} 
+                  className="h-5 w-5 p-0"
+                >
+                  <Edit3 className="w-2.5 h-2.5" />
+                </Button>
+                <Button 
+                  type="button"
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    onDelete();
+                  }} 
+                  className="h-5 w-5 p-0 text-red-500 hover:text-red-600"
+                >
+                  <Trash2 className="w-2.5 h-2.5" />
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              {/* الكمية والسعر */}
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-medium">الكمية:</span>
+                  <div className="flex items-center gap-0.5">
+                    <span className="text-sm font-bold">{offer.quantity}</span>
                     {offer.bonusQuantity && offer.bonusQuantity > 0 && (
                       <>
-                        <span className="text-lg text-muted-foreground">+</span>
-                        <span className="text-lg font-semibold text-green-600">{offer.bonusQuantity}</span>
+                        <span className="text-xs text-muted-foreground">+</span>
+                        <span className="text-xs font-semibold text-green-600">{offer.bonusQuantity}</span>
                       </>
                     )}
+                    <span className="text-[9px] text-muted-foreground">
+                      {offer.bonusQuantity && offer.bonusQuantity > 0 ? 'مجاني' : 'قطع'}
+                    </span>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    {offer.bonusQuantity && offer.bonusQuantity > 0 ? 'قطع + مجاني' : 'قطع'}
-                  </p>
                 </div>
-
-                {/* السعر */}
-                <div className="text-center">
-                  <div className="space-y-1">
+                
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-medium">السعر:</span>
+                  <div className="text-right">
                     {offer.originalPrice !== offer.discountedPrice && (
-                      <div className="text-sm text-muted-foreground line-through">
+                      <div className="text-[9px] text-muted-foreground line-through">
                         {offer.originalPrice.toLocaleString()} {currency}
                       </div>
                     )}
-                    <div className="text-2xl font-bold text-green-600">
+                    <div className="text-sm font-bold text-green-600">
                       {offer.discountedPrice.toLocaleString()} {currency}
                     </div>
                     {offer.discountPercentage > 0 && (
-                      <Badge variant="destructive" className="text-xs">
+                      <Badge variant="destructive" className="text-[9px] px-1 py-0.5">
                         -{offer.discountPercentage}%
                       </Badge>
                     )}
                   </div>
                 </div>
-
-                {/* الميزات */}
-                <div className="space-y-2">
-                  {offer.freeShipping && (
-                    <div className="flex items-center gap-2 text-sm text-green-600">
-                      <Truck className="w-4 h-4" />
-                      <span>التوصيل مجاني</span>
-                    </div>
-                  )}
-                  {offer.savings > 0 && (
-                    <div className="flex items-center gap-2 text-sm text-blue-600">
-                      <TrendingUp className="w-4 h-4" />
-                      <span>توفير {offer.savings.toLocaleString()} {currency}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <DollarSign className="w-4 h-4" />
-                    <span>{offer.pricePerUnit.toLocaleString()} {currency}/قطعة</span>
-                  </div>
-                </div>
               </div>
 
-              {offer.features.length > 0 && (
-                <div className="mt-4 pt-4 border-t">
-                  <div className="flex flex-wrap gap-2">
-                    {offer.features.map((feature, idx) => (
-                      <Badge key={idx} variant="secondary" className="text-xs">
-                        {feature}
-                      </Badge>
-                    ))}
+              {/* الميزات والتوفير */}
+              <div className="space-y-1">
+                {offer.freeShipping && (
+                  <div className="flex items-center gap-1 text-[10px] text-green-600">
+                    <Truck className="w-2.5 h-2.5" />
+                    <span>توصيل مجاني</span>
                   </div>
+                )}
+                {offer.savings > 0 && (
+                  <div className="flex items-center gap-1 text-[10px] text-blue-600">
+                    <TrendingUp className="w-2.5 h-2.5" />
+                    <span>توفير {offer.savings.toLocaleString()} {currency}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                  <DollarSign className="w-2.5 h-2.5" />
+                  <span>{offer.pricePerUnit.toLocaleString()} {currency}/قطعة</span>
                 </div>
-              )}
+              </div>
             </div>
-          )}
-        </CardContent>
-      </Card>
-    </motion.div>
+
+            {offer.features.length > 0 && (
+              <div className="mt-2 pt-1 border-t border-border/60">
+                <div className="flex flex-wrap gap-0.5">
+                  {offer.features.map((feature, idx) => (
+                    <Badge key={idx} variant="secondary" className="text-[9px] px-1 py-0.5">
+                      {feature}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
 

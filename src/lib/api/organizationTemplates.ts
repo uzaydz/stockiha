@@ -117,3 +117,68 @@ export async function getFormSettingTemplatesForProductPage(
     return [];
   }
 }
+
+// حفظ/تعيين قالب واجهة المتجر كمختار للمؤسسة (is_default = true لنوع STORE_THEME)
+export async function setSelectedStoreTheme(
+  organizationId: string,
+  templateId: string,
+  templateName: string
+): Promise<boolean> {
+  try {
+    // إلغاء التعيين الافتراضي عن بقية القوالب لنفس المؤسسة
+    const { error: clearError } = await supabase
+      .from('organization_templates')
+      .update({ is_default: false })
+      .eq('organization_id', organizationId)
+      .eq('template_type', 'STORE_THEME');
+    if (clearError) {
+      toast.error('تعذر تحديث القالب الافتراضي الحالي.');
+      // نواصل لأن بعض القواعد قد لا تمنع التعيين الجديد
+    }
+
+    // إدراج أو تحديث القالب المختار كمفضل
+    const { error: upsertError } = await supabase
+      .from('organization_templates')
+      .upsert(
+        {
+          id: templateId,
+          name: templateName,
+          template_type: 'STORE_THEME',
+          is_default: true,
+          organization_id: organizationId
+        },
+        { onConflict: 'id' }
+      );
+
+    if (upsertError) {
+      toast.error('تعذر حفظ القالب المختار للمؤسسة.');
+      return false;
+    }
+    return true;
+  } catch (e) {
+    toast.error('حدث خطأ غير متوقع أثناء حفظ القالب.');
+    return false;
+  }
+}
+
+// جلب القالب المختار لواجهة المتجر للمؤسسة (أو null إن لم يوجد)
+export async function getSelectedStoreTheme(
+  organizationId: string
+): Promise<OrganizationTemplate | null> {
+  try {
+    const { data, error } = await supabase
+      .from('organization_templates')
+      .select('id, name, template_type, is_default')
+      .eq('organization_id', organizationId)
+      .eq('template_type', 'STORE_THEME')
+      .eq('is_default', true)
+      .limit(1)
+      .maybeSingle();
+    if (error) {
+      return null;
+    }
+    return data ?? null;
+  } catch (e) {
+    return null;
+  }
+}

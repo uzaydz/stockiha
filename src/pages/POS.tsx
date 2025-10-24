@@ -10,6 +10,7 @@ import { useTenant } from '@/context/TenantContext';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { logInventoryAction, logServerSync, logError, enableInventoryLogging } from '@/utils/inventoryLogger';
+import { addAppEventListener } from '@/lib/events/eventManager';
 
 // استيراد الـ hooks المحسنة
 import { usePOSBarcode } from '@/components/pos/hooks/usePOSBarcode';
@@ -362,8 +363,7 @@ const POS = () => {
     let orderCompletionTimeout: NodeJS.Timeout;
 
     // إنشاء event listener للاستماع لأحداث إتمام الطلبات
-    const handleOrderCompletion = async (event: CustomEvent) => {
-      const { orderId, type, customerOrderNumber } = event.detail;
+    const handleOrderCompletion = async ({ orderId, type, customerOrderNumber }: any) => {
       
       logOrderSubmit(
         orderId,
@@ -405,13 +405,19 @@ const POS = () => {
     };
 
     // تسجيل الـ event listeners
-    window.addEventListener('pos-order-completed', handleOrderCompletion as EventListener);
-    window.addEventListener('pos-return-completed', handleOrderCompletion as EventListener);
+    const unsubscribeOrder = addAppEventListener(
+      'pos-order-completed',
+      (detail) => handleOrderCompletion(detail)
+    );
+    const unsubscribeReturn = addAppEventListener(
+      'pos-return-completed',
+      (detail) => handleOrderCompletion(detail)
+    );
 
     return () => {
       // تنظيف الـ event listeners والـ timeouts
-      window.removeEventListener('pos-order-completed', handleOrderCompletion as EventListener);
-      window.removeEventListener('pos-return-completed', handleOrderCompletion as EventListener);
+      unsubscribeOrder();
+      unsubscribeReturn();
       if (orderCompletionTimeout) {
         clearTimeout(orderCompletionTimeout);
       }

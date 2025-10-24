@@ -10,6 +10,7 @@ import { getFastOrganizationId } from '@/utils/earlyPreload';
 import { getPreloadedProductFromDOM } from '@/utils/productDomPreload';
 import { globalCache, CacheKeys } from '@/lib/globalCache';
 import type { TenantStateRefs } from './TenantState';
+import { dispatchAppEvent } from '@/lib/events/eventManager';
 
 interface TenantInitializationProps {
   organization: Organization | null;
@@ -103,15 +104,15 @@ export function TenantInitialization({
             isInitialized.current = true;
 
             // إرسال حدث فوري
-            window.dispatchEvent(new CustomEvent('bazaar:tenant-context-ready', {
-              detail: {
-                organization: quickOrg,
-                isEarlyDetection: true,
-                loadTime: 0,
-                timestamp: Date.now(),
-                source: 'preloaded-data'
-              }
-            }));
+            dispatchAppEvent('bazaar:tenant-context-ready', {
+              organization: quickOrg,
+              isEarlyDetection: true,
+              loadTime: 0,
+              timestamp: Date.now(),
+              source: 'preloaded-data'
+            }, {
+              dedupeKey: `tenant-ready:${quickOrg.id ?? 'preloaded'}`
+            });
           }
         }).catch((e) => {
           console.warn('⚠️ [TenantProvider] فشل في تحميل early preload:', e);
@@ -141,15 +142,15 @@ export function TenantInitialization({
       isInitialized.current = true;
 
       // إرسال حدث فوري
-      window.dispatchEvent(new CustomEvent('bazaar:tenant-context-ready', {
-        detail: {
-          organization: quickOrg,
-          isEarlyDetection: true,
-          loadTime: 0,
-          timestamp: Date.now(),
-          source: 'fast-org-id'
-        }
-      }));
+      dispatchAppEvent('bazaar:tenant-context-ready', {
+        organization: quickOrg,
+        isEarlyDetection: true,
+        loadTime: 0,
+        timestamp: Date.now(),
+        source: 'fast-org-id'
+      }, {
+        dedupeKey: `tenant-ready:${quickOrg.id ?? 'fast'}`
+      });
     }
 
     // ⚡ تنفيذ فوري للتهيئة الحرجة بدون requestIdleCallback
@@ -206,15 +207,15 @@ export function TenantInitialization({
 
 
     // إرسال حدث تأكيد
-    window.dispatchEvent(new CustomEvent('bazaar:tenant-context-ready', {
-      detail: {
-        organization: authOrganization,
-        isEarlyDetection: false,
-        loadTime: Date.now() - refs.startTime.current,
-        timestamp: Date.now(),
-        source: 'auth-sync'
-      }
-    }));
+    dispatchAppEvent('bazaar:tenant-context-ready', {
+      organization: authOrganization,
+      isEarlyDetection: false,
+      loadTime: Date.now() - refs.startTime.current,
+      timestamp: Date.now(),
+      source: 'auth-sync'
+    }, {
+      dedupeKey: `tenant-ready:${authOrganization.id}`
+    });
 
     const authSyncTime = performance.now() - authSyncStartTime;
 
@@ -243,15 +244,15 @@ export function TenantInitialization({
         (window as any).__TENANT_CONTEXT_ORG__ = authOrganization;
 
         // إرسال حدث تأكيد
-        window.dispatchEvent(new CustomEvent('bazaar:tenant-context-ready', {
-          detail: {
-            organization: authOrganization,
-            isEarlyDetection: false,
-            loadTime: Date.now() - refs.startTime.current,
-            timestamp: Date.now(),
-            source: 'initial-login-sync'
-          }
-        }));
+        dispatchAppEvent('bazaar:tenant-context-ready', {
+          organization: authOrganization,
+          isEarlyDetection: false,
+          loadTime: Date.now() - refs.startTime.current,
+          timestamp: Date.now(),
+          source: 'initial-login-sync'
+        }, {
+          dedupeKey: `tenant-ready:${authOrganization.id}`
+        });
       }
     }
   }, [user?.id, authOrganization?.id]); // ✅ تحسين التبعيات

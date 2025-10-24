@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
 import POSPureLayout from '@/components/pos-layout/POSPureLayout';
+import { POSSharedLayoutControls } from '@/components/pos-layout/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -41,6 +42,17 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import { 
+  getAllLocalLossDeclarations, 
+  createLocalLossDeclaration, 
+  approveLocalLossDeclaration, 
+  rejectLocalLossDeclaration,
+  calculateLossTotals,
+  type LocalLossDeclaration 
+} from '@/api/localLossDeclarationService';
+import { syncPendingLossDeclarations, fetchLossDeclarationsFromServer } from '@/api/syncLossDeclarations';
+import { inventoryDB, type LocalLossItem } from '@/database/localDb';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 
 // Types
 interface Loss {
@@ -132,9 +144,16 @@ interface ProductVariant {
   variant_display_name: string;
 }
 
-const LossDeclarations: React.FC = () => {
+interface LossDeclarationsProps extends POSSharedLayoutControls {}
+
+const LossDeclarations: React.FC<LossDeclarationsProps> = ({
+  useStandaloneLayout = true,
+  onRegisterRefresh,
+  onLayoutStateChange
+}) => {
   const { user } = useAuth();
   const { currentOrganization } = useTenant();
+  const { isOnline } = useNetworkStatus();
 
   // State
   const [losses, setLosses] = useState<Loss[]>([]);
@@ -227,62 +246,69 @@ const LossDeclarations: React.FC = () => {
   const [selectedLossItems, setSelectedLossItems] = useState<LossItem[]>([]);
   const [loadingLossItems, setLoadingLossItems] = useState(false);
 
-  // Fetch losses
+  // دالة مساعدة لتحويل loss_type
+  const convertLossType = (formType: 'damaged' | 'expired' | 'theft' | 'spoilage' | 'breakage' | 'defective' | 'other'): 'damage' | 'theft' | 'expiry' | 'other' => {
+    switch (formType) {
+      case 'damaged': return 'damage';
+      case 'expired': return 'expiry';
+      case 'theft': return 'theft';
+      case 'spoilage':
+      case 'breakage':
+      case 'defective':
+      case 'other':
+      default:
+        return 'other';
+    }
+  };
+
+  // Fetch losses - محدث لاستخدام الخدمات المحلية
   const fetchLosses = useCallback(async () => {
     if (!currentOrganization?.id) return;
 
     setLoading(true);
     try {
-      // جلب الخسائر أولاً
-      const { data: lossesData, error: lossesError } = await (supabase as any)
-        .from('losses')
-        .select('*')
-        .eq('organization_id', currentOrganization.id)
-        .order('created_at', { ascending: false });
+      // جلب الخسائر من IndexedDB
+      const localLosses = await getAllLocalLossDeclarations(currentOrganization.id);
 
-      if (lossesError) throw lossesError;
-
-      // جلب عدد المنتجات لكل خسارة
+      // جلب عدد المنتجات لكل خسارة من IndexedDB
       const lossesWithItemCount = await Promise.all(
-        (lossesData || []).map(async (loss: any) => {
-          const { count, error: countError } = await (supabase as any)
-            .from('loss_items')
-            .select('*', { count: 'exact', head: true })
-            .eq('loss_id', loss.id);
+        localLosses.map(async (loss) => {
+          const items = await inventoryDB.lossItems
+            .where('loss_id')
+            .equals(loss.id)
+            .toArray();
 
           return {
             ...loss,
-            items_count: countError ? 0 : (count || 0),
-            total_items_count: loss.total_items_count || (countError ? 0 : (count || 0))
+            items_count: items.length,
+            total_items_count: loss.total_items_count || items.length
           };
         })
       );
 
       setLosses(lossesWithItemCount as Loss[]);
     } catch (error) {
+      console.error('خطأ في جلب تصريحات الخسائر:', error);
       setLosses([]);
-      // toast.error('حدث خطأ في جلب تصريحات الخسائر');
     } finally {
       setLoading(false);
     }
   }, [currentOrganization?.id, statusFilter, typeFilter, currentPage]);
 
-  // Fetch stats
+  // Fetch stats - محدث لاستخدام الخدمات المحلية
   const fetchStats = useCallback(async () => {
     if (!currentOrganization?.id) return;
 
     try {
-      const { data: losses } = await (supabase as any)
-        .from('losses')
-        .select('status, total_cost_value, total_selling_value')
-        .eq('organization_id', currentOrganization.id);
+      // جلب الخسائر من IndexedDB
+      const losses = await getAllLocalLossDeclarations(currentOrganization.id);
 
       if (losses) {
         const stats = losses.reduce((acc: any, l: any) => {
           acc.total++;
           acc[l.status as keyof typeof acc]++;
-          acc.totalCostValue += parseFloat(l.total_cost_value || '0');
-          acc.totalSellingValue += parseFloat(l.total_selling_value || '0');
+          acc.totalCostValue += parseFloat(l.total_cost_value?.toString() || '0');
+          acc.totalSellingValue += parseFloat(l.total_selling_value?.toString() || '0');
           return acc;
         }, {
           total: 0,
@@ -297,6 +323,7 @@ const LossDeclarations: React.FC = () => {
         setStats(stats);
       }
     } catch (error) {
+      console.error('خطأ في جلب الإحصائيات:', error);
       setStats({
         total: 0,
         pending: 0,
@@ -309,50 +336,161 @@ const LossDeclarations: React.FC = () => {
     }
   }, [currentOrganization?.id]);
 
-  // Search products
+  const handleRefresh = useCallback(async () => {
+    await Promise.all([fetchLosses(), fetchStats()]);
+  }, [fetchLosses, fetchStats]);
+
+  useEffect(() => {
+    if (!onRegisterRefresh) return;
+    onRegisterRefresh(handleRefresh);
+    return () => onRegisterRefresh(null);
+  }, [handleRefresh, onRegisterRefresh]);
+
+  useEffect(() => {
+    if (!onLayoutStateChange) return;
+    onLayoutStateChange({
+      isRefreshing: loading,
+      connectionStatus: isOnline ? 'connected' : 'disconnected'
+    });
+  }, [loading, onLayoutStateChange, isOnline]);
+
+  // جلب الخسائر عند التحميل
+  useEffect(() => {
+    fetchLosses();
+    fetchStats();
+  }, [fetchLosses, fetchStats]);
+
+  // مزامنة تلقائية عند الاتصال بالإنترنت
+  useEffect(() => {
+    const syncData = async () => {
+      if (!isOnline || !currentOrganization?.id) return;
+
+      try {
+        // مزامنة الخسائر المعلقة
+        const syncResult = await syncPendingLossDeclarations();
+        
+        if (syncResult.success > 0) {
+          console.log(`✅ تمت مزامنة ${syncResult.success} تصريح خسارة`);
+        }
+
+        // جلب الخسائر من السيرفر وتحديث الحالة مباشرة
+        await fetchLossDeclarationsFromServer(currentOrganization.id);
+        
+        // تحديث البيانات محلياً بدون إعادة تشغيل fetchLosses (لتجنب infinite loop)
+        const localLosses = await getAllLocalLossDeclarations(currentOrganization.id);
+        const lossesWithItemCount = await Promise.all(
+          localLosses.map(async (loss) => {
+            const items = await inventoryDB.lossItems
+              .where('loss_id')
+              .equals(loss.id)
+              .toArray();
+
+            return {
+              ...loss,
+              items_count: items.length,
+              total_items_count: loss.total_items_count || items.length
+            };
+          })
+        );
+        setLosses(lossesWithItemCount as Loss[]);
+        
+        // تحديث الإحصائيات محلياً
+        const stats = localLosses.reduce((acc: any, loss: any) => {
+          acc.total++;
+          acc.totalValue += loss.total_value || 0;
+          if (loss.status === 'pending') acc.pending++;
+          if (loss.status === 'approved') acc.approved++;
+          if (loss.status === 'rejected') acc.rejected++;
+          return acc;
+        }, { total: 0, totalValue: 0, pending: 0, approved: 0, rejected: 0 });
+        setStats(stats);
+      } catch (error) {
+        console.error('خطأ في المزامنة:', error);
+      }
+    };
+
+    syncData();
+  }, [isOnline, currentOrganization?.id]);
+
+  const renderWithLayout = (
+    children: React.ReactNode,
+    overrides?: {
+      isRefreshing?: boolean;
+      connectionStatus?: 'connected' | 'disconnected' | 'reconnecting';
+    }
+  ) => {
+    if (!useStandaloneLayout) {
+      return children;
+    }
+
+    return (
+      <POSPureLayout
+        onRefresh={handleRefresh}
+        isRefreshing={overrides?.isRefreshing ?? loading}
+        connectionStatus={overrides?.connectionStatus ?? 'connected'}
+      >
+        {children}
+      </POSPureLayout>
+    );
+  };
+
+  // Search products - محدث لاستخدام IndexedDB مع Supabase للمتغيرات
   const searchProducts = async (query: string) => {
     if (!query || !currentOrganization?.id) return;
 
     setSearchingProducts(true);
     try {
-      const { data, error } = await supabase
-        .from('products')
-        .select(`
-          id, 
-          name, 
-          sku, 
-          purchase_price, 
-          price, 
-          stock_quantity,
-          product_colors(id),
-          product_sizes(id)
-        `)
-        .eq('organization_id', currentOrganization.id)
-        .or(`name.ilike.%${query}%,sku.ilike.%${query}%`)
-        .limit(20);
+      // البحث في IndexedDB
+      const allProducts = await inventoryDB.products
+        .where('organization_id')
+        .equals(currentOrganization.id)
+        .toArray();
 
-      if (error) throw error;
+      // فلترة بالاسم أو SKU
+      const lowerQuery = query.toLowerCase();
+      const filteredProducts = allProducts
+        .filter(p => 
+          p.name.toLowerCase().includes(lowerQuery) || 
+          p.sku.toLowerCase().includes(lowerQuery)
+        )
+        .slice(0, 20);
 
-      if (data) {
-        // إضافة معلومات المتغيرات للمنتجات
-        const productsWithVariants = data.map((product: any) => {
-          // تسجيل للتتبع (فقط في التطوير)
-          if (process.env.NODE_ENV === 'development') {
+      // جلب معلومات المتغيرات من Supabase (لأنها غير محفوظة في IndexedDB)
+      const productsWithVariants = await Promise.all(
+        filteredProducts.map(async (product) => {
+          try {
+            const [colorsRes, sizesRes] = await Promise.all([
+              supabase
+                .from('product_colors')
+                .select('id')
+                .eq('product_id', product.id)
+                .limit(1),
+              supabase
+                .from('product_sizes')
+                .select('id')
+                .eq('product_id', product.id)
+                .limit(1)
+            ]);
+
+            return {
+              ...product,
+              has_colors: (colorsRes.data?.length || 0) > 0,
+              has_sizes: (sizesRes.data?.length || 0) > 0
+            };
+          } catch (err) {
+            // في حالة الفشل، نعتبر المنتج بدون متغيرات
+            return {
+              ...product,
+              has_colors: false,
+              has_sizes: false
+            };
           }
-          
-          return {
-            ...product,
-            has_colors: product.product_colors && product.product_colors.length > 0,
-            has_sizes: product.product_sizes && product.product_sizes.length > 0,
-            product_colors: undefined, // إزالة البيانات المؤقتة
-            product_sizes: undefined
-          };
-        });
-        setProducts(productsWithVariants);
-      } else {
-        setProducts([]);
-      }
+        })
+      );
+
+      setProducts(productsWithVariants as Product[]);
     } catch (error) {
+      console.error('خطأ في البحث عن المنتجات:', error);
       toast.error('حدث خطأ في البحث عن المنتجات');
     } finally {
       setSearchingProducts(false);
@@ -488,7 +626,7 @@ const LossDeclarations: React.FC = () => {
     }
   };
 
-  // Create loss declaration
+  // Create loss declaration - محدث لاستخدام الخدمات المحلية
   const createLossDeclaration = async () => {
     if (!user?.id || !currentOrganization?.id || createForm.lossItems.length === 0) {
       toast.error('يجب إضافة عنصر واحد على الأقل');
@@ -502,126 +640,121 @@ const LossDeclarations: React.FC = () => {
 
     try {
       // حساب القيم الإجمالية
-      const totalCostValue = createForm.lossItems.reduce((sum, item) => 
-        sum + (item.quantity_lost * item.unit_cost), 0);
-      const totalSellingValue = createForm.lossItems.reduce((sum, item) => 
-        sum + (item.quantity_lost * item.unit_selling_price), 0);
+      const { totalCostValue, totalSellingValue, totalItemsCount } = calculateLossTotals(
+        createForm.lossItems.map(item => ({
+          lost_quantity: item.quantity_lost,
+          unit_cost_price: item.unit_cost,
+          unit_selling_price: item.unit_selling_price,
+          total_cost_value: item.quantity_lost * item.unit_cost,
+          total_selling_value: item.quantity_lost * item.unit_selling_price
+        } as any))
+      );
 
       // إنشاء رقم تصريح الخسارة
       const lossNumber = `LOSS-${Date.now()}`;
 
-      const lossData = {
+      // إعداد بيانات الخسارة
+      // ملاحظة: بعض الحقول من الفورم تُخزن في notes لأنها غير موجودة في LocalLossDeclaration
+      const additionalNotes = [
+        createForm.locationDescription && `الموقع: ${createForm.locationDescription}`,
+        createForm.witnessName && `الشاهد: ${createForm.witnessName}`,
+        createForm.insuranceReference && `مرجع التأمين: ${createForm.insuranceReference}`,
+        createForm.externalReference && `مرجع خارجي: ${createForm.externalReference}`,
+        createForm.internalNotes && `ملاحظات داخلية: ${createForm.internalNotes}`,
+        createForm.notes
+      ].filter(Boolean).join('\n');
+
+      const lossData: Omit<LocalLossDeclaration, 'id' | 'created_at' | 'updated_at' | 'synced' | 'syncStatus' | 'pendingOperation'> = {
         loss_number: lossNumber,
-        loss_type: createForm.lossType,
+        loss_type: convertLossType(createForm.lossType), // تحويل النوع ليتطابق مع LocalLossDeclaration,
         loss_category: createForm.lossCategory,
         loss_description: createForm.lossDescription,
         incident_date: new Date(createForm.incidentDate).toISOString(),
-        location_description: createForm.locationDescription,
-        witness_name: createForm.witnessName,
-        requires_manager_approval: createForm.requiresManagerApproval,
-        insurance_claim: createForm.insuranceClaim,
-        insurance_reference: createForm.insuranceReference || null,
-        external_reference: createForm.externalReference || null,
-        notes: createForm.notes || null,
-        internal_notes: createForm.internalNotes || null,
+        notes: additionalNotes || undefined,
         reported_by: user.id,
         organization_id: currentOrganization.id,
         status: 'pending',
         total_cost_value: totalCostValue,
         total_selling_value: totalSellingValue,
-        total_items_count: createForm.lossItems.length
+        total_items_count: totalItemsCount
       };
 
-      // إدراج الخسارة
-      const { data: loss, error: lossError } = await (supabase as any)
-        .from('losses')
-        .insert([lossData])
-        .select()
-        .single();
-
-      if (lossError) throw lossError;
-
-              // إدراج عناصر الخسارة
-        if (loss) {
-          const lossItemsData = createForm.lossItems.map(item => {
-            // التحقق من صحة البيانات قبل الحفظ
-            if (typeof item.stock_before_loss !== 'number' || item.stock_before_loss < 0) {
-              throw new Error(`خطأ في بيانات المخزون للمنتج ${item.product_name}`);
-            }
-            if (typeof item.stock_after_loss !== 'number' || item.stock_after_loss < 0) {
-              throw new Error(`خطأ في بيانات المخزون بعد الخسارة للمنتج ${item.product_name}`);
-            }
-            
-            return {
-            loss_id: loss.id,
-            product_id: item.product_id,
-            product_name: item.product_name,
-            product_sku: item.product_sku,
-            lost_quantity: item.quantity_lost,
-            unit_cost_price: item.unit_cost,
-            unit_selling_price: item.unit_selling_price,
-            total_cost_value: item.quantity_lost * item.unit_cost,
-            total_selling_value: item.quantity_lost * item.unit_selling_price,
-            loss_condition: item.loss_condition,
-            loss_percentage: 100, // افتراضي 100% خسارة
-            stock_before_loss: item.stock_before_loss,
-            stock_after_loss: item.stock_after_loss,
-            color_id: item.color_id || null,
-            size_id: item.size_id || null,
-            color_name: item.color_name || null,
-            size_name: item.size_name || null,
-            variant_stock_before: item.variant_stock_before,
-            variant_stock_after: item.variant_stock_after,
-            variant_info: item.variant_display_name ? {
-              display_name: item.variant_display_name,
-              type: item.color_id && item.size_id ? 'color_size' : 
-                    item.color_id ? 'color_only' : 
-                    item.size_id ? 'size_only' : 'main'
-            } : null
-          };
-          });
-
-          const { error: itemsError } = await (supabase as any)
-            .from('loss_items')
-            .insert(lossItemsData);
-
-          if (itemsError) throw itemsError;
+      // إعداد عناصر الخسارة
+      const items = createForm.lossItems.map(item => {
+        // التحقق من صحة البيانات
+        if (typeof item.stock_before_loss !== 'number' || item.stock_before_loss < 0) {
+          throw new Error(`خطأ في بيانات المخزون للمنتج ${item.product_name}`);
+        }
+        if (typeof item.stock_after_loss !== 'number' || item.stock_after_loss < 0) {
+          throw new Error(`خطأ في بيانات المخزون بعد الخسارة للمنتج ${item.product_name}`);
         }
 
-      toast.success('تم إنشاء تصريح الخسارة بنجاح');
+        return {
+          product_id: item.product_id,
+          product_name: item.product_name,
+          product_sku: item.product_sku,
+          lost_quantity: item.quantity_lost,
+          unit_cost_price: item.unit_cost,
+          unit_selling_price: item.unit_selling_price,
+          total_cost_value: item.quantity_lost * item.unit_cost,
+          total_selling_value: item.quantity_lost * item.unit_selling_price,
+          loss_condition: item.loss_condition,
+          loss_percentage: 100,
+          stock_before_loss: item.stock_before_loss,
+          stock_after_loss: item.stock_after_loss,
+          inventory_adjusted: false,
+          color_id: item.color_id,
+          color_name: item.color_name,
+          size_id: item.size_id,
+          size_name: item.size_name
+        } as Omit<LocalLossItem, 'id' | 'loss_id' | 'created_at' | 'synced'>;
+      });
+
+      // إنشاء الخسارة محلياً
+      await createLocalLossDeclaration({ lossData, items });
+
+      toast.success('تم إنشاء تصريح الخسارة بنجاح ✅');
       setIsCreateDialogOpen(false);
       resetCreateForm();
-      fetchLosses();
-      fetchStats();
+      await fetchLosses();
+      await fetchStats();
     } catch (error) {
+      console.error('خطأ في إنشاء تصريح الخسارة:', error);
       toast.error('حدث خطأ في إنشاء تصريح الخسارة');
     }
   };
 
-  // Process loss
+  // Process loss - محدث لاستخدام الخدمات المحلية
   const processLoss = async (lossId: string, action: 'approve' | 'reject' | 'investigate' | 'process', notes?: string) => {
     if (!user?.id) return;
 
     try {
-      const { data, error } = await (supabase as any).rpc('process_loss_declaration', {
-        p_loss_id: lossId,
-        p_action: action,
-        p_processed_by: user.id,
-        p_notes: notes,
-        p_adjust_inventory: action === 'approve' || action === 'process'
-      });
+      let result;
+      
+      if (action === 'approve' || action === 'process') {
+        // الموافقة على الخسارة وتحديث المخزون
+        result = await approveLocalLossDeclaration(lossId, user.id);
+      } else if (action === 'reject') {
+        // رفض الخسارة
+        result = await rejectLocalLossDeclaration(lossId);
+      } else if (action === 'investigate') {
+        // تحديث الحالة للتحقيق - نستخدم pending كحالة مؤقتة
+        const { updateLocalLossDeclaration } = await import('@/api/localLossDeclarationService');
+        result = await updateLocalLossDeclaration(lossId, {
+          status: 'pending' // investigating غير مدعومة في النوع، نستخدم pending
+        });
+      }
 
-      if (error) throw error;
-
-      if ((data as any)?.success) {
-        toast.success(`تم ${action === 'approve' ? 'الموافقة على' : action === 'reject' ? 'رفض' : action === 'investigate' ? 'التحقيق في' : 'معالجة'} تصريح الخسارة`);
-        fetchLosses();
-        fetchStats();
+      if (result) {
+        toast.success(`تم ${action === 'approve' ? 'الموافقة على' : action === 'reject' ? 'رفض' : action === 'investigate' ? 'التحقيق في' : 'معالجة'} تصريح الخسارة ✅`);
+        await fetchLosses();
+        await fetchStats();
         setIsActionDialogOpen(false);
       } else {
-        toast.error((data as any)?.error || 'حدث خطأ في معالجة تصريح الخسارة');
+        toast.error('حدث خطأ في معالجة تصريح الخسارة');
       }
     } catch (error) {
+      console.error('خطأ في معالجة تصريح الخسارة:', error);
       toast.error('حدث خطأ في معالجة تصريح الخسارة');
     }
   };
@@ -1062,14 +1195,7 @@ const LossDeclarations: React.FC = () => {
     }
   };
 
-  return (
-    <POSPureLayout
-      onRefresh={() => {
-        fetchLosses();
-        fetchStats();
-      }}
-      isRefreshing={loading}
-    >
+  const pageContent = (
       <div className="container mx-auto p-6 space-y-6" dir="rtl">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -1080,7 +1206,7 @@ const LossDeclarations: React.FC = () => {
           <div className="flex items-center gap-2">
             <Button 
               variant="outline" 
-              onClick={() => { fetchLosses(); fetchStats(); }}
+              onClick={handleRefresh}
               disabled={loading}
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
@@ -2289,8 +2415,9 @@ const LossDeclarations: React.FC = () => {
           </DialogContent>
         </Dialog>
       </div>
-    </POSPureLayout>
   );
+
+  return renderWithLayout(pageContent, { isRefreshing: loading });
 };
 
 export default LossDeclarations;

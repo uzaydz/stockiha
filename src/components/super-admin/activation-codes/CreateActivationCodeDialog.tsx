@@ -190,7 +190,7 @@ export default function CreateActivationCodeDialog({ onSuccess }: Props) {
       toast({
         variant: "destructive",
         title: "خطأ في إنشاء أكواد التفعيل",
-        description: error.message || "حدث خطأ أثناء إنشاء أكواد التفعيل",
+        description: error instanceof Error ? error.message : (typeof error === 'string' ? error : "حدث خطأ أثناء إنشاء أكواد التفعيل"),
       });
     } finally {
       setLoading(false);

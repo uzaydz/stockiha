@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { supabase, getSupabaseClient } from '@/lib/supabase';
+import { getCurrentSession } from '@/lib/session-monitor';
+import { isAppOnline, markNetworkOffline, markNetworkOnline } from '@/utils/networkStatus';
 
 type SupabaseContextType = {
   supabase: SupabaseClient;
@@ -10,7 +12,6 @@ type SupabaseContextType = {
 // إنشاء السياق
 const SupabaseContext = createContext<SupabaseContextType | undefined>(undefined);
 
-// دالة للتأكد من جاهزية Supabase client
 const ensureClientReady = async () => {
   try {
     // تحقق من أن supabase متاح
@@ -39,7 +40,9 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = React.m
     const logDuration = (label: string, start: number) => {
       try { console.log(label, `${(performance.now() - start).toFixed(2)} ms`); } catch {}
     };
-    try { console.log('🔌 [SupabaseProvider] mounting'); } catch {}
+    if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {
+      try { console.log('🔌 [SupabaseProvider] mounting'); } catch {}
+    }
     // التحقق من جلسة المستخدم الحالية عند تحميل التطبيق
     const checkSession = async () => {
       try {
@@ -48,18 +51,32 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = React.m
         logDuration('⏱️ [SupabaseProvider] ensureClientReady:', ensureStart);
         setClientInstance(client);
         
-        const getSessionStart = performance.now();
-        const { data, error } = await client.auth.getSession();
-        logDuration('⏱️ [SupabaseProvider] auth.getSession:', getSessionStart);
-        if (error) {
-          console.warn('⚠️ [SupabaseProvider] getSession error', error?.message);
+        const { session: existingSession } = getCurrentSession();
+
+        const isOnline = isAppOnline();
+
+        if (!existingSession && isOnline) {
+          const getSessionStart = performance.now();
+          const { error } = await client.auth.getSession();
+          logDuration('⏱️ [SupabaseProvider] auth.getSession:', getSessionStart);
+          if (error) {
+            console.warn('⚠️ [SupabaseProvider] getSession error', error?.message);
+          }
+        } else if (!isOnline) {
+          try {
+            client.auth.stopAutoRefresh?.();
+            client.removeAllChannels?.();
+            client.realtime?.disconnect?.();
+          } catch {}
         }
       } catch (error) {
         console.warn('⚠️ [SupabaseProvider] checkSession error', (error as any)?.message);
       } finally {
         setIsLoading(false);
         logDuration('⏱️ [SupabaseProvider] mount:', mountStart);
-        try { console.log('🏁 [SupabaseProvider] mounted'); } catch {}
+        if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {
+          try { console.log('🏁 [SupabaseProvider] mounted'); } catch {}
+        }
       }
     };
 
@@ -69,12 +86,17 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = React.m
     const setupAuthListener = async () => {
       try {
         const client = await ensureClientReady();
+        if (!isAppOnline()) {
+          return () => {};
+        }
         
         const {
           data: { subscription },
         } = client.auth.onAuthStateChange((event, session) => {
           // تحديث حالة التطبيق عند تغير حالة المصادقة
-          try { console.log('🔔 [SupabaseProvider] auth state change', { event, hasSession: !!session }); } catch {}
+          if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {
+            try { console.log('🔔 [SupabaseProvider] auth state change', { event, hasSession: !!session }); } catch {}
+          }
         });
 
         return () => {
@@ -94,6 +116,37 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = React.m
 
     return () => {
       if (cleanup) cleanup();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleOffline = async () => {
+      markNetworkOffline({ force: true });
+      try {
+        const client = await ensureClientReady();
+        client.auth.stopAutoRefresh?.();
+        client.removeAllChannels?.();
+        client.realtime?.disconnect?.();
+      } catch {}
+    };
+
+    const handleOnline = async () => {
+      markNetworkOnline();
+      try {
+        const client = await ensureClientReady();
+        client.auth.startAutoRefresh?.();
+        client.realtime?.connect?.();
+      } catch {}
+    };
+
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
+
+    return () => {
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('online', handleOnline);
     };
   }, []);
 

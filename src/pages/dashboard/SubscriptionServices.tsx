@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import Layout from '@/components/Layout';
+import { POSSharedLayoutControls, POSLayoutState } from '@/components/pos-layout/types';
 import { useUser } from '@/context/UserContext';
 import { useTenant } from '@/context/TenantContext';
 import { Button } from '@/components/ui/button';
@@ -22,7 +23,13 @@ import { AddServiceDialog } from '@/components/subscription-services/AddServiceD
 import { useSubscriptionServices } from '@/components/subscription-services/useSubscriptionServices';
 import { SubscriptionService } from '@/components/subscription-services/types';
 
-const SubscriptionServicesPage = () => {
+interface SubscriptionServicesProps extends POSSharedLayoutControls {}
+
+const SubscriptionServicesPage: React.FC<SubscriptionServicesProps> = ({
+  useStandaloneLayout = true,
+  onRegisterRefresh,
+  onLayoutStateChange
+}) => {
   const { user, organizationId, isLoading } = useUser();
   const { currentOrganization } = useTenant();
 
@@ -78,47 +85,47 @@ const SubscriptionServicesPage = () => {
 
   // التحقق من وجود organization
   if (isLoading) {
-    return (
-      <Layout>
-        <div className="max-w-7xl mx-auto p-6 space-y-6" dir="rtl">
-          <div className="text-center py-12">
-            <h2 className="text-xl font-semibold text-gray-600 mb-2">جاري التحميل...</h2>
-            <p className="text-gray-500">يرجى الانتظار</p>
-          </div>
+    const loadingNode = (
+      <div className="max-w-7xl mx-auto p-6 space-y-6" dir="rtl">
+        <div className="text-center py-12">
+          <h2 className="text-xl font-semibold text-gray-600 mb-2">جاري التحميل...</h2>
+          <p className="text-gray-500">يرجى الانتظار</p>
         </div>
-      </Layout>
+      </div>
     );
+    return useStandaloneLayout ? <Layout>{loadingNode}</Layout> : loadingNode;
   }
 
   if (!user) {
-    return (
-      <Layout>
-        <div className="max-w-7xl mx-auto p-6 space-y-6" dir="rtl">
-          <div className="text-center py-12">
-            <h2 className="text-xl font-semibold text-gray-600 mb-2">لم تسجل دخولك بعد</h2>
-            <p className="text-gray-500">يرجى تسجيل الدخول أولاً</p>
-          </div>
+    const noUserNode = (
+      <div className="max-w-7xl mx-auto p-6 space-y-6" dir="rtl">
+        <div className="text-center py-12">
+          <h2 className="text-xl font-semibold text-gray-600 mb-2">لم تسجل دخولك بعد</h2>
+          <p className="text-gray-500">يرجى تسجيل الدخول أولاً</p>
         </div>
-      </Layout>
+      </div>
     );
+    return useStandaloneLayout ? <Layout>{noUserNode}</Layout> : noUserNode;
   }
 
   if (!organizationId) {
-    return (
-      <Layout>
-        <div className="max-w-7xl mx-auto p-6 space-y-6" dir="rtl">
-          <div className="text-center py-12">
-            <h2 className="text-xl font-semibold text-gray-600 mb-2">غير قادر على تحديد المؤسسة</h2>
-            <p className="text-gray-500">يرجى تسجيل الدخول مرة أخرى أو الاتصال بالدعم الفني</p>
-          </div>
+    const noOrgNode = (
+      <div className="max-w-7xl mx-auto p-6 space-y-6" dir="rtl">
+        <div className="text-center py-12">
+          <h2 className="text-xl font-semibold text-gray-600 mb-2">غير قادر على تحديد المؤسسة</h2>
+          <p className="text-gray-500">يرجى تسجيل الدخول مرة أخرى أو الاتصال بالدعم الفني</p>
         </div>
-      </Layout>
+      </div>
     );
+    return useStandaloneLayout ? <Layout>{noOrgNode}</Layout> : noOrgNode;
   }
 
-  return (
-    <Layout>
-      <div className="max-w-7xl mx-auto p-6 space-y-6" dir="rtl">
+  const renderWithLayout = (node: React.ReactElement) => (
+    useStandaloneLayout ? <Layout>{node}</Layout> : node
+  );
+
+  const pageContent = (
+    <div className="max-w-7xl mx-auto p-6 space-y-6" dir="rtl">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
@@ -240,9 +247,35 @@ const SubscriptionServicesPage = () => {
             onSuccess={fetchServices}
           />
         )}
-      </div>
-    </Layout>
+    </div>
   );
+
+  // Register refresh with titlebar
+  React.useEffect(() => {
+    if (!onRegisterRefresh) return;
+    onRegisterRefresh(() => {
+      // refresh both depending on active tab
+      if (activeTab === 'services') {
+        fetchServices();
+      } else {
+        fetchTransactions();
+      }
+    });
+    return () => onRegisterRefresh(null);
+  }, [onRegisterRefresh, activeTab, fetchServices, fetchTransactions]);
+
+  // Push layout state to titlebar
+  React.useEffect(() => {
+    if (!onLayoutStateChange) return;
+    const state: POSLayoutState = {
+      isRefreshing: Boolean(servicesLoading || transactionsLoading),
+      connectionStatus: 'connected',
+      executionTime: undefined,
+    };
+    onLayoutStateChange(state);
+  }, [onLayoutStateChange, servicesLoading, transactionsLoading]);
+
+  return renderWithLayout(pageContent);
 };
 
 export default SubscriptionServicesPage;

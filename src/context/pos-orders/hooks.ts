@@ -5,6 +5,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTenant } from '../TenantContext';
 import { useAuth } from '../AuthContext';
+import { useAppInitialization } from '../AppInitializationContext'; // ✅ استيراد جديد
 import { 
   fetchPOSOrderStats,
   fetchPOSOrders,
@@ -109,18 +110,33 @@ export const useOrganizationSubscriptions = (orgId?: string) => {
   });
 };
 
-export const usePOSSettings = (orgId?: string) => {
+// ✅ تحديث usePOSSettings لاستخدام البيانات من AppInitializationContext
+export const usePOSSettings = (params?: { organizationId?: string }) => {
+  const { posSettings, isLoading } = useAppInitialization();
   const { currentOrganization } = useTenant();
-  const organizationId = orgId || currentOrganization?.id;
+  const organizationId = params?.organizationId || currentOrganization?.id;
 
+  // ✅ استخدام البيانات من AppInitializationContext مباشرة
   return useQuery({
     queryKey: ['pos-settings', organizationId],
-    queryFn: () => fetchPOSSettings(organizationId!),
+    queryFn: async () => {
+      // إذا كانت البيانات متوفرة من AppInitializationContext، استخدمها
+      if (posSettings) {
+        console.log('✅ [usePOSSettings] استخدام البيانات من AppInitializationContext');
+        return posSettings;
+      }
+      
+      // Fallback: جلب من قاعدة البيانات
+      console.log('⚠️ [usePOSSettings] fallback - جلب من قاعدة البيانات');
+      return fetchPOSSettings(organizationId!);
+    },
     enabled: !!organizationId,
     staleTime: 10 * 60 * 1000, // 10 دقائق
     gcTime: 30 * 60 * 1000, // 30 دقيقة
     refetchOnWindowFocus: false,
-    retry: 1
+    retry: 1,
+    // ✅ إذا كانت البيانات متوفرة، استخدمها كـ initialData
+    initialData: posSettings || undefined
   });
 };
 

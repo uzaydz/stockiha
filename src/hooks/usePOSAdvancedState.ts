@@ -1,10 +1,12 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { toast } from "sonner";
-import { Product, Order, User as AppUser } from '@/types';
-import { useAuth } from '@/context/AuthContext';
-import { useApps } from '@/context/AppsContext';
+import type { Product, Order } from '@/types/index';
 import { useTenant } from '@/context/TenantContext';
+import { useAuth } from '@/context/AuthContext';
+import { useAppInitialization } from '@/context/AppInitializationContext';
+import { useApps } from '@/context/AppsContext';
 import { useShop } from '@/context/ShopContext';
+import { useWorkSession } from '@/context/WorkSessionContext';
 import { supabase } from '@/lib/supabase';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -50,6 +52,7 @@ export const usePOSAdvancedState = () => {
   const { currentOrganization } = useTenant();
   const { isAppEnabled } = useApps();
   const { addOrder } = useShop();
+  const { activeSession, updateSessionLocally } = useWorkSession();
   
   const isStaff = userProfile?.role === 'admin' || userProfile?.role === 'employee';
 
@@ -134,7 +137,7 @@ export const usePOSAdvancedState = () => {
   });
 
   // تحويل المستخدم الحالي مع cache
-  const currentUser: AppUser | null = useMemo(() => {
+  const currentUser: any | null = useMemo(() => {
     if (!user) return null;
     
     const userCacheKey = `user_${user.id}`;
@@ -160,7 +163,7 @@ export const usePOSAdvancedState = () => {
   }, [user, userProfile, currentOrganization, getCachedData, setCachedData]);
 
   // تحويل العملاء مع cache
-  const filteredUsers: AppUser[] = useMemo(() => {
+  const filteredUsers: any[] = useMemo(() => {
     const customersCacheKey = `customers_${currentOrganization?.id}`;
     const cachedCustomers = getCachedData(customersCacheKey);
     
@@ -392,6 +395,21 @@ export const usePOSAdvancedState = () => {
       
       if (result.orderId) {
         toast.success('تم إنشاء الطلب بنجاح');
+        
+        // تحديث جلسة العمل إذا كانت نشطة
+        if (activeSession) {
+          const isCashPayment = (paymentMethod || 'cash') === 'cash';
+          const cashAmount = isCashPayment ? (amountPaid !== undefined ? amountPaid : validatedTotal) : 0;
+          const cardAmount = !isCashPayment ? (amountPaid !== undefined ? amountPaid : validatedTotal) : 0;
+          
+          updateSessionLocally({
+            total_sales: activeSession.total_sales + validatedTotal,
+            total_orders: activeSession.total_orders + 1,
+            cash_sales: activeSession.cash_sales + cashAmount,
+            card_sales: activeSession.card_sales + cardAmount,
+          });
+        }
+        
         return result;
       } else {
         toast.error('فشل في إنشاء الطلب');
@@ -401,7 +419,7 @@ export const usePOSAdvancedState = () => {
       toast.error('حدث خطأ أثناء إنشاء الطلب');
       throw error;
     }
-  }, [cartItems, selectedServices, selectedSubscriptions, submitOrder]);
+  }, [cartItems, selectedServices, selectedSubscriptions, submitOrder, activeSession, updateSessionLocally]);
 
   // دالة تحديث البيانات مع cache
   const handleRefreshData = useCallback(async () => {

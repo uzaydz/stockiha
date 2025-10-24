@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import Layout from '@/components/Layout';
+import { POSSharedLayoutControls, POSLayoutState } from '@/components/pos-layout/types';
 import { useTenant } from '@/context/TenantContext';
 import { listBlockedCustomers, blockCustomer, unblockCustomerById, BlockedCustomer } from '@/lib/api/blocked-customers';
 import { useToastNotifications } from '@/hooks/useToastNotifications';
@@ -11,7 +12,13 @@ import { Ban, Plus, Trash2, Loader2, Search } from 'lucide-react';
 import DataReadyWrapper from '@/components/common/DataReadyWrapper';
 import { useSearchDebounce } from '@/hooks/useSearchDebounce';
 
-const BlockedCustomers: React.FC = () => {
+interface BlockedCustomersProps extends POSSharedLayoutControls {}
+
+const BlockedCustomers: React.FC<BlockedCustomersProps> = ({
+  useStandaloneLayout = true,
+  onRegisterRefresh,
+  onLayoutStateChange
+}) => {
   const { currentOrganization } = useTenant();
   const orgId = currentOrganization?.id;
   const { showSuccess, showError } = useToastNotifications();
@@ -71,8 +78,12 @@ const BlockedCustomers: React.FC = () => {
     }
   };
 
-  return (
-    <Layout>
+  const renderWithLayout = (node: React.ReactElement) => (
+    useStandaloneLayout ? <Layout>{node}</Layout> : node
+  );
+
+  const pageContent = (
+    <>
     <div className="p-4 md:p-6">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-semibold flex items-center gap-2"><Ban className="h-5 w-5"/> قائمة المحظورين</h1>
@@ -145,8 +156,26 @@ const BlockedCustomers: React.FC = () => {
         </AlertDialogContent>
       </AlertDialog>
     </div>
-    </Layout>
+    </>
   );
+
+  useEffect(() => {
+    if (onRegisterRefresh) {
+      onRegisterRefresh(() => load());
+      return () => onRegisterRefresh(null);
+    }
+  }, [onRegisterRefresh, load]);
+
+  useEffect(() => {
+    const state: POSLayoutState = {
+      isRefreshing: Boolean(loading),
+      connectionStatus: null, // stays as previous in layout
+      executionTime: undefined
+    } as any;
+    if (onLayoutStateChange) onLayoutStateChange(state);
+  }, [onLayoutStateChange, loading]);
+
+  return renderWithLayout(pageContent);
 };
 
 export default BlockedCustomers;

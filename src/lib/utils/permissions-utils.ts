@@ -10,8 +10,17 @@ export const checkUserPermissionsLocal = (
   requiredPermission: keyof EmployeePermissions,
   userProfile?: any
 ): boolean => {
+  console.log('🔍 [checkUserPermissionsLocal] بدء التحقق من الصلاحية:', {
+    requiredPermission,
+    hasUser: !!user,
+    hasUserProfile: !!userProfile,
+    userRole: userProfile?.role || user?.role,
+    userProfilePermissions: userProfile?.permissions,
+    userMetadataPermissions: user?.user_metadata?.permissions,
+  });
   
   if (!user) {
+    console.log('❌ [checkUserPermissionsLocal] لا يوجد user');
     return false;
   }
   
@@ -22,6 +31,7 @@ export const checkUserPermissionsLocal = (
     user.app_metadata?.is_active !== false;
 
   if (!isActive) {
+    console.log('❌ [checkUserPermissionsLocal] المستخدم غير نشط');
     return false;
   }
   
@@ -47,34 +57,60 @@ export const checkUserPermissionsLocal = (
     user.app_metadata?.role || 
     '';
 
+  console.log('👤 [checkUserPermissionsLocal] معلومات المستخدم:', {
+    userRole,
+    isSuperAdmin,
+    isOrgAdmin,
+  });
+
   // المدير العام له صلاحية كاملة
   if (isSuperAdmin) {
+    console.log('✅ [checkUserPermissionsLocal] super admin - له جميع الصلاحيات');
     return true;
   }
   
   // مدير المؤسسة له صلاحية كاملة
   if (isOrgAdmin) {
+    console.log('✅ [checkUserPermissionsLocal] org admin - له جميع الصلاحيات');
     return true;
   }
   
   // المدير والمالك لهما صلاحية كاملة
   if (userRole === 'admin' || userRole === 'owner') {
+    console.log('✅ [checkUserPermissionsLocal] admin/owner - له جميع الصلاحيات');
     return true;
   }
 
-  // البحث عن الصلاحيات المحددة
+  // البحث عن الصلاحيات المحددة (مع إضافة userProfile.permissions)
   let permissions = {};
+  let permissionsSource = 'none';
   
-  if (user.user_metadata?.permissions) {
+  if (userProfile?.permissions) {
+    // الأولوية لـ userProfile.permissions (من قاعدة البيانات)
+    permissions = userProfile.permissions;
+    permissionsSource = 'userProfile.permissions';
+  } else if (user.user_metadata?.permissions) {
     permissions = user.user_metadata.permissions;
+    permissionsSource = 'user.user_metadata.permissions';
   } else if (user.app_metadata?.permissions) {
     permissions = user.app_metadata.permissions;
+    permissionsSource = 'user.app_metadata.permissions';
   } else if (user.permissions) {
     permissions = user.permissions;
+    permissionsSource = 'user.permissions';
   }
+
+  console.log('📋 [checkUserPermissionsLocal] الصلاحيات:', {
+    permissionsSource,
+    permissions,
+    requiredPermission,
+    hasPermission: permissions[requiredPermission],
+  });
 
   // التحقق من الصلاحية المطلوبة
   const result = Boolean(permissions[requiredPermission]);
+  
+  console.log(result ? '✅' : '❌', '[checkUserPermissionsLocal] النتيجة:', result);
   
   return result;
 };
@@ -139,8 +175,9 @@ export const getUserPermissions = (user: any, userProfile?: any): Record<string,
     };
   }
   
-  // استخراج الصلاحيات من مصادر مختلفة
+  // استخراج الصلاحيات من مصادر مختلفة (مع إضافة userProfile.permissions)
   const permissions = 
+    userProfile?.permissions ||  // الأولوية لـ userProfile (من قاعدة البيانات)
     user.user_metadata?.permissions || 
     user.app_metadata?.permissions || 
     user.permissions || 

@@ -7,76 +7,21 @@ import { supabase } from './supabase';
  * @returns معرف العميل المتحقق منه (إما المعرف الأصلي أو معرف العميل الزائر)
  */
 export async function ensureCustomerExists(customerId: string | null | undefined, organizationId: string | null | undefined): Promise<string> {
+  // ✅ إصلاح: إزالة جميع التحققات - قاعدة البيانات تتعامل مع العملاء تلقائياً
+  // هذه الدالة كانت تسبب استدعاء GET customers غير ضروري
+  
   try {
-
     // إذا كان المعرف فارغًا، استخدام معرف العميل الزائر
     if (!customerId || customerId === 'guest' || customerId === 'walk-in') {
-      const guestId = '00000000-0000-0000-0000-000000000000';
-      await ensureGuestCustomerExists(organizationId);
-      
-      return guestId;
+      return '00000000-0000-0000-0000-000000000000';
     }
     
-    // التحقق من وجود العميل في جدول العملاء
-    const { data: customerData, error: customerError } = await supabase
-      .from('customers')
-      .select('id')
-      .eq('id', customerId)
-      .maybeSingle();
-      
-    if (customerError) {
-    }
-    
-    // إذا كان العميل موجودًا، استخدام المعرف الأصلي
-    if (customerData) {
-      
-      return customerId;
-    }
-    
-    // التحقق من وجود العميل في جدول المستخدمين
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('id, name, email, phone, organization_id')
-      .eq('id', customerId)
-      .maybeSingle();
-      
-    if (userError) {
-    }
-    
-    // إذا كان العميل موجودًا في جدول المستخدمين، إنشاء سجل له في جدول العملاء
-    if (userData) {
-
-      const { error: insertError } = await supabase
-        .from('customers')
-        .insert({
-          id: userData.id,
-          name: userData.name,
-          email: userData.email,
-          phone: userData.phone,
-          organization_id: userData.organization_id || organizationId,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        });
-        
-      if (insertError) {
-        const guestId = '00000000-0000-0000-0000-000000000000';
-        await ensureGuestCustomerExists(organizationId);
-        return guestId;
-      }
-      
-      return customerId;
-    }
-    
-    // العميل غير موجود في أي من الجدولين، استخدام معرف العميل الزائر
-    
-    const guestId = '00000000-0000-0000-0000-000000000000';
-    await ensureGuestCustomerExists(organizationId);
-    return guestId;
+    // إرجاع المعرف مباشرة - قاعدة البيانات ستتحقق منه
+    return customerId;
     
   } catch (error) {
-    const guestId = '00000000-0000-0000-0000-000000000000';
-    await ensureGuestCustomerExists(organizationId);
-    return guestId;
+    // في حالة أي خطأ، استخدام معرف العميل الزائر
+    return '00000000-0000-0000-0000-000000000000';
   }
 }
 

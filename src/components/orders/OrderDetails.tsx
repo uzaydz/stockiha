@@ -29,10 +29,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { formatPrice } from "@/lib/utils";
-import { Phone, Mail, MapPin, ExternalLink, ClipboardList, PackageCheck, Truck, RefreshCcw, User, Map, CreditCard, Globe, Store, Building } from "lucide-react";
+import { Phone, Mail, MapPin, ExternalLink, ClipboardList, PackageCheck, Truck, RefreshCcw, User, Map, CreditCard, Globe, Store, Building, Building2, Home } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 import FormDataViewer from './FormDataViewer';
 import { getProvinceName, getMunicipalityName } from "@/utils/addressHelpers";
+import { StopDeskSelectionDialog } from './dialogs/StopDeskSelectionDialog';
+import { useTenant } from '@/context/TenantContext';
+import { supabase } from '@/lib/supabase';
 
 // مكون لعرض مصدر الطلب
 const OrderSourceBadge = ({ source }) => {
@@ -79,10 +82,22 @@ const OrderDetails = ({
   hasUpdatePermission = false,  // صلاحية تعديل حالة الطلب
   hasCancelPermission = false   // صلاحية إلغاء الطلب
 }) => {
+  const { currentOrganization } = useTenant();
+  
   // حالات لحوارات التعديل
   const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
   const [isShippingDialogOpen, setIsShippingDialogOpen] = useState(false);
   const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
+  const [stopDeskDialogOpen, setStopDeskDialogOpen] = useState(false);
+  
+  // استخراج معلومات التوصيل من form_data
+  const formData = (order.form_data as any) || {};
+  const deliveryType = formData.deliveryType || formData.delivery_type || 'home';
+  const isStopDesk = deliveryType === 'office' || 
+                     deliveryType === 'stop_desk' || 
+                     deliveryType === 'stopdesk' || 
+                     deliveryType === 2 ||
+                     deliveryType === '2';
   
   // قيم الحالة المؤقتة للتحديثات
   const [newStatus, setNewStatus] = useState(order.status);
@@ -90,7 +105,9 @@ const OrderDetails = ({
     shipping_method: order.shipping_method || "",
     shipping_cost: order.shipping_cost || 0,
     notes: order.notes || "",
-    shipping_option: order.shipping_option || "home"
+    shipping_option: order.shipping_option || "home",
+    deliveryType: deliveryType,
+    stopdeskId: formData.stopdesk_id || formData.stopdeskId || null
   });
   const [customerData, setCustomerData] = useState({
     name: order.customer?.name || "",
@@ -111,11 +128,16 @@ const OrderDetails = ({
   
   // تحديث بيانات الشحن عند تغير order
   useEffect(() => {
+    const formData = (order.form_data as any) || {};
+    const deliveryType = formData.deliveryType || formData.delivery_type || 'home';
+    
     setShippingData({
       shipping_method: order.shipping_method || "",
       shipping_cost: order.shipping_cost || 0,
       notes: order.notes || "",
-      shipping_option: order.shipping_option || "home"
+      shipping_option: order.shipping_option || "home",
+      deliveryType: deliveryType,
+      stopdeskId: formData.stopdesk_id || formData.stopdeskId || null
     });
   }, [order]);
   
@@ -148,9 +170,113 @@ const OrderDetails = ({
   };
   
   // حفظ التغييرات في معلومات الشحن
-  const handleShippingUpdate = () => {
-    updateShippingInfo(order.id, shippingData);
-    setIsShippingDialogOpen(false);
+  const handleShippingUpdate = async () => {
+    try {
+      // تحديث form_data مع deliveryType و stopdeskId
+      const updatedFormData = {
+        ...formData,
+        deliveryType: shippingData.deliveryType,
+        delivery_type: shippingData.deliveryType,
+      };
+      
+      // إضافة أو حذف stopdesk_id حسب نوع التوصيل
+      if (shippingData.deliveryType === 'office' && shippingData.stopdeskId) {
+        updatedFormData.stopdesk_id = shippingData.stopdeskId;
+        updatedFormData.stopdeskId = shippingData.stopdeskId;
+      } else {
+        delete updatedFormData.stopdesk_id;
+        delete updatedFormData.stopdeskId;
+      }
+      
+      // تحديث في قاعدة البيانات
+      if (currentOrganization?.id) {
+        const { error } = await supabase
+          .from('online_orders')
+          .update({ 
+            form_data: updatedFormData,
+            shipping_method: shippingData.shipping_method,
+            shipping_cost: shippingData.shipping_cost,
+            notes: shippingData.notes
+          })
+          .eq('id', order.id)
+          .eq('organization_id', currentOrganization.id);
+        
+        if (error) throw error;
+        
+        toast({
+          title: "تم التحديث",
+          description: "تم تحديث معلومات الشحن بنجاح",
+        });
+      }
+      
+      updateShippingInfo(order.id, shippingData);
+      setIsShippingDialogOpen(false);
+    } catch (error) {
+      console.error('Error updating shipping info:', error);
+      toast({
+        variant: "destructive",
+        title: "حدث خطأ",
+        description: "فشل في تحديث معلومات الشحن",
+      });
+    }
+  };
+
+  // دالة لتأكيد اختيار المكتب
+  const handleStopDeskConfirm = async (stopdeskId: number, selectedCenter: any) => {
+    try {
+      console.log('OrderDetails - Selected center:', selectedCenter);
+      
+      const updatedFormData = {
+        ...formData,
+        stopdesk_id: stopdeskId,
+        stopdeskId: stopdeskId,
+        // تحديث البلدية والولاية لتطابق المكتب المختار - كـ strings
+        commune: selectedCenter.commune_id.toString(),
+        communeId: selectedCenter.commune_id.toString(),
+        municipality: selectedCenter.commune_id.toString(),
+        wilaya: selectedCenter.wilaya_id.toString(),
+        wilayaId: selectedCenter.wilaya_id.toString(),
+        province: selectedCenter.wilaya_id.toString(),
+        // حفظ الأسماء أيضاً للمرجعية
+        communeName: selectedCenter.commune_name,
+        wilayaName: selectedCenter.wilaya_name,
+      };
+      
+      console.log('OrderDetails - Updated form_data:', updatedFormData);
+      
+      if (currentOrganization?.id) {
+        const { error } = await supabase
+          .from('online_orders')
+          .update({ form_data: updatedFormData })
+          .eq('id', order.id)
+          .eq('organization_id', currentOrganization.id);
+        
+        if (error) throw error;
+        
+        setShippingData({
+          ...shippingData,
+          stopdeskId: stopdeskId,
+          deliveryType: 'office'
+        });
+        
+        toast({
+          title: "تم التحديث",
+          description: "تم تحديث المكتب والبيانات بنجاح",
+        });
+        
+        // إعادة تحميل الصفحة لعرض التحديثات
+        setTimeout(() => {
+          window.location.reload();
+        }, 1000);
+      }
+    } catch (error) {
+      console.error('OrderDetails - Error:', error);
+      toast({
+        variant: "destructive",
+        title: "حدث خطأ",
+        description: "فشل في تحديث المكتب",
+      });
+    }
   };
   
   // حفظ التغييرات في معلومات العميل
@@ -299,10 +425,10 @@ const OrderDetails = ({
                   تغيير الحالة
                 </Button>
               </DialogTrigger>
-              <DialogContent>
+              <DialogContent className="sm:max-w-[425px] w-[95vw] md:w-full">
                 <DialogHeader>
-                  <DialogTitle>تحديث حالة الطلب</DialogTitle>
-                  <DialogDescription>
+                  <DialogTitle className="text-base md:text-lg">تحديث حالة الطلب</DialogTitle>
+                  <DialogDescription className="text-sm">
                     اختر الحالة الجديدة للطلب رقم #{order.customer_order_number}
                   </DialogDescription>
                 </DialogHeader>
@@ -386,11 +512,11 @@ const OrderDetails = ({
         </section>
       )}
 
-      {/* تفاصيل الطلب في أقسام قابلة للطي */}
+      {/* تفاصيل الطلب في أقسام قابلة للطي - محسّن للهاتف */}
       <Accordion type="single" collapsible defaultValue="order-items">
         {/* قسم: المنتجات المطلوبة */}
         <AccordionItem value="order-items">
-          <AccordionTrigger className="text-base font-medium">
+          <AccordionTrigger className="text-sm md:text-base font-medium py-4 hover:no-underline">
             <span className="flex items-center">
               <PackageCheck className="w-4 h-4 ml-2" />
               المنتجات المطلوبة
@@ -444,7 +570,7 @@ const OrderDetails = ({
 
         {/* قسم: معلومات العميل */}
         <AccordionItem value="customer-info">
-          <AccordionTrigger className="text-base font-medium">
+          <AccordionTrigger className="text-sm md:text-base font-medium py-4 hover:no-underline">
             <span className="flex items-center">
               <User className="w-4 h-4 ml-2" />
               معلومات العميل
@@ -500,10 +626,10 @@ const OrderDetails = ({
                       تعديل
                     </Button>
                   </DialogTrigger>
-                  <DialogContent>
+                  <DialogContent className="sm:max-w-[425px] w-[95vw] md:w-full">
                     <DialogHeader>
-                      <DialogTitle>تعديل معلومات العميل</DialogTitle>
-                      <DialogDescription>
+                      <DialogTitle className="text-base md:text-lg">تعديل معلومات العميل</DialogTitle>
+                      <DialogDescription className="text-sm">
                         قم بتحديث معلومات العميل المرتبطة بهذا الطلب
                       </DialogDescription>
                     </DialogHeader>
@@ -550,7 +676,7 @@ const OrderDetails = ({
 
         {/* قسم: معلومات الشحن والتوصيل */}
         <AccordionItem value="shipping-info">
-          <AccordionTrigger className="text-base font-medium">
+          <AccordionTrigger className="text-sm md:text-base font-medium py-4 hover:no-underline">
             <span className="flex items-center">
               <Truck className="w-4 h-4 ml-2" />
               معلومات الشحن والتوصيل
@@ -568,13 +694,37 @@ const OrderDetails = ({
                     </span>
                   </div>
 
-                  {/* طريقة التوصيل */}
+                  {/* نوع التوصيل */}
                   <div className="flex items-center text-sm">
-                    <PackageCheck className="w-4 h-4 ml-1 opacity-70" />
+                    {isStopDesk ? (
+                      <Building2 className="w-4 h-4 ml-1 opacity-70" />
+                    ) : (
+                      <Home className="w-4 h-4 ml-1 opacity-70" />
+                    )}
                     <span>
-                      طريقة التوصيل: {translateDeliveryOption(order.shipping_option || order.form_data?.deliveryOption)}
+                      نوع التوصيل: {isStopDesk ? 'توصيل للمكتب' : 'توصيل للمنزل'}
                     </span>
                   </div>
+
+                  {/* رقم المكتب إذا كان توصيل للمكتب */}
+                  {isStopDesk && shippingData.stopdeskId && (
+                    <div className="flex items-center text-sm">
+                      <Building2 className="w-4 h-4 ml-1 opacity-70" />
+                      <span>
+                        مكتب رقم: {shippingData.stopdeskId}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* طريقة التوصيل (القديمة للتوافق) */}
+                  {order.shipping_option && (
+                    <div className="flex items-center text-sm">
+                      <PackageCheck className="w-4 h-4 ml-1 opacity-70" />
+                      <span>
+                        طريقة التوصيل: {translateDeliveryOption(order.shipping_option || order.form_data?.deliveryOption)}
+                      </span>
+                    </div>
+                  )}
 
                   {/* سعر التوصيل */}
                   <div className="flex items-center text-sm">
@@ -650,10 +800,10 @@ const OrderDetails = ({
                       تعديل
                     </Button>
                   </DialogTrigger>
-                  <DialogContent>
+                  <DialogContent className="sm:max-w-[425px] w-[95vw] md:w-full">
                     <DialogHeader>
-                      <DialogTitle>تعديل معلومات الشحن</DialogTitle>
-                      <DialogDescription>
+                      <DialogTitle className="text-base md:text-lg">تعديل معلومات الشحن</DialogTitle>
+                      <DialogDescription className="text-sm">
                         قم بتحديث معلومات الشحن والتوصيل لهذا الطلب
                       </DialogDescription>
                     </DialogHeader>
@@ -678,8 +828,71 @@ const OrderDetails = ({
                           </SelectContent>
                         </Select>
                       </div>
+
+                      {/* نوع التوصيل الجديد */}
                       <div className="space-y-2">
-                        <Label htmlFor="shipping-option">خيار التوصيل</Label>
+                        <Label htmlFor="delivery-type">نوع التوصيل</Label>
+                        <Select
+                          value={shippingData.deliveryType}
+                          onValueChange={(value) => {
+                            const newData = {...shippingData, deliveryType: value};
+                            // إذا تم التغيير للمنزل، حذف stopdeskId
+                            if (value === 'home') {
+                              newData.stopdeskId = null;
+                            }
+                            setShippingData(newData);
+                          }}
+                        >
+                          <SelectTrigger id="delivery-type">
+                            <SelectValue placeholder="اختر نوع التوصيل" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="home">
+                              <div className="flex items-center gap-2">
+                                <Home className="w-4 h-4" />
+                                توصيل للمنزل
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="office">
+                              <div className="flex items-center gap-2">
+                                <Building2 className="w-4 h-4" />
+                                توصيل للمكتب
+                              </div>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* اختيار المكتب إذا كان التوصيل للمكتب */}
+                      {shippingData.deliveryType === 'office' && (
+                        <div className="space-y-2">
+                          <Label>المكتب</Label>
+                          <div className="flex items-center gap-2">
+                            {shippingData.stopdeskId ? (
+                              <div className="flex-1 p-2 bg-muted rounded-md text-sm">
+                                مكتب رقم: {shippingData.stopdeskId}
+                              </div>
+                            ) : (
+                              <div className="flex-1 p-2 bg-muted/50 rounded-md text-sm text-muted-foreground">
+                                لم يتم اختيار مكتب
+                              </div>
+                            )}
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setStopDeskDialogOpen(true)}
+                            >
+                              <Building2 className="w-4 h-4 ml-1" />
+                              {shippingData.stopdeskId ? 'تغيير' : 'اختيار'}
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* خيار التوصيل القديم (للتوافق) */}
+                      <div className="space-y-2">
+                        <Label htmlFor="shipping-option">خيار التوصيل (قديم)</Label>
                         <Select
                           value={shippingData.shipping_option}
                           onValueChange={(value) => setShippingData({...shippingData, shipping_option: value})}
@@ -693,6 +906,7 @@ const OrderDetails = ({
                           </SelectContent>
                         </Select>
                       </div>
+
                       <div className="space-y-2">
                         <Label htmlFor="shipping-cost">رسوم التوصيل (دج)</Label>
                         <Input
@@ -729,7 +943,7 @@ const OrderDetails = ({
 
         {/* قسم: ملاحظات الطلب */}
         <AccordionItem value="order-notes">
-          <AccordionTrigger className="text-base font-medium">
+          <AccordionTrigger className="text-sm md:text-base font-medium py-4 hover:no-underline">
             <span className="flex items-center">
               <ClipboardList className="w-4 h-4 ml-2" />
               ملاحظات الطلب
@@ -744,6 +958,18 @@ const OrderDetails = ({
           </AccordionContent>
         </AccordionItem>
       </Accordion>
+
+      {/* نافذة اختيار المكتب */}
+      {currentOrganization?.id && stopDeskDialogOpen && (
+        <StopDeskSelectionDialog
+          open={stopDeskDialogOpen}
+          onOpenChange={setStopDeskDialogOpen}
+          onConfirm={handleStopDeskConfirm}
+          wilayaId={formData.province || formData.wilaya || formData.wilayaId}
+          communeId={formData.municipality || formData.commune || formData.communeId}
+          organizationId={currentOrganization.id}
+        />
+      )}
     </div>
   );
 };

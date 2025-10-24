@@ -6,17 +6,7 @@
 export const getCloudflareToken = (): string => {
   // في التطوير، نستخدم المتغيرات المحلية
   // في الإنتاج، نستخدم API Route الآمن
-  const token = import.meta.env?.VITE_CLOUDFLARE_API_TOKEN || '';
-
-  // Debug logging
-  console.log('🔑 getCloudflareToken:', {
-    hasToken: !!token,
-    tokenLength: token?.length || 0,
-    env: typeof import.meta.env,
-    viteToken: import.meta.env?.VITE_CLOUDFLARE_API_TOKEN
-  });
-
-  return token;
+  return import.meta.env?.VITE_CLOUDFLARE_API_TOKEN || '';
 };
 
 // الحصول على معرف مشروع Cloudflare Pages
@@ -29,16 +19,7 @@ export const getCloudflareProjectName = (): string => {
 export const getCloudflareZoneId = (): string => {
   // في التطوير، نستخدم المتغيرات المحلية
   // في الإنتاج، نستخدم API Route الآمن
-  const zoneId = import.meta.env?.VITE_CLOUDFLARE_ZONE_ID || '';
-
-  // Debug logging
-  console.log('🏠 getCloudflareZoneId:', {
-    hasZoneId: !!zoneId,
-    zoneIdLength: zoneId?.length || 0,
-    viteZoneId: import.meta.env?.VITE_CLOUDFLARE_ZONE_ID
-  });
-
-  return zoneId;
+  return import.meta.env?.VITE_CLOUDFLARE_ZONE_ID || '';
 };
 
 // التحقق من توفر متغيرات Cloudflare API (مباشرة دون API Route)
@@ -49,16 +30,7 @@ export const hasCloudflareConfig = async (): Promise<boolean> => {
     const zoneId = getCloudflareZoneId();
     const projectName = getCloudflareProjectName();
 
-    const hasConfig = !!(token && zoneId && projectName);
-
-    console.log('🔍 فحص إعدادات Cloudflare:', {
-      hasToken: !!token,
-      hasZoneId: !!zoneId,
-      hasProjectName: !!projectName,
-      hasConfig
-    });
-
-    return hasConfig;
+    return !!(token && zoneId && projectName);
   } catch (error) {
     console.error('❌ خطأ في التحقق من إعدادات Cloudflare:', error);
     return false;

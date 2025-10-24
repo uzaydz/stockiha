@@ -5,6 +5,7 @@
 
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import type { UserProfile, Organization, AuthError } from '../types';
+import { supabase } from '@/lib/supabase';
 import { MAIN_DOMAINS, DEV_DOMAINS, DEFAULT_ORGANIZATION_ID } from '../constants/authConstants';
 
 /**
@@ -223,10 +224,26 @@ export const sanitizeUserData = (user: SupabaseUser): any => {
  * دمج بيانات مركز الاتصال
  */
 export const mergeCallCenterData = async (userProfile: UserProfile): Promise<UserProfile> => {
-  // مؤقتاً تعطيل استعلام call_center_agents لحل مشاكل التحديث
-  return userProfile;
-  
-  // TODO: إضافة منطق مركز الاتصال عند الحاجة
+  try {
+    const { data, error } = await supabase
+      .from('confirmation_agents')
+      .select('*')
+      .eq('user_id', userProfile.id)
+      .maybeSingle();
+
+    if (error || !data) {
+      return userProfile;
+    }
+
+    return {
+      ...userProfile,
+      confirmation_agent_id: data.id,
+      confirmation_agent_profile: data,
+      role: userProfile.role === 'admin' || userProfile.role === 'owner' ? userProfile.role : 'confirmation_agent',
+    };
+  } catch {
+    return userProfile;
+  }
 };
 
 /**

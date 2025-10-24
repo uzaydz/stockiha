@@ -1,6 +1,7 @@
 import { memo } from "react";
 import { Switch } from "@/components/ui/switch";
-import { Settings, Loader2 } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Settings, Loader2, PackageX } from "lucide-react";
 
 interface OrdersSettingsProps {
   autoDeductInventory: boolean;
@@ -17,29 +18,46 @@ const OrdersSettings = memo(({
 }: OrdersSettingsProps) => {
   if (loadingSettings) {
     return (
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        <span>جاري التحميل...</span>
-      </div>
+      <Card className="border-border/20">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span>جاري تحميل الإعدادات...</span>
+          </div>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className="flex items-center gap-3 bg-background/80 border border-border/30 rounded-lg px-4 py-2">
-      <div className="flex items-center gap-2">
-        <Settings className="h-4 w-4 text-muted-foreground" />
-        <span className="text-sm font-medium">خصم المخزون التلقائي</span>
-      </div>
-      <Switch
-        checked={autoDeductInventory}
-        onCheckedChange={onToggleAutoDeductInventory}
-        disabled={updatingSettings}
-        className="data-[state=checked]:bg-green-600"
-      />
-      {updatingSettings && (
-        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-      )}
-    </div>
+    <Card className="border-border/20 hover:border-border/40 transition-colors">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-orange-100 dark:bg-orange-900/20 rounded-lg">
+              <PackageX className="h-4 w-4 text-orange-600 dark:text-orange-400" />
+            </div>
+            <div>
+              <h3 className="text-sm font-medium text-foreground">خصم المخزون التلقائي</h3>
+              <p className="text-xs text-muted-foreground">
+                {autoDeductInventory ? 'مفعل - سيتم خصم المخزون تلقائياً' : 'معطل - خصم المخزون يدوي'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={autoDeductInventory}
+              onCheckedChange={onToggleAutoDeductInventory}
+              disabled={updatingSettings}
+              className="data-[state=checked]:bg-orange-600"
+            />
+            {updatingSettings && (
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 });
 

@@ -1,65 +1,19 @@
-import Dexie from 'dexie';
+import { fetchProductInventoryDetails, updateVariantInventory } from '@/services/InventoryService';
+import type { InventoryVariantSize, ProductInventoryDetails } from '@/services/InventoryService';
+import { inventoryDB as baseInventoryDB } from '@/database/localDb';
+import type { InventoryItem as LocalInventoryItem, InventoryTransaction as LocalInventoryTransaction } from '@/database/localDb';
 
-// تعريف واجهة عملية المخزون
-export interface InventoryTransaction {
-  id: string;
-  product_id: string;
-  variant_id?: string;  // معرف اللون/المتغير إذا كان المنتج له ألوان
-  quantity: number;     // عدد إيجابي للإضافات، سالب للمصروفات
-  reason: string;       // سبب العملية (مثل: بيع، شراء، تعديل، إرجاع)
-  notes?: string;       // ملاحظات إضافية
-  source_id?: string;   // معرف المصدر (مثل: معرف الطلب، معرف المورد)
-  timestamp: Date;      // وقت العملية
-  synced: boolean;      // حالة المزامنة مع الخادم
-  created_by: string;   // معرف المستخدم الذي قام بالعملية
-}
+// إعادة تصدير الأنواع من المصدر الموحد
+export type InventoryItem = LocalInventoryItem;
+export type InventoryTransaction = LocalInventoryTransaction;
 
-// تعريف واجهة عناصر المخزون
-export interface InventoryItem {
-  id?: string; // إضافة معرف فريد
-  product_id: string;
-  variant_id: string | null;  // معرف اللون/المتغير إذا وجد (استخدام null بدلاً من undefined)
-  stock_quantity: number;
-  last_updated: Date;
-  synced: boolean;
-}
-
-// تعريف فئة قاعدة بيانات المخزون المحلية
-class InventoryDatabase extends Dexie {
-  // تعريف جداول قاعدة البيانات
-  inventory: Dexie.Table<InventoryItem, string>;
-  transactions: Dexie.Table<InventoryTransaction, string>;
-
-  constructor() {
-    // استخدام اسم جديد لقاعدة البيانات لتجنب مشاكل الترقية
-    super('inventoryDB_v2');
-    
-    // تعريف مخطط قاعدة البيانات (مع المفتاح الأساسي الجديد)
-    this.version(1).stores({
-      inventory: 'id, product_id, variant_id, stock_quantity, last_updated, synced',
-      transactions: 'id, product_id, variant_id, reason, timestamp, synced, created_by'
-    });
-    
-    // تعريف الجداول بأنواعها
-    this.inventory = this.table('inventory');
-    this.transactions = this.table('transactions');
-  }
-}
-
-// دالة لإنشاء معرف للمخزون
+// دالة لإنشاء معرف للمخزون (متوافقة مع المخطط الحالي)
 function createInventoryItemId(productId: string, variantId: string | null): string {
   return `${productId}:${variantId || 'null'}`;
 }
 
-// محاولة لحذف قاعدة البيانات القديمة لمنع التداخل
-try {
-  
-  Dexie.delete('inventoryDB');
-} catch (deleteError) {
-}
-
-// إنشاء نسخة فردية من قاعدة البيانات
-export const inventoryDB = new InventoryDatabase();
+// تصدير نسخة قاعدة البيانات الموحدة (Dexie من localDb)
+export const inventoryDB = baseInventoryDB;
 
 /**
  * استرجاع مخزون منتج معين (أو متغير منتج)
@@ -137,68 +91,57 @@ export async function updateProductStock(data: {
     synced: false
   };
   
-  try {
+  // بدء معاملة قاعدة البيانات
+  await inventoryDB.transaction('rw', [inventoryDB.inventory, inventoryDB.transactions], async () => {
+    // البحث عن عنصر المخزون باستخدام المعرف
+    let item = await inventoryDB.inventory
+      .where('id')
+      .equals(itemId)
+      .first();
 
-    // بدء معاملة قاعدة البيانات
-    await inventoryDB.transaction('rw', [inventoryDB.inventory, inventoryDB.transactions], async () => {
-      try {
-        // البحث عن عنصر المخزون باستخدام المعرف
-        let item = await inventoryDB.inventory
-          .where('id')
-          .equals(itemId)
-          .first();
-        
-        if (!item) {
-          // البحث بطريقة بديلة إذا لم يتم العثور بواسطة المعرف
-          const items = await inventoryDB.inventory
-            .where('product_id')
-            .equals(data.product_id)
-            .filter(i => i.variant_id === variantId)
-            .toArray();
-          
-          if (items.length > 0) {
-            item = items[0];
-          }
-        }
+    if (!item) {
+      // البحث بطريقة بديلة إذا لم يتم العثور بواسطة المعرف
+      const items = await inventoryDB.inventory
+        .where('product_id')
+        .equals(data.product_id)
+        .filter(i => i.variant_id === variantId)
+        .toArray();
 
-        if (item) {
-          // حساب الكمية الجديدة (لا تسمح بقيم سالبة)
-          const newQuantity = Math.max(0, item.stock_quantity + data.quantity);
-
-          // تحديث العنصر الموجود
-          await inventoryDB.inventory.put({
-            id: itemId,
-            product_id: data.product_id,
-            variant_id: variantId,
-            stock_quantity: newQuantity,
-            last_updated: new Date(),
-            synced: false
-          });
-        } else {
-
-          // إنشاء عنصر جديد
-          await inventoryDB.inventory.add({
-            id: itemId,
-            product_id: data.product_id,
-            variant_id: variantId,
-            stock_quantity: Math.max(0, data.quantity),
-            last_updated: new Date(),
-            synced: false
-          });
-        }
-        
-        // إضافة العملية إلى جدول العمليات
-        await inventoryDB.transactions.add(transaction);
-        
-      } catch (innerError) {
-        throw innerError;
+      if (items.length > 0) {
+        item = items[0];
       }
-    });
+    }
 
-    return transaction;
-  } catch (error) {
-    throw error;
-  }
+    if (item) {
+      // حساب الكمية الجديدة (لا تسمح بقيم سالبة)
+      const newQuantity = Math.max(0, item.stock_quantity + data.quantity);
+
+      // تحديث العنصر الموجود
+      await inventoryDB.inventory.put({
+        id: itemId,
+        product_id: data.product_id,
+        variant_id: variantId,
+        stock_quantity: newQuantity,
+        last_updated: new Date(),
+        synced: false
+      });
+    } else {
+      // إنشاء عنصر جديد
+      await inventoryDB.inventory.add({
+        id: itemId,
+        product_id: data.product_id,
+        variant_id: variantId,
+        stock_quantity: Math.max(0, data.quantity),
+        last_updated: new Date(),
+        synced: false
+      });
+    }
+
+    // إضافة العملية إلى جدول العمليات
+    await inventoryDB.transactions.add(transaction);
+  });
+
+  return transaction;
 }
 
 /**
@@ -212,11 +155,9 @@ export async function syncInventoryData(): Promise<number> {
       return 0;
     }
     
-    // استيراد Supabase في نطاق الدالة لتجنب الاعتماد الدائري
-    const { supabase } = await import('@/lib/supabase');
-    
     // الحصول على العمليات غير المتزامنة
     const unsyncedTransactions = await inventoryDB.transactions
+      .orderBy('timestamp')
       .filter(item => item.synced === false)
       .toArray();
     
@@ -227,108 +168,67 @@ export async function syncInventoryData(): Promise<number> {
     
     // تنفيذ المزامنة مع الخادم
     let syncedCount = 0;
-    
-    // التحقق من الاتصال بـ Supabase قبل المزامنة
-    try {
-      const { error: pingError } = await supabase
-        .from('products')
-        .select('count', { count: 'exact', head: true })
-        .limit(1);
-        
-      if (pingError) {
-        throw new Error('فشل الاتصال بـ Supabase');
-      }
-    } catch (pingError) {
-      throw new Error('فشل التحقق من اتصال Supabase');
-    }
-    
-    // اﻵن نقوم بعملية المزامنة
+    const now = new Date();
+
     for (const transaction of unsyncedTransactions) {
       try {
-        // الحصول على المخزون الحالي قبل التعديل
-        let previousStock = 0;
-        
-        try {
-          const { data: productData, error: fetchError } = await supabase
-            .from('products')
-            .select('stock_quantity')
-            .eq('id', transaction.product_id)
-            .single();
-            
-          if (fetchError) {
-            continue; // ننتقل للعملية التالية
+        const details: ProductInventoryDetails = await fetchProductInventoryDetails(transaction.product_id);
+
+        const resolveCurrentQuantity = () => {
+          if (!transaction.variant_id) {
+            return details.totalStockQuantity;
           }
-            
-          if (productData) {
-            previousStock = productData.stock_quantity;
+
+          const sizeMatch = details.variants
+            .flatMap<InventoryVariantSize>((variant) => variant.sizes)
+            .find((size) => size.sizeId === transaction.variant_id || size.id === transaction.variant_id);
+
+          if (sizeMatch) {
+            return sizeMatch.quantity;
           }
-        } catch (stockError) {
-          continue; // ننتقل للعملية التالية
-        }
-        
-        // حساب المخزون الجديد
+
+          const variantMatch = details.variants.find(
+            (variant) =>
+              variant.variantId === transaction.variant_id ||
+              variant.id === transaction.variant_id ||
+              variant.colorId === transaction.variant_id
+          );
+
+          if (variantMatch) {
+            return variantMatch.quantity;
+          }
+
+          return details.totalStockQuantity;
+        };
+
+        const previousStock = resolveCurrentQuantity();
         const newStock = Math.max(0, previousStock + transaction.quantity);
-        
-        // 1. تحديث كمية المخزون في جدول المنتجات
-        const { error: updateError } = await supabase
-          .from('products')
-          .update({
-            stock_quantity: newStock,
-            updated_at: new Date().toISOString(),
-            last_inventory_update: new Date().toISOString()
-          })
-          .eq('id', transaction.product_id);
-        
-        if (updateError) {
-          continue; // الانتقال إلى العملية التالية
-        }
-        
-        // 2. إضافة سجل للعملية في inventory_log
-        // الحصول على organization_id للمستخدم الحالي
-        const { data: userData } = await supabase.auth.getUser();
-        const userId = userData?.user?.id;
-        
-        let organizationId = null;
-        if (userId) {
-          const { data: userOrg } = await supabase
-            .from('users')
-            .select('organization_id')
-            .eq('id', userId)
-            .single();
-          organizationId = userOrg?.organization_id;
-        }
-        
-        // التأكد من وجود organization_id قبل الإدراج
-        if (!organizationId) {
-          continue;
-        }
-        
-        const { error } = await supabase
-          .from('inventory_log')
-          .insert({
-            product_id: transaction.product_id,
-            quantity: transaction.quantity,
-            previous_stock: previousStock,
-            new_stock: newStock,
-            type: transaction.reason,
-            notes: transaction.notes ?? '',
-            reference_id: transaction.source_id ?? null,
-            created_by: transaction.created_by,
-            created_at: transaction.timestamp.toISOString(),
-            organization_id: organizationId
-          });
-        
-        if (error) {
-        } else {
-          // تحديث حالة المزامنة للعملية
-          await inventoryDB.transactions.update(transaction.id, {
-            synced: true
-          });
-          
-          // زيادة عداد المزامنة
-          syncedCount++;
-        }
+
+        await updateVariantInventory({
+          productId: transaction.product_id,
+          variantId: transaction.variant_id,
+          newQuantity: newStock,
+          operationType: transaction.reason,
+          notes: transaction.notes,
+        });
+
+        await inventoryDB.transactions.update(transaction.id, {
+          synced: true,
+          timestamp: now,
+        });
+
+        await inventoryDB.inventory.put({
+          id: createInventoryItemId(transaction.product_id, transaction.variant_id ?? null),
+          product_id: transaction.product_id,
+          variant_id: transaction.variant_id ?? null,
+          stock_quantity: newStock,
+          last_updated: now,
+          synced: true,
+        });
+
+        syncedCount++;
       } catch (error) {
+        // ترك المعاملة في حالة غير متزامنة للمحاولة لاحقًا
       }
     }
     

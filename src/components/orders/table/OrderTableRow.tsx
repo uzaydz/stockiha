@@ -13,6 +13,9 @@ import OrderRowTotal from "./row/OrderRowTotal";
 import OrderRowStatus from "./row/OrderRowStatus";
 import OrderRowCallConfirmation from "./row/OrderRowCallConfirmation";
 import OrderRowActions from "./row/OrderRowActions";
+import OrderDeliveryTypeEditor from "./OrderDeliveryTypeEditor";
+import OrderFinancialEditor from "./OrderFinancialEditor";
+import OrderRowConfirmation from "./row/OrderRowConfirmation";
 
 const OrdersTableRow = ({
   order,
@@ -27,7 +30,9 @@ const OrdersTableRow = ({
   expanded = false,
   onToggleExpand,
   currentUserId,
-  shippingProviders = []
+  shippingProviders = [],
+  onOrderUpdated,
+  localUpdates = {}
 }: OrdersTableRowProps) => {
   // التحقق من توفر البيانات المطلوبة
   if (!order) return null;
@@ -36,6 +41,8 @@ const OrdersTableRow = ({
 
   // استخراج بيانات الطلب الأساسية
   const { id, customer_order_number, customer, total, status, order_items = [] } = order;
+  const assignment = (order as any).confirmation_assignment || null;
+  const confirmationAgent = (order as any).confirmation_agent || null;
 
   // تنسيق رقم الطلب للعرض
   const formattedOrderNumber = useMemo(() => 
@@ -158,7 +165,13 @@ const OrdersTableRow = ({
             onUpdateStatus={onUpdateStatus}
           />
         )}
-        
+
+        {visibleColumns.includes("confirmation") && (
+          <TableCell className="py-4 px-4" style={{ contain: 'layout' }}>
+            <OrderRowConfirmation assignment={assignment} agent={confirmationAgent} />
+          </TableCell>
+        )}
+
         {/* حالة تأكيد الإتصال */}
         {visibleColumns.includes("call_confirmation") && (
           <OrderRowCallConfirmation
@@ -182,6 +195,36 @@ const OrdersTableRow = ({
           </TableCell>
         )}
         
+        {/* نوع التوصيل */}
+        {visibleColumns.includes("delivery_type") && (
+          <TableCell className="py-4 px-4" style={{ contain: 'layout' }}>
+            <OrderDeliveryTypeEditor
+              order={order}
+              hasUpdatePermission={hasUpdatePermission}
+              onOrderUpdated={(updatedOrder) => {
+                if (onOrderUpdated) {
+                  onOrderUpdated(order.id, updatedOrder);
+                }
+              }}
+            />
+          </TableCell>
+        )}
+        
+        {/* المبالغ المالية */}
+        {visibleColumns.includes("financial") && (
+          <TableCell className="py-4 px-4" style={{ contain: 'layout' }}>
+            <OrderFinancialEditor
+              order={order}
+              hasUpdatePermission={hasUpdatePermission}
+              onOrderUpdated={(updatedOrder) => {
+                if (onOrderUpdated) {
+                  onOrderUpdated(order.id, updatedOrder);
+                }
+              }}
+            />
+          </TableCell>
+        )}
+        
         {/* إجراءات الطلب */}
         {visibleColumns.includes("actions") && (
           <OrderRowActions
@@ -189,6 +232,11 @@ const OrdersTableRow = ({
             hasUpdatePermission={hasUpdatePermission}
             hasCancelPermission={hasCancelPermission}
             onUpdateStatus={onUpdateStatus}
+            onOrderUpdated={(updatedOrder) => {
+              if (onOrderUpdated) {
+                onOrderUpdated(order.id, updatedOrder);
+              }
+            }}
           />
         )}
       </TableRow>
@@ -200,6 +248,8 @@ const OrdersTableRow = ({
           visibleColumns={visibleColumns}
           currentUserId={currentUserId}
           containerId={expandedDetailsId}
+          localUpdates={localUpdates}
+          onOrderUpdated={onOrderUpdated}
         />
       )}
     </>

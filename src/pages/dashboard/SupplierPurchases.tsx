@@ -22,8 +22,15 @@ import {
 import { getProducts, Product } from '@/api/productService';
 import { useToast } from '@/components/ui/use-toast';
 import Layout from '@/components/Layout';
+import { POSSharedLayoutControls } from '@/components/pos-layout/types';
 
-export default function SupplierPurchases() {
+interface SupplierPurchasesProps extends POSSharedLayoutControls {}
+
+export default function SupplierPurchases({
+  useStandaloneLayout = true,
+  onRegisterRefresh,
+  onLayoutStateChange
+}: SupplierPurchasesProps = {}) {
   const { user } = useAuth();
   const location = useLocation();
   // محاولة الحصول على organization_id بطرق متعددة
@@ -65,6 +72,7 @@ export default function SupplierPurchases() {
   const [selectedSupplier, setSelectedSupplier] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0); // trigger لإعادة تحميل قائمة المشتريات
   const [hasChanges, setHasChanges] = useState(false); // متابعة وجود تغييرات فعلية
+  const [isRefreshingData, setIsRefreshingData] = useState(false);
   
   // تحميل البيانات الأولية
   useEffect(() => {
@@ -429,8 +437,38 @@ export default function SupplierPurchases() {
     }
   }, [hasChanges]);
 
-  return (
-    <Layout>
+  // تسجيل دالة التحديث
+  useEffect(() => {
+    if (onRegisterRefresh) {
+      onRegisterRefresh(async () => {
+        setIsRefreshingData(true);
+        if (onLayoutStateChange) {
+          onLayoutStateChange({ isRefreshing: true });
+        }
+        
+        setRefreshTrigger(prev => prev + 1);
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        setIsRefreshingData(false);
+        if (onLayoutStateChange) {
+          onLayoutStateChange({ isRefreshing: false });
+        }
+      });
+    }
+  }, [onRegisterRefresh, onLayoutStateChange]);
+
+  // إرسال حالة الاتصال
+  useEffect(() => {
+    if (onLayoutStateChange) {
+      onLayoutStateChange({ 
+        connectionStatus: 'connected',
+        isRefreshing: isRefreshingData || isLoading
+      });
+    }
+  }, [isRefreshingData, isLoading, onLayoutStateChange]);
+
+  const content = (
+    <>
       {/* إظهار القائمة فقط عندما لا يكون الحوار مفتوحاً أو عند إغلاقه */}
       <SupplierPurchasesList 
         refreshTrigger={refreshTrigger}
@@ -457,6 +495,8 @@ export default function SupplierPurchases() {
         onCreateSupplier={handleCreateSupplier}
         onSuppliersUpdate={refreshSuppliers}
       />
-    </Layout>
+    </>
   );
+
+  return useStandaloneLayout ? <Layout>{content}</Layout> : content;
 }

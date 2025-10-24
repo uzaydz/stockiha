@@ -17221,6 +17221,21 @@ export type Database = {
         }
         Returns: Json
       }
+      get_user_with_permissions_unified: {
+        Args: {
+          p_auth_user_id?: string | null
+          p_include_subscription_data?: boolean | null
+          p_calculate_permissions?: boolean | null
+        }
+        Returns: {
+          user_id: string
+          organization_id: string
+          permissions: Json
+          role: string
+          subscription_tier?: string
+          subscription_status?: string
+        }[]
+      }
       update_product_complete: {
         Args: {
           p_product_id: string

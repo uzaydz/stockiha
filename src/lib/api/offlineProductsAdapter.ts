@@ -9,6 +9,7 @@ import {
   type InsertProduct,
   type UpdateProduct
 } from '@/lib/api/products';
+import { inventoryDB, type LocalProduct } from '@/database/localDb';
 
 /**
  * محول لربط خدمة المنتجات التقليدية بخدمة Offline-First
@@ -17,34 +18,16 @@ import {
  * ويضيف علامات على المنتجات غير المتزامنة
  */
 
-// استيراد مخزن المنتجات المحلي من localForage
-import localforage from 'localforage';
-
 // التحقق من حالة الاتصال بالإنترنت
 const isOnline = (): boolean => {
   return navigator.onLine;
 };
 
-// إنشاء مخزن البيانات المحلي
-const productsStore = localforage.createInstance({
-  name: 'bazaar-products',
-  storeName: 'products'
-});
-
-// نموذج المنتج المحلي
-interface LocalProduct extends Product {
-  synced: boolean;
-  localUpdatedAt: string;
-  is_active?: boolean;
-}
+// الاعتماد على Dexie عبر inventoryDB.products كمصدر وحيد
 
 // الحصول على جميع المنتجات المحلية
 export const getLocalProducts = async (): Promise<LocalProduct[]> => {
-  const products: LocalProduct[] = [];
-  await productsStore.iterate<LocalProduct, void>((product) => {
-    products.push(product);
-  });
-  return products;
+  return await inventoryDB.products.toArray();
 };
 
 // حفظ المنتج محلياً
@@ -54,7 +37,7 @@ export const saveProductLocally = async (product: Product, synced: boolean = tru
     synced,
     localUpdatedAt: new Date().toISOString()
   };
-  await productsStore.setItem(product.id, localProduct);
+  await inventoryDB.products.put(localProduct as any);
   return localProduct;
 };
 
@@ -83,7 +66,7 @@ export const addProductLocally = async (productData: InsertProduct): Promise<Loc
       localUpdatedAt: now
     } as LocalProduct;
     
-    await productsStore.setItem(tempId, newLocalProduct);
+    await inventoryDB.products.put(newLocalProduct as any);
     return newLocalProduct;
   } catch (error) {
     return null;
@@ -93,7 +76,7 @@ export const addProductLocally = async (productData: InsertProduct): Promise<Loc
 // تحديث منتج محلياً
 export const updateProductLocally = async (productId: string, updates: UpdateProduct): Promise<LocalProduct | null> => {
   try {
-    const existingProduct = await productsStore.getItem<LocalProduct>(productId);
+    const existingProduct = await inventoryDB.products.get(productId) as LocalProduct | undefined;
     if (!existingProduct) {
       return null;
     }
@@ -117,8 +100,8 @@ export const updateProductLocally = async (productId: string, updates: UpdatePro
       synced: isOnline() && !productId.startsWith('temp_'),
       localUpdatedAt: new Date().toISOString()
     };
-    
-    await productsStore.setItem(productId, updatedLocalProduct);
+
+    await inventoryDB.products.put(updatedLocalProduct as any);
     return updatedLocalProduct;
   } catch (error) {
     return null;
@@ -132,14 +115,14 @@ export const deleteProductLocally = async (productId: string): Promise<boolean> 
     if (isOnline() && !productId.startsWith('temp_')) {
       try {
         await onlineDeleteProduct(productId);
-        await productsStore.removeItem(productId);
+        await inventoryDB.products.delete(productId);
         return true;
       } catch (error) {
       }
     }
     
     // الحذف المحلي فقط
-    await productsStore.removeItem(productId);
+    await inventoryDB.products.delete(productId);
     return true;
   } catch (error) {
     return false;
@@ -173,7 +156,7 @@ export const syncLocalProducts = async (): Promise<{ success: number; failed: nu
           await saveProductLocally(newProduct);
           
           // حذف النسخة المؤقتة
-          await productsStore.removeItem(product.id);
+          await inventoryDB.products.delete(product.id);
           success++;
         } else {
           failed++;
@@ -265,7 +248,7 @@ export const getProductById = async (id: string): Promise<Product | null> => {
     }
     
     // جلب المنتج محلياً
-    return await productsStore.getItem<LocalProduct>(id);
+    return (await inventoryDB.products.get(id)) as any;
   } catch (error) {
     return null;
   }

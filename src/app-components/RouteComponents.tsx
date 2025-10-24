@@ -11,7 +11,7 @@ import RequireTenant from '../components/auth/RequireTenant';
 import SubscriptionCheck from '../components/subscription/SubscriptionCheck';
 import PermissionGuard from '../components/auth/PermissionGuard';
 import ConditionalRoute from '../components/ConditionalRoute';
-import StoreRouter from '../components/routing/StoreRouter';
+// import StoreRouter from '../components/routing/StoreRouter'; // Removed - store components deleted
 import RoleBasedRedirect from '../components/auth/RoleBasedRedirect';
 import POSOrdersWrapper from '../components/pos/POSOrdersWrapper';
 
@@ -51,8 +51,12 @@ export const PublicRoutes = () => {
 
   return (
   <Routes>
-    {/* الصفحة الرئيسية */}
-    <Route path="/" element={<StoreRouter />} />
+    {/* الصفحة الرئيسية - صفحة الهبوط العامة */}
+    <Route path="/" element={
+      <Suspense fallback={<PageLoader message="جاري تحميل الصفحة الرئيسية..." />}>
+        <LazyRoutes.LandingPage />
+      </Suspense>
+    } />
     
     {/* صفحات الهبوط */}
     <Route path="/features" element={
@@ -433,9 +437,24 @@ export const POSRoutes = () => (
 // ============ مسارات لوحة التحكم الرئيسية ============
 export const DashboardMainRoutes = () => (
   <Route element={<RequireTenant />}>
+    {/* لوحة تحكم نقطة البيع - الصفحة الرئيسية */}
     <Route path="/dashboard" element={
       <SubscriptionCheck>
-        <Suspense fallback={<PageLoader message="جاري تحميل لوحة التحكم..." />}>
+        <PermissionGuard 
+          requiredPermissions={['accessPOS']}
+          fallbackPath="/dashboard/main"
+        >
+          <Suspense fallback={<PageLoader message="جاري تحميل لوحة التحكم..." />}>
+            <LazyRoutes.POSDashboard />
+          </Suspense>
+        </PermissionGuard>
+      </SubscriptionCheck>
+    } />
+    
+    {/* لوحة التحكم الكلاسيكية */}
+    <Route path="/dashboard/main" element={
+      <SubscriptionCheck>
+        <Suspense fallback={<PageLoader message="جاري تحميل لوحة التحكم الكلاسيكية..." />}>
           <LazyRoutes.Dashboard />
         </Suspense>
       </SubscriptionCheck>
@@ -475,13 +494,6 @@ export const DashboardMainRoutes = () => (
 // ============ مسارات المبيعات والطلبات ============
 export const SalesOrderRoutes = () => (
   <Route element={<RequireTenant />}>
-    <Route path="/dashboard/sales" element={
-      <SubscriptionCheck>
-        <Suspense fallback={<PageLoader message="جاري تحميل المبيعات..." />}>
-          <LazyRoutes.OptimizedSales />
-        </Suspense>
-      </SubscriptionCheck>
-    } />
     
     <Route path="/dashboard/orders" element={
       <SubscriptionCheck>

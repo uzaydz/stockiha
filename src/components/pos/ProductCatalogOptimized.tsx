@@ -130,12 +130,23 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
 
   // دالة لتحديث المخزون محلياً (يمكن استدعاؤها من الخارج)
   const updateLocalStock = useCallback((productId: string, stockChange: number) => {
-    setProducts(prevProducts => 
-      prevProducts.map(p => 
-        p.id === productId 
-          ? { ...p, stockQuantity: Math.max(0, p.stockQuantity + stockChange) }
-          : p
-      )
+    setProducts(prevProducts =>
+      prevProducts.map((product) => {
+        if (product.id !== productId) {
+          return product;
+        }
+
+        const clamp = (value: number) => Math.max(0, value);
+        const nextStockQuantity = clamp((product.stockQuantity ?? product.stock_quantity ?? 0) + stockChange);
+
+        return {
+          ...product,
+          stockQuantity: nextStockQuantity,
+          stock_quantity: nextStockQuantity,
+          actual_stock_quantity: nextStockQuantity,
+          total_variants_stock: nextStockQuantity
+        };
+      })
     );
   }, []);
 
@@ -317,7 +328,7 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
         )}
       >
         <div 
-          className="relative aspect-square bg-gradient-to-br from-white to-gray-50 cursor-pointer"
+          className="relative aspect-square bg-gradient-to-br from-muted/30 to-muted/10 dark:from-slate-800/50 dark:to-slate-900/30 cursor-pointer"
           onClick={() => handleProductClick(product)}
         >
           <img

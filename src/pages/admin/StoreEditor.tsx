@@ -12,12 +12,13 @@ import { cn } from '@/lib/utils';
 import { ImprovedStoreEditor } from '@/components/store-editor/improved';
 import { StoreEditorDataProvider } from '@/context/StoreEditorDataContext';
 import StoreSettings from '@/components/settings/StoreSettings';
+import { POSSharedLayoutControls } from '@/components/pos-layout/types';
 
-interface StoreEditorProps {
+interface StoreEditorProps extends POSSharedLayoutControls {
   className?: string;
 }
 
-const StoreEditor: React.FC<StoreEditorProps> = ({ className }) => {
+const StoreEditor: React.FC<StoreEditorProps> = ({ className, useStandaloneLayout = true } = {}) => {
   const { currentOrganization, isOrgAdmin } = useTenant();
   const { toast } = useToast();
   
@@ -25,8 +26,7 @@ const StoreEditor: React.FC<StoreEditorProps> = ({ className }) => {
 
   // عرض شاشة التحميل
   if (!currentOrganization) {
-    return (
-      <Layout>
+    const loadingContent = (
         <div className="flex items-center justify-center min-h-[60vh]">
           <motion.div
             initial={{ opacity: 0, scale: 0.8 }}
@@ -38,12 +38,12 @@ const StoreEditor: React.FC<StoreEditorProps> = ({ className }) => {
             <p className="text-muted-foreground">يرجى الانتظار لحظات</p>
           </motion.div>
         </div>
-      </Layout>
     );
+    return useStandaloneLayout ? <Layout>{loadingContent}</Layout> : loadingContent;
   }
 
   // المحرر المحسن هو الافتراضي والوحيد
-    return (
+  const content = (
       <div className={cn("h-screen overflow-hidden bg-background", className)}>
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -100,6 +100,8 @@ const StoreEditor: React.FC<StoreEditorProps> = ({ className }) => {
         </motion.div>
       </div>
   );
+
+  return useStandaloneLayout ? <Layout>{content}</Layout> : content;
 };
 
 export default StoreEditor;

@@ -54,9 +54,7 @@ import {
   CollapsibleContent, 
   CollapsibleTrigger 
 } from '@/components/ui/collapsible';
-import { DatePickerWithRange } from '@/components/ui/date-picker';
 import { Separator } from '@/components/ui/separator';
-import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 // Icons
 import { 
@@ -94,7 +92,7 @@ import {
 } from 'lucide-react';
 
 // مكون بطاقات الإحصائيات
-const StatsCards: React.FC<{ stats: OrderStats | null; loading: boolean }> = ({ stats, loading }) => {
+const StatsCards: React.FC<{ stats: any; loading: boolean }> = ({ stats, loading }) => {
   if (loading) {
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -338,10 +336,10 @@ const FiltersSection: React.FC<{
 
 // مكون صف الطلب القابل للتوسيع
 const OrderRow: React.FC<{
-  order: AdvancedOrder;
+  order: any;
   isSelected: boolean;
   onSelect: (selected: boolean) => void;
-  onViewDetails: (order: AdvancedOrder) => void;
+  onViewDetails: (order: any) => void;
 }> = ({ order, isSelected, onSelect, onViewDetails }) => {
   const [expanded, setExpanded] = useState(false);
 
@@ -561,7 +559,7 @@ const AdvancedOrders: React.FC = () => {
     if (error) {
       toast({
         title: "خطأ",
-        description: error,
+        description: error || "حدث خطأ غير متوقع",
         variant: "destructive",
       });
     }

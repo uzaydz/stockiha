@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { 
   loadProductsToCache, 
   searchProductsInCache, 
   getCacheInfo,
-  clearCache 
+  clearCache
 } from '@/lib/api/products-simple-cache';
 import { useTenant } from '@/context/TenantContext';
 
@@ -56,20 +56,24 @@ export const useProductsCache = (options: UseProductsCacheOptions = {}): UseProd
   const { currentOrganization } = useTenant();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const loadingRef = useRef(false);
 
   // دالة لتحميل الـ cache
   const loadCache = useCallback(async () => {
-    if (!currentOrganization?.id) return;
+    if (!currentOrganization?.id || loadingRef.current) return;
     
+    loadingRef.current = true;
     setIsLoading(true);
     setError(null);
     
     try {
       await loadProductsToCache(currentOrganization.id);
     } catch (err) {
+      console.error('خطأ في تحميل المنتجات:', err);
       setError('فشل في تحميل المنتجات');
     } finally {
       setIsLoading(false);
+      loadingRef.current = false;
     }
   }, [currentOrganization?.id]);
 

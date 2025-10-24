@@ -94,7 +94,7 @@ export function SitemapAnalysisDialog({ open, onOpenChange, onComplete }: Sitema
     } catch (error: any) {
       toast({
         title: 'خطأ في التحليل',
-        description: error.message,
+        description: error instanceof Error ? error.message : (typeof error === 'string' ? error : 'حدث خطأ غير متوقع'),
         variant: 'destructive'
       });
       setStep('config');
@@ -130,7 +130,7 @@ export function SitemapAnalysisDialog({ open, onOpenChange, onComplete }: Sitema
     } catch (error: any) {
       toast({
         title: 'خطأ في التوليد',
-        description: error.message,
+        description: error instanceof Error ? error.message : (typeof error === 'string' ? error : 'حدث خطأ غير متوقع'),
         variant: 'destructive'
       });
     } finally {

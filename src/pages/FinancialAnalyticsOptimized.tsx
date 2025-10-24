@@ -5,6 +5,7 @@ import { AlertCircle, TrendingUp, DollarSign, Users, Package } from 'lucide-reac
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
+import { POSSharedLayoutControls, POSLayoutState } from '@/components/pos-layout/types';
 
 // المكونات المحسنة
 import {
@@ -23,7 +24,13 @@ import { useFinancialData, useChartData } from '@/components/analytics/useFinanc
 import { getDateRangePreset, formatCurrency, formatPercentage, formatLargeNumber } from '@/components/analytics/utils';
 import type { DateRange, AnalyticsFilters } from '@/components/analytics/types';
 
-const FinancialAnalyticsOptimized: React.FC = () => {
+interface FinancialAnalyticsProps extends POSSharedLayoutControls {}
+
+const FinancialAnalyticsOptimized: React.FC<FinancialAnalyticsProps> = ({
+  useStandaloneLayout = true,
+  onRegisterRefresh,
+  onLayoutStateChange
+}) => {
   // خدمات React Query
   const queryClient = useQueryClient();
   
@@ -88,28 +95,20 @@ const FinancialAnalyticsOptimized: React.FC = () => {
 
   // عرض الخطأ
   if (error) {
-    return (
-      <Layout>
-        <div className="space-y-6 px-2 sm:px-0">
+    const errorNode = (
+      <div className="space-y-6 px-2 sm:px-0">
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
             className="text-center py-8"
           >
-            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary via-blue-600 to-purple-600 bg-clip-text text-transparent mb-4">
-              💰 التحليلات المالية الشاملة
+            <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
+              التحليلات المالية الشاملة
             </h1>
-            <p className="text-muted-foreground text-lg md:text-xl max-w-2xl mx-auto leading-relaxed">
-              نظرة تفصيلية وشاملة على الأداء المالي والمبيعات مع تحليلات متقدمة ورؤى ذكية
+            <p className="text-muted-foreground text-base md:text-lg max-w-2xl mx-auto">
+              نظرة تفصيلية على الأداء المالي والمبيعات
             </p>
-            <div className="mt-4 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              <span>تحديث مباشر</span>
-              <div className="w-px h-4 bg-border"></div>
-              <span>دقة عالية</span>
-              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-            </div>
           </motion.div>
 
           <motion.div
@@ -125,33 +124,47 @@ const FinancialAnalyticsOptimized: React.FC = () => {
               </AlertDescription>
             </Alert>
           </motion.div>
-        </div>
-      </Layout>
+      </div>
     );
+    return useStandaloneLayout ? <Layout>{errorNode}</Layout> : errorNode;
   }
 
-  return (
-    <Layout>
-      <div className="space-y-6 px-2 sm:px-0">
+  const renderWithLayout = (node: React.ReactElement) => (
+    useStandaloneLayout ? <Layout>{node}</Layout> : node
+  );
+
+  // Register refresh to titlebar
+  useEffect(() => {
+    if (!onRegisterRefresh) return;
+    onRegisterRefresh(() => handleRefresh());
+    return () => onRegisterRefresh(null);
+  }, [onRegisterRefresh, handleRefresh]);
+
+  // Push layout state
+  useEffect(() => {
+    if (!onLayoutStateChange) return;
+    const state: POSLayoutState = {
+      isRefreshing: isRefreshing || isLoading,
+      connectionStatus: error ? 'disconnected' : 'connected',
+      executionTime: undefined,
+    };
+    onLayoutStateChange(state);
+  }, [onLayoutStateChange, isRefreshing, isLoading, error]);
+
+  const pageContent = (
+    <div className="space-y-6 px-2 sm:px-0">
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
           className="text-center py-8"
         >
-          <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary via-blue-600 to-purple-600 bg-clip-text text-transparent mb-4">
-            💰 التحليلات المالية الشاملة
+          <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-2">
+            التحليلات المالية الشاملة
           </h1>
-          <p className="text-muted-foreground text-lg md:text-xl max-w-2xl mx-auto leading-relaxed">
-            نظرة تفصيلية وشاملة على الأداء المالي والمبيعات مع تحليلات متقدمة ورؤى ذكية
+          <p className="text-muted-foreground text-base md:text-lg max-w-2xl mx-auto">
+            نظرة تفصيلية على الأداء المالي والمبيعات
           </p>
-          <div className="mt-4 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span>تحديث مباشر</span>
-            <div className="w-px h-4 bg-border"></div>
-            <span>دقة عالية</span>
-            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-          </div>
         </motion.div>
 
         <motion.div
@@ -172,13 +185,12 @@ const FinancialAnalyticsOptimized: React.FC = () => {
           />
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-8">
-            <TabsList className="grid w-full grid-cols-5 mb-8 h-14 p-1 bg-muted/50 backdrop-blur-sm rounded-xl border border-border/50">
+            <TabsList className="grid w-full grid-cols-5 mb-8 h-12 p-1 bg-muted/30 rounded-lg">
               <TabsTrigger 
                 value="overview" 
-                className="flex items-center gap-2 h-12 rounded-lg font-medium transition-all duration-300
-                          data-[state=active]:bg-background data-[state=active]:text-foreground 
-                          data-[state=active]:shadow-lg data-[state=active]:shadow-primary/20
-                          hover:bg-background/50 hover:text-foreground"
+                className="flex items-center gap-2 h-10 rounded-md font-medium transition-all
+                          data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
+                          hover:bg-muted"
               >
                 <TrendingUp className="h-4 w-4" />
                 <span className="hidden sm:inline">نظرة عامة</span>
@@ -186,10 +198,9 @@ const FinancialAnalyticsOptimized: React.FC = () => {
               </TabsTrigger>
               <TabsTrigger 
                 value="sales" 
-                className="flex items-center gap-2 h-12 rounded-lg font-medium transition-all duration-300
-                          data-[state=active]:bg-background data-[state=active]:text-foreground 
-                          data-[state=active]:shadow-lg data-[state=active]:shadow-primary/20
-                          hover:bg-background/50 hover:text-foreground"
+                className="flex items-center gap-2 h-10 rounded-md font-medium transition-all
+                          data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
+                          hover:bg-muted"
               >
                 <DollarSign className="h-4 w-4" />
                 <span className="hidden sm:inline">المبيعات</span>
@@ -197,10 +208,9 @@ const FinancialAnalyticsOptimized: React.FC = () => {
               </TabsTrigger>
               <TabsTrigger 
                 value="services" 
-                className="flex items-center gap-2 h-12 rounded-lg font-medium transition-all duration-300
-                          data-[state=active]:bg-background data-[state=active]:text-foreground 
-                          data-[state=active]:shadow-lg data-[state=active]:shadow-primary/20
-                          hover:bg-background/50 hover:text-foreground"
+                className="flex items-center gap-2 h-10 rounded-md font-medium transition-all
+                          data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
+                          hover:bg-muted"
               >
                 <Package className="h-4 w-4" />
                 <span className="hidden sm:inline">الخدمات</span>
@@ -208,10 +218,9 @@ const FinancialAnalyticsOptimized: React.FC = () => {
               </TabsTrigger>
               <TabsTrigger 
                 value="financial" 
-                className="flex items-center gap-2 h-12 rounded-lg font-medium transition-all duration-300
-                          data-[state=active]:bg-background data-[state=active]:text-foreground 
-                          data-[state=active]:shadow-lg data-[state=active]:shadow-primary/20
-                          hover:bg-background/50 hover:text-foreground"
+                className="flex items-center gap-2 h-10 rounded-md font-medium transition-all
+                          data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
+                          hover:bg-muted"
               >
                 <Users className="h-4 w-4" />
                 <span className="hidden sm:inline">الحالة المالية</span>
@@ -219,10 +228,9 @@ const FinancialAnalyticsOptimized: React.FC = () => {
               </TabsTrigger>
               <TabsTrigger 
                 value="orders-products" 
-                className="flex items-center gap-2 h-12 rounded-lg font-medium transition-all duration-300
-                          data-[state=active]:bg-background data-[state=active]:text-foreground 
-                          data-[state=active]:shadow-lg data-[state=active]:shadow-primary/20
-                          hover:bg-background/50 hover:text-foreground"
+                className="flex items-center gap-2 h-10 rounded-md font-medium transition-all
+                          data-[state=active]:bg-primary data-[state=active]:text-primary-foreground
+                          hover:bg-muted"
               >
                 <Package className="h-4 w-4" />
                 <span className="hidden sm:inline">الطلبات والمنتجات</span>
@@ -311,23 +319,13 @@ const FinancialAnalyticsOptimized: React.FC = () => {
                   transition={{ duration: 0.3 }}
                   className="space-y-6"
                 >
-                  <div className="text-center mb-8">
-                    <motion.h3 
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.5 }}
-                      className="text-3xl font-bold bg-gradient-to-r from-primary via-blue-600 to-purple-600 bg-clip-text text-transparent mb-3"
-                    >
-                      📋 تحليل الخدمات المتاحة
-                    </motion.h3>
-                    <motion.p 
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.5, delay: 0.1 }}
-                      className="text-muted-foreground text-lg"
-                    >
+                  <div className="mb-6">
+                    <h3 className="text-2xl font-bold text-foreground mb-2">
+                      تحليل الخدمات المتاحة
+                    </h3>
+                    <p className="text-muted-foreground text-sm">
                       عرض إحصائيات الخدمات الأساسية المتوفرة في النظام
-                    </motion.p>
+                    </p>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -338,11 +336,11 @@ const FinancialAnalyticsOptimized: React.FC = () => {
                       transition={{ duration: 0.4, delay: 0.2 }}
                     >
                       <MetricCard
-                        title="🔧 خدمات التصليح"
+                        title="خدمات التصليح"
                         value={financialData?.repair_services_revenue || 0}
                         subtitle={`${financialData?.repair_orders_count || 0} طلب تصليح`}
                         icon={Package}
-                        type="success"
+                        type="revenue"
                         isLoading={isLoading}
                         valueType="currency"
                         size="lg"
@@ -356,11 +354,11 @@ const FinancialAnalyticsOptimized: React.FC = () => {
                       transition={{ duration: 0.4, delay: 0.3 }}
                     >
                       <MetricCard
-                        title="🔒 خدمات الاشتراكات"
+                        title="خدمات الاشتراكات"
                         value={financialData?.subscription_services_revenue || 0}
                         subtitle={`${financialData?.subscription_transactions_count || 0} معاملة اشتراك`}
                         icon={Users}
-                        type="profit"
+                        type="revenue"
                         isLoading={isLoading}
                         valueType="currency"
                         size="lg"
@@ -374,7 +372,7 @@ const FinancialAnalyticsOptimized: React.FC = () => {
                       transition={{ duration: 0.4, delay: 0.4 }}
                     >
                       <MetricCard
-                        title="🎮 تحميل الألعاب"
+                        title="تحميل الألعاب"
                         value={financialData?.game_downloads_revenue || 0}
                         subtitle={`${financialData?.game_downloads_count || 0} عملية تحميل`}
                         icon={TrendingUp}
@@ -386,119 +384,79 @@ const FinancialAnalyticsOptimized: React.FC = () => {
                     </motion.div>
                   </div>
 
-                  {/* إحصائيات إجمالية للخدمات - محسنة للدارك مود */}
-                  <motion.div 
-                    initial={{ opacity: 0, y: 30 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.5, delay: 0.5 }}
-                    className="mt-8 p-6 bg-gradient-to-br from-primary/5 via-blue-50/50 to-purple-50/50 
-                               dark:from-primary/10 dark:via-blue-950/20 dark:to-purple-950/20 
-                               rounded-xl border border-primary/20 dark:border-primary/30 
-                               backdrop-blur-sm shadow-lg dark:shadow-2xl"
-                  >
-                    <div className="flex items-center gap-3 mb-6">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-r from-primary to-blue-600 
-                                    flex items-center justify-center text-white text-lg font-bold shadow-lg">
-                        📊
-                      </div>
-                      <h4 className="text-xl font-bold text-primary dark:text-primary-foreground">
-                        إجمالي الخدمات
-                      </h4>
-                    </div>
+                  {/* إحصائيات إجمالية للخدمات */}
+                  <div className="mt-8 p-6 bg-card rounded-lg border">
+                    <h4 className="text-lg font-bold text-foreground mb-6">
+                      إجمالي الخدمات
+                    </h4>
                     
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="group relative overflow-hidden bg-gradient-to-br from-white/80 to-white/60 
-                                    dark:from-gray-800/80 dark:to-gray-900/60 
-                                    p-6 rounded-xl border border-white/50 dark:border-gray-700/50 
-                                    backdrop-blur-sm hover:shadow-xl dark:hover:shadow-2xl transition-all duration-300">
-                        <div className="absolute inset-0 bg-gradient-to-r from-green-500/10 to-emerald-500/10 
-                                      dark:from-green-400/20 dark:to-emerald-400/20 opacity-0 group-hover:opacity-100 
-                                      transition-opacity duration-300"></div>
-                        <div className="relative z-10">
-                          <div className="text-sm font-medium text-green-700 dark:text-green-400 mb-2 
-                                        flex items-center gap-2">
-                            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                            إجمالي إيرادات الخدمات
-                          </div>
-                          <div className="text-2xl font-bold text-green-800 dark:text-green-300">
-                            {formatCurrency(
-                              (financialData?.repair_services_revenue || 0) +
-                              (financialData?.subscription_services_revenue || 0) +
-                              (financialData?.game_downloads_revenue || 0)
-                            )}
-                          </div>
+                      <div className="p-6 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors">
+                        <div className="text-sm font-medium text-muted-foreground mb-2">
+                          إجمالي إيرادات الخدمات
+                        </div>
+                        <div className="text-2xl font-bold text-primary">
+                          {formatCurrency(
+                            (financialData?.repair_services_revenue || 0) +
+                            (financialData?.subscription_services_revenue || 0) +
+                            (financialData?.game_downloads_revenue || 0)
+                          )}
                         </div>
                       </div>
                       
-                      <div className="group relative overflow-hidden bg-gradient-to-br from-white/80 to-white/60 
-                                    dark:from-gray-800/80 dark:to-gray-900/60 
-                                    p-6 rounded-xl border border-white/50 dark:border-gray-700/50 
-                                    backdrop-blur-sm hover:shadow-xl dark:hover:shadow-2xl transition-all duration-300">
-                        <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 to-purple-500/10 
-                                      dark:from-blue-400/20 dark:to-purple-400/20 opacity-0 group-hover:opacity-100 
-                                      transition-opacity duration-300"></div>
-                        <div className="relative z-10">
-                          <div className="text-sm font-medium text-blue-700 dark:text-blue-400 mb-2 
-                                        flex items-center gap-2">
-                            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                            إجمالي المعاملات
-                          </div>
-                          <div className="text-2xl font-bold text-blue-800 dark:text-blue-300">
-                            {formatLargeNumber(
-                              (financialData?.repair_orders_count || 0) +
-                              (financialData?.subscription_transactions_count || 0) +
-                              (financialData?.game_downloads_count || 0)
-                            )}
-                          </div>
+                      <div className="p-6 rounded-lg border bg-muted/30 hover:bg-muted/50 transition-colors">
+                        <div className="text-sm font-medium text-muted-foreground mb-2">
+                          إجمالي المعاملات
+                        </div>
+                        <div className="text-2xl font-bold text-primary">
+                          {formatLargeNumber(
+                            (financialData?.repair_orders_count || 0) +
+                            (financialData?.subscription_transactions_count || 0) +
+                            (financialData?.game_downloads_count || 0)
+                          )}
                         </div>
                       </div>
                     </div>
 
-                    {/* شريط تقدم ديناميكي */}
-                    <div className="mt-6 space-y-3">
-                      <div className="text-xs font-medium text-muted-foreground mb-2">توزيع الخدمات</div>
+                    {/* شريط التوزيع */}
+                    <div className="mt-6 space-y-2">
+                      <div className="text-xs font-medium text-muted-foreground">توزيع الخدمات</div>
                       <div className="flex gap-1 h-2 bg-muted/30 rounded-full overflow-hidden">
-                        <motion.div 
-                          initial={{ width: 0 }}
-                          animate={{ 
+                        <div 
+                          style={{
                             width: `${((financialData?.repair_services_revenue || 0) / 
                                      Math.max(1, (financialData?.repair_services_revenue || 0) + 
                                                  (financialData?.subscription_services_revenue || 0) + 
-                                                 (financialData?.game_downloads_revenue || 0))) * 100}%` 
+                                                 (financialData?.game_downloads_revenue || 0))) * 100}%`
                           }}
-                          transition={{ duration: 1, delay: 0.8 }}
-                          className="bg-gradient-to-r from-green-500 to-emerald-500 rounded-full"
+                          className="bg-primary/70 rounded-full"
                         />
-                        <motion.div 
-                          initial={{ width: 0 }}
-                          animate={{ 
+                        <div 
+                          style={{
                             width: `${((financialData?.subscription_services_revenue || 0) / 
                                      Math.max(1, (financialData?.repair_services_revenue || 0) + 
                                                  (financialData?.subscription_services_revenue || 0) + 
-                                                 (financialData?.game_downloads_revenue || 0))) * 100}%` 
+                                                 (financialData?.game_downloads_revenue || 0))) * 100}%`
                           }}
-                          transition={{ duration: 1, delay: 0.9 }}
-                          className="bg-gradient-to-r from-blue-500 to-purple-500 rounded-full"
+                          className="bg-primary rounded-full"
                         />
-                        <motion.div 
-                          initial={{ width: 0 }}
-                          animate={{ 
+                        <div 
+                          style={{
                             width: `${((financialData?.game_downloads_revenue || 0) / 
                                      Math.max(1, (financialData?.repair_services_revenue || 0) + 
                                                  (financialData?.subscription_services_revenue || 0) + 
-                                                 (financialData?.game_downloads_revenue || 0))) * 100}%` 
+                                                 (financialData?.game_downloads_revenue || 0))) * 100}%`
                           }}
-                          transition={{ duration: 1, delay: 1.0 }}
-                          className="bg-gradient-to-r from-orange-500 to-red-500 rounded-full"
+                          className="bg-primary/50 rounded-full"
                         />
                       </div>
                       <div className="flex justify-between text-xs text-muted-foreground">
-                        <span>🔧 التصليح</span>
-                        <span>🔒 الاشتراكات</span>
-                        <span>🎮 الألعاب</span>
+                        <span>التصليح</span>
+                        <span>الاشتراكات</span>
+                        <span>الألعاب</span>
                       </div>
                     </div>
-                  </motion.div>
+                  </div>
                 </motion.div>
               </AnimatePresence>
             </TabsContent>
@@ -533,8 +491,9 @@ const FinancialAnalyticsOptimized: React.FC = () => {
           </Tabs>
         </motion.div>
       </div>
-    </Layout>
   );
+
+  return renderWithLayout(pageContent);
 };
 
 export default FinancialAnalyticsOptimized;

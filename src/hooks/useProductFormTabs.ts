@@ -70,7 +70,7 @@ export const useProductFormTabs = ({
         return watchThumbnailImage ? 'complete' : 'empty';
       case 'pricing_inventory':
         return watchPrice > 0 ? 'complete' : 'empty';
-      case 'special_offers':
+      case 'conversion_tracking':
         return 'optional';
       case 'variants':
         if (!watchHasVariants) {
@@ -79,8 +79,7 @@ export const useProductFormTabs = ({
         return productColors.length > 0 ? 'complete' : 'empty';
       case 'shipping_templates':
         return 'optional';
-      case 'conversion_tracking':
-        return 'optional';
+      
       case 'advanced':
         return 'optional';
       default:
@@ -120,17 +119,8 @@ export const useProductFormTabs = ({
       tooltip: "حدد سعر المنتج وكمية المخزون",
       color: "green"
     },
+    
     {
-      value: "special_offers",
-      label: "العروض الخاصة",
-      shortLabel: "عروض",
-      icon: "Gift",
-      description: "عروض الباقات والكميات",
-      required: false,
-      tooltip: "إنشاء عروض خاصة للباقات والكميات المختلفة",
-      color: "purple"
-    },
-    ...(watchHasVariants ? [{
       value: "variants",
       label: "المتغيرات",
       shortLabel: "متغيرات",
@@ -139,7 +129,7 @@ export const useProductFormTabs = ({
       required: false,
       tooltip: "أضف متغيرات المنتج مثل الألوان والأحجام",
       color: "purple"
-    }] : []),
+    },
     {
       value: "shipping_templates",
       label: "التوصيل والنماذج",
@@ -151,16 +141,6 @@ export const useProductFormTabs = ({
       color: "green"
     },
     {
-      value: "conversion_tracking",
-      label: "تتبع التحويلات المتقدم",
-      shortLabel: "تتبع",
-      icon: "BarChart2",
-      description: "فيسبوك، جوجل، وتيك توك",
-      required: false,
-      tooltip: "إعداد تتبع التحويلات عبر منصات متعددة",
-      color: "indigo"
-    },
-    {
       value: "advanced",
       label: "إعدادات عامة",
       shortLabel: "عامة",
@@ -169,6 +149,17 @@ export const useProductFormTabs = ({
       required: false,
       tooltip: "إعدادات الجملة والإعدادات العامة الأخرى",
       color: "amber"
+    },
+    // يجب أن يكون الأخير
+    {
+      value: "conversion_tracking",
+      label: "تحليلات التسويق وتتبع التحويلات",
+      shortLabel: "التحويلات",
+      icon: "BarChart2",
+      description: "إعداد تتبع التحويلات عبر المنصات",
+      required: false,
+      tooltip: "إعداد فيسبوك، جوجل، وتيك توك للتتبّع",
+      color: "indigo"
     }
   ], [watchHasVariants]);
 

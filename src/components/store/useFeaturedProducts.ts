@@ -32,162 +32,62 @@ export const useFeaturedProducts = ({
   const [fetchedProducts, setFetchedProducts] = useState<Product[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
 
-  // استخدام البيانات من الـ context الموحد
-  const { featuredProducts: preloadedFeaturedProducts } = useSharedStoreDataContext();
-
   // جلب المنتجات حسب الطريقة المحددة (يدوي أو تلقائي)
-  // منع حلقات إعادة الجلب: نعتمد توقيعاً مستقراً لمحتوى preloadedFeaturedProducts
-  const preloadedSig = useMemo(() => {
-    try {
-      if (!preloadedFeaturedProducts || preloadedFeaturedProducts.length === 0) return '';
-      // استخدام JSON.stringify للمقارنة العميقة مع تحسين الأداء
-      return JSON.stringify(preloadedFeaturedProducts.map((p: any) => ({
-        id: p?.id,
-        name: p?.name,
-        featured: p?.is_featured
-      })));
-    } catch { return ''; }
-  }, [preloadedFeaturedProducts?.length]); // استخدام length فقط لتجنب التغيير المستمر
-
-  const usedPreloadedOnceRef = (globalThis as any).__USED_PRELOADED_FEATURED_ONCE__ || { current: false };
-  (globalThis as any).__USED_PRELOADED_FEATURED_ONCE__ = usedPreloadedOnceRef;
-
   useEffect(() => {
     const fetchProducts = async () => {
-      // أولاً، تحقق من البيانات المحملة مسبقاً
-      if (preloadedFeaturedProducts && preloadedFeaturedProducts.length > 0) {
-        // إذا سبق استخدام بيانات preload بنفس التوقيع، لا تعيد التعيين لتجنب حلقة الرندر
-        if (usedPreloadedOnceRef.current && fetchedProducts.length > 0) {
-          return;
-        }
-
-        // تحويل البيانات المحملة مسبقاً إلى تنسيق Product[]
-        const convertedPreloadedProducts = preloadedFeaturedProducts.map((dbProd: any) => {
-          try {
-            return convertDatabaseProductToStoreProduct(dbProd);
-          } catch {
-            // fallback بسيط إذا فشل التحويل
-            return {
-              id: dbProd.id,
-              name: dbProd.name || 'منتج',
-              description: dbProd.description || '',
-              price: Number(dbProd.price || 0),
-              discount_price: dbProd.compare_at_price ? Number(dbProd.compare_at_price) : undefined,
-              imageUrl: dbProd.thumbnail_url || dbProd.thumbnail_image || dbProd.imageUrl || '',
-              category: dbProd.product_categories?.name || dbProd.category || '',
-              is_new: !!dbProd.is_new,
-              is_featured: !!dbProd.is_featured,
-              stock_quantity: Number(dbProd.stock_quantity || 0),
-              slug: dbProd.slug || dbProd.id,
-              rating: 4.5
-            };
-          }
-        });
-        // عيّن مرة واحدة فقط
-        setFetchedProducts(convertedPreloadedProducts);
-        usedPreloadedOnceRef.current = true;
+      if (!organizationId || initialProducts.length > 0) {
+        // لا نحتاج للجلب إذا كانت هناك منتجات من props أو لا يوجد organizationId
         return;
-      }
-
-      // إذا كانت هناك منتجات من props، استخدمها ولا تجلب من API
-      if (initialProducts.length > 0) {
-        return;
-      }
-
-      // إذا لم يكن هناك organizationId ولا بيانات محملة مسبقاً، حاول جلب البيانات باستخدام store identifier
-      if (!organizationId) {
-        
-        // سنحاول استخدام الـ API المباشر بدلاً من getProducts
       }
 
       setLoading(true);
       try {
-        
-        
-        // تحديد store identifier من النطاق الحالي
-        const hostname = window.location.hostname;
-        let storeIdentifier = hostname;
-        
-        // إزالة www. إذا كان موجوداً
-        if (storeIdentifier.startsWith('www.')) {
-          storeIdentifier = storeIdentifier.substring(4);
-        }
-        
-        
-        
-        // استخدام RPC للحصول على بيانات المتجر
-        const { getStoreInitData } = await import('@/lib/api/deduplicatedApi');
-        const storeData = await getStoreInitData(storeIdentifier);
-        
-        if (storeData && storeData.featured_products && Array.isArray(storeData.featured_products)) {
-          let filteredProducts = storeData.featured_products;
+        const response = await getProducts(organizationId);
+
+        if (response && Array.isArray(response)) {
+          let filteredProducts: DBProduct[] = response;
 
           if (selectionMethod === 'manual' && selectedProducts.length > 0) {
             // فلترة المنتجات المحددة يدوياً
-            filteredProducts = storeData.featured_products.filter((product: any) =>
+            filteredProducts = response.filter((product: DBProduct) =>
               selectedProducts.includes(product.id)
             );
           } else if (selectionMethod === 'automatic') {
             // فلترة المنتجات حسب المعايير التلقائية
             switch (selectionCriteria) {
               case 'featured':
-                filteredProducts = storeData.featured_products.filter((product: any) => product.is_featured);
+                filteredProducts = response.filter((product: DBProduct) => product.is_featured);
                 break;
               case 'newest':
-                filteredProducts = storeData.featured_products.filter((product: any) => product.is_new);
+                filteredProducts = response.filter((product: DBProduct) => product.is_new);
                 break;
               case 'discounted':
-                filteredProducts = storeData.featured_products.filter((product: any) =>
+                filteredProducts = response.filter((product: DBProduct) =>
                   product.compare_at_price && product.compare_at_price > product.price
                 );
                 break;
               case 'best_selling':
                 // يمكن إضافة منطق المبيعات هنا لاحقاً
-                filteredProducts = storeData.featured_products.filter((product: any) => product.is_featured);
+                filteredProducts = response.filter((product: DBProduct) => product.is_featured);
                 break;
               default:
-                filteredProducts = storeData.featured_products.filter((product: any) => product.is_featured);
+                filteredProducts = response.filter((product: DBProduct) => product.is_featured);
             }
           }
 
-          // تحويل البيانات إلى تنسيق Product[]
-          const convertedProducts = filteredProducts.map((dbProd: any) => {
-            try {
-              return convertDatabaseProductToStoreProduct(dbProd);
-            } catch {
-              // fallback بسيط إذا فشل التحويل
-              return {
-                id: dbProd.id,
-                name: dbProd.name || 'منتج',
-                description: dbProd.description || '',
-                price: Number(dbProd.price || 0),
-                discount_price: dbProd.compare_at_price ? Number(dbProd.compare_at_price) : undefined,
-                imageUrl: dbProd.thumbnail_url || dbProd.thumbnail_image || dbProd.imageUrl || '',
-                category: dbProd.category_name || dbProd.category || '',
-                is_new: !!dbProd.is_new,
-                is_featured: !!dbProd.is_featured,
-                stock_quantity: Number(dbProd.stock_quantity || 0),
-                slug: dbProd.slug || dbProd.id,
-                rating: 4.5
-              };
-            }
-          });
-          
-          
+          const convertedProducts = filteredProducts.map(convertDatabaseProductToStoreProduct);
           setFetchedProducts(convertedProducts);
         } else {
-          
           setFetchedProducts([]);
         }
       } catch (error) {
-        console.error(`❌ [useFeaturedProducts] خطأ في جلب البيانات من RPC:`, error);
+        console.error('خطأ في جلب منتجات FeaturedProducts:', error);
         setFetchedProducts([]);
       }
       setLoading(false);
     };
 
     fetchProducts();
-    // ملاحظة: نعتمد على preloadedSig بدلاً من المرجع المباشر لتجنب تغيّر المرجع كل رندر
   }, [selectionMethod, selectionCriteria, selectedProducts, organizationId, initialProducts.length]);
 
   // منطق عرض المنتجات المحسن
@@ -203,6 +103,7 @@ export const useFeaturedProducts = ({
     }
 
     // إذا لم تكن هناك منتجات مجلبة ولا منتجات من props، استخدم منتجات فارغة
+    console.warn('FeaturedProducts: لا توجد منتجات متاحة للعرض');
 
     // استخدم المنتجات الافتراضية كخيار أخير
     const defaultProducts = getDefaultProducts(t).slice(0, displayCount);

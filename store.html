@@ -476,10 +476,9 @@
         // تحميل CSS الأساسي للتطبيق
         function loadNonCriticalCSS() {
           // تحميل CSS الرئيسي المُنتج من Vite
-          var mainCSS = document.querySelector('link[rel="stylesheet"][href*="main-"]');
+          var mainCSS = document.querySelector('link[rel="stylesheet"][href^="/assets/css/"]');
           if (!mainCSS) {
-            // إذا لم يتم تحميل CSS الرئيسي، ابحث عنه وحمّله
-            loadCSS('/assets/css/main-CbztG7-1.css');
+            console.warn('[Store] CSS bundle link not found; skipping legacy fallback.');
           }
         }
 

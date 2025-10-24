@@ -4,6 +4,7 @@ import { ArrowRight, Sparkles, Star, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { BannerContentProps, buttonStyles } from './types';
+import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 
 /**
@@ -24,16 +25,12 @@ const BannerContent = React.memo<BannerContentProps>(({
   const { t } = useTranslation();
   // تفعيل الحركة على الشاشات الكبيرة فقط وبدون "تقليل الحركة"
   const [enableMotion, setEnableMotion] = useState(false);
-  const [motionLib, setMotionLib] = useState<any>(null);
   useEffect(() => {
     try {
       const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       const isSmallScreen = typeof window !== 'undefined' && window.innerWidth < 768;
       const shouldEnable = !prefersReduced && !isSmallScreen;
       setEnableMotion(shouldEnable);
-      if (shouldEnable) {
-        import('framer-motion').then((m) => setMotionLib(m)).catch(() => setMotionLib(null));
-      }
     } catch {
       setEnableMotion(false);
     }
@@ -79,8 +76,7 @@ const BannerContent = React.memo<BannerContentProps>(({
     }
   }), []);
 
-  if (enableMotion && motionLib?.motion) {
-    const { motion } = motionLib;
+  if (enableMotion) {
     return (
       <motion.div 
         className={cn(

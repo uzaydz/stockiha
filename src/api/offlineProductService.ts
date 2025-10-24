@@ -2,7 +2,6 @@ import { supabase } from '@/lib/supabase';
 import { 
   createLocalProduct,
   updateLocalProduct,
-  reduceLocalProductStock,
   deleteLocalProduct,
   getLocalProducts as fetchLocalProducts
 } from './localProductService';
@@ -135,11 +134,131 @@ export const deleteProduct = async (organizationId: string, productId: string): 
 };
 
 // تحديث كمية المخزون (مثلاً عند البيع)
+type VariantUpdateOptions = {
+  colorId?: string | null;
+  sizeId?: string | null;
+};
+
+const calculateVariantStock = (colors: any[] | undefined): number => {
+  if (!Array.isArray(colors)) {
+    return 0;
+  }
+
+  return colors.reduce((sum, color) => {
+    const baseQuantity = Number(color?.quantity ?? 0);
+    const rawSizes = Array.isArray(color?.product_sizes)
+      ? color.product_sizes
+      : Array.isArray(color?.sizes)
+        ? color.sizes
+        : [];
+
+    if (rawSizes.length === 0) {
+      return sum + Math.max(0, baseQuantity);
+    }
+
+    const sizesTotal = rawSizes.reduce((sizesSum: number, size: any) => {
+      return sizesSum + Math.max(0, Number(size?.quantity ?? 0));
+    }, 0);
+
+    return sum + sizesTotal;
+  }, 0);
+};
+
+const applyVariantQuantityUpdate = (
+  colorsSource: any[] | undefined,
+  signedDelta: number,
+  colorId?: string | null,
+  sizeId?: string | null
+): any[] | undefined => {
+  if (!Array.isArray(colorsSource) || !colorId) {
+    return undefined;
+  }
+
+  let hasChanges = false;
+  const updatedColors = colorsSource.map((rawColor) => {
+    const colorCandidates = [
+      rawColor?.id,
+      rawColor?.color_id,
+      rawColor?.colorId,
+      rawColor?.variant_id
+    ].filter(Boolean);
+
+    if (!colorCandidates.includes(colorId)) {
+      return rawColor;
+    }
+
+    hasChanges = true;
+    const color = { ...rawColor };
+
+    const normalizeSizes = (sizes: any[] | undefined) => {
+      if (!Array.isArray(sizes)) {
+        return [];
+      }
+
+      let sizeChanged = false;
+      const nextSizes = sizes.map((rawSize) => {
+        const sizeCandidates = [
+          rawSize?.id,
+          rawSize?.size_id,
+          rawSize?.sizeId
+        ].filter(Boolean);
+
+        if (!sizeId || !sizeCandidates.includes(sizeId)) {
+          return rawSize;
+        }
+
+        sizeChanged = true;
+        const size = { ...rawSize };
+        const currentQty = Number(size?.quantity ?? 0);
+        const nextQty = Math.max(0, currentQty + signedDelta);
+        size.quantity = nextQty;
+
+        if (typeof size?.remaining_quantity !== 'undefined') {
+          size.remaining_quantity = nextQty;
+        }
+
+        return size;
+      });
+
+      if (sizeChanged && nextSizes.length > 0) {
+        const totalSizeQuantity = nextSizes.reduce((sum, size) => {
+          return sum + Math.max(0, Number(size?.quantity ?? 0));
+        }, 0);
+
+        color.quantity = totalSizeQuantity;
+      }
+
+      return nextSizes;
+    };
+
+    const updatedProductSizes = normalizeSizes(color.product_sizes);
+    if (updatedProductSizes.length > 0) {
+      color.product_sizes = updatedProductSizes;
+    }
+
+    const updatedSizes = normalizeSizes(color.sizes);
+    if (updatedSizes.length > 0) {
+      color.sizes = updatedSizes;
+    }
+
+    if (!sizeId) {
+      const currentColorQty = Number(color?.quantity ?? 0);
+      const nextColorQty = Math.max(0, currentColorQty + signedDelta);
+      color.quantity = nextColorQty;
+    }
+
+    return color;
+  });
+
+  return hasChanges ? updatedColors : undefined;
+};
+
 export const updateProductStock = async (
   organizationId: string, 
   productId: string, 
   quantity: number, 
-  isReduction: boolean = true
+  isReduction: boolean = true,
+  options?: VariantUpdateOptions
 ): Promise<LocalProduct | null> => {
   try {
     const product = await getProductById(organizationId, productId);
@@ -148,20 +267,78 @@ export const updateProductStock = async (
       throw new Error(`لم يتم العثور على المنتج بالمعرف: ${productId}`);
     }
     
-    let updatedProduct: LocalProduct | null = null;
-    
-    if (isReduction) {
-      // تقليل المخزون
-      updatedProduct = await reduceLocalProductStock(productId, Math.abs(quantity));
-    } else {
-      // زيادة المخزون
-      const newQuantity = product.stock_quantity + Math.abs(quantity);
-      updatedProduct = await updateLocalProduct(productId, { 
-        stock_quantity: newQuantity,
-        updated_at: new Date().toISOString()
-      });
+    const now = new Date().toISOString();
+    const safeQuantity = Math.abs(quantity);
+    const signedDelta = isReduction ? -safeQuantity : safeQuantity;
+
+    const currentNumericStock = Number(
+      (product as any)?.actual_stock_quantity ??
+      product.stock_quantity ??
+      (product as any)?.stockQuantity ??
+      0
+    );
+
+    const baseStockAfterChange = Math.max(0, currentNumericStock + signedDelta);
+
+    const variantOptions = options || {};
+    const colorId = variantOptions.colorId ?? null;
+    const sizeId = variantOptions.sizeId ?? null;
+
+    const updates: Partial<LocalProduct> & {
+      product_colors?: any[];
+      colors?: any[];
+    } = {
+      stock_quantity: baseStockAfterChange,
+      stockQuantity: baseStockAfterChange,
+      actual_stock_quantity: baseStockAfterChange,
+      last_inventory_update: now
+    };
+
+    const updatedProductColors = applyVariantQuantityUpdate(
+      (product as any).product_colors,
+      signedDelta,
+      colorId,
+      sizeId
+    );
+
+    if (updatedProductColors) {
+      updates.product_colors = updatedProductColors;
+      const recalculatedStock = calculateVariantStock(updatedProductColors);
+      if (recalculatedStock > 0) {
+        updates.stock_quantity = recalculatedStock;
+        updates.stockQuantity = recalculatedStock;
+        updates.actual_stock_quantity = recalculatedStock;
+      }
     }
-    
+
+    const updatedColors = applyVariantQuantityUpdate(
+      (product as any).colors,
+      signedDelta,
+      colorId,
+      sizeId
+    );
+
+    if (updatedColors) {
+      updates.colors = updatedColors;
+      if (!updatedProductColors) {
+        const recalculatedStock = calculateVariantStock(updatedColors);
+        if (recalculatedStock > 0) {
+          updates.stock_quantity = recalculatedStock;
+          updates.stockQuantity = recalculatedStock;
+          updates.actual_stock_quantity = recalculatedStock;
+        }
+      }
+    }
+
+    if (!updatedProductColors && !updatedColors && colorId) {
+      // إذا لم نجد المتغير المحدد، تأكد من عدم تغيير المخزون الأساسي بالعلامة الخاطئة
+      updates.stock_quantity = Math.max(0, product.stock_quantity + signedDelta);
+      updates.stockQuantity = updates.stock_quantity;
+      updates.actual_stock_quantity = updates.stock_quantity;
+    }
+
+    let updatedProduct: LocalProduct | null = await updateLocalProduct(productId, updates as any);
+
     // محاولة المزامنة إذا كان متصلاً
     if (isOnline()) {
       try {

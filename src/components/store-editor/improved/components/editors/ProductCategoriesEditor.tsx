@@ -1,5 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { Type, Settings2, Layers, Search, Plus, X, Grid3X3, List, Loader2, AlertCircle, CheckCircle2, Eye, Filter, Image } from 'lucide-react'
+import { Type, Settings2, Layers, Search, Plus, X, Grid3X3, List, Loader2, AlertCircle, CheckCircle2, Eye, Filter, Image, GripVertical } from 'lucide-react'
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -57,6 +61,97 @@ interface ProductCategoriesEditorProps {
   onUpdate: (key: string, value: any) => void
 }
 
+// مكون SortableCategory للفئات المحددة
+interface SortableCategoryProps {
+  category: Category
+  index: number
+  onRemove: (categoryId: string) => void
+}
+
+const SortableCategory: React.FC<SortableCategoryProps> = ({ category, index, onRemove }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ 
+    id: category.id,
+    disabled: false
+  })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center gap-3 p-2 bg-background rounded-lg border hover:shadow-sm transition-all ${
+        isDragging ? 'shadow-lg scale-105 opacity-90' : ''
+      }`}
+    >
+      <div className="flex items-center gap-2 text-muted-foreground">
+        <span className="text-sm font-medium w-6 text-center">{index + 1}</span>
+        <div className="w-1 h-6 bg-primary/30 rounded-full"></div>
+      </div>
+      
+      {/* مقبض السحب */}
+      <div
+        {...attributes}
+        {...listeners}
+        className="p-1 cursor-grab active:cursor-grabbing hover:bg-muted/50 rounded"
+        title="اسحب لترتيب الفئات"
+      >
+        <GripVertical className="h-4 w-4 text-muted-foreground" />
+      </div>
+      
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          {category.image_url ? (
+            <img
+              src={category.image_url}
+              alt={category.name}
+              className="w-8 h-8 rounded object-cover"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none'
+              }}
+            />
+          ) : (
+            <div className="w-8 h-8 rounded bg-primary/10 flex items-center justify-center">
+              {category.icon ? (
+                <span className="text-sm">{category.icon}</span>
+              ) : (
+                <Image className="w-4 h-4 text-primary" />
+              )}
+            </div>
+          )}
+          <div className="min-w-0">
+            <p className="text-sm font-medium truncate">{category.name}</p>
+            {category.product_count !== undefined && (
+              <p className="text-xs text-muted-foreground">{category.product_count} منتج</p>
+            )}
+          </div>
+        </div>
+      </div>
+      
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => onRemove(category.id)}
+        className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50"
+        title="إزالة الفئة"
+      >
+        <X className="h-4 w-4" />
+      </Button>
+    </div>
+  )
+}
+
 export const ProductCategoriesEditor: React.FC<ProductCategoriesEditorProps> = ({
   settings,
   onUpdate
@@ -76,6 +171,18 @@ export const ProductCategoriesEditor: React.FC<ProductCategoriesEditorProps> = (
   
   const { currentOrganization } = useTenant()
   const organizationId = currentOrganization?.id || localStorage.getItem('bazaar_organization_id')
+
+  // إعداد مستشعرات السحب والإفلات
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
 
   const toggleSection = (section: string) => {
     setExpandedSections(prev => {
@@ -133,9 +240,10 @@ export const ProductCategoriesEditor: React.FC<ProductCategoriesEditorProps> = (
   // تحميل الفئات المحددة من الإعدادات
   useEffect(() => {
     if (settings.selectedCategories && Array.isArray(settings.selectedCategories)) {
-      const categoriesFromSettings = availableCategories.filter(category => 
-        settings.selectedCategories.includes(category.id)
-      )
+      // الحفاظ على الترتيب المحفوظ في الإعدادات
+      const categoriesFromSettings = settings.selectedCategories
+        .map(categoryId => availableCategories.find(category => category.id === categoryId))
+        .filter(category => category !== undefined) as Category[]
       setSelectedCategories(categoriesFromSettings)
     }
   }, [settings.selectedCategories, availableCategories])
@@ -226,6 +334,35 @@ export const ProductCategoriesEditor: React.FC<ProductCategoriesEditorProps> = (
     newSelection.splice(toIndex, 0, moved)
     setSelectedCategories(newSelection)
     onUpdate('selectedCategories', newSelection.map(c => c.id))
+  }
+
+  // معالجة السحب والإفلات
+  const handleDragEnd = (event: any) => {
+    const { active, over } = event
+
+    if (active.id !== over.id) {
+      const oldIndex = selectedCategories.findIndex(category => category.id === active.id)
+      const newIndex = selectedCategories.findIndex(category => category.id === over.id)
+      
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const newSelection = arrayMove(selectedCategories, oldIndex, newIndex)
+        
+        // تحديث الحالة المحلية أولاً
+        setSelectedCategories(newSelection)
+        
+        // حفظ الترتيب الجديد في الإعدادات
+        const categoryIds = newSelection.map(c => c.id)
+        onUpdate('selectedCategories', categoryIds)
+        
+        // إضافة console.log للتشخيص
+        console.log('ترتيب الفئات تم تحديثه:', {
+          oldIndex,
+          newIndex,
+          newOrder: newSelection.map(c => c.name),
+          categoryIds
+        })
+      }
+    }
   }
 
   // رندر بطاقة فئة صغيرة
@@ -367,15 +504,15 @@ export const ProductCategoriesEditor: React.FC<ProductCategoriesEditorProps> = (
               <Slider
                 value={[settings.displayCount || settings.maxCategories || 6]}
                 onValueChange={(value) => onUpdate('displayCount', value[0])}
-                max={12}
-                min={2}
+                max={50}
+                min={1}
                 step={1}
                 className="w-full"
               />
               <div className="flex justify-between text-xs text-muted-foreground mt-1">
-                <span>2</span>
+                <span>1</span>
                 <span className="font-medium">{settings.displayCount || settings.maxCategories || 6} فئة</span>
-                <span>12</span>
+                <span>50</span>
               </div>
             </div>
           </div>
@@ -533,11 +670,16 @@ export const ProductCategoriesEditor: React.FC<ProductCategoriesEditorProps> = (
 
           {settings.selectionMethod === 'manual' && (
             <div className="space-y-4">
-              {/* عرض الفئات المحددة */}
+              {/* عرض الفئات المحددة مع تحسين التخطيط */}
               {selectedCategories.length > 0 && (
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <Label>الفئات المحددة ({selectedCategories.length})</Label>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Label className="text-base font-medium">الفئات المحددة</Label>
+                      <Badge variant="secondary" className="text-sm">
+                        {selectedCategories.length} فئة
+                      </Badge>
+                    </div>
                     <Button
                       variant="outline"
                       size="sm"
@@ -545,49 +687,44 @@ export const ProductCategoriesEditor: React.FC<ProductCategoriesEditorProps> = (
                         setSelectedCategories([])
                         onUpdate('selectedCategories', [])
                       }}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
                     >
+                      <X className="h-4 w-4 mr-1" />
                       مسح الكل
                     </Button>
                   </div>
-                  <ScrollArea className="h-32 border rounded-lg p-2">
-                    <div className="space-y-2">
-                      {selectedCategories.map((category, index) => (
-                        <div key={category.id} className="flex items-center gap-2">
-                          <div className="flex-1 min-w-0">
-                            {renderCategoryCard(category, true, true)}
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => reorderSelectedCategories(index, Math.max(0, index - 1))}
-                              disabled={index === 0}
-                              className="h-8 w-8 p-0"
-                            >
-                              ↑
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => reorderSelectedCategories(index, Math.min(selectedCategories.length - 1, index + 1))}
-                              disabled={index === selectedCategories.length - 1}
-                              className="h-8 w-8 p-0"
-                            >
-                              ↓
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeCategoryFromSelection(category.id)}
-                              className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-50"
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
+                  <ScrollArea className="h-48 border rounded-lg p-3 bg-muted/20">
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragStart={() => {
+                        console.log('بدء السحب')
+                      }}
+                      onDragOver={() => {
+                        console.log('السحب جاري')
+                      }}
+                      onDragEnd={handleDragEnd}
+                    >
+                      <SortableContext
+                        items={selectedCategories.map(c => c.id)}
+                        strategy={verticalListSortingStrategy}
+                      >
+                        <div className="space-y-3">
+                          {selectedCategories.map((category, index) => (
+                            <SortableCategory
+                              key={category.id}
+                              category={category}
+                              index={index}
+                              onRemove={removeCategoryFromSelection}
+                            />
+                          ))}
                         </div>
-                      ))}
-                    </div>
+                      </SortableContext>
+                    </DndContext>
                   </ScrollArea>
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    💡 اسحب الفئات لترتيبها أو استخدم الأسهم للتحكم الدقيق
+                  </div>
                 </div>
               )}
 

@@ -6,6 +6,12 @@ export interface Customer {
   organization_id: string;
   created_at: string;
   updated_at: string;
+  // حقول إضافية للامتثال الضريبي الجزائري (اختيارية)
+  nif?: string | null; // رقم التعريف الجبائي (15 رقم)
+  rc?: string | null; // رقم السجل التجاري
+  nis?: string | null; // رقم التعريف الإحصائي
+  rib?: string | null; // الهوية البنكية
+  address?: string | null; // العنوان الكامل
 }
 
 export interface CustomerWithStats extends Customer {

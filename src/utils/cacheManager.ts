@@ -3,6 +3,7 @@
  */
 
 import type { CacheData, FastOrgIdCache, OrganizationIdResult } from './types/interfaces';
+import { dispatchAppEvent } from '@/lib/events/eventManager';
 
 export class CacheManager {
   private static domainCache: Map<string, CacheData> = new Map();
@@ -191,9 +192,14 @@ export class CacheManager {
       
       localStorage.setItem(`fast_org_id_${storeIdentifier}`, JSON.stringify(cacheData));
       
-      window.dispatchEvent(new CustomEvent('fastOrganizationIdReady', {
-        detail: { organizationId, storeIdentifier, source: 'early-preload' }
-      }));
+      dispatchAppEvent('fastOrganizationIdReady', {
+        organizationId,
+        storeIdentifier,
+        source: 'early-preload'
+      }, {
+        dedupeKey: `fastOrganizationIdReady:${storeIdentifier}`,
+        dedupeWindowMs: 500
+      });
     } catch (e) {
       console.warn('فشل حفظ Organization ID السريع:', e);
     }

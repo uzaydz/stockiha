@@ -92,7 +92,9 @@ export const SECURE_CSP_CONFIG: CSPConfig = {
       'https://www.facebook.com',
       'https://connect.facebook.net',
       'https://www.google.com', // Google reCAPTCHA
-      'https://www.gstatic.com'
+      'https://www.gstatic.com',
+      'https://player.vimeo.com', // Vimeo videos
+      'https://api.vadoo.tv' // Vadoo TV API
     ],
     
     // منع تحميل objects خطيرة
@@ -198,7 +200,7 @@ export const DEVELOPMENT_CSP_CONFIG: CSPConfig = {
       'http://localhost:*' // للـ API المحلي
     ],
     
-    'frame-src': ["'self'", 'https://www.facebook.com'],
+    'frame-src': ["'self'", 'https://www.facebook.com', 'https://player.vimeo.com', 'https://api.vadoo.tv'],
     'object-src': ["'none'"],
     'base-uri': ["'self'"],
     'form-action': ["'self'"],

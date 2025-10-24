@@ -25,6 +25,7 @@ import {
 
 // Layout component
 import POSPureLayout from '@/components/pos-layout/POSPureLayout';
+import { POSSharedLayoutControls } from '@/components/pos-layout/types';
 
 // Context
 import { useTenant } from '@/context/TenantContext';
@@ -33,6 +34,8 @@ import { usePermissions } from '@/hooks/usePermissions';
 
 // Services
 import { supabase } from '@/lib/supabase-unified';
+import { inventoryDB } from '@/database/localDb';
+import { getOrdersByOrganization, saveRemoteOrders, saveRemoteOrderItems, getLocalPOSOrderItems } from '@/api/localPosOrderService';
 
 // Types
 interface OptimizedPOSOrder {
@@ -124,10 +127,12 @@ interface Employee {
   role?: string;
 }
 
+interface POSOrdersOptimizedProps extends POSSharedLayoutControls {}
+
 // Components
-import { POSOrderStatsOptimized as POSOrderStats } from '../components/pos-orders/POSOrderStatsOptimized';
+import { POSOrderStatsSimple as POSOrderStats } from '../components/pos-orders/POSOrderStatsSimple';
 import { POSOrderFiltersOptimized as POSOrderFilters } from '../components/pos-orders/POSOrderFiltersOptimized';
-import { POSOrdersTableOptimized as POSOrdersTable } from '../components/pos-orders/POSOrdersTableOptimized';
+import { POSOrdersTableSimple as POSOrdersTable } from '../components/pos-orders/POSOrdersTableSimple';
 import { POSOrderDetails } from '../components/pos-orders/POSOrderDetails';
 import { POSOrderActions } from '../components/pos-orders/POSOrderActions';
 import { EditOrderItemsDialog } from '../components/pos-orders/EditOrderItemsDialog';
@@ -135,6 +140,7 @@ import EditOrderDialog from '../components/pos-orders/EditOrderDialog';
 
 // Hooks
 import { useTitle } from '../hooks/useTitle';
+import { useOfflineStatus } from '../hooks/useOfflineStatus';
 
 // =================================================================
 // 🎯 POSOrdersOptimized - النسخة المحسنة مع RPC واحد
@@ -148,7 +154,96 @@ interface DialogState {
   showEditOrder: boolean;
 }
 
-// دالة جلب البيانات المحسنة
+// دالة جلب البيانات من IndexedDB مع تفاصيل كاملة
+const fetchFromIndexedDB = async (
+  orgId: string,
+  page: number = 1,
+  pageSize: number = 20
+) => {
+  try {
+    const { orders, total } = await getOrdersByOrganization(orgId, page, pageSize);
+    
+    // جلب عناصر كل طلبية
+    const ordersWithItems = await Promise.all(
+      orders.map(async (order) => {
+        const items = await inventoryDB.posOrderItems
+          .where('order_id')
+          .equals(order.id)
+          .toArray();
+        
+        return {
+          ...order,
+          customer: order.customer_name ? { 
+            id: order.customer_id || '',
+            name: order.customer_name 
+          } : null,
+          employee: order.employee_id ? {
+            id: order.employee_id,
+            name: 'موظف',
+            email: ''
+          } : null,
+          order_items: items.map(item => ({
+            id: item.id,
+            product_id: item.product_id,
+            product_name: item.product_name,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            total_price: item.total_price,
+            is_wholesale: item.is_wholesale,
+            original_price: item.original_price,
+            color_id: item.color_id,
+            color_name: item.color_name,
+            size_id: item.size_id,
+            size_name: item.size_name,
+            variant_info: item.variant_info
+          })),
+          items_count: items.length,
+          total_qty: items.reduce((sum, item) => sum + item.quantity, 0),
+          slug: order.remote_order_id ? undefined : `offline-${order.local_order_number}`,
+          customer_order_number: order.remote_customer_order_number || order.local_order_number
+        };
+      })
+    );
+    
+    // حساب إحصائيات بسيطة من البيانات المحلية
+    const allOrders = await inventoryDB.posOrders.where('organization_id').equals(orgId).toArray();
+    const stats = {
+      total_orders: allOrders.length,
+      total_revenue: allOrders.reduce((sum, o) => sum + (o.total || 0), 0),
+      completed_orders: allOrders.filter(o => (o.status as string) === 'completed' || o.status === 'synced').length,
+      pending_orders: allOrders.filter(o => (o.status as string) === 'pending' || o.status === 'pending_sync').length,
+      pending_payment_orders: allOrders.filter(o => o.payment_status === 'pending').length,
+      cancelled_orders: allOrders.filter(o => (o.status as string) === 'cancelled').length,
+      cash_orders: allOrders.filter(o => o.payment_method === 'cash').length,
+      card_orders: allOrders.filter(o => o.payment_method === 'card').length,
+      avg_order_value: allOrders.length > 0 ? allOrders.reduce((sum, o) => sum + (o.total || 0), 0) / allOrders.length : 0,
+      today_orders: 0,
+      today_revenue: 0
+    };
+
+    return {
+      success: true,
+      data: {
+        orders: ordersWithItems,
+        stats,
+        employees: [],
+        pagination: {
+          current_page: page,
+          total_pages: Math.ceil(total / pageSize),
+          filtered_count: total,
+          has_next_page: page < Math.ceil(total / pageSize)
+        },
+        settings: {},
+        subscription: {}
+      }
+    };
+  } catch (error) {
+    console.error('Error fetching from IndexedDB:', error);
+    throw error;
+  }
+};
+
+// دالة جلب البيانات المحسنة مع حفظ في IndexedDB
 const fetchPOSOrdersPageData = async (
   orgId: string,
   userId: string,
@@ -180,16 +275,38 @@ const fetchPOSOrdersPageData = async (
     throw new Error((data as any)?.error || 'فشل في جلب البيانات');
   }
 
+  // حفظ البيانات في IndexedDB للاستخدام في الأوفلاين
+  try {
+    const orders = (data as any)?.data?.orders || [];
+    if (orders.length > 0) {
+      await saveRemoteOrders(orders);
+      // حفظ عناصر كل طلبية
+      for (const order of orders) {
+        if (order.order_items && order.order_items.length > 0) {
+          await saveRemoteOrderItems(order.id, order.order_items);
+        }
+      }
+    }
+  } catch (saveError) {
+    console.error('Error saving to IndexedDB:', saveError);
+    // لا نرمي الخطأ هنا لأن البيانات تم جلبها بنجاح
+  }
+
   return data as any;
 };
 
-export const POSOrdersOptimized: React.FC = () => {
+export const POSOrdersOptimized: React.FC<POSOrdersOptimizedProps> = ({
+  useStandaloneLayout = true,
+  onRegisterRefresh,
+  onLayoutStateChange,
+}) => {
   useTitle('طلبيات نقطة البيع');
   
   const { tenant } = useTenant();
   const { user, userProfile } = useAuth();
   const perms = usePermissions();
   const queryClient = useQueryClient();
+  const { isOnline, isOffline } = useOfflineStatus();
 
   // الحالات المحلية
   const [currentPage, setCurrentPage] = useState(1);
@@ -237,7 +354,7 @@ export const POSOrdersOptimized: React.FC = () => {
     [perms]
   );
 
-  // الاستعلام الرئيسي المحسن - مع تحسينات لتجنب الاستدعاءات المكررة
+  // الاستعلام الرئيسي المحسن - مع تحسينات لتجنب الاستدعاءات المكررة ودعم الأوفلاين
   const {
     data,
     isLoading,
@@ -246,25 +363,62 @@ export const POSOrdersOptimized: React.FC = () => {
     isFetching
   } = useQuery({
     queryKey,
-    queryFn: () => fetchPOSOrdersPageData(
-      tenant?.id || '',
-      userProfile?.id || '',
-      currentPage,
-      pageSize,
-      filters,
-      sortConfig
-    ),
-    enabled: !!(tenant?.id && userProfile?.id),
-    staleTime: 120 * 1000, // زيادة من 60 إلى 120 ثانية
-    gcTime: 15 * 60 * 1000, // زيادة من 10 إلى 15 دقيقة
+    queryFn: async () => {
+      // في حالة الأوفلاين، نستخدم البيانات من IndexedDB
+      if (isOffline) {
+        // أولاً نحاول جلب من React Query cache
+        const cachedData = queryClient.getQueryData(queryKey);
+        if (cachedData) {
+          return cachedData;
+        }
+        // ثانياً نجلب من IndexedDB
+        if (tenant?.id) {
+          try {
+            return await fetchFromIndexedDB(tenant.id, currentPage, pageSize);
+          } catch (error) {
+            console.error('Error fetching from IndexedDB:', error);
+          }
+        }
+        // إذا فشل كل شيء، نرجع بيانات فارغة
+        return {
+          success: true,
+          data: {
+            orders: [],
+            stats: null,
+            employees: [],
+            pagination: { current_page: 1, total_pages: 1, filtered_count: 0, has_next_page: false },
+            settings: {},
+            subscription: {}
+          }
+        };
+      }
+      // في حالة الاتصال، نجلب البيانات من الخادم وتحفظ تلقائياً في IndexedDB
+      return fetchPOSOrdersPageData(
+        tenant?.id || '',
+        userProfile?.id || '',
+        currentPage,
+        pageSize,
+        filters,
+        sortConfig
+      );
+    },
+    enabled: !!tenant?.id && !!userProfile?.id, // تفعيل فقط عند وجود البيانات المطلوبة
+    staleTime: isOffline ? Infinity : 10 * 60 * 1000, // 10 دقائق في الأونلاين - زيادة من 5
+    gcTime: 30 * 60 * 1000, // 30 دقيقة - زيادة من 15
     refetchOnWindowFocus: false,
-    refetchOnMount: false, // إيقاف التحديث التلقائي عند التركيب
-    refetchOnReconnect: false, // إيقاف التحديث التلقائي عند إعادة الاتصال
-    refetchInterval: false, // إيقاف التحديث التلقائي
+    refetchOnMount: true, // استخدام true مع staleTime أطول لمنع الاستدعاءات المكررة
+    refetchOnReconnect: true,
+    refetchInterval: false,
     retry: (failureCount, error: any) => {
+      if (isOffline) return false;
       if (error?.code === 'UNAUTHORIZED') return false;
-      return failureCount < 2;
-    }
+      return failureCount < 1; // تقليل عدد المحاولات
+    },
+    networkMode: 'offlineFirst',
+    // إضافة structuralSharing لمنع re-renders غير الضرورية
+    structuralSharing: true,
+    // إضافة notifyOnChangeProps لتقليل re-renders
+    notifyOnChangeProps: ['data', 'error', 'isLoading']
   });
 
   // استخراج البيانات
@@ -275,9 +429,23 @@ export const POSOrdersOptimized: React.FC = () => {
   const settings = useMemo(() => (data as any)?.data?.settings || {}, [data]);
   const subscription = useMemo(() => (data as any)?.data?.subscription || {}, [data]);
 
+  React.useEffect(() => {
+    if (!onLayoutStateChange) return;
+
+    onLayoutStateChange({
+      isRefreshing: isFetching && isOnline,
+      connectionStatus: isOffline ? 'disconnected' : isFetching ? 'reconnecting' : 'connected',
+      executionTime: Number((data as any)?.debug?.timings_ms?.total_ms) || undefined
+    });
+  }, [onLayoutStateChange, isFetching, isOnline, isOffline, data]);
+
   // Prefetch الصفحة التالية - محسن لتجنب الاستدعاءات المكررة
   const prefetchNextPage = useCallback(() => {
-    // التحقق من أن هناك صفحة تالية وأن البيانات لم يتم prefetch بالفعل
+    // تعطيل prefetch مؤقتاً لتقليل الاستدعاءات
+    return;
+    
+    // الكود الأصلي معطل مؤقتاً
+    /*
     if (pagination.has_next_page && currentPage > 0) {
       const nextPageKey = [
         'pos-orders-page-data',
@@ -289,12 +457,9 @@ export const POSOrdersOptimized: React.FC = () => {
         sortConfig
       ];
       
-      // التحقق من أن البيانات لم يتم prefetch بالفعل
       const existingData = queryClient.getQueryData(nextPageKey);
       if (!existingData) {
-        // إضافة تأخير إضافي لتجنب الاستدعاءات المتزامنة
         setTimeout(() => {
-          // التحقق مرة أخرى قبل التنفيذ
           const currentData = queryClient.getQueryData(nextPageKey);
           if (!currentData) {
             queryClient.prefetchQuery({
@@ -307,44 +472,19 @@ export const POSOrdersOptimized: React.FC = () => {
                 filters,
                 sortConfig
               ),
-              staleTime: 60 * 1000 // زيادة staleTime
+              staleTime: 60 * 1000
             });
           }
-        }, 1000); // تأخير إضافي
+        }, 1000);
       }
     }
+    */
   }, [pagination.has_next_page, currentPage, pageSize, filters, sortConfig, tenant?.id, userProfile?.id, queryClient]);
 
-  // تأثير Prefetch - محسن لتجنب الاستدعاءات غير الضرورية
+  // تأثير Prefetch - معطل مؤقتاً لتقليل الاستدعاءات
   React.useEffect(() => {
-    // فقط إذا كان هناك صفحة تالية وكان المستخدم في الصفحة الحالية لأكثر من 10 ثوان
-    // وتم التأكد من أن البيانات لم يتم prefetch بالفعل
-    if (pagination.has_next_page && currentPage > 0) {
-      const nextPageKey = [
-        'pos-orders-page-data',
-        tenant?.id,
-        user?.id,
-        currentPage + 1,
-        pageSize,
-        filters,
-        sortConfig
-      ];
-      
-      // التحقق من أن البيانات لم يتم prefetch بالفعل
-      const existingData = queryClient.getQueryData(nextPageKey);
-      if (!existingData) {
-        // إضافة تأخير إضافي لتجنب الاستدعاءات المتزامنة
-        const timer = setTimeout(() => {
-          // التحقق مرة أخرى قبل التنفيذ
-          const currentData = queryClient.getQueryData(nextPageKey);
-          if (!currentData && pagination.has_next_page) {
-            prefetchNextPage();
-          }
-        }, 10000); // زيادة من 8 إلى 10 ثوان
-        
-        return () => clearTimeout(timer);
-      }
-    }
+    // معطل مؤقتاً لتقليل الاستدعاءات المتعددة
+    return;
   }, [prefetchNextPage, pagination.has_next_page, currentPage, tenant?.id, user?.id, pageSize, filters, sortConfig, queryClient]);
 
   // معالج تغيير الفلاتر - محسن لتجنب الاستدعاءات المكررة
@@ -449,6 +589,42 @@ export const POSOrdersOptimized: React.FC = () => {
       toast.error('فشل في تحديث البيانات');
     }
   }, [refetch, queryClient, tenant?.id, user?.id]);
+
+  React.useEffect(() => {
+    if (!onRegisterRefresh) {
+      return;
+    }
+
+    onRegisterRefresh(handleRefresh);
+    return () => onRegisterRefresh(null);
+  }, [handleRefresh, onRegisterRefresh]);
+
+  const renderWithLayout = (
+    children: React.ReactNode,
+    overrides?: {
+      isRefreshing?: boolean;
+      connectionStatus?: 'connected' | 'disconnected' | 'reconnecting';
+      executionTime?: number;
+    }
+  ) => {
+    if (!useStandaloneLayout) {
+      return children;
+    }
+
+    return (
+      <POSPureLayout
+        onRefresh={handleRefresh}
+        isRefreshing={overrides?.isRefreshing ?? (isFetching && isOnline)}
+        connectionStatus={overrides?.connectionStatus ?? (isOffline ? 'disconnected' : 'connected')}
+        executionTime={
+          overrides?.executionTime ??
+          (Number((data as any)?.debug?.timings_ms?.total_ms) || undefined)
+        }
+      >
+        {children}
+      </POSPureLayout>
+    );
+  };
 
   // عرض تفاصيل الطلبية
   const handleOrderView = useCallback((order: OptimizedPOSOrder) => {
@@ -699,96 +875,75 @@ export const POSOrdersOptimized: React.FC = () => {
   }, [stats]);
 
   // معالجة حالات التحميل والأخطاء
-  if (error) {
-    return (
-      <POSPureLayout
-        onRefresh={handleRefresh}
-        isRefreshing={isLoading}
-        connectionStatus="disconnected"
-      >
-        <div className="container mx-auto p-6">
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <AlertTriangle className="h-12 w-12 text-red-500 mb-4" />
-              <h3 className="text-lg font-semibold mb-2">خطأ في تحميل البيانات</h3>
-              <p className="text-sm text-muted-foreground text-center mb-4">
-                {error?.message || 'حدث خطأ أثناء تحميل بيانات طلبيات نقطة البيع'}
-              </p>
-              <Button onClick={handleRefresh} variant="outline">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                إعادة المحاولة
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </POSPureLayout>
+  if (error && !isOffline) {
+    const errorView = (
+      <div className="container mx-auto p-6">
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <AlertTriangle className="h-12 w-12 text-red-500 mb-4" />
+            <h3 className="text-lg font-semibold mb-2">خطأ في تحميل البيانات</h3>
+            <p className="text-sm text-muted-foreground text-center mb-4">
+              {error?.message || 'حدث خطأ أثناء تحميل بيانات طلبيات نقطة البيع'}
+            </p>
+            <Button onClick={handleRefresh} variant="outline">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              إعادة المحاولة
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
     );
+
+    return renderWithLayout(errorView, {
+      isRefreshing: isLoading,
+      connectionStatus: 'disconnected'
+    });
   }
 
   // عرض شاشة تحميل أثناء التحميل الأولي
   if (isLoading && !data) {
-    return (
-      <POSPureLayout
-        onRefresh={handleRefresh}
-        isRefreshing={isLoading}
-        connectionStatus="reconnecting"
-      >
-        <div className="container mx-auto p-6">
-          <div className="flex flex-col items-center justify-center min-h-[400px]">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
-            <h3 className="text-lg font-semibold mb-2">جاري تحميل طلبيات نقطة البيع</h3>
-            <p className="text-sm text-muted-foreground">يرجى الانتظار...</p>
-          </div>
+    const loadingView = (
+      <div className="container mx-auto p-6">
+        <div className="flex flex-col items-center justify-center min-h-[400px]">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
+          <h3 className="text-lg font-semibold mb-2">جاري تحميل طلبيات نقطة البيع</h3>
+          <p className="text-sm text-muted-foreground">يرجى الانتظار...</p>
         </div>
-      </POSPureLayout>
+      </div>
     );
+
+    return renderWithLayout(loadingView, {
+      isRefreshing: isLoading,
+      connectionStatus: 'reconnecting'
+    });
   }
 
-  return (
-    <POSPureLayout
-      onRefresh={handleRefresh}
-      isRefreshing={isFetching}
-    >
-      <div className="container mx-auto p-6 space-y-6">
-        {/* رأس الصفحة مع مؤشرات الحالة */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold flex items-center gap-3">
-              <div className="p-2 bg-primary/10 rounded-lg">
-                <ShoppingCart className="h-8 w-8 text-primary" />
+  const mainContent = (
+      <div className="space-y-4" dir="rtl">
+        {/* مؤشر حالة الأوفلاين - مبسط */}
+        {isOffline && (
+          <Card className="bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-800">
+            <CardContent className="p-3">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400 flex-shrink-0" />
+                <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                  وضع الأوفلاين - يتم عرض البيانات المخزنة محلياً
+                </p>
               </div>
-              طلبيات نقطة البيع
-              {isFetching && (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                  جاري التحميل...
-                </div>
-              )}
-            </h1>
-            <p className="text-muted-foreground mt-2">
-              إدارة ومتابعة جميع طلبيات نقطة البيع في مؤسستك
-            </p>
-            
-            {/* مؤشرات سريعة */}
-            {quickStats && (
-              <div className="flex items-center gap-4 mt-3">
-                <div className="flex items-center gap-1 text-sm">
-                  <CheckCircle className="h-4 w-4 text-green-500" />
-                  <span className="text-green-600 font-medium">{quickStats.completedRate}%</span>
-                  <span className="text-muted-foreground">مكتملة</span>
-                </div>
-                <div className="flex items-center gap-1 text-sm">
-                  <Clock className="h-4 w-4 text-yellow-500" />
-                  <span className="text-yellow-600 font-medium">{quickStats.pendingRate}%</span>
-                  <span className="text-muted-foreground">معلقة</span>
-                </div>
-                <div className="flex items-center gap-1 text-sm">
-                  <XCircle className="h-4 w-4 text-red-500" />
-                  <span className="text-red-600 font-medium">{quickStats.cancelledRate}%</span>
-                  <span className="text-muted-foreground">ملغاة</span>
-                </div>
-              </div>
-            )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* رأس الصفحة - مبسط */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-primary/10 rounded-lg">
+              <ShoppingCart className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold">طلبيات نقطة البيع</h1>
+              <p className="text-xs text-muted-foreground">إدارة ومتابعة الطلبيات</p>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">
@@ -797,8 +952,9 @@ export const POSOrdersOptimized: React.FC = () => {
               size="sm"
               onClick={handleRefresh}
               disabled={isFetching}
+              className="h-8"
             >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isFetching ? 'animate-spin' : ''}`} />
               تحديث
             </Button>
 
@@ -807,18 +963,10 @@ export const POSOrdersOptimized: React.FC = () => {
               size="sm"
               onClick={handleExport}
               disabled={isFetching}
+              className="h-8"
             >
-              <Download className="h-4 w-4 mr-2" />
+              <Download className="h-3.5 w-3.5 mr-1.5" />
               تصدير
-            </Button>
-
-            <Button
-              size="sm"
-              onClick={() => toast.info('إنشاء طلبية جديدة قيد التطوير')}
-              disabled={isFetching}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              طلبية جديدة
             </Button>
           </div>
         </div>
@@ -906,53 +1054,6 @@ export const POSOrdersOptimized: React.FC = () => {
           </Dialog>
         )}
 
-        {/* معلومات إضافية وإحصائيات */}
-        {orders.length > 0 && !isFetching && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* معلومات الصفحة */}
-            <Card className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20 border-blue-200 dark:border-blue-800">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                      <TrendingUp className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold text-blue-900 dark:text-blue-100">
-                        تحليل سريع
-                      </h3>
-                      <p className="text-sm text-blue-700 dark:text-blue-300">
-                        عدد الطلبيات المعروضة: {orders.length} من أصل {pagination.filtered_count}
-                      </p>
-                    </div>
-                  </div>
-                  <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200">
-                    صفحة {pagination.current_page} من {pagination.total_pages}
-                  </Badge>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* معلومات الأداء */}
-            <Card className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 border-green-200 dark:border-green-800">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                    <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-green-900 dark:text-green-100">
-                      أداء محسن
-                    </h3>
-                    <p className="text-sm text-green-700 dark:text-green-300">
-                      RPC واحد • تحسين 95% في السرعة • {(data as any)?.debug?.timings_ms?.total_ms?.toFixed(0) || 'N/A'}ms
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
 
         {/* رسالة عدم وجود بيانات */}
         {orders.length === 0 && !isFetching && (
@@ -1000,25 +1101,10 @@ export const POSOrdersOptimized: React.FC = () => {
           }}
         />
 
-        {/* معلومات debug في development */}
-        {process.env.NODE_ENV === 'development' && (data as any)?.debug && (
-          <Card className="mt-4">
-            <CardHeader>
-              <CardTitle className="text-sm">معلومات التطوير</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-xs space-y-1">
-                <div>وقت التنفيذ الإجمالي: {(data as any).debug.timings_ms?.total_ms?.toFixed(2)}ms</div>
-                <div>أداء الاستعلام: {(data as any).debug.query_performance}</div>
-                <div>عدد الطلبيات المحملة: {orders.length}</div>
-                <div>إجمالي الطلبيات: {pagination.total_count}</div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
       </div>
-    </POSPureLayout>
   );
+
+  return renderWithLayout(mainContent);
 };
 
 export default POSOrdersOptimized;

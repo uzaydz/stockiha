@@ -105,7 +105,7 @@ function CustomErrorWrapper({ children }) {
 
 | النوع | الوصف | Providers المطلوبة |
 |-------|-------|---------------------|
-| `public-product` | صفحات المنتجات العامة | Core + Auth + Tenant + ProductPage |
+| `public-product` | صفحات المنتجات العامة | Core + Auth + Tenant + ProductPage (Auth مطلوب للسلة) |
 | `public-store` | صفحات المتجر العامة | Core + Auth + Tenant + ProductsPage |
 | `max-store` | متجر Max المحسن | Core + Auth + Tenant + All Specialized |
 | `dashboard` | لوحة التحكم | Core + Auth + Tenant + UnifiedData + Apps |

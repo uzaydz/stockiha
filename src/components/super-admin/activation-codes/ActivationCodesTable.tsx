@@ -136,7 +136,7 @@ export default function ActivationCodesTable({
     } catch (error: any) {
       toast({
         title: "خطأ في تحديث حالة الكود",
-        description: error.message || "حدث خطأ أثناء تحديث حالة كود التفعيل",
+        description: error instanceof Error ? error.message : (typeof error === 'string' ? error : "حدث خطأ أثناء تحديث حالة كود التفعيل"),
         variant: "destructive"
       });
     } finally {

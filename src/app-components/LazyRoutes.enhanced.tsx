@@ -49,6 +49,9 @@ export const Dashboard = lazy(() => import('../pages/Dashboard').catch(() => {
   return { default: () => <div>جاري تحميل لوحة التحكم...</div> };
 }));
 
+// ============ صفحة الهبوط الجديدة للبرنامج ============
+export const ProgramLandingPage = lazy(() => import('../pages/ProgramLandingPage'));
+
 // ============ ENHANCED PRODUCT MANAGEMENT with Preloading ============
 export const Products = lazy(() => 
   import('../pages/dashboard/ProductsCached').then(module => {
@@ -68,14 +71,6 @@ export const Categories = lazy(() => import('../pages/dashboard/Categories'));
 export const QuickBarcodePrintPage = lazy(() => import('../pages/dashboard/QuickBarcodePrintPage'));
 
 // ============ ENHANCED SALES & ORDERS with Analytics Preloading ============
-export const OptimizedSales = lazy(() => 
-  import('../pages/dashboard/OptimizedSales').then(module => {
-    // Preload chart dependencies for sales analytics
-    import('@nivo/bar').catch(() => {});
-    import('@nivo/line').catch(() => {});
-    return module;
-  })
-);
 
 export const Orders = lazy(() => 
   import('../pages/dashboard/Orders').then(module => {
@@ -101,6 +96,7 @@ export const PaymentHistory = lazy(() => import('../pages/dashboard/PaymentHisto
 // ============ TEAM MANAGEMENT ============
 export const Employees = lazy(() => import('../pages/dashboard/Employees'));
 export const OrderDistributionSettings = lazy(() => import('../pages/OrderDistributionSettings'));
+export const ConfirmationCenter = lazy(() => import('../pages/dashboard/ConfirmationCenter'));
 
 // ============ ENHANCED ANALYTICS with Heavy Chart Preloading ============
 export const Analytics = lazy(() => 
@@ -149,9 +145,12 @@ export const POSOptimized = lazy(() =>
 );
 
 export const POSAdvanced = lazy(() => import('../pages/POSAdvanced'));
+export const POSDashboard = lazy(() => import('../pages/POSDashboard'));
 export const POSOrdersOptimized = lazy(() => import('../pages/POSOrdersOptimized'));
+export const POSOperationsPage = lazy(() => import('../pages/POSOperations'));
 export const ProductReturns = lazy(() => import('../pages/returns/ProductReturns'));
 export const LossDeclarations = lazy(() => import('../pages/losses/LossDeclarations'));
+export const ProductOperationsPage = lazy(() => import('../pages/ProductOperations'));
 
 // ============ SUPPLIER MANAGEMENT ============
 export const SuppliersManagement = lazy(() => import('../pages/dashboard/SuppliersManagement'));
@@ -267,6 +266,7 @@ export const TikTokAdsModule8 = lazy(() => import('../pages/courses/modules/TikT
 export const SuperAdminLogin = lazy(() => import('../pages/SuperAdminLogin'));
 export const SubscriptionPage = lazy(() => import('../pages/dashboard/subscription'));
 export const OnlineOrdersRechargePage = lazy(() => import('../pages/dashboard/online-orders-recharge'));
+export const ConfirmationAgentWorkspace = lazy(() => import('../pages/dashboard/ConfirmationAgentWorkspace'));
 
 // ============ PRELOAD UTILITIES ============
 // Function to preload critical components

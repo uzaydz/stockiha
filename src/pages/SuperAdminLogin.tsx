@@ -41,26 +41,36 @@ export default function SuperAdminLogin() {
     }
   });
 
-  // تحقق من صلاحيات المسؤول الرئيسي
+  // تحقق من صلاحيات المسؤول الرئيسي باستخدام RPC آمن
   const checkSuperAdminStatus = async (userId: string) => {
     try {
-      
-      // طريقة 1: استخدام supabase للتحقق مباشرة
+      // استخدام RPC function للتحقق الآمن
       const { data, error } = await supabase
-        .from('users')
-        .select('is_super_admin, role')
-        .eq('id', userId)
-        .single();
+        .rpc('get_user_basic_info', { p_auth_user_id: userId });
 
       if (error) {
+        console.error('[SuperAdminLogin] خطأ في التحقق من الصلاحيات:', error);
         return false;
       }
 
-      // العودة true إذا كان is_super_admin صحيح 
-      const isSuper = data?.is_super_admin === true;
-      
-      return isSuper;
+      if (data && data.length > 0) {
+        const userData = data[0];
+        const isSuper = userData.is_super_admin === true;
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[SuperAdminLogin] نتيجة التحقق:', {
+            userId,
+            isSuperAdmin: isSuper,
+            email: userData.email
+          });
+        }
+        
+        return isSuper;
+      }
+
+      return false;
     } catch (error) {
+      console.error('[SuperAdminLogin] خطأ غير متوقع:', error);
       return false;
     }
   };
@@ -84,7 +94,7 @@ export default function SuperAdminLogin() {
         throw new Error('فشل تسجيل الدخول لسبب غير معروف');
       }
 
-      // التحقق من صلاحيات المسؤول الرئيسي
+      // التحقق من صلاحيات المسؤول الرئيسي باستخدام RPC آمن
       const isSuperAdmin = await checkSuperAdminStatus(data.user.id);
 
       if (!isSuperAdmin) {
@@ -93,18 +103,18 @@ export default function SuperAdminLogin() {
         throw new Error('ليس لديك صلاحيات للوصول إلى لوحة المسؤول الرئيسي');
       }
 
-      // حفظ حالة السوبر أدمين في localStorage
-      localStorage.setItem('is_super_admin', 'true');
-      localStorage.setItem('super_admin_session', JSON.stringify({
-        userId: data.user.id,
-        timestamp: Date.now()
-      }));
-
-      // إنتظار للتأكد من تحديث AuthContext وإشعار Supabase listeners
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // لا نحتاج لحفظ في localStorage - الجلسة كافية
+      // Session يتم إدارتها بشكل آمن من Supabase Auth
       
-      // التأكد من أن الجلسة تم تحديثها
-      const { data: updatedSession } = await supabase.auth.getSession();
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[SuperAdminLogin] تم تسجيل دخول Super Admin بنجاح:', {
+          userId: data.user.id,
+          email: data.user.email
+        });
+      }
+
+      // إنتظار قصير للتأكد من تحديث AuthContext
+      await new Promise(resolve => setTimeout(resolve, 300));
       
       // توجيه المستخدم إلى لوحة المسؤول الرئيسي
       toast({

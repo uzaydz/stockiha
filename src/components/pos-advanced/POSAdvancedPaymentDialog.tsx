@@ -229,7 +229,7 @@ const POSAdvancedPaymentDialog: React.FC<POSAdvancedPaymentDialogProps> = ({
     } catch (error: any) {
       toast({
         title: "خطأ في إنشاء العميل",
-        description: error.message || "فشل في إنشاء العميل",
+        description: error instanceof Error ? error.message : (typeof error === 'string' ? error : "فشل في إنشاء العميل"),
         variant: "destructive"
       });
     } finally {

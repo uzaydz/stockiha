@@ -39,9 +39,7 @@ const FinancialSection = React.memo<FinancialSectionProps>(({ data, isLoading = 
         { label: 'تأثير على رأس المال', value: data?.debt_impact_on_capital || 0, type: 'danger' as const }
       ],
       progress: debtPaymentRatio,
-      progressLabel: 'نسبة السداد',
-      color: 'from-orange-500 to-red-600',
-      bgColor: 'from-orange-50 to-red-50 dark:from-orange-950/20 dark:to-red-950/20'
+      progressLabel: 'نسبة السداد'
     },
     {
       title: 'الخسائر والإرجاعات',
@@ -53,9 +51,7 @@ const FinancialSection = React.memo<FinancialSectionProps>(({ data, isLoading = 
         { label: 'إجمالي الخسائر', value: totalLosses, type: 'danger' as const }
       ],
       progress: data?.total_revenue ? (totalLosses / data.total_revenue * 100) : 0,
-      progressLabel: 'نسبة الخسائر من الإيرادات',
-      color: 'from-red-500 to-pink-600',
-      bgColor: 'from-red-50 to-pink-50 dark:from-red-950/20 dark:to-pink-950/20'
+      progressLabel: 'نسبة الخسائر من الإيرادات'
     },
     {
       title: 'المصروفات والنفقات',
@@ -67,9 +63,7 @@ const FinancialSection = React.memo<FinancialSectionProps>(({ data, isLoading = 
         { label: 'صافي المصروفات', value: data?.total_expenses || 0, type: 'danger' as const }
       ],
       progress: data?.total_revenue ? (totalExpenses / data.total_revenue * 100) : 0,
-      progressLabel: 'نسبة المصروفات من الإيرادات',
-      color: 'from-purple-500 to-indigo-600',
-      bgColor: 'from-purple-50 to-indigo-50 dark:from-purple-950/20 dark:to-indigo-950/20'
+      progressLabel: 'نسبة المصروفات من الإيرادات'
     }
   ];
 
@@ -113,39 +107,33 @@ const FinancialSection = React.memo<FinancialSectionProps>(({ data, isLoading = 
         const IconComponent = card.icon;
         
         return (
-          <motion.div
-            key={card.title}
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: index * 0.1 }}
-          >
-            <Card className="overflow-hidden hover:shadow-lg transition-all duration-300 group h-full">
-              <CardHeader className={`bg-gradient-to-r ${card.bgColor} relative`}>
-                <div className="flex items-center gap-3">
-                  <div className={`p-3 rounded-lg bg-gradient-to-r ${card.color} text-white shadow-lg group-hover:scale-110 transition-transform duration-300`}>
-                    <IconComponent className="h-5 w-5" />
-                  </div>
-                  <CardTitle className="text-lg">{card.title}</CardTitle>
+          <Card key={card.title} className="overflow-hidden hover:shadow-md transition-all h-full">
+            <CardHeader className="bg-muted/30 relative">
+              <div className="flex items-center gap-3">
+                <div className="p-3 rounded-lg bg-primary/10">
+                  <IconComponent className="h-5 w-5 text-primary" />
                 </div>
-                
-                {/* مؤشر الحالة */}
-                <div className="absolute top-4 left-4">
-                  {card.progress > 80 ? (
-                    <Badge variant="destructive" className="text-xs">
-                      <AlertTriangle className="h-3 w-3 ml-1" />
-                      مرتفع
-                    </Badge>
-                  ) : card.progress > 50 ? (
-                    <Badge variant="secondary" className="text-xs bg-yellow-100 text-yellow-800">
-                      متوسط
-                    </Badge>
-                  ) : (
-                    <Badge variant="default" className="text-xs bg-green-100 text-green-800">
-                      جيد
-                    </Badge>
-                  )}
-                </div>
-              </CardHeader>
+                <CardTitle className="text-lg">{card.title}</CardTitle>
+              </div>
+              
+              {/* مؤشر الحالة */}
+              <div className="absolute top-4 left-4">
+                {card.progress > 80 ? (
+                  <Badge variant="destructive" className="text-xs">
+                    <AlertTriangle className="h-3 w-3 ml-1" />
+                    مرتفع
+                  </Badge>
+                ) : card.progress > 50 ? (
+                  <Badge variant="secondary" className="text-xs">
+                    متوسط
+                  </Badge>
+                ) : (
+                  <Badge className="text-xs bg-primary/10 text-primary">
+                    جيد
+                  </Badge>
+                )}
+              </div>
+            </CardHeader>
               
               <CardContent className="pt-6 space-y-4">
                 <div className="space-y-3">
@@ -176,8 +164,8 @@ const FinancialSection = React.memo<FinancialSectionProps>(({ data, isLoading = 
                 
                 {/* ملاحظة تحذيرية */}
                 {card.progress > 70 && (
-                  <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3 mt-4">
-                    <div className="flex items-center gap-2 text-yellow-700 dark:text-yellow-300">
+                  <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 mt-4">
+                    <div className="flex items-center gap-2 text-destructive">
                       <AlertTriangle className="h-4 w-4" />
                       <span className="text-xs font-medium">
                         {card.title === 'تحليل المديونية' ? 
@@ -192,7 +180,6 @@ const FinancialSection = React.memo<FinancialSectionProps>(({ data, isLoading = 
                 )}
               </CardContent>
             </Card>
-          </motion.div>
         );
       })}
     </div>

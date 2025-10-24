@@ -33,10 +33,14 @@ const RoleBasedRedirect: React.FC = () => {
   // تحديد دور المستخدم الفعلي
   const userRole = userProfile.role;
   const isCallCenterAgent = Boolean(userProfile.call_center_agent_id);
+  const isConfirmationAgent = Boolean(userProfile.confirmation_agent_id);
 
   // إذا كان المستخدم وكيل مركز اتصال (له call_center_agent_id)
   if (isCallCenterAgent) {
     return <Navigate to="/call-center/dashboard" replace />;
+  }
+  if (isConfirmationAgent || userRole === 'confirmation_agent') {
+    return <Navigate to="/confirmation/workspace" replace />;
   }
   
   // توجيه المستخدم حسب دوره العادي
@@ -51,8 +55,10 @@ const RoleBasedRedirect: React.FC = () => {
     case 'call_center_agent':
       // هذا للحالات التي يكون فيها الدور مباشرة call_center_agent
       return <Navigate to="/call-center/dashboard" replace />;
+    case 'confirmation_agent':
+      return <Navigate to="/confirmation/workspace" replace />;
     default:
-      // إذا كان الدور غير معروف، توجيه للوحة التحكم الافتراضية
+      // إذا كان الدور غير معروف، توجيه للوحة تحكم نقطة البيع
       return <Navigate to="/dashboard" replace />;
   }
 };

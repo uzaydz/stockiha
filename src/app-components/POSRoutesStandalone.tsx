@@ -1,5 +1,5 @@
 import React, { Suspense } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 
 // جلب الحمايات المطلوبة لنقطة البيع فقط
 import ProtectedRoute from '../components/auth/ProtectedRoute';
@@ -34,6 +34,12 @@ const POSRoutesStandalone = () => (
             </PermissionGuard>
           </ConditionalRoute>
         </ProtectedRoute>
+      }
+    />
+    <Route
+      path="/pos/pos-dashboard"
+      element={
+        <Navigate to="/dashboard/pos-dashboard" replace />
       }
     />
   </Routes>

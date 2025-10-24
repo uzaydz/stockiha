@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { AlertTriangle, RefreshCw, Wifi, WifiOff } from 'lucide-react';
+import { isAppOnline } from '@/utils/networkStatus';
 
 interface NetworkErrorHandlerProps {
   children: React.ReactNode;
@@ -11,15 +12,48 @@ interface NetworkError {
   timestamp: number;
 }
 
+const isBrowserOnline = () => {
+  if (typeof navigator === 'undefined') {
+    return true;
+  }
+
+  return navigator.onLine;
+};
+
+const isElectronRuntime = () => {
+  if (typeof navigator === 'undefined') {
+    return false;
+  }
+
+  const userAgent = navigator.userAgent || '';
+  return userAgent.includes('Electron');
+};
+
 export const NetworkErrorHandler: React.FC<NetworkErrorHandlerProps> = ({ children }) => {
   const [error, setError] = useState<NetworkError | null>(null);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isOnline, setIsOnline] = useState(isBrowserOnline());
   const [retryCount, setRetryCount] = useState(0);
   const isDev = import.meta.env.DEV || window.location.hostname.includes('localhost') || window.location.hostname.startsWith('127.');
 
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
+    const handleOnline = () => {
+      setIsOnline(true);
+      if (isElectronRuntime()) {
+        setError(null);
+        setRetryCount(0);
+      }
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      if (isElectronRuntime()) {
+        setError(null);
+        setRetryCount(0);
+      }
+    };
+
+    const shouldSuppressOfflineDesktopError = () =>
+      isElectronRuntime() && !isAppOnline();
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -33,10 +67,20 @@ export const NetworkErrorHandler: React.FC<NetworkErrorHandlerProps> = ({ childr
         let errorType: 'chunk' | 'network' = 'network';
 
         if (target.tagName === 'SCRIPT') {
+          if (shouldSuppressOfflineDesktopError()) {
+            console.warn('🖥️ [NetworkErrorHandler] تم تجاهل خطأ تحميل سكريبت بسبب وضع غير متصل بالتطبيق المكتبي.');
+            return;
+          }
+
           const scriptTarget = target as HTMLScriptElement;
           resourceUrl = scriptTarget.src || '';
           errorType = resourceUrl.includes('chunk') ? 'chunk' : 'network';
         } else if (target.tagName === 'LINK') {
+          if (shouldSuppressOfflineDesktopError()) {
+            console.warn('🖥️ [NetworkErrorHandler] تم تجاهل خطأ تحميل CSS بسبب وضع غير متصل بالتطبيق المكتبي.');
+            return;
+          }
+
           const linkTarget = target as HTMLLinkElement;
           resourceUrl = linkTarget.href || '';
           errorType = resourceUrl.includes('chunk') ? 'chunk' : 'network';
@@ -112,6 +156,11 @@ export const NetworkErrorHandler: React.FC<NetworkErrorHandlerProps> = ({ childr
     // معالج الأخطاء العامة
     const handleError = (event: ErrorEvent) => {
       const message = event.message.toLowerCase();
+
+      if (shouldSuppressOfflineDesktopError()) {
+        console.warn('🖥️ [NetworkErrorHandler] تم تجاهل خطأ بسبب وضع غير متصل بالتطبيق المكتبي:', message);
+        return;
+      }
       
       if (message.includes('loading chunk') || message.includes('chunkloaderror')) {
         setError({
@@ -137,6 +186,12 @@ export const NetworkErrorHandler: React.FC<NetworkErrorHandlerProps> = ({ childr
     // معالج الـ Promise المرفوضة
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
       const reason = event.reason?.message || event.reason || 'خطأ غير معروف';
+
+      if (shouldSuppressOfflineDesktopError()) {
+        console.warn('🖥️ [NetworkErrorHandler] تم تجاهل خطأ Promise بسبب وضع غير متصل بالتطبيق المكتبي:', reason);
+        return;
+      }
+
       const reasonStr = reason.toString().toLowerCase();
       
       if (reasonStr.includes('loading chunk') || reasonStr.includes('chunkloaderror')) {

@@ -179,11 +179,12 @@ const determinePageTypeForPlatformDomain = (pathname: string): PageType => {
   if (pathname.startsWith('/dashboard/store-editor')) {
     return 'store-editor';
   }
-  if (pathname === '/') return 'landing';
+  if (pathname === '/') return 'landing'; // Landing page for general website
   
   // استخدام Map للأداء الأفضل
   const pathTypeMap = new Map<string, PageType>([
     ['/pos', 'pos'],
+    ['/pos/pos-dashboard', 'pos'],
     ['/dashboard/pos-advanced', 'pos'],
     ['/dashboard/pos-orders', 'pos-orders'],
     ['/super-admin', 'super-admin']
@@ -210,6 +211,9 @@ const determinePageTypeForPlatformDomain = (pathname: string): PageType => {
   
   if (pathname.includes('/call-center')) {
     return 'call-center';
+  }
+  if (pathname.startsWith('/confirmation')) {
+    return 'dashboard';
   }
 
   return 'minimal';
@@ -261,7 +265,7 @@ const determinePageTypeForLocalhost = (pathname: string): PageType => {
     return 'auth';
   }
   
-  if (pathname === '/pos' || pathname === '/dashboard/pos-advanced') {
+  if (pathname === '/pos' || pathname === '/pos/pos-dashboard' || pathname === '/dashboard/pos-advanced') {
     return 'pos';
   }
   
@@ -279,6 +283,9 @@ const determinePageTypeForLocalhost = (pathname: string): PageType => {
   
   if (pathname.includes('/call-center')) {
     return 'call-center';
+  }
+  if (pathname.startsWith('/confirmation')) {
+    return 'dashboard';
   }
 
   return 'landing'; // بدلاً من minimal للحصول على AuthProvider

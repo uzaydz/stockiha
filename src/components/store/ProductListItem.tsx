@@ -60,9 +60,9 @@ const ProductListItem = memo(({
         <div className="relative w-full sm:w-52 lg:w-56 aspect-square sm:aspect-[4/3] bg-gradient-to-br from-muted/30 to-muted/10">
           <Link to={`/product-purchase-max-v2/${productSlug}`} className="block w-full h-full">
             <ProductImage 
-              src={product.thumbnail_image || product.imageUrl} 
+              src={product.imageUrl} 
               alt={product.name}
-              className="product-image w-full h-full transition-transform duration-300 group-hover:scale-110 group-hover:rotate-1"
+              className="product-image w-full h-full object-contain p-3 sm:p-4 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-1"
               containerClassName="absolute inset-0"
               productName={product.name}
               priority={priority}

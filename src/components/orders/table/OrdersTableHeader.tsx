@@ -53,6 +53,10 @@ const OrdersTableHeader = memo(({
         {visibleColumns.includes("status") && (
           <TableHead className="font-semibold text-foreground py-4 px-4 text-sm">حالة الطلب</TableHead>
         )}
+
+        {visibleColumns.includes("confirmation") && (
+          <TableHead className="font-semibold text-foreground py-4 px-4 text-sm">فريق التأكيد</TableHead>
+        )}
         
         {visibleColumns.includes("call_confirmation") && (
           <TableHead className="font-semibold text-foreground py-4 px-4 text-sm">تأكيد المكالمة</TableHead>
@@ -60,6 +64,14 @@ const OrdersTableHeader = memo(({
         
         {visibleColumns.includes("shipping_provider") && (
           <TableHead className="font-semibold text-foreground py-4 px-4 text-sm">مزود الشحن</TableHead>
+        )}
+        
+        {visibleColumns.includes("delivery_type") && (
+          <TableHead className="font-semibold text-foreground py-4 px-4 text-sm">نوع التوصيل</TableHead>
+        )}
+        
+        {visibleColumns.includes("financial") && (
+          <TableHead className="font-semibold text-foreground py-4 px-4 text-sm">المبالغ المالية</TableHead>
         )}
         
         {visibleColumns.includes("actions") && (

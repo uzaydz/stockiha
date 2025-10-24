@@ -54,6 +54,9 @@ export const cleanProductColorData = (color: ProductColor): any => {
 
       return cleanedSize;
     });
+    
+    // ✅ إضافة تسجيل للتأكد من وجود المقاسات
+    console.log(`📏 تم تنظيف ${cleanedColor.sizes.length} مقاس للون: ${color.name}`);
   }
   
   return cleanedColor;
@@ -131,6 +134,12 @@ export const prepareFormSubmissionData = (
     : `${data.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`;
 
   // Debug: فحص البيانات النهائية
+  console.log('🔍 تحضير بيانات المنتج:', {
+    colorsCount: colorsToSubmit.length,
+    colorsWithSizes: colorsToSubmit.filter(c => c.sizes && c.sizes.length > 0).length,
+    totalSizes: colorsToSubmit.reduce((sum, c) => sum + (c.sizes?.length || 0), 0)
+  });
+
   const finalData = {
     ...data,
     organization_id: organizationId, // ✅ استخدام organizationId المُتحقق منه

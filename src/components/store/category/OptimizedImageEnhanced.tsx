@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, memo, useCallback } from 'react';
 import { Layers } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { OptimizedImageProps } from './types';
-import { getCdnImageUrl } from '@/lib/image-cdn';
 
 // إعدادات الكاش المحسّنة
 const MAX_CACHE_SIZE = 150;
@@ -151,32 +150,28 @@ const OptimizedImageEnhanced = memo<OptimizedImageProps>(({
     onError?.(error);
   }, [onError]);
 
-  // بناء رابط محسّن لـ Supabase - معطل مؤقتاً بسبب Free Plan
+  // بناء رابط محسّن لـ Supabase (render + مقاسات) مع ترميز المسار، بدون فرض format
   const buildOptimizedSrc = useCallback((input: string) => {
     try {
       if (!input) return input;
-      // استخدم CDN للصور عبر /img بعرض مناسب للفئات
-      const qmap: any = { low: 60, medium: 80, high: 95 };
-      const q = quality === 'auto' ? 75 : (qmap[quality] || 75);
-      return getCdnImageUrl(input, { width: 512, quality: q, fit: 'cover' });
-      
-      // TODO: تفعيل التحسين عند الترقية إلى Pro Plan
-      // const isSvg = /\.svg(\?|$)/i.test(input);
-      // if (isSvg) return input;
-      // if (input.includes('/storage/v1/object/public/')) {
-      //   const url = new URL(input);
-      //   const pathAfterPublic = url.pathname.split('/storage/v1/object/public/')[1];
-      //   const encodedPath = pathAfterPublic
-      //     .split('/')
-      //     .map(seg => encodeURIComponent(seg))
-      //     .join('/');
-      //   const base = `${url.origin}/storage/v1/render/image/public/${encodedPath}`;
-      //   const mobile = typeof window !== 'undefined' && window.innerWidth < 640;
-      //   const width = mobile ? 512 : 800;
-      //   const qmap: any = { low: 60, medium: 80, high: 95 };
-      //   const q = quality === 'auto' ? 75 : (qmap[quality] || 75);
-      //   return `${base}?width=${width}&quality=${q}`;
-      // }
+      const isSvg = /\.svg(\?|$)/i.test(input);
+      if (isSvg) return input;
+      if (input.includes('/storage/v1/object/public/')) {
+        const url = new URL(input);
+        const pathAfterPublic = url.pathname.split('/storage/v1/object/public/')[1];
+        const encodedPath = pathAfterPublic
+          .split('/')
+          .map(seg => encodeURIComponent(seg))
+          .join('/');
+        const base = `${url.origin}/storage/v1/render/image/public/${encodedPath}`;
+        const mobile = typeof window !== 'undefined' && window.innerWidth < 640;
+        const width = mobile ? 512 : 800;
+        const qmap: any = { low: 60, medium: 80, high: 95 };
+        const q = quality === 'auto' ? 75 : (qmap[quality] || 75);
+        // لا نضيف format=webp لتفادي 400 على بعض الامتدادات/المسارات
+        return `${base}?width=${width}&quality=${q}`;
+      }
+      return input;
     } catch {
       return input;
     }
@@ -269,7 +264,8 @@ const OptimizedImageEnhanced = memo<OptimizedImageProps>(({
             }
           }}
           loading={priority ? "eager" : "lazy"}
-          fetchPriority={priority ? 'high' : undefined}
+          // eslint-disable-next-line react/no-unknown-property
+          fetchpriority={priority ? 'high' : undefined}
           decoding="async"
         />
       )}

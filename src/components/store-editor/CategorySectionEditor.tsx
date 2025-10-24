@@ -213,7 +213,7 @@ const CategorySectionEditor: React.FC<CategorySectionEditorProps> = ({
                 <Slider
                   id="maxCategories"
                   min={1}
-                  max={12}
+                  max={50}
                   step={1}
                   value={[localSettings.maxCategories]}
                   onValueChange={(value) => updateSettings({ maxCategories: value[0] })}
@@ -272,37 +272,67 @@ const CategorySectionEditor: React.FC<CategorySectionEditorProps> = ({
                       لم يتم العثور على فئات. أضف فئات جديدة أولاً.
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
                       {categories.map((category) => (
                         <div 
                           key={category.id}
-                          className={`flex items-center justify-between p-3 rounded-md border cursor-pointer transition-all ${
+                          className={`flex items-center justify-between p-4 rounded-lg border cursor-pointer transition-all duration-200 hover:shadow-md ${
                             localSettings.selectedCategories.includes(category.id)
-                              ? 'bg-primary/10 border-primary'
-                              : 'bg-card hover:bg-muted/50'
+                              ? 'bg-primary/10 border-primary shadow-sm ring-1 ring-primary/20'
+                              : 'bg-card hover:bg-muted/50 border-border/60'
                           }`}
                           onClick={() => toggleCategory(category.id)}
                         >
-                          <div className="flex items-center gap-2">
-                            {category.icon ? (
-                              <span className="text-muted-foreground">{category.icon}</span>
+                          <div className="flex items-center gap-3">
+                            {category.image_url ? (
+                              <img
+                                src={category.image_url}
+                                alt={category.name}
+                                className="w-10 h-10 rounded object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none'
+                                }}
+                              />
                             ) : (
-                              <Tag className="h-4 w-4 text-muted-foreground" />
+                              <div className="w-10 h-10 rounded bg-primary/10 flex items-center justify-center">
+                                {category.icon ? (
+                                  <span className="text-lg">{category.icon}</span>
+                                ) : (
+                                  <Tag className="h-5 w-5 text-primary" />
+                                )}
+                              </div>
                             )}
-                            <span>{category.name}</span>
+                            <div className="min-w-0">
+                              <span className="font-medium text-sm">{category.name}</span>
+                              {category.product_count !== undefined && (
+                                <p className="text-xs text-muted-foreground">{category.product_count} منتج</p>
+                              )}
+                            </div>
                           </div>
-                          {localSettings.selectedCategories.includes(category.id) ? (
-                            <CheckCircle className="h-5 w-5 text-primary" />
-                          ) : (
-                            <XCircle className="h-5 w-5 text-muted-foreground opacity-30" />
-                          )}
+                          <div className="flex items-center gap-2">
+                            {localSettings.selectedCategories.includes(category.id) ? (
+                              <CheckCircle className="h-5 w-5 text-primary" />
+                            ) : (
+                              <XCircle className="h-5 w-5 text-muted-foreground opacity-30" />
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
                   )}
                   
-                  <div className="mt-4 text-muted-foreground text-sm">
-                    الفئات المختارة: {localSettings.selectedCategories.length}
+                  <div className="mt-4 p-3 bg-muted/20 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-foreground">الفئات المختارة</span>
+                      <Badge variant="secondary" className="text-sm">
+                        {localSettings.selectedCategories.length} فئة
+                      </Badge>
+                    </div>
+                    {localSettings.selectedCategories.length > 0 && (
+                      <div className="mt-2 text-xs text-muted-foreground">
+                        يمكنك تغيير ترتيب الفئات من خلال إعدادات العرض
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

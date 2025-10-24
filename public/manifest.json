@@ -1,41 +1,84 @@
 {
-  "name": "Bazaar Console",
-  "short_name": "Bazaar",
-  "description": "منصة إدارة المتاجر الإلكترونية",
+  "name": "سطوكيها - منصة إدارة المتاجر الذكية",
+  "short_name": "سطوكيها",
+  "description": "منصة شاملة لإدارة المتاجر تجمع بين نقطة البيع والمتجر الإلكتروني وإدارة المخزون",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#3b82f6",
+  "theme_color": "#6b21a8",
   "orientation": "portrait-primary",
-  "categories": [
-    "business",
-    "productivity"
-  ],
+  "scope": "/",
   "lang": "ar",
   "dir": "rtl",
+  "categories": ["business", "productivity", "utilities"],
   "icons": [
     {
-      "src": "/icons/icon-192x192.png",
+      "src": "/icon-192x192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/icons/icon-512x512.png",
+      "src": "/icon-512x512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-desktop.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "سطوكيها - لوحة التحكم الرئيسية"
+    },
+    {
+      "src": "/screenshot-mobile.png",
+      "sizes": "390x844",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "سطوكيها - تطبيق الجوال"
     }
   ],
   "shortcuts": [
     {
       "name": "لوحة التحكم",
-      "short_name": "Dashboard",
-      "description": "الوصول السريع للوحة التحكم",
+      "short_name": "لوحة التحكم",
+      "description": "الوصول السريع إلى لوحة التحكم",
       "url": "/dashboard",
       "icons": [
         {
-          "src": "/icons/icon-192x192.png",
+          "src": "/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "نقطة البيع",
+      "short_name": "نقطة البيع",
+      "description": "فتح نقطة البيع",
+      "url": "/pos",
+      "icons": [
+        {
+          "src": "/icon-192x192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "المنتجات",
+      "short_name": "المنتجات",
+      "description": "إدارة المنتجات",
+      "url": "/products",
+      "icons": [
+        {
+          "src": "/icon-192x192.png",
           "sizes": "192x192"
         }
       ]

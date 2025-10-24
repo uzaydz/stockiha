@@ -2,6 +2,73 @@ import { supabase } from '../supabase-client';
 import { UserSettings, OrganizationSettings, SettingsTemplate, UpdateSettingsPayload, SettingsResponse, UserThemeMode, OrganizationThemeMode } from '../../types/settings';
 import { withCache, LONG_CACHE_TTL } from '@/lib/cache/storeCache';
 
+// ====================== دوال مساعدة للتحقق من الأنواع ======================
+
+/**
+ * التحقق من صحة نوع theme_mode للمستخدم
+ */
+const isValidUserThemeMode = (value: any): value is UserThemeMode => {
+  return typeof value === 'string' && ['light', 'dark', 'system'].includes(value);
+};
+
+/**
+ * التحقق من صحة نوع theme_mode للمؤسسة
+ */
+const isValidOrganizationThemeMode = (value: any): value is OrganizationThemeMode => {
+  return typeof value === 'string' && ['light', 'dark', 'auto'].includes(value);
+};
+
+/**
+ * تحويل البيانات القادمة من قاعدة البيانات إلى UserSettings
+ */
+const transformToUserSettings = (data: any): UserSettings => {
+  return {
+    id: data.id,
+    user_id: data.user_id,
+    theme_mode: isValidUserThemeMode(data.theme_mode) ? data.theme_mode : 'system',
+    language: data.language || 'ar',
+    timezone: data.timezone || 'UTC+3',
+    date_format: data.date_format || 'YYYY-MM-DD',
+    time_format: data.time_format || 'HH:mm',
+    notification_email: data.notification_email ?? true,
+    notification_push: data.notification_push ?? true,
+    notification_browser: data.notification_browser ?? true,
+    notification_preferences: data.notification_preferences || {
+      orders: true,
+      payments: true,
+      system: true,
+    },
+    created_at: data.created_at,
+    updated_at: data.updated_at
+  };
+};
+
+/**
+ * تحويل البيانات القادمة من قاعدة البيانات إلى OrganizationSettings
+ */
+const transformToOrganizationSettings = (data: any): OrganizationSettings => {
+  return {
+    id: data.id,
+    organization_id: data.organization_id,
+    theme_primary_color: data.theme_primary_color || '#3B82F6',
+    theme_secondary_color: data.theme_secondary_color || '#10B981',
+    theme_mode: isValidOrganizationThemeMode(data.theme_mode) ? data.theme_mode : 'light',
+    site_name: data.site_name || 'stockiha',
+    custom_css: data.custom_css,
+    logo_url: data.logo_url,
+    favicon_url: data.favicon_url,
+    default_language: data.default_language || 'ar',
+    custom_js: data.custom_js,
+    custom_header: data.custom_header,
+    custom_footer: data.custom_footer,
+    enable_registration: data.enable_registration ?? true,
+    enable_public_site: data.enable_public_site ?? true,
+    display_text_with_logo: data.display_text_with_logo ?? false,
+    created_at: data.created_at,
+    updated_at: data.updated_at
+  };
+};
+
 // ====================== إعدادات المستخدم ======================
 
 /**
@@ -22,7 +89,7 @@ export const getUserSettings = async (userId: string): Promise<UserSettings | nu
       return getDefaultUserSettings(userId);
     }
 
-    return data;
+    return transformToUserSettings(data);
   } catch (error) {
     return getDefaultUserSettings(userId);
   }
@@ -62,7 +129,7 @@ export const createDefaultUserSettings = async (userId: string): Promise<UserSet
       return defaultSettings;
     }
 
-    return data;
+    return transformToUserSettings(data);
   } catch (error) {
     return {
       user_id: userId,
@@ -148,7 +215,7 @@ export const updateUserSettings = async (
           return newSettings;
         }
 
-        return insertData;
+        return transformToUserSettings(insertData);
       }
       return null;
     }
@@ -176,7 +243,7 @@ export const updateUserSettings = async (
       return null;
     }
 
-    return updateData[0] || null;
+    return updateData[0] ? transformToUserSettings(updateData[0]) : null;
   } catch (error) {
     return null;
   }
@@ -188,8 +255,14 @@ export const updateUserSettings = async (
  * جلب إعدادات المؤسسة مع دعم التخزين المؤقت
  */
 export const getOrganizationSettings = async (organizationId: string): Promise<OrganizationSettings | null> => {
-  const { getOrganizationSettings: unifiedGetOrganizationSettings } = await import('@/lib/api/unified-api');
-  return unifiedGetOrganizationSettings(organizationId);
+  try {
+    const { getOrganizationSettings: unifiedGetOrganizationSettings } = await import('@/lib/api/unified-api');
+    const data = await unifiedGetOrganizationSettings(organizationId);
+    return data ? transformToOrganizationSettings(data) : null;
+  } catch (error) {
+    console.error('خطأ في جلب إعدادات المؤسسة:', error);
+    return null;
+  }
 };
 
 /**
@@ -249,7 +322,7 @@ export const createDefaultOrganizationSettings = async (organizationId: string):
       return defaultSettings;
     }
 
-    return data;
+    return transformToOrganizationSettings(data);
   } catch (error) {
     return {
       organization_id: organizationId,
@@ -329,123 +402,62 @@ export const updateOrganizationSettings = async (
       throw error;
     }
 
-    return data;
+    return data ? transformToOrganizationSettings(data) : null;
   } catch (error) {
     return null;
   }
 };
 
 // ====================== قوالب الإعدادات ======================
+// ملاحظة: جدول settings_templates غير متوفر حالياً في قاعدة البيانات
 
 /**
  * جلب قوالب الإعدادات للمؤسسة
+ * ملاحظة: هذه الدالة معطلة مؤقتاً لأن جدول settings_templates غير متوفر
  */
 export const getOrganizationTemplates = async (
   organizationId: string,
   templateType?: string
 ): Promise<SettingsTemplate[]> => {
-  try {
-    let query = supabase
-      .from('settings_templates')
-      .select('*')
-      .eq('organization_id', organizationId)
-      .order('created_at', { ascending: false });
-
-    if (templateType) {
-      query = query.eq('template_type', templateType);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      return [];
-    }
-
-    return data || [];
-  } catch (error) {
-    return [];
-  }
+  // TODO: تفعيل هذه الدالة عند إنشاء جدول settings_templates
+  console.warn('جدول settings_templates غير متوفر حالياً');
+  return [];
 };
 
 /**
  * إنشاء قالب إعدادات جديد
+ * ملاحظة: هذه الدالة معطلة مؤقتاً لأن جدول settings_templates غير متوفر
  */
 export const createOrganizationTemplate = async (
   organizationId: string,
   templateData: Omit<SettingsTemplate, 'id' | 'organization_id' | 'created_at' | 'updated_at'>
 ): Promise<SettingsTemplate | null> => {
-  try {
-    const newTemplate = {
-      ...templateData,
-      organization_id: organizationId,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-
-    const { data, error } = await supabase
-      .from('settings_templates')
-      .insert(newTemplate)
-      .select()
-      .single();
-
-    if (error) {
-      return null;
-    }
-
-    return data;
-  } catch (error) {
-    return null;
-  }
+  // TODO: تفعيل هذه الدالة عند إنشاء جدول settings_templates
+  console.warn('جدول settings_templates غير متوفر حالياً');
+  return null;
 };
 
 /**
  * تحديث قالب إعدادات موجود
+ * ملاحظة: هذه الدالة معطلة مؤقتاً لأن جدول settings_templates غير متوفر
  */
 export const updateOrganizationTemplate = async (
   templateId: string,
   templateData: Partial<Omit<SettingsTemplate, 'id' | 'organization_id' | 'created_at' | 'updated_at'>>
 ): Promise<SettingsTemplate | null> => {
-  try {
-    const updateData = {
-      ...templateData,
-      updated_at: new Date().toISOString()
-    };
-
-    const { data, error } = await supabase
-      .from('settings_templates')
-      .update(updateData)
-      .eq('id', templateId)
-      .select()
-      .single();
-
-    if (error) {
-      return null;
-    }
-
-    return data;
-  } catch (error) {
-    return null;
-  }
+  // TODO: تفعيل هذه الدالة عند إنشاء جدول settings_templates
+  console.warn('جدول settings_templates غير متوفر حالياً');
+  return null;
 };
 
 /**
  * حذف قالب إعدادات
+ * ملاحظة: هذه الدالة معطلة مؤقتاً لأن جدول settings_templates غير متوفر
  */
 export const deleteOrganizationTemplate = async (templateId: string): Promise<boolean> => {
-  try {
-    const { error } = await supabase
-      .from('settings_templates')
-      .delete()
-      .eq('id', templateId);
-
-    if (error) {
-      return false;
-    }
-
-    return true;
-  } catch (error) {
-    return false;
-  }
+  // TODO: تفعيل هذه الدالة عند إنشاء جدول settings_templates
+  console.warn('جدول settings_templates غير متوفر حالياً');
+  return false;
 };
 
 // ====================== تدقيق الإعدادات ======================
@@ -540,5 +552,87 @@ export const uploadStorageFile = async (
     return { url: publicUrl };
   } catch (error) {
     return null;
+  }
+};
+
+// ====================== تنظيف البيانات التالفة ======================
+
+/**
+ * تنظيف محتوى JavaScript التالف من إعدادات المؤسسة
+ */
+export const cleanCorruptedSettings = async (organizationId: string): Promise<boolean> => {
+  try {
+    // جلب الإعدادات الحالية
+    const { data: settings, error: fetchError } = await supabase
+      .from('organization_settings')
+      .select('*')
+      .eq('organization_id', organizationId)
+      .single();
+
+    if (fetchError || !settings) {
+      console.error('خطأ في جلب إعدادات المؤسسة:', fetchError);
+      return false;
+    }
+
+    let needsUpdate = false;
+    const updates: any = {};
+
+    // فحص custom_js
+    if (settings.custom_js && typeof settings.custom_js === 'string') {
+      try {
+        // محاولة التحقق من صحة الكود
+        const { getSafeCustomScript } = await import('@/utils/customScriptValidator');
+        const validatedCode = getSafeCustomScript(settings.custom_js, { 
+          context: 'cleanCorruptedSettings' 
+        });
+        
+        if (validatedCode === null) {
+          console.warn('تم اكتشاف كود JavaScript تالف، سيتم مسحه:', settings.custom_js.substring(0, 100));
+          updates.custom_js = null;
+          needsUpdate = true;
+        }
+      } catch (error) {
+        console.error('خطأ في التحقق من custom_js:', error);
+        updates.custom_js = null;
+        needsUpdate = true;
+      }
+    }
+
+    // فحص custom_css
+    if (settings.custom_css && typeof settings.custom_css === 'string') {
+      try {
+        // فحص بسيط لـ CSS
+        if (settings.custom_css.includes('fNcqSfPLFxu') || settings.custom_css.includes('Unexpected identifier')) {
+          console.warn('تم اكتشاف محتوى CSS تالف، سيتم مسحه');
+          updates.custom_css = null;
+          needsUpdate = true;
+        }
+      } catch (error) {
+        console.error('خطأ في التحقق من custom_css:', error);
+        updates.custom_css = null;
+        needsUpdate = true;
+      }
+    }
+
+    // تحديث الإعدادات إذا لزم الأمر
+    if (needsUpdate) {
+      const { error: updateError } = await supabase
+        .from('organization_settings')
+        .update(updates)
+        .eq('organization_id', organizationId);
+
+      if (updateError) {
+        console.error('خطأ في تحديث الإعدادات:', updateError);
+        return false;
+      }
+
+      console.log('تم تنظيف الإعدادات التالفة بنجاح');
+      return true;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('خطأ في تنظيف الإعدادات التالفة:', error);
+    return false;
   }
 };

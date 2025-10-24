@@ -269,10 +269,13 @@ const createOptimizedSupabaseClient = (): SupabaseClient<Database> => {
   const protector = SupabaseProtector.getInstance();
   protector.preventMultipleInstances();
 
+  const isBrowser = typeof window !== 'undefined';
+  const initialOnline = isBrowser ? navigator.onLine !== false : true;
+
   const client = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     auth: {
       // تفعيل التحديث التلقائي للتوكن لضمان بقاء الجلسة صالحة
-      autoRefreshToken: true,
+      autoRefreshToken: initialOnline,
       persistSession: true,
       detectSessionInUrl: false, // تعطيل لمنع مشاكل URL
       flowType: 'pkce',
@@ -282,6 +285,7 @@ const createOptimizedSupabaseClient = (): SupabaseClient<Database> => {
     realtime: {
       // ✅ تحسين إعدادات WebSocket للشبكات البطيئة
       transport: typeof window !== 'undefined' ? window.WebSocket : undefined,
+      connect: initialOnline,
       timeout: 300000, // زيادة إلى 5 دقائق للشبكات البطيئة
       heartbeatIntervalMs: 120000, // زيادة إلى 2 دقيقة للشبكات البطيئة
       params: {
@@ -302,6 +306,9 @@ const createOptimizedSupabaseClient = (): SupabaseClient<Database> => {
       },
       // 🚀 تحسين timeout للشبكات البطيئة
       fetch: (url: RequestInfo | URL, options: RequestInit = {}) => {
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+          return Promise.reject(new TypeError('network disconnected'));
+        }
         // زيادة timeout بشكل كبير للشبكات البطيئة
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 240000); // 4 دقائق
@@ -512,6 +519,36 @@ if (typeof window !== 'undefined') {
   window.addEventListener('beforeunload', () => {
     cleanupSupabaseClients();
   });
+}
+
+// 🔌 التحكم في حالتي الاتصال وعدم الاتصال
+if (typeof window !== 'undefined') {
+  const handleOffline = () => {
+    try {
+      mainClient?.auth?.stopAutoRefresh?.();
+    } catch {}
+    try {
+      if (typeof (mainClient as any)?.removeAllChannels === 'function') {
+        (mainClient as any).removeAllChannels();
+      }
+    } catch {}
+    try {
+      mainClient?.realtime?.disconnect?.();
+    } catch {}
+  };
+
+  const handleOnline = () => {
+    try {
+      mainClient?.auth?.startAutoRefresh?.();
+    } catch {}
+  };
+
+  window.addEventListener('offline', handleOffline);
+  window.addEventListener('online', handleOnline);
+
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    handleOffline();
+  }
 }
 
 // 🔒 إعادة تصدير أنواع البيانات

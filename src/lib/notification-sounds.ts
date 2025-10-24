@@ -110,12 +110,16 @@ class NotificationSoundManager {
       
       // محاولة استئناف AudioContext إذا كان متوقفاً
       if (this.audioContext.state === 'suspended') {
-        await this.audioContext.resume();
+        await this.audioContext.resume().catch(() => {
+          // تجاهل الأخطاء إذا لم يتم استئناف AudioContext
+          // سيتم استئنافه تلقائياً عند تفاعل المستخدم
+        });
       }
       
       this.isInitialized = true;
       return true;
     } catch (error) {
+      // تجاهل الخطأ بصمت - لا حاجة لإظهار تحذيرات في console
       return false;
     }
   }

@@ -32,6 +32,7 @@ import { Pencil, Plus, ExternalLink, Trash2, Edit3, LayoutTemplate, Eye } from '
 import { toast } from 'sonner';
 import { Switch } from '@/components/ui/switch';
 import { buildPreviewUrl, canPreviewPage, getPreviewUnavailableMessage } from '@/utils/previewUrl';
+import { POSSharedLayoutControls } from '@/components/pos-layout/types';
 
 interface LandingPage {
   id: string;
@@ -44,7 +45,9 @@ interface LandingPage {
   components_count: number;
 }
 
-const LandingPagesManager: React.FC = () => {
+interface LandingPagesManagerProps extends POSSharedLayoutControls {}
+
+const LandingPagesManager: React.FC<LandingPagesManagerProps> = ({ useStandaloneLayout = true } = {}) => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { supabase } = useSupabase();
@@ -243,8 +246,7 @@ const LandingPagesManager: React.FC = () => {
     }
   }, [organization?.id]);
   
-  return (
-    <Layout>
+  const content = (
       <div className="container py-6">
         <div className="flex justify-between items-center mb-6">
           <div>
@@ -467,8 +469,9 @@ const LandingPagesManager: React.FC = () => {
           )}
         </Card>
       </div>
-    </Layout>
   );
+
+  return useStandaloneLayout ? <Layout>{content}</Layout> : content;
 };
 
 export default LandingPagesManager;

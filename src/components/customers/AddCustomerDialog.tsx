@@ -32,12 +32,19 @@ const AddCustomerDialog = ({ onCustomerAdded }: AddCustomerDialogProps) => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    phone: ''
+    phone: '',
+    nif: '',
+    rc: '',
+    nis: '',
+    rib: '',
+    address: ''
   });
   const [errors, setErrors] = useState({
     name: '',
     email: '',
-    phone: ''
+    phone: '',
+    nif: '',
+    rc: ''
   });
 
   // التحقق من صلاحيات المستخدم
@@ -93,7 +100,9 @@ const AddCustomerDialog = ({ onCustomerAdded }: AddCustomerDialogProps) => {
     const newErrors = {
       name: formData.name.trim() === '' ? 'اسم العميل مطلوب' : '',
       email: !/^\S+@\S+\.\S+$/.test(formData.email) ? 'البريد الإلكتروني غير صالح' : '',
-      phone: formData.phone.trim() !== '' && !/^\d{10,15}$/.test(formData.phone.trim()) ? 'رقم الهاتف غير صالح' : ''
+      phone: formData.phone.trim() !== '' && !/^\d{10,15}$/.test(formData.phone.trim()) ? 'رقم الهاتف غير صالح' : '',
+      nif: formData.nif.trim() !== '' && formData.nif.length !== 15 ? 'NIF يجب أن يكون 15 رقم' : '',
+      rc: formData.rc.trim() !== '' && !/^\d+$/.test(formData.rc.trim()) ? 'RC يجب أن يحتوي على أرقام فقط' : ''
     };
     
     setErrors(newErrors);
@@ -120,10 +129,23 @@ const AddCustomerDialog = ({ onCustomerAdded }: AddCustomerDialogProps) => {
     setIsSubmitting(true);
     
     try {
+      // الحصول على organization_id من localStorage
+      const organizationId = localStorage.getItem('bazaar_organization_id');
+      
+      if (!organizationId) {
+        throw new Error('لم يتم العثور على معرف المؤسسة');
+      }
+      
       const newCustomer = await createCustomer({
         name: formData.name,
         email: formData.email,
-        phone: formData.phone.trim() === '' ? null : formData.phone
+        phone: formData.phone.trim() === '' ? null : formData.phone,
+        organization_id: organizationId,
+        nif: formData.nif.trim() === '' ? null : formData.nif,
+        rc: formData.rc.trim() === '' ? null : formData.rc,
+        nis: formData.nis.trim() === '' ? null : formData.nis,
+        rib: formData.rib.trim() === '' ? null : formData.rib,
+        address: formData.address.trim() === '' ? null : formData.address
       });
       
       toast({
@@ -149,12 +171,19 @@ const AddCustomerDialog = ({ onCustomerAdded }: AddCustomerDialogProps) => {
     setFormData({
       name: '',
       email: '',
-      phone: ''
+      phone: '',
+      nif: '',
+      rc: '',
+      nis: '',
+      rib: '',
+      address: ''
     });
     setErrors({
       name: '',
       email: '',
-      phone: ''
+      phone: '',
+      nif: '',
+      rc: ''
     });
   };
 
@@ -224,6 +253,90 @@ const AddCustomerDialog = ({ onCustomerAdded }: AddCustomerDialogProps) => {
               {errors.phone && (
                 <p className="text-red-500 text-sm col-span-4 -mt-3">{errors.phone}</p>
               )}
+            </div>
+
+            {/* قسم المعلومات الضريبية (اختياري) */}
+            <div className="col-span-4 border-t pt-4">
+              <h4 className="text-sm font-medium mb-3 text-gray-700">معلومات ضريبية (اختياري)</h4>
+              
+              <div className="grid gap-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="nif" className="text-left col-span-4 text-sm">
+                    رقم التعريف الجبائي (NIF)
+                  </Label>
+                  <Input
+                    id="nif"
+                    name="nif"
+                    value={formData.nif}
+                    onChange={handleChange}
+                    className="col-span-4"
+                    placeholder="15 رقم"
+                    maxLength={15}
+                  />
+                  {errors.nif && (
+                    <p className="text-red-500 text-sm col-span-4 -mt-3">{errors.nif}</p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="rc" className="text-left col-span-4 text-sm">
+                    رقم السجل التجاري (RC)
+                  </Label>
+                  <Input
+                    id="rc"
+                    name="rc"
+                    value={formData.rc}
+                    onChange={handleChange}
+                    className="col-span-4"
+                    placeholder="أرقام فقط"
+                  />
+                  {errors.rc && (
+                    <p className="text-red-500 text-sm col-span-4 -mt-3">{errors.rc}</p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="nis" className="text-left col-span-4 text-sm">
+                    رقم التعريف الإحصائي (NIS)
+                  </Label>
+                  <Input
+                    id="nis"
+                    name="nis"
+                    value={formData.nis}
+                    onChange={handleChange}
+                    className="col-span-4"
+                    placeholder="NIS"
+                  />
+                </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="rib" className="text-left col-span-4 text-sm">
+                    الهوية البنكية (RIB)
+                  </Label>
+                  <Input
+                    id="rib"
+                    name="rib"
+                    value={formData.rib}
+                    onChange={handleChange}
+                    className="col-span-4"
+                    placeholder="RIB"
+                  />
+                </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="address" className="text-left col-span-4 text-sm">
+                    العنوان الكامل
+                  </Label>
+                  <Input
+                    id="address"
+                    name="address"
+                    value={formData.address}
+                    onChange={handleChange}
+                    className="col-span-4"
+                    placeholder="العنوان الكامل"
+                  />
+                </div>
+              </div>
             </div>
           </div>
           <DialogFooter>

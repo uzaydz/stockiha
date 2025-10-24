@@ -9,6 +9,7 @@ import { useTenant } from '@/context/TenantContext';
 import { playNotificationForType, enableNotificationSounds, setNotificationVolume, initializeNotificationSounds } from '@/lib/notification-sounds';
 import { useToastNotifications } from '@/hooks/useToastNotifications';
 import { localCache } from '@/lib/cacheManager';
+import { isAppOnline, markNetworkOffline, markNetworkOnline } from '@/utils/networkStatus';
 
 // Define the notification interface based on the migration schema
 export interface NotificationItem {
@@ -47,6 +48,7 @@ export function useRealTimeNotifications() {
   const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [realtimeRestartToken, setRealtimeRestartToken] = useState(0);
   const { currentOrganization } = useTenant();
   const supabase = getSupabaseClient();
   const subscriptionRef = useRef<any>(null);
@@ -54,6 +56,7 @@ export function useRealTimeNotifications() {
   const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 5;
   const hasInitialFetchRef = useRef(false);
+  const realtimeSuppressedRef = useRef(false);
 
   // إعدادات الإشعارات مع القيم الافتراضية
   const [settings, setSettings] = useState<NotificationSettings>({
@@ -123,6 +126,15 @@ export function useRealTimeNotifications() {
   // تحميل الإشعارات مع الكاش
   const loadNotifications = useCallback(async () => {
     if (!currentOrganization?.id || !settings.enabled) return;
+    if (!isAppOnline()) {
+      markNetworkOffline({ force: true });
+      const cacheKey = `notifications_${currentOrganization.id}`;
+      const cached = localCache.get<NotificationItem[]>(cacheKey);
+      if (cached) {
+        setNotifications(cached);
+      }
+      return;
+    }
     if (hasInitialFetchRef.current) return; // منع التكرار المبكر
     hasInitialFetchRef.current = true;
 
@@ -158,8 +170,42 @@ export function useRealTimeNotifications() {
     }
   }, [currentOrganization?.id, settings.enabled, supabase]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleOnline = () => {
+      markNetworkOnline();
+      realtimeSuppressedRef.current = false;
+      reconnectAttemptsRef.current = 0;
+      hasInitialFetchRef.current = false;
+      loadNotifications();
+      setRealtimeRestartToken((token) => token + 1);
+    };
+
+    const handleOffline = () => {
+      markNetworkOffline({ force: true });
+      realtimeSuppressedRef.current = true;
+      setIsRealtimeConnected(false);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [loadNotifications]);
+
   // دالة إعادة الاتصال المحسنة
   const reconnect = useCallback(() => {
+    if (!isAppOnline()) {
+      markNetworkOffline({ force: true });
+      realtimeSuppressedRef.current = true;
+      reconnectAttemptsRef.current = 0;
+      setIsRealtimeConnected(false);
+      return;
+    }
+
     if (reconnectAttemptsRef.current >= maxReconnectAttempts) {
       setIsRealtimeConnected(false);
       return;
@@ -174,12 +220,29 @@ export function useRealTimeNotifications() {
         subscriptionRef.current.unsubscribe();
         subscriptionRef.current = null;
       }
+      setRealtimeRestartToken((token) => token + 1);
     }, delay);
-  }, []);
+  }, [setRealtimeRestartToken]);
 
   // إعداد الاشتراك في الوقت الفعلي مع آلية إعادة المحاولة المحسنة
   useEffect(() => {
     if (!currentOrganization?.id || !settings.realtimeEnabled || !supabase) {
+      return;
+    }
+
+    if (realtimeSuppressedRef.current) {
+      if (isAppOnline()) {
+        realtimeSuppressedRef.current = false;
+      } else {
+        setIsRealtimeConnected(false);
+        return;
+      }
+    }
+
+    if (!isAppOnline()) {
+      markNetworkOffline({ force: true });
+      realtimeSuppressedRef.current = true;
+      setIsRealtimeConnected(false);
       return;
     }
 
@@ -252,23 +315,30 @@ export function useRealTimeNotifications() {
       subscriptionRef.current = channel.subscribe((status) => {
         
         if (status === 'SUBSCRIBED') {
+          markNetworkOnline();
           setIsRealtimeConnected(true);
           reconnectAttemptsRef.current = 0; // إعادة تعيين عداد المحاولات
-        } else if (status === 'CHANNEL_ERROR') {
+        } else if (status === 'CHANNEL_ERROR' || status === 'CLOSED' || status === 'TIMED_OUT') {
+          markNetworkOffline({ force: true });
+          realtimeSuppressedRef.current = true;
           setIsRealtimeConnected(false);
-          reconnect();
-        } else if (status === 'CLOSED') {
-          setIsRealtimeConnected(false);
-          reconnect();
-        } else if (status === 'TIMED_OUT') {
-          setIsRealtimeConnected(false);
-          reconnect();
+          reconnectAttemptsRef.current = 0;
+          if (isAppOnline()) {
+            realtimeSuppressedRef.current = false;
+            reconnect();
+          }
         }
       });
 
     } catch (error) {
+      markNetworkOffline({ force: true });
+      realtimeSuppressedRef.current = true;
       setIsRealtimeConnected(false);
-      reconnect();
+      reconnectAttemptsRef.current = 0;
+      if (isAppOnline()) {
+        realtimeSuppressedRef.current = false;
+        reconnect();
+      }
     }
 
     return () => {
@@ -281,7 +351,7 @@ export function useRealTimeNotifications() {
         reconnectTimeoutRef.current = null;
       }
     };
-  }, [currentOrganization?.id, settings.realtimeEnabled, settings.newOrderSound, settings.toastEnabled, reconnect]);
+  }, [currentOrganization?.id, settings.realtimeEnabled, settings.newOrderSound, settings.toastEnabled, reconnect, supabase, realtimeRestartToken]);
 
   // تحميل الإشعارات عند التهيئة مع الكاش (باستخدام الدالة المعرّفة useCallback أعلاه)
   useEffect(() => {

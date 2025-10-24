@@ -7,12 +7,21 @@ import { FileBarChart, Package, Receipt, ShoppingBag } from 'lucide-react';
 import { SuppliersList } from '@/components/suppliers/SuppliersList';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink } from '@/components/ui/breadcrumb';
 import Layout from '@/components/Layout';
+import { POSSharedLayoutControls } from '@/components/pos-layout/types';
+import { useEffect as useEffectForRefresh } from 'react';
 
-export default function SuppliersManagement() {
+interface SuppliersManagementProps extends POSSharedLayoutControls {}
+
+export default function SuppliersManagement({ 
+  useStandaloneLayout = true,
+  onRegisterRefresh,
+  onLayoutStateChange 
+}: SuppliersManagementProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('suppliers');
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // تحديد التبويب النشط بناءً على المسار
   useEffect(() => {
@@ -51,9 +60,38 @@ export default function SuppliersManagement() {
   
   // التحقق من وجود مسار فرعي (مفتوح)
   const hasSubroute = location.pathname !== '/dashboard/suppliers';
+
+  // تسجيل دالة التحديث
+  useEffectForRefresh(() => {
+    if (onRegisterRefresh) {
+      onRegisterRefresh(async () => {
+        setIsRefreshing(true);
+        if (onLayoutStateChange) {
+          onLayoutStateChange({ isRefreshing: true });
+        }
+        
+        // محاكاة عملية التحديث
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        setIsRefreshing(false);
+        if (onLayoutStateChange) {
+          onLayoutStateChange({ isRefreshing: false });
+        }
+      });
+    }
+  }, [onRegisterRefresh, onLayoutStateChange]);
+
+  // إرسال حالة الاتصال
+  useEffectForRefresh(() => {
+    if (onLayoutStateChange) {
+      onLayoutStateChange({ 
+        connectionStatus: 'connected',
+        isRefreshing 
+      });
+    }
+  }, [isRefreshing, onLayoutStateChange]);
   
-  return (
-    <Layout>
+  const content = (
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
@@ -124,6 +162,7 @@ export default function SuppliersManagement() {
           </div>
         </Tabs>
       </div>
-    </Layout>
   );
+
+  return useStandaloneLayout ? <Layout>{content}</Layout> : content;
 }

@@ -6,8 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Plus, Truck } from 'lucide-react';
 import DeliveryProvidersTable from '@/components/delivery/DeliveryProvidersTable';
 import AddDeliveryProviderDialog from '@/components/delivery/AddDeliveryProviderDialog';
+import { POSSharedLayoutControls } from '@/components/pos-layout/types';
 
-export default function DeliveryManagement() {
+interface DeliveryManagementProps extends POSSharedLayoutControls {}
+
+export default function DeliveryManagement({ useStandaloneLayout = true }: DeliveryManagementProps = {}) {
   const { organization } = useAuth();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -18,8 +21,7 @@ export default function DeliveryManagement() {
     setIsAddDialogOpen(false);
   };
 
-  return (
-    <Layout>
+  const content = (
       <div className="container mx-auto py-6 space-y-6">
         {/* Header */}
         <div className="flex justify-between items-center">
@@ -71,6 +73,7 @@ export default function DeliveryManagement() {
           onSuccess={handleAddProviderSuccess}
         />
       </div>
-    </Layout>
   );
+
+  return useStandaloneLayout ? <Layout>{content}</Layout> : content;
 }

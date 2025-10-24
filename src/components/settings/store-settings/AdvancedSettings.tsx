@@ -3,7 +3,8 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Shield, Code, Zap } from 'lucide-react';
+import { Shield, Code, Zap, AlertTriangle, Trash2 } from 'lucide-react';
+import { getSafeCustomScript } from '@/utils/customScriptValidator';
 
 interface AdvancedSettingsProps {
   settings: {
@@ -16,6 +17,100 @@ interface AdvancedSettingsProps {
 }
 
 const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({ settings, updateSetting }) => {
+  const [jsValidationError, setJsValidationError] = React.useState<string | null>(null);
+  const [isCleaning, setIsCleaning] = React.useState(false);
+
+  // تسجيل محتوى الإعدادات للمساعدة في تشخيص المشاكل
+  React.useEffect(() => {
+    if (settings?.custom_js) {
+      try {
+        const trimmed = settings.custom_js.trim();
+        
+        // فحص سريع للبحث عن JSON أو محتوى تالف
+        if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+          console.warn('🚨 تم اكتشاف JSON في custom_js - سيتم مسحه تلقائياً');
+          updateSetting('custom_js', '');
+          setJsValidationError('تم اكتشاف JSON في custom_js وتم مسحه تلقائياً. يرجى إضافة كود JavaScript صالح.');
+          return;
+        }
+
+        if (trimmed.includes('fNcqSfPLFxu') || trimmed.includes('Unexpected identifier')) {
+          console.warn('🚨 تم اكتشاف محتوى تالف في custom_js - سيتم مسحه تلقائياً');
+          updateSetting('custom_js', '');
+          setJsValidationError('تم اكتشاف محتوى تالف في custom_js وتم مسحه تلقائياً.');
+          return;
+        }
+
+        console.log('🔍 AdvancedSettings: محتوى custom_js:', {
+          length: settings.custom_js.length,
+          preview: settings.custom_js.substring(0, 100) + (settings.custom_js.length > 100 ? '...' : ''),
+          containsJson: settings.custom_js.trim().startsWith('{') || settings.custom_js.trim().startsWith('[')
+        });
+
+        // التحقق من صحة الكود عند التحميل - مع تجنب الخطأ
+        if (trimmed) {
+          const validatedCode = getSafeCustomScript(settings.custom_js, { context: 'AdvancedSettings:initial_validation' });
+          if (validatedCode === null) {
+            setJsValidationError('الكود الحالي يحتوي على أخطاء في التركيب. يرجى مراجعته أو مسحه.');
+          } else {
+            setJsValidationError(null);
+          }
+        }
+      } catch (error) {
+        console.warn('AdvancedSettings: خطأ في معالجة custom_js:', error);
+        setJsValidationError('الكود الحالي يحتوي على أخطاء خطيرة. يرجى مسحه فوراً.');
+        // محاولة مسح المحتوى التالف
+        updateSetting('custom_js', '');
+      }
+    } else {
+      // إذا لم يكن هناك custom_js، تأكد من مسح أي أخطاء سابقة
+      setJsValidationError(null);
+    }
+  }, [settings?.custom_js, updateSetting]);
+
+  // دالة للتحقق من صحة كود JavaScript
+  const validateAndUpdateJS = (value: string) => {
+    try {
+      if (value.trim()) {
+        const validatedCode = getSafeCustomScript(value, { context: 'AdvancedSettings:user_input' });
+        if (validatedCode === null) {
+          setJsValidationError('الكود يحتوي على أخطاء في التركيب. تحقق من وجود أقواس مفقودة أو فواصل منقوطة.');
+          // لا نحفظ الكود إذا كان غير صالح
+          return;
+        } else {
+          setJsValidationError(null);
+        }
+      } else {
+        setJsValidationError(null);
+      }
+      updateSetting('custom_js', value);
+    } catch (error) {
+      console.warn('AdvancedSettings: خطأ في التحقق من صحة الكود:', error);
+      setJsValidationError('خطأ في التحقق من صحة الكود. يرجى مراجعة الكود أو مسحه.');
+    }
+  };
+
+  // دالة لتنظيف البيانات التالفة
+  const handleCleanCorruptedData = async () => {
+    setIsCleaning(true);
+    try {
+      // مسح المحتوى التالف محلياً
+      if (settings.custom_js && settings.custom_js.includes('fNcqSfPLFxu')) {
+        updateSetting('custom_js', '');
+        console.log('تم مسح custom_js التالف');
+      }
+      if (settings.custom_css && settings.custom_css.includes('fNcqSfPLFxu')) {
+        updateSetting('custom_css', '');
+        console.log('تم مسح custom_css التالف');
+      }
+      setJsValidationError(null);
+    } catch (error) {
+      console.warn('AdvancedSettings: خطأ في تنظيف البيانات التالفة:', error);
+    } finally {
+      setIsCleaning(false);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -53,11 +148,34 @@ const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({ settings, updateSet
             <Label className="text-base font-medium">كود JavaScript مخصص</Label>
             <Textarea
               value={settings.custom_js || ''}
-              onChange={(e) => updateSetting('custom_js', e.target.value)}
+              onChange={(e) => validateAndUpdateJS(e.target.value)}
               placeholder="// أضف أكواد JavaScript مخصصة هنا\n\n/**\n * مثال للكود الآمن الذي يتجنب المشاكل الشائعة\n */\n(function() {\n  // انتظر حتى يتم تحميل الصفحة بالكامل\n  if (document.readyState === 'complete') {\n    initCustomCode();\n  } else {\n    window.addEventListener('load', initCustomCode);\n  }\n  \n  function initCustomCode() {\n    // استخدم محددات الفئات بدلاً من معرّفات مخصصة\n    var productButtons = document.querySelectorAll('.product-button');\n    \n    // تكرار على جميع العناصر بأمان\n    Array.from(productButtons).forEach(function(button) {\n      button.addEventListener('click', function(event) {\n        \n      });\n    });\n    \n    // إضافة سلوكيات مخصصة للمتجر\n    addCustomBehaviors();\n  }\n  \n  function addCustomBehaviors() {\n    // يمكنك إضافة وظائف إضافية هنا\n    \n  }\n})();"
-              className="min-h-[200px] font-mono text-sm"
+              className={`min-h-[200px] font-mono text-sm ${jsValidationError ? 'border-red-500 focus:border-red-500' : ''}`}
             />
-            <p className="text-sm text-muted-foreground">أضف كود JavaScript مخصص لإضافة وظائف خاصة للمتجر. تأكد من اختبار الكود قبل الحفظ.</p>
+            {jsValidationError && (
+              <Alert variant="destructive" className="mt-2">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  {jsValidationError}
+                  <div className="mt-2 flex gap-2">
+                    <button
+                      onClick={() => validateAndUpdateJS('')}
+                      className="text-xs px-2 py-1 bg-red-100 text-red-800 rounded hover:bg-red-200"
+                    >
+                      مسح الكود
+                    </button>
+                    <button
+                      onClick={handleCleanCorruptedData}
+                      disabled={isCleaning}
+                      className="text-xs px-2 py-1 bg-orange-100 text-orange-800 rounded hover:bg-orange-200 disabled:opacity-50"
+                    >
+                      {isCleaning ? 'جاري التنظيف...' : 'تنظيف البيانات التالفة'}
+                    </button>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
+            <p className="text-sm text-muted-foreground">أضف كود JavaScript مخصص لإضافة وظائف خاصة للمتجر. الكود يتم التحقق من صحته قبل الحفظ.</p>
           </div>
         </div>
 

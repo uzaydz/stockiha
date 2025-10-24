@@ -242,9 +242,18 @@ export const checkUserRequires2FA = async (
   subdomain?: string
 ): Promise<UserExistsResult & { error?: string }> => {
   try {
+    const isOnline = typeof navigator === 'undefined' ? true : navigator.onLine;
+    if (!isOnline) {
+      return {
+        exists: true,
+        requires_2fa: false,
+        error: 'لا يمكن التحقق من حالة 2FA في وضع عدم الاتصال'
+      };
+    }
+    
     
     const client = getSupabaseClient();
-    
+
     // 🔧 محاولة استخدام دالة check_user_requires_2fa مع المعاملات الصحيحة
     try {
       // تجربة صيغة المعاملات الأولى
@@ -357,9 +366,13 @@ export const signOut = async (): Promise<{ success: boolean; error?: string }> =
       return { success: false, error: error.message };
     }
 
-    // تنظيف إضافي
+    // تنظيف إضافي - الاحتفاظ ببيانات تسجيل الدخول الأوفلاين
     localStorage.removeItem('bazaar_organization_id');
     sessionStorage.clear();
+    
+    // استيراد دالة التنظيف الجديدة
+    const { clearAuthStorageKeepOfflineCredentials } = await import('@/context/auth/utils/authStorage');
+    clearAuthStorageKeepOfflineCredentials();
     
     return { success: true };
     

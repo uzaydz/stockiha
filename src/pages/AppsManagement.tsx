@@ -291,15 +291,12 @@ const AppsManagement: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <div className="space-y-2">
-            <h1 className="text-4xl font-bold tracking-tight flex items-center gap-3 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-              <div className="relative">
-                <Grid3X3 className="h-8 w-8 text-primary" />
-                <Sparkles className="h-4 w-4 text-primary/60 absolute -top-1 -right-1 animate-pulse" />
-              </div>
+          <div className="space-y-1">
+            <h1 className="text-3xl font-semibold tracking-tight flex items-center gap-3 text-foreground">
+              <Grid3X3 className="h-7 w-7 text-primary" />
               إدارة التطبيقات
             </h1>
-            <p className="text-lg text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               تفعيل وإدارة التطبيقات المتاحة في نظامك التجاري
             </p>
           </div>
@@ -323,57 +320,52 @@ const AppsManagement: React.FC = () => {
 
         {/* بطاقات الإحصائيات المحسّنة */}
         <motion.div 
-          className="grid grid-cols-1 sm:grid-cols-3 gap-6"
+          className="grid grid-cols-1 sm:grid-cols-3 gap-4"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
         >
-          <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/30 hover:shadow-lg transition-all duration-300">
-            <div className="absolute top-0 right-0 w-20 h-20 bg-blue-500/10 rounded-full -translate-y-4 translate-x-4" />
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium flex items-center gap-2 text-blue-700 dark:text-blue-300">
+          <Card className="border bg-card/60">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2 text-foreground">
                 <Package className="h-5 w-5" />
                 إجمالي التطبيقات
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-blue-800 dark:text-blue-200">{stats.total}</div>
-              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">تطبيق متاح</p>
+              <div className="text-2xl font-semibold text-foreground">{stats.total}</div>
+              <p className="text-xs text-muted-foreground mt-1">تطبيق متاح</p>
             </CardContent>
           </Card>
-          
-          <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950/50 dark:to-emerald-900/30 hover:shadow-lg transition-all duration-300">
-            <div className="absolute top-0 right-0 w-20 h-20 bg-emerald-500/10 rounded-full -translate-y-4 translate-x-4" />
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium flex items-center gap-2 text-emerald-700 dark:text-emerald-300">
+          <Card className="border bg-card/60">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2 text-foreground">
                 <CheckCircle className="h-5 w-5" />
                 التطبيقات المفعّلة
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-emerald-800 dark:text-emerald-200">{stats.enabled}</div>
-              <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">نشط حالياً</p>
+              <div className="text-2xl font-semibold text-foreground">{stats.enabled}</div>
+              <p className="text-xs text-muted-foreground mt-1">نشط حالياً</p>
             </CardContent>
           </Card>
-          
-          <Card className="relative overflow-hidden border-0 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-950/50 dark:to-gray-900/30 hover:shadow-lg transition-all duration-300">
-            <div className="absolute top-0 right-0 w-20 h-20 bg-gray-500/10 rounded-full -translate-y-4 translate-x-4" />
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium flex items-center gap-2 text-gray-700 dark:text-gray-300">
+          <Card className="border bg-card/60">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2 text-foreground">
                 <XCircle className="h-5 w-5" />
                 التطبيقات المعطّلة
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold text-gray-800 dark:text-gray-200">{stats.disabled}</div>
-              <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">غير نشط</p>
+              <div className="text-2xl font-semibold text-foreground">{stats.disabled}</div>
+              <p className="text-xs text-muted-foreground mt-1">غير نشط</p>
             </CardContent>
           </Card>
         </motion.div>
 
         {/* أدوات البحث والفلترة المحسّنة */}
         <motion.div 
-          className="bg-card rounded-xl border-2 shadow-lg p-6 backdrop-blur-sm bg-gradient-to-br from-card/80 to-card"
+          className="bg-card rounded-lg border p-5"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
@@ -386,7 +378,7 @@ const AppsManagement: React.FC = () => {
                 placeholder="ابحث عن التطبيقات والمميزات..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pr-12 h-12 border-2 focus:border-primary/50 bg-background/50 backdrop-blur-sm transition-all duration-300 focus:shadow-lg text-base"
+                className="pr-12 h-11"
               />
               {searchQuery && (
                 <motion.button
@@ -402,13 +394,13 @@ const AppsManagement: React.FC = () => {
             
             <Button
               variant="outline"
-              size="lg"
+              size="default"
               onClick={() => {
                 setSearchQuery('');
                 setSelectedCategory('all');
                 setShowOnlyEnabled(false);
               }}
-              className="h-12 px-6 gap-2 border-2 hover:border-primary/50 transition-all duration-300"
+              className="h-11 px-4 gap-2"
             >
               <Filter className="h-4 w-4" />
               إعادة تعيين
@@ -425,7 +417,7 @@ const AppsManagement: React.FC = () => {
             <select
               value={selectedCategory}
               onChange={(e) => setSelectedCategory(e.target.value)}
-              className="px-4 py-2 border-2 border-input bg-background/80 backdrop-blur-sm rounded-lg focus:border-primary/50 focus:outline-none transition-all duration-300 hover:bg-background text-sm min-w-[140px]"
+              className="px-3 py-2 border border-input bg-background rounded-md focus:border-primary/50 focus:outline-none text-sm min-w-[140px]"
             >
               <option value="all">جميع الفئات ({availableApps.length})</option>
               {categories.map(category => {
@@ -438,7 +430,7 @@ const AppsManagement: React.FC = () => {
               })}
             </select>
             
-            <div className="flex items-center gap-2 px-3 py-2 bg-background/50 backdrop-blur-sm rounded-lg border">
+            <div className="flex items-center gap-2 px-3 py-2 rounded-md border">
               <Switch
                 id="show-enabled"
                 checked={showOnlyEnabled}
@@ -478,7 +470,7 @@ const AppsManagement: React.FC = () => {
 
         {/* قائمة التطبيقات */}
         <motion.div 
-          className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
+          className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.3 }}
@@ -505,44 +497,31 @@ const AppsManagement: React.FC = () => {
                   className="h-full"
                 >
                   <Card className={cn(
-                    "h-full transition-all duration-300 border-2 relative overflow-hidden group app-card-enhanced",
+                    "h-full transition-colors duration-200 border relative overflow-hidden group",
                     isEnabled 
-                      ? "border-emerald-200 dark:border-emerald-800 bg-gradient-to-br from-emerald-50/80 via-emerald-50/40 to-transparent dark:from-emerald-950/30 dark:via-emerald-950/15 dark:to-transparent hover:shadow-xl hover:shadow-emerald-500/20" 
-                      : "border-gray-200 dark:border-gray-800 bg-gradient-to-br from-card/80 to-card/40 hover:border-primary/40 hover:shadow-lg hover:shadow-primary/10"
+                      ? "border-emerald-300/50 bg-card" 
+                      : "border-border bg-card"
                   )}>
-                    {/* خلفية متحركة */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                    
-                    {/* شارة الحالة */}
-                    <div className={cn(
-                      "absolute top-4 left-4 w-3 h-3 rounded-full",
-                      isEnabled ? "bg-emerald-500 shadow-emerald-500/50" : "bg-gray-400 shadow-gray-400/50"
-                    )}>
-                      <div className={cn(
-                        "absolute inset-0 rounded-full animate-ping",
-                        isEnabled ? "bg-emerald-500" : "bg-gray-400"
-                      )} />
-                    </div>
 
-                    <CardHeader className="pb-4">
+                    <CardHeader className="pb-3">
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-3">
                           <div className={cn(
-                            "p-3 rounded-xl transition-all duration-300 group-hover:scale-110",
+                            "p-2.5 rounded-lg transition-colors duration-200",
                             isEnabled 
                               ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" 
-                              : "bg-gray-500/10 text-gray-600 dark:text-gray-400"
+                              : "bg-muted text-muted-foreground"
                           )}>
                             <IconComponent className="h-6 w-6" />
                           </div>
                           <div>
-                            <CardTitle className="text-lg font-bold text-foreground group-hover:text-primary transition-colors">
+                            <CardTitle className="text-base font-semibold text-foreground">
                               {app.name}
                             </CardTitle>
                             <Badge 
                               variant="outline" 
                               className={cn(
-                                "mt-1 text-xs font-medium border-2",
+                                "mt-1 text-xs font-medium",
                                 categoryColors[app.category] || categoryColors.default
                               )}
                             >
@@ -560,7 +539,7 @@ const AppsManagement: React.FC = () => {
 
                       {/* المميزات */}
                       <div className="space-y-2">
-                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">المميزات الرئيسية</p>
+                        <p className="text-xs font-medium text-muted-foreground">المميزات الرئيسية</p>
                         <div className="space-y-1">
                           {app.features.slice(0, 3).map((feature, idx) => (
                             <div key={idx} className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -569,15 +548,15 @@ const AppsManagement: React.FC = () => {
                             </div>
                           ))}
                           {app.features.length > 3 && (
-                            <p className="text-xs text-primary font-medium">و {app.features.length - 3} مميزات أخرى...</p>
+                            <p className="text-xs text-muted-foreground">و {app.features.length - 3} مميزات أخرى...</p>
                           )}
                         </div>
                       </div>
 
-                      <Separator className="my-4" />
+                      <Separator className="my-3" />
 
                       {/* أزرار الإجراءات المحسّنة */}
-                      <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center justify-between gap-2">
                         <Button
                           variant="ghost"
                           size="sm"
@@ -586,7 +565,7 @@ const AppsManagement: React.FC = () => {
                             e.stopPropagation();
                             showAppDetails(app);
                           }}
-                          className="text-primary hover:text-primary/80 hover:bg-primary/10 transition-all app-action-button flex-1"
+                          className="text-foreground hover:bg-muted transition-colors flex-1"
                           style={{ position: 'relative', zIndex: 24 }}
                         >
                           <Info className="h-4 w-4 ml-2" />
@@ -631,10 +610,10 @@ const AppsManagement: React.FC = () => {
                             }}
                             disabled={isProcessing || processingAppId === app.id}
                             className={cn(
-                              "transition-all duration-300 min-w-[90px] font-medium app-action-button",
+                              "transition-colors duration-200 min-w-[90px] font-medium",
                               isEnabled 
-                                ? "bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/25" 
-                                : "bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/25"
+                                ? "bg-red-500 hover:bg-red-600 text-white" 
+                                : "bg-emerald-600 hover:bg-emerald-700 text-white"
                             )}
                             style={{ position: 'relative', zIndex: 23 }}
                           >
@@ -662,7 +641,7 @@ const AppsManagement: React.FC = () => {
                     {/* مؤشر التحميل المحسّن للبطاقة المحددة */}
                     {(isProcessing && processingAppId === app.id) && (
                       <motion.div 
-                        className="absolute inset-0 bg-background/95 backdrop-blur-md flex items-center justify-center rounded-lg border-2 border-primary/20"
+                        className="absolute inset-0 bg-background/90 backdrop-blur-sm flex items-center justify-center rounded-lg border border-border"
                         initial={{ opacity: 0, scale: 0.95 }}
                         animate={{ opacity: 1, scale: 1 }}
                         exit={{ opacity: 0, scale: 0.95 }}
@@ -670,7 +649,7 @@ const AppsManagement: React.FC = () => {
                         <div className="text-center">
                           <EnhancedLoader
                             size="md"
-                            variant="apps"
+                            variant="minimal"
                             text="جاري تحديث التطبيق..."
                             subText={`${isEnabled ? 'إلغاء تفعيل' : 'تفعيل'} ${app.name}`}
                           />

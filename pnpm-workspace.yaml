@@ -1,2 +1,23 @@
+ignoredBuiltDependencies:
+  - '@heroui/shared-utils'
+  - '@journeyapps/wa-sqlite'
+  - '@swc/core'
+  - core-js
+  - cwebp-bin
+  - electron
+  - electron-winstaller
+  - esbuild
+  - gifsicle
+  - javascript-obfuscator
+  - jpegtran-bin
+  - keytar
+  - mozjpeg
+  - optipng-bin
+  - pngquant-bin
+  - puppeteer
+  - sharp
+  - sqlite3
+  - workerd
+
 overrides:
   phin@<3.7.1: '>=3.7.1'

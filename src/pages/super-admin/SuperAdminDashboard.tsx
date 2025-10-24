@@ -109,33 +109,54 @@ export default function SuperAdminDashboard() {
     const fetchDashboardStats = async () => {
       setIsLoading(true);
       try {
-        // Fetch organization stats
-        const { data: orgData, error: orgError } = await supabase
-          .from('organizations')
-          .select('id, subscription_status, subscription_tier, created_at');
+        // استخدام Promise.all لتحسين الأداء - جميع الاستعلامات بالتوازي
+        const [
+          { data: orgData, error: orgError },
+          { data: userData, error: userError },
+          { data: productData, error: productError },
+          { data: orderData, error: orderError }
+        ] = await Promise.all([
+          supabase
+            .from('organizations')
+            .select('id, subscription_status, subscription_tier, created_at'),
+          supabase
+            .from('users')
+            .select('id, is_active, is_org_admin, is_super_admin, role, created_at'),
+          supabase
+            .from('products')
+            .select('id, stock_quantity, price'),
+          supabase
+            .from('orders')
+            .select('id, status, total, created_at')
+        ]);
         
-        if (orgError) throw orgError;
+        // معالجة الأخطاء بشكل منفصل
+        if (orgError) {
+          console.error('[SuperAdminDashboard] خطأ في جلب بيانات المؤسسات:', orgError);
+          throw new Error(`فشل في جلب بيانات المؤسسات: ${orgError.message}`);
+        }
+        
+        if (userError) {
+          console.error('[SuperAdminDashboard] خطأ في جلب بيانات المستخدمين:', userError);
+          throw new Error(`فشل في جلب بيانات المستخدمين: ${userError.message}`);
+        }
+        
+        if (productError) {
+          console.error('[SuperAdminDashboard] خطأ في جلب بيانات المنتجات:', productError);
+          // المنتجات ليست حرجة - نكمل بدون رمي خطأ
+        }
+        
+        if (orderError) {
+          console.error('[SuperAdminDashboard] خطأ في جلب بيانات الطلبات:', orderError);
+          // الطلبات ليست حرجة - نكمل بدون رمي خطأ
+        }
         
         // Get subscription tiers count
         const subscriptionCount: Record<string, number> = {};
         orgData?.forEach(org => {
-          const tier = org.subscription_tier || 'unknown';
+          const tier = org.subscription_tier || 'free';
           subscriptionCount[tier] = (subscriptionCount[tier] || 0) + 1;
         });
-        
-        // Fetch user stats
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('id, is_active, is_org_admin, is_super_admin, role');
-        
-        if (userError) throw userError;
-        
-        // Fetch product stats
-        const { data: productData, error: productError } = await supabase
-          .from('products')
-          .select('id, stock_quantity, price');
-        
-        if (productError) throw productError;
         
         // Calculate total stock and average price
         let totalStock = 0;
@@ -146,13 +167,6 @@ export default function SuperAdminDashboard() {
         });
         const avgPrice = productData?.length ? totalPrice / productData.length : 0;
         
-        // Fetch order stats - updated column names according to schema
-        const { data: orderData, error: orderError } = await supabase
-          .from('orders')
-          .select('id, status, total');
-        
-        if (orderError) throw orderError;
-        
         // Calculate order statistics
         const completedOrders = orderData?.filter(order => order.status === 'completed') || [];
         const pendingOrders = orderData?.filter(order => order.status === 'pending') || [];
@@ -161,18 +175,55 @@ export default function SuperAdminDashboard() {
           totalRevenue += order.total || 0;
         });
         
-        // Calculate recent growth (last 30 days)
-        // This is a simplified calculation - in production, you'd compare with previous periods
-        const recentOrgCount = orgData?.filter(org => {
+        // حساب النمو الحقيقي (آخر 30 يوم مقارنة بالشهر السابق)
+        const now = new Date();
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const sixtyDaysAgo = new Date(now.getTime() - 60 * 24 * 60 * 60 * 1000);
+        
+        // حساب نمو المؤسسات
+        const recentOrgsCount = orgData?.filter(org => {
           const createdAt = new Date(org.created_at);
-          const thirtyDaysAgo = new Date();
-          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
           return createdAt >= thirtyDaysAgo;
         })?.length || 0;
         
-        const orgGrowth = orgData?.length ? (recentOrgCount / orgData.length) * 100 : 0;
-        const userGrowth = 8.3; // Based on data from our analysis
-        const subGrowth = 5.2;  // Based on data from our analysis
+        const previousMonthOrgsCount = orgData?.filter(org => {
+          const createdAt = new Date(org.created_at);
+          return createdAt >= sixtyDaysAgo && createdAt < thirtyDaysAgo;
+        })?.length || 0;
+        
+        const orgGrowth = previousMonthOrgsCount > 0 
+          ? ((recentOrgsCount - previousMonthOrgsCount) / previousMonthOrgsCount) * 100 
+          : recentOrgsCount > 0 ? 100 : 0;
+        
+        // حساب نمو المستخدمين
+        const recentUsersCount = userData?.filter(user => {
+          const createdAt = new Date(user.created_at);
+          return createdAt >= thirtyDaysAgo;
+        })?.length || 0;
+        
+        const previousMonthUsersCount = userData?.filter(user => {
+          const createdAt = new Date(user.created_at);
+          return createdAt >= sixtyDaysAgo && createdAt < thirtyDaysAgo;
+        })?.length || 0;
+        
+        const userGrowth = previousMonthUsersCount > 0
+          ? ((recentUsersCount - previousMonthUsersCount) / previousMonthUsersCount) * 100
+          : recentUsersCount > 0 ? 100 : 0;
+        
+        // حساب نمو الإيرادات
+        const recentOrdersRevenue = orderData?.filter(order => {
+          const createdAt = new Date(order.created_at);
+          return createdAt >= thirtyDaysAgo;
+        })?.reduce((sum, order) => sum + (order.total || 0), 0) || 0;
+        
+        const previousMonthOrdersRevenue = orderData?.filter(order => {
+          const createdAt = new Date(order.created_at);
+          return createdAt >= sixtyDaysAgo && createdAt < thirtyDaysAgo;
+        })?.reduce((sum, order) => sum + (order.total || 0), 0) || 0;
+        
+        const subGrowth = previousMonthOrdersRevenue > 0
+          ? ((recentOrdersRevenue - previousMonthOrdersRevenue) / previousMonthOrdersRevenue) * 100
+          : recentOrdersRevenue > 0 ? 100 : 0;
         
         // Update stats state
         setStats({
@@ -218,12 +269,33 @@ export default function SuperAdminDashboard() {
           }
         });
       } catch (error) {
+        console.error('[SuperAdminDashboard] خطأ في جلب البيانات:', error);
+        
+        // تعيين قيم افتراضية في حالة الخطأ
+        setStats({
+          organizations: { total: 0, active: 0, pending: 0, expired: 0, growth: 0 },
+          users: { total: 0, active: 0, admins: 0, super_admins: 0, growth: 0 },
+          subscriptions: { total: 0, basic: 0, premium: 0, enterprise: 0, free: 0, revenue: 0, growth: 0 },
+          system: { uptime: 'N/A', cpu: 'N/A', memory: 'N/A', storage: 'N/A' },
+          products: { total: 0, stock: 0, avgPrice: 0 },
+          orders: { total: 0, completed: 0, pending: 0, revenue: 0 }
+        });
+        
+        // يمكن إضافة toast notification هنا لإبلاغ المستخدم
+        if (process.env.NODE_ENV === 'development') {
+          console.error('[SuperAdminDashboard] تفاصيل الخطأ:', error);
+        }
       } finally {
         setIsLoading(false);
       }
     };
     
     fetchDashboardStats();
+    
+    // تحديث تلقائي كل 5 دقائق
+    const intervalId = setInterval(fetchDashboardStats, 5 * 60 * 1000);
+    
+    return () => clearInterval(intervalId);
   }, []);
   
   // Format currency

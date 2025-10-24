@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { productsStore, syncQueueStore, LocalProduct, SyncQueueItem } from '@/database/localDb';
+import { UnifiedQueue } from '@/sync/UnifiedQueue';
 import { Product } from './productService';
 
 // إضافة منتج جديد محلياً
@@ -18,15 +19,12 @@ export const createLocalProduct = async (organizationId: string, product: Omit<P
 
   await productsStore.setItem(newProduct.id, newProduct);
   
-  // إضافة إلى قائمة المزامنة
-  await addToSyncQueue({
-    id: uuidv4(),
+  // إضافة إلى قائمة المزامنة (موحّد)
+  await UnifiedQueue.enqueue({
     objectType: 'product',
     objectId: newProduct.id,
     operation: 'create',
     data: newProduct,
-    attempts: 0,
-    createdAt: now,
     priority: 1
   });
 
@@ -34,7 +32,7 @@ export const createLocalProduct = async (organizationId: string, product: Omit<P
 };
 
 // تحديث منتج محلياً
-export const updateLocalProduct = async (productId: string, updates: Partial<Product>): Promise<LocalProduct | null> => {
+export const updateLocalProduct = async (productId: string, updates: Partial<LocalProduct>): Promise<LocalProduct | null> => {
   try {
     const existingProduct = await productsStore.getItem<LocalProduct>(productId);
     
@@ -56,14 +54,11 @@ export const updateLocalProduct = async (productId: string, updates: Partial<Pro
     
     // إضافة إلى قائمة المزامنة إذا لم يكن منتجاً جديداً غير متزامن بالفعل
     if (existingProduct.pendingOperation !== 'create') {
-      await addToSyncQueue({
-        id: uuidv4(),
+      await UnifiedQueue.enqueue({
         objectType: 'product',
         objectId: productId,
         operation: 'update',
         data: updatedProduct,
-        attempts: 0,
-        createdAt: now,
         priority: 2
       });
     }
@@ -90,8 +85,7 @@ export const reduceLocalProductStock = async (productId: string, quantity: numbe
     const newStockQuantity = product.stock_quantity - quantity;
     
     return updateLocalProduct(productId, { 
-      stock_quantity: newStockQuantity,
-      last_inventory_update: new Date().toISOString()
+      stock_quantity: newStockQuantity
     });
   } catch (error) {
     return null;
@@ -157,14 +151,11 @@ export const deleteLocalProduct = async (productId: string): Promise<boolean> =>
     
     if (product.synced) {
       // إذا كان المنتج متزامنًا، قم بإضافته إلى قائمة المزامنة للحذف
-      await addToSyncQueue({
-        id: uuidv4(),
+      await UnifiedQueue.enqueue({
         objectType: 'product',
         objectId: productId,
         operation: 'delete',
         data: { id: productId },
-        attempts: 0,
-        createdAt: new Date().toISOString(),
         priority: 3
       });
     } else if (product.pendingOperation === 'create') {

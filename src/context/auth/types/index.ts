@@ -24,6 +24,8 @@ export type {
   UseUserOrganizationReturn,
   UseAuthCacheReturn,
   UseAuthPerformanceReturn,
+  PermissionMap,
+  UnifiedPermissionsData,
 } from './auth';
 
 export {

@@ -12,6 +12,139 @@
   /* إزالة max-width وtext-align center التي تكسر التخطيط */
 }
 
+:root {
+  --titlebar-height: 48px;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+}
+
+.app-shell {
+  padding-top: var(--titlebar-height, 48px);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.app-shell__content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.desktop-titlebar {
+  -webkit-app-region: drag;
+  position: fixed;
+  inset-inline: 0;
+  inset-block-start: 0;
+  background-color: #050b15;
+  color: #f8fafc;
+}
+
+/* تحسينات التبويبات في التايتل بار */
+.desktop-titlebar [role="tablist"],
+.desktop-titlebar [ref="tabsContainerRef"] {
+  /* إخفاء السكرول تماماً والسماح بالتوسع */
+  overflow: visible !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  flex-wrap: nowrap !important;
+}
+
+.desktop-titlebar [role="tablist"]::-webkit-scrollbar,
+.desktop-titlebar [ref="tabsContainerRef"]::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+/* تحسين التبويبات */
+.desktop-titlebar button[role="tab"] {
+  font-family: 'Tajawal', 'Arial Unicode MS', sans-serif !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.desktop-titlebar button[role="tab"] span {
+  white-space: nowrap !important;
+}
+
+/* تحسين التباين والوضوح */
+.desktop-titlebar button[role="tab"][aria-selected="true"] {
+  background: white !important;
+  color: rgb(15, 23, 42) !important;
+  font-weight: 600 !important;
+}
+
+.desktop-titlebar button[role="tab"]:not([aria-selected="true"]) {
+  color: rgba(255, 255, 255, 0.75) !important;
+}
+
+.desktop-titlebar button[role="tab"]:not([aria-selected="true"]):hover {
+  color: white !important;
+  background: rgba(255, 255, 255, 0.12) !important;
+}
+
+.desktop-titlebar .titlebar-button {
+  width: 45px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  -webkit-app-region: no-drag;
+}
+
+.desktop-titlebar .titlebar-button:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.desktop-titlebar .titlebar-button:active {
+  background-color: rgba(255, 255, 255, 0.12);
+}
+
+.desktop-titlebar .titlebar-button--close:hover {
+  background-color: rgba(244, 63, 94, 0.85);
+}
+
+.desktop-titlebar .titlebar-traffic-light {
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  border: 0;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.25);
+  cursor: pointer;
+  position: relative;
+  transition: opacity 0.2s ease;
+  -webkit-app-region: no-drag;
+}
+
+.desktop-titlebar .titlebar-traffic-light::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  background: transparent;
+}
+
+.desktop-titlebar .titlebar-traffic-light:hover::after {
+  background: rgba(15, 23, 42, 0.12);
+}
+
+.desktop-titlebar .titlebar-traffic-light:active::after {
+  background: rgba(15, 23, 42, 0.2);
+}
+
 /* الاحتفاظ فقط بأنماط التطوير إذا كانت مطلوبة */
 .logo {
   height: 6em;

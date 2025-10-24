@@ -27,8 +27,11 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import Layout from '@/components/Layout';
+import { POSSharedLayoutControls } from '@/components/pos-layout/types';
 
-export default function ExpensesPage() {
+interface ExpensesProps extends POSSharedLayoutControls {}
+
+export default function ExpensesPage({ useStandaloneLayout = true }: ExpensesProps) {
   const { useCreateExpenseMutation } = useExpenses();
   const createExpenseMutation = useCreateExpenseMutation();
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -129,8 +132,7 @@ export default function ExpensesPage() {
     }
   };
 
-  return (
-    <Layout>
+  const content = (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div>
@@ -197,6 +199,7 @@ export default function ExpensesPage() {
           </TabsContent>
         </Tabs>
       </div>
-    </Layout>
   );
+
+  return useStandaloneLayout ? <Layout>{content}</Layout> : content;
 }

@@ -7,6 +7,7 @@ import React, { createContext, useContext, useMemo, useEffect, ReactNode } from 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './AuthContext';
 import { useTenant } from './TenantContext';
+import { useAppInitialization } from './AppInitializationContext';
 import { supabase } from '@/lib/supabase';
 
 // ================================================================
@@ -94,7 +95,7 @@ interface SuperUnifiedDataContextType {
 // 🎯 إنشاء Context
 // ================================================================
 
-const SuperUnifiedDataContext = createContext<SuperUnifiedDataContextType | undefined>(undefined);
+export const SuperUnifiedDataContext = createContext<SuperUnifiedDataContextType | undefined>(undefined);
 
 // ================================================================
 // 🔧 دالة جلب البيانات الموحدة
@@ -134,32 +135,45 @@ const saveToSessionStorage = (cacheKey: string, data: GlobalData, timestamp: num
   }
 };
 
-const fetchGlobalData = async (organizationId: string, userId?: string): Promise<GlobalData> => {
+// ✅ دالة محدثة تستخدم AppInitializationContext + بيانات إضافية فقط
+const fetchGlobalData = async (
+  organizationId: string, 
+  userId?: string,
+  baseData?: any // البيانات الأساسية من AppInitializationContext
+): Promise<GlobalData> => {
   try {
+    console.log('🔄 [SuperUnified] بدء جلب البيانات...');
     
-    // التحقق من sessionStorage أولاً (يبقى بعد تحديث الصفحة)
+    // التحقق من sessionStorage أولاً
     const cacheKey = `global_data_${organizationId}_${userId || 'no_user'}`;
     const sessionCached = getFromSessionStorage(cacheKey);
     const now = Date.now();
 
     if (sessionCached && (now - sessionCached.timestamp) < CACHE_DURATION) {
+      console.log('✅ [SuperUnified] استخدام البيانات من sessionStorage');
       return sessionCached.data;
     }
     
     // التحقق من كاش الذاكرة
     const cached = globalDataCache.get(cacheKey);
     if (cached && (now - cached.timestamp) < CACHE_DURATION) {
-      // حفظ في sessionStorage أيضاً
+      console.log('✅ [SuperUnified] استخدام البيانات من memory cache');
       saveToSessionStorage(cacheKey, cached.data, now);
       return cached.data;
     }
     
-    // التحقق من الاتصال بـ Supabase أولاً
+    // ✅ استخدام البيانات الأساسية من AppInitializationContext إذا كانت متوفرة
+    if (baseData) {
+      console.log('✅ [SuperUnified] استخدام البيانات الأساسية من AppInitializationContext');
+    }
+    
+    // التحقق من الاتصال بـ Supabase
     if (!supabase) {
       throw new Error('Supabase client غير متوفر');
     }
 
-    // استخدام دالة SQL الموحدة مع معالجة أفضل للأخطاء
+    // ⚡ جلب البيانات الإضافية فقط (products, orders, stats, provinces)
+    console.log('🚀 [SuperUnified] جلب البيانات الإضافية من get_global_data_complete...');
     const { data, error } = await (supabase as any).rpc('get_global_data_complete', {
       p_organization_id: organizationId,
       p_user_id: userId
@@ -183,16 +197,24 @@ const fetchGlobalData = async (organizationId: string, userId?: string): Promise
 
     const result = Array.isArray(data) ? data[0] : data;
 
-    // تحويل البيانات إلى الشكل المطلوب مع معالجة صحيحة لبيانات التطبيقات
+    // ✅ دمج البيانات من AppInitializationContext مع البيانات الإضافية
     const globalData: GlobalData = {
-      organization: result.organization || null,
-      user: result.user || null,
-      settings: result.settings || null,
+      // استخدام البيانات الأساسية من baseData إذا كانت متوفرة
+      organization: baseData?.organization || result.organization || null,
+      user: baseData?.user || result.user || null,
+      settings: {
+        organization_settings: baseData?.organization_settings || result.settings?.organization_settings || null,
+        pos_settings: baseData?.pos_settings || result.settings?.pos_settings || null,
+      },
       products: result.products || [],
-      categories: result.categories || [],
+      categories: {
+        product_categories: baseData?.categories || result.categories?.product_categories || [],
+        subscription_categories: result.categories?.subscription_categories || [],
+        subscription_services: result.categories?.subscription_services || [],
+      },
       customers_and_users: {
         customers: result.customers_and_users?.customers || [],
-        users: result.customers_and_users?.users || [],
+        users: baseData?.employees || result.customers_and_users?.users || [],
       },
       apps_and_subscription: {
         organization_apps: result.apps_and_subscription?.organization_apps || [],
@@ -248,10 +270,26 @@ export const SuperUnifiedDataProvider: React.FC<SuperUnifiedDataProviderProps> =
   const { currentOrganization } = useTenant();
   const queryClient = useQueryClient();
   
+  // ✅ استخدام البيانات من AppInitializationContext
+  const appInitData = useAppInitialization();
+  
   const organizationId = currentOrganization?.id;
   
   // مدة انتعاش البيانات (5 دقائق)
   const staleTime = 5 * 60 * 1000;
+  
+  // ✅ تمرير البيانات الأساسية من AppInitializationContext
+  const baseData = useMemo(() => {
+    if (!appInitData.data) return null;
+    return {
+      user: appInitData.user,
+      organization: appInitData.organization,
+      organization_settings: appInitData.organizationSettings,
+      pos_settings: appInitData.posSettings,
+      categories: appInitData.categories,
+      employees: appInitData.employees,
+    };
+  }, [appInitData.data]);
   
   // جلب البيانات باستخدام React Query مع إعدادات محسنة
   const {
@@ -260,9 +298,9 @@ export const SuperUnifiedDataProvider: React.FC<SuperUnifiedDataProviderProps> =
     error,
     refetch: refreshData
   } = useQuery({
-    queryKey: ['global-data', organizationId, user?.id],
-    queryFn: () => fetchGlobalData(organizationId!, user?.id),
-    enabled: !!organizationId,
+    queryKey: ['global-data', organizationId, user?.id, baseData],
+    queryFn: () => fetchGlobalData(organizationId!, user?.id, baseData),
+    enabled: !!organizationId && !!baseData, // انتظار البيانات الأساسية
     staleTime,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
@@ -451,8 +489,13 @@ export const SuperUnifiedDataProvider: React.FC<SuperUnifiedDataProviderProps> =
 };
 
 // ================================================================
-// 🪝 Hook للوصول لـ Context
+// 🪝 Hooks للوصول لـ Context
 // ================================================================
+
+export const useOptionalSuperUnifiedData = (): SuperUnifiedDataContextType | null => {
+  const context = useContext(SuperUnifiedDataContext);
+  return context ?? null;
+};
 
 export const useSuperUnifiedData = (): SuperUnifiedDataContextType => {
   const context = useContext(SuperUnifiedDataContext);
@@ -514,12 +557,9 @@ export const usePOSData = () => {
 // ================================================================
 
 // دالة للتحقق من تفعيل تطبيق معين
-export const useIsAppEnabled = (appId: string): boolean => {
-  const { organizationApps } = useSuperUnifiedData();
-  const app = organizationApps?.find((app: any) => app.app_id === appId);
-  const isEnabled = Boolean(app?.is_enabled);
-
-  return isEnabled;
+export const useIsAppEnabled = (_appId: string): boolean => {
+  // جميع التطبيقات متاحة افتراضياً
+  return true;
 };
 
 // دالة للحصول على إعدادات تطبيق معين

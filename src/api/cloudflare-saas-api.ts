@@ -1,22 +1,17 @@
 /**
  * Cloudflare for SaaS API - نظام النطاقات مع Nameservers
- * 
- * هذا الملف يحتوي على وظائف للتفاعل مع Cloudflare for SaaS
- * لإدارة النطاقات المخصصة باستخدام Delegated DNS
+ *
+ * هذا الملف يوفر واجهة موحّدة من جانب المتصفح للتفاعل مع الراوتر المحلي
+ * /api/cloudflare-saas الذي يقوم بدوره باستدعاء Cloudflare بشكل آمن من الخادم.
  */
 
-import { 
-  getCloudflareToken, 
-  getCloudflareZoneId,
-  getCloudflareApiUrl 
-} from '@/lib/api/cloudflare-config';
-
 // أنواع البيانات للاستجابات
-export interface CloudflareSaaSResponse {
+export interface CloudflareSaaSResponse<T = any> {
   success: boolean;
-  data?: any;
+  data?: T;
   error?: string;
   message?: string;
+  details?: any;
 }
 
 export interface CloudflareNameservers {
@@ -32,6 +27,7 @@ export interface DomainDelegationStatus {
   ssl_status?: 'pending' | 'active' | 'error';
   verification_errors?: string[];
   last_checked?: string;
+  detected_nameservers?: string[];
 }
 
 export interface CustomHostnameResponse {
@@ -45,122 +41,121 @@ export interface CustomHostnameResponse {
   verification_errors?: string[];
 }
 
-/**
- * الحصول على Nameservers المخصصة لـ Stockiha
- */
-export async function getStockihaNameservers(): Promise<CloudflareSaaSResponse> {
-  try {
-    const cloudflareToken = getCloudflareToken();
-    const zoneId = getCloudflareZoneId();
-    
-    if (!cloudflareToken || !zoneId) {
-      return {
-        success: false,
-        error: 'لم يتم تكوين متغيرات البيئة اللازمة لـ Cloudflare'
-      };
-    }
+const DEFAULT_NAMESERVERS = ['marty.ns.cloudflare.com', 'sue.ns.cloudflare.com'];
+const CLOUDFLARE_SAAS_ENDPOINT = '/api/cloudflare-saas';
 
-    // الحصول على معلومات المنطقة والـ nameservers
-    const response = await fetch(
-      `${getCloudflareApiUrl()}/zones/${zoneId}`,
-      {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${cloudflareToken}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
+const toErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : 'حدث خطأ غير متوقع أثناء الاتصال بنظام Cloudflare';
+
+const callCloudflareSaaS = async <T = any>(
+  action: string,
+  payload: Record<string, any> = {}
+): Promise<CloudflareSaaSResponse<T>> => {
+  try {
+    const response = await fetch(CLOUDFLARE_SAAS_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ action, ...payload })
+    });
 
     const data = await response.json();
 
-    if (response.ok && data.success) {
-      return {
-        success: true,
-        data: {
-          nameservers: data.result.name_servers,
-          zone_id: data.result.id,
-          zone_name: data.result.name
-        } as CloudflareNameservers,
-        message: 'تم الحصول على Nameservers بنجاح'
-      };
-    } else {
+    if (!response.ok) {
       return {
         success: false,
-        error: data.errors?.[0]?.message || 'فشل في الحصول على Nameservers',
-        message: 'حدث خطأ أثناء الحصول على Nameservers'
+        error: data?.error || 'فشل في تنفيذ طلب Cloudflare',
+        message: data?.message,
+        details: data?.details
       };
     }
+
+    return data;
   } catch (error) {
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'حدث خطأ غير متوقع',
-      message: 'حدث خطأ غير متوقع'
+      error: toErrorMessage(error)
     };
   }
+};
+
+/**
+ * الحصول على Nameservers المخصصة لـ Stockiha
+ */
+export async function getStockihaNameservers(): Promise<CloudflareSaaSResponse<CloudflareNameservers>> {
+  const result = await callCloudflareSaaS<{ nameservers?: string[]; zone?: { id?: string; name?: string } }>('get-nameservers');
+
+  if (!result.success) {
+    return result;
+  }
+
+  const nameservers = result.data?.nameservers && result.data.nameservers.length > 0
+    ? result.data.nameservers
+    : DEFAULT_NAMESERVERS;
+
+  return {
+    success: true,
+    data: {
+      nameservers,
+      zone_id: result.data?.zone?.id || '',
+      zone_name: result.data?.zone?.name || ''
+    }
+  };
 }
 
 /**
  * التحقق من حالة تفويض النطاق (Domain Delegation)
  */
-export async function checkDomainDelegation(domain: string): Promise<DomainDelegationStatus> {
+export async function checkDomainDelegation(
+  domain: string,
+  expectedNameservers?: string[]
+): Promise<DomainDelegationStatus> {
+  const normalizedDomain = domain
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/^www\./, '')
+    .replace(/\/.*$/, '')
+    .replace(/\.$/, '');
+
+  const expected = (expectedNameservers && expectedNameservers.length > 0
+    ? expectedNameservers
+    : DEFAULT_NAMESERVERS).map((ns) => ns.toLowerCase());
+
   try {
-    const cloudflareToken = getCloudflareToken();
-    const zoneId = getCloudflareZoneId();
-    
-    if (!cloudflareToken || !zoneId) {
-      throw new Error('لم يتم تكوين متغيرات البيئة اللازمة لـ Cloudflare');
-    }
+    const response = await fetch(`https://dns.google.com/resolve?name=${normalizedDomain}&type=NS`, {
+      headers: { Accept: 'application/json' }
+    });
 
-    
-    
-    // التحقق من DNS records للنطاق
-    const dnsResponse = await fetch(
-      `https://dns.google.com/resolve?name=${domain}&type=NS`,
-      {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json'
-        }
-      }
-    );
+    const data = await response.json();
+    const answers = Array.isArray(data?.Answer) ? data.Answer : [];
+    const detected = answers
+      .map((answer: any) => answer.data?.toLowerCase().replace(/\.$/, ''))
+      .filter(Boolean);
 
-    const dnsData = await dnsResponse.json();
-    
-    
-    // التحقق من أن الـ nameservers تشير إلى Cloudflare
-    const nameservers = dnsData.Answer?.map((answer: any) => answer.data.toLowerCase().replace(/\.$/, '')) || [];
-    
-    
-    // التحقق من nameservers المحددة لـ stockiha
-    const expectedNameservers = ['marty.ns.cloudflare.com', 'sue.ns.cloudflare.com'];
-    const isUsingCloudflare = nameservers.some((ns: string) => 
-      ns.includes('cloudflare.com') || ns.includes('.ns.cloudflare.com')
-    );
-    
-    // تحقق دقيق من nameservers المطلوبة
-    const hasCorrectNameservers = expectedNameservers.every(expected => 
-      nameservers.some(ns => ns === expected)
-    );
-    
-    
-    
+    const hasCloudflareNs = detected.some((ns) => ns.includes('cloudflare.com'));
+    const hasExactMatch = expected.every((ns) => detected.includes(ns));
 
     return {
-      domain,
-      status: hasCorrectNameservers ? 'active' : (isUsingCloudflare ? 'pending' : 'pending'),
-      nameservers_configured: isUsingCloudflare,
-      ssl_status: hasCorrectNameservers ? 'active' : 'pending',
-      verification_errors: !isUsingCloudflare ? [`النطاق يستخدم: ${nameservers.join(', ')}. يجب استخدام: ${expectedNameservers.join(', ')}`] : undefined,
-      last_checked: new Date().toISOString()
+      domain: normalizedDomain,
+      status: hasExactMatch ? 'active' : hasCloudflareNs ? 'pending' : 'pending',
+      nameservers_configured: hasCloudflareNs,
+      ssl_status: hasExactMatch ? 'active' : 'pending',
+      verification_errors: hasCloudflareNs
+        ? undefined
+        : detected.length
+          ? [`النطاق يستخدم: ${detected.join(', ')}. يجب استخدام: ${expected.join(', ')}`]
+          : ['لم يتم العثور على سجلات Nameserver لهذا النطاق حتى الآن.'],
+      last_checked: new Date().toISOString(),
+      detected_nameservers: detected
     };
-
   } catch (error) {
     return {
-      domain,
+      domain: normalizedDomain,
       status: 'error',
       nameservers_configured: false,
-      verification_errors: [error instanceof Error ? error.message : 'حدث خطأ غير متوقع'],
+      verification_errors: [toErrorMessage(error)],
       last_checked: new Date().toISOString()
     };
   }
@@ -170,78 +165,11 @@ export async function checkDomainDelegation(domain: string): Promise<DomainDeleg
  * إضافة نطاق كـ Custom Hostname تلقائياً
  */
 export async function addCustomHostname(
-  domain: string, 
+  domain: string,
   organizationId: string
-): Promise<CloudflareSaaSResponse> {
-  try {
-    const cloudflareToken = getCloudflareToken();
-    const zoneId = getCloudflareZoneId();
-    
-    if (!cloudflareToken || !zoneId) {
-      return {
-        success: false,
-        error: 'لم يتم تكوين متغيرات البيئة اللازمة لـ Cloudflare'
-      };
-    }
-
-    // تنظيف النطاق
-    const cleanDomain = domain.toLowerCase()
-      .replace(/^https?:\/\//i, '')
-      .replace(/^www\./i, '')
-      .split(':')[0]
-      .split('/')[0];
-
-    // إضافة Custom Hostname
-    const response = await fetch(
-      `${getCloudflareApiUrl()}/zones/${zoneId}/custom_hostnames`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${cloudflareToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          hostname: cleanDomain,
-          ssl: {
-            method: 'http',
-            type: 'dv',
-            settings: {
-              http2: 'on',
-              min_tls_version: '1.2',
-              tls_1_3: 'on'
-            }
-          },
-          custom_metadata: {
-            organization_id: organizationId,
-            created_by: 'stockiha_auto',
-            created_at: new Date().toISOString()
-          }
-        })
-      }
-    );
-
-    const data = await response.json();
-
-    if (response.ok && data.success) {
-      return {
-        success: true,
-        data: data.result as CustomHostnameResponse,
-        message: 'تم إضافة النطاق بنجاح كـ Custom Hostname'
-      };
-    } else {
-      return {
-        success: false,
-        error: data.errors?.[0]?.message || 'فشل في إضافة Custom Hostname',
-        message: 'حدث خطأ أثناء إضافة Custom Hostname'
-      };
-    }
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'حدث خطأ غير متوقع',
-      message: 'حدث خطأ غير متوقع'
-    };
-  }
+): Promise<CloudflareSaaSResponse<CustomHostnameResponse>> {
+  const cleanDomain = domain.trim().toLowerCase();
+  return callCloudflareSaaS('add-hostname', { domain: cleanDomain, organizationId });
 }
 
 /**
@@ -249,62 +177,8 @@ export async function addCustomHostname(
  */
 export async function checkCustomHostnameStatus(
   hostname: string
-): Promise<CloudflareSaaSResponse> {
-  try {
-    const cloudflareToken = getCloudflareToken();
-    const zoneId = getCloudflareZoneId();
-    
-    if (!cloudflareToken || !zoneId) {
-      return {
-        success: false,
-        error: 'لم يتم تكوين متغيرات البيئة اللازمة لـ Cloudflare'
-      };
-    }
-
-    // البحث عن Custom Hostname
-    const response = await fetch(
-      `${getCloudflareApiUrl()}/zones/${zoneId}/custom_hostnames?hostname=${hostname}`,
-      {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${cloudflareToken}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-
-    const data = await response.json();
-
-    if (response.ok && data.success) {
-      const customHostname = data.result.find((ch: any) => ch.hostname === hostname);
-      
-      if (customHostname) {
-        return {
-          success: true,
-          data: customHostname as CustomHostnameResponse,
-          message: 'تم العثور على Custom Hostname'
-        };
-      } else {
-        return {
-          success: false,
-          error: 'لم يتم العثور على Custom Hostname',
-          message: 'Custom Hostname غير موجود'
-        };
-      }
-    } else {
-      return {
-        success: false,
-        error: data.errors?.[0]?.message || 'فشل في التحقق من Custom Hostname',
-        message: 'حدث خطأ أثناء التحقق من Custom Hostname'
-      };
-    }
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'حدث خطأ غير متوقع',
-      message: 'حدث خطأ غير متوقع'
-    };
-  }
+): Promise<CloudflareSaaSResponse<CustomHostnameResponse>> {
+  return callCloudflareSaaS('check-hostname', { hostname });
 }
 
 /**
@@ -313,49 +187,7 @@ export async function checkCustomHostnameStatus(
 export async function removeCustomHostname(
   hostnameId: string
 ): Promise<CloudflareSaaSResponse> {
-  try {
-    const cloudflareToken = getCloudflareToken();
-    const zoneId = getCloudflareZoneId();
-    
-    if (!cloudflareToken || !zoneId) {
-      return {
-        success: false,
-        error: 'لم يتم تكوين متغيرات البيئة اللازمة لـ Cloudflare'
-      };
-    }
-
-    const response = await fetch(
-      `${getCloudflareApiUrl()}/zones/${zoneId}/custom_hostnames/${hostnameId}`,
-      {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${cloudflareToken}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-
-    const data = await response.json();
-
-    if (response.ok && data.success) {
-      return {
-        success: true,
-        message: 'تم حذف Custom Hostname بنجاح'
-      };
-    } else {
-      return {
-        success: false,
-        error: data.errors?.[0]?.message || 'فشل في حذف Custom Hostname',
-        message: 'حدث خطأ أثناء حذف Custom Hostname'
-      };
-    }
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'حدث خطأ غير متوقع',
-      message: 'حدث خطأ غير متوقع'
-    };
-  }
+  return callCloudflareSaaS('remove-hostname', { hostnameId });
 }
 
 /**
@@ -365,58 +197,7 @@ export async function setupCnameFlattening(
   domain: string,
   target: string
 ): Promise<CloudflareSaaSResponse> {
-  try {
-    const cloudflareToken = getCloudflareToken();
-    const zoneId = getCloudflareZoneId();
-    
-    if (!cloudflareToken || !zoneId) {
-      return {
-        success: false,
-        error: 'لم يتم تكوين متغيرات البيئة اللازمة لـ Cloudflare'
-      };
-    }
-
-    // إضافة CNAME record مع CNAME Flattening
-    const response = await fetch(
-      `${getCloudflareApiUrl()}/zones/${zoneId}/dns_records`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${cloudflareToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          type: 'CNAME',
-          name: domain,
-          content: target,
-          ttl: 1, // Auto TTL
-          proxied: true // يفعل CNAME Flattening تلقائياً
-        })
-      }
-    );
-
-    const data = await response.json();
-
-    if (response.ok && data.success) {
-      return {
-        success: true,
-        data: data.result,
-        message: 'تم إعداد CNAME Flattening بنجاح'
-      };
-    } else {
-      return {
-        success: false,
-        error: data.errors?.[0]?.message || 'فشل في إعداد CNAME Flattening',
-        message: 'حدث خطأ أثناء إعداد CNAME Flattening'
-      };
-    }
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'حدث خطأ غير متوقع',
-      message: 'حدث خطأ غير متوقع'
-    };
-  }
+  return callCloudflareSaaS('create-cname', { name: domain, target });
 }
 
 /**
@@ -426,50 +207,6 @@ export async function autoSetupDomain(
   domain: string,
   organizationId: string
 ): Promise<CloudflareSaaSResponse> {
-  try {
-    // 1. التحقق من تفويض النطاق
-    const delegationStatus = await checkDomainDelegation(domain);
-    
-    if (!delegationStatus.nameservers_configured) {
-      return {
-        success: false,
-        error: 'الـ Nameservers لم يتم تكوينها بعد',
-        message: 'يرجى تكوين Nameservers أولاً',
-        data: delegationStatus
-      };
-    }
-
-    // 2. إضافة Custom Hostname
-    const customHostnameResult = await addCustomHostname(domain, organizationId);
-    
-    if (!customHostnameResult.success) {
-      return customHostnameResult;
-    }
-
-    // 3. إعداد www subdomain أيضاً
-    const wwwDomain = `www.${domain}`;
-    const wwwCustomHostnameResult = await addCustomHostname(wwwDomain, organizationId);
-
-    // 4. إعداد CNAME Flattening للنطاق الجذري
-    const target = `${organizationId}.stockiha.com`;
-    await setupCnameFlattening(domain, target);
-    await setupCnameFlattening(wwwDomain, target);
-
-    return {
-      success: true,
-      data: {
-        primary_hostname: customHostnameResult.data,
-        www_hostname: wwwCustomHostnameResult.data,
-        delegation_status: delegationStatus
-      },
-      message: 'تم إعداد النطاق تلقائياً بنجاح'
-    };
-
-  } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'حدث خطأ غير متوقع',
-      message: 'حدث خطأ أثناء الإعداد التلقائي للنطاق'
-    };
-  }
+  const cleanDomain = domain.trim().toLowerCase();
+  return callCloudflareSaaS('auto-setup', { domain: cleanDomain, organizationId });
 }

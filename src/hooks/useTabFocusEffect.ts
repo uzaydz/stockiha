@@ -106,17 +106,8 @@ export function useTabFocusEffect(
           onBlurRef.current();
         }
         
-        // تعليق استعلامات React Query عند مغادرة التبويب بشكل آمن
-        const queryClient = getQueryClient();
-        if (queryClient) {
-          // استخدام إلغاء آمن للاستعلامات النشطة فقط
-          queryClient.cancelQueries({
-            predicate: (query) => {
-              const state = query.state;
-              return state.fetchStatus === 'fetching' || state.status === 'pending';
-            }
-          });
-        }
+        // تم تعطيل إلغاء الاستعلامات لحل مشكلة عدم التحميل عند التنقل
+        // React Query سيدير الطلبات بشكل صحيح تلقائياً
       }
     };
 

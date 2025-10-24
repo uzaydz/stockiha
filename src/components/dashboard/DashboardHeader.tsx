@@ -4,7 +4,6 @@ import { useTenant } from '@/context/TenantContext';
 import { CalendarIcon, Menu as MenuIcon, Sparkles, TrendingUp, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { useNavigate } from 'react-router-dom';
 
 import {
   Tabs,
@@ -40,7 +39,6 @@ interface DashboardHeaderProps {
 const DashboardHeader = ({ toggleSidebar, onTimeframeChange, onCustomDateChange }: DashboardHeaderProps) => {
   const { user } = useAuth() as { user: UserType };
   const { currentOrganization } = useTenant() as TenantType;
-  const navigate = useNavigate();
   const [activeTimeframe, setActiveTimeframe] = useState<TimeframeType>('monthly');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [customDateRange, setCustomDateRange] = useState<{start: Date, end: Date}>({

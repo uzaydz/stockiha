@@ -151,60 +151,63 @@ BEGIN
             CASE 
                 WHEN ud.is_super_admin = true THEN true
                 WHEN ud.is_org_admin = true THEN true
-                WHEN (ud.permissions->>'viewInventory')::boolean = true THEN true
-                WHEN (ud.permissions->>'manageInventory')::boolean = true THEN true
+                WHEN ud.permissions->'viewInventory' = to_jsonb(true) THEN true
+                WHEN ud.permissions->'manageInventory' = to_jsonb(true) THEN true
                 ELSE false
             END as has_inventory_access,
             
             CASE 
                 WHEN ud.is_super_admin = true THEN true
                 WHEN ud.is_org_admin = true THEN true
-                WHEN (ud.permissions->>'manageProducts')::boolean = true THEN true
-                WHEN (ud.permissions->>'addProducts')::boolean = true THEN true
-                WHEN (ud.permissions->>'editProducts')::boolean = true THEN true
+                WHEN ud.permissions->'manageProducts' = to_jsonb(true) THEN true
+                WHEN ud.permissions->'addProducts' = to_jsonb(true) THEN true
+                WHEN ud.permissions->'editProducts' = to_jsonb(true) THEN true
                 ELSE false
             END as can_manage_products,
             
             CASE 
                 WHEN ud.is_super_admin = true THEN true
                 WHEN ud.is_org_admin = true THEN true
-                WHEN (ud.permissions->>'viewReports')::boolean = true THEN true
-                WHEN (ud.permissions->>'viewSalesReports')::boolean = true THEN true
-                WHEN (ud.permissions->>'viewFinancialReports')::boolean = true THEN true
+                WHEN ud.permissions->'viewReports' = to_jsonb(true) THEN true
+                WHEN ud.permissions->'viewSalesReports' = to_jsonb(true) THEN true
+                WHEN ud.permissions->'viewFinancialReports' = to_jsonb(true) THEN true
+                WHEN ud.permissions->'call_center'->'can_view_reports' = to_jsonb(true) THEN true
                 ELSE false
             END as can_view_reports,
             
             CASE 
                 WHEN ud.is_super_admin = true THEN true
                 WHEN ud.is_org_admin = true THEN true
-                WHEN (ud.permissions->>'manageUsers')::boolean = true THEN true
-                WHEN (ud.permissions->>'manageEmployees')::boolean = true THEN true
+                WHEN ud.permissions->'manageUsers' = to_jsonb(true) THEN true
+                WHEN ud.permissions->'manageEmployees' = to_jsonb(true) THEN true
                 ELSE false
             END as can_manage_users,
             
             CASE 
                 WHEN ud.is_super_admin = true THEN true
                 WHEN ud.is_org_admin = true THEN true
-                WHEN (ud.permissions->>'manageOrders')::boolean = true THEN true
-                WHEN (ud.permissions->>'viewOrders')::boolean = true THEN true
-                WHEN (ud.permissions->>'updateOrderStatus')::boolean = true THEN true
+                WHEN ud.permissions->'manageOrders' = to_jsonb(true) THEN true
+                WHEN ud.permissions->'viewOrders' = to_jsonb(true) THEN true
+                WHEN ud.permissions->'updateOrderStatus' = to_jsonb(true) THEN true
+                WHEN ud.permissions->'call_center'->'can_update_orders' = to_jsonb(true) THEN true
+                WHEN ud.permissions->'call_center'->'can_view_orders' = to_jsonb(true) THEN true
                 ELSE false
             END as can_manage_orders,
             
             CASE 
                 WHEN ud.is_super_admin = true THEN true
                 WHEN ud.is_org_admin = true THEN true
-                WHEN (ud.permissions->>'accessPOS')::boolean = true THEN true
-                WHEN (ud.permissions->>'processPayments')::boolean = true THEN true
+                WHEN ud.permissions->'accessPOS' = to_jsonb(true) THEN true
+                WHEN ud.permissions->'processPayments' = to_jsonb(true) THEN true
                 ELSE false
             END as can_access_pos,
             
             CASE 
                 WHEN ud.is_super_admin = true THEN true
                 WHEN ud.is_org_admin = true THEN true
-                WHEN (ud.permissions->>'viewSettings')::boolean = true THEN true
-                WHEN (ud.permissions->>'manageOrganizationSettings')::boolean = true THEN true
-                WHEN (ud.permissions->>'manageProfileSettings')::boolean = true THEN true
+                WHEN ud.permissions->'viewSettings' = to_jsonb(true) THEN true
+                WHEN ud.permissions->'manageOrganizationSettings' = to_jsonb(true) THEN true
+                WHEN ud.permissions->'manageProfileSettings' = to_jsonb(true) THEN true
                 ELSE false
             END as can_manage_settings
         FROM user_data ud
@@ -249,7 +252,11 @@ BEGIN
         
         -- إحصائيات الصلاحيات
         (SELECT COUNT(*)::INTEGER FROM jsonb_object_keys(ud.permissions)) as total_permissions_count,
-        (SELECT COUNT(*)::INTEGER FROM jsonb_each_text(ud.permissions) WHERE value::boolean = true) as active_permissions_count,
+        (
+            SELECT COUNT(*)::INTEGER
+            FROM jsonb_each(ud.permissions) AS kv(key, value)
+            WHERE jsonb_typeof(value) = 'boolean' AND value = to_jsonb(true)
+        ) as active_permissions_count,
         
         -- معلومات الأمان
         ud.two_factor_enabled,
@@ -304,7 +311,7 @@ BEGIN
         CASE 
             WHEN u.is_super_admin = true THEN true
             WHEN u.is_org_admin = true THEN true
-            WHEN (u.permissions->>p_permission_name)::boolean = true THEN true
+            WHEN u.permissions->p_permission_name = to_jsonb(true) THEN true
             ELSE false
         END
     INTO v_result

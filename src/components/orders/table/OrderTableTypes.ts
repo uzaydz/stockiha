@@ -1,5 +1,7 @@
 // تعريف أنواع البيانات للطلبات ومكوناتها
 
+import type { ConfirmationOrderAssignment, ConfirmationAgent } from '@/types/confirmation';
+
 export type ShippingOrder = {
   id: number;
   tracking_number: string;
@@ -84,6 +86,8 @@ export type Order = {
   };
   form_data?: any;
   metadata?: any;
+  confirmation_assignment?: ConfirmationOrderAssignment | null;
+  confirmation_agent?: ConfirmationAgent | null;
   // Additional optimized fields for performance
   _shipping_info?: {
     tracking_number: string;
@@ -141,6 +145,8 @@ export type ExtendedOrdersTableProps = OrdersTableProps & {
     provider_name: string;
     is_enabled: boolean;
   }>;
+  onOrderUpdated?: (orderId: string, updatedOrder: any) => void;
+  localUpdates?: Record<string, any>;
 };
 
 export type OrdersTableRowProps = { 
@@ -162,6 +168,8 @@ export type OrdersTableRowProps = {
     provider_name: string;
     is_enabled: boolean;
   }>;
+  onOrderUpdated?: (orderId: string, updatedOrder: any) => void;
+  localUpdates?: Record<string, any>;
 };
 
 export type OrderBulkActionsProps = {

@@ -5,6 +5,8 @@ import {
   BarChart3,
   Settings,
   HelpCircle,
+  FileCheck,
+  ShoppingCart,
 } from "lucide-react";
 import { DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +16,6 @@ import { DropdownMenu,
  } from "@/components/ui/dropdown-menu";
 import { useTenant } from '@/context/TenantContext';
 import { Badge } from '@/components/ui/badge';
-import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 interface InvoicesHeaderProps {
   invoiceCount: number;
@@ -23,6 +24,8 @@ interface InvoicesHeaderProps {
   onCreateFromOnlineOrder: () => void;
   onCreateFromService: () => void;
   onCreateCombined: () => void;
+  onCreateProforma: () => void;
+  onCreateBonCommande: () => void;
 }
 
 const InvoicesHeader = ({
@@ -32,6 +35,8 @@ const InvoicesHeader = ({
   onCreateFromOnlineOrder,
   onCreateFromService,
   onCreateCombined,
+  onCreateProforma,
+  onCreateBonCommande,
 }: InvoicesHeaderProps) => {
   const { currentOrganization } = useTenant();
 
@@ -79,6 +84,15 @@ const InvoicesHeader = ({
             <DropdownMenuItem onClick={onCreateCombined}>
               <FileText className="h-4 w-4 ml-2" />
               <span>دمج طلبات متعددة</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onCreateProforma} className="text-blue-600">
+              <FileCheck className="h-4 w-4 ml-2" />
+              <span>فاتورة شكلية (Proforma)</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onCreateBonCommande} className="text-green-600">
+              <ShoppingCart className="h-4 w-4 ml-2" />
+              <span>أمر شراء (Bon de Commande)</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

@@ -14,6 +14,7 @@ import ActivateWithCode from './ActivateWithCode';
 import OnlineOrdersLimitCard from '@/components/subscription/OnlineOrdersLimitCard';
 import OnlineOrdersRechargeModal from '@/components/dashboard/OnlineOrdersRechargeModal';
 import SubscriptionDialog from '@/components/subscription/SubscriptionDialog';
+import { POSSharedLayoutControls } from '@/components/pos-layout/types';
 
 interface SubscriptionPlan {
   id: string;
@@ -35,7 +36,9 @@ interface SubscriptionPlan {
   display_order: number;
 }
 
-const SubscriptionPage: React.FC = () => {
+interface SubscriptionPageProps extends POSSharedLayoutControls {}
+
+const SubscriptionPage: React.FC<SubscriptionPageProps> = ({ useStandaloneLayout = true } = {}) => {
   const { user, organization } = useAuth();
   const { refreshOrganizationData } = useTenant();
   const [loading, setLoading] = useState(true);
@@ -207,21 +210,20 @@ const SubscriptionPage: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center min-h-[400px]">
-          <div className="text-center">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" />
-            <p className="text-muted-foreground">جاري تحميل بيانات الاشتراك...</p>
-          </div>
+    const loadingContent = (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">جاري تحميل بيانات الاشتراك...</p>
         </div>
-      </Layout>
+      </div>
     );
+
+    return useStandaloneLayout ? <Layout>{loadingContent}</Layout> : loadingContent;
   }
 
-  return (
-    <Layout>
-      <div className="container mx-auto p-6 space-y-8">
+  const content = (
+    <div className="container mx-auto p-6 space-y-8">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold mb-2">إدارة الاشتراك</h1>
           <p className="text-muted-foreground">اختر الخطة المناسبة لعملك</p>
@@ -501,7 +503,7 @@ const SubscriptionPage: React.FC = () => {
               ))}
             </div>
           </TabsContent>
-            </Tabs>
+        </Tabs>
 
         {/* معلومات إضافية */}
         <Card>
@@ -525,30 +527,31 @@ const SubscriptionPage: React.FC = () => {
 
           </CardContent>
         </Card>
-      </div>
 
-      {/* نافذة إعادة الشحن */}
-      <OnlineOrdersRechargeModal 
-        isOpen={showRechargeModal}
-      onClose={() => setShowRechargeModal(false)}
-      />
-
-      {organization && selectedPlan && (
-        <SubscriptionDialog
-          open={dialogOpen}
-          onOpenChange={handleDialogOpenChange}
-          plan={selectedPlan}
-          billingCycle={selectedBillingCycle}
-          organizationId={organization.id}
-          isRenewal={
-            subscriptionData?.plan_code === selectedPlan.code &&
-            subscriptionData?.billing_cycle === selectedBillingCycle
-          }
-          onSubscriptionComplete={handleSubscriptionCompleted}
+        {/* نافذة إعادة الشحن */}
+        <OnlineOrdersRechargeModal
+          isOpen={showRechargeModal}
+          onClose={() => setShowRechargeModal(false)}
         />
-      )}
-    </Layout>
+
+        {organization && selectedPlan && (
+          <SubscriptionDialog
+            open={dialogOpen}
+            onOpenChange={handleDialogOpenChange}
+            plan={selectedPlan}
+            billingCycle={selectedBillingCycle}
+            organizationId={organization.id}
+            isRenewal={
+              subscriptionData?.plan_code === selectedPlan.code &&
+              subscriptionData?.billing_cycle === selectedBillingCycle
+            }
+            onSubscriptionComplete={handleSubscriptionCompleted}
+          />
+        )}
+      </div>
   );
+
+  return useStandaloneLayout ? <Layout>{content}</Layout> : content;
 };
 
 export default SubscriptionPage;

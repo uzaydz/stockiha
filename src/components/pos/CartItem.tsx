@@ -111,54 +111,30 @@ export default function CartItem({
       className="relative rounded-lg overflow-hidden"
     >
       <div className={cn(
-        "flex gap-3 p-3 border transition-all duration-300 rounded-lg group",
-        "border-border dark:border-border",
+        "flex gap-2.5 p-2.5 border transition-all duration-200 rounded-lg group",
+        "border-border/50 dark:border-border/50",
         isHovered 
-          ? "bg-accent/50 dark:bg-accent/50 shadow-md border-border dark:border-border" 
-          : "bg-card dark:bg-card hover:bg-accent/30 dark:hover:bg-accent/30"
+          ? "bg-muted/50 dark:bg-muted/50 border-border dark:border-border" 
+          : "bg-card/50 dark:bg-card/50 hover:bg-muted/30 dark:hover:bg-muted/30"
       )}>
-        {/* صورة المنتج - تحسين تصميم الصورة مع إضافة الظل */}
-        <div className="relative w-[70px] h-[70px] bg-background dark:bg-background rounded-lg overflow-hidden flex-shrink-0 shadow-sm group/image border border-border dark:border-border">
+        {/* صورة المنتج - مبسطة وأصغر */}
+        <div className="relative w-14 h-14 bg-muted/30 dark:bg-muted/30 rounded-md overflow-hidden flex-shrink-0 group/image">
           <img 
             src={imageUrl}
             alt={product.name}
             className="object-contain w-full h-full transition-transform group-hover/image:scale-105"
           />
           
-          {/* علامة الكمية - تحسين التصميم */}
-          <div className="absolute top-1 left-1 bg-primary dark:bg-primary text-primary-foreground dark:text-primary-foreground text-xs font-bold px-1.5 py-0.5 rounded-md shadow-sm border border-background/20 dark:border-background/20">
+          {/* علامة الكمية - مبسطة */}
+          <div className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center shadow-sm">
             {quantity}
           </div>
           
-          {/* تنبيه المخزون */}
-          {isLowStock && !isOutOfStock && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="absolute -top-1 -right-1 w-5 h-5 bg-yellow-500 dark:bg-yellow-600 rounded-full flex items-center justify-center shadow-md border-2 border-background dark:border-background">
-                    <AlertTriangle className="h-3 w-3 text-white" />
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent side="top">
-                  <p className="text-xs">المخزون منخفض - متبقي {availableStock} فقط</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
-          
-          {isOutOfStock && (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 dark:bg-red-600 rounded-full flex items-center justify-center shadow-md border-2 border-background dark:border-background">
-                    <AlertTriangle className="h-3 w-3 text-white" />
-                  </div>
-                </TooltipTrigger>
-                <TooltipContent side="top">
-                  <p className="text-xs">نفذت الكمية من المخزن</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+          {/* تنبيه المخزون - مدمج */}
+          {(isLowStock || isOutOfStock) && (
+            <div className="absolute -bottom-1 -left-1 w-4 h-4 bg-yellow-500 dark:bg-yellow-600 rounded-full flex items-center justify-center shadow-sm">
+              <AlertTriangle className="h-2.5 w-2.5 text-white" />
+            </div>
           )}
         </div>
         
@@ -166,161 +142,85 @@ export default function CartItem({
         <div className="flex-1 flex flex-col min-w-0">
           <div className="flex justify-between items-start gap-2">
             <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-sm text-foreground dark:text-foreground line-clamp-1">
+              <h3 className="font-medium text-sm text-foreground dark:text-foreground line-clamp-1 mb-1">
                 {product.name}
               </h3>
               
-              {/* المتغيرات (اللون والمقاس) - تحسين عرض متغيرات المنتج */}
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {colorName && (
-                  <div className="text-[10px] bg-muted dark:bg-muted px-2 py-1 rounded-full flex items-center shadow-sm border border-border dark:border-border">
-                    <div 
-                      className="w-2.5 h-2.5 rounded-full mr-1.5 border border-border dark:border-border shadow-sm" 
-                      style={{ backgroundColor: colorCode || '#888' }}
-                    ></div>
-                    <span className="text-foreground dark:text-foreground font-medium">{colorName}</span>
-                    
-                    {sizeName && (
-                      <>
-                        <span className="mx-1.5 text-muted-foreground dark:text-muted-foreground">|</span>
-                        <span className="text-foreground dark:text-foreground font-medium">{sizeName}</span>
-                      </>
-                    )}
-                  </div>
-                )}
-                
-                <div className="text-[10px] bg-muted dark:bg-muted px-2 py-1 rounded-full flex items-center shadow-sm border border-border dark:border-border">
-                  <Package className="w-2.5 h-2.5 mr-1 text-muted-foreground dark:text-muted-foreground" />
-                  <span className="text-foreground dark:text-foreground font-medium">كود: {product.id.substring(0, 8)}</span>
+              {/* المتغيرات (اللون والمقاس) - مبسطة ومدمجة */}
+              {(colorName || sizeName) && (
+                <div className="text-[10px] text-muted-foreground dark:text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                  {colorName && (
+                    <div className="flex items-center gap-1">
+                      <div 
+                        className="w-2 h-2 rounded-full border border-border/50" 
+                        style={{ backgroundColor: colorCode || '#888' }}
+                      />
+                      <span>{colorName}</span>
+                    </div>
+                  )}
+                  {colorName && sizeName && <span className="opacity-50">•</span>}
+                  {sizeName && <span>{sizeName}</span>}
                 </div>
-              </div>
+              )}
             </div>
             
-            {/* زر الحذف - إصلاح المشكل وتحسين الظهور */}
-            <div className="flex items-center">
-              <AnimatePresence>
-                {showDeleteConfirm ? (
-                  <motion.div 
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
-                    className="flex items-center space-x-1 bg-card dark:bg-card backdrop-blur-sm shadow-lg rounded-full p-0.5 border border-border dark:border-border"
-                  >
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setShowDeleteConfirm(false)}
-                      className="h-7 w-7 rounded-full text-muted-foreground dark:text-muted-foreground hover:bg-accent dark:hover:bg-accent"
-                    >
-                      <span className="sr-only">إلغاء</span>
-                      <X className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="default"
-                      size="icon"
-                      onClick={() => removeItemFromCart(index)}
-                      className="h-7 w-7 rounded-full text-white bg-red-500 hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-700 shadow-sm"
-                    >
-                      <span className="sr-only">تأكيد الحذف</span>
-                      <Check className="h-3.5 w-3.5" />
-                    </Button>
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
-                  >
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setShowDeleteConfirm(true)}
-                      className={cn(
-                        "h-8 w-8 rounded-full transition-all duration-300 shadow-sm",
-                        "opacity-100", // إزالة الإخفاء وجعل الزر مرئي دائماً
-                        "text-red-500 dark:text-red-400 hover:text-white hover:bg-red-500 dark:hover:bg-red-500",
-                        "border border-red-200 dark:border-red-800 hover:border-red-500 dark:hover:border-red-500"
-                      )}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      <span className="sr-only">حذف</span>
-                    </Button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
+            {/* زر الحذف - مبسط */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => removeItemFromCart(index)}
+              className="h-7 w-7 rounded-md text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950 flex-shrink-0"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
           </div>
           
-          {/* السعر ومعلومات المنتج - تحسين توزيع العناصر في الجزء السفلي للمنتج */}
-          <div className="flex items-end justify-between mt-auto pt-3">
-            {/* شريط المخزون والسعر */}
-            <div className="space-y-2">
-              {/* شريط المخزون مع معلومات أكثر تفصيلاً */}
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <div className="w-24 h-2 bg-muted dark:bg-muted rounded-full overflow-hidden shadow-sm border border-border dark:border-border">
-                      <div className={stockColor} style={{ width: `${stockPercentage}%` }}></div>
-                    </div>
-                  </TooltipTrigger>
-                  <TooltipContent side="top">
-                    <div className="text-xs">
-                      <p>الكمية المطلوبة: {quantity}</p>
-                      <p>المتاح في المخزن: {availableStock}</p>
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-              
-              {/* السعر - تحسين طريقة عرض السعر مع إمكانية التعديل */}
-              <div className="text-xs text-muted-foreground dark:text-muted-foreground flex items-center gap-1">
-                {canEditPrice && updateItemPrice ? (
-                  <Input
-                    type="number"
-                    value={price}
-                    onChange={handlePriceChange}
-                    className="w-16 h-6 text-xs text-right bg-background dark:bg-background/50 border-primary/30"
-                    step="0.01"
-                    min="0"
-                  />
-                ) : (
-                  <span className="font-medium">{formatPrice(price)}</span>
-                )}
-                <span className="mx-0.5 opacity-60">×</span>
-                <span className="opacity-80 font-medium">{quantity}</span>
-                <span className="ml-2 text-xs opacity-50">=</span>
-                <span className="text-primary dark:text-primary font-semibold text-sm">
-                  {formatPrice(totalPrice)}
-                </span>
-              </div>
+          {/* السعر والتحكم - مبسط ومدمج */}
+          <div className="flex items-center justify-between mt-2">
+            {/* السعر */}
+            <div className="text-xs flex items-center gap-1">
+              {canEditPrice && updateItemPrice ? (
+                <Input
+                  type="number"
+                  value={price}
+                  onChange={handlePriceChange}
+                  className="w-14 h-6 text-xs p-1 bg-background/50 border-border/50"
+                  step="0.01"
+                  min="0"
+                />
+              ) : (
+                <span className="font-medium text-muted-foreground">{formatPrice(price)}</span>
+              )}
+              <span className="text-muted-foreground/50 text-[10px]">×{quantity}</span>
+              <span className="text-primary font-semibold text-sm">
+                {formatPrice(totalPrice)}
+              </span>
             </div>
             
-            {/* التحكم بالكمية - تحسين ظهور أزرار التحكم بالكمية */}
-            <div className="flex items-center rounded-lg overflow-hidden border border-border dark:border-border shadow-sm bg-background dark:bg-background">
+            {/* التحكم بالكمية - مبسط */}
+            <div className="flex items-center rounded-md overflow-hidden border border-border/50 h-7 bg-background/30">
               <Button 
                 variant="ghost" 
                 size="icon"
-                className="h-8 w-8 rounded-none border-r border-border dark:border-border text-muted-foreground dark:text-muted-foreground hover:bg-accent dark:hover:bg-accent hover:text-red-500 dark:hover:text-red-400 disabled:opacity-30"
+                className="h-full w-7 rounded-none text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 p-0"
                 onClick={() => updateItemQuantity(index, quantity - 1)}
                 disabled={quantity <= 1}
               >
-                <Minus className="h-3.5 w-3.5" />
-                <span className="sr-only">تقليل الكمية</span>
+                <Minus className="h-3 w-3" />
               </Button>
               
-              <span className="w-10 text-center text-sm font-semibold text-foreground dark:text-foreground bg-muted dark:bg-muted">
+              <span className="w-8 text-center text-xs font-medium text-foreground px-1">
                 {quantity}
               </span>
               
               <Button 
                 variant="ghost" 
                 size="icon"
-                className="h-8 w-8 rounded-none border-l border-border dark:border-border text-muted-foreground dark:text-muted-foreground hover:bg-accent dark:hover:bg-accent hover:text-primary dark:hover:text-primary disabled:opacity-30"
+                className="h-full w-7 rounded-none text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-30 p-0"
                 onClick={() => updateItemQuantity(index, quantity + 1)}
                 disabled={!canIncreaseQuantity()}
               >
-                <Plus className="h-3.5 w-3.5" />
-                <span className="sr-only">زيادة الكمية</span>
+                <Plus className="h-3 w-3" />
               </Button>
             </div>
           </div>

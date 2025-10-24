@@ -2,7 +2,7 @@ import React, { useMemo, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { Menu, Search, LogOut, RefreshCw, X } from 'lucide-react';
+import { Menu, LogOut, Store } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useApps } from '@/context/AppsContext';
 import { useTenant } from '@/context/TenantContext';
@@ -16,7 +16,6 @@ import { MerchantType } from './types';
 
 // Custom Hooks
 import { useMerchantType } from '@/hooks/useMerchantType';
-import { useSidebarSearch } from '@/hooks/useSidebarSearch';
 import { useOrganizationSync } from '@/hooks/useOrganizationSync';
 import { useSmartAnimation } from '@/hooks/useSmartAnimation';
 import { usePerformanceOptimization, useOptimizedSearch, useSmartAnimationWithThrottling } from '@/hooks/usePerformanceOptimization';
@@ -43,7 +42,7 @@ const SidebarNavigation: React.FC<SidebarNavigationProps> = ({
 
   // استخدام Custom Hooks
   const { merchantType, updateMerchantType, isLoading: merchantTypeLoading } = useMerchantType(currentOrganization?.id);
-  const { searchQuery, setSearchQuery, debouncedQuery, clearSearch, hasSearchQuery } = useSidebarSearch();
+  // تم حذف البحث من الشريط الجانبي
   const { isSyncing: organizationSyncing } = useOrganizationSync();
   const { shouldAnimate, animationConfig } = useSmartAnimation();
 
@@ -112,11 +111,8 @@ const SidebarNavigation: React.FC<SidebarNavigationProps> = ({
 
         // تصفية العناصر بناءً على البحث مع تحسين الأداء التقدمي
   const filteredItems = useMemo(() => {
-    if (!debouncedQuery.trim()) return filteredNavItems;
-
-    // استخدام البحث المحسن للأداء الأفضل
-    return optimizedFilter(filteredNavItems, debouncedQuery, []);
-  }, [filteredNavItems, debouncedQuery, optimizedFilter]);
+    return filteredNavItems;
+  }, [filteredNavItems]);
 
   // Hook للانيميشن الذكي مع throttling
   const { getAnimationDelay, getShouldAnimate, shouldThrottleAnimations: throttlingAnimations } = useSmartAnimationWithThrottling(filteredItems?.length || 0);
@@ -193,50 +189,43 @@ const SidebarNavigation: React.FC<SidebarNavigationProps> = ({
               </h2>
             </motion.div>
 
-            {/* شريط البحث */}
+            {/* زر واجهة المتجر مكان البحث */}
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={shouldAnimate ? { opacity: 1, y: 0 } : { opacity: 1, y: 0 }}
               transition={{ delay: 0.3, duration: animationConfig.duration, ease: animationConfig.ease as any }}
               className={cn(
                 "px-3",
-                isMobile && "px-2" // تقليل المسافات للهاتف
+                isMobile && "px-2"
               )}
             >
-              <div className="relative">
-                <Search className={cn(
-                  "absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground",
-                  isMobile ? "w-3.5 h-3.5" : "w-4 h-4"
-                )} />
-                <input
-                  type="text"
-                  placeholder="البحث في القائمة..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className={cn(
-                    "w-full pl-10 pr-10 py-2 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent",
-                    isMobile && "py-1.5 text-xs", // تقليل الحجم للهاتف
-                    // تحسينات الأداء
-                    "transition-colors duration-150"
-                  )}
-                  style={{
-                    // تحسينات CSS للأداء
-                    willChange: hasSearchQuery ? 'auto' : 'scroll-position'
-                  }}
-                />
-                {hasSearchQuery && (
-                  <button
-                    onClick={clearSearch}
-                    className={cn(
-                      "absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors",
-                      isMobile ? "w-3.5 h-3.5" : "w-4 h-4"
-                    )}
-                    aria-label="مسح البحث"
-                  >
-                    <X className="w-full h-full" />
-                  </button>
+              <a
+                href={(function getStoreUrl(){
+                  const sub = currentOrganization?.subdomain;
+                  if (!sub) return '/';
+                  const host = typeof window !== 'undefined' ? window.location.hostname : '';
+                  const port = typeof window !== 'undefined' && window.location.port ? `:${window.location.port}` : '';
+                  if (host.includes('localhost')) return `http://${sub}.localhost${port}`;
+                  if (host.includes('stockiha.com') || host.includes('stockiha.pages.dev')) return `https://${sub}.stockiha.com`;
+                  if (host.includes('ktobi.online')) return `https://${sub}.ktobi.online`;
+                  return '/';
+                })()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={cn(
+                  "group relative flex items-center justify-center gap-2 w-full py-2 rounded-lg",
+                  "bg-gradient-to-r from-primary to-primary/90 text-primary-foreground",
+                  "shadow-md hover:shadow-lg",
+                  "border border-primary/20 hover:border-primary/30",
+                  "transition-all duration-200",
+                  isMobile ? "text-sm" : "text-sm"
                 )}
-              </div>
+                aria-label="فتح واجهة المتجر في تبويب جديد"
+              >
+                <span className="absolute inset-0 rounded-lg bg-gradient-to-r from-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                <Store className={cn(isMobile ? "w-4 h-4" : "w-4 h-4")} />
+                <span className="font-medium">واجهة المتجر</span>
+              </a>
             </motion.div>
 
             {/* تبديل نوع التاجر */}
@@ -283,25 +272,7 @@ const SidebarNavigation: React.FC<SidebarNavigationProps> = ({
                 <p className={isMobile ? "text-sm" : "text-base"}>
                   لا توجد عناصر متاحة
                 </p>
-                {hasSearchQuery && (
-                  <div className="mt-4 space-y-2">
-                    <p className={cn(
-                      "text-sm",
-                      isMobile && "text-xs" // تقليل الحجم للهاتف
-                    )}>
-                      جرب البحث بكلمات مختلفة أو
-                    </p>
-                    <button
-                      onClick={clearSearch}
-                      className={cn(
-                        "px-3 py-1 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors",
-                        isMobile && "px-2 py-0.5 text-xs"
-                      )}
-                    >
-                      مسح البحث
-                    </button>
-                  </div>
-                )}
+                {/* تمت إزالة واجهة البحث */}
               </motion.div>
             )}
           </motion.div>

@@ -203,7 +203,7 @@ export const ComponentRenderer: React.FC<ComponentRendererProps> = ({
         />
       );
     
-          case 'quantity':
+        case 'quantity':
         return (
           <QuantityComponentPreview
             component={component as any}

@@ -297,10 +297,8 @@ export const usePOSReturn = ({
       clearReturnCart();
       setIsReturnMode(false);
       
-      // تحديث البيانات
-      if (refreshPOSData) {
-        await refreshPOSData();
-      }
+      // ✅ لا حاجة لـ refreshPOSData - البيانات تُحدث محلياً تلقائياً
+      // React Query سيحدث البيانات عند الحاجة (staleTime: 5 دقائق)
       
       return {
         orderId: result.return_id,

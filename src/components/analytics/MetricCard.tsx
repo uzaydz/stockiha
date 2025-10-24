@@ -70,72 +70,47 @@ const MetricCard = React.memo<MetricCardProps>(({
   }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-      whileHover={{ scale: 1.02 }}
-      className={cn("group", className)}
-    >
-      <Card className="relative overflow-hidden transition-all duration-300 hover:shadow-lg border-l-4 border-l-transparent hover:border-l-primary">
-        {/* خلفية متدرجة خفيفة */}
-        <div 
-          className="absolute inset-0 opacity-5 group-hover:opacity-10 transition-opacity duration-300"
-          style={{ 
-            background: `linear-gradient(135deg, ${colorClass}20 0%, transparent 100%)` 
-          }}
-        />
-        
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative z-10">
-          <CardTitle className="text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors">
-            {title}
-          </CardTitle>
-          {Icon && (
-            <div className="p-2 rounded-lg bg-muted/50 group-hover:bg-muted transition-colors">
-              <Icon 
-                className="h-4 w-4 text-muted-foreground group-hover:text-foreground transition-colors" 
-                style={{ color: colorClass }}
-              />
+    <Card className={cn("relative overflow-hidden transition-all hover:shadow-md", className)}>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium text-muted-foreground">
+          {title}
+        </CardTitle>
+        {Icon && (
+          <div className="p-2 rounded-lg bg-primary/10">
+            <Icon className="h-4 w-4 text-primary" />
+          </div>
+        )}
+      </CardHeader>
+      
+      <CardContent>
+        <div className="space-y-2">
+          <div className={cn("font-bold text-primary", sizeClasses[size])}>
+            {formatValue(value)}
+          </div>
+          
+          {subtitle && (
+            <p className="text-xs text-muted-foreground">
+              {subtitle}
+            </p>
+          )}
+          
+          {trend && (
+            <div className="flex items-center gap-1">
+              <div 
+                className={cn(
+                  "text-xs font-medium px-2 py-1 rounded-full",
+                  trend.isPositive 
+                    ? "bg-primary/10 text-primary" 
+                    : "bg-destructive/10 text-destructive"
+                )}
+              >
+                {trend.isPositive ? '+' : ''}{formatPercentage(trend.value)}
+              </div>
             </div>
           )}
-        </CardHeader>
-        
-        <CardContent className="relative z-10">
-          <div className="space-y-2">
-            <div 
-              className={cn("font-bold transition-colors group-hover:scale-105 transform duration-300", sizeClasses[size])}
-              style={{ color: colorClass }}
-            >
-              {formatValue(value)}
-            </div>
-            
-            {subtitle && (
-              <p className="text-xs text-muted-foreground group-hover:text-foreground/80 transition-colors">
-                {subtitle}
-              </p>
-            )}
-            
-            {trend && (
-              <div className="flex items-center gap-1">
-                <div 
-                  className={cn(
-                    "text-xs font-medium px-2 py-1 rounded-full",
-                    trend.isPositive 
-                      ? "bg-green-100 text-green-800 dark:bg-green-800/20 dark:text-green-400" 
-                      : "bg-red-100 text-red-800 dark:bg-red-800/20 dark:text-red-400"
-                  )}
-                >
-                  {trend.isPositive ? '+' : ''}{formatPercentage(trend.value)}
-                </div>
-              </div>
-            )}
-          </div>
-        </CardContent>
-        
-        {/* شريط التحميل المتحرك */}
-        <div className="absolute bottom-0 left-0 h-1 bg-gradient-to-r from-transparent via-primary/30 to-transparent w-full transform translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
-      </Card>
-    </motion.div>
+        </div>
+      </CardContent>
+    </Card>
   );
 });
 

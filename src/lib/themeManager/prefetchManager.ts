@@ -282,21 +282,9 @@ const isPublicDomain = (hostname: string) => {
   return PUBLIC_DOMAINS.includes(hostname);
 };
 
-// بدء التحميل المسبق عند تحميل الصفحة
+// تعطيل كامل للتحميلات المسبقة في مشروع لوحة التحكم فقط
+// ترك الدوال متاحة للاستدعاء اليدوي إن لزم، لكن لا تشغيل تلقائي
 if (typeof window !== 'undefined') {
-  const currentHostname = window.location.hostname;
-
-  // تطبيق البيانات المحفوظة فقط إذا لم نكن في نطاق عام
-  if (!isPublicDomain(currentHostname)) {
-    applyCachedPrefetchData().then(() => {
-      // ثم بدء التحميل المسبق الجديد
-      smartPrefetch();
-    });
-  } else {
-    console.log('🎨 [PrefetchManager] نطاق عام - تخطي تطبيق الإعدادات المحملة مسبقاً', { hostname: currentHostname });
-  }
-
-  // ربط مع window للاستخدام في التطوير
   (window as any).prefetchManager = {
     prefetchOrganizationSettings,
     applyPrefetchedSettings,

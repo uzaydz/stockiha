@@ -48,7 +48,15 @@ export const useLandingPageFetch = (
   initialSlug?: string,
   initialId?: string
 ): UseLandingPageFetchReturn => {
-  const { supabase } = useSupabase();
+  // حماية من استخدام useSupabase خارج SupabaseProvider
+  let supabase;
+  try {
+    const supabaseContext = useSupabase();
+    supabase = supabaseContext.supabase;
+  } catch (error) {
+    // إذا لم يكن SupabaseProvider جاهزاً، استخدم supabase افتراضي
+    supabase = null;
+  }
   const [landingPage, setLandingPage] = useState<LandingPageData | null>(null);
   const [components, setComponents] = useState<ComponentData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -168,7 +176,15 @@ export const useSingleLandingPageFetch = (identifier: string | null) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { supabase } = useSupabase();
+  // حماية من استخدام useSupabase خارج SupabaseProvider
+  let supabase;
+  try {
+    const supabaseContext = useSupabase();
+    supabase = supabaseContext.supabase;
+  } catch (error) {
+    // إذا لم يكن SupabaseProvider جاهزاً، استخدم supabase افتراضي
+    supabase = null;
+  }
 
   const fetchPage = useCallback(async () => {
     if (!identifier) return;

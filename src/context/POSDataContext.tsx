@@ -2,12 +2,22 @@ import React, { createContext, useContext, useCallback, useMemo, ReactNode, useE
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTenant } from './TenantContext';
 import { useAuth } from './AuthContext';
-import { Product, Service } from '@/types';
+import { useAppInitialization } from './AppInitializationContext';
 import { POSSettings } from '@/types/posSettings';
 import { deduplicateRequest } from '../lib/cache/deduplication';
 import { supabase } from '@/lib/supabase';
 import { logPOSContextStatus } from '@/utils/productionDebug';
 import UnifiedRequestManager from '@/lib/unifiedRequestManager';
+import { addAppEventListener } from '@/lib/events/eventManager';
+import { localPosSettingsService } from '@/api/localPosSettingsService';
+import {
+  getProducts as getOfflineProducts,
+  updateProductStock as updateOfflineProductStock
+} from '@/api/offlineProductService';
+import { inventoryDB, type LocalProduct, type LocalOrganizationSubscription, type LocalCustomer, type LocalPOSOrder } from '@/database/localDb';
+import { getLocalCategories } from '@/lib/api/categories';
+import { isAppOnline, markNetworkOnline, markNetworkOffline } from '@/utils/networkStatus';
+import { markProductAsSynced, updateLocalProduct } from '@/api/localProductService';
 
 // =================================================================
 // 🎯 POSDataContext V2 - الحل الشامل مع تحليل قاعدة البيانات المعمق
@@ -115,6 +125,7 @@ interface POSProductWithVariants {
   subcategory?: string;
   brand?: string;
   images: string[];
+  thumbnail_image: string;
   thumbnailImage: string;
   stockQuantity: number;
   stock_quantity: number;
@@ -242,6 +253,177 @@ interface POSData {
 
 const POSDataContext = createContext<POSData | undefined>(undefined);
 
+const isOfflineMode = () => !isAppOnline();
+
+export const arrayOrEmpty = <T,>(value: T[] | null | undefined): T[] =>
+  Array.isArray(value) ? value : [];
+
+export const mapLocalProductToPOSProduct = (
+  product: LocalProduct
+): POSProductWithVariants => {
+  const rawColors = Array.isArray((product as any).product_colors) ? (product as any).product_colors : [];
+  const processedColors: ProductColor[] = rawColors.map((color: any) => {
+    const rawSizes = Array.isArray(color?.product_sizes) ? color.product_sizes : [];
+    const processedSizes: ProductSize[] = rawSizes.map((size: any) => ({
+      id: size?.id ?? `${product.id}-${color?.id ?? 'variant'}-${size?.size_name ?? 'size'}`,
+      color_id: color?.id ?? color?.color_id ?? product.id,
+      product_id: product.id,
+      size_name: size?.size_name ?? size?.name ?? '',
+      quantity: Number(size?.quantity ?? 0),
+      price: size?.price,
+      barcode: size?.barcode ?? undefined,
+      is_default: Boolean(size?.is_default),
+      purchase_price: size?.purchase_price
+    }));
+
+    return {
+      id: color?.id ?? color?.color_id ?? `${product.id}-color`,
+      product_id: color?.product_id ?? product.id,
+      name: color?.name ?? color?.color_name ?? 'لون',
+      color_code: color?.color_code ?? '#000000',
+      image_url: color?.image_url,
+      quantity: Number(color?.quantity ?? 0),
+      price: color?.price,
+      barcode: color?.barcode ?? undefined,
+      is_default: Boolean(color?.is_default),
+      has_sizes: Boolean(color?.has_sizes) || processedSizes.length > 0,
+      variant_number: color?.variant_number,
+      purchase_price: color?.purchase_price,
+      sizes: processedSizes
+    };
+  });
+
+  const variantsStock = processedColors.reduce((sum, color) => {
+    const sizesTotal = (color.sizes || []).reduce((sizeSum, size) => sizeSum + Number(size.quantity ?? 0), 0);
+    return sum + Number(color.quantity ?? 0) + sizesTotal;
+  }, 0);
+
+  const stockQuantity = Number(product.stock_quantity ?? 0);
+  const resolvedStock = variantsStock > 0 ? variantsStock : stockQuantity;
+  const images = arrayOrEmpty((product as any).images) as string[];
+  const thumbnail = (product.thumbnail_image || images[0] || '') as string;
+
+  return {
+    id: product.id,
+    name: product.name,
+    description: product.description ?? '',
+    price: Number(product.price ?? 0),
+    compareAtPrice: (product as any).compare_at_price ?? undefined,
+    sku: product.sku ?? '',
+    barcode: product.barcode ?? undefined,
+    category: (product as any).category ?? 'أخرى',
+    category_id: product.category_id,
+    subcategory: (product as any).subcategory ?? undefined,
+    subcategory_id: product.subcategory_id,
+    brand: product.brand ?? undefined,
+    images,
+    thumbnail_image: thumbnail,
+    thumbnailImage: thumbnail,
+    stockQuantity: resolvedStock,
+    stock_quantity: resolvedStock,
+    features: arrayOrEmpty((product as any).features),
+    specifications: typeof (product as any).specifications === 'object' && (product as any).specifications !== null
+      ? (product as any).specifications
+      : {},
+    isDigital: Boolean(product.is_digital),
+    isNew: (product as any).is_new,
+    isFeatured: (product as any).is_featured,
+    createdAt: new Date(product.created_at),
+    updatedAt: new Date(product.updated_at || product.created_at),
+    has_variants: Boolean((product as any).has_variants) || processedColors.length > 0,
+    use_sizes: Boolean((product as any).use_sizes),
+    compare_at_price: (product as any).compare_at_price,
+    purchase_price: product.purchase_price,
+    min_stock_level: product.min_stock_level,
+    reorder_level: (product as any).reorder_level,
+    reorder_quantity: (product as any).reorder_quantity,
+    slug: (product as any).slug,
+    show_price_on_landing: (product as any).show_price_on_landing !== false,
+    last_inventory_update: (product as any).last_inventory_update,
+    is_active: product.is_active !== false,
+    wholesale_price: product.wholesale_price,
+    partial_wholesale_price: product.partial_wholesale_price,
+    min_wholesale_quantity: product.min_wholesale_quantity,
+    min_partial_wholesale_quantity: product.min_partial_wholesale_quantity,
+    allow_retail: product.allow_retail !== false,
+    allow_wholesale: product.allow_wholesale !== false,
+    allow_partial_wholesale: product.allow_partial_wholesale !== false,
+    colors: processedColors,
+    actual_stock_quantity: resolvedStock,
+    total_variants_stock: variantsStock,
+    low_stock_warning: resolvedStock <= (product.min_stock_level ?? 5),
+    has_fast_shipping: Boolean((product as any).has_fast_shipping),
+    has_money_back: Boolean((product as any).has_money_back),
+    has_quality_guarantee: Boolean((product as any).has_quality_guarantee),
+    fast_shipping_text: (product as any).fast_shipping_text,
+    money_back_text: (product as any).money_back_text,
+    quality_guarantee_text: (product as any).quality_guarantee_text,
+    is_sold_by_unit: Boolean((product as any).is_sold_by_unit),
+    unit_type: (product as any).unit_type,
+    use_variant_prices: Boolean((product as any).use_variant_prices),
+    unit_purchase_price: (product as any).unit_purchase_price,
+    unit_sale_price: (product as any).unit_sale_price,
+    shipping_clone_id: (product as any).shipping_clone_id,
+    name_for_shipping: (product as any).name_for_shipping,
+    use_shipping_clone: Boolean((product as any).use_shipping_clone),
+    shipping_method_type: (product as any).shipping_method_type ?? 'normal',
+    created_by_user_id: (product as any).created_by_user_id,
+    updated_by_user_id: (product as any).updated_by_user_id,
+    has_valid_barcodes:
+      Boolean(product.barcode?.trim?.()) ||
+      processedColors.some((color) =>
+        Boolean(color.barcode) || (color.sizes || []).some((size) => Boolean(size.barcode))
+      )
+  };
+};
+
+export const mapLocalSubscriptionToService = (
+  subscription: LocalOrganizationSubscription
+): SubscriptionService => {
+  const amount = Number((subscription as any).amount ?? 0);
+  const derivedName = (subscription as any).name ?? (subscription as any).plan_name ?? 'خدمة اشتراك';
+  return {
+    id: subscription.id,
+    name: derivedName,
+    description: (subscription as any).description ?? '',
+    provider: (subscription as any).provider ?? 'offline',
+    organization_id: subscription.organization_id,
+    category_id: (subscription as any).category_id,
+    category: (subscription as any).category,
+    logo_url: (subscription as any).logo_url,
+    purchase_price: Number((subscription as any).purchase_price ?? amount),
+    selling_price: Number((subscription as any).selling_price ?? amount),
+    profit_margin: (subscription as any).profit_margin,
+    profit_amount: (subscription as any).profit_amount,
+    service_type: (subscription as any).service_type ?? 'subscription',
+    delivery_method: (subscription as any).delivery_method ?? 'instant',
+    total_quantity: Number((subscription as any).total_quantity ?? 0),
+    available_quantity: Number((subscription as any).available_quantity ?? 0),
+    sold_quantity: Number((subscription as any).sold_quantity ?? 0),
+    reserved_quantity: Number((subscription as any).reserved_quantity ?? 0),
+    status: subscription.status ?? 'active',
+    is_active: (subscription.status ?? '').toLowerCase() !== 'cancelled',
+    is_featured: Boolean((subscription as any).is_featured),
+    created_at: subscription.created_at ?? new Date().toISOString(),
+    updated_at: subscription.updated_at ?? subscription.created_at ?? new Date().toISOString(),
+    pricing_options: arrayOrEmpty((subscription as any).pricing_options)
+  };
+};
+
+export const mapLocalCategoryToSubscriptionCategory = (
+  category: Awaited<ReturnType<typeof getLocalCategories>>[number]
+): SubscriptionCategory => ({
+  id: category.id,
+  name: category.name,
+  description: category.description,
+  icon: category.icon ?? undefined,
+  color: (category as any)?.color ?? '#3B82F6',
+  organization_id: category.organization_id,
+  is_active: category.is_active !== false,
+  created_at: category.created_at ?? new Date().toISOString(),
+  updated_at: category.updated_at ?? category.created_at ?? new Date().toISOString()
+});
+
 // =================================================================
 // 🔧 دوال جلب البيانات المحسنة مع تحليل قاعدة البيانات المعمق
 // =================================================================
@@ -249,9 +431,34 @@ const POSDataContext = createContext<POSData | undefined>(undefined);
 // تحميل ذكي للمنتجات: جميع المنتجات النشطة مع تحسين الباركود
 const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWithVariants[]> => {
   return deduplicateRequest(`pos-products-enhanced-${orgId}`, async () => {
+    // محاولة البيانات المحلية أولاً في جميع الحالات
+    let localProducts: LocalProduct[] = [];
+    try {
+      localProducts = await getOfflineProducts(orgId);
+      console.info('[POSDataContext] تم تحميل المنتجات المحلية من IndexedDB', {
+        orgId,
+        count: localProducts.length
+      });
+    } catch (error) {
+      console.warn('فشل تحميل المنتجات المحلية:', error);
+    }
+
+    // إذا كنا Offline أو لدينا بيانات محلية، استخدمها
+    if (isOfflineMode()) {
+      markNetworkOffline();
+      console.warn('[POSDataContext] وضع عدم الاتصال مفعل - سيتم استخدام البيانات المحلية للمنتجات', {
+        orgId,
+        hasLocalProducts: localProducts.length > 0
+      });
+      if (localProducts.length > 0) {
+        return localProducts.map(mapLocalProductToPOSProduct);
+      }
+      // إذا لم تكن هناك بيانات محلية، أرجع مصفوفة فارغة
+      return [];
+    }
     
     // تنفيذ مباشر بدون مراقبة أداء
-      
+    try {
       // الخطوة 1: تحميل المنتجات الأساسية أولاً (عدد محدود)
       const { data: basicProducts, error: basicError } = await supabase
         .from('products')
@@ -299,6 +506,27 @@ const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWi
       if (!allProducts || !Array.isArray(allProducts) || allProducts.length === 0) {
         logPOSContextStatus('NO_PRODUCTS', { orgId });
         return [];
+      }
+
+      try {
+        await inventoryDB.transaction('rw', inventoryDB.products, async () => {
+          for (const product of allProducts) {
+            const localProduct: LocalProduct = {
+              ...(product as any),
+              organization_id: product.organization_id || orgId,
+              synced: true,
+              syncStatus: 'synced',
+              lastSyncAttempt: new Date().toISOString(),
+              localUpdatedAt: product.updated_at || product.created_at || new Date().toISOString(),
+              pendingOperation: undefined,
+              conflictResolution: undefined
+            };
+
+            await inventoryDB.products.put(localProduct);
+          }
+        });
+      } catch (cacheError) {
+        logPOSContextStatus('OFFLINE_PRODUCTS_CACHE_SAVE_ERROR', { error: cacheError });
       }
 
       // تأخير قصير لتجنب حجب الواجهة
@@ -444,10 +672,11 @@ const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWi
             updated_by_user_id: product.updated_by_user_id,
             
             // معلومات مساعدة للباركود
-            has_valid_barcodes: (processedColors.some(c => c.barcode || c.sizes?.some(s => s.barcode))) || !!product.barcode?.trim()
+            has_valid_barcodes: (processedColors.some(c => c.barcode || c.sizes?.some(s => s.barcode))) || !!product.barcode?.trim(),
+            thumbnail_image: product.images?.[0] || null // إضافة الحقل المطلوب
           };
           
-          processedProducts.push(processedProduct);
+          processedProducts.push(processedProduct as any);
         }
 
       logPOSContextStatus('PRODUCTS_PROCESSED', { 
@@ -455,91 +684,265 @@ const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWi
         withVariants: processedProducts.filter(p => p.colors?.length > 0).length
       });
 
+      markNetworkOnline();
       return processedProducts;
+    } catch (error) {
+      // عند فشل الاتصال بالخادم، استخدم البيانات المحلية كـ fallback
+      logPOSContextStatus('FETCH_ERROR_FALLBACK_TO_LOCAL', { error });
+      console.error('[POSDataContext] فشل جلب المنتجات من Supabase - استخدام البيانات المحلية إذا كانت متاحة', error);
+      markNetworkOffline({ force: true });
+      
+      // محاولة جلب البيانات المحلية مرة أخرى
+      try {
+        const fallbackProducts = await getOfflineProducts(orgId);
+        console.info('[POSDataContext] تم استرجاع المنتجات المحلية من fallback', {
+          orgId,
+          count: fallbackProducts.length
+        });
+        if (fallbackProducts.length > 0) {
+          return fallbackProducts.map(mapLocalProductToPOSProduct);
+        }
+      } catch (fallbackError) {
+        console.warn('فشل جلب البيانات المحلية كـ fallback:', fallbackError);
+      }
+      
+      // إذا لم تكن هناك بيانات محلية، أعد رمي الخطأ
+      throw error;
+    }
   });
 };
 
 const fetchPOSSubscriptionsEnhanced = async (orgId: string): Promise<SubscriptionService[]> => {
   return deduplicateRequest(`pos-subscriptions-enhanced-${orgId}`, async () => {
-    
-    // جلب الخدمات مع الأسعار
-    const { data: servicesData, error: servicesError } = await supabase
-      .from('subscription_services')
-      .select(`
-        *,
-        category:subscription_categories(*)
-      `)
-      .eq('organization_id', orgId)
-      .eq('is_active', true)
-      .order('is_featured', { ascending: false })
-      .order('created_at', { ascending: false });
-
-    if (servicesError) {
-      throw servicesError;
+    // محاولة البيانات المحلية أولاً في جميع الحالات
+    let localSubscriptions: LocalOrganizationSubscription[] = [];
+    try {
+      localSubscriptions = await inventoryDB.organizationSubscriptions
+        .where('organization_id')
+        .equals(orgId)
+        .toArray();
+      console.info('[POSDataContext] تم تحميل الاشتراكات المحلية من IndexedDB', {
+        orgId,
+        count: localSubscriptions.length
+      });
+    } catch (error) {
+      console.warn('فشل تحميل الاشتراكات المحلية:', error);
     }
 
-    if (!servicesData || servicesData.length === 0) {
+    // إذا كنا Offline أو لدينا بيانات محلية، استخدمها
+    if (isOfflineMode()) {
+      markNetworkOffline();
+      console.warn('[POSDataContext] وضع عدم الاتصال مفعل - سيتم استخدام البيانات المحلية للاشتراكات', {
+        orgId,
+        hasLocalSubscriptions: localSubscriptions.length > 0
+      });
+      if (localSubscriptions.length > 0) {
+        return localSubscriptions.map(mapLocalSubscriptionToService) as SubscriptionService[];
+      }
       return [];
     }
+    
+    try {
+      // جلب الخدمات مع الأسعار
+      const { data: servicesData, error: servicesError } = await supabase
+        .from('subscription_services')
+        .select(`
+          *,
+          category:subscription_categories(*)
+        `)
+        .eq('organization_id', orgId)
+        .eq('is_active', true)
+        .order('is_featured', { ascending: false })
+        .order('created_at', { ascending: false });
 
-    // جلب أسعار كل خدمة
-    const servicesWithPricing = await Promise.all(
-      servicesData.map(async (service) => {
-        const { data: pricingData } = await supabase
-          .from('subscription_service_pricing' as any)
-          .select('*')
-          .eq('subscription_service_id', service.id)
-          .eq('is_active', true)
-          .order('display_order');
+      if (servicesError) {
+        throw servicesError;
+      }
 
-        return {
-          ...service,
-          pricing_options: pricingData || []
-        };
-      })
-    );
+      if (!servicesData || servicesData.length === 0) {
+        return [];
+      }
 
-    return servicesWithPricing as any;
+      // جلب أسعار كل خدمة
+      const servicesWithPricing = await Promise.all(
+        servicesData.map(async (service) => {
+          const { data: pricingData } = await supabase
+            .from('subscription_service_pricing' as any)
+            .select('*')
+            .eq('subscription_service_id', service.id)
+            .eq('is_active', true)
+            .order('display_order');
+
+          return {
+            ...service,
+            pricing_options: pricingData || []
+          };
+        })
+      );
+
+      markNetworkOnline();
+      return servicesWithPricing as any;
+    } catch (error) {
+      // عند فشل الاتصال بالخادم، استخدم البيانات المحلية كـ fallback
+      logPOSContextStatus('FETCH_SUBSCRIPTIONS_ERROR_FALLBACK_TO_LOCAL', { error });
+      console.error('[POSDataContext] فشل جلب الاشتراكات من Supabase - استخدام البيانات المحلية إذا كانت متاحة', error);
+      markNetworkOffline({ force: true });
+      
+      // محاولة جلب البيانات المحلية مرة أخرى
+      try {
+        const fallbackSubscriptions = await inventoryDB.organizationSubscriptions
+          .where('organization_id')
+          .equals(orgId)
+          .toArray();
+        console.info('[POSDataContext] تم استرجاع الاشتراكات المحلية من fallback', {
+          orgId,
+          count: fallbackSubscriptions.length
+        });
+        if (fallbackSubscriptions.length > 0) {
+          return fallbackSubscriptions.map(mapLocalSubscriptionToService) as SubscriptionService[];
+        }
+      } catch (fallbackError) {
+        console.warn('فشل جلب الاشتراكات المحلية كـ fallback:', fallbackError);
+      }
+      
+      // إذا لم تكن هناك بيانات محلية، أعد رمي الخطأ
+      throw error;
+    }
   });
 };
 
 const fetchPOSCategoriesEnhanced = async (orgId: string): Promise<SubscriptionCategory[]> => {
   return deduplicateRequest(`pos-categories-enhanced-${orgId}`, async () => {
-    
-    // استخدام جدول product_categories كبديل
-    const { data, error } = await supabase
-      .from('product_categories')
-      .select('*')
-      .eq('organization_id', orgId)
-      .eq('is_active', true)
-      .order('name');
-
-    if (error) {
-      throw error;
+    // محاولة البيانات المحلية أولاً في جميع الحالات
+    let localCategories: Awaited<ReturnType<typeof getLocalCategories>> = [];
+    try {
+      localCategories = await getLocalCategories();
+      console.info('[POSDataContext] تم تحميل الفئات المحلية من IndexedDB', {
+        count: localCategories.length
+      });
+    } catch (error) {
+      console.warn('فشل تحميل الفئات المحلية:', error);
     }
 
-    return (data || []).map(cat => ({
-      id: cat.id,
-      name: cat.name,
-      description: cat.description,
-      icon: '',
-      color: '#3B82F6',
-      is_active: cat.is_active,
-      organization_id: cat.organization_id,
-      created_at: cat.created_at,
-      updated_at: cat.updated_at
-    }));
+    // إذا كنا Offline أو لدينا بيانات محلية، استخدمها
+    if (isOfflineMode()) {
+      markNetworkOffline();
+      console.warn('[POSDataContext] وضع عدم الاتصال مفعل - سيتم استخدام البيانات المحلية للفئات', {
+        orgId,
+        hasLocalCategories: localCategories.length > 0
+      });
+      if (localCategories.length > 0) {
+        return localCategories
+          .filter(category =>
+            category.organization_id === orgId &&
+            (!category.type || category.type === 'product' || category.type === 'service')
+          )
+          .map(mapLocalCategoryToSubscriptionCategory);
+      }
+      return [];
+    }
+    
+    try {
+      // استخدام جدول product_categories كبديل
+      const { data, error } = await supabase
+        .from('product_categories')
+        .select('*')
+        .eq('organization_id', orgId)
+        .eq('is_active', true)
+        .order('name');
+
+      if (error) {
+        throw error;
+      }
+
+      const remoteCategories = (data || []).map(cat => ({
+        id: cat.id,
+        name: cat.name,
+        description: cat.description,
+        icon: '',
+        color: '#3B82F6',
+        is_active: cat.is_active,
+        organization_id: cat.organization_id,
+        created_at: cat.created_at,
+        updated_at: cat.updated_at
+      }));
+      markNetworkOnline();
+      return remoteCategories;
+    } catch (error) {
+      // عند فشل الاتصال بالخادم، استخدم البيانات المحلية كـ fallback
+      logPOSContextStatus('FETCH_CATEGORIES_ERROR_FALLBACK_TO_LOCAL', { error });
+      console.error('[POSDataContext] فشل جلب الفئات من Supabase - استخدام البيانات المحلية إذا كانت متاحة', error);
+      markNetworkOffline({ force: true });
+      
+      // محاولة جلب البيانات المحلية مرة أخرى
+      try {
+        const fallbackCategories = await getLocalCategories();
+        console.info('[POSDataContext] تم استرجاع الفئات المحلية من fallback', {
+          count: fallbackCategories.length
+        });
+        if (fallbackCategories.length > 0) {
+          return fallbackCategories
+            .filter(category =>
+              category.organization_id === orgId &&
+              (!category.type || category.type === 'product' || category.type === 'service')
+            )
+            .map(mapLocalCategoryToSubscriptionCategory);
+        }
+      } catch (fallbackError) {
+        console.warn('فشل جلب الفئات المحلية كـ fallback:', fallbackError);
+      }
+      
+      // إذا لم تكن هناك بيانات محلية، أعد رمي الخطأ
+      throw error;
+    }
   });
 };
 
 const fetchProductCategories = async (orgId: string): Promise<ProductCategory[]> => {
   return deduplicateRequest(`pos-product-categories-${orgId}`, async () => {
+    // محاولة البيانات المحلية أولاً في جميع الحالات
+    let localCategories: Awaited<ReturnType<typeof getLocalCategories>> = [];
+    try {
+      localCategories = await getLocalCategories();
+      console.info('[POSDataContext] تم تحميل فئات المنتجات المحلية من IndexedDB', {
+        count: localCategories.length
+      });
+    } catch (error) {
+      console.warn('فشل تحميل فئات المنتجات المحلية:', error);
+    }
+
+    // إذا كنا Offline أو لدينا بيانات محلية، استخدمها
+    if (isOfflineMode()) {
+      markNetworkOffline();
+      console.warn('[POSDataContext] وضع عدم الاتصال مفعل - سيتم استخدام البيانات المحلية لفئات المنتجات', {
+        orgId,
+        hasLocalCategories: localCategories.length > 0
+      });
+      if (localCategories.length > 0) {
+        return localCategories
+          .filter(category =>
+            category.organization_id === orgId &&
+            (!category.type || category.type === 'product')
+          )
+          .map(category => ({
+            id: category.id,
+            name: category.name,
+            description: category.description,
+            organization_id: category.organization_id,
+            is_active: category.is_active !== false,
+            created_at: category.created_at ?? new Date().toISOString(),
+            updated_at: category.updated_at ?? category.created_at ?? new Date().toISOString()
+          }));
+      }
+      return [];
+    }
+
     try {
       // استخدام UnifiedRequestManager للحد من الطلبات المكررة
       const data = await UnifiedRequestManager.getProductCategories(orgId);
       
       // تحويل البيانات إلى ProductCategory format
-      return (data || []).map(cat => ({
+      const remoteCategories = (data || []).map(cat => ({
         id: cat.id,
         name: cat.name,
         description: cat.description,
@@ -548,9 +951,41 @@ const fetchProductCategories = async (orgId: string): Promise<ProductCategory[]>
         created_at: cat.created_at,
         updated_at: cat.updated_at
       }));
+      markNetworkOnline();
+      return remoteCategories;
     } catch (error) {
-      if (import.meta.env.DEV) {
+      // عند فشل الاتصال بالخادم، استخدم البيانات المحلية كـ fallback
+      logPOSContextStatus('FETCH_PRODUCT_CATEGORIES_ERROR_FALLBACK_TO_LOCAL', { error });
+      console.error('[POSDataContext] فشل جلب فئات المنتجات من Supabase - استخدام البيانات المحلية إذا كانت متاحة', error);
+      markNetworkOffline({ force: true });
+      
+      // محاولة جلب البيانات المحلية مرة أخرى
+      try {
+        const fallbackCategories = await getLocalCategories();
+        console.info('[POSDataContext] تم استرجاع فئات المنتجات المحلية من fallback', {
+          count: fallbackCategories.length
+        });
+        if (fallbackCategories.length > 0) {
+          return fallbackCategories
+            .filter(category =>
+              category.organization_id === orgId &&
+              (!category.type || category.type === 'product')
+            )
+            .map(category => ({
+              id: category.id,
+              name: category.name,
+              description: category.description,
+              organization_id: category.organization_id,
+              is_active: category.is_active !== false,
+              created_at: category.created_at ?? new Date().toISOString(),
+              updated_at: category.updated_at ?? category.created_at ?? new Date().toISOString()
+            }));
+        }
+      } catch (fallbackError) {
+        console.warn('فشل جلب فئات المنتجات المحلية كـ fallback:', fallbackError);
       }
+      
+      // إذا لم تكن هناك بيانات محلية، أعد رمي الخطأ
       throw error;
     }
   });
@@ -558,14 +993,42 @@ const fetchProductCategories = async (orgId: string): Promise<ProductCategory[]>
 
 const fetchPOSSettingsEnhanced = async (orgId: string): Promise<any> => {
   return deduplicateRequest(`pos-settings-enhanced-${orgId}`, async () => {
-    
+    // محاولة البيانات المحلية أولاً في جميع الحالات
+    let offlineSettings: any = null;
+    try {
+      offlineSettings = await localPosSettingsService.get(orgId);
+      console.info('[POSDataContext] تم تحميل إعدادات POS المحلية من IndexedDB', {
+        orgId,
+        hasSettings: Boolean(offlineSettings)
+      });
+    } catch (error) {
+      console.warn('فشل تحميل إعدادات POS المحلية:', error);
+    }
+
+    const isOnline = isAppOnline();
+
+    if (!isOnline) {
+      markNetworkOffline();
+      console.warn('[POSDataContext] وضع عدم الاتصال مفعل - سيتم استخدام إعدادات POS المحلية', {
+        orgId,
+        hasLocalSettings: Boolean(offlineSettings)
+      });
+      if (offlineSettings) {
+        return offlineSettings;
+      }
+      return null;
+    }
+
     try {
       // محاولة RPC function المحسنة أولاً
       const { data: rpcData, error: rpcError } = await supabase
         .rpc('get_pos_settings', { p_organization_id: orgId });
 
       if (!rpcError && rpcData && Array.isArray(rpcData) && rpcData.length > 0) {
-        return rpcData[0] as any;
+        const remote = rpcData[0] as any;
+        await localPosSettingsService.save({ ...remote, updated_at: remote?.updated_at || new Date().toISOString() });
+        markNetworkOnline();
+        return remote;
       }
 
       // fallback للاستعلام المباشر المحسن
@@ -592,6 +1055,8 @@ const fetchPOSSettingsEnhanced = async (orgId: string): Promise<any> => {
       }
       
       if (directData) {
+        await localPosSettingsService.save({ ...directData, updated_at: directData.updated_at || new Date().toISOString() });
+        markNetworkOnline();
         return directData;
       }
 
@@ -601,6 +1066,8 @@ const fetchPOSSettingsEnhanced = async (orgId: string): Promise<any> => {
           .rpc('initialize_pos_settings', { p_organization_id: orgId });
         
         if (!createError && newSettings && typeof newSettings === 'object') {
+          await localPosSettingsService.save({ ...(newSettings as any), updated_at: new Date().toISOString() });
+          markNetworkOnline();
           return newSettings as POSSettings;
         }
       } catch (createRpcError) {
@@ -608,24 +1075,68 @@ const fetchPOSSettingsEnhanced = async (orgId: string): Promise<any> => {
       
       return null;
     } catch (error) {
-      return null;
+      // عند فشل الاتصال بالخادم، استخدم البيانات المحلية كـ fallback
+      logPOSContextStatus('FETCH_POS_SETTINGS_ERROR_FALLBACK_TO_LOCAL', { error });
+      console.error('[POSDataContext] فشل جلب إعدادات POS من Supabase - استخدام البيانات المحلية إذا كانت متاحة', error);
+      markNetworkOffline({ force: true });
+      
+      // محاولة جلب البيانات المحلية مرة أخرى
+      try {
+        const fallbackSettings = await localPosSettingsService.get(orgId);
+        console.info('[POSDataContext] تم استرجاع إعدادات POS المحلية من fallback', {
+          orgId,
+          hasSettings: Boolean(fallbackSettings)
+        });
+        if (fallbackSettings) {
+          return fallbackSettings;
+        }
+      } catch (fallbackError) {
+        console.warn('فشل جلب إعدادات POS المحلية كـ fallback:', fallbackError);
+      }
+      
+      // إذا لم تكن هناك بيانات محلية، أعد رمي الخطأ
+      throw error;
     }
   });
 };
 
 const fetchOrganizationAppsEnhanced = async (orgId: string): Promise<OrganizationApp[]> => {
   return deduplicateRequest(`pos-org-apps-enhanced-${orgId}`, async () => {
+    if (isOfflineMode()) {
+      return [
+        {
+          id: 'offline-pos',
+          organization_id: orgId,
+          app_id: 'pos-system',
+          is_enabled: true,
+          installed_at: new Date().toISOString(),
+          configuration: {}
+        },
+        {
+          id: 'offline-subscription',
+          organization_id: orgId,
+          app_id: 'subscription-services',
+          is_enabled: true,
+          installed_at: new Date().toISOString(),
+          configuration: {}
+        }
+      ];
+    }
     
     try {
-      const { data, error } = await supabase
-        .from('organizations')
-        .select('id, name')
-        .eq('id', orgId)
-        .single();
+      // ✅ تم تعطيل الاستدعاء المباشر - البيانات متوفرة من AppInitializationContext
+      console.log('⚠️ [POSDataContext] fetchOrganizationApps - استخدام بيانات وهمية (البيانات من AppInitializationContext)');
+      
+      // البيانات متوفرة من AppInitializationContext، لا حاجة لاستدعاء منفصل
+      // const { data, error } = await supabase
+      //   .from('organizations')
+      //   .select('id, name')
+      //   .eq('id', orgId)
+      //   .single();
 
-      if (error || !data) {
-        return [];
-      }
+      // if (error || !data) {
+      //   return [];
+      // }
 
       // إرجاع بيانات وهمية للتطبيقات الأساسية
       const defaultApps: OrganizationApp[] = [
@@ -778,25 +1289,57 @@ const fetchPOSCompleteData = async (orgId: string): Promise<{
   return await fetchPromise;
 };
 
-// دوال مساعدة للجلب الفردي
+// ✅ دوال مساعدة للجلب الفردي - تم تعطيل الاستدعاء المباشر
 const fetchPOSUsers = async (orgId: string): Promise<any[]> => {
-  try {
-    const { data, error } = await supabase
-      .from('users')
-      .select('id, name, email, role')
-      .eq('organization_id', orgId)
-      .eq('is_active', true)
-      .order('name', { ascending: true })
-      .limit(50);
+  if (isOfflineMode()) {
+    return [];
+  }
 
-    if (error) throw error;
-    return data || [];
+  try {
+    // ✅ تم تعطيل الاستدعاء المباشر - البيانات متوفرة من AppInitializationContext
+    console.log('⚠️ [POSDataContext] fetchPOSUsers - البيانات متوفرة من AppInitializationContext');
+    
+    // البيانات متوفرة من AppInitializationContext.employees
+    // const { data, error } = await supabase
+    //   .from('users')
+    //   .select('id, name, email, role')
+    //   .eq('organization_id', orgId)
+    //   .eq('is_active', true)
+    //   .order('name', { ascending: true })
+    //   .limit(50);
+
+    // if (error) throw error;
+    // return data || [];
+    
+    return []; // سيتم استخدام البيانات من AppInitializationContext
   } catch (error) {
     return [];
   }
 };
 
 const fetchPOSCustomers = async (orgId: string): Promise<any[]> => {
+  if (isOfflineMode()) {
+    let localCustomers: LocalCustomer[] = [];
+    try {
+      localCustomers = await inventoryDB.customers
+        .where('organization_id')
+        .equals(orgId)
+        .toArray();
+    } catch (error) {
+      localCustomers = [];
+    }
+
+    return localCustomers.map(customer => ({
+      id: customer.id,
+      name: customer.name,
+      phone: customer.phone,
+      email: customer.email,
+      created_at: customer.created_at ?? new Date().toISOString(),
+      updated_at: customer.updated_at ?? customer.created_at ?? new Date().toISOString(),
+      organization_id: customer.organization_id
+    }));
+  }
+
   try {
     const { data, error } = await supabase
       .from('customers')
@@ -812,6 +1355,80 @@ const fetchPOSCustomers = async (orgId: string): Promise<any[]> => {
 };
 
 const fetchPOSOrderStats = async (orgId: string): Promise<any> => {
+  if (isOfflineMode()) {
+    let localOrders: LocalPOSOrder[] = [];
+    try {
+      localOrders = await inventoryDB.posOrders
+        .where('organization_id')
+        .equals(orgId)
+        .toArray();
+    } catch (error) {
+      localOrders = [];
+    }
+
+    if (localOrders.length === 0) {
+      return {
+        total_orders: 0,
+        total_revenue: 0,
+        completed_orders: 0,
+        pending_orders: 0,
+        pending_payment_orders: 0,
+        cancelled_orders: 0,
+        cash_orders: 0,
+        card_orders: 0,
+        avg_order_value: 0,
+        today_orders: 0,
+        today_revenue: 0,
+        fully_returned_orders: 0,
+        partially_returned_orders: 0,
+        total_returned_amount: 0,
+        effective_revenue: 0,
+        return_rate: 0
+      };
+    }
+
+    const totalOrders = localOrders.length;
+    const totalRevenue = localOrders.reduce((sum, order) => sum + Number(order.total ?? 0), 0);
+    const completedOrders = localOrders.filter(order => (order.status ?? '').toLowerCase() === 'completed' || (order.payment_status ?? '').toLowerCase() === 'paid').length;
+    const pendingOrders = localOrders.filter(order => (order.status ?? '').toLowerCase() === 'pending').length;
+    const pendingPaymentOrders = localOrders.filter(order => (order.payment_status ?? '').toLowerCase() === 'pending').length;
+    const cancelledOrders = localOrders.filter(order => (order.status ?? '').toLowerCase() === 'cancelled').length;
+    const cashOrders = localOrders.filter(order => (order.payment_method ?? '').toLowerCase() === 'cash').length;
+    const cardOrders = localOrders.filter(order => (order.payment_method ?? '').toLowerCase() === 'card').length;
+
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const endOfToday = new Date(startOfToday);
+    endOfToday.setHours(23, 59, 59, 999);
+
+    const todayOrdersList = localOrders.filter(order => {
+      const createdAt = new Date(order.created_at);
+      return createdAt >= startOfToday && createdAt <= endOfToday;
+    });
+
+    const todayOrders = todayOrdersList.length;
+    const todayRevenue = todayOrdersList.reduce((sum, order) => sum + Number(order.total ?? 0), 0);
+
+    return {
+      total_orders: totalOrders,
+      total_revenue: totalRevenue,
+      completed_orders: completedOrders,
+      pending_orders: pendingOrders,
+      pending_payment_orders: pendingPaymentOrders,
+      cancelled_orders: cancelledOrders,
+      cash_orders: cashOrders,
+      card_orders: cardOrders,
+      avg_order_value: totalOrders > 0 ? totalRevenue / totalOrders : 0,
+      today_orders: todayOrders,
+      today_revenue: todayRevenue,
+      fully_returned_orders: 0,
+      partially_returned_orders: 0,
+      total_returned_amount: 0,
+      effective_revenue: totalRevenue,
+      return_rate: 0
+    };
+  }
+
   try {
     const { data, error } = await supabase
       .rpc('get_pos_order_stats', { p_organization_id: orgId });
@@ -987,7 +1604,25 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
 
   // دوال التحديث المحسنة
   const refreshAll = useCallback(async () => {
-    await queryClient.invalidateQueries({ queryKey: ['pos'] });
+    const keys: ReadonlyArray<readonly unknown[]> = [
+      ['pos-products-enhanced'],
+      ['pos-subscriptions-enhanced'],
+      ['pos-categories-enhanced'],
+      ['pos-product-categories'],
+      ['pos-settings-enhanced'],
+      ['pos-organization-apps'],
+      ['pos-customers-light'],
+      ['unified-pos-data'],
+      ['unified-pos-orders']
+    ];
+
+    await Promise.all(
+      keys.map((key) =>
+        queryClient.invalidateQueries({ queryKey: key })
+      )
+    );
+
+    await queryClient.refetchQueries({ queryKey: ['pos-products-enhanced'] });
   }, [queryClient]);
 
   const refreshProducts = useCallback(async () => {
@@ -1014,7 +1649,7 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
 
   // مستمع لتحديث العملاء عند إضافة عميل جديد
   useEffect(() => {
-    const handleCustomersUpdate = async (event: any) => {
+    const handleCustomersUpdate = async () => {
       
       try {
         // إجبار إعادة تحميل البيانات مباشرة
@@ -1033,12 +1668,41 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
       }
     };
 
-    window.addEventListener('customers-updated', handleCustomersUpdate);
+    const unsubscribe = addAppEventListener<{ organizationId?: string }>(
+      'customers-updated',
+      async (detail) => {
+        if (detail?.organizationId && detail.organizationId !== orgId) {
+          return;
+        }
+        await handleCustomersUpdate();
+      }
+    );
     
     return () => {
-      window.removeEventListener('customers-updated', handleCustomersUpdate);
+      unsubscribe();
     };
   }, [queryClient, orgId]);
+
+  // مراقبة حالة الاتصال
+  useEffect(() => {
+    const handleOnline = () => {
+      console.log('🟢 عاد الاتصال - إعادة جلب البيانات');
+      queryClient.invalidateQueries({ queryKey: ['pos-products-enhanced'] });
+      queryClient.refetchQueries({ queryKey: ['pos-products-enhanced'] });
+    };
+
+    const handleOffline = () => {
+      console.log('🔴 فقدان الاتصال - استخدام البيانات المحلية');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [queryClient]);
 
   // دالة خاصة لتحديث المخزون في cache مباشرة (optimistic update)
   const updateProductStockInCache = useCallback((
@@ -1158,53 +1822,155 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
   }, [products]);
 
   const updateProductStock = useCallback(async (
-    productId: string, 
-    colorId: string | null, 
-    sizeId: string | null, 
+    productId: string,
+    colorId: string | null,
+    sizeId: string | null,
     newQuantity: number
   ): Promise<boolean> => {
+    if (!orgId) {
+      return false;
+    }
+
+    const currentQuantity = getProductStock(productId, colorId ?? undefined, sizeId ?? undefined);
+    if (currentQuantity === newQuantity) {
+      return true;
+    }
+
+    const quantityDelta = newQuantity - currentQuantity;
+    const now = new Date().toISOString();
+    const productRecord = products.find((item) => item.id === productId);
+
+    const buildUpdatedVariants = () => {
+      if (!productRecord?.colors) {
+        return {
+          colors: productRecord?.colors ?? [],
+          totalStock: newQuantity
+        };
+      }
+
+      const updatedColors = productRecord.colors.map((color) => {
+        if (!colorId || color.id !== colorId) {
+          return color;
+        }
+
+        if (sizeId && color.has_sizes) {
+          const updatedSizes = (color.sizes || []).map((size) =>
+            size.id === sizeId
+              ? {
+                  ...size,
+                  quantity: newQuantity
+                }
+              : size
+          );
+
+          const recalculatedColorQuantity = updatedSizes.reduce(
+            (sum, size) => sum + (size.quantity ?? 0),
+            0
+          );
+
+          return {
+            ...color,
+            sizes: updatedSizes,
+            quantity: recalculatedColorQuantity
+          };
+        }
+
+        return {
+          ...color,
+          quantity: newQuantity
+        };
+      });
+
+      const totalStock = updatedColors.reduce((sum, color) => {
+        const colorStock = color.has_sizes && Array.isArray(color.sizes)
+          ? color.sizes.reduce((sizeSum, size) => sizeSum + (size.quantity ?? 0), 0)
+          : color.quantity ?? 0;
+        return sum + (colorStock || 0);
+      }, 0);
+
+      return {
+        colors: updatedColors as any,
+        totalStock
+      };
+    };
+
+    const applyLocalVariantUpdate = async (synced: boolean) => {
+      if (!productRecord) return;
+      const variantSnapshot = buildUpdatedVariants();
+      await updateLocalProduct(productId, {
+        colors: variantSnapshot.colors as any,
+        stock_quantity: variantSnapshot.totalStock,
+        updated_at: now,
+        localUpdatedAt: now,
+        synced: synced ? true : false
+      });
+    };
+
     try {
+      if (!colorId && !sizeId) {
+        if (!isAppOnline()) {
+          if (quantityDelta < 0) {
+            await updateOfflineProductStock(orgId, productId, Math.abs(quantityDelta), true);
+          } else {
+            await updateOfflineProductStock(orgId, productId, Math.abs(quantityDelta), false);
+          }
+          await updateProductStockInCache(productId, null, null, quantityDelta);
+          return true;
+        }
+
+        const { error } = await supabase
+          .from('products')
+          .update({
+            stock_quantity: newQuantity,
+            last_inventory_update: now
+          })
+          .eq('id', productId);
+
+        if (error) throw error;
+
+        await markProductAsSynced(productId, {
+          stock_quantity: newQuantity,
+          updated_at: now
+        } as any);
+
+        await updateProductStockInCache(productId, null, null, quantityDelta);
+        return true;
+      }
+
+      if (!isAppOnline()) {
+        await applyLocalVariantUpdate(false);
+        await updateProductStockInCache(productId, colorId, sizeId, quantityDelta);
+        return true;
+      }
 
       if (sizeId && colorId) {
-        // تحديث مخزون الحجم
         const { error } = await supabase
           .from('product_sizes')
           .update({ quantity: newQuantity })
           .eq('id', sizeId);
-        
+
         if (error) throw error;
       } else if (colorId) {
-        // تحديث مخزون اللون
         const { error } = await supabase
           .from('product_colors')
           .update({ quantity: newQuantity })
           .eq('id', colorId);
-        
-        if (error) throw error;
-      } else {
-        // تحديث مخزون المنتج الأساسي
-        const { error } = await supabase
-          .from('products')
-          .update({ 
-            stock_quantity: newQuantity,
-            last_inventory_update: new Date().toISOString()
-          })
-          .eq('id', productId);
-        
+
         if (error) throw error;
       }
 
-      // تحديث فوري في cache بدون انتظار
-      queryClient.invalidateQueries({ 
-        queryKey: ['pos-products-enhanced', orgId],
-        refetchType: 'active' // إعادة جلب البيانات فوراً
+      await applyLocalVariantUpdate(true);
+      await markProductAsSynced(productId, {
+        updated_at: now
       });
-      
+      await updateProductStockInCache(productId, colorId, sizeId, quantityDelta);
+
       return true;
     } catch (error) {
+      console.error('[POSDataContext] فشل تحديث المخزون:', error);
       return false;
     }
-  }, [queryClient, orgId]);
+  }, [getProductStock, orgId, products, updateProductStockInCache]);
 
   const checkLowStock = useCallback((productId: string): boolean => {
     const product = products.find(p => p.id === productId);

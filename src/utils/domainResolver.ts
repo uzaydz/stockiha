@@ -3,40 +3,19 @@
  */
 
 import { getSubdomainInfo } from './subdomainDetector';
-import { customDomainOptimizer } from './customDomainOptimizer';
 import type { StoreIdentifier } from './types/interfaces';
 
 export class DomainResolver {
   /**
    * تحديد store identifier مع دعم Cloudflare Worker
+   * نسخة مبسطة لصفحة الهبوط - لا تحتوي على منطق كشف النطاقات
    */
   static resolveStoreIdentifier(): StoreIdentifier {
-    try {
-      // استخراج معلومات النطاق الفرعي باستخدام الكاشف المحسن
-      const subdomainInfo = getSubdomainInfo();
-      
-      // إذا كان نطاق فرعي
-      if (subdomainInfo.isSubdomain && subdomainInfo.subdomain) {
-        return { 
-          storeIdentifier: subdomainInfo.subdomain, 
-          domainType: 'subdomain' 
-        };
-      }
-      
-      // إذا كان النطاق الرئيسي
-      if (subdomainInfo.domainType === 'main') {
-        return { 
-          storeIdentifier: null, 
-          domainType: 'localhost' 
-        };
-      }
-      
-      // Fallback للطريقة القديمة
-      return this.fallbackResolveSync();
-    } catch (error) {
-      console.warn('Error in resolveStoreIdentifier:', error);
-      return { storeIdentifier: null, domainType: 'localhost' };
-    }
+    // لصفحة الهبوط، دائماً نعيد null لأننا لا نحتاج للكشف عن المتاجر
+    return {
+      storeIdentifier: null,
+      domainType: 'localhost'
+    };
   }
 
   /**
@@ -215,71 +194,13 @@ export class DomainResolver {
 
   /**
    * تحديد store identifier مع دعم النطاقات المخصصة (async)
+   * نسخة مبسطة لصفحة الهبوط - لا تحتوي على منطق كشف النطاقات
    */
   static async resolveStoreIdentifierAsync(): Promise<StoreIdentifier> {
-    try {
-      // استخراج معلومات النطاق الفرعي باستخدام الكاشف المحسن
-      const subdomainInfo = getSubdomainInfo();
-
-      // إذا كان نطاق فرعي
-      if (subdomainInfo.isSubdomain && subdomainInfo.subdomain) {
-        return {
-          storeIdentifier: subdomainInfo.subdomain,
-          domainType: 'subdomain'
-        };
-      }
-
-      // إذا كان النطاق الرئيسي
-      if (subdomainInfo.domainType === 'main') {
-        return {
-          storeIdentifier: null,
-          domainType: 'localhost'
-        };
-      }
-
-      // للنطاقات المخصصة - استخدام customDomainOptimizer
-      const hostname = window.location.hostname.split(':')[0];
-      const baseDomains = ['.ktobi.online', '.stockiha.com', '.bazaar.dev', '.vercel.app', '.bazaar.com'];
-      const isBaseDomain = baseDomains.some((d) => hostname.endsWith(d));
-      const isLocalhost = hostname.includes('localhost') || hostname.startsWith('127.');
-      const isCustomDomain = !isLocalhost && !isBaseDomain;
-
-      if (isCustomDomain) {
-        console.log('🌐 [DomainResolver] كشف نطاق مخصص (async):', { hostname, fullHostname: window.location.hostname });
-
-        try {
-          const customDomainResult = await customDomainOptimizer.optimizeCustomDomain(hostname);
-
-          if (customDomainResult.success && customDomainResult.organizationId) {
-            console.log('✅ [DomainResolver] نجح حل النطاق المخصص (async):', {
-              hostname,
-              organizationId: customDomainResult.organizationId,
-              subdomain: customDomainResult.subdomain
-            });
-
-            // للنطاقات المخصصة، نعيد النطاق نفسه وليس organization ID
-            // لأن RPC get_store_init_data_with_custom_domain_fallback يبحث بالنطاق المخصص
-            return {
-              storeIdentifier: hostname,
-              domainType: 'custom-domain'
-            };
-          } else {
-            console.warn('⚠️ [DomainResolver] فشل حل النطاق المخصص (async):', {
-              hostname,
-              error: customDomainResult.error,
-              strategy: customDomainResult.strategy
-            });
-          }
-        } catch (error) {
-          console.warn('⚠️ [DomainResolver] خطأ في customDomainOptimizer (async):', error);
-        }
-      }
-
-      // Fallback للطريقة القديمة
-      return await this.fallbackResolveAsync();
-    } catch (error) {
-      console.warn('Error in resolveStoreIdentifierAsync:', error);
-      return { storeIdentifier: null, domainType: 'localhost' };
-    }
+    // لصفحة الهبوط، دائماً نعيد null لأننا لا نحتاج للكشف عن المتاجر
+    return {
+      storeIdentifier: null,
+      domainType: 'localhost'
+    };
   }
 }

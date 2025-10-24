@@ -11,6 +11,7 @@ import type { AuthResult, AuthError } from '../types';
 import { 
   saveAuthToStorage, 
   clearAuthStorage,
+  clearAuthStorageKeepOfflineCredentials,
   saveSessionCache 
 } from '../utils/authStorage';
 import { 
@@ -196,8 +197,8 @@ export class AuthService {
       }
     }
     
-    // تنظيف جميع البيانات المحلية
-    clearAuthStorage();
+    // تنظيف البيانات المحلية مع الاحتفاظ ببيانات الأوفلاين
+    clearAuthStorageKeepOfflineCredentials();
     sessionManager.clearSessionCache();
     authSingleton.clearAuth();
 

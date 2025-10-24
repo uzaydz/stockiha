@@ -9,6 +9,7 @@ import {
   Tooltip,
   Legend,
   BarElement,
+  Filler,
 } from 'chart.js';
 import { Line } from 'react-chartjs-2';
 import { useTheme } from '@/context/ThemeContext';
@@ -22,7 +23,8 @@ ChartJS.register(
   Title,
   Tooltip,
   Legend,
-  BarElement
+  BarElement,
+  Filler
 );
 
 interface SalesOverTimeProps {

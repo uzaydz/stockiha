@@ -139,7 +139,12 @@ function dispatch(action: Action) {
 
 type Toast = Omit<ToasterToast, "id">
 
-function toast({ ...props }: Toast) {
+type ToastInput = Toast & { variant?: ToastProps["variant"] }
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !React.isValidElement(value as any)
+
+function baseToast({ ...props }: ToastInput) {
   const id = genId()
 
   const update = (props: ToasterToast) =>
@@ -168,6 +173,121 @@ function toast({ ...props }: Toast) {
   }
 }
 
+const createPresetToast = (
+  variant: ToastProps["variant"],
+  titleOrOptions: React.ReactNode | Partial<ToastInput>,
+  options?: Partial<ToastInput>
+) => {
+  if (isPlainObject(titleOrOptions)) {
+    const mergedOptions = {
+      variant,
+      ...titleOrOptions,
+      ...options,
+    } as ToastInput
+    return baseToast(mergedOptions)
+  }
+
+  const mergedOptions: ToastInput = {
+    title: titleOrOptions,
+    variant,
+    ...options,
+  }
+  return baseToast(mergedOptions)
+}
+
+type SuccessErrorOptions = Partial<Omit<ToastInput, "title">> & {
+  title?: React.ReactNode
+}
+
+type PromiseMessages<T> = {
+  loading: React.ReactNode | SuccessErrorOptions
+  success: React.ReactNode | SuccessErrorOptions | ((value: T) => React.ReactNode | SuccessErrorOptions)
+  error: React.ReactNode | SuccessErrorOptions | ((error: unknown) => React.ReactNode | SuccessErrorOptions)
+}
+
+const toast = Object.assign(
+  (props: ToastInput) => baseToast(props),
+  {
+    success: (
+      titleOrOptions: React.ReactNode | SuccessErrorOptions,
+      options?: SuccessErrorOptions
+    ) => createPresetToast("default", titleOrOptions, options),
+    error: (
+      titleOrOptions: React.ReactNode | SuccessErrorOptions,
+      options?: SuccessErrorOptions
+    ) => createPresetToast("destructive", titleOrOptions, options),
+    info: (
+      titleOrOptions: React.ReactNode | SuccessErrorOptions,
+      options?: SuccessErrorOptions
+    ) => createPresetToast("default", titleOrOptions, options),
+    warning: (
+      titleOrOptions: React.ReactNode | SuccessErrorOptions,
+      options?: SuccessErrorOptions
+    ) => createPresetToast("default", titleOrOptions, options),
+    promise: async <T>(promise: Promise<T>, messages: PromiseMessages<T>) => {
+      const loadingToast = createPresetToast("default", messages.loading)
+      try {
+        const result = await promise
+        const successMessage =
+          typeof messages.success === "function"
+            ? messages.success(result)
+            : messages.success
+        loadingToast.update({
+          ...(isPlainObject(successMessage)
+            ? (successMessage as ToasterToast)
+            : { title: successMessage }),
+          id: loadingToast.id,
+          open: true,
+        })
+        addToRemoveQueue(loadingToast.id)
+        return result
+      } catch (error) {
+        const errorMessage =
+          typeof messages.error === "function"
+            ? messages.error(error)
+            : messages.error
+        loadingToast.update({
+          ...(isPlainObject(errorMessage)
+            ? ({ variant: "destructive", ...errorMessage } as ToasterToast)
+            : {
+                title: errorMessage,
+                variant: "destructive" as ToastProps["variant"],
+              }),
+          id: loadingToast.id,
+          open: true,
+        })
+        addToRemoveQueue(loadingToast.id)
+        throw error
+      }
+    },
+  }
+)
+
+type ExtendedToast = typeof toast & {
+  success: (
+    titleOrOptions: React.ReactNode | SuccessErrorOptions,
+    options?: SuccessErrorOptions
+  ) => ReturnType<typeof baseToast>
+  error: (
+    titleOrOptions: React.ReactNode | SuccessErrorOptions,
+    options?: SuccessErrorOptions
+  ) => ReturnType<typeof baseToast>
+  info: (
+    titleOrOptions: React.ReactNode | SuccessErrorOptions,
+    options?: SuccessErrorOptions
+  ) => ReturnType<typeof baseToast>
+  warning: (
+    titleOrOptions: React.ReactNode | SuccessErrorOptions,
+    options?: SuccessErrorOptions
+  ) => ReturnType<typeof baseToast>
+  promise: <T>(
+    promise: Promise<T>,
+    messages: PromiseMessages<T>
+  ) => Promise<T>
+}
+
+const extendedToast = toast as ExtendedToast
+
 function useToast() {
   const [state, setState] = React.useState<State>(memoryState)
 
@@ -183,9 +303,9 @@ function useToast() {
 
   return {
     ...state,
-    toast,
+    toast: extendedToast,
     dismiss: (toastId?: string) => dispatch({ type: "DISMISS_TOAST", toastId }),
   }
 }
 
-export { useToast, toast }
+export { useToast, extendedToast as toast }

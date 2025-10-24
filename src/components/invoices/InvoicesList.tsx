@@ -27,6 +27,9 @@ import {
   Search,
   Filter,
   AlertCircle,
+  Edit,
+  Clock,
+  WifiOff,
 } from "lucide-react";
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -38,6 +41,7 @@ interface InvoicesListProps {
   onViewInvoice: (invoice: Invoice) => void;
   onPrintInvoice: (invoice: Invoice) => void;
   onDownloadInvoice: (invoice: Invoice) => void;
+  onEditInvoice: (invoice: Invoice) => void;
 }
 
 const InvoicesList = ({
@@ -45,10 +49,12 @@ const InvoicesList = ({
   onViewInvoice,
   onPrintInvoice,
   onDownloadInvoice,
+  onEditInvoice,
 }: InvoicesListProps) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [documentTypeFilter, setDocumentTypeFilter] = useState<string>('all');
   const [sortBy, setSortBy] = useState<string>('date-desc');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -77,6 +83,17 @@ const InvoicesList = ({
       result = result.filter(invoice => invoice.sourceType === typeFilter);
     }
 
+    // تطبيق فلتر نوع المستند
+    if (documentTypeFilter !== 'all') {
+      if (documentTypeFilter === 'invoice') {
+        result = result.filter(invoice => invoice.invoiceNumber.startsWith('INV-'));
+      } else if (documentTypeFilter === 'proforma') {
+        result = result.filter(invoice => invoice.invoiceNumber.startsWith('PRO-'));
+      } else if (documentTypeFilter === 'bon_commande') {
+        result = result.filter(invoice => invoice.invoiceNumber.startsWith('BC-'));
+      }
+    }
+
     // تطبيق الترتيب
     if (sortBy === 'date-desc') {
       result.sort((a, b) => new Date(b.invoiceDate).getTime() - new Date(a.invoiceDate).getTime());
@@ -93,7 +110,7 @@ const InvoicesList = ({
     }
 
     return result;
-  }, [invoices, searchQuery, statusFilter, typeFilter, sortBy]);
+  }, [invoices, searchQuery, statusFilter, typeFilter, documentTypeFilter, sortBy]);
 
   // التعامل مع الصفحات
   const totalPages = Math.ceil(filteredInvoices.length / itemsPerPage);
@@ -151,6 +168,16 @@ const InvoicesList = ({
     }
   };
 
+  const getDocumentType = (invoiceNumber: string) => {
+    if (invoiceNumber.startsWith('PRO-')) {
+      return { text: 'فاتورة شكلية', color: 'bg-orange-500/10 text-orange-600 border-orange-500/20' };
+    } else if (invoiceNumber.startsWith('BC-')) {
+      return { text: 'أمر شراء', color: 'bg-green-500/10 text-green-600 border-green-500/20' };
+    } else {
+      return { text: 'فاتورة', color: 'bg-blue-500/10 text-blue-600 border-blue-500/20' };
+    }
+  };
+
   return (
     <div className="space-y-4">
       {/* فلاتر البحث والفرز */}
@@ -178,12 +205,24 @@ const InvoicesList = ({
             </SelectContent>
           </Select>
           
-          <Select value={typeFilter} onValueChange={setTypeFilter}>
+          <Select value={documentTypeFilter} onValueChange={setDocumentTypeFilter}>
             <SelectTrigger className="w-[150px]">
-              <SelectValue placeholder="فلتر النوع" />
+              <SelectValue placeholder="نوع المستند" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">كل الأنواع</SelectItem>
+              <SelectItem value="all">كل المستندات</SelectItem>
+              <SelectItem value="invoice">فاتورة</SelectItem>
+              <SelectItem value="proforma">فاتورة شكلية</SelectItem>
+              <SelectItem value="bon_commande">أمر شراء</SelectItem>
+            </SelectContent>
+          </Select>
+          
+          <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="المصدر" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">كل المصادر</SelectItem>
               <SelectItem value="pos">نقاط البيع</SelectItem>
               <SelectItem value="online">متجر إلكتروني</SelectItem>
               <SelectItem value="service">خدمات</SelectItem>
@@ -214,10 +253,11 @@ const InvoicesList = ({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-[160px] text-right">رقم الفاتورة</TableHead>
+                  <TableHead className="w-[160px] text-right">رقم المستند</TableHead>
+                  <TableHead className="text-right">نوع المستند</TableHead>
                   <TableHead className="text-right">العميل</TableHead>
                   <TableHead className="text-right">التاريخ</TableHead>
-                  <TableHead className="text-right">النوع</TableHead>
+                  <TableHead className="text-right">المصدر</TableHead>
                   <TableHead className="text-right">المبلغ الكلي</TableHead>
                   <TableHead className="text-right">الحالة</TableHead>
                   <TableHead className="text-center">الإجراءات</TableHead>
@@ -226,14 +266,14 @@ const InvoicesList = ({
               <TableBody>
                 {paginatedInvoices.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="h-24 text-center">
+                    <TableCell colSpan={8} className="h-24 text-center">
                       <div className="flex flex-col items-center justify-center text-muted-foreground">
                         <AlertCircle className="h-8 w-8 mb-2" />
                         <p>لم يتم العثور على فواتير</p>
                         <p className="text-sm">
-                          {(searchQuery || statusFilter !== 'all' || typeFilter !== 'all') 
+                          {(searchQuery || statusFilter !== 'all' || typeFilter !== 'all' || documentTypeFilter !== 'all') 
                             ? 'جرب تغيير معايير البحث' 
-                            : 'قم بإنشاء فاتورة جديدة للبدء'}
+                            : 'قم بإنشاء مستند جديد للبدء'}
                         </p>
                       </div>
                     </TableCell>
@@ -247,8 +287,29 @@ const InvoicesList = ({
                       >
                         <div className="flex items-center gap-2">
                           <FileText className="h-4 w-4 text-muted-foreground" />
-                          {invoice.invoiceNumber}
+                          <span>{invoice.invoiceNumber}</span>
+                          {/* مؤشر حالة المزامنة */}
+                          {(invoice as any)._synced === false && (
+                            <Badge variant="outline" className="bg-orange-50 text-orange-600 border-orange-200 text-xs">
+                              <Clock className="h-3 w-3 mr-1" />
+                              غير متزامن
+                            </Badge>
+                          )}
+                          {(invoice as any)._syncStatus === 'error' && (
+                            <Badge variant="destructive" className="text-xs">
+                              <WifiOff className="h-3 w-3 mr-1" />
+                              خطأ
+                            </Badge>
+                          )}
                         </div>
+                      </TableCell>
+                      <TableCell onClick={() => onViewInvoice(invoice)}>
+                        <Badge 
+                          variant="outline" 
+                          className={`${getDocumentType(invoice.invoiceNumber).color}`}
+                        >
+                          {getDocumentType(invoice.invoiceNumber).text}
+                        </Badge>
                       </TableCell>
                       <TableCell onClick={() => onViewInvoice(invoice)}>
                         {invoice.customerName || 'عميل غير معروف'}
@@ -280,6 +341,15 @@ const InvoicesList = ({
                             title="عرض الفاتورة"
                           >
                             <FileText className="h-4 w-4" />
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="icon" 
+                            className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            onClick={() => onEditInvoice(invoice)}
+                            title="تعديل الفاتورة"
+                          >
+                            <Edit className="h-4 w-4" />
                           </Button>
                           <Button 
                             variant="outline" 

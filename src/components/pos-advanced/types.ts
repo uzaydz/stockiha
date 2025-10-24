@@ -58,6 +58,10 @@ export interface POSAdvancedContentProps {
   // دالة السكانر
   onBarcodeSearch: (barcode: string) => void;
   isScannerLoading: boolean;
+  onOpenMobileScanner?: () => void;
+  isCameraScannerSupported?: boolean;
+  hasNativeBarcodeDetector?: boolean;
+  isMobile?: boolean;
 }
 
 // واجهة خصائص مكون الرأس
@@ -71,6 +75,10 @@ export interface HeaderProps {
   onSearchChange?: (query: string) => void;
   onBarcodeSearch?: (barcode: string) => void;
   isScannerLoading?: boolean;
+  onOpenMobileScanner?: () => void;
+  isCameraScannerSupported?: boolean;
+  hasNativeBarcodeDetector?: boolean;
+  isMobile?: boolean;
 }
 
 // واجهة خصائص أدوات التحكم
@@ -81,6 +89,7 @@ export interface FilterControlsProps {
   subscriptionsCount: number;
   isAppEnabled: (appName: string) => boolean;
   onFilterChange: (updates: Partial<FilterState>) => void;
+  isMobile?: boolean;
 }
 
 // واجهة خصائص عنصر المنتج
@@ -101,6 +110,7 @@ export interface ProductsGridProps {
   selectedCategory: string;
   stockFilter: StockFilter;
   onAddToCart: (product: Product) => void;
+  isMobile?: boolean;
 }
 
 // واجهة خصائص تبويب الاشتراكات

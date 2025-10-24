@@ -5,7 +5,23 @@ import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
 export function ThemeToggle() {
-  const { theme, setTheme } = useTheme();
+  // حماية من استخدام useTheme خارج ThemeProvider
+  let theme, setTheme, fastThemeController;
+  try {
+    const themeContext = useTheme();
+    theme = themeContext.theme;
+    setTheme = themeContext.setTheme;
+    fastThemeController = themeContext.fastThemeController;
+  } catch (error) {
+    // إذا لم يكن ThemeProvider جاهزاً، استخدم قيم افتراضية
+    theme = 'light';
+    setTheme = () => {};
+    fastThemeController = {
+      applyImmediate: () => {},
+      toggleFast: () => 'light',
+      getCurrentEffectiveTheme: () => 'light'
+    } as any;
+  }
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
@@ -28,41 +44,13 @@ export function ThemeToggle() {
 
   const toggleTheme = async () => {
     try {
-      
-      const newTheme = theme === "dark" ? "light" : "dark";
-      
-      // تطبيق الثيم الجديد
-      setTheme(newTheme);
-      
-      // التحقق من تطبيق الثيم بعد فترة قصيرة
-      setTimeout(() => {
-        const currentTheme = document.documentElement.classList.contains('dark') ? 'dark' : 'light';
-        
-        if (currentTheme !== newTheme) {
-          
-          // محاولة إعادة تطبيق الثيم يدوياً
-          const root = document.documentElement;
-          const body = document.body;
-          const NO_MOTION_CLASS = 'no-motion';
-          try {
-            if (!root.classList.contains(NO_MOTION_CLASS)) {
-              root.classList.add(NO_MOTION_CLASS);
-              setTimeout(() => { try { root.classList.remove(NO_MOTION_CLASS); } catch {} }, 150);
-            }
-          } catch {}
-
-          root.classList.remove('light', 'dark');
-          body.classList.remove('light', 'dark');
-          root.classList.add(newTheme);
-          body.classList.add(newTheme);
-          root.setAttribute('data-theme', newTheme);
-          body.setAttribute('data-theme', newTheme);
-          root.style.colorScheme = newTheme;
-          body.style.colorScheme = newTheme;
-          
-        }
-      }, 100);
-      
+      const next = theme === 'dark' ? 'light' : 'dark';
+      // استخدام المسيطر السريع لتجنب أي قياسات/كتابات متداخلة
+      if (fastThemeController && typeof fastThemeController.applyImmediate === 'function') {
+        fastThemeController.applyImmediate(next);
+      }
+      // تحديث الحالة لتظل متزامنة مع السياق
+      setTheme(next);
     } catch (error) {
     }
   };

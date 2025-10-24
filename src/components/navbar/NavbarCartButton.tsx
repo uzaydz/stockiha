@@ -15,7 +15,10 @@ function parseEnableCart(settings: any | null): boolean {
         console.log('🔧 [parseEnableCart] بدء تحليل إعدادات السلة:', {
           hasSettings: !!settings,
           settingsKeys: settings ? Object.keys(settings) : [],
-          customJsType: typeof settings?.custom_js
+          customJsType: typeof settings?.custom_js,
+          customJsValue: settings?.custom_js,
+          settingsId: settings?.id,
+          settingsFull: settings
         });
         (window as any).__cartDebugPrinted = true;
       }
@@ -23,7 +26,13 @@ function parseEnableCart(settings: any | null): boolean {
 
     const raw = settings?.custom_js;
     if (!raw) {
-      console.log('❌ [parseEnableCart] لا يوجد custom_js في الإعدادات');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('❌ [parseEnableCart] لا يوجد custom_js في الإعدادات', {
+          settings: settings,
+          settingsKeys: settings ? Object.keys(settings) : [],
+          settingsFull: settings
+        });
+      }
       return false;
     }
 
@@ -34,20 +43,63 @@ function parseEnableCart(settings: any | null): boolean {
       console.log('✅ [parseEnableCart] نتيجة تحليل السلة:', {
         enableCart: enableCart,
         enableCartValue: json?.enable_cart,
-        enableCartType: typeof json?.enable_cart
+        enableCartType: typeof json?.enable_cart,
+        rawLength: raw.length,
+        jsonKeys: Object.keys(json),
+        fullJson: json,
+        settingsId: settings?.id,
+        settingsKeys: settings ? Object.keys(settings) : [],
+        settingsFull: settings
       });
     }
 
     return enableCart;
   } catch (error) {
-    console.error('❌ [parseEnableCart] خطأ في تحليل إعدادات السلة:', error);
+    if (process.env.NODE_ENV === 'development') {
+      console.error('❌ [parseEnableCart] خطأ في تحليل إعدادات السلة:', error, {
+        settings: settings
+      });
+    }
     return false;
   }
 }
 
 export const NavbarCartButton: React.FC<{ className?: string }>= ({ className }) => {
-  const { organizationSettings } = useSharedStoreDataContext();
-  const enableCart = useMemo(() => parseEnableCart(organizationSettings), [organizationSettings?.custom_js]);
+  const contextData = useSharedStoreDataContext();
+  const { organizationSettings } = contextData;
+
+  // 🔥 إصلاح: إضافة logs لتتبع البيانات المستلمة من useSharedStoreDataContext
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🧪 [NavbarCartButton] البيانات المستلمة من useSharedStoreDataContext:', {
+      hasOrganization: !!contextData.organization,
+      hasOrganizationSettings: !!organizationSettings,
+      hasCustomJs: !!organizationSettings?.custom_js,
+      organizationSettingsId: organizationSettings?.id,
+      organizationId: contextData.organization?.id,
+      isLoading: contextData.isLoading,
+      componentsLength: contextData.components?.length || 0,
+      contextType: 'optimized',
+      fullContextData: contextData,
+      organizationSettingsKeys: organizationSettings ? Object.keys(organizationSettings) : [],
+      organizationSettingsFull: organizationSettings,
+      contextDataKeys: contextData ? Object.keys(contextData) : [],
+    });
+  }
+  const enableCart = useMemo(() => {
+    const result = parseEnableCart(organizationSettings);
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🧪 [NavbarCartButton] نتيجة تحليل السلة:', {
+        enableCart: result,
+        hasSettings: !!organizationSettings,
+        hasCustomJs: !!organizationSettings?.custom_js,
+        customJsLength: organizationSettings?.custom_js?.length || 0,
+        customJsValue: organizationSettings?.custom_js,
+        organizationSettingsId: organizationSettings?.id,
+        organizationSettingsKeys: organizationSettings ? Object.keys(organizationSettings) : [],
+      });
+    }
+    return result;
+  }, [organizationSettings?.custom_js]);
   const [count, setCount] = useState<number>(() => getCount());
 
   useEffect(() => {

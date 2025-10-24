@@ -7,6 +7,9 @@ import { supabase } from '@/lib/supabase';
 import { useQuery } from '@tanstack/react-query';
 import UnifiedCacheManager from './cache/unifiedCacheManager';
 import { globalCache } from './cacheManager';
+import { localSubscriptionService } from '@/api/localSubscriptionService';
+import { getLocalCategories } from '@/lib/api/categories';
+import { isAppOnline } from '@/utils/networkStatus';
 
 const globalActiveRequests = new Map<string, Promise<any>>();
 
@@ -423,6 +426,15 @@ export class UnifiedRequestManager {
     return executeRequestWithDeduplication(
       cacheKey,
       async () => {
+        if (!isAppOnline()) {
+          try {
+            const localCategories = await getLocalCategories();
+            return (localCategories || []).filter(category => category.organization_id === orgId);
+          } catch {
+            return [];
+          }
+        }
+
         if (import.meta.env.DEV) {
         }
 
@@ -459,22 +471,20 @@ export class UnifiedRequestManager {
     return executeRequestWithDeduplication(
       `unified_org_settings_${orgId}`,
       async () => {
-        if (import.meta.env.DEV) {
-        }
-        
-        const { data, error } = await supabase
-          .from('organization_settings')
-          .select('*')
-          .eq('organization_id', orgId)
-          .maybeSingle();
+        const { getOrganizationSettings: dedupGetOrganizationSettings } = await import('@/lib/api/deduplicatedApi');
+        const data = await dedupGetOrganizationSettings(orgId);
 
-        if (error) {
-          return null;
+        if (data && typeof data === 'object' && 'custom_js' in data && data.custom_js) {
+          const script = String(data.custom_js);
+          const hasSyntaxError = /Unexpected identifier|SyntaxError/.test(script);
+          const containsUndefined = script.includes('undefined') && script.length > 1000;
+          const looksLikeJson = script.trim().startsWith('{');
+          if (script.includes('fNcqSfPLFxu') || hasSyntaxError || containsUndefined || looksLikeJson) {
+            console.warn('تم اكتشاف كود JavaScript خاطئ في custom_js، سيتم مسحه تلقائياً');
+            (data as any).custom_js = null;
+          }
         }
-        
-        if (import.meta.env.DEV) {
-        }
-        
+
         return data;
       },
       20 * 60 * 1000 // 20 دقيقة cache للإعدادات
@@ -505,6 +515,19 @@ export class UnifiedRequestManager {
     return executeRequestWithDeduplication(
       `unified_org_apps_${orgId}`,
       async () => {
+        if (!isAppOnline()) {
+          return [
+            {
+              id: `offline-pos-${orgId}`,
+              organization_id: orgId,
+              app_id: 'pos-system',
+              is_enabled: true,
+              installed_at: new Date().toISOString(),
+              configuration: {}
+            }
+          ];
+        }
+
         if (import.meta.env.DEV) {
         }
 
@@ -571,23 +594,8 @@ export class UnifiedRequestManager {
     return executeRequestWithDeduplication(
       `unified_user_${userId}`,
       async () => {
-        if (import.meta.env.DEV) {
-        }
-        
-        const { data, error } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', userId)
-          .maybeSingle();
-
-        if (error) {
-          return null;
-        }
-        
-        if (import.meta.env.DEV) {
-        }
-        
-        return data;
+        const { getUserById: dedupGetUserById } = await import('@/lib/api/deduplicatedApi');
+        return dedupGetUserById(userId);
       },
       15 * 60 * 1000 // 15 دقيقة cache للمستخدمين
     );
@@ -604,6 +612,22 @@ export class UnifiedRequestManager {
     return executeRequestWithDeduplication(
       `unified_org_subscriptions_${orgId}`,
       async () => {
+        const isOnline = typeof navigator === 'undefined' ? true : navigator.onLine;
+
+        if (!isOnline) {
+          const cached = await localSubscriptionService.getLatestSubscription(orgId);
+          if (cached) {
+            const plan = cached.plan_id
+              ? await localSubscriptionService.getSubscriptionPlan(cached.plan_id)
+              : null;
+            return [{
+              ...cached,
+              subscription_plans: plan || null
+            }];
+          }
+          return [];
+        }
+
         if (import.meta.env.DEV) {
         }
 
@@ -646,7 +670,50 @@ export class UnifiedRequestManager {
           if (import.meta.env.DEV) {
           }
 
-          return Array.isArray(data) ? data : [];
+          let normalizedData = Array.isArray(data) ? data : [];
+
+          if (normalizedData.length > 0) {
+            try {
+              await localSubscriptionService.clearOrganizationSubscriptions(orgId);
+              await localSubscriptionService.saveOrganizationSubscriptions(
+                normalizedData.map((item: any) => ({
+                  id: item.id,
+                  organization_id: item.organization_id,
+                  plan_id: item.plan_id,
+                  status: item.status,
+                  billing_cycle: item.billing_cycle ?? null,
+                  start_date: item.start_date ?? null,
+                  end_date: item.end_date ?? null,
+                  amount: item.amount ?? null,
+                  currency: item.currency ?? null,
+                  is_auto_renew: item.is_auto_renew ?? null,
+                  updated_at: item.updated_at ?? null,
+                  created_at: item.created_at ?? null
+                }))
+              );
+
+              // تخزين خطة الاشتراك المرتبطة إذا كانت متاحة
+              const planIds = Array.from(new Set(normalizedData.map((item: any) => item.plan_id).filter(Boolean)));
+              const planMap = new Map<string, any>();
+              for (const planId of planIds) {
+                  const plan = await UnifiedRequestManager.getSubscriptionPlan(planId);
+                  if (plan) {
+                    planMap.set(planId, plan);
+                  }
+              }
+
+              normalizedData = normalizedData.map((item: any) => ({
+                ...item,
+                subscription_plans: planMap.get(item.plan_id) || null
+              }));
+            } catch (error) {
+              if (import.meta.env.DEV) {
+                console.error('[UnifiedRequestManager] فشل حفظ اشتراك الأوفلاين:', error);
+              }
+            }
+          }
+
+          return normalizedData;
         } catch (error) {
           if (import.meta.env.DEV) {
           }
@@ -654,6 +721,56 @@ export class UnifiedRequestManager {
         }
       },
       30 * 60 * 1000 // 30 دقيقة cache للاشتراكات
+    );
+  }
+
+  static async getSubscriptionPlan(planId: string) {
+    if (!planId) {
+      return null;
+    }
+
+    return executeRequestWithDeduplication(
+      `unified_subscription_plan_${planId}`,
+      async () => {
+        const isOnline = typeof navigator === 'undefined' ? true : navigator.onLine;
+
+        if (!isOnline) {
+          return localSubscriptionService.getSubscriptionPlan(planId);
+        }
+
+        const { data, error } = await supabase
+          .from('subscription_plans')
+          .select('*')
+          .eq('id', planId)
+          .maybeSingle();
+
+        if (error) {
+          if (import.meta.env.DEV) {
+          }
+          const cached = await localSubscriptionService.getSubscriptionPlan(planId);
+          return cached;
+        }
+
+        if (data) {
+          await localSubscriptionService.saveSubscriptionPlan({
+            id: data.id,
+            code: data.code,
+            name: data.name,
+            description: data.description,
+            features: data.features,
+            monthly_price: data.monthly_price,
+            yearly_price: data.yearly_price,
+            trial_period_days: data.trial_period_days,
+            limits: data.limits,
+            is_active: data.is_active,
+            updated_at: data.updated_at,
+            created_at: data.created_at
+          });
+        }
+
+        return data;
+      },
+      60 * 60 * 1000
     );
   }
 

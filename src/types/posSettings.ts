@@ -59,6 +59,13 @@ export interface POSSettings {
   business_license?: string;
   tax_number?: string;
   
+  // معلومات تجارية للجزائر
+  activity?: string;  // نشاط المؤسسة
+  rc?: string;        // رقم السجل التجاري
+  nif?: string;       // رقم التعريف الجبائي
+  nis?: string;       // رقم التعريف الإحصائي
+  rib?: string;       // الهوية البنكية
+  
   // طوابع زمنية
   created_at?: string;
   updated_at?: string;

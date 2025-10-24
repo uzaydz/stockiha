@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import POSPureLayout from '@/components/pos-layout/POSPureLayout';
 import { useTenant } from '@/context/TenantContext';
@@ -8,22 +8,33 @@ import { hasPermissions } from '@/lib/api/userPermissionsUnified';
 import { AlertTriangle, Plus } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { POSSharedLayoutControls } from '@/components/pos-layout/types';
 
 // مكونات صفحة الديون
 import DebtsSummary from '@/components/debts/DebtsSummary';
-import DebtsPerEmployee from '@/components/debts/DebtsPerEmployee';
-import CustomerDebtsList from '@/components/debts/CustomerDebtsList';
+import CustomerDebtsTable from '@/components/debts/CustomerDebtsTable';
 import DebtPaymentModal from '@/components/debts/DebtPaymentModal';
 import AddDebtModal from '@/components/debts/AddDebtModal';
 
 // استيراد واجهة الـ API
-import { DebtsData, getDebtsData, recordDebtPayment } from '@/lib/api/debts';
+import { DebtsData, getDebtsData } from '@/lib/api/debts';
+import { getAllLocalCustomerDebts, recordDebtPayment, type LocalCustomerDebt } from '@/api/localCustomerDebtService';
+import { syncPendingCustomerDebts, fetchCustomerDebtsFromServer } from '@/api/syncCustomerDebts';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 
-const CustomerDebts: React.FC = () => {
+interface CustomerDebtsProps extends POSSharedLayoutControls {}
+
+const CustomerDebts: React.FC<CustomerDebtsProps> = ({
+  useStandaloneLayout = true,
+  onRegisterRefresh,
+  onLayoutStateChange
+}) => {
   const navigate = useNavigate();
   const { currentOrganization } = useTenant();
   const { user, userProfile } = useAuth();
+  const { isOnline } = useNetworkStatus();
   const [isLoading, setIsLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [debtsData, setDebtsData] = useState<DebtsData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
@@ -38,6 +49,46 @@ const CustomerDebts: React.FC = () => {
   
   // حالة نافذة إضافة الدين
   const [addDebtModalOpen, setAddDebtModalOpen] = useState(false);
+
+  const handleRefresh = useCallback(() => {
+    setRefreshTrigger(prev => prev + 1);
+  }, []);
+
+  useEffect(() => {
+    if (!onRegisterRefresh) return;
+    onRegisterRefresh(handleRefresh);
+    return () => onRegisterRefresh(null);
+  }, [handleRefresh, onRegisterRefresh]);
+
+  useEffect(() => {
+    if (!onLayoutStateChange) return;
+    onLayoutStateChange({
+      isRefreshing: isLoading || isSyncing,
+      connectionStatus: !isOnline ? 'disconnected' : error ? 'reconnecting' : 'connected'
+    });
+  }, [onLayoutStateChange, isLoading, isSyncing, error, isOnline]);
+
+  const renderWithLayout = (
+    children: React.ReactNode,
+    overrides?: {
+      isRefreshing?: boolean;
+      connectionStatus?: 'connected' | 'disconnected' | 'reconnecting';
+    }
+  ) => {
+    if (!useStandaloneLayout) {
+      return children;
+    }
+
+    return (
+      <POSPureLayout
+        onRefresh={handleRefresh}
+        isRefreshing={overrides?.isRefreshing ?? isLoading}
+        connectionStatus={overrides?.connectionStatus ?? (error ? 'disconnected' : 'connected')}
+      >
+        {children}
+      </POSPureLayout>
+    );
+  };
 
   // التحقق من صلاحيات المستخدم
   useEffect(() => {
@@ -106,18 +157,31 @@ const CustomerDebts: React.FC = () => {
         setIsLoading(true);
         setError(null);
 
-        // استخدام البيانات الحقيقية من الـ API
-        const data = await getDebtsData(currentOrganization.id);
+        // جلب الديون من المخزن المحلي
+        const localDebts = await getAllLocalCustomerDebts(currentOrganization.id);
+        
+        // تحويل LocalCustomerDebt إلى DebtsData
+        const convertedData = convertLocalDebtsToDebtsData(localDebts);
+        setDebtsData(convertedData);
 
-        setDebtsData(data);
+        // مزامنة مع السيرفر في الخلفية إذا كان متصل
+        if (isOnline) {
+          syncInBackground();
+        }
       } catch (err) {
+        console.error('خطأ في جلب الديون:', err);
         setError('حدث خطأ أثناء تحميل بيانات الديون');
-        toast.error('فشل في تحميل بيانات الديون');
         
-        // استخدام بيانات تجريبية في حالة الفشل للعرض
-        const mockData = getMockDebtsData();
-        
-        setDebtsData(mockData);
+        // محاولة جلب من API كخطة احتياطية
+        try {
+          const data = await getDebtsData(currentOrganization.id);
+          setDebtsData(data);
+        } catch (apiError) {
+          toast.error('فشل في تحميل بيانات الديون');
+          // استخدام بيانات تجريبية في حالة الفشل للعرض
+          const mockData = getMockDebtsData();
+          setDebtsData(mockData);
+        }
       } finally {
         setIsLoading(false);
       }
@@ -153,20 +217,128 @@ const CustomerDebts: React.FC = () => {
 
       setIsLoading(true);
       
+      // تسجيل الدفع في المخزن المحلي
       await recordDebtPayment(
         paymentData.orderId,
-        paymentData.amountPaid,
-        paymentData.isFullPayment
+        paymentData.amountPaid
       );
       
-      toast.success('تم تسجيل الدفع بنجاح');
+      toast.success('تم تسجيل الدفع بنجاح' + (!isOnline ? ' (سيتم المزامنة عند الاتصال)' : ''));
       setPaymentModalOpen(false);
       setRefreshTrigger(prev => prev + 1);
+      
+      // مزامنة فورية إذا كان متصل
+      if (isOnline) {
+        setTimeout(() => syncInBackground(), 1000);
+      }
     } catch (err) {
+      console.error('خطأ في تسجيل الدفع:', err);
       toast.error('فشل في تسجيل الدفع');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // مزامنة في الخلفية
+  const syncInBackground = async () => {
+    if (!isOnline || !currentOrganization) return;
+    
+    try {
+      setIsSyncing(true);
+      
+      // مزامنة الديون المعلقة
+      const syncResult = await syncPendingCustomerDebts();
+      
+      if (syncResult.success > 0) {
+        console.log(`✅ تمت مزامنة ${syncResult.success} دين`);
+      }
+      
+      if (syncResult.failed > 0) {
+        console.warn(`⚠️ فشلت مزامنة ${syncResult.failed} دين`);
+      }
+      
+      // جلب الديون الجديدة من السيرفر وتحديث الحالة مباشرة
+      await fetchCustomerDebtsFromServer(currentOrganization.id);
+      
+      // تحديث البيانات محلياً بدون إعادة تشغيل useEffect
+      const localDebts = await getAllLocalCustomerDebts(currentOrganization.id);
+      const convertedData = convertLocalDebtsToDebtsData(localDebts);
+      setDebtsData(convertedData);
+    } catch (error) {
+      console.error('خطأ في المزامنة:', error);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // تحويل LocalCustomerDebt إلى DebtsData
+  const convertLocalDebtsToDebtsData = (localDebts: LocalCustomerDebt[]): DebtsData => {
+    // حساب الإحصائيات
+    const totalDebts = localDebts.reduce((sum, debt) => sum + debt.remaining_amount, 0);
+    const totalPartialPayments = localDebts.filter(debt => debt.paid_amount > 0 && debt.remaining_amount > 0).length;
+    
+    // تجميع حسب العميل
+    const debtsByCustomerMap = new Map<string, { customerId: string; customerName: string; totalDebts: number; ordersCount: number }>();
+    
+    localDebts.forEach(debt => {
+      const key = debt.customer_id || debt.customer_name;
+      const existing = debtsByCustomerMap.get(key);
+      
+      if (existing) {
+        existing.totalDebts += debt.remaining_amount;
+        existing.ordersCount += 1;
+      } else {
+        debtsByCustomerMap.set(key, {
+          customerId: debt.customer_id || key,
+          customerName: debt.customer_name,
+          totalDebts: debt.remaining_amount,
+          ordersCount: 1
+        });
+      }
+    });
+    
+    const debtsByCustomer = Array.from(debtsByCustomerMap.values());
+    
+    // تحويل إلى تنسيق customerDebts
+    const customerDebtsMap = new Map<string, any>();
+    
+    localDebts.forEach(debt => {
+      const key = debt.customer_id || debt.customer_name;
+      
+      if (!customerDebtsMap.has(key)) {
+        customerDebtsMap.set(key, {
+          customerId: debt.customer_id || key,
+          customerName: debt.customer_name,
+          totalDebt: 0,
+          ordersCount: 0,
+          orders: []
+        });
+      }
+      
+      const customerData = customerDebtsMap.get(key);
+      customerData.totalDebt += debt.remaining_amount;
+      customerData.ordersCount += 1;
+      customerData.orders.push({
+        orderId: debt.order_id,
+        orderNumber: debt.order_number || debt.order_id,
+        date: debt.created_at, // استخدام created_at بدلاً من order_date
+        total: debt.total_amount,
+        amountPaid: debt.paid_amount, // تصحيح الاسم
+        remainingAmount: debt.remaining_amount,
+        employee: 'غير محدد', // employee_name غير موجودة في LocalCustomerDebt
+        _synced: debt.synced,
+        _syncStatus: debt.syncStatus
+      });
+    });
+    
+    const customerDebts = Array.from(customerDebtsMap.values());
+    
+    return {
+      totalDebts,
+      totalPartialPayments,
+      debtsByCustomer,
+      customerDebts
+    };
   };
 
   // توليد بيانات تجريبية - تستخدم فقط في حالة فشل تحميل البيانات الحقيقية
@@ -271,50 +443,50 @@ const CustomerDebts: React.FC = () => {
 
   // إذا لم يتم التحقق من الصلاحيات بعد
   if (!permissionsChecked) {
-    return (
-      <POSPureLayout>
-        <div className="container mx-auto px-4 py-8">
-          <div className="flex justify-center items-center min-h-[50vh]">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-          </div>
+    return renderWithLayout(
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex justify-center items-center min-h-[50vh]">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
         </div>
-      </POSPureLayout>
+      </div>,
+      { isRefreshing: true, connectionStatus: 'reconnecting' }
     );
   }
 
   // إذا لم يكن للمستخدم صلاحية الوصول إلى صفحة الديون
   if (!hasViewPermission) {
-    return (
-      <POSPureLayout>
-        <div className="container mx-auto px-4 py-8">
-          <Alert variant="destructive" className="mb-6">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>غير مصرح</AlertTitle>
-            <AlertDescription>
-              ليس لديك الصلاحيات اللازمة للوصول إلى صفحة الديون.
-              يرجى التواصل مع المدير للحصول على الصلاحيات المطلوبة.
-            </AlertDescription>
-          </Alert>
-        </div>
-      </POSPureLayout>
+    return renderWithLayout(
+      <div className="container mx-auto px-4 py-8">
+        <Alert variant="destructive" className="mb-6">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>غير مصرح</AlertTitle>
+          <AlertDescription>
+            ليس لديك الصلاحيات اللازمة للوصول إلى صفحة الديون.
+            يرجى التواصل مع المدير للحصول على الصلاحيات المطلوبة.
+          </AlertDescription>
+        </Alert>
+      </div>,
+      { connectionStatus: 'disconnected', isRefreshing: false }
     );
   }
 
-  return (
-    <POSPureLayout
-      onRefresh={() => setRefreshTrigger(prev => prev + 1)}
-      isRefreshing={isLoading}
-    >
+  const pageContent = (
+    <>
       <div className="container mx-auto py-6 space-y-6">
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold">إدارة ديون العملاء</h1>
+        {/* العنوان والإجراءات */}
+        <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">إدارة ديون العملاء</h1>
+            <p className="text-muted-foreground mt-1">تتبع ومتابعة مديونيات العملاء والمدفوعات</p>
+          </div>
           {hasAddDebtPermission && (
             <Button 
               onClick={() => setAddDebtModalOpen(true)}
-              className="flex items-center gap-2"
+              className="flex items-center gap-2 shadow-sm"
+              size="lg"
             >
               <Plus className="h-4 w-4" />
-              إضافة دين
+              إضافة دين جديد
             </Button>
           )}
         </div>
@@ -346,21 +518,12 @@ const CustomerDebts: React.FC = () => {
             ) : debtsData ? (
               <>
                 {/* ملخص الديون */}
-                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                  <div className="lg:col-span-2">
-                    <DebtsSummary 
-                      data={debtsData}
-                    />
-                  </div>
-                  <div className="lg:col-span-2">
-                    <DebtsPerEmployee 
-                      data={debtsData.debtsByCustomer}
-                    />
-                  </div>
-                </div>
+                <DebtsSummary 
+                  data={debtsData}
+                />
                 
-                {/* قائمة ديون العملاء */}
-                <CustomerDebtsList 
+                {/* جدول ديون العملاء */}
+                <CustomerDebtsTable 
                   customers={debtsData.customerDebts}
                   onPaymentClick={handlePaymentClick}
                   canRecordPayment={hasPaymentPermission}  
@@ -391,8 +554,10 @@ const CustomerDebts: React.FC = () => {
         onOpenChange={setAddDebtModalOpen}
         onDebtAdded={handleDebtAdded}
       />
-    </POSPureLayout>
+    </>
   );
+
+  return renderWithLayout(pageContent, { isRefreshing: isLoading });
 };
 
 export default CustomerDebts;

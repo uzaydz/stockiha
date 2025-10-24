@@ -2,6 +2,7 @@
  * معالج أخطاء Supabase Auth المتقدم
  */
 import { supabase } from '@/lib/supabase';
+import { isAppOnline, markNetworkOffline, markNetworkOnline } from '@/utils/networkStatus';
 import type { Session } from '@supabase/supabase-js';
 
 export interface AuthErrorInfo {
@@ -28,6 +29,7 @@ export function analyzeAuthError(error: any): AuthErrorInfo {
     errorName === 'networkerror' ||
     errorCode === 'ERR_NETWORK'
   ) {
+    markNetworkOffline({ force: true });
     return {
       type: 'network',
       message: 'مشكلة في الاتصال بالخادم',
@@ -43,6 +45,7 @@ export function analyzeAuthError(error: any): AuthErrorInfo {
     errorMessage.includes('aborterror') ||
     errorMessage.includes('request timeout')
   ) {
+    markNetworkOffline({ force: true });
     return {
       type: 'timeout',
       message: 'انتهت مهلة الطلب',
@@ -127,6 +130,7 @@ export class SupabaseAuthErrorHandler {
     
     try {
       const result = await operation();
+      markNetworkOnline();
       // نجحت العملية، إعادة تعيين العداد
       this.retryCount.delete(operationName);
       this.lastError.delete(operationName);
@@ -255,6 +259,17 @@ export function setupAuthErrorFiltering(): void {
           message.includes('eval')) {
         return; // تجاهل رسائل CSP في التطوير
       }
+    }
+
+    // تجاهل أخطاء الشبكة في وضع عدم الاتصال
+    const isOffline = !isAppOnline();
+    if (
+      isOffline &&
+      (message.includes('Failed to fetch') ||
+       message.includes('ERR_INTERNET_DISCONNECTED') ||
+       message.includes('net::ERR'))
+    ) {
+      return;
     }
     
     // فحص ما إذا كان الخطأ متعلق بـ Supabase Auth

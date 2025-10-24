@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useCallback, useRef, useEffect, useState } from 'react';
+import { dispatchAppEvent } from '@/lib/events/eventManager';
 
 // استيراد المكونات المنفصلة
 import {
@@ -353,18 +354,18 @@ export function useSharedStoreData(options: UseSharedStoreDataOptions = {}): Sha
       if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {
         console.log('🎯 [useSharedStoreData] إطلاق حدث storeDataReady');
       }
-      window.dispatchEvent(new CustomEvent('storeDataReady', {
-        detail: {
-          hasData: true,
-          source: 'useSharedStoreData',
-          dataTypes: {
-            hasOrganization: !!storeData.organization,
-            hasOrganizationSettings: !!storeData.organizationSettings,
-            categoriesCount: storeData.categories?.length || 0,
-            componentsCount: storeData.components?.length || 0
-          }
+      dispatchAppEvent('storeDataReady', {
+        hasData: true,
+        source: 'useSharedStoreData',
+        dataTypes: {
+          hasOrganization: !!storeData.organization,
+          hasOrganizationSettings: !!storeData.organizationSettings,
+          categoriesCount: storeData.categories?.length || 0,
+          componentsCount: storeData.components?.length || 0
         }
-      }));
+      }, {
+        dedupeKey: `storeDataReady:${storeData.organization?.id ?? 'global'}`
+      });
     }
   }, [storeData?.organization, storeData?.organizationSettings]);
 

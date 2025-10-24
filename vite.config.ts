@@ -1,6 +1,6 @@
 import { defineConfig, loadEnv, Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
-import million from "million/compiler";
+// import million from "million/compiler"; // DISABLED temporarily
 import Icons from 'unplugin-icons/vite';
 import * as path from "path";
 import { instagramCompatibilityPlugin } from './src/middleware/instagram-compatibility';
@@ -19,6 +19,7 @@ import type { OutputAsset } from 'rollup';
 
 // 🔒 حماية كود الإنتاج - Obfuscator Plugin
 import obfuscator from 'rollup-plugin-obfuscator';
+import desktopConfig from './vite.config.desktop';
 
 // تكوين استيراد ملفات Markdown كنصوص
 function rawContentPlugin(): Plugin {
@@ -158,14 +159,13 @@ function criticalCSSPlugin(): Plugin {
 // 🚀 VITE CONFIG - إعدادات محسنة للأداء
 // =================================================================
 
-export default defineConfig(({ command, mode }) => {
+export default desktopConfig as any;
+
+const WEB_CONFIG = defineConfig(({ command, mode }) => {
   const isDev = command === 'serve';
   const isProd = mode === 'production';
   const env = loadEnv(mode, process.cwd(), '');
-  const isStoreBuild = process.env.VITE_BUILD_TARGET === 'store' || env.VITE_BUILD_TARGET === 'store';
-  if (process.env.VERBOSE_STORE_BUILD === '1') {
-    console.log('[vite-config] store build?', isStoreBuild, '\n  command:', command, '\n  mode:', mode);
-  }
+  // تم إزالة إعدادات store build - البناء يركز على الموقع الرئيسي فقط
 
   // تحميل متغيرات البيئة
   
@@ -175,30 +175,17 @@ export default defineConfig(({ command, mode }) => {
     server: {
       host: "0.0.0.0", // تغيير من "::" إلى "0.0.0.0" لضمان الوصول من جميع الأجهزة
       port: 8080,
+      strictPort: false, // السماح باستخدام منفذ بديل إذا كان 8080 مشغولاً
       
-      // 🚀 تحسين HMR للأداء الفائق
+      // 🚀 تحسين HMR للأداء الفائق وتقليل التكرارات
       hmr: {
-        overlay: false, // تعطيل overlay لتقليل الضوضاء
-        // استخدام منفذ مختلف لـ WebSocket لتجنب التضارب
-        port: 24678,
-        host: "localhost", // استخدام localhost بدلاً من 0.0.0.0 للـ HMR
-        // 🚫 تقليل ثقل HMR في التطوير
-        ...(isDev && {
-          // تفعيل Fast Refresh
-          fastRefresh: true,
-          // تعطيل بعض ميزات HMR الثقيلة
-          fullReload: false,
-          // تقليل عدد محاولات الاتصال
-          retryCount: 3,
-          // تعطيل overlay للأخطاء
-          overlay: false,
-        }),
+        overlay: false,
       },
       
-      // ⚡ تحسين مراقبة الملفات
+      // ⚡ تحسين مراقبة الملفات لتقليل التكرارات
       watch: {
         usePolling: false,
-        interval: 250, // زيادة المهلة لتقليل عدد المراقبات
+        interval: 500, // زيادة المهلة بشكل كبير لتقليل عدد المراقبات
         ignored: [
           '**/node_modules/**',
           '**/dist/**',
@@ -211,16 +198,25 @@ export default defineConfig(({ command, mode }) => {
           '**/*.log',
           '**/.DS_Store',
           '**/*.tmp',
-          '**/*.temp'
+          '**/*.temp',
+          // تجاهل ملفات الكاش والمؤقتة
+          '**/.cache/**',
+          '**/cache/**',
+          '**/*.cache',
+          // تجاهل ملفات service worker
+          '**/sw.js',
+          '**/sw.ts',
+          // تجاهل ملفات الخرائط المصدرية في التطوير
+          '**/*.map'
         ],
         // تحسين استهلاك الذاكرة
-        depth: 99,
+        depth: 50, // تقليل العمق لتقليل التحقق
         followSymlinks: false,
         ignoreInitial: true,
-        // تجميع الأحداث
+        // تجميع الأحداث وتقليل الحساسية
         awaitWriteFinish: {
-          stabilityThreshold: 50,
-          pollInterval: 50
+          stabilityThreshold: 100, // زيادة العتبة لتقليل التكرارات
+          pollInterval: 100 // زيادة فترة الاستطلاع
         }
       },
       
@@ -336,8 +332,7 @@ export default defineConfig(({ command, mode }) => {
     plugins: [
       // Content Type Plugin - يجب أن يكون أولاً لإصلاح مشاكل MIME
       contentTypePlugin(),
-      // Dev rewrite for store routes
-      devStoreRewritePlugin(),
+      // تم إزالة devStoreRewritePlugin - البناء يركز على الموقع الرئيسي فقط
       
       // Instagram Compatibility Plugin
       instagramCompatibilityPlugin(),
@@ -357,24 +352,24 @@ export default defineConfig(({ command, mode }) => {
         defaultStyle: 'display: inline-block; vertical-align: middle;',
       }),
       
-      // Million.js configuration for performance optimization
-      million.vite({
-        auto: {
-          threshold: 0.1,
-          skip: [
-            // SVG elements - ignore all SVG elements
-            'svg', 'circle', 'path', 'polygon', 'polyline', 'defs',
-            'linearGradient', 'stop', 'pattern', 'rect', 'g', 'text',
-            'ellipse', 'line', 'image', 'use', 'clipPath', 'mask',
-            // Components with SVG - ignore components containing SVG
-            'DashboardPreview', 'ChartComponent', 'SVGWrapper',
-            // UI Components - ignore complex components
-            'AlertDialog', 'AlertDialogContent', 'AlertDialogTrigger'
-          ]
-        },
-        mode: 'react',
-        server: true
-      }),
+      // Million.js configuration for performance optimization - DISABLED temporarily
+      // million.vite({
+      //   auto: {
+      //     threshold: 0.1,
+      //     skip: [
+      //       // SVG elements - ignore all SVG elements
+      //       'svg', 'circle', 'path', 'polygon', 'polyline', 'defs',
+      //       'linearGradient', 'stop', 'pattern', 'rect', 'g', 'text',
+      //       'ellipse', 'line', 'image', 'use', 'clipPath', 'mask',
+      //       // Components with SVG - ignore components containing SVG
+      //       'DashboardPreview', 'ChartComponent', 'SVGWrapper',
+      //       // UI Components - ignore complex components
+      //       'AlertDialog', 'AlertDialogContent', 'AlertDialogTrigger'
+      //     ]
+      //   },
+      //   mode: 'react',
+      //   server: true
+      // }),
       
               // React مع Fast Refresh محسن
         react({
@@ -405,6 +400,7 @@ export default defineConfig(({ command, mode }) => {
             'https://www.google-analytics.com',
             'https://analytics.tiktok.com',
             'https://js.sentry-cdn.com',
+            'https://static.cloudflareinsights.com',
           ],
           'style-src': [
             "'self'",
@@ -433,6 +429,7 @@ export default defineConfig(({ command, mode }) => {
             'https://*.ecotrack.dz',
             'https://cloudflareinsights.com', // Cloudflare Analytics
             'https://*.cloudflareinsights.com', // Cloudflare Analytics subdomains
+            'https://static.cloudflareinsights.com', // Cloudflare Analytics static
             'https://www.google-analytics.com', // Google Analytics
             'https://region1.google-analytics.com', // Google Analytics
             'https://stats.g.doubleclick.net', // Google Analytics
@@ -443,7 +440,7 @@ export default defineConfig(({ command, mode }) => {
             'ws://localhost:*', // للـ HMR
             'http://localhost:*'
           ],
-          'frame-src': ["'self'"],
+          'frame-src': ["'self'", 'https://player.vimeo.com', 'https://api.vadoo.tv'],
           'object-src': ["'none'"],
           'base-uri': ["'self'"],
           'form-action': ["'self'"]
@@ -549,15 +546,9 @@ export default defineConfig(({ command, mode }) => {
         
         // 🚀 Universal lodash resolver - handles ALL lodash imports automatically
         'lodash': 'lodash-es',
-        // 🔀 Store-only build: alias heavy contexts to lightweight public stubs
-        ...(isStoreBuild ? {
-          '@/context/AuthContext': path.resolve(__dirname, './src/context/public/AuthPublicContext.tsx'),
-          '@/context/TenantContext': path.resolve(__dirname, './src/context/public/TenantPublicContext.tsx'),
-          '@/app-components/DashboardRoutes': path.resolve(__dirname, './src/stubs/EmptyComponent.tsx'),
-          '@/app-components/RouteComponents': path.resolve(__dirname, './src/stubs/RouteComponents.stub.tsx'),
-          '@/app-components/POSRoutesStandalone': path.resolve(__dirname, './src/stubs/EmptyComponent.tsx'),
-          '@/components/routing/SmartProviderWrapper': path.resolve(__dirname, './src/stubs/EmptyComponent.tsx'),
-        } : {}),
+        // Force dayjs to resolve to the ESM build to retain default export semantics
+        'dayjs$': path.resolve(__dirname, './node_modules/dayjs/esm/index.js'),
+        // تم إزالة store build aliases - البناء يركز على الموقع الرئيسي فقط
         
         // 🎯 Lazy Loading Aliases - تحويل تلقائي للاستيرادات الثقيلة
         // Note: framer-motion alias removed to avoid hook complexity
@@ -572,7 +563,7 @@ export default defineConfig(({ command, mode }) => {
       extensions: ['.ts', '.tsx', '.js', '.jsx', '.json']
     },
     define: {
-      __STORE_BUILD__: isStoreBuild,
+      __STORE_BUILD__: false,
       // 🌐 تحسين للويب فقط
       'global': 'globalThis',
       
@@ -642,14 +633,9 @@ export default defineConfig(({ command, mode }) => {
       } : undefined,
       // التأكد من أن جميع المسارات نسبية
       rollupOptions: {
-        input: isStoreBuild
-          ? {
-              store: path.resolve(__dirname, 'store.html'),
-            }
-          : {
-              main: path.resolve(__dirname, 'index.html'),
-              store: path.resolve(__dirname, 'store.html'),
-            },
+        input: {
+          main: path.resolve(__dirname, 'index.html'),
+        },
         output: {
           format: 'esm' as ModuleFormat,
           entryFileNames: 'assets/[name]-[hash].js',
@@ -673,48 +659,7 @@ export default defineConfig(({ command, mode }) => {
             return `assets/[name]-[hash].${ext}`;
           },
           manualChunks: (id) => {
-            if (isStoreBuild) {
-              const matches = (pattern: RegExp) => pattern.test(id);
-
-              if (matches(/[\\/]node_modules[\\/]react(-dom)?[\\/]/) || matches(/[\\/]node_modules[\\/]scheduler[\\/]/)) {
-                return 'store-react';
-              }
-
-              if (matches(/[\\/]node_modules[\\/]@tanstack[\\/]react-query[\\/]/)) {
-                return 'store-query';
-              }
-
-              if (matches(/[\\/]node_modules[\\/]@radix-ui[\\/]/)) {
-                return 'store-radix';
-              }
-
-              if (matches(/[\\/]node_modules[\\/]react-router(-dom)?[\\/]/) || matches(/[\\/]node_modules[\\/]@remix-run[\\/]router[\\/]/)) {
-                return 'store-router';
-              }
-
-              if (matches(/[\\/]node_modules[\\/]lucide-react[\\/]/)) {
-                return 'store-icons';
-              }
-
-              if (matches(/[\\/]node_modules[\\/]/)) {
-                return 'store-vendor';
-              }
-
-              if (id.includes('/src/store/') || id.includes('/src/components/store/')) {
-                return 'store-core';
-              }
-
-              if (
-                id.includes('/src/pages/product-v3/') ||
-                id.includes('/src/components/product-page/') ||
-                id.includes('/src/components/product/') ||
-                id.includes('/src/hooks/useProductPurchase')
-              ) {
-                return 'store-product';
-              }
-
-              return undefined;
-            }
+            // تم إزالة store build chunking - البناء يركز على الموقع الرئيسي فقط
 
             // More granular chunking to reduce main bundle size
             const is = (re: RegExp) => re.test(id);
@@ -740,10 +685,10 @@ export default defineConfig(({ command, mode }) => {
               return 'react-core';
             }
             
-            // Million optimization
-            if (is(/[\\/]node_modules[\\/]million[\\/]/)) {
-              return 'vendor-million';
-            }
+            // Million optimization - DISABLED
+            // if (is(/[\\/]node_modules[\\/]million[\\/]/)) {
+            //   return 'vendor-million';
+            // }
             
             // Chance library - separate to avoid initialization issues
             if (is(/[\\/]node_modules[\\/]chance[\\/]/)) {
@@ -901,7 +846,9 @@ export default defineConfig(({ command, mode }) => {
           'os',
           'unenv',
           'process',
-          'unenv/node/process'
+          'unenv/node/process',
+          'punycode',
+          'url'
         ],
         // تحسين خاص لـ Cloudflare Pages
         preserveEntrySignatures: 'exports-only',
@@ -939,10 +886,12 @@ export default defineConfig(({ command, mode }) => {
       // 🚀 تحسين CommonJS للويب
       commonjsOptions: {
         include: [/node_modules/],
+        exclude: [/node_modules\/(url|punycode)\//],
         transformMixedEsModules: true,
         requireReturnsDefault: 'preferred',
         ignoreTryCatch: false,
         strictRequires: false,
+        esmExternals: true,
       },
       
       chunkSizeWarningLimit: 1500, // تقليل الحد للحصول على chunks أصغر
@@ -986,16 +935,20 @@ export default defineConfig(({ command, mode }) => {
         // تسريع التطوير
         sourcemap: true,
         minify: false,
-        // 🚀 تحسينات للتطوير
-        watch: {
-          usePolling: false,
-          interval: 100, // تسريع مراقبة الملفات
-        }
       }),
     },
     // 🚀 PERFORMANCE OPTIMIZATION: Selective Pre-optimization
     optimizeDeps: {
       force: isDev,
+      esbuildOptions: {
+        target: 'esnext',
+        supported: {
+          'top-level-await': true
+        },
+        keepNames: true,
+        minify: false,
+        treeShaking: false
+      },
       // ✅ تحسين مسبق للضروريات المطلقة فقط - تقليل startup time
       include: [
         // Core React (فقط الأساسي)
@@ -1012,6 +965,10 @@ export default defineConfig(({ command, mode }) => {
         // Essential Utils (خفيف ومطلوب)
         'clsx',
         'tailwind-merge',
+        // Ensure CJS-only modules get prebundled for proper default interop
+        'is-retry-allowed',
+        // dayjs ships dual bundles; prebundle the ESM build to keep default import working
+        'dayjs/esm/index.js',
         
         // Essential UI (أيقونات فقط) - لا ندرجها هنا لتفادي prebundle 1MB في dev
         
@@ -1075,11 +1032,14 @@ export default defineConfig(({ command, mode }) => {
         'motion',
         
         // Large utility libraries
-        'dayjs',
         'date-fns/locale',
         'unenv',
         'process',
         'unenv/node/process',
+        
+        // Node.js polyfills that cause circular dependencies
+        'url',
+        'punycode',
         
         // Monitoring (load async)
         '@sentry/react', '@sentry/browser', '@sentry/tracing', '@sentry/replay',
@@ -1091,18 +1051,6 @@ export default defineConfig(({ command, mode }) => {
       
       // 🔧 تحسين عملية الاكتشاف
       holdUntilCrawlEnd: false,
-      
-      // ⚡ تسريع عملية التحسين 
-      esbuildOptions: {
-        target: 'es2020',
-        supported: {
-          'top-level-await': true
-        },
-        plugins: [],
-        keepNames: true,
-        minify: false, // لا نضغط في optimizeDeps
-        treeShaking: false // لا نقطع الشجرة في optimizeDeps
-      }
     },
     preview: {
       port: 8080,

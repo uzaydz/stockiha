@@ -136,7 +136,7 @@ export default function ActivationCodeBatchesTable({
     } catch (error: any) {
       toast({
         title: "خطأ في تنزيل الأكواد",
-        description: error.message || "حدث خطأ أثناء تنزيل أكواد التفعيل",
+        description: error instanceof Error ? error.message : (typeof error === 'string' ? error : "حدث خطأ أثناء تنزيل أكواد التفعيل"),
         variant: "destructive"
       });
     } finally {

@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { syncQueueStore, productsStore, LocalProduct, SyncQueueItem } from '@/database/localDb';
+import { syncQueueStore, productsStore, LocalProduct, SyncQueueItem, inventoryDB } from '@/database/localDb';
 import { getUnsyncedProducts, markProductAsSynced } from './localProductService';
 import { apiClient } from '@/lib/api/client';
 import axios from 'axios';
@@ -7,6 +7,40 @@ import { customersStore, LocalCustomer } from '@/database/localDb';
 import { addressesStore, LocalAddress } from '@/database/localDb';
 import { getUnsyncedCustomers } from './localCustomerService';
 import { removeSyncQueueItemsSafely } from './syncQueueHelper';
+import { resolveProductConflict, buildMergedProduct } from '@/sync/conflictPolicy';
+import { localPosSettingsService } from '@/api/localPosSettingsService';
+
+// Pool size للتحكم بالتوازي - قابل للتهيئة عبر env
+const SYNC_POOL_SIZE = Number((import.meta as any)?.env?.VITE_SYNC_POOL_SIZE ?? 2);
+
+// Cache لـ pos_settings مع expiry time (5 دقائق)
+const POS_SETTINGS_CACHE_DURATION = 5 * 60 * 1000; // 5 دقائق
+let lastPosSettingsSyncTime: number | null = null;
+
+// دالة مساعدة لتنفيذ مهام متوازية مع حد أقصى
+async function runWithPool<T, R>(
+  items: T[],
+  handler: (item: T) => Promise<R>,
+  poolSize: number = SYNC_POOL_SIZE
+): Promise<R[]> {
+  const results: R[] = [];
+  const executing: Promise<void>[] = [];
+
+  for (const item of items) {
+    const promise = handler(item).then(result => {
+      results.push(result);
+    });
+    executing.push(promise);
+
+    if (executing.length >= poolSize) {
+      await Promise.race(executing);
+      executing.splice(executing.findIndex(p => p === promise), 1);
+    }
+  }
+
+  await Promise.all(executing);
+  return results;
+}
 
 // الحصول على عنوان Supabase الصحيح
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
@@ -40,7 +74,7 @@ export const syncProduct = async (product: LocalProduct): Promise<boolean> => {
             // محاولة الإنشاء العادية
             const { data: insertData, error: insertError } = await supabase
               .from('products')
-              .insert(serverProduct)
+              .insert(serverProduct as any)
               .select('*');
             
             if (insertError) {
@@ -48,7 +82,7 @@ export const syncProduct = async (product: LocalProduct): Promise<boolean> => {
               
               const insertResult = await supabase
                 .from('products')
-                .insert(serverProduct);
+                .insert(serverProduct as any);
               
               if (insertResult.error) {
                 return false;
@@ -94,7 +128,7 @@ export const syncProduct = async (product: LocalProduct): Promise<boolean> => {
           try {
             await supabase
               .from('products')
-              .insert(serverProduct);
+              .insert(serverProduct as any);
             
             // تعليم المنتج كمتزامن بدون استخدام البيانات المعادة
             await markProductAsSynced(product.id);
@@ -122,46 +156,39 @@ export const syncProduct = async (product: LocalProduct): Promise<boolean> => {
             // إذا كانت هناك تحديثات في الخادم تم نسخها قبل آخر تحديث محلي
             // وليس هناك حل للتضارب محدد مسبقاً، يجب التعامل مع التضارب
             if (remoteUpdatedAt > localUpdatedAt && !product.conflictResolution) {
-              // استراتيجية تلقائية لحل التضارب: محلي أو بعيد أو دمج
-              // هنا نستخدم "محلي" للمخزون و"بعيد" للبقية
-
               try {
-                // جلب بيانات المنتج الكاملة من الخادم
+                // جلب بيانات المنتج الكاملة من الخادم لاختيار القرار
                 const { data: fullRemoteProduct, error: fetchError } = await supabase
                   .rpc('get_product_safe', {
                     product_id: product.id
                   });
-                
-                if (fetchError) {
-                  // استمر في محاولة التحديث دون تطبيق استراتيجية التضارب
-                } else {
+                if (!fetchError) {
                   const remoteProduct = Array.isArray(fullRemoteProduct) ? fullRemoteProduct[0] : fullRemoteProduct;
-                  
-                  if (!remoteProduct) {
-                    // استمر في محاولة التحديث
-                  } else {
-                    // تطبيق استراتيجية حل التضارب
-                    if (product.conflictResolution === 'remote') {
-                      // استخدام البيانات البعيدة وتحديث المحلية
+                  if (remoteProduct) {
+                    const decision = resolveProductConflict(product as any, remoteProduct, {
+                      localUpdatedAt: product.localUpdatedAt,
+                      remoteUpdatedAt: existingProduct.updated_at
+                    });
+                    if (decision === 'remote') {
                       await markProductAsSynced(product.id, remoteProduct);
                       return true;
-                    } else {
-                      // الدمج: احتفظ ببعض البيانات المحلية مثل stock_quantity ولكن خذ البقية من الخادم
-                      const { synced, syncStatus, lastSyncAttempt, localUpdatedAt, pendingOperation, conflictResolution, ...localChanges } = product;
-                      
-                      const mergedProduct = {
-                        ...remoteProduct,
-                        stock_quantity: product.stock_quantity, // احتفظ بالمخزون المحلي للتأكد من دقة البيانات
-                      };
-                      
-                      await markProductAsSynced(product.id, mergedProduct);
+                    }
+                    if (decision === 'merge') {
+                      const merged = buildMergedProduct(product as any, remoteProduct);
+                      // جرّب إرسال الدمج إلى الخادم ثم وسم المحلي كمتزامن
+                      try {
+                        await supabase
+                          .from('products')
+                          .update(merged as any)
+                          .eq('id', product.id);
+                      } catch {}
+                      await markProductAsSynced(product.id, merged);
                       return true;
                     }
+                    // otherwise 'local' → نتابع تحديث الخادم بالقيم المحلية أدناه
                   }
                 }
-              } catch (fetchErr) {
-                // نستمر في محاولة التحديث حتى لو فشل التحقق من التضارب
-              }
+              } catch {}
             }
           }
         } catch (getErr) {
@@ -262,23 +289,24 @@ export const syncProduct = async (product: LocalProduct): Promise<boolean> => {
   }
 };
 
-// مزامنة قائمة المنتجات غير المتزامنة
+// مزامنة قائمة المنتجات غير المتزامنة مع Pool محدود
 export const syncUnsyncedProducts = async (): Promise<{ success: number; failed: number }> => {
   try {
     const unsyncedProducts = await getUnsyncedProducts();
     
-    let success = 0;
-    let failed = 0;
-    
-    for (const product of unsyncedProducts) {
-      const result = await syncProduct(product);
-      
-      if (result) {
-        success++;
-      } else {
-        failed++;
-      }
+    if (unsyncedProducts.length === 0) {
+      return { success: 0, failed: 0 };
     }
+
+    // استخدام Pool للتحكم بالتوازي
+    const results = await runWithPool(
+      unsyncedProducts,
+      async (product) => await syncProduct(product),
+      SYNC_POOL_SIZE
+    );
+
+    const success = results.filter(r => r === true).length;
+    const failed = results.filter(r => r === false).length;
     
     return { success, failed };
   } catch (error) {
@@ -298,6 +326,16 @@ export const processSyncQueue = async (): Promise<{ processed: number; failed: n
       });
     } catch (error) {
       return { processed: 0, failed: 0 };
+    }
+    // جمع العناصر أيضاً من جدول Dexie الموحد
+    try {
+      const dexieItems = await inventoryDB.syncQueue.toArray();
+      const existing = new Set(queue.map(q => q.id));
+      for (const it of dexieItems) {
+        if (!existing.has(it.id)) queue.push(it);
+      }
+    } catch {
+      // تجاهل أي خطأ في قراءة Dexie queue
     }
     
     // ترتيب العناصر حسب الأولوية والعمليات
@@ -379,11 +417,13 @@ export const processSyncQueue = async (): Promise<{ processed: number; failed: n
         if (success) {
           try {
             await syncQueueStore.removeItem(item.id);
-            processed++;
+          } catch {}
+          try {
+            await inventoryDB.syncQueue.delete(item.id);
           } catch (removeError) {
             // نعتبره معالج حتى لو لم نتمكن من حذفه من القائمة
-            processed++;
           }
+          processed++;
         } else {
           // تحديث عدد المحاولات
           const updatedItem: SyncQueueItem = {
@@ -398,12 +438,18 @@ export const processSyncQueue = async (): Promise<{ processed: number; failed: n
               await syncQueueStore.removeItem(item.id);
             } catch (removeError) {
             }
+            try {
+              await inventoryDB.syncQueue.delete(item.id);
+            } catch {}
           } else {
             // حفظ العنصر المُحدث
             try {
               await syncQueueStore.setItem(item.id, updatedItem);
             } catch (setError) {
             }
+            try {
+              await inventoryDB.syncQueue.put(updatedItem);
+            } catch {}
           }
           
           failed++;
@@ -543,23 +589,24 @@ export const syncCustomer = async (customer: LocalCustomer): Promise<boolean> =>
   }
 };
 
-// مزامنة قائمة العملاء غير المتزامنة
+// مزامنة قائمة العملاء غير المتزامنة مع Pool محدود
 export const syncUnsyncedCustomers = async (): Promise<{ success: number; failed: number }> => {
   try {
     const unsyncedCustomers = await getUnsyncedCustomers();
     
-    let success = 0;
-    let failed = 0;
-    
-    for (const customer of unsyncedCustomers) {
-      const result = await syncCustomer(customer);
-      
-      if (result) {
-        success++;
-      } else {
-        failed++;
-      }
+    if (unsyncedCustomers.length === 0) {
+      return { success: 0, failed: 0 };
     }
+
+    // استخدام Pool للتحكم بالتوازي
+    const results = await runWithPool(
+      unsyncedCustomers,
+      async (customer) => await syncCustomer(customer),
+      SYNC_POOL_SIZE
+    );
+
+    const success = results.filter(r => r === true).length;
+    const failed = results.filter(r => r === false).length;
     
     return { success, failed };
   } catch (error) {
@@ -702,7 +749,7 @@ export const syncAddress = async (address: LocalAddress): Promise<boolean> => {
   }
 };
 
-// مزامنة قائمة العناوين غير المتزامنة
+// مزامنة قائمة العناوين غير المتزامنة مع Pool محدود
 export const syncUnsyncedAddresses = async (): Promise<{ success: number; failed: number }> => {
   try {
     const addresses: LocalAddress[] = [];
@@ -714,18 +761,19 @@ export const syncUnsyncedAddresses = async (): Promise<{ success: number; failed
       }
     });
     
-    let success = 0;
-    let failed = 0;
-    
-    for (const address of addresses) {
-      const result = await syncAddress(address);
-      
-      if (result) {
-        success++;
-      } else {
-        failed++;
-      }
+    if (addresses.length === 0) {
+      return { success: 0, failed: 0 };
     }
+
+    // استخدام Pool للتحكم بالتوازي
+    const results = await runWithPool(
+      addresses,
+      async (address) => await syncAddress(address),
+      SYNC_POOL_SIZE
+    );
+
+    const success = results.filter(r => r === true).length;
+    const failed = results.filter(r => r === false).length;
     
     return { success, failed };
   } catch (error) {
@@ -747,6 +795,34 @@ export const synchronizeWithServer = async (): Promise<boolean> => {
     
     // ثم معالجة قائمة المزامنة
     const queueResult = await processSyncQueue();
+
+    // Server Win: مزامنة إعدادات POS من السيرفر إلى المحلي (مع caching)
+    try {
+      const now = Date.now();
+      const shouldSync = !lastPosSettingsSyncTime || (now - lastPosSettingsSyncTime) >= POS_SETTINGS_CACHE_DURATION;
+      
+      if (shouldSync) {
+        const orgId = (typeof localStorage !== 'undefined' && localStorage.getItem('bazaar_organization_id')) || '';
+        if (orgId) {
+          const { data: settings, error: settingsError } = await supabase
+            .from('pos_settings')
+            .select('*')
+            .eq('organization_id', orgId)
+            .maybeSingle();
+          if (!settingsError && settings) {
+            await localPosSettingsService.save({
+              ...(settings as any),
+              organization_id: orgId,
+              synced: true,
+              pending_sync: false
+            } as any);
+            lastPosSettingsSyncTime = now;
+          }
+        }
+      }
+    } catch {
+      // تجاهل أي خطأ في مزامنة الإعدادات
+    }
 
     return true;
   } catch (error) {

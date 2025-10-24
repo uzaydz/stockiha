@@ -1,23 +1,24 @@
-// Service Worker لتحسين الأداء والتخزين المؤقت
-const CACHE_NAME = 'bazaar-v1.0.0';
-const STATIC_CACHE = 'static-v1.0.0';
-const DYNAMIC_CACHE = 'dynamic-v1.0.0';
+// Service Worker لتحسين الأداء والتخزين المؤقت - إصدار محدث لتجنب التضارب
+const CACHE_NAME = 'bazaar-v1.0.2';
+const STATIC_CACHE = 'static-v1.0.2';
+const DYNAMIC_CACHE = 'dynamic-v1.0.2';
 
 // الملفات الحرجة للتخزين المؤقت
 const STATIC_ASSETS = [
   '/',
   '/index.html',
-  '/store.html',
-  '/src/index.css',
-  '/src/main.tsx',
-  '/src/store-main.tsx',
-  '/fonts/tajawal-regular.woff2',
-  '/fonts/tajawal-medium.woff2',
-  '/fonts/tajawal-bold.woff2',
-  '/assets/react-core-CQ_KtV-u.js',
-  '/assets/main-BoN-3Mza.js',
-  '/assets/index-KdHpbJPa.js',
-  '/assets/css/index-DzXS1-O1.css'
+  '/store.html'
+];
+
+// قائمة الملفات التي يجب عدم تخزينها مؤقتاً
+const NO_CACHE_PATTERNS = [
+  '/api/',
+  '/yalidine-api/',
+  '/_next/',
+  '/sw.js',
+  '/dashboard/',
+  'chrome-extension://',
+  'moz-extension://'
 ];
 
 // تثبيت Service Worker
@@ -32,6 +33,7 @@ self.addEventListener('install', (event) => {
       })
       .then(() => {
         console.log('Service Worker: Static assets cached');
+        // عدم استخدام skipWaiting لتجنب التحديث المستمر
         return self.skipWaiting();
       })
       .catch((error) => {
@@ -58,7 +60,8 @@ self.addEventListener('activate', (event) => {
       })
       .then(() => {
         console.log('Service Worker: Activated');
-        return self.clients.claim();
+        // عدم استخدام clients.claim() لتجنب التحديث المستمر
+        return Promise.resolve();
       })
   );
 });
@@ -72,6 +75,11 @@ self.addEventListener('fetch', (event) => {
 
   // تخطي طلبات Chrome DevTools
   if (event.request.url.includes('.well-known/appspecific/')) {
+    return;
+  }
+
+  // تخطي الملفات التي لا يجب تخزينها مؤقتاً
+  if (NO_CACHE_PATTERNS.some(pattern => event.request.url.includes(pattern))) {
     return;
   }
 
@@ -100,24 +108,31 @@ self.addEventListener('fetch', (event) => {
               ? STATIC_CACHE
               : DYNAMIC_CACHE;
 
-            // احفظ الملف في الكاش
+            // احفظ الملف في الكاش - تحسين لتجنب التضارب
             caches.open(cacheName)
               .then((cache) => {
                 cache.put(event.request, responseToCache);
                 console.log('Service Worker: Cached new asset', event.request.url);
+              })
+              .catch((error) => {
+                console.warn('Service Worker: Failed to cache asset', event.request.url, error);
               });
 
             return response;
           })
           .catch((error) => {
-            console.error('Service Worker: Network fetch failed', error);
+            console.warn('Service Worker: Network fetch failed', event.request.url, error);
 
-            // للصفحات، أعد صفحة غير متصلة بالإنترنت
+            // للصفحات، أعد صفحة غير متصلة بالإنترنت - تحسين لتجنب الأخطاء
             if (event.request.destination === 'document') {
-              return caches.match('/index.html');
+              return caches.match('/index.html').catch(() => {
+                console.warn('Service Worker: No cached index.html found');
+                return new Response('Offline', { status: 503, statusText: 'Service Unavailable' });
+              });
             }
 
-            throw error;
+            // للطلبات الأخرى، أعد خطأ بدلاً من رمي exception
+            return new Response('Network Error', { status: 503, statusText: 'Service Unavailable' });
           });
       })
   );
@@ -126,6 +141,7 @@ self.addEventListener('fetch', (event) => {
 // معالجة الرسائل
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
+    // عدم استخدام skipWaiting لتجنب التحديث المستمر
+    console.log('Service Worker: Skip waiting requested but ignored to prevent infinite reload');
   }
 });

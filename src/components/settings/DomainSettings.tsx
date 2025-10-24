@@ -1,650 +1,716 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { useTenant } from '@/context/TenantContext';
-import { useToast } from '@/components/ui/use-toast';
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle 
-} from '@/components/ui/card';
-import { getSupabaseClient } from '@/lib/supabase';
-import { Loader2, Check, Globe, AlertCircle, ExternalLink, Copy, Cloud, Zap, Settings } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { checkDomainStatus, updateOrganizationDomain, checkDomainAvailability } from '@/lib/api/domain-verification';
-import CustomDomainHelp from './CustomDomainHelp';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import DomainVerificationDetails from './DomainVerificationDetails';
-import { Link } from 'react-router-dom';
-import { DomainVerificationStatus } from '@/types/domain-verification';
-import { DomainSettingsCard } from './DomainSettingsCard';
-import { generateCustomDomainDnsInstructions } from '@/api/domain-verification-api';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { INTERMEDIATE_DOMAIN } from '@/lib/api/domain-verification';
+import { Separator } from '@/components/ui/separator';
+import { useToast } from '@/components/ui/use-toast';
+import { useTenant } from '@/context/TenantContext';
+import { getSupabaseClient } from '@/lib/supabase';
 import { getDomainInfo } from '@/api/get-domain-direct';
-import { linkDomain } from '@/api/link-domain-direct';
-import { removeDomain } from '@/api/remove-domain-direct';
-import CloudflareDomainSettings from './CloudflareDomainSettings';
-import NameserverDomainSettings from './NameserverDomainSettings';
-import { hasCloudflareConfig } from '@/lib/api/cloudflare-config';
+import {
+  autoSetupDomain,
+  checkCustomHostnameStatus,
+  checkDomainDelegation,
+  getStockihaNameservers,
+  removeCustomHostname,
+  type CloudflareNameservers,
+  type CloudflareSaaSResponse,
+  type CustomHostnameResponse,
+  type DomainDelegationStatus
+} from '@/api/cloudflare-saas-api';
+import { DomainVerificationStatus } from '@/types/domain-verification';
+import {
+  Globe,
+  Loader2,
+  RefreshCw,
+  Copy,
+  CheckCircle2,
+  AlertTriangle,
+  Shield,
+  Zap,
+  Trash2,
+  Info,
+  BookOpen,
+  ExternalLink,
+  Clock
+} from 'lucide-react';
 
-// نمط للتحقق من صحة تنسيق النطاق
 const DOMAIN_REGEX = /^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+(([a-zA-Z]{2,})|(xn--[a-zA-Z0-9]+))$/;
+const DEFAULT_NAMESERVERS = ['marty.ns.cloudflare.com', 'sue.ns.cloudflare.com'];
 
-// حالات واجهة المستخدم (امتداد للحالات الموجودة في DomainVerificationStatus)
-export type DomainStatusType = 'unconfigured' | DomainVerificationStatus;
-
-interface DomainStatusProps {
-  status: DomainStatusType;
-  message?: string;
-  domain?: string;
+interface VerificationRecord {
+  id?: string;
+  status: DomainVerificationStatus;
+  error_message?: string | null;
+  updated_at?: string | null;
+  verified_at?: string | null;
 }
 
-const DomainStatusBadge: React.FC<{ status: DomainStatusType }> = ({ status }) => {
-  const statusConfig = {
-    'unconfigured': { color: 'bg-gray-100 text-gray-700', label: 'غير مكوّن' },
-    'pending': { color: 'bg-amber-100 text-amber-700', label: 'قيد المعالجة' },
-    'active': { color: 'bg-green-100 text-green-700', label: 'نشط' },
-    'error': { color: 'bg-red-100 text-red-700', label: 'خطأ' },
-    'verified': { color: 'bg-blue-100 text-blue-700', label: 'متحقق' },
+type HostnameState = 'pending' | 'active' | 'moved' | 'error' | 'not_found';
+
+interface HostnameStatusDisplay {
+  hostname: string;
+  status: HostnameState;
+  sslStatus?: 'pending' | 'active' | 'error';
+  verificationErrors?: string[];
+  id?: string;
+  message?: string;
+}
+
+const cleanDomain = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/\s+/g, '')
+    .replace(/\/$/, '')
+    .replace(/:.*$/, '')
+    .replace(/^www\./, '')
+    .replace(/\.$/, '');
+
+const getErrorMessage = (error: unknown) =>
+  error instanceof Error ? error.message : 'حدث خطأ غير متوقع';
+
+const normalizeHostnameStatus = (hostname: string, result: CloudflareSaaSResponse): HostnameStatusDisplay => {
+  if (!result.success) {
+    const message = result.error || result.message || 'لم يتم العثور على معلومات النطاق';
+    const normalizedMessage = message.toLowerCase();
+    const isMissing = normalizedMessage.includes('لم يتم العثور') || normalizedMessage.includes('not found');
+
+    return {
+      hostname,
+      status: isMissing ? 'not_found' : 'error',
+      message
+    };
+  }
+
+  const data = result.data as CustomHostnameResponse;
+
+  return {
+    hostname,
+    status: data.status,
+    sslStatus: data.ssl?.status,
+    verificationErrors: data.verification_errors,
+    id: data.id
   };
-  
-  const config = statusConfig[status];
-  
-  return (
-    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
-      {config.label}
-    </span>
-  );
 };
 
-const DomainStatus: React.FC<DomainStatusProps> = ({ status, message, domain }) => {
-  const statusIcons = {
-    'unconfigured': <Globe className="w-5 h-5 text-gray-500" />,
-    'pending': <Loader2 className="w-5 h-5 text-amber-500 animate-spin" />,
-    'active': <Check className="w-5 h-5 text-green-500" />,
-    'error': <AlertCircle className="w-5 h-5 text-red-500" />,
-    'verified': <Check className="w-5 h-5 text-blue-500" />,
+const statusBadge = (status: HostnameState | DomainDelegationStatus['status'] | 'unconfigured') => {
+  const config: Record<string, { label: string; className: string }> = {
+    active: { label: 'نشط', className: 'bg-emerald-100 text-emerald-800' },
+    pending: { label: 'قيد التفعيل', className: 'bg-amber-100 text-amber-800' },
+    moved: { label: 'تم النقل', className: 'bg-blue-100 text-blue-800' },
+    error: { label: 'خطأ', className: 'bg-red-100 text-red-800' },
+    not_found: { label: 'غير مكوَّن', className: 'bg-gray-100 text-gray-700' },
+    unconfigured: { label: 'غير مكوَّن', className: 'bg-gray-100 text-gray-700' }
   };
-  
-  const statusMessages = {
-    'unconfigured': 'لم يتم تكوين نطاق مخصص بعد. قم بإضافة نطاق لمتجرك.',
-    'pending': message || 'النطاق قيد المعالجة. قد يستغرق هذا حتى 24 ساعة.',
-    'active': 'النطاق المخصص نشط ويعمل بشكل صحيح.',
-    'error': message || 'حدث خطأ أثناء تكوين النطاق. يرجى مراجعة إعدادات DNS.',
-    'verified': 'النطاق متحقق ويعمل بشكل صحيح.',
-  };
-  
-  return (
-    <div className="flex items-start space-x-4 space-x-reverse">
-      <div className="mt-1">{statusIcons[status]}</div>
-      <div>
-        <div className="flex items-center gap-2">
-          <h4 className="text-sm font-medium">{domain || 'النطاق المخصص'}</h4>
-          <DomainStatusBadge status={status} />
-        </div>
-        <p className="text-sm text-gray-600">{statusMessages[status]}</p>
-      </div>
-    </div>
-  );
+
+  const { label, className } = config[status] ?? config.unconfigured;
+  return <Badge className={className}>{label}</Badge>;
+};
+
+const statusIcon = (status: HostnameState | DomainDelegationStatus['status'] | 'unconfigured') => {
+  switch (status) {
+    case 'active':
+      return <CheckCircle2 className="w-5 h-5 text-emerald-500" />;
+    case 'pending':
+      return <Clock className="w-5 h-5 text-amber-500" />;
+    case 'error':
+      return <AlertTriangle className="w-5 h-5 text-red-500" />;
+    case 'moved':
+      return <Shield className="w-5 h-5 text-blue-500" />;
+    default:
+      return <Globe className="w-5 h-5 text-muted-foreground" />;
+  }
 };
 
 const DomainSettings: React.FC = () => {
   const { organization, refreshTenant } = useTenant();
   const { toast } = useToast();
-  const queryClient = useQueryClient();
-  
-  const [domain, setDomain] = useState<string>('');
-  const [domainStatus, setDomainStatus] = useState<DomainStatusType>('unconfigured');
-  const [statusMessage, setStatusMessage] = useState<string>('');
-  const [isValidFormat, setIsValidFormat] = useState<boolean>(true);
-  const [isAvailable, setIsAvailable] = useState<boolean>(true);
-  const [isCheckingAvailability, setIsCheckingAvailability] = useState<boolean>(false);
-  const [isSaving, setIsSaving] = useState<boolean>(false);
-  const [isChecking, setIsChecking] = useState<boolean>(false);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [verificationData, setVerificationData] = useState<Record<string, any> | null>(null);
-  const [lastChecked, setLastChecked] = useState<string | null>(null);
-  const [actualDomain, setActualDomain] = useState<string | null>(null);
-  const [useCloudflare, setUseCloudflare] = useState<boolean>(false);
-  
-  // الحصول على معلومات النطاق مباشرة من قاعدة البيانات
-  const fetchDomainInfoDirect = async () => {
-    if (!organization?.id) return;
-    
+
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+  const [copiedValue, setCopiedValue] = useState<string | null>(null);
+
+  const [domainInput, setDomainInput] = useState('');
+  const [currentDomain, setCurrentDomain] = useState<string | null>(null);
+  const [verification, setVerification] = useState<VerificationRecord | null>(null);
+  const [nameservers, setNameservers] = useState<string[]>(DEFAULT_NAMESERVERS);
+  const [delegation, setDelegation] = useState<DomainDelegationStatus | null>(null);
+  const [hostnames, setHostnames] = useState<HostnameStatusDisplay[]>([]);
+
+  const supabase = useMemo(() => getSupabaseClient(), []);
+
+  const loadDomainStatus = useCallback(
+    async (domainOverride?: string, nameserverOverride?: string[]) => {
+      if (!organization?.id) {
+        return;
+      }
+
+      const normalizedDomain = cleanDomain(domainOverride ?? currentDomain ?? '');
+      if (!normalizedDomain) {
+        setDelegation(null);
+        setHostnames([]);
+        return;
+      }
+
+      const expectedNameservers = (nameserverOverride && nameserverOverride.length > 0)
+        ? nameserverOverride
+        : nameservers;
+
+      setIsCheckingStatus(true);
+      try {
+        const [delegationStatus, rootHostname, wwwHostname] = await Promise.all([
+          checkDomainDelegation(normalizedDomain, expectedNameservers),
+          checkCustomHostnameStatus(normalizedDomain),
+          checkCustomHostnameStatus(`www.${normalizedDomain}`)
+        ]);
+
+        setDelegation(delegationStatus);
+        setHostnames([
+          normalizeHostnameStatus(normalizedDomain, rootHostname),
+          normalizeHostnameStatus(`www.${normalizedDomain}`, wwwHostname)
+        ]);
+
+        const latestInfo = await getDomainInfo(organization.id);
+        if (latestInfo.success && latestInfo.data) {
+          setVerification(latestInfo.data.verification || null);
+        }
+      } catch (error) {
+        console.error('Domain status check failed', error);
+        toast({
+          title: 'فشل التحقق',
+          description: 'تعذر فحص حالة النطاق حالياً. حاول مجدداً بعد لحظات.',
+          variant: 'destructive'
+        });
+      } finally {
+        setIsCheckingStatus(false);
+      }
+    },
+    [currentDomain, nameservers, organization?.id, toast]
+  );
+
+  const loadInitialData = useCallback(async () => {
+    if (!organization?.id) {
+      return;
+    }
+
     setIsLoading(true);
-    
     try {
+      const [domainInfo, nameserverInfo] = await Promise.all([
+        getDomainInfo(organization.id),
+        getStockihaNameservers().catch(() => null)
+      ]);
 
-      const result = await getDomainInfo(organization.id);
-      
-      if (result.success && result.data) {
+      let resolvedNameservers = DEFAULT_NAMESERVERS;
 
-        if (result.data.domain) {
-          setActualDomain(result.data.domain);
-          setDomain(result.data.domain);
-          
-          // إذا كانت معلومات التحقق موجودة
-          if (result.data.verification) {
-            setDomainStatus(result.data.verification.status as DomainStatusType || 'pending');
-            setStatusMessage(result.data.verification.error_message || '');
-            setLastChecked(result.data.verification.updated_at || '');
-            setVerificationData(result.data.verification);
-          } else {
-            setDomainStatus('pending');
-          }
+      if (nameserverInfo && nameserverInfo.success && (nameserverInfo.data as CloudflareNameservers)?.nameservers) {
+        resolvedNameservers = (nameserverInfo.data as CloudflareNameservers).nameservers;
+        setNameservers(resolvedNameservers);
+      } else {
+        setNameservers(DEFAULT_NAMESERVERS);
+      }
+
+      if (domainInfo.success && domainInfo.data) {
+        const existingDomain = domainInfo.data.domain ? cleanDomain(domainInfo.data.domain) : '';
+        setCurrentDomain(existingDomain || null);
+        setDomainInput(existingDomain);
+        setVerification(domainInfo.data.verification || null);
+
+        if (existingDomain) {
+          await loadDomainStatus(existingDomain, resolvedNameservers);
         } else {
-          setActualDomain(null);
-          setDomainStatus('unconfigured');
+          setDelegation(null);
+          setHostnames([]);
         }
       } else {
-        toast({
-          title: "خطأ",
-          description: result.error || "حدث خطأ أثناء جلب معلومات النطاق",
-          variant: "destructive",
-        });
+        setCurrentDomain(null);
+        setDomainInput('');
+        setVerification(null);
+        setDelegation(null);
+        setHostnames([]);
       }
     } catch (error) {
+      console.error('Failed to load custom domain data', error);
+      toast({
+        title: 'خطأ في التحميل',
+        description: 'لم نتمكن من تحميل بيانات النطاق الآن. حاول لاحقاً.',
+        variant: 'destructive'
+      });
     } finally {
       setIsLoading(false);
     }
-  };
-  
-  // الحصول على معلومات التحقق من النطاق من قاعدة البيانات
-  const fetchDomainVerificationInfo = async () => {
-    if (!organization?.id || !actualDomain) return;
-    
-    try {
-      const supabase = getSupabaseClient();
-      
-      // التحقق من صحة عميل Supabase قبل الاستخدام
-      if (!supabase) {
-        return;
+  }, [organization?.id, loadDomainStatus, toast]);
+
+  useEffect(() => {
+    loadInitialData();
+  }, [loadInitialData]);
+
+  const handleCopy = useCallback(
+    async (value: string, label: string) => {
+      try {
+        await navigator.clipboard.writeText(value);
+        setCopiedValue(label);
+        toast({ title: 'تم النسخ', description: `${label} أُضيف إلى الحافظة` });
+        setTimeout(() => setCopiedValue(null), 2000);
+      } catch (error) {
+        toast({ title: 'تعذر النسخ', description: getErrorMessage(error), variant: 'destructive' });
       }
-      
-      const { data, error } = await supabase
-        .from('domain_verifications' as any)
-        .select('*')
+    },
+    [toast]
+  );
+
+  const handleSaveDomain = useCallback(async () => {
+    if (!organization?.id) {
+      toast({ title: 'خطأ', description: 'لم يتم العثور على المؤسسة الحالية.', variant: 'destructive' });
+      return;
+    }
+
+    const cleanValue = cleanDomain(domainInput);
+    if (!cleanValue) {
+      toast({ title: 'أدخل النطاق', description: 'يرجى إدخال نطاق صالح قبل الحفظ.' });
+      return;
+    }
+
+    if (!DOMAIN_REGEX.test(cleanValue)) {
+      toast({ title: 'نطاق غير صالح', description: 'اكتب نطاقاً بدون http أو مسارات (مثل example.com).', variant: 'destructive' });
+      return;
+    }
+
+    if (!supabase) {
+      toast({ title: 'Supabase', description: 'فشل الاتصال بقاعدة البيانات.', variant: 'destructive' });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const now = new Date().toISOString();
+
+      const { error: updateError } = await supabase
+        .from('organizations')
+        .update({ domain: cleanValue, updated_at: now })
+        .eq('id', organization.id);
+
+      if (updateError) {
+        throw new Error(updateError.message || 'تعذر تحديث النطاق في المؤسسة');
+      }
+
+      const { data: existingVerification, error: verificationSelectError } = await supabase
+        .from('domain_verifications')
+        .select('id')
         .eq('organization_id', organization.id)
-        .eq('domain', actualDomain)
         .maybeSingle();
-        
-      if (error) {
-        return;
-      }
-      
-      if (data && typeof data === 'object') {
-        const domainVerification = data as any;
-        setDomainStatus((domainVerification.status as DomainStatusType) || 'pending');
-        setStatusMessage(domainVerification.error_message || '');
-        setLastChecked(domainVerification.updated_at || '');
-      }
-    } catch (error) {
-    }
-  };
-  
-  // تحميل النطاق الحالي إذا كان موجودًا
-  useEffect(() => {
-    if (organization?.id) {
-      fetchDomainInfoDirect();
-    }
-  }, [organization?.id]);
 
-  // التحقق من توفر Cloudflare وتحديد النظام الافتراضي
-  useEffect(() => {
-    // دائماً استخدم Cloudflare (حسب طلب المستخدم)
-    setUseCloudflare(true);
-    
-    toast({
-      title: "نظام Cloudflare نشط",
-      description: "يتم استخدام Cloudflare Pages لإدارة النطاقات المخصصة.",
-      variant: "default",
-    });
-  }, [toast]);
-  
-  // جلب معلومات التحقق عند تغيير النطاق الفعلي
-  useEffect(() => {
-    if (actualDomain) {
-      fetchDomainVerificationInfo();
-    }
-  }, [actualDomain]);
-  
-  // تحميل معلومات النطاق من المنظمة
-  useEffect(() => {
-    if (organization?.domain && !actualDomain) {
-      setActualDomain(organization.domain);
-      setDomain(organization.domain);
-    }
-  }, [organization?.domain, actualDomain]);
-  
-  // التحقق من حالة النطاق الحالي عبر Vercel API
-  const checkDomainStatusMutation = useMutation({
-    mutationFn: async () => {
-      if (!organization?.id || !organization?.domain) return null;
-      
-      setIsChecking(true);
-      try {
-        const response = await fetch(`/api/check-domain-status?domain=${organization.domain}&organizationId=${organization.id}`);
-        const result = await response.json();
-        
-        if (!response.ok || !result.success) {
-          throw new Error(result.error || 'فشل في التحقق من حالة النطاق');
-        }
-        
-        // تحديث الحالة والمعلومات
-        setDomainStatus(result.data.verified ? 'active' : 'pending');
-        setStatusMessage(result.data.message || '');
-        setLastChecked(new Date().toISOString());
-        
-        return result.data;
-      } catch (error) {
-        setDomainStatus('error');
-        setStatusMessage('حدث خطأ أثناء التحقق من حالة النطاق');
-        throw error;
-      } finally {
-        setIsChecking(false);
+      if (verificationSelectError) {
+        throw new Error(verificationSelectError.message || 'تعذر قراءة حالة التحقق من النطاق');
       }
-    },
-    onSuccess: () => {
-      // تحديث ذاكرة التخزين المؤقت للاستعلام
-      queryClient.invalidateQueries({ queryKey: ['organization', organization?.id] });
-    }
-  });
 
-  // التحقق الفوري من النطاق باستخدام النظام الجديد
-  const verifyDomainNowMutation = useMutation({
-    mutationFn: async () => {
-      if (!organization?.id || !organization?.domain) return null;
-      
-      setIsChecking(true);
-      try {
-        const response = await fetch('/api/verify-domain-now', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            domain: organization.domain,
-            organizationId: organization.id
+      if (existingVerification) {
+        const { error: verificationUpdateError } = await supabase
+          .from('domain_verifications')
+          .update({
+            domain: cleanValue,
+            status: 'pending',
+            error_message: null,
+            updated_at: now,
+            verified_at: null
           })
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-          // تم التحقق بنجاح
-          setDomainStatus('verified');
-          setStatusMessage('تم التحقق من النطاق بنجاح!');
-          setLastChecked(new Date().toISOString());
-          
-          toast({
-            title: "تم التحقق من النطاق",
-            description: "النطاق المخصص يعمل الآن بشكل صحيح!",
-          });
-        } else {
-          // فشل التحقق
-          setDomainStatus('pending');
-          setStatusMessage(result.message || 'فشل في التحقق من النطاق');
-          
-          toast({
-            title: "فشل التحقق",
-            description: result.message || 'يرجى التحقق من إعدادات DNS والمحاولة مرة أخرى',
-            variant: 'destructive'
-          });
+          .eq('id', existingVerification.id);
+
+        if (verificationUpdateError) {
+          throw new Error(verificationUpdateError.message || 'تعذر تحديث سجل التحقق');
         }
-        
-        return result;
-      } catch (error) {
-        setDomainStatus('error');
-        setStatusMessage('حدث خطأ أثناء التحقق من النطاق');
-        
-        toast({
-          title: "خطأ في التحقق",
-          description: "حدث خطأ أثناء التحقق من النطاق",
-          variant: 'destructive'
-        });
-        
-        throw error;
-      } finally {
-        setIsChecking(false);
+      } else {
+        const { error: verificationInsertError } = await supabase
+          .from('domain_verifications')
+          .insert({
+            organization_id: organization.id,
+            domain: cleanValue,
+            status: 'pending',
+            created_at: now,
+            updated_at: now
+          });
+
+        if (verificationInsertError) {
+          throw new Error(verificationInsertError.message || 'تعذر إنشاء سجل التحقق');
+        }
       }
-    },
-    onSuccess: () => {
-      // تحديث ذاكرة التخزين المؤقت للاستعلام
-      queryClient.invalidateQueries({ queryKey: ['organization', organization?.id] });
-      // إعادة تحميل معلومات التاجر
-      refreshTenant();
-    }
-  });
-  
-  // التحقق من صحة تنسيق النطاق وتوفره
-  const handleDomainChange = (value: string) => {
-    setDomain(value);
-    
-    // التحقق من صحة تنسيق النطاق
-    const isValid = value === '' || DOMAIN_REGEX.test(value);
-    setIsValidFormat(isValid);
-    
-    // إذا كان النطاق صحيحًا، تحقق من توفره
-    if (isValid && value && value !== organization?.domain) {
-      checkDomainAvailabilityDebounced(value);
-    } else {
-      setIsAvailable(true);
-    }
-  };
-  
-  // تأخير في التحقق من توفر النطاق لتجنب استعلامات كثيرة
-  const checkDomainAvailabilityDebounced = async (value: string) => {
-    setIsCheckingAvailability(true);
-    
-    try {
-      // انتظر قليلاً لتجنب استعلامات كثيرة أثناء الكتابة
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      const result = await checkDomainAvailability(value, organization?.id);
-      setIsAvailable(result.available);
-      
-      if (!result.available) {
-        toast({
-          title: "النطاق غير متاح",
-          description: result.message || "هذا النطاق مستخدم بالفعل من قبل متجر آخر.",
-          variant: "destructive",
-        });
-      }
+
+      setCurrentDomain(cleanValue);
+      setVerification({ status: 'pending' });
+      toast({
+        title: 'تم حفظ النطاق',
+        description: 'قم بتحديث الـ Nameservers ثم استخدم زر التحقق لإكمال الإعداد.'
+      });
+
+      await refreshTenant();
+      await loadDomainStatus(cleanValue);
     } catch (error) {
-      setIsAvailable(false);
+      console.error('Save domain failed', error);
+      toast({ title: 'فشل الحفظ', description: getErrorMessage(error), variant: 'destructive' });
     } finally {
-      setIsCheckingAvailability(false);
+      setIsSaving(false);
     }
-  };
-  
-  // حفظ النطاق باستخدام Vercel API
-  const addDomainMutation = useMutation({
-    mutationFn: async (newDomain: string) => {
-      if (!organization?.id) return null;
-      
-      setIsSaving(true);
-      try {
-        // 1. التحقق من تنسيق النطاق
-        if (!DOMAIN_REGEX.test(newDomain)) {
-          throw new Error('يرجى إدخال نطاق صالح (مثل example.com)');
-        }
-        
-        // 2. ربط النطاق بـ Vercel
-        const result = await linkDomain(organization.id, newDomain);
-        
-        if (!result.success) {
-          throw new Error(result.error || 'فشل في ربط النطاق بـ Vercel');
-        }
-        
-        // 3. تحديث النطاق في قاعدة البيانات (استمر في استخدام الوظيفة الحالية للتوافق)
-        const updateResult = await updateOrganizationDomain(organization.id, newDomain);
-        
-        if (!updateResult.success) {
-          throw new Error(updateResult.message || 'فشل في تحديث النطاق في قاعدة البيانات');
-        }
-        
-        // 4. تحديث الحالة والمعلومات
-        setDomainStatus('pending');
-        setStatusMessage('تم ربط النطاق بنجاح! يرجى إعداد سجلات DNS الخاصة بك.');
-        setVerificationData(result.data?.verification || null);
-        setLastChecked(new Date().toISOString());
-        
-        // 5. تحديث بيانات المستأجر
-        await refreshTenant();
-        
-        toast({
-          title: "تم تحديث النطاق",
-          description: "تم ربط النطاق بنجاح! يرجى إعداد سجلات DNS الخاصة بك.",
-        });
-        
-        return newDomain;
-      } catch (error) {
-        toast({
-          title: "فشل تحديث النطاق",
-          description: error instanceof Error ? error.message : 'حدث خطأ أثناء تحديث النطاق',
-          variant: "destructive",
-        });
-        throw error;
-      } finally {
-        setIsSaving(false);
-      }
+  }, [domainInput, organization?.id, supabase, toast, refreshTenant, loadDomainStatus]);
+
+  const handleRemoveDomain = useCallback(async () => {
+    if (!organization?.id || !currentDomain) {
+      return;
     }
-  });
-  
-  // إزالة النطاق باستخدام Vercel API
-  const removeDomainMutation = useMutation({
-    mutationFn: async () => {
-      if (!organization?.id || !organization?.domain) return null;
-      
-      if (!confirm('هل أنت متأكد من أنك تريد إزالة النطاق المخصص؟')) {
-        return null;
-      }
-      
-      setIsSaving(true);
-      try {
-        // 1. إزالة النطاق من Vercel
-        const result = await removeDomain(organization.domain, organization.id);
-        
-        if (!result.success) {
-          throw new Error(result.error || 'فشل في إزالة النطاق من Vercel');
-        }
-        
-        // 2. تحديث الحالة والمعلومات
-        setDomain('');
-        setDomainStatus('unconfigured');
-        setStatusMessage('');
-        setVerificationData(null);
-        setLastChecked(null);
-        
-        // 3. تحديث بيانات المستأجر
-        await refreshTenant();
-        
-        toast({
-          title: "تم إزالة النطاق",
-          description: "تم إزالة النطاق المخصص بنجاح",
-        });
-        
-        return true;
-      } catch (error) {
-        toast({
-          title: "فشل إزالة النطاق",
-          description: error instanceof Error ? error.message : 'حدث خطأ أثناء إزالة النطاق',
-          variant: "destructive",
-        });
-        throw error;
-      } finally {
-        setIsSaving(false);
-      }
+
+    const confirmed = window.confirm('هل أنت متأكد من حذف النطاق المخصص وإيقاف العمل به؟');
+    if (!confirmed) {
+      return;
     }
-  });
-  
-  // معاينة المتجر على النطاق المخصص
-  const handlePreviewStore = () => {
-    if (!organization?.domain) return;
-    
-    window.open(`https://${organization.domain}`, '_blank');
-  };
-  
-  // الحصول على سجلات DNS الموصى بها
-  const dnsInstructions = organization?.domain 
-    ? generateCustomDomainDnsInstructions(organization.domain) 
-    : [];
-  
-  const checkCurrentDomainStatus = () => {
-    checkDomainStatusMutation.mutate();
-  };
-  
-  // النظام الجديد: عرض خيارات متعددة للمستخدم
+
+    if (!supabase) {
+      toast({ title: 'Supabase', description: 'فشل الاتصال بقاعدة البيانات.', variant: 'destructive' });
+      return;
+    }
+
+    setIsRemoving(true);
+    try {
+      const [rootHostname, wwwHostname] = await Promise.all([
+        checkCustomHostnameStatus(currentDomain),
+        checkCustomHostnameStatus(`www.${currentDomain}`)
+      ]);
+
+      const hostnamesToRemove = [rootHostname, wwwHostname]
+        .filter(response => response.success && (response.data as CustomHostnameResponse)?.id)
+        .map(response => (response.data as CustomHostnameResponse).id);
+
+      for (const id of hostnamesToRemove) {
+        if (!id) continue;
+        const removalResult = await removeCustomHostname(id);
+        if (!removalResult.success) {
+          console.warn('Failed to remove custom hostname', removalResult.error);
+        }
+      }
+
+      const now = new Date().toISOString();
+      const { error: orgUpdateError } = await supabase
+        .from('organizations')
+        .update({ domain: null, updated_at: now })
+        .eq('id', organization.id);
+
+      if (orgUpdateError) {
+        throw new Error(orgUpdateError.message || 'تعذر تحديث المؤسسة بعد الإزالة');
+      }
+
+      const { error: verificationDeleteError } = await supabase
+        .from('domain_verifications')
+        .delete()
+        .eq('organization_id', organization.id);
+
+      if (verificationDeleteError) {
+        console.warn('Failed to delete domain verification record', verificationDeleteError.message);
+      }
+
+      setCurrentDomain(null);
+      setDomainInput('');
+      setVerification(null);
+      setDelegation(null);
+      setHostnames([]);
+
+      await refreshTenant();
+      toast({ title: 'تمت الإزالة', description: 'تم حذف النطاق المخصص بنجاح.' });
+    } catch (error) {
+      console.error('Remove domain failed', error);
+      toast({ title: 'فشل الإزالة', description: getErrorMessage(error), variant: 'destructive' });
+    } finally {
+      setIsRemoving(false);
+    }
+  }, [currentDomain, organization?.id, supabase, toast, refreshTenant]);
+
+  const handleAutoSetup = useCallback(async () => {
+    if (!organization?.id || !currentDomain) {
+      toast({ title: 'لا يوجد نطاق', description: 'أضف النطاق أولاً ثم حاول الإعداد التلقائي.' });
+      return;
+    }
+
+    setIsCheckingStatus(true);
+    try {
+      const result = await autoSetupDomain(currentDomain, organization.id);
+      if (result.success) {
+        toast({
+          title: 'تم الإعداد التلقائي',
+          description: 'تم إنشاء Custom Hostnames وإعداد SSL. قد يستغرق التفعيل دقائق قليلة.'
+        });
+      } else {
+        throw new Error(result.error || result.message || 'تعذر الإعداد التلقائي للنطاق');
+      }
+      await loadDomainStatus(currentDomain);
+    } catch (error) {
+      console.error('Auto setup failed', error);
+      toast({ title: 'فشل الإعداد التلقائي', description: getErrorMessage(error), variant: 'destructive' });
+    } finally {
+      setIsCheckingStatus(false);
+    }
+  }, [organization?.id, currentDomain, toast, loadDomainStatus]);
+
+  const currentStatus = useMemo(() => {
+    if (!currentDomain) return 'unconfigured' as const;
+    if (delegation?.status === 'error') return 'error' as const;
+    if (!delegation) return 'pending' as const;
+    if (delegation.status === 'active') return 'active' as const;
+    return delegation.status;
+  }, [currentDomain, delegation]);
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 gap-4 text-muted-foreground">
+        <Loader2 className="w-6 h-6 animate-spin" />
+        <p>جارٍ تحميل إعدادات النطاق...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      <Tabs defaultValue="nameserver" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="nameserver" className="flex items-center gap-2">
-            <Zap className="w-4 h-4" />
-            Nameserver (الأحدث)
-          </TabsTrigger>
-          <TabsTrigger value="cloudflare" className="flex items-center gap-2">
-            <Cloud className="w-4 h-4" />
-            Cloudflare (التقليدي)
-          </TabsTrigger>
-          <TabsTrigger value="advanced" className="flex items-center gap-2">
-            <Settings className="w-4 h-4" />
-            إعدادات متقدمة
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="nameserver" className="mt-6">
-          <div className="space-y-4">
-            <Alert className="border-blue-200 bg-blue-50/50">
-              <Zap className="w-4 h-4 text-blue-600" />
-              <AlertTitle className="text-blue-900">النظام الجديد - Nameserver (مُوصى به)</AlertTitle>
-              <AlertDescription className="text-blue-700">
-                <div className="space-y-2">
-                  <p>✨ <strong>النظام الأحدث والأسهل:</strong> غيّر الـ Nameservers فقط وسيتم إعداد كل شيء تلقائياً!</p>
-                  <ul className="list-disc list-inside space-y-1 text-sm">
-                    <li>SSL تلقائي فوري</li>
-                    <li>دعم النطاق الجذري و www معاً</li>
-                    <li>لا حاجة لإعدادات DNS معقدة</li>
-                    <li>يعمل مع جميع مزودي النطاقات</li>
-                  </ul>
-                </div>
-              </AlertDescription>
-            </Alert>
-            
-            <NameserverDomainSettings
-              organizationId={organization?.id || ''}
-              currentDomain={organization?.domain}
-              onDomainUpdate={(newDomain) => {
-                if (newDomain) {
-                  setActualDomain(newDomain);
-                  setDomain(newDomain);
-                }
-                refreshTenant();
-              }}
-            />
+      <Card className="border border-border/70 shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <div className="flex items-center gap-3">
+            {statusIcon(currentStatus)}
+            <div>
+              <CardTitle className="text-lg">النطاق المخصص</CardTitle>
+              <CardDescription>
+                اربط نطاقك مع منصّة Stockiha باستخدام نظام Cloudflare for SaaS.
+              </CardDescription>
+            </div>
           </div>
-        </TabsContent>
-
-        <TabsContent value="cloudflare" className="mt-6">
-          <div className="space-y-4">
-            <Alert className="border-orange-200 bg-orange-50/50">
-              <Cloud className="w-4 h-4 text-orange-600" />
-              <AlertTitle className="text-orange-900">النظام التقليدي - Cloudflare</AlertTitle>
-              <AlertDescription className="text-orange-700">
-                النظام القديم الذي يتطلب إعداد CNAME records يدوياً. لا يُنصح به للمستخدمين الجدد.
-              </AlertDescription>
-            </Alert>
-            
-            {useCloudflare && <CloudflareDomainSettings />}
-            
-            {!useCloudflare && (
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="text-center text-gray-500">
-                    <Cloud className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                    <p>النظام التقليدي غير متاح حالياً</p>
-                    <p className="text-sm">يُرجى استخدام النظام الجديد (Nameserver) بدلاً من ذلك</p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="advanced" className="mt-6">
-          <div className="space-y-4">
-            <Alert>
-              <Settings className="w-4 h-4" />
-              <AlertTitle>إعدادات متقدمة</AlertTitle>
-              <AlertDescription>
-                معلومات تقنية وأدوات للمطورين والمستخدمين المتقدمين
-              </AlertDescription>
-            </Alert>
-            
-            <Card>
-              <CardHeader>
-                <CardTitle>معلومات النطاق الحالي</CardTitle>
-                <CardDescription>
-                  تفاصيل النطاق المخصص المُكوّن حالياً
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {actualDomain ? (
-                  <div className="space-y-4">
-                    <div>
-                      <Label>النطاق المخصص</Label>
-                      <div className="flex items-center gap-2 mt-1">
-                        <code className="px-2 py-1 bg-gray-100 rounded text-sm">{actualDomain}</code>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => navigator.clipboard.writeText(actualDomain)}
-                        >
-                          <Copy className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <Label>الحالة</Label>
-                      <div className="mt-1">
-                        <DomainStatus status={domainStatus} message={statusMessage} domain={actualDomain} />
-                      </div>
-                    </div>
-                    
-                    {lastChecked && (
-                      <div>
-                        <Label>آخر فحص</Label>
-                        <p className="text-sm text-gray-600 mt-1">
-                          {new Date(lastChecked).toLocaleString('ar-SA')}
-                        </p>
-                      </div>
-                    )}
-                    
-                    <div className="flex gap-2 flex-wrap">
-                      <Button
-                        variant="outline"
-                        onClick={checkCurrentDomainStatus}
-                        disabled={isChecking}
-                      >
-                        {isChecking && <Loader2 className="w-4 h-4 animate-spin ml-2" />}
-                        فحص الحالة
-                      </Button>
-                      
-                      <Button
-                        variant="default"
-                        onClick={() => verifyDomainNowMutation.mutate()}
-                        disabled={isChecking || verifyDomainNowMutation.isPending}
-                      >
-                        {(isChecking || verifyDomainNowMutation.isPending) && <Loader2 className="w-4 h-4 animate-spin ml-2" />}
-                        <Check className="w-4 h-4 ml-2" />
-                        تحقق فوري
-                      </Button>
-                      
-                      <Button
-                        variant="outline"
-                        onClick={handlePreviewStore}
-                      >
-                        <ExternalLink className="w-4 h-4 ml-2" />
-                        معاينة المتجر
-                      </Button>
-                    </div>
-                  </div>
+          {statusBadge(currentStatus)}
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {currentDomain ? (
+            <div className="flex flex-wrap items-center gap-2 text-base">
+              <code className="rounded bg-muted px-3 py-1 text-sm font-medium">{currentDomain}</code>
+              <Button variant="ghost" size="icon" onClick={() => handleCopy(currentDomain, 'النطاق')}>
+                {copiedValue === 'النطاق' ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                 ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <Globe className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                    <p>لا يوجد نطاق مخصص مُكوّن</p>
+                  <Copy className="w-4 h-4" />
+                )}
+              </Button>
+            </div>
+          ) : (
+            <Alert>
+              <AlertTitle>لم يتم إعداد نطاق بعد</AlertTitle>
+              <AlertDescription>
+                أضف نطاقك الخاص في الخطوة التالية، ثم وجّه الـ Nameservers إلى Cloudflare ليعمل متجرك على نطاقك.
+              </AlertDescription>
+            </Alert>
+          )}
+
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => loadDomainStatus()} disabled={!currentDomain || isCheckingStatus}>
+              {isCheckingStatus && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+              <RefreshCw className="ml-2 h-4 w-4" />
+              تحقق من الحالة
+            </Button>
+            <Button variant="outline" onClick={handleAutoSetup} disabled={!currentDomain || isCheckingStatus}>
+              {isCheckingStatus && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+              <Zap className="ml-2 h-4 w-4" />
+              إعداد تلقائي
+            </Button>
+            <Button variant="destructive" onClick={handleRemoveDomain} disabled={!currentDomain || isRemoving}>
+              {isRemoving && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+              <Trash2 className="ml-2 h-4 w-4" />
+              إزالة النطاق
+            </Button>
+          </div>
+
+          {verification && (
+            <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+              <div className="flex flex-wrap items-center gap-2">
+                <span>آخر تحديث:</span>
+                <span className="font-medium text-foreground">
+                  {verification.updated_at ? new Date(verification.updated_at).toLocaleString('ar-SA') : '—'}
+                </span>
+                <Separator orientation="vertical" className="h-4" />
+                <span>الحالة الحالية:</span>
+                {statusBadge(verification.status)}
+              </div>
+              {verification.error_message && (
+                <p className="mt-2 text-xs text-red-600">{verification.error_message}</p>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="border border-border/70">
+        <CardHeader>
+          <CardTitle>١. أضف نطاقك</CardTitle>
+          <CardDescription>اكتب اسم النطاق الذي تملكه (بدون http). سيتم حفظه في حساب مؤسستك.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col gap-2 md:flex-row">
+            <Input
+              placeholder="example.com"
+              value={domainInput}
+              onChange={(event) => setDomainInput(event.target.value)}
+              className="md:flex-1"
+            />
+            <Button onClick={handleSaveDomain} disabled={isSaving}>
+              {isSaving && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+              حفظ النطاق
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            تأكد أن النطاق مُسجّل باسمك. إذا أردت استخدام نطاق فرعي (مثل shop.example.com) ثبّت النطاق الأساسي أولاً ثم أنشئ تحويلات من مزوّدك.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card className="border border-border/70">
+        <CardHeader>
+          <CardTitle>٢. حدّث الـ Nameservers</CardTitle>
+          <CardDescription>
+            سجّل الدخول إلى مزوّد النطاق (GoDaddy، Namecheap، OVH، ...) واستبدل الـ Nameservers بالقيم التالية:
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-2">
+            {nameservers.map((nameserver, index) => (
+              <div key={nameserver} className="flex items-center justify-between rounded-lg border px-3 py-2">
+                <div className="flex items-center gap-3 text-sm">
+                  <Badge variant="outline">NS{index + 1}</Badge>
+                  <code>{nameserver}</code>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => handleCopy(nameserver, `Nameserver ${index + 1}`)}
+                >
+                  {copiedValue === `Nameserver ${index + 1}` ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                  ) : (
+                    <Copy className="w-4 h-4" />
+                  )}
+                </Button>
+              </div>
+            ))}
+          </div>
+
+          <Alert className="border-blue-200 bg-blue-50 text-blue-900">
+            <AlertTitle className="flex items-center gap-2">
+              <Info className="h-4 w-4" />
+              كيف تغيّر الـ Nameservers؟
+            </AlertTitle>
+            <AlertDescription className="space-y-2 text-sm">
+              <p>في أغلب المزودين ستجد الخيار داخل إعدادات DNS. اختر "Custom Nameservers" ثم ألصق القيم أعلاه.</p>
+              <ul className="list-disc space-y-1 pr-4">
+                <li>GoDaddy: My Products → DNS → Nameservers → Change → Custom</li>
+                <li>Namecheap: Domain List → Manage → Nameservers → Custom DNS</li>
+                <li>OVH: Domain → DNS servers → Modify</li>
+              </ul>
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      </Card>
+
+      <Card className="border border-border/70">
+        <CardHeader>
+          <CardTitle>٣. تحقق من الحالة</CardTitle>
+          <CardDescription>بعد نشر تغييرات الـ DNS قد يستغرق الانتشار من 15 دقيقة وحتى 24 ساعة.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {delegation && (
+            <div className="space-y-2 rounded-lg border px-4 py-3">
+              <div className="flex flex-wrap items-center gap-3">
+                {statusIcon(delegation.status)}
+                <span className="text-sm font-medium">تفويض النطاق</span>
+                {statusBadge(delegation.status)}
+                <span className="text-sm text-muted-foreground">{delegation.nameservers_configured ? 'Nameservers مكوّنة بشكل صحيح' : 'لم يتم اكتشاف Nameservers خاصة بـ Cloudflare بعد.'}</span>
+              </div>
+              {delegation.verification_errors && delegation.verification_errors.length > 0 && (
+                <Alert variant="destructive" className="mt-3">
+                  <AlertTitle>أخطاء التحقق</AlertTitle>
+                  <AlertDescription>
+                    <ul className="list-disc space-y-1 pr-4 text-sm">
+                      {delegation.verification_errors.map((error, index) => (
+                        <li key={index}>{error}</li>
+                      ))}
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              )}
+            </div>
+          )}
+
+          <div className="grid gap-3 md:grid-cols-2">
+            {hostnames.map((hostname) => (
+              <div key={hostname.hostname} className="space-y-2 rounded-lg border px-4 py-3">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  {statusIcon(hostname.status)}
+                  <span>{hostname.hostname}</span>
+                  {statusBadge(hostname.status)}
+                </div>
+                {hostname.sslStatus && (
+                  <div className="text-xs text-muted-foreground">
+                    حالة SSL: <span className="font-medium text-foreground">{hostname.sslStatus === 'active' ? 'نشط' : hostname.sslStatus === 'pending' ? 'قيد الإصدار' : 'خطأ'}</span>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+                {hostname.message && (
+                  <p className="text-xs text-muted-foreground">{hostname.message}</p>
+                )}
+                {hostname.verificationErrors && hostname.verificationErrors.length > 0 && (
+                  <Alert variant="destructive" className="mt-2">
+                    <AlertTitle>أخطاء SSL</AlertTitle>
+                    <AlertDescription>
+                      <ul className="list-disc space-y-1 pr-4 text-xs">
+                        {hostname.verificationErrors.map((error, index) => (
+                          <li key={index}>{error}</li>
+                        ))}
+                      </ul>
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
+            ))}
           </div>
-        </TabsContent>
-      </Tabs>
+
+          {!delegation && (
+            <Alert>
+              <AlertTitle>انتظر اكتمال التكوين</AlertTitle>
+              <AlertDescription>
+                بمجرد أن يشير مزود النطاق إلى Cloudflare ستتحول الحالة إلى "نشط" وسيتم تفعيل SSL تلقائياً.
+              </AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="border border-border/70 bg-muted/40">
+        <CardHeader>
+          <CardTitle>موارد إضافية</CardTitle>
+          <CardDescription>تعليمات ودروس تساعدك على إنهاء الربط بدون أخطاء.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <a
+            className="flex items-center gap-2 text-primary hover:underline"
+            href="https://developers.cloudflare.com/pages/platform/custom-domains/"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <ExternalLink className="h-4 w-4" />
+            دليل Cloudflare الرسمي للنطاقات المخصصة
+          </a>
+          <a
+            className="flex items-center gap-2 text-primary hover:underline"
+            href="/docs/custom-domains"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <BookOpen className="h-4 w-4" />
+            وثائق Stockiha: خطوات مفصلة لضبط النطاق
+          </a>
+        </CardContent>
+      </Card>
     </div>
   );
 };

@@ -537,7 +537,7 @@ const fetchProductCategories = async (orgId: string): Promise<ProductCategory[]>
         updated_at: cat.updated_at
       }));
     } catch (error) {
-      if (import.meta.env.DEV) {
+      if (typeof import !== 'undefined' && typeof import.meta !== 'undefined' && (import.meta as any)?.env?.DEV) {
       }
       // logPOSContextStatus('FETCH_ERROR', { error: error });
       return [];

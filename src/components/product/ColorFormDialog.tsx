@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Loader2, Save, X, Ruler, Palette, AlertTriangle } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Loader2, Save, X, Palette, AlertTriangle, Image, Hash, DollarSign, Package, Settings, Upload, Trash2 } from 'lucide-react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -10,18 +10,18 @@ import { toast } from 'sonner';
 import {
   Dialog,
   DialogContent,
+  DialogHeader,
+  DialogTitle,
 } from '@/components/ui/dialog';
-import { Form } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import ImageUploader from '@/components/ui/ImageUploader';
 import ProductSizeManager from './ProductSizeManager';
-import {
-  ColorFormHeader,
-  ColorInputSection,
-  ColorDetailsForm,
-  ColorSettings,
-} from './ColorFormDialog/index';
 
 // نموذج بيانات إدخال اللون
 const colorFormSchema = z.object({
@@ -69,15 +69,20 @@ const ColorFormDialog: React.FC<ColorFormDialogProps> = ({
 }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [generatingBarcode, setGeneratingBarcode] = useState(false);
-  const [activeTab, setActiveTab] = useState<"details" | "sizes">("details");
+  const [tempColorId] = useState(() => `temp-${Date.now()}`);
 
   const [duplicateCheck, setDuplicateCheck] = useState<{hasError: boolean, message: string}>({
     hasError: false, 
     message: ''
   });
 
+  // الحصول على اللون الحالي من قائمة الألوان (للحصول على المقاسات المحدثة)
+  const currentEditingColor = editingColor 
+    ? colors.find(c => c.id === editingColor.id) || editingColor
+    : null;
+
   const form = useForm<ColorFormValues>({
-    resolver: zodResolver(colorFormSchema),
+    resolver: zodResolver(colorFormSchema) as any,
     defaultValues: {
       name: '',
       color_code: '#6366f1',
@@ -145,24 +150,34 @@ const ColorFormDialog: React.FC<ColorFormDialogProps> = ({
     }
   };
 
+  // معالجة تغيير صورة اللون
+  const handleColorImageChange = (imageUrl: string) => {
+    form.setValue('image_url', imageUrl);
+  };
+
   // إعداد النموذج عند فتح النافذة
   useEffect(() => {
     if (open) {
       if (editingColor) {
+        // استخدام currentEditingColor للحصول على المقاسات المحدثة
+        const colorToEdit = currentEditingColor || editingColor;
+        
         form.reset({
-          name: editingColor.name,
-          color_code: editingColor.color_code,
-          quantity: editingColor.quantity,
-          price: useVariantPrices ? editingColor.price : basePrice,
-          purchase_price: useVariantPrices ? editingColor.purchase_price : basePurchasePrice,
-          image_url: editingColor.image_url,
-          is_default: editingColor.is_default,
-          barcode: editingColor.barcode || '',
-          has_sizes: editingColor.has_sizes || false,
+          name: colorToEdit.name,
+          color_code: colorToEdit.color_code,
+          quantity: colorToEdit.quantity,
+          price: useVariantPrices ? colorToEdit.price : basePrice,
+          purchase_price: useVariantPrices ? colorToEdit.purchase_price : basePurchasePrice,
+          image_url: colorToEdit.image_url,
+          is_default: colorToEdit.is_default,
+          barcode: colorToEdit.barcode || '',
+          has_sizes: colorToEdit.has_sizes || false,
         });
         
-        if (editingColor.has_sizes && editingColor.sizes && editingColor.sizes.length > 0) {
-          const totalQuantity = editingColor.sizes.reduce((sum, size) => sum + size.quantity, 0);
+        // لا حاجة لتعيين معاينة الصورة - ImageUploader يتولى ذلك
+        
+        if (colorToEdit.has_sizes && colorToEdit.sizes && colorToEdit.sizes.length > 0) {
+          const totalQuantity = colorToEdit.sizes.reduce((sum, size) => sum + size.quantity, 0);
           form.setValue('quantity', totalQuantity);
         }
       } else {
@@ -177,11 +192,11 @@ const ColorFormDialog: React.FC<ColorFormDialogProps> = ({
           is_default: colors.length === 0,
           has_sizes: false,
         });
+        // لا حاجة لتعيين معاينة الصورة - ImageUploader يتولى ذلك
       }
       setDuplicateCheck({hasError: false, message: ''});
-      setActiveTab("details");
     }
-  }, [open, editingColor, form, basePrice, basePurchasePrice, useVariantPrices, colors.length]);
+  }, [open, editingColor, currentEditingColor, form, basePrice, basePurchasePrice, useVariantPrices, colors.length]);
 
   // التعامل مع إرسال النموذج
   const handleSubmit = async (values: ColorFormValues) => {
@@ -193,7 +208,6 @@ const ColorFormDialog: React.FC<ColorFormDialogProps> = ({
     setIsSaving(true);
     try {
       if (!editingColor && tempSizes.length > 0 && onSizesChange) {
-        const tempColorId = `temp-${Date.now()}`;
         onSizesChange(tempColorId, tempSizes);
       }
       
@@ -209,224 +223,330 @@ const ColorFormDialog: React.FC<ColorFormDialogProps> = ({
 
   // الحصول على المقاسات الحالية للون
   const getCurrentSizes = (): ProductSize[] => {
-    if (editingColor) {
-      return editingColor.sizes || [];
+    if (currentEditingColor) {
+      return currentEditingColor.sizes || [];
     }
     return tempSizes;
   };
 
   // إدارة المقاسات للون الحالي
   const handleSizesChange = (sizes: ProductSize[]) => {
-    if (editingColor && onSizesChange) {
-      onSizesChange(editingColor.id, sizes);
-    } else if (onSizesChange) {
-      onSizesChange(`temp-${Date.now()}`, sizes);
-      const totalQuantity = sizes.reduce((sum, size) => sum + size.quantity, 0);
+    // حساب الكمية الإجمالية من المقاسات
+    const totalQuantity = sizes.reduce((sum, size) => sum + size.quantity, 0);
+    
+    if (currentEditingColor && onSizesChange) {
+      onSizesChange(currentEditingColor.id, sizes);
+      // تحديث الكمية في النموذج
       form.setValue('quantity', totalQuantity);
-      
-      if (sizes.length > tempSizes.length) {
-        toast.success('تم إضافة مقاس جديد');
-      } else if (sizes.length < tempSizes.length) {
-        toast.info('تم حذف مقاس');
-      }
+    } else if (onSizesChange) {
+      onSizesChange(tempColorId, sizes);
+      // تحديث الكمية في النموذج
+      form.setValue('quantity', totalQuantity);
     }
   };
 
   // الحصول على معرف اللون الحالي
   const getCurrentColorId = (): string => {
-    if (editingColor) {
-      return editingColor.id;
+    if (currentEditingColor) {
+      return currentEditingColor.id;
     }
-    return `temp-${Date.now()}`;
+    return tempColorId;
   };
 
 
 
-  const currentColorValue = form.watch('color_code') || '#6366f1';
-  const currentName = form.watch('name') || '';
-  const currentPrice = form.watch('price') || 0;
-  const currentQuantity = form.watch('quantity') || 0;
-  const currentImage = form.watch('image_url') || '';
   const hasSizes = form.watch('has_sizes') || false;
+
+  // تحديث الكمية عند تفعيل/إلغاء تفعيل المقاسات أو تغيير المقاسات
+  useEffect(() => {
+    if (hasSizes) {
+      // عند تفعيل المقاسات، احسب الكمية من المقاسات الموجودة
+      const currentSizes = currentEditingColor?.sizes || tempSizes;
+      const totalQuantity = currentSizes.reduce((sum, size) => sum + size.quantity, 0);
+      form.setValue('quantity', totalQuantity);
+    } else {
+      // عند إلغاء تفعيل المقاسات، يمكن للمستخدم إدخال الكمية يدوياً
+      // لا نفعل شيئاً هنا، نترك الكمية كما هي
+    }
+  }, [hasSizes, form, currentEditingColor?.sizes, tempSizes]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl w-[95vw] h-[95vh] sm:h-[90vh] p-0 gap-0 flex flex-col bg-white dark:bg-slate-900">
-        {/* Header - ثابت في الأعلى */}
-        <div className="flex-shrink-0">
-          <ColorFormHeader
-            isEditing={!!editingColor}
-            colorName={currentName}
-            colorCode={currentColorValue}
-            imageUrl={currentImage}
-            price={currentPrice}
-            quantity={currentQuantity}
-          />
-        </div>
+      <DialogContent className="max-w-2xl w-[95vw] max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Palette className="h-5 w-5" />
+            {editingColor ? 'تعديل اللون' : 'إضافة لون جديد'}
+          </DialogTitle>
+        </DialogHeader>
 
-        {/* المحتوى الرئيسي - قابل للتمرير */}
-        <div className="flex-1 min-h-0 flex flex-col">
-          <Tabs 
-            value={activeTab} 
-            onValueChange={(value) => setActiveTab(value as "details" | "sizes")} 
-            className="h-full flex flex-col"
-          >
-            {/* التبويبات - ثابتة */}
-            <div className="flex-shrink-0 border-b bg-slate-50/50 dark:bg-slate-800/50 px-4 sm:px-6 pt-4">
-              <TabsList className="grid w-full max-w-md grid-cols-2 bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700">
-                <TabsTrigger 
-                  value="details" 
-                  className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white text-sm"
-                >
-                  <Palette className="h-4 w-4" />
-                  <span className="hidden sm:inline">تفاصيل اللون</span>
-                  <span className="sm:hidden">التفاصيل</span>
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="sizes" 
-                  disabled={!useSizes || !hasSizes}
-                  className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-white disabled:opacity-50 text-sm"
-                >
-                  <Ruler className="h-4 w-4" />
-                  <span className="hidden sm:inline">المقاسات</span>
-                  <span className="sm:hidden">المقاسات</span>
-                  {hasSizes && (
-                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+            {/* معلومات أساسية */}
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>اسم اللون</FormLabel>
+                      <FormControl>
+                        <Input 
+                          {...field} 
+                          placeholder="أحمر، أزرق، أخضر"
+                          onChange={(e) => {
+                            field.onChange(e);
+                            checkDuplicateColor(e.target.value, form.getValues('color_code'));
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                      {duplicateCheck.hasError && (
+                        <p className="text-sm text-red-500 flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" />
+                          {duplicateCheck.message}
+                        </p>
+                      )}
+                    </FormItem>
                   )}
-                </TabsTrigger>
-              </TabsList>
-            </div>
+                />
 
-            {/* محتوى التبويبات - قابل للتمرير */}
-            <div className="flex-1 min-h-0 bg-slate-50/30 dark:bg-slate-900/30">
-              <TabsContent value="details" className="h-full m-0">
-                <div className="h-full overflow-y-auto">
-                  <div className="p-4 sm:p-6 pb-6">
-                    <Form {...form}>
-                      <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 sm:space-y-8">
-                        {/* إدخال اللون */}
-                        <ColorInputSection
-                          form={form}
-                          duplicateError={duplicateCheck}
-                          onNameChange={(name) => checkDuplicateColor(name, form.getValues('color_code'))}
-                          onColorChange={(color) => checkDuplicateColor(form.getValues('name'), color)}
-                        />
-
-                        {/* تفاصيل اللون */}
-                        <ColorDetailsForm
-                          form={form}
-                          useVariantPrices={useVariantPrices}
-                          useSizes={useSizes}
-                        />
-
-                        {/* الإعدادات المتقدمة */}
-                        <ColorSettings
-                          form={form}
-                          useSizes={useSizes}
-                          colorsCount={colors.length}
-                          generatingBarcode={generatingBarcode}
-                          onGenerateBarcode={handleGenerateBarcode}
-                          getCurrentSizes={getCurrentSizes}
-                        />
-                      </form>
-                    </Form>
-                  </div>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="sizes" className="h-full m-0">
-                <div className="h-full overflow-y-auto">
-                  <div className="p-4 sm:p-6">
-                    {useSizes && hasSizes ? (
-                      <Card className="border-slate-200 dark:border-slate-700 shadow-sm">
-                        <CardContent className="p-4 sm:p-6">
-                          <div className="flex items-center gap-2 mb-6">
-                            <div className="p-2 bg-gradient-to-br from-blue-100 to-blue-50 dark:from-blue-900/30 dark:to-blue-800/20 rounded-xl">
-                              <Ruler className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                            </div>
-                            <div>
-                              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                                إدارة مقاسات اللون
-                              </h3>
-                              <p className="text-sm text-slate-600 dark:text-slate-400">
-                                أضف وأدر المقاسات المختلفة لهذا اللون
-                              </p>
-                            </div>
-                          </div>
-                          
-                          <ProductSizeManager
-                            sizes={getCurrentSizes()}
-                            onChange={handleSizesChange}
-                            basePrice={form.watch('price') || basePrice}
-                            colorId={getCurrentColorId()}
-                            productId={productId}
-                            useVariantPrices={useVariantPrices}
+                <FormField
+                  control={form.control}
+                  name="color_code"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>اللون</FormLabel>
+                      <FormControl>
+                        <div className="flex gap-2">
+                          <Input 
+                            {...field} 
+                            type="color"
+                            className="w-14 h-10 p-1 border rounded cursor-pointer"
+                            onChange={(e) => {
+                              field.onChange(e);
+                              checkDuplicateColor(form.getValues('name'), e.target.value);
+                            }}
                           />
-                        </CardContent>
-                      </Card>
-                    ) : (
-                      <Card className="border-2 border-dashed border-slate-300 dark:border-slate-600">
-                        <CardContent className="flex flex-col items-center justify-center py-12 sm:py-16 text-center">
-                          <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 rounded-full flex items-center justify-center mb-4 sm:mb-6">
-                            <Ruler className="h-8 w-8 sm:h-10 sm:w-10 text-slate-400" />
-                          </div>
-                          <h3 className="text-lg sm:text-xl font-semibold text-slate-900 dark:text-slate-100 mb-2 sm:mb-3">
-                            المقاسات غير مفعلة
-                          </h3>
-                          <p className="text-slate-600 dark:text-slate-400 mb-4 sm:mb-6 max-w-md leading-relaxed text-sm sm:text-base">
-                            لاستخدام المقاسات، يجب أولاً تفعيل خيار "يحتوي على مقاسات متعددة" في الإعدادات المتقدمة
-                          </p>
-                          <Button
-                            variant="outline"
-                            onClick={() => setActiveTab("details")}
-                            className="gap-2 bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600"
-                          >
-                            <AlertTriangle className="h-4 w-4" />
-                            تفعيل المقاسات
-                          </Button>
-                        </CardContent>
-                      </Card>
-                    )}
-                  </div>
-                </div>
-              </TabsContent>
-            </div>
-          </Tabs>
-        </div>
+                          <Input 
+                            value={field.value}
+                            placeholder="#6366f1"
+                            onChange={(e) => {
+                              field.onChange(e);
+                              checkDuplicateColor(form.getValues('name'), e.target.value);
+                            }}
+                            className="flex-1 font-mono"
+                          />
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+              
+              {/* تحميل الصورة */}
+              <FormField
+                control={form.control}
+                name="image_url"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>صورة اللون (اختياري)</FormLabel>
+                    <FormControl>
+                      <ImageUploader
+                        imageUrl={field.value || ''}
+                        onImageUploaded={handleColorImageChange}
+                        label=""
+                        folder="product-colors"
+                        maxSizeInMB={5}
+                        className="w-full"
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-        {/* Footer - ثابت في الأسفل */}
-        <div className="flex-shrink-0 border-t bg-white dark:bg-slate-900 p-4 sm:p-6">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <Button 
-              type="button" 
-              variant="outline" 
-              onClick={() => onOpenChange(false)}
-              className="flex-1 h-11 sm:h-12 text-sm sm:text-base border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800"
-            >
-              <X className="h-4 w-4 ml-2" />
-              إلغاء
-            </Button>
-            
-            <Button 
-              type="button" 
-              onClick={form.handleSubmit(handleSubmit)}
-              disabled={isSaving || duplicateCheck.hasError}
-              className="flex-1 h-11 sm:h-12 text-sm sm:text-base gap-2 bg-primary hover:bg-primary/90"
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  جاري الحفظ...
-                </>
-              ) : (
-                <>
-                  <Save className="h-4 w-4" />
-                  {editingColor ? 'تحديث اللون' : 'إضافة اللون'}
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
+              {/* الكمية والأسعار */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <FormField
+                  control={form.control}
+                  name="quantity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>الكمية</FormLabel>
+                      <FormControl>
+                        <Input 
+                          {...field} 
+                          type="number" 
+                          min="0" 
+                          disabled={hasSizes}
+                          placeholder="0"
+                          className={hasSizes ? "bg-muted cursor-not-allowed" : ""}
+                        />
+                      </FormControl>
+                      {hasSizes && (
+                        <p className="text-xs text-muted-foreground">
+                          تلقائي من المقاسات
+                        </p>
+                      )}
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                {useVariantPrices && (
+                  <>
+                    <FormField
+                      control={form.control}
+                      name="price"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>سعر البيع</FormLabel>
+                          <FormControl>
+                            <Input {...field} type="number" min="0" step="0.01" placeholder="0" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="purchase_price"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>سعر الشراء</FormLabel>
+                          <FormControl>
+                            <Input {...field} type="number" min="0" step="0.01" placeholder="0" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </>
+                )}
+              </div>
+
+              {/* الإعدادات */}
+              <div className="space-y-3 pt-2 border-t">
+                <div className="flex items-center justify-between py-2">
+                  <Label className="text-sm font-medium">اللون الافتراضي</Label>
+                  <FormField
+                    control={form.control}
+                    name="is_default"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormControl>
+                          <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {useSizes && (
+                  <div className="flex items-center justify-between py-2">
+                    <Label className="text-sm font-medium">يحتوي على مقاسات</Label>
+                    <FormField
+                      control={form.control}
+                      name="has_sizes"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Switch
+                              checked={field.value}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                )}
+
+                <FormField
+                  control={form.control}
+                  name="barcode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-sm">الباركود (اختياري)</FormLabel>
+                      <FormControl>
+                        <div className="flex gap-2">
+                          <Input {...field} placeholder="اختياري" className="flex-1" />
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleGenerateBarcode}
+                            disabled={generatingBarcode}
+                            size="sm"
+                          >
+                            {generatingBarcode ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              'توليد'
+                            )}
+                          </Button>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </div>
+
+            {/* إدارة المقاسات */}
+            {useSizes && hasSizes && (
+              <div className="border-t pt-4">
+                <h3 className="text-sm font-semibold mb-3">إدارة المقاسات</h3>
+                <ProductSizeManager
+                  sizes={getCurrentSizes()}
+                  onChange={handleSizesChange}
+                  basePrice={form.watch('price') || basePrice}
+                  colorId={getCurrentColorId()}
+                  productId={productId}
+                  useVariantPrices={useVariantPrices}
+                />
+              </div>
+            )}
+
+            {/* أزرار التحكم */}
+            <div className="flex gap-2 pt-4 border-t">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => onOpenChange(false)}
+                className="flex-1"
+              >
+                <X className="h-4 w-4 ml-2" />
+                إلغاء
+              </Button>
+              
+              <Button 
+                type="submit"
+                disabled={isSaving || duplicateCheck.hasError}
+                className="flex-1"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin ml-2" />
+                    جاري الحفظ...
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 ml-2" />
+                    {editingColor ? 'تحديث' : 'إضافة'}
+                  </>
+                )}
+              </Button>
+            </div>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

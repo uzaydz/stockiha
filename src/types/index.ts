@@ -1,5 +1,6 @@
-// تصدير أنواع مركز الاتصال
+// تصدير أنواع مركز الاتصال والتأكيد
 export * from './callCenter';
+export * from './confirmation';
 
 // Product Types
 export type ProductCategory = 
@@ -238,7 +239,7 @@ export interface Order {
 }
 
 // User Types
-export type UserRole = 'admin' | 'employee' | 'customer' | 'owner' | 'call_center_agent';
+export type UserRole = 'admin' | 'employee' | 'customer' | 'owner' | 'call_center_agent' | 'confirmation_agent';
 
 export interface UserPermissions {
   manageProducts: boolean;

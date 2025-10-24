@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useCallback, useRef, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useTenant } from './TenantContext';
+import { dispatchAppEvent } from '@/lib/events/eventManager';
 // import { forceDataRefresh } from '@/lib/ultimateRequestController'; // تعطيل مؤقت
 
 // =================================================================
@@ -188,13 +189,14 @@ export const UniversalDataUpdateProvider: React.FC<{ children: React.ReactNode }
     const events = eventMap[dataType] || [];
     events.forEach(eventName => {
       try {
-        window.dispatchEvent(new CustomEvent(eventName, { 
-          detail: { 
-            dataType, 
-            timestamp: Date.now(),
-            organizationId: currentOrganization?.id 
-          } 
-        }));
+        dispatchAppEvent(eventName, {
+          dataType,
+          timestamp: Date.now(),
+          organizationId: currentOrganization?.id
+        }, {
+          dedupeKey: `${eventName}:${currentOrganization?.id ?? 'global'}`,
+          dedupeWindowMs: 800
+        });
       } catch (error) {
         // Silent fail
       }
@@ -393,9 +395,12 @@ export const useAutoRefresh = (dataTypes: DataType[], interval = 30000) => {
 // 🎯 دوال مساعدة عامة للاستخدام المباشر
 // =================================================================
 export const refreshDataAfterOperation = async (operation: 'create' | 'update' | 'delete', entityType: DataType) => {
-  // إنشاء instance مؤقت للاستخدام خارج المكونات
-  const event = new CustomEvent('force-data-refresh', {
-    detail: { operation, entityType, timestamp: Date.now() }
+  dispatchAppEvent('force-data-refresh', {
+    operation,
+    entityType,
+    timestamp: Date.now()
+  }, {
+    dedupeKey: `force-data-refresh:${entityType}`,
+    dedupeWindowMs: 300
   });
-  window.dispatchEvent(event);
 };

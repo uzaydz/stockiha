@@ -88,117 +88,83 @@ export default function CartSummary({
 
   return (
     <div className={cn(
-      "border-t border-border dark:border-border flex-shrink-0 bg-card dark:bg-card backdrop-blur-sm",
-      isCartEmpty ? "mt-auto" : "" // إضافة mt-auto عندما تكون السلة فارغة لضمان ظهور الملخص في أسفل المكون
+      "border-t border-border/50 flex-shrink-0 bg-card/30 backdrop-blur-sm",
+      isCartEmpty ? "mt-auto" : ""
     )}>
-      {/* محتوى ملخص السلة */}
-      <div className={cn(
-        "p-4 space-y-3",
-        isCartEmpty ? "py-3" : "" // تقليل المساحة الداخلية عندما تكون السلة فارغة
-      )}>
-        {/* المجموع الفرعي والخصم والضريبة - إظهاره فقط إذا كانت السلة غير فارغة */}
+      <div className="p-3 space-y-2.5">
+        {/* الملخص - مبسط */}
         {!isCartEmpty && (
           <>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2 text-muted-foreground dark:text-muted-foreground">
-                  <Receipt className="h-4 w-4" />
-                  <span className="font-medium">المجموع الفرعي</span>
-                </div>
-                <motion.span 
-                  className="font-semibold text-foreground dark:text-foreground"
-                  animate={animate ? { scale: [1, 1.05, 1] } : {}}
-                >
-                  {formatPrice(subtotal)}
-                </motion.span>
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">المجموع</span>
+                <span className="font-medium text-foreground">{formatPrice(subtotal)}</span>
               </div>
 
               {discountAmount > 0 && (
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2 text-muted-foreground dark:text-muted-foreground">
-                    <Percent className="h-4 w-4" />
-                    <span className="font-medium">الخصم</span>
-                  </div>
-                  <span className="font-semibold text-green-600 dark:text-green-400">
-                    - {formatPrice(discountAmount)}
-                  </span>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">الخصم</span>
+                  <span className="font-medium text-green-600">- {formatPrice(discountAmount)}</span>
                 </div>
               )}
 
               {tax > 0 && (
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2 text-muted-foreground dark:text-muted-foreground">
-                    <Calculator className="h-4 w-4" />
-                    <span className="font-medium">الضريبة</span>
-                  </div>
-                  <span className="font-semibold text-foreground dark:text-foreground">
-                    {formatPrice(tax)}
-                  </span>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground">الضريبة</span>
+                  <span className="font-medium text-foreground">{formatPrice(tax)}</span>
                 </div>
               )}
             </div>
 
-            <Separator className="bg-border dark:bg-border" />
+            <div className="flex items-center justify-between bg-muted/50 p-2 rounded-lg">
+              <span className="text-sm font-semibold text-foreground">الإجمالي</span>
+              <span className="text-lg font-bold text-primary">{formatPrice(total)}</span>
+            </div>
           </>
         )}
 
-        {/* الإجمالي - إظهاره فقط إذا كانت السلة غير فارغة */}
-        {!isCartEmpty && (
-          <div className="flex items-center justify-between bg-muted dark:bg-muted p-3 rounded-lg border border-border dark:border-border">
-            <span className="font-semibold text-foreground dark:text-foreground">الإجمالي</span>
-            <motion.span 
-              className="text-xl font-bold text-primary dark:text-primary"
-              animate={animate ? { scale: [1, 1.05, 1] } : {}}
-            >
-              {formatPrice(total)}
-            </motion.span>
-          </div>
-        )}
-
-        {/* أزرار العمليات */}
-        <div className={cn("grid gap-2.5", isCartEmpty ? "pt-0" : "pt-2")}>
+        {/* الأزرار - مبسطة */}
+        <div className="grid gap-2">
           <Button
             onClick={handleOpenPaymentDialog}
             disabled={isProcessing || total === 0}
             className={cn(
-              "transition-all shadow-md hover:shadow-lg",
-              isCartEmpty ? "h-11" : "h-11", // جعل الارتفاع موحد في كل الحالات
+              "h-10 font-medium shadow-sm",
               isReturnMode ? 
-              "bg-orange-500 hover:bg-orange-600 text-white font-semibold" :
-              "bg-primary hover:bg-primary/90 dark:bg-primary dark:hover:bg-primary/90 text-primary-foreground dark:text-primary-foreground font-semibold"
+              "bg-orange-500 hover:bg-orange-600 text-white" :
+              "bg-primary hover:bg-primary/90 text-primary-foreground"
             )}
           >
             {isProcessing ? (
-              <div className="flex items-center gap-2">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span>{isReturnMode ? 'جاري الإرجاع...' : 'جاري الدفع...'}</span>
+              <div className="flex items-center gap-1.5">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <span className="text-sm">{isReturnMode ? 'معالجة...' : 'معالجة...'}</span>
               </div>
             ) : (
-              <div className="flex items-center justify-center gap-2">
+              <div className="flex items-center justify-center gap-1.5">
                 {isReturnMode ? (
-                  <RotateCcw className="h-4 w-4" />
+                  <RotateCcw className="h-3.5 w-3.5" />
                 ) : (
-                  <CreditCard className="h-4 w-4" />
+                  <CreditCard className="h-3.5 w-3.5" />
                 )}
-                <span>
+                <span className="text-sm">
                   {isCartEmpty 
-                    ? (isReturnMode ? "إرجاع جديد" : "طلب جديد")
+                    ? (isReturnMode ? "إرجاع" : "طلب جديد")
                     : (isReturnMode ? "تأكيد الإرجاع" : "الدفع")
                   }
                 </span>
-                <ArrowRight className="h-4 w-4 mr-0.5" />
               </div>
             )}
           </Button>
 
           {!isCartEmpty && (
             <Button
-              variant="outline"
+              variant="ghost"
               onClick={clearCart}
               size="sm"
-              className="text-muted-foreground dark:text-muted-foreground border-border dark:border-border hover:bg-accent dark:hover:bg-accent hover:text-red-500 dark:hover:text-red-400 h-9 font-medium"
+              className="text-muted-foreground hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950 h-8 text-xs font-medium"
             >
-              {isReturnMode ? 'إفراغ سلة الإرجاع' : 'إفراغ السلة'}
+              {isReturnMode ? 'إفراغ' : 'إفراغ السلة'}
             </Button>
           )}
         </div>

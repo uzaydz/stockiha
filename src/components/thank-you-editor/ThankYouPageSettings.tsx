@@ -540,31 +540,7 @@ export default function ThankYouPageSettings({
                   />
                 </div>
 
-                <div className="flex items-center justify-between space-x-2">
-                  <div className="space-y-0.5">
-                    <Label>نقاط الولاء</Label>
-                    <p className="text-sm text-muted-foreground">
-                      عرض النقاط المكتسبة من عملية الشراء
-                    </p>
-                  </div>
-                  <FormField
-                    control={form.control}
-                    name="content.features.showLoyaltyPoints"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormControl>
-                          <Switch
-                            checked={field.value}
-                            onCheckedChange={(checked) => {
-                              field.onChange(checked);
-                              handleFormChange("content.features.showLoyaltyPoints", checked);
-                            }}
-                          />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
-                </div>
+                {/* حذف خيار نقاط الولاء */}
 
                 <div className="flex items-center justify-between space-x-2">
                   <div className="space-y-0.5">

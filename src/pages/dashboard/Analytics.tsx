@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
+import { POSSharedLayoutControls, POSLayoutState } from '@/components/pos-layout/types';
 import { useTenant } from '@/context/TenantContext';
 import { toast } from 'sonner';
 
@@ -21,7 +22,13 @@ import {
   AnalyticsPeriod
 } from '@/lib/api/analytics';
 
-const Analytics: React.FC = () => {
+interface AnalyticsProps extends POSSharedLayoutControls {}
+
+const Analytics: React.FC<AnalyticsProps> = ({
+  useStandaloneLayout = true,
+  onRegisterRefresh,
+  onLayoutStateChange
+}) => {
   const navigate = useNavigate();
   const { currentOrganization } = useTenant();
   const [isLoading, setIsLoading] = useState(true);
@@ -183,9 +190,30 @@ const Analytics: React.FC = () => {
     }
   };
 
-  return (
-    <Layout>
-      <div className="container mx-auto px-4 py-8">
+  const renderWithLayout = (node: React.ReactElement) => (
+    useStandaloneLayout ? <Layout>{node}</Layout> : node
+  );
+
+  // Register refresh
+  useEffect(() => {
+    if (!onRegisterRefresh) return;
+    onRegisterRefresh(() => setRefreshTrigger((t) => t + 1));
+    return () => onRegisterRefresh(null);
+  }, [onRegisterRefresh]);
+
+  // Layout state
+  useEffect(() => {
+    if (!onLayoutStateChange) return;
+    const state: POSLayoutState = {
+      isRefreshing: isLoading,
+      connectionStatus: error ? 'disconnected' : 'connected',
+      executionTime: undefined,
+    };
+    onLayoutStateChange(state);
+  }, [onLayoutStateChange, isLoading, error]);
+
+  const pageContent = (
+    <div className="container mx-auto px-4 py-8">
         <div className="mb-8">
           <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
             <h1 className="text-3xl font-bold text-primary-900">تحليلات المبيعات</h1>
@@ -311,8 +339,9 @@ const Analytics: React.FC = () => {
           </div>
         )}
       </div>
-    </Layout>
   );
+
+  return renderWithLayout(pageContent);
 };
 
 export default Analytics;

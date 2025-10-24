@@ -6,15 +6,243 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
+import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase, getSupabaseClient } from '@/lib/supabase-unified';
 import { checkUserRequires2FA } from '@/lib/api/authHelpers';
 import { ensureUserOrganizationLink } from '@/lib/api/auth-helpers';
+import { loadSecureSession, saveSecureSession } from '@/context/auth/utils/secureSessionStorage';
+import { loadAuthFromStorage, loadOfflineAuthSnapshot, saveOfflineAuthSnapshot } from '@/context/auth/utils/authStorage';
 import TwoFactorLoginForm from './TwoFactorLoginForm';
 
 // إضافة دالة console مخصصة لـ LoginForm
 const loginFormDebugLog = (message: string, data?: any) => {
   if (process.env.NODE_ENV === 'development') {
+    try {
+      if (data !== undefined) {
+        console.log(`[LoginForm] ${message}`, data);
+      } else {
+        console.log(`[LoginForm] ${message}`);
+      }
+    } catch {
+      // ignore console errors
+    }
   }
+};
+
+const getOfflineStorageSnapshot = () => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const securePayload = localStorage.getItem('secure_offline_session_v1');
+    const authState = localStorage.getItem('bazaar_auth_state');
+    const meta = localStorage.getItem('secure_offline_session_meta_v1');
+    return {
+      hasSecureSessionKey: Boolean(securePayload),
+      securePayloadLength: securePayload?.length ?? 0,
+      hasAuthState: Boolean(authState),
+      authStateLength: authState?.length ?? 0,
+      sessionMetaRaw: meta,
+      sessionMeta: meta ? JSON.parse(meta) : null
+    };
+  } catch (error) {
+    return { error: (error as Error).message };
+  }
+};
+
+const reconstructOfflineUser = (snapshotUser: Partial<SupabaseUser> | null): SupabaseUser | null => {
+  if (!snapshotUser || !snapshotUser.id) return null;
+
+  const nowIso = new Date().toISOString();
+
+  return {
+    id: snapshotUser.id,
+    app_metadata: snapshotUser.app_metadata ?? {},
+    user_metadata: snapshotUser.user_metadata ?? {},
+    aud: snapshotUser.aud ?? 'authenticated',
+    email: snapshotUser.email ?? null,
+    phone: (snapshotUser as any).phone ?? null,
+    created_at: snapshotUser.created_at ?? nowIso,
+    updated_at: snapshotUser.updated_at ?? nowIso,
+    last_sign_in_at: (snapshotUser as any).last_sign_in_at ?? nowIso,
+    role: snapshotUser.role ?? 'authenticated',
+    email_confirmed_at: (snapshotUser as any).email_confirmed_at ?? null,
+    phone_confirmed_at: (snapshotUser as any).phone_confirmed_at ?? null,
+    confirmed_at: (snapshotUser as any).confirmed_at ?? null,
+    factors: (snapshotUser as any).factors ?? [],
+    identities: (snapshotUser as any).identities ?? [],
+    is_anonymous: (snapshotUser as any).is_anonymous ?? false,
+    raw_user_meta_data: (snapshotUser as any).raw_user_meta_data ?? {},
+    raw_app_meta_data: (snapshotUser as any).raw_app_meta_data ?? {},
+    // حقول إضافية محتملة في SupabaseUser
+    banned_until: (snapshotUser as any).banned_until ?? null,
+    recovery_sent_at: (snapshotUser as any).recovery_sent_at ?? null
+  } as SupabaseUser;
+};
+
+const OFFLINE_CREDENTIALS_KEY = 'bazaar_offline_credentials_v1';
+
+type OfflineCredentialRecord = {
+  salt: string;
+  hash: string;
+  updatedAt: number;
+};
+
+const bufferToHex = (input: ArrayBuffer | Uint8Array): string => {
+  const bytes = input instanceof Uint8Array ? input : new Uint8Array(input);
+  return Array.from(bytes)
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+};
+
+const generateSalt = (): string => {
+  if (typeof window === 'undefined' || !window.crypto?.getRandomValues) {
+    return `${Date.now().toString(16)}${Math.random().toString(16).slice(2)}`;
+  }
+  const bytes = window.crypto.getRandomValues(new Uint8Array(16));
+  return bufferToHex(bytes);
+};
+
+const readOfflineCredentialStore = (): Record<string, OfflineCredentialRecord> => {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(OFFLINE_CREDENTIALS_KEY);
+    const store = raw ? JSON.parse(raw) as Record<string, OfflineCredentialRecord> : {};
+    
+    loginFormDebugLog('📖 قراءة بيانات تسجيل الدخول الأوفلاين:', {
+      hasRawData: Boolean(raw),
+      rawDataLength: raw?.length || 0,
+      storeKeys: Object.keys(store),
+      storeSize: Object.keys(store).length
+    });
+    
+    return store;
+  } catch (error) {
+    loginFormDebugLog('⚠️ فشل قراءة بيانات تسجيل الدخول الأوفلاين:', error);
+    return {};
+  }
+};
+
+const writeOfflineCredentialStore = (store: Record<string, OfflineCredentialRecord>) => {
+  if (typeof window === 'undefined') return;
+  try {
+    const serialized = JSON.stringify(store);
+    localStorage.setItem(OFFLINE_CREDENTIALS_KEY, serialized);
+    
+    loginFormDebugLog('💾 كتابة بيانات تسجيل الدخول الأوفلاين:', {
+      storeKeys: Object.keys(store),
+      storeSize: Object.keys(store).length,
+      serializedLength: serialized.length
+    });
+  } catch (error) {
+    loginFormDebugLog('⚠️ فشل حفظ بيانات تسجيل الدخول الأوفلاين:', error);
+  }
+};
+
+const hashOfflinePassword = async (password: string, salt: string): Promise<string | null> => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const encoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
+  const encode = () => {
+    if (encoder) {
+      return encoder.encode(`${salt}:${password}`);
+    }
+    const fallback: number[] = [];
+    const raw = `${salt}:${password}`;
+    for (let i = 0; i < raw.length; i += 1) {
+      fallback.push(raw.charCodeAt(i) & 0xff);
+    }
+    return new Uint8Array(fallback);
+  };
+
+  if (!window.crypto?.subtle) {
+    loginFormDebugLog('⚠️ استخدام خوارزمية بديلة مبسطة لحساب كلمة المرور الأوفلاين');
+    try {
+      const data = encode();
+      return bufferToHex(data);
+    } catch (error) {
+      loginFormDebugLog('⚠️ فشل في الحساب البديل لكلمة المرور الأوفلاين:', error);
+      return null;
+    }
+  }
+
+  try {
+    const data = encode();
+    const digest = await window.crypto.subtle.digest('SHA-256', data);
+    return bufferToHex(digest);
+  } catch (error) {
+    loginFormDebugLog('⚠️ فشل حساب تجزئة كلمة المرور الأوفلاين:', error);
+    return null;
+  }
+};
+
+const saveOfflineCredentials = async (email: string, password: string): Promise<void> => {
+  if (!email || !password) return;
+  if (typeof window === 'undefined') return;
+
+  const normalizedEmail = email.toLowerCase().trim();
+  
+  try {
+    const salt = generateSalt();
+    const hash = await hashOfflinePassword(password, salt);
+    if (!hash) {
+      loginFormDebugLog('⚠️ فشل في إنشاء hash لكلمة المرور الأوفلاين');
+      return;
+    }
+
+    const store = readOfflineCredentialStore();
+    store[normalizedEmail] = {
+      salt,
+      hash,
+      updatedAt: Date.now()
+    };
+    writeOfflineCredentialStore(store);
+    
+    // تسجيل لحفظ البيانات للأوفلاين
+    loginFormDebugLog('💾 تم حفظ بيانات تسجيل الدخول للأوفلاين:', {
+      email: normalizedEmail,
+      hasSalt: Boolean(salt),
+      hasHash: Boolean(hash),
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    loginFormDebugLog('❌ خطأ في حفظ بيانات تسجيل الدخول للأوفلاين:', error);
+  }
+};
+
+const verifyOfflineCredentials = async (email: string, password: string): Promise<boolean> => {
+  if (!email || !password) return false;
+  if (typeof window === 'undefined') return false;
+
+  const normalizedEmail = email.toLowerCase().trim();
+  const store = readOfflineCredentialStore();
+  const record = store[normalizedEmail];
+
+  loginFormDebugLog('🔍 التحقق من بيانات تسجيل الدخول الأوفلاين:', {
+    email: normalizedEmail,
+    hasRecord: Boolean(record),
+    recordKeys: record ? Object.keys(record) : null
+  });
+
+  if (!record) {
+    loginFormDebugLog('❌ لا توجد بيانات محفوظة لهذا البريد الإلكتروني');
+    return false;
+  }
+
+  const hash = await hashOfflinePassword(password, record.salt);
+  if (!hash) {
+    loginFormDebugLog('❌ فشل في إنشاء hash للتحقق');
+    return false;
+  }
+
+  const isValid = hash === record.hash;
+  loginFormDebugLog('🔐 نتيجة التحقق من كلمة المرور:', {
+    isValid,
+    hasStoredHash: Boolean(record.hash),
+    hasComputedHash: Boolean(hash)
+  });
+
+  return isValid;
 };
 
 const LoginForm = () => {
@@ -38,6 +266,219 @@ const LoginForm = () => {
     email: string;
     password: string;
   } | null>(null);
+
+  const isUserOffline = () => typeof navigator !== 'undefined' && navigator ? !navigator.onLine : false;
+
+  const isNetworkError = (error: unknown): boolean => {
+    if (!error) return false;
+    const message = typeof error === 'string'
+      ? error
+      : (error as any)?.message || '';
+    const name = (error as any)?.name || '';
+    const status = (error as any)?.status;
+
+    const lowerMessage = message.toLowerCase();
+
+    if (status === 0) return true;
+    if (lowerMessage.includes('network') || lowerMessage.includes('offline') || lowerMessage.includes('failed to fetch') || lowerMessage.includes('disconnected')) {
+      return true;
+    }
+
+    if (name && typeof name === 'string' && name.toLowerCase() === 'typeerror' && lowerMessage.includes('fetch')) {
+      return true;
+    }
+
+    return false;
+  };
+
+  const attemptOfflineLogin = async (normalizedEmail: string, loginPassword: string): Promise<boolean> => {
+    loginFormDebugLog('🔁 محاولة تسجيل الدخول في وضع عدم الاتصال', {
+      email: normalizedEmail
+    });
+    setLoadingMessage('محاولة استخدام البيانات المحفوظة بدون إنترنت...');
+
+    try {
+      const storedAuth = loadAuthFromStorage();
+      const offlineSnapshot = loadOfflineAuthSnapshot();
+      const secureSession = await loadSecureSession();
+      let offlineSession = secureSession;
+      let offlineUser = (offlineSession?.user ?? storedAuth.user) as SupabaseUser | null;
+
+      // 🚨 إصلاح مهم: محاولة تحميل البيانات من جميع المصادر المحتملة
+      if (!offlineSession && !offlineUser) {
+        // محاولة تحميل البيانات من localStorage مباشرة
+        try {
+          const rawAuthState = localStorage.getItem('bazaar_auth_state');
+          if (rawAuthState) {
+            const authState = JSON.parse(rawAuthState);
+            if (authState.user) {
+              offlineUser = authState.user;
+              loginFormDebugLog('🔄 تم تحميل المستخدم من auth state مباشرة', {
+                userId: authState.user.id,
+                userEmail: authState.user.email
+              });
+            }
+          }
+        } catch (authStateError) {
+          loginFormDebugLog('⚠️ فشل تحميل auth state مباشرة:', authStateError);
+        }
+      }
+
+      loginFormDebugLog('📦 بيانات الأوفلاين المحملة', {
+        hasSecureSession: Boolean(secureSession),
+        hasStoredUser: Boolean(storedAuth.user),
+        hasSessionMeta: Boolean(storedAuth.sessionMeta),
+        sessionMeta: storedAuth.sessionMeta,
+        hasOfflineSnapshot: Boolean(offlineSnapshot),
+        snapshotHasUser: Boolean(offlineSnapshot?.user),
+        snapshotHasSessionMeta: Boolean(offlineSnapshot?.sessionMeta),
+        // فحص بيانات تسجيل الدخول الأوفلاين
+        hasOfflineCredentials: Boolean(localStorage.getItem(OFFLINE_CREDENTIALS_KEY)),
+        // فحص إضافي للمفاتيح المهمة
+        hasSecureOfflineSession: Boolean(localStorage.getItem('secure_offline_session_v1')),
+        hasSecureOfflineMeta: Boolean(localStorage.getItem('secure_offline_session_meta_v1')),
+        hasBazaarOfflineSnapshot: Boolean(localStorage.getItem('bazaar_offline_auth_snapshot_v1'))
+      });
+
+      if (!offlineUser && offlineSnapshot?.user) {
+        offlineUser = reconstructOfflineUser(offlineSnapshot.user);
+        loginFormDebugLog('📄 استخدام snapshot للأوفلاين', {
+          snapshotUserId: offlineSnapshot.user?.id,
+          snapshotEmail: offlineSnapshot.user?.email
+        });
+      }
+
+      // 🚨 إصلاح إضافي: محاولة إعادة بناء المستخدم من البيانات المحفوظة
+      if (!offlineUser) {
+        // محاولة إعادة بناء المستخدم من البيانات المحفوظة في secure session
+        if (secureSession?.user) {
+          offlineUser = secureSession.user;
+          loginFormDebugLog('🔄 استخدام المستخدم من secure session', {
+            userId: secureSession.user.id,
+            userEmail: secureSession.user.email
+          });
+        }
+        
+        // محاولة إعادة بناء المستخدم من البيانات المحفوظة في storedAuth
+        if (!offlineUser && storedAuth.user) {
+          offlineUser = storedAuth.user;
+          loginFormDebugLog('🔄 استخدام المستخدم من storedAuth', {
+            userId: storedAuth.user.id,
+            userEmail: storedAuth.user.email
+          });
+        }
+      }
+
+      if (!offlineUser) {
+        toast.error('لا يوجد جلسة محفوظة للاستخدام بدون إنترنت على هذا الجهاز. يرجى تسجيل الدخول مع الاتصال بالإنترنت أولاً.');
+        loginFormDebugLog('⭕ لا يوجد مستخدم محفوظ للأوفلاين');
+        return false;
+      }
+
+      if (!offlineSession) {
+        const meta = storedAuth.sessionMeta || offlineSnapshot?.sessionMeta;
+        const expiresAtSeconds = meta?.expiresAt ?? Math.floor(Date.now() / 1000) + (60 * 60 * 12);
+        offlineSession = {
+          access_token: `offline-${offlineUser.id}`,
+          refresh_token: `offline-refresh-${offlineUser.id}`,
+          expires_in: Math.max(0, expiresAtSeconds - Math.floor(Date.now() / 1000)),
+          expires_at: expiresAtSeconds,
+          token_type: 'offline',
+          user: offlineUser,
+          provider_token: null,
+          provider_refresh_token: null
+        } as Session;
+        loginFormDebugLog('🛠️ بناء جلسة أوفلاين احتياطية', {
+          expiresAtSeconds,
+          generatedAccessToken: offlineSession.access_token
+        });
+        try {
+          await saveSecureSession(offlineSession);
+          loginFormDebugLog('💾 تم حفظ الجلسة الاحتياطية في التخزين الآمن');
+        } catch (sessionSaveError) {
+          loginFormDebugLog('⚠️ فشل حفظ جلسة الأوفلاين الاحتياطية:', sessionSaveError);
+        }
+      }
+
+      saveOfflineAuthSnapshot(offlineSession, offlineUser);
+
+      // 🚨 إصلاح مهم: التأكد من حفظ البيانات في جميع التخزينات المطلوبة
+      try {
+        await saveSecureSession(offlineSession);
+        loginFormDebugLog('💾 تم حفظ الجلسة في secure storage للأوفلاين');
+      } catch (secureError) {
+        loginFormDebugLog('⚠️ فشل حفظ الجلسة في secure storage للأوفلاين:', secureError);
+      }
+
+      if (!offlineUser.email || offlineUser.email.toLowerCase().trim() !== normalizedEmail) {
+        toast.error('هذا البريد غير مرتبط بحساب محفوظ للاستخدام بدون إنترنت.');
+        loginFormDebugLog('⭕ البريد الإلكتروني لا يطابق المستخدم المحفوظ', {
+          storedEmail: offlineUser.email,
+          attemptedEmail: normalizedEmail
+        });
+        return false;
+      }
+
+      const credentialsValid = await verifyOfflineCredentials(normalizedEmail, loginPassword);
+      if (!credentialsValid) {
+        toast.error('كلمة المرور غير متطابقة مع البيانات المحفوظة. يرجى التحقق من كلمة المرور أو تسجيل الدخول مع الاتصال بالإنترنت.');
+        loginFormDebugLog('⭕ كلمة المرور الأوفلاين غير متطابقة');
+        return false;
+      }
+
+      if (offlineSession.expires_at && (offlineSession.expires_at * 1000) <= Date.now()) {
+        toast.error('انتهت صلاحية الجلسة المحفوظة، يرجى الاتصال بالإنترنت لتجديدها أو تسجيل الدخول مرة أخرى.');
+        loginFormDebugLog('⭕ الجلسة المحفوظة منتهية الصلاحية', {
+          expiresAt: offlineSession.expires_at,
+          now: Math.floor(Date.now() / 1000)
+        });
+        return false;
+      }
+
+      loginFormDebugLog('✅ سيتم تفعيل جلسة الأوفلاين', {
+        sessionExpiresAt: offlineSession.expires_at,
+        userId: offlineUser.id
+      });
+
+      // 🚨 إصلاح مهم: حفظ البيانات مرة أخرى قبل التفعيل لضمان الاستمرارية
+      try {
+        saveOfflineAuthSnapshot(offlineSession, offlineUser);
+        await saveSecureSession(offlineSession);
+        loginFormDebugLog('💾 تم إعادة حفظ البيانات للأوفلاين قبل التفعيل');
+      } catch (saveError) {
+        loginFormDebugLog('⚠️ فشل إعادة حفظ البيانات للأوفلاين:', saveError);
+      }
+
+      loginFormDebugLog('📁 حالة التخزين قبل تفعيل جلسة الأوفلاين', getOfflineStorageSnapshot());
+
+      await forceUpdateAuthState(offlineSession, offlineUser);
+      loginFormDebugLog('📁 حالة التخزين بعد تفعيل جلسة الأوفلاين', getOfflineStorageSnapshot());
+      
+      // إضافة رسالة نجاح خاصة بالأوفلاين
+      toast.success('تم تسجيل الدخول بنجاح باستخدام البيانات المحفوظة (وضع الأوفلاين)');
+      
+      await handleSuccessfulLogin();
+      return true;
+    } catch (offlineError) {
+      loginFormDebugLog('❌ فشل تسجيل الدخول في وضع عدم الاتصال:', offlineError);
+      toast.error('تعذر تسجيل الدخول بدون إنترنت، يرجى إعادة المحاولة مع اتصال بالإنترنت.');
+      return false;
+    }
+  };
+
+  const attemptOfflineFallback = async (
+    error: unknown,
+    normalizedEmail: string,
+    loginPassword: string
+  ): Promise<'success' | 'attempted' | 'skipped'> => {
+    const shouldAttempt = isUserOffline() || isNetworkError(error);
+    if (!shouldAttempt) {
+      return 'skipped';
+    }
+
+    const offlineSuccess = await attemptOfflineLogin(normalizedEmail, loginPassword);
+    return offlineSuccess ? 'success' : 'attempted';
+  };
 
   // Get redirect path on component mount
   useEffect(() => {
@@ -69,7 +510,10 @@ const LoginForm = () => {
       hostname: window.location.hostname
     });
     
+    loginFormDebugLog('🔐 حالة التخزين الحالية قبل تسجيل الدخول', getOfflineStorageSnapshot());
+    
     setIsLoading(true);
+    const normalizedEmail = email.toLowerCase().trim();
 
     // Clear any previous error states or redirect counts
     sessionStorage.removeItem('lastLoginRedirect');
@@ -78,6 +522,12 @@ const LoginForm = () => {
     loginFormDebugLog('تم مسح بيانات إعادة التوجيه السابقة');
 
     try {
+      if (isUserOffline()) {
+        loginFormDebugLog('🟠 الجهاز في وضع عدم الاتصال - محاولة استخدام الجلسة المحفوظة');
+        await attemptOfflineLogin(normalizedEmail, password);
+        return;
+      }
+
       // 🔧 إصلاح خاص لمشكلة تسجيل الدخول
       // تجاوز فحص 2FA المعقد والانتقال مباشرة لتسجيل الدخول
 
@@ -214,13 +664,14 @@ const LoginForm = () => {
       email: loginEmail,
       timestamp: new Date().toISOString()
     });
+    const normalizedEmail = loginEmail.toLowerCase().trim();
     
     try {
       // استخدام Supabase مباشرة بدون فحوصات معقدة
       loginFormDebugLog('محاولة المصادقة مع Supabase');
       
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: loginEmail.toLowerCase().trim(),
+        email: normalizedEmail,
         password: loginPassword
       });
 
@@ -246,7 +697,7 @@ const LoginForm = () => {
             await new Promise(resolve => setTimeout(resolve, 1000));
             
             const { data: retryData, error: retryError } = await supabase.auth.signInWithPassword({
-              email: loginEmail.toLowerCase().trim(),
+              email: normalizedEmail,
               password: loginPassword
             });
             
@@ -265,7 +716,13 @@ const LoginForm = () => {
                 } catch {}
                 // انتظار بسيط بعد التعيين
                 await new Promise(resolve => setTimeout(resolve, 150));
-                
+                try {
+                  await saveSecureSession(retryData.session);
+                } catch (secureError) {
+                  loginFormDebugLog('⚠️ فشل حفظ الجلسة الآمنة بعد إعادة المحاولة:', secureError);
+                }
+                saveOfflineAuthSnapshot(retryData.session, retryData.user as SupabaseUser);
+
                 // تحديث معرف المؤسسة إذا كان متاحاً
                 try {
                   const { data: userData } = await supabase
@@ -281,6 +738,7 @@ const LoginForm = () => {
                   loginFormDebugLog('❌ خطأ في جلب معرف المؤسسة:', orgError);
                 }
                 
+                await saveOfflineCredentials(normalizedEmail, loginPassword);
                 await handleSuccessfulLogin();
                 return;
               }
@@ -310,13 +768,20 @@ const LoginForm = () => {
         sessionId: data.session.access_token?.substring(0, 20) + '...'
       });
 
-      // ⚡ تحديث AuthContext + تعيين الجلسة على Supabase لضمان تزامن sessionMonitor
-      loginFormDebugLog('⚡ تحديث AuthContext وتعيين الجلسة على Supabase...');
+      // ⚡ تحديث AuthContext لضمان مزامنة السياقات الأخرى
+      loginFormDebugLog('⚡ تحديث AuthContext بعد نجاح تسجيل الدخول...');
       forceUpdateAuthState(data.session, data.user);
       try {
         await supabase.auth.setSession(data.session);
       } catch {}
-      
+      try {
+        await saveSecureSession(data.session);
+      } catch (secureError) {
+        loginFormDebugLog('⚠️ فشل حفظ الجلسة الآمنة بعد تسجيل الدخول المباشر:', secureError);
+      }
+      saveOfflineAuthSnapshot(data.session, data.user);
+      loginFormDebugLog('📁 حالة التخزين بعد حفظ الجلسة', getOfflineStorageSnapshot());
+
       // انتظار تحديث AuthContext وتحميل البيانات
       setLoadingMessage('جاري تحديث حالة المصادقة...');
       await new Promise(resolve => setTimeout(resolve, 300)); // انتظار محسن
@@ -358,6 +823,10 @@ const LoginForm = () => {
         throw orgError;
       }
 
+      // حفظ بيانات تسجيل الدخول للأوفلاين
+      await saveOfflineCredentials(normalizedEmail, loginPassword);
+      loginFormDebugLog('✅ تم حفظ بيانات تسجيل الدخول للأوفلاين');
+
       setLoadingMessage('تم تسجيل الدخول بنجاح، جاري التحديث...');
       loginFormDebugLog('بدء عملية التوجيه بعد نجاح تسجيل الدخول');
       
@@ -376,6 +845,11 @@ const LoginForm = () => {
       
     } catch (error) {
       loginFormDebugLog('❌ خطأ في تسجيل الدخول المباشر:', error);
+
+      const offlineStatus = await attemptOfflineFallback(error, normalizedEmail, loginPassword);
+      if (offlineStatus !== 'skipped') {
+        return;
+      }
       
       // عرض رسالة خطأ واضحة للمستخدم
       const errorMessage = error instanceof Error ? error.message : 'حدث خطأ غير متوقع';
@@ -386,12 +860,27 @@ const LoginForm = () => {
 
   const proceedWithLogin = async (loginEmail: string, loginPassword: string) => {
     try {
+      const normalizedEmail = loginEmail.toLowerCase().trim();
+
       // 🔧 استخدام النظام المحسن لتسجيل الدخول
       const { signIn: improvedSignIn } = await import('@/lib/api/authHelpers');
       const result = await improvedSignIn(loginEmail, loginPassword);
 
+      // حفظ بيانات تسجيل الدخول للأوفلاين حتى لو فشل تسجيل الدخول
+      await saveOfflineCredentials(normalizedEmail, loginPassword);
+      
       if (result.success) {
+        loginFormDebugLog('✅ تم حفظ بيانات تسجيل الدخول للأوفلاين (تسجيل دخول محسن)');
         
+        if (result.session) {
+          try {
+            await saveSecureSession(result.session as Session);
+          } catch (secureError) {
+            loginFormDebugLog('⚠️ فشل حفظ الجلسة الآمنة بعد تسجيل الدخول المحسن:', secureError);
+          }
+        }
+        loginFormDebugLog('📁 حالة التخزين بعد تسجيل الدخول المحسن', getOfflineStorageSnapshot());
+
         // 🎯 تبسيط التحقق من الجلسة - إزالة التحقق المعقد
         
         // التوجيه المباشر بدون تعقيدات النطاق الفرعي
@@ -477,16 +966,16 @@ const LoginForm = () => {
       setLoadingMessage('جاري الانتقال إلى لوحة التحكم...');
       
       // 🎯 التوجيه بعد اكتمال العمليات
-      let dashboardPath = '/dashboard';
+      let posPath = '/dashboard';
       
       if (redirectPath && redirectPath.startsWith('/dashboard')) {
-        dashboardPath = redirectPath;
+        posPath = redirectPath;
       }
 
-      loginFormDebugLog('التوجيه إلى:', dashboardPath);
+      loginFormDebugLog('التوجيه إلى:', posPath);
 
       setIsLoading(false);
-      navigate(dashboardPath);
+      navigate(posPath);
       loginFormDebugLog('✅ تم التوجيه بنجاح');
       
     } catch (error) {

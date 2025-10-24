@@ -404,7 +404,7 @@ export default function FlexiSales() {
       toast({
         variant: 'destructive',
         title: 'حدث خطأ',
-        description: error.message || 'لم نتمكن من إتمام عملية البيع'
+        description: error instanceof Error ? error.message : (typeof error === 'string' ? error : 'لم نتمكن من إتمام عملية البيع')
       });
     } finally {
       setIsSelling(false);
@@ -534,7 +534,7 @@ export default function FlexiSales() {
       toast({
         variant: 'destructive',
         title: 'حدث خطأ',
-        description: error.message || 'لم نتمكن من إتمام عملية البيع'
+        description: error instanceof Error ? error.message : (typeof error === 'string' ? error : 'لم نتمكن من إتمام عملية البيع')
       });
     } finally {
       setIsSelling(false);

@@ -1071,6 +1071,14 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
       publish_at: (productData as any).publish_at,
     };
 
+    // ✅ تسجيل البيانات المرسلة للتشخيص
+    console.log('🚀 إرسال بيانات المنتج:', {
+      hasColors: colors && colors.length > 0,
+      colorsCount: colors?.length || 0,
+      colorsWithSizes: colors?.filter(c => c.sizes && c.sizes.length > 0).length || 0,
+      totalSizes: colors?.reduce((sum, c) => sum + (c.sizes?.length || 0), 0) || 0
+    });
+
     // 🚀 الحل الجذري: استخدام Stored Procedure واحدة لجميع العمليات
     const { data: result, error: createError } = await (supabase as any).rpc('create_product_complete', {
       p_product_data: productCoreData,
@@ -1211,6 +1219,14 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
     if (mainProductUpdates.stock_quantity !== undefined && mainProductUpdates.stock_quantity !== null) {
       mainProductUpdates.stock_quantity = Number(mainProductUpdates.stock_quantity);
     }
+
+    // ✅ تسجيل البيانات المرسلة للتشخيص
+    console.log('🔄 تحديث بيانات المنتج:', {
+      hasColors: colors && colors.length > 0,
+      colorsCount: colors?.length || 0,
+      colorsWithSizes: colors?.filter(c => c.sizes && c.sizes.length > 0).length || 0,
+      totalSizes: colors?.reduce((sum, c) => sum + (c.sizes?.length || 0), 0) || 0
+    });
 
     // 🚀 الحل الجذري: استخدام Stored Procedure واحدة لجميع العمليات
     const { data: result, error: updateError } = await supabase.rpc('update_product_complete', {

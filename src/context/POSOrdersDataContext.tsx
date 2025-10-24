@@ -1,11 +1,25 @@
-import React, { createContext, useContext, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useCallback, useMemo, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTenant } from './TenantContext';
 import { useAuth } from './AuthContext';
 import { deduplicateRequest } from '../lib/cache/deduplication';
+import { addAppEventListener } from '@/lib/events/eventManager';
 import { supabase } from '@/lib/supabase-unified';
 import type { Database } from '@/types/database.types';
 import type { OrderItemWithDetails } from '@/types/database-overrides';
+import type { LocalPOSOrder, LocalPOSOrderItem } from '@/database/localDb';
+import {
+  getOrdersByOrganization,
+  getLocalPOSOrderItems as getOfflineOrderItems,
+  queueOrderUpdate,
+  queueOrderDeletion,
+  findLocalOrderByRemoteId,
+  saveRemoteOrders,
+  saveRemoteOrderItems
+} from '@/api/localPosOrderService';
+import { localPosSettingsService } from '@/api/localPosSettingsService';
+import { inventoryDB } from '@/database/localDb';
+import { isAppOnline } from '@/utils/networkStatus';
 
 // =================================================================
 // 🎯 POSOrdersDataContext - الحل الشامل للطلبات المكررة
@@ -101,6 +115,126 @@ interface Employee {
   email: string;
 }
 
+const EMPLOYEE_CACHE_KEY = 'pos_orders_employees_cache_v1';
+const SUBSCRIPTIONS_CACHE_KEY = 'pos_orders_subscriptions_cache_v1';
+const CARD_PAYMENT_METHODS = ['card', 'visa', 'mastercard', 'bank', 'cib', 'edahabia', 'online', 'credit_card', 'pos'];
+
+const createDefaultStats = (): POSOrderStats => ({
+  total_orders: 0,
+  total_revenue: 0,
+  completed_orders: 0,
+  pending_orders: 0,
+  pending_payment_orders: 0,
+  cancelled_orders: 0,
+  cash_orders: 0,
+  card_orders: 0,
+  avg_order_value: 0,
+  today_orders: 0,
+  today_revenue: 0,
+  fully_returned_orders: 0,
+  partially_returned_orders: 0,
+  total_returned_amount: 0,
+  effective_revenue: 0,
+  return_rate: 0
+});
+
+const computeOfflineStats = async (orgId: string): Promise<POSOrderStats> => {
+  const fallback = createDefaultStats();
+  if (!orgId) {
+    return fallback;
+  }
+
+  try {
+    const localOrders = await inventoryDB.posOrders
+      .where('organization_id')
+      .equals(orgId)
+      .toArray();
+
+    if (!localOrders.length) {
+      return fallback;
+    }
+
+    const totalOrders = localOrders.length;
+    const totalRevenue = localOrders.reduce((sum, order) => sum + (order.total || 0), 0);
+
+    const completedOrders = localOrders.filter(
+      (order) => order.synced || order.status === 'synced'
+    ).length;
+    const pendingOrders = localOrders.filter(
+      (order) => !order.synced && order.status !== 'failed'
+    ).length;
+    const cancelledOrders = localOrders.filter(
+      (order) => (order.status || '').toLowerCase() === 'cancelled'
+    ).length;
+
+    const pendingPaymentOrders = localOrders.filter((order) => {
+      const status = (order.payment_status || '').toLowerCase();
+      return status && status !== 'paid' && status !== 'completed';
+    }).length;
+
+    const cashOrders = localOrders.filter(
+      (order) => (order.payment_method || '').toLowerCase() === 'cash'
+    ).length;
+    const cardOrders = localOrders.filter((order) =>
+      CARD_PAYMENT_METHODS.includes((order.payment_method || '').toLowerCase())
+    ).length;
+
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const todayOrdersList = localOrders.filter((order) => {
+      if (!order.created_at) return false;
+      const createdAt = new Date(order.created_at);
+      return createdAt >= startOfDay;
+    });
+    const todayOrders = todayOrdersList.length;
+    const todayRevenue = todayOrdersList.reduce((sum, order) => sum + (order.total || 0), 0);
+
+    let totalReturnedAmount = 0;
+    let fullyReturnedOrders = 0;
+    let partiallyReturnedOrders = 0;
+
+    localOrders.forEach((order) => {
+      const extra = order.extra_fields || {};
+      const returnedAmount = Number(extra?.total_returned_amount ?? extra?.returned_amount ?? 0);
+      if (Number.isFinite(returnedAmount)) {
+        totalReturnedAmount += returnedAmount;
+      }
+
+      if (extra?.is_fully_returned) {
+        fullyReturnedOrders += 1;
+      } else if (extra?.has_returns || (Number.isFinite(returnedAmount) && returnedAmount > 0)) {
+        partiallyReturnedOrders += 1;
+      }
+    });
+
+    const effectiveRevenue = Math.max(0, totalRevenue - totalReturnedAmount);
+    const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+    const returnRate =
+      totalOrders > 0 ? (fullyReturnedOrders + partiallyReturnedOrders) / totalOrders : 0;
+
+    return {
+      total_orders: totalOrders,
+      total_revenue: totalRevenue,
+      completed_orders: completedOrders,
+      pending_orders: pendingOrders,
+      pending_payment_orders: pendingPaymentOrders,
+      cancelled_orders: cancelledOrders,
+      cash_orders: cashOrders,
+      card_orders: cardOrders,
+      avg_order_value: avgOrderValue,
+      today_orders: todayOrders,
+      today_revenue: todayRevenue,
+      fully_returned_orders: fullyReturnedOrders,
+      partially_returned_orders: partiallyReturnedOrders,
+      total_returned_amount: totalReturnedAmount,
+      effective_revenue: effectiveRevenue,
+      return_rate: returnRate
+    };
+  } catch {
+    return fallback;
+  }
+};
+
 interface POSOrdersData {
   // البيانات الأساسية
   stats: POSOrderStats | null;
@@ -159,11 +293,81 @@ const POSOrdersDataContext = createContext<POSOrdersData | undefined>(undefined)
 // 🔧 دوال جلب البيانات المحسنة مع منع التكرار
 // =================================================================
 
+// دالة موحدة تستخدم get_pos_orders_page_data_fixed
+const fetchPOSOrdersPageDataUnified = async (
+  orgId: string,
+  userId: string,
+  page: number = 1,
+  limit: number = 10,
+  filters: POSOrderFilters = {}
+): Promise<{
+  orders: POSOrderWithDetails[];
+  stats: POSOrderStats;
+  total: number;
+  hasMore: boolean;
+  settings: any;
+  subscription: any;
+}> => {
+  return deduplicateRequest(`pos-orders-page-unified-${orgId}-${page}-${limit}-${JSON.stringify(filters)}`, async () => {
+    try {
+      const { data, error } = await (supabase as any).rpc('get_pos_orders_page_data_fixed', {
+        p_org_id: orgId,
+        p_user_id: userId,
+        p_page: page,
+        p_page_size: limit,
+        p_filters: filters || {},
+        p_sort: { field: 'created_at', direction: 'desc' },
+        p_include: {
+          stats: true,
+          settings: true,
+          subscription: true,
+          returns: true
+        }
+      });
+
+      if (error) throw error;
+
+      const result = (data || {}) as any;
+      
+      return {
+        orders: result.orders || [],
+        stats: result.stats || createDefaultStats(),
+        total: result.pagination?.total_count || 0,
+        hasMore: result.pagination?.has_next_page || false,
+        settings: result.settings,
+        subscription: result.subscription
+      };
+    } catch (error) {
+      // Fallback للبيانات المحلية
+      const fallbackSnapshot = await getOrdersByOrganization(orgId, page, limit);
+      const mapped = fallbackSnapshot.orders.map(mapLocalOrderToPOSOrder) as POSOrderWithDetails[];
+      const fallbackStats = await computeOfflineStats(orgId);
+      
+      return {
+        orders: mapped,
+        stats: fallbackStats,
+        total: fallbackSnapshot.total,
+        hasMore: fallbackSnapshot.total > page * limit,
+        settings: null,
+        subscription: null
+      };
+    }
+  });
+};
+
 const fetchPOSOrderStats = async (orgId: string): Promise<POSOrderStats> => {
   return deduplicateRequest(`pos-order-stats-${orgId}`, async () => {
-    
+    if (!orgId) {
+      return createDefaultStats();
+    }
+
+    const fallbackStats = await computeOfflineStats(orgId);
+    const online = isAppOnline();
+    if (!online) {
+      return fallbackStats;
+    }
+
     try {
-      // جلب الإحصائيات الأساسية باستخدام RPC function
       const { data: statsData, error: statsError } = await supabase.rpc('get_pos_order_stats', {
         p_organization_id: orgId
       });
@@ -172,17 +376,15 @@ const fetchPOSOrderStats = async (orgId: string): Promise<POSOrderStats> => {
         throw statsError;
       }
 
-      // البيانات تأتي كمصفوفة، نأخذ العنصر الأول
       const stats = Array.isArray(statsData) ? statsData[0] : statsData;
 
-      // جلب إحصائيات المرتجعات إذا لزم الأمر
       const { data: returnsData } = await supabase
         .from('orders')
         .select('id, total')
         .eq('organization_id', orgId)
         .eq('is_online', false);
 
-      const orderIds = (returnsData || []).map(order => order.id);
+      const orderIds = (returnsData || []).map((order) => order.id);
       let totalReturnedAmount = 0;
       let fullyReturnedCount = 0;
       let partiallyReturnedCount = 0;
@@ -196,22 +398,22 @@ const fetchPOSOrderStats = async (orgId: string): Promise<POSOrderStats> => {
 
         if (returns && returns.length > 0) {
           const orderReturnsMap = new Map<string, number>();
-          returns.forEach(returnItem => {
+          returns.forEach((returnItem: any) => {
             const orderId = returnItem.original_order_id;
             const currentTotal = orderReturnsMap.get(orderId) || 0;
             orderReturnsMap.set(orderId, currentTotal + parseFloat(returnItem.refund_amount || '0'));
           });
 
           for (const [orderId, returnedAmount] of orderReturnsMap) {
-            const order = returnsData?.find(o => o.id === orderId);
+            const order = returnsData?.find((o) => o.id === orderId);
             if (order) {
               const originalTotal = parseFloat(String(order.total || 0));
               totalReturnedAmount += returnedAmount;
-              
+
               if (returnedAmount >= originalTotal) {
-                fullyReturnedCount++;
+                fullyReturnedCount += 1;
               } else if (returnedAmount > 0) {
-                partiallyReturnedCount++;
+                partiallyReturnedCount += 1;
               }
             }
           }
@@ -231,7 +433,10 @@ const fetchPOSOrderStats = async (orgId: string): Promise<POSOrderStats> => {
         cancelled_orders: stats?.cancelled_orders || 0,
         cash_orders: stats?.cash_orders || 0,
         card_orders: stats?.card_orders || 0,
-        avg_order_value: typeof stats?.avg_order_value === 'number' ? stats.avg_order_value : parseFloat(String(stats?.avg_order_value || 0)),
+        avg_order_value:
+          typeof stats?.avg_order_value === 'number'
+            ? stats.avg_order_value
+            : parseFloat(String(stats?.avg_order_value || 0)),
         today_orders: stats?.today_orders || 0,
         today_revenue: parseFloat(String(stats?.today_revenue || 0)),
         fully_returned_orders: fullyReturnedCount,
@@ -243,25 +448,7 @@ const fetchPOSOrderStats = async (orgId: string): Promise<POSOrderStats> => {
 
       return finalStats;
     } catch (error) {
-      // إرجاع قيم افتراضية في حالة الخطأ
-      return {
-        total_orders: 0,
-        total_revenue: 0,
-        completed_orders: 0,
-        pending_orders: 0,
-        pending_payment_orders: 0,
-        cancelled_orders: 0,
-        cash_orders: 0,
-        card_orders: 0,
-        avg_order_value: 0,
-        today_orders: 0,
-        today_revenue: 0,
-        fully_returned_orders: 0,
-        partially_returned_orders: 0,
-        total_returned_amount: 0,
-        effective_revenue: 0,
-        return_rate: 0
-      };
+      return fallbackStats;
     }
   });
 };
@@ -395,6 +582,8 @@ const fetchPOSOrders = async (
         hasMore: (totalCount || 0) > page * limit
       };
 
+      await saveRemoteOrders(processedOrders);
+
       return result;
     } catch (error) {
       return {
@@ -408,7 +597,20 @@ const fetchPOSOrders = async (
 
 const fetchEmployees = async (orgId: string): Promise<Employee[]> => {
   return deduplicateRequest(`pos-employees-${orgId}`, async () => {
-    
+    if (!isAppOnline()) {
+      if (typeof window !== 'undefined') {
+        try {
+          const cached = window.localStorage.getItem(EMPLOYEE_CACHE_KEY);
+          if (cached) {
+            return JSON.parse(cached) as Employee[];
+          }
+        } catch {
+          // ignore parse errors
+        }
+      }
+      return [];
+    }
+
     try {
       const { data, error } = await supabase
         .from('users')
@@ -421,8 +623,27 @@ const fetchEmployees = async (orgId: string): Promise<Employee[]> => {
         throw error;
       }
 
-      return data || [];
+      const employees = data || [];
+
+      if (typeof window !== 'undefined') {
+        try {
+          window.localStorage.setItem(EMPLOYEE_CACHE_KEY, JSON.stringify(employees));
+        } catch {
+          // ignore storage errors
+        }
+      }
+
+      return employees;
     } catch (error) {
+      if (typeof window !== 'undefined') {
+        try {
+          const cached = window.localStorage.getItem(EMPLOYEE_CACHE_KEY);
+          if (cached) {
+            return JSON.parse(cached) as Employee[];
+          }
+        } catch {
+        }
+      }
       return [];
     }
   });
@@ -462,7 +683,23 @@ const fetchOrganizationSettings = async (orgId: string): Promise<any> => {
 
 const fetchOrganizationSubscriptions = async (orgId: string): Promise<any[]> => {
   return deduplicateRequest(`org-subscriptions-optimized-${orgId}`, async () => {
-    
+    if (!isAppOnline()) {
+      if (typeof window !== 'undefined') {
+        try {
+          const cached = window.localStorage.getItem(SUBSCRIPTIONS_CACHE_KEY);
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed)) {
+              return parsed;
+            }
+          }
+        } catch {
+          // ignore parse errors
+        }
+      }
+      return [];
+    }
+
     try {
       // استعلام مُحسن مع تقليل الحقول المطلوبة
       const { data, error } = await supabase
@@ -495,11 +732,39 @@ const fetchOrganizationSubscriptions = async (orgId: string): Promise<any[]> => 
           throw fallbackError;
         }
 
+        if (typeof window !== 'undefined') {
+          try {
+            window.localStorage.setItem(SUBSCRIPTIONS_CACHE_KEY, JSON.stringify(fallbackData || []));
+          } catch {
+            // ignore storage errors
+          }
+        }
+
         return fallbackData || [];
+      }
+
+      if (typeof window !== 'undefined') {
+        try {
+          window.localStorage.setItem(SUBSCRIPTIONS_CACHE_KEY, JSON.stringify(data || []));
+        } catch {
+          // ignore storage errors
+        }
       }
 
       return data || [];
     } catch (error) {
+      if (typeof window !== 'undefined') {
+        try {
+          const cached = window.localStorage.getItem(SUBSCRIPTIONS_CACHE_KEY);
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed)) {
+              return parsed;
+            }
+          }
+        } catch {
+        }
+      }
       return [];
     }
   });
@@ -507,14 +772,30 @@ const fetchOrganizationSubscriptions = async (orgId: string): Promise<any[]> => 
 
 const fetchPOSSettings = async (orgId: string): Promise<any> => {
   return deduplicateRequest(`pos-settings-enhanced-${orgId}`, async () => {
-    
+    const isOnline = isAppOnline();
+
+    if (!isOnline) {
+      const offline = await localPosSettingsService.get(orgId);
+      if (offline) {
+        return offline;
+      }
+    }
+
     try {
       // استخدام RPC function المحسنة أولاً
       const { data: enhancedData, error: enhancedError } = await (supabase as any)
         .rpc('get_pos_settings_enhanced', { p_org_id: orgId });
 
       if (!enhancedError && enhancedData && typeof enhancedData === 'object' && 'success' in enhancedData && enhancedData.success) {
-        return (enhancedData as any).data?.pos_settings;
+        const remote = (enhancedData as any).data?.pos_settings;
+        if (remote) {
+          await localPosSettingsService.save({
+            ...remote,
+            pending_sync: false,
+            updated_at: remote?.updated_at || new Date().toISOString()
+          });
+        }
+        return remote;
       }
 
       // fallback للـ RPC function القديمة
@@ -522,7 +803,13 @@ const fetchPOSSettings = async (orgId: string): Promise<any> => {
         .rpc('get_pos_settings', { p_org_id: orgId });
 
       if (!rpcError && rpcData && Array.isArray(rpcData) && rpcData.length > 0) {
-        return rpcData[0];
+        const remote = rpcData[0];
+        await localPosSettingsService.save({
+          ...remote,
+          pending_sync: false,
+          updated_at: remote?.updated_at || new Date().toISOString()
+        });
+        return remote;
       }
 
       // fallback للاستعلام المباشر
@@ -536,14 +823,90 @@ const fetchPOSSettings = async (orgId: string): Promise<any> => {
         throw directError;
       }
 
+      if (directData) {
+        await localPosSettingsService.save({
+          ...directData,
+          pending_sync: false,
+          updated_at: directData?.updated_at || new Date().toISOString()
+        });
+      }
+
       return directData;
     } catch (error) {
+      const offline = await localPosSettingsService.get(orgId);
+      if (offline) {
+        return offline;
+      }
       return null;
     }
   });
 };
 
 // دالة محسنة لجلب الطلبيات مع حقول أساسية فقط
+const mapLocalOrderToPOSOrder = (order: LocalPOSOrder): POSOrderWithDetails => {
+  const extra = order.extra_fields || {};
+  return {
+    id: order.remote_order_id || order.id,
+    local_order_id: order.id,
+    organization_id: order.organization_id,
+    customer_id: order.customer_id ?? null,
+    employee_id: order.employee_id ?? null,
+    slug: (order as any).slug,
+    customer_order_number: order.remote_customer_order_number ?? order.local_order_number,
+    status: order.status,
+    payment_status: order.payment_status,
+    payment_method: order.payment_method,
+    total: order.total,
+    subtotal: order.subtotal,
+    tax: (order as any).tax ?? 0,
+    discount: order.discount,
+    amount_paid: order.amount_paid,
+    remaining_amount: order.remaining_amount,
+    consider_remaining_as_partial: order.consider_remaining_as_partial,
+    is_online: order.synced,
+    notes: order.notes ?? '',
+    created_at: order.created_at,
+    updated_at: order.updated_at,
+    order_items: [],
+    customer: order.customer_id ? {
+      id: order.customer_id,
+      name: order.customer_name ?? 'عميل'
+    } : null,
+    items_count: extra.items_count ?? 0,
+    sale_type: extra.sale_type ?? 'product',
+    product_items_count: extra.product_items_count ?? 0,
+    subscription_items_count: extra.subscription_items_count ?? 0,
+    effective_status: extra.effective_status ?? order.status,
+    effective_total: extra.effective_total ?? order.total,
+    original_total: extra.original_total ?? order.total,
+    has_returns: extra.has_returns ?? false,
+    is_fully_returned: extra.is_fully_returned ?? false,
+    total_returned_amount: extra.total_returned_amount ?? 0,
+    metadata: order.metadata,
+    sync_status: order.syncStatus,
+    pending_operation: order.pendingOperation,
+    is_offline_only: !order.synced
+  } as any;
+};
+
+const mapLocalItemToDetail = (item: LocalPOSOrderItem): any => ({
+  id: item.id,
+  product_id: item.product_id,
+  product_name: item.product_name,
+  name: item.product_name,
+  quantity: item.quantity,
+  unit_price: item.unit_price,
+  total_price: item.total_price,
+  is_wholesale: item.is_wholesale ?? false,
+  original_price: item.original_price ?? item.unit_price,
+  color_id: item.color_id ?? null,
+  color_name: item.color_name ?? null,
+  size_id: item.size_id ?? null,
+  size_name: item.size_name ?? null,
+  variant_info: item.variant_info ?? null,
+  item_type: 'product'
+});
+
 const fetchPOSOrdersOptimized = async (
   orgId: string,
   page: number = 1,
@@ -555,6 +918,21 @@ const fetchPOSOrdersOptimized = async (
   hasMore: boolean;
 }> => {
   return deduplicateRequest(`pos-orders-optimized-${orgId}-${page}-${limit}-${JSON.stringify(filters)}`, async () => {
+    const fallbackSnapshot = await getOrdersByOrganization(orgId, page, limit);
+    const buildResultFromSnapshot = (snapshot: { orders: LocalPOSOrder[]; total: number }) => {
+      const mapped = snapshot.orders.map(mapLocalOrderToPOSOrder) as POSOrderWithDetails[];
+      return {
+        orders: mapped,
+        total: snapshot.total,
+        hasMore: snapshot.total > page * limit
+      };
+    };
+
+    const isOnline = isAppOnline();
+
+    if (!isOnline) {
+      return buildResultFromSnapshot(fallbackSnapshot);
+    }
 
     try {
       // استخدام RPC function محسنة للحصول على عدد أسرع
@@ -573,6 +951,7 @@ const fetchPOSOrdersOptimized = async (
         .from('orders')
         .select(`
           id,
+          organization_id,
           slug,
           customer_order_number,
           status,
@@ -750,19 +1129,15 @@ const fetchPOSOrdersOptimized = async (
           };
         }) as any[];
 
-      const result = {
-        orders: processedOrders,
-        total: totalCount || 0,
-        hasMore: (totalCount || 0) > page * limit
-      };
+      await saveRemoteOrders(processedOrders);
 
-      return result;
+      const finalSnapshot = await getOrdersByOrganization(orgId, page, limit);
+      return buildResultFromSnapshot({
+        orders: finalSnapshot.orders,
+        total: Math.max(finalSnapshot.total, totalCount || 0)
+      });
     } catch (error) {
-      return {
-        orders: [],
-        total: 0,
-        hasMore: false
-      };
+      return buildResultFromSnapshot(fallbackSnapshot);
     }
   });
 };
@@ -770,10 +1145,20 @@ const fetchPOSOrdersOptimized = async (
 // دالة lazy loading لجلب تفاصيل الطلبية عند الحاجة
 const fetchOrderDetails = async (orderId: string): Promise<any[]> => {
   return deduplicateRequest(`order-details-${orderId}`, async () => {
-    
+    if (!isAppOnline()) {
+      let localItems = await getOfflineOrderItems(orderId);
+
+      if (!localItems.length) {
+        const localOrder = await findLocalOrderByRemoteId(orderId);
+        if (localOrder) {
+          localItems = await getOfflineOrderItems(localOrder.id);
+        }
+      }
+
+      return (localItems || []).map(mapLocalItemToDetail);
+    }
+
     try {
-      
-      // أولاً: جلب بيانات الطلبية الأساسية للتحقق من النوع
       const { data: orderInfo, error: orderError } = await supabase
         .from('orders')
         .select(`
@@ -794,7 +1179,6 @@ const fetchOrderDetails = async (orderId: string): Promise<any[]> => {
         return [];
       }
 
-      // ثانياً: جلب عناصر المنتجات من order_items
       const { data: orderItems, error: itemsError } = await supabase
         .from('order_items')
         .select(`
@@ -820,18 +1204,14 @@ const fetchOrderDetails = async (orderId: string): Promise<any[]> => {
       if (itemsError) {
       }
 
-      // ثالثاً: التحقق من وجود اشتراكات مرتبطة بالطلبية
       let subscriptionItems: any[] = [];
-      
+
       if (orderInfo?.metadata && typeof orderInfo.metadata === 'object') {
-        // التحقق من وجود معلومات اشتراك في metadata
         const metadata = orderInfo.metadata as any;
         if (metadata.subscriptionAccountInfo) {
-          
-          // البحث عن معاملات الاشتراك المرتبطة بهذه الطلبية
           const orderDate = new Date(orderInfo.created_at);
-          const startTime = new Date(orderDate.getTime() - 2 * 60 * 1000); // قبل دقيقتين
-          const endTime = new Date(orderDate.getTime() + 2 * 60 * 1000); // بعد دقيقتين
+          const startTime = new Date(orderDate.getTime() - 2 * 60 * 1000);
+          const endTime = new Date(orderDate.getTime() + 2 * 60 * 1000);
 
           const { data: subscriptions, error: subsError } = await (supabase as any)
             .from('subscription_transactions')
@@ -853,7 +1233,7 @@ const fetchOrderDetails = async (orderId: string): Promise<any[]> => {
             .order('transaction_date');
 
           if (!subsError && subscriptions) {
-            subscriptionItems = subscriptions.map(sub => ({
+            subscriptionItems = subscriptions.map((sub: any) => ({
               id: `sub_${sub.id}`,
               product_id: sub.service_id,
               product_name: (sub.service as any)?.name || sub.description || 'خدمة اشتراك',
@@ -869,56 +1249,61 @@ const fetchOrderDetails = async (orderId: string): Promise<any[]> => {
               color_name: null,
               size_id: null,
               size_name: null,
-              item_type: 'subscription' // إضافة نوع العنصر
+              item_type: 'subscription'
             }));
-            
-          } else if (subsError) {
           }
         }
       }
 
-      // رابعاً: دمج جميع العناصر
-      const productItems = (orderItems || []).map(item => ({
+      const productItems = (orderItems || []).map((item) => ({
         ...(item as any),
-        item_type: 'product' // إضافة نوع العنصر
+        item_type: 'product'
       }));
 
       const allItems = [...productItems, ...subscriptionItems];
 
-      // خامساً: إذا لم نجد أي عناصر، نحقق من حالات خاصة
-      if (allItems.length === 0) {
-        
-        // التحقق من إعدادات الطلبية
-        if (orderInfo?.metadata) {
-        }
-        
-        // قد تكون طلبية خدمة رقمية أو نوع خاص آخر
-        if (orderInfo?.total && parseFloat(String(orderInfo.total || 0)) > 0) {
-          
-          // إنشاء عنصر وهمي للخدمة الرقمية
-          return [{
-            id: `digital_service_${orderId}`,
-            product_id: 'digital_service',
-            product_name: 'خدمة رقمية',
-            name: 'خدمة رقمية',
-            quantity: 1,
-            unit_price: typeof orderInfo.total === 'number' ? orderInfo.total : parseFloat(String(orderInfo.total)),
-            total_price: typeof orderInfo.total === 'number' ? orderInfo.total : parseFloat(String(orderInfo.total)),
-            is_wholesale: false,
-            slug: 'DIGITAL-SERVICE',
-            original_price: typeof orderInfo.total === 'number' ? orderInfo.total : parseFloat(String(orderInfo.total)),
-            variant_info: null,
-            color_id: null,
-            color_name: null,
-            size_id: null,
-            size_name: null,
-            item_type: 'digital_service'
-          }];
-        }
+      if (allItems.length === 0 && orderInfo?.total && parseFloat(String(orderInfo.total || 0)) > 0) {
+        const numericTotal = typeof orderInfo.total === 'number'
+          ? orderInfo.total
+          : parseFloat(String(orderInfo.total));
+
+        allItems.push({
+          id: `digital_service_${orderId}`,
+          product_id: 'digital_service',
+          product_name: 'خدمة رقمية',
+          name: 'خدمة رقمية',
+          quantity: 1,
+          unit_price: numericTotal,
+          total_price: numericTotal,
+          is_wholesale: false,
+          slug: 'DIGITAL-SERVICE',
+          original_price: numericTotal,
+          variant_info: null,
+          color_id: null,
+          color_name: null,
+          size_id: null,
+          size_name: null,
+          item_type: 'digital_service'
+        });
       }
+
+      await saveRemoteOrderItems(orderId, allItems);
 
       return allItems;
     } catch (error) {
+      if (!isAppOnline()) {
+        let localItems = await getOfflineOrderItems(orderId);
+
+        if (!localItems.length) {
+          const localOrder = await findLocalOrderByRemoteId(orderId);
+          if (localOrder) {
+            localItems = await getOfflineOrderItems(localOrder.id);
+          }
+        }
+
+        return (localItems || []).map(mapLocalItemToDetail);
+      }
+
       return [];
     }
   });
@@ -942,40 +1327,40 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
   const [filters, setFilters] = React.useState<POSOrderFilters>({});
   const [currentPage, setCurrentPage] = React.useState(1);
 
-  // React Query لإحصائيات الطلبات
-  const {
-    data: orderStats,
-    isLoading: isOrderStatsLoading,
-    error: orderStatsError
-  } = useQuery({
-    queryKey: ['pos-order-stats', orgId],
-    queryFn: () => fetchPOSOrderStats(orgId!),
-    enabled: !!orgId,
-    staleTime: 5 * 60 * 1000, // 5 دقائق (زيادة من دقيقتين)
-    gcTime: 30 * 60 * 1000, // 30 دقيقة (زيادة من 15)
-    retry: 1,
-    retryDelay: 2000,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    refetchInterval: false, // إيقاف التحديث التلقائي
-  });
+  // ✅ تم تعطيل استدعاء stats المنفصل - سيتم جلبه مع البيانات الموحدة
+  // const orderStats = null;
+  // const isOrderStatsLoading = false;
+  // const orderStatsError = null;
 
-  // React Query لطلبيات الطلبات
+  // ✅ استدعاء موحد واحد لكل البيانات باستخدام get_pos_orders_page_data_fixed
   const {
-    data: ordersData,
+    data: unifiedData,
     isLoading: isOrdersLoading,
     error: ordersError,
     refetch: refetchOrders
   } = useQuery({
-    queryKey: ['pos-orders', orgId, currentPage, filters],
-    queryFn: () => fetchPOSOrdersOptimized(orgId!, currentPage, 10, filters),
-    enabled: !!orgId,
-    staleTime: 1 * 60 * 1000, // دقيقة واحدة للطلبيات (بيانات ديناميكية)
-    gcTime: 5 * 60 * 1000, // 5 دقائق
+    queryKey: ['pos-orders-unified', orgId, user?.id, currentPage, filters],
+    queryFn: () => fetchPOSOrdersPageDataUnified(orgId!, user?.id!, currentPage, 10, filters),
+    enabled: !!orgId && !!user?.id,
+    staleTime: 10 * 60 * 1000, // 10 دقائق
+    gcTime: 30 * 60 * 1000, // 30 دقيقة
     placeholderData: (previousData) => previousData,
-    retry: 2,
+    retry: 1,
     retryDelay: 1500,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
+
+  // استخراج البيانات من الاستجابة الموحدة
+  const ordersData = unifiedData ? {
+    orders: unifiedData.orders,
+    total: unifiedData.total,
+    hasMore: unifiedData.hasMore
+  } : undefined;
+  
+  const orderStats = unifiedData?.stats || null;
+  const isOrderStatsLoading = isOrdersLoading;
+  const orderStatsError = ordersError;
 
   // React Query للموظفين
   const {
@@ -992,35 +1377,11 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
     retryDelay: 1000,
   });
 
-  // React Query لإعدادات المؤسسة
-  const {
-    data: organizationSettings
-  } = useQuery({
-    queryKey: ['organization-settings', orgId],
-    queryFn: () => fetchOrganizationSettings(orgId!),
-    enabled: !!orgId,
-    staleTime: 2 * 60 * 60 * 1000, // ساعتان (زيادة من 30 دقيقة)
-    gcTime: 4 * 60 * 60 * 1000, // 4 ساعات
-    retry: 1,
-    retryDelay: 2000,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-  });
+  // ✅ تم تعطيل استدعاء settings المنفصل - سيتم جلبه مع البيانات الموحدة
+  const organizationSettings = unifiedData?.settings || null;
 
-  // React Query لاشتراكات المؤسسة
-  const {
-    data: organizationSubscriptions = []
-  } = useQuery({
-    queryKey: ['organization-subscriptions', orgId],
-    queryFn: () => fetchOrganizationSubscriptions(orgId!),
-    enabled: !!orgId,
-    staleTime: 60 * 60 * 1000, // ساعة (زيادة من 15 دقيقة)
-    gcTime: 4 * 60 * 60 * 1000, // 4 ساعات
-    retry: 1,
-    retryDelay: 2000,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-  });
+  // ✅ تم تعطيل استدعاء subscriptions المنفصل - سيتم جلبه مع البيانات الموحدة
+  const organizationSubscriptions = unifiedData?.subscription ? [unifiedData.subscription] : [];
 
   // React Query لإعدادات نقطة البيع
   const {
@@ -1060,6 +1421,29 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
     status: string, 
     notes?: string
   ): Promise<boolean> => {
+    const isOnline = isAppOnline();
+
+    if (!isOnline) {
+      await queueOrderUpdate(orderId, {
+        status,
+        notes: notes || undefined,
+        extra_fields: {
+          effective_status: status
+        }
+      });
+
+      updateOrderInCache({
+        id: orderId,
+        status,
+        notes: notes || undefined,
+        updated_at: new Date().toISOString(),
+        sync_status: 'pending',
+        effective_status: status
+      } as any);
+
+      return true;
+    }
+
     try {
       const { error } = await supabase
         .from('orders')
@@ -1088,6 +1472,25 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
     paymentStatus: string, 
     amountPaid?: number
   ): Promise<boolean> => {
+    const isOnline = isAppOnline();
+
+    if (!isOnline) {
+      await queueOrderUpdate(orderId, {
+        payment_status: paymentStatus,
+        amount_paid: amountPaid
+      });
+
+      updateOrderInCache({
+        id: orderId,
+        payment_status: paymentStatus,
+        amount_paid: amountPaid,
+        updated_at: new Date().toISOString(),
+        sync_status: 'pending'
+      } as any);
+
+      return true;
+    }
+
     try {
       const updateData: any = { 
         payment_status: paymentStatus,
@@ -1117,6 +1520,18 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
   }, [refetchOrders]);
 
   const deleteOrder = useCallback(async (orderId: string): Promise<boolean> => {
+    const isOnline = isAppOnline();
+
+    if (!isOnline) {
+      await queueOrderDeletion(orderId);
+      updateOrderInCache({
+        id: orderId,
+        pending_operation: 'delete',
+        sync_status: 'pending'
+      } as any);
+      return true;
+    }
+
     try {
 
       // 1. جلب عناصر الطلبية قبل الحذف لإعادة المخزون
@@ -1305,9 +1720,9 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
         if (!oldData) {
           return oldData;
         }
-        
+
         const updatedOrders = oldData.orders.map((order: POSOrderWithDetails) => 
-          order.id === updatedOrder.id ? updatedOrder : order
+          order.id === updatedOrder.id ? { ...order, ...updatedOrder } : order
         );
 
         return {
@@ -1318,7 +1733,8 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
     );
     
     // تحديث الإحصائيات أيضاً إذا لزم الأمر
-    if (updatedOrder.payment_status || updatedOrder.status) {
+    const canRefetch = isAppOnline();
+    if (canRefetch && (updatedOrder.payment_status || updatedOrder.status)) {
       refetchOrders();
     }
   }, [queryClient, orgId, currentPage, filters, refetchOrders]);
@@ -1332,6 +1748,16 @@ export const POSOrdersDataProvider: React.FC<POSOrdersDataProviderProps> = ({ ch
   const handleSetPage = useCallback((page: number) => {
     setCurrentPage(page);
   }, []);
+
+  // ✅ الاستماع لحدث إنشاء طلبية جديدة
+  useEffect(() => {
+    const unsubscribe = addAppEventListener('pos-order-created', () => {
+      console.log('🔄 [POSOrdersDataContext] تم إنشاء طلبية جديدة - تحديث القائمة...');
+      refetchOrders();
+    });
+
+    return unsubscribe;
+  }, [refetchOrders]);
 
   // حساب حالة التحميل الإجمالية
   const isLoading = isOrderStatsLoading || isOrdersLoading || isEmployeesLoading;

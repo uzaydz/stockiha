@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useCallback, memo } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { useTitlebar } from '@/context/TitlebarContext';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Loader2, Menu, X } from 'lucide-react';
-import POSPureNavbar from './POSPureNavbar';
-import POSPureSidebar from './POSPureSidebar';
+import { Loader2, Menu, X, RefreshCw } from 'lucide-react';
+import POSPureSidebar, { POSSidebarItem } from './POSPureSidebar';
 
 interface POSPureLayoutProps {
   children: React.ReactNode;
@@ -12,6 +12,8 @@ interface POSPureLayoutProps {
   isRefreshing?: boolean;
   executionTime?: number;
   connectionStatus?: 'connected' | 'disconnected' | 'reconnecting';
+  sidebarItems?: POSSidebarItem[];
+  disableScroll?: boolean; // للتحكم في السكرول - true لنقطة البيع فقط
 }
 
 const POSPureLayout = memo(function POSPureLayout({ 
@@ -19,14 +21,23 @@ const POSPureLayout = memo(function POSPureLayout({
   onRefresh,
   isRefreshing = false,
   executionTime,
-  connectionStatus = 'connected'
+  connectionStatus = 'connected',
+  sidebarItems,
+  disableScroll = false
 }: POSPureLayoutProps) {
   const { user, userProfile, isLoading } = useAuth();
+  const { setActions, clearActions } = useTitlebar();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   
+  // حالة توسيع القائمة الجانبية مع حفظها في localStorage
+  const [isSidebarExpanded, setIsSidebarExpanded] = useState(() => {
+    const saved = localStorage.getItem('pos-sidebar-expanded');
+    return saved ? JSON.parse(saved) : false;
+  });
+  
   const userRole = userProfile?.role || null;
-  const isStaff = userProfile?.role === 'admin' || userProfile?.role === 'employee';
+  const isStaff = userProfile?.role === 'admin' || userProfile?.role === 'staff' || userProfile?.role === 'employee';
 
   // كشف حجم الشاشة
   useEffect(() => {
@@ -48,6 +59,25 @@ const POSPureLayout = memo(function POSPureLayout({
     };
   }, []);
 
+  // إضافة زر التحديث إلى titlebar actions
+  useEffect(() => {
+    if (onRefresh) {
+      setActions([
+        {
+          id: 'refresh',
+          label: 'تحديث البيانات',
+          icon: <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin text-orange-500")} />,
+          onClick: onRefresh,
+          disabled: isRefreshing
+        }
+      ]);
+    }
+
+    return () => {
+      clearActions();
+    };
+  }, [onRefresh, isRefreshing, setActions, clearActions]);
+
   // معالج فتح/إغلاق السايدبار للجوال
   const toggleMobileSidebar = useCallback(() => {
     setIsMobileSidebarOpen(prev => !prev);
@@ -57,19 +87,15 @@ const POSPureLayout = memo(function POSPureLayout({
   const handleOverlayClick = useCallback(() => {
     setIsMobileSidebarOpen(false);
   }, []);
-
-  // منع التمرير عند فتح السايدبار في الجوال
-  useEffect(() => {
-    if (isMobileSidebarOpen && isMobile) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [isMobileSidebarOpen, isMobile]);
+  
+  // معالج توسيع/تصغير القائمة الجانبية
+  const toggleSidebarExpand = useCallback(() => {
+    setIsSidebarExpanded(prev => {
+      const newValue = !prev;
+      localStorage.setItem('pos-sidebar-expanded', JSON.stringify(newValue));
+      return newValue;
+    });
+  }, []);
 
   // شاشة التحميل
   if (user && isLoading) {
@@ -83,24 +109,28 @@ const POSPureLayout = memo(function POSPureLayout({
     );
   }
 
+  const titlebarOffset = 'calc(var(--titlebar-height, 48px) + 0.5rem)';
+  const sidebarOffset = 'calc(var(--titlebar-height, 48px) + 0.25rem)';
+  const mobileToggleOffset = 'calc(var(--titlebar-height, 48px) + 3.5rem)';
+
+  const layoutBackground = '#050b15';
+  
+  // عرض القائمة الجانبية حسب الحالة
+  const sidebarWidth = isSidebarExpanded ? 'w-64' : 'w-20';
+  const contentMargin = isSidebarExpanded ? 'mr-[17rem]' : 'mr-24';
+
   return (
-    <div dir="rtl" className="bg-background min-h-screen relative">
-      {/* Navbar العلوي */}
-      <POSPureNavbar 
-        className="fixed top-0 left-0 right-0 z-50"
-        onRefresh={onRefresh}
-        isRefreshing={isRefreshing}
-        executionTime={executionTime}
-        connectionStatus={connectionStatus}
-      />
-      
+    <div dir="rtl" className={cn("relative", disableScroll ? "overflow-hidden" : "overflow-auto")} style={{ background: layoutBackground, height: disableScroll ? 'calc(100vh - var(--titlebar-height, 48px))' : 'auto', minHeight: disableScroll ? undefined : 'calc(100vh - var(--titlebar-height, 48px))' }}>
+      <div className="relative h-full w-full" style={{ background: layoutBackground }}>
+        <div className={cn("relative flex w-full", disableScroll ? "h-full" : "min-h-full")} style={{ background: layoutBackground }}>
       {/* أزرار السايدبار للجوال */}
       {isStaff && !isLoading && isMobile && (
         <Button
           variant="ghost"
           size="sm"
           onClick={toggleMobileSidebar}
-          className="fixed top-20 right-4 z-50 bg-background/80 backdrop-blur-sm border border-border/50 shadow-lg"
+          className="fixed right-4 z-50 bg-background/80 backdrop-blur-sm border border-border/50 shadow-lg"
+          style={{ top: mobileToggleOffset }}
         >
           {isMobileSidebarOpen ? (
             <X className="h-4 w-4" />
@@ -110,10 +140,20 @@ const POSPureLayout = memo(function POSPureLayout({
         </Button>
       )}
       
-      {/* السايدبار - Desktop - أصغر حجماً */}
+      {/* السايدبار - Desktop - مدمج مع البوردر */}
       {isStaff && !isLoading && !isMobile && (
-        <aside className="fixed top-16 bottom-0 right-0 w-20 z-40">
-          <POSPureSidebar />
+        <aside
+          className={cn(
+            "fixed right-2 z-30 overflow-visible shadow-2xl transition-all duration-300",
+            sidebarWidth
+          )}
+          style={{ top: sidebarOffset, bottom: '1rem' }}
+        >
+          <POSPureSidebar 
+            items={sidebarItems} 
+            isExpanded={isSidebarExpanded}
+            onToggleExpand={toggleSidebarExpand}
+          />
         </aside>
       )}
       
@@ -129,22 +169,36 @@ const POSPureLayout = memo(function POSPureLayout({
           )}
           
           {/* Mobile Sidebar - عرض مناسب للجوال */}
-          <aside className={cn(
-            "fixed top-16 bottom-0 right-0 w-20 z-50 transition-transform duration-300 ease-in-out",
-            isMobileSidebarOpen ? "translate-x-0" : "translate-x-full"
-          )}>
-            <POSPureSidebar />
+          <aside
+            className={cn(
+              'fixed bottom-0 right-0 w-20 z-50 transition-transform duration-300 ease-in-out',
+              isMobileSidebarOpen ? 'translate-x-0' : 'translate-x-full'
+            )}
+            style={{ top: sidebarOffset }}
+          >
+            <POSPureSidebar 
+              items={sidebarItems}
+              isExpanded={false}
+            />
           </aside>
         </>
       )}
       
       {/* المحتوى الرئيسي - مساحة أكبر */}
       <main className={cn(
-        "pt-16 min-h-screen transition-all duration-300",
-        !isMobile && isStaff && !isLoading ? "mr-20" : "mr-0"
+        "transition-all duration-300 w-full",
+        disableScroll ? "h-full overflow-hidden" : "min-h-full overflow-auto",
+        !isMobile && isStaff && !isLoading ? `${contentMargin} p-2` : "p-2"
       )}>
-        {children}
+        <div className={cn(
+          "w-full bg-background rounded-sm border border-black/80",
+          disableScroll ? "h-full" : "min-h-full"
+        )}>
+          {children}
+        </div>
       </main>
+        </div>
+      </div>
     </div>
   );
 });

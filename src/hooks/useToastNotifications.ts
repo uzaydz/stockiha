@@ -11,7 +11,14 @@ interface UseToastNotificationsOptions {
 }
 
 export function useToastNotifications(options: UseToastNotificationsOptions = {}) {
-  const navigate = useNavigate();
+  // حماية من استخدام useNavigate خارج Router
+  let navigate;
+  try {
+    navigate = useNavigate();
+  } catch (error) {
+    // إذا لم يكن Router جاهزاً، استخدم navigate افتراضي
+    navigate = () => {};
+  }
   const {
     maxToasts = 5,
     defaultDuration = 5000,

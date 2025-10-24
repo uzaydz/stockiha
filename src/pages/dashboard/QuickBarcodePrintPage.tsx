@@ -16,11 +16,13 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { Loader2, Search, Filter, SortAsc, SortDesc, Calendar, Hash, Package } from 'lucide-react';
 import JsBarcode from 'jsbarcode';
-import QRCodeStyling from 'qr-code-styling'; // Import QRCodeStyling
+// ملاحظة: بعض بيئات Vite تُصدّر qr-code-styling بدون default export
+// لذلك نستخدم استيرادًا ديناميكيًا مع معالجة كل الاحتمالات (default أو named)
 // Import barcode templates
 import { barcodeTemplates, BarcodeTemplate } from '@/config/barcode-templates';
 // استيراد دالة تحضير قيم الباركود
 import { prepareBarcodeValue } from '@/lib/barcode-utils';
+import { useTenant } from '@/context/TenantContext';
 
 // Define the product data structure based on the SQL query
 interface ProductForBarcode {
@@ -130,7 +132,23 @@ export const fontOptions: FontOption[] = [
   // Add more fonts here, e.g., Cairo for Arabic, Lato/Open Sans for English
 ];
 
+// تحميل ديناميكي آمن لمكتبة qr-code-styling لدعم كلٍ من default/named export
+let QRCodeStylingCtor: any = null;
+async function loadQRCodeStyling() {
+  if (QRCodeStylingCtor) return QRCodeStylingCtor;
+  try {
+    const mod: any = await import('qr-code-styling');
+    const ctor = mod?.default ?? mod?.QRCodeStyling ?? mod;
+    QRCodeStylingCtor = ctor;
+    return ctor;
+  } catch (e) {
+    console.error('[QR Import Error] Failed to import qr-code-styling:', e);
+    throw e;
+  }
+}
+
 const QuickBarcodePrintPage = () => {
+  const { currentOrganization } = useTenant();
   const [products, setProducts] = useState<SelectedProduct[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<SelectedProduct[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -260,31 +278,64 @@ const QuickBarcodePrintPage = () => {
     setIsLoading(true);
     setError(null);
     try {
-      // @ts-ignore - Assuming 'get_products_for_barcode_printing' is a valid RPC function in Supabase
-      const { data, error: dbError } = await supabase.rpc<
-        GetProductsRpcArgs,
-        GetProductsRpcReturn
-      >('get_products_for_barcode_printing', {}); // Pass empty object if no args
-
-      if (dbError) {
-        throw dbError;
-      }
-      
-      // Log the raw data received from the RPC call for debugging
-
-      if (Array.isArray(data)) {
-        const selectableProducts: SelectedProduct[] = data.map(
-          (p: ProductForBarcode) => ({
-            ...p,
-            selected: false,
-            print_quantity: p.stock_quantity > 0 ? p.stock_quantity : 1,
-            use_stock_quantity: true,
-          })
-        );
-        setProducts(selectableProducts);
-      } else {
+      // إذا لم تكن المؤسسة معروفة بعد، انتظر حتى تتوفر
+      if (!currentOrganization?.id) {
         setProducts([]);
+        setIsLoading(false);
+        return;
       }
+
+      // جلب جميع المنتجات على دفعات 1000 لتجاوز حد Supabase
+      const pageSize = 1000;
+      let offset = 0;
+      let allRows: ProductForBarcode[] = [];
+
+      // المحاولة الأولى: استخدام الدالة المحسنة مع pagination
+      while (true) {
+        const { data: pageData, error: pageError } = await supabase.rpc<any, ProductForBarcode[]>(
+          'get_products_for_barcode_printing_enhanced',
+          {
+            p_organization_id: currentOrganization.id,
+            p_search_query: null,
+            p_sort_by: 'name',
+            p_sort_order: 'asc',
+            p_stock_filter: 'all',
+            p_price_min: null,
+            p_price_max: null,
+            p_limit: pageSize,
+            p_offset: offset,
+          }
+        );
+
+        if (pageError) {
+          // في حال عدم توفر الدالة المحسنة، ارجع إلى الدالة المبسطة القديمة (قد تُرجع 1000 فقط)
+          const { data: legacyData, error: legacyError } = await supabase.rpc<any, ProductForBarcode[]>(
+            'get_products_for_barcode_printing',
+            { p_organization_id: currentOrganization.id }
+          );
+          if (legacyError) throw legacyError;
+          allRows = Array.isArray(legacyData) ? legacyData : [];
+          break;
+        }
+
+        const rows = Array.isArray(pageData) ? pageData : [];
+        allRows = allRows.concat(rows);
+
+        if (rows.length < pageSize) break;
+        offset += pageSize;
+        // تأخير بسيط لتخفيف الضغط على القاعدة
+        await new Promise((r) => setTimeout(r, 80));
+        // حماية من الحلقات الطويلة جداً (حد أقصى 10000 منتج)
+        if (offset >= 10000) break;
+      }
+
+      const selectableProducts: SelectedProduct[] = allRows.map((p: ProductForBarcode) => ({
+        ...p,
+        selected: false,
+        print_quantity: p.stock_quantity > 0 ? p.stock_quantity : 1,
+        use_stock_quantity: true,
+      }));
+      setProducts(selectableProducts);
     } catch (err: any) {
       setError(
         `حدث خطأ أثناء جلب المنتجات: ${err.message}. تأكد من أن الدالة get_products_for_barcode_printing معرفة في قاعدة البيانات.`
@@ -293,7 +344,7 @@ const QuickBarcodePrintPage = () => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [currentOrganization?.id]);
 
   useEffect(() => {
     fetchProductsForBarcode();
@@ -743,7 +794,8 @@ const QuickBarcodePrintPage = () => {
                   });
 
                   // إنشاء QR Code مع إعدادات محسّنة
-                  const qrCodeInstance = new QRCodeStyling({
+                  const QR = await loadQRCodeStyling();
+                  const qrCodeInstance = new QR({
                     width: qrActualSize,
                     height: qrActualSize,
                     type: 'svg',

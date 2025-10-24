@@ -7,7 +7,6 @@ import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Product } from '@/api/store';
 import { useTranslation } from 'react-i18next';
-import { cn } from '@/lib/utils';
 import ProductImage from './ProductImage';
 
 // دوال مساعدة
@@ -26,9 +25,9 @@ const calculateDiscountPercentage = (originalPrice: number, discountPrice: numbe
 };
 
 const getStockStatusText = (stockQuantity: number, t: any) => {
-  if (stockQuantity <= 0) return t('featuredProducts.stock.outOfStock');
-  if (stockQuantity <= 10) return t('featuredProducts.stock.lowStock');
-  return t('featuredProducts.stock.available');
+  if (stockQuantity <= 0) return t('products.outOfStock');
+  if (stockQuantity <= 10) return t('products.lowStock');
+  return t('products.inStock');
 };
 
 interface ProductCardProps {
@@ -46,14 +45,11 @@ const ProductCard = ({
 }: ProductCardProps) => {
   const { t } = useTranslation();
 
+
   const productSlug = getProductSlug(product);
   const discountPercentage = calculateDiscountPercentage(Number(product.price), Number(product.discount_price));
   const stockStatus = getStockStatusText(product.stock_quantity, t);
   const categoryName = getCategoryName(product.category);
-
-  // تحديد حالة المخزون للألوان
-  const stockStatusType = product.stock_quantity <= 0 ? 'outOfStock' :
-                         product.stock_quantity <= 10 ? 'lowStock' : 'available';
 
   const [enableMotion, setEnableMotion] = useState(false);
   useEffect(() => {
@@ -125,9 +121,9 @@ const ProductCard = ({
             onTouchStart={() => {}} // تحسين الاستجابة للمس على iOS
           >
             <ProductImage 
-              src={product.thumbnail_image || product.imageUrl} 
+              src={product.imageUrl || product.thumbnail_image} 
               alt={product.name}
-              className={`product-image w-full h-full transition-all duration-300 ${
+              className={`product-image w-full h-full object-contain p-2 sm:p-3 lg:p-4 transition-all duration-300 ${
               isMobile ? 'active:scale-105' : 'group-hover:scale-110 group-hover:rotate-1'
             }`}
               containerClassName="absolute inset-0"
@@ -157,7 +153,7 @@ const ProductCard = ({
               <div className="flex items-center gap-1.5">
                 <Button 
                   size="icon" 
-                  className="h-9 w-9 rounded-xl bg-background hover:bg-primary hover:text-primary-foreground text-foreground shadow-xl backdrop-blur-md border border-border/30 transition-all duration-200 hover:scale-110 focus:ring-2 focus:ring-primary/50 touch-target"
+                  className="h-9 w-9 rounded-xl bg-background hover:bg-primary hover:text-primary-foreground text-foreground shadow-xl backdrop-blur-md border border-border/30 transition-all duration-200 hover:scale-110 focus:ring-2 focus:ring-primary/50"
                   aria-label={`إضافة ${product.name} إلى السلة`}
                   tabIndex={-1}
                 >
@@ -165,7 +161,7 @@ const ProductCard = ({
                 </Button>
                 <Button 
                   size="icon" 
-                  className="h-9 w-9 rounded-xl bg-background hover:bg-red-500 hover:text-white text-foreground shadow-xl backdrop-blur-md border border-border/30 transition-all duration-200 hover:scale-110 focus:ring-2 focus:ring-red-500/50 touch-target"
+                  className="h-9 w-9 rounded-xl bg-background hover:bg-red-500 hover:text-white text-foreground shadow-xl backdrop-blur-md border border-border/30 transition-all duration-200 hover:scale-110 focus:ring-2 focus:ring-red-500/50"
                   onClick={(e) => {
                     e.preventDefault();
                     onToggleFavorite(product.id);
@@ -178,7 +174,7 @@ const ProductCard = ({
               </div>
               <Button 
                 size="icon" 
-                className="h-9 w-9 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 shadow-xl backdrop-blur-md border border-primary/20 transition-all duration-200 hover:scale-110 focus:ring-2 focus:ring-primary/50 touch-target"
+                className="h-9 w-9 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 shadow-xl backdrop-blur-md border border-primary/20 transition-all duration-200 hover:scale-110 focus:ring-2 focus:ring-primary/50"
                 aria-label={`معاينة سريعة لـ ${product.name}`}
                 tabIndex={-1}
               >
@@ -236,14 +232,8 @@ const ProductCard = ({
               )}
             </div>
             
-            <div className={`text-xs px-2 py-1 rounded-full font-medium shrink-0 ${
-              stockStatusType === 'outOfStock'
-                ? "bg-red-100 text-red-700 border border-red-200"
-                : stockStatusType === 'lowStock'
-                ? "bg-yellow-100 text-yellow-700 border border-yellow-200"
-                : "bg-emerald-100 text-emerald-700 border border-emerald-200"
-            }`}>
-              {stockStatus}
+            <div className="text-xs px-2 py-1 rounded-full font-medium bg-emerald-100 text-emerald-700 border border-emerald-200 shrink-0">
+              {t('featuredProducts.stock.available')}
             </div>
           </div>
         </CardContent>

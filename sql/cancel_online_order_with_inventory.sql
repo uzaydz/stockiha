@@ -1,4 +1,9 @@
 -- دالة إلغاء الطلبات الإلكترونية مع إرجاع المخزون التلقائي
+
+-- حذف الدالة القديمة أولاً
+DROP FUNCTION IF EXISTS cancel_online_order_with_inventory(uuid, uuid, uuid, text);
+
+-- إنشاء الدالة الجديدة
 CREATE OR REPLACE FUNCTION cancel_online_order_with_inventory(
   p_order_id uuid,
   p_organization_id uuid,
@@ -53,7 +58,9 @@ BEGIN
         oi.quantity, 
         oi.product_name,
         oi.color_id,
-        oi.size_id
+        oi.color_name,
+        oi.size_id,
+        oi.size_name
       FROM online_order_items oi
       WHERE oi.order_id = p_order_id
         AND oi.product_id IS NOT NULL
@@ -67,16 +74,47 @@ BEGIN
         WHERE id = v_item.product_id
           AND organization_id = p_organization_id;
         
+        -- إرجاع المخزون للون إذا كان موجوداً
+        IF v_item.color_id IS NOT NULL THEN
+          UPDATE product_colors 
+          SET 
+            quantity = COALESCE(quantity, 0) + v_item.quantity,
+            updated_at = now()
+          WHERE id = v_item.color_id
+            AND product_id = v_item.product_id;
+        END IF;
+        
+        -- إرجاع المخزون للحجم إذا كان موجوداً
+        IF v_item.size_id IS NOT NULL AND v_item.color_id IS NOT NULL THEN
+          UPDATE product_sizes 
+          SET 
+            quantity = COALESCE(quantity, 0) + v_item.quantity,
+            updated_at = now()
+          WHERE id = v_item.size_id
+            AND color_id = v_item.color_id
+            AND product_id = v_item.product_id;
+        END IF;
+        
         -- تسجيل حركة المخزون في السجل
         DECLARE
           v_previous_stock integer;
           v_new_stock integer;
+          v_log_notes text;
         BEGIN
           SELECT stock_quantity INTO v_previous_stock
           FROM products 
           WHERE id = v_item.product_id AND organization_id = p_organization_id;
           
           v_new_stock := COALESCE(v_previous_stock, 0) + v_item.quantity;
+          
+          -- إنشاء ملاحظة مفصلة
+          v_log_notes := 'إرجاع مخزون بسبب إلغاء الطلب: ' || p_cancellation_reason;
+          IF v_item.color_name IS NOT NULL THEN
+            v_log_notes := v_log_notes || ' - اللون: ' || v_item.color_name;
+          END IF;
+          IF v_item.size_name IS NOT NULL THEN
+            v_log_notes := v_log_notes || ' - الحجم: ' || v_item.size_name;
+          END IF;
           
           INSERT INTO inventory_logs (
             id,
@@ -100,7 +138,7 @@ BEGIN
             v_new_stock,
             'return',
             p_order_id::text,
-            'إرجاع مخزون بسبب إلغاء الطلب: ' || p_cancellation_reason,
+            v_log_notes,
             p_cancelled_by,
             p_organization_id,
             now()
@@ -136,32 +174,8 @@ BEGIN
   WHERE id = p_order_id 
     AND organization_id = p_organization_id;
   
-  -- إنشاء سجل إلغاء الطلب
-  INSERT INTO order_cancellations (
-    id,
-    order_id,
-    organization_id,
-    cancellation_reason,
-    cancelled_by,
-    inventory_restored,
-    cancelled_items_count,
-    cancelled_amount,
-    total_items_count,
-    is_partial_cancellation,
-    created_at
-  ) VALUES (
-    gen_random_uuid(),
-    p_order_id,
-    p_organization_id,
-    p_cancellation_reason,
-    p_cancelled_by,
-    v_auto_deduct_inventory,
-    v_total_restored_items,
-    0, -- يمكن حساب المبلغ لاحقاً
-    v_total_restored_items,
-    false,
-    now()
-  );
+  -- ملاحظة: تم إزالة إدراج سجل في order_cancellations لأن الجدول يشير إلى orders وليس online_orders
+  -- البيانات المهمة محفوظة في notes في جدول online_orders
   
   -- إرجاع النتيجة
   v_result := json_build_object(

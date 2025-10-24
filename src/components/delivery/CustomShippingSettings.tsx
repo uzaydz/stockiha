@@ -66,6 +66,8 @@ export default function CustomShippingSettings({
   
   // إعدادات عامة
   const [serviceName, setServiceName] = useState('طريقة شحن مخصصة');
+  const [isCheckingUnique, setIsCheckingUnique] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
   const [isEnabled, setIsEnabled] = useState(true);
   
   // إعدادات التوصيل المجاني
@@ -87,6 +89,34 @@ export default function CustomShippingSettings({
   useEffect(() => {
     fetchProvinces();
   }, []);
+
+  // التحقق الفوري من تفرد الاسم داخل المنظمة
+  useEffect(() => {
+    const validate = async () => {
+      setNameError(null);
+      if (!serviceName.trim()) return;
+      setIsCheckingUnique(true);
+      try {
+        const { data, error } = await supabase
+          .from('shipping_provider_settings')
+          .select('id')
+          .eq('organization_id', organizationId)
+          .is('provider_id', null)
+          .filter('settings->>service_name', 'eq', serviceName)
+          .limit(1);
+        if (error) throw error;
+        if (data && data.length > 0) {
+          setNameError('اسم طريقة الشحن مستخدم مسبقاً داخل هذه المؤسسة');
+        }
+      } catch (e) {
+      } finally {
+        setIsCheckingUnique(false);
+      }
+    };
+    // تأخير بسيط لتقليل الطلبات
+    const t = setTimeout(validate, 350);
+    return () => clearTimeout(t);
+  }, [serviceName, organizationId]);
 
   const fetchProvinces = async () => {
     try {
@@ -173,6 +203,10 @@ export default function CustomShippingSettings({
       });
       return;
     }
+    if (nameError) {
+      toast({ title: 'تحقق التفرد', description: 'يرجى حل أخطاء التفرد قبل الحفظ', variant: 'destructive' });
+      return;
+    }
 
     setIsSaving(true);
 
@@ -190,14 +224,50 @@ export default function CustomShippingSettings({
         created_at: new Date().toISOString()
       };
 
+      // توليد معرّف تلقائي فريد (slug) اعتماداً على الاسم مع معالجة التعارضات
+      const toSlug = (name: string) => {
+        const base = name
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/-{2,}/g, '-')
+          .replace(/^-+|-+$/g, '');
+        const trimmed = base.slice(0, 24);
+        if (trimmed.length >= 3) return trimmed;
+        const rand = Math.random().toString(36).slice(2, 7);
+        return `custom-${rand}`;
+      };
+
+      let candidate = toSlug(serviceName || 'custom');
+      let suffix = 1;
+      // تحقق التفرد في قاعدة البيانات عبر api_key
+      // إذا وجد، جرّب بإلحاق -2، -3 ...
+      // وضع حد منطقي للمحاولات
+      while (true) {
+        const { data: exist, error: existErr } = await supabase
+          .from('shipping_provider_settings')
+          .select('id')
+          .eq('organization_id', organizationId)
+          .is('provider_id', null)
+          .eq('api_key', candidate)
+          .limit(1);
+        if (existErr) throw existErr;
+        if (!exist || exist.length === 0) break;
+        suffix += 1;
+        candidate = `${candidate.split('-')[0]}-${suffix}`.slice(0, 32);
+        if (suffix > 50) {
+          candidate = `${toSlug('custom')}-${Math.random().toString(36).slice(2, 6)}`.slice(0, 32);
+          break;
+        }
+      }
+
       // إدراج إعدادات طريقة الشحن المخصصة
       const { error } = await supabase
         .from('shipping_provider_settings')
         .insert({
           organization_id: organizationId,
           provider_id: null, // null يعني طريقة شحن مخصصة
-          api_token: serviceName,
-          api_key: 'custom_shipping',
+          api_token: serviceName, // نحتفظ بها كاسم لسهولة العرض
+          api_key: candidate, // معرّف فريد يولد تلقائياً
           is_enabled: isEnabled,
           auto_shipping: false,
           track_updates: false,
@@ -281,6 +351,9 @@ export default function CustomShippingSettings({
               placeholder="مثال: شحن سريع، توصيل مجاني"
               disabled={isSaving}
             />
+            {nameError && (
+              <p className="text-xs text-destructive">{nameError}</p>
+            )}
           </div>
 
           <div className="flex items-center justify-between rounded-lg border p-4">

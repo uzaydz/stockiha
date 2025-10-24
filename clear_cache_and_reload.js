@@ -1,43 +1,94 @@
-// ========================================
-// سكريبت مسح التخزين المؤقت وإعادة التحميل
-// يجب تشغيله في Console المتصفح
-// ========================================
+// =====================================================
+// ملف مسح الكاش وإعادة تحميل البيانات
+// =====================================================
+// هذا الملف يمكن تشغيله في وحدة تحكم المتصفح لمسح الكاش وإعادة تحميل البيانات
 
-// 1. مسح localStorage
-localStorage.clear();
+console.log('🧹 بدء مسح الكاش وإعادة تحميل البيانات...');
 
-// 2. مسح sessionStorage  
-sessionStorage.clear();
-
-// 3. مسح cookies للدومين الحالي
-document.cookie.split(";").forEach(function(c) { 
-  document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
-});
-
-// 4. مسح Cache API (إذا كان متاحاً)
-if ('caches' in window) {
-  caches.keys().then(function(names) {
-    for (let name of names) {
-      caches.delete(name);
-    }
-  });
+// مسح localStorage
+try {
+  localStorage.clear();
+  console.log('✅ تم مسح localStorage');
+} catch (error) {
+  console.warn('تحذير: فشل في مسح localStorage:', error);
 }
 
-// 5. مسح IndexedDB (إذا كان متاحاً)
+// مسح sessionStorage
+try {
+  sessionStorage.clear();
+  console.log('✅ تم مسح sessionStorage');
+} catch (error) {
+  console.warn('تحذير: فشل في مسح sessionStorage:', error);
+}
+
+// مسح IndexedDB إذا كان متاحاً
 if ('indexedDB' in window) {
   try {
+    // محاولة مسح جميع قواعد البيانات
     indexedDB.databases().then(databases => {
       databases.forEach(db => {
-        if (db.name) {
-          indexedDB.deleteDatabase(db.name);
-        }
+        indexedDB.deleteDatabase(db.name);
       });
+      console.log('✅ تم مسح IndexedDB');
+    }).catch(error => {
+      console.warn('تحذير: فشل في مسح IndexedDB:', error);
     });
-  } catch (e) {
+  } catch (error) {
+    console.warn('تحذير: فشل في الوصول إلى IndexedDB:', error);
   }
 }
 
-// 6. انتظار ثانية واحدة ثم إعادة تحميل الصفحة
+// مسح cookies المتعلقة بالموقع
+try {
+  document.cookie.split(";").forEach(function(c) { 
+    document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/"); 
+  });
+  console.log('✅ تم مسح cookies');
+} catch (error) {
+  console.warn('تحذير: فشل في مسح cookies:', error);
+}
+
+// مسح cache المتصفح إذا كان متاحاً
+if ('caches' in window) {
+  try {
+    caches.keys().then(function(names) {
+      for (let name of names) {
+        caches.delete(name);
+      }
+      console.log('✅ تم مسح cache المتصفح');
+    }).catch(error => {
+      console.warn('تحذير: فشل في مسح cache المتصفح:', error);
+    });
+  } catch (error) {
+    console.warn('تحذير: فشل في الوصول إلى cache المتصفح:', error);
+  }
+}
+
+// مسح أي متغيرات عامة قد تحتوي على بيانات تالفة
+try {
+  if (window.prefetchManager) {
+    window.prefetchManager = null;
+    console.log('✅ تم مسح prefetchManager');
+  }
+  
+  if (window.organizationSettings) {
+    window.organizationSettings = null;
+    console.log('✅ تم مسح organizationSettings');
+  }
+  
+  if (window.cachedSettings) {
+    window.cachedSettings = null;
+    console.log('✅ تم مسح cachedSettings');
+  }
+} catch (error) {
+  console.warn('تحذير: فشل في مسح المتغيرات العامة:', error);
+}
+
+console.log('🔄 إعادة تحميل الصفحة...');
+
+// إعادة تحميل الصفحة بعد 2 ثانية
 setTimeout(() => {
-  window.location.reload(true);
-}, 1000);
+  window.location.reload();
+}, 2000);
+
+console.log('✅ تم إكمال عملية مسح الكاش. سيتم إعادة تحميل الصفحة خلال ثانيتين...');

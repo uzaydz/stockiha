@@ -50,7 +50,7 @@ export const CallCenterRoute: React.FC<CallCenterRouteProps> = ({
       case 'owner':
         return <Navigate to="/dashboard" replace />;
       case 'employee':
-        return <Navigate to="/pos" replace />;
+        return <Navigate to="/dashboard" replace />;
       case 'customer':
         return <Navigate to="/shop" replace />;
       default:

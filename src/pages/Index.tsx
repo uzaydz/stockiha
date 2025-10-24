@@ -14,6 +14,7 @@ import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious
 import ProductCard from '@/components/product/ProductCard';
 import { useShop } from '@/context/ShopContext';
 import Layout from '@/components/Layout';
+import { HomePageSEO } from '@/components/seo';
 
 const Home = () => {
   const { products, services } = useShop();
@@ -91,6 +92,7 @@ const Home = () => {
   
   return (
     <Layout>
+      <HomePageSEO />
       <main className="container mx-auto px-4 py-8">
         {/* Hero Section - Modern Design */}
         <section className="mb-16 relative">
@@ -424,6 +426,66 @@ const Home = () => {
               dir="rtl"
             />
             <Button>اشترك</Button>
+          </div>
+        </section>
+
+        {/* SEO Content Section */}
+        <section className="mt-16 mb-8">
+          <div className="prose prose-lg max-w-none text-center">
+            <h2 className="text-3xl font-bold mb-6">لماذا تختار سطوكيها لإدارة متجرك؟</h2>
+            
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
+              <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-lg">
+                <h3 className="text-xl font-bold mb-4 text-primary">🚀 إعداد سريع</h3>
+                <p className="text-slate-600 dark:text-slate-300">
+                  ابدأ في دقائق معدودة مع نظام إعداد مبسط ومفهوم. لا تحتاج خبرة تقنية لاستخدام سطوكيها.
+                </p>
+              </div>
+              
+              <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-lg">
+                <h3 className="text-xl font-bold mb-4 text-primary">🛡️ أمان متقدم</h3>
+                <p className="text-slate-600 dark:text-slate-300">
+                  حماية شاملة لبياناتك وبيانات عملائك مع تشفير متقدم ونسخ احتياطية تلقائية.
+                </p>
+              </div>
+              
+              <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-lg">
+                <h3 className="text-xl font-bold mb-4 text-primary">📊 تحليلات ذكية</h3>
+                <p className="text-slate-600 dark:text-slate-300">
+                  تقارير مفصلة وإحصائيات دقيقة تساعدك في اتخاذ قرارات مدروسة لمتجرك.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-r from-primary/10 to-blue-600/10 p-8 rounded-2xl">
+              <h3 className="text-2xl font-bold mb-4">منصة شاملة لإدارة المتاجر في الجزائر</h3>
+              <p className="text-lg text-slate-700 dark:text-slate-300 mb-6">
+                سطوكيها هي المنصة الأولى في الجزائر التي تجمع بين نقطة البيع والمتجر الإلكتروني وإدارة المخزون في مكان واحد. 
+                مصممة خصيصاً لاحتياجات التجار الجزائريين مع دعم كامل للغة العربية والديار الجزائرية.
+              </p>
+              
+              <div className="grid md:grid-cols-2 gap-6 text-right">
+                <div>
+                  <h4 className="font-bold mb-2">🎯 ميزات نقطة البيع</h4>
+                  <ul className="text-slate-600 dark:text-slate-300 space-y-1">
+                    <li>• واجهة سهلة الاستخدام</li>
+                    <li>• دعم جميع وسائل الدفع</li>
+                    <li>• طباعة الفواتير فوراً</li>
+                    <li>• إدارة العملاء والمخزون</li>
+                  </ul>
+                </div>
+                
+                <div>
+                  <h4 className="font-bold mb-2">🌐 متجر إلكتروني احترافي</h4>
+                  <ul className="text-slate-600 dark:text-slate-300 space-y-1">
+                    <li>• تصميم متجاوب مع جميع الأجهزة</li>
+                    <li>• تحسين محركات البحث (SEO)</li>
+                    <li>• تكامل مع وسائل الدفع المحلية</li>
+                    <li>• إدارة الطلبات التلقائية</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
       </main>

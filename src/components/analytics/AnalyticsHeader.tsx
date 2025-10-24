@@ -56,30 +56,30 @@ const AnalyticsHeader = React.memo<AnalyticsHeaderProps>(({
   const [previewFilters, setPreviewFilters] = useState(false);
 
   const datePresets = [
-    { value: 'today', label: 'اليوم', icon: '📅', color: 'from-blue-500 to-blue-600' },
-    { value: 'week', label: 'هذا الأسبوع', icon: '📊', color: 'from-green-500 to-green-600' },
-    { value: 'month', label: 'هذا الشهر', icon: '📈', color: 'from-purple-500 to-purple-600' },
-    { value: 'quarter', label: 'هذا الربع', icon: '📉', color: 'from-orange-500 to-orange-600' },
-    { value: 'year', label: 'هذه السنة', icon: '📋', color: 'from-red-500 to-red-600' },
-    { value: 'custom', label: 'تخصيص', icon: '🎯', color: 'from-indigo-500 to-indigo-600' }
+    { value: 'today', label: 'اليوم' },
+    { value: 'week', label: 'هذا الأسبوع' },
+    { value: 'month', label: 'هذا الشهر' },
+    { value: 'quarter', label: 'هذا الربع' },
+    { value: 'year', label: 'هذه السنة' },
+    { value: 'custom', label: 'تخصيص' }
   ];
 
   const transactionTypes = [
-    { value: 'all', label: 'جميع المعاملات', icon: '🔄', color: 'text-blue-600' },
-    { value: 'pos', label: 'نقطة البيع', icon: '🏪', color: 'text-green-600' },
-    { value: 'online', label: 'المتجر الإلكتروني', icon: '🌐', color: 'text-purple-600' },
-    { value: 'repair', label: 'خدمات التصليح', icon: '🔧', color: 'text-orange-600' },
-    { value: 'subscription', label: 'الاشتراكات', icon: '🔒', color: 'text-indigo-600' },
-    { value: 'games', label: 'تحميل الألعاب', icon: '🎮', color: 'text-pink-600' }
+    { value: 'all', label: 'جميع المعاملات' },
+    { value: 'pos', label: 'نقطة البيع' },
+    { value: 'online', label: 'المتجر الإلكتروني' },
+    { value: 'repair', label: 'خدمات التصليح' },
+    { value: 'subscription', label: 'الاشتراكات' },
+    { value: 'games', label: 'تحميل الألعاب' }
   ];
 
   const paymentMethods = [
-    { value: 'all', label: 'جميع طرق الدفع', icon: '💳', color: 'text-blue-600' },
-    { value: 'cash', label: 'نقداً', icon: '💵', color: 'text-green-600' },
-    { value: 'card', label: 'بطاقة ائتمان', icon: '💳', color: 'text-purple-600' },
-    { value: 'bank_transfer', label: 'تحويل بنكي', icon: '🏦', color: 'text-orange-600' },
-    { value: 'digital_wallet', label: 'محفظة رقمية', icon: '📱', color: 'text-indigo-600' },
-    { value: 'installment', label: 'أقساط', icon: '📅', color: 'text-pink-600' }
+    { value: 'all', label: 'جميع طرق الدفع' },
+    { value: 'cash', label: 'نقداً' },
+    { value: 'card', label: 'بطاقة ائتمان' },
+    { value: 'bank_transfer', label: 'تحويل بنكي' },
+    { value: 'digital_wallet', label: 'محفظة رقمية' },
+    { value: 'installment', label: 'أقساط' }
   ];
 
   const handleDatePresetChange = (preset: string) => {
@@ -212,54 +212,31 @@ const AnalyticsHeader = React.memo<AnalyticsHeaderProps>(({
         transition={{ duration: 0.5, delay: 0.3 }}
         className="flex flex-wrap gap-4 items-center justify-center"
       >
-        {/* اختيار الفترة الزمنية المحسن */}
-        <div className="flex gap-2 bg-gradient-to-r from-muted/40 to-muted/60 p-3 rounded-xl border border-border/50 backdrop-blur-sm shadow-lg">
-          {datePresets.map((preset, index) => (
-            <motion.div
+        {/* اختيار الفترة الزمنية */}
+        <div className="flex gap-2 bg-muted/30 p-2 rounded-lg border">
+          {datePresets.map((preset) => (
+            <Button 
               key={preset.value}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.3, delay: 0.4 + index * 0.05 }}
+              variant={preset.value === 'custom' && showCustomDatePicker ? "default" : "ghost"}
+              size="sm"
+              onClick={() => handleDatePresetChange(preset.value)}
+              className="transition-all"
             >
-              <Button 
-                variant="ghost" 
-                size="sm"
-                onClick={() => handleDatePresetChange(preset.value)}
-                className={cn(
-                  "hover:bg-background hover:shadow-md transition-all duration-200 gap-2 relative overflow-hidden",
-                  preset.value === 'custom' && showCustomDatePicker && "bg-primary text-primary-foreground shadow-lg"
-                )}
-              >
-                <span className="text-sm">{preset.icon}</span>
-                <div className="flex flex-col items-start">
-                  <span className="hidden md:inline font-medium">{preset.label}</span>
-                  <span className="md:hidden font-medium">{preset.label.split(' ')[0]}</span>
-                  {preset.value === 'custom' && customDateRange?.from && customDateRange?.to && (
-                    <span className="text-xs text-muted-foreground truncate max-w-[100px]">
-                      {formatDate(customDateRange.from)} - {formatDate(customDateRange.to)}
-                    </span>
-                  )}
-                </div>
-                
-                {/* تأثير الخلفية */}
-                <div className={cn(
-                  "absolute inset-0 bg-gradient-to-r opacity-0 hover:opacity-10 transition-opacity duration-200",
-                  preset.color
-                )} />
-              </Button>
-            </motion.div>
+              <span className="hidden md:inline font-medium">{preset.label}</span>
+              <span className="md:hidden font-medium">{preset.label.split(' ')[0]}</span>
+              {preset.value === 'custom' && customDateRange?.from && customDateRange?.to && (
+                <span className="text-xs text-muted-foreground truncate max-w-[100px] ml-2">
+                  {formatDate(customDateRange.from)} - {formatDate(customDateRange.to)}
+                </span>
+              )}
+            </Button>
           ))}
         </div>
 
-        {/* اختيار الموظف المحسن */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.3, delay: 0.8 }}
-          className="min-w-[220px]"
-        >
+        {/* اختيار الموظف */}
+        <div className="min-w-[220px]">
           <Select value={selectedEmployee} onValueChange={onEmployeeChange}>
-            <SelectTrigger className="bg-background/80 backdrop-blur-sm border-border/50 shadow-lg hover:shadow-xl transition-all duration-200">
+            <SelectTrigger className="transition-all">
               <div className="flex items-center gap-2">
                 <Users className="h-4 w-4 text-primary" />
                 <SelectValue placeholder="اختر الموظف" />
@@ -280,20 +257,15 @@ const AnalyticsHeader = React.memo<AnalyticsHeaderProps>(({
               {/* يمكن إضافة المزيد من الموظفين هنا */}
             </SelectContent>
           </Select>
-        </motion.div>
+        </div>
 
-        {/* أزرار الإجراءات المحسنة */}
-        <motion.div
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.3, delay: 1.0 }}
-          className="flex gap-2"
-        >
+        {/* أزرار الإجراءات */}
+        <div className="flex gap-2">
           <Button
             onClick={onRefresh}
             disabled={isRefreshing}
             size="sm"
-            className="gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 transition-all duration-200 shadow-lg hover:shadow-xl"
+            className="gap-2"
           >
             <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin")} />
             <span className="hidden sm:inline">
@@ -317,20 +289,17 @@ const AnalyticsHeader = React.memo<AnalyticsHeaderProps>(({
             onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
             variant={showAdvancedFilters ? "default" : "outline"}
             size="sm"
-            className={cn(
-              "gap-2 transition-all duration-200",
-              showAdvancedFilters && "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-            )}
+            className="gap-2"
           >
             <Filter className="h-4 w-4" />
             <span className="hidden sm:inline">فلاتر متقدمة</span>
             {advancedFiltersCount > 0 && (
-              <Badge variant="secondary" className="bg-white/20 text-white text-xs ml-1">
+              <Badge variant="secondary" className="text-xs ml-1">
                 {advancedFiltersCount}
               </Badge>
             )}
           </Button>
-        </motion.div>
+        </div>
       </motion.div>
 
       {/* منتقي التاريخ المخصص */}
@@ -437,7 +406,7 @@ const AnalyticsHeader = React.memo<AnalyticsHeaderProps>(({
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden"
           >
-            <div className="bg-muted/20 backdrop-blur-sm rounded-xl border border-border/50 p-6 space-y-6">
+            <div className="bg-card rounded-lg border p-6 space-y-6">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold flex items-center gap-2">
                   <Filter className="h-5 w-5" />

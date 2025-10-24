@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useMemo, Suspense } from 'react';
 import Layout from '@/components/Layout';
+import { POSLayoutState, RefreshHandler } from '@/components/pos-layout/types';
 import { useSuperUnifiedData, useCustomersData } from '@/context/SuperUnifiedDataContext';
 import { Customer, CustomerFilter, CustomerStats } from '@/types/customer';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,9 +21,19 @@ const VirtualizedCustomersList = React.lazy(() => import('@/components/customers
 const CustomerMetrics = React.lazy(() => import('@/components/customers/CustomerMetrics'));
 const CustomerFilters = React.lazy(() => import('@/components/customers/CustomerFilters'));
 const AddCustomerDialog = React.lazy(() => import('@/components/customers/AddCustomerDialog'));
-const CustomerSegments = React.lazy(() => import('@/components/customers/CustomerSegments'));
+// const CustomerSegments = React.lazy(() => import('@/components/customers/CustomerSegments')); // معطل مؤقتاً
 
-const Customers = () => {
+interface CustomersProps {
+  useStandaloneLayout?: boolean;
+  onRegisterRefresh?: (handler: RefreshHandler) => void;
+  onLayoutStateChange?: (state: POSLayoutState) => void;
+}
+
+const Customers: React.FC<CustomersProps> = ({ 
+  useStandaloneLayout = true,
+  onRegisterRefresh,
+  onLayoutStateChange 
+}) => {
   const { toast } = useToast();
   const { user, userProfile } = useAuth();
   const { isLoading: unifiedLoading } = useSuperUnifiedData();
@@ -156,8 +167,36 @@ const Customers = () => {
     });
   }, [toast]);
 
-  return (
-    <Layout>
+  // تسجيل دالة التحديث للـ Layout
+  useEffect(() => {
+    if (onRegisterRefresh) {
+      const refreshHandler = async () => {
+        // يمكن إضافة منطق التحديث هنا إذا لزم الأمر
+        if (onLayoutStateChange) {
+          onLayoutStateChange({ isRefreshing: true });
+        }
+        // محاكاة التحديث
+        await new Promise(resolve => setTimeout(resolve, 500));
+        if (onLayoutStateChange) {
+          onLayoutStateChange({ isRefreshing: false });
+        }
+      };
+      onRegisterRefresh(refreshHandler);
+    }
+  }, [onRegisterRefresh, onLayoutStateChange]);
+
+  // تحديث حالة الـ Layout عند التحميل
+  useEffect(() => {
+    if (onLayoutStateChange) {
+      onLayoutStateChange({
+        connectionStatus: 'connected',
+        isRefreshing: isLoading,
+      });
+    }
+  }, [isLoading, onLayoutStateChange]);
+
+  const content = (
+    <>
       {/* رسالة تحميل أثناء التحقق من الصلاحيات */}
       {permissionLoading ? (
         <div className="min-h-screen flex items-center justify-center">
@@ -213,10 +252,10 @@ const Customers = () => {
             <CustomerMetrics stats={stats} />
           </Suspense>
           
-          {/* Customer Segments */}
-          <Suspense fallback={<div className="h-96 bg-gray-200 animate-pulse rounded-lg"></div>}>
+          {/* Customer Segments - معطل مؤقتاً بسبب مشكلة es-toolkit */}
+          {/* <Suspense fallback={<div className="h-96 bg-gray-200 animate-pulse rounded-lg"></div>}>
             <CustomerSegments customers={customers} />
-          </Suspense>
+          </Suspense> */}
 
           {/* Customer Filtering and Search */}
           <Card>
@@ -327,8 +366,16 @@ const Customers = () => {
           </Card>
         </div>
       )}
-    </Layout>
+    </>
   );
+
+  // إذا كان useStandaloneLayout = false، نعرض المحتوى مباشرة بدون Layout
+  if (!useStandaloneLayout) {
+    return content;
+  }
+
+  // إذا كان useStandaloneLayout = true، نستخدم Layout العادي
+  return <Layout>{content}</Layout>;
 };
 
 export default Customers;

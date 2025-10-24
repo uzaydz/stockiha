@@ -58,7 +58,7 @@ export default function ActivationCodesPage() {
     } catch (error: any) {
       toast({
         title: "خطأ في جلب دفعات الأكواد",
-        description: error.message || "حدث خطأ أثناء جلب دفعات أكواد التفعيل",
+        description: error instanceof Error ? error.message : (typeof error === 'string' ? error : "حدث خطأ أثناء جلب دفعات أكواد التفعيل"),
         variant: "destructive"
       });
     } finally {
@@ -83,7 +83,7 @@ export default function ActivationCodesPage() {
     } catch (error: any) {
       toast({
         title: "خطأ في جلب الأكواد",
-        description: error.message || "حدث خطأ أثناء جلب أكواد التفعيل",
+        description: error instanceof Error ? error.message : (typeof error === 'string' ? error : "حدث خطأ أثناء جلب أكواد التفعيل"),
         variant: "destructive"
       });
     } finally {

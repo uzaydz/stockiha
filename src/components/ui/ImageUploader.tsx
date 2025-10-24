@@ -80,6 +80,12 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropAreaRef = useRef<HTMLDivElement>(null);
+  
+  // إضافة refs للتحكم في mounted state و cleanup
+  const isMountedRef = useRef(true);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const uploadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
   const { toast } = useToast();
   const tenantContext = useTenant();
   const userContext = useUser();
@@ -92,12 +98,12 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
   // استخدام Supabase client مباشرة (متاح بشكل متزامن)
   // const supabase متاح من الاستيراد مباشرة
   
-  // إعداد مستمعي أحداث السحب والإفلات
+  // إعداد مستمعي أحداث السحب والإفلات مع cleanup
   useEffect(() => {
     const handleDragOver = (e: DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      if (!isUploading && !preview) {
+      if (!isUploading && !preview && isMountedRef.current) {
         setIsDragging(true);
       }
     };
@@ -105,15 +111,19 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
     const handleDragLeave = (e: DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      setIsDragging(false);
+      if (isMountedRef.current) {
+        setIsDragging(false);
+      }
     };
     
     const handleDrop = (e: DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      setIsDragging(false);
+      if (isMountedRef.current) {
+        setIsDragging(false);
+      }
       
-      if (isUploading || !e.dataTransfer) return;
+      if (isUploading || !e.dataTransfer || !isMountedRef.current) return;
       
       const files = e.dataTransfer.files;
       if (files && files.length > 0) {
@@ -127,11 +137,13 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
           } as unknown as React.ChangeEvent<HTMLInputElement>;
           handleImageSelect(fakeEvent);
         } else {
-          toast({
-            variant: "destructive",
-            title: "نوع ملف غير مدعوم",
-            description: "يرجى اختيار ملف صورة فقط.",
-          });
+          if (isMountedRef.current) {
+            toast({
+              variant: "destructive",
+              title: "نوع ملف غير مدعوم",
+              description: "يرجى اختيار ملف صورة فقط.",
+            });
+          }
         }
       }
     };
@@ -149,6 +161,27 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
       };
     }
   }, [isUploading, preview, toast]);
+
+  // إضافة cleanup effect للتحكم في mounted state
+  useEffect(() => {
+    isMountedRef.current = true;
+    
+    return () => {
+      isMountedRef.current = false;
+      
+      // إلغاء العمليات المعلقة
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+      
+      // إلغاء timeouts
+      if (uploadTimeoutRef.current) {
+        clearTimeout(uploadTimeoutRef.current);
+        uploadTimeoutRef.current = null;
+      }
+    };
+  }, []);
   
   // تحديث الحالة عندما يتغير imageUrl من الخارج
   useEffect(() => {
@@ -157,6 +190,8 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
       
     }
     
+    if (!isMountedRef.current) return;
+    
     if (imageUrl && imageUrl.trim() !== "") {
       // معالجة الصور المخزنة محليًا باستخدام البروتوكول القديم
       if (imageUrl.startsWith('local:')) {
@@ -164,26 +199,32 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
         const base64Content = localStorage.getItem(localKey);
         if (base64Content) {
           
-          setPreview(base64Content);
-          setUploadedImageUrl(base64Content);
+          if (isMountedRef.current) {
+            setPreview(base64Content);
+            setUploadedImageUrl(base64Content);
+          }
           // استدعاء callback لتحديث قيمة URL في الكود الخارجي أيضًا
-          if (!disableAutoCallback) {
+          if (!disableAutoCallback && isMountedRef.current) {
             onImageUploaded(base64Content);
           }
         } else {
           // تعيين صورة فارغة بدلاً من صورة غير موجودة
           const emptyImg = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-          setPreview(emptyImg);
-          setUploadedImageUrl(emptyImg);
-          if (!disableAutoCallback) {
+          if (isMountedRef.current) {
+            setPreview(emptyImg);
+            setUploadedImageUrl(emptyImg);
+          }
+          if (!disableAutoCallback && isMountedRef.current) {
             onImageUploaded(emptyImg);
           }
         }
         return;
       }
       
-      setPreview(imageUrl);
-      setUploadedImageUrl(imageUrl);
+      if (isMountedRef.current) {
+        setPreview(imageUrl);
+        setUploadedImageUrl(imageUrl);
+      }
     }
   }, [imageUrl, disableAutoCallback, onImageUploaded]);
   
@@ -438,9 +479,14 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
     }
   };
 
-  // دالة لرفع الصورة إلى Supabase فقط - محسنة مع استخدام AuthContext مباشرة
-  const uploadImageWithOfflineSupport = async (file: File, filePath: string): Promise<string> => {
+  // دالة لرفع الصورة إلى Supabase فقط - محسنة مع دعم AbortSignal
+  const uploadImageWithOfflineSupport = async (file: File, filePath: string, signal?: AbortSignal): Promise<string> => {
     try {
+      // فحص إذا تم إلغاء العملية
+      if (signal?.aborted) {
+        throw new Error('تم إلغاء عملية الرفع');
+      }
+      
       // للتأكد من أن الملف فعلاً ملف وليس شيئًا آخر
       if (!(file instanceof File)) {
         throw new Error('الملف المقدم ليس ملفًا صالحًا');
@@ -458,6 +504,11 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
 
       // عرض معلومات التشخيص في بيئة التطوير
       if (process.env.NODE_ENV === 'development') {
+      }
+
+      // فحص إلغاء العملية مرة أخرى
+      if (signal?.aborted) {
+        throw new Error('تم إلغاء عملية الرفع');
       }
 
       // التحقق من وجود المستخدم في AuthContext
@@ -601,10 +652,21 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
     return imageUrl;
   };
 
-  // معالجة اختيار الصورة
+  // معالجة اختيار الصورة مع دعم cleanup
   const handleImageSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file || !isMountedRef.current) return;
+
+    // إلغاء أي عملية رفع سابقة
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // إنشاء AbortController جديد
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
+
+    if (!isMountedRef.current) return;
 
     setIsUploading(true);
     setUploadProgress(0);
@@ -630,11 +692,13 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
         throw new Error(`حجم الملف كبير جداً. الحد الأقصى ${maxSizeInMB}MB`);
       }
 
+      if (!isMountedRef.current) return;
       setUploadProgress(20);
 
       // ضغط الصورة
       const compressedFile = await compressImage(file);
       
+      if (!isMountedRef.current) return;
       setUploadProgress(50);
       setUploadStage('uploading');
 
@@ -667,60 +731,78 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
       const fileName = `${timestamp}_${cleanBaseName}_${contentHash}.${fileExtension}`;
       const filePath = `${folder}/${currentOrganization?.id}/${fileName}`;
 
+      if (!isMountedRef.current) return;
       setUploadProgress(70);
 
-      // رفع الصورة
-      const imageUrl = await uploadImageWithOfflineSupport(compressedFile, filePath);
+      // رفع الصورة مع AbortSignal
+      const imageUrl = await uploadImageWithOfflineSupport(compressedFile, filePath, signal);
       
+      if (!isMountedRef.current) return;
       setUploadProgress(90);
 
       // تحديث الحالة
-      setPreview(imageUrl);
-      setUploadedImageUrl(imageUrl);
+      if (isMountedRef.current) {
+        setPreview(imageUrl);
+        setUploadedImageUrl(imageUrl);
+      }
       
+      if (!isMountedRef.current) return;
       setUploadProgress(100);
       setUploadStage('complete');
 
       // استدعاء callback
-      if (!disableAutoCallback) {
+      if (!disableAutoCallback && isMountedRef.current) {
         onImageUploaded(imageUrl);
       }
 
-      toast({
-        title: "تم رفع الصورة بنجاح",
-        description: `تم ضغط الصورة وتوفير ${((file.size - compressedFile.size) / file.size * 100).toFixed(1)}% من المساحة`,
-      });
+      if (isMountedRef.current) {
+        toast({
+          title: "تم رفع الصورة بنجاح",
+          description: `تم ضغط الصورة وتوفير ${((file.size - compressedFile.size) / file.size * 100).toFixed(1)}% من المساحة`,
+        });
+      }
 
     } catch (error: any) {
+      // تجاهل الأخطاء إذا تم إلغاء العملية أو unmount المكون
+      if (error.message?.includes('تم إلغاء عملية الرفع') || !isMountedRef.current) {
+        return;
+      }
+      
       console.error('❌ خطأ نهائي في رفع الصورة:', error);
       
       // معالجة أخطاء المصادقة بشكل خاص
       if (error.message?.includes('تسجيل الدخول') || 
           error.message?.includes('مصادقة') ||
           error.message?.includes('صلاحية')) {
-        toast({
-          variant: "destructive",
-          title: "مطلوب تسجيل الدخول",
-          description: error.message + " يرجى تحديث الصفحة وتسجيل الدخول مرة أخرى.",
-        });
-        
-        // إضافة زر تحديث بعد 3 ثوانٍ
-        setTimeout(() => {
-          if (confirm('هل تريد تحديث الصفحة لتسجيل الدخول مرة أخرى؟')) {
-            window.location.reload();
-          }
-        }, 3000);
+        if (isMountedRef.current) {
+          toast({
+            variant: "destructive",
+            title: "مطلوب تسجيل الدخول",
+            description: (error instanceof Error ? error.message : (typeof error === 'string' ? error : 'خطأ غير معروف')) + " يرجى تحديث الصفحة وتسجيل الدخول مرة أخرى.",
+          });
+          
+          // إضافة زر تحديث بعد 3 ثوانٍ
+          uploadTimeoutRef.current = setTimeout(() => {
+            if (isMountedRef.current && confirm('هل تريد تحديث الصفحة لتسجيل الدخول مرة أخرى؟')) {
+              window.location.reload();
+            }
+          }, 3000);
+        }
       } else {
-        toast({
-          variant: "destructive",
-          title: "فشل رفع الصورة",
-          description: error.message || "حدث خطأ غير متوقع",
-        });
+        if (isMountedRef.current) {
+          toast({
+            variant: "destructive",
+            title: "فشل رفع الصورة",
+            description: error instanceof Error ? error.message : (typeof error === 'string' ? error : "حدث خطأ غير متوقع"),
+          });
+        }
       }
     } finally {
-      setIsUploading(false);
-      setUploadProgress(0);
-      setUploadStage('idle');
+      if (isMountedRef.current) {
+        setIsUploading(false);
+        setUploadProgress(0);
+        setUploadStage('idle');
+      }
       // إعادة تعيين input
       if (event.target) {
         event.target.value = '';
@@ -729,6 +811,8 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
   };
 
   const handleRemoveImage = () => {
+    if (!isMountedRef.current) return;
+    
     setPreview("");
     setUploadedImageUrl("");
     if (!disableAutoCallback) {

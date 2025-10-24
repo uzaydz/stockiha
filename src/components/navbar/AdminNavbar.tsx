@@ -8,6 +8,7 @@ import { NavbarLogo } from './NavbarLogo';
 import { NavbarUserMenu } from './NavbarUserMenu';
 import { NavbarNotifications } from './NavbarNotifications';
 import { NavbarThemeToggle } from './NavbarThemeToggle';
+import { NavbarSyncIndicator } from './NavbarSyncIndicator';
 import { QuickNavLinks } from './QuickNavLinks';
 import OnlineOrdersCounter from './OnlineOrdersCounter';
 import { useAuth } from '@/context/AuthContext';
@@ -156,6 +157,11 @@ export function AdminNavbar({
                 <OnlineOrdersCounter variant="compact" />
               </div>
             )}
+
+            {/* Sync Indicator */}
+            <div className="navbar-action-item">
+              <NavbarSyncIndicator />
+            </div>
 
             {/* Theme Toggle */}
             <div className="navbar-action-item">

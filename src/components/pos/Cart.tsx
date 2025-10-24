@@ -1,12 +1,15 @@
 import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { Product, Order, User, Service } from '@/types';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { useAuth } from '@/context/AuthContext';
+import { useTenant } from '@/context/TenantContext';
 import { useShop } from '@/context/ShopContext';
+import { useStaffSession } from '@/context/StaffSessionContext';
 import { usePOSOrderFast } from './hooks/usePOSOrderFast';
 import { toast } from "sonner";
 import { motion } from 'framer-motion';
 import { ShoppingCart, Save, Clock, X, Filter, RotateCcw, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { dispatchAppEvent } from '@/lib/events/eventManager';
 
 import { Separator } from '@/components/ui/separator';
 
@@ -76,6 +79,7 @@ function Cart({
 }: CartProps) {
   const { createCustomer } = useShop();
   const { submitOrderFast, isSubmitting } = usePOSOrderFast(currentUser);
+  const { currentStaff } = useStaffSession();
   
   // حالة العميل والدفع
   const [selectedCustomer, setSelectedCustomer] = useState<User | null>(null);
@@ -245,18 +249,13 @@ function Cart({
         setIsNewCustomerDialogOpen(false);
         setNewCustomer({ name: '', email: '', phone: '' });
         
-        // 🔄 تحديث React Query cache للعملاء
-        // إشعار النظام بضرورة إعادة تحميل بيانات العملاء
-        window.dispatchEvent(new CustomEvent('customers-updated', { 
-          detail: { newCustomer: createdCustomer } 
-        }));
-        
-        // إضافة تأخير قصير للتأكد من التحديث
-        setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('customers-updated', { 
-            detail: { newCustomer: createdCustomer } 
-          }));
-        }, 1000);
+        dispatchAppEvent('customers-updated', { 
+          newCustomer: createdCustomer,
+          organizationId: createdCustomer.organization_id || currentUser?.organization_id || null
+        }, {
+          dedupeKey: `customers-updated:${createdCustomer.organization_id || currentUser?.organization_id || 'global'}`,
+          dedupeWindowMs: 800
+        });
       }
     } catch (error) {
       toast.error("حدث خطأ أثناء إضافة العميل");
@@ -305,7 +304,9 @@ function Cart({
             : notes),
         returnReason: isReturnMode ? returnReason : undefined,
         returnNotes: isReturnMode ? returnNotes : undefined,
-        employeeId: userProfile?.id || currentUser?.id || "",
+        employeeId: currentUser?.id || "",
+        createdByStaffId: currentStaff?.id || null,
+        createdByStaffName: currentStaff?.staff_name || null,
         partialPayment: (isPartialPayment && considerRemainingAsPartial) ? {
           amountPaid: numAmountPaid,
           remainingAmount: remainingAmount
@@ -451,48 +452,39 @@ function Cart({
       "shadow-sm",
       "h-full flex flex-col"
     )}>
-      {/* عنوان السلة المحسن ⚡ */}
-      <motion.div 
-        initial={{ y: -10, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ duration: 0.2 }}
-        className="px-4 py-3.5 border-b border-border dark:border-border bg-card dark:bg-card backdrop-blur-sm sticky top-0 z-10 shadow-sm flex-shrink-0"
-      >
+      {/* عنوان السلة - مبسط */}
+      <div className="px-3 py-2.5 border-b border-border/50 bg-card/30 backdrop-blur-sm sticky top-0 z-10 flex-shrink-0">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className={`p-1.5 rounded-lg shadow-sm ${isReturnMode ? 'bg-orange-100' : 'bg-emerald-100'}`}>
+            <div className={`p-1 rounded-md ${isReturnMode ? 'bg-orange-100/80' : 'bg-primary/10'}`}>
               {isReturnMode ? (
-                <RotateCcw className="h-4 w-4 text-orange-500" />
+                <RotateCcw className="h-3.5 w-3.5 text-orange-600" />
               ) : (
-                <Zap className="h-4 w-4 text-emerald-600" />
+                <ShoppingCart className="h-3.5 w-3.5 text-primary" />
               )}
             </div>
-            <h2 className="text-base font-semibold text-foreground dark:text-foreground">
-              {isReturnMode ? 'سلة الإرجاع' : 'سلة سريعة ⚡'}
+            <h2 className="text-sm font-semibold text-foreground">
+              {isReturnMode ? 'الإرجاع' : 'السلة'}
             </h2>
             {isSubmitting && (
-              <div className="flex items-center gap-1 text-xs text-amber-600">
-                <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse"></div>
-                معالجة...
+              <div className="flex items-center gap-1 text-[10px] text-amber-600">
+                <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></div>
+                <span>معالجة</span>
               </div>
             )}
           </div>
           
-          {!isCartEmpty ? (
-            <div className={`text-xs font-semibold px-3 py-1.5 rounded-full shadow-sm border ${
+          {!isCartEmpty && (
+            <div className={`text-[10px] font-medium px-2 py-1 rounded-full ${
               isReturnMode ? 
-              'bg-orange-100 text-orange-800 border-orange-300' : 
-              'bg-emerald-100 text-emerald-800 border-emerald-300'
+              'bg-orange-100/80 text-orange-700' : 
+              'bg-primary/10 text-primary'
             }`}>
-              {cartItems.reduce((sum, item) => sum + item.quantity, 0) + selectedServices.length + selectedSubscriptions.length} {isReturnMode ? 'للإرجاع' : 'عنصر'}
-            </div>
-          ) : (
-            <div className="text-xs text-muted-foreground dark:text-muted-foreground">
-              {isReturnMode ? 'أضف منتجات للإرجاع' : 'إضافة سريعة للسلة'}
+              {cartItems.reduce((sum, item) => sum + item.quantity, 0) + selectedServices.length + selectedSubscriptions.length}
             </div>
           )}
         </div>
-      </motion.div>
+      </div>
       
       {/* محتوى السلة */}
       {isCartEmpty ? (
@@ -502,11 +494,10 @@ function Cart({
         />
       ) : (
         <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-          <ScrollArea className="flex-1 h-full overflow-y-auto">
-            <div className="px-3 py-4">
-              <motion.div 
-                className="space-y-3"
-              >
+          <div className="flex-1 overflow-y-auto">
+            <div className="px-2.5 py-2.5">
+              <div className="space-y-2">
+                {/* العناصر */}
                 {/* عناصر المنتجات */}
                 {cartItems.map((item, index) => (
                   <CartItem
@@ -555,9 +546,9 @@ function Cart({
                     onUpdatePrice={updateSubscriptionPrice}
                   />
                 ))}
-              </motion.div>
+              </div>
             </div>
-          </ScrollArea>
+          </div>
         </div>
       )}
       

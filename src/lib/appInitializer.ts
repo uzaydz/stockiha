@@ -61,52 +61,9 @@ async function fetchAppInitData(organizationId?: string): Promise<AppInitData | 
   try {
     const supabase = getSupabaseClient();
 
-    // إذا لم يتم توفير معرف المؤسسة، حاول الحصول عليه
+    // مشروع لوحة التحكم فقط: إذا لم يتم توفير organizationId من السياق/المستخدم، لا نحاول أي كشف نطاق/سابدومين
     if (!organizationId) {
-      // من localStorage
       organizationId = localStorage.getItem(STORAGE_KEYS.ORGANIZATION_ID) || undefined;
-      
-      // من subdomain
-      if (!organizationId) {
-        const hostname = window.location.hostname;
-
-        // للتطوير المحلي، لا نستخدم أي subdomain افتراضي
-        // يجب أن يعتمد النظام على بيانات المستخدم الحقيقية فقط
-        if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.includes('localhost')) {
-          return null;
-        }
-        
-        // فحص النطاقات العامة أولاً
-        const publicDomains = ['stockiha.com', 'www.stockiha.com', 'stockiha.pages.dev', 'ktobi.online', 'www.ktobi.online'];
-        if (publicDomains.includes(hostname)) {
-          return null;
-        }
-        
-        // استخراج subdomain بشكل صحيح
-        let subdomain = null;
-        const parts = hostname.split('.');
-        
-        // إذا كان النطاق يحتوي على أجزاء متعددة وليس www
-        if (parts.length > 2 && parts[0] !== 'www') {
-          subdomain = parts[0];
-        }
-        
-        if (!subdomain) {
-          return null;
-        }
-
-        // البحث عن المؤسسة بـ subdomain (فقط في الإنتاج)
-        const { data: orgData, error } = await supabase
-          .from('organizations')
-          .select('id')
-          .eq('subdomain', subdomain)
-          .single();
-          
-        if (error) {
-        }
-        
-        organizationId = orgData?.id;
-      }
     }
     
     if (!organizationId) {
@@ -130,7 +87,7 @@ async function fetchAppInitData(organizationId?: string): Promise<AppInitData | 
     // إنشاء طلب جديد وحفظه
     const requestPromise = (async () => {
       try {
-        // 🚨 التحقق من وجود SuperUnifiedDataProvider أولاً
+        // مشروع لوحة التحكم فقط: استخدام السياق العالمي إن توفّر
         const globalDataContext = (window as any).__SUPER_UNIFIED_DATA__;
         if (globalDataContext && globalDataContext.organization?.id === organizationId) {
           

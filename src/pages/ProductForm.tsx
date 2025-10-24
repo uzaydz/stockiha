@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+//
 import { useParams, useNavigate } from 'react-router-dom';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
@@ -19,8 +20,13 @@ import { useProductFormEventHandlers } from '@/hooks/product/useProductFormEvent
 
 // UI Components
 import Layout from '@/components/Layout';
+import POSPureLayout from '@/components/pos-layout/POSPureLayout';
+import { POSSharedLayoutControls, POSLayoutState } from '@/components/pos-layout/types';
 import ProductFormTabs from '@/components/product/form/ProductFormTabs';
 import ProductFormHeader from '@/components/product/form/ProductFormHeader';
+import { useTitlebar } from '@/context/TitlebarContext';
+import { Package } from 'lucide-react';
+import { Check, Save, CalendarClock } from 'lucide-react';
 
 import ProductFormActions from '@/components/product/form/ProductFormActions';
 import ProductFormMobileActions from '@/components/product/form/ProductFormMobileActions';
@@ -39,7 +45,13 @@ import {
   productAdvancedSettingsSchema 
 } from '@/types/product';
 
-const ProductForm = () => {
+interface ProductFormProps extends POSSharedLayoutControls {}
+
+const ProductForm: React.FC<ProductFormProps> = ({
+  useStandaloneLayout = false,
+  onRegisterRefresh,
+  onLayoutStateChange
+}) => {
   const { id: productId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { currentOrganization } = useTenant();
@@ -159,6 +171,9 @@ const ProductForm = () => {
 
   const { hasPermission, isCheckingPermission, permissionWarning } = useProductPermissions({ isEditMode });
 
+  // Titlebar integration
+  const { setTabs, setActiveTab: setTitlebarActiveTab, setShowTabs, clearTabs, setActions, clearActions } = useTitlebar();
+
   const watchCategoryId = form.watch('category_id');
   const { 
     categories, 
@@ -169,6 +184,37 @@ const ProductForm = () => {
     organizationId: organizationIdFromTenant,
     watchCategoryId,
   });
+
+  // POS Layout state
+  const [layoutState, setLayoutState] = useState<POSLayoutState>({
+    connectionStatus: 'connected',
+    isRefreshing: false,
+  });
+
+  // Configure Titlebar tabs (single dynamic tab for ProductForm)
+  // (moved below to ensure debouncedName is declared)
+
+  // Render with layout function for POS compatibility
+  const renderWithLayout = (node: React.ReactElement) => {
+    if (useStandaloneLayout) {
+      return <Layout>{node}</Layout>;
+    } else {
+      return (
+        <POSPureLayout
+          onRefresh={() => {
+            if (refreshProduct) {
+              refreshProduct();
+            }
+          }}
+          isRefreshing={layoutState.isRefreshing}
+          connectionStatus={layoutState.connectionStatus}
+          executionTime={layoutState.executionTime}
+        >
+          {node}
+        </POSPureLayout>
+      );
+    }
+  };
 
   // Debug logging moved to useEffect to prevent running on every render
   useEffect(() => {
@@ -235,6 +281,24 @@ const ProductForm = () => {
     return () => clearTimeout(t);
   }, [watchName]);
 
+  // Titlebar: hide tabs entirely for this page (no tab UI)
+  useEffect(() => {
+    setShowTabs(false);
+    clearTabs();
+  }, [setShowTabs, clearTabs]);
+
+  // تحذير عند محاولة مغادرة الصفحة مع تغييرات غير محفوظة
+  useEffect(() => {
+    const beforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty && !isSubmitting) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', beforeUnload);
+    return () => window.removeEventListener('beforeunload', beforeUnload);
+  }, [isDirty, isSubmitting]);
+
   // Debug logging for variants
   useEffect(() => {
   }, [watchHasVariants, hasVariantsState, productColors]);
@@ -243,13 +307,76 @@ const ProductForm = () => {
   useEffect(() => {
   }, [productColors, watchHasVariants, useVariantPrices, useSizes]);
 
+  // Connect refresh logic with onRegisterRefresh
+  const refreshProduct = useCallback(async () => {
+    if (isEditMode && productId) {
+      // Re-fetch product data
+      window.location.reload();
+    }
+  }, [isEditMode, productId]);
+
+  useEffect(() => {
+    if (!onRegisterRefresh) return;
+    onRegisterRefresh(refreshProduct);
+    return () => {
+      onRegisterRefresh(null);
+    };
+  }, [onRegisterRefresh, refreshProduct]);
+
+  // Connect layout state changes
+  useEffect(() => {
+    const newLayoutState = {
+      isRefreshing: isLoadingProduct || isSubmitting,
+      connectionStatus: hasPermission ? 'connected' as const : 'disconnected' as const,
+      executionTime: undefined // يمكن إضافة قياس زمن التنفيذ هنا إذا أردت
+    };
+
+    setLayoutState(newLayoutState);
+    
+    if (onLayoutStateChange) {
+      onLayoutStateChange(newLayoutState);
+    }
+  }, [onLayoutStateChange, isLoadingProduct, isSubmitting, hasPermission]);
+
   // معالجات محسنة للأحداث لتجنب إعادة الإنشاء
   const triggerFormSubmit = useCallback(() => {
     if (formElementRef.current) {
+      // التحقق من عدم وجود نوافذ منبثقة مفتوحة
+      const openDialogs = document.querySelectorAll('[role="dialog"][data-state="open"]');
+      if (openDialogs.length > 0) {
+        return; // منع إرسال النموذج إذا كانت هناك نوافذ منبثقة مفتوحة
+      }
+      
+      // تعيين isManualSubmit قبل إرسال الحدث
+      setIsManualSubmit(true);
+      
       const submitEvent = new Event('submit', { cancelable: true, bubbles: true });
       formElementRef.current.dispatchEvent(submitEvent);
     }
-  }, []);
+  }, [setIsManualSubmit]);
+
+  // اختصارات لوحة المفاتيح: حفظ مسودة (Ctrl/Cmd+S) ونشر الآن (Ctrl/Cmd+Enter)
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const isMeta = e.ctrlKey || e.metaKey;
+      if (!isMeta) return;
+      const active = document.activeElement as HTMLElement | null;
+      if (active && (active.closest('[role="dialog"]') || active.closest('[data-radix-dialog-content]'))) return;
+      if (e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        form.setValue('publication_mode', 'draft');
+        triggerFormSubmit();
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        form.setValue('publication_mode', 'publish_now');
+        triggerFormSubmit();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [form, triggerFormSubmit]);
 
   const handlePublishNow = useCallback(() => {
     form.setValue('publication_mode', 'publish_now');
@@ -274,6 +401,18 @@ const ProductForm = () => {
     triggerFormSubmit();
   }, [form, triggerFormSubmit]);
 
+  // Wire titlebar actions after handlers exist
+  useEffect(() => {
+    setActions([
+      { id: 'save-draft', label: 'حفظ كمسودة', icon: <Save className="h-3.5 w-3.5" />, onClick: () => handleSaveDraft() },
+      { id: 'publish-now', label: 'نشر الآن', icon: <Check className="h-3.5 w-3.5" />, onClick: () => handlePublishNow(), disabled: isSubmitting },
+      { id: 'schedule', label: 'جدولة النشر', icon: <CalendarClock className="h-3.5 w-3.5" />, onClick: () => handleScheduleDialog() },
+    ]);
+    return () => {
+      clearActions();
+    };
+  }, [setActions, clearActions, isSubmitting, handlePublishNow, handleSaveDraft, handleScheduleDialog]);
+
   // Sync form with productColors state
   useEffect(() => {
     if (initialDataSet) {
@@ -283,9 +422,18 @@ const ProductForm = () => {
 
   // Enhanced submit handler
   const onSubmit = async (data: ProductFormValues) => {
+    // إذا لم يكن isManualSubmit صحيحاً، نتحقق من أن الحدث جاء من زر إرسال مباشر
     if (!isManualSubmit) {
-      return;
+      // التحقق من أن الحدث جاء من زر إرسال مباشر وليس من triggerFormSubmit
+      const event = (window as any).lastSubmitEvent;
+      if (!event || event.type !== 'submit') {
+        console.log('Form submission blocked: isManualSubmit is false and no valid event found');
+        return;
+      }
+      console.log('Form submission allowed: valid event found');
     }
+    
+    console.log('Form submission proceeding with isManualSubmit:', isManualSubmit);
     setIsManualSubmit(false);
     await submitForm(data);
   };
@@ -322,23 +470,37 @@ const ProductForm = () => {
     return <ProductFormPermissionDenied />;
   }
 
-  return (
+  const pageContent = (
     <>
-      <Layout>
-        <Helmet>
-          <title>
-            {isEditMode 
-              ? `تعديل: ${productNameForTitle || debouncedName || 'منتج'}` 
-              : 'إنشاء منتج جديد'
-            } - سوق
-          </title>
-        </Helmet>
+      <Helmet>
+        <title>
+          {isEditMode 
+            ? `تعديل: ${productNameForTitle || debouncedName || 'منتج'}` 
+            : 'إنشاء منتج جديد'
+          } - سوق
+        </title>
+      </Helmet>
         
         <form
           id="product-form"
           ref={formElementRef}
           onSubmit={(e) => {
             e.preventDefault();
+            e.stopPropagation();
+            
+            // حفظ الحدث للتحقق منه لاحقاً
+            (window as any).lastSubmitEvent = e;
+            
+            // التحقق من أن الحدث لم يأت من نافذة منبثقة
+            const target = e.target as HTMLElement;
+            if (target.closest('[role="dialog"]') || 
+                target.closest('.dialog-content') || 
+                target.closest('[data-radix-dialog-content]') ||
+                target.closest('.max-w-lg') ||
+                target.closest('.max-w-4xl')) {
+              return; // منع إرسال النموذج إذا كان الحدث من نافذة منبثقة
+            }
+            
             const currentOrgIdInFormState = form.getValues('organization_id');
 
             if (!currentOrgIdInFormState && organizationIdFromTenant) {
@@ -347,8 +509,13 @@ const ProductForm = () => {
                 shouldDirty: false
               });
             }
-            // Set manual submit flag for both desktop and mobile versions
-            setIsManualSubmit(true);
+            
+            // إذا لم يكن isManualSubmit صحيحاً، نعينه هنا كبديل آمن
+            if (!isManualSubmit) {
+              console.log('Setting isManualSubmit to true as fallback');
+              setIsManualSubmit(true);
+            }
+            
             form.handleSubmit(onSubmit, handleFormError)(e);
           }}
           className="min-h-screen bg-muted/30 product-form"
@@ -439,7 +606,6 @@ const ProductForm = () => {
             onSchedule={handleScheduleDialog}
           />
         </form>
-      </Layout>
 
       {/* Mobile Floating Action Buttons */}
       <ProductFormMobileActions
@@ -464,6 +630,8 @@ const ProductForm = () => {
       />
     </>
   );
+
+  return renderWithLayout(pageContent);
 };
 
 export default ProductForm;

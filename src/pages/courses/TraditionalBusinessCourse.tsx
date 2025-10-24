@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { POSSharedLayoutControls } from '@/components/pos-layout/types';
 import Layout from '@/components/Layout';
 import { traditionalBusinessCourseData } from '@/data/traditionalBusinessCourseData';
 import TraditionalBusinessHero from '@/components/courses/traditional/TraditionalBusinessHero';
@@ -11,7 +12,9 @@ import { useUser } from '@/context/UserContext';
 import { CourseWithAccess } from '@/lib/courses-service';
 import CourseAccessBadge from '@/components/courses/CourseAccessBadge';
 
-const TraditionalBusinessCourse: React.FC = () => {
+interface TraditionalBusinessCourseProps extends POSSharedLayoutControls {}
+
+const TraditionalBusinessCourse: React.FC<TraditionalBusinessCourseProps> = ({ useStandaloneLayout = true } = {}) => {
   const { user, organizationId } = useUser();
   const [course, setCourse] = useState<CourseWithAccess | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,33 +53,30 @@ const TraditionalBusinessCourse: React.FC = () => {
   }, [user, organizationId]);
 
   if (loading) {
-    return (
-      <Layout>
-        <div className="container mx-auto px-4 py-8">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-gray-600 dark:text-gray-400">جاري تحميل الدورة...</p>
-          </div>
+    const loadingContent = (
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">جاري تحميل الدورة...</p>
         </div>
-      </Layout>
+      </div>
     );
+    return useStandaloneLayout ? <Layout>{loadingContent}</Layout> : loadingContent;
   }
 
   if (!course) {
-    return (
-      <Layout>
-        <div className="container mx-auto px-4 py-8">
-          <div className="text-center">
-            <p className="text-red-600 dark:text-red-400">لم يتم العثور على الدورة</p>
-          </div>
+    const notFoundContent = (
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center">
+          <p className="text-red-600 dark:text-red-400">لم يتم العثور على الدورة</p>
         </div>
-      </Layout>
+      </div>
     );
+    return useStandaloneLayout ? <Layout>{notFoundContent}</Layout> : notFoundContent;
   }
 
-  return (
-    <Layout>
-      <div className="container mx-auto px-4 py-6 max-w-4xl">
+  const content = (
+    <div className="container mx-auto px-4 py-6 max-w-4xl">
         {/* Course Access Info */}
         {user && organizationId && (
           <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
@@ -116,8 +116,9 @@ const TraditionalBusinessCourse: React.FC = () => {
           <CourseModules modules={traditionalBusinessCourseData.modules} courseSlug="traditional-business" />
         </CourseAccessGuard>
       </div>
-    </Layout>
   );
+
+  return useStandaloneLayout ? <Layout>{content}</Layout> : content;
 };
 
 export default TraditionalBusinessCourse;

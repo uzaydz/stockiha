@@ -1,50 +1,78 @@
 import React from 'react';
-import { useTheme } from '@/context/ThemeContext';
-import { BanknotesIcon, ReceiptPercentIcon } from '@heroicons/react/24/outline';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DollarSign, FileText, TrendingUp, Users } from 'lucide-react';
+import { formatPrice } from '@/lib/utils';
 
 interface DebtsSummaryProps {
   data: {
     totalDebts: number;
     totalPartialPayments: number;
+    customerDebts?: Array<{ customerId: string; totalDebt: number }>;
   };
 }
 
 const DebtsSummary: React.FC<DebtsSummaryProps> = ({ data }) => {
-  const { theme } = useTheme();
+  const customersWithDebts = data.customerDebts?.length || 0;
+  const averageDebt = customersWithDebts > 0 ? data.totalDebts / customersWithDebts : 0;
+  
+  const stats = [
+    {
+      title: 'إجمالي الديون',
+      value: formatPrice(data.totalDebts),
+      description: 'المبالغ المستحقة الكلية',
+      icon: DollarSign,
+      color: 'text-red-600 dark:text-red-400',
+      bgColor: 'bg-red-500/10',
+    },
+    {
+      title: 'عدد الطلبات',
+      value: data.totalPartialPayments.toString(),
+      description: 'طلبات بدفع جزئي',
+      icon: FileText,
+      color: 'text-orange-600 dark:text-orange-400',
+      bgColor: 'bg-orange-500/10',
+    },
+    {
+      title: 'عدد العملاء',
+      value: customersWithDebts.toString(),
+      description: 'عملاء لديهم ديون',
+      icon: Users,
+      color: 'text-blue-600 dark:text-blue-400',
+      bgColor: 'bg-blue-500/10',
+    },
+    {
+      title: 'متوسط الدين',
+      value: formatPrice(averageDebt),
+      description: 'لكل عميل',
+      icon: TrendingUp,
+      color: 'text-purple-600 dark:text-purple-400',
+      bgColor: 'bg-purple-500/10',
+    },
+  ];
   
   return (
-    <div className="bg-card rounded-xl shadow-sm p-6 border border-border">
-      <h2 className="text-xl font-bold mb-4 text-foreground">ملخص الديون</h2>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* إجمالي الديون */}
-        <div className="flex items-start space-x-4 rtl:space-x-reverse">
-          <div className={`p-3 rounded-full ${theme === 'dark' ? 'bg-red-900/20' : 'bg-red-100'}`}>
-            <BanknotesIcon className={`w-8 h-8 ${theme === 'dark' ? 'text-red-400' : 'text-red-600'}`} />
-          </div>
-          <div>
-            <p className="text-muted-foreground text-sm">إجمالي الديون المستحقة</p>
-            <h3 className="text-2xl font-bold text-foreground">{data.totalDebts.toFixed(2)} دج</h3>
-            <p className="text-xs text-muted-foreground mt-1">
-              المبالغ المتبقية من الدفعات الجزئية والتي تعتبر ديون مستحقة
-            </p>
-          </div>
-        </div>
-        
-        {/* عدد الدفعات الجزئية */}
-        <div className="flex items-start space-x-4 rtl:space-x-reverse">
-          <div className={`p-3 rounded-full ${theme === 'dark' ? 'bg-amber-900/20' : 'bg-amber-100'}`}>
-            <ReceiptPercentIcon className={`w-8 h-8 ${theme === 'dark' ? 'text-amber-400' : 'text-amber-600'}`} />
-          </div>
-          <div>
-            <p className="text-muted-foreground text-sm">عدد الطلبات بدفع جزئي</p>
-            <h3 className="text-2xl font-bold text-foreground">{data.totalPartialPayments}</h3>
-            <p className="text-xs text-muted-foreground mt-1">
-              إجمالي عدد الطلبات التي تم دفعها بشكل جزئي ومتبقي عليها مبالغ مستحقة
-            </p>
-          </div>
-        </div>
-      </div>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {stats.map((stat, index) => {
+        const Icon = stat.icon;
+        return (
+          <Card key={index} className="overflow-hidden">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                {stat.title}
+              </CardTitle>
+              <div className={`p-2 rounded-lg ${stat.bgColor}`}>
+                <Icon className={`h-4 w-4 ${stat.color}`} />
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stat.value}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {stat.description}
+              </p>
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 };

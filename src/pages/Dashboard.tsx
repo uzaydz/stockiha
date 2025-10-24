@@ -1,10 +1,10 @@
-import { useState, Suspense } from 'react';
-import Layout from '@/components/Layout';
+import { useState, Suspense, lazy, ComponentType, type FC } from 'react';
+import POSPureLayout from '@/components/pos-layout/POSPureLayout';
 import { useSuperUnifiedData } from '@/context/SuperUnifiedDataContext';
 import { AnalyticsPeriod } from '@/lib/api/analytics';
-import { lazy } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { isAppOnline } from '@/utils/networkStatus';
 
 // تحديد نوع الفترة الزمنية المطلوب
 type TimeframeType = 'daily' | 'weekly' | 'monthly' | 'annual' | 'custom';
@@ -22,13 +22,81 @@ const timeframeToAnalyticsPeriod = (timeframe: TimeframeType): AnalyticsPeriod =
 };
 
 // تحميل مكونات محسنة بصورة lazy
-const DashboardHeader = lazy(() => import('@/components/dashboard/DashboardHeader'));
-const TrialNotification = lazy(() => import('@/components/subscription/TrialNotification'));
-const OptimizedStatsSection = lazy(() => import('@/components/dashboard/optimized/OptimizedStatsSection'));
-const QuickAccessSection = lazy(() => import('@/components/dashboard/optimized/QuickAccessSection'));
-const OptimizedOrdersSection = lazy(() => import('@/components/dashboard/optimized/OptimizedOrdersSection'));
-const OptimizedInventorySection = lazy(() => import('@/components/dashboard/optimized/OptimizedInventorySection'));
-const OptimizedAnalyticsSection = lazy(() => import('@/components/dashboard/optimized/OptimizedAnalyticsSection'));
+// const DashboardHeader = lazy(() => import('@/components/dashboard/DashboardHeader'));
+import DashboardHeader from '@/components/dashboard/DashboardHeader';
+const lazyWithOfflineFallback = <T extends ComponentType<any>>(
+  importer: () => Promise<{ default: T }>,
+  fallbackComponent: T
+) => lazy(async () => {
+  if (!isAppOnline()) {
+    return { default: fallbackComponent };
+  }
+
+  try {
+    return await importer();
+  } catch (error: any) {
+    const message = String(error?.message || '').toLowerCase();
+    if (
+      !isAppOnline() ||
+      message.includes('failed to fetch') ||
+      message.includes('dynamically imported module')
+    ) {
+      return { default: fallbackComponent };
+    }
+    throw error;
+  }
+});
+
+const OfflineSectionMessage: FC<{ title: string; height?: string }> = ({ title, height = 'h-48' }) => (
+  <div className={`flex items-center justify-center rounded-lg border border-dashed border-muted ${height}`}>
+    <div className="text-center space-y-1 px-4">
+      <p className="text-sm font-semibold text-foreground">{title}</p>
+      <p className="text-xs text-muted-foreground">المحتوى غير متاح بدون اتصال بالإنترنت</p>
+    </div>
+  </div>
+);
+
+const TrialNotificationFallback: FC = () => null;
+const OptimizedStatsFallback: FC<{ timeframe: TimeframeType }> = () => (
+  <OfflineSectionMessage title="الإحصائيات الرئيسية" height="h-40" />
+);
+const QuickAccessFallback: FC<{ maxItems?: number }> = () => (
+  <OfflineSectionMessage title="الروابط السريعة" height="h-20" />
+);
+const OrdersSectionFallback: FC = () => (
+  <OfflineSectionMessage title="ملخص الطلبات" height="h-64" />
+);
+const InventorySectionFallback: FC = () => (
+  <OfflineSectionMessage title="تنبيهات المخزون" height="h-48" />
+);
+const AnalyticsSectionFallback: FC = () => (
+  <OfflineSectionMessage title="تحليلات متقدمة" height="h-64" />
+);
+
+const TrialNotification = lazyWithOfflineFallback(
+  () => import('@/components/subscription/TrialNotification'),
+  TrialNotificationFallback
+);
+const OptimizedStatsSection = lazyWithOfflineFallback(
+  () => import('@/components/dashboard/optimized/OptimizedStatsSection'),
+  OptimizedStatsFallback
+);
+const QuickAccessSection = lazyWithOfflineFallback(
+  () => import('@/components/dashboard/optimized/QuickAccessSection'),
+  QuickAccessFallback
+);
+const OptimizedOrdersSection = lazyWithOfflineFallback(
+  () => import('@/components/dashboard/optimized/OptimizedOrdersSection'),
+  OrdersSectionFallback
+);
+const OptimizedInventorySection = lazyWithOfflineFallback(
+  () => import('@/components/dashboard/optimized/OptimizedInventorySection'),
+  InventorySectionFallback
+);
+const OptimizedAnalyticsSection = lazyWithOfflineFallback(
+  () => import('@/components/dashboard/optimized/OptimizedAnalyticsSection'),
+  AnalyticsSectionFallback
+);
 
 // مكون التحميل الأساسي
 const SectionLoader = ({ height = "h-48" }: { height?: string }) => (
@@ -127,17 +195,21 @@ const DashboardContent = () => {
   };
 
   return (
-    <Layout>
+    <POSPureLayout
+      onRefresh={() => window.location.reload()}
+      isRefreshing={false}
+      connectionStatus="connected"
+    >
       <div className="container px-2 sm:px-4 lg:px-6 mx-auto max-w-6xl">
         {/* Header القسم */}
-        <Suspense fallback={<div className="h-16 bg-muted/30 animate-pulse rounded-lg mb-4"></div>}>
-          <DashboardHeader 
-            toggleSidebar={() => {}} // لم نعد نحتاج sidebar
-            onTimeframeChange={handleTimeframeChange} 
-            onCustomDateChange={handleCustomDateChange}
-          />
+        <DashboardHeader 
+          toggleSidebar={() => {}} // لم نعد نحتاج sidebar
+          onTimeframeChange={handleTimeframeChange} 
+          onCustomDateChange={handleCustomDateChange}
+        />
         
-          {/* إشعار الفترة التجريبية */}
+        {/* إشعار الفترة التجريبية */}
+        <Suspense fallback={<div className="h-16 bg-muted/30 animate-pulse rounded-lg mb-4"></div>}>
           <TrialNotification />
         </Suspense>
         
@@ -168,7 +240,7 @@ const DashboardContent = () => {
                 </Suspense>
               </div>
       </div>
-    </Layout>
+    </POSPureLayout>
   );
 };
 

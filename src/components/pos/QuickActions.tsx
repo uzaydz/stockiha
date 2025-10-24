@@ -299,7 +299,7 @@ export default function QuickActions({
                       }
                     }}
                   >
-                    <div className="aspect-square bg-white relative">
+                    <div className="aspect-square bg-gradient-to-br from-muted/30 to-muted/10 dark:from-slate-800/50 dark:to-slate-900/30 relative">
                       <img 
                         src={product.thumbnailImage || '/placeholder-product.svg'} 
                         alt={product.name}

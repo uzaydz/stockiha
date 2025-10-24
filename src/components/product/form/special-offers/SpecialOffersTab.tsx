@@ -4,6 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { useToast } from '@/hooks/use-toast';
 import { 
   Settings, 
@@ -13,7 +15,10 @@ import {
   Users,
   BarChart3,
   Save,
-  RefreshCw
+  RefreshCw,
+  Gift,
+  HelpCircle,
+  Info
 } from 'lucide-react';
 import SpecialOffersManager from './SpecialOffersManager';
 import SpecialOffersPreview from './SpecialOffersPreview';
@@ -108,234 +113,166 @@ const SpecialOffersTab: React.FC<SpecialOffersTabProps> = ({
   }, [productId, isNewProduct]);
 
   return (
-    <div className="space-y-6">
-      {/* Header with save button */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">العروض الخاصة</h2>
-          <p className="text-muted-foreground">
-            إنشاء عروض جذابة للكميات المختلفة لزيادة المبيعات
-          </p>
+    <div className="space-y-3 sm:space-y-4">
+      {/* Simple Header */}
+      <div className="flex items-center justify-between p-3 sm:p-4 bg-background/50 border border-border/60 rounded-lg">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Gift className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+          <div>
+            <h2 className="text-sm sm:text-base font-medium">العروض الخاصة</h2>
+            <p className="text-[10px] sm:text-xs text-muted-foreground">عروض للكميات المختلفة</p>
+          </div>
         </div>
         {productId && (
           <Button 
             onClick={handleSave} 
             disabled={isSaving || !hasUnsavedChanges}
-            className="min-w-[120px]"
+            size="sm"
+            className="text-xs px-3 py-1.5 h-8"
           >
             {isSaving ? (
               <>
-                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                جاري الحفظ...
+                <RefreshCw className="w-3 h-3 mr-1 animate-spin" />
+                <span className="hidden sm:inline">جاري الحفظ...</span>
               </>
             ) : (
               <>
-                <Save className="w-4 h-4 mr-2" />
-                {hasUnsavedChanges ? 'حفظ التغييرات' : 'محفوظ'}
+                <Save className="w-3 h-3 mr-1" />
+                <span className="hidden sm:inline">
+                  {hasUnsavedChanges ? 'حفظ' : 'محفوظ'}
+                </span>
               </>
             )}
           </Button>
         )}
       </div>
 
-      {/* Status indicator */}
+      {/* Simple Status */}
       {hasUnsavedChanges && (
-        <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
-          <p className="text-sm text-yellow-700 dark:text-yellow-300">
+        <div className="p-2.5 sm:p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+          <p className="text-[10px] sm:text-xs text-amber-700 dark:text-amber-300">
             💡 لديك تغييرات غير محفوظة. {
               isNewProduct 
-                ? 'احفظ المنتج أولاً لتفعيل العروض الخاصة. لن يتم الحفظ التلقائي.' 
-                : 'اضغط على زر "حفظ التغييرات" لحفظ العروض الخاصة يدوياً.'
+                ? 'احفظ المنتج أولاً لتفعيل العروض الخاصة.' 
+                : 'اضغط على زر "حفظ" لحفظ العروض.'
             }
           </p>
         </div>
       )}
 
-      {/* مقدمة وإحصائيات */}
-      <Card className="bg-gradient-to-r from-purple-50 via-pink-50 to-purple-50 dark:from-purple-950/20 dark:via-pink-950/20 dark:to-purple-950/20 border-purple-200/50 dark:border-purple-800/30">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg text-white">
-              <TrendingUp className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold">العروض الخاصة</h2>
-              <p className="text-sm text-muted-foreground font-normal">
-                زيد مبيعاتك بعروض جذابة للكميات المختلفة
-              </p>
-            </div>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* فوائد العروض الخاصة */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <Lightbulb className="w-5 h-5 text-yellow-500" />
-                <h3 className="font-semibold">لماذا العروض الخاصة؟</h3>
-              </div>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li className="flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-green-500" />
-                  <span>زيادة متوسط قيمة الطلب</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <Users className="w-4 h-4 text-blue-500" />
-                  <span>جذب المزيد من العملاء</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <BarChart3 className="w-4 h-4 text-purple-500" />
-                  <span>تحسين نسب التحويل</span>
-                </li>
-              </ul>
-            </div>
-
-            {/* نصائح */}
-            <div className="space-y-3">
-              <h3 className="font-semibold flex items-center gap-2">
-                <Lightbulb className="w-5 h-5 text-yellow-500" />
-                نصائح للنجاح
-              </h3>
-              <ul className="space-y-2 text-sm text-muted-foreground">
-                <li>• اجعل العرض الأوسط هو الموصى به</li>
-                <li>• أضف توصيل مجاني للكميات الكبيرة</li>
-                <li>• اجعل الخصم متدرج حسب الكمية</li>
-                <li>• استخدم كلمات جذابة مثل "الأفضل" و "شائع"</li>
-              </ul>
-            </div>
-
-            {/* إحصائيات سريعة */}
-            <div className="space-y-3">
-              <h3 className="font-semibold">إحصائيات العروض</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-white dark:bg-background/50 rounded-lg p-3 text-center">
-                  <div className="text-2xl font-bold text-primary">{config.offers.length}</div>
-                  <div className="text-xs text-muted-foreground">إجمالي العروض</div>
-                </div>
-                <div className="bg-white dark:bg-background/50 rounded-lg p-3 text-center">
-                  <div className="text-2xl font-bold text-green-600">
-                    {config.offers.filter(o => o.discountPercentage > 0).length}
-                  </div>
-                  <div className="text-xs text-muted-foreground">عروض بخصم</div>
-                </div>
-              </div>
-            </div>
+      {/* Simple Info */}
+      <div className="p-2.5 sm:p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+        <div className="flex items-center gap-2 mb-2">
+          <Info className="w-4 h-4 text-blue-600" />
+          <span className="text-xs font-medium text-blue-700 dark:text-blue-300">فوائد العروض الخاصة</span>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <div className="flex items-center gap-1.5">
+            <TrendingUp className="w-3 h-3 text-green-500" />
+            <span className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400">زيادة المبيعات</span>
           </div>
-        </CardContent>
-      </Card>
+          <div className="flex items-center gap-1.5">
+            <Users className="w-3 h-3 text-blue-500" />
+            <span className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400">جذب العملاء</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <BarChart3 className="w-3 h-3 text-purple-500" />
+            <span className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400">تحسين التحويل</span>
+          </div>
+        </div>
+      </div>
 
-      {/* التابات الرئيسية */}
-      <Tabs defaultValue="manage" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="manage" className="flex items-center gap-2">
-            <Settings className="w-4 h-4" />
-            إدارة العروض
+      {/* Simple Tabs */}
+      <Tabs defaultValue="manage" className="space-y-3">
+        <TabsList className="grid w-full grid-cols-2 p-1 gap-1 rounded-lg">
+          <TabsTrigger value="manage" className="flex items-center gap-1.5 p-2 text-xs">
+            <Settings className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">إدارة العروض</span>
+            <span className="sm:hidden">إدارة</span>
           </TabsTrigger>
-          <TabsTrigger value="preview" className="flex items-center gap-2">
-            <Eye className="w-4 h-4" />
-            معاينة للعملاء
+          <TabsTrigger value="preview" className="flex items-center gap-1.5 p-2 text-xs">
+            <Eye className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">معاينة</span>
+            <span className="sm:hidden">معاينة</span>
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="manage" className="space-y-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-          >
+        <TabsContent value="manage" className="m-0">
+          <div className="p-3 sm:p-4 border border-border/60 rounded-lg bg-background/50">
             <SpecialOffersManager
               config={config}
               basePrice={basePrice}
               productName={productName}
               onChange={handleConfigChange}
             />
-          </motion.div>
+          </div>
         </TabsContent>
 
-        <TabsContent value="preview" className="space-y-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3 }}
-          >
-            {config.enabled && config.offers.length > 0 ? (
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-3">
-                    <Eye className="w-5 h-5 text-blue-500" />
-                    <div>
-                      <h3 className="text-lg font-bold">معاينة للعملاء</h3>
-                      <p className="text-sm text-muted-foreground font-normal">
-                        كيف ستظهر العروض للعملاء في صفحة المنتج
-                      </p>
-                    </div>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="border rounded-lg p-6 bg-muted/20">
-                    <SpecialOffersPreview
-                      config={config}
-                      productName={productName}
-                      productImage={productImage}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card className="border-dashed">
-                <CardContent className="flex flex-col items-center justify-center py-16">
-                  <Eye className="w-16 h-16 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">لا توجد عروض للمعاينة</h3>
-                  <p className="text-muted-foreground text-center mb-6">
-                    {!config.enabled 
-                      ? 'يرجى تفعيل العروض الخاصة أولاً لرؤية المعاينة'
-                      : 'أضف بعض العروض لرؤية كيف ستظهر للعملاء'
-                    }
-                  </p>
-                  <Button 
-                    variant="outline" 
-                    onClick={() => {
-                      // التبديل إلى تاب الإدارة
-                      const manageTab = document.querySelector('[value="manage"]') as HTMLElement;
-                      manageTab?.click();
-                    }}
-                  >
-                    {!config.enabled ? 'تفعيل العروض' : 'إضافة عروض'}
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-          </motion.div>
+        <TabsContent value="preview" className="m-0">
+          {config.enabled && config.offers.length > 0 ? (
+            <div className="p-3 sm:p-4 border border-border/60 rounded-lg bg-background/50">
+              <div className="flex items-center gap-2 mb-3">
+                <Eye className="w-4 h-4 text-blue-600" />
+                <div>
+                  <h3 className="text-sm font-medium">معاينة للعملاء</h3>
+                  <p className="text-[10px] text-muted-foreground">كيف ستظهر العروض للعملاء</p>
+                </div>
+              </div>
+              <div className="border border-border/60 rounded-lg p-3 bg-muted/20">
+                <SpecialOffersPreview
+                  config={config}
+                  productName={productName}
+                  productImage={productImage}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="p-4 border border-dashed border-border/60 rounded-lg bg-background/50">
+              <div className="flex flex-col items-center justify-center py-6">
+                <Eye className="w-12 h-12 text-muted-foreground mb-3" />
+                <h3 className="text-sm font-semibold mb-2">لا توجد عروض للمعاينة</h3>
+                <p className="text-[10px] text-muted-foreground text-center mb-4 max-w-sm">
+                  {!config.enabled 
+                    ? 'يرجى تفعيل العروض الخاصة أولاً لرؤية المعاينة'
+                    : 'أضف بعض العروض لرؤية كيف ستظهر للعملاء'
+                  }
+                </p>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => {
+                    const manageTab = document.querySelector('[value="manage"]') as HTMLElement;
+                    manageTab?.click();
+                  }}
+                  className="text-xs px-3 py-1.5 h-8"
+                >
+                  {!config.enabled ? 'تفعيل العروض' : 'إضافة عروض'}
+                </Button>
+              </div>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
 
-      {/* ملخص سريع */}
+      {/* Simple Summary */}
       {config.enabled && config.offers.length > 0 && (
-        <Card className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/20 dark:to-emerald-950/20 border-green-200/50 dark:border-green-800/30">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-green-500 rounded-lg text-white">
-                  <TrendingUp className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="font-semibold text-green-800 dark:text-green-200">
-                    عروضك جاهزة! {hasUnsavedChanges && '⚠️ (غير محفوظة)'}
-                  </h4>
-                  <p className="text-sm text-green-600 dark:text-green-300">
-                    {config.offers.length} عروض متاحة - 
-                    أعلى خصم {Math.max(...config.offers.map(o => o.discountPercentage))}%
-                  </p>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-sm text-green-600 dark:text-green-300">
-                  أقل سعر: {Math.min(...config.offers.map(o => o.pricePerUnit)).toFixed(0)} {config.currency}/قطعة
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="p-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+            <span className="text-xs font-medium text-green-700 dark:text-green-400">
+              عروضك جاهزة! {hasUnsavedChanges && '⚠️ (غير محفوظة)'}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <span className="text-[10px] text-green-600 dark:text-green-400">
+              {config.offers.length} عروض متاحة - 
+              أعلى خصم {Math.max(...config.offers.map(o => o.discountPercentage))}%
+            </span>
+            <span className="text-[10px] text-green-600 dark:text-green-400">
+              أقل سعر: {Math.min(...config.offers.map(o => o.pricePerUnit)).toFixed(0)} {config.currency}/قطعة
+            </span>
+          </div>
+        </div>
       )}
     </div>
   );

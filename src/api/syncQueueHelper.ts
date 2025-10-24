@@ -4,7 +4,10 @@ import { syncQueueStore, SyncQueueItem } from '@/database/localDb';
  * وظيفة مساعدة لحذف العناصر من قائمة المزامنة بشكل آمن
  * تتجنب أخطاء معاملة القراءة فقط بفصل عمليات القراءة عن عمليات الكتابة
  */
-export const removeSyncQueueItemsSafely = async (objectId: string, objectType: 'product' | 'customer' | 'address'): Promise<void> => {
+export const removeSyncQueueItemsSafely = async (
+  objectId: string,
+  objectType: 'product' | 'customer' | 'address' | 'order'
+): Promise<void> => {
   try {
     // أولاً، جمع المفاتيح التي نحتاج لحذفها
     const keysToRemove: string[] = [];
@@ -30,7 +33,10 @@ export const removeSyncQueueItemsSafely = async (objectId: string, objectType: '
 /**
  * وظيفة مساعدة للتحقق من وجود عناصر في قائمة المزامنة لكائن معين
  */
-export const hasSyncQueueItems = async (objectId: string, objectType: 'product' | 'customer' | 'address'): Promise<boolean> => {
+export const hasSyncQueueItems = async (
+  objectId: string,
+  objectType: 'product' | 'customer' | 'address' | 'order'
+): Promise<boolean> => {
   let hasItems = false;
   
   try {

@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useState } from 'react';
+import React, { memo, useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Loader2, Save, ArrowLeft, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -37,6 +37,65 @@ const ProductFormMobileActions: React.FC<ProductFormMobileActionsProps> = memo((
 }) => {
   // حالة لتتبع ما إذا كانت القائمة مفتوحة
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  // إخفاء الأزرار عندما يكون هناك Dialog مفتوح
+  const [isAnyDialogOpen, setIsAnyDialogOpen] = useState(false);
+  // إزاحة أسفل إضافية إذا كان هناك شريط تنقل سفلي مثبت
+  const [bottomBarOffset, setBottomBarOffset] = useState(0);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const custom = e as CustomEvent<{ open: boolean }>;
+      setIsAnyDialogOpen(!!custom.detail?.open);
+    };
+    window.addEventListener('app:dialog-open', handler as EventListener);
+    return () => window.removeEventListener('app:dialog-open', handler as EventListener);
+  }, []);
+
+  // رصد شريط تنقل سفلي محتمل واحتساب ارتفاعه لرفع الأزرار فوقه
+  useEffect(() => {
+    const selectors = [
+      '[data-bottom-nav]',
+      '.mobile-bottom-nav',
+      'nav[aria-label="bottom"]',
+      'nav[role="tablist"][data-orientation="horizontal"]'
+    ];
+    let observedEl: HTMLElement | null = null;
+    let resizeObserver: ResizeObserver | null = null;
+
+    const computeOffset = () => {
+      const el = selectors
+        .map(sel => document.querySelector(sel) as HTMLElement | null)
+        .find(Boolean) as HTMLElement | null;
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        // اعتبر العنصر مثبتاً أسفل الشاشة فقط إذا كان قريباً من الحافة السفلية
+        const isBottomFixed = Math.abs((window.innerHeight - rect.bottom)) < 8 || getComputedStyle(el).position === 'fixed';
+        setBottomBarOffset(isBottomFixed ? Math.ceil(rect.height) : 0);
+        observedEl = el;
+      } else {
+        setBottomBarOffset(0);
+      }
+    };
+
+    computeOffset();
+
+    const onResize = () => computeOffset();
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+
+    if (observedEl && 'ResizeObserver' in window) {
+      resizeObserver = new ResizeObserver(() => computeOffset());
+      resizeObserver.observe(observedEl);
+    }
+
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
+      if (resizeObserver && observedEl) {
+        resizeObserver.unobserve(observedEl);
+      }
+    };
+  }, []);
 
   // معالجات محسنة للأحداث
   const handlePublishNow = useCallback(() => {
@@ -58,11 +117,13 @@ const ProductFormMobileActions: React.FC<ProductFormMobileActionsProps> = memo((
     return null;
   }
 
+  if (isAnyDialogOpen) return null;
+
   return createPortal(
-    <div className="lg:hidden fixed bottom-6 left-1/2 transform -translate-x-1/2 z-[9999]" 
+    <div className="lg:hidden fixed left-1/2 transform -translate-x-1/2 z-[9999]"
          style={{ 
            position: 'fixed',
-           bottom: '24px',
+           bottom: `calc(${24 + bottomBarOffset}px + env(safe-area-inset-bottom))`,
            left: '50%',
            transform: 'translateX(-50%)',
            zIndex: 9999

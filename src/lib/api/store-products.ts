@@ -1,82 +1,237 @@
-import { supabase } from '@/lib/supabase-unified';
+/**
+ * Store products API utilities
+ */
 
-export interface StoreProductsPageOptions {
-  page?: number;
-  pageSize?: number;
-  includeInactive?: boolean;
-  search?: string | null;
-  categoryId?: string | null;
-  subcategoryId?: string | null;
-  minPrice?: number | null;
-  maxPrice?: number | null;
-  sort?: 'newest' | 'name_asc' | 'name_desc' | 'price_low' | 'price_high';
+import { supabase } from '@/lib/supabase';
+
+export interface StoreProduct {
+  id: string;
+  name: string;
+  description?: string;
+  price: number;
+  category_id?: string;
+  organization_id: string;
+  created_at: string;
+  updated_at: string;
 }
 
-export async function getStoreProductsPage(orgIdentifier: string, options: StoreProductsPageOptions = {}) {
-  const requestStartTime = performance.now();
-  const {
-    page = 1,
-    pageSize = 48,
-    includeInactive = false,
-    search = null,
-    categoryId = null,
-    subcategoryId = null,
-    minPrice = null,
-    maxPrice = null,
-    sort = 'newest'
-  } = options;
+export interface StoreProductFilters {
+  category_id?: string;
+  search?: string;
+  min_price?: number;
+  max_price?: number;
+  limit?: number;
+  offset?: number;
+}
 
-  console.log('📦 [API] بدء جلب منتجات المتجر', {
-    orgIdentifier,
-    page,
-    pageSize,
-    search: search ? search.substring(0, 50) : null,
-    categoryId,
-    sort,
-    hasFilters: !!(search || categoryId || subcategoryId || minPrice || maxPrice),
-    startTime: requestStartTime
-  });
+/**
+ * Get store products with optional filters
+ */
+export async function getStoreProducts(
+  organizationId: string,
+  filters: StoreProductFilters = {}
+): Promise<StoreProduct[]> {
+  try {
+    let query = supabase
+      .from('products')
+      .select('*')
+      .eq('organization_id', organizationId);
 
-  const { data, error } = await (supabase as any).rpc('get_store_products_page', {
-    org_identifier: orgIdentifier,
-    p_page: page,
-    p_page_size: pageSize,
-    p_include_inactive: includeInactive,
-    p_search: search,
-    p_category_id: categoryId,
-    p_subcategory_id: subcategoryId,
-    p_min_price: minPrice,
-    p_max_price: maxPrice,
-    p_sort: sort
-  });
+    if (filters.category_id) {
+      query = query.eq('category_id', filters.category_id);
+    }
 
-  const requestEndTime = performance.now();
-  const requestDuration = requestEndTime - requestStartTime;
+    if (filters.search) {
+      query = query.ilike('name', `%${filters.search}%`);
+    }
 
-  if (error) {
-    console.error('❌ [API] خطأ في جلب منتجات المتجر', {
-      orgIdentifier,
-      error: error.message || String(error),
-      duration: requestDuration,
-      options: { page, pageSize, search, categoryId, sort }
-    });
-    throw error;
+    if (filters.min_price !== undefined) {
+      query = query.gte('price', filters.min_price);
+    }
+
+    if (filters.max_price !== undefined) {
+      query = query.lte('price', filters.max_price);
+    }
+
+    if (filters.limit) {
+      query = query.limit(filters.limit);
+    }
+
+    if (filters.offset) {
+      query = query.range(filters.offset, filters.offset + (filters.limit || 10) - 1);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw error;
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error fetching store products:', error);
+    return [];
   }
+}
 
-  console.log('✅ [API] نجح جلب منتجات المتجر', {
-    orgIdentifier,
-    duration: requestDuration,
-    productsCount: data?.products?.length || 0,
-    categoriesCount: data?.categories?.length || 0,
-    totalPages: data?.meta?.total_pages || 0,
-    totalCount: data?.meta?.total_count || 0,
-    dataSize: JSON.stringify(data || {}).length
-  });
+/**
+ * Get a single store product by ID
+ */
+export async function getStoreProduct(
+  productId: string,
+  organizationId: string
+): Promise<StoreProduct | null> {
+  try {
+    const { data, error } = await supabase
+      .from('products')
+      .select('*')
+      .eq('id', productId)
+      .eq('organization_id', organizationId)
+      .single();
 
-  return data as {
-    products: any[];
-    categories: any[];
-    subcategories: any[];
-    meta: { total_count: number; total_pages: number; current_page: number; page_size: number };
-  };
+    if (error) {
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error fetching store product:', error);
+    return null;
+  }
+}
+
+/**
+ * Create a new store product
+ */
+export async function createStoreProduct(
+  product: Omit<StoreProduct, 'id' | 'created_at' | 'updated_at'>
+): Promise<StoreProduct | null> {
+  try {
+    const { data, error } = await supabase
+      .from('products')
+      .insert(product)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error creating store product:', error);
+    return null;
+  }
+}
+
+/**
+ * Update a store product
+ */
+export async function updateStoreProduct(
+  productId: string,
+  updates: Partial<StoreProduct>
+): Promise<StoreProduct | null> {
+  try {
+    const { data, error } = await supabase
+      .from('products')
+      .update(updates)
+      .eq('id', productId)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error updating store product:', error);
+    return null;
+  }
+}
+
+/**
+ * Delete a store product
+ */
+export async function deleteStoreProduct(productId: string): Promise<boolean> {
+  try {
+    const { error } = await supabase
+      .from('products')
+      .delete()
+      .eq('id', productId);
+
+    if (error) {
+      throw error;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('Error deleting store product:', error);
+    return false;
+  }
+}
+
+/**
+ * Get store products with pagination
+ */
+export async function getStoreProductsPage(
+  organizationId: string,
+  page: number = 1,
+  limit: number = 10,
+  filters: Omit<StoreProductFilters, 'limit' | 'offset'> = {}
+): Promise<{ products: StoreProduct[]; total: number; pages: number }> {
+  try {
+    const offset = (page - 1) * limit;
+    
+    // Get total count
+    let countQuery = supabase
+      .from('products')
+      .select('*', { count: 'exact', head: true })
+      .eq('organization_id', organizationId);
+
+    if (filters.category_id) {
+      countQuery = countQuery.eq('category_id', filters.category_id);
+    }
+
+    if (filters.search) {
+      countQuery = countQuery.ilike('name', `%${filters.search}%`);
+    }
+
+    if (filters.min_price !== undefined) {
+      countQuery = countQuery.gte('price', filters.min_price);
+    }
+
+    if (filters.max_price !== undefined) {
+      countQuery = countQuery.lte('price', filters.max_price);
+    }
+
+    const { count, error: countError } = await countQuery;
+
+    if (countError) {
+      throw countError;
+    }
+
+    // Get products with pagination
+    const products = await getStoreProducts(organizationId, {
+      ...filters,
+      limit,
+      offset
+    });
+
+    const total = count || 0;
+    const pages = Math.ceil(total / limit);
+
+    return {
+      products,
+      total,
+      pages
+    };
+  } catch (error) {
+    console.error('Error fetching store products page:', error);
+    return {
+      products: [],
+      total: 0,
+      pages: 0
+    };
+  }
 }

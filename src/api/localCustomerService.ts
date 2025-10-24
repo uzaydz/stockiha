@@ -1,5 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { customersStore, addressesStore, syncQueueStore, LocalCustomer, LocalAddress, SyncQueueItem } from '@/database/localDb';
+import { UnifiedQueue } from '@/sync/UnifiedQueue';
 
 /**
  * خدمة العملاء المحلية
@@ -40,20 +41,14 @@ export const createLocalCustomer = async (
     // حفظ العميل في قاعدة البيانات المحلية
     await customersStore.setItem(id, localCustomer);
     
-    // إضافة العنصر إلى قائمة المزامنة
-    const queueId = uuidv4();
-    const queueItem: SyncQueueItem = {
-      id: queueId,
+    // إضافة العنصر إلى قائمة المزامنة (موحّد)
+    await UnifiedQueue.enqueue({
       objectType: 'customer',
       objectId: id,
       operation: 'create',
       data: localCustomer,
-      attempts: 0,
-      createdAt: now,
-      priority: 1 // أولوية عالية
-    };
-    
-    await syncQueueStore.setItem(queueId, queueItem);
+      priority: 1
+    });
     
     return localCustomer;
   } catch (error) {
@@ -95,20 +90,14 @@ export const updateLocalCustomer = async (
     // حفظ العميل المحدّث في التخزين المحلي
     await customersStore.setItem(id, updatedCustomer);
     
-    // إضافة العنصر إلى قائمة المزامنة
-    const queueId = uuidv4();
-    const queueItem: SyncQueueItem = {
-      id: queueId,
+    // إضافة العنصر إلى قائمة المزامنة (موحّد)
+    await UnifiedQueue.enqueue({
       objectType: 'customer',
       objectId: id,
       operation: 'update',
       data: updatedCustomer,
-      attempts: 0,
-      createdAt: now,
-      priority: 2 // أولوية متوسطة
-    };
-    
-    await syncQueueStore.setItem(queueId, queueItem);
+      priority: 2
+    });
     
     return updatedCustomer;
   } catch (error) {
@@ -143,20 +132,14 @@ export const deleteLocalCustomer = async (id: string): Promise<boolean> => {
     
     await customersStore.setItem(id, markedCustomer);
     
-    // إضافة العنصر إلى قائمة المزامنة
-    const queueId = uuidv4();
-    const queueItem: SyncQueueItem = {
-      id: queueId,
+    // إضافة العنصر إلى قائمة المزامنة (موحّد)
+    await UnifiedQueue.enqueue({
       objectType: 'customer',
       objectId: id,
       operation: 'delete',
       data: { id },
-      attempts: 0,
-      createdAt: now,
-      priority: 2 // أولوية متوسطة
-    };
-    
-    await syncQueueStore.setItem(queueId, queueItem);
+      priority: 2
+    });
     
     return true;
   } catch (error) {
@@ -295,20 +278,14 @@ export const createLocalAddress = async (
     
     await addressesStore.setItem(id, localAddress);
     
-    // إضافة العنصر إلى قائمة المزامنة
-    const queueId = uuidv4();
-    const queueItem: SyncQueueItem = {
-      id: queueId,
+    // إضافة العنصر إلى قائمة المزامنة (موحّد)
+    await UnifiedQueue.enqueue({
       objectType: 'address',
       objectId: id,
       operation: 'create',
       data: localAddress,
-      attempts: 0,
-      createdAt: now,
-      priority: 2 // أولوية متوسطة
-    };
-    
-    await syncQueueStore.setItem(queueId, queueItem);
+      priority: 2
+    });
     
     return localAddress;
   } catch (error) {

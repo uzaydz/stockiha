@@ -6,12 +6,14 @@ import React, {
   useMemo,
   useRef,
   useState,
+  useCallback,
 } from 'react';
 import { useSharedStoreData } from '@/hooks/useSharedStoreData';
 import {
   OptimizedSharedStoreDataContext,
   type OptimizedSharedStoreDataContextType,
 } from '@/context/OptimizedSharedStoreDataContext';
+import { addAppEventListener, dispatchAppEvent } from '@/lib/events/eventManager';
 
 export interface SharedStoreDataContextType {
   organization: any | null;
@@ -29,6 +31,12 @@ export interface SharedStoreDataContextType {
 }
 
 type WindowStorePayload = Partial<Omit<SharedStoreDataContextType, 'refreshData'>>;
+
+const devLog = (...args: unknown[]) => {
+  if (import.meta.env.DEV) {
+    console.log(...args);
+  }
+};
 
 const EMPTY_CONTEXT: SharedStoreDataContextType = {
   organization: null,
@@ -62,7 +70,7 @@ const readWindowStorePayload = (): WindowStorePayload | null => {
     },
   ];
 
-  console.log('🧪 [SharedStoreDataContext] readWindowStorePayload invoked', {
+  devLog('🧪 [SharedStoreDataContext] readWindowStorePayload invoked', {
     hasEarly: !!candidates[0],
     hasCurrent: !!candidates[1],
     hasPrefetched: !!candidates[2],
@@ -94,7 +102,7 @@ const readWindowStorePayload = (): WindowStorePayload | null => {
         error: null,
       };
 
-      console.log('🧪 [SharedStoreDataContext] readWindowStorePayload match found', {
+      devLog('🧪 [SharedStoreDataContext] readWindowStorePayload match found', {
         hasOrganization: !!result.organization,
         hasSettings: !!result.organizationSettings,
         categoriesCount: result.categories?.length ?? 0,
@@ -104,7 +112,7 @@ const readWindowStorePayload = (): WindowStorePayload | null => {
     }
   }
 
-  console.log('🧪 [SharedStoreDataContext] readWindowStorePayload no match');
+  devLog('🧪 [SharedStoreDataContext] readWindowStorePayload no match');
   return null;
 };
 
@@ -129,12 +137,18 @@ function useSharedStoreDataSafe(): SharedStoreDataContextType {
         }
       };
 
-      window.addEventListener('storeDataReady', handleStoreDataReady);
-      window.addEventListener('storeInitDataReady', handleStoreDataReady);
+      const unsubscribeDataReady = addAppEventListener(
+        'storeDataReady',
+        handleStoreDataReady as any
+      );
+      const unsubscribeInitReady = addAppEventListener(
+        'storeInitDataReady',
+        handleStoreDataReady as any
+      );
 
       return () => {
-        window.removeEventListener('storeDataReady', handleStoreDataReady);
-        window.removeEventListener('storeInitDataReady', handleStoreDataReady);
+        unsubscribeDataReady();
+        unsubscribeInitReady();
       };
     }, [result.organization, result.organizationSettings, result.isLoading, result.refreshData]);
 
@@ -158,7 +172,7 @@ export const SharedStoreDataProvider: React.FC<{ children: ReactNode }> = React.
     const handleUpdate = () => {
       const payload = readWindowStorePayload();
       if (payload) {
-        console.log('🧪 [SharedStoreDataContext] handleUpdate applied payload', {
+        devLog('🧪 [SharedStoreDataContext] handleUpdate applied payload', {
           hasOrganization: !!payload.organization,
           hasSettings: !!payload.organizationSettings,
           categoriesCount: payload.categories?.length ?? 0,
@@ -168,12 +182,18 @@ export const SharedStoreDataProvider: React.FC<{ children: ReactNode }> = React.
       }
     };
 
-    window.addEventListener('storeDataReady', handleUpdate);
-    window.addEventListener('storeInitDataReady', handleUpdate);
+    const unsubscribeDataReady = addAppEventListener(
+      'storeDataReady',
+      handleUpdate as any
+    );
+    const unsubscribeInitReady = addAppEventListener(
+      'storeInitDataReady',
+      handleUpdate as any
+    );
 
     return () => {
-      window.removeEventListener('storeDataReady', handleUpdate);
-      window.removeEventListener('storeInitDataReady', handleUpdate);
+      unsubscribeDataReady();
+      unsubscribeInitReady();
     };
   }, []);
 
@@ -192,16 +212,12 @@ export const SharedStoreDataProvider: React.FC<{ children: ReactNode }> = React.
 
     if (!hasBroadcastedRef.current) {
       hasBroadcastedRef.current = true;
-      window.dispatchEvent(
-        new CustomEvent('bazaarStoreContextReady', {
-          detail: payloadWithRefresh,
-        }),
-      );
-      window.dispatchEvent(
-        new CustomEvent('injectedDataReady', {
-          detail: payloadWithRefresh,
-        }),
-      );
+      dispatchAppEvent('bazaarStoreContextReady', payloadWithRefresh, {
+        dedupeKey: 'bazaarStoreContextReady'
+      });
+      dispatchAppEvent('injectedDataReady', payloadWithRefresh, {
+        dedupeKey: 'injectedDataReady'
+      });
     }
 
     import('../managers/FaviconManager')
@@ -213,7 +229,7 @@ export const SharedStoreDataProvider: React.FC<{ children: ReactNode }> = React.
 
   const contextValue = useMemo<SharedStoreDataContextType>(() => {
     if (sharedData.organization || sharedData.organizationSettings) {
-      console.log('🧪 [SharedStoreDataContext] using sharedData hook', {
+      devLog('🧪 [SharedStoreDataContext] using sharedData hook', {
         hasOrganization: !!sharedData.organization,
         hasSettings: !!sharedData.organizationSettings,
         categories: sharedData.categories?.length ?? 0,
@@ -224,7 +240,7 @@ export const SharedStoreDataProvider: React.FC<{ children: ReactNode }> = React.
     }
 
     if (windowPayload) {
-      console.log('🧪 [SharedStoreDataContext] using windowPayload fallback', {
+      devLog('🧪 [SharedStoreDataContext] using windowPayload fallback', {
         hasOrganization: !!windowPayload.organization,
         hasSettings: !!windowPayload.organizationSettings,
         categories: windowPayload.categories?.length ?? 0,
@@ -240,7 +256,7 @@ export const SharedStoreDataProvider: React.FC<{ children: ReactNode }> = React.
       };
     }
 
-    console.log('🧪 [SharedStoreDataContext] falling back to sharedData (no payload)', {
+    devLog('🧪 [SharedStoreDataContext] falling back to sharedData (no payload)', {
       isLoading: sharedData.isLoading,
       hasError: !!sharedData.error,
     });
@@ -303,34 +319,69 @@ export const useSharedStoreDataContext = (): SharedStoreDataContextType => {
     OptimizedSharedStoreDataContext as React.Context<OptimizedSharedStoreDataContextType | null>,
   );
 
-  console.log('🧪 [useSharedStoreDataContext] contexts snapshot', {
-    hasShared: !!sharedContext,
-    sharedHasOrg: sharedContext?.organization?.id ?? null,
-    sharedIsLoading: sharedContext?.isLoading,
-    hasOptimized: !!optimizedContext,
-    optimizedHasOrg: optimizedContext?.organization?.id ?? null,
-    optimizedIsLoading: optimizedContext?.isLoading,
-  });
+  // 🔥 تحسين: تقليل logs في development mode مع useCallback
+  const logContextCall = useCallback(() => {
+    if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {
+      devLog('🧪 [useSharedStoreDataContext] تم استدعاء useSharedStoreDataContext');
+    }
+  }, []);
 
+  // استدعاء الدالة مرة واحدة فقط
+  useEffect(() => {
+    logContextCall();
+  }, [logContextCall]);
+
+  // 🔥 تحسين: استخدام useMemo لتحسين الأداء
+  const optimizedResult = useMemo(() => {
+    if (optimizedContext && (optimizedContext.organization || optimizedContext.organizationSettings)) {
+      // تقليل logs في development mode
+      if (process.env.NODE_ENV === 'development' && Math.random() < 0.05) {
+        devLog('🧪 [useSharedStoreDataContext] استخدام OptimizedSharedStoreDataContext');
+      }
+
+      return {
+        organization: optimizedContext.organization,
+        organizationSettings: optimizedContext.organizationSettings,
+        products: optimizedContext.products,
+        categories: optimizedContext.categories,
+        featuredProducts: optimizedContext.featuredProducts,
+        components: optimizedContext.components,
+        footerSettings: null,
+        testimonials: [],
+        seoMeta: null,
+        isLoading: optimizedContext.isLoading,
+        error: optimizedContext.error,
+        refreshData: optimizedContext.refreshData,
+      };
+    }
+    return null;
+  }, [
+    optimizedContext?.organization?.id,
+    optimizedContext?.organizationSettings?.id,
+    optimizedContext?.isLoading,
+    optimizedContext?.error,
+    optimizedContext?.products?.length,
+    optimizedContext?.categories?.length,
+    optimizedContext?.featuredProducts?.length,
+    optimizedContext?.components?.length
+  ]);
+
+  if (optimizedResult) {
+    return optimizedResult;
+  }
+
+  // fallback لـ SharedStoreDataContext مع تقليل logs
   if (sharedContext) {
+    // تقليل logs في development mode
+    if (process.env.NODE_ENV === 'development' && Math.random() < 0.05) { // 5% فقط من الاستدعاءات
+      devLog('🧪 [useSharedStoreDataContext] استخدام SharedStoreDataContext fallback');
+    }
     return sharedContext;
   }
 
-  if (optimizedContext) {
-    return {
-      organization: optimizedContext.organization,
-      organizationSettings: optimizedContext.organizationSettings,
-      products: optimizedContext.products,
-      categories: optimizedContext.categories,
-      featuredProducts: optimizedContext.featuredProducts,
-      components: optimizedContext.components,
-      footerSettings: null,
-      testimonials: [],
-      seoMeta: null,
-      isLoading: optimizedContext.isLoading,
-      error: optimizedContext.error,
-      refreshData: optimizedContext.refreshData,
-    };
+  // تقليل logs في development mode
+  if (process.env.NODE_ENV === 'development' && Math.random() < 0.02) { // 2% فقط من الاستدعاءات
+    devLog('🧪 [useSharedStoreDataContext] إرجاع EMPTY_CONTEXT - لا توجد بيانات');
   }
 
   return EMPTY_CONTEXT;

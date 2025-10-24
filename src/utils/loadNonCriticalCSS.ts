@@ -3,21 +3,30 @@
  * يتم تحميل CSS غير الحرج بعد تحميل المحتوى الأساسي
  */
 
+import { resolveAssetPath } from './assetPaths';
+
 let nonCriticalCSSLoaded = false;
 
 function ensureStylesheet(href: string, id?: string): Promise<void> {
   return new Promise((resolve) => {
     try {
       if (id && document.getElementById(id)) return resolve();
+
+      const resolvedHref = resolveAssetPath(href);
+
       const exists = Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
-        .some((l) => (l as HTMLLinkElement).href.includes(href));
+        .some((link) => {
+          const element = link as HTMLLinkElement;
+          return element.dataset.assetPath === href || element.href === resolvedHref;
+        });
+
       if (exists) return resolve();
 
       const link = document.createElement('link');
       link.rel = 'stylesheet';
-      link.href = href;
-      // حافظ على وضع الاعتماديات مطابقاً للـ preload (fonts css)
-      if (href.includes('/fonts/tajawal.css')) link.crossOrigin = '' as any;
+      link.href = resolvedHref;
+      link.dataset.assetPath = href;
+
       if (id) link.id = id;
       link.onload = () => resolve();
       link.onerror = () => resolve();
@@ -34,7 +43,7 @@ export const loadNonCriticalCSS = async (): Promise<void> => {
   // CSS الرئيسي محمل بالفعل في head مع /assets/css/main-*.css
   
   // فقط تحميل خط Tajawal إذا لم يكن محملاً
-  await ensureStylesheet('/fonts/tajawal.css', '__fonts_tajawal_css');
+  await ensureStylesheet('fonts/tajawal.css', '__fonts_tajawal_css');
 
   nonCriticalCSSLoaded = true;
 };

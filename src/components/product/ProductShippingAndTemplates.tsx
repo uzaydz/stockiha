@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { FormField, FormItem, FormLabel, FormControl, FormMessage, FormDescription } from '@/components/ui/form';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { ProductFormValues } from '@/types/product';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -18,13 +19,15 @@ import {
   Loader2,
   HelpCircle,
   Package2,
-  TruckIcon
+  TruckIcon,
+  Plus
 } from 'lucide-react';
 
 // Import API functions and types
 import { getOrganizationTemplates, OrganizationTemplate, getFormSettingTemplatesForProductPage } from '@/lib/api/organizationTemplates';
 import { getActiveShippingProvidersForOrg, ActiveShippingProvider } from '@/lib/api/shipping';
 import { toast } from 'sonner'; // For error notifications
+import AddDeliveryProviderDialog from '@/components/delivery/AddDeliveryProviderDialog';
 
 interface ProductShippingAndTemplatesProps {
   form: UseFormReturn<ProductFormValues>;
@@ -37,10 +40,31 @@ const ProductShippingAndTemplates: React.FC<ProductShippingAndTemplatesProps> = 
   const [shippingProviders, setShippingProviders] = useState<ActiveShippingProvider[]>([]);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [isLoadingShippingProviders, setIsLoadingShippingProviders] = useState(false);
+  const [isAddProviderDialogOpen, setIsAddProviderDialogOpen] = useState(false);
 
   const { control, watch, setValue } = form; // Destructure for easier use
   const currentFormTemplateId = watch('form_template_id');
   const shippingMethodType = watch('shipping_method_type');
+
+  // دالة لإعادة تحميل شركات التوصيل
+  const refetchShippingProviders = useCallback(async () => {
+    try {
+      setIsLoadingShippingProviders(true);
+      const shippingData = await getActiveShippingProvidersForOrg(organizationId);
+      setShippingProviders(shippingData);
+    } catch (error) {
+      toast.error('فشل إعادة تحميل شركات التوصيل.');
+    } finally {
+      setIsLoadingShippingProviders(false);
+    }
+  }, [organizationId]);
+
+  // دالة للتعامل مع نجاح إضافة شركة توصيل جديدة
+  const handleAddProviderSuccess = () => {
+    setIsAddProviderDialogOpen(false);
+    refetchShippingProviders();
+    toast.success('تم إضافة شركة التوصيل بنجاح!');
+  };
 
   // Fetch organization templates and shipping providers with memoization
   useEffect(() => {
@@ -187,15 +211,29 @@ const ProductShippingAndTemplates: React.FC<ProductShippingAndTemplatesProps> = 
         {/* Shipping Settings Section */}
         <Card className="border-border/50 shadow-lg dark:shadow-2xl dark:shadow-black/20 bg-card/50 backdrop-blur-sm">
           <CardHeader className="pb-4 bg-gradient-to-r from-blue-50/60 via-indigo-50/40 to-transparent dark:from-blue-950/30 dark:via-indigo-950/20 dark:to-transparent rounded-t-lg border-b border-border/30">
-            <CardTitle className="text-base font-semibold flex items-center gap-3">
-              <div className="bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/60 dark:to-indigo-900/60 p-2.5 rounded-xl shadow-sm">
-                <Truck className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-              </div>
-              <div className="flex-1">
-                <span className="text-foreground text-sm">إعدادات التوصيل</span>
-                <Badge variant="outline" className="text-xs mr-2 shadow-sm">اختياري</Badge>
-              </div>
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base font-semibold flex items-center gap-3">
+                <div className="bg-gradient-to-br from-blue-100 to-indigo-100 dark:from-blue-900/60 dark:to-indigo-900/60 p-2.5 rounded-xl shadow-sm">
+                  <Truck className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                </div>
+                <div className="flex-1">
+                  <span className="text-foreground text-sm">إعدادات التوصيل</span>
+                  <Badge variant="outline" className="text-xs mr-2 shadow-sm">اختياري</Badge>
+                </div>
+              </CardTitle>
+              
+              {/* زر إنشاء شركة توصيل جديدة */}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsAddProviderDialogOpen(true)}
+                className="gap-2 text-xs bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 dark:from-blue-950/20 dark:to-indigo-950/20 dark:hover:from-blue-900/30 dark:hover:to-indigo-900/30 border-blue-200 hover:border-blue-300 dark:border-blue-800 dark:hover:border-blue-700 transition-all duration-300"
+              >
+                <Plus className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                إضافة شركة توصيل
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="p-6 space-y-6 bg-gradient-to-b from-background/50 to-background">
                 <FormField
@@ -364,6 +402,14 @@ const ProductShippingAndTemplates: React.FC<ProductShippingAndTemplatesProps> = 
                 </Alert>
           </CardContent>
         </Card>
+
+        {/* نافذة إضافة شركة توصيل جديدة */}
+        <AddDeliveryProviderDialog
+          open={isAddProviderDialogOpen}
+          onOpenChange={setIsAddProviderDialogOpen}
+          organizationId={organizationId}
+          onSuccess={handleAddProviderSuccess}
+        />
       </div>
     </TooltipProvider>
   );

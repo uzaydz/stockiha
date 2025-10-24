@@ -86,7 +86,7 @@ export const useStoreComponents = ({ organizationId, initialComponents }: UseSto
         
         toast({
           title: 'خطأ في جلب مكونات المتجر',
-          description: error.message,
+          description: error instanceof Error ? error.message : (typeof error === 'string' ? error : 'حدث خطأ غير متوقع'),
           variant: 'destructive'
         });
         return;
@@ -274,7 +274,7 @@ export const useStoreComponents = ({ organizationId, initialComponents }: UseSto
     } catch (error: any) {
       toast({
         title: 'خطأ في إضافة المكون',
-        description: error.message || 'حدث خطأ أثناء إضافة المكون محلياً',
+        description: error instanceof Error ? error.message : (typeof error === 'string' ? error : 'حدث خطأ أثناء إضافة المكون محلياً'),
         variant: 'destructive'
       });
     }
@@ -302,7 +302,7 @@ export const useStoreComponents = ({ organizationId, initialComponents }: UseSto
     } catch (error: any) {
       toast({
         title: 'خطأ في حذف المكون',
-        description: error.message || 'حدث خطأ أثناء حذف المكون محلياً',
+        description: error instanceof Error ? error.message : (typeof error === 'string' ? error : 'حدث خطأ أثناء حذف المكون محلياً'),
         variant: 'destructive'
       });
     }
@@ -357,7 +357,7 @@ export const useStoreComponents = ({ organizationId, initialComponents }: UseSto
       
       toast({
         title: "خطأ في التحديث",
-        description: error.message || "حدث خطأ أثناء تحديث إعدادات المكون.",
+        description: error instanceof Error ? error.message : (typeof error === 'string' ? error : "حدث خطأ أثناء تحديث إعدادات المكون."),
         variant: "destructive",
       });
     } finally {
@@ -426,7 +426,7 @@ export const useStoreComponents = ({ organizationId, initialComponents }: UseSto
     } catch (error: any) {
       toast({
         title: 'خطأ في تحديث الترتيب',
-        description: error.message || 'حدث خطأ أثناء تحديث ترتيب المكونات محلياً',
+        description: error instanceof Error ? error.message : (typeof error === 'string' ? error : 'حدث خطأ أثناء تحديث ترتيب المكونات محلياً'),
         variant: 'destructive'
       });
     }
@@ -564,7 +564,7 @@ export const useStoreComponents = ({ organizationId, initialComponents }: UseSto
     } catch (error: any) {
       toast({
         title: 'خطأ في حفظ التغييرات',
-        description: error.message || 'حدث خطأ أثناء حفظ التغييرات في قاعدة البيانات',
+        description: error instanceof Error ? error.message : (typeof error === 'string' ? error : 'حدث خطأ أثناء حفظ التغييرات في قاعدة البيانات'),
         variant: 'destructive'
       });
     } finally {

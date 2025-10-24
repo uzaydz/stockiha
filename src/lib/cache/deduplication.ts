@@ -13,8 +13,8 @@ interface DeduplicationCache {
 // Cache عالمي للطلبات النشطة
 const activeRequestsCache: DeduplicationCache = {};
 
-// مدة انتهاء الصلاحية محسنة للأداء السريع (دقيقتان)
-const DEFAULT_TTL = 2 * 60 * 1000;
+// مدة انتهاء الصلاحية محسنة للأداء السريع (3 دقائق)
+const DEFAULT_TTL = 3 * 60 * 1000;
 
 /**
  * نظام Deduplication متطور يمنع تنفيذ نفس الطلب في نفس الوقت

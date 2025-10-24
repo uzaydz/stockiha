@@ -74,7 +74,7 @@ const StoreProductGrid = ({
           product={product} 
           isFavorite={wishlist.includes(product.id)}
           onToggleFavorite={toggleWishlist}
-          priority={index < 2} // أولوية عالية لأول عنصرين فقط لتحسين LCP
+          priority={index < 6} // أول 6 صور لها أولوية
         />
       ))}
     </motion.div>

@@ -2,7 +2,7 @@ import React, { memo, Suspense, lazy, useRef, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { TabsContent } from '@/components/ui/tabs';
 import { UseFormReturn } from 'react-hook-form';
-import { Loader2, Info, Images, DollarSign, Palette, Settings, Package, Truck, Megaphone, AlertTriangle, BarChart2, Gift } from 'lucide-react';
+import { Loader2, Info, Images, DollarSign, Palette, Settings, Package, Truck, Megaphone, AlertTriangle, BarChart2, Gift, ChevronDown } from 'lucide-react';
 
 import { ProductFormValues, ProductColor, WholesaleTier } from '@/types/product';
 import { Category, Subcategory } from '@/lib/api/categories';
@@ -59,6 +59,10 @@ const BasicProductInfo = createLazyComponent(
 const ProductCategories = createLazyComponent(
   () => import('@/components/product/ProductCategories'), 
   'ProductCategories'
+);
+const ProductSettings = createLazyComponent(
+  () => import('@/components/product/ProductSettings'), 
+  'ProductSettings'
 );
 const ProductImagesManager = createLazyComponent(
   () => import('@/components/product/ProductImagesManager'), 
@@ -169,6 +173,7 @@ interface ProductFormTabContentProps {
   onHasVariantsChange: (hasVariants: boolean) => void;
   onUseVariantPricesChange: (use: boolean) => void;
   onUseSizesChange: (use: boolean) => void;
+  onAddColor?: (e?: React.MouseEvent) => void;
 }
 
 const ProductFormTabContent = memo<ProductFormTabContentProps>(({
@@ -211,10 +216,10 @@ const ProductFormTabContent = memo<ProductFormTabContentProps>(({
   }, [watchHasVariants, productColors]);
 
   return (
-    <Card className={`min-h-[400px] sm:min-h-[500px] overflow-hidden shadow-lg dark:shadow-2xl dark:shadow-black/20 bg-card/50 backdrop-blur-sm border-border/50 transition-all duration-300 ${isTransitioning ? 'opacity-75' : 'opacity-100'}`}>
+    <Card className={`min-h-[350px] sm:min-h-[400px] lg:min-h-[500px] overflow-hidden shadow-sm sm:shadow-md bg-card border border-border/50 transition-opacity duration-200 ${isTransitioning ? 'opacity-80' : 'opacity-100'}`}>
       <SafeSuspense fallback={<SectionLoader />}>
         {/* Basic Information Tab */}
-        <TabsContent value="basic" className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6 m-0">
+        <TabsContent value="basic" className="p-3 sm:p-4 lg:p-6 space-y-3 sm:space-y-4 lg:space-y-6 m-0">
           <TabSectionHeader
             icon={Info}
             title="المعلومات الأساسية"
@@ -225,19 +230,19 @@ const ProductFormTabContent = memo<ProductFormTabContentProps>(({
           />
           
           {/* Main Content Grid */}
-          <div className="space-y-4 sm:space-y-6 lg:space-y-8">
+          <div className="space-y-3 sm:space-y-4 lg:space-y-6">
             {/* Basic Product Information */}
             <SafeSuspense fallback={<SectionLoader message="تحميل المعلومات الأساسية..." />}>
-              <div className="bg-gradient-to-r from-muted/20 to-muted/10 dark:from-muted/10 dark:to-muted/5 rounded-lg sm:rounded-xl p-3 sm:p-4 lg:p-6 border border-border/30">
+              <div className="rounded-lg sm:rounded-xl p-3 sm:p-4 lg:p-5 border border-border/60 bg-background/50 backdrop-blur-sm">
                 <BasicProductInfo form={form} />
               </div>
             </SafeSuspense>
             
-            {/* Categories and Selling Type - Vertical Layout */}
-            <div className="space-y-4 sm:space-y-6">
+            {/* Categories - Vertical Layout (Removed Selling Type from Basic) */}
+            <div className="space-y-3 sm:space-y-4 lg:space-y-6">
               {/* Main Categories */}
               <SafeSuspense fallback={<SectionLoader message="تحميل الفئات الرئيسية..." />}>
-                <div className="bg-gradient-to-r from-primary/5 to-primary/3 dark:from-primary/10 dark:to-primary/5 rounded-lg sm:rounded-xl p-3 sm:p-4 lg:p-6 border border-primary/20">
+                <div className="rounded-lg sm:rounded-xl p-3 sm:p-4 lg:p-5 border border-border/60 bg-background/50 backdrop-blur-sm">
                   <ProductCategories
                     form={form}
                     categories={categories}
@@ -249,10 +254,10 @@ const ProductFormTabContent = memo<ProductFormTabContentProps>(({
                 </div>
               </SafeSuspense>
               
-              {/* Selling Type */}
-              <SafeSuspense fallback={<SectionLoader message="تحميل نوع البيع..." />}>
-                <div className="bg-gradient-to-r from-blue-50/30 to-indigo-50/20 dark:from-blue-950/20 dark:to-indigo-950/10 rounded-lg sm:rounded-xl p-3 sm:p-4 lg:p-6 border border-blue-200/30 dark:border-blue-800/20">
-                  <ProductSellingType form={form} onHasVariantsChange={onHasVariantsChange} />
+              {/* Product Settings */}
+              <SafeSuspense fallback={<SectionLoader message="تحميل إعدادات المنتج..." />}>
+                <div className="rounded-lg sm:rounded-xl p-3 sm:p-4 lg:p-5 border border-border/60 bg-background/50 backdrop-blur-sm">
+                  <ProductSettings form={form} />
                 </div>
               </SafeSuspense>
             </div>
@@ -260,7 +265,7 @@ const ProductFormTabContent = memo<ProductFormTabContentProps>(({
         </TabsContent>
         
         {/* Media Tab */}
-        <TabsContent value="media" className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6 m-0">
+        <TabsContent value="media" className="p-3 sm:p-4 lg:p-6 space-y-3 sm:space-y-4 lg:space-y-6 m-0">
           <TabSectionHeader
             icon={Images}
             title="صور المنتج"
@@ -271,7 +276,7 @@ const ProductFormTabContent = memo<ProductFormTabContentProps>(({
           />
           
           <SafeSuspense fallback={<SectionLoader message="تحميل مدير الصور..." />}>
-            <div className="bg-gradient-to-r from-blue-50/30 to-indigo-50/20 dark:from-blue-950/20 dark:to-indigo-950/10 rounded-lg sm:rounded-xl p-3 sm:p-4 lg:p-6 border border-blue-200/30 dark:border-blue-800/20">
+            <div className="rounded-lg sm:rounded-xl p-3 sm:p-4 lg:p-5 border border-border/60 bg-background/50 backdrop-blur-sm">
               <ProductImagesManager
                 mainImage={watchThumbnailImage || ''}
                 additionalImages={additionalImages}
@@ -284,7 +289,7 @@ const ProductFormTabContent = memo<ProductFormTabContentProps>(({
         </TabsContent>
         
         {/* Pricing & Inventory Tab */}
-        <TabsContent value="pricing_inventory" className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6 m-0">
+        <TabsContent value="pricing_inventory" className="p-3 sm:p-4 lg:p-6 space-y-3 sm:space-y-4 lg:space-y-6 m-0">
           <TabSectionHeader
             icon={DollarSign}
             title="السعر والمخزون"
@@ -295,17 +300,17 @@ const ProductFormTabContent = memo<ProductFormTabContentProps>(({
           />
           
           {/* Main Content - Responsive Layout */}
-          <div className="space-y-4 sm:space-y-6 lg:space-y-8">
+          <div className="space-y-3 sm:space-y-4 lg:space-y-6">
             {/* Pricing Section */}
             <SafeSuspense fallback={<SectionLoader message="تحميل إدارة الأسعار..." />}>
-              <div className="bg-gradient-to-r from-green-50/30 to-emerald-50/20 dark:from-green-950/20 dark:to-emerald-950/10 rounded-lg sm:rounded-xl p-3 sm:p-4 lg:p-6 border border-green-200/30 dark:border-green-800/20">
+              <div className="rounded-lg sm:rounded-xl p-3 sm:p-4 lg:p-5 border border-border/60 bg-background/50 backdrop-blur-sm">
                 <ProductPricing form={form} />
               </div>
             </SafeSuspense>
             
             {/* Inventory Section */}
             <SafeSuspense fallback={<SectionLoader message="تحميل إدارة المخزون..." />}>
-              <div className="bg-gradient-to-r from-green-50/30 to-emerald-50/20 dark:from-green-950/20 dark:to-emerald-950/10 rounded-lg sm:rounded-xl p-3 sm:p-4 lg:p-6 border border-green-200/30 dark:border-green-800/20">
+              <div className="rounded-lg sm:rounded-xl p-3 sm:p-4 lg:p-5 border border-border/60 bg-background/50 backdrop-blur-sm">
                 <ProductInventory
                   form={form}
                   organizationId={organizationId}
@@ -318,66 +323,66 @@ const ProductFormTabContent = memo<ProductFormTabContentProps>(({
         </TabsContent>
         
         {/* Variants Tab */}
-        {watchHasVariants && (
-          <TabsContent value="variants" className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6 m-0">
+        {/* Variants Tab: always visible; shows enable UI if disabled */}
+        <TabsContent value="variants" className="p-3 sm:p-4 lg:p-6 space-y-3 sm:space-y-4 lg:space-y-6 m-0">
             <TabSectionHeader
               icon={Palette}
               title="متغيرات المنتج"
               color="purple"
-              required={false}
-              tooltip="أضف متغيرات المنتج مثل الألوان والأحجام"
-              description="إدارة الألوان والأحجام والمتغيرات"
+            required={false}
+            tooltip="أضف متغيرات المنتج مثل الألوان والأحجام"
+            description="إدارة الألوان والأحجام والمتغيرات"
             />
-            
+          {!watchHasVariants ? (
+            <div className="rounded-lg sm:rounded-xl p-3 sm:p-4 lg:p-5 border border-border/60 bg-background/50 backdrop-blur-sm">
+              <p className="text-xs sm:text-sm text-muted-foreground mb-3">المتغيرات غير مفعّلة لهذا المنتج.</p>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                <button
+                  type="button"
+                  className="inline-flex items-center px-3 py-2 rounded-lg border text-xs sm:text-sm hover:bg-primary/5 transition-colors"
+                  onClick={() => onHasVariantsChange(true)}
+                >
+                  تفعيل المتغيرات
+                </button>
+                <span className="text-[10px] sm:text-xs text-muted-foreground">يمكنك تفعيل المتغيرات لإضافة الألوان والأحجام.</span>
+              </div>
+            </div>
+          ) : (
             <SafeSuspense fallback={<SectionLoader message="تحميل مدير المتغيرات..." />}>
-              <div className="bg-gradient-to-r from-purple-50/30 to-indigo-50/20 dark:from-purple-950/20 dark:to-indigo-950/10 rounded-lg sm:rounded-xl p-3 sm:p-4 lg:p-6 border border-purple-200/30 dark:border-purple-800/20">
-                <ProductColorManager
-                  colors={productColors}
-                  onChange={onProductColorsChange}
-                  basePrice={watchPrice}
-                  basePurchasePrice={watchPurchasePrice}
-                  useVariantPrices={useVariantPrices}
-                  onUseVariantPricesChange={onUseVariantPricesChange}
-                  useSizes={useSizes}
-                  onUseSizesChange={onUseSizesChange}
-                  productId={productId || ''}
-                  onAddColor={onAddColor}
-                />
+              <div className="space-y-3">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-3 p-3 rounded-lg border border-border/60 bg-muted/20">
+                  <div className="text-xs sm:text-sm text-muted-foreground">المتغيرات مفعّلة</div>
+                  <button
+                    type="button"
+                    className="inline-flex items-center px-3 py-2 rounded-lg border text-xs sm:text-sm hover:bg-destructive/5 transition-colors"
+                    onClick={() => onHasVariantsChange(false)}
+                  >
+                    تعطيل المتغيرات
+                  </button>
+                </div>
+                <div className="rounded-lg sm:rounded-xl p-3 sm:p-4 lg:p-5 border border-border/60 bg-background/50 backdrop-blur-sm">
+                  <ProductColorManager
+                    colors={productColors}
+                    onChange={onProductColorsChange}
+                    basePrice={watchPrice}
+                    basePurchasePrice={watchPurchasePrice}
+                    useVariantPrices={useVariantPrices}
+                    onUseVariantPricesChange={onUseVariantPricesChange}
+                    useSizes={useSizes}
+                    onUseSizesChange={onUseSizesChange}
+                    productId={productId || ''}
+                    onAddColor={onAddColor}
+                  />
+                </div>
               </div>
             </SafeSuspense>
-          </TabsContent>
-        )}
-        
-        {/* Special Offers Tab */}
-        <TabsContent value="special_offers" className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6 m-0">
-          <TabSectionHeader
-            icon={Gift}
-            title="العروض الخاصة"
-            color="purple"
-            required={false}
-            tooltip="إنشاء عروض جذابة للكميات المختلفة لزيادة المبيعات"
-            description="عروض الباقات والكميات المتعددة بأسعار مخفضة"
-          />
-          
-          <SafeSuspense fallback={<SectionLoader message="تحميل مدير العروض الخاصة..." />}>
-            <div className="bg-gradient-to-r from-purple-50/30 to-pink-50/20 dark:from-purple-950/20 dark:to-pink-950/10 rounded-lg sm:rounded-xl p-3 sm:p-4 lg:p-6 border border-purple-200/30 dark:border-purple-800/20">
-              <SpecialOffersTab
-                productName={form.watch('name') || 'المنتج'}
-                basePrice={watchPrice}
-                productId={productId}
-                productImage={watchThumbnailImage}
-                initialConfig={form.watch('special_offers_config')}
-                onChange={productId ? (config) => {
-                  // Store special offers config in form ONLY for existing products
-                  form.setValue('special_offers_config', config);
-                } : undefined}
-              />
-            </div>
-          </SafeSuspense>
+          )}
         </TabsContent>
         
+        {/* Special Offers moved into Advanced tab below */}
+        
         {/* Shipping & Templates Tab */}
-        <TabsContent value="shipping_templates" className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6 m-0">
+        <TabsContent value="shipping_templates" className="p-3 sm:p-4 lg:p-6 space-y-3 sm:space-y-4 lg:space-y-6 m-0">
           <TabSectionHeader
             icon={Truck}
             title="التوصيل والنماذج"
@@ -388,7 +393,7 @@ const ProductFormTabContent = memo<ProductFormTabContentProps>(({
           />
           
           <SafeSuspense fallback={<SectionLoader message="تحميل إعدادات التوصيل..." />}>
-            <div className="bg-gradient-to-r from-green-50/30 to-emerald-50/20 dark:from-green-950/20 dark:to-emerald-950/10 rounded-lg sm:rounded-xl p-3 sm:p-4 lg:p-6 border border-green-200/30 dark:border-green-800/20">
+            <div className="rounded-lg sm:rounded-xl p-3 sm:p-4 lg:p-5 border border-border/60 bg-background/50 backdrop-blur-sm">
               <ProductShippingAndTemplates
                 form={form}
                 organizationId={organizationId}
@@ -398,18 +403,18 @@ const ProductFormTabContent = memo<ProductFormTabContentProps>(({
         </TabsContent>
         
         {/* Conversion Tracking Tab */}
-        <TabsContent value="conversion_tracking" className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6 m-0">
+        <TabsContent value="conversion_tracking" className="p-3 sm:p-4 lg:p-6 space-y-3 sm:space-y-4 lg:space-y-6 m-0">
           <TabSectionHeader
             icon={BarChart2}
-            title="تتبع التحويلات المتقدم"
+            title="تحليلات التسويق وتتبع التحويلات"
             color="purple"
             required={false}
-            tooltip="إعداد تتبع التحويلات عبر منصات متعددة"
+            tooltip="إعداد تتبع التحويلات عبر المنصات"
             description="فيسبوك، جوجل، وتيك توك"
           />
           
           <SafeSuspense fallback={<SectionLoader message="تحميل إعدادات التتبع..." />}>
-            <div className="bg-gradient-to-r from-indigo-50/30 to-purple-50/20 dark:from-indigo-950/20 dark:to-purple-950/10 rounded-lg sm:rounded-xl p-3 sm:p-4 lg:p-6 border border-indigo-200/30 dark:border-indigo-800/20">
+            <div className="rounded-lg sm:rounded-xl p-3 sm:p-4 lg:p-5 border border-border/60 bg-background/50 backdrop-blur-sm">
               <ConversionTrackingTab
                 form={form}
                 organizationId={organizationId}
@@ -419,26 +424,71 @@ const ProductFormTabContent = memo<ProductFormTabContentProps>(({
           </SafeSuspense>
         </TabsContent>
         
-        {/* Advanced Settings Tab */}
-        <TabsContent value="advanced" className="p-3 sm:p-4 lg:p-6 space-y-4 sm:space-y-6 m-0">
+        {/* Advanced Settings Tab (now includes Special Offers and Conversion Tracking) */}
+        <TabsContent value="advanced" className="p-3 sm:p-4 lg:p-6 space-y-3 sm:space-y-4 lg:space-y-6 m-0">
           <TabSectionHeader
             icon={Settings}
-            title="إعدادات عامة"
+            title="الإعدادات العامة"
             color="amber"
             required={false}
             tooltip="إعدادات الجملة والتوصيل والإعدادات العامة"
             description="الجملة، التوصيل، والإعدادات الإضافية"
           />
           
-          <div className="space-y-4 sm:space-y-6 lg:space-y-8">
-            {/* Wholesale Tiers */}
-            <div className="bg-gradient-to-r from-muted/40 to-muted/20 dark:from-muted/20 dark:to-muted/10 rounded-lg sm:rounded-xl p-3 sm:p-4 lg:p-6 border border-border/50 backdrop-blur-sm shadow-sm">
-              <h4 className="font-medium mb-3 sm:mb-4 flex items-center gap-2 sm:gap-3 text-foreground text-sm">
-                <div className="bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/60 dark:to-blue-800/60 p-1.5 sm:p-2 rounded-lg shadow-sm">
-                  <DollarSign className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-600 dark:text-blue-400" />
+          <div className="space-y-3 sm:space-y-4 lg:space-y-6">
+            {/* Collapsible - Special Offers */}
+            <details className="group rounded-lg sm:rounded-xl border border-border/60 bg-gradient-to-r from-background/50 to-background/30 dark:from-background/30 dark:to-background/20 backdrop-blur-sm shadow-sm hover:shadow-md transition-all duration-300" open>
+              <summary className="cursor-pointer select-none p-3 sm:p-4 lg:p-5 flex items-center justify-between hover:bg-gradient-to-r hover:from-primary/5 hover:to-primary/3 transition-all duration-300 rounded-lg sm:rounded-xl">
+                <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                  <div className="bg-gradient-to-br from-primary/20 to-primary/10 dark:from-primary/30 dark:to-primary/15 p-2 sm:p-2.5 rounded-lg sm:rounded-xl shadow-sm flex-shrink-0">
+                    <Gift className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary dark:text-primary-foreground" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 sm:gap-2">
+                      <span className="font-medium text-xs sm:text-sm text-foreground truncate">العروض الخاصة</span>
+                      <span className="text-[10px] sm:text-xs text-muted-foreground hidden md:inline truncate">(تقديم خصومات على باقات وكميات)</span>
+                    </div>
+                    <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                      إعداد عروض خاصة وخصومات على الكميات
+                    </p>
+                  </div>
                 </div>
-                أسعار الجملة
-              </h4>
+                <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                  <span className="text-[9px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 rounded-full border border-primary/20 text-primary group-open:hidden">انقر للفتح</span>
+                  <span className="text-[9px] sm:text-[11px] px-1.5 sm:px-2 py-0.5 rounded-full border border-primary/20 text-primary hidden group-open:inline">انقر للإغلاق</span>
+                  <ChevronDown className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-muted-foreground transition-transform duration-200 group-open:rotate-180" />
+                </div>
+              </summary>
+              <div className="p-3 sm:p-4 lg:p-5 pt-0">
+                <SafeSuspense fallback={<SectionLoader message="تحميل مدير العروض الخاصة..." />}>
+                  <div className="rounded-lg sm:rounded-xl p-3 sm:p-4 lg:p-5 border border-border/60 bg-gradient-to-r from-background/50 to-background/30 dark:from-background/30 dark:to-background/20 backdrop-blur-sm">
+                    <SpecialOffersTab
+                      productName={form.watch('name') || 'المنتج'}
+                      basePrice={watchPrice}
+                      productId={productId}
+                      productImage={watchThumbnailImage}
+                      initialConfig={form.watch('special_offers_config')}
+                      onChange={productId ? (config) => {
+                        form.setValue('special_offers_config', config);
+                      } : undefined}
+                    />
+                  </div>
+                </SafeSuspense>
+              </div>
+            </details>
+
+            {/* Conversion Tracking moved to its own tab above */}
+            {/* Wholesale Tiers */}
+            <div className="rounded-lg sm:rounded-xl p-3 sm:p-4 lg:p-5 border border-border/60 bg-gradient-to-r from-background/50 to-background/30 dark:from-background/30 dark:to-background/20 backdrop-blur-sm shadow-sm hover:shadow-md transition-all duration-300">
+              <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                <div className="bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900/60 dark:to-green-800/60 p-2 sm:p-2.5 rounded-lg sm:rounded-xl shadow-sm">
+                  <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-green-600 dark:text-green-400" />
+                </div>
+                <div>
+                  <h4 className="font-medium text-xs sm:text-sm text-foreground">أسعار الجملة</h4>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">إعداد أسعار خاصة للكميات الكبيرة</p>
+                </div>
+              </div>
               <SafeSuspense fallback={<SectionLoader message="تحميل إدارة الجملة..." />}>
                 <WholesaleTierManager
                   productId={productId || ''}
@@ -449,13 +499,16 @@ const ProductFormTabContent = memo<ProductFormTabContentProps>(({
             </div>
             
             {/* Marketing & Engagement */}
-            <div className="bg-gradient-to-r from-muted/40 to-muted/20 dark:from-muted/20 dark:to-muted/10 rounded-lg sm:rounded-xl p-3 sm:p-4 lg:p-6 border border-border/50 backdrop-blur-sm shadow-sm">
-              <h4 className="font-medium mb-3 sm:mb-4 flex items-center gap-2 sm:gap-3 text-foreground text-sm">
-                <div className="bg-gradient-to-br from-purple-100 to-purple-200 dark:from-purple-900/60 dark:to-purple-800/60 p-1.5 sm:p-2 rounded-lg shadow-sm">
-                  <Megaphone className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-purple-600 dark:text-purple-400" />
+            <div className="rounded-lg sm:rounded-xl p-3 sm:p-4 lg:p-5 border border-border/60 bg-gradient-to-r from-background/50 to-background/30 dark:from-background/30 dark:to-background/20 backdrop-blur-sm shadow-sm hover:shadow-md transition-all duration-300">
+              <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                <div className="bg-gradient-to-br from-purple-100 to-purple-200 dark:from-purple-900/60 dark:to-purple-800/60 p-2 sm:p-2.5 rounded-lg sm:rounded-xl shadow-sm">
+                  <Megaphone className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-600 dark:text-purple-400" />
                 </div>
-                التسويق والمشاركة
-              </h4>
+                <div>
+                  <h4 className="font-medium text-xs sm:text-sm text-foreground">التسويق والمشاركة</h4>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">أدوات التسويق والمشاركة الاجتماعية</p>
+                </div>
+              </div>
               <SafeSuspense fallback={<SectionLoader message="تحميل أدوات التسويق..." />}>
                 <MarketingAndEngagementTabs 
                   form={form} 
@@ -466,13 +519,16 @@ const ProductFormTabContent = memo<ProductFormTabContentProps>(({
             </div>
             
             {/* Advanced Settings */}
-            <div className="bg-gradient-to-r from-muted/40 to-muted/20 dark:from-muted/20 dark:to-muted/10 rounded-lg sm:rounded-xl p-3 sm:p-4 lg:p-6 border border-border/50 backdrop-blur-sm shadow-sm">
-              <h4 className="font-medium mb-3 sm:mb-4 flex items-center gap-2 sm:gap-3 text-foreground text-sm">
-                <div className="bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-900/60 dark:to-amber-800/60 p-1.5 sm:p-2 rounded-lg shadow-sm">
-                  <Settings className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-600 dark:text-amber-400" />
+            <div className="rounded-lg sm:rounded-xl p-3 sm:p-4 lg:p-5 border border-border/60 bg-gradient-to-r from-background/50 to-background/30 dark:from-background/30 dark:to-background/20 backdrop-blur-sm shadow-sm hover:shadow-md transition-all duration-300">
+              <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                <div className="bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-900/60 dark:to-amber-800/60 p-2 sm:p-2.5 rounded-lg sm:rounded-xl shadow-sm">
+                  <Settings className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600 dark:text-amber-400" />
                 </div>
-                إعدادات متقدمة
-              </h4>
+                <div>
+                  <h4 className="font-medium text-xs sm:text-sm text-foreground">إعدادات متقدمة</h4>
+                  <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">إعدادات إضافية ومتقدمة للمنتج</p>
+                </div>
+              </div>
               <SafeSuspense fallback={<SectionLoader message="تحميل الإعدادات المتقدمة..." />}>
                 <ProductAdvancedSettingsTabs
                   form={form}

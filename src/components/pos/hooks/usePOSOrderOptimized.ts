@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
+import { useStaffSession } from '@/context/StaffSessionContext';
 import type { CartItem, Service, Order, User } from '@/types';
 
 interface OrderData {
@@ -39,6 +40,7 @@ export function usePOSOrderOptimized() {
   const [isProcessing, setIsProcessing] = useState(false);
   const { currentUser, userProfile } = useAuth();
   const { currentTenant } = useTenant();
+  const { currentStaff } = useStaffSession();
   const processingRef = useRef(false);
 
   const submitOrderOptimized = useCallback(async (
@@ -139,6 +141,8 @@ export function usePOSOrderOptimized() {
         p_organization_id: currentTenant.organization.id,
         p_customer_id: orderData.customerId === 'guest' ? null : orderData.customerId,
         p_employee_id: userProfile?.id || currentUser.id, // استخدام userProfile.id إذا كان متاحاً
+        p_created_by_staff_id: currentStaff?.id || null,
+        p_created_by_staff_name: currentStaff?.staff_name || null,
         p_items: orderItems,
         p_payment_method: orderData.paymentMethod,
         p_payment_status: orderData.paymentStatus,

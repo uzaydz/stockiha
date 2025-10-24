@@ -1,5 +1,6 @@
 import provinces from '@/data/algeria-provinces';
 import municipalities from '@/data/algeria-municipalities';
+import { yalidineMunicipalities } from '@/data/yalidine-municipalities-complete';
 
 /**
  * تحويل معرف الولاية إلى اسم الولاية
@@ -17,21 +18,24 @@ export function getProvinceName(provinceId: string | number): string {
 
 /**
  * تحويل معرف البلدية إلى اسم البلدية
- * @param municipalityId معرف البلدية (مثل "505" أو "0505")
+ * @param municipalityId معرف البلدية (مثل "505" أو "0505" أو 204)
  * @param provinceId معرف الولاية (اختياري لتحسين البحث)
  * @returns اسم البلدية أو المعرف الأصلي إذا لم يوجد
  */
 export function getMunicipalityName(municipalityId: string | number, provinceId?: string | number): string {
   if (!municipalityId) return '';
   
-  // إذا كان المعرف رقمًا كبيرًا (مثل 704، 2419)، فهو من قاعدة البيانات yalidine_municipalities_global
-  // في هذه الحالة، نرجع المعرف كما هو لأن الاسم سيأتي من قاعدة البيانات
   const numericId = typeof municipalityId === 'string' ? parseInt(municipalityId) : municipalityId;
-  if (numericId > 100) {
-    // هذا معرف من قاعدة البيانات، سنرجع المعرف كما هو
-    return municipalityId.toString();
+  
+  // أولاً: البحث في قاعدة بيانات yalidine (للمعرفات الكبيرة مثل 204، 704، إلخ)
+  if (numericId > 0) {
+    const yalidineMunicipality = yalidineMunicipalities.find(m => m.id === numericId);
+    if (yalidineMunicipality) {
+      return yalidineMunicipality.name;
+    }
   }
   
+  // ثانياً: البحث في البلديات التقليدية
   const id = municipalityId.toString();
   
   // إذا كان معرف البلدية رقم 3 أرقام، حوله إلى 4 أرقام
@@ -48,9 +52,9 @@ export function getMunicipalityName(municipalityId: string | number, provinceId?
     }
   }
   
-  // البحث في جميع البلديات
-  for (const provinceId in municipalities) {
-    const provinceMunicipalities = municipalities[parseInt(provinceId)];
+  // البحث في جميع البلديات التقليدية
+  for (const provId in municipalities) {
+    const provinceMunicipalities = municipalities[parseInt(provId)];
     if (provinceMunicipalities) {
       const municipality = provinceMunicipalities.find(m => 
         m.id === formattedId || 

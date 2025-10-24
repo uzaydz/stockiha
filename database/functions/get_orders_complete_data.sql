@@ -169,7 +169,25 @@ BEGIN
             END as call_confirmation_status_data,
             
             -- عناصر الطلب
-            COALESCE(oi.items_data, '[]'::jsonb) as order_items
+            COALESCE(oi.items_data, '[]'::jsonb) as order_items,
+            
+            -- معلومات الحظر للهاتف
+            CASE 
+                WHEN bc.id IS NOT NULL THEN
+                    jsonb_build_object(
+                        'isBlocked', true,
+                        'reason', bc.reason,
+                        'blockedId', bc.id,
+                        'name', bc.name
+                    )
+                ELSE
+                    jsonb_build_object(
+                        'isBlocked', false,
+                        'reason', null,
+                        'blockedId', null,
+                        'name', null
+                    )
+            END as phone_blocked_info
             
         FROM paginated_orders o
         LEFT JOIN customers c ON c.id = o.customer_id
@@ -179,6 +197,8 @@ BEGIN
         LEFT JOIN yalidine_provinces_global wprov ON wprov.id = (o.form_data->>'province')::INTEGER
         LEFT JOIN yalidine_municipalities_global wmun ON wmun.id = (o.form_data->>'municipality')::INTEGER
         LEFT JOIN yalidine_municipalities_global amun ON amun.id = a.municipality::INTEGER
+        LEFT JOIN blocked_customers bc ON bc.organization_id = p_organization_id 
+            AND bc.phone_normalized = normalize_phone(COALESCE(c.phone, gc.phone, o.form_data->>'phone'))
         LEFT JOIN (
             SELECT 
                 oi.order_id,
@@ -242,7 +262,8 @@ BEGIN
             'customer', o.customer_data,
             'shipping_address', o.shipping_address_data,
             'call_confirmation_status', o.call_confirmation_status_data,
-            'order_items', o.order_items
+            'order_items', o.order_items,
+            'phone_blocked_info', o.phone_blocked_info
         )
     ) INTO v_orders
     FROM order_with_relations o;

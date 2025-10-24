@@ -33,6 +33,7 @@ class AuthSingleton {
   private initPromise: Promise<void> | null = null;
   private authStateSubscription: any = null;
   private activeRequests = new Map<string, Promise<AuthData>>();
+  private isInAuthLoop = false;
   
   // إحصائيات
   private totalRequests = 0;
@@ -148,6 +149,27 @@ class AuthSingleton {
   }
 
   /**
+   * الحصول على الجلسة مباشرة دون اعتراض
+   */
+  private async getSessionDirect(): Promise<{ data: { session: any }, error: any }> {
+    // استخدام الطريقة المباشرة لتجنب الحلقة اللانهائية
+    try {
+      // إضافة حماية من الحلقة اللانهائية
+      if (this.isInAuthLoop) {
+        return { data: { session: null }, error: new Error('Auth loop detected') };
+      }
+      
+      this.isInAuthLoop = true;
+      const session = await supabase.auth.getSession();
+      this.isInAuthLoop = false;
+      return session;
+    } catch (error) {
+      this.isInAuthLoop = false;
+      return { data: { session: null }, error };
+    }
+  }
+
+  /**
    * تنفيذ طلب المصادقة الفعلي
    */
   private async performAuthRequest(requestId: string): Promise<AuthData> {
@@ -159,8 +181,9 @@ class AuthSingleton {
     );
 
     try {
+      // استخدام الطريقة المباشرة لتجنب الحلقة اللانهائية
       const { data: { session }, error } = await Promise.race([
-        supabase.auth.getSession(),
+        this.getSessionDirect(),
         timeoutPromise
       ]);
 

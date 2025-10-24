@@ -1,5 +1,8 @@
 import { supabase } from '../lib/supabase';
 import type { Database } from '../types/database.types';
+import { inventoryDB, type LocalPOSOrder, type LocalPOSOrderItem } from '../database/localDb';
+import { isAppOnline } from '@/utils/networkStatus';
+import { parseISO } from 'date-fns';
 
 type Order = Database['public']['Tables']['orders']['Row'];
 type OrderItem = Database['public']['Tables']['order_items']['Row'];
@@ -10,6 +13,8 @@ export interface POSOrderWithDetails extends Order {
   customer?: Customer;
   employee?: User;
   order_items: OrderItem[];
+  created_by_staff_id?: string | null;
+  created_by_staff_name?: string | null;
   items_count: number;
   // حقول المرتجعات
   effective_status?: string;
@@ -55,6 +60,7 @@ export class POSOrdersService {
   private static instance: POSOrdersService;
   private cache = new Map<string, { data: unknown; timestamp: number }>();
   private readonly CACHE_DURATION = 30000; // 30 seconds
+  private readonly FALLBACK_EMPLOYEE_NAME = 'موظف نقاط البيع';
 
   static getInstance(): POSOrdersService {
     if (!POSOrdersService.instance) {
@@ -81,6 +87,250 @@ export class POSOrdersService {
 
   private setCache(key: string, data: unknown): void {
     this.cache.set(key, { data, timestamp: Date.now() });
+  }
+
+  private isOnline(): boolean {
+    // استخدام كاش حالة الشبكة المركزي لتجنب false positives في Electron
+    return isAppOnline();
+  }
+
+  private safeParseDate(value: string | null | undefined): Date | null {
+    if (!value) return null;
+    try {
+      const parsed = parseISO(value);
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed;
+      }
+    } catch {
+      // ignore
+    }
+    const fallback = new Date(value);
+    return Number.isNaN(fallback.getTime()) ? null : fallback;
+  }
+
+  private matchesFilters(order: LocalPOSOrder, filters: POSOrderFilters = {}): boolean {
+    if (filters.status && order.status !== filters.status) return false;
+    if (filters.payment_method && order.payment_method !== filters.payment_method) return false;
+    if (filters.payment_status && order.payment_status !== filters.payment_status) return false;
+    if (filters.employee_id && order.employee_id !== filters.employee_id) return false;
+    if (filters.customer_id && order.customer_id !== filters.customer_id) return false;
+
+    if (filters.date_from) {
+      const from = this.safeParseDate(filters.date_from);
+      const created = this.safeParseDate(order.created_at);
+      if (from && created && created < from) return false;
+    }
+
+    if (filters.date_to) {
+      const to = this.safeParseDate(filters.date_to);
+      const created = this.safeParseDate(order.created_at);
+      if (to && created && created > to) return false;
+    }
+
+    if (filters.search) {
+      const term = filters.search.toLowerCase();
+      const slug = (((order as any).slug) || order.id || '').toLowerCase();
+      const notes = (order.notes || '').toLowerCase();
+      if (!slug.includes(term) && !notes.includes(term)) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  private async mapLocalOrderToRemoteShape(order: LocalPOSOrder): Promise<POSOrderWithDetails> {
+    const items = await inventoryDB.posOrderItems.where('order_id').equals(order.id).toArray();
+
+    const mappedItems = (items || []).map((item: LocalPOSOrderItem) => ({
+      id: item.id,
+      order_id: item.order_id,
+      organization_id: order.organization_id,
+      product_id: item.product_id ?? null,
+      product_name: item.product_name ?? 'منتج',
+      name: item.product_name ?? 'منتج',
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      total_price: item.total_price,
+      is_wholesale: Boolean(item.is_wholesale),
+      is_digital: false,
+      original_price: (item as any).original_price ?? item.unit_price,
+      slug: `local-item-${item.id}`,
+      variant_info: (item.variant_info ?? null) as any,
+      created_at: item.created_at,
+      updated_at: item.created_at
+    })) as unknown as OrderItem[];
+
+    const createdAt = order.created_at ?? new Date().toISOString();
+    const updatedAt = order.updated_at ?? createdAt;
+    const slug = (order as any).slug ?? `local-${order.id}`;
+    const completedAt = (order as any).completed_at ?? null;
+
+    return {
+      id: order.remote_order_id ?? order.id,
+      slug,
+      customer_order_number: order.remote_customer_order_number ?? order.local_order_number ?? null,
+      status: order.status ?? 'pending_sync',
+      payment_status: order.payment_status ?? 'pending',
+      payment_method: order.payment_method ?? 'cash',
+      subtotal: order.subtotal ?? order.total ?? 0,
+      tax: (order as any).tax ?? 0,
+      discount: order.discount ?? 0,
+      total: order.total ?? 0,
+      notes: order.notes ?? '',
+      is_online: false,
+      organization_id: order.organization_id,
+      customer_id: order.customer_id ?? null,
+      employee_id: order.employee_id ?? null,
+      pos_order_type: (order.extra_fields as any)?.sale_type ?? 'pos',
+      amount_paid: order.amount_paid ?? order.total ?? 0,
+      remaining_amount: order.remaining_amount ?? 0,
+      consider_remaining_as_partial: Boolean(order.consider_remaining_as_partial),
+      completed_at: completedAt,
+      created_at: createdAt,
+      updated_at: updatedAt,
+      metadata: order.metadata ?? null,
+      order_items: mappedItems,
+      items_count: mappedItems.length,
+      customer: order.customer_id
+        ? ({
+            id: order.customer_id,
+            name: order.customer_name ?? 'عميل نقاط البيع'
+          } as Customer)
+        : null,
+      employee: order.employee_id
+        ? ({
+            id: order.employee_id,
+            name: order.extra_fields?.employee_name ?? 'موظف نقاط البيع',
+            email: order.extra_fields?.employee_email ?? ''
+          } as User)
+        : null,
+      effective_status: (order.extra_fields as any)?.effective_status ?? order.status ?? 'pending_sync',
+      effective_total: (order.extra_fields as any)?.effective_total ?? order.total ?? 0,
+      original_total: (order.extra_fields as any)?.original_total ?? order.total ?? 0,
+      has_returns: Boolean((order.extra_fields as any)?.has_returns),
+      is_fully_returned: Boolean((order.extra_fields as any)?.is_fully_returned),
+      total_returned_amount: (order.extra_fields as any)?.total_returned_amount ?? 0
+    } as POSOrderWithDetails;
+  }
+
+  private async getLocalPOSOrders(
+    organizationId: string,
+    filters: POSOrderFilters = {},
+    page: number = 1,
+    limit: number = 20
+  ): Promise<{ orders: POSOrderWithDetails[]; total: number; hasMore: boolean }> {
+    const allOrders = await inventoryDB.posOrders.where('organization_id').equals(organizationId).toArray();
+    const filtered = allOrders.filter((order) => this.matchesFilters(order, filters));
+
+    filtered.sort((a, b) => {
+      const dateA = this.safeParseDate(a.created_at) || this.safeParseDate(a.updated_at) || new Date(0);
+      const dateB = this.safeParseDate(b.created_at) || this.safeParseDate(b.updated_at) || new Date(0);
+      return dateB.getTime() - dateA.getTime();
+    });
+
+    const total = filtered.length;
+    const start = (page - 1) * limit;
+    const sliced = filtered.slice(start, start + limit);
+    const mapped = await Promise.all(sliced.map((order) => this.mapLocalOrderToRemoteShape(order)));
+
+    return {
+      orders: mapped,
+      total,
+      hasMore: start + mapped.length < total
+    };
+  }
+
+  private async getLocalPOSOrderStats(organizationId: string): Promise<POSOrderStats> {
+    const orders = await inventoryDB.posOrders.where('organization_id').equals(organizationId).toArray();
+
+    if (!orders.length) {
+      return {
+        total_orders: 0,
+        total_revenue: 0,
+        completed_orders: 0,
+        pending_orders: 0,
+        pending_payment_orders: 0,
+        cancelled_orders: 0,
+        cash_orders: 0,
+        card_orders: 0,
+        avg_order_value: 0,
+        today_orders: 0,
+        today_revenue: 0,
+        fully_returned_orders: 0,
+        partially_returned_orders: 0,
+        total_returned_amount: 0,
+        effective_revenue: 0,
+        return_rate: 0
+      };
+    }
+
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    let totalRevenue = 0;
+    let completedOrders = 0;
+    let pendingOrders = 0;
+    let pendingPaymentOrders = 0;
+    let cancelledOrders = 0;
+    let cashOrders = 0;
+    let cardOrders = 0;
+    let todayOrders = 0;
+    let todayRevenue = 0;
+
+    orders.forEach((order) => {
+      const total = Number(order.total ?? 0);
+      totalRevenue += total;
+
+      const status = (order.status ?? '').toLowerCase();
+      const paymentStatus = (order.payment_status ?? '').toLowerCase();
+      const paymentMethod = (order.payment_method ?? '').toLowerCase();
+
+      if (status === 'completed' || status === 'synced') {
+        completedOrders += 1;
+      } else if (status === 'pending' || status === 'pending_sync') {
+        pendingOrders += 1;
+      } else if (status === 'cancelled') {
+        cancelledOrders += 1;
+      }
+
+      if (paymentStatus === 'pending') {
+        pendingPaymentOrders += 1;
+      }
+
+      if (paymentMethod === 'cash') {
+        cashOrders += 1;
+      } else if (paymentMethod === 'card') {
+        cardOrders += 1;
+      }
+
+      const created = this.safeParseDate(order.created_at);
+      if (created && created >= startOfDay) {
+        todayOrders += 1;
+        todayRevenue += total;
+      }
+    });
+
+    const avgOrderValue = orders.length > 0 ? totalRevenue / orders.length : 0;
+
+    return {
+      total_orders: orders.length,
+      total_revenue: totalRevenue,
+      completed_orders: completedOrders,
+      pending_orders: pendingOrders,
+      pending_payment_orders: pendingPaymentOrders,
+      cancelled_orders: cancelledOrders,
+      cash_orders: cashOrders,
+      card_orders: cardOrders,
+      avg_order_value: avgOrderValue,
+      today_orders: todayOrders,
+      today_revenue: todayRevenue,
+      fully_returned_orders: 0,
+      partially_returned_orders: 0,
+      total_returned_amount: 0,
+      effective_revenue: totalRevenue,
+      return_rate: 0
+    };
   }
 
   /**
@@ -112,6 +362,12 @@ export class POSOrdersService {
     const cacheKey = this.getCacheKey('pos_stats_with_returns', { organizationId });
     const cached = this.getFromCache<POSOrderStats>(cacheKey);
     if (cached) return cached;
+
+    if (!this.isOnline()) {
+      const stats = await this.getLocalPOSOrderStats(organizationId);
+      this.setCache(cacheKey, stats);
+      return stats;
+    }
 
     try {
       // جلب الإحصائيات الأساسية
@@ -206,7 +462,9 @@ export class POSOrdersService {
       this.setCache(cacheKey, stats);
       return stats;
     } catch (error) {
-      return {
+      const fallback = await this.getLocalPOSOrderStats(organizationId);
+      this.setCache(cacheKey, fallback);
+      return fallback ?? {
         total_orders: 0,
         total_revenue: 0,
         completed_orders: 0,
@@ -245,8 +503,14 @@ export class POSOrdersService {
     // تعطيل الكاش مؤقتاً للاختبار
     // if (cached) return cached;
 
+    if (!this.isOnline()) {
+      const localResult = await this.getLocalPOSOrders(organizationId, filters, page, limit);
+      this.setCache(cacheKey, localResult);
+      return localResult;
+    }
+
     try {
-      
+
       let query = supabase
         .from('orders')
         .select(`
@@ -265,6 +529,8 @@ export class POSOrdersService {
           organization_id,
           customer_id,
           employee_id,
+          created_by_staff_id,
+          created_by_staff_name,
           pos_order_type,
           amount_paid,
           remaining_amount,
@@ -454,11 +720,9 @@ export class POSOrdersService {
       this.setCache(cacheKey, result);
       return result;
     } catch (error) {
-      return {
-        orders: [],
-        total: 0,
-        hasMore: false
-      };
+      const fallback = await this.getLocalPOSOrders(organizationId, filters, page, limit);
+      this.setCache(cacheKey, fallback);
+      return fallback;
     }
   }
 
@@ -470,6 +734,17 @@ export class POSOrdersService {
     const cached = this.getFromCache<POSOrderWithDetails>(cacheKey);
     // تعطيل الكاش مؤقتاً للاختبار
     // if (cached) return cached;
+
+    if (!this.isOnline()) {
+      const localOrder = await inventoryDB.posOrders.get(orderId) ??
+        (await inventoryDB.posOrders.where('remote_order_id').equals(orderId).first());
+      if (!localOrder) {
+        return null;
+      }
+      const mapped = await this.mapLocalOrderToRemoteShape(localOrder);
+      this.setCache(cacheKey, mapped);
+      return mapped;
+    }
 
     try {
       
@@ -491,6 +766,8 @@ export class POSOrdersService {
           organization_id,
           customer_id,
           employee_id,
+          created_by_staff_id,
+          created_by_staff_name,
           pos_order_type,
           amount_paid,
           remaining_amount,
@@ -511,16 +788,11 @@ export class POSOrdersService {
             is_wholesale,
             slug,
             name,
-            original_price,
-            variant_info,
-            color_id,
-            color_name,
-            size_id,
-            size_name
+            variant_info
           )
         `)
         .eq('id', orderId)
-        .eq('is_online', false)
+        .eq('organization_id', organizationId)
         .single();
 
       if (error) throw error;
@@ -778,6 +1050,23 @@ export class POSOrdersService {
     const cached = this.getFromCache<Array<{ id: string; name: string; email: string }>>(cacheKey);
     if (cached) return cached;
 
+    if (!this.isOnline()) {
+      const orders = await inventoryDB.posOrders.where('organization_id').equals(organizationId).toArray();
+      const unique = new Map<string, { id: string; name: string; email: string }>();
+      orders.forEach((order) => {
+        if (order.employee_id && !unique.has(order.employee_id)) {
+          unique.set(order.employee_id, {
+            id: order.employee_id,
+            name: (order.extra_fields as any)?.employee_name ?? this.FALLBACK_EMPLOYEE_NAME,
+            email: (order.extra_fields as any)?.employee_email ?? ''
+          });
+        }
+      });
+      const fallbackEmployees = Array.from(unique.values());
+      this.setCache(cacheKey, fallbackEmployees);
+      return fallbackEmployees;
+    }
+
     try {
       const { data, error } = await supabase
         .from('users')
@@ -792,7 +1081,23 @@ export class POSOrdersService {
       this.setCache(cacheKey, data || []);
       return data || [];
     } catch (error) {
-      return [];
+      const fallbackEmployees = await this.getLocalPOSOrders(organizationId, {}, 1, Number.MAX_SAFE_INTEGER)
+        .then(result => {
+          const map = new Map<string, { id: string; name: string; email: string }>();
+          result.orders.forEach(order => {
+            if (order.employee && order.employee.id && !map.has(order.employee.id)) {
+              map.set(order.employee.id, {
+                id: order.employee.id,
+                name: order.employee.name ?? this.FALLBACK_EMPLOYEE_NAME,
+                email: order.employee.email ?? ''
+              });
+            }
+          });
+          return Array.from(map.values());
+        })
+        .catch(() => []);
+      this.setCache(cacheKey, fallbackEmployees);
+      return fallbackEmployees;
     }
   }
 

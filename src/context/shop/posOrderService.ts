@@ -1,129 +1,590 @@
 import { supabase } from '@/lib/supabase';
-import { Order, OrderItem, OrderStatus } from '../../types';
-import { v4 as uuidv4 } from 'uuid';
 import { ensureCustomerExists } from '@/lib/fallback_customer';
 import { queryClient } from '@/lib/config/queryClient';
+import { v4 as uuidv4 } from 'uuid';
+import { Order, OrderItem, OrderStatus } from '../../types';
+import type { POSOrderPayload, POSOrderResultPayload } from '@/types/posOrder';
+import { ConnectivityService } from '@/lib/connectivity/ConnectivityService';
+import {
+  createLocalPOSOrder,
+  getLocalPOSOrderItems,
+  getPendingPOSOrders,
+  getPendingOrderUpdates,
+  markLocalPOSOrderAsFailed,
+  markLocalPOSOrderAsSynced,
+  markLocalPOSOrderAsSyncing,
+  markLocalPOSOrderUpdateFailed,
+  markLocalPOSOrderUpdateSynced,
+  markLocalPOSOrderUpdateInProgress,
+  saveRemoteOrders,
+  saveRemoteOrderItems
+} from '@/api/localPosOrderService';
+import type { LocalPOSOrder, LocalPOSOrderItem } from '@/database/localDb';
+import { isAppOnline, markNetworkOffline, markNetworkOnline } from '@/utils/networkStatus';
 
-// Types للدالة الجديدة
-export interface POSOrderData {
-  organizationId: string;
-  employeeId: string;
-  items: OrderItem[];
-  total: number;
-  customerId?: string | null;
-  paymentMethod?: string;
-  paymentStatus?: string;
-  notes?: string;
-  amountPaid?: number;
-  discount?: number;
-  subtotal?: number;
-  remainingAmount?: number; // إضافة المبلغ المتبقي
-  considerRemainingAsPartial?: boolean; // هل يعتبر المبلغ المتبقي دفع جزئي أم تخفيض
-}
-
-export interface POSOrderResult {
-  success: boolean;
-  orderId: string;
-  slug: string;
-  customerOrderNumber: number;
-  status: string;
-  paymentStatus: string;
-  total: number;
-  processingTime: number;
-  databaseProcessingTime: number;
-  fifoResults: any[];
-  totalFifoCost: number;
-  message: string;
-}
+export type POSOrderData = POSOrderPayload;
+export type POSOrderResult = POSOrderResultPayload;
 
 // نظام حماية لمنع التحديث المضاعف للمخزون
 const processedInventoryUpdates = new Set<string>();
 
-// دالة محسنة لإنشاء طلبية نقطة البيع - بواجهة جديدة
-export async function createPOSOrder(orderData: POSOrderData): Promise<POSOrderResult> {
+const OFFLINE_SAVE_MESSAGE = 'تم حفظ الطلب في وضع الأوفلاين وسيتم مزامنته عند الاتصال';
+
+// ✅ إصلاح: إزالة التحقق من users - الـ frontend يرسل user.id الصحيح دائماً
+// هذه الدالة كانت تسبب استدعاءين إضافيين
+const resolveUserId = async (idOrAuthId: string | null | undefined): Promise<string | null> => {
+  return idOrAuthId || null;
+};
+
+// ✅ إصلاح: إزالة التحقق من pos_staff_sessions - لا حاجة لذلك
+// القيد تم حذفه من قاعدة البيانات، والحقل اختياري
+// هذه الدالة كانت تسبب استدعاءين إضافيين  
+const resolveStaffSessionId = async (
+  candidateId: string | null | undefined,
+  usersId: string | null
+): Promise<string | null> => {
+  return candidateId || usersId || null;
+};
+
+const isDeviceOnline = (): boolean => {
+  // أولوية لخدمة الاتصال الموحدة
+  try {
+    return ConnectivityService.isOnline();
+  } catch {
+    // تجاهل ونستخدم fallback القديم
+  }
+
+  if (!isAppOnline()) return false;
+
+  if (typeof window !== 'undefined' && (window as any).electronAPI?.isOnline) {
+    try {
+      return Boolean((window as any).electronAPI.isOnline());
+    } catch {
+      // fall back to navigator value
+    }
+  }
+
+  if (typeof navigator === 'undefined') return true;
+  if (typeof navigator.onLine === 'boolean') return navigator.onLine;
+  return true;
+};
+
+const shouldFallbackToOffline = (error: unknown): boolean => {
+  if (!isDeviceOnline()) {
+    return true;
+  }
+
+  if (!error) {
+    return false;
+  }
+
+  const message =
+    typeof error === 'string'
+      ? error
+      : error instanceof Error
+        ? error.message
+        : '';
+
+  if (!message) {
+    return false;
+  }
+
+  const normalized = message.toLowerCase();
+
+  return (
+    normalized.includes('failed to fetch') ||
+    normalized.includes('network error') ||
+    normalized.includes('offline') ||
+    normalized.includes('timeout') ||
+    normalized.includes('net::') ||
+    normalized.includes('fetch') ||
+    normalized.includes('could not') ||
+    normalized.includes('connection')
+  );
+};
+
+let offlineSyncInitialized = false;
+let offlineSyncInProgress = false;
+
+const submitPOSOrderOnline = async (orderData: POSOrderData): Promise<POSOrderResult> => {
   const startTime = performance.now();
 
+  // تأكيد وجود العميل (إنشاء زائر عند الحاجة)
+  const customerId = await ensureCustomerExists(orderData.customerId, orderData.organizationId);
+
+  const itemsPayload = (orderData.items || []).map((item) => ({
+    product_id: item.productId,
+    quantity: item.quantity,
+    price: item.unitPrice,
+    total: item.totalPrice,
+    is_wholesale: item.isWholesale ?? false,
+    original_price: item.originalPrice ?? item.unitPrice,
+    color_id: item.variant_info?.colorId ?? null,
+    size_id: item.variant_info?.sizeId ?? null,
+    color_name: item.variant_info?.colorName ?? null,
+    size_name: item.variant_info?.sizeName ?? null,
+    variant_display_name: item.productName ?? item.name ?? 'منتج',
+    variant_info: item.variant_info ?? null
+  }));
+
+  // ضمان تطابق معرفي الموظف والمنشئ مع users.id لمنع أخطاء FK
+  const resolvedEmployeeId = await resolveUserId(orderData.employeeId || null);
+  const resolvedCreatedByStaffId = await resolveStaffSessionId(orderData.createdByStaffId || null, resolvedEmployeeId);
+
+  // 🔍 تشخيص: طباعة البيانات المرسلة
+  const createdByStaffIdFinal = resolvedCreatedByStaffId || null;
+
+  console.log('🔍 [createPOSOrder] البيانات المرسلة:', {
+    createdByStaffId: createdByStaffIdFinal,
+    createdByStaffName: orderData.createdByStaffName,
+    employeeId: resolvedEmployeeId
+  });
+
+  // ✅ تحديث حالة الاتصال قبل الإرسال
+  markNetworkOnline();
+
+  const { data, error } = await supabase.rpc('create_pos_order_fast' as any, {
+    p_organization_id: orderData.organizationId,
+    p_employee_id: resolvedEmployeeId || null,
+    p_created_by_staff_id: createdByStaffIdFinal,
+    p_created_by_staff_name: orderData.createdByStaffName || null,
+    p_items: JSON.stringify(itemsPayload),
+    p_total_amount:
+      orderData.total ??
+      (orderData.subtotal ?? 0) +
+        ((orderData as any).tax ?? 0) -
+        (orderData.discount ?? 0),
+    p_customer_id: customerId,
+    p_payment_method: orderData.paymentMethod ?? 'cash',
+    p_payment_status: orderData.paymentStatus ?? null,
+    p_notes: orderData.notes ?? '',
+    p_amount_paid: orderData.amountPaid ?? null,
+    p_discount: orderData.discount ?? 0,
+    p_subtotal: orderData.subtotal ?? null,
+    p_consider_remaining_as_partial:
+      orderData.considerRemainingAsPartial ?? false,
+    p_tax: (orderData as any).tax ?? 0
+  });
+
+  if (error) {
+    throw new Error(`Failed to create POS order: ${error.message}`);
+  }
+
+  const res = Array.isArray(data) ? data[0] : data;
+  if (!res || res.success === false) {
+    throw new Error(res?.error || res?.message || 'Failed to create POS order');
+  }
+
+  const endTime = performance.now();
+  const fifoResults = res.fifo_results ?? [];
+  const totalFifoCost = Array.isArray(fifoResults)
+    ? fifoResults.reduce(
+        (sum: number, r: any) => sum + (parseFloat(r?.fifo_cost ?? '0') || 0),
+        0
+      )
+    : 0;
+
   try {
-    if (!orderData.organizationId) {
-      throw new Error('Organization ID is required but was not provided');
+    if (orderData.organizationId) {
+      await queryClient.invalidateQueries({
+        queryKey: ['pos-orders', orderData.organizationId]
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ['pos-orders-stats', orderData.organizationId]
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ['products', orderData.organizationId]
+      });
+    }
+  } catch {
+    // تجاهل أخطاء تحديث الكاش لضمان استمرار العملية
+  }
+
+  return {
+    success: true,
+    orderId: res.id,
+    slug: res.slug,
+    customerOrderNumber: res.customer_order_number,
+    status: res.status,
+    paymentStatus: res.payment_status,
+    total: parseFloat(String(res.total ?? 0)),
+    processingTime: endTime - startTime,
+    databaseProcessingTime: 0,
+    fifoResults,
+    totalFifoCost,
+    message: res.message || 'تم إنشاء الطلب بنجاح'
+  };
+};
+
+const buildOfflineItemPayloads = (items: OrderItem[]) =>
+  items.map((item) => ({
+    productId: item.productId,
+    productName: item.productName ?? item.name,
+    quantity: item.quantity,
+    unitPrice: item.unitPrice,
+    totalPrice: item.totalPrice,
+    isDigital: item.isDigital,
+    slug: item.slug,
+    name: item.name,
+    isWholesale: item.isWholesale,
+    originalPrice: item.originalPrice,
+    colorId: item.variant_info?.colorId,
+    colorName: item.variant_info?.colorName,
+    sizeId: item.variant_info?.sizeId,
+    sizeName: item.variant_info?.sizeName,
+    variant_info: item.variant_info ?? null
+  }));
+
+const handleOfflineOrder = async (orderData: POSOrderData): Promise<POSOrderResult> => {
+  const offlineOrder = await createLocalPOSOrder(
+    {
+      ...orderData,
+      metadata: orderData.metadata
+    },
+    buildOfflineItemPayloads(orderData.items)
+  );
+
+  ensureOfflineSyncInitialized();
+  try {
+    if (orderData.organizationId) {
+      await queryClient.invalidateQueries({ queryKey: ['pos-orders', orderData.organizationId] });
+      await queryClient.invalidateQueries({ queryKey: ['pos-orders'] });
+      await queryClient.invalidateQueries({ queryKey: ['pos-orders-stats', orderData.organizationId] });
+      await queryClient.invalidateQueries({ queryKey: ['pos-orders-stats'] });
+      await queryClient.invalidateQueries({ queryKey: ['pos-order-stats', orderData.organizationId] });
+      await queryClient.invalidateQueries({ queryKey: ['pos-order-stats'] });
+      // تحديث صفحة الطلبيات المحسنة
+      await queryClient.invalidateQueries({ queryKey: ['pos-orders-page-data', orderData.organizationId] });
+      await queryClient.invalidateQueries({ queryKey: ['pos-orders-page-data'] });
+    } else {
+      await queryClient.invalidateQueries({ queryKey: ['pos-orders'] });
+      await queryClient.invalidateQueries({ queryKey: ['pos-orders-stats'] });
+      await queryClient.invalidateQueries({ queryKey: ['pos-order-stats'] });
+      await queryClient.invalidateQueries({ queryKey: ['pos-orders-page-data'] });
+    }
+  } catch {
+    // تجاهل أخطاء التحديث لضمان استمرار العملية
+  }
+
+  return {
+    success: true,
+    orderId: offlineOrder.id,
+    slug: `offline-${offlineOrder.local_order_number}`,
+    customerOrderNumber: offlineOrder.local_order_number,
+    status: offlineOrder.status,
+    paymentStatus: offlineOrder.payment_status,
+    total: offlineOrder.total,
+    processingTime: 0,
+    databaseProcessingTime: 0,
+    fifoResults: [],
+    totalFifoCost: 0,
+    message: offlineOrder.message ?? OFFLINE_SAVE_MESSAGE,
+    isOffline: true,
+    syncStatus: offlineOrder.syncStatus ?? 'pending',
+    localOrderNumber: offlineOrder.local_order_number,
+    metadata: offlineOrder.metadata
+  };
+};
+
+const reconstructOrderPayload = (order: LocalPOSOrder, items: LocalPOSOrderItem[]): POSOrderData => {
+  const convertedItems: OrderItem[] = items.map((item) => ({
+    id: uuidv4(),
+    productId: item.product_id,
+    productName: item.product_name ?? 'منتج',
+    name: item.product_name ?? 'منتج',
+    slug: `product-${item.product_id}`,
+    quantity: item.quantity,
+    unitPrice: item.unit_price,
+    totalPrice: item.total_price,
+    isDigital: false,
+    isWholesale: item.is_wholesale,
+    originalPrice: item.original_price,
+    variant_info: item.variant_info ?? undefined
+  }));
+
+  const payload: POSOrderData = {
+    organizationId: order.organization_id,
+    employeeId: order.employee_id ?? '',
+    createdByStaffId: order.extra_fields?.created_by_staff_id ?? (order as any).created_by_staff_id ?? null,
+    createdByStaffName: order.extra_fields?.created_by_staff_name ?? (order as any).created_by_staff_name ?? null,
+    items: order.payload?.items ?? convertedItems,
+    total: order.total,
+    customerId: order.customer_id ?? null,
+    customerName: order.customer_name ?? undefined,
+    paymentMethod: order.payment_method,
+    paymentStatus: order.payment_status,
+    notes: order.notes ?? '',
+    amountPaid: order.amount_paid,
+    discount: order.discount,
+    subtotal: order.subtotal,
+    remainingAmount: order.remaining_amount,
+    considerRemainingAsPartial: order.consider_remaining_as_partial ?? false,
+    metadata: order.metadata
+  };
+
+  if (!payload.items || payload.items.length === 0) {
+    payload.items = convertedItems;
+  }
+
+  if (!payload.employeeId) {
+    payload.employeeId = order.employee_id ?? '';
+  }
+
+  return payload;
+};
+
+// ✅ Singleton Pattern قوي لمنع الاستدعاءات المتزامنة والمكررة
+let lastSyncTime = 0;
+let syncPromise: Promise<{ synced: number; failed: number }> | null = null;
+const SYNC_DEBOUNCE_MS = 5000; // ✅ 5 ثواني لمنع الاستدعاءات المكررة بشكل أقوى
+
+export async function syncPendingPOSOrders(): Promise<{ synced: number; failed: number }> {
+  // التحقق من الاتصال - مع fallback لـ navigator.onLine
+  const isOnline = isDeviceOnline() || (typeof navigator !== 'undefined' && navigator.onLine);
+  
+  if (!isOnline) {
+    console.log('[syncPendingPOSOrders] لا يوجد اتصال - تخطي المزامنة');
+    return { synced: 0, failed: 0 };
+  }
+
+  // ✅ إذا كانت هناك مزامنة قيد التنفيذ، نعيد نفس الـ Promise
+  if (syncPromise) {
+    console.log('[syncPendingPOSOrders] ⏳ مزامنة قيد التنفيذ - انتظار النتيجة');
+    return syncPromise;
+  }
+
+  // ✅ منع الاستدعاءات المتكررة خلال فترة قصيرة (debounce)
+  const now = Date.now();
+  if (now - lastSyncTime < SYNC_DEBOUNCE_MS) {
+    console.log('[syncPendingPOSOrders] ⏭️ تم تجاهل الاستدعاء المكرر (debounce - آخر مزامنة منذ ' + Math.round((now - lastSyncTime) / 1000) + ' ثانية)');
+    return { synced: 0, failed: 0 };
+  }
+
+  if (offlineSyncInProgress) {
+    console.log('[syncPendingPOSOrders] المزامنة قيد التقدم بالفعل');
+    return { synced: 0, failed: 0 };
+  }
+
+  // ✅ إنشاء Promise جديد وحفظه
+  syncPromise = (async () => {
+    offlineSyncInProgress = true;
+    lastSyncTime = now;
+    console.log('[syncPendingPOSOrders] 🚀 بدء المزامنة...');
+
+  try {
+    const pendingOrders = await getPendingPOSOrders();
+    console.log(`[syncPendingPOSOrders] عدد الطلبيات المعلقة: ${pendingOrders.length}`);
+
+    const orgIds = new Set<string>();
+    let synced = 0;
+    let failed = 0;
+
+    for (const order of pendingOrders) {
+      console.log(`[syncPendingPOSOrders] مزامنة طلبية: ${order.id}`);
+      try {
+        await markLocalPOSOrderAsSyncing(order.id);
+
+        const items = await getLocalPOSOrderItems(order.id);
+        const payload = reconstructOrderPayload(order, items);
+
+        const result = await submitPOSOrderOnline(payload);
+
+        await markLocalPOSOrderAsSynced(order.id, result.orderId, result.customerOrderNumber);
+        orgIds.add(order.organization_id);
+        synced += 1;
+        console.log(`[syncPendingPOSOrders] ✅ نجحت مزامنة طلبية: ${order.id}`);
+      } catch (error) {
+        console.error(`[syncPendingPOSOrders] ❌ فشلت مزامنة طلبية: ${order.id}`, error);
+        await markLocalPOSOrderAsFailed(
+          order.id,
+          error instanceof Error ? error.message : 'offline_sync_failed'
+        );
+        failed += 1;
+      }
+    }
+    
+    console.log(`[syncPendingPOSOrders] النتيجة: ${synced} نجحت، ${failed} فشلت`);
+
+    for (const organizationId of orgIds) {
+      try {
+        await queryClient.invalidateQueries({ queryKey: ['pos-orders', organizationId] });
+        await queryClient.invalidateQueries({ queryKey: ['pos-orders-stats', organizationId] });
+        await queryClient.invalidateQueries({ queryKey: ['products', organizationId] });
+      } catch {
+        // تجاهل أخطاء تحديث الكاش
+      }
     }
 
-    // تأكيد وجود العميل (إنشاء زائر عند الحاجة)
-    const customerId = await ensureCustomerExists(orderData.customerId, orderData.organizationId);
+    const updateResult = await syncPendingPOSOrderUpdatesInternal();
 
-    // تجهيز عناصر الطلب بالشكل المتوقع من الدالة RPC
-    const itemsPayload = (orderData.items || []).map((item) => ({
-      product_id: (item as any).productId,
-      quantity: (item as any).quantity,
-      price: (item as any).unitPrice ?? (item as any).price,
-      total: ((item as any).unitPrice ?? (item as any).price) * (item as any).quantity,
-      is_wholesale: (item as any).isWholesale ?? false,
-      original_price: (item as any).originalPrice ?? (item as any).unitPrice ?? (item as any).price,
-      color_id: (item as any).variant_info?.colorId ?? (item as any).colorId ?? null,
-      size_id: (item as any).variant_info?.sizeId ?? (item as any).sizeId ?? null,
-      color_name: (item as any).variant_info?.colorName ?? (item as any).colorName ?? null,
-      size_name: (item as any).variant_info?.sizeName ?? (item as any).sizeName ?? null,
-      variant_display_name: (item as any).productName ?? (item as any).name ?? 'منتج',
-      variant_info: (item as any).variant_info ?? null
-    }));
-
-    const { data, error } = await supabase.rpc('create_pos_order_fast' as any, {
-      p_organization_id: orderData.organizationId,
-      p_employee_id: orderData.employeeId ?? null,
-      p_items: JSON.stringify(itemsPayload),
-      p_total_amount: orderData.total ?? (orderData.subtotal ?? 0) + ((orderData as any).tax ?? 0) - (orderData.discount ?? 0),
-      p_customer_id: customerId,
-      p_payment_method: orderData.paymentMethod ?? 'cash',
-      p_payment_status: orderData.paymentStatus ?? null,
-      p_notes: orderData.notes ?? '',
-      p_amount_paid: orderData.amountPaid ?? null,
-      p_discount: orderData.discount ?? 0,
-      p_subtotal: orderData.subtotal ?? null,
-      p_consider_remaining_as_partial: orderData.considerRemainingAsPartial ?? false,
-      p_tax: (orderData as any).tax ?? 0
+    updateResult.orgIds.forEach((organizationId) => {
+      try {
+        queryClient.invalidateQueries({ queryKey: ['pos-orders', organizationId] });
+        queryClient.invalidateQueries({ queryKey: ['pos-orders-stats', organizationId] });
+      } catch {
+        // تجاهل أخطاء تحديث الكاش
+      }
     });
 
-    if (error) {
-      throw new Error(`Failed to create POS order: ${error.message}`);
-    }
-
-    const res = Array.isArray(data) ? data[0] : data;
-    if (!res || res.success === false) {
-      throw new Error(res?.error || res?.message || 'Failed to create POS order');
-    }
-
-    const endTime = performance.now();
-    const fifoResults = res.fifo_results ?? [];
-    const totalFifoCost = Array.isArray(fifoResults)
-      ? fifoResults.reduce((sum: number, r: any) => sum + (parseFloat(r?.fifo_cost ?? '0') || 0), 0)
-      : 0;
-
-    // تنظيف الكاش المهم فقط
-    try {
-      if (orderData.organizationId) {
-        await queryClient.invalidateQueries({ queryKey: ['pos-orders', orderData.organizationId] });
-        await queryClient.invalidateQueries({ queryKey: ['pos-orders-stats', orderData.organizationId] });
-        await queryClient.invalidateQueries({ queryKey: ['products', orderData.organizationId] });
-      }
-    } catch {}
-
     return {
-      success: true,
-      orderId: res.id,
-      slug: res.slug,
-      customerOrderNumber: res.customer_order_number,
-      status: res.status,
-      paymentStatus: res.payment_status,
-      total: parseFloat(String(res.total ?? 0)),
-      processingTime: endTime - startTime,
-      databaseProcessingTime: 0,
-      fifoResults,
-      totalFifoCost,
-      message: res.message || 'تم إنشاء الطلب بنجاح'
+      synced: synced + updateResult.synced,
+      failed: failed + updateResult.failed
     };
+  } finally {
+    offlineSyncInProgress = false;
+    syncPromise = null; // ✅ تنظيف الـ Promise بعد الانتهاء
+  }
+  })();
+
+  return syncPromise;
+}
+
+const syncPendingPOSOrderUpdatesInternal = async (): Promise<{ synced: number; failed: number; orgIds: Set<string> }> => {
+  if (!isDeviceOnline()) {
+    return { synced: 0, failed: 0, orgIds: new Set() };
+  }
+
+  const pendingUpdates = await getPendingOrderUpdates();
+
+  if (pendingUpdates.length === 0) {
+    return { synced: 0, failed: 0, orgIds: new Set() };
+  }
+
+  let synced = 0;
+  let failed = 0;
+  const orgIds = new Set<string>();
+
+  for (const update of pendingUpdates) {
+    try {
+      await markLocalPOSOrderUpdateInProgress(update.id);
+
+      const changes = update.pending_updates || {};
+      if (Object.keys(changes).length === 0) {
+        await markLocalPOSOrderUpdateSynced(update.id);
+        continue;
+      }
+
+      const remoteOrderId = update.remote_order_id || update.id;
+
+      const { error } = await supabase
+        .from('orders')
+        .update({
+          ...changes,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', remoteOrderId);
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      await markLocalPOSOrderUpdateSynced(update.id, changes);
+      orgIds.add(update.organization_id);
+      synced += 1;
+    } catch (error) {
+      // Server Win: تبنّي بيانات السيرفر عند فشل التحديث
+      try {
+        const { data: remoteOrder, error: fetchOrderErr } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('id', update.remote_order_id || update.id)
+          .maybeSingle();
+
+        if (!fetchOrderErr && remoteOrder) {
+          // حفظ الطلب والعناصر عن السيرفر محلياً
+          await saveRemoteOrders([remoteOrder]);
+          try {
+            const { data: remoteItems } = await supabase
+              .from('order_items')
+              .select('*')
+              .eq('order_id', remoteOrder.id);
+            await saveRemoteOrderItems(remoteOrder.id, remoteItems || []);
+          } catch {
+            // تجاهل فشل جلب العناصر
+          }
+
+          // وسم التحديث المحلي كمنتهي مع توضيح سبب القرار
+          await markLocalPOSOrderUpdateSynced(update.id, {
+            extra_fields: {
+              ...(update.extra_fields || {}),
+              _sync_resolution: 'server_win'
+            }
+          } as any);
+          orgIds.add(update.organization_id);
+          synced += 1;
+          continue;
+        }
+      } catch {
+        // تجاهل ونعود للفشل الافتراضي
+      }
+
+      await markLocalPOSOrderUpdateFailed(
+        update.id,
+        error instanceof Error ? error.message : 'offline_update_failed'
+      );
+      failed += 1;
+    }
+  }
+
+  return { synced, failed, orgIds };
+};
+
+export async function syncPendingPOSOrderUpdates(): Promise<{ synced: number; failed: number }> {
+  const result = await syncPendingPOSOrderUpdatesInternal();
+  return { synced: result.synced, failed: result.failed };
+}
+
+const ensureOfflineSyncInitialized = () => {
+  if (offlineSyncInitialized || typeof window === 'undefined') {
+    return;
+  }
+
+  const triggerSync = () => {
+    void syncPendingPOSOrders().catch(() => undefined);
+  };
+
+  window.addEventListener('online', triggerSync);
+  window.addEventListener('focus', triggerSync);
+
+  offlineSyncInitialized = true;
+
+  if (isDeviceOnline()) {
+    triggerSync();
+  }
+};
+
+export const initializePOSOfflineSync = () => {
+  ensureOfflineSyncInitialized();
+};
+
+const ensureOfflineReady = async (orderData: POSOrderData): Promise<POSOrderResult> => {
+  if (!isDeviceOnline()) {
+    markNetworkOffline({ force: true });
+    return handleOfflineOrder(orderData);
+  }
+
+  try {
+    const result = await submitPOSOrderOnline(orderData);
+    ensureOfflineSyncInitialized();
+    void syncPendingPOSOrders().catch(() => undefined);
+    return result;
   } catch (error) {
+    if (shouldFallbackToOffline(error)) {
+      markNetworkOffline({ force: true });
+      return handleOfflineOrder(orderData);
+    }
+
     throw error;
   }
+};
+
+// دالة محسنة لإنشاء طلبية نقطة البيع - بواجهة جديدة
+export async function createPOSOrder(orderData: POSOrderData): Promise<POSOrderResult> {
+  if (!orderData.organizationId) {
+    throw new Error('Organization ID is required but was not provided');
+  }
+
+  return ensureOfflineReady(orderData);
 }
 
 // الدالة القديمة للتوافق مع الكود الموجود

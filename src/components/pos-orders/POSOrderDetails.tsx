@@ -59,6 +59,7 @@ const OrderStatusBadge: React.FC<{ status: string }> = ({ status }) => {
   const getStatusConfig = (status: string) => {
     switch (status) {
       case 'completed':
+      case 'synced':
         return { 
           label: 'مكتملة', 
           icon: CheckCircle,
@@ -69,6 +70,24 @@ const OrderStatusBadge: React.FC<{ status: string }> = ({ status }) => {
           label: 'معلقة', 
           icon: Clock,
           color: 'bg-yellow-100 text-yellow-800 border-yellow-200' 
+        };
+      case 'pending_sync':
+        return { 
+          label: 'بانتظار المزامنة', 
+          icon: Loader2,
+          color: 'bg-orange-100 text-orange-800 border-orange-200' 
+        };
+      case 'syncing':
+        return { 
+          label: 'جاري المزامنة', 
+          icon: Loader2,
+          color: 'bg-blue-100 text-blue-800 border-blue-200' 
+        };
+      case 'failed':
+        return { 
+          label: 'فشلت المزامنة', 
+          icon: AlertCircle,
+          color: 'bg-red-100 text-red-800 border-red-200' 
         };
       case 'cancelled':
         return { 
@@ -125,7 +144,14 @@ export const POSOrderDetails: React.FC<POSOrderDetailsProps> = ({
         setItemsError(null);
         
         try {
-          // استخدام supabase مباشرة
+          // إذا كانت العناصر موجودة في order.order_items (من IndexedDB)، استخدمها مباشرة
+          if (order.order_items && Array.isArray(order.order_items) && order.order_items.length > 0) {
+            setOrderItems(order.order_items);
+            setIsLoadingItems(false);
+            return;
+          }
+
+          // إذا لم تكن موجودة، حاول جلبها من Supabase
           const { data, error } = await supabase
             .from('order_items')
             .select(`
@@ -140,14 +166,29 @@ export const POSOrderDetails: React.FC<POSOrderDetailsProps> = ({
 
           setOrderItems(data || []);
         } catch (error) {
-          setOrderItems([]);
-          setItemsError(error instanceof Error ? error.message : 'حدث خطأ في تحميل العناصر');
+          // في حالة الخطأ، حاول استخدام order.order_items كـ fallback
+          if (order.order_items && Array.isArray(order.order_items)) {
+            setOrderItems(order.order_items);
+          } else {
+            setOrderItems([]);
+            setItemsError(error instanceof Error ? error.message : 'حدث خطأ في تحميل العناصر');
+          }
         } finally {
           setIsLoadingItems(false);
         }
       };
 
       const loadEmployeeInfo = async () => {
+        // ✅ الأولوية لموظف نقطة البيع (created_by_staff_name)
+        if (order.created_by_staff_name) {
+          setEmployeeInfo({
+            id: order.created_by_staff_id || '',
+            name: order.created_by_staff_name,
+            email: undefined
+          });
+          return;
+        }
+
         // إذا كانت معلومات الموظف موجودة بالفعل، لا نحتاج لجلبها
         if (order.employee?.name) {
           setEmployeeInfo(order.employee);
@@ -514,9 +555,16 @@ export const POSOrderDetails: React.FC<POSOrderDetailsProps> = ({
                     </div>
                   ) : (employeeInfo || order.employee) ? (
                     <>
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium">{employeeInfo?.name || order.employee?.name}</span>
+                      <div className="flex items-center gap-2 justify-between">
+                        <div className="flex items-center gap-2">
+                          <User className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium">{employeeInfo?.name || order.employee?.name}</span>
+                        </div>
+                        {order.created_by_staff_name && (
+                          <Badge variant="secondary" className="text-xs">
+                            موظف نقطة البيع
+                          </Badge>
+                        )}
                       </div>
                       
                       {(employeeInfo?.email || order.employee?.email) && (

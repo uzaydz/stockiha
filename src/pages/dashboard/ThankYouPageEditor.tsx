@@ -9,12 +9,13 @@ import { Separator } from "@/components/ui/separator";
 import { useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { POSSharedLayoutControls } from '@/components/pos-layout/types';
 
 // استيراد المكونات الفرعية
 import ThankYouPagePreview from "@/components/thank-you-editor/ThankYouPagePreview";
 import ThankYouPageSettings from "@/components/thank-you-editor/ThankYouPageSettings";
 import ThankYouPageDesignEditor from "@/components/thank-you-editor/ThankYouPageDesignEditor";
-import ProductAssignment from "@/components/thank-you-editor/ProductAssignment";
+// حذف مكون تعيين المنتجات لأن الصفحة تُطبق على كل المنتجات
 
 // نوع البيانات للقالب
 export interface ThankYouTemplate {
@@ -69,7 +70,9 @@ export interface ThankYouTemplate {
   updated_at?: string;
 }
 
-export default function ThankYouPageEditor() {
+interface ThankYouPageEditorProps extends POSSharedLayoutControls {}
+
+export default function ThankYouPageEditor({ useStandaloneLayout = true }: ThankYouPageEditorProps = {}) {
   const { tenant } = useTenant();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
@@ -217,17 +220,17 @@ export default function ThankYouPageEditor() {
 
   // إظهار حالة التحميل
   if (isLoading) {
-    return (
-      <Layout>
-        <div className="flex justify-center items-center h-64">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        </div>
-      </Layout>
+    const loadingContent = (
+      <div className="flex justify-center items-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
     );
+
+    return useStandaloneLayout ? <Layout>{loadingContent}</Layout> : loadingContent;
   }
 
-  return (
-    <Layout>
+  const content = (
+    <>
       <Helmet>
         <title>إعدادات صفحة الشكر | {tenant?.name}</title>
       </Helmet>
@@ -282,7 +285,6 @@ export default function ThankYouPageEditor() {
                 <TabsList className="mb-6 w-full justify-start">
                   <TabsTrigger value="settings">الإعدادات العامة</TabsTrigger>
                   <TabsTrigger value="design">التصميم والمظهر</TabsTrigger>
-                  <TabsTrigger value="products">تعيين المنتجات</TabsTrigger>
                   <TabsTrigger value="preview">معاينة</TabsTrigger>
                 </TabsList>
                 
@@ -304,14 +306,7 @@ export default function ThankYouPageEditor() {
                   )}
                 </TabsContent>
                 
-                <TabsContent value="products" className="mt-0">
-                  {activeTemplate && (
-                    <ProductAssignment 
-                      template={activeTemplate} 
-                      onChange={updateActiveTemplate} 
-                    />
-                  )}
-                </TabsContent>
+                {/* تمت إزالة تبويب تعيين المنتجات */}
                 
                 <TabsContent value="preview" className="mt-0">
                   {activeTemplate && (
@@ -323,6 +318,8 @@ export default function ThankYouPageEditor() {
           </Card>
         </div>
       </div>
-    </Layout>
+    </>
   );
+
+  return useStandaloneLayout ? <Layout>{content}</Layout> : content;
 }

@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, memo } from 'react';
 import { Layers } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { getCdnImageUrl } from '@/lib/image-cdn';
 
 interface OptimizedImageProps {
   src: string;
@@ -117,7 +116,13 @@ const OptimizedImage = memo(({
     const loadImageImmediately = async () => {
       try {
         // تحضير الـ src
-        let optimizedSrc = getCdnImageUrl(src, { width: 512, quality: 75, fit: 'cover' });
+        let optimizedSrc = src;
+        
+        // إضافة cache busting فقط إذا لم تكن موجودة
+        if (!src.includes('?v=') && !imageCache.has(src)) {
+          const separator = src.includes('?') ? '&' : '?';
+          optimizedSrc = `${src}${separator}v=${Date.now()}`;
+        }
 
         if (!isMounted) return;
         setCurrentSrc(optimizedSrc);

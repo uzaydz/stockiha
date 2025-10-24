@@ -21,29 +21,28 @@ const ModuleNavigation: React.FC<ModuleNavigationProps> = ({
   const navigate = useNavigate();
   const [isNavigating, setIsNavigating] = useState(false);
 
-  // Preload adjacent modules for better performance
+  // Preload adjacent modules using React.lazy for better performance
   useEffect(() => {
-    const preloadModule = (moduleNumber: number) => {
+    const preloadModule = async (moduleNumber: number) => {
       if (moduleNumber >= 1 && moduleNumber <= totalModules) {
-        const link = document.createElement('link');
-        link.rel = 'prefetch';
-        link.href = `/dashboard/courses/${courseSlug}/module/${moduleNumber}`;
-        document.head.appendChild(link);
+        try {
+          // Import the module component dynamically based on course slug and module number
+          const modulePath = `../pages/courses/modules/${courseSlug === 'digital-marketing' ? 'DigitalMarketing' : 'ECommerce'}Module${moduleNumber}`;
+          await import(/* @vite-ignore */ modulePath);
+        } catch (error) {
+          // Silently ignore import errors for non-existent modules
+          console.warn(`Failed to preload module ${moduleNumber}:`, error);
+        }
       }
     };
 
-    // Preload previous and next modules
-    preloadModule(currentModule - 1);
-    preloadModule(currentModule + 1);
+    // Preload next module with a small delay to avoid blocking current render
+    const timeoutId = setTimeout(() => {
+      preloadModule(currentModule + 1);
+    }, 1000);
 
     return () => {
-      // Cleanup prefetch links
-      const prefetchLinks = document.querySelectorAll('link[rel="prefetch"]');
-      prefetchLinks.forEach(link => {
-        if (link.getAttribute('href')?.includes(`/courses/${courseSlug}/module/`)) {
-          document.head.removeChild(link);
-        }
-      });
+      clearTimeout(timeoutId);
     };
   }, [currentModule, totalModules, courseSlug]);
 

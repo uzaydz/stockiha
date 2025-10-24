@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Link } from 'react-router-dom';
 import { RefreshCw } from 'lucide-react';
 import SkeletonLoader from './SkeletonLoader';
-import { updateOrganizationTheme } from '@/lib/themeManager/index';
+import { updateOrganizationTheme } from '@/lib/themeManager';
 import { getSupabaseClient } from '@/lib/supabase';
 import { 
   getStoreDataProgressive, 
@@ -16,6 +16,7 @@ import {
 import { Helmet } from 'react-helmet-async';
 import { StoreComponent, ComponentType } from '@/types/store-editor';
 import React from 'react';
+import { getSafeCustomScript } from '@/utils/customScriptValidator';
 
 // =================================================================
 // 🚀 Lazy Components - تحميل مؤجل محسن
@@ -80,6 +81,11 @@ const InViewSection = React.memo(({
 
     return () => observer.disconnect();
   }, [threshold, rootMargin]);
+
+  const safeCustomJsFooter = useMemo(
+    () => getSafeCustomScript(storeSettings?.custom_js_footer, { context: 'PerformanceOptimizedStorePage:custom_js_footer' }),
+    [storeSettings?.custom_js_footer]
+  );
 
   return (
     <div ref={ref} className={minHeight}>
@@ -525,9 +531,9 @@ const PerformanceOptimizedStorePage = React.memo(({
     };
   }, [currentSubdomain, initialStoreData, currentOrganization?.id, applyOrganizationTheme, checkCustomDomainAndLoadData]);
   
-  // Update page title without brand suffix to avoid flicker
+  // Update page title
   useEffect(() => {
-    if (storeName) document.title = `${storeName}`;
+    document.title = `${storeName} | سطوكيها - المتجر الإلكتروني`;
   }, [storeName]);
   
   // Timer to limit loading time
@@ -777,8 +783,8 @@ const PerformanceOptimizedStorePage = React.memo(({
         </InViewSection>
       </div>
       
-      {storeSettings?.custom_js_footer && (
-        <script dangerouslySetInnerHTML={{ __html: storeSettings.custom_js_footer }} />
+      {safeCustomJsFooter && (
+        <script dangerouslySetInnerHTML={{ __html: safeCustomJsFooter }} />
       )}
     </>
   );

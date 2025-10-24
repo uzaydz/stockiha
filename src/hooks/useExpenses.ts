@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getSupabaseClient } from '@/lib/supabase';
+import { useExpenseCategories } from '@/context/AppInitializationContext';
 import { 
   Expense, 
   ExpenseWithRecurring, 
@@ -18,6 +19,9 @@ export const useExpenses = () => {
   const [expenses, setExpenses] = useState<ExpenseWithRecurring[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // ✅ استخدام expense_categories من AppInitializationContext
+  const cachedExpenseCategories = useExpenseCategories();
 
   const supabase = getSupabaseClient();
 
@@ -317,15 +321,21 @@ export const useExpenses = () => {
     }
   };
 
-  // Get all expense categories
+  // ✅ Get all expense categories - استخدام البيانات من AppInitializationContext
   const getExpenseCategories = async (): Promise<ExpenseCategory[]> => {
     try {
-      // Obtenemos el ID de la organización desde localStorage con fallback
+      // استخدام البيانات المحفوظة من AppInitializationContext
+      if (cachedExpenseCategories && cachedExpenseCategories.length > 0) {
+        console.log('✅ [useExpenses] استخدام expense_categories من AppInitializationContext');
+        return cachedExpenseCategories as ExpenseCategory[];
+      }
+      
+      // Fallback: جلب من قاعدة البيانات إذا لم تكن متوفرة في Context
+      console.log('⚠️ [useExpenses] fallback - جلب expense_categories من قاعدة البيانات');
       const organizationId = localStorage.getItem('currentOrganizationId') || 
                              localStorage.getItem('bazaar_organization_id') || 
                              '11111111-1111-1111-1111-111111111111';
       
-      // Consultamos solo las categorías de la organización actual
       const { data, error } = await supabase
         .from('expense_categories')
         .select('*')
@@ -334,7 +344,6 @@ export const useExpenses = () => {
       
       if (error) throw error;
       
-      // إزالة التكرارات من النتائج باستخدام معرف الفئة
       const uniqueCategories = data ? Array.from(
         new Map(data.map(item => [item.id, item])).values()
       ) : [];

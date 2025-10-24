@@ -175,17 +175,25 @@ const AdvancedCategoriesFilter: React.FC<AdvancedCategoriesFilterProps> = ({
               )}
             </div>
             <div className="flex items-center gap-1">
-              <button
-                type="button"
+              <span
+                role="button"
+                tabIndex={0}
                 onClick={(e) => {
                   e.stopPropagation();
                   setSimpleMode(!simpleMode);
                 }}
-                className="h-6 w-6 p-0 hover:bg-muted rounded flex items-center justify-center transition-colors"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setSimpleMode(!simpleMode);
+                  }
+                }}
+                className="h-6 w-6 p-0 hover:bg-muted rounded flex items-center justify-center transition-colors cursor-pointer"
                 title={simpleMode ? "الوضع المتقدم" : "الوضع البسيط"}
               >
                 <Settings className="h-3 w-3" />
-              </button>
+              </span>
               <ChevronDown className={cn(
                 "h-4 w-4 transition-transform duration-200",
                 isOpen && "rotate-180"

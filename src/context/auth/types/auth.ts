@@ -10,6 +10,7 @@ import type { Database } from '@/types/database.types';
 export type UserProfile = Database['public']['Tables']['users']['Row'] & {
   // إضافة معلومات مركز الاتصال
   call_center_agent_id?: string;
+  confirmation_agent_id?: string;
   assigned_regions?: string[];
   assigned_stores?: string[];
   max_daily_orders?: number;
@@ -104,6 +105,12 @@ export interface SessionCacheItem {
 export interface StoredAuthData {
   session: Session | null;
   user: SupabaseUser | null;
+  hasSecureSession?: boolean;
+  sessionMeta?: {
+    userId?: string | null;
+    expiresAt?: number | null;
+    storedAt?: number | null;
+  } | null;
 }
 
 export interface StoredUserData {
@@ -243,3 +250,18 @@ export const isValidUserProfile = (profile: any): profile is UserProfile => {
 export const isValidOrganization = (org: any): org is Organization => {
   return org && typeof org === 'object' && 'id' in org && 'name' in org;
 };
+
+// Permission Types
+export interface PermissionMap {
+  [key: string]: boolean;
+}
+
+export interface UnifiedPermissionsData {
+  user_id: string;
+  organization_id: string;
+  permissions: PermissionMap;
+  role: string;
+  subscription_tier?: string;
+  subscription_status?: string;
+  last_updated: string;
+}

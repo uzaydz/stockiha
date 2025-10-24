@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, Navigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { 
   AlertDialog, 
@@ -46,6 +46,8 @@ const permissionMapping: Record<string, string[]> = {
   'manageInventory': ['manageInventory', 'viewInventory', 'admin', 'owner', 'org_admin', 'super_admin'],
   // إضافة الصلاحيات المطلوبة للفئات
   'manageProductCategories': ['manageProductCategories', 'manageProducts', 'admin', 'owner', 'org_admin', 'super_admin'],
+  // إضافة صلاحيات عرض المنتجات
+  'viewProducts': ['viewProducts', 'manageProducts', 'admin', 'owner', 'org_admin', 'super_admin'],
   // إضافة الصلاحيات المطلوبة للديون
   'viewDebts': ['viewDebts', 'manageDebts', 'viewFinancialReports', 'admin', 'owner', 'org_admin', 'super_admin'],
   'manageDebts': ['manageDebts', 'viewDebts', 'admin', 'owner', 'org_admin', 'super_admin'],
@@ -78,7 +80,16 @@ const PermissionGuard = ({
   const [isChecking, setIsChecking] = useState(true);
   
   useEffect(() => {
+    console.log('🔐 [PermissionGuard] بدء التحقق من الصلاحيات:', {
+      requiredPermissions,
+      hasUser: !!user,
+      hasUserProfile: !!userProfile,
+      userRole: userProfile?.role,
+      permsReady: perms?.ready,
+    });
+
     if (!user) {
+      console.log('❌ [PermissionGuard] لا يوجد user');
       setHasPermission(false);
       setIsChecking(false);
       return;
@@ -137,11 +148,17 @@ const PermissionGuard = ({
       return hasAnyPermission;
     });
 
+    console.log('🎯 [PermissionGuard] النتيجة النهائية:', {
+      hasRequiredPermission,
+      requiredPermissions,
+    });
+
     setHasPermission(hasRequiredPermission);
     setIsChecking(false);
 
     if (!hasRequiredPermission) {
-      setShowPermissionAlert(true);
+      console.log('❌ [PermissionGuard] لا يملك الصلاحيات - سيتم التوجيه إلى:', fallbackPath);
+      // لا نعرض التنبيه، بل نوجه مباشرة
     }
   }, [user, userProfile, requiredPermissions, location.pathname, perms.ready, perms.role, perms.isOrgAdmin, perms.isSuperAdmin]);
 
@@ -157,34 +174,31 @@ const PermissionGuard = ({
     );
   }
 
-  return (
-    <>
-      {showPermissionAlert && (
-        <AlertDialog open={showPermissionAlert} onOpenChange={(open) => {
-          if (!open) handleDialogClose();
-        }}>
-          <AlertDialogContent dir="rtl" className="max-w-md">
-            <AlertDialogHeader>
-              <AlertDialogTitle>ليس لديك الصلاحية</AlertDialogTitle>
-              <AlertDialogDescription>
-                لا تملك الصلاحيات الكافية للوصول إلى هذه الصفحة.
-                <br />
-                <br />
-                <span className="text-xs text-muted-foreground">
-                  الصلاحيات المطلوبة: {requiredPermissions.join(', ')}
-                </span>
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogAction onClick={handleDialogClose}>فهمت</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      )}
-      
-      {hasPermission ? children : null}
-    </>
-  );
+  // إذا لم يكن لديه صلاحية، توجيه إلى fallbackPath
+  if (!hasPermission && fallbackPath) {
+    console.log('🔀 [PermissionGuard] توجيه إلى:', fallbackPath);
+    return <Navigate to={fallbackPath} replace />;
+  }
+
+  // إذا لم يكن لديه صلاحية ولا يوجد fallbackPath، عرض رسالة
+  if (!hasPermission) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center space-y-4">
+          <div className="text-6xl">🔒</div>
+          <h2 className="text-xl font-bold">ليس لديك الصلاحية</h2>
+          <p className="text-muted-foreground">
+            لا تملك الصلاحيات الكافية للوصول إلى هذه الصفحة
+          </p>
+          <p className="text-xs text-muted-foreground">
+            الصلاحيات المطلوبة: {requiredPermissions.join(', ')}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
 };
 
 export default PermissionGuard;

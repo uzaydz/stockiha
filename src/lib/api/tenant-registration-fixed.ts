@@ -3,6 +3,7 @@ import { TenantRegistrationData } from './tenant-types';
 import { createOrganizationFinal, diagnoseFinalRegistration, quickFixUser } from './organization-creation-final';
 import { checkSubdomainAvailabilityWithRetry, findSimilarSubdomains } from './subdomain';
 import { debugSubdomain } from './debug-subdomain';
+import { dispatchAppEvent } from '@/lib/events/eventManager';
 
 /**
  * استكمال عملية تسجيل المستأجر بعد إنشاء المنظمة
@@ -310,9 +311,12 @@ export const registerTenant = async (data: TenantRegistrationData): Promise<{
       keysToRemove.forEach(key => localStorage.removeItem(key));
       
       // إشارة للتطبيق لإعادة تحميل بيانات المؤسسة
-      window.dispatchEvent(new CustomEvent('organizationChanged', {
-        detail: { organizationId: organizationResult.organizationId }
-      }));
+      dispatchAppEvent('organizationChanged', {
+        organizationId: organizationResult.organizationId
+      }, {
+        dedupeKey: `organizationChanged:${organizationResult.organizationId}`,
+        dedupeWindowMs: 500
+      });
       
     } catch (storageError) {
     }

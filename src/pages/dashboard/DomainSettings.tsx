@@ -2,10 +2,13 @@ import React from 'react';
 import Layout from '@/components/Layout';
 import DomainSettingsComponent from '@/components/settings/DomainSettings';
 import { Helmet } from 'react-helmet-async';
+import { POSSharedLayoutControls } from '@/components/pos-layout/types';
 
-const DomainSettings: React.FC = () => {
-  return (
-    <Layout>
+interface DomainSettingsProps extends POSSharedLayoutControls {}
+
+const DomainSettings: React.FC<DomainSettingsProps> = ({ useStandaloneLayout = true } = {}) => {
+  const content = (
+    <>
       <Helmet>
         <title>إعدادات النطاقات المخصصة | سطوكيها - منصة إدارة المتاجر الذكية</title>
       </Helmet>
@@ -21,8 +24,10 @@ const DomainSettings: React.FC = () => {
 
         <DomainSettingsComponent />
       </div>
-    </Layout>
+    </>
   );
+
+  return useStandaloneLayout ? <Layout>{content}</Layout> : content;
 };
 
 export default DomainSettings;

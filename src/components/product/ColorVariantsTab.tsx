@@ -9,10 +9,10 @@ import ColorCard from './ColorCard';
 
 interface ColorVariantsTabProps {
   colors: ProductColor[];
-  onAddColor: () => void;
-  onEditColor: (color: ProductColor) => void;
-  onDeleteColor: (colorId: string) => void;
-  onManageSizes?: (colorId: string) => void;
+  onAddColor: (e?: React.MouseEvent) => void;
+  onEditColor: (color: ProductColor, e?: React.MouseEvent) => void;
+  onDeleteColor: (colorId: string, e?: React.MouseEvent) => void;
+  onManageSizes?: (colorId: string, e?: React.MouseEvent) => void;
   useVariantPrices: boolean;
   onUseVariantPricesChange: (useVariantPrices: boolean) => void;
   useSizes: boolean;
@@ -97,7 +97,7 @@ const ColorVariantsTab: React.FC<ColorVariantsTabProps> = ({
           <h3 className="text-lg font-semibold">
             الألوان ({colors.length})
           </h3>
-          <Button onClick={onAddColor} size="sm">
+          <Button type="button" onClick={(e) => onAddColor(e)} size="sm">
             <Plus className="h-4 w-4 ml-2" />
             إضافة لون
           </Button>
@@ -114,7 +114,7 @@ const ColorVariantsTab: React.FC<ColorVariantsTabProps> = ({
             <p className="text-muted-foreground mb-4">
               أضف الألوان المختلفة لمنتجك
             </p>
-            <Button onClick={onAddColor}>
+            <Button type="button" onClick={(e) => onAddColor(e)}>
               <Plus className="h-4 w-4 ml-2" />
               إضافة أول لون
             </Button>

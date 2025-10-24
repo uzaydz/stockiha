@@ -5,10 +5,18 @@ import { LineChart, BarChart, Activity } from 'lucide-react';
 import { SuppliersDashboard } from '@/components/suppliers/SuppliersDashboard';
 import Layout from '@/components/Layout';
 import { useAuth } from '@/context/AuthContext';
+import { POSSharedLayoutControls } from '@/components/pos-layout/types';
 
-export default function SupplierReports() {
+interface SupplierReportsProps extends POSSharedLayoutControls {}
+
+export default function SupplierReports({
+  useStandaloneLayout = true,
+  onRegisterRefresh,
+  onLayoutStateChange
+}: SupplierReportsProps = {}) {
   const [activeTab, setActiveTab] = useState('dashboard');
   const { user } = useAuth();
+  const [isRefreshing, setIsRefreshing] = useState(false);
   
   // محاولة الحصول على organization_id بطرق متعددة
   const [organizationId, setOrganizationId] = useState<string | undefined>(undefined);
@@ -34,10 +42,38 @@ export default function SupplierReports() {
     
     setOrganizationId("10c02497-45d4-417a-857b-ad383816d7a0");
   }, [user]);
+
+  // تسجيل دالة التحديث
+  useEffect(() => {
+    if (onRegisterRefresh) {
+      onRegisterRefresh(async () => {
+        setIsRefreshing(true);
+        if (onLayoutStateChange) {
+          onLayoutStateChange({ isRefreshing: true });
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        setIsRefreshing(false);
+        if (onLayoutStateChange) {
+          onLayoutStateChange({ isRefreshing: false });
+        }
+      });
+    }
+  }, [onRegisterRefresh, onLayoutStateChange]);
+
+  // إرسال حالة الاتصال
+  useEffect(() => {
+    if (onLayoutStateChange) {
+      onLayoutStateChange({ 
+        connectionStatus: 'connected',
+        isRefreshing
+      });
+    }
+  }, [isRefreshing, onLayoutStateChange]);
   
-  return (
-    <Layout>
-      <div className="container mx-auto py-6">
+  const content = (
+    <div className="container mx-auto py-6">
         <div className="mb-6">
           <h1 className="text-3xl font-bold tracking-tight">تقارير الموردين</h1>
           <p className="text-muted-foreground">تحليل بيانات الموردين والمشتريات</p>
@@ -91,7 +127,8 @@ export default function SupplierReports() {
             </Card>
           </TabsContent>
         </Tabs>
-      </div>
-    </Layout>
+    </div>
   );
+
+  return useStandaloneLayout ? <Layout>{content}</Layout> : content;
 }

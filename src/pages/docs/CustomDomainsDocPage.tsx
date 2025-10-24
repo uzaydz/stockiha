@@ -19,15 +19,18 @@ import DomainSetupSteps from '@/components/docs/DomainSetupSteps';
 import ProviderGuides from '@/components/docs/ProviderGuides';
 import StockihaGuide from '@/components/docs/StockihaGuide';
 import TroubleshootingGuide from '@/components/docs/TroubleshootingGuide';
+import { POSSharedLayoutControls } from '@/components/pos-layout/types';
 
-const CustomDomainsDocPage: React.FC = () => {
-  return (
-    <Layout>
+interface CustomDomainsDocPageProps extends POSSharedLayoutControls {}
+
+const CustomDomainsDocPage: React.FC<CustomDomainsDocPageProps> = ({ useStandaloneLayout = true } = {}) => {
+  const content = (
+    <>
       <Helmet>
         <title>دليل إعداد النطاقات المخصصة الشامل | Bazaar</title>
         <meta name="description" content="دليل شامل لإعداد النطاقات المخصصة خطوة بخطوة مع إرشادات مفصلة لجميع مزودي النطاقات" />
       </Helmet>
-      
+
       <div className="container py-6 max-w-6xl">
         <div className="space-y-6">
           {/* العنوان الرئيسي */}
@@ -170,8 +173,10 @@ const CustomDomainsDocPage: React.FC = () => {
           </Card>
         </div>
       </div>
-    </Layout>
+    </>
   );
+
+  return useStandaloneLayout ? <Layout>{content}</Layout> : content;
 };
 
 export default CustomDomainsDocPage;

@@ -1,11 +1,12 @@
 -- دالة محسنة لإنشاء طلبات POS بسرعة فائقة
 -- تحل مشاكل الأداء ومشكلة GROUP BY
 
--- حذف الدالة القديمة أولاً
+-- حذف جميع نسخ الدالة القديمة
 DROP FUNCTION IF EXISTS create_pos_order_fast(UUID, UUID, JSON, DECIMAL, UUID, TEXT, TEXT, TEXT);
 DROP FUNCTION IF EXISTS create_pos_order_fast(UUID, UUID, TEXT, DECIMAL, UUID, TEXT, TEXT, TEXT);
 DROP FUNCTION IF EXISTS create_pos_order_fast(UUID, UUID, TEXT, DECIMAL, UUID, TEXT, TEXT, TEXT, DECIMAL, DECIMAL, DECIMAL, BOOLEAN);
 DROP FUNCTION IF EXISTS create_pos_order_fast(UUID, UUID, TEXT, DECIMAL, UUID, TEXT, TEXT, TEXT, DECIMAL, DECIMAL, DECIMAL, BOOLEAN, DECIMAL);
+DROP FUNCTION IF EXISTS create_pos_order_fast(UUID, UUID, TEXT, DECIMAL, UUID, TEXT, TEXT, TEXT, DECIMAL, DECIMAL, DECIMAL, BOOLEAN, DECIMAL, UUID, TEXT);
 
 CREATE OR REPLACE FUNCTION create_pos_order_fast(
     p_organization_id UUID,
@@ -20,7 +21,9 @@ CREATE OR REPLACE FUNCTION create_pos_order_fast(
     p_discount DECIMAL DEFAULT 0,
     p_subtotal DECIMAL DEFAULT NULL,
     p_consider_remaining_as_partial BOOLEAN DEFAULT FALSE,
-    p_tax DECIMAL DEFAULT 0
+    p_tax DECIMAL DEFAULT 0,
+    p_created_by_staff_id UUID DEFAULT NULL,
+    p_created_by_staff_name TEXT DEFAULT NULL
 )
 RETURNS JSON
 LANGUAGE plpgsql
@@ -160,6 +163,8 @@ BEGIN
         organization_id,
         customer_id,
         employee_id,
+        created_by_staff_id,
+        created_by_staff_name,
         slug,
         status,
         payment_status,
@@ -181,6 +186,8 @@ BEGIN
         p_organization_id,
         v_cust_id,
         v_employee_id,
+        p_created_by_staff_id,
+        p_created_by_staff_name,
         v_order_slug,
         'completed',
         v_pay_status,

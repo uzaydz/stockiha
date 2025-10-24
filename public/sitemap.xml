@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"
+        xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9
+        http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
+
+  <!-- الصفحة الرئيسية -->
+  <url>
+    <loc>https://stockiha.com/</loc>
+    <lastmod>2024-01-15T00:00:00+01:00</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+    <image:image>
+      <image:loc>https://stockiha.com/images/stockiha-og-image.webp</image:loc>
+      <image:title>سطوكيها - منصة إدارة المتاجر الذكية</image:title>
+      <image:caption>منصة شاملة لإدارة المتاجر تجمع بين نقطة البيع والمتجر الإلكتروني</image:caption>
+    </image:image>
+  </url>
+
+  <!-- صفحات الميزات -->
+  <url>
+    <loc>https://stockiha.com/features</loc>
+    <lastmod>2024-01-15T00:00:00+01:00</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <url>
+    <loc>https://stockiha.com/pos-features</loc>
+    <lastmod>2024-01-15T00:00:00+01:00</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <url>
+    <loc>https://stockiha.com/online-store</loc>
+    <lastmod>2024-01-15T00:00:00+01:00</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <url>
+    <loc>https://stockiha.com/analytics-features</loc>
+    <lastmod>2024-01-15T00:00:00+01:00</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- صفحة الأسعار -->
+  <url>
+    <loc>https://stockiha.com/pricing</loc>
+    <lastmod>2024-01-15T00:00:00+01:00</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+
+  <!-- صفحة الاتصال -->
+  <url>
+    <loc>https://stockiha.com/contact</loc>
+    <lastmod>2024-01-15T00:00:00+01:00</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <!-- صفحات المنتجات العامة -->
+  <url>
+    <loc>https://stockiha.com/products</loc>
+    <lastmod>2024-01-15T00:00:00+01:00</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+
+  <!-- صفحات الخدمات -->
+  <url>
+    <loc>https://stockiha.com/services</loc>
+    <lastmod>2024-01-15T00:00:00+01:00</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <!-- صفحات التوثيق -->
+  <url>
+    <loc>https://stockiha.com/docs/custom-domains</loc>
+    <lastmod>2024-01-15T00:00:00+01:00</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+  <!-- صفحات الدورات التعليمية -->
+  <url>
+    <loc>https://stockiha.com/courses</loc>
+    <lastmod>2024-01-15T00:00:00+01:00</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+
+  <url>
+    <loc>https://stockiha.com/courses/digital-marketing</loc>
+    <lastmod>2024-01-15T00:00:00+01:00</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+  <url>
+    <loc>https://stockiha.com/courses/ecommerce</loc>
+    <lastmod>2024-01-15T00:00:00+01:00</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+  <url>
+    <loc>https://stockiha.com/courses/tiktok-ads</loc>
+    <lastmod>2024-01-15T00:00:00+01:00</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+</urlset>

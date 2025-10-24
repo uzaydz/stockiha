@@ -25,7 +25,7 @@ const OrdersTable = memo(({
   onBulkUpdateStatus,
   hasUpdatePermission,
   hasCancelPermission,
-  visibleColumns = ["checkbox", "expand", "id", "customer_name", "customer_contact", "total", "status", "call_confirmation", "shipping_provider", "actions"],
+  visibleColumns = ["checkbox", "expand", "id", "customer_name", "customer_contact", "total", "status", "confirmation", "call_confirmation", "shipping_provider", "delivery_type", "financial", "actions"],
   currentUserId,
   currentPage = 1,
   totalItems = 0,
@@ -38,6 +38,8 @@ const OrdersTable = memo(({
   shippingProviders = [],
   onSearchTermChange,
   autoLoadMoreOnScroll,
+  onOrderUpdated,
+  localUpdates = {},
 }: ExtendedOrdersTableProps) => {
   // استخدام الـ hook المخصص لمنطق الجدول
   const {
@@ -109,6 +111,8 @@ const OrdersTable = memo(({
             shippingProviders={shippingProviders}
             autoLoadMoreOnScroll={autoLoadMoreOnScroll}
             onLoadMore={onLoadMore}
+            onOrderUpdated={onOrderUpdated}
+            localUpdates={localUpdates}
           />
         </Table>
       </div>

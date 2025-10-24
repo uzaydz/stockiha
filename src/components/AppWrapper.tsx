@@ -4,7 +4,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { getAppInitData, isAppInitDataValid, initializeApp } from '@/lib/appInitializer';
-import { useGlobalLoading } from '@/components/store/GlobalLoadingManager';
+// Removed GlobalLoadingManager - not needed for admin only
 import { useUser } from '@/context/UserContext';
 
 interface AppWrapperProps {
@@ -32,9 +32,29 @@ const ErrorScreen: React.FC<{ onRetry: () => void }> = ({ onRetry }) => (
   </div>
 );
 
-const AppWrapper: React.FC<AppWrapperProps> = ({ children }) => {
-  
-  const [isReady, setIsReady] = useState(false);
+const AppWrapper: React.FC<AppWrapperProps> = React.memo(({ children }) => {
+
+  // 🔥 تحسين لصفحة الهبوط: تجنب أي تهيئة بيانات المتجر
+  const isLandingPage = window.location.pathname === '/' &&
+    (window.location.hostname.includes('stockiha.com') ||
+     window.location.hostname.includes('ktobi.online') ||
+     window.location.hostname.includes('localhost'));
+
+  // 🔥 تحسين لمسارات الإدارة العامة: لا تنتظر أي تهيئة
+  const ADMIN_PUBLIC_PATHS = new Set([
+    '/login',
+    '/forgot-password',
+    '/reset-password',
+    '/tenant/signup',
+    '/admin/signup',
+    '/setup-organization',
+    '/redirect',
+    '/super-admin/login'
+  ]);
+  const currentPath = window.location.pathname;
+  const isAdminPublicRoute = ADMIN_PUBLIC_PATHS.has(currentPath);
+
+  const [isReady, setIsReady] = useState(isLandingPage || isAdminPublicRoute); // فوري للهبوط ومسارات الإدارة العامة
   const [hasError, setHasError] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
   const mountedRef = useRef(true);
@@ -42,25 +62,52 @@ const AppWrapper: React.FC<AppWrapperProps> = ({ children }) => {
   const maxRetries = 3;
   const initializationPromiseRef = useRef<Promise<void> | null>(null);
 
-  // استخدام النظام المركزي للتحميل
-  const { showLoader, hideLoader, setPhase, isLoaderVisible } = useGlobalLoading();
+  // 🔎 سجلات تشخيصية مبكرة
   
-  // الحصول على معرف المؤسسة من UserContext
+  try {
+    console.log('🧭 [AppWrapper] mount start', {
+      path: currentPath,
+      isLandingPage,
+      isAdminPublicRoute,
+      initialIsReady: isLandingPage || isAdminPublicRoute
+    });
+  } catch {}
+
+  // Removed global loading system - admin only
+
+  // الحصول على معرف المؤسسة من UserContext - فقط للمتاجر وليس صفحة الهبوط
   const { organizationId } = useUser();
 
   // 🔥 دالة محسنة لتهيئة البيانات
   const initializeData = async (isRetry = false, forceOrgId?: string) => {
     const startTime = performance.now();
+    console.time('⏱️ [AppWrapper] initializeData');
+
+    // 🚀 تحسين لصفحة الهبوط: لا تحتاج لأي تهيئة
+    if (isLandingPage) {
+      console.log('🏁 [AppWrapper] skip init on landing');
+      setIsReady(true);
+      console.timeEnd('⏱️ [AppWrapper] initializeData');
+      return;
+    }
+
+    // 🚀 تحسين لمسارات الإدارة العامة: لا تحتاج لأي تهيئة
+    if (isAdminPublicRoute) {
+      console.log('🏁 [AppWrapper] skip init on admin public route', { path: currentPath });
+      setIsReady(true);
+      console.timeEnd('⏱️ [AppWrapper] initializeData');
+      return;
+    }
 
     // منع التشغيل المتكرر
     if (isInitializing && !forceOrgId) {
-      
+      console.log('⏸️ [AppWrapper] init already running');
       return;
     }
 
     // منع التشغيل المتوازي
     if (initializationPromiseRef.current) {
-      
+      console.log('⏳ [AppWrapper] returning existing init promise');
       return initializationPromiseRef.current;
     }
 
@@ -82,6 +129,7 @@ const AppWrapper: React.FC<AppWrapperProps> = ({ children }) => {
         // ⚡ تحسين: تسريع localhost - متابعة فورية
         if (isLocalhost) {
           const localhostTime = performance.now() - startTime;
+          console.log('💨 [AppWrapper] fast-path localhost', { time: `${localhostTime.toFixed(1)}ms` });
           setIsReady(true);
           return;
         }
@@ -90,6 +138,7 @@ const AppWrapper: React.FC<AppWrapperProps> = ({ children }) => {
         const currentOrgId = forceOrgId || organizationId;
         if (currentOrgId) {
           const orgReadyTime = performance.now() - startTime;
+          console.log('✅ [AppWrapper] orgId present, ready immediately', { orgId: currentOrgId, time: `${orgReadyTime.toFixed(1)}ms` });
           setIsReady(true);
           return;
         }
@@ -102,25 +151,31 @@ const AppWrapper: React.FC<AppWrapperProps> = ({ children }) => {
           const existingData = getAppInitData();
           if (existingData && isAppInitDataValid()) {
             const cacheTime = performance.now() - fetchStartTime;
+            console.log('📦 [AppWrapper] using cached app init data', { time: `${cacheTime.toFixed(1)}ms` });
             setIsReady(true);
             return;
           }
 
           // جلب البيانات الجديدة باستخدام organizationId
 
+          console.time('⏱️ [AppWrapper] initializeApp');
           const data = await initializeApp(currentOrgId);
+          console.timeEnd('⏱️ [AppWrapper] initializeApp');
           const fetchTime = performance.now() - fetchStartTime;
 
           if (data) {
+            console.log('✅ [AppWrapper] init data fetched', { time: `${fetchTime.toFixed(1)}ms` });
             setIsReady(true);
             return;
           } else {
+            console.warn('⚠️ [AppWrapper] init data fetch returned null');
           }
         } else {
-          
+          console.log('ℹ️ [AppWrapper] no organizationId available; proceeding baseline');
         }
         
         // إذا لم نتمكن من جلب البيانات، نتابع مع البيانات الأساسية
+        console.log('➡️ [AppWrapper] proceeding without init data');
         setIsReady(true);
 
       } catch (error) {
@@ -150,6 +205,8 @@ const AppWrapper: React.FC<AppWrapperProps> = ({ children }) => {
         }
       } finally {
         const totalTime = performance.now() - startTime;
+        console.timeEnd('⏱️ [AppWrapper] initializeData');
+        console.log('🏁 [AppWrapper] init finished', { totalTime: `${totalTime.toFixed(1)}ms` });
         setIsInitializing(false);
         initializationPromiseRef.current = null;
       }
@@ -168,19 +225,26 @@ const AppWrapper: React.FC<AppWrapperProps> = ({ children }) => {
   // 🔥 useEffect محسن للتهيئة الأولية
   useEffect(() => {
     const mountStartTime = performance.now();
+    console.time('⏱️ [AppWrapper] mount effect');
 
     mountedRef.current = true;
 
-    // تشغيل التهيئة الأولية
-    initializeData();
+    // 🚀 تحسين لصفحة الهبوط: لا تحتاج لأي تهيئة
+    if (!isLandingPage && !isAdminPublicRoute) {
+      // تشغيل التهيئة الأولية
+      console.log('🟢 [AppWrapper] starting initializeData on mount');
+      initializeData();
+    }
 
     const mountTime = performance.now() - mountStartTime;
+    console.timeEnd('⏱️ [AppWrapper] mount effect');
+    console.log('📈 [AppWrapper] mount effect done', { time: `${mountTime.toFixed(1)}ms` });
 
     return () => {
-      
+
       mountedRef.current = false;
     };
-  }, []); // فقط عند mount الأول
+  }, []); // إزالة dependencies لتجنب re-renders غير ضرورية
 
   // 🔥 useEffect محسن لمراقبة organizationId
   useEffect(() => {
@@ -200,20 +264,31 @@ const AppWrapper: React.FC<AppWrapperProps> = ({ children }) => {
     }
 
     const orgEffectTime = performance.now() - orgEffectStartTime;
-  }, [organizationId, isReady, isInitializing]);
+  }, [organizationId]); // تحسين dependencies لتجنب re-renders
 
   // شاشة الخطأ
   if (hasError) {
+    console.warn('🛑 [AppWrapper] rendering ErrorScreen');
     return <ErrorScreen onRetry={handleRetry} />;
   }
 
   // شاشة التحميل - يتم التعامل معها بواسطة النظام المركزي
   if (!isReady) {
+    console.log('⏳ [AppWrapper] not ready yet -> returning null');
     return null; // النظام المركزي سيعرض مؤشر التحميل
   }
 
   // عرض المحتوى
+  console.log('🎉 [AppWrapper] ready -> rendering children');
   return <>{children}</>;
+});
+
+AppWrapper.displayName = 'AppWrapper';
+
+// مقارنة مخصصة لمنع إعادة الرسم غير الضرورية
+const areEqual = (prevProps: AppWrapperProps, nextProps: AppWrapperProps) => {
+  // مقارنة بسيطة للأطفال - إذا لم يتغيروا، لا تعيد الرسم
+  return prevProps.children === nextProps.children;
 };
 
-export default AppWrapper;
+export default React.memo(AppWrapper, areEqual);

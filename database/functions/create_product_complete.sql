@@ -344,6 +344,9 @@ BEGIN
 
     -- 4. معالجة الألوان والمتغيرات
     IF p_colors IS NOT NULL THEN
+      -- ✅ تسجيل الألوان المرسلة
+      RAISE NOTICE 'معالجة % لون مع المقاسات', jsonb_array_length(p_colors);
+      
       -- إدراج الألوان الجديدة
       FOR v_color_record IN 
         SELECT * FROM jsonb_array_elements(p_colors)
@@ -376,6 +379,9 @@ BEGIN
 
         -- إدراج المقاسات إذا كانت موجودة
         IF v_color_record.value ? 'sizes' AND jsonb_array_length(v_color_record.value->'sizes') > 0 THEN
+          -- ✅ تسجيل المقاسات للتشخيص
+          RAISE NOTICE 'إدراج % مقاس للون %', jsonb_array_length(v_color_record.value->'sizes'), (v_color_record.value->>'name');
+          
           FOR v_size_record IN 
             SELECT * FROM jsonb_array_elements(v_color_record.value->'sizes')
           LOOP
@@ -399,6 +405,9 @@ BEGIN
               COALESCE((v_size_record.value->>'is_default')::BOOLEAN, FALSE)
             );
           END LOOP;
+        ELSE
+          -- ✅ تسجيل عدم وجود مقاسات
+          RAISE NOTICE 'لا توجد مقاسات للون %', (v_color_record.value->>'name');
         END IF;
       END LOOP;
 

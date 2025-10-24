@@ -42,7 +42,7 @@ export function GeneralSettings() {
     } catch (error: any) {
       toast({
         title: 'خطأ',
-        description: error.message,
+        description: error instanceof Error ? error.message : (typeof error === 'string' ? error : 'حدث خطأ غير متوقع'),
         variant: 'destructive'
       });
     } finally {
@@ -61,7 +61,7 @@ export function GeneralSettings() {
     } catch (error: any) {
       toast({
         title: 'خطأ',
-        description: error.message,
+        description: error instanceof Error ? error.message : (typeof error === 'string' ? error : 'حدث خطأ غير متوقع'),
         variant: 'destructive'
       });
     } finally {

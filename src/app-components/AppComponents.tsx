@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { useLocation, useParams, Navigate } from 'react-router-dom';
+import { useLocation, useParams, Navigate, BrowserRouter } from 'react-router-dom';
 import { useTenant } from '../context/TenantContext';
 import { getCategoryById, getCategories } from '../lib/api/unified-api';
-import { syncCategoriesDataOnStartup } from '../lib/api/categories';
+import { saveCategoriesToLocalStorage, saveSubcategoriesToLocalStorage, syncCategoriesDataOnStartup } from '../lib/api/categories';
 import { configureCrossDomainAuth } from '../lib/cross-domain-auth';
 import { useDevtools } from '../hooks/useDevtools';
 import useTabFocusEffect from '../hooks/useTabFocusEffect';
@@ -10,28 +10,28 @@ import useTabFocusEffect from '../hooks/useTabFocusEffect';
 // تم تعطيل تتبع الجلسات مؤقتاً
 // import { useSessionTracking } from '../hooks/useSessionTracking';
 import SyncManager from '../components/SyncManager';
+import { TitlebarProvider } from '../context/TitlebarContext';
+import { ThemeProvider } from '../context/ThemeContext';
+import { StaffSessionProvider } from '../context/StaffSessionContext';
+import { VirtualNumpadProvider } from '../context/VirtualNumpadContext';
+import { GlobalNumpadManager } from '../components/virtual-numpad/GlobalNumpadManager';
+
+let categoriesSyncedOnStartup = false;
 
 // ============ إعدادات الأداء ============
 
 // 🔧 مكون لتحديد متى يتم عرض مؤشر المزامنة
 export const SyncManagerWrapper = () => {
-  // إخفاء SyncManager تماماً من الواجهة الأمامية
-  return null;
-  
-  // الكود القديم (معطل):
-  // const location = useLocation();
-  // const isDashboardPage = location.pathname.startsWith('/dashboard') || 
-  //                        location.pathname.startsWith('/pos') ||
-  //                        location.pathname === '/' ||
-  //                        location.pathname.startsWith('/inventory') ||
-  //                        location.pathname.startsWith('/orders');
-  
-  // // إظهار SyncManager فقط في صفحات لوحة التحكم وفي بيئة Electron
-  // if (!isDashboardPage) {
-  //   return null;
-  // }
-  
-  // return <SyncManager autoSync={true} syncInterval={60000} showIndicator={true} />;
+  const location = useLocation();
+  const pathname = location.pathname || '';
+  const dashboardPrefixes = ['/dashboard', '/pos', '/inventory', '/orders', '/customers', '/analytics'];
+  const shouldRender = dashboardPrefixes.some((prefix) => pathname.startsWith(prefix)) || pathname === '/';
+
+  if (!shouldRender) {
+    return null;
+  }
+
+  return <SyncManager autoSync syncInterval={60_000} showIndicator />;
 };
 
 // 🎯 مكون لمعالجة تبديل علامات التبويب
@@ -41,18 +41,11 @@ export const TabFocusHandler = ({ children }: { children: React.ReactNode }) => 
   useTabFocusEffect({
     onFocus: () => {
       // عند العودة بعد فترة طويلة، يمكن تحديث بعض البيانات الهامة
+      // تم إزالة إلغاء الاستعلامات لحل مشكلة عدم التحميل
     },
     onBlur: () => {
-      // إيقاف أي طلبات قيد التنفيذ بشكل آمن
-      const queryClient = (window as any).__REACT_QUERY_GLOBAL_CLIENT;
-      if (queryClient) {
-        queryClient.cancelQueries({
-          predicate: (query) => {
-            const state = query.state;
-            return state.fetchStatus === 'fetching' || state.status === 'pending';
-          }
-        });
-      }
+      // تم تعطيل إلغاء الاستعلامات لأنه كان يسبب مشكلة عدم التحميل عند التنقل
+      // الآن React Query سيدير الطلبات بشكل صحيح
     },
     // اعتبار العودة خلال 5 دقائق عودة سريعة لا تتطلب إعادة تحميل
     fastReturnThreshold: 1000 * 60 * 5
@@ -152,17 +145,9 @@ export const useAppInitialization = () => {
       }, 50);
     }
     
-    // تأجيل مزامنة الفئات لتجنب التكرار مع React Strict Mode والاستدعاءات من POSDataContext
-    const syncTimeout = setTimeout(() => {
-      // إيقاف المزامنة تماماً لتجنب التكرار مع الـ providers الجديدة
-      // الآن useSharedStoreData يتولى جلب الفئات، لذا لا نحتاج مزامنة إضافية
-      const shouldSkipSync = true; // تعطيل المزامنة لتجنب الطلبات المضاعفة
-      
-      if (!shouldSkipSync) {
-        syncCategoriesDataOnStartup();
-      } else {
-      }
-    }, 0); // ✅ إزالة التأخير لحل مشكلة عرض المتجر
+    // ✅ تم إلغاء مزامنة الفئات - البيانات تأتي الآن من AppInitializationContext
+    // البيانات متوفرة مباشرة من استدعاء RPC واحد
+    console.log('✅ [AppComponents] تم إلغاء syncCategoriesDataOnStartup - البيانات من AppInitializationContext');
     
     configureCrossDomainAuth();
     
@@ -173,7 +158,6 @@ export const useAppInitialization = () => {
 
     // تنظيف timeout عند إلغاء المكون
     return () => {
-      clearTimeout(syncTimeout);
       if (removeLoadingTimeout) clearTimeout(removeLoadingTimeout);
     };
   }, [pageStartTime]);
@@ -183,10 +167,41 @@ export const useAppInitialization = () => {
 export const AppCore = ({ children }: { children: React.ReactNode }) => {
   useAppInitialization();
   
+  // كشف ما إذا كان التطبيق يعمل في Electron
+  const isElectron = typeof window !== 'undefined' && 
+    window.navigator && 
+    window.navigator.userAgent && 
+    window.navigator.userAgent.includes('Electron');
+  
+  // في Electron، استخدم basename فارغ لأن file:// لا يحتاج إلى basename
+  // في المتصفح، استخدم '/' كـ basename
+  const basename = isElectron ? '' : '/';
+  
   return (
-    <TabFocusHandler>
-      {children}
-      <SyncManagerWrapper />
-    </TabFocusHandler>
+    <BrowserRouter
+      basename={basename}
+      future={{
+        v7_startTransition: true,
+        v7_relativeSplatPath: true
+      }}
+    >
+      <ThemeProvider>
+        <StaffSessionProvider>
+          <VirtualNumpadProvider>
+            <TitlebarProvider>
+              <div className="app-shell">
+                <div className="app-shell__content">
+                  <TabFocusHandler>
+                    {children}
+                    <SyncManagerWrapper />
+                    <GlobalNumpadManager />
+                  </TabFocusHandler>
+                </div>
+              </div>
+            </TitlebarProvider>
+          </VirtualNumpadProvider>
+        </StaffSessionProvider>
+      </ThemeProvider>
+    </BrowserRouter>
   );
 };

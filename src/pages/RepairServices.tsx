@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useUser } from '../context/UserContext';
 import { useTenant } from '@/context/TenantContext';
@@ -10,6 +10,7 @@ import { POSDataProvider } from '@/context/POSDataContext';
 
 // مكونات واجهة المستخدم
 import Layout from '@/components/Layout';
+import { POSSharedLayoutControls, POSLayoutState } from '@/components/pos-layout/types';
 import {
   Tabs,
   TabsContent,
@@ -182,7 +183,13 @@ const statusOptions = [
 ];
 
 // مكون صفحة خدمات التصليح الرئيسي
-const RepairServicesContent = () => {
+interface RepairServicesContentProps extends POSSharedLayoutControls {}
+
+const RepairServicesContent: React.FC<RepairServicesContentProps> = ({
+  useStandaloneLayout = true,
+  onRegisterRefresh,
+  onLayoutStateChange
+}) => {
   const { user, organizationId } = useUser();
   const { currentOrganization } = useTenant();
   
@@ -231,9 +238,7 @@ const RepairServicesContent = () => {
     cancelled: 0,
   });
   
-  // جلب طلبيات التصليح وبيانات الفلترة
-  useEffect(() => {
-    const fetchData = async () => {
+  const fetchData = useCallback(async () => {
       if (!organizationId) return;
       
       try {
@@ -301,10 +306,12 @@ const RepairServicesContent = () => {
       } finally {
         setIsLoading(false);
       }
-    };
-    
-    fetchData();
   }, [organizationId]);
+
+  // جلب طلبيات التصليح وبيانات الفلترة
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
   
   // تصفية الطلبيات المتقدمة
   useEffect(() => {
@@ -797,8 +804,30 @@ const RepairServicesContent = () => {
     }
   };
 
-  return (
-    <Layout>
+  const renderWithLayout = (node: React.ReactElement) => (
+    useStandaloneLayout ? <Layout>{node}</Layout> : node
+  );
+
+  // تسجيل زر التحديث في شريط العنوان
+  useEffect(() => {
+    if (onRegisterRefresh) {
+      onRegisterRefresh(() => fetchData());
+      return () => onRegisterRefresh(null);
+    }
+  }, [onRegisterRefresh, fetchData]);
+
+  // إرسال حالة الصفحة للعنوان (تحميل/اتصال)
+  useEffect(() => {
+    const state: POSLayoutState = {
+      isRefreshing: Boolean(isLoading),
+      connectionStatus: 'connected',
+      executionTime: undefined
+    };
+    if (onLayoutStateChange) onLayoutStateChange(state);
+  }, [onLayoutStateChange, isLoading]);
+
+  const pageContent = (
+    <>
       <div className="flex flex-col h-full">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-6">
           <div>
@@ -1937,15 +1966,17 @@ const RepairServicesContent = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Layout>
+    </>
   );
+
+  return renderWithLayout(pageContent);
 };
 
 // المكون الرئيسي مع POSDataProvider
-const RepairServices = () => {
+const RepairServices: React.FC<RepairServicesContentProps> = (props) => {
   return (
     <POSDataProvider>
-      <RepairServicesContent />
+      <RepairServicesContent {...props} />
     </POSDataProvider>
   );
 };

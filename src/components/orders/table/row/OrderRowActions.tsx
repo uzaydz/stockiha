@@ -1,15 +1,17 @@
-import React, { memo, useCallback } from "react";
+import React, { memo, useCallback, useState } from "react";
 import { TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Eye as EyeIcon } from "lucide-react";
+import { Eye as EyeIcon, Edit } from "lucide-react";
 import { Link } from "react-router-dom";
 import OrderActionsDropdown from "../OrderActionsDropdown";
+import OrderEditDialog from "../../dialogs/OrderEditDialog";
 
 interface OrderRowActionsProps {
   order: any;
   hasUpdatePermission: boolean;
   hasCancelPermission: boolean;
   onUpdateStatus: (orderId: string, status: string) => Promise<void>;
+  onOrderUpdated?: (updatedOrder: any) => void;
 }
 
 const OrderRowActions: React.FC<OrderRowActionsProps> = ({
@@ -17,7 +19,10 @@ const OrderRowActions: React.FC<OrderRowActionsProps> = ({
   hasUpdatePermission,
   hasCancelPermission,
   onUpdateStatus,
+  onOrderUpdated,
 }) => {
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  
   const handleCellClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
   }, []);
@@ -43,6 +48,18 @@ const OrderRowActions: React.FC<OrderRowActionsProps> = ({
           </Link>
         </Button>
 
+        {/* زر التعديل */}
+        {hasUpdatePermission && (
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => setEditDialogOpen(true)}
+            aria-label="تعديل الطلب"
+          >
+            <Edit className="h-4 w-4" />
+          </Button>
+        )}
+
         {/* قائمة الإجراءات */}
         <OrderActionsDropdown
           order={order}
@@ -51,6 +68,14 @@ const OrderRowActions: React.FC<OrderRowActionsProps> = ({
           hasCancelPermission={hasCancelPermission}
         />
       </div>
+
+      {/* حوار التعديل */}
+      <OrderEditDialog
+        open={editDialogOpen}
+        onOpenChange={setEditDialogOpen}
+        order={order}
+        onOrderUpdated={onOrderUpdated}
+      />
     </TableCell>
   );
 };

@@ -8,6 +8,7 @@ import type { Organization } from '@/types/tenant';
 import { updateOrganizationFromData } from '@/lib/processors/organizationProcessor';
 import { globalCache, CacheKeys } from '@/lib/globalCache';
 import type { TenantStateRefs } from './TenantState';
+import { dispatchAppEvent } from '@/lib/events/eventManager';
 
 interface TenantSynchronizationProps {
   organization: Organization | null;
@@ -70,15 +71,15 @@ export function TenantSynchronization({
 
 
     // إرسال حدث تأكيد
-    window.dispatchEvent(new CustomEvent('bazaar:tenant-context-ready', {
-      detail: {
-        organization: authOrganization,
-        isEarlyDetection: false,
-        loadTime: Date.now() - refs.startTime.current,
-        timestamp: Date.now(),
-        source: 'auth-sync'
-      }
-    }));
+    dispatchAppEvent('bazaar:tenant-context-ready', {
+      organization: authOrganization,
+      isEarlyDetection: false,
+      loadTime: Date.now() - refs.startTime.current,
+      timestamp: Date.now(),
+      source: 'auth-sync'
+    }, {
+      dedupeKey: `tenant-ready:${authOrganization.id}`
+    });
 
     const authSyncTime = performance.now() - authSyncStartTime;
 
@@ -107,15 +108,15 @@ export function TenantSynchronization({
         (window as any).__TENANT_CONTEXT_ORG__ = authOrganization;
 
         // إرسال حدث تأكيد
-        window.dispatchEvent(new CustomEvent('bazaar:tenant-context-ready', {
-          detail: {
-            organization: authOrganization,
-            isEarlyDetection: false,
-            loadTime: Date.now() - refs.startTime.current,
-            timestamp: Date.now(),
-            source: 'initial-login-sync'
-          }
-        }));
+        dispatchAppEvent('bazaar:tenant-context-ready', {
+          organization: authOrganization,
+          isEarlyDetection: false,
+          loadTime: Date.now() - refs.startTime.current,
+          timestamp: Date.now(),
+          source: 'initial-login-sync'
+        }, {
+          dedupeKey: `tenant-ready:${authOrganization.id}`
+        });
       }
     }
   }, [user?.id, authOrganization?.id]); // ✅ تحسين التبعيات

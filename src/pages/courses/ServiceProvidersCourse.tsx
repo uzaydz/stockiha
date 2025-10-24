@@ -10,8 +10,11 @@ import { CoursesService } from '@/lib/courses-service';
 import { useUser } from '@/context/UserContext';
 import { CourseWithAccess } from '@/lib/courses-service';
 import CourseAccessBadge from '@/components/courses/CourseAccessBadge';
+import { POSSharedLayoutControls } from '@/components/pos-layout/types';
 
-const ServiceProvidersCourse: React.FC = () => {
+interface ServiceProvidersCourseProps extends POSSharedLayoutControls {}
+
+const ServiceProvidersCourse: React.FC<ServiceProvidersCourseProps> = ({ useStandaloneLayout = true } = {}) => {
   const { user, organizationId } = useUser();
   const [course, setCourse] = useState<CourseWithAccess | null>(null);
   const [loading, setLoading] = useState(true);
@@ -50,32 +53,29 @@ const ServiceProvidersCourse: React.FC = () => {
   }, [user, organizationId]);
 
   if (loading) {
-    return (
-      <Layout>
-        <div className="container mx-auto px-4 py-8">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-            <p className="text-gray-600 dark:text-gray-400">جاري تحميل الدورة...</p>
-          </div>
+    const loadingContent = (
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">جاري تحميل الدورة...</p>
         </div>
-      </Layout>
+      </div>
     );
+    return useStandaloneLayout ? <Layout>{loadingContent}</Layout> : loadingContent;
   }
 
   if (!course) {
-    return (
-      <Layout>
-        <div className="container mx-auto px-4 py-8">
-          <div className="text-center">
-            <p className="text-red-600 dark:text-red-400">لم يتم العثور على الدورة</p>
-          </div>
+    const notFoundContent = (
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center">
+          <p className="text-red-600 dark:text-red-400">لم يتم العثور على الدورة</p>
         </div>
-      </Layout>
+      </div>
     );
+    return useStandaloneLayout ? <Layout>{notFoundContent}</Layout> : notFoundContent;
   }
 
-  return (
-    <Layout>
+  const content = (
       <div className="container mx-auto px-4 py-6 max-w-4xl">
         {/* Course Access Info */}
         {user && organizationId && (
@@ -116,8 +116,9 @@ const ServiceProvidersCourse: React.FC = () => {
           <CourseModules modules={serviceProvidersCourseData.modules} courseSlug="service-providers" />
         </CourseAccessGuard>
       </div>
-    </Layout>
   );
+
+  return useStandaloneLayout ? <Layout>{content}</Layout> : content;
 };
 
 export default ServiceProvidersCourse;

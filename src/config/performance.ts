@@ -163,4 +163,120 @@ export const PUBLIC_PAGE_PERFORMANCE = {
   ]
 };
 
+/**
+ * 🏪 إعدادات الأداء لنقطة البيع (POS)
+ */
+export const POS_PERFORMANCE_CONFIG = {
+  // ⚡ تعطيل الأنيميشن على الأجهزة الضعيفة
+  ANIMATIONS: {
+    ENABLED: false, // تعطيل كل الأنيميشن
+    DISABLE_FRAMER_MOTION: true,
+    DISABLE_TRANSITIONS: true,
+    DISABLE_HOVER_EFFECTS: true,
+    SIMPLE_MODE: true
+  },
+
+  // 🎨 تقليل التأثيرات المرئية
+  VISUAL_EFFECTS: {
+    DISABLE_SHADOWS: true,
+    DISABLE_BLUR: true,
+    DISABLE_GRADIENTS: true,
+    DISABLE_BACKDROP_FILTER: true,
+    SIMPLE_BORDERS: true
+  },
+
+  // 📦 تحسين عرض المنتجات
+  PRODUCTS: {
+    ITEMS_PER_PAGE: 20, // بدلاً من 50
+    USE_VIRTUAL_SCROLL: true,
+    LAZY_LOAD_IMAGES: true,
+    IMAGE_QUALITY: 'low', // low, medium, high
+    THUMBNAIL_SIZE: 100, // px
+    DEBOUNCE_SEARCH: 300 // ms
+  },
+
+  // 🔄 تحسين الـ Rendering
+  RENDERING: {
+    USE_MEMO: true,
+    USE_CALLBACK: true,
+    BATCH_UPDATES: true,
+    DEFER_NON_CRITICAL: true
+  },
+
+  // 💾 تحسين الـ Caching
+  CACHING: {
+    ENABLED: true,
+    PRODUCTS_TTL: 5 * 60 * 1000, // 5 دقائق
+    CART_TTL: 30 * 60 * 1000, // 30 دقيقة
+    SETTINGS_TTL: 10 * 60 * 1000 // 10 دقائق
+  },
+
+  // 🚀 تحسين التحميل
+  LOADING: {
+    LAZY_LOAD_DIALOGS: true,
+    LAZY_LOAD_MODALS: true,
+    PRELOAD_CRITICAL_ONLY: true,
+    SPLIT_CHUNKS: true
+  },
+
+  // 🔍 تحسين البحث
+  SEARCH: {
+    DEBOUNCE_MS: 300,
+    MIN_CHARS: 2,
+    MAX_RESULTS: 50,
+    CACHE_RESULTS: true
+  },
+
+  // 📱 إعدادات الأجهزة
+  DEVICE_DETECTION: {
+    AUTO_DETECT_PERFORMANCE: true,
+    LOW_END_THRESHOLD: 4, // GB RAM
+    REDUCE_QUALITY_ON_LOW_END: true
+  }
+};
+
+/**
+ * 🎯 كشف الأجهزة الضعيفة
+ */
+export const isLowEndDevice = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  
+  // كشف بناءً على الذاكرة
+  const memory = (navigator as any).deviceMemory;
+  if (memory && memory < POS_PERFORMANCE_CONFIG.DEVICE_DETECTION.LOW_END_THRESHOLD) {
+    return true;
+  }
+  
+  // كشف بناءً على عدد المعالجات
+  const cores = navigator.hardwareConcurrency;
+  if (cores && cores < 4) {
+    return true;
+  }
+  
+  return false;
+};
+
+/**
+ * 🎨 الحصول على إعدادات الأنيميشن
+ */
+export const getAnimationConfig = () => {
+  const isLowEnd = isLowEndDevice();
+  
+  if (isLowEnd || POS_PERFORMANCE_CONFIG.ANIMATIONS.SIMPLE_MODE) {
+    return {
+      initial: {},
+      animate: {},
+      exit: {},
+      transition: { duration: 0 }
+    };
+  }
+  
+  return {
+    initial: { opacity: 0, y: 10 },
+    animate: { opacity: 1, y: 0 },
+    exit: { opacity: 0, y: -10 },
+    transition: { duration: 0.2 }
+  };
+};
+
 export default PERFORMANCE_CONFIG;

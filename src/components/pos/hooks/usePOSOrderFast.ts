@@ -1,9 +1,11 @@
-import { useState, useCallback, useRef } from 'react';
-import { User, Service } from '@/types';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { User, Service, OrderItem } from '@/types';
 import { supabase } from '@/lib/supabase';
 import { CartItemType } from '../CartItem';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
+import { dispatchAppEvent } from '@/lib/events/eventManager';
+import { createPOSOrder, POSOrderData, initializePOSOfflineSync } from '@/context/shop/posOrderService';
 
 interface FastOrderDetails {
   customerId?: string;
@@ -47,6 +49,10 @@ export function usePOSOrderFast(currentUser: User | null) {
   const processingRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  useEffect(() => {
+    initializePOSOfflineSync();
+  }, []);
+
   const submitOrderFast = useCallback(async (
     orderDetails: FastOrderDetails,
     cartItems: CartItemType[],
@@ -84,6 +90,86 @@ export function usePOSOrderFast(currentUser: User | null) {
          throw new Error('لا توجد عناصر في الطلب');
        }
 
+       const isOffline = typeof navigator !== 'undefined' ? !navigator.onLine : false;
+
+       if (isOffline) {
+         if (!cartItems.length) {
+           throw new Error('لا توجد منتجات يمكن حفظها في وضع الأوفلاين');
+         }
+
+         const offlineItems: OrderItem[] = cartItems.map(item => {
+           const unitPrice = item.variantPrice !== undefined ? item.variantPrice : item.product.price;
+           const totalPrice = unitPrice * item.quantity;
+
+           return {
+             id: uuidv4(),
+             productId: item.product.id,
+             productName: item.product.name,
+             name: item.product.name,
+             slug: item.product.slug || `product-${item.product.id}`,
+             quantity: item.quantity,
+             unitPrice,
+             totalPrice,
+             isDigital: item.product.isDigital || false,
+             isWholesale: false,
+             originalPrice: item.product.price,
+             variant_info: {
+               colorId: item.colorId || undefined,
+               colorName: item.colorName || undefined,
+               colorCode: item.colorCode || undefined,
+               sizeId: item.sizeId || undefined,
+               sizeName: item.sizeName || undefined,
+               variantImage: item.variantImage || undefined
+             }
+           };
+         });
+
+         const offlineOrderData: POSOrderData = {
+           organizationId,
+           employeeId: orderDetails.employeeId,
+           items: offlineItems,
+           total: orderDetails.total,
+           customerId: orderDetails.customerId,
+           customerName: orderDetails.customerId === 'guest' ? 'زائر' : undefined,
+           paymentMethod: orderDetails.paymentMethod,
+           paymentStatus: orderDetails.paymentStatus,
+           notes: orderDetails.notes || '',
+           amountPaid: orderDetails.partialPayment?.amountPaid || orderDetails.total,
+           discount: orderDetails.discount || 0,
+           subtotal: orderDetails.subtotal || orderDetails.total,
+           remainingAmount: orderDetails.partialPayment?.remainingAmount || 0,
+           considerRemainingAsPartial: orderDetails.considerRemainingAsPartial || false,
+           metadata: selectedSubscriptions.length > 0
+             ? { subscriptions: selectedSubscriptions }
+             : undefined
+         };
+
+         const offlineResult = await createPOSOrder(offlineOrderData);
+         const processingTime = Math.round(performance.now() - startTime);
+
+         window.dispatchEvent(new CustomEvent('pos-inventory-update', {
+           detail: {
+             cartItems: cartItems.map(item => ({
+               productId: item.product.id,
+               quantity: item.quantity,
+               colorId: item.colorId,
+               sizeId: item.sizeId
+             }))
+           }
+         }));
+
+         requestIdleCallback(() => {
+           toast.success(`💾 تم حفظ الطلب للأوفلاين وسيتم مزامنته تلقائياً! (${processingTime}ms)`);
+         });
+
+         dispatchAppEvent('pos-order-created', { orderId: offlineResult.orderId });
+
+         return {
+           orderId: offlineResult.orderId,
+           customerOrderNumber: offlineResult.customerOrderNumber || Math.floor(Math.random() * 10000)
+         };
+       }
+
        // معالجة الاشتراكات منفصلة عن المنتجات
        if (selectedSubscriptions.length > 0) {
 
@@ -104,7 +190,7 @@ export function usePOSOrderFast(currentUser: User | null) {
                  quantity: 1,
                  description: `${subscription.name} - ${subscription.duration_label || 'خدمة رقمية'}`,
                  notes: `كود التتبع: ${subscription.tracking_code || 'غير محدد'}`,
-                 processed_by: userProfile?.id || orderDetails.employeeId, // استخدام userProfile.id إذا كان متاحاً
+                 processed_by: currentUser?.id || orderDetails.employeeId,
                  organization_id: organizationId
                }])
                .select()
@@ -277,6 +363,9 @@ export function usePOSOrderFast(currentUser: User | null) {
         requestIdleCallback(() => {
           toast.success(`✅ تم إنشاء الطلب وتحديث المخزون بنجاح! (${processingTime}ms)`);
         });
+
+        // ✅ تحديث قائمة الطلبيات فوراً
+        dispatchAppEvent('pos-order-created', { orderId: resultData.id });
 
         return {
           orderId: resultData.id,

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
 import POSPureLayout from '@/components/pos-layout/POSPureLayout';
+import { POSSharedLayoutControls } from '@/components/pos-layout/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -35,8 +36,17 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase } from '@/lib/supabase';
 import { RETURN_REASONS_ARRAY, getReturnReasonLabel } from '@/constants/returnReasons';
+import { 
+  getAllLocalReturns, 
+  createLocalReturn, 
+  approveLocalReturn, 
+  rejectLocalReturn,
+  type LocalProductReturn 
+} from '@/api/localProductReturnService';
+import { syncPendingProductReturns, fetchProductReturnsFromServer } from '@/api/syncProductReturns';
+import { inventoryDB } from '@/database/localDb';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 
 // Types
 interface Return {
@@ -137,13 +147,21 @@ interface Order {
   }>;
 }
 
-const ProductReturns: React.FC = () => {
+interface ProductReturnsProps extends POSSharedLayoutControls {}
+
+const ProductReturns: React.FC<ProductReturnsProps> = ({
+  useStandaloneLayout = true,
+  onRegisterRefresh,
+  onLayoutStateChange
+}) => {
   const { user } = useAuth();
   const { currentOrganization } = useTenant();
+  const { isOnline } = useNetworkStatus();
 
   // State
   const [returns, setReturns] = useState<Return[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [selectedReturn, setSelectedReturn] = useState<Return | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false);
@@ -204,123 +222,257 @@ const ProductReturns: React.FC = () => {
   const [foundOrder, setFoundOrder] = useState<Order | null>(null);
   const [searchingOrder, setSearchingOrder] = useState(false);
 
-  // Fetch returns
+  // مزامنة في الخلفية
+  const syncInBackground = async () => {
+    if (!isOnline || !currentOrganization) return;
+    
+    try {
+      setIsSyncing(true);
+      
+      // مزامنة الإرجاعات المعلقة
+      const syncResult = await syncPendingProductReturns();
+      
+      if (syncResult.success > 0) {
+        console.log(`✅ تمت مزامنة ${syncResult.success} إرجاع`);
+      }
+      
+      if (syncResult.failed > 0) {
+        console.warn(`⚠️ فشلت مزامنة ${syncResult.failed} إرجاع`);
+      }
+      
+      // جلب الإرجاعات الجديدة من السيرفر وتحديث الحالة مباشرة
+      await fetchProductReturnsFromServer(currentOrganization.id);
+      
+      // تحديث البيانات محلياً بدون إعادة تشغيل fetchReturns (لتجنب infinite loop)
+      const localReturns = await getAllLocalReturns(currentOrganization.id);
+      const convertedReturns: Return[] = await Promise.all(
+        localReturns.map(async (localReturn) => {
+          const items = await inventoryDB.returnItems
+            .where('return_id')
+            .equals(localReturn.id)
+            .toArray();
+
+          return {
+            id: localReturn.id,
+            return_number: localReturn.return_number,
+            original_order_id: localReturn.original_order_id,
+            original_order_number: localReturn.original_order_number,
+            customer_id: localReturn.customer_id,
+            customer_name: localReturn.customer_name || 'غير محدد',
+            customer_phone: localReturn.customer_phone,
+            customer_email: localReturn.customer_email,
+            return_type: localReturn.return_type,
+            return_reason: localReturn.return_reason,
+            return_reason_description: localReturn.return_reason_description,
+            original_total: localReturn.original_total,
+            return_amount: localReturn.return_amount,
+            refund_amount: localReturn.refund_amount,
+            restocking_fee: localReturn.restocking_fee,
+            status: localReturn.status,
+            refund_method: localReturn.refund_method,
+            notes: localReturn.notes,
+            internal_notes: localReturn.internal_notes,
+            requires_manager_approval: localReturn.requires_manager_approval,
+            organization_id: localReturn.organization_id,
+            created_by: localReturn.created_by,
+            created_at: localReturn.created_at,
+            updated_at: localReturn.updated_at,
+            approved_by: localReturn.approved_by,
+            approved_at: localReturn.approved_at,
+            processed_by: localReturn.processed_by,
+            processed_at: localReturn.processed_at,
+            approval_notes: localReturn.approval_notes,
+            rejection_reason: localReturn.rejection_reason,
+            rejected_by: localReturn.rejected_by,
+            rejected_at: localReturn.rejected_at,
+            items_count: items.length,
+            is_direct_return: !localReturn.original_order_id
+          } as Return;
+        })
+      );
+
+      // تطبيق الفلاتر والتصفية
+      let filteredReturns = convertedReturns;
+      if (statusFilter && statusFilter !== 'all') {
+        filteredReturns = filteredReturns.filter(r => r.status === statusFilter);
+      }
+      if (typeFilter && typeFilter !== 'all') {
+        filteredReturns = filteredReturns.filter(r => r.return_type === typeFilter);
+      }
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        filteredReturns = filteredReturns.filter(r =>
+          r.return_number.toLowerCase().includes(query) ||
+          r.customer_name?.toLowerCase().includes(query) ||
+          r.original_order_number?.toLowerCase().includes(query)
+        );
+      }
+      if (dateRange.from) {
+        filteredReturns = filteredReturns.filter(r => r.created_at >= dateRange.from);
+      }
+      if (dateRange.to) {
+        filteredReturns = filteredReturns.filter(r => r.created_at <= dateRange.to + 'T23:59:59');
+      }
+
+      // الترتيب والصفحات
+      filteredReturns.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      const totalCount = filteredReturns.length;
+      setTotalPages(Math.ceil(totalCount / itemsPerPage));
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      const paginatedReturns = filteredReturns.slice(startIndex, startIndex + itemsPerPage);
+      setReturns(paginatedReturns);
+    } catch (error) {
+      console.error('خطأ في المزامنة:', error);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // Fetch returns من المخزن المحلي
   const fetchReturns = useCallback(async () => {
     if (!currentOrganization?.id) return;
 
     setLoading(true);
     try {
-      let query = supabase
-        .from('returns')
-        .select(`
-          *,
-          return_items(count)
-        `)
-        .eq('organization_id', currentOrganization.id);
+      // جلب الإرجاعات من المخزن المحلي
+      const localReturns = await getAllLocalReturns(currentOrganization.id);
+      
+      // تحويل LocalProductReturn إلى Return
+      const convertedReturns: Return[] = await Promise.all(
+        localReturns.map(async (localReturn) => {
+          // جلب العناصر
+          const items = await inventoryDB.returnItems
+            .where('return_id')
+            .equals(localReturn.id)
+            .toArray();
+
+          return {
+            id: localReturn.id,
+            return_number: localReturn.return_number,
+            original_order_id: localReturn.original_order_id,
+            original_order_number: localReturn.original_order_number,
+            customer_id: localReturn.customer_id,
+            customer_name: localReturn.customer_name || 'غير محدد',
+            customer_phone: localReturn.customer_phone,
+            customer_email: localReturn.customer_email,
+            return_type: localReturn.return_type,
+            return_reason: localReturn.return_reason,
+            return_reason_description: localReturn.return_reason_description,
+            original_total: localReturn.original_total,
+            return_amount: localReturn.return_amount,
+            refund_amount: localReturn.refund_amount,
+            restocking_fee: localReturn.restocking_fee,
+            status: localReturn.status,
+            refund_method: localReturn.refund_method,
+            notes: localReturn.notes,
+            internal_notes: localReturn.internal_notes,
+            requires_manager_approval: localReturn.requires_manager_approval,
+            organization_id: localReturn.organization_id,
+            created_by: localReturn.created_by,
+            created_at: localReturn.created_at,
+            updated_at: localReturn.updated_at,
+            approved_by: localReturn.approved_by,
+            approved_at: localReturn.approved_at,
+            processed_by: localReturn.processed_by,
+            processed_at: localReturn.processed_at,
+            approval_notes: localReturn.approval_notes,
+            rejection_reason: localReturn.rejection_reason,
+            rejected_by: localReturn.rejected_by,
+            rejected_at: localReturn.rejected_at,
+            items_count: items.length,
+            is_direct_return: !localReturn.original_order_id
+          } as Return;
+        })
+      );
 
       // تطبيق الفلاتر
+      let filteredReturns = convertedReturns;
+
       if (statusFilter && statusFilter !== 'all') {
-        query = query.eq('status', statusFilter);
+        filteredReturns = filteredReturns.filter(r => r.status === statusFilter);
       }
 
       if (typeFilter && typeFilter !== 'all') {
-        query = query.eq('return_type', typeFilter);
+        filteredReturns = filteredReturns.filter(r => r.return_type === typeFilter);
       }
 
-      // البحث النصي
       if (searchQuery.trim()) {
-        query = query.or(`
-          return_number.ilike.%${searchQuery}%,
-          customer_name.ilike.%${searchQuery}%,
-          original_order_number.ilike.%${searchQuery}%
-        `);
+        const query = searchQuery.toLowerCase();
+        filteredReturns = filteredReturns.filter(r =>
+          r.return_number.toLowerCase().includes(query) ||
+          r.customer_name?.toLowerCase().includes(query) ||
+          r.original_order_number?.toLowerCase().includes(query)
+        );
       }
 
-      // فلتر التاريخ
       if (dateRange.from) {
-        query = query.filter('created_at', 'gte', dateRange.from);
+        filteredReturns = filteredReturns.filter(r => r.created_at >= dateRange.from);
       }
       if (dateRange.to) {
-        query = query.filter('created_at', 'lte', dateRange.to + 'T23:59:59');
+        filteredReturns = filteredReturns.filter(r => r.created_at <= dateRange.to + 'T23:59:59');
       }
 
-      const { data, error } = await query
-        .order('created_at', { ascending: false })
-        .range((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage - 1);
+      // الترتيب والصفحات
+      filteredReturns.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      
+      const totalCount = filteredReturns.length;
+      setTotalPages(Math.ceil(totalCount / itemsPerPage));
+      
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      const paginatedReturns = filteredReturns.slice(startIndex, startIndex + itemsPerPage);
+      
+      setReturns(paginatedReturns);
 
-      if (error) throw error;
-      
-      // تحويل البيانات لتتطابق مع Return interface
-      const returnsData = data?.map((item: any) => ({
-        ...item,
-        items_count: item.return_items?.[0]?.count || 0,
-        customer_name: item.customer_name || 'غير محدد',
-        // تحديد نوع الإرجاع بناءً على وجود original_order_id
-        return_type: item.original_order_id ? item.return_type || 'partial' : 'direct',
-        // إضافة علامة للإرجاع المباشر
-        is_direct_return: !item.original_order_id
-      })) || [];
-      
-      setReturns(returnsData as Return[]);
-
-      // حساب العدد الكلي للصفحات
-      const { count } = await supabase
-        .from('returns')
-        .select('*', { count: 'exact', head: true })
-        .eq('organization_id', currentOrganization.id);
-      
-      setTotalPages(Math.ceil((count || 0) / itemsPerPage));
-      
+      // مزامنة مع السيرفر في الخلفية إذا كان متصل
+      if (isOnline) {
+        syncInBackground();
+      }
     } catch (error) {
+      console.error('خطأ في جلب الإرجاعات:', error);
       setReturns([]);
-      // toast.error('حدث خطأ في جلب طلبات الإرجاع');
     } finally {
       setLoading(false);
     }
-  }, [currentOrganization?.id, statusFilter, typeFilter, currentPage, searchQuery, dateRange]);
+  }, [currentOrganization?.id, statusFilter, typeFilter, currentPage, searchQuery, dateRange, isOnline]);
 
-  // Fetch stats
+  // Fetch stats من البيانات المحلية
   const fetchStats = useCallback(async () => {
     if (!currentOrganization?.id) return;
 
     try {
-      const { data: returns } = await supabase
-        .from('returns')
-        .select('status, return_amount, return_type, original_order_id')
-        .eq('organization_id', currentOrganization.id);
+      const localReturns = await getAllLocalReturns(currentOrganization.id);
 
-      if (returns) {
-        const stats = returns.reduce((acc: any, r: any) => {
-          acc.total++;
-          
-          // تحديد نوع الإرجاع
-          const isDirect = !r.original_order_id;
-          if (isDirect) acc.direct++;
-          
-          // تحويل الحالات لتتطابق مع الحالات المتوقعة
-          if (r.status === 'pending') acc.pending++;
-          else if (r.status === 'approved') acc.approved++;
-          else if (r.status === 'completed' || r.status === 'processed') acc.completed++;
-          else if (r.status === 'rejected') acc.rejected++;
-          
-          acc.totalAmount += parseFloat(r.return_amount || '0');
-          if (isDirect) acc.directAmount += parseFloat(r.return_amount || '0');
-          
-          return acc;
-        }, {
-          total: 0,
-          pending: 0,
-          approved: 0,
-          completed: 0,
-          rejected: 0,
-          direct: 0, // إحصائية الإرجاع المباشر
-          totalAmount: 0,
-          directAmount: 0 // قيمة الإرجاع المباشر
-        });
+      const stats = localReturns.reduce((acc: any, r: any) => {
+        acc.total++;
+        
+        // تحديد نوع الإرجاع
+        const isDirect = !r.original_order_id;
+        if (isDirect) acc.direct++;
+        
+        // تحويل الحالات لتتطابق مع الحالات المتوقعة
+        if (r.status === 'pending') acc.pending++;
+        else if (r.status === 'approved') acc.approved++;
+        else if (r.status === 'completed' || r.status === 'processed') acc.completed++;
+        else if (r.status === 'rejected') acc.rejected++;
+        
+        acc.totalAmount += parseFloat(r.return_amount || '0');
+        if (isDirect) acc.directAmount += parseFloat(r.return_amount || '0');
+        
+        return acc;
+      }, {
+        total: 0,
+        pending: 0,
+        approved: 0,
+        completed: 0,
+        rejected: 0,
+        direct: 0,
+        totalAmount: 0,
+        directAmount: 0
+      });
 
-        setStats(stats);
-      }
+      setStats(stats);
     } catch (error) {
+      console.error('خطأ في جلب الإحصائيات:', error);
       // قيم افتراضية
       setStats({
         total: 0,
@@ -335,116 +487,127 @@ const ProductReturns: React.FC = () => {
     }
   }, [currentOrganization?.id]);
 
+  const handleRefresh = useCallback(async () => {
+    await Promise.all([fetchReturns(), fetchStats()]);
+  }, [fetchReturns, fetchStats]);
+
+  useEffect(() => {
+    if (!onRegisterRefresh) return;
+    onRegisterRefresh(handleRefresh);
+    return () => onRegisterRefresh(null);
+  }, [handleRefresh, onRegisterRefresh]);
+
+  useEffect(() => {
+    if (!onLayoutStateChange) return;
+    onLayoutStateChange({
+      isRefreshing: loading,
+      connectionStatus: 'connected'
+    });
+  }, [loading, onLayoutStateChange]);
+
+  const renderWithLayout = (
+    children: React.ReactNode,
+    overrides?: {
+      isRefreshing?: boolean;
+      connectionStatus?: 'connected' | 'disconnected' | 'reconnecting';
+    }
+  ) => {
+    if (!useStandaloneLayout) {
+      return children;
+    }
+
+    return (
+      <POSPureLayout
+        onRefresh={handleRefresh}
+        isRefreshing={overrides?.isRefreshing ?? loading}
+        connectionStatus={overrides?.connectionStatus ?? 'connected'}
+      >
+        {children}
+      </POSPureLayout>
+    );
+  };
+
   // Search for order with variants support
   const searchOrder = async () => {
     if (!searchOrderId || !currentOrganization?.id) return;
 
     setSearchingOrder(true);
     try {
-      // البحث في قاعدة البيانات عن الطلبية
-      let query = supabase
-        .from('orders')
-        .select(`
-          id,
-          customer_order_number,
-          total,
-          created_at,
-          order_items(
-            id,
-            product_id,
-            product_name,
-            quantity,
-            unit_price,
-            total_price,
-            color_id,
-            size_id,
-            color_name,
-            size_name,
-            variant_display_name
-          )
-        `)
-        .eq('organization_id', currentOrganization.id)
-        .eq('is_online', false);
+      // البحث في الطلبيات المحلية
+      const localOrders = await inventoryDB.posOrders
+        .where('organization_id')
+        .equals(currentOrganization.id)
+        .toArray();
 
-      // التحقق من نوع البحث - رقم طلبية أم UUID
-      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(searchOrderId);
+      // تحديد ما إذا كان الإدخال رقم أو ID
       const isNumber = /^\d+$/.test(searchOrderId);
+      
+      let foundOrders = localOrders.filter(order => {
+        if (isNumber) {
+          return order.remote_customer_order_number === parseInt(searchOrderId);
+        } else {
+          return order.id === searchOrderId;
+        }
+      });
 
-      if (isUUID) {
-        query = query.eq('id', searchOrderId);
-      } else if (isNumber) {
-        query = query.eq('customer_order_number', parseInt(searchOrderId));
-      } else {
-        throw new Error('صيغة رقم الطلبية غير صحيحة');
-      }
+      // ترتيب حسب التاريخ (الأحدث أولاً)
+      foundOrders.sort((a, b) => 
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
 
-      // التحقق من عدد النتائج أولاً
-      let totalCount = 0;
-      if (isNumber) {
-        const { count } = await supabase
-          .from('orders')
-          .select('*', { count: 'exact', head: true })
-          .eq('organization_id', currentOrganization.id)
-          .eq('is_online', false)
-          .eq('customer_order_number', parseInt(searchOrderId));
-        totalCount = count || 0;
-      }
-
-      const { data, error } = await query
-        .order('created_at', { ascending: false })
-        .limit(1);
-
-      if (error) throw error;
-
-      if (data && data.length > 0) {
-        const firstOrder = data[0];
+      if (foundOrders.length > 0) {
+        const firstOrder = foundOrders[0];
         
-        // جلب اسم العميل منفصلاً إذا كان موجوداً
+        // جلب عناصر الطلبية
+        const orderItems = await inventoryDB.posOrderItems
+          .where('order_id')
+          .equals(firstOrder.id)
+          .toArray();
+
+        // جلب اسم العميل من الطلبية نفسها
         let customerName = 'زائر';
-        if (firstOrder.customer_id) {
-          try {
-            const { data: customer } = await supabase
-              .from('customers')
-              .select('name, first_name, last_name')
-              .eq('id', firstOrder.customer_id)
-              .single();
-            
-            if (customer) {
-              customerName = customer.name || 
-                           (customer.first_name && customer.last_name ? 
-                            `${customer.first_name} ${customer.last_name}` : 
-                            customer.first_name || customer.last_name || 'زائر');
-            }
-          } catch (e) {
-          }
+        if (firstOrder.customer_name) {
+          customerName = firstOrder.customer_name;
         }
 
         // إضافة معلومات إضافية للمتغيرات
         const orderData: Order = {
-          ...firstOrder,
-          customer_order_number: String(firstOrder.customer_order_number),
+          id: firstOrder.id,
+          customer_order_number: String(firstOrder.remote_customer_order_number || ''),
           customer_name: customerName,
-          order_items: firstOrder.order_items?.map((item: any) => ({
-            ...item,
+          total: firstOrder.total,
+          created_at: firstOrder.created_at,
+          order_items: orderItems.map((item: any) => ({
+            id: item.id,
+            product_id: item.product_id,
+            product_name: item.product_name,
             product_sku: item.product_sku || '',
-            already_returned_quantity: 0, // سيتم جلبها من قاعدة البيانات لاحقاً
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            already_returned_quantity: 0,
             available_for_return: item.quantity,
-            has_previous_returns: false
-          })) || []
-        };
+            has_previous_returns: false,
+            color_id: item.color_id,
+            size_id: item.size_id,
+            color_name: item.color_name,
+            size_name: item.size_name,
+            variant_display_name: item.variant_display_name
+          }))
+        } as Order;
 
         setFoundOrder(orderData);
         setCreateForm(prev => ({ ...prev, orderId: firstOrder.id }));
         
         // إشعار في حالة وجود أكثر من طلبية بنفس الرقم
-        if (totalCount > 1) {
-          toast.info(`تم العثور على ${totalCount} طلبيات برقم ${searchOrderId}، تم اختيار الأحدث`);
+        if (foundOrders.length > 1) {
+          toast.info(`تم العثور على ${foundOrders.length} طلبيات برقم ${searchOrderId}، تم اختيار الأحدث`);
         }
       } else {
         toast.error('لم يتم العثور على الطلبية');
         setFoundOrder(null);
       }
     } catch (error) {
+      console.error('خطأ في البحث عن الطلبية:', error);
       toast.error('حدث خطأ في البحث عن الطلبية');
       setFoundOrder(null);
     } finally {
@@ -467,76 +630,74 @@ const ProductReturns: React.FC = () => {
       // إنشاء رقم طلب الإرجاع
       const returnNumber = `RET-${Date.now()}`;
 
+      // إعداد بيانات الإرجاع
       const returnData = {
         return_number: returnNumber,
         original_order_id: foundOrder.id,
         original_order_number: foundOrder.customer_order_number,
         customer_name: foundOrder.customer_name,
+        customer_id: foundOrder.id,
+        customer_phone: null,
+        customer_email: null,
         return_type: createForm.returnType,
         return_reason: createForm.returnReason,
         return_reason_description: createForm.description || null,
         original_total: foundOrder.total,
         return_amount: returnAmount,
-        refund_amount: returnAmount, // سيتم تحديثها لاحقاً حسب السياسة
+        refund_amount: returnAmount,
         restocking_fee: 0,
-        status: 'pending',
+        status: 'pending' as const,
         refund_method: createForm.refundMethod,
         notes: createForm.notes || null,
-        requires_manager_approval: returnAmount > 10000, // سياسة المراجعة
-        organization_id: currentOrganization.id,
-        created_by: user.id
+        internal_notes: null,
+        requires_manager_approval: returnAmount > 10000,
+        created_by: user.id,
+        approved_by: null,
+        approved_at: null,
+        processed_by: null,
+        processed_at: null,
+        approval_notes: null,
+        rejection_reason: null,
+        rejected_by: null,
+        rejected_at: null,
+        organization_id: currentOrganization.id
       };
 
-      // إدراج طلب الإرجاع
-      const { data: returnRecord, error: returnError } = await supabase
-        .from('returns')
-        .insert([returnData])
-        .select()
-        .single();
+      // إعداد عناصر الإرجاع
+      const returnItems = createForm.selectedItems.map(item => ({
+        product_id: item.product_id,
+        product_name: item.product_name,
+        product_sku: item.product_sku,
+        return_quantity: item.return_quantity,
+        return_unit_price: item.original_unit_price,
+        total_return_amount: item.return_quantity * item.original_unit_price,
+        condition_status: 'good',
+        resellable: true,
+        inventory_returned: false,
+        color_id: item.color_id,
+        color_name: item.color_name,
+        size_id: item.size_id,
+        size_name: item.size_name
+      }));
 
-      if (returnError) throw returnError;
+      // إنشاء الإرجاع محلياً
+      await createLocalReturn({
+        returnData,
+        items: returnItems
+      });
 
-      // إدراج عناصر الإرجاع
-      if (returnRecord) {
-        const returnItemsData = createForm.selectedItems.map(item => ({
-          return_id: returnRecord.id,
-          original_order_item_id: item.id, // ID من order_items
-          product_id: item.product_id,
-          product_name: item.product_name,
-          product_sku: item.product_sku,
-          original_quantity: item.original_quantity,
-          return_quantity: item.return_quantity,
-          original_unit_price: item.original_unit_price,
-          return_unit_price: item.original_unit_price, // نفس السعر مؤقتاً
-          total_return_amount: item.return_quantity * item.original_unit_price,
-          condition_status: 'good', // افتراضي
-          resellable: true, // افتراضي
-          inventory_returned: false,
-          variant_info: (item.color_id || item.size_id) ? {
-            color_id: item.color_id,
-            size_id: item.size_id,
-            color_name: item.color_name,
-            size_name: item.size_name,
-            variant_display_name: item.variant_display_name,
-            type: item.color_id && item.size_id ? 'color_size' : 
-                  item.color_id ? 'color_only' : 
-                  item.size_id ? 'size_only' : 'main'
-          } : null
-        }));
-
-        const { error: itemsError } = await supabase
-          .from('return_items')
-          .insert(returnItemsData);
-
-        if (itemsError) throw itemsError;
-      }
-
-      toast.success('تم إنشاء طلب الإرجاع بنجاح');
+      toast.success('تم إنشاء طلب الإرجاع بنجاح' + (!isOnline ? ' (سيتم المزامنة عند الاتصال)' : ''));
       setIsCreateDialogOpen(false);
       resetCreateForm();
-      fetchReturns();
-      fetchStats();
+      await fetchReturns();
+      await fetchStats();
+
+      // مزامنة فورية إذا كان متصل
+      if (isOnline) {
+        setTimeout(() => syncInBackground(), 1000);
+      }
     } catch (error) {
+      console.error('خطأ في إنشاء طلب الإرجاع:', error);
       toast.error('حدث خطأ في إنشاء طلب الإرجاع');
     }
   };
@@ -546,47 +707,62 @@ const ProductReturns: React.FC = () => {
     if (!user?.id) return;
 
     try {
-      // استبدال RPC بحل مؤقت
-      toast.success(`تم ${action === 'approve' ? 'الموافقة على' : action === 'reject' ? 'رفض' : 'معالجة'} طلب الإرجاع (مؤقت)`);
-      fetchReturns();
-      fetchStats();
+      if (action === 'approve') {
+        await approveLocalReturn(returnId, user.id);
+        toast.success('تم الموافقة على طلب الإرجاع' + (!isOnline ? ' (سيتم المزامنة عند الاتصال)' : ''));
+      } else if (action === 'reject') {
+        await rejectLocalReturn(returnId);
+        toast.success('تم رفض طلب الإرجاع' + (!isOnline ? ' (سيتم المزامنة عند الاتصال)' : ''));
+      }
+
+      await fetchReturns();
+      await fetchStats();
       setIsActionDialogOpen(false);
+
+      // مزامنة فورية إذا كان متصل
+      if (isOnline) {
+        setTimeout(() => syncInBackground(), 1000);
+      }
     } catch (error) {
+      console.error('خطأ في معالجة طلب الإرجاع:', error);
       toast.error('حدث خطأ في معالجة طلب الإرجاع');
     }
   };
 
-  // Fetch return items with variants
+  // Fetch return items with variants من المخزن المحلي
   const fetchReturnItems = async (returnId: string) => {
     if (!currentOrganization?.id) return;
 
     setLoadingReturnItems(true);
     try {
-      const { data, error } = await supabase
-        .from('return_items')
-        .select('*')
-        .eq('return_id', returnId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
+      // جلب العناصر من المخزن المحلي
+      const items = await inventoryDB.returnItems
+        .where('return_id')
+        .equals(returnId)
+        .toArray();
       
       // تحويل البيانات لتتطابق مع ReturnItem interface
-      const returnItemsData = data?.map((item: any) => ({
-        ...item,
+      const returnItemsData = items.map((item) => ({
+        id: item.id,
+        return_id: item.return_id,
+        product_id: item.product_id,
+        product_name: item.product_name,
+        product_sku: item.product_sku,
+        original_quantity: 0, // غير متوفر في LocalReturnItem
+        return_quantity: item.return_quantity,
+        original_unit_price: item.return_unit_price,
+        return_unit_price: item.return_unit_price,
+        total_return_amount: item.total_return_amount,
         condition_status: item.condition_status || 'good',
-        resellable: item.resellable !== undefined ? item.resellable : true,
-        inventory_returned: item.inventory_returned || false,
-        // دعم المتغيرات للإرجاع المباشر
-        color_name: item.color_name || item.variant_info?.color_name,
-        size_name: item.size_name || item.variant_info?.size_name,
-        variant_display_name: item.variant_display_name || item.variant_info?.variant_display_name,
-        variant_info: item.variant_info || {
-          color_id: item.color_id,
-          size_id: item.size_id,
-          color_name: item.color_name,
-          size_name: item.size_name,
-          variant_display_name: item.variant_display_name
-        }
+        resellable: item.resellable,
+        inventory_returned: item.inventory_returned,
+        color_id: item.color_id,
+        color_name: item.color_name,
+        size_id: item.size_id,
+        size_name: item.size_name,
+        variant_display_name: item.color_name && item.size_name 
+          ? `${item.color_name} - ${item.size_name}`
+          : item.color_name || item.size_name || undefined
       })) || [];
       
       setReturnItems(returnItemsData as ReturnItem[]);
@@ -653,14 +829,7 @@ const ProductReturns: React.FC = () => {
     fetchStats();
   }, [fetchReturns, fetchStats]);
 
-  return (
-    <POSPureLayout
-      onRefresh={() => {
-        fetchReturns();
-        fetchStats();
-      }}
-      isRefreshing={loading}
-    >
+  const pageContent = (
       <div className="container mx-auto p-6 space-y-6" dir="rtl">
         {/* Header */}
         <div className="flex items-center justify-between">
@@ -676,7 +845,7 @@ const ProductReturns: React.FC = () => {
           <div className="flex items-center gap-2">
             <Button 
               variant="outline" 
-              onClick={() => { fetchReturns(); fetchStats(); }}
+              onClick={handleRefresh}
               disabled={loading}
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
@@ -804,8 +973,13 @@ const ProductReturns: React.FC = () => {
                                                 selectedItems: [
                                                   ...prev.selectedItems,
                                                   {
-                                                    order_item_id: item.id,
+                                                    id: item.id,
+                                                    product_id: item.product_id,
+                                                    product_name: item.product_name,
+                                                    product_sku: item.product_sku,
+                                                    original_quantity: item.quantity,
                                                     return_quantity: item.available_for_return,
+                                                    original_unit_price: item.unit_price,
                                                     condition_status: 'good',
                                                     color_id: item.color_id,
                                                     size_id: item.size_id,
@@ -819,7 +993,7 @@ const ProductReturns: React.FC = () => {
                                               setCreateForm(prev => ({
                                                 ...prev,
                                                 selectedItems: prev.selectedItems.filter(
-                                                  si => si.order_item_id !== item.id
+                                                  si => si.id !== item.id
                                                 )
                                               }));
                                             }
@@ -1407,8 +1581,9 @@ const ProductReturns: React.FC = () => {
           </DialogContent>
         </Dialog>
       </div>
-    </POSPureLayout>
   );
+
+  return renderWithLayout(pageContent, { isRefreshing: loading });
 };
 
 export default ProductReturns;

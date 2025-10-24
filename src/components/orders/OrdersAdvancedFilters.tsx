@@ -202,221 +202,239 @@ const OrdersAdvancedFilters = ({
   };
 
   return (
-    <div className="space-y-4">
-      {/* Status Filter Cards - More Visual and Intuitive */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <button
-          onClick={() => setActiveStatus('all')}
-          className={`group relative overflow-hidden rounded-xl border-2 transition-all duration-200 ${
-            activeStatus === 'all'
-              ? 'border-primary bg-primary/5 shadow-lg scale-105'
-              : 'border-gray-200 dark:border-gray-800 hover:border-gray-300 dark:hover:border-gray-700 hover:shadow-md'
-          }`}
-        >
-          <div className="p-4 text-center">
-            <div className="text-2xl font-bold mb-1">{orderCounts.all}</div>
-            <div className="text-xs font-medium text-muted-foreground">الكل</div>
+    <div className="space-y-6">
+      {/* Status Filter Cards - Clean and Professional */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 bg-primary/10 rounded-lg">
+            <Filter className="h-4 w-4 text-primary" />
           </div>
-          {activeStatus === 'all' && (
-            <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-primary to-primary/60"></div>
-          )}
-        </button>
-
-        <button
-          onClick={() => setActiveStatus('pending')}
-          className={`group relative overflow-hidden rounded-xl border-2 transition-all duration-200 ${
-            activeStatus === 'pending'
-              ? 'border-yellow-400 bg-yellow-50 dark:bg-yellow-900/20 shadow-lg scale-105'
-              : 'border-gray-200 dark:border-gray-800 hover:border-yellow-300 hover:shadow-md'
-          }`}
-        >
-          <div className="p-4 text-center">
-            <div className="text-2xl font-bold mb-1 text-yellow-700 dark:text-yellow-400">{orderCounts.pending}</div>
-            <div className="text-xs font-medium text-yellow-600 dark:text-yellow-500">قيد الانتظار</div>
-          </div>
-          {activeStatus === 'pending' && (
-            <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-yellow-400 to-yellow-600"></div>
-          )}
-        </button>
-
-        <button
-          onClick={() => setActiveStatus('processing')}
-          className={`group relative overflow-hidden rounded-xl border-2 transition-all duration-200 ${
-            activeStatus === 'processing'
-              ? 'border-blue-400 bg-blue-50 dark:bg-blue-900/20 shadow-lg scale-105'
-              : 'border-gray-200 dark:border-gray-800 hover:border-blue-300 hover:shadow-md'
-          }`}
-        >
-          <div className="p-4 text-center">
-            <div className="text-2xl font-bold mb-1 text-blue-700 dark:text-blue-400">{orderCounts.processing}</div>
-            <div className="text-xs font-medium text-blue-600 dark:text-blue-500">قيد المعالجة</div>
-          </div>
-          {activeStatus === 'processing' && (
-            <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-blue-400 to-blue-600"></div>
-          )}
-        </button>
-
-        <button
-          onClick={() => setActiveStatus('shipped')}
-          className={`group relative overflow-hidden rounded-xl border-2 transition-all duration-200 ${
-            activeStatus === 'shipped'
-              ? 'border-purple-400 bg-purple-50 dark:bg-purple-900/20 shadow-lg scale-105'
-              : 'border-gray-200 dark:border-gray-800 hover:border-purple-300 hover:shadow-md'
-          }`}
-        >
-          <div className="p-4 text-center">
-            <div className="text-2xl font-bold mb-1 text-purple-700 dark:text-purple-400">{orderCounts.shipped}</div>
-            <div className="text-xs font-medium text-purple-600 dark:text-purple-500">تم الشحن</div>
-          </div>
-          {activeStatus === 'shipped' && (
-            <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-purple-400 to-purple-600"></div>
-          )}
-        </button>
-
-        <button
-          onClick={() => setActiveStatus('delivered')}
-          className={`group relative overflow-hidden rounded-xl border-2 transition-all duration-200 ${
-            activeStatus === 'delivered'
-              ? 'border-green-400 bg-green-50 dark:bg-green-900/20 shadow-lg scale-105'
-              : 'border-gray-200 dark:border-gray-800 hover:border-green-300 hover:shadow-md'
-          }`}
-        >
-          <div className="p-4 text-center">
-            <div className="text-2xl font-bold mb-1 text-green-700 dark:text-green-400">{orderCounts.delivered}</div>
-            <div className="text-xs font-medium text-green-600 dark:text-green-500">مكتمل</div>
-          </div>
-          {activeStatus === 'delivered' && (
-            <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-green-400 to-green-600"></div>
-          )}
-        </button>
-
-        <button
-          onClick={() => setActiveStatus('cancelled')}
-          className={`group relative overflow-hidden rounded-xl border-2 transition-all duration-200 ${
-            activeStatus === 'cancelled'
-              ? 'border-red-400 bg-red-50 dark:bg-red-900/20 shadow-lg scale-105'
-              : 'border-gray-200 dark:border-gray-800 hover:border-red-300 hover:shadow-md'
-          }`}
-        >
-          <div className="p-4 text-center">
-            <div className="text-2xl font-bold mb-1 text-red-700 dark:text-red-400">{orderCounts.cancelled}</div>
-            <div className="text-xs font-medium text-red-600 dark:text-red-500">ملغي</div>
-          </div>
-          {activeStatus === 'cancelled' && (
-            <div className="absolute inset-x-0 bottom-0 h-1 bg-gradient-to-r from-red-400 to-red-600"></div>
-          )}
-        </button>
-      </div>
-      
-      {/* Enhanced Search and Filters Bar */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        {/* Search Input - Enhanced Design */}
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input 
-            placeholder="بحث سريع في الطلبات..."
-            className="pl-10 pr-4 h-11 text-sm bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 rounded-xl shadow-sm focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
-            value={searchTerm}
-            onChange={handleSearchChange}
-          />
-          {searchTerm && (
-            <button
-              onClick={() => {
-                setSearchTerm("");
-                onFilterChange({ status: activeStatus, searchTerm: "", dateRange });
-              }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          )}
+          <h3 className="text-sm font-semibold text-foreground">تصفية حسب الحالة</h3>
         </div>
         
-        {/* Date Range Picker - Enhanced */}
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button 
-              variant="outline" 
-              className={`h-11 px-4 rounded-xl border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all ${
-                dateRange.from ? 'bg-primary/5 border-primary/20 text-primary' : ''
-              }`}
-            >
-              <CalendarIcon className="h-4 w-4 ml-2" />
-              {dateRange.from ? (
-                <span className="font-medium">
-                  {dateRange.from.toLocaleDateString()} - {dateRange.to?.toLocaleDateString() || "الآن"}
-                </span>
-              ) : (
-                <span>اختر الفترة الزمنية</span>
-              )}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0" align="end">
-            <Calendar
-              mode="range"
-              selected={dateRange}
-              onSelect={setDateRange}
-              numberOfMonths={2}
-              disabled={(date) => date > new Date()}
-              className="border-0"
+        <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-6 gap-2 md:gap-3">
+          <button
+            onClick={() => setActiveStatus('all')}
+            className={`group relative overflow-hidden rounded-lg border transition-all duration-200 ${
+              activeStatus === 'all'
+                ? 'border-primary bg-primary/5 shadow-sm'
+                : 'border-border/20 hover:border-border/40 hover:bg-muted/30'
+            }`}
+          >
+            <div className="p-3 md:p-4 text-center">
+              <div className="text-lg md:text-xl font-bold mb-0.5 md:mb-1">{orderCounts.all}</div>
+              <div className="text-[10px] md:text-xs font-medium text-muted-foreground">الكل</div>
+            </div>
+            {activeStatus === 'all' && (
+              <div className="absolute inset-x-0 bottom-0 h-0.5 bg-primary"></div>
+            )}
+          </button>
+
+          <button
+            onClick={() => setActiveStatus('pending')}
+            className={`group relative overflow-hidden rounded-lg border transition-all duration-200 ${
+              activeStatus === 'pending'
+                ? 'border-amber-300 bg-amber-50 dark:bg-amber-900/20 shadow-sm'
+                : 'border-border/20 hover:border-amber-200 hover:bg-amber-50/30'
+            }`}
+          >
+            <div className="p-3 md:p-4 text-center">
+              <div className="text-lg md:text-xl font-bold mb-0.5 md:mb-1 text-amber-700 dark:text-amber-400">{orderCounts.pending}</div>
+              <div className="text-[10px] md:text-xs font-medium text-amber-600 dark:text-amber-500">معلق</div>
+            </div>
+            {activeStatus === 'pending' && (
+              <div className="absolute inset-x-0 bottom-0 h-0.5 bg-amber-500"></div>
+            )}
+          </button>
+
+          <button
+            onClick={() => setActiveStatus('processing')}
+            className={`group relative overflow-hidden rounded-lg border transition-all duration-200 ${
+              activeStatus === 'processing'
+                ? 'border-blue-300 bg-blue-50 dark:bg-blue-900/20 shadow-sm'
+                : 'border-border/20 hover:border-blue-200 hover:bg-blue-50/30'
+            }`}
+          >
+            <div className="p-3 md:p-4 text-center">
+              <div className="text-lg md:text-xl font-bold mb-0.5 md:mb-1 text-blue-700 dark:text-blue-400">{orderCounts.processing}</div>
+              <div className="text-[10px] md:text-xs font-medium text-blue-600 dark:text-blue-500 leading-tight">قيد المعالجة</div>
+            </div>
+            {activeStatus === 'processing' && (
+              <div className="absolute inset-x-0 bottom-0 h-0.5 bg-blue-500"></div>
+            )}
+          </button>
+
+          <button
+            onClick={() => setActiveStatus('shipped')}
+            className={`group relative overflow-hidden rounded-lg border transition-all duration-200 ${
+              activeStatus === 'shipped'
+                ? 'border-purple-300 bg-purple-50 dark:bg-purple-900/20 shadow-sm'
+                : 'border-border/20 hover:border-purple-200 hover:bg-purple-50/30'
+            }`}
+          >
+            <div className="p-3 md:p-4 text-center">
+              <div className="text-lg md:text-xl font-bold mb-0.5 md:mb-1 text-purple-700 dark:text-purple-400">{orderCounts.shipped}</div>
+              <div className="text-[10px] md:text-xs font-medium text-purple-600 dark:text-purple-500 leading-tight">تم الشحن</div>
+            </div>
+            {activeStatus === 'shipped' && (
+              <div className="absolute inset-x-0 bottom-0 h-0.5 bg-purple-500"></div>
+            )}
+          </button>
+
+          <button
+            onClick={() => setActiveStatus('delivered')}
+            className={`group relative overflow-hidden rounded-lg border transition-all duration-200 ${
+              activeStatus === 'delivered'
+                ? 'border-green-300 bg-green-50 dark:bg-green-900/20 shadow-sm'
+                : 'border-border/20 hover:border-green-200 hover:bg-green-50/30'
+            }`}
+          >
+            <div className="p-3 md:p-4 text-center">
+              <div className="text-lg md:text-xl font-bold mb-0.5 md:mb-1 text-green-700 dark:text-green-400">{orderCounts.delivered}</div>
+              <div className="text-[10px] md:text-xs font-medium text-green-600 dark:text-green-500">مكتمل</div>
+            </div>
+            {activeStatus === 'delivered' && (
+              <div className="absolute inset-x-0 bottom-0 h-0.5 bg-green-500"></div>
+            )}
+          </button>
+
+          <button
+            onClick={() => setActiveStatus('cancelled')}
+            className={`group relative overflow-hidden rounded-lg border transition-all duration-200 ${
+              activeStatus === 'cancelled'
+                ? 'border-red-300 bg-red-50 dark:bg-red-900/20 shadow-sm'
+                : 'border-border/20 hover:border-red-200 hover:bg-red-50/30'
+            }`}
+          >
+            <div className="p-3 md:p-4 text-center">
+              <div className="text-lg md:text-xl font-bold mb-0.5 md:mb-1 text-red-700 dark:text-red-400">{orderCounts.cancelled}</div>
+              <div className="text-[10px] md:text-xs font-medium text-red-600 dark:text-red-500">ملغي</div>
+            </div>
+            {activeStatus === 'cancelled' && (
+              <div className="absolute inset-x-0 bottom-0 h-0.5 bg-red-500"></div>
+            )}
+          </button>
+        </div>
+      </div>
+      
+      {/* Search and Filters Bar - Clean Design */}
+      <div className="space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 bg-primary/10 rounded-lg">
+            <Search className="h-4 w-4 text-primary" />
+          </div>
+          <h3 className="text-sm font-semibold text-foreground">البحث والمرشحات</h3>
+        </div>
+        
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+          {/* Search Input */}
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input 
+              placeholder="البحث في الطلبات..."
+              className="pl-10 pr-4 h-11 md:h-10 text-sm border-border/20 focus:border-primary/40 focus:ring-1 focus:ring-primary/20 transition-all" 
+              value={searchTerm}
+              onChange={handleSearchChange}
             />
-            <div className="p-3 border-t bg-gray-50 dark:bg-gray-900 flex justify-between">
+            {searchTerm && (
+              <button
+                onClick={() => {
+                  setSearchTerm("");
+                  onFilterChange({ status: activeStatus, searchTerm: "", dateRange });
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+          
+          {/* Date Range Picker */}
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button 
+                variant="outline" 
+                className={`h-11 md:h-10 px-3 md:px-4 border-border/20 hover:border-primary/40 transition-all text-sm ${
+                  dateRange.from ? 'bg-primary/5 border-primary/20 text-primary' : ''
+                }`}
+              >
+                <CalendarIcon className="h-4 w-4 ml-2 flex-shrink-0" />
+                {dateRange.from ? (
+                  <span className="font-medium text-xs md:text-sm truncate">
+                    {dateRange.from.toLocaleDateString('ar-DZ', { month: 'numeric', day: 'numeric' })} - {dateRange.to?.toLocaleDateString('ar-DZ', { month: 'numeric', day: 'numeric' }) || "الآن"}
+                  </span>
+                ) : (
+                  <span className="text-xs md:text-sm">اختر الفترة</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="end">
+              <Calendar
+                mode="range"
+                selected={dateRange as any}
+                onSelect={setDateRange as any}
+                numberOfMonths={2}
+                disabled={(date) => date > new Date()}
+                className="border-0"
+              />
+              <div className="p-3 border-t bg-muted/30 flex justify-between">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setDateRange({ from: undefined, to: undefined });
+                    onFilterChange({ status: activeStatus, searchTerm, dateRange: { from: undefined, to: undefined } });
+                  }}
+                >
+                  مسح التاريخ
+                </Button>
+                <Button size="sm" onClick={applyDateRange}>
+                  تطبيق
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* Quick Actions */}
+          <div className="flex gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="h-11 md:h-10 px-3 md:px-4 border-border/20 hover:border-primary/40 transition-all">
+                  <SlidersHorizontal className="h-4 w-4 md:ml-2" />
+                  <span className="hidden md:inline text-sm ml-1">المزيد</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>خيارات إضافية</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuCheckboxItem checked={true}>
+                  تصدير إلى Excel
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem checked={false}>
+                  طباعة التقرير
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem checked={false}>
+                  حفظ عرض مخصص
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuCheckboxItem checked={false}>
+                  تحديث تلقائي
+                </DropdownMenuCheckboxItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {(searchTerm || dateRange.from || activeStatus !== 'all') && (
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => {
-                  setDateRange({ from: undefined, to: undefined });
-                  onFilterChange({ status: activeStatus, searchTerm, dateRange: { from: undefined, to: undefined } });
-                }}
+                onClick={resetAllFilters}
+                className="h-11 md:h-10 px-3 text-muted-foreground hover:text-foreground transition-colors"
               >
-                مسح التاريخ
+                <X className="h-4 w-4 ml-1" />
+                <span className="text-xs md:text-sm">مسح</span>
               </Button>
-              <Button size="sm" onClick={applyDateRange}>
-                تطبيق
-              </Button>
-            </div>
-          </PopoverContent>
-        </Popover>
-
-        {/* Quick Actions */}
-        <div className="flex gap-2">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="h-11 px-4 rounded-xl border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all">
-                <SlidersHorizontal className="h-4 w-4 ml-2" />
-                <span className="hidden sm:inline">المزيد</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel>خيارات إضافية</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuCheckboxItem checked={true}>
-                تصدير إلى Excel
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem checked={false}>
-                طباعة التقرير
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem checked={false}>
-                حفظ عرض مخصص
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuCheckboxItem checked={false}>
-                تحديث تلقائي
-              </DropdownMenuCheckboxItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {(searchTerm || dateRange.from || activeStatus !== 'all') && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={resetAllFilters}
-              className="h-11 px-3 text-muted-foreground hover:text-foreground rounded-xl"
-            >
-              <X className="h-4 w-4 ml-1" />
-              مسح الكل
-            </Button>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>

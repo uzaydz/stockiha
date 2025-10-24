@@ -5,6 +5,7 @@ import { useTenant } from '@/context/TenantContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Settings2, Loader2, Check, AlertTriangle, Palette, Store, Cog } from 'lucide-react';
 import Layout from '@/components/Layout';
+import { POSSharedLayoutControls } from '@/components/pos-layout/types';
 
 // مكونات إعدادات المتجر
 import BasicStoreSettings from '@/components/store-settings/BasicStoreSettings';
@@ -15,7 +16,9 @@ import AdvancedStoreSettings from '@/components/store-settings/AdvancedStoreSett
 import { useStoreSettings } from '@/hooks/useStoreSettings';
 import { useTheme } from '@/context/ThemeContext.tsx';
 
-const StoreSettingsPage = () => {
+interface StoreSettingsPageProps extends POSSharedLayoutControls {}
+
+const StoreSettingsPage: React.FC<StoreSettingsPageProps> = ({ useStandaloneLayout = true } = {}) => {
   const { toast } = useToast();
   const { currentOrganization, isOrgAdmin, refreshOrganizationData } = useTenant();
   const [activeTab, setActiveTab] = useState('basic');
@@ -75,8 +78,7 @@ const StoreSettingsPage = () => {
 
   // عرض مؤشر التحميل
   if (isLoading) {
-    return (
-      <Layout>
+    const loadingContent = (
         <div className="min-h-screen bg-background">
           <div className="container mx-auto p-6">
             <div className="max-w-4xl mx-auto">
@@ -94,16 +96,15 @@ const StoreSettingsPage = () => {
             </div>
           </div>
         </div>
-      </Layout>
     );
+    return useStandaloneLayout ? <Layout>{loadingContent}</Layout> : loadingContent;
   }
 
   // نظام تشخيص للمشاكل
   const hasSettingsIssue = (!settings || !settings.organization_id || !currentOrganization?.id) && !isLoading;
   
   if (hasSettingsIssue) {
-    return (
-      <Layout>
+    const errorContent = (
         <div className="min-h-screen bg-background">
           <div className="container mx-auto p-6">
             <div className="max-w-4xl mx-auto">
@@ -151,12 +152,11 @@ const StoreSettingsPage = () => {
             </div>
           </div>
         </div>
-      </Layout>
     );
+    return useStandaloneLayout ? <Layout>{errorContent}</Layout> : errorContent;
   }
 
-  return (
-    <Layout>
+  const content = (
       <div className="min-h-screen bg-background">
         <div className="container mx-auto p-6">
           <div className="max-w-6xl mx-auto">
@@ -277,8 +277,9 @@ const StoreSettingsPage = () => {
           </div>
         </div>
       </div>
-    </Layout>
   );
+
+  return useStandaloneLayout ? <Layout>{content}</Layout> : content;
 };
 
 export default StoreSettingsPage;

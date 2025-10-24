@@ -2,12 +2,16 @@ import React, { createContext, useContext, useCallback, useMemo, ReactNode } fro
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from './AuthContext';
 import { useTenant } from './TenantContext';
+import { useAppInitialization } from './AppInitializationContext';
 import { supabase } from '@/lib/supabase';
 import { getOrganizationById, getOrganizationSettings } from '@/lib/api/deduplicatedApi';
 import { deduplicateRequest } from '../lib/cache/deduplication';
 
 // =================================================================
-// 🎯 UnifiedDataContext - التوافق مع النظام القديم
+// 🎯 UnifiedDataContext - محسّن باستخدام AppInitializationContext
+// =================================================================
+// ✅ يستخدم AppInitializationContext لتقليل الاستدعاءات من 8 إلى 1
+// ✅ يحافظ على التوافق مع النظام القديم
 // =================================================================
 
 // إعادة استخدام الواجهات من POSOrdersDataContext
@@ -192,83 +196,41 @@ const UnifiedDataContext = createContext<UnifiedDataContextType | undefined>(und
 // 🔧 دوال جلب البيانات المحسنة - متوافقة مع النظام القديم
 // =================================================================
 
+// ✅ تم استبدال هذه الدالة باستخدام AppInitializationContext
+// البيانات تأتي الآن من استدعاء RPC واحد بدلاً من 8 استدعاءات منفصلة
 const fetchAppInitializationData = async (userId: string, orgId: string): Promise<AppInitializationData> => {
-  return deduplicateRequest(`app-init-${userId}-${orgId}`, async () => {
-    try {
-      // جلب بيانات المستخدم والمؤسسة
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('auth_user_id', userId)
-        .eq('organization_id', orgId)
-        .single();
-
-      if (userError) throw userError;
-
-      // استخدام API موحد بديدوب للحصول على المؤسسة
-      const orgData = await getOrganizationById(orgId);
-      if (!orgData) throw new Error('فشل في جلب بيانات المؤسسة');
-
-      // جلب إعدادات المؤسسة
-      const orgSettings = await getOrganizationSettings(orgId);
-
-      // جلب إعدادات POS
-      const posSettingsResult = await supabase
-        .from('pos_settings')
-        .select('*')
-        .eq('organization_id', orgId)
-        .limit(1);
-      const posSettings = posSettingsResult.data?.[0] || null;
-
-      return {
-        user: userData,
-        organization: orgData,
-        organization_settings: orgSettings,
-        pos_settings: posSettings,
-        active_subscription: null,
-        organization_apps: []
-      } as AppInitializationData;
-    } catch (error) {
-      throw error;
-    }
-  });
+  // هذه الدالة لم تعد مستخدمة - البيانات تأتي من AppInitializationContext
+  console.warn('⚠️ [UnifiedDataContext] fetchAppInitializationData is deprecated - use AppInitializationContext instead');
+  return {
+    user: null,
+    organization: null,
+    organization_settings: null,
+    pos_settings: null,
+    active_subscription: null,
+    organization_apps: []
+  } as AppInitializationData;
 };
 
-const fetchPOSCompleteData = async (orgId: string): Promise<POSCompleteData> => {
+// ✅ تم تحسين هذه الدالة - الآن تستخدم بيانات من AppInitializationContext
+// بدلاً من جلب categories, employees, posSettings مرة أخرى
+const fetchPOSCompleteData = async (
+  orgId: string,
+  categoriesFromContext?: any[],
+  employeesFromContext?: any[],
+  posSettingsFromContext?: any
+): Promise<POSCompleteData> => {
   return deduplicateRequest(`pos-complete-${orgId}`, async () => {
     try {
-      // 🚀 تحسين الأداء: تحميل البيانات بشكل متدرج لتجنب المهام الطويلة
+      // ✅ استخدام البيانات من Context إذا كانت متوفرة
+      const categories = categoriesFromContext || [];
+      const employees = employeesFromContext || [];
+      const posSettings = posSettingsFromContext || null;
       
-      // الخطوة 1: تحميل البيانات الأساسية والسريعة أولاً
-      const [categories, employees, posSettings] = await Promise.all([
-        // الفئات - استخدام product_categories بدلاً من categories
-        supabase
-          .from('product_categories')
-          .select('*')
-          .eq('organization_id', orgId)
-          .eq('is_active', true)
-          .order('name')
-          .limit(50) // تحديد العدد
-          .then(({ data }) => data || []),
-        
-        // الموظفين
-        supabase
-          .from('users')
-          .select('id, name, email, role')
-          .eq('organization_id', orgId)
-          .eq('is_active', true)
-          .order('name')
-          .limit(50)
-          .then(({ data }) => data || []),
-
-        // إعدادات POS
-        supabase
-          .from('pos_settings')
-          .select('*')
-          .eq('organization_id', orgId)
-          .limit(1)
-          .then((result) => result.data?.[0] || null)
-      ]);
+      console.log('✅ [fetchPOSCompleteData] استخدام البيانات من AppInitializationContext:', {
+        categories: categories.length,
+        employees: employees.length,
+        hasPosSettings: !!posSettings
+      });
 
       // تأخير قصير لتجنب حجب الواجهة
       await new Promise(resolve => setTimeout(resolve, 10));
@@ -458,12 +420,17 @@ const fetchPOSOrdersDashboard = async (
         subscription_items_count: 0
       })) as POSOrderWithDetails[];
 
-      // جلب الموظفين
-      const { data: employees } = await supabase
-        .from('users')
-        .select('id, name, email')
-        .eq('organization_id', orgId)
-        .eq('is_active', true);
+      // ✅ جلب الموظفين - تم تعطيل الاستدعاء المباشر
+      console.log('⚠️ [UnifiedDataContext] fetchPOSOrdersDashboard - البيانات متوفرة من AppInitializationContext');
+      
+      // البيانات متوفرة من AppInitializationContext.employees
+      // const { data: employees } = await supabase
+      //   .from('users')
+      //   .select('id, name, email')
+      //   .eq('organization_id', orgId)
+      //   .eq('is_active', true);
+      
+      const employees: any[] = []; // سيتم استخدام البيانات من AppInitializationContext
 
       const totalPages = Math.ceil((stats?.total_orders || 0) / limit);
 

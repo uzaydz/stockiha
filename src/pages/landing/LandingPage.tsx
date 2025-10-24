@@ -1,25 +1,19 @@
-import { useEffect, Suspense, lazy, memo } from 'react';
+import { useEffect, memo } from 'react';
 import { motion } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
+
+console.log('🏠 [LandingPage] بدء تحميل ملف LandingPage.tsx');
 import Footer from '@/components/landing/Footer';
 import HeroSection from '@/components/landing/HeroSection';
 import FeaturesSection from '@/components/landing/FeaturesSection';
 import Navbar from '@/components/landing/Navbar';
 import '@/styles/landing-background.css';
 
-// تحميل كسول محسن للمكونات غير الأساسية
-const AllInOneSection = lazy(() => 
-  import('@/components/landing/AllInOneSection').then(module => ({ default: module.default }))
-);
-const CoursesSection = lazy(() => 
-  import('@/components/landing/CoursesSection').then(module => ({ default: module.default }))
-);
-const TestimonialsSection = lazy(() => 
-  import('@/components/landing/TestimonialsSection').then(module => ({ default: module.default }))
-);
-const CTASection = lazy(() => 
-  import('@/components/landing/CTASection').then(module => ({ default: module.default }))
-);
+// 🚀 تحميل مباشر للمكونات - لا lazy loading لتجنب أي loading
+import AllInOneSection from '@/components/landing/AllInOneSection';
+import CoursesSection from '@/components/landing/CoursesSection';
+import TestimonialsSection from '@/components/landing/TestimonialsSection';
+import CTASection from '@/components/landing/CTASection';
 
 // مكون تحميل محسن وبسيط - Tailwind CSS فقط
 const SectionSkeleton = memo(() => (
@@ -41,8 +35,12 @@ const SectionSkeleton = memo(() => (
 SectionSkeleton.displayName = 'SectionSkeleton';
 
 const LandingPage = memo(() => {
+  console.log('🏠 [LandingPage] بدء render LandingPage');
+  const startTime = performance.now();
+
   // ضبط عنوان الصفحة عند التحميل
   useEffect(() => {
+    console.log('📄 [LandingPage] ضبط عنوان الصفحة');
     document.title = 'سطوكيها | منصة إدارة المتاجر الذكية';
   }, []);
 
@@ -253,28 +251,19 @@ const LandingPage = memo(() => {
           <HeroSection />
           <FeaturesSection />
           
-          {/* المكونات الثانوية - تحميل كسول */}
-          <Suspense fallback={<SectionSkeleton />}>
-            <AllInOneSection />
-          </Suspense>
-          
-          <Suspense fallback={<SectionSkeleton />}>
-            <CoursesSection />
-          </Suspense>
-          
-          <Suspense fallback={<SectionSkeleton />}>
-            <TestimonialsSection />
-          </Suspense>
-          
-          <Suspense fallback={<SectionSkeleton />}>
-            <CTASection />
-          </Suspense>
+          {/* 🚀 المكونات الثانوية - تحميل مباشر بدون Suspense */}
+          <AllInOneSection />
+          <CoursesSection />
+          <TestimonialsSection />
+          <CTASection />
         </main>
         
         <Footer />
       </div>
     </div>
   );
+
+  console.log('✅ [LandingPage] انتهى render LandingPage في', performance.now() - startTime, 'ms');
 });
 
 LandingPage.displayName = 'LandingPage';

@@ -114,39 +114,41 @@ const ProductFormTabsList = memo<ProductFormTabsListProps>(({
   };
 
   return (
-    <Card className="p-4 mb-6 shadow-lg dark:shadow-2xl dark:shadow-black/20 bg-card/50 backdrop-blur-sm border-border/50 transition-all duration-300">
+    <Card className="p-3 sm:p-4 mb-4 sm:mb-6 shadow-md sm:shadow-lg dark:shadow-xl sm:dark:shadow-2xl dark:shadow-black/20 bg-card/50 backdrop-blur-sm border-border/50 transition-all duration-300">
       {/* Header Info */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <div className="text-sm text-muted-foreground flex items-center gap-2">
-          <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4 mb-4 sm:mb-6">
+        <div className="text-xs sm:text-sm text-muted-foreground flex items-center gap-2">
+          <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-primary rounded-full animate-pulse"></div>
           <span className="hidden sm:inline">التبويب {currentTabIndex + 1} من {tabsData.length}</span>
-          <span className="sm:hidden">{currentTabIndex + 1}/{tabsData.length}</span>
+          <span className="sm:hidden text-xs">{currentTabIndex + 1}/{tabsData.length}</span>
         </div>
         
         {/* Device View Toggle */}
         <div className="flex items-center gap-2">
-          <div className="hidden md:flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 dark:bg-muted/20 px-3 py-1.5 rounded-lg">
-            <span>استخدم</span>
-            <kbd className="px-2 py-1 bg-background dark:bg-background/80 border border-border/50 rounded text-xs shadow-sm">Ctrl</kbd>
-            <span>+</span>
-            <kbd className="px-2 py-1 bg-background dark:bg-background/80 border border-border/50 rounded text-xs shadow-sm">→</kbd>
-            <span>للتنقل</span>
+          <div className="hidden lg:flex items-center gap-2 text-xs text-muted-foreground bg-muted/30 dark:bg-muted/20 px-2.5 py-1 rounded-lg">
+            <span className="text-[10px] sm:text-xs">استخدم</span>
+            <kbd className="px-1.5 py-0.5 bg-background dark:bg-background/80 border border-border/50 rounded text-[10px] shadow-sm">Ctrl</kbd>
+            <span className="text-[10px] sm:text-xs">+</span>
+            <kbd className="px-1.5 py-0.5 bg-background dark:bg-background/80 border border-border/50 rounded text-[10px] shadow-sm">→</kbd>
+            <span className="text-[10px] sm:text-xs">للتنقل</span>
           </div>
           
           <div className="flex items-center gap-1 text-xs text-muted-foreground">
             <Smartphone className="w-3 h-3 sm:hidden" />
             <Monitor className="w-3 h-3 hidden sm:block lg:hidden" />
-            <span className="text-xs font-medium">{tabsData.find(t => t.value === activeTab)?.shortLabel}</span>
+            <span className="text-[10px] sm:text-xs font-medium truncate max-w-[120px] sm:max-w-none">
+              {tabsData.find(t => t.value === activeTab)?.shortLabel}
+            </span>
           </div>
         </div>
       </div>
       
       {/* Tabs List - Responsive Grid */}
-      <div className="mb-6">
+      <div className="mb-4 sm:mb-6">
         <TabsList 
-          className="grid w-full h-auto bg-gradient-to-r from-muted/30 to-muted/10 dark:from-muted/20 dark:to-muted/5 p-2 gap-2 rounded-xl backdrop-blur-sm transition-all duration-300" 
+          className="grid w-full h-auto bg-gradient-to-r from-muted/30 to-muted/10 dark:from-muted/20 dark:to-muted/5 p-1.5 sm:p-2 gap-1.5 sm:gap-2 rounded-lg sm:rounded-xl backdrop-blur-sm transition-all duration-300" 
           style={{
-            gridTemplateColumns: `repeat(${Math.min(tabsData.length, 3)}, 1fr)`,
+            gridTemplateColumns: `repeat(${Math.min(tabsData.length, 2)}, 1fr)`,
           }}
         >
           {tabsData.map((tab, index) => {
@@ -163,18 +165,18 @@ const ProductFormTabsList = memo<ProductFormTabsListProps>(({
                     onClick={() => onTabChange(tab.value)}
                     disabled={isTransitioning}
                     className={`
-                      flex flex-col items-center gap-2 p-3 h-auto rounded-xl border transition-all duration-300 
-                      relative overflow-hidden group min-h-[80px] sm:min-h-[100px]
+                      flex flex-col items-center gap-1.5 sm:gap-2 p-2 sm:p-3 h-auto rounded-lg sm:rounded-xl border transition-all duration-300 
+                      relative overflow-hidden group min-h-[70px] sm:min-h-[85px] lg:min-h-[100px]
                       ${isActive 
-                        ? 'bg-gradient-to-br from-primary via-primary/90 to-primary/80 text-primary-foreground border-primary/50 shadow-lg shadow-primary/25 scale-[1.02] z-10' 
-                        : 'bg-background/80 dark:bg-background/60 hover:bg-gradient-to-br hover:from-muted/50 hover:to-muted/30 dark:hover:from-muted/30 dark:hover:to-muted/15 border-border/50 hover:border-primary/30 hover:shadow-md backdrop-blur-sm'
+                        ? 'bg-gradient-to-br from-primary via-primary/90 to-primary/80 text-primary-foreground border-primary/50 shadow-md sm:shadow-lg shadow-primary/20 sm:shadow-primary/25 scale-[1.01] sm:scale-[1.02] z-10' 
+                        : 'bg-background/80 dark:bg-background/60 hover:bg-gradient-to-br hover:from-muted/50 hover:to-muted/30 dark:hover:from-muted/30 dark:hover:to-muted/15 border-border/50 hover:border-primary/30 hover:shadow-sm sm:hover:shadow-md backdrop-blur-sm'
                       }
                       ${isTransitioning ? 'pointer-events-none opacity-70' : ''}
                     `}
                   >
                     {/* Tab Number Badge */}
                     <div className={`
-                      absolute -top-1 -right-1 w-5 h-5 rounded-full border-2 text-xs flex items-center justify-center 
+                      absolute -top-0.5 sm:-top-1 -right-0.5 sm:-right-1 w-4 h-4 sm:w-5 sm:h-5 rounded-full border-2 text-[10px] sm:text-xs flex items-center justify-center 
                       font-medium transition-all duration-300 z-10
                       ${isActive 
                         ? 'bg-primary-foreground text-primary border-primary-foreground shadow-sm' 
@@ -185,25 +187,27 @@ const ProductFormTabsList = memo<ProductFormTabsListProps>(({
                     </div>
                     
                     {/* Icon and Status */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5 sm:gap-2">
                       {IconComponent && (
-                        <IconComponent className={`w-4 h-4 transition-all duration-300 ${
+                        <IconComponent className={`w-3.5 h-3.5 sm:w-4 sm:h-4 transition-all duration-300 ${
                           isActive ? 'scale-110' : 'group-hover:scale-105'
                         }`} />
                       )}
                       {status !== 'empty' && status !== 'optional' && (
-                        <StatusIcon status={status} />
+                        <div className="hidden sm:block">
+                          <StatusIcon status={status} />
+                        </div>
                       )}
                     </div>
                     
                     {/* Label */}
-                    <div className="text-center">
-                      <div className="font-medium text-xs leading-tight">
-                        <span className="hidden sm:inline">{tab.label}</span>
-                        <span className="sm:hidden">{tab.shortLabel}</span>
+                    <div className="text-center w-full px-1">
+                      <div className="font-medium text-[10px] sm:text-xs leading-tight truncate">
+                        <span className="hidden md:inline">{tab.label}</span>
+                        <span className="md:hidden">{tab.shortLabel}</span>
                       </div>
                       {tab.required && (
-                        <div className={`text-xs mt-1 transition-colors duration-300 ${
+                        <div className={`text-[9px] sm:text-xs mt-0.5 sm:mt-1 transition-colors duration-300 ${
                           isActive ? 'text-primary-foreground/80' : 'text-muted-foreground'
                         }`}>
                           مطلوب
@@ -214,13 +218,13 @@ const ProductFormTabsList = memo<ProductFormTabsListProps>(({
                     {/* Hover Effect Overlay */}
                     <div className={`
                       absolute inset-0 bg-gradient-to-r from-primary/10 to-transparent opacity-0 
-                      transition-opacity duration-300 pointer-events-none rounded-xl 
+                      transition-opacity duration-300 pointer-events-none rounded-lg sm:rounded-xl 
                       ${!isActive ? 'group-hover:opacity-100' : ''}
                     `} />
                     
                     {/* Active Tab Glow */}
                     {isActive && (
-                      <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-primary/20 via-transparent to-primary/20 animate-pulse" />
+                      <div className="absolute inset-0 rounded-lg sm:rounded-xl bg-gradient-to-r from-primary/20 via-transparent to-primary/20 animate-pulse" />
                     )}
                   </TabsTrigger>
                 </TooltipTrigger>
@@ -250,22 +254,22 @@ const ProductFormTabsList = memo<ProductFormTabsListProps>(({
       </div>
 
       {/* Navigation Buttons */}
-      <div className="flex justify-between items-center gap-4">
+      <div className="flex justify-between items-center gap-2 sm:gap-4">
         <Button
           variant="outline"
           size="sm"
           onClick={onPreviousTab}
           disabled={isFirstTab || isTransitioning}
-          className="flex items-center gap-2 h-9 px-3 text-sm border-border/60 hover:bg-gradient-to-r hover:from-muted/50 hover:to-muted/30 dark:hover:from-muted/30 dark:hover:to-muted/15 hover:border-primary/30 transition-all duration-300 shadow-sm hover:shadow-md disabled:opacity-50"
+          className="flex items-center gap-1.5 sm:gap-2 h-8 sm:h-9 px-2.5 sm:px-3 text-xs sm:text-sm border-border/60 hover:bg-gradient-to-r hover:from-muted/50 hover:to-muted/30 dark:hover:from-muted/30 dark:hover:to-muted/15 hover:border-primary/30 transition-all duration-300 shadow-sm hover:shadow-md disabled:opacity-50 min-w-[60px] sm:min-w-[80px]"
         >
-          <ChevronRight className="w-3.5 h-3.5" />
+          <ChevronRight className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
           <span className="hidden sm:inline">السابق</span>
-          <span className="sm:hidden">◄</span>
+          <span className="sm:hidden text-xs">◄</span>
         </Button>
         
         {/* Current Tab Info */}
-        <div className="flex items-center gap-2 text-center">
-          <div className="text-xs text-muted-foreground">
+        <div className="flex-1 flex items-center justify-center px-2 sm:px-4">
+          <div className="text-[10px] sm:text-xs text-muted-foreground text-center line-clamp-2">
             {tabsData.find(t => t.value === activeTab)?.description}
           </div>
         </div>
@@ -275,11 +279,11 @@ const ProductFormTabsList = memo<ProductFormTabsListProps>(({
           size="sm"
           onClick={onNextTab}
           disabled={isLastTab || isTransitioning}
-          className="flex items-center gap-2 h-9 px-3 text-sm border-border/60 hover:bg-gradient-to-r hover:from-muted/50 hover:to-muted/30 dark:hover:from-muted/30 dark:hover:to-muted/15 hover:border-primary/30 transition-all duration-300 shadow-sm hover:shadow-md disabled:opacity-50"
+          className="flex items-center gap-1.5 sm:gap-2 h-8 sm:h-9 px-2.5 sm:px-3 text-xs sm:text-sm border-border/60 hover:bg-gradient-to-r hover:from-muted/50 hover:to-muted/30 dark:hover:from-muted/30 dark:hover:to-muted/15 hover:border-primary/30 transition-all duration-300 shadow-sm hover:shadow-md disabled:opacity-50 min-w-[60px] sm:min-w-[80px]"
         >
           <span className="hidden sm:inline">التالي</span>
-          <span className="sm:hidden">►</span>
-          <ChevronLeft className="w-3.5 h-3.5" />
+          <span className="sm:hidden text-xs">►</span>
+          <ChevronLeft className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
         </Button>
       </div>
     </Card>

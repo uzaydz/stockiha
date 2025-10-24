@@ -57,18 +57,24 @@ const OrderDetailsV2: React.FC = () => {
 
   return (
     <Layout>
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Link to="/dashboard/orders-v2" className="hover:underline flex items-center gap-1">
-            <ArrowRight className="h-4 w-4 rotate-180" />
-            رجوع إلى الطلبات
+      {/* شريط تنقل ثابت للهاتف */}
+      <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border/20 -mx-4 -mt-4 px-4 py-3 mb-4 md:static md:bg-transparent md:border-0 md:mx-0 md:mt-0 md:px-0 md:py-0">
+        <div className="flex items-center justify-between">
+          <Link 
+            to="/dashboard/orders-v2" 
+            className="flex items-center gap-2 text-sm md:text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <div className="p-1.5 rounded-lg bg-muted/50 hover:bg-muted">
+              <ArrowRight className="h-4 w-4 rotate-180" />
+            </div>
+            <span className="font-medium">رجوع إلى الطلبات</span>
           </Link>
+          <div className="text-[10px] md:text-xs text-muted-foreground hidden md:block">صفحة تفاصيل سريعة</div>
         </div>
-        <div className="text-xs text-muted-foreground">صفحة تفاصيل سريعة (RPC واحد)</div>
       </div>
 
       <Card className="rounded-xl bg-background/80 border border-border/30 shadow-sm">
-        <CardContent className="p-4">
+        <CardContent className="p-3 md:p-4">
           {isLoading && (
             <div className="h-40 flex items-center justify-center">
               <Loader2 className="h-6 w-6 animate-spin" />

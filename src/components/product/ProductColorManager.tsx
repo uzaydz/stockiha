@@ -72,13 +72,25 @@ const ProductColorManager: React.FC<ProductColorManagerProps> = ({
   };
 
   // تعديل لون موجود
-  const handleEditColor = (color: ProductColor) => {
+  const handleEditColor = (color: ProductColor, e?: React.MouseEvent) => {
+    // منع إرسال النموذج إذا تم استدعاء الدالة من زر
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
     setEditingColor(color);
     setIsDialogOpen(true);
   };
 
   // حذف لون
-  const handleDeleteColor = (colorId: string) => {
+  const handleDeleteColor = (colorId: string, e?: React.MouseEvent) => {
+    // منع إرسال النموذج إذا تم استدعاء الدالة من زر
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
     const colorToDelete = colors.find(c => c.id === colorId);
     if (!colorToDelete) return;
 
@@ -103,7 +115,13 @@ const ProductColorManager: React.FC<ProductColorManagerProps> = ({
   };
 
   // إدارة مقاسات لون معين
-  const handleManageSizes = (colorId: string) => {
+  const handleManageSizes = (colorId: string, e?: React.MouseEvent) => {
+    // منع إرسال النموذج إذا تم استدعاء الدالة من زر
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
     setSelectedColorId(colorId);
     setActiveTab("sizes");
     
@@ -166,7 +184,7 @@ const ProductColorManager: React.FC<ProductColorManagerProps> = ({
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
-        error.errors.forEach((err) => {
+        error.issues.forEach((err) => {
           toast.error(`خطأ في ${err.path.join('.')}: ${err.message}`);
         });
       } else {

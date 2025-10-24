@@ -3,6 +3,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { ErrorResponse, handleHttpError, handleNetworkError } from '@/lib/errorHandlers';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 
 interface ErrorHandlerProps {
   error?: Error | ErrorResponse | null;
@@ -19,21 +20,8 @@ export const ErrorHandler: React.FC<ErrorHandlerProps> = ({
   showRetry = true,
   className = ''
 }) => {
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const { isOnline } = useNetworkStatus();
   const [errorDetails, setErrorDetails] = useState<ErrorResponse | null>(null);
-
-  useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
 
   useEffect(() => {
     if (error) {

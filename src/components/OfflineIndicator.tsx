@@ -2,27 +2,12 @@ import { useEffect, useState } from 'react';
 import { Wifi, WifiOff } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 
 // هوك مخصص يمكن استخدامه في مكونات أخرى للتحقق من حالة الاتصال
 export const useOfflineStatus = () => {
-  const [isOffline, setIsOffline] = useState<boolean>(
-    typeof navigator !== 'undefined' ? !navigator.onLine : false
-  );
-
-  useEffect(() => {
-    const handleOnline = () => setIsOffline(false);
-    const handleOffline = () => setIsOffline(true);
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
-
-  return isOffline;
+  const { isOnline } = useNetworkStatus();
+  return !isOnline;
 };
 
 /**
@@ -30,35 +15,31 @@ export const useOfflineStatus = () => {
  * يعرض إشعارات عندما يفقد المستخدم الاتصال بالإنترنت وعندما يستعيده
  */
 export default function OfflineIndicator() {
-  const [isOnline, setIsOnline] = useState<boolean>(
-    typeof navigator !== 'undefined' ? navigator.onLine : true
-  );
+  const { isOnline } = useNetworkStatus();
+  const [previousStatus, setPreviousStatus] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const handleOnline = () => {
-      setIsOnline(true);
-      toast.success('تم استعادة الاتصال بالإنترنت', {
-        description: 'جاري مزامنة البيانات...',
-        duration: 3000,
-      });
-    };
+    if (previousStatus === null) {
+      setPreviousStatus(isOnline);
+      return;
+    }
 
-    const handleOffline = () => {
-      setIsOnline(false);
-      toast.error('أنت الآن غير متصل بالإنترنت', {
-        description: 'ستتم مزامنة التغييرات عند استعادة الاتصال',
-        duration: 3000,
-      });
-    };
+    if (previousStatus !== isOnline) {
+      if (isOnline) {
+        toast.success('تم استعادة الاتصال بالإنترنت', {
+          description: 'جاري مزامنة البيانات...',
+          duration: 3000,
+        });
+      } else {
+        toast.error('أنت الآن غير متصل بالإنترنت', {
+          description: 'ستتم مزامنة التغييرات عند استعادة الاتصال',
+          duration: 3000,
+        });
+      }
 
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, []);
+      setPreviousStatus(isOnline);
+    }
+  }, [isOnline, previousStatus]);
 
   // لا نعرض أي شيء في واجهة المستخدم إذا كان متصلاً بالإنترنت
   if (isOnline) {

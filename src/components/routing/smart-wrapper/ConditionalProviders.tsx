@@ -14,8 +14,7 @@ import { DashboardDataProvider } from '@/context/DashboardDataContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { AppsProvider } from '@/context/AppsContext';
 import { OrganizationDataProvider } from '@/contexts/OrganizationDataContext';
-import { ShopProvider } from "@/context/ShopContext";
-import { StoreProvider } from "@/context/StoreContext";
+// Removed store-related providers
 import { SuperUnifiedDataProvider } from '@/context/SuperUnifiedDataContext';
 import { UserProvider } from '@/context/UserContext';
 import { PermissionsProvider } from '@/context/PermissionsContext';
@@ -23,22 +22,11 @@ import { PermissionsProvider } from '@/context/PermissionsContext';
 // Subscription Data Refresher
 import SubscriptionDataRefresher from '@/components/subscription/SubscriptionDataRefresher';
 
-// Specialized Providers
-import { ProductPageProvider } from '@/context/ProductPageContext';
-import { StorePageProvider } from '@/context/StorePageContext';
-import { ProductsPageProvider } from '@/context/ProductsPageContext';
+// Specialized Providers - Removed store-related providers
 
-// Shared Store Data Providers
-import { 
-  SharedStoreDataProvider, 
-  MinimalSharedStoreDataProvider, 
-  ProductPageSharedStoreDataProvider 
-} from '@/context/SharedStoreDataContext';
-import { 
-  OptimizedSharedStoreDataProvider, 
-  MinimalOptimizedSharedStoreDataProvider 
-} from '@/context/OptimizedSharedStoreDataContext';
+// Removed Shared Store Data Providers - not needed for admin-only
 import { NotificationsProvider } from '@/context/NotificationsContext';
+import { ShopProvider } from '@/context/ShopContext';
 
 interface ConditionalProviderProps {
   children: ReactNode;
@@ -70,19 +58,7 @@ const AuthTenantWrapper = memo<ConditionalProviderProps>(({
   
   // تم إزالة منطق منع الرندر المفرط لتجنب مشاكل React hooks
 
-  // تعيين العلم مبكراً قبل تركيب مزودات أخرى لتسريع قراراتها
-  try {
-    if (typeof window !== 'undefined') {
-      (window as any).__PUBLIC_PRODUCT_PAGE__ = pageType === 'public-product';
-    }
-  } catch {}
-  
-  // وضع علامة عامة لتخفيف المصادقة في صفحات المنتج العامة
-  useEffect(() => {
-    try {
-      (window as any).__PUBLIC_PRODUCT_PAGE__ = pageType === 'public-product';
-    } catch {}
-  }, [pageType]);
+  // Removed store-related page type detection
 
   // 🔥 منع إعادة الإنشاء المتكرر
   useEffect(() => {
@@ -141,20 +117,12 @@ const AuthTenantWrapper = memo<ConditionalProviderProps>(({
         </>
       );
 
-      // 🔥 إصلاح: استخدم PublicTenantProvider لجميع صفحات المنتج العامة لأنها تستنتج organizationId من النطاق
-      if (pageType === 'public-product' || pageType === 'public-store' || pageType === 'max-store') {
-        result = (
-          <PublicTenantProvider>
-            {withRefresher}
-          </PublicTenantProvider>
-        );
-      } else {
-        result = (
-          <TenantProvider>
-            {withRefresher}
-          </TenantProvider>
-        );
-      }
+      // Use TenantProvider for all admin pages
+      result = (
+        <TenantProvider>
+          {withRefresher}
+        </TenantProvider>
+      );
     }
 
     if (needsPermissions) {
@@ -165,9 +133,8 @@ const AuthTenantWrapper = memo<ConditionalProviderProps>(({
       );
     }
 
-    // 🔥 إصلاح: لا نحتاج Auth/User في الصفحات العامة لأن PublicTenantProvider يستنتج organizationId من النطاق
-    const shouldAttachAuth = cfg.auth && !['public-product', 'public-store', 'max-store'].includes(pageType);
-    if (shouldAttachAuth) {
+    // Always attach Auth for admin pages
+    if (cfg.auth) {
       result = (
         <AuthProvider>
           <UserProvider>
@@ -199,57 +166,7 @@ const AuthTenantWrapper = memo<ConditionalProviderProps>(({
 // 🔥 تحسين: إضافة displayName
 AuthTenantWrapper.displayName = 'AuthTenantWrapper';
 
-/**
- * 🗃️ Shared Store Data Provider - مُحسن حسب نوع الصفحة مع memoization
- */
-const SharedStoreDataWrapper = memo<{
-  children: ReactNode;
-  pageType: PageType;
-  pathname: string;
-}>(({ children, pageType, pathname }) => {
-  const lastPageType = useRef(pageType);
-  const lastPathname = useRef(pathname);
-  const lastProviderComponent = useRef<any>(null);
-  
-  // اختيار المزود المناسب حسب نوع الصفحة مع memoization
-  const providerConfig = useMemo(() => {
-    // التحقق من التغييرات لتجنب إعادة الحساب
-    if (
-      lastPageType.current === pageType &&
-      lastPathname.current === pathname &&
-      lastProviderComponent.current
-    ) {
-      return lastProviderComponent.current;
-    }
-
-    // اختيار المزود المناسب حسب نوع الصفحة
-    let config = {
-      includeCategories: false,
-      includeProducts: false,
-      includeFeaturedProducts: false,
-      includeComponents: false,
-      includeFooterSettings: false,
-      includeTestimonials: false,
-      includeSeoMeta: false,
-      enabled: true
-    };
-
-    // تحديث القيم المرجعية
-    lastPageType.current = pageType;
-    lastPathname.current = pathname;
-    lastProviderComponent.current = config;
-
-    return config;
-  }, [pageType, pathname]);
-
-  return (
-    <MinimalOptimizedSharedStoreDataProvider {...providerConfig}>
-      {children}
-    </MinimalOptimizedSharedStoreDataProvider>
-  );
-});
-
-SharedStoreDataWrapper.displayName = 'SharedStoreDataWrapper';
+// Removed SharedStoreDataWrapper - not needed for admin-only
 
 /**
  * 🔔 Notifications Provider - شرطي حسب نوع الصفحة والتكوين
@@ -287,7 +204,6 @@ const NotificationsWrapper = memo<{
       'dashboard',
       'pos', 
       'call-center'
-      // إزالة 'max-store' لأن النوتيفيكيشن لا يجب أن تكون في المتجر
     ].includes(pageType) || config.notifications;
     
     // تحديث القيم المرجعية
@@ -332,30 +248,12 @@ export const SpecializedProviders = memo<ConditionalProviderProps>(({
 
     let result = children;
 
-    // Product Page Provider - للمنتجات
-    if (config.productPage) {
+    // Shop Provider - مطلوب لصفحات POS
+    if (config.shop) {
       result = (
-        <ProductPageProvider>
+        <ShopProvider>
           {result}
-        </ProductPageProvider>
-      );
-    }
-
-    // Store Page Provider - لصفحات المتجر
-    if (config.storePage) {
-      result = (
-        <StorePageProvider>
-          {result}
-        </StorePageProvider>
-      );
-    }
-
-    // Products Page Provider - لصفحة المنتجات المتعددة
-    if (config.productsPage) {
-      result = (
-        <ProductsPageProvider>
-          {result}
-        </ProductsPageProvider>
+        </ShopProvider>
       );
     }
     
@@ -419,12 +317,7 @@ export const DataProviders = memo<ConditionalProviderProps>(({
       );
     }
 
-    // Shared Store Data Provider - مطلوب لجميع صفحات المتجر
-    result = (
-      <SharedStoreDataWrapper pageType="minimal" pathname="/">
-        {result}
-      </SharedStoreDataWrapper>
-    );
+    // Removed Shared Store Data Provider - not needed for admin-only
     
     // تحديث القيم المرجعية
     lastConfig.current = config;
@@ -438,49 +331,7 @@ export const DataProviders = memo<ConditionalProviderProps>(({
 
 DataProviders.displayName = 'DataProviders';
 
-/**
- * 🛒 Shop & Store Providers - مزودات المتجر
- */
-export const ShopProviders = memo<ConditionalProviderProps>(({ 
-  children, 
-  config 
-}) => {
-  
-  // 🔥 استخدام useRef لمنع إعادة الإنشاء المتكرر
-  const lastConfig = useRef(config);
-  const lastContent = useRef<ReactNode>(null);
-  
-  // 🔥 Memoized provider structure - يجب أن يكون دائماً موجوداً لتجنب مشاكل Hooks
-  const content = useMemo(() => {
-    // إذا لم يكن shop مفعل، إرجاع children مباشرة
-    if (!config.shop) {
-      return <>{children}</>;
-    }
-    
-    // التحقق من التغييرات لتجنب إعادة الإنشاء
-    if (lastConfig.current === config && lastContent.current) {
-      return lastContent.current;
-    }
-
-    const result = (
-      <ShopProvider>
-        <StoreProvider>
-          {children}
-        </StoreProvider>
-      </ShopProvider>
-    );
-    
-    // تحديث القيم المرجعية
-    lastConfig.current = config;
-    lastContent.current = result;
-
-    return result;
-  }, [config, children]);
-
-  return content;
-});
-
-ShopProviders.displayName = 'ShopProviders';
+// Removed ShopProviders - not needed for admin-only
 
 /**
  * 📱 Apps Provider - مزود التطبيقات
@@ -527,8 +378,9 @@ AppsProviders.displayName = 'AppsProviders';
 /**
  * 🎨 Theme Provider - مزود الثيم
  */
-export const ThemeProviderWrapper = memo<{ children: ReactNode }>(({ 
-  children 
+export const ThemeProviderWrapper = memo<{ children: ReactNode; pageType?: PageType }>(({ 
+  children,
+  pageType 
 }) => {
   
   // 🔥 استخدام useRef لمنع إعادة الإنشاء المتكرر
@@ -542,6 +394,11 @@ export const ThemeProviderWrapper = memo<{ children: ReactNode }>(({
       return lastContent.current;
     }
 
+    // للصفحة الرئيسية (landing)، لا نحتاج إلى ThemeProvider
+    if (pageType === 'landing') {
+      return children;
+    }
+
     const result = (
       <ThemeProvider>
         {children}
@@ -553,7 +410,7 @@ export const ThemeProviderWrapper = memo<{ children: ReactNode }>(({
     lastContent.current = result;
 
     return result;
-  }, [children]);
+  }, [children, pageType]);
 
   return content;
 });
@@ -590,6 +447,11 @@ export const ProviderComposition = memo<ConditionalProviderProps>(({
       return lastContent.current;
     }
 
+    // للصفحة الرئيسية (landing)، لا نحتاج إلى أي providers
+    if (pageType === 'landing') {
+      return children;
+    }
+
     const result = (
       <AuthTenantWrapper 
         config={config} 
@@ -598,15 +460,13 @@ export const ProviderComposition = memo<ConditionalProviderProps>(({
       >
         <SpecializedProviders config={config} pageType={pageType} pathname={pathname}>
           <DataProviders config={config} pageType={pageType} pathname={pathname}>
-            <ShopProviders config={config} pageType={pageType} pathname={pathname}>
-              <AppsProviders config={config} pageType={pageType} pathname={pathname}>
-                <NotificationsWrapper config={config} pageType={pageType}>
-                  <ThemeProviderWrapper>
-                    {children}
-                  </ThemeProviderWrapper>
-                </NotificationsWrapper>
-              </AppsProviders>
-            </ShopProviders>
+            <AppsProviders config={config} pageType={pageType} pathname={pathname}>
+              <NotificationsWrapper config={config} pageType={pageType}>
+                <ThemeProviderWrapper pageType={pageType}>
+                  {children}
+                </ThemeProviderWrapper>
+              </NotificationsWrapper>
+            </AppsProviders>
           </DataProviders>
         </SpecializedProviders>
       </AuthTenantWrapper>

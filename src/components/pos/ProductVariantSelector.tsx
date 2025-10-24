@@ -1,13 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Product } from '@/types';
 import { ProductColor } from '@/api/store';
-import { getProductSizes } from '@/lib/api/productVariants';
+// import { getProductSizes } from '@/lib/api/productVariants'; // لم يعد ضرورياً - المقاسات تأتي مع المنتج
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
-import { Loader2, ShoppingCart, Package, Palette, Ruler, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Loader2, ShoppingCart, AlertCircle, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
@@ -53,33 +50,24 @@ export default function ProductVariantSelector({
     }
   }, [product.colors]);
 
-  // استرجاع مقاسات اللون عند تغيير اللون المحدد
+  // استخدام المقاسات القادمة مع المنتج (بدون استدعاء إضافي)
   useEffect(() => {
-    if (selectedColorId && product.use_sizes && selectedColor?.has_sizes) {
-      setLoadingSizes(true);
-
-      getProductSizes(selectedColorId)
-        .then(sizeData => {
-          setSizes(sizeData as ProductSize[]);
-          setSelectedSizeId(null); // إعادة تعيين المقاس المحدد
-          
-          // تحديد المقاس الافتراضي إذا وُجد
-          const defaultSize = sizeData.find(s => s.is_default) || sizeData[0];
-          if (defaultSize && defaultSize.quantity > 0) {
-            setSelectedSizeId(defaultSize.id);
-          }
-        })
-        .catch(err => {
-          toast.error("حدث خطأ أثناء تحميل المقاسات");
-        })
-        .finally(() => {
-          setLoadingSizes(false);
-        });
+    if (selectedColorId && selectedColor?.has_sizes) {
+      // المقاسات موجودة في selectedColor.sizes مباشرة!
+      const colorSizes = (selectedColor as any).sizes || [];
+      setSizes(colorSizes as ProductSize[]);
+      setSelectedSizeId(null);
+      
+      // تحديد المقاس الافتراضي
+      const defaultSize = colorSizes.find((s: any) => s.is_default) || colorSizes[0];
+      if (defaultSize && defaultSize.quantity > 0) {
+        setSelectedSizeId(defaultSize.id);
+      }
     } else {
       setSizes([]);
       setSelectedSizeId(null);
     }
-  }, [selectedColorId, product.use_sizes, selectedColor?.has_sizes]);
+  }, [selectedColorId, selectedColor?.has_sizes, selectedColor]);
 
   // حساب السعر النهائي بناءً على المتغيرات المحددة
   const calculatePrice = () => {
@@ -118,11 +106,12 @@ export default function ProductVariantSelector({
     if (product.colors && product.colors.length > 0) {
       if (!selectedColorId) return false;
       
-      // إذا كان المنتج يستخدم المقاسات واللون يحتوي على مقاسات
-      if (product.use_sizes && selectedColor?.has_sizes) {
+
+      if (selectedColor?.has_sizes && sizes.length > 0) {
         // يجب اختيار المقاس
         if (!selectedSizeId) return false;
       }
+      // إذا كان has_sizes = true لكن لا توجد مقاسات، يمكن الإضافة بدون مقاس
     }
     
     return getAvailableQuantity() > 0;
@@ -171,219 +160,150 @@ export default function ProductVariantSelector({
   };
 
   return (
-    <div className="space-y-4 max-w-full mx-auto">
-      {/* رأس المنتج */}
-      <div className="text-center space-y-1">
-        <h3 className="text-lg font-bold text-foreground">{product.name}</h3>
-        {product.description && (
-          <p className="text-xs text-muted-foreground">{product.description}</p>
-        )}
-        <Badge variant="outline" className="text-xs">
-          كود المنتج: {product.sku}
-        </Badge>
+    <div className="space-y-3">
+      {/* رأس */}
+      <div className="text-center">
+        <h3 className="text-sm font-medium text-foreground">{product.name}</h3>
       </div>
 
-      <Separator />
-
-      {/* اختيار اللون */}
+      {/* اللون */}
       {product.colors && product.colors.length > 0 && (
-        <Card className="shadow-sm hover:shadow-md transition-shadow duration-200">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Palette className="h-4 w-4" />
-              اختر اللون
-              <Badge variant="secondary" className="text-xs">
-                {product.colors.length} خيار
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            <ScrollArea className="max-h-40">
-              <div className="grid grid-cols-1 gap-2">
-                {product.colors.map(color => (
-                  <button
-                    key={color.id}
-                    className={cn(
-                      "relative p-3 rounded-lg border-2 transition-all duration-200 hover:shadow-md",
-                      selectedColorId === color.id 
-                        ? 'border-primary bg-primary/5 shadow-md' 
-                        : 'border-border hover:border-primary/50',
-                      color.quantity <= 0 
-                        ? 'opacity-50 cursor-not-allowed' 
-                        : 'cursor-pointer hover:scale-105'
-                    )}
-                    onClick={() => color.quantity > 0 && setSelectedColorId(color.id)}
-                    disabled={color.quantity <= 0}
-                  >
-                    {/* مؤشر التحديد */}
-                    {selectedColorId === color.id && (
-                      <div className="absolute -top-1 -right-1">
-                        <CheckCircle2 className="h-4 w-4 text-primary bg-background rounded-full" />
-                      </div>
-                    )}
-                    
-                    <div className="flex items-center gap-3">
-                      <div 
-                        className="w-6 h-6 rounded-full border-2 border-white shadow-sm flex-shrink-0 relative" 
-                        style={{ backgroundColor: color.color_code }}
-                      >
-                        {/* تأثير بصري للون المحدد */}
-                        {selectedColorId === color.id && (
-                          <div className="absolute inset-0 rounded-full border-2 border-primary animate-pulse" />
-                        )}
-                      </div>
-                      <div className="flex-1 text-right">
-                        <div className="font-medium text-sm">{color.name}</div>
-                        <div className="flex items-center justify-between mt-1">
-                          <span className={cn(
-                            "text-xs",
-                            color.quantity <= 0 ? "text-destructive" : "text-muted-foreground"
-                          )}>
-                            {color.quantity <= 0 ? "نفذت الكمية" : `${color.quantity} متوفر`}
-                          </span>
-                          {color.price !== undefined && color.price !== product.price && (
-                            <Badge variant="outline" className="text-xs">
-                              {formatPrice(color.price)}
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* اختيار المقاس */}
-      {product.use_sizes && selectedColor?.has_sizes && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Ruler className="h-4 w-4" />
-              اختر المقاس
-              {!loadingSizes && sizes.length > 0 && (
-                <Badge variant="secondary" className="text-xs">
-                  {sizes.length} خيار
-                </Badge>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-0">
-            {loadingSizes ? (
-              <div className="flex items-center justify-center py-6">
-                <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                <span className="text-sm text-muted-foreground">جاري تحميل المقاسات...</span>
-              </div>
-            ) : (
-              <ScrollArea className="max-h-32">
-                <div className="grid grid-cols-3 gap-2">
-                  {sizes.map(size => (
-                    <button
-                      key={size.id}
-                      className={cn(
-                        "relative p-2 rounded-lg border-2 transition-all duration-200 hover:shadow-md",
-                        selectedSizeId === size.id 
-                          ? 'border-primary bg-primary/5 shadow-md' 
-                          : 'border-border hover:border-primary/50',
-                        size.quantity <= 0 
-                          ? 'opacity-50 cursor-not-allowed' 
-                          : 'cursor-pointer hover:scale-105'
-                      )}
-                      onClick={() => size.quantity > 0 && setSelectedSizeId(size.id)}
-                      disabled={size.quantity <= 0}
-                    >
-                      {/* مؤشر التحديد */}
-                      {selectedSizeId === size.id && (
-                        <div className="absolute -top-1 -right-1">
-                          <CheckCircle2 className="h-3 w-3 text-primary bg-background rounded-full" />
-                        </div>
-                      )}
-                      
-                      <div className="text-center">
-                        <div className="font-medium text-xs">{size.size_name}</div>
-                        <div className="text-xs mt-1">
-                          <span className={cn(
-                            size.quantity <= 0 ? "text-destructive" : "text-muted-foreground"
-                          )}>
-                            {size.quantity <= 0 ? "نفذ" : `${size.quantity}`}
-                          </span>
-                        </div>
-                        {size.price !== undefined && size.price !== (selectedColor?.price || product.price) && (
-                          <Badge variant="outline" className="text-xs mt-1">
-                            {formatPrice(size.price)}
-                          </Badge>
-                        )}
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </ScrollArea>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* ملخص السعر والكمية */}
-      <Card className="bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
-        <CardContent className="p-3">
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <div className="text-xs text-muted-foreground">السعر النهائي</div>
-              <div className="text-xl font-bold text-primary">
-                {formatPrice(calculatePrice())}
-              </div>
-              {calculatePrice() !== product.price && (
-                <div className="text-xs text-muted-foreground line-through">
-                  السعر الأصلي: {formatPrice(product.price)}
-                </div>
-              )}
-            </div>
-            
-            <div className="text-center">
-              <div className="text-xs text-muted-foreground">الكمية المتاحة</div>
-              <div className={cn(
-                "text-lg font-bold",
-                getAvailableQuantity() <= 0 ? "text-destructive" : "text-green-600"
-              )}>
-                {getAvailableQuantity()}
-              </div>
-            </div>
+        <div className="space-y-1.5">
+          <label className="text-xs text-muted-foreground">اللون</label>
+          <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
+            {product.colors.map(color => (
+              <button
+                key={color.id}
+                className={cn(
+                  "relative flex items-center gap-2 px-2.5 py-2 rounded-md border transition-all",
+                  selectedColorId === color.id 
+                    ? 'border-primary bg-primary/10' 
+                    : 'border-border hover:border-primary/30',
+                  color.quantity <= 0 && 'opacity-30 cursor-not-allowed'
+                )}
+                onClick={() => color.quantity > 0 && setSelectedColorId(color.id)}
+                disabled={color.quantity <= 0}
+              >
+                <div 
+                  className="w-5 h-5 rounded-full border flex-shrink-0" 
+                  style={{ backgroundColor: color.color_code }}
+                />
+                <span className="text-xs font-medium">{color.name}</span>
+                <span className={cn(
+                  "text-[10px] ml-auto",
+                  color.quantity <= 0 ? "text-red-500" : "text-muted-foreground"
+                )}>
+                  {color.quantity}
+                </span>
+                {selectedColorId === color.id && (
+                  <Check className="h-3 w-3 text-primary absolute -top-1 -right-1" />
+                )}
+              </button>
+            ))}
           </div>
-        </CardContent>
-      </Card>
-
-      {/* رسالة تحذيرية إذا لم يتم اختيار المتغيرات المطلوبة */}
-      {!canAddToCart() && selectedColorId && (
-        <div className="flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded-lg">
-          <AlertCircle className="h-4 w-4 text-amber-600" />
-          <span className="text-xs text-amber-800">
-            {!selectedColorId ? "يرجى اختيار لون" : 
-             (product.use_sizes && selectedColor?.has_sizes && !selectedSizeId) ? "يرجى اختيار مقاس" :
-             getAvailableQuantity() <= 0 ? "هذا المتغير غير متوفر في المخزون" : ""}
-          </span>
         </div>
       )}
 
-      {/* أزرار الإجراءات */}
-      <div className="flex gap-2 pt-2">
-        <Button 
-          className="flex-1 h-10 text-sm font-medium transition-all duration-200 hover:scale-105 disabled:hover:scale-100"
-          onClick={handleAddToCart}
-          disabled={!canAddToCart()}
-        >
-          <ShoppingCart className="h-4 w-4 mr-2" />
-          إضافة إلى السلة
-        </Button>
-        <Button 
-          variant="outline" 
-          className="h-10 px-4 text-sm transition-all duration-200 hover:scale-105"
-          onClick={onCancel}
-        >
-          إلغاء
-        </Button>
+      {/* المقاس */}
+      {selectedColor?.has_sizes ? (
+        <div className="space-y-1.5">
+          <label className="text-xs text-muted-foreground">المقاس</label>
+          {loadingSizes ? (
+            <div className="flex items-center justify-center py-3 text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin ml-1.5" />
+              <span className="text-xs">تحميل...</span>
+            </div>
+          ) : sizes.length === 0 ? (
+            <div className="p-2 text-xs bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-md text-center">
+              <p className="text-amber-800 dark:text-amber-200">لا توجد مقاسات لهذا اللون</p>
+              <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">يمكنك الإضافة بدون مقاس</p>
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {sizes.map(size => (
+                <button
+                  key={size.id}
+                  className={cn(
+                    "relative px-3 py-2 rounded-md border transition-all min-w-[60px]",
+                    selectedSizeId === size.id 
+                      ? 'border-primary bg-primary/10' 
+                      : 'border-border hover:border-primary/30',
+                    size.quantity <= 0 && 'opacity-30 cursor-not-allowed'
+                  )}
+                  onClick={() => size.quantity > 0 && setSelectedSizeId(size.id)}
+                  disabled={size.quantity <= 0}
+                >
+                  <div className="text-center">
+                    <div className="text-sm font-medium">{size.size_name}</div>
+                    <div className={cn(
+                      "text-[10px] mt-0.5",
+                      size.quantity <= 0 ? "text-red-500" : "text-muted-foreground"
+                    )}>
+                      {size.quantity <= 0 ? "نفذ" : size.quantity}
+                    </div>
+                  </div>
+                  {selectedSizeId === size.id && (
+                    <Check className="h-3 w-3 text-primary absolute -top-1 -right-1" />
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        selectedColorId && selectedColor && !selectedColor.has_sizes && (
+          <div className="p-2 text-xs text-muted-foreground bg-muted/30 rounded-md text-center">
+            هذا اللون ليس له مقاسات
+          </div>
+        )
+      )}
+
+      {/* الملخص والأزرار */}
+      <div className="space-y-2 pt-1">
+        <div className="flex items-center justify-between px-2 py-1.5 bg-muted/30 rounded-md">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">السعر:</span>
+            <span className="text-sm font-bold text-primary">{formatPrice(calculatePrice())}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">متوفر:</span>
+            <span className={cn(
+              "text-sm font-bold",
+              getAvailableQuantity() <= 0 ? "text-red-500" : "text-green-600"
+            )}>
+              {getAvailableQuantity()}
+            </span>
+          </div>
+        </div>
+        
+        {!canAddToCart() && (
+          <div className="flex items-center gap-1.5 px-2 py-1.5 bg-amber-50 dark:bg-amber-950/20 rounded-md">
+            <AlertCircle className="h-3 w-3 text-amber-600" />
+            <span className="text-xs text-amber-800 dark:text-amber-200">
+              {!selectedColorId ? "اختر لون" : 
+               (product.use_sizes && selectedColor?.has_sizes && !selectedSizeId) ? "اختر مقاس" : "غير متوفر"}
+            </span>
+          </div>
+        )}
+        
+        <div className="flex gap-2">
+          <Button 
+            className="flex-1 h-9 text-sm"
+            onClick={handleAddToCart}
+            disabled={!canAddToCart()}
+          >
+            <ShoppingCart className="h-3.5 w-3.5 ml-1.5" />
+            إضافة
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm"
+            className="h-9 px-3"
+            onClick={onCancel}
+          >
+            إلغاء
+          </Button>
+        </div>
       </div>
     </div>
   );

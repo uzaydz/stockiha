@@ -51,7 +51,6 @@ export const Products = lazy(() => import('../pages/dashboard/ProductsCached'));
 export const Inventory = lazy(() => import('../pages/dashboard/Inventory'));
 export const AdvancedInventoryTracking = lazy(() => import('../components/inventory/AdvancedInventoryTrackingPage'));
 export const Categories = lazy(() => import('../pages/dashboard/Categories'));
-export const OptimizedSales = lazy(() => import('../pages/dashboard/OptimizedSales'));
 export const Orders = lazy(() => import('../pages/dashboard/Orders'));
 export const OrdersV2 = lazy(() => import('../pages/dashboard/OrdersV2'));
 export const OrderDetailsV2 = lazy(() => import('../pages/dashboard/OrderDetailsV2'));
@@ -67,13 +66,17 @@ export const Analytics = lazy(() => import('../pages/dashboard/Analytics'));
 export const FinancialAnalytics = lazy(() => import('../pages/FinancialAnalytics'));
 export const Invoices = lazy(() => import('../pages/dashboard/Invoices'));
 export const BlockedCustomers = lazy(() => import('../pages/dashboard/BlockedCustomers'));
+export const ConfirmationCenter = lazy(() => import('../pages/dashboard/ConfirmationCenter'));
 
 // ============ نقطة البيع ============
 export const POSOptimized = lazy(() => import('../pages/POSOptimized'));
 export const POSAdvanced = lazy(() => import('../pages/POSAdvanced'));
+export const POSDashboard = lazy(() => import('../pages/POSDashboard'));
 export const POSOrdersOptimized = lazy(() => import('../pages/POSOrdersOptimized'));
+export const POSOperationsPage = lazy(() => import('../pages/POSOperations'));
 export const ProductReturns = lazy(() => import('../pages/returns/ProductReturns'));
 export const LossDeclarations = lazy(() => import('../pages/losses/LossDeclarations'));
+export const ProductOperationsPage = lazy(() => import('../pages/ProductOperations'));
 
 // ============ الموردين ============
 export const SuppliersManagement = lazy(() => import('../pages/dashboard/SuppliersManagement'));
@@ -157,6 +160,7 @@ export const AgentsManagementPage = lazy(() => import('../pages/admin/call-cente
 export const DistributionSettingsPage = lazy(() => import('../pages/admin/call-center/DistributionSettingsPage'));
 export const ReportsPage = lazy(() => import('../pages/admin/call-center/ReportsPage'));
 export const MonitoringPage = lazy(() => import('../pages/admin/call-center/MonitoringPage'));
+export const ConfirmationAgentWorkspace = lazy(() => import('../pages/dashboard/ConfirmationAgentWorkspace'));
 
 // ============ أدوات أخرى ============
 export const ProductForm = lazy(() => import('../pages/ProductForm'));

@@ -67,6 +67,14 @@ async function createShippingOrderRecord(
   data: any
 ): Promise<number> {
   try {
+    console.log('Creating shipping order record:', {
+      organizationId,
+      providerId,
+      orderId,
+      trackingNumber: data.trackingNumber,
+      externalId: data.externalId
+    });
+    
     const { data: result, error } = await supabase
       .from('shipping_orders')
       .insert({
@@ -95,12 +103,87 @@ async function createShippingOrderRecord(
       .single();
     
     if (error) {
+      console.error('Failed to create shipping order record:', error);
       throw error;
     }
     
+    console.log('Successfully created shipping order record:', result.id);
     return result.id;
   } catch (error) {
+    console.error('Error in createShippingOrderRecord:', error);
     throw error;
+  }
+}
+
+/**
+ * Get Yalidine stop desks (centers) for a specific wilaya/commune
+ */
+export async function getYalidineStopDesks(
+  organizationId: string,
+  wilayaId?: string | number,
+  communeId?: string | number
+): Promise<{ centers: any[]; isFromWilaya: boolean }> {
+  try {
+    console.log('Fetching stop desks for:', { organizationId, wilayaId, communeId });
+    
+    const shippingService = await getOrganizationShippingService(
+      organizationId,
+      ShippingProvider.YALIDINE
+    );
+
+    if (!shippingService) {
+      throw new Error('خدمة ياليدين غير مفعلة');
+    }
+
+    const yalidineService = shippingService as any;
+    if (!yalidineService.apiClient) {
+      throw new Error('خدمة ياليدين غير متوفرة');
+    }
+
+    let centers = [];
+    let isFromWilaya = false;
+
+    // محاولة 1: جلب المكاتب من البلدية المحددة
+    if (communeId) {
+      const communeUrl = `/centers?commune_id=${communeId}`;
+      console.log('Trying to fetch centers by commune_id:', communeId);
+      
+      try {
+        const communeResponse = await yalidineService.apiClient.get(communeUrl);
+        
+        if (communeResponse.data && communeResponse.data.data) {
+          centers = communeResponse.data.data;
+        } else if (Array.isArray(communeResponse.data)) {
+          centers = communeResponse.data;
+        }
+        
+        console.log(`Found ${centers.length} centers in commune ${communeId}`);
+      } catch (error) {
+        console.warn('Failed to fetch centers by commune, will try by wilaya');
+      }
+    }
+
+    // محاولة 2: إذا لم نجد مكاتب في البلدية، نجلب من الولاية
+    if (centers.length === 0 && wilayaId) {
+      const wilayaUrl = `/centers?wilaya_id=${wilayaId}`;
+      console.log('No centers in commune, fetching by wilaya_id:', wilayaId);
+      
+      const wilayaResponse = await yalidineService.apiClient.get(wilayaUrl);
+      
+      if (wilayaResponse.data && wilayaResponse.data.data) {
+        centers = wilayaResponse.data.data;
+      } else if (Array.isArray(wilayaResponse.data)) {
+        centers = wilayaResponse.data;
+      }
+      
+      isFromWilaya = true;
+      console.log(`Found ${centers.length} centers in wilaya ${wilayaId} (from other communes)`);
+    }
+
+    return { centers, isFromWilaya };
+  } catch (error) {
+    console.error('Error fetching Yalidine stop desks:', error);
+    throw new Error('فشل في جلب قائمة المكاتب من ياليدين');
   }
 }
 
@@ -109,9 +192,26 @@ async function createShippingOrderRecord(
  */
 export async function createYalidineShippingOrder(
   organizationId: string, 
-  order: Order
+  order: Order,
+  isStopDesk: boolean = false,  // نوع التوصيل
+  stopdeskId: number | null = null  // معرف المكتب (مطلوب عندما isStopDesk = true)
 ): Promise<ShippingOrderResult> {
   try {
+    console.log('Creating Yalidine shipping order:', { 
+      orderId: order.id, 
+      isStopDesk,
+      stopdeskId,
+      deliveryTypeCode: isStopDesk ? 2 : 1
+    });
+    
+    // التحقق من أن stopdesk_id موجود عندما يكون is_stopdesk = true
+    if (isStopDesk && !stopdeskId) {
+      return {
+        success: false,
+        message: 'عند اختيار التوصيل للمكتب، يجب تحديد معرف المكتب (stopdesk_id). يرجى التحقق من البيانات.'
+      };
+    }
+    
     // Get the shipping service instance for the organization
     const shippingService = await getOrganizationShippingService(
       organizationId, 
@@ -189,10 +289,10 @@ export async function createYalidineShippingOrder(
     }
 
     // Create shipping order parameters
-    const params = {
+    const params: any = {
       order_id: order.id, // معرف الطلب المطلوب من API ياليدين
       Tracking: trackingNumber,
-      TypeLivraison: 1, // Home delivery
+      TypeLivraison: isStopDesk ? 2 : 1, // 1 = Home delivery, 2 = Stop desk
       TypeColis: 0, // Regular shipping
       Confrimee: 1, // Confirmed
       
@@ -206,7 +306,7 @@ export async function createYalidineShippingOrder(
       product_list: productsDescription,
       price: parseFloat(order.total_amount.toString()),
       freeshipping: 0, // 0 = مدفوع، 1 = مجاني
-      is_stopdesk: 0, // 0 = توصيل للبيت، 1 = مكتب
+      is_stopdesk: isStopDesk ? 1 : 0, // 0 = توصيل للبيت، 1 = مكتب
       has_exchange: 0, // 0 = بدون استبدال، 1 = مع استبدال
       
       // الحقول القديمة للتوافق العكسي
@@ -220,12 +320,81 @@ export async function createYalidineShippingOrder(
       TProd: productsDescription
     };
     
+    // إضافة stopdesk_id إذا كان التوصيل للمكتب
+    if (isStopDesk && stopdeskId) {
+      params.stopdesk_id = stopdeskId;
+      console.log('Adding stopdesk_id to params:', stopdeskId);
+    }
+    
     // Call the API to create the shipping order
     const result = await shippingService.createShippingOrder(params);
     
-    // تحقق من وجود النتائج والـ tracking ID
-    if (result && (result.tracking || result.data?.tracking || result[0]?.tracking)) {
-      const trackingId = result.tracking || result.data?.tracking || result[0]?.tracking;
+    console.log('Yalidine API Response:', result);
+    
+    // معالجة الاستجابة من ياليدين - يمكن أن تأتي بأشكال مختلفة:
+    // 1. { "order_id": { success: true, tracking: "...", ... } }
+    // 2. { "order_id": { tracking: "...", ... } } (حتى لو success: false)
+    // 3. { tracking: "...", ... }
+    // 4. { data: { tracking: "..." } }
+    // 5. [{ tracking: "..." }]
+    
+    let trackingId = null;
+    let responseData = null;
+    let isSuccess = false;
+    let errorMessage = null;
+    
+    // الحالة 1: الاستجابة كائن بمفتاح order_id
+    if (result && typeof result === 'object') {
+      const orderKeys = Object.keys(result);
+      
+      // تحقق إذا كان المفتاح الأول هو order_id
+      if (orderKeys.length > 0) {
+        const firstKey = orderKeys[0];
+        const orderData = result[firstKey];
+        
+        console.log('Order data from first key:', orderData);
+        
+        // إذا كان الكائن يحتوي على tracking (بغض النظر عن success)
+        if (orderData && typeof orderData === 'object') {
+          // التحقق من وجود tracking
+          if (orderData.tracking) {
+            trackingId = orderData.tracking;
+            responseData = orderData;
+            // success = true أو tracking موجود = نجاح
+            isSuccess = orderData.success === true || !!orderData.tracking;
+            errorMessage = orderData.message || null;
+            console.log('Found tracking in order data:', trackingId);
+          }
+          // إذا كان success: false وبدون tracking، نحفظ رسالة الخطأ
+          else if (orderData.success === false) {
+            errorMessage = orderData.message || 'فشل في إنشاء الطلب';
+            console.error('Yalidine API returned success: false -', errorMessage);
+          }
+        }
+        // إذا كان الكائن الرئيسي يحتوي مباشرة على tracking
+        else if (result.tracking) {
+          trackingId = result.tracking;
+          responseData = result;
+          isSuccess = true;
+        }
+        // الحالة 2: التحقق من result.data
+        else if (result.data && result.data.tracking) {
+          trackingId = result.data.tracking;
+          responseData = result.data;
+          isSuccess = true;
+        }
+        // الحالة 3: التحقق إذا كانت مصفوفة
+        else if (Array.isArray(result) && result[0] && result[0].tracking) {
+          trackingId = result[0].tracking;
+          responseData = result[0];
+          isSuccess = true;
+        }
+      }
+    }
+    
+    if (isSuccess && trackingId) {
+      console.log('Successfully extracted tracking ID:', trackingId);
+      
       // Create the shipping order record in our database
       await createShippingOrderRecord(
         organizationId,
@@ -233,40 +402,63 @@ export async function createYalidineShippingOrder(
         order.id,
         {
           trackingNumber: trackingId,
-          externalId: result.id || '',
+          externalId: responseData?.import_id?.toString() || responseData?.id || '',
           recipientName: order.customer_name,
           recipientPhone: order.customer_phone,
           address: order.shipping_address,
           region: order.shipping_wilaya,
           city: order.shipping_commune,
           amount: order.total_amount,
-          deliveryType: 1,  // Home delivery
+          deliveryType: isStopDesk ? 2 : 1,  // 1 = Home delivery, 2 = Stop desk
           packageType: 0,   // Regular shipping
           isConfirmed: true,
           notes: order.notes || '',
-          productsDescription: productsDescription
+          productsDescription: productsDescription,
+          labelUrl: responseData?.label || responseData?.labels || ''
         }
       );
       
-      // Try to generate a label
-      let labelUrl = '';
-      try {
-        labelUrl = await shippingService.generateShippingLabel(trackingNumber);
-      } catch (error) {
+      console.log('Successfully created shipping order record');
+      
+      // تحديث الطلب في جدول online_orders برقم التتبع
+      const { error: updateError } = await supabase
+        .from('online_orders')
+        .update({
+          yalidine_tracking_id: trackingId,
+          shipping_provider: 'yalidine',
+          shipping_method: 'yalidine',
+          status: 'shipped'
+        })
+        .eq('id', order.id)
+        .eq('organization_id', organizationId);
+      
+      if (updateError) {
+        console.error('Failed to update order with tracking ID:', updateError);
+        // لا نفشل العملية كاملة لأن السجل تم إنشاؤه في shipping_orders
       }
       
       return {
         success: true,
         message: 'تم إنشاء طلب الشحن بنجاح',
         trackingNumber: trackingId,
-        externalId: result.id || '',
-        labelUrl
+        externalId: responseData?.import_id?.toString() || responseData?.id || '',
+        labelUrl: responseData?.label || responseData?.labels || ''
+      };
+    }
+    
+    console.error('Failed to extract tracking ID from Yalidine response:', result);
+    
+    // إذا كان هناك رسالة خطأ من API، نعرضها
+    if (errorMessage) {
+      return {
+        success: false,
+        message: `فشل في إنشاء طلب الشحن: ${errorMessage}`
       };
     }
     
     return {
       success: false,
-      message: 'فشل في إنشاء طلب الشحن'
+      message: 'فشل في الحصول على رقم التتبع من ياليدين. يرجى التحقق من البيانات المدخلة (الاسم، الهاتف، العنوان، الولاية، البلدية).'
     };
   } catch (error) {
     return {
@@ -281,7 +473,8 @@ export async function createYalidineShippingOrder(
  */
 export async function createShippingOrderForOrder(
   organizationId: string, 
-  orderId: string
+  orderId: string,
+  preferredProviderCode?: string  // إضافة معامل جديد لاختيار الشركة
 ): Promise<ShippingOrderResult> {
   try {
     // Get the order details
@@ -312,13 +505,30 @@ export async function createShippingOrderForOrder(
     
     // Extract customer and shipping data from form_data
     const formData = (order.form_data as any) || {};
-    // 
-    // 
     
     const customerName = formData.fullName || formData.customerName || formData.name || '';
     const customerPhone = formData.phone || formData.customerPhone || formData.telephone || '';
     const shippingWilaya = formData.province || formData.wilaya || formData.wilayaId || '';
     const shippingCommune = formData.municipality || formData.commune || formData.communeId || '';
+    
+    // استخراج نوع التوصيل من form_data
+    // deliveryType يمكن أن يكون: 'home', 'office', 'stop_desk', أو القيم الرقمية 1, 2
+    const deliveryType = formData.deliveryType || formData.delivery_type || 'home';
+    const isStopDesk = deliveryType === 'office' || 
+                       deliveryType === 'stop_desk' || 
+                       deliveryType === 'stopdesk' || 
+                       deliveryType === 2 ||
+                       deliveryType === '2';
+    
+    // استخراج معرف المكتب (Stop Desk ID) - مطلوب عندما يكون is_stopdesk = true
+    const stopdeskId = formData.stopdeskId || 
+                       formData.stopdesk_id || 
+                       formData.stopDeskId ||
+                       formData.centerId ||
+                       formData.center_id ||
+                       null;
+    
+    console.log('Delivery type extracted:', { deliveryType, isStopDesk, stopdeskId });
     
     // جرب جميع الأسماء المحتملة للعنوان
     let shippingAddress = formData.address || 
@@ -347,7 +557,7 @@ export async function createShippingOrderForOrder(
       };
     }
     
-    // Get all enabled shipping providers for the organization (remove auto_shipping requirement)
+    // Get all enabled shipping providers for the organization
     const { data: enabledProviders, error: providersError } = await supabase
       .from('shipping_provider_settings')
       .select(`
@@ -377,12 +587,29 @@ export async function createShippingOrderForOrder(
       };
     }
     
-    // Use the first enabled provider (prioritize auto_shipping if available)
-    const autoShippingProvider = enabledProviders.find(p => p.auto_shipping);
-    const defaultProvider = autoShippingProvider || enabledProviders[0];
-
-    // Get the provider code from the nested object
-    const providerCode = defaultProvider.shipping_providers?.code;
+    // Determine which provider to use
+    let providerCode: string | undefined;
+    
+    if (preferredProviderCode) {
+      // إذا تم تمرير رمز شركة معينة، نتحقق من أنها مفعلة
+      const preferredProvider = enabledProviders.find(
+        p => p.shipping_providers?.code === preferredProviderCode
+      );
+      
+      if (preferredProvider) {
+        providerCode = preferredProviderCode;
+      } else {
+        return {
+          success: false,
+          message: `شركة التوصيل ${preferredProviderCode} غير مفعلة أو غير موجودة`
+        };
+      }
+    } else {
+      // استخدام الشركة الافتراضية (prioritize auto_shipping if available)
+      const autoShippingProvider = enabledProviders.find(p => p.auto_shipping);
+      const defaultProvider = autoShippingProvider || enabledProviders[0];
+      providerCode = defaultProvider.shipping_providers?.code;
+    }
 
     if (!providerCode) {
       return {
@@ -407,7 +634,7 @@ export async function createShippingOrderForOrder(
 
     // Create the shipping order based on the provider
     if (providerCode === ShippingProvider.YALIDINE) {
-      return createYalidineShippingOrder(organizationId, orderForShipping);
+      return createYalidineShippingOrder(organizationId, orderForShipping, isStopDesk, stopdeskId);
     }
     
     // Add other providers as they are implemented

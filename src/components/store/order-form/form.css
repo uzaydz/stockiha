@@ -1,223 +1,140 @@
-/* تنسيقات النموذج */
-.custom-form {
-  font-family: 'Tajawal', sans-serif;
-  max-width: 800px;
+/* Custom Form Styles for Store Order Form */
+
+.custom-form-container {
+  max-width: 100%;
   margin: 0 auto;
+  padding: 1rem;
 }
 
-.custom-form input,
-.custom-form select,
-.custom-form textarea {
-  transition: all 0.3s ease;
+.custom-form-field {
+  margin-bottom: 1rem;
 }
 
-.custom-form input:focus,
-.custom-form select:focus,
-.custom-form textarea:focus {
-  box-shadow: 0 0 0 3px rgba(var(--color-primary), 0.2);
-  border-color: var(--color-primary);
-}
-
-.custom-form label {
+.custom-form-label {
+  display: block;
+  margin-bottom: 0.5rem;
   font-weight: 500;
+  color: #374151;
 }
 
-/* تنسيق أزرار الراديو */
-.custom-form input[type="radio"] {
+.custom-form-input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.custom-form-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.custom-form-select {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  background-color: white;
   cursor: pointer;
 }
 
-/* تنسيق زر الإرسال */
-.custom-form button[type="submit"] {
-  transition: all 0.3s ease;
+.custom-form-textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  resize: vertical;
+  min-height: 100px;
 }
 
-.custom-form button[type="submit"]:hover {
-  transform: translateY(-2px);
+.custom-form-error {
+  color: #dc2626;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
 }
 
-/* تنسيق الحقول المعطلة */
-.custom-form select:disabled {
-  opacity: 0.7;
+.custom-form-button {
+  background-color: #3b82f6;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.15s ease-in-out;
+}
+
+.custom-form-button:hover {
+  background-color: #2563eb;
+}
+
+.custom-form-button:disabled {
+  background-color: #9ca3af;
   cursor: not-allowed;
 }
 
-/* إصلاح مشاكل select على الهاتف المحمول */
-.custom-form select {
-  /* إزالة المظهر الافتراضي */
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  appearance: none;
-  
-  /* منع التكبير التلقائي على iOS */
-  font-size: 16px;
-  
-  /* تحسين التفاعل */
-  touch-action: manipulation;
-  
-  /* ضمان عرض القائمة المنسدلة */
-  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
-  background-repeat: no-repeat;
-  background-position: left 12px center;
-  background-size: 16px;
-  padding-left: 40px;
+.custom-form-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-/* إخفاء السهم الافتراضي في IE/Edge */
-.custom-form select::-ms-expand {
-  display: none;
+.custom-form-checkbox input[type="checkbox"] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #3b82f6;
 }
 
-/* تحسين العرض على Firefox */
-.custom-form select:-moz-focusring {
-  color: transparent;
-  text-shadow: 0 0 0 #000;
+.custom-form-radio {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-/* تنسيقات متجاوبة */
-@media (max-width: 768px) {
-  .custom-form {
-    padding: 0 1rem;
-  }
-  
-  /* تحسين عرض حقول الولايات والبلديات على الهاتف المحمول */
-  .custom-form select {
-    font-size: 16px !important; /* منع التكبير التلقائي على iOS */
-    min-height: 44px; /* الحد الأدنى للمس المريح */
-    padding: 12px 40px 12px 16px;
-    border-radius: 8px;
-    line-height: 1.5;
-    
-    /* ضمان عرض النص بوضوح */
-    color: var(--foreground);
-    background-color: var(--background);
-    
-    /* تحسين الحدود */
-    border: 2px solid var(--border);
-  }
-  
-  .custom-form select:focus {
-    border-color: var(--primary);
-    box-shadow: 0 0 0 3px rgba(var(--primary), 0.1);
-    outline: none;
-  }
-  
-  /* تحسين العرض على الشاشات الصغيرة جداً */
-  @media (max-width: 480px) {
-    .custom-form select {
-      font-size: 16px !important;
-      padding: 14px 40px 14px 18px;
-      border-radius: 8px;
-      min-height: 48px;
-    }
-    
-    .custom-form label {
-      font-size: 14px;
-      margin-bottom: 8px;
-    }
-    
-    /* تحسين المسافات */
-    .custom-form .mb-4 {
-      margin-bottom: 1.5rem;
-    }
-  }
-  
-  /* تحسين أيقونة السهم في حقل select */
-  .custom-form .relative .pointer-events-none {
-    right: 12px;
-    left: auto;
-  }
-  
-  /* تحسين عرض الأخطاء */
-  .custom-form .text-red-500 {
-    font-size: 12px;
-    margin-top: 4px;
-  }
-  
-  /* تحسين عرض النصوص المساعدة */
-  .custom-form .text-muted-foreground {
-    font-size: 12px;
-    line-height: 1.4;
+.custom-form-radio input[type="radio"] {
+  width: 1rem;
+  height: 1rem;
+  accent-color: #3b82f6;
+}
+
+.custom-form-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 640px) {
+  .custom-form-group {
+    grid-template-columns: 1fr;
   }
 }
 
-/* تحسينات إضافية للمتصفحات المختلفة */
-.custom-form select::-ms-expand {
-  display: none; /* إخفاء السهم الافتراضي في IE */
+.custom-form-section {
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin-bottom: 1rem;
 }
 
-/* تحسين التركيز على الأجهزة المحمولة */
-@media (hover: none) and (pointer: coarse) {
-  .custom-form select:focus {
-    outline: none;
-    border-color: var(--primary);
-    box-shadow: 0 0 0 2px rgba(var(--primary), 0.3);
-  }
-  
-  /* ضمان عرض الخيارات بوضوح */
-  .custom-form select option {
-    font-size: 16px;
-    padding: 8px 12px;
-    background-color: var(--background);
-    color: var(--foreground);
-  }
+.custom-form-section-title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 0.75rem;
 }
 
-/* تحسين الحالة المعطلة */
-.custom-form select:disabled {
-  background-color: rgba(0, 0, 0, 0.05);
-  color: rgba(0, 0, 0, 0.5);
-  cursor: not-allowed;
+.custom-form-required {
+  color: #dc2626;
 }
 
-/* إصلاح مشكلة عدم ظهور الخيارات على بعض الأجهزة */
-.custom-form select {
-  /* ضمان أن العنصر قابل للنقر */
-  pointer-events: auto;
-  user-select: none;
-  
-  /* تحسين z-index للتأكد من ظهور القائمة */
-  position: relative;
-  z-index: 1;
+.custom-form-help {
+  color: #6b7280;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
 }
-
-.custom-form select:focus,
-.custom-form select:active {
-  z-index: 10;
-}
-
-/* تحسين عرض placeholder */
-.custom-form select option[disabled] {
-  color: var(--muted-foreground);
-  font-style: italic;
-}
-
-/* تحسين التباين للقراءة الأفضل */
-@media (max-width: 768px) {
-  .custom-form select {
-    font-weight: 400;
-    letter-spacing: 0.025em;
-  }
-  
-  .custom-form select option {
-    font-weight: 400;
-    padding: 12px 16px;
-    line-height: 1.5;
-  }
-}
-
-/* تحسين عرض skeleton loading */
-.custom-form .animate-pulse {
-  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-  background-size: 200% 100%;
-  animation: loading 1.5s infinite;
-}
-
-@keyframes loading {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
-} 

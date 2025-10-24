@@ -7,6 +7,7 @@ import { useEffect, useRef } from 'react';
 import type { Organization } from '@/types/tenant';
 import { updateOrganizationFromData } from '@/lib/processors/organizationProcessor';
 import type { TenantStateRefs } from './TenantState';
+import { addAppEventListener, dispatchAppEvent } from '@/lib/events/eventManager';
 
 interface TenantEventHandlersProps {
   organization: Organization | null;
@@ -61,15 +62,15 @@ export function TenantEventHandlers({
         (window as any).__TENANT_CONTEXT_ORG__ = authOrg;
 
         // ⚡ تحسين: إرسال حدث تأكيد عند تحديث المؤسسة
-        window.dispatchEvent(new CustomEvent('bazaar:tenant-context-ready', {
-          detail: {
-            organization: authOrg,
-            isEarlyDetection: false,
-            loadTime: Date.now() - refs.startTime.current,
-            timestamp: Date.now(),
-            source: 'event-handler'
-          }
-        }));
+        dispatchAppEvent('bazaar:tenant-context-ready', {
+          organization: authOrg,
+          isEarlyDetection: false,
+          loadTime: Date.now() - refs.startTime.current,
+          timestamp: Date.now(),
+          source: 'event-handler'
+        }, {
+          dedupeKey: `tenant-ready:${authOrg.id}`
+        });
       } else {
         if (process.env.NODE_ENV === 'development') {
         }
@@ -115,12 +116,22 @@ export function TenantEventHandlers({
       }
     };
 
-    window.addEventListener('authOrganizationReady', handleAuthOrganizationReady as EventListener);
-    window.addEventListener('fastOrganizationIdReady', handleFastOrganizationIdReady as EventListener);
+    const unsubscribeAuthReady = addAppEventListener<{ organization: Organization }>(
+      'authOrganizationReady',
+      (detail) => handleAuthOrganizationReady({ detail } as CustomEvent)
+    );
+    const unsubscribeFastOrg = addAppEventListener<{
+      organizationId: string;
+      storeIdentifier?: string;
+      source?: string;
+    }>(
+      'fastOrganizationIdReady',
+      (detail) => handleFastOrganizationIdReady({ detail } as CustomEvent)
+    );
 
     return () => {
-      window.removeEventListener('authOrganizationReady', handleAuthOrganizationReady as EventListener);
-      window.removeEventListener('fastOrganizationIdReady', handleFastOrganizationIdReady as EventListener);
+      unsubscribeAuthReady();
+      unsubscribeFastOrg();
     };
   }, []); // ✅ تشغيل مرة واحدة فقط لإعداد المستمعين
 

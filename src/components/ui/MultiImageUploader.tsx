@@ -68,6 +68,18 @@ export default function MultiImageUploader({
   // تحسين: استخدام مرجع للاحتفاظ بالقيمة الحالية للصور لتفادي مشاكل الإغلاق
   const imagesRef = useRef<string[]>(defaultImages);
   
+  // إضافة mounted state tracking
+  const isMountedRef = useRef(true);
+  
+  // إضافة cleanup effect للتحكم في mounted state
+  useEffect(() => {
+    isMountedRef.current = true;
+    
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
   // إضافة useEffect لتحديث الصور عندما تتغير defaultImages من الخارج
   useEffect(() => {
     // تجنب طباعة رسائل التصحيح المتكررة في البيئة الإنتاجية
@@ -75,21 +87,27 @@ export default function MultiImageUploader({
       
     }
     
+    if (!isMountedRef.current) return;
+    
     // التأكد من أن defaultImages مصفوفة
     if (Array.isArray(defaultImages) && JSON.stringify(defaultImages) !== JSON.stringify(images)) {
       setImages(defaultImages);
       imagesRef.current = defaultImages;
     }
-  }, [defaultImages]);
+  }, [defaultImages, images]);
   
   const handleImageUploaded = (url: string) => {
     if (process.env.NODE_ENV !== 'production') {
       
     }
     
+    if (!isMountedRef.current) return;
+    
     if (url && url.trim() !== "") {
       // استخدام وظيفة تحديث الحالة مع وظيفة مرجعية للتأكد من استخدام أحدث القيم
       setImages(prevImages => {
+        if (!isMountedRef.current) return prevImages;
+        
         const newImages = [...prevImages, url];
         // تحديث مرجع الصور
         imagesRef.current = newImages;
@@ -99,7 +117,7 @@ export default function MultiImageUploader({
         }
         
         // تأخير استدعاء onImagesUploaded لضمان اكتمال تحديث الحالة أولاً
-        if (!disableAutoCallback) {
+        if (!disableAutoCallback && isMountedRef.current) {
           onImagesUploaded(newImages);
         }
         
@@ -107,39 +125,50 @@ export default function MultiImageUploader({
       });
     } else {
     }
-    setIsAddingImage(false);
+    
+    if (isMountedRef.current) {
+      setIsAddingImage(false);
+    }
   };
 
   const handleRemoveImage = async (index: number) => {
     if (process.env.NODE_ENV !== 'production') {
     }
 
+    if (!isMountedRef.current) return;
+
     setImages(prevImages => {
+      if (!isMountedRef.current) return prevImages;
+      
       const newImages = [...prevImages];
       const removedUrl = newImages.splice(index, 1)[0];
 
       // حذف الصورة من Supabase Storage في الخلفية
       if (removedUrl) {
         deleteImageFromStorage(removedUrl).then(success => {
-          if (success) {
-            toast({
-              title: "تم حذف الصورة",
-              description: "تم حذف الصورة من التخزين بنجاح",
-              variant: "default",
-            });
-          } else {
+          if (isMountedRef.current) {
+            if (success) {
+              toast({
+                title: "تم حذف الصورة",
+                description: "تم حذف الصورة من التخزين بنجاح",
+                variant: "default",
+              });
+            } else {
+              toast({
+                title: "تحذير",
+                description: "تم حذف الصورة من الواجهة ولكن قد تظل في التخزين",
+                variant: "destructive",
+              });
+            }
+          }
+        }).catch(error => {
+          if (isMountedRef.current) {
             toast({
               title: "تحذير",
               description: "تم حذف الصورة من الواجهة ولكن قد تظل في التخزين",
               variant: "destructive",
             });
           }
-        }).catch(error => {
-          toast({
-            title: "تحذير",
-            description: "تم حذف الصورة من الواجهة ولكن قد تظل في التخزين",
-            variant: "destructive",
-          });
         });
       }
 
@@ -149,7 +178,7 @@ export default function MultiImageUploader({
       if (process.env.NODE_ENV !== 'production') {
       }
 
-      if (!disableAutoCallback) {
+      if (!disableAutoCallback && isMountedRef.current) {
         onImagesUploaded(newImages);
       }
 
@@ -160,12 +189,15 @@ export default function MultiImageUploader({
   const handleMoveImage = (index: number, direction: 'up' | 'down') => {
     if (
       (direction === 'up' && index === 0) ||
-      (direction === 'down' && index === images.length - 1)
+      (direction === 'down' && index === images.length - 1) ||
+      !isMountedRef.current
     ) {
       return;
     }
 
     setImages(prevImages => {
+      if (!isMountedRef.current) return prevImages;
+      
       const newImages = [...prevImages];
       const newIndex = direction === 'up' ? index - 1 : index + 1;
       [newImages[index], newImages[newIndex]] = [newImages[newIndex], newImages[index]];
@@ -176,7 +208,7 @@ export default function MultiImageUploader({
         
       }
       
-      if (!disableAutoCallback) {
+      if (!disableAutoCallback && isMountedRef.current) {
         onImagesUploaded(newImages);
       }
       
@@ -185,16 +217,22 @@ export default function MultiImageUploader({
   };
 
   const showAddImageForm = () => {
+    if (!isMountedRef.current) return;
+    
     if (images.length >= maxImages) {
-      toast({
-        title: "تنبيه",
-        description: `الحد الأقصى للصور هو ${maxImages} صورة`,
-        variant: "default",
-      });
+      if (isMountedRef.current) {
+        toast({
+          title: "تنبيه",
+          description: `الحد الأقصى للصور هو ${maxImages} صورة`,
+          variant: "default",
+        });
+      }
       return;
     }
     
-    setIsAddingImage(true);
+    if (isMountedRef.current) {
+      setIsAddingImage(true);
+    }
   };
 
   // دالة للحصول على جميع روابط الصور
@@ -223,27 +261,28 @@ export default function MultiImageUploader({
   // استخدام useEffect للتحقق من الصور وإزالة الروابط الفارغة أو غير الصالحة
   useEffect(() => {
     const validateImages = async () => {
-      if (images.length > 0) {
-        const validationPromises = images.map(url => checkImageExists(url));
-        const validationResults = await Promise.all(validationPromises);
+      if (!isMountedRef.current || images.length === 0) return;
+      
+      const validationPromises = images.map(url => checkImageExists(url));
+      const validationResults = await Promise.all(validationPromises);
 
-        const validImages = images.filter((url, index) => validationResults[index]);
+      if (!isMountedRef.current) return;
 
-        if (validImages.length !== images.length) {
+      const validImages = images.filter((url, index) => validationResults[index]);
 
-          // تحديث الصور المتبقية
-          setImages(validImages);
-          imagesRef.current = validImages;
+      if (validImages.length !== images.length && isMountedRef.current) {
+        // تحديث الصور المتبقية
+        setImages(validImages);
+        imagesRef.current = validImages;
 
-          if (!disableAutoCallback) {
-            onImagesUploaded(validImages);
-          }
+        if (!disableAutoCallback && isMountedRef.current) {
+          onImagesUploaded(validImages);
         }
       }
     };
 
     validateImages();
-  }, []);
+  }, [images, disableAutoCallback, onImagesUploaded]);
 
   return (
     <div className={`space-y-4 ${className}`}>

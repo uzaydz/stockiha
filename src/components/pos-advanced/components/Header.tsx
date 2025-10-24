@@ -1,17 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import {
-  RotateCcw,
   Search,
-  ShoppingBag,
-  RefreshCw,
   Scan,
-  Loader2
+  Loader2,
+  Camera
 } from 'lucide-react';
 import { HeaderProps } from '../types';
 import { useDebounce } from '../hooks/useDebounce';
@@ -20,11 +15,15 @@ const Header: React.FC<HeaderProps> = ({
   isReturnMode,
   filteredProductsCount,
   isPOSDataLoading,
-  onRefreshData,
+  onRefreshData: _onRefreshData,
   searchQuery = '',
   onSearchChange,
   onBarcodeSearch,
-  isScannerLoading = false
+  isScannerLoading = false,
+  onOpenMobileScanner,
+  isCameraScannerSupported,
+  hasNativeBarcodeDetector,
+  isMobile
 }) => {
   // حالة محلية للبحث مع debouncing
   const [localSearchQuery, setLocalSearchQuery] = useState(searchQuery);
@@ -84,151 +83,85 @@ const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <div className="relative overflow-hidden">
+    <div className="relative overflow-hidden bg-card/50 border-b border-border/40 p-4">
       {/* خلفية متدرجة خفيفة */}
-      <div className="absolute inset-0 bg-gradient-to-r from-primary/5 via-primary/3 to-primary/5" />
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.01] to-transparent pointer-events-none" />
       
-      <div className="relative p-6 border-b border-border/50 backdrop-blur-sm">
-        <div className="space-y-4">
-          {/* العنوان الرئيسي مع الأيقونات */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className={cn(
-                "p-2 rounded-xl border transition-all duration-300",
-                isReturnMode 
-                  ? "bg-orange-500/20 border-orange-300/50 text-orange-700" 
-                  : "bg-primary/10 border-primary/20 text-primary"
-              )}>
-                {isReturnMode ? (
-                  <RotateCcw className="h-5 w-5 animate-spin" style={{ animationDuration: '3s' }} />
-                ) : (
-                  <ShoppingBag className="h-5 w-5" />
-                )}
-              </div>
-              <div>
-                <h1 className={cn(
-                  "text-xl font-bold transition-all duration-300",
-                  isReturnMode ? "text-orange-800" : "text-foreground"
-                )}>
-                  {isReturnMode ? (
-                    <span className="flex items-center gap-2">
-                      🔄 منتجات الإرجاع
-                      <Badge className="bg-orange-500 text-white text-xs animate-pulse">
-                        وضع نشط
-                      </Badge>
-                    </span>
-                  ) : (
-                    'كتالوج المنتجات'
-                  )}
-                </h1>
-                <p className={cn(
-                  "text-sm transition-all duration-300",
-                  isReturnMode ? "text-orange-600/80" : "text-muted-foreground"
-                )}>
-                  {isReturnMode 
-                    ? `${filteredProductsCount} منتج متاح للإرجاع`
-                    : `${filteredProductsCount} منتج متاح`
-                  }
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onRefreshData}
-                disabled={isPOSDataLoading}
-                className="h-9 gap-2 hover:shadow-md transition-all duration-200"
-              >
-                <RefreshCw className={cn(
-                  "h-4 w-4",
-                  isPOSDataLoading && "animate-spin"
-                )} />
-                تحديث
-              </Button>
-            </div>
+      {/* البحث والسكانر محسّن */}
+      <div className="relative space-y-3">
+        <div className="relative group">
+          <div className="absolute right-3 top-1/2 transform -translate-y-1/2 z-10">
+            <Search className="h-5 w-5 text-muted-foreground group-focus-within:text-primary transition-colors" />
           </div>
-
-          {/* شريط البحث والسكانر المحسن */}
-          <div className="space-y-3">
-            {/* شريط البحث التقليدي */}
-            <div className="relative">
-              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                <Search className="h-5 w-5 text-muted-foreground" />
-              </div>
-              <Input
-                placeholder="🔍 ابحث عن المنتجات بالاسم، الوصف..."
-                value={localSearchQuery}
-                onChange={handleSearchChange}
-                className="pr-12 h-11 text-base border-2 focus:border-primary/50 bg-background/60 backdrop-blur-sm placeholder:text-muted-foreground/70"
-              />
-              {localSearchQuery && (
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  className="absolute inset-y-0 left-0 pl-3 flex items-center"
-                >
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handleClearSearch}
-                    className="h-6 w-6 p-0 hover:bg-muted rounded-full"
-                  >
-                    ×
-                  </Button>
-                </motion.div>
-              )}
-              
-              {/* مؤشر البحث النشط */}
-              {localSearchQuery !== debouncedSearchQuery && (
-                <div className="absolute inset-y-0 left-10 flex items-center">
-                  <div className="h-1 w-1 bg-primary rounded-full animate-pulse" />
-                </div>
-              )}
-            </div>
-
-            {/* حقل السكانر المخصص */}
-            {onBarcodeSearch && (
-              <form onSubmit={handleBarcodeSubmit} className="flex gap-2">
-                <div className="relative flex-1">
-                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                    <Scan className={cn(
-                      "h-5 w-5",
-                      isScannerLoading ? "text-primary animate-pulse" : "text-muted-foreground"
-                    )} />
-                  </div>
-                  <Input
-                    ref={barcodeInputRef}
-                    type="text"
-                    placeholder="📷 امسح أو أدخل الباركود..."
-                    value={barcodeInput}
-                    onChange={handleBarcodeChange}
-                    disabled={isScannerLoading}
-                    className={cn(
-                      "pr-12 h-11 text-base border-2 border-dashed focus:border-primary bg-primary/5 backdrop-blur-sm",
-                      "placeholder:text-muted-foreground/70 font-mono tracking-wide",
-                      isScannerLoading && "bg-muted cursor-not-allowed"
-                    )}
-                  />
-                </div>
-                <Button 
-                  type="submit" 
-                  size="sm" 
-                  disabled={!barcodeInput.trim() || isScannerLoading}
-                  className="h-11 px-4 gap-2"
-                >
-                  {isScannerLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Scan className="h-4 w-4" />
-                  )}
-                  {isScannerLoading ? 'جاري البحث...' : 'بحث'}
-                </Button>
-              </form>
-            )}
-          </div>
+          <Input
+            placeholder="ابحث بالاسم، الباركود أو الفئة..."
+            value={localSearchQuery}
+            onChange={handleSearchChange}
+            className="pr-11 h-11 rounded-lg border border-border/50 bg-background hover:bg-muted/50 focus:border-primary/60 shadow-sm text-base font-medium transition-all"
+          />
+          {localSearchQuery && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleClearSearch}
+              className="absolute left-2 top-1/2 transform -translate-y-1/2 h-7 w-7 p-0 rounded-md hover:bg-muted transition-all"
+            >
+              <span className="text-lg font-bold text-muted-foreground">×</span>
+            </Button>
+          )}
         </div>
+
+        {onBarcodeSearch && (
+          <form onSubmit={handleBarcodeSubmit} className="flex gap-2">
+            <div className="relative flex-1">
+              <Scan className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                ref={barcodeInputRef}
+                type="text"
+                placeholder="أدخل الباركود..."
+                value={barcodeInput}
+                onChange={handleBarcodeChange}
+                disabled={isScannerLoading}
+                className="pr-10 h-10 rounded-lg border border-border/50 bg-background hover:bg-muted/50 transition-colors"
+              />
+            </div>
+            {onOpenMobileScanner && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={onOpenMobileScanner}
+                disabled={!isCameraScannerSupported}
+                className="h-10 rounded-lg border-border/50"
+              >
+                <Camera className="h-4 w-4" />
+              </Button>
+            )}
+            <Button 
+              type="submit" 
+              size="sm"
+              disabled={!barcodeInput.trim() || isScannerLoading}
+              className="h-10 rounded-lg"
+            >
+              {isScannerLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Scan className="h-4 w-4" />
+              )}
+            </Button>
+          </form>
+        )}
+
+        {onOpenMobileScanner && isMobile && !isCameraScannerSupported && (
+          <p className="text-xs text-amber-600">
+            ⚠️ لا يمكن الوصول إلى الكاميرا حاليًا
+          </p>
+        )}
+        {onOpenMobileScanner && isCameraScannerSupported && hasNativeBarcodeDetector === false && (
+          <p className="text-xs text-muted-foreground">
+            ℹ️ تأكد من إضاءة جيدة للباركود
+          </p>
+        )}
       </div>
     </div>
   );

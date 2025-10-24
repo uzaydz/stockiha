@@ -26,16 +26,18 @@ export const AdvancedDescriptionRenderer: React.FC<AdvancedDescriptionRendererPr
     <AdvancedDescriptionProvider>
       <div 
         className={cn(
-          "advanced-description-container",
+          "advanced-description-container w-full",
           className
         )}
         style={{
-          padding: `${description.settings?.padding || 20}px`,
-          maxWidth: description.settings?.maxWidth || 800,
+          padding: `${Math.max(12, Math.min(28, description.settings?.padding ?? 20))}px`,
+          maxWidth: typeof description.settings?.maxWidth === 'number' 
+            ? description.settings!.maxWidth 
+            : 800,
           margin: description.settings?.centerContent ? '0 auto' : undefined,
         }}
       >
-        <div className="space-y-6">
+        <div className="space-y-4 sm:space-y-6">
           {sortedComponents.map((component) => (
             <div key={component.id} className="component-wrapper">
               <PureComponentRenderer 

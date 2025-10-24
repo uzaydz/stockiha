@@ -10,11 +10,7 @@ interface StoreLayoutProps {
   footerSettings: any;
   centralOrgId: string | null;
   storeName: string;
-  organizationSettings?: any;
-  logoUrl?: string;
   customJSFooter?: string;
-  isCheckingStore?: boolean;
-  hasStoreError?: boolean;
 }
 
 const StoreLayout: React.FC<StoreLayoutProps> = React.memo(({
@@ -23,11 +19,7 @@ const StoreLayout: React.FC<StoreLayoutProps> = React.memo(({
   footerSettings,
   centralOrgId,
   storeName,
-  organizationSettings,
-  logoUrl,
-  customJSFooter,
-  isCheckingStore = false,
-  hasStoreError = false
+  customJSFooter
 }) => {
   // تتبع عدد التحديثات
   const renderCount = useRef(0);
@@ -85,37 +77,8 @@ const StoreLayout: React.FC<StoreLayoutProps> = React.memo(({
 
   // تسجيل البيانات الحالية
 
-  // فحص البيانات من مصادر مختلفة قبل عرض رسالة "المتجر غير موجود"
-  const windowEarlyData = (window as any).__EARLY_STORE_DATA__;
-  const windowSharedData = (window as any).__SHARED_STORE_DATA__;
-  const windowCurrentStoreData = (window as any).__CURRENT_STORE_DATA__;
-  const windowPrefetchedData = (window as any).__PREFETCHED_STORE_DATA__;
-  
-  const hasOrganizationData = !!(
-    windowEarlyData?.data?.organization_details ||
-    windowSharedData?.organization ||
-    windowCurrentStoreData?.organization ||
-    windowPrefetchedData?.organization ||
-    windowPrefetchedData?.organization_details
-  );
-  
-  const hasOrganizationSettings = !!(
-    windowEarlyData?.data?.organization_settings ||
-    windowSharedData?.organizationSettings ||
-    windowCurrentStoreData?.organizationSettings ||
-    windowPrefetchedData // Prefetch injects settings at root level
-  );
-  
-  // إذا لم يتم العثور على المؤسسة في أي مصدر
-  // 🔥 إصلاح: معاملة string فارغ كما لو كان null
-  const shouldShowNotFound = hasStoreError || (
-    !isCheckingStore &&
-    (!centralOrgId || centralOrgId === '') &&
-    !hasOrganizationData &&
-    !hasOrganizationSettings
-  );
-
-  if (shouldShowNotFound) {
+  // إذا لم يتم العثور على المؤسسة
+  if (!centralOrgId) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
         <h1 className="text-2xl font-bold mb-4">المتجر غير موجود</h1>
@@ -132,10 +95,7 @@ const StoreLayout: React.FC<StoreLayoutProps> = React.memo(({
   return (
     <div className="flex flex-col min-h-screen bg-background relative">
       {/* النافبار */}
-      <Navbar
-        categories={memoizedCategories}
-        organizationSettings={organizationSettings}
-      />
+      <Navbar categories={memoizedCategories} />
       
       {/* المحتوى الرئيسي */}
       <main className="flex-1">

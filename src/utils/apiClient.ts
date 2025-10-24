@@ -2,7 +2,6 @@
  * مكون استدعاءات API
  */
 
-import { optimizeCustomDomain } from './customDomainOptimizer';
 import type { ApiResponse } from './types/interfaces';
 
 export class ApiClient {

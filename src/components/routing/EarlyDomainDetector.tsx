@@ -14,7 +14,7 @@ interface EarlyDomainInfo {
 }
 
 interface EarlyDomainDetectorProps {
-  onDomainDetected: (domainInfo: EarlyDomainInfo) => void;
+  onDomainDetected?: (domainInfo: EarlyDomainInfo) => void;
   children: React.ReactNode;
 }
 
@@ -106,7 +106,7 @@ export const EarlyDomainDetector: React.FC<EarlyDomainDetectorProps> = ({
         };
 
         setDomainInfo(detectedInfo);
-        onDomainDetected(detectedInfo);
+        onDomainDetected?.(detectedInfo);
         
         // إذا كان نطاق مخصص، أرسل المعلومات فوراً
         if (isCustomDomain) {

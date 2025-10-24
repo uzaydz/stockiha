@@ -1,6 +1,7 @@
 // دوال مساعدة للمصادقة وضمان ربط المستخدم بالمؤسسة الصحيحة
 import { supabase } from '@/lib/supabase';
 import { repairUserAuthLink } from './auth-repair';
+import { getCurrentSession } from '@/lib/session-monitor';
 
 // Cache للحماية من الطلبات المكررة
 const userLinkCache = new Map<string, { result: any; timestamp: number }>();
@@ -36,7 +37,7 @@ export const ensureUserOrganizationLink = async (
     // البحث عن المستخدم في قاعدة البيانات
     const { data: userData, error: userError } = await supabase
       .from('users')
-      .select('id, organization_id, role, email, is_active')
+      .select('id, organization_id, role, email, is_active, permissions')
       .or(`id.eq.${authUserId},auth_user_id.eq.${authUserId}`)
       .single();
 
@@ -91,17 +92,37 @@ export const ensureUserOrganizationLink = async (
       };
     }
 
-    // تحديث بيانات المصادقة لتضمين معرف المؤسسة
-    const { error: updateError } = await supabase.auth.updateUser({
-      data: {
-        organization_id: userData.organization_id,
-        role: userData.role,
-        organization_name: orgData.name
-      }
-    });
+    const metadataPayload: Record<string, any> = {
+      organization_id: userData.organization_id,
+      role: userData.role,
+      organization_name: orgData.name,
+      is_active: userData.is_active,
+      employee_id: userData.id
+    };
 
-    if (updateError) {
-      // لا نفشل العملية بسبب هذا
+    const { session: trackedSession } = getCurrentSession();
+    const currentMetadata = (trackedSession?.user?.user_metadata ?? {}) as Record<string, any>;
+    const existingPermissions = currentMetadata.permissions ?? {};
+    const desiredPermissions = userData.permissions ?? existingPermissions;
+    metadataPayload.permissions = desiredPermissions;
+
+    const metadataMatches =
+      currentMetadata.organization_id === metadataPayload.organization_id &&
+      currentMetadata.role === metadataPayload.role &&
+      currentMetadata.organization_name === metadataPayload.organization_name &&
+      currentMetadata.is_active === metadataPayload.is_active &&
+      currentMetadata.employee_id === metadataPayload.employee_id &&
+      JSON.stringify(existingPermissions) === JSON.stringify(desiredPermissions);
+
+    // تحديث بيانات المصادقة لتضمين معرف المؤسسة وكل البيانات المطلوبة
+    if (!metadataMatches) {
+      const { error: updateError } = await supabase.auth.updateUser({
+        data: metadataPayload
+      });
+
+      if (updateError) {
+        // لا نفشل العملية بسبب هذا لتجنب كسر السريان
+      }
     }
 
     // تحديث التخزين المحلي
@@ -111,33 +132,18 @@ export const ensureUserOrganizationLink = async (
     if (process.env.NODE_ENV === 'development') {
     }
 
-      // تحديث user metadata في Supabase Auth لضمان توفر الصلاحيات
-      const { error: updateMetadataError } = await supabase.auth.updateUser({
-        data: {
-          organization_id: userData.organization_id,
-          role: userData.role,
-          permissions: userData.permissions || {},
-          is_active: userData.is_active,
-          employee_id: userData.id
-        }
-      });
+    const result = {
+      success: true,
+      organizationId: userData.organization_id
+    };
+    
+    // تخزين النتيجة في Cache لتجنب الطلبات المكررة
+    userLinkCache.set(authUserId, {
+      result,
+      timestamp: Date.now()
+    });
 
-      if (updateMetadataError) {
-      } else {
-      }
-
-      const result = {
-        success: true,
-        organizationId: userData.organization_id
-      };
-      
-      // تخزين النتيجة في Cache لتجنب الطلبات المكررة
-      userLinkCache.set(authUserId, {
-        result,
-        timestamp: Date.now()
-      });
-
-      return result;
+    return result;
 
     } catch (error) {
       

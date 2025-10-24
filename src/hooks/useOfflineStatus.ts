@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { networkStatusManager } from '@/lib/events/networkStatusManager';
 
 interface OfflineStatus {
   isOnline: boolean;
@@ -12,8 +13,51 @@ interface OfflineStatus {
  * @returns وعد بوليان يشير إلى حالة الاتصال
  */
 const checkInternetConnection = async (): Promise<boolean> => {
-  // 🚫 DISABLED - Always return true to avoid health-check errors
-  return true;
+  try {
+    const timeout = 3000;
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    
+    // إذا كان navigator.onLine يقول أننا أونلاين، نثق به مباشرة
+    const navigatorOnline = typeof navigator !== 'undefined' && navigator.onLine === true;
+    if (navigatorOnline) {
+      return true;
+    }
+
+    // Electron IPC path (فقط إذا كان navigator يقول أوفلاين)
+    const electronAPI: any = (window as any).electronAPI;
+    if (electronAPI?.makeRequest && supabaseUrl) {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), timeout);
+      try {
+        const url = `${supabaseUrl}/rest/v1/`;
+        const result = await Promise.race([
+          electronAPI.makeRequest({ method: 'HEAD', url }),
+          new Promise((_, reject) => {
+            (controller.signal as AbortSignal).addEventListener('abort', () => reject(new Error('timeout')));
+          })
+        ]);
+        clearTimeout(id);
+        return !!(result && result.success === true);
+      } catch (error) {
+        clearTimeout(id);
+      }
+    }
+
+    // Browser fetch fallback
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+      const target = supabaseUrl ? `${supabaseUrl}/rest/v1/` : '/';
+      const res = await fetch(target, { method: 'HEAD', signal: controller.signal as AbortSignal, cache: 'no-store' });
+      clearTimeout(id);
+      return res.ok || res.status < 500;
+    } catch (error) {
+      clearTimeout(id);
+      return false; // إذا فشل كل شيء، نعتبره أوفلاين
+    }
+  } catch (outerError) {
+    return false;
+  }
 };
 
 /**
@@ -21,70 +65,60 @@ const checkInternetConnection = async (): Promise<boolean> => {
  * @returns معلومات عن حالة الاتصال بالإنترنت
  */
 export const useOfflineStatus = (): OfflineStatus => {
-  // حالة الاتصال الحالية
-  const [isOnline, setIsOnline] = useState<boolean>(
-    typeof navigator !== 'undefined' ? navigator.onLine : true
-  );
+  const [networkStatus, setNetworkStatus] = useState(() => {
+    const status = networkStatusManager.getStatus();
+    // افتراض أننا أونلاين بشكل افتراضي إذا كان navigator.onLine صحيحاً
+    if (typeof navigator !== 'undefined' && navigator.onLine && !status.isOnline) {
+      return { isOnline: true, timestamp: Date.now() };
+    }
+    return status;
+  });
+  const isOnline = networkStatus.isOnline;
   
   // تتبع ما إذا كان المستخدم غير متصل سابقًا وعاد للاتصال
   const [wasOffline, setWasOffline] = useState<boolean>(false);
 
   // إجراء فحص نشط للاتصال عند التحميل
   useEffect(() => {
+    let isActive = true;
+    
     const verifyConnection = async () => {
+      if (!isActive) return;
+      
       const isReallyConnected = await checkInternetConnection();
-      if (isReallyConnected !== isOnline) {
-        
-        if (!isReallyConnected && isOnline) {
+      
+      if (!isActive) return;
+      
+      if (isReallyConnected !== networkStatus.isOnline) {
+        if (!isReallyConnected && networkStatus.isOnline) {
           setWasOffline(true);
         }
-        setIsOnline(isReallyConnected);
+        // بث الحالة مركزياً
+        networkStatusManager.setStatus(isReallyConnected);
       }
     };
     
     // فحص الاتصال عند تحميل المكون
     verifyConnection();
     
-    // إعادة فحص الاتصال كل 20 ثانية
-    const intervalId = setInterval(verifyConnection, 20000);
+    // إعادة فحص الاتصال كل 30 ثانية (زيادة لتقليل الضغط)
+    const intervalId = setInterval(verifyConnection, 30000);
     
     return () => {
+      isActive = false;
       clearInterval(intervalId);
     };
-  }, []);
+  }, []); // dependency array فارغة لتجنب infinite loop
 
   useEffect(() => {
     // وظيفة التعامل مع حدث الاتصال
-    const handleOnline = async () => {
-      // تحقق مما إذا كان الاتصال فعليًا عند الإبلاغ عن حالة 'online'
-      const isReallyConnected = await checkInternetConnection();
-      
-      if (isReallyConnected) {
-        if (!isOnline) {
-          setWasOffline(true);
-        }
-        setIsOnline(true);
-      } else {
-        setIsOnline(false);
+    return networkStatusManager.subscribe(status => {
+      if (status.isOnline && !networkStatus.isOnline) {
+        setWasOffline(true);
       }
-    };
-
-    // وظيفة التعامل مع حدث قطع الاتصال
-    const handleOffline = () => {
-      
-      setIsOnline(false);
-    };
-
-    // إضافة مستمعي الأحداث
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    // تنظيف مستمعي الأحداث عند إزالة المكون
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, [isOnline]);
+      setNetworkStatus(status);
+    });
+  }, [networkStatus.isOnline]);
 
   // وظيفة لإعادة تعيين حالة wasOffline
   const resetWasOffline = () => {

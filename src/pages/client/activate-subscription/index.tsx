@@ -145,7 +145,7 @@ export default function ActivateSubscriptionPage() {
     } catch (error: any) {
       toast({
         title: "خطأ في التحقق من الكود",
-        description: error.message || "حدث خطأ أثناء التحقق من كود التفعيل",
+        description: error instanceof Error ? error.message : (typeof error === 'string' ? error : "حدث خطأ أثناء التحقق من كود التفعيل"),
         variant: "destructive"
       });
       setVerificationResult({
@@ -208,7 +208,7 @@ export default function ActivateSubscriptionPage() {
     } catch (error: any) {
       toast({
         title: "خطأ في تفعيل الاشتراك",
-        description: error.message || "حدث خطأ أثناء تفعيل الاشتراك",
+        description: error instanceof Error ? error.message : (typeof error === 'string' ? error : "حدث خطأ أثناء تفعيل الاشتراك"),
         variant: "destructive"
       });
       setActivationResult({

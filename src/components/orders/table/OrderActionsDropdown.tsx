@@ -121,7 +121,7 @@ const OrderActionsDropdown = ({
     } catch (error: any) {
       toast({
         title: "فشل إرسال الطلب",
-        description: error.message || "حدث خطأ غير متوقع.",
+        description: error instanceof Error ? error.message : (typeof error === 'string' ? error : "حدث خطأ غير متوقع."),
         variant: "destructive",
       });
     } finally {
@@ -191,7 +191,7 @@ const OrderActionsDropdown = ({
     } catch (error: any) {
       toast({
         title: "فشل إرسال الطلب",
-        description: error.message || "حدث خطأ غير متوقع.",
+        description: error instanceof Error ? error.message : (typeof error === 'string' ? error : "حدث خطأ غير متوقع."),
         variant: "destructive",
       });
     } finally {
@@ -246,7 +246,7 @@ const OrderActionsDropdown = ({
     } catch (error) {
       toast({
         title: "فشل حذف الطلب",
-        description: error instanceof Error ? error.message : "حدث خطأ غير متوقع أثناء حذف الطلب",
+        description: error instanceof Error ? error.message : (typeof error === 'string' ? error : "حدث خطأ غير متوقع أثناء حذف الطلب"),
         variant: "destructive",
       });
     } finally {

@@ -17,6 +17,7 @@ export interface AdvancedOrderItem {
 
 export interface AdvancedOrder {
   id: string;
+  customer_id: string;
   customer_name: string;
   customer_phone: string;
   customer_email?: string;
@@ -59,6 +60,11 @@ export interface OrderStats {
     orders: number;
     revenue: number;
   }>;
+  
+  // Additional stats
+  completion_rate: number;
+  cancellation_rate: number;
+  average_processing_time: number;
 }
 
 export interface OrderFilters {
@@ -189,7 +195,15 @@ export const useAdvancedOrders = (options: UseAdvancedOrdersOptions = {}): UseAd
          return;
        }
 
-       setStats(data as OrderStats);
+       // إضافة القيم المفقودة للإحصائيات
+       const statsWithDefaults = {
+         ...data,
+         completion_rate: data?.completion_rate || 0,
+         cancellation_rate: data?.cancellation_rate || 0,
+         average_processing_time: data?.average_processing_time || 0
+       } as OrderStats;
+
+       setStats(statsWithDefaults);
     } catch (err) {
     }
   }, [organizationId]);

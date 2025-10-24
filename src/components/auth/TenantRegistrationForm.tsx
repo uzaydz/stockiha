@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { toast } from 'sonner';
+import { dispatchAppEvent } from '@/lib/events/eventManager';
 import { registerTenant } from '@/lib/api/tenant';
 import { checkSubdomainAvailability } from '@/lib/api/subdomain';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
@@ -178,9 +179,12 @@ const TenantRegistrationForm = () => {
           localStorage.setItem('bazaar_organization_id', organizationId);
           
           // إرسال event إضافي للتأكد
-          window.dispatchEvent(new CustomEvent('organizationChanged', {
-            detail: { organizationId }
-          }));
+          dispatchAppEvent('organizationChanged', {
+            organizationId
+          }, {
+            dedupeKey: `organizationChanged:${organizationId}`,
+            dedupeWindowMs: 500
+          });
           
           // انتظار إضافي ثم الانتقال
           setTimeout(() => {

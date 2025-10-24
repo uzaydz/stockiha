@@ -333,7 +333,7 @@ export default function FlexiManagement() {
       toast({
         variant: 'destructive',
         title: 'حدث خطأ',
-        description: error instanceof Error ? error.message : 'لم نتمكن من إضافة شبكة فليكسي جديدة'
+        description: error instanceof Error ? error.message : (typeof error === 'string' ? error : 'لم نتمكن من إضافة شبكة فليكسي جديدة')
       });
     } finally {
       setIsAddingFlexiNetwork(false);
@@ -387,7 +387,7 @@ export default function FlexiManagement() {
       toast({
         variant: 'destructive',
         title: 'حدث خطأ',
-        description: error instanceof Error ? error.message : 'لم نتمكن من إضافة عملة رقمية جديدة'
+        description: error instanceof Error ? error.message : (typeof error === 'string' ? error : 'لم نتمكن من إضافة عملة رقمية جديدة')
       });
     } finally {
       setIsAddingCurrency(false);

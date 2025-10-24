@@ -1,11 +1,13 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/supabase-client';
 import { Product, Order, User as AppUser, Service, OrderItem, ServiceBooking } from '@/types';
 import { logOrderSubmit, logStockUpdate, logProductAdd } from '@/utils/inventoryLogger';
-import { createPOSOrder, POSOrderData } from '@/context/shop/posOrderService';
+import { createPOSOrder, POSOrderData, initializePOSOfflineSync } from '@/context/shop/posOrderService';
 import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
+import { useStaffSession } from '@/context/StaffSessionContext';
+import { useWorkSession } from '@/context/WorkSessionContext';
 import { v4 as uuidv4 } from 'uuid';
 
 // واجهة مخصصة لبيانات الطلب من POS
@@ -85,6 +87,8 @@ export const usePOSOrder = ({
   const { toast } = useToast();
   const { user, userProfile } = useAuth();
   const { currentOrganization } = useTenant();
+  const { currentStaff } = useStaffSession();
+  const { activeSession, resumeSession } = useWorkSession();
   
   const [currentOrder, setCurrentOrder] = useState<Order | null>(null);
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
@@ -93,6 +97,10 @@ export const usePOSOrder = ({
   const favoriteProducts = (products || []).filter(product => 
     (product as any).isFavorite || (product as any).is_favorite
   );
+
+  useEffect(() => {
+    initializePOSOfflineSync();
+  }, []);
 
   const handleOpenOrder = useCallback((order: Order) => {
     setCurrentOrder(order);
@@ -110,6 +118,21 @@ export const usePOSOrder = ({
 
     if (cartItems.length === 0 && selectedServices.length === 0 && selectedSubscriptions.length === 0) {
       throw new Error('لا يمكن إنشاء طلب فارغ');
+    }
+
+    // ✅ استئناف الجلسة تلقائياً إذا كانت متوقفة
+    if (activeSession?.status === 'paused') {
+      try {
+        console.log('🔄 [usePOSOrder] الجلسة متوقفة - استئناف تلقائي...');
+        await resumeSession();
+        toast({
+          title: '▶️ تم استئناف الجلسة تلقائياً',
+          description: 'تم استئناف جلسة العمل لإتمام عملية البيع',
+        });
+      } catch (error) {
+        console.error('❌ فشل استئناف الجلسة:', error);
+        // نستمر في البيع حتى لو فشل الاستئناف
+      }
     }
 
     setIsSubmittingOrder(true);
@@ -185,8 +208,8 @@ export const usePOSOrder = ({
           // مسح السلة
           clearCart();
 
-          // تحديث البيانات
-          await refreshPOSData();
+          // ✅ لا حاجة لـ refreshPOSData - البيانات تُحدث محلياً تلقائياً
+          // React Query سيحدث البيانات عند الحاجة (staleTime: 5 دقائق)
 
           return {
             orderId: subscriptionOrderId,
@@ -215,15 +238,38 @@ export const usePOSOrder = ({
         // استخدام القيم من orderDetails مباشرة إذا كانت موجودة
         const discountAmount = orderDetails.discount || 0;
         const tax = 0;
-        const total = Math.max(0, orderDetails.total || (subtotal - discountAmount + tax));
+        const computedTotal = Math.max(0, subtotal - discountAmount + tax);
+        const resolvedTotal = Math.max(0, orderDetails.total !== undefined ? orderDetails.total : computedTotal);
 
         // إضافة logging للتشخيص
 
         // تحضير بيانات الطلب للدالة المحسنة
 
+        const resolvedCustomerName =
+          orderDetails.customerId === 'guest'
+            ? 'زائر'
+            : users.find(customer => customer.id === orderDetails.customerId)?.name;
+
+        // 🔍 تشخيص: طباعة معلومات الموظف
+        console.log('🔍 [usePOSOrder] معلومات الموظف:', {
+          currentStaff,
+          staffId: currentStaff?.id,
+          staffName: currentStaff?.staff_name,
+          employeeId: userProfile?.id || user.id,
+          userProfileName: (userProfile as any)?.name,
+          userMetadataName: (user as any)?.user_metadata?.name
+        });
+
+        // ✅ إصلاح: استخدام user.id كـ staffId إذا لم يكن هناك موظف
+        const resolvedCreatedByStaffId = currentStaff?.id ?? user.id;
+        // ✅ إصلاح: استخدام اسم المستخدم من userProfile أو user_metadata
+        const resolvedCreatedByStaffName = currentStaff?.staff_name ?? (userProfile as any)?.name ?? (user as any)?.user_metadata?.name ?? (user as any)?.email?.split('@')[0] ?? 'موظف';
+
         const orderData: POSOrderData = {
           organizationId: currentOrganization.id,
-          employeeId: userProfile?.id || user.id, // استخدام userProfile.id إذا كان متاحاً
+          employeeId: userProfile?.id || user.id,
+          createdByStaffId: resolvedCreatedByStaffId, // ✅ دائماً موجود (user.id على الأقل)
+          createdByStaffName: resolvedCreatedByStaffName, // ✅ دائماً موجود
           items: cartItems.map(item => {
             const unitPrice = item.customPrice || item.variantPrice || item.product.price || 0;
             const totalPrice = unitPrice * item.quantity;
@@ -235,7 +281,6 @@ export const usePOSOrder = ({
               name: item.product.name,
               slug: item.product.slug || `product-${item.product.id}`,
               quantity: item.quantity,
-              price: unitPrice,
               unitPrice: unitPrice,
               totalPrice: totalPrice,
               isDigital: item.product.isDigital || false,
@@ -254,16 +299,20 @@ export const usePOSOrder = ({
             } as OrderItem;
           }),
           // استخدام القيم من orderDetails مباشرة (محسوبة من usePOSAdvancedState) - تبسيط
-          total: orderDetails.total || 0,
+          total: resolvedTotal,
           customerId: orderDetails.customerId,
+          customerName: resolvedCustomerName,
           paymentMethod: orderDetails.paymentMethod || 'cash',
           paymentStatus: orderDetails.paymentStatus || 'paid',
           notes: orderDetails.notes || '',
-          amountPaid: orderDetails.partialPayment?.amountPaid || orderDetails.total || 0,
+          amountPaid: orderDetails.partialPayment?.amountPaid || resolvedTotal,
           discount: orderDetails.discount || 0,
-          subtotal: orderDetails.subtotal || 0,
+          subtotal: orderDetails.subtotal || subtotal,
           remainingAmount: orderDetails.partialPayment?.remainingAmount || 0,
-          considerRemainingAsPartial: orderDetails.considerRemainingAsPartial || false
+          considerRemainingAsPartial: orderDetails.considerRemainingAsPartial || false,
+          metadata: selectedSubscriptions.length > 0
+            ? { subscriptions: selectedSubscriptions }
+            : undefined
         };
 
         logOrderSubmit(
@@ -288,6 +337,15 @@ export const usePOSOrder = ({
         const result = await createPOSOrder(orderDataCopy);
 
         if (result.success) {
+          if (result.isOffline) {
+            toast({
+              title: 'تم حفظ الطلب في وضع الأوفلاين',
+              description: 'سيتم مزامنة الطلب تلقائياً عند عودة الاتصال.'
+            });
+          } else {
+            toast.success('تم إنشاء الطلب بنجاح');
+          }
+
           // تحديث المخزون في الكاش
           cartItems.forEach(item => {
             const quantityChange = -item.quantity; // سالب لأنه تم البيع
@@ -302,8 +360,8 @@ export const usePOSOrder = ({
           // مسح السلة
           clearCart();
 
-          // تحديث البيانات
-          await refreshPOSData();
+          // ✅ لا حاجة لـ refreshPOSData - البيانات تُحدث محلياً تلقائياً
+          // updateProductStockInCache حدّث الكاش بالفعل + React Query سيحدث عند الحاجة
 
           logOrderSubmit(
             result.orderId,
@@ -315,7 +373,9 @@ export const usePOSOrder = ({
               databaseProcessingTime: result.databaseProcessingTime,
               fifoResults: result.fifoResults,
               totalFifoCost: result.totalFifoCost,
-              total: result.total // إضافة total في details
+              total: result.total,
+              isOffline: result.isOffline ?? false,
+              syncStatus: result.syncStatus
             }
           );
 
@@ -346,6 +406,10 @@ export const usePOSOrder = ({
         }
       );
 
+      const errorMessage =
+        error instanceof Error ? error.message : 'حدث خطأ أثناء إنشاء الطلب';
+      toast.error(errorMessage);
+
       throw error;
     } finally {
       setIsSubmittingOrder(false);
@@ -353,13 +417,19 @@ export const usePOSOrder = ({
   }, [
     user,
     currentOrganization,
+    currentStaff,
+    activeSession,
+    resumeSession,
     cartItems,
     selectedServices,
     selectedSubscriptions,
     updateProductStockInCache,
     clearCart,
     refreshPOSData,
-    toast
+    toast,
+    supabase,
+    userProfile,
+    users
   ]);
 
   return {

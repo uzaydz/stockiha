@@ -486,7 +486,7 @@ export default function ProductCatalog({ products, onAddToCart }: ProductCatalog
                 )}
                 onClick={() => handleProductClick(product)}
               >
-                <div className="relative aspect-square bg-gradient-to-br from-white to-gray-50">
+                <div className="relative aspect-square bg-gradient-to-br from-muted/30 to-muted/10 dark:from-slate-800/50 dark:to-slate-900/30">
                   <img
                     src={product.thumbnailImage || '/placeholder-product.svg'}
                     alt={product.name}
@@ -558,7 +558,7 @@ export default function ProductCatalog({ products, onAddToCart }: ProductCatalog
                 )}
                 onClick={() => handleProductClick(product)}
               >
-                <div className="relative aspect-square bg-white">
+                <div className="relative aspect-square bg-gradient-to-br from-muted/30 to-muted/10 dark:from-slate-800/50 dark:to-slate-900/30">
                   <img
                     src={product.thumbnailImage || '/placeholder-product.svg'}
                     alt={product.name}
@@ -602,7 +602,7 @@ export default function ProductCatalog({ products, onAddToCart }: ProductCatalog
                 )}
                 onClick={() => handleProductClick(product)}
               >
-                <div className="relative h-16 w-16 bg-white">
+                <div className="relative h-16 w-16 bg-gradient-to-br from-muted/30 to-muted/10 dark:from-slate-800/50 dark:to-slate-900/30">
                   <img
                     src={product.thumbnailImage || '/placeholder-product.svg'}
                     alt={product.name}

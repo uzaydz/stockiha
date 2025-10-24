@@ -5,31 +5,21 @@ import StoreComponentRenderer from './StoreComponentRenderer';
 import { useStorePageData } from '@/hooks/useStorePageData';
 import { useGlobalLoading } from './GlobalLoadingManager';
 import { useDynamicTitle } from '@/hooks/useDynamicTitle';
-import SafeHydrate from '@/components/common/SafeHydrate';
+import { useTenant } from '@/context/TenantContext';
 
 interface StorePageProps {
   // إزالة prop storeData لأننا نستخدم النظام المركزي الآن
 }
 
+const devLog = (...args: unknown[]) => {
+  if (import.meta.env.DEV) {
+    console.log(...args);
+  }
+};
+
 // 🔥 تحسين: استخدام React.memo مع مقارنة مناسبة لمنع إعادة الإنشاء
 const StorePage: React.FC<StorePageProps> = React.memo(() => {
-  const storePageStartTime = useRef(performance.now());
-  const renderCount = useRef(0);
-  renderCount.current++;
-
-  if (renderCount.current === 1) {
-    console.log('🏪 [STORE-PAGE] تهيئة صفحة المتجر', {
-      url: window.location.href,
-      startTime: storePageStartTime.current,
-      memoryUsage: (performance as any).memory ? {
-        used: Math.round((performance as any).memory.usedJSHeapSize / 1024 / 1024) + 'MB'
-      } : 'غير متوفر'
-    });
-  }
-
-  if (renderCount.current > 12) {
-    console.warn('⚠️ [STORE-PAGE] عدد renders مرتفع جداً:', renderCount.current);
-  }
+  devLog('🚀 StorePage: بدء التهيئة');
   
   // 🔥 استخدام useRef لمنع إعادة الإنشاء المتكرر
   const isInitialized = useRef(false);
@@ -37,7 +27,14 @@ const StorePage: React.FC<StorePageProps> = React.memo(() => {
   // استخدام Hook لضمان تحديث العنوان والأيقونة
   useDynamicTitle();
   
-  // لا نستخدم TenantContext في المتجر العام لتقليل الاعتمادات الثقيلة
+  // الحصول على حالة TenantContext
+  const { isLoading: tenantLoading, currentOrganization } = useTenant();
+  
+  devLog('🔍 StorePage: حالة TenantContext', { 
+    tenantLoading, 
+    currentOrganization: currentOrganization ? { id: currentOrganization.id, name: currentOrganization.name } : null 
+  });
+  
   // استخدام الـ hook المخصص لجلب جميع البيانات
   const {
     // بيانات أساسية
@@ -46,151 +43,225 @@ const StorePage: React.FC<StorePageProps> = React.memo(() => {
     storeName,
     logoUrl,
     centralOrgId,
-    currentOrganization,
-
+    
     // بيانات المكونات
     componentsToRender,
-
+    
     // بيانات الفئات والمنتجات
     categories,
     featuredProducts,
-
+    
     // إعدادات
     footerSettings,
     seoSettings,
-
+    
     // حالات التحميل - موحدة
     unifiedLoading,
     isAppReady,
-    hasStoreError,
-    isLoadingStoreData,
   } = useStorePageData();
 
-  const { isLoaderVisible } = useGlobalLoading();
-  
-  // 🔥 إصلاح: إزالة forceRender لمنع إعادة render المتكررة
-  // البيانات تأتي الآن مباشرة من useStorePageData دون حاجة لإجبار re-render
+  devLog('🔍 StorePage: بيانات المتجر', { 
+    storeInfo: storeInfo ? { id: storeInfo.id, name: storeInfo.name } : null,
+    organizationSettings: organizationSettings ? { id: organizationSettings.id, site_name: organizationSettings.site_name } : null,
+    storeName,
+    logoUrl,
+    centralOrgId,
+    componentsToRender: componentsToRender?.length || 0,
+    categories: categories?.length || 0,
+    featuredProducts: featuredProducts?.length || 0,
+    unifiedLoading: {
+      shouldShowGlobalLoader: unifiedLoading.shouldShowGlobalLoader,
+      getLoadingProgress: unifiedLoading.getLoadingProgress()
+    },
+    isAppReady
+  });
 
-  // 🔥 إصلاح: منع إعادة الإنشاء المتكرر مع تحسين الـ hydration
+  // استخدام النظام المركزي للتحميل
+  const { showLoader, hideLoader, setPhase, updateProgress, isLoaderVisible } = useGlobalLoading();
+
+  // 🔥 منع إعادة الإنشاء المتكرر
   useEffect(() => {
     if (isInitialized.current) {
       return;
     }
     isInitialized.current = true;
+    devLog('✅ StorePage: تم التهيئة');
   }, []);
-  
-  const hasComponents = componentsToRender && componentsToRender.length > 0;
-  const isCheckingStore = !hasStoreError && (!isAppReady || isLoadingStoreData);
 
-  const shouldShowLoader = useMemo(() => {
-    if (isLoadingStoreData) {
-      return true;
-    }
-    if (!isAppReady && !hasStoreError) {
-      return true;
-    }
-    if (!hasComponents && !hasStoreError) {
-      return true;
-    }
-    return false;
-  }, [hasComponents, hasStoreError, isAppReady, isLoadingStoreData]);
-
-  // 🔥 تحسين: استخدام useMemo للمكون الرئيسي لمنع إعادة الإنشاء
-  const memoizedStoreContent = useMemo(() => {
-    if (renderCount.current === 1) {
-      console.log('🔍 [StorePage] إنشاء memoizedStoreContent', {
-        storeName,
-        centralOrgId,
-        componentsToRenderLength: componentsToRender?.length || 0,
-        categoriesLength: categories?.length || 0,
-        featuredProductsLength: featuredProducts?.length || 0
+  // إدارة مؤشر التحميل المركزي
+  useEffect(() => {
+    devLog('📊 StorePage: إدارة مؤشر التحميل', {
+      shouldShowLoader: unifiedLoading.shouldShowGlobalLoader,
+      tenantLoading,
+      hasCurrentOrganization: !!currentOrganization,
+      hasStoreInfo: !!storeInfo,
+      isLoaderVisible
+    });
+    
+    // 🔥 تحسين: استدعاء مباشر بدلاً من الاعتماد على handleLoaderVisibility
+    const shouldShowLoader = unifiedLoading.shouldShowGlobalLoader || tenantLoading || (!currentOrganization && !storeInfo);
+    
+    if (shouldShowLoader) {
+      devLog('📊 StorePage: إظهار مؤشر التحميل');
+      // إظهار مؤشر التحميل مع معلومات المتجر
+      showLoader({
+        storeName: storeName || 'جاري تحميل المتجر...',
+        logoUrl,
+        primaryColor: organizationSettings?.theme_primary_color || '#fc5a3e',
+        progress: unifiedLoading.getLoadingProgress(),
       });
+
+      // تحديد المرحلة بناءً على التقدم
+      const progress = unifiedLoading.getLoadingProgress();
+      if (tenantLoading) {
+        setPhase('system');
+      } else if (progress < 30) {
+        setPhase('system');
+      } else if (progress < 70) {
+        setPhase('store');
+      } else if (progress < 100) {
+        setPhase('content');
+      } else {
+        setPhase('complete');
+      }
+    } else if (isLoaderVisible) {
+      devLog('📊 StorePage: إخفاء مؤشر التحميل');
+      // إخفاء مؤشر التحميل عند اكتمال التحميل
+      hideLoader();
     }
-
-    return (
-      <>
-        {/* SEO Head */}
-        <SEOHead
-          storeName={storeName}
-          seoSettings={seoSettings}
-          organizationId={centralOrgId}
-        />
-
-        {/* Store Layout */}
-        <StoreLayout
-          storeName={storeName}
-          categories={categories}
-          footerSettings={footerSettings}
-          centralOrgId={centralOrgId}
-          organizationSettings={organizationSettings}
-          logoUrl={logoUrl}
-          isCheckingStore={isCheckingStore}
-          hasStoreError={hasStoreError}
-        >
-          {/* Store Component Renderer */}
-          <StoreComponentRenderer
-            components={componentsToRender}
-            centralOrgId={centralOrgId}
-            storeName={storeName}
-            categories={categories}
-            featuredProducts={featuredProducts}
-            organizationSettings={organizationSettings}
-            unifiedLoading={unifiedLoading}
-          />
-        </StoreLayout>
-      </>
-    );
   }, [
+    unifiedLoading.shouldShowGlobalLoader,
+    tenantLoading,
+    currentOrganization,
+    storeInfo,
     storeName,
-    seoSettings?.id,
-    centralOrgId,
-    categories?.length,
-    footerSettings?.id,
-    componentsToRender?.length,
-    featuredProducts?.length,
-    organizationSettings?.id,
-    unifiedLoading.shouldShowGlobalLoader
+    logoUrl,
+    organizationSettings?.theme_primary_color,
+    isLoaderVisible,
+    showLoader,
+    hideLoader,
+    setPhase,
+    unifiedLoading
   ]);
 
-  // 🔥 إصلاح: إظهار مؤشر خفيف جداً فقط لتجنب نصوص متغيرة وفلاشينغ
+  // 🔥 تحسين: استخدام useMemo لتخزين البيانات المحسنة
+  const enhancedStoreData = useMemo(() => ({
+    storeInfo,
+    organizationSettings,
+    storeName,
+    logoUrl,
+    centralOrgId,
+    componentsToRender,
+    categories,
+    featuredProducts,
+    footerSettings,
+    seoSettings
+  }), [
+    storeInfo,
+    organizationSettings,
+    storeName,
+    logoUrl,
+    centralOrgId,
+    componentsToRender,
+    categories,
+    featuredProducts,
+    footerSettings,
+    seoSettings
+  ]);
+
+  // 🔥 تحسين: استخدام useMemo لتخزين حالة التحميل
+  const loadingState = useMemo(() => ({
+    unifiedLoading: unifiedLoading.shouldShowGlobalLoader,
+    tenantLoading,
+    hasOrganization: !!currentOrganization,
+    hasStoreInfo: !!storeInfo,
+    storeName
+  }), [
+    unifiedLoading.shouldShowGlobalLoader,
+    tenantLoading,
+    currentOrganization,
+    storeInfo,
+    storeName
+  ]);
+
+  // 🔥 تحسين: قرار عرض المؤشر محسن
+  const shouldShowLoader = useMemo(() => {
+    return unifiedLoading.shouldShowGlobalLoader || tenantLoading || (!currentOrganization && !storeInfo);
+  }, [unifiedLoading.shouldShowGlobalLoader, tenantLoading, currentOrganization, storeInfo]);
+
+  // 🔥 تحسين: استخدام useMemo للمكون الرئيسي لمنع إعادة الإنشاء
+  const memoizedStoreContent = useMemo(() => (
+    <>
+      {/* SEO Head */}
+      <SEOHead 
+        storeName={storeName}
+        seoSettings={seoSettings}
+        organizationId={centralOrgId}
+      />
+      
+      {/* Store Layout */}
+      <StoreLayout
+        storeName={storeName}
+        categories={categories}
+        footerSettings={footerSettings}
+        centralOrgId={centralOrgId}
+      >
+        {/* Store Component Renderer */}
+        <StoreComponentRenderer
+          components={componentsToRender}
+          centralOrgId={centralOrgId}
+          storeName={storeName}
+          categories={categories}
+          featuredProducts={featuredProducts}
+          organizationSettings={organizationSettings}
+          unifiedLoading={unifiedLoading}
+        />
+      </StoreLayout>
+    </>
+  ), [
+    storeName,
+    seoSettings,
+    centralOrgId,
+    categories,
+    footerSettings,
+    componentsToRender,
+    featuredProducts,
+    organizationSettings,
+    unifiedLoading
+  ]);
+
+  // 🔥 إصلاح: عرض مؤشر التحميل بدلاً من null لمنع الشاشة البيضاء
   if (shouldShowLoader) {
-    if (renderCount.current === 1) {
-      console.log('🎯 [StorePage] Showing loader due to shouldShowLoader');
-    }
+    devLog('⏳ StorePage: عرض مؤشر التحميل', { shouldShowLoader });
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
-        <span className="sr-only">جار التحميل...</span>
-        <div className="w-10 h-10 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
+      <div className="min-h-screen bg-gradient-to-br from-primary/10 via-background to-secondary/10 flex flex-col items-center justify-center p-4">
+        <div className="w-16 h-16 border-4 border-primary/20 border-t-primary rounded-full animate-spin mb-6"></div>
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-foreground mb-2">
+            {storeName || 'جاري تحميل المتجر...'}
+          </h2>
+          <p className="text-muted-foreground">نحن نحضر لك تجربة تسوق مميزة</p>
+        </div>
       </div>
     );
   }
 
   // إذا كان مؤشر التحميل مرئي، لا تعرض محتوى
   if (isLoaderVisible) {
-    if (renderCount.current === 1) {
-      console.log('🎯 [StorePage] Hiding content due to isLoaderVisible');
-    }
+    devLog('⏳ StorePage: إرجاع null - مؤشر التحميل مرئي', { isLoaderVisible });
     return null;
   }
 
-  // البيانات جاهزة، عرض المتجر مع SafeHydrate لمنع مشاكل الـ hydration
-  // تقليل رسائل التصحيح - عرض كل 4 renders فقط
-  if (renderCount.current === 1) {
-    console.log('🔍 [StorePage] قرار العرض النهائي:', {
-      willShowLoader: false,
-      willShowContent: true,
-      componentsToRenderCount: componentsToRender?.length || 0,
-      isAppReady,
-      storeName,
-      renderTime: performance.now() - storePageStartTime.current + 'ms'
-    });
-  }
-
-  return (
-    <SafeHydrate>
-      {memoizedStoreContent}
-    </SafeHydrate>
-  );
+  // البيانات جاهزة، عرض المتجر
+  devLog('✅ StorePage: عرض المتجر - البيانات جاهزة', {
+    storeName,
+    centralOrgId,
+    componentsCount: componentsToRender?.length || 0,
+    categoriesCount: categories?.length || 0,
+    productsCount: featuredProducts?.length || 0
+  });
+  
+  return memoizedStoreContent;
 });
 
 // 🔥 تحسين: إضافة displayName للتطوير

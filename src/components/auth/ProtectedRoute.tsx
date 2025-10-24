@@ -164,6 +164,8 @@ const ProtectedRoute = ({
       switch (userRole) {
         case 'call_center_agent':
           return <Navigate to="/call-center" replace />;
+        case 'confirmation_agent':
+          return <Navigate to="/confirmation/workspace" replace />;
         case 'admin':
         case 'owner':
           return <Navigate to="/dashboard" replace />;
@@ -191,6 +193,7 @@ const ProtectedRoute = ({
     const isRootOrLoginPath = currentPath === '/login' || currentPath === '/' || currentPath === '';
     const isAlreadyInCorrectPath = 
       (userRole === 'call_center_agent' && currentPath.startsWith('/call-center')) ||
+      (userRole === 'confirmation_agent' && currentPath.startsWith('/confirmation')) ||
       ((userRole === 'admin' || userRole === 'owner') && currentPath.startsWith('/dashboard')) ||
       (userRole === 'employee' && (currentPath.startsWith('/pos') || currentPath.startsWith('/dashboard'))) ||
       (userRole === 'customer' && currentPath.startsWith('/shop'));
@@ -208,6 +211,8 @@ const ProtectedRoute = ({
       switch (userRole) {
         case 'call_center_agent':
           return <Navigate to="/call-center/dashboard" replace />;
+        case 'confirmation_agent':
+          return <Navigate to="/confirmation/workspace" replace />;
         case 'admin':
         case 'owner':
           return <Navigate to="/dashboard" replace />;
@@ -226,6 +231,7 @@ const ProtectedRoute = ({
     const userRole = userProfile.role;
     const currentPath = location.pathname;
     const isCallCenterAgent = Boolean(userProfile.call_center_agent_id) || userRole === 'call_center_agent';
+    const isConfirmationAgent = Boolean(userProfile.confirmation_agent_id) || userRole === 'confirmation_agent';
     
     if (import.meta.env.DEV) {
     }
@@ -239,6 +245,20 @@ const ProtectedRoute = ({
         if (import.meta.env.DEV) {
         }
         return <Navigate to="/call-center/dashboard" replace />;
+      }
+    }
+
+    if (isConfirmationAgent) {
+      const allowedDashboardPrefixes = [
+        '/dashboard/orders-v2',
+        '/dashboard/abandoned-orders',
+        '/dashboard/blocked-customers',
+      ];
+      const isAllowedPath =
+        currentPath.startsWith('/confirmation') ||
+        allowedDashboardPrefixes.some(prefix => currentPath.startsWith(prefix));
+      if (!isAllowedPath) {
+        return <Navigate to="/confirmation/workspace" replace />;
       }
     }
   }

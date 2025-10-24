@@ -1,45 +1,42 @@
 /**
- * 🎯 Core Infrastructure Wrapper
- * الطبقة الأساسية للبنية التحتية (بدون NotificationsProvider)
- * مكون منفصل لتحسين الأداء وسهولة الصيانة
+ * 🎯 Core Infrastructure Wrapper - مبسط للإلكترون
+ * طبقة أساسية مبسطة بدون تعقيدات غير ضرورية
  */
 
-import React, { memo } from 'react';
+import React from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { LoadingControllerProvider } from '@/components/LoadingController';
 import { SupabaseProvider } from "@/context/SupabaseContext";
-import { GlobalLoadingProvider } from '@/components/store/GlobalLoadingManager';
-import AppWrapper from '@/components/AppWrapper';
-import { PERFORMANCE_CONFIG } from '../constants';
+import { AuthProvider } from '@/context/AuthContext';
+import { UserProvider } from '@/context/UserContext';
+import { TenantProvider } from '@/context/TenantContext';
+import { AppInitializationProvider } from '@/context/AppInitializationContext';
+import { WorkSessionProvider } from '@/context/WorkSessionContext';
+import DesktopTitlebar from '@/components/desktop/DesktopTitlebar';
 import { queryClient } from '@/lib/config/queryClient';
 
 interface CoreInfrastructureWrapperProps {
   children: React.ReactNode;
 }
 
-export const CoreInfrastructureWrapper = memo<CoreInfrastructureWrapperProps>(({ children }) => {
-  
-  // تفعيل التحميل المبكر
-  React.useEffect(() => {
-    // إرسال event للكشف عن البنية التحتية
-    window.dispatchEvent(new CustomEvent('bazaar:infrastructure-ready', {
-      detail: { timestamp: Date.now() }
-    }));
-  }, []);
-
+export const CoreInfrastructureWrapper: React.FC<CoreInfrastructureWrapperProps> = React.memo(({ children }) => {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <LoadingControllerProvider maxConcurrentRequests={PERFORMANCE_CONFIG.maxConcurrentRequests}>
-          <SupabaseProvider>
-            <GlobalLoadingProvider>
-              <AppWrapper>
-                {children}
-              </AppWrapper>
-            </GlobalLoadingProvider>
-          </SupabaseProvider>
-        </LoadingControllerProvider>
+        <SupabaseProvider>
+          <AuthProvider>
+            <AppInitializationProvider>
+              <UserProvider>
+                <TenantProvider>
+                  <WorkSessionProvider>
+                    <DesktopTitlebar />
+                    {children}
+                  </WorkSessionProvider>
+                </TenantProvider>
+              </UserProvider>
+            </AppInitializationProvider>
+          </AuthProvider>
+        </SupabaseProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );
@@ -47,24 +44,25 @@ export const CoreInfrastructureWrapper = memo<CoreInfrastructureWrapperProps>(({
 
 CoreInfrastructureWrapper.displayName = 'CoreInfrastructureWrapper';
 
-// 🎯 Minimal wrapper for public store routes — no SupabaseProvider at bootstrap
-export const MinimalCoreInfrastructureWrapper = memo<CoreInfrastructureWrapperProps>(({ children }) => {
-  React.useEffect(() => {
-    window.dispatchEvent(new CustomEvent('bazaar:infrastructure-ready', {
-      detail: { timestamp: Date.now(), minimal: true }
-    }));
-  }, []);
-
+// 🎯 Minimal wrapper - مبسط للإلكترون
+export const MinimalCoreInfrastructureWrapper: React.FC<CoreInfrastructureWrapperProps> = React.memo(({ children }) => {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <LoadingControllerProvider maxConcurrentRequests={PERFORMANCE_CONFIG.maxConcurrentRequests}>
-          <GlobalLoadingProvider>
-            <AppWrapper>
-              {children}
-            </AppWrapper>
-          </GlobalLoadingProvider>
-        </LoadingControllerProvider>
+        <SupabaseProvider>
+          <AuthProvider>
+            <AppInitializationProvider>
+              <UserProvider>
+                <TenantProvider>
+                  <WorkSessionProvider>
+                    <DesktopTitlebar />
+                    {children}
+                  </WorkSessionProvider>
+                </TenantProvider>
+              </UserProvider>
+            </AppInitializationProvider>
+          </AuthProvider>
+        </SupabaseProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );

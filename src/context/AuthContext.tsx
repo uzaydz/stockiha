@@ -43,6 +43,7 @@ import {
   saveAuthToStorage,
   cleanExpiredCache 
 } from './auth/utils/authStorage';
+import { loadSecureSession, hasStoredSecureSession, saveSecureSession } from './auth/utils/secureSessionStorage';
 import { 
   compareAuthData, 
   debounce 
@@ -51,6 +52,7 @@ import { AUTH_TIMEOUTS } from './auth/constants/authConstants';
 import { throttledLog } from '@/lib/utils/duplicateLogger';
 import { sessionMonitor, getCurrentSession } from '@/lib/session-monitor';
 import { trackPerformance } from '@/lib/performance';
+import { dispatchAppEvent, addAppEventListener } from '@/lib/events/eventManager';
 
 // Cache محسن للجلسة
 const sessionCache = new Map<string, { session: Session; timestamp: number }>();
@@ -79,7 +81,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
 
   // تهيئة الخدمات
   const currentSubdomain = useMemo(() => subdomainService.initialize(), []);
-  try { console.log('🔐 [Auth] provider mount start', { subdomain: currentSubdomain }); } catch {}
+  useEffect(() => {
+    // تقليل logs في development mode
+    if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {
+      try { console.log('🔐 [Auth] provider mount start', { subdomain: currentSubdomain }); } catch {}
+    }
+  }, [currentSubdomain]);
   
   // استخدام الـ Hooks المحسنة
   const { session: hookSession, isValidSession, refreshSession, validateSession } = useAuthSession();
@@ -107,9 +114,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
 
       // إرسال حدث لإعلام TenantContext بتحديث المؤسسة - مرة واحدة فقط
       setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('authOrganizationReady', {
-          detail: { organization }
-        }));
+        dispatchAppEvent('authOrganizationReady', { organization }, {
+          dedupeKey: `authOrganizationReady:${organization.id}`
+        });
       }, 50); // تأخير بسيط لضمان اكتمال التحديث
     }
   }, [organization, userProfile, isLoadingProfile, isLoadingOrganization, profileLoading, orgLoading, dataLoadingComplete, authReady]);
@@ -158,20 +165,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
 
   // الاستماع للأحداث من useUserOrganization - محسن لعدم إرسال حدث متكرر
   useEffect(() => {
-    const handleOrganizationLoaded = (event: CustomEvent) => {
-      const { organization: loadedOrg } = event.detail;
+    const unsubscribe = addAppEventListener<{ organization: Organization }>(
+      'organizationLoaded',
+      (detail) => {
+        const loadedOrg = detail?.organization;
       if (process.env.NODE_ENV === 'development') {
       }
       setOrganizationLoaded(true);
       setIsLoadingOrganization(false);
 
       // لا نحتاج لإرسال حدث هنا - سيتم إرساله من useEffect الرئيسي
-    };
-
-    window.addEventListener('organizationLoaded', handleOrganizationLoaded as EventListener);
+      }
+    );
 
     return () => {
-      window.removeEventListener('organizationLoaded', handleOrganizationLoaded as EventListener);
+      unsubscribe();
     };
   }, []); // إزالة التبعيات لتجنب إعادة إنشاء المستمع
 
@@ -358,8 +366,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
     if (initializedRef.current || hasInitialSessionCheck || initializationInProgressRef.current) return;
     
     const startTime = performance.now();
-    console.time('⏱️ [Auth] initializeFromStorage');
-
     try {
       initializedRef.current = true; // تعيين مبكر لمنع التكرار
       initializationInProgressRef.current = true;
@@ -367,46 +373,110 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
       // تحميل البيانات المحفوظة أولاً (سريع)
       const savedAuth = loadAuthFromStorage();
 
-      if (savedAuth.session && savedAuth.user) {
-        // استخدام البيانات المحفوظة للتحميل السريع
-        try { console.log('💾 [Auth] loaded from storage'); } catch {}
-        setUser(savedAuth.user);
-        setSession(savedAuth.session);
+      let restoredSession: Session | null = null;
+      let restoredUser: SupabaseUser | null = savedAuth.user;
 
-        // حفظ في cache
-        cacheSession(savedAuth.user.id, savedAuth.session);
-        cacheUser(savedAuth.user.id, savedAuth.user);
-        
+      const shouldAttemptSecure = savedAuth.hasSecureSession || hasStoredSecureSession();
+
+      if (shouldAttemptSecure) {
+        try {
+          restoredSession = await loadSecureSession();
+          if (restoredSession && !restoredUser && restoredSession.user) {
+            restoredUser = restoredSession.user as SupabaseUser;
+          }
+        } catch (error) {
+          if (process.env.NODE_ENV === 'development') {
+            console.error('[Auth] فشل تحميل الجلسة المشفرة:', error);
+          }
+        }
+      }
+
+      if (restoredSession && restoredUser) {
+        if (process.env.NODE_ENV === 'development') {
+          throttledLog('✅ [AuthContext] استعادة جلسة آمنة للأوفلاين:', restoredUser.email);
+        }
+
+        setUser(restoredUser);
+        setSession(restoredSession);
+
+        cacheSession(restoredUser.id, restoredSession);
+        cacheUser(restoredUser.id, restoredUser);
+        sessionManager.setCachedUser(restoredUser);
+
         setIsLoading(false);
         setHasInitialSessionCheck(true);
-        setAuthReady(true); // الآن AuthContext جاهز للاستخدام
-        
-        if (process.env.NODE_ENV === 'development') {
-          throttledLog('✅ [AuthContext] تحميل سريع من البيانات المحفوظة:', savedAuth.user.email);
-        }
-        
-        // التحقق من صحة الجلسة في الخلفية - مع cache
+        setAuthReady(true);
+
         if (sessionCheckTimeoutRef.current) {
           clearTimeout(sessionCheckTimeoutRef.current);
         }
-        
+
         sessionCheckTimeoutRef.current = setTimeout(async () => {
           try {
-            // فحص cache أولاً
-            const cachedSession = getCachedSession(savedAuth.user.id);
+            const cachedSession = getCachedSession(restoredUser.id);
             if (cachedSession) {
               const isValid = await validateSession();
               if (!isValid) {
-                // إذا انتهت صلاحية الجلسة، حاول تجديدها
                 const refreshed = await refreshSession();
                 if (!refreshed) {
-                  console.warn('⚠️ [Auth] session invalid after validation');
+                  console.warn('⚠️ [Auth] session invalid after secure validation');
                   setUser(null);
                   setSession(null);
                   setIsLoading(false);
                   setHasInitialSessionCheck(true);
-                  
-                  // مسح cache
+                  sessionCache.delete(restoredUser.id);
+                  userCache.delete(restoredUser.id);
+                }
+              }
+            }
+          } catch (error) {
+            if (process.env.NODE_ENV === 'development') {
+              console.error('[Auth] error validating secure session:', error);
+            }
+          }
+        }, 2000);
+
+      } else if (savedAuth.session && savedAuth.user) {
+        if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {
+          try { console.log('💾 [Auth] loaded legacy session from storage'); } catch {}
+        }
+
+        setUser(savedAuth.user);
+        setSession(savedAuth.session);
+
+        cacheSession(savedAuth.user.id, savedAuth.session);
+        cacheUser(savedAuth.user.id, savedAuth.user);
+        sessionManager.setCachedUser(savedAuth.user);
+
+        setIsLoading(false);
+        setHasInitialSessionCheck(true);
+        setAuthReady(true);
+
+        if (process.env.NODE_ENV === 'development') {
+          throttledLog('✅ [AuthContext] تحميل سريع من البيانات القديمة:', savedAuth.user.email);
+        }
+
+        if (!shouldAttemptSecure) {
+          void saveSecureSession(savedAuth.session).catch(() => undefined);
+        }
+
+        if (sessionCheckTimeoutRef.current) {
+          clearTimeout(sessionCheckTimeoutRef.current);
+        }
+
+        sessionCheckTimeoutRef.current = setTimeout(async () => {
+          try {
+            const cachedSession = getCachedSession(savedAuth.user.id);
+            if (cachedSession) {
+              const isValid = await validateSession();
+              if (!isValid) {
+                const refreshed = await refreshSession();
+                if (!refreshed) {
+                  console.warn('⚠️ [Auth] session invalid after validation (legacy)');
+                  setUser(null);
+                  setSession(null);
+                  setIsLoading(false);
+                  setHasInitialSessionCheck(true);
                   sessionCache.delete(savedAuth.user.id);
                   userCache.delete(savedAuth.user.id);
                 }
@@ -416,8 +486,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
             if (process.env.NODE_ENV === 'development') {
             }
           }
-        }, 2000); // زيادة من 1000ms إلى 2000ms
-        
+        }, 2000);
+
       } else {
 
         // إذا كانت صفحة منتج عامة، نتجاوز أي انتظار طويل ونعلن عدم وجود مستخدم بسرعة
@@ -515,7 +585,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
       
       trackPerformance('initializeFromStorage (error)', startTime);
     } finally {
-      console.timeEnd('⏱️ [Auth] initializeFromStorage');
     }
   }, [cacheSession, cacheUser, getCachedSession, validateSession, refreshSession]);
 
@@ -624,7 +693,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
     setOrganizationLoaded(false);
     setDataLoadingComplete(false);
 
+    // تنظيف البيانات مع الاحتفاظ ببيانات تسجيل الدخول الأوفلاين
+    try {
+      const { clearAuthStorageKeepOfflineCredentials } = await import('./auth/utils/authStorage');
+      clearAuthStorageKeepOfflineCredentials();
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[AuthContext] فشل في تنظيف البيانات مع الاحتفاظ ببيانات الأوفلاين:', error);
+      }
+    }
+
     if (process.env.NODE_ENV === 'development') {
+      try {
+        console.log('[AuthContext] تم تسجيل الخروج مع الاحتفاظ ببيانات تسجيل الدخول الأوفلاين');
+      } catch {}
     }
   }, []);
 

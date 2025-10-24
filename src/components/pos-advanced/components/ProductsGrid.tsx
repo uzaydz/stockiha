@@ -1,5 +1,4 @@
 import React, { useMemo } from 'react';
-import { motion } from 'framer-motion';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { TabsContent } from '@/components/ui/tabs';
 import { Package2 } from 'lucide-react';
@@ -51,14 +50,9 @@ const GridView = React.memo<{
   );
 
   return (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.4, staggerChildren: 0.1 }}
-      className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4"
-    >
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-4">
       {productItems}
-    </motion.div>
+    </div>
   );
 });
 
@@ -85,14 +79,9 @@ const ListView = React.memo<{
   );
 
   return (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ duration: 0.4, staggerChildren: 0.1 }}
-      className="space-y-3"
-    >
+    <div className="space-y-3">
       {productItems}
-    </motion.div>
+    </div>
   );
 });
 

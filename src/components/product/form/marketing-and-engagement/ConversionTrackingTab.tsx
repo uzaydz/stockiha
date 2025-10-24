@@ -25,6 +25,7 @@ import {
   CheckCircle2,
   AlertCircle
 } from 'lucide-react';
+import PreviousPixelsSelector from '@/components/tracking/PreviousPixelsSelector';
 
 // أيقونة جوجل محسنة
 const GoogleAdsIcon = () => (
@@ -204,7 +205,14 @@ const ConversionTrackingTab: React.FC<ConversionTrackingTabProps> = ({ form, org
                       name="marketingSettings.facebook_pixel_id"
                       render={({ field }) => (
                         <FormItem>
-                        <FormLabel className="text-sm font-medium">معرف البيكسل</FormLabel>
+                        <div className="flex items-center justify-between">
+                          <FormLabel className="text-sm font-medium">معرف البيكسل</FormLabel>
+                          <PreviousPixelsSelector 
+                            form={form} 
+                            organizationId={organizationId} 
+                            platform="facebook" 
+                          />
+                        </div>
                             <FormControl>
                               <Input 
                                 placeholder="123456789012345" 
@@ -390,6 +398,13 @@ const ConversionTrackingTab: React.FC<ConversionTrackingTabProps> = ({ form, org
 
               {googleEnabled && (
                 <div className="space-y-4 animate-in slide-in-from-top-2 duration-300">
+                  <div className="flex items-center justify-end mb-2">
+                    <PreviousPixelsSelector 
+                      form={form} 
+                      organizationId={organizationId} 
+                      platform="google" 
+                    />
+                  </div>
                   <div className="grid gap-4">
                     <FormField
                       control={control}
@@ -517,7 +532,14 @@ const ConversionTrackingTab: React.FC<ConversionTrackingTabProps> = ({ form, org
                       name="marketingSettings.tiktok_pixel_id"
                       render={({ field }) => (
                         <FormItem>
-                        <FormLabel className="text-sm font-medium">معرف تيك توك بكسل</FormLabel>
+                        <div className="flex items-center justify-between">
+                          <FormLabel className="text-sm font-medium">معرف تيك توك بكسل</FormLabel>
+                          <PreviousPixelsSelector 
+                            form={form} 
+                            organizationId={organizationId} 
+                            platform="tiktok" 
+                          />
+                        </div>
                             <FormControl>
                               <Input 
                                 placeholder="C9A1B2C3D4E5F6G7H8I9J0" 

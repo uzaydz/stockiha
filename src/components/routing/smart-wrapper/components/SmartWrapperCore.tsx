@@ -21,7 +21,19 @@ interface SmartWrapperCoreProps {
 
 export const SmartWrapperCore = memo<SmartWrapperCoreProps>(({ children }) => {
   
-  const location = useLocation();
+  // حماية من استخدام useLocation خارج Router
+  let location;
+  try {
+    location = useLocation();
+  } catch (error) {
+    // إذا لم يكن Router جاهزاً، استخدم location افتراضي
+    location = { pathname: '/', search: '', hash: '', state: null, key: 'default' };
+  }
+  
+  // تحسين: استخدام useMemo لتجنب إعادة الحساب غير الضرورية
+  const pathname = useMemo(() => location.pathname, [location.pathname]);
+  
+  try { console.log('🧭 [SmartWrapperCore] render start', { pathname }); } catch {}
   
   // 🔥 استخدام useRef لمنع إعادة الإنشاء المتكرر
   const renderCount = useRef(0);
@@ -31,9 +43,12 @@ export const SmartWrapperCore = memo<SmartWrapperCoreProps>(({ children }) => {
   
   renderCount.current++;
   
+  // 🔥 منع إعادة الرسم المتكررة - سيتم تطبيقه بعد استخدام جميع hooks
+  
   // 🔥 منع إعادة الإنشاء المتكرر
   useEffect(() => {
     if (isInitialized.current) {
+      console.log('🔁 [SmartWrapperCore] already initialized');
       return;
     }
     
@@ -44,8 +59,10 @@ export const SmartWrapperCore = memo<SmartWrapperCoreProps>(({ children }) => {
     
     initializationPromiseRef.current = (async () => {
       try {
+        console.time('⏱️ [SmartWrapperCore] init');
         isInitialized.current = true;
       } finally {
+        console.timeEnd('⏱️ [SmartWrapperCore] init');
         initializationPromiseRef.current = null;
       }
     })();
@@ -53,30 +70,34 @@ export const SmartWrapperCore = memo<SmartWrapperCoreProps>(({ children }) => {
 
   // 🔄 تنظيف عند تغيير المسار
   useEffect(() => {
-    if (lastPathname.current !== location.pathname) {
-      lastPathname.current = location.pathname;
+    if (lastPathname.current !== pathname) {
+      console.log('➡️ [SmartWrapperCore] pathname changed', { from: lastPathname.current, to: pathname });
+      lastPathname.current = pathname;
     }
-  }, [location.pathname]);
+  }, [pathname]);
 
   // تحديد نوع الصفحة والـ providers المطلوبة
   const { pageType, config } = useMemo(() => {
-    const newPageType = determinePageType(location.pathname);
+    const newPageType = determinePageType(pathname);
+    console.log('🧩 [SmartWrapperCore] determinePageType', { pathname, pageType: newPageType });
     
     // التحقق من التغييرات
-    if (lastPathname.current === location.pathname && isInitialized.current) {
+    if (lastPathname.current === pathname && isInitialized.current) {
       return { pageType: newPageType, config: PROVIDER_CONFIGS[newPageType] || PROVIDER_CONFIGS.minimal };
     }
 
     return { pageType: newPageType, config: PROVIDER_CONFIGS[newPageType] || PROVIDER_CONFIGS.minimal };
-  }, [location.pathname]);
+  }, [pathname]);
 
   // 🌐 Infrastructure content - محسن
   const infrastructureContent = useMemo(() => {
     // Choose minimal wrapper for public store routes to avoid SupabaseProvider at bootstrap
+    // إزالة 'public-product' لأنه يحتاج الآن AuthProvider للسلة
     const minimalTypes = new Set([
-      'public-store', 'public-product', 'landing', 'thank-you', 'minimal', 'max-store'
+      'public-store', 'landing', 'thank-you', 'minimal', 'max-store'
     ]);
     const Wrapper = minimalTypes.has(pageType as any) ? MinimalCoreInfrastructureWrapper : CoreInfrastructureWrapper;
+    console.log('🏗️ [SmartWrapperCore] choosing wrapper', { pageType, wrapper: minimalTypes.has(pageType as any) ? 'minimal' : 'core' });
 
     return (
       <Wrapper>
@@ -107,3 +128,11 @@ export const SmartWrapperCore = memo<SmartWrapperCoreProps>(({ children }) => {
 });
 
 SmartWrapperCore.displayName = 'SmartWrapperCore';
+
+// مقارنة مخصصة لمنع إعادة الرسم غير الضرورية
+const areEqual = (prevProps: SmartWrapperCoreProps, nextProps: SmartWrapperCoreProps) => {
+  // مقارنة الأطفال فقط - إذا لم يتغيروا، لا تعيد الرسم
+  return prevProps.children === nextProps.children;
+};
+
+export default React.memo(SmartWrapperCore, areEqual);

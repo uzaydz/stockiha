@@ -1,0 +1,29 @@
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: https://stockiha.com/sitemap.xml
+
+# Crawl-delay for better server performance
+Crawl-delay: 1
+
+# Disallow admin and private areas
+Disallow: /dashboard/
+Disallow: /admin/
+Disallow: /api/
+Disallow: /_headers
+Disallow: /sw.js
+Disallow: /manifest.json
+
+# Allow important public pages
+Allow: /
+Allow: /products/
+Allow: /services/
+Allow: /contact/
+Allow: /about/
+Allow: /pricing/
+Allow: /features/
+
+# Block duplicate content
+Disallow: /*?*
+Disallow: /*#*

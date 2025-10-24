@@ -1,43 +1,121 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
+import { POSSharedLayoutControls, POSLayoutState, RefreshHandler } from '@/components/pos-layout/types';
 import { toast } from 'sonner';
 import { useTenant } from '@/context/TenantContext';
 import InvoicesHeader from '@/components/invoices/InvoicesHeader';
 import InvoicesList from '@/components/invoices/InvoicesList';
-import InvoicePrintView from '@/components/invoices/InvoicePrintView';
-import CreateInvoiceDialog from '@/components/invoices/CreateInvoiceDialog';
+import InvoicePrintViewUpdated from '@/components/invoices/InvoicePrintViewUpdated';
+import CreateInvoiceDialogAdvanced from '@/components/invoices/CreateInvoiceDialogAdvanced';
 import type { Invoice } from '@/lib/api/invoices';
 import { getInvoices } from '@/lib/api/invoices';
+import { getAllLocalInvoices } from '@/api/localInvoiceService';
+import { syncPendingInvoices, fetchInvoicesFromServer } from '@/api/syncInvoices';
+import { inventoryDB } from '@/database/localDb';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 
-const Invoices = () => {
+interface InvoicesProps extends POSSharedLayoutControls {
+  useStandaloneLayout?: boolean;
+  onRegisterRefresh?: (handler: RefreshHandler) => void;
+  onLayoutStateChange?: (state: POSLayoutState) => void;
+}
+
+const Invoices: React.FC<InvoicesProps> = ({
+  useStandaloneLayout = true,
+  onRegisterRefresh,
+  onLayoutStateChange
+}) => {
   const { currentOrganization } = useTenant();
+  const { isOnline } = useNetworkStatus();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [isViewingInvoice, setIsViewingInvoice] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
-  const [createDialogType, setCreateDialogType] = useState<'new' | 'order' | 'online' | 'service' | 'combined'>('new');
+  const [createDialogType, setCreateDialogType] = useState<'new' | 'order' | 'online' | 'service' | 'combined' | 'proforma' | 'bon_commande'>('new');
   const [selectOrderDialogOpen, setSelectOrderDialogOpen] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
 
-  // جلب قائمة الفواتير
-  useEffect(() => {
-    const fetchInvoices = async () => {
-      setIsLoading(true);
+  // دالة جلب الفواتير من المخزن المحلي
+  const fetchInvoices = async () => {
+    setIsLoading(true);
+    try {
+      if (!currentOrganization) {
+        setInvoices([]);
+        return;
+      }
+
+      // جلب الفواتير من المخزن المحلي
+      const localInvoices = await getAllLocalInvoices(currentOrganization.id);
+      
+      // تحويل LocalInvoice إلى Invoice
+      const convertedInvoices: Invoice[] = await Promise.all(
+        localInvoices.map(async (localInv) => {
+          // جلب العناصر
+          const items = await inventoryDB.invoiceItems
+            .where('invoice_id')
+            .equals(localInv.id)
+            .toArray();
+
+          return {
+            id: localInv.id,
+            invoiceNumber: localInv.invoice_number,
+            customerName: localInv.customer_name,
+            customerId: localInv.customer_id || undefined,
+            totalAmount: localInv.total_amount,
+            invoiceDate: localInv.invoice_date,
+            dueDate: localInv.due_date,
+            status: localInv.status,
+            items: items.map(item => ({
+              id: item.id,
+              invoiceId: item.invoice_id,
+              name: item.name,
+              description: item.description || '',
+              quantity: item.quantity,
+              unitPrice: item.unit_price,
+              totalPrice: item.total_price,
+              productId: item.product_id || undefined,
+              type: item.type || 'product'
+            })),
+            organizationId: localInv.organization_id,
+            sourceType: localInv.source_type || 'pos',
+            sourceId: undefined,
+            paymentMethod: localInv.payment_method || undefined,
+            paymentStatus: localInv.payment_status || 'pending',
+            notes: localInv.notes,
+            customFields: null,
+            taxAmount: localInv.tax_amount || 0,
+            discountAmount: localInv.discount_amount || 0,
+            subtotalAmount: localInv.subtotal_amount || 0,
+            shippingAmount: localInv.shipping_amount,
+            customerInfo: undefined,
+            organizationInfo: undefined,
+            createdAt: localInv.created_at,
+            updatedAt: localInv.updated_at,
+            // إضافة حقول المزامنة
+            _synced: localInv.synced,
+            _syncStatus: localInv.syncStatus,
+            _pendingOperation: localInv.pendingOperation
+          } as Invoice & { _synced?: boolean; _syncStatus?: string; _pendingOperation?: string };
+        })
+      );
+
+      setInvoices(convertedInvoices);
+
+      // مزامنة مع السيرفر في الخلفية إذا كان متصل
+      if (isOnline) {
+        syncInBackground();
+      }
+    } catch (error) {
+      console.error('خطأ في جلب الفواتير:', error);
+      // في حالة الخطأ، نحاول جلب بيانات وهمية
       try {
-        if (!currentOrganization) {
-          
-          setInvoices([]);
-          return;
-        }
-          
-        // استخدام API لجلب الفواتير
-        // فقط للاختبار، نستخدم بيانات وهمية مؤقتة
-        try {
-          const invoicesData = await getInvoices(currentOrganization.id);
-          setInvoices(invoicesData);
-        } catch (error) {
-          // إذا فشل API، استخدم بيانات وهمية مؤقتة
-          const mockInvoices: Invoice[] = Array.from({ length: 10 }, (_, index) => ({
+        const invoicesData = await getInvoices(currentOrganization.id);
+        setInvoices(invoicesData);
+      } catch (apiError) {
+        // إذا فشل كل شيء، استخدم بيانات وهمية مؤقتة
+        const mockInvoices: Invoice[] = Array.from({ length: 10 }, (_, index) => ({
             id: `invoice-${index + 1}`,
             invoiceNumber: `INV-${Date.now().toString().substring(8)}${index + 1}`,
             customerName: index % 3 === 0 ? "أحمد محمد" : index % 2 === 0 ? "سارة عبدالله" : "محمد علي",
@@ -98,28 +176,107 @@ const Invoices = () => {
             },
             createdAt: new Date(Date.now() - Math.floor(Math.random() * 30) * 24 * 60 * 60 * 1000).toISOString(),
             updatedAt: new Date().toISOString(),
-          }));
-          
-          // حساب المبالغ الفرعية والإجمالية
-          mockInvoices.forEach(invoice => {
-            invoice.items.forEach(item => {
-              item.totalPrice = item.quantity * item.unitPrice;
-            });
-            
-            invoice.subtotalAmount = invoice.items.reduce((sum, item) => sum + item.totalPrice, 0);
-            invoice.totalAmount = invoice.subtotalAmount + invoice.taxAmount - invoice.discountAmount + (invoice.shippingAmount || 0);
+        }));
+        
+        // حساب المبالغ الفرعية والإجمالية
+        mockInvoices.forEach(invoice => {
+          invoice.items.forEach(item => {
+            item.totalPrice = item.quantity * item.unitPrice;
           });
           
-          setInvoices(mockInvoices);
-        }
+          invoice.subtotalAmount = invoice.items.reduce((sum, item) => sum + item.totalPrice, 0);
+          invoice.totalAmount = invoice.subtotalAmount + invoice.taxAmount - invoice.discountAmount + (invoice.shippingAmount || 0);
+        });
         
-      } catch (error) {
-        toast.error('حدث خطأ أثناء تحميل الفواتير');
-      } finally {
-        setIsLoading(false);
+        setInvoices(mockInvoices);
       }
-    };
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
+  // مزامنة في الخلفية
+  const syncInBackground = async () => {
+    if (!isOnline || !currentOrganization) return;
+    
+    try {
+      setIsSyncing(true);
+      
+      // مزامنة الفواتير المعلقة
+      const syncResult = await syncPendingInvoices();
+      
+      if (syncResult.success > 0) {
+        console.log(`✅ تمت مزامنة ${syncResult.success} فاتورة`);
+      }
+      
+      if (syncResult.failed > 0) {
+        console.warn(`⚠️ فشلت مزامنة ${syncResult.failed} فاتورة`);
+      }
+      
+      // جلب الفواتير الجديدة من السيرفر وتحديث الحالة مباشرة
+      await fetchInvoicesFromServer(currentOrganization.id);
+      
+      // تحديث البيانات محلياً بدون إعادة تشغيل fetchInvoices (لتجنب infinite loop)
+      const localInvoices = await getAllLocalInvoices(currentOrganization.id);
+      const convertedInvoices: (Invoice & { _synced?: boolean; _syncStatus?: string; _pendingOperation?: string })[] = await Promise.all(
+        localInvoices.map(async (localInv) => {
+          const items = await inventoryDB.invoiceItems
+            .where('invoice_id')
+            .equals(localInv.id)
+            .toArray();
+
+          return {
+            id: localInv.id,
+            invoiceNumber: localInv.invoice_number,
+            customerName: localInv.customer_name,
+            customerId: localInv.customer_id || undefined,
+            totalAmount: localInv.total_amount,
+            invoiceDate: localInv.invoice_date,
+            dueDate: localInv.due_date,
+            status: localInv.status,
+            items: items.map(item => ({
+              id: item.id,
+              invoiceId: item.invoice_id,
+              name: item.name,
+              description: item.description || '',
+              quantity: item.quantity,
+              unitPrice: item.unit_price,
+              totalPrice: item.total_price,
+              productId: item.product_id || undefined,
+              type: item.type || 'product'
+            })),
+            organizationId: localInv.organization_id,
+            sourceType: localInv.source_type || 'pos',
+            sourceId: undefined,
+            paymentMethod: localInv.payment_method || undefined,
+            paymentStatus: localInv.payment_status || 'pending',
+            notes: localInv.notes,
+            customFields: null,
+            taxAmount: localInv.tax_amount || 0,
+            discountAmount: localInv.discount_amount || 0,
+            subtotalAmount: localInv.subtotal_amount || 0,
+            shippingAmount: localInv.shipping_amount,
+            customerInfo: undefined,
+            organizationInfo: undefined,
+            createdAt: localInv.created_at,
+            updatedAt: localInv.updated_at,
+            _synced: localInv.synced,
+            _syncStatus: localInv.syncStatus,
+            _pendingOperation: localInv.pendingOperation
+          } as Invoice & { _synced?: boolean; _syncStatus?: string; _pendingOperation?: string };
+        })
+      );
+
+      setInvoices(convertedInvoices);
+    } catch (error) {
+      console.error('خطأ في المزامنة:', error);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  // جلب الفواتير عند تحميل الصفحة
+  useEffect(() => {
     fetchInvoices();
   }, [currentOrganization]);
 
@@ -179,13 +336,58 @@ const Invoices = () => {
     setCreateDialogOpen(true);
   };
 
+  // فتح مربع حوار إنشاء فاتورة شكلية
+  const handleCreateProforma = () => {
+    setCreateDialogType('proforma');
+    setCreateDialogOpen(true);
+  };
+
+  // فتح مربع حوار إنشاء أمر شراء
+  const handleCreateBonCommande = () => {
+    setCreateDialogType('bon_commande');
+    setCreateDialogOpen(true);
+  };
+
   // معالجة إنشاء فاتورة جديدة
-  const handleInvoiceCreated = (invoice: Invoice) => {
-    setInvoices(prevInvoices => [invoice, ...prevInvoices]);
+  const handleInvoiceCreated = async (invoice: Invoice) => {
+    if (editingInvoice) {
+      // تحديث الفاتورة الموجودة
+      setInvoices(prevInvoices => 
+        prevInvoices.map(inv => inv.id === invoice.id ? invoice : inv)
+      );
+      setEditingInvoice(null);
+      toast.success('تم تحديث الفاتورة بنجاح' + (!isOnline ? ' (سيتم المزامنة عند الاتصال)' : ''));
+    } else {
+      // إضافة فاتورة جديدة
+      setInvoices(prevInvoices => [invoice, ...prevInvoices]);
+      toast.success('تم إنشاء الفاتورة بنجاح' + (!isOnline ? ' (سيتم المزامنة عند الاتصال)' : ''));
+    }
+    
+    // مزامنة فورية إذا كان متصل
+    if (isOnline) {
+      setTimeout(() => syncInBackground(), 1000);
+    }
+  };
+
+  // تعديل الفاتورة
+  const handleEditInvoice = (invoice: Invoice) => {
+    setEditingInvoice(invoice);
+    setCreateDialogType('new');
+    setCreateDialogOpen(true);
+  };
+
+  // إغلاق نافذة التعديل
+  const handleCloseDialog = () => {
+    setCreateDialogOpen(false);
+    setEditingInvoice(null);
   };
   
-  return (
-    <Layout>
+  const renderWithLayout = (node: React.ReactElement) => (
+    useStandaloneLayout ? <Layout>{node}</Layout> : node
+  );
+
+  const pageContent = (
+    <>
       {isLoading ? (
         <div className="min-h-screen flex items-center justify-center">
           <div className="text-center">
@@ -194,12 +396,12 @@ const Invoices = () => {
           </div>
         </div>
       ) : isViewingInvoice && selectedInvoice ? (
-        <InvoicePrintView 
-          invoice={selectedInvoice} 
-          onBack={handleBackToList} 
+        <InvoicePrintViewUpdated 
+          invoice={selectedInvoice}
+          onBack={handleBackToList}
         />
       ) : (
-        <div className="space-y-6 w-full">
+        <div className="space-y-6 w-full h-full min-h-screen p-6">
           {/* رأس صفحة الفواتير */}
           <InvoicesHeader 
             invoiceCount={invoices.length}
@@ -208,6 +410,8 @@ const Invoices = () => {
             onCreateFromOnlineOrder={handleCreateFromOnlineOrder}
             onCreateFromService={handleCreateFromService}
             onCreateCombined={handleCreateCombined}
+            onCreateProforma={handleCreateProforma}
+            onCreateBonCommande={handleCreateBonCommande}
           />
           
           {/* قائمة الفواتير */}
@@ -216,19 +420,43 @@ const Invoices = () => {
             onViewInvoice={handleViewInvoice}
             onPrintInvoice={handlePrintInvoice}
             onDownloadInvoice={handleDownloadInvoice}
+            onEditInvoice={handleEditInvoice}
           />
         </div>
       )}
       
-      {/* مربع حوار إنشاء فاتورة جديدة */}
-      <CreateInvoiceDialog 
+      {/* مربع حوار إنشاء/تعديل فاتورة */}
+      <CreateInvoiceDialogAdvanced 
         open={createDialogOpen}
-        onOpenChange={setCreateDialogOpen}
+        onOpenChange={handleCloseDialog}
         onInvoiceCreated={handleInvoiceCreated}
         type={createDialogType}
+        editingInvoice={editingInvoice}
       />
-    </Layout>
+    </>
   );
+
+  // تسجيل دالة التحديث مع الـ Layout
+  useEffect(() => {
+    if (onRegisterRefresh) {
+      onRegisterRefresh(() => {
+        fetchInvoices();
+      });
+      return () => onRegisterRefresh(null);
+    }
+  }, [onRegisterRefresh]);
+
+  // تحديث حالة الـ Layout
+  useEffect(() => {
+    const state: POSLayoutState = {
+      isRefreshing: Boolean(isLoading || isSyncing),
+      connectionStatus: isOnline ? 'connected' : 'disconnected',
+      executionTime: undefined
+    };
+    if (onLayoutStateChange) onLayoutStateChange(state);
+  }, [onLayoutStateChange, isLoading, isSyncing, isOnline]);
+
+  return renderWithLayout(pageContent);
 };
 
 export default Invoices;

@@ -5,6 +5,7 @@ import React, { lazy } from 'react';
 
 // ============ صفحات الهبوط والعامة ============
 export const Index = lazy(() => import('../pages/Index'));
+export const LandingPage = lazy(() => import('../pages/landing/LandingPage'));
 export const FeaturesPage = lazy(() => import('../pages/landing/FeaturesPage'));
 export const POSFeaturesPage = lazy(() => import('../pages/POSFeaturesPage'));
 export const OnlineStorePage = lazy(() => import('../pages/features/OnlineStorePage'));
@@ -55,7 +56,6 @@ export const AdvancedInventoryTracking = lazy(() => import('../components/invent
 export const Categories = lazy(() => import('../pages/dashboard/Categories'));
 
 // ============ المبيعات والطلبات - محسنة ============
-export const OptimizedSales = lazy(() => import('../pages/dashboard/OptimizedSales'));
 export const Orders = lazy(() => import('../pages/dashboard/Orders'));
 export const OrdersV2 = lazy(() => import('../pages/dashboard/OrdersV2'));
 export const OrderDetailsV2 = lazy(() => import('../pages/dashboard/OrderDetailsV2'));
@@ -74,6 +74,7 @@ export const BlockedCustomers = lazy(() => import('../pages/dashboard/BlockedCus
 export const Expenses = lazy(() => import('../pages/dashboard/Expenses'));
 export const Analytics = lazy(() => import('../pages/dashboard/Analytics'));
 export const FinancialAnalytics = lazy(() => import('../pages/FinancialAnalytics'));
+export const Zakat = lazy(() => import('../pages/dashboard/Zakat'));
 export const Invoices = lazy(() => import('../pages/dashboard/Invoices'));
 
 // ============ نقطة البيع - محسنة ومشروطة ============
@@ -86,9 +87,24 @@ export const POSOptimized = lazy(() =>
 );
 
 export const POSAdvanced = lazy(() => import('../pages/POSAdvanced'));
+export const POSDashboard = lazy(() => import('../pages/POSDashboard'));
+export const POSSettingsPage = lazy(() => import('../pages/POSSettingsPage'));
+export const StoreBusinessSettings = lazy(() => import('../pages/StoreBusinessSettings'));
+export const StaffManagement = lazy(() => import('../pages/StaffManagement'));
 export const POSOrdersOptimized = lazy(() => import('../pages/POSOrdersOptimized'));
+export const POSOperationsPage = lazy(() => import('../pages/POSOperations'));
+export const StaffOperationsPage = lazy(() => import('../pages/StaffOperations'));
 export const ProductReturns = lazy(() => import('../pages/returns/ProductReturns'));
 export const LossDeclarations = lazy(() => import('../pages/losses/LossDeclarations'));
+export const ProductOperationsPage = lazy(() => import('../pages/ProductOperations'));
+export const SupplierOperationsPage = lazy(() => import('../pages/SupplierOperations'));
+export const Etat104 = lazy(() => import('../pages/dashboard/Etat104'));
+export const CoursesOperationsPage = lazy(() => import('../pages/CoursesOperations'));
+export const SettingsOperationsPage = lazy(() => import('../pages/SettingsOperations'));
+export const StoreOperationsPage = lazy(() => import('../pages/StoreOperations'));
+export const SalesOperationsPage = lazy(() => import('../pages/SalesOperations'));
+export const ServicesOperationsPage = lazy(() => import('../pages/ServicesOperations'));
+export const ReportsOperationsPage = lazy(() => import('../pages/ReportsOperations'));
 
 // ============ الموردين ============
 export const SuppliersManagement = lazy(() => import('../pages/dashboard/SuppliersManagement'));
@@ -103,6 +119,7 @@ export const FormBuilder = lazy(() => import('../pages/FormBuilder'));
 export const ThankYouPageEditor = lazy(() => import('../pages/dashboard/ThankYouPageEditor'));
 export const DomainSettings = lazy(() => import('../pages/dashboard/DomainSettings'));
 export const OrderDistributionSettings = lazy(() => import('../pages/OrderDistributionSettings'));
+export const ConfirmationCenter = lazy(() => import('../pages/dashboard/ConfirmationCenter'));
 
 // ============ محرر المتجر - محسن ومشروط ============
 export const StoreEditor = lazy(() => 
@@ -113,6 +130,7 @@ export const StoreEditor = lazy(() =>
   })
 );
 
+export const OrganizationComponentsEditor = lazy(() => import('../pages/admin/OrganizationComponentsEditor'));
 export const StoreEditorV2 = lazy(() => import('../pages/dashboard/StoreEditorV2'));
 export const StoreSettingsPage = lazy(() => import('../pages/StoreSettingsPage'));
 export const LandingPagesManager = lazy(() => import('../pages/LandingPagesManager'));
@@ -132,6 +150,7 @@ export const SubscriptionPage = lazy(() => import('../pages/dashboard/subscripti
 export const OnlineOrdersRechargePage = lazy(() => import('../pages/dashboard/online-orders-recharge'));
 export const SubscriptionServices = lazy(() => import('../pages/dashboard/SubscriptionServices'));
 export const DeliveryManagement = lazy(() => import('../pages/dashboard/DeliveryManagement'));
+export const StoreThemes = lazy(() => import('../pages/dashboard/StoreThemes'));
 
 // ============ الدورات التعليمية ============
 export const CoursesIndex = lazy(() => import('../pages/courses/CoursesIndex'));
@@ -178,6 +197,7 @@ export const CallCenterLayout = lazy(() => import('../components/call-center/Cal
 export const CallCenterDashboard = lazy(() => import('../pages/call-center/CallCenterDashboard'));
 export const AssignedOrders = lazy(() => import('../pages/call-center/orders/AssignedOrders'));
 export const CallCenterComingSoon = lazy(() => import('../pages/dashboard/call-center/CallCenterComingSoon'));
+export const ConfirmationAgentWorkspace = lazy(() => import('../pages/dashboard/ConfirmationAgentWorkspace'));
 export const AgentsManagementPage = lazy(() => import('../pages/admin/call-center/AgentsManagementPage'));
 export const DistributionSettingsPage = lazy(() => import('../pages/admin/call-center/DistributionSettingsPage'));
 export const ReportsPage = lazy(() => import('../pages/admin/call-center/ReportsPage'));
@@ -187,6 +207,7 @@ export const MonitoringPage = lazy(() => import('../pages/admin/call-center/Moni
 export const ProductForm = lazy(() => import('../pages/ProductForm'));
 export const QuickBarcodePrintPage = lazy(() => import('../pages/dashboard/QuickBarcodePrintPage'));
 export const NotFound = lazy(() => import('../pages/NotFound'));
+export const OpenStoreRedirect = lazy(() => import('../pages/dashboard/OpenStoreRedirect'));
 
 // ============ مكونات خاصة ============
 export const PublicGameTracking = lazy(() => import('../components/apps/game-downloads/PublicGameTracking'));

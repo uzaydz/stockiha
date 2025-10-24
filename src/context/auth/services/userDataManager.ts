@@ -242,12 +242,36 @@ export class UserDataManager {
     organization: Organization | null;
     error: AuthError | null;
   }> {
+    const isOnline = typeof navigator === 'undefined' ? true : navigator.onLine;
+    if (!isOnline) {
+      const savedData = loadUserDataFromStorage();
+      if (savedData.userProfile && savedData.userProfile.id === user.id) {
+        return {
+          userProfile: savedData.userProfile,
+          organization: savedData.organization,
+          error: null
+        };
+      }
+
+      return {
+        userProfile: null,
+        organization: null,
+        error: createAuthError('الاتصال غير متاح حالياً', 'NETWORK')
+      };
+    }
+
     try {
+      console.log('🔍 [UserDataManager] بدء جلب بيانات المستخدم', { userId: user.id });
+      
       // استخدام getUserByAuthId مباشرة للحصول على بيانات المستخدم
       const { getUserByAuthId } = await import('@/lib/api/deduplicatedApi');
+      console.log('📦 [UserDataManager] تم استيراد getUserByAuthId');
+      
       let profile = await getUserByAuthId(user.id);
+      console.log('✅ [UserDataManager] نتيجة getUserByAuthId:', { hasProfile: !!profile });
       
       if (!profile) {
+        console.log('⚠️ [UserDataManager] لم يتم العثور على البروفايل، استخدام fallback');
         // fallback للطريقة القديمة
         const profilePromise = getCurrentUserProfile();
         const timeoutPromise = new Promise<null>((_, reject) => 
@@ -255,6 +279,7 @@ export class UserDataManager {
         );
         
         profile = await Promise.race([profilePromise, timeoutPromise]);
+        console.log('✅ [UserDataManager] نتيجة getCurrentUserProfile:', { hasProfile: !!profile });
         
         if (!profile) {
           throw new Error('لم يتم العثور على بيانات المستخدم');

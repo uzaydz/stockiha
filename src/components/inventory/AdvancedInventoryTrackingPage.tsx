@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, memo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
@@ -46,6 +46,7 @@ import {
   BatchesOverviewSection
 } from './components';
 import { RetentionPolicyManager } from './components/RetentionPolicyManager';
+import { POSSharedLayoutControls } from '@/components/pos-layout/types';
 
 // أنواع البيانات
 interface InventoryTrackingFilters {
@@ -161,7 +162,13 @@ const fetchInventoryTrackingData = async (
  * صفحة تتبع المخزون المتقدمة
  * تعرض نظرة شاملة على حركات المخزون والإحصائيات
  */
-const AdvancedInventoryTrackingPage: React.FC = () => {
+interface AdvancedInventoryTrackingPageProps extends POSSharedLayoutControls {}
+
+const AdvancedInventoryTrackingPageComponent: React.FC<AdvancedInventoryTrackingPageProps> = ({
+  useStandaloneLayout = true,
+  onRegisterRefresh,
+  onLayoutStateChange
+}) => {
   const { currentOrganization } = useTenant();
   const [filters, setFilters] = useState<InventoryTrackingFilters>(defaultFilters);
   const [activeTab, setActiveTab] = useState('overview');
@@ -172,6 +179,9 @@ const AdvancedInventoryTrackingPage: React.FC = () => {
   const [pageSize, setPageSize] = useState(20);
   const [sortField, setSortField] = useState<string>('created_at');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const renderWithLayout = (node: React.ReactNode) => (
+    useStandaloneLayout ? <Layout>{node}</Layout> : node
+  );
 
   // استعلام البيانات مع React Query
   const {
@@ -212,6 +222,26 @@ const AdvancedInventoryTrackingPage: React.FC = () => {
   const handleRefresh = useCallback(() => {
     refetch();
   }, [refetch]);
+
+  useEffect(() => {
+    if (!onRegisterRefresh) return;
+    onRegisterRefresh(() => {
+      handleRefresh();
+    });
+    return () => {
+      onRegisterRefresh(null);
+    };
+  }, [onRegisterRefresh, handleRefresh]);
+
+  useEffect(() => {
+    if (!onLayoutStateChange) return;
+    queueMicrotask(() => {
+      onLayoutStateChange({
+        isRefreshing: isFetching || isLoading,
+        connectionStatus: isError ? 'disconnected' : 'connected'
+      });
+    });
+  }, [onLayoutStateChange, isFetching, isLoading, isError]);
 
   // تصدير البيانات
   const handleExport = useCallback(async () => {
@@ -264,40 +294,37 @@ const AdvancedInventoryTrackingPage: React.FC = () => {
 
   // عرض حالة التحميل
   if (isLoading) {
-    return (
-      <Layout>
-        <div className="container mx-auto p-6 space-y-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="h-8 w-64 bg-muted animate-pulse rounded-lg mb-2" />
-              <div className="h-4 w-96 bg-muted animate-pulse rounded" />
-            </div>
-            <div className="flex gap-2">
-              <div className="h-10 w-24 bg-muted animate-pulse rounded-lg" />
-              <div className="h-10 w-24 bg-muted animate-pulse rounded-lg" />
-            </div>
+    return renderWithLayout(
+      <div className="container mx-auto p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="h-8 w-64 bg-muted animate-pulse rounded-lg mb-2" />
+            <div className="h-4 w-96 bg-muted animate-pulse rounded" />
           </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-32 bg-muted animate-pulse rounded-lg" />
-            ))}
-          </div>
-          
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 h-96 bg-muted animate-pulse rounded-lg" />
-            <div className="h-96 bg-muted animate-pulse rounded-lg" />
+          <div className="flex gap-2">
+            <div className="h-10 w-24 bg-muted animate-pulse rounded-lg" />
+            <div className="h-10 w-24 bg-muted animate-pulse rounded-lg" />
           </div>
         </div>
-      </Layout>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-32 bg-muted animate-pulse rounded-lg" />
+          ))}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 h-96 bg-muted animate-pulse rounded-lg" />
+          <div className="h-96 bg-muted animate-pulse rounded-lg" />
+        </div>
+      </div>
     );
   }
 
   // عرض حالة الخطأ
   if (isError) {
-    return (
-      <Layout>
-        <div className="container mx-auto p-6">
+    return renderWithLayout(
+      <div className="container mx-auto p-6">
           <Card className="border-destructive">
             <CardContent className="pt-6">
               <div className="flex flex-col items-center text-center space-y-4">
@@ -320,13 +347,11 @@ const AdvancedInventoryTrackingPage: React.FC = () => {
             </CardContent>
           </Card>
         </div>
-      </Layout>
     );
   }
 
-  return (
-    <Layout>
-      <div className="container mx-auto p-6 space-y-6">
+const pageContent = (
+    <div className="container mx-auto p-6 space-y-6">
         {/* رأس الصفحة */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -562,9 +587,14 @@ const AdvancedInventoryTrackingPage: React.FC = () => {
           )}
         </Tabs>
       </motion.div>
-    </div>
-    </Layout>
+      </div>
   );
+
+  return renderWithLayout(pageContent);
 };
+
+const AdvancedInventoryTrackingPage = memo(AdvancedInventoryTrackingPageComponent);
+
+AdvancedInventoryTrackingPage.displayName = 'AdvancedInventoryTrackingPage';
 
 export default AdvancedInventoryTrackingPage;

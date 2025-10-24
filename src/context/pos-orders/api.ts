@@ -43,13 +43,13 @@ export const fetchPOSOrderStats = async (orgId: string): Promise<POSOrderStats> 
       let partiallyReturnedCount = 0;
 
       if (orderIds.length > 0) {
-        const { data: returnsDetails } = await supabase
+        const { data: returnsDetails } = await (supabase as any)
           .from('order_returns')
           .select('order_id, total_returned_amount, is_full_return')
           .in('order_id', orderIds);
 
         if (returnsDetails) {
-          returnsDetails.forEach(ret => {
+          returnsDetails.forEach((ret: any) => {
             totalReturnedAmount += ret.total_returned_amount || 0;
             if (ret.is_full_return) {
               fullyReturnedCount++;
@@ -146,11 +146,11 @@ export const fetchPOSOrders = async (
       }
 
       // معالجة البيانات
-      const processedOrders: POSOrderWithDetails[] = (data || []).map(order => ({
+      const processedOrders = (data || []).map((order: any) => ({
         ...order,
         items_count: order.order_items?.length || 0,
         // حساب الحقول المحسوبة الأخرى...
-      }));
+      })) as POSOrderWithDetails[];
 
       return {
         orders: processedOrders,
@@ -164,51 +164,63 @@ export const fetchPOSOrders = async (
   });
 };
 
+// ✅ تم تعطيل الاستدعاء المباشر - البيانات متوفرة من AppInitializationContext
 export const fetchEmployees = async (orgId: string): Promise<Employee[]> => {
-  return deduplicateRequest(`pos-employees-${orgId}`, async () => {
-    try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('id, name, email')
-        .eq('organization_id', orgId)
-        .eq('is_active', true)
-        .order('name');
+  console.log('⚠️ [pos-orders/api] fetchEmployees - البيانات متوفرة من AppInitializationContext');
+  
+  // البيانات متوفرة من AppInitializationContext.employees
+  // return deduplicateRequest(`pos-employees-${orgId}`, async () => {
+  //   try {
+  //     const { data, error } = await supabase
+  //       .from('users')
+  //       .select('id, name, email')
+  //       .eq('organization_id', orgId)
+  //       .eq('is_active', true)
+  //       .order('name');
 
-      if (error) {
-        throw error;
-      }
+  //     if (error) {
+  //       throw error;
+  //     }
 
-      return data || [];
-    } catch (error) {
-      throw error;
-    }
-  });
+  //     return data || [];
+  //   } catch (error) {
+  //     throw error;
+  //   }
+  // });
+  
+  return []; // سيتم استخدام البيانات من AppInitializationContext
 };
 
+// ✅ تم تعطيل الاستدعاء المباشر - البيانات متوفرة من AppInitializationContext
 export const fetchOrganizationSettings = async (orgId: string): Promise<any> => {
-  return deduplicateRequest(`org-settings-${orgId}`, async () => {
-    try {
-      const { data, error } = await supabase
-        .from('organization_settings')
-        .select('*')
-        .eq('organization_id', orgId)
-        .single();
+  console.log('⚠️ [pos-orders/api] fetchOrganizationSettings - البيانات متوفرة من AppInitializationContext');
+  
+  // البيانات متوفرة من AppInitializationContext.organizationSettings
+  // return deduplicateRequest(`org-settings-${orgId}`, async () => {
+  //   try {
+  //     const { data, error } = await supabase
+  //       .from('organization_settings')
+  //       .select('*')
+  //       .eq('organization_id', orgId)
+  //       .single();
 
-      if (error && error.code !== 'PGRST116') {
-        throw error;
-      }
+  //     if (error && error.code !== 'PGRST116') {
+  //       throw error;
+  //     }
 
-      return data;
-    } catch (error) {
-      throw error;
-    }
-  });
+  //     return data;
+  //   } catch (error) {
+  //     throw error;
+  //   }
+  // });
+  
+  return null; // سيتم استخدام البيانات من AppInitializationContext
 };
 
 export const fetchOrganizationSubscriptions = async (orgId: string): Promise<any[]> => {
   return deduplicateRequest(`org-subscriptions-${orgId}`, async () => {
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('organization_subscriptions')
         .select('*')
         .eq('organization_id', orgId)

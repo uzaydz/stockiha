@@ -74,7 +74,29 @@ export const useOrganizationSettings = ({ organizationId }: UseOrganizationSetti
                   ...customData.trackingPixels
                 });
               }
-            } catch (error) {
+            } catch (jsonError) {
+              // إذا كان custom_js يحتوي على كود JavaScript بدلاً من JSON، تجاهل استخراج بكسل التتبع
+              console.warn('custom_js لا يحتوي على بيانات JSON صالحة للتتبع:', jsonError);
+
+              // إذا كان الكود يحتوي على أخطاء JavaScript خطيرة، قم بمسحه تلقائياً
+              if (fetchedSettings.custom_js && (
+                  fetchedSettings.custom_js.includes('fNcqSfPLFxu') ||
+                  fetchedSettings.custom_js.match(/Unexpected identifier|SyntaxError/) ||
+                  fetchedSettings.custom_js.trim().startsWith('{')
+              )) {
+                console.error('تم اكتشاف كود JavaScript خاطئ في custom_js، سيتم مسحه تلقائياً');
+                try {
+                  // مسح الكود الخاطئ من الإعدادات
+                  const cleanedSettings = {
+                    ...fetchedSettings,
+                    custom_js: null
+                  };
+                  setSettings(cleanedSettings);
+                  console.log('✅ تم مسح الكود الخاطئ من custom_js');
+                } catch (cleanError) {
+                  console.error('فشل في مسح الكود الخاطئ:', cleanError);
+                }
+              }
             }
           }
         } else {

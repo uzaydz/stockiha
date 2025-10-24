@@ -4,39 +4,178 @@
  */
 
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
-import type { 
-  StoredAuthData, 
-  StoredUserData, 
-  UserProfile, 
+import type {
+  StoredAuthData,
+  StoredUserData,
+  UserProfile,
   Organization,
   SessionCacheItem,
   UserCacheItem
 } from '../types';
 import { STORAGE_KEYS, AUTH_TIMEOUTS } from '../constants/authConstants';
+import {
+  saveSecureSession,
+  clearSecureSession,
+  clearSecureSessionKeepOffline,
+  hasStoredSecureSession,
+  getSecureSessionMeta
+} from './secureSessionStorage';
+
+const OFFLINE_SNAPSHOT_KEY = 'bazaar_offline_auth_snapshot_v1';
+
+export interface OfflineAuthSnapshot {
+  user: Partial<SupabaseUser> | null;
+  sessionMeta: {
+    expiresAt: number | null;
+    storedAt: number;
+  } | null;
+  organizationId?: string | null;
+  lastUpdatedAt: number;
+}
+
+export const saveOfflineAuthSnapshot = (session: Session | null, user: SupabaseUser | null): void => {
+  if (typeof window === 'undefined' || !user) return;
+
+  try {
+    const snapshot: OfflineAuthSnapshot = {
+      user: user
+        ? {
+            id: user.id,
+            email: user.email,
+            user_metadata: user.user_metadata,
+            app_metadata: user.app_metadata,
+            role: user.role,
+            aud: user.aud,
+            phone: (user as any).phone ?? null,
+            created_at: user.created_at,
+            updated_at: user.updated_at
+          }
+        : null,
+      sessionMeta: session
+        ? {
+            expiresAt: session.expires_at ?? null,
+            storedAt: Date.now()
+          }
+        : null,
+      organizationId: localStorage.getItem('bazaar_organization_id'),
+      lastUpdatedAt: Date.now()
+    };
+
+    localStorage.setItem(OFFLINE_SNAPSHOT_KEY, JSON.stringify(snapshot));
+
+    if (process.env.NODE_ENV === 'development') {
+      try {
+        console.log('[AuthStorage] saved offline snapshot', {
+          hasUser: Boolean(snapshot.user),
+          organizationId: snapshot.organizationId
+        });
+      } catch {}
+    }
+  } catch (error) {
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[AuthStorage] saveOfflineAuthSnapshot error', error);
+    }
+  }
+};
+
+export const loadOfflineAuthSnapshot = (): OfflineAuthSnapshot | null => {
+  if (typeof window === 'undefined') return null;
+
+  try {
+    const raw = localStorage.getItem(OFFLINE_SNAPSHOT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as OfflineAuthSnapshot;
+
+    if (process.env.NODE_ENV === 'development') {
+      try {
+        console.log('[AuthStorage] loaded offline snapshot', {
+          hasUser: Boolean(parsed?.user),
+          hasSessionMeta: Boolean(parsed?.sessionMeta),
+          organizationId: parsed?.organizationId
+        });
+      } catch {}
+    }
+
+    return parsed;
+  } catch (error) {
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[AuthStorage] loadOfflineAuthSnapshot error', error);
+    }
+    return null;
+  }
+};
+
+export const clearOfflineAuthSnapshot = (): void => {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.removeItem(OFFLINE_SNAPSHOT_KEY);
+  } catch (error) {
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[AuthStorage] clearOfflineAuthSnapshot error', error);
+    }
+  }
+};
 
 /**
  * حفظ بيانات المصادقة مع تحسين الأداء
  */
 export const saveAuthToStorage = (session: Session | null, user: SupabaseUser | null): void => {
   try {
-    const authData: StoredAuthData = { session, user };
+    if (process.env.NODE_ENV === 'development') {
+      try {
+        console.log('[AuthStorage] saving auth to storage', {
+          hasSession: Boolean(session),
+          hasUser: Boolean(user),
+          userId: user?.id,
+          sessionExpiresAt: session?.expires_at
+        });
+      } catch {
+        // ignore logging errors
+      }
+    }
+
+    if (session && user) {
+      void saveSecureSession(session).catch((error) => {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('[AuthStorage] فشل حفظ جلسة الأوفلاين الآمنة:', error);
+        }
+      });
+      saveOfflineAuthSnapshot(session, user);
+    } else {
+      void clearSecureSession().catch(() => undefined);
+    }
+
+    const authData: StoredAuthData = {
+      session: null,
+      user,
+      hasSecureSession: Boolean(session && user),
+      sessionMeta: session && user
+        ? {
+            userId: session.user?.id ?? user.id ?? null,
+            expiresAt: session.expires_at ?? null,
+            storedAt: Date.now()
+          }
+        : null
+    };
+
+    const serialized = JSON.stringify(authData);
     
-    // استخدام requestIdleCallback لتجنب حجب الواجهة
+    // حفظ متزامن لضمان توفر البيانات حتى مع إعادة التحميل الفوري
+    localStorage.setItem(STORAGE_KEYS.AUTH_STATE, serialized);
+
+    // إعادة الكتابة لاحقاً كنسخة احتياطية (للتوافق مع السلوك السابق)
     if (typeof requestIdleCallback !== 'undefined') {
       requestIdleCallback(() => {
-        localStorage.setItem(STORAGE_KEYS.AUTH_STATE, JSON.stringify(authData));
+        localStorage.setItem(STORAGE_KEYS.AUTH_STATE, serialized);
       });
     } else {
-      // fallback للمتصفحات القديمة
       setTimeout(() => {
-        localStorage.setItem(STORAGE_KEYS.AUTH_STATE, JSON.stringify(authData));
+        localStorage.setItem(STORAGE_KEYS.AUTH_STATE, serialized);
       }, 0);
-    }
-    
-    if (process.env.NODE_ENV === 'development') {
     }
   } catch (error) {
     if (process.env.NODE_ENV === 'development') {
+      console.error('[AuthStorage] saveAuthToStorage error', error);
     }
   }
 };
@@ -48,15 +187,41 @@ export const loadAuthFromStorage = (): StoredAuthData => {
   try {
     const stored = localStorage.getItem(STORAGE_KEYS.AUTH_STATE);
     if (stored) {
-      const parsed = JSON.parse(stored);
-      return parsed as StoredAuthData;
+      const parsed = JSON.parse(stored) as StoredAuthData;
+      if (process.env.NODE_ENV === 'development') {
+        try {
+          console.log('[AuthStorage] loaded auth state', {
+            hasStoredUser: Boolean(parsed?.user),
+            hasStoredSession: Boolean(parsed?.session),
+            hasSecureFlag: parsed?.hasSecureSession,
+            sessionMeta: parsed?.sessionMeta
+          });
+        } catch {}
+      }
+
+      if (parsed?.session && !hasStoredSecureSession()) {
+        void saveSecureSession(parsed.session).catch(() => undefined);
+      }
+
+      return {
+        session: null,
+        user: parsed?.user ?? null,
+        hasSecureSession: parsed?.hasSecureSession ?? hasStoredSecureSession(),
+        sessionMeta: parsed?.sessionMeta ?? getSecureSessionMeta()
+      };
     }
   } catch (error) {
     if (process.env.NODE_ENV === 'development') {
+      console.error('[AuthStorage] loadAuthFromStorage error', error);
     }
   }
   
-  return { session: null, user: null };
+  return {
+    session: null,
+    user: null,
+    hasSecureSession: hasStoredSecureSession(),
+    sessionMeta: getSecureSessionMeta()
+  };
 };
 
 /**
@@ -74,12 +239,61 @@ export const clearAuthStorage = (): void => {
     sessionStorage.removeItem(STORAGE_KEYS.LAST_LOGIN_REDIRECT);
     sessionStorage.removeItem(STORAGE_KEYS.LOGIN_REDIRECT_COUNT);
     
+    // مسح بيانات الأوفلاين السابقة
+    localStorage.removeItem(OFFLINE_SNAPSHOT_KEY);
+    
     if (process.env.NODE_ENV === 'development') {
     }
   } catch (error) {
     if (process.env.NODE_ENV === 'development') {
     }
   }
+
+  void clearSecureSession().catch(() => undefined);
+};
+
+/**
+ * مسح بيانات المصادقة مع الاحتفاظ ببيانات تسجيل الدخول الأوفلاين
+ */
+export const clearAuthStorageKeepOfflineCredentials = (): void => {
+  try {
+    // مسح البيانات الأساسية
+    localStorage.removeItem(STORAGE_KEYS.AUTH_STATE);
+    localStorage.removeItem(STORAGE_KEYS.AUTH_USER);
+    localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
+    
+    // مسح بيانات الجلسة
+    sessionStorage.removeItem(STORAGE_KEYS.SESSION_CACHE);
+    sessionStorage.removeItem(STORAGE_KEYS.LAST_LOGIN_REDIRECT);
+    sessionStorage.removeItem(STORAGE_KEYS.LOGIN_REDIRECT_COUNT);
+    
+    // الاحتفاظ ببيانات الأوفلاين السابقة - لا نمسحها!
+    // localStorage.removeItem(OFFLINE_SNAPSHOT_KEY); // تعليق هذا السطر
+    // تأكد من عدم مسح بيانات الأوفلاين السابقة
+    
+    // الاحتفاظ ببيانات تسجيل الدخول الأوفلاين (OFFLINE_CREDENTIALS_KEY)
+    // هذه البيانات تُحفظ في LoginForm.tsx ولا نمسحها هنا
+    
+    // 🚨 إصلاح مهم: الاحتفاظ بجميع بيانات الأوفلاين
+    // لا نمسح أي من البيانات التالية:
+    // - OFFLINE_SNAPSHOT_KEY (بيانات المستخدم المحفوظة للأوفلاين)
+    // - OFFLINE_CREDENTIALS_KEY (بيانات تسجيل الدخول المحفوظة)
+    // - secure_offline_session_v1 (الجلسة الآمنة للأوفلاين)
+    // - secure_offline_session_meta_v1 (معلومات الجلسة الآمنة)
+    
+    if (process.env.NODE_ENV === 'development') {
+      try {
+        console.log('[AuthStorage] cleared auth data but kept offline credentials and snapshot');
+      } catch {}
+    }
+  } catch (error) {
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[AuthStorage] clearAuthStorageKeepOfflineCredentials error', error);
+    }
+  }
+
+  // مسح الجلسة الآمنة مع الاحتفاظ ببيانات الأوفلاين
+  void clearSecureSessionKeepOffline().catch(() => undefined);
 };
 
 /**

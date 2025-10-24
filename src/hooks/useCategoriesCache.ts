@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Category, Subcategory, getCategories, getSubcategories } from '@/lib/api/categories';
+import { Category, Subcategory, getCategories, getSubcategories, getCategoriesWithSubcategories } from '@/lib/api/categories';
 import { useTenant } from '@/context/TenantContext';
 
 interface CategoryWithSubcategories extends Category {
@@ -40,30 +40,18 @@ export const useCategoriesCache = (): UseCategoriesCacheResult => {
       setIsLoading(true);
       setError(null);
 
-      // جلب الفئات النشطة
-      const categoriesData = await getCategories(currentOrganization.id);
-      const activeCategories = categoriesData.filter(cat => cat.is_active);
+      // تحسين: جلب الفئات والفئات الفرعية في طلب واحد محسن
+      const { categories: categoriesData, subcategories: allSubcategories } = 
+        await getCategoriesWithSubcategories(currentOrganization.id);
 
-      // جلب الفئات الفرعية لكل فئة
-      const categoriesWithSubs: CategoryWithSubcategories[] = await Promise.all(
-        activeCategories.map(async (category) => {
-          try {
-            const subcategories = await getSubcategories(category.id, currentOrganization.id);
-            const activeSubcategories = subcategories.filter(sub => sub.is_active);
-
-            return {
-              ...category,
-              subcategories: activeSubcategories
-            };
-          } catch (error) {
-            console.error(`Error loading subcategories for category ${category.id}:`, error);
-            return {
-              ...category,
-              subcategories: []
-            };
-          }
-        })
-      );
+      // تجميع الفئات الفرعية حسب الفئة
+      const categoriesWithSubs: CategoryWithSubcategories[] = categoriesData.map(category => {
+        const categorySubs = allSubcategories.filter(sub => sub.category_id === category.id);
+        return {
+          ...category,
+          subcategories: categorySubs
+        };
+      });
 
       setCategories(categoriesWithSubs);
       setLastFetchTime(now);

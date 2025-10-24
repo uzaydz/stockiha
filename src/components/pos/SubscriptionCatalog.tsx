@@ -474,7 +474,7 @@ const SubscriptionCatalog: React.FC<SubscriptionCatalogProps> = ({
                             <img 
                               src={subscription.logo_url} 
                               alt={subscription.name}
-                              className="w-12 h-12 rounded-lg object-contain bg-white p-1.5 border border-border/20 shadow-sm"
+                              className="w-12 h-12 rounded-lg object-contain bg-muted/30 dark:bg-slate-800/50 p-1.5 border border-border/20 shadow-sm"
                             />
                           ) : (
                             <div className="w-12 h-12 bg-gradient-to-br from-primary/10 to-primary/20 rounded-lg flex items-center justify-center border border-primary/20">

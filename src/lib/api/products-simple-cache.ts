@@ -41,27 +41,66 @@ export const loadProductsToCache = async (organizationId: string): Promise<void>
   }
   
   try {
+    // جلب عدد المنتجات الفعلي أولاً
+    const totalProductsCount = await getProductsCount(organizationId);
+    console.log(`إجمالي المنتجات في قاعدة البيانات: ${totalProductsCount}`);
     
-    // جلب جميع المنتجات (بما في ذلك المسودات)
-    const { data, error } = await supabase
-      .from('products')
-      .select(`
-        id, name, sku, barcode, description, price, stock_quantity,
-        category_id, subcategory_id, is_active, created_at, thumbnail_image, images, slug
-      `)
-      .eq('organization_id', organizationId)
-      .order('name', { ascending: true });
+    let allProducts: SimpleProduct[] = [];
+    let page = 0;
+    const pageSize = 1000; // حجم الصفحة
+    let hasMore = true;
     
-    if (error) {
-      return;
+    // جلب جميع المنتجات باستخدام pagination لتجاوز حد 1000
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from('products')
+        .select(`
+          id, name, sku, barcode, description, price, stock_quantity,
+          category_id, subcategory_id, is_active, created_at, thumbnail_image, images, slug
+        `)
+        .eq('organization_id', organizationId)
+        .order('name', { ascending: true })
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+      
+      if (error) {
+        console.error('خطأ في جلب المنتجات:', error);
+        break;
+      }
+      
+      if (data && data.length > 0) {
+        allProducts = allProducts.concat(data);
+        hasMore = data.length === pageSize; // إذا كان العدد أقل من pageSize، فهذا يعني أننا وصلنا للنهاية
+        page++;
+        
+        // إضافة تأخير صغير لتجنب الضغط على قاعدة البيانات
+        if (hasMore) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      } else {
+        hasMore = false;
+      }
+      
+      // حد أقصى للصفحات لتجنب الحلقات اللانهائية (10000 منتج كحد أقصى)
+      if (page > 10) {
+        console.warn('تم الوصول للحد الأقصى من الصفحات (10000 منتج)');
+        break;
+      }
     }
     
     // حفظ في الـ cache
-    productsCache = data || [];
+    productsCache = allProducts;
     cacheTimestamp = now;
     cachedOrganizationId = organizationId;
+    
+    console.log(`تم جلب ${allProducts.length} منتج بنجاح من أصل ${totalProductsCount} منتج`);
+    
+    // التحقق من أننا جلبنا جميع المنتجات
+    if (allProducts.length < totalProductsCount) {
+      console.warn(`تحذير: تم جلب ${allProducts.length} منتج فقط من أصل ${totalProductsCount} منتج. قد تكون هناك مشكلة في pagination.`);
+    }
 
   } catch (error) {
+    console.error('خطأ في تحميل المنتجات:', error);
   }
 };
 
@@ -214,6 +253,27 @@ export const clearCache = () => {
   productsCache = [];
   cacheTimestamp = 0;
   cachedOrganizationId = '';
+};
+
+// دالة للحصول على عدد المنتجات في قاعدة البيانات
+export const getProductsCount = async (organizationId: string): Promise<number> => {
+  try {
+    const { count, error } = await supabase
+      .from('products')
+      .select('id', { count: 'exact', head: false })
+      .eq('organization_id', organizationId)
+      .limit(1);
+    
+    if (error) {
+      console.error('خطأ في جلب عدد المنتجات:', error);
+      return 0;
+    }
+    
+    return count || 0;
+  } catch (error) {
+    console.error('خطأ في جلب عدد المنتجات:', error);
+    return 0;
+  }
 };
 
 // دالة لتحديث منتج في الـ cache

@@ -23,9 +23,15 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink } from '@/components/ui/breadcrumb';
 import { CreditCard, MoreVertical, ShoppingBag } from 'lucide-react';
-import { useOptimizedClickHandler } from "@/lib/performance-utils";
+import { POSSharedLayoutControls } from '@/components/pos-layout/types';
 
-export default function SupplierPayments() {
+interface SupplierPaymentsProps extends POSSharedLayoutControls {}
+
+export default function SupplierPayments({
+  useStandaloneLayout = true,
+  onRegisterRefresh,
+  onLayoutStateChange
+}: SupplierPaymentsProps = {}) {
   const { user } = useAuth();
   const location = useLocation();
   // محاولة الحصول على organization_id بطرق متعددة
@@ -65,6 +71,7 @@ export default function SupplierPayments() {
   const [selectedPayment, setSelectedPayment] = useState<SupplierPayment | null>(null);
   const [selectedSupplierId, setSelectedSupplierId] = useState<string | null>(null);
   const [refreshPaymentsKey, setRefreshPaymentsKey] = useState(0);
+  const [isRefreshingData, setIsRefreshingData] = useState(false);
   
   // تحميل البيانات الأولية
   useEffect(() => {
@@ -219,10 +226,38 @@ export default function SupplierPayments() {
       });
     }
   };
+
+  // تسجيل دالة التحديث
+  useEffect(() => {
+    if (onRegisterRefresh) {
+      onRegisterRefresh(async () => {
+        setIsRefreshingData(true);
+        if (onLayoutStateChange) {
+          onLayoutStateChange({ isRefreshing: true });
+        }
+        
+        await refreshData();
+        
+        setIsRefreshingData(false);
+        if (onLayoutStateChange) {
+          onLayoutStateChange({ isRefreshing: false });
+        }
+      });
+    }
+  }, [onRegisterRefresh, onLayoutStateChange]);
+
+  // إرسال حالة الاتصال
+  useEffect(() => {
+    if (onLayoutStateChange) {
+      onLayoutStateChange({ 
+        connectionStatus: 'connected',
+        isRefreshing: isRefreshingData || isLoading
+      });
+    }
+  }, [isRefreshingData, isLoading, onLayoutStateChange]);
   
-  return (
-    <Layout>
-      <div className="space-y-6">
+  const content = (
+    <div className="space-y-6">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">مدفوعات الموردين</h1>
@@ -273,7 +308,8 @@ export default function SupplierPayments() {
           onSave={handleSavePayment}
           onClose={handleCloseDialog}
         />
-      </div>
-    </Layout>
+    </div>
   );
+
+  return useStandaloneLayout ? <Layout>{content}</Layout> : content;
 }

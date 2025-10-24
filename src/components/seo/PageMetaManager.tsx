@@ -55,7 +55,7 @@ export function PageMetaManager() {
     } catch (error: any) {
       toast({
         title: 'خطأ',
-        description: error.message,
+        description: error instanceof Error ? error.message : (typeof error === 'string' ? error : 'حدث خطأ غير متوقع'),
         variant: 'destructive'
       });
     } finally {
@@ -78,7 +78,7 @@ export function PageMetaManager() {
     } catch (error: any) {
       toast({
         title: 'خطأ',
-        description: error.message,
+        description: error instanceof Error ? error.message : (typeof error === 'string' ? error : 'حدث خطأ غير متوقع'),
         variant: 'destructive'
       });
     } finally {
@@ -99,7 +99,7 @@ export function PageMetaManager() {
     } catch (error: any) {
       toast({
         title: 'خطأ',
-        description: error.message,
+        description: error instanceof Error ? error.message : (typeof error === 'string' ? error : 'حدث خطأ غير متوقع'),
         variant: 'destructive'
       });
     }

@@ -32,7 +32,9 @@ import {
   Gamepad2,
   Activity,
   Zap,
-  Ban
+  Layers,
+  Ban,
+  FileSpreadsheet
 } from 'lucide-react';
 
 import { NavGroup, MerchantType } from './types';
@@ -124,6 +126,14 @@ export const createNavigationData = (
       allowedMerchantTypes: ['traditional', 'both'] as MerchantType[],
       items: [
         {
+          title: 'لوحة تحكم نقطة البيع',
+          icon: BarChart3,
+          href: '/dashboard/pos-dashboard',
+          requiredPermission: 'accessPOS',
+          badge: null,
+          allowedMerchantTypes: ['traditional', 'both'] as MerchantType[]
+        },
+        {
           title: 'نقطة البيع',
           icon: Zap,
           href: '/dashboard/pos-advanced',
@@ -132,37 +142,21 @@ export const createNavigationData = (
           allowedMerchantTypes: ['traditional', 'both'] as MerchantType[]
         },
         {
-          title: 'طلبيات نقطة البيع',
-          icon: Receipt,
-          href: '/dashboard/pos-orders',
-          requiredPermission: 'viewPOSOrders',
-          badge: null,
-          allowedMerchantTypes: ['traditional', 'both'] as MerchantType[]
-        },
-        {
-          title: 'إدارة المديونيات',
-          icon: BanknoteIcon,
-          href: '/dashboard/customer-debts',
-          requiredPermission: 'viewDebts',
-          badge: null,
-          allowedMerchantTypes: ['traditional', 'both'] as MerchantType[]
-        },
-        {
-          title: 'إرجاع المنتجات',
-          icon: RotateCcw,
-          href: '/dashboard/returns',
+          title: 'إدارة نقطة البيع',
+          icon: Layers,
+          href: '/dashboard/pos-operations/orders',
           requiredPermission: 'accessPOS',
           badge: null,
           allowedMerchantTypes: ['traditional', 'both'] as MerchantType[]
         },
         {
-          title: 'التصريح بالخسائر',
-          icon: AlertTriangle,
-          href: '/dashboard/losses',
+          title: 'كشف حساب 104',
+          icon: FileSpreadsheet,
+          href: '/dashboard/etat104',
           requiredPermission: 'accessPOS',
-          badge: null,
+          badge: 'جديد',
           allowedMerchantTypes: ['traditional', 'both'] as MerchantType[]
-        },
+        }
       ]
     }] : []),
 
@@ -174,41 +168,17 @@ export const createNavigationData = (
       allowedMerchantTypes: ['traditional', 'ecommerce', 'both'],
       items: [
         {
-          title: 'المنتجات',
+          title: 'مركز المنتجات',
           icon: Package,
-          href: '/dashboard/products',
+          href: '/dashboard/product-operations/products',
           requiredPermission: 'viewProducts',
           badge: null,
           allowedMerchantTypes: ['traditional', 'ecommerce', 'both']
-        },
-        {
-          title: 'الفئات',
-          icon: Tag,
-          href: '/dashboard/categories',
-          requiredPermission: 'manageProductCategories',
-          badge: null,
-          allowedMerchantTypes: ['traditional', 'ecommerce', 'both']
-        },
-        {
-          title: 'المخزون',
-          icon: Database,
-          href: '/dashboard/inventory',
-          requiredPermission: 'viewInventory',
-          badge: '5',
-          allowedMerchantTypes: ['traditional', 'ecommerce', 'both']
-        },
-        {
-          title: 'تتبع المخزون المتقدم',
-          icon: Activity,
-          href: '/dashboard/inventory-tracking',
-          requiredPermission: 'viewInventory',
-          badge: 'جديد',
-          allowedMerchantTypes: ['traditional', 'ecommerce', 'both']
-        },
+        }
       ]
     },
 
-    // المبيعات والطلبات - تظهر للجميع مع اختلاف في العناصر
+    // المبيعات والطلبات - عنصر واحد للمركز
     {
       group: 'المبيعات والطلبات',
       icon: ShoppingBag,
@@ -216,45 +186,13 @@ export const createNavigationData = (
       allowedMerchantTypes: ['traditional', 'ecommerce', 'both'],
       items: [
         {
-          title: 'الطلبات الإلكترونية',
+          title: 'مركز المبيعات والطلبات',
           icon: ShoppingBag,
-          href: '/dashboard/orders-v2',
-          requiredPermission: 'viewOrders',
-          badge: '12',
-          allowedMerchantTypes: ['ecommerce', 'both']
-        },
-        {
-          title: 'قائمة المحظورين',
-          icon: Ban,
-          href: '/dashboard/blocked-customers',
-          requiredPermission: 'viewOrders',
-          badge: null,
-          allowedMerchantTypes: ['ecommerce', 'both']
-        },
-        {
-          title: 'الطلبات المتروكة',
-          icon: ShoppingBag,
-          href: '/dashboard/abandoned-orders',
-          requiredPermission: 'viewOrders',
-          badge: 'جديد',
-          allowedMerchantTypes: ['ecommerce', 'both']
-        },
-        {
-          title: 'المبيعات',
-          icon: DollarSign,
-          href: '/dashboard/sales',
-          requiredPermission: 'viewSalesReports',
-          badge: null,
-          allowedMerchantTypes: ['traditional', 'ecommerce', 'both']
-        },
-        {
-          title: 'الفواتير',
-          icon: FileText,
-          href: '/dashboard/invoices',
+          href: '/dashboard/sales-operations/onlineOrders',
           requiredPermission: 'viewOrders',
           badge: null,
           allowedMerchantTypes: ['traditional', 'ecommerce', 'both']
-        },
+        }
       ]
     },
 
@@ -310,26 +248,10 @@ export const createNavigationData = (
       allowedMerchantTypes: ['traditional', 'ecommerce', 'both'],
       items: [
         {
-          title: 'الموردين',
-          icon: Users,
-          href: '/dashboard/suppliers',
+          title: 'إدارة الموردين',
+          icon: Truck,
+          href: '/dashboard/supplier-operations/suppliers',
           requiredPermission: 'viewSuppliers',
-          badge: 'جديد',
-          allowedMerchantTypes: ['traditional', 'ecommerce', 'both']
-        },
-        {
-          title: 'المشتريات',
-          icon: ShoppingBag,
-          href: '/dashboard/suppliers/purchases',
-          requiredPermission: 'managePurchases',
-          badge: null,
-          allowedMerchantTypes: ['traditional', 'ecommerce', 'both']
-        },
-        {
-          title: 'المدفوعات',
-          icon: Receipt,
-          href: '/dashboard/suppliers/payments',
-          requiredPermission: 'managePurchases',
           badge: null,
           allowedMerchantTypes: ['traditional', 'ecommerce', 'both']
         },
@@ -396,43 +318,11 @@ export const createNavigationData = (
       allowedMerchantTypes: ['ecommerce', 'both'],
       items: [
         {
-          title: 'إعدادات المتجر',
-          icon: Settings,
-          href: '/dashboard/store-settings',
-          requiredPermission: 'manageOrganizationSettings',
-          badge: 'جديد',
-          allowedMerchantTypes: ['ecommerce', 'both']
-        },
-        {
-          title: 'تخصيص المتجر',
+          title: 'إدارة المتجر',
           icon: Store,
-          href: '/dashboard/store-editor',
+          href: '/dashboard/store-operations/store-settings',
           requiredPermission: 'manageOrganizationSettings',
-          badge: 'جديد',
-          allowedMerchantTypes: ['ecommerce', 'both']
-        },
-        {
-          title: 'صفحات الهبوط',
-          icon: Layout,
-          href: '/dashboard/landing-pages',
-          requiredPermission: 'manageOrganizationSettings',
-          badge: 'جديد',
-          allowedMerchantTypes: ['ecommerce', 'both']
-        },
-        {
-          title: 'إعدادات صفحة الشكر',
-          icon: FileText,
-          href: '/dashboard/thank-you-editor',
-          requiredPermission: 'manageOrganizationSettings',
-          badge: 'جديد',
-          allowedMerchantTypes: ['ecommerce', 'both']
-        },
-        {
-          title: 'إدارة التوصيل',
-          icon: Truck,
-          href: '/dashboard/delivery',
-          requiredPermission: 'manageOrganizationSettings',
-          badge: 'جديد',
+          badge: null,
           allowedMerchantTypes: ['ecommerce', 'both']
         },
       ]
@@ -448,7 +338,7 @@ export const createNavigationData = (
         {
           title: 'التحليلات المالية الشاملة',
           icon: Activity,
-          href: '/dashboard/financial-analytics',
+          href: '/dashboard/reports-operations/financial',
           requiredPermission: 'viewFinancialReports',
           badge: 'جديد',
           allowedMerchantTypes: ['traditional', 'ecommerce', 'both']
@@ -456,7 +346,7 @@ export const createNavigationData = (
         {
           title: 'تحليلات المبيعات',
           icon: BarChart3,
-          href: '/dashboard/analytics',
+          href: '/dashboard/reports-operations/sales',
           requiredPermission: 'viewSalesReports',
           badge: null,
           allowedMerchantTypes: ['traditional', 'ecommerce', 'both']
@@ -464,9 +354,17 @@ export const createNavigationData = (
         {
           title: 'المصروفات',
           icon: DollarSign,
-          href: '/dashboard/expenses',
+          href: '/dashboard/reports-operations/expenses',
           requiredPermission: 'viewFinancialReports',
           badge: null,
+          allowedMerchantTypes: ['traditional', 'ecommerce', 'both']
+        },
+        {
+          title: 'الزكاة',
+          icon: DollarSign,
+          href: '/dashboard/reports-operations/zakat',
+          requiredPermission: 'viewFinancialReports',
+          badge: 'جديد',
           allowedMerchantTypes: ['traditional', 'ecommerce', 'both']
         },
         {
@@ -499,6 +397,24 @@ export const createNavigationData = (
           title: 'تقسيم الطلبيات',
           icon: LayoutDashboard,
           href: '/dashboard/order-distribution',
+          requiredPermission: 'manageEmployees',
+          badge: 'جديد',
+          allowedMerchantTypes: ['traditional', 'ecommerce', 'both']
+        },
+      ]
+    },
+
+    // نظام التأكيد - إدارة فريق التأكيد
+    {
+      group: 'نظام التأكيد',
+      icon: Phone,
+      requiredPermission: 'manageEmployees',
+      allowedMerchantTypes: ['traditional', 'ecommerce', 'both'],
+      items: [
+        {
+          title: 'مركز التأكيد',
+          icon: Phone,
+          href: '/dashboard/confirmation-center',
           requiredPermission: 'manageEmployees',
           badge: 'جديد',
           allowedMerchantTypes: ['traditional', 'ecommerce', 'both']
@@ -561,63 +477,15 @@ export const createNavigationData = (
       group: 'دورات سطوكيها',
       icon: GraduationCap,
       requiredPermission: null,
-      badge: 'قريباً',
+      badge: null,
       allowedMerchantTypes: ['traditional', 'ecommerce', 'both'],
       items: [
         {
-          title: 'جميع الدورات',
+          title: 'دورات ستوكيها',
           icon: GraduationCap,
-          href: '/dashboard/courses',
+          href: '/dashboard/courses-operations/all',
           requiredPermission: null,
           badge: null,
-          allowedMerchantTypes: ['traditional', 'ecommerce', 'both']
-        },
-        {
-          title: 'دورة التسويق الإلكتروني',
-          icon: BookOpen,
-          href: '/dashboard/courses/digital-marketing',
-          requiredPermission: null,
-          badge: 'جديد',
-          allowedMerchantTypes: ['ecommerce', 'both']
-        },
-        {
-          title: 'دورة التسويق عبر التيك توك',
-          icon: BookOpen,
-          href: '/dashboard/courses/tiktok-marketing',
-          requiredPermission: null,
-          badge: 'جديد',
-          allowedMerchantTypes: ['ecommerce', 'both']
-        },
-        {
-          title: 'دورة صنع متجر إلكتروني',
-          icon: BookOpen,
-          href: '/dashboard/courses/e-commerce-store',
-          requiredPermission: null,
-          badge: 'جديد',
-          allowedMerchantTypes: ['ecommerce', 'both']
-        },
-        {
-          title: 'دورة التجارة الإلكترونية',
-          icon: BookOpen,
-          href: '/dashboard/courses/e-commerce',
-          requiredPermission: null,
-          badge: 'جديد',
-          allowedMerchantTypes: ['ecommerce', 'both']
-        },
-        {
-          title: 'دورة التجار التقليديين',
-          icon: BookOpen,
-          href: '/dashboard/courses/traditional-business',
-          requiredPermission: null,
-          badge: 'جديد',
-          allowedMerchantTypes: ['traditional', 'both']
-        },
-        {
-          title: 'دورة مقدمي الخدمات',
-          icon: BookOpen,
-          href: '/dashboard/courses/service-providers',
-          requiredPermission: null,
-          badge: 'جديد',
           allowedMerchantTypes: ['traditional', 'ecommerce', 'both']
         },
       ]
@@ -631,36 +499,12 @@ export const createNavigationData = (
       allowedMerchantTypes: ['traditional', 'ecommerce', 'both'],
       items: [
         {
-          title: 'الإعدادات',
+          title: 'الإعدادات العامة',
           icon: Settings,
-          href: '/dashboard/settings',
-          requiredPermission: 'viewSettings',
-          badge: null,
-          allowedMerchantTypes: ['traditional', 'ecommerce', 'both']
-        },
-        {
-          title: 'الاشتراكات',
-          icon: Wallet,
-          href: '/dashboard/subscription',
+          href: '/dashboard/settings-operations/settings',
           requiredPermission: null,
           badge: null,
           allowedMerchantTypes: ['traditional', 'ecommerce', 'both']
-        },
-        {
-          title: 'النطاقات المخصصة',
-          icon: Globe,
-          href: '/dashboard/custom-domains',
-          requiredPermission: 'manageOrganizationSettings',
-          badge: 'جديد',
-          allowedMerchantTypes: ['ecommerce', 'both']
-        },
-        {
-          title: 'دليل النطاقات',
-          icon: FileText,
-          href: '/docs/custom-domains',
-          requiredPermission: 'manageOrganizationSettings',
-          badge: null,
-          allowedMerchantTypes: ['ecommerce', 'both']
         },
       ]
     },

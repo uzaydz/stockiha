@@ -80,7 +80,7 @@ export const PROVIDER_CONFIGS: ProviderConfigMap = {
    */
   'public-product': {
     core: true,
-    auth: false,       // ❌ تعطيل Auth/User في وضع public
+    auth: true,        // ✅ تفعيل Auth للحصول على organizationSettings للسلة
     tenant: true,
     unifiedData: false,    // نستخدم ProductPageProvider بدلاً منه
     organizationData: false,

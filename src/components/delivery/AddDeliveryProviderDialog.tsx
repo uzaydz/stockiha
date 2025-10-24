@@ -146,17 +146,13 @@ export default function AddDeliveryProviderDialog({
 
       if (configuredError) throw configuredError;
 
-      // Filter out already configured providers
-      const configuredProviderIds = configuredProviders?.map(p => p.provider_id) || [];
+      // Filter out already configured providers (standard providers only)
+      const configuredProviderIds = configuredProviders?.filter(p => p.provider_id !== null).map(p => p.provider_id) || [];
       const available = allProviders?.filter(
         provider => !configuredProviderIds.includes(provider.id)
       ) || [];
 
-      // Add custom shipping option only if not already configured
-      const hasCustomShipping = configuredProviders?.some(p => 
-        p.provider_id === null || (p as any).api_key === 'custom_shipping'
-      );
-      
+      // Always include custom shipping option to allow multiple custom methods
       const customShippingOption = {
         id: 0,
         code: 'custom',
@@ -166,7 +162,7 @@ export default function AddDeliveryProviderDialog({
         description: 'إعداد طريقة شحن مخصصة مع تحديد أسعار التوصيل لكل ولاية حسب نوع التوصيل (منزل/مكتب)'
       };
 
-      const providersWithCustom = hasCustomShipping ? available : [customShippingOption, ...available];
+      const providersWithCustom = [customShippingOption, ...available];
       setAvailableProviders(providersWithCustom);
     } catch (error) {
       toast({

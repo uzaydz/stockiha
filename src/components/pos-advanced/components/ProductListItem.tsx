@@ -25,6 +25,22 @@ const ProductListItem: React.FC<ProductItemProps> = ({
     onAddToCart(product);
   }, [product, onAddToCart]);
 
+  // معالجة محسّنة للصور
+  const imageUrl = React.useMemo(() => {
+    if (product.thumbnail_image && product.thumbnail_image.trim()) return product.thumbnail_image;
+    if ((product as any).thumbnailImage && (product as any).thumbnailImage.trim()) return (product as any).thumbnailImage;
+    if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+      const firstImage = product.images[0];
+      if (firstImage && typeof firstImage === 'string' && firstImage.trim()) return firstImage;
+    }
+    if (product.colors && Array.isArray(product.colors) && product.colors.length > 0) {
+      for (const color of product.colors) {
+        if (color.image_url && color.image_url.trim()) return color.image_url;
+      }
+    }
+    return null;
+  }, [product]);
+
   return (
     <Card className={cn(
       "group cursor-pointer transition-all duration-300 hover:shadow-md",
@@ -40,9 +56,9 @@ const ProductListItem: React.FC<ProductItemProps> = ({
         <div className="flex items-center gap-3">
           {/* صورة مصغرة */}
           <div className="w-12 h-12 bg-muted rounded-lg flex-shrink-0 overflow-hidden">
-            {(product.thumbnail_image || product.thumbnailImage || (product.images && product.images[0])) ? (
+            {imageUrl ? (
               <img 
-                src={product.thumbnail_image || product.thumbnailImage || (product.images && product.images[0])} 
+                src={imageUrl} 
                 alt={product.name}
                 className="w-full h-full object-cover"
                 onError={(e) => {
@@ -53,7 +69,7 @@ const ProductListItem: React.FC<ProductItemProps> = ({
             ) : null}
             <div className={cn(
               "w-full h-full flex items-center justify-center",
-              (product.thumbnail_image || product.thumbnailImage || (product.images && product.images[0])) ? "hidden" : ""
+              imageUrl ? "hidden" : ""
             )}>
               <Package2 className="h-4 w-4 text-muted-foreground" />
             </div>
