@@ -295,15 +295,15 @@
   "description": "## نظرة عامة",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/uzaydz/stockiha-app.git"
+    "url": "git+https://github.com/uzaydz/stockiha.git"
   },
   "keywords": ["stockiha", "pos", "electron", "desktop"],
   "author": "Stockiha Team",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/uzaydz/stockiha-app/issues"
+    "url": "https://github.com/uzaydz/stockiha/issues"
   },
-  "homepage": "https://github.com/uzaydz/stockiha-app#readme",
+  "homepage": "https://github.com/uzaydz/stockiha#readme",
   "packageManager": "pnpm@10.15.1",
   "build": {
     "appId": "com.stockiha.desktop",
@@ -354,7 +354,7 @@
     "publish": {
       "provider": "github",
       "owner": "uzaydz",
-      "repo": "stockiha-app",
+      "repo": "stockiha",
       "releaseType": "release"
     }
   }
