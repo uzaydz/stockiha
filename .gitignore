@@ -61,3 +61,8 @@ dist_electron/
 *.temp
 *~
 .#*
+# تجاهل ملفات البناء الكبيرة
+dist-electron/*.dmg
+dist-electron/*.blockmap
+dist-electron/mac/
+dist-electron/mac-arm64/
