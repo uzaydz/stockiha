@@ -130,45 +130,44 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       cachedValue = { data: parsed, ts: Date.now() };
       setReady(true);
     } catch (e: any) {
-      
-      setError(e?.message || 'Failed to load permissions');
-      // Fallback to metadata minimal permissions
+      const message = e?.message || 'Failed to load permissions';
+      setError(message);
+
+      // Fallback: expose read-only snapshot without elevated privileges.
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[PermissionsProvider] Falling back to local metadata with read-only access due to RPC error:', message);
+      }
+
       try {
-        const metaPerms = (user?.user_metadata as any)?.permissions || {};
-        const metaRole = (user?.user_metadata as any)?.role || user?.role || 'authenticated';
-        const isOrgAdmin = !!(user?.user_metadata as any)?.is_org_admin;
-        const isSuperAdmin = !!(user?.user_metadata as any)?.is_super_admin;
-        
         const fallback: UnifiedPermissionsData = {
           user_id: user?.id || '',
           auth_user_id: user?.id || '',
           email: user?.email || '',
           name: (user?.user_metadata as any)?.name || user?.email || '',
-          role: metaRole,
+          role: (user?.user_metadata as any)?.role || user?.role || 'authenticated',
           organization_id: (user?.user_metadata as any)?.organization_id || null,
           is_active: true,
-          is_org_admin: isOrgAdmin,
-          is_super_admin: isSuperAdmin,
-          has_inventory_access: isOrgAdmin || isSuperAdmin,
-          can_manage_products: isOrgAdmin || isSuperAdmin,
-          permissions: {
-            ...metaPerms,
-            ...(isOrgAdmin || isSuperAdmin ? {
-              viewInventory: true,
-              manageInventory: true,
-              manageProducts: true,
-              viewProducts: true,
-              editProducts: true,
-              deleteProducts: true
-            } : {})
-          },
+          is_org_admin: false,
+          is_super_admin: false,
+          has_inventory_access: false,
+          can_manage_products: false,
+          can_view_reports: false,
+          can_manage_users: false,
+          can_manage_orders: false,
+          can_access_pos: false,
+          can_manage_settings: false,
+          permissions: {},
         };
-        
-        
+
         setData(fallback);
-        cachedValue = { data: fallback, ts: Date.now() };
+        // Do not cache fallback so that subsequent attempts retry RPC automatically.
+        cachedValue = null;
         setReady(true);
-      } catch {}
+      } catch (metaError) {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('[PermissionsProvider] Failed to build read-only fallback from metadata:', metaError);
+        }
+      }
     } finally {
       setLoading(false);
       fetchingRef.current = false;
@@ -271,4 +270,3 @@ export const usePermissionsContext = (): PermissionsContextValue => {
   }
   return ctx;
 };
-

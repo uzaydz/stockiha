@@ -60,7 +60,7 @@ const USER_CACHE_DURATION = 15 * 60 * 1000; // 15 دقيقة
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(({ children }) => {
   // الحالة الأساسية
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<SupabaseUser | null>(null);
@@ -79,6 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // تهيئة الخدمات
   const currentSubdomain = useMemo(() => subdomainService.initialize(), []);
+  try { console.log('🔐 [Auth] provider mount start', { subdomain: currentSubdomain }); } catch {}
   
   // استخدام الـ Hooks المحسنة
   const { session: hookSession, isValidSession, refreshSession, validateSession } = useAuthSession();
@@ -100,6 +101,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (userProfile && organization && !profileLoading && !isLoadingProfile && !dataLoadingComplete && !authReady) {
       if (process.env.NODE_ENV === 'development') {
       }
+      try { console.log('✅ [Auth] data ready', { userId: user?.id, orgId: organization?.id }); } catch {}
       setDataLoadingComplete(true);
       setAuthReady(true);
 
@@ -117,6 +119,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (user && hasInitialSessionCheck) {
       // بدء تحميل الملف الشخصي
       if (!profileLoaded && !isLoadingProfile && !profileLoading) {
+        try { console.log('👤 [Auth] start loading profile'); } catch {}
         setIsLoadingProfile(true);
       }
     }
@@ -127,6 +130,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (userProfile && !profileLoading && isLoadingProfile) {
       if (process.env.NODE_ENV === 'development') {
       }
+      try { console.log('👤 [Auth] profile loaded'); } catch {}
       setProfileLoaded(true);
       setIsLoadingProfile(false);
 
@@ -138,6 +142,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (userProfile) {
       // بدء تحميل المؤسسة
       if (!organizationLoaded && !isLoadingOrganization && !orgLoading) {
+        try { console.log('🏢 [Auth] start loading organization'); } catch {}
         setIsLoadingOrganization(true);
       }
     }
@@ -146,6 +151,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // تحديث حالة البيانات المكتملة
   useEffect(() => {
     if (profileLoaded && organizationLoaded && !isLoadingProfile && !isLoadingOrganization) {
+      try { console.log('🟢 [Auth] dataLoadingComplete true'); } catch {}
       setDataLoadingComplete(true);
     }
   }, [profileLoaded, organizationLoaded, isLoadingProfile, isLoadingOrganization]);
@@ -352,6 +358,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (initializedRef.current || hasInitialSessionCheck || initializationInProgressRef.current) return;
     
     const startTime = performance.now();
+    console.time('⏱️ [Auth] initializeFromStorage');
 
     try {
       initializedRef.current = true; // تعيين مبكر لمنع التكرار
@@ -362,6 +369,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (savedAuth.session && savedAuth.user) {
         // استخدام البيانات المحفوظة للتحميل السريع
+        try { console.log('💾 [Auth] loaded from storage'); } catch {}
         setUser(savedAuth.user);
         setSession(savedAuth.session);
 
@@ -392,6 +400,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 // إذا انتهت صلاحية الجلسة، حاول تجديدها
                 const refreshed = await refreshSession();
                 if (!refreshed) {
+                  console.warn('⚠️ [Auth] session invalid after validation');
                   setUser(null);
                   setSession(null);
                   setIsLoading(false);
@@ -415,6 +424,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if ((window as any).__PUBLIC_PRODUCT_PAGE__) {
           if (process.env.NODE_ENV === 'development') {
           }
+          try { console.log('🌐 [Auth] public product fast-path'); } catch {}
           setUser(null);
           setSession(null);
           setIsLoading(false);
@@ -440,6 +450,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             
             if (!error && currentUser) {
               // تم العثور على مستخدم
+              try { console.log('👤 [Auth] user found via sessionManager'); } catch {}
               setUser(currentUser);
               setIsLoading(false);
               setHasInitialSessionCheck(true);
@@ -456,6 +467,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 try {
                   const { session } = await sessionManager.getCurrentSession();
                   if (session) {
+                    try { console.log('🔑 [Auth] session fetched after user'); } catch {}
                     setSession(session);
                     cacheSession(currentUser.id, session);
                   }
@@ -465,6 +477,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               }, 0); // ✅ إزالة التأخير لحل مشكلة عرض المتجر
             } else {
               // لا يوجد مستخدم - الآن يمكن الإعلان عن ذلك بأمان
+              try { console.log('🚫 [Auth] no user found'); } catch {}
               setUser(null);
               setSession(null);
               setIsLoading(false);
@@ -501,6 +514,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       initializationInProgressRef.current = false;
       
       trackPerformance('initializeFromStorage (error)', startTime);
+    } finally {
+      console.timeEnd('⏱️ [Auth] initializeFromStorage');
     }
   }, [cacheSession, cacheUser, getCachedSession, validateSession, refreshSession]);
 
@@ -691,15 +706,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const currentOrgId = (window as any).__CURRENT_ORG_ID__;
     if (organization?.id && organization.id !== currentOrgId) {
-      // debounce محسّن للتحديثات - زيادة من 500ms إلى 2000ms لمنع التحديثات المتكررة
+      // debounce محسّن للتحديثات - تقليل إلى 300ms لتحسين الاستجابة
       const timeoutId = setTimeout(() => {
         setCurrentOrganizationId(organization.id);
         (window as any).__CURRENT_ORG_ID__ = organization.id;
         // تخزين كامل بيانات المؤسسة للاستخدام من قبل دوال أخرى
         (window as any).__AUTH_CONTEXT_ORG__ = organization;
         if (process.env.NODE_ENV === 'development') {
+          console.log('[AuthContext] تم تحديث معرف المؤسسة:', organization.id);
         }
-      }, 2000); // زيادة التأخير لمنع التحديثات المتكررة
+      }, 300); // تقليل التأخير لتحسين الاستجابة
 
       return () => clearTimeout(timeoutId);
     }
@@ -781,32 +797,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     forceUpdateAuthState, // دالة للتحديث الإجباري
     initialize: initializeFromStorage
   }), [
-    // فقط المعرفات والحالات المهمة
-    session?.access_token, // بدلاً من session كاملة
-    user?.id, // بدلاً من user كامل
-    userProfile?.id, // بدلاً من userProfile كامل
-    organization?.id, // بدلاً من organization كاملة
+    // فقط المعرفات والحالات المهمة - محسن لتقليل re-renders
+    session?.access_token,
+    user?.id,
+    userProfile?.id,
+    organization?.id,
     currentSubdomain,
     computedIsLoading,
     isProcessingToken,
     isExplicitSignOut,
     hasInitialSessionCheck,
-    authReady, // إضافة authReady للتبعيات
-
-    // متغيرات مراقبة البيانات الجديدة
+    authReady,
     isLoadingProfile,
     isLoadingOrganization,
     profileLoaded,
     organizationLoaded,
     dataLoadingComplete,
-
     // الدوال ثابتة مع useCallback
     signIn,
     signUp,
     signOut,
     refreshData,
     updateAuthState,
-    forceUpdateAuthState, // إضافة للتبعيات
+    forceUpdateAuthState,
     initializeFromStorage
   ]);
 
@@ -815,7 +828,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       {children}
     </AuthContext.Provider>
   );
-};
+});
+
+AuthProvider.displayName = 'AuthProvider';
 
 /**
  * Hook محسن لاستخدام السياق

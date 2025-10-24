@@ -30,23 +30,36 @@ const ensureClientReady = async () => {
   }
 };
 
-export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = React.memo(({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [clientInstance, setClientInstance] = useState<SupabaseClient>(supabase);
 
   useEffect(() => {
+    const mountStart = performance.now();
+    const logDuration = (label: string, start: number) => {
+      try { console.log(label, `${(performance.now() - start).toFixed(2)} ms`); } catch {}
+    };
+    try { console.log('🔌 [SupabaseProvider] mounting'); } catch {}
     // التحقق من جلسة المستخدم الحالية عند تحميل التطبيق
     const checkSession = async () => {
       try {
+        const ensureStart = performance.now();
         const client = await ensureClientReady();
+        logDuration('⏱️ [SupabaseProvider] ensureClientReady:', ensureStart);
         setClientInstance(client);
         
+        const getSessionStart = performance.now();
         const { data, error } = await client.auth.getSession();
+        logDuration('⏱️ [SupabaseProvider] auth.getSession:', getSessionStart);
         if (error) {
+          console.warn('⚠️ [SupabaseProvider] getSession error', error?.message);
         }
       } catch (error) {
+        console.warn('⚠️ [SupabaseProvider] checkSession error', (error as any)?.message);
       } finally {
         setIsLoading(false);
+        logDuration('⏱️ [SupabaseProvider] mount:', mountStart);
+        try { console.log('🏁 [SupabaseProvider] mounted'); } catch {}
       }
     };
 
@@ -61,6 +74,7 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           data: { subscription },
         } = client.auth.onAuthStateChange((event, session) => {
           // تحديث حالة التطبيق عند تغير حالة المصادقة
+          try { console.log('🔔 [SupabaseProvider] auth state change', { event, hasSession: !!session }); } catch {}
         });
 
         return () => {
@@ -88,7 +102,9 @@ export const SupabaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       {children}
     </SupabaseContext.Provider>
   );
-};
+});
+
+SupabaseProvider.displayName = 'SupabaseProvider';
 
 export const useSupabase = (): SupabaseContextType => {
   const context = useContext(SupabaseContext);

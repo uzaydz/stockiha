@@ -3,15 +3,16 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
+  "main": "electron/main.cjs",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --config vite.config.desktop.ts",
     "dev:simple": "vite --config vite.config.dev.ts --force --host localhost --port 8080",
     "dev:fast": "vite --force --host 0.0.0.0 --port 8080",
     "dev:optimized": "VITE_OPTIMIZE=true vite --force",
     "dev:minimal": "VITE_MINIMAL_PROVIDERS=true vite --force",
     "dev:fast-refresh": "FAST_REFRESH=true vite --force --host 0.0.0.0 --port 8080",
     "dev:no-strict": "VITE_DISABLE_STRICT_MODE=true vite --force",
-    "build": "vite build",
+    "build": "vite build --config vite.config.desktop.ts",
     "build:optimized": "npm run build && node fix-cache-headers.js",
     "build:ultra": "vite build",
     "build:code-splitting": "vite build --config vite.config.code-splitting.ts",
@@ -55,7 +56,16 @@
     "deploy:production": "npm run build:production && wrangler pages deploy dist",
     "images:gen": "node scripts/generate-responsive-images.mjs",
     "perf:optimize": "node scripts/performance-optimization.js",
-    "perf:critical": "npm run build:critical && npm run perf:optimize"
+    "perf:critical": "npm run build:critical && npm run perf:optimize",
+    "desktop:dev": "concurrently \"npm run dev\" \"wait-on http://localhost:8080 && ELECTRON_IS_DEV=true electron . --dev\"",
+    "desktop:build": "vite build --config vite.config.desktop.ts",
+    "desktop:build:mac": "npm run desktop:build && electron-builder --mac --x64 --arm64",
+    "desktop:pack": "npm run desktop:build && electron-builder",
+    "desktop:dist": "npm run desktop:build && electron-builder --publish=never",
+    "desktop:dist-mac": "npm run desktop:build && electron-builder --mac",
+    "desktop:dist-win": "npm run desktop:build && electron-builder --win",
+    "desktop:dist-linux": "npm run desktop:build && electron-builder --linux",
+    "desktop:install": "npm install electron electron-builder concurrently wait-on --save-dev"
   },
   "dependencies": {
     "@ant-design/icons": "^6.0.0",
@@ -67,7 +77,7 @@
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
     "@floating-ui/react": "^0.27.16",
-    "@fontsource/tajawal": "^5.2.6",
+    "@fontsource/tajawal": "5.2.6",
     "@headlessui/react": "^2.2.7",
     "@heroicons/react": "^2.2.0",
     "@heroui/react": "^2.8.3",
@@ -137,19 +147,23 @@
     "dexie": "^4.2.0",
     "dompurify": "^3.2.6",
     "dotenv": "^17.2.2",
+    "electron-updater": "^6.6.2",
     "embla-carousel-react": "^8.6.0",
     "express": "^5.1.0",
+    "file-saver": "^2.0.5",
     "form-data": "^4.0.4",
     "framer-motion": "^12.23.12",
     "html2canvas": "^1.4.1",
+    "html2pdf.js": "^0.12.1",
     "i18next": "^25.4.2",
     "i18next-browser-languagedetector": "^8.2.0",
     "idb": "^8.0.3",
     "immer": "^10.1.3",
     "input-otp": "^1.4.2",
     "jimp": "^1.6.0",
-    "jspdf": "^3.0.2",
+    "jspdf": "^3.0.3",
     "jspdf-autotable": "^5.0.2",
+    "keytar": "^7.9.0",
     "localforage": "^1.10.0",
     "lodash": "^4.17.21",
     "lodash-es": "^4.17.21",
@@ -204,6 +218,7 @@
     "valtio": "^2.1.7",
     "vaul": "^1.1.2",
     "web-vitals": "^5.1.0",
+    "xlsx": "^0.18.5",
     "zod": "^4.1.5",
     "zod-to-json-schema": "^3.24.6",
     "zustand": "^5.0.8"
@@ -216,6 +231,7 @@
     "@rollup/plugin-commonjs": "^28.0.6",
     "@supabase/mcp-server-supabase": "^0.5.1",
     "@tailwindcss/typography": "^0.5.16",
+    "@types/file-saver": "^2.0.7",
     "@types/minimatch": "^6.0.0",
     "@types/next": "^9.0.0",
     "@types/node": "^24.3.0",
@@ -235,6 +251,8 @@
     "critical": "^7.2.1",
     "critters": "^0.0.25",
     "cssnano": "^7.1.1",
+    "electron": "38.3.0",
+    "electron-builder": "^26.0.12",
     "eslint": "^9.34.0",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
@@ -270,25 +288,74 @@
     "vite-plugin-csp": "^1.1.2",
     "vite-plugin-csp-guard": "^3.0.0",
     "vite-plugin-imagemin": "^0.6.1",
-    "wait-on": "^8.0.4",
+    "wait-on": "^8.0.5",
     "wrangler": "^4.33.2",
     "ws": "^8.18.3"
   },
   "description": "## نظرة عامة",
-  "directories": {
-    "doc": "docs",
-    "lib": "lib"
-  },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/uzaydz/bazaar-console-connect.git"
+    "url": "git+https://github.com/uzaydz/stockiha-app.git"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": ["stockiha", "pos", "electron", "desktop"],
+  "author": "Stockiha Team",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/uzaydz/bazaar-console-connect/issues"
+    "url": "https://github.com/uzaydz/stockiha-app/issues"
   },
-  "homepage": "https://github.com/uzaydz/bazaar-console-connect#readme",
-  "packageManager": "pnpm@10.15.1"
+  "homepage": "https://github.com/uzaydz/stockiha-app#readme",
+  "packageManager": "pnpm@10.15.1",
+  "build": {
+    "appId": "com.stockiha.desktop",
+    "productName": "Stockiha",
+    "directories": {
+      "output": "dist-electron",
+      "buildResources": "assets"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "mac": {
+      "category": "public.app-category.business",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.icns"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Office",
+      "icon": "assets/icon.png"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "uzaydz",
+      "repo": "stockiha-app",
+      "releaseType": "release"
+    }
+  }
 }

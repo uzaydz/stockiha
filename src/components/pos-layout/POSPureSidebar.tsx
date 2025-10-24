@@ -1,16 +1,23 @@
 import React, { memo, useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { 
   Store,
+  BarChart3,
+  TrendingUp,
+  Activity,
+  PieChart,
   Receipt, 
   Banknote, 
   RotateCcw, 
   AlertTriangle,
-  Home
+  Settings2,
+  LogOut
 } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { toast } from 'sonner';
 
 interface POSSidebarItem {
   id: string;
@@ -23,10 +30,11 @@ interface POSSidebarItem {
 // ترتيب العناصر بحيث تكون "الرئيسية" أولاً لسهولة الوصول
 const posSidebarItems: POSSidebarItem[] = [
   {
-    id: 'home',
-    title: 'الرئيسية',
-    icon: Home,
-    href: '/dashboard',
+    id: 'pos-dashboard',
+    title: 'لوحة تحكم نقطة البيع',
+    icon: BarChart3,
+    href: '/dashboard/pos-dashboard',
+    badge: '📊'
   },
   {
     id: 'pos',
@@ -34,6 +42,12 @@ const posSidebarItems: POSSidebarItem[] = [
     icon: Store,
     href: '/dashboard/pos-advanced',
     badge: '🔥'
+  },
+  {
+    id: 'pos-settings',
+    title: 'إعدادات نقطة البيع',
+    icon: Settings2,
+    href: '/dashboard/pos-settings',
   },
   {
     id: 'orders',
@@ -67,6 +81,7 @@ interface POSPureSidebarProps {
 
 const POSPureSidebar: React.FC<POSPureSidebarProps> = memo(({ className }) => {
   const location = useLocation();
+  const { signOut } = useAuth();
 
   // مرموز البيانات الثابتة لتحسين الأداء
   const sidebarItems = useMemo(() => posSidebarItems, []);
@@ -80,24 +95,39 @@ const POSPureSidebar: React.FC<POSPureSidebarProps> = memo(({ className }) => {
   };
 
   return (
-    <div
-      className={cn(
-        'flex flex-col h-full bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl',
-        'border-l border-slate-200/60 dark:border-slate-700/60 shadow-sm',
-        'transition-colors duration-300',
-        className
-      )}
-    >
-      {/* Header أنيق ومينيمالي بدون أيقونة */}
-      <div className="p-3 border-b border-slate-200/60 dark:border-slate-700/60">
-        <div className="flex items-center justify-center">
-          {/* تمت إزالة أيقونة المتجر من الترويسة */}
+    <TooltipProvider delayDuration={300}>
+      <div
+        className={cn(
+          'flex flex-col h-full rounded-none',
+          className
+        )}
+      >
+        {/* الشعار الحقيقي */}
+        <div className="px-3 py-6 flex items-center justify-center relative">
+          <div className="w-14 h-14 bg-transparent flex items-center justify-center overflow-hidden">
+            <img 
+              src="/images/logo-new.webp" 
+              alt="ستوكيها" 
+              className="w-10 h-10 object-contain"
+              onError={(e) => {
+                // fallback إلى الشعار القديم
+                e.currentTarget.src = '/images/logo.webp';
+                e.currentTarget.onerror = () => {
+                  // fallback نهائي إلى الأيقونة
+                  e.currentTarget.style.display = 'none';
+                  const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
+                  if (nextElement) {
+                    nextElement.style.display = 'flex';
+                  }
+                };
+              }}
+            />
+            <div className="w-10 h-10 hidden items-center justify-center">
+              <Store className="h-6 w-6 text-white drop-shadow-lg" />
+            </div>
+          </div>
         </div>
-      </div>
-
-      {/* Navigation Items مع Tooltips */}
-      <TooltipProvider>
-        <nav className="flex-1 p-2 space-y-1.5">
+        <nav className="flex-1 px-2 pb-4 space-y-1.5">
           {sidebarItems.map((item) => {
             const active = isPathActive(item.href);
             const Icon = item.icon;
@@ -110,83 +140,73 @@ const POSPureSidebar: React.FC<POSPureSidebarProps> = memo(({ className }) => {
                     aria-current={active ? 'page' : undefined}
                     aria-label={item.title}
                     className={cn(
-                      'group relative flex flex-col items-center justify-center gap-1 rounded-xl p-2.5',
-                      'transition-all duration-200 transform-gpu',
-                      'border border-transparent hover:border-slate-200/60 dark:hover:border-slate-700/60',
-                      'hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:shadow-sm',
-                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40',
+                      'relative flex items-center justify-center rounded-xl p-3 mx-1',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40',
+                      'transform-none transition-none',
                       active
-                        ? 'bg-slate-100 dark:bg-slate-800/60 text-blue-600 dark:text-blue-400 border-slate-200/60 dark:border-slate-700/60 shadow-sm'
-                        : 'text-slate-500 dark:text-slate-400'
+                        ? 'bg-orange-500 text-white shadow-lg'
+                        : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                     )}
                   >
-                    {/* Active vertical indicator */}
-                    {active && (
-                      <span className="absolute right-1.5 top-2 bottom-2 w-0.5 rounded-full bg-gradient-to-b from-blue-500 to-indigo-500" />
-                    )}
-
-                    {/* Icon */}
                     {Icon ? (
-                      <div className="relative">
-                        <Icon
-                          className={cn(
-                            'h-5 w-5 transition-colors duration-200',
-                            active
-                              ? 'text-blue-600 dark:text-blue-400'
-                              : 'text-slate-500 group-hover:text-slate-900 dark:group-hover:text-slate-100'
-                          )}
-                        />
-
-                        {/* Badge مع الأيقونة فقط */}
-                        {item.badge && (
-                          <Badge
-                            variant="purple"
-                            className="absolute -top-2 -left-2 px-1.5 py-0 text-[10px] leading-4 rounded-full shadow-sm"
-                          >
-                            {item.badge}
-                          </Badge>
-                        )}
-                      </div>
+                      <Icon
+                        className="h-6 w-6 transform-none"
+                      />
                     ) : null}
 
-                    {/* Title */}
-                    <span
-                      className={cn(
-                        'text-[11px] font-medium mt-1 text-center transition-colors duration-200',
-                        active
-                          ? 'text-blue-600 dark:text-blue-400'
-                          : 'text-slate-500 group-hover:text-slate-900 dark:text-slate-400 dark:group-hover:text-slate-100'
-                      )}
-                    >
-                      {item.title}
-                    </span>
                   </Link>
                 </TooltipTrigger>
-                <TooltipContent side="left" align="center">
-                  {item.title}
+                <TooltipContent 
+                  side="left" 
+                  align="center"
+                  className="bg-slate-900/95 dark:bg-slate-800/95 text-white border border-slate-700/50 shadow-2xl backdrop-blur-sm"
+                  style={{ zIndex: 99999 }}
+                  sideOffset={8}
+                  avoidCollisions={true}
+                >
+                  <div className="px-3 py-2 text-sm font-medium">
+                    {item.title}
+                  </div>
                 </TooltipContent>
               </Tooltip>
             );
           })}
         </nav>
-      </TooltipProvider>
 
-      {/* Footer بسيط مع مؤشر حالة */}
-      <div className="p-2 border-t border-slate-200/60 dark:border-slate-700/60">
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex items-center justify-center p-2 rounded-lg bg-slate-50 dark:bg-slate-800/50 border border-slate-200/60 dark:border-slate-700/60">
-                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="left" align="center">
-              متصل
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+      <div className="p-4 border-t border-slate-700/50">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={async () => {
+                try {
+                  await signOut();
+                } catch (error) {
+                  toast.error('تعذر تسجيل الخروج، يرجى المحاولة مرة أخرى');
+                }
+              }}
+              className="w-full h-12 bg-slate-800 hover:bg-red-500 text-slate-400 hover:text-white rounded-xl flex items-center justify-center"
+            >
+              <LogOut className="h-6 w-6" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent 
+            side="left" 
+            align="center"
+            className="bg-slate-900/95 dark:bg-slate-800/95 text-white border border-slate-700/50 shadow-2xl backdrop-blur-sm"
+            style={{ zIndex: 99999 }}
+            sideOffset={8}
+            avoidCollisions={true}
+          >
+            <div className="px-3 py-2 text-sm font-medium">
+              تسجيل الخروج
+            </div>
+          </TooltipContent>
+        </Tooltip>
       </div>
-    </div>
+      </div>
+    </TooltipProvider>
   );
 });
 

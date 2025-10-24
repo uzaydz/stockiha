@@ -1,5 +1,5 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 
@@ -8,6 +8,8 @@ import { supabase } from '@/lib/supabase';
  * Redirects to login page if not authenticated
  * Redirects to dashboard if authenticated but not a super admin
  */
+const CACHE_TTL_MS = 60 * 1000; // 1 minute cache window
+
 export default function SuperAdminRoute() {
   const { user, session, userProfile } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
@@ -17,6 +19,14 @@ export default function SuperAdminRoute() {
   const location = useLocation();
   const lastCheckedUserId = useRef<string | null>(null);
   const superAdminCache = useRef<{ [userId: string]: { status: boolean; timestamp: number } }>({});
+  const pendingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearPendingTimeout = () => {
+    if (pendingTimeoutRef.current) {
+      clearTimeout(pendingTimeoutRef.current);
+      pendingTimeoutRef.current = null;
+    }
+  };
 
   // إضافة logging للتشخيص
   useEffect(() => {
@@ -24,89 +34,121 @@ export default function SuperAdminRoute() {
     }
   }, [user, session, userProfile, location]);
 
-  useEffect(() => {
-    const checkSuperAdminStatus = async () => {
-      // إعادة تعيين authError عند بداية الفحص
-      setAuthError(false);
-      
-      // التحقق من وجود المستخدم - لا نحتاج session
-      if (!user) {
-        if (process.env.NODE_ENV === 'development') {
+  const checkSuperAdminStatus = useCallback(async (force = false) => {
+    clearPendingTimeout();
+    setAuthError(false);
+
+    if (!user) {
+      setIsSuperAdmin(false);
+      setDebugInfo('لا يوجد مستخدم نشط');
+      pendingTimeoutRef.current = setTimeout(() => {
+        if (!user) {
+          setIsLoading(false);
+          setAuthError(true);
         }
-        
-        // انتظار قليل قبل إعلان الخطأ
-        const timeoutId = setTimeout(() => {
-          if (!user) {
-            setIsLoading(false);
-            setIsSuperAdmin(false);
-            setAuthError(true);
-            setDebugInfo('لا يوجد مستخدم نشط بعد الانتظار');
-          }
-        }, 3000); // انتظار 3 ثوان
-        
-        // تنظيف الـ timeout إذا تم تحديث user
-        return () => clearTimeout(timeoutId);
-      }
+      }, 400);
+      return;
+    }
 
-      // تجنب إعادة الفحص لنفس المستخدم
-      if (lastCheckedUserId.current === user.id) {
-        setIsLoading(false);
-        setAuthError(false);
-        setIsSuperAdmin(true);
-        return;
-      }
+    const now = Date.now();
+    const cached = superAdminCache.current[user.id];
+    if (!force && cached && (now - cached.timestamp) < CACHE_TTL_MS) {
+      setIsSuperAdmin(cached.status);
+      setIsLoading(false);
+      setDebugInfo('تم استخدام الحالة المخزنة مؤقتاً');
+      lastCheckedUserId.current = user.id;
+      return;
+    }
 
-      // التحقق من الكاش في الذاكرة (صالح لمدة 10 دقائق)
-      const cached = superAdminCache.current[user.id];
-      const now = Date.now();
-      if (cached && (now - cached.timestamp) < 10 * 60 * 1000) {
-        setIsSuperAdmin(cached.status);
-        setIsLoading(false);
-        setAuthError(false);
-        setDebugInfo('تم استخدام الحالة المحفوظة من الذاكرة');
-        lastCheckedUserId.current = user.id;
-        return;
-      }
+    // Avoid parallel fetches for the same user unless forced.
+    if (!force && lastCheckedUserId.current === user.id && !cached) {
+      return;
+    }
 
-      try {
-        setAuthError(false);
-        setDebugInfo('جاري التحقق من قاعدة البيانات...');
-        
-        // تحقق من صلاحيات المسؤول الرئيسي مباشرة من قاعدة البيانات
-        const { data, error } = await supabase
-          .from('users')
-          .select('is_super_admin, role')
-          .eq('id', user.id)
-          .single();
+    setIsLoading(true);
+    lastCheckedUserId.current = user.id;
 
-        if (error) {
-          setIsSuperAdmin(false);
-          setDebugInfo(`خطأ في قاعدة البيانات: ${error.message}`);
-        } else {
-          const isSuper = data?.is_super_admin === true || data?.role === 'super_admin';
-          setIsSuperAdmin(isSuper);
-          
-          // حفظ في الكاش
-          superAdminCache.current[user.id] = {
-            status: isSuper,
-            timestamp: now
-          };
-          
-          lastCheckedUserId.current = user.id;
-          
-          if (process.env.NODE_ENV === 'development') {
-          }
-        }
-      } catch (error) {
+    try {
+      setDebugInfo('جاري التحقق من الصلاحيات من الخادم...');
+
+      const { data, error } = await supabase
+        .rpc('get_user_basic_info', { p_auth_user_id: user.id });
+
+      if (error) {
+        console.error('[SuperAdminRoute] خطأ في التحقق من الصلاحيات:', error);
         setIsSuperAdmin(false);
-        setDebugInfo(`خطأ غير متوقع: ${error instanceof Error ? error.message : 'خطأ مجهول'}`);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+        setDebugInfo(`خطأ في التحقق: ${error.message}`);
+        setAuthError(true);
+        superAdminCache.current[user.id] = {
+          status: false,
+          timestamp: now,
+        };
+      } else if (data && data.length > 0) {
+        const userData = data[0];
+        const isSuper = userData.is_super_admin === true;
+        setIsSuperAdmin(isSuper);
+        setAuthError(!isSuper);
+        setDebugInfo('تم التأكد من الصلاحيات مباشرة من الخادم');
 
+        superAdminCache.current[user.id] = {
+          status: isSuper,
+          timestamp: Date.now(),
+        };
+
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[SuperAdminRoute] صلاحيات المستخدم:', {
+            isSuperAdmin: isSuper,
+            userId: user.id,
+            email: userData.email,
+          });
+        }
+      } else {
+        setIsSuperAdmin(false);
+        setDebugInfo('لم يتم العثور على بيانات المستخدم');
+        setAuthError(true);
+        superAdminCache.current[user.id] = {
+          status: false,
+          timestamp: Date.now(),
+        };
+      }
+    } catch (error) {
+      console.error('[SuperAdminRoute] خطأ غير متوقع:', error);
+      setIsSuperAdmin(false);
+      setDebugInfo(`خطأ غير متوقع: ${error instanceof Error ? error.message : 'خطأ مجهول'}`);
+      setAuthError(true);
+      superAdminCache.current[user.id] = {
+        status: false,
+        timestamp: Date.now(),
+      };
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
     checkSuperAdminStatus();
-  }, [user, userProfile]); // إزالة session من dependencies
+    return () => clearPendingTimeout();
+  }, [user?.id, checkSuperAdminStatus]);
+
+  useEffect(() => {
+    // Re-validate on route changes within the super admin area.
+    if (location.pathname.startsWith('/super-admin')) {
+      checkSuperAdminStatus(true);
+    }
+  }, [location.pathname, checkSuperAdminStatus]);
+
+  useEffect(() => {
+    const { data: subscription } = supabase.auth.onAuthStateChange(() => {
+      superAdminCache.current = {};
+      lastCheckedUserId.current = null;
+      checkSuperAdminStatus(true);
+    });
+
+    return () => {
+      clearPendingTimeout();
+      subscription?.subscription.unsubscribe();
+    };
+  }, [checkSuperAdminStatus]);
 
   // تنظيف الكاش عند تغيير المستخدم
   useEffect(() => {
