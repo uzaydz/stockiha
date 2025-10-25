@@ -1,0 +1,38 @@
+directories:
+  output: dist-electron
+  buildResources: assets
+appId: com.stockiha.desktop
+productName: Stockiha
+files:
+  - filter:
+      - dist/**/*
+      - electron/**/*
+      - assets/**/*
+      - package.json
+mac:
+  category: public.app-category.business
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  icon: assets/icon.icns
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+        - ia32
+  icon: assets/icon.ico
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Office
+  icon: assets/icon.png
+publish:
+  provider: github
+  owner: uzaydz
+  repo: stockiha
+  releaseType: release
+electronVersion: 38.3.0

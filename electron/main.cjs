@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, shell, ipcMain, dialog, nativeImage, Tray, globalShortcut } = require('electron');
+const { app, BrowserWindow, Menu, shell, ipcMain, dialog, nativeImage, Tray, globalShortcut, protocol } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -121,24 +121,17 @@ function createMainWindow() {
     // فتح DevTools دائماً في التطوير
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
-    // استخدام file:// protocol مع base URL صحيح للموارد الثابتة
-    const distPath = path.join(__dirname, '../dist');
-    const indexPath = path.join(distPath, 'index.html');
-    console.log('[Electron] تحميل من ملف:', indexPath);
-    console.log('[Electron] مسار dist:', distPath);
-    
-    // تحميل index.html مع تحديد base directory
-    mainWindow.loadFile(indexPath, {
-      // هذا يضمن أن المسارات النسبية تعمل بشكل صحيح
-      baseDir: distPath
-    });
+    // تحميل التطبيق من dist
+    const prodPath = path.join(__dirname, '../dist/index.html');
+    console.log('[Electron] تحميل من ملف:', prodPath);
+    mainWindow.loadFile(prodPath);
     
     // إضافة fallback لأي مسار غير موجود - تحميل index.html (SPA fallback)
     mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
       console.log('[Electron] فشل التحميل:', errorCode, errorDescription, validatedURL);
       // إعادة تحميل index.html للسماح لـ React Router بالتعامل مع المسار
       if (validatedURL && !validatedURL.startsWith('file://')) {
-        mainWindow.loadFile(indexPath, { baseDir: distPath });
+        mainWindow.loadFile(prodPath);
       }
     });
   }
@@ -563,8 +556,21 @@ function registerGlobalShortcuts() {
   });
 }
 
-// إدارة الأحداث
+// تسجيل file protocol handler لإصلاح تحميل الموارد
 app.whenReady().then(() => {
+  // تسجيل protocol interceptor لحل مشكلة file://
+  protocol.interceptFileProtocol('file', (request, callback) => {
+    const url = request.url.substr(7); // إزالة "file://"
+    
+    // إذا كان المسار يبدأ بـ / (absolute)، فهو يبحث عن موارد في dist
+    if (url.startsWith('/')) {
+      const distPath = path.join(__dirname, '../dist', url);
+      callback({ path: distPath });
+    } else {
+      callback({ path: path.normalize(url) });
+    }
+  });
+  
   createApp();
   
   // تهيئة نظام التحديث التلقائي (فقط في الإنتاج)
