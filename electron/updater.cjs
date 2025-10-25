@@ -9,6 +9,13 @@ autoUpdater.logger = log;
 // تكوين autoUpdater
 autoUpdater.autoDownload = false; // عدم التنزيل التلقائي
 autoUpdater.autoInstallOnAppQuit = true; // التثبيت التلقائي عند الإغلاق
+autoUpdater.allowPrerelease = false; // عدم السماح بالإصدارات التجريبية
+autoUpdater.allowDowngrade = false; // عدم السماح بالرجوع لإصدار أقدم
+
+// تكوين إضافي لتحسين الاتصال
+autoUpdater.requestHeaders = {
+  'Cache-Control': 'no-cache'
+};
 
 class UpdaterManager {
   constructor() {
@@ -114,8 +121,25 @@ class UpdaterManager {
     // خطأ في التحديث
     autoUpdater.on('error', (error) => {
       log.error('خطأ في التحديث:', error);
+      
+      // رسالة خطأ مفصلة حسب نوع المشكلة
+      let userMessage = 'حدث خطأ غير متوقع';
+      
+      if (error.message.includes('net::')) {
+        userMessage = 'فشل الاتصال بالإنترنت. تأكد من اتصالك وحاول مرة أخرى';
+      } else if (error.message.includes('ENOTFOUND') || error.message.includes('DNS')) {
+        userMessage = 'تعذر الوصول إلى خادم التحديثات';
+      } else if (error.message.includes('No published versions')) {
+        userMessage = 'لا توجد إصدارات منشورة حالياً';
+      } else if (error.message.includes('Cannot find')) {
+        userMessage = 'ملفات التحديث غير متوفرة';
+      } else {
+        userMessage = error.message;
+      }
+      
       this.sendToRenderer('update-error', {
-        message: error.message
+        message: userMessage,
+        details: error.message
       });
     });
   }
@@ -173,9 +197,29 @@ class UpdaterManager {
       await autoUpdater.downloadUpdate();
     } catch (error) {
       log.error('خطأ أثناء تنزيل التحديث:', error);
+      
+      let userMessage = 'فشل تنزيل التحديث';
+      if (error.message.includes('net::')) {
+        userMessage = 'انقطع الاتصال أثناء التنزيل';
+      } else if (error.message.includes('ENOSPC')) {
+        userMessage = 'لا توجد مساحة كافية على القرص';
+      }
+      
       this.sendToRenderer('update-error', {
-        message: error.message
+        message: userMessage,
+        details: error.message
       });
+      
+      // إظهار رسالة للمستخدم
+      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+        dialog.showMessageBox(this.mainWindow, {
+          type: 'error',
+          title: 'خطأ في التنزيل',
+          message: userMessage,
+          detail: error.message,
+          buttons: ['موافق']
+        });
+      }
     }
   }
 

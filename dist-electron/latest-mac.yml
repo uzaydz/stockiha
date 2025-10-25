@@ -1,0 +1,11 @@
+version: 1.0.2
+files:
+  - url: Stockiha-1.0.2.dmg
+    sha512: 1jnvMCRhpkZSPiIEr9DkIrSpj2tqufaP9TiHIrbocK+5ggYYtJh+WR+bdVZjg2Mo/lxZYDd8GycNJ/I2K6uioQ==
+    size: 212624767
+  - url: Stockiha-1.0.2-arm64.dmg
+    sha512: HHfcUM52W8Gg+eYtlUxBssJjJutd/TCKBRWPnua3vFAo7cGvHVLB/MyQ9AUjvulENSHvlvyv2FlXLAzFYKmhdg==
+    size: 207340208
+path: Stockiha-1.0.2.dmg
+sha512: 1jnvMCRhpkZSPiIEr9DkIrSpj2tqufaP9TiHIrbocK+5ggYYtJh+WR+bdVZjg2Mo/lxZYDd8GycNJ/I2K6uioQ==
+releaseDate: '2025-10-25T00:22:39.396Z'
