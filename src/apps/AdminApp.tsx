@@ -219,13 +219,7 @@ const AdminApp: React.FC = () => {
 
                 <Route
                   path="/"
-                  element={
-                    <SuspenseRoute fallback={<SharedPageLoader message="جاري تحميل لوحة التحكم..." />}>
-                      <ProtectedRoute>
-                        <POSDashboard />
-                      </ProtectedRoute>
-                    </SuspenseRoute>
-                  }
+                  element={<Navigate to="/login" replace />}
                 />
 
                 <Route
