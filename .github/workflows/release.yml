@@ -44,66 +44,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
-      - name: Create icon.ico for Windows
-        if: matrix.os == 'windows-latest'
-        shell: python
-        run: |
-          from pathlib import Path
-          
-          try:
-            from PIL import Image
-            webp_path = Path('assets/stockiha-logo.webp')
-            ico_path = Path('assets/icon.ico')
-            
-            if webp_path.exists():
-              img = Image.open(webp_path)
-              # Resize to 256x256
-              img = img.resize((256, 256), Image.Resampling.LANCZOS)
-              # Save as ICO
-              img.save(ico_path, format='ICO')
-              print(f'Created {ico_path} from {webp_path}')
-            else:
-              print('webp file not found')
-          except Exception as e:
-            print(f'Error creating ICO: {e}')
-            # Create a minimal valid ICO file as fallback
-            ico_path = Path('assets/icon.ico')
-            # Minimal valid ICO header (1x1 transparent image)
-            ico_data = bytes.fromhex('00 00 01 00 01 00 01 01 00 00 01 00 18 00 30 00 00 00 16 00 00 00')
-            ico_data += b'\x00' * 48  # Minimal image data
-            with open(ico_path, 'wb') as f:
-              f.write(ico_data)
-            print(f'Created minimal ICO at {ico_path}')
+      # icon.ico موجود بالفعل في repo بحجم 256x256 - لا داعي لإنشائه
 
-      - name: Create icon.png for Linux
-        if: matrix.os == 'ubuntu-latest'
-        shell: python
-        run: |
-          from pathlib import Path
-          
-          try:
-            from PIL import Image
-            webp_path = Path('assets/stockiha-logo.webp')
-            png_path = Path('assets/icon.png')
-            
-            if webp_path.exists():
-              img = Image.open(webp_path)
-              # Resize to 256x256
-              img = img.resize((256, 256), Image.Resampling.LANCZOS)
-              # Save as PNG
-              img.save(png_path, format='PNG')
-              print(f'Created {png_path} from {webp_path}')
-            else:
-              print('webp file not found')
-          except Exception as e:
-            print(f'Error creating PNG: {e}')
-            # Create a minimal valid PNG as fallback
-            png_path = Path('assets/icon.png')
-            # Minimal valid PNG (1x1 transparent pixel)
-            png_data = bytes.fromhex('89 50 4e 47 0d 0a 1a 0a 00 00 00 0d 49 48 44 52 00 00 00 01 00 00 00 01 08 06 00 00 00 1f 15 c4 89 00 00 00 0a 49 44 41 54 78 9c 63 00 01 00 00 05 00 01 0d 0a 2d b4 00 00 00 00 49 45 4e 44 ae 42 60 82')
-            with open(png_path, 'wb') as f:
-              f.write(png_data)
-            print(f'Created minimal PNG at {png_path}')
+      # icon.png موجود بالفعل في repo بحجم 512x512 - لا داعي لإنشائه
 
       - name: Create icon for macOS
         if: matrix.os == 'macos-latest'
