@@ -51,6 +51,22 @@ jobs:
           # For now, we'll skip icon validation by using a workaround
           echo "Icon placeholder created"
 
+      - name: Create icon.png for Linux
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          # Convert webp logo to PNG for Linux
+          if [ -f "assets/stockiha-logo.webp" ]; then
+            # Use ImageMagick or ffmpeg if available, otherwise skip
+            if command -v convert &> /dev/null; then
+              convert assets/stockiha-logo.webp -resize 256x256 assets/icon.png
+            elif command -v ffmpeg &> /dev/null; then
+              ffmpeg -i assets/stockiha-logo.webp -vf scale=256:256 assets/icon.png
+            else
+              # Create a simple placeholder
+              echo "Warning: Could not convert icon, using placeholder"
+            fi
+          fi
+
       - name: Build application
         env:
           NODE_OPTIONS: --max-old-space-size=4096

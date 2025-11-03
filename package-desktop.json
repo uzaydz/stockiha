@@ -27,6 +27,7 @@
   "build": {
     "appId": "com.stockiha.desktop",
     "productName": "سطوكيها",
+    "publish": null,
     "directories": {
       "output": "dist-electron"
     },
@@ -59,7 +60,8 @@
       "entitlementsInherit": "assets/entitlements.mac.plist",
       "hardenedRuntime": true,
       "gatekeeperAssess": false,
-      "notarize": false
+      "notarize": false,
+      "artifactName": "${productName}-${version}.${ext}"
     },
     "win": {
       "target": [
@@ -73,7 +75,8 @@
         }
       ],
       "icon": "assets/icon.ico",
-      "requestedExecutionLevel": "asInvoker"
+      "requestedExecutionLevel": "asInvoker",
+      "publish": null
     },
     "linux": {
       "target": [
@@ -90,7 +93,7 @@
           "arch": ["x64"]
         }
       ],
-      "icon": "assets/icon.png",
+      "icon": "assets/stockiha-logo.webp",
       "category": "Office"
     },
     "nsis": {
