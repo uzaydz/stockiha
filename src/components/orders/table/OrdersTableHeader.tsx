@@ -54,8 +54,10 @@ const OrdersTableHeader = memo(({
           <TableHead className="font-semibold text-foreground py-4 px-4 text-sm">حالة الطلب</TableHead>
         )}
 
-        {visibleColumns.includes("confirmation") && (
-          <TableHead className="font-semibold text-foreground py-4 px-4 text-sm">فريق التأكيد</TableHead>
+        {/* عمود فريق التأكيد تم حذفه */}
+
+        {visibleColumns.includes("assignee") && (
+          <TableHead className="font-semibold text-foreground py-4 px-4 text-sm">الموظف المعين</TableHead>
         )}
         
         {visibleColumns.includes("call_confirmation") && (

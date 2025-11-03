@@ -25,7 +25,7 @@ const OrdersTable = memo(({
   onBulkUpdateStatus,
   hasUpdatePermission,
   hasCancelPermission,
-  visibleColumns = ["checkbox", "expand", "id", "customer_name", "customer_contact", "total", "status", "confirmation", "call_confirmation", "shipping_provider", "delivery_type", "financial", "actions"],
+  visibleColumns = ["checkbox", "expand", "id", "customer_name", "customer_contact", "total", "status", "call_confirmation", "shipping_provider", "delivery_type", "financial", "actions"],
   currentUserId,
   currentPage = 1,
   totalItems = 0,

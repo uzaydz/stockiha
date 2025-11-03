@@ -89,7 +89,7 @@ const posSidebarItems: POSSidebarItem[] = [
   ,
   {
     id: 'courses-operations',
-    title: 'دورات ستوكيها',
+    title: 'دورات سطوكيها',
     icon: GraduationCap,
     href: '/dashboard/courses-operations/all',
   }
@@ -149,16 +149,21 @@ const POSPureSidebar: React.FC<POSPureSidebarProps> = memo(({ className, items, 
           className
         )}
       >
-        {/* الشعار الحقيقي */}
+        {/* الشعار الحقيقي مع تصميم محسّن */}
         <div className={cn(
-          "px-3 py-5 flex items-center relative transition-all duration-300",
-          isExpanded ? "justify-start gap-3" : "justify-center"
+          "px-4 py-6 flex items-center relative transition-all duration-300",
+          isExpanded ? "justify-start gap-4" : "justify-center"
         )}>
-          <div className="w-12 h-12 bg-gradient-to-br from-orange-500/10 to-orange-600/10 rounded-2xl flex items-center justify-center overflow-hidden border border-orange-500/20 shadow-lg shadow-orange-500/10 flex-shrink-0">
+          {/* خلفية متدرجة مع تأثير الضوء */}
+          <div className="absolute inset-0 bg-gradient-to-b from-orange-500/5 via-transparent to-transparent pointer-events-none" />
+          
+          <div className="relative w-14 h-14 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl flex items-center justify-center overflow-hidden border-2 border-orange-400/30 shadow-2xl shadow-orange-500/20 flex-shrink-0 transform transition-all duration-300 hover:scale-110 hover:shadow-orange-500/40">
+            {/* تأثير التوهج الداخلي */}
+            <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-70" />
             <img 
               src="/images/logo-new.webp" 
-              alt="ستوكيها" 
-              className="w-8 h-8 object-contain"
+              alt="سطوكيها" 
+              className="w-9 h-9 object-contain relative z-10 drop-shadow-lg"
               onError={(e) => {
                 // fallback إلى الشعار القديم
                 e.currentTarget.src = '/images/logo.webp';
@@ -172,14 +177,18 @@ const POSPureSidebar: React.FC<POSPureSidebarProps> = memo(({ className, items, 
                 };
               }}
             />
-            <div className="w-8 h-8 hidden items-center justify-center">
-              <Store className="h-5 w-5 text-orange-500" />
+            <div className="w-9 h-9 hidden items-center justify-center relative z-10">
+              <Store className="h-6 w-6 text-white drop-shadow-lg" />
             </div>
           </div>
+          
           {isExpanded && (
-            <h2 className="text-lg font-bold text-orange-500 whitespace-nowrap">
-              ستوكيها
-            </h2>
+            <div className="flex flex-col gap-0.5">
+              <h2 className="text-xl font-extrabold bg-gradient-to-br from-orange-500 to-orange-600 bg-clip-text text-transparent whitespace-nowrap drop-shadow-sm">
+                سطوكيها
+              </h2>
+              <p className="text-[10px] text-slate-500 font-medium tracking-wide">النظام الشامل في التجارة الإلكترونية</p>
+            </div>
           )}
         </div>
         <nav className="flex-1 px-2 pb-4 space-y-1 overflow-y-auto">
@@ -193,13 +202,13 @@ const POSPureSidebar: React.FC<POSPureSidebarProps> = memo(({ className, items, 
                 aria-current={active ? 'page' : undefined}
                 aria-label={item.title}
                 className={cn(
-                  'group relative flex items-center rounded-xl p-2.5 mx-1',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/40',
+                  'group relative flex items-center rounded-xl p-3 mx-1',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/50',
                   'transition-all duration-300 ease-out',
                   isExpanded ? 'justify-start gap-3' : 'justify-center',
                   active
-                    ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-lg shadow-orange-500/30 scale-105'
-                    : 'text-slate-400 hover:text-orange-400 hover:scale-105 hover:shadow-md hover:shadow-orange-500/10'
+                    ? 'bg-gradient-to-br from-orange-500 via-orange-600 to-orange-500 text-white shadow-xl shadow-orange-500/40 scale-[1.02] border border-orange-400/30'
+                    : 'text-slate-400 hover:text-orange-400 hover:scale-[1.02] hover:shadow-lg hover:shadow-orange-500/20 hover:bg-slate-800/50 hover:border hover:border-orange-500/20'
                 )}
               >
                 {/* خلفية متحركة عند الـ hover */}
@@ -218,19 +227,24 @@ const POSPureSidebar: React.FC<POSPureSidebarProps> = memo(({ className, items, 
                   <Icon
                     className={cn(
                       'h-5 w-5 relative z-10 transition-all duration-300 flex-shrink-0',
-                      active ? 'drop-shadow-sm' : 'group-hover:drop-shadow-[0_0_8px_rgba(249,115,22,0.4)]'
+                      active 
+                        ? 'drop-shadow-[0_2px_8px_rgba(255,255,255,0.3)]' 
+                        : 'group-hover:drop-shadow-[0_0_12px_rgba(249,115,22,0.5)] group-hover:scale-110'
                     )}
                   />
                 ) : null}
                 
                 {isExpanded && (
-                  <span className="text-sm font-medium whitespace-nowrap relative z-10">
+                  <span className={cn(
+                    "text-sm font-semibold whitespace-nowrap relative z-10 transition-all duration-300",
+                    active ? 'tracking-wide' : 'group-hover:tracking-wide'
+                  )}>
                     {item.title}
                   </span>
                 )}
                 
                 {isExpanded && item.badge && (
-                  <span className="mr-auto px-2 py-0.5 text-xs font-semibold bg-orange-500/20 text-orange-300 rounded-full relative z-10">
+                  <span className="mr-auto px-2.5 py-1 text-xs font-bold bg-gradient-to-r from-orange-400 to-orange-500 text-white rounded-full relative z-10 shadow-lg shadow-orange-500/30 animate-pulse">
                     {item.badge}
                   </span>
                 )}

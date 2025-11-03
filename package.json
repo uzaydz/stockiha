@@ -1,7 +1,7 @@
 {
   "name": "stockiha-console-web",
   "private": true,
-  "version": "1.0.2",
+  "version": "1.0.6",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -252,7 +252,7 @@
     "critical": "^7.2.1",
     "critters": "^0.0.25",
     "cssnano": "^7.1.1",
-    "electron": "38.3.0",
+    "electron": "^38.3.0",
     "electron-builder": "^26.0.12",
     "eslint": "^9.34.0",
     "eslint-plugin-react-hooks": "^5.2.0",
@@ -271,6 +271,7 @@
     "rollup-plugin-obfuscator": "^1.1.0",
     "rollup-plugin-polyfill-node": "^0.13.0",
     "rollup-plugin-visualizer": "^6.0.3",
+    "sass-embedded": "^1.93.2",
     "sharp": "^0.34.3",
     "stylelint": "^16.24.0",
     "stylelint-config-prettier-scss": "^1.0.0",
@@ -329,6 +330,13 @@
       "target": [
         {
           "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
           "arch": [
             "x64",
             "arm64"

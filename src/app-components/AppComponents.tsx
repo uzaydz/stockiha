@@ -1,20 +1,23 @@
 import React, { useEffect, useState } from 'react';
-import { useLocation, useParams, Navigate, BrowserRouter } from 'react-router-dom';
+import { useLocation, useParams, Navigate, BrowserRouter, HashRouter } from 'react-router-dom';
 import { useTenant } from '../context/TenantContext';
 import { getCategoryById, getCategories } from '../lib/api/unified-api';
 import { saveCategoriesToLocalStorage, saveSubcategoriesToLocalStorage, syncCategoriesDataOnStartup } from '../lib/api/categories';
 import { configureCrossDomainAuth } from '../lib/cross-domain-auth';
 import { useDevtools } from '../hooks/useDevtools';
 import useTabFocusEffect from '../hooks/useTabFocusEffect';
+import { useAuth } from '../context/AuthContext';
 // import useReactQueryState from '../hooks/useReactQueryState'; // Removed for performance
 // تم تعطيل تتبع الجلسات مؤقتاً
 // import { useSessionTracking } from '../hooks/useSessionTracking';
 import SyncManager from '../components/SyncManager';
 import { TitlebarProvider } from '../context/TitlebarContext';
+import AppleShell from '@/components/apple/AppleShell';
 import { ThemeProvider } from '../context/ThemeContext';
 import { StaffSessionProvider } from '../context/StaffSessionContext';
 import { VirtualNumpadProvider } from '../context/VirtualNumpadContext';
 import { GlobalNumpadManager } from '../components/virtual-numpad/GlobalNumpadManager';
+import SmartProviderWrapper from '../components/routing/SmartProviderWrapper';
 
 let categoriesSyncedOnStartup = false;
 
@@ -25,9 +28,12 @@ export const SyncManagerWrapper = () => {
   const location = useLocation();
   const pathname = location.pathname || '';
   const dashboardPrefixes = ['/dashboard', '/pos', '/inventory', '/orders', '/customers', '/analytics'];
-  const shouldRender = dashboardPrefixes.some((prefix) => pathname.startsWith(prefix)) || pathname === '/';
+  const shouldRenderByPath = dashboardPrefixes.some((prefix) => pathname.startsWith(prefix));
+  // لا نشغل المزامنة إلا بعد المصادقة لتجنب الضجيج قبل تسجيل الدخول
+  const { user, authReady } = useAuth();
+  const isAuthed = Boolean(user) && Boolean(authReady);
 
-  if (!shouldRender) {
+  if (!shouldRenderByPath || !isAuthed) {
     return null;
   }
 
@@ -173,13 +179,15 @@ export const AppCore = ({ children }: { children: React.ReactNode }) => {
     window.navigator.userAgent && 
     window.navigator.userAgent.includes('Electron');
   
-  // في Electron، استخدم basename فارغ لأن file:// لا يحتاج إلى basename
-  // في المتصفح، استخدم '/' كـ basename
-  const basename = isElectron ? '' : '/';
+  // في Electron استخدم HashRouter لتفادي أخطاء file:///login
+  // في المتصفح استخدم BrowserRouter كالعادة
+  const Router = isElectron ? HashRouter : BrowserRouter;
+  // في المتصفح، استخدم '/' كـ basename. في Electron (HashRouter) لا حاجة لbasename
+  const basename = isElectron ? undefined : '/';
   
   return (
-    <BrowserRouter
-      basename={basename}
+    <Router
+      {...(basename ? { basename } : {})}
       future={{
         v7_startTransition: true,
         v7_relativeSplatPath: true
@@ -189,19 +197,24 @@ export const AppCore = ({ children }: { children: React.ReactNode }) => {
         <StaffSessionProvider>
           <VirtualNumpadProvider>
             <TitlebarProvider>
-              <div className="app-shell">
-                <div className="app-shell__content">
-                  <TabFocusHandler>
-                    {children}
-                    <SyncManagerWrapper />
-                    <GlobalNumpadManager />
-                  </TabFocusHandler>
+              <SmartProviderWrapper>
+                {/* Apple-like responsive shell wrapping all legacy content */}
+                <div className="app-shell">
+                  <div className="app-shell__content">
+                    <TabFocusHandler>
+                      {/* Inject our AppleShell here so we don't need to touch individual pages */}
+                      <AppleShell>
+                        {children}
+                      </AppleShell>
+                      <GlobalNumpadManager />
+                    </TabFocusHandler>
+                  </div>
                 </div>
-              </div>
+              </SmartProviderWrapper>
             </TitlebarProvider>
           </VirtualNumpadProvider>
         </StaffSessionProvider>
       </ThemeProvider>
-    </BrowserRouter>
+    </Router>
   );
 };

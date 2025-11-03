@@ -2,7 +2,6 @@ import React, { Suspense, lazy, useMemo } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 
-import SmartProviderWrapper from '@/components/routing/SmartProviderWrapper';
 import NetworkErrorHandler from '@/components/NetworkErrorHandler';
 import ErrorBoundary from '@/components/ErrorBoundary';
 import LayoutShiftPrevention from '@/components/performance/LayoutShiftPrevention';
@@ -14,6 +13,7 @@ import POSRoutes from '@/app-components/POSRoutesStandalone';
 import { enableAuthInterception } from '@/lib/authInterceptorV2';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import { ConfirmationProvider } from '@/context/ConfirmationContext';
+import { SyncManagerWrapper } from '@/app-components/AppComponents';
 
 const LocalStorageMonitor = lazy(() =>
   import('@/components/auth/LocalStorageMonitor').then(module => ({ default: module.LocalStorageMonitor }))
@@ -21,8 +21,8 @@ const LocalStorageMonitor = lazy(() =>
 const PublicRoute = lazy(() => import('@/components/auth/PublicRoute'));
 const RoleBasedRedirect = lazy(() => import('@/components/auth/RoleBasedRedirect'));
 const NotFoundPage = lazy(() => import('@/pages/NotFound'));
-const LandingPage = lazy(() => import('@/pages/landing/LandingPage'));
 const StaffLogin = lazy(() => import('@/pages/StaffLogin'));
+const DesktopHome = lazy(() => import('@/pages/DesktopHome'));
 
 import * as LazyRoutes from '@/app-components/LazyRoutes.enhanced';
 
@@ -55,8 +55,8 @@ const AdminApp: React.FC = () => {
       <NetworkErrorHandler>
         <LayoutShiftPrevention>
           <AppCore>
-            <SmartProviderWrapper>
-              <Routes>
+            <SyncManagerWrapper />
+            <Routes>
                 <Route
                   path="/dashboard/*"
                   element={
@@ -220,8 +220,21 @@ const AdminApp: React.FC = () => {
                 <Route
                   path="/"
                   element={
-                    <SuspenseRoute fallback={<SharedPageLoader message="جاري تحميل الصفحة..." />}>
-                      <LandingPage />
+                    <SuspenseRoute fallback={<SharedPageLoader message="جاري تحميل سطح المكتب..." />}>
+                      <ProtectedRoute>
+                        <DesktopHome />
+                      </ProtectedRoute>
+                    </SuspenseRoute>
+                  }
+                />
+
+                <Route
+                  path="/desktop"
+                  element={
+                    <SuspenseRoute fallback={<SharedPageLoader message="جاري تحميل سطح المكتب..." />}>
+                      <ProtectedRoute>
+                        <DesktopHome />
+                      </ProtectedRoute>
                     </SuspenseRoute>
                   }
                 />
@@ -234,14 +247,13 @@ const AdminApp: React.FC = () => {
                     </SuspenseRoute>
                   }
                 />
-              </Routes>
+            </Routes>
 
-              {import.meta.env.DEV && (
-                <Suspense fallback={null}>
-                  <LocalStorageMonitor />
-                </Suspense>
-              )}
-            </SmartProviderWrapper>
+            {import.meta.env.DEV && (
+              <Suspense fallback={null}>
+                <LocalStorageMonitor />
+              </Suspense>
+            )}
           </AppCore>
         </LayoutShiftPrevention>
       </NetworkErrorHandler>

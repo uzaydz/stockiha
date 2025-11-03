@@ -21,6 +21,32 @@ body {
   overflow: hidden;
 }
 
+/* Hide legacy titlebar when AppleShell is active */
+body.appleshell-active .desktop-titlebar {
+  display: none !important;
+}
+
+/* Make space rules neutral; AppleShell manages its own paddings */
+body.appleshell-active .app-shell {
+  padding-top: 0 !important;
+}
+
+/* Apple window helpers */
+.apple-window {
+  --apple-radius: 16px;
+  border-radius: var(--apple-radius);
+}
+
+.apple-window__body {
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+}
+
+/* macOS-like wallpaper backdrop */
+.macos-new-wallpaper {
+  background-image: radial-gradient(1200px 800px at 50% -10%, #111827 18%, #0a0f1f 80%);
+}
+
 .app-shell {
   padding-top: var(--titlebar-height, 48px);
   min-height: 100vh;

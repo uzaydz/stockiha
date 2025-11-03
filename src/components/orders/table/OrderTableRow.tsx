@@ -15,7 +15,6 @@ import OrderRowCallConfirmation from "./row/OrderRowCallConfirmation";
 import OrderRowActions from "./row/OrderRowActions";
 import OrderDeliveryTypeEditor from "./OrderDeliveryTypeEditor";
 import OrderFinancialEditor from "./OrderFinancialEditor";
-import OrderRowConfirmation from "./row/OrderRowConfirmation";
 
 const OrdersTableRow = ({
   order,
@@ -43,6 +42,14 @@ const OrdersTableRow = ({
   const { id, customer_order_number, customer, total, status, order_items = [] } = order;
   const assignment = (order as any).confirmation_assignment || null;
   const confirmationAgent = (order as any).confirmation_agent || null;
+  const assignedStaffDisplayName = useMemo(() => {
+    const o: any = order as any;
+    const resolved = o.assigned_staff_name_resolved || o.assigned_staff_name;
+    if (resolved && typeof resolved === 'string') return resolved;
+    const sid: string | undefined = (o.assignment && o.assignment.staff_id) || undefined;
+    if (sid) return `${sid.slice(0, 6)}…`;
+    return null;
+  }, [order]);
 
   // تنسيق رقم الطلب للعرض
   const formattedOrderNumber = useMemo(() => 
@@ -166,9 +173,16 @@ const OrdersTableRow = ({
           />
         )}
 
-        {visibleColumns.includes("confirmation") && (
+        {/* عمود فريق التأكيد تم حذفه */}
+
+        {/* الموظف المعين */}
+        {visibleColumns.includes("assignee") && (
           <TableCell className="py-4 px-4" style={{ contain: 'layout' }}>
-            <OrderRowConfirmation assignment={assignment} agent={confirmationAgent} />
+            {assignedStaffDisplayName ? (
+              <span className="text-sm">{assignedStaffDisplayName}</span>
+            ) : (
+              <span className="text-sm text-muted-foreground">غير معين</span>
+            )}
           </TableCell>
         )}
 
