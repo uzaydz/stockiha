@@ -5,7 +5,6 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ProductColor, ProductSize } from '@/types/product';
 import { generateVariantBarcode } from '@/lib/api/products';
-import { generateLocalVariantBarcode } from '@/lib/api/indexedDBProducts';
 import { getProductSizes } from '@/lib/api/productVariants';
 import { toast } from 'sonner';
 import {

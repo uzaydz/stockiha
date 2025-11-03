@@ -76,7 +76,6 @@ import { supabase } from '@/lib/supabase';
 import { WholesaleTier } from '@/types/product';
 import { createWholesaleTier } from '@/lib/api/products';
 import { createProduct as createOnlineProduct } from '@/lib/api/products';
-import { generateLocalSku, generateLocalEAN13 } from '@/lib/api/indexedDBProducts';
 import { useAuth } from '@/context/AuthContext';
 import { EmployeePermissions } from '@/types/employee';
 import { syncProductImages } from '@/lib/api/productHelpers';
@@ -910,9 +909,9 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
         // استدعاء واجهة توليد الرمز عبر الإنترنت
         generatedSku = await generateAutomaticSku(categoryShortName, brandShortName, organizationId);
       } else {
-        // استخدام الوظيفة المحلية لتوليد SKU عند عدم الاتصال
-        
-        generatedSku = generateLocalSku(categoryShortName, brandShortName);
+        // استخدام قيمة محلية عند عدم الاتصال
+        const timestamp = Date.now().toString().slice(-6);
+        generatedSku = `${categoryShortName || 'PRD'}-${timestamp}`;
       }
       
       // تحديث قيمة حقل SKU في النموذج
@@ -941,9 +940,9 @@ const AddProductDialog = ({ open, onOpenChange, onProductAdded }: AddProductDial
         // استدعاء واجهة توليد الباركود عبر الإنترنت
         generatedBarcode = await generateAutomaticBarcode();
       } else {
-        // استخدام الوظيفة المحلية لتوليد الباركود عند عدم الاتصال
-        
-        generatedBarcode = generateLocalEAN13();
+        // استخدام قيمة محلية عند عدم الاتصال
+        const timestamp = Date.now().toString().slice(-8);
+        generatedBarcode = `TEMP${timestamp}`;
       }
       
       // تحديث قيمة حقل الباركود في النموذج

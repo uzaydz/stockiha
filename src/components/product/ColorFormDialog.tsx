@@ -5,7 +5,6 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ProductColor, ProductSize } from '@/types/product';
 import { generateVariantBarcode } from '@/lib/api/products';
-import { generateLocalVariantBarcode } from '@/lib/api/indexedDBProducts';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -134,7 +133,7 @@ const ColorFormDialog: React.FC<ColorFormDialogProps> = ({
         }
       } else {
         const baseBarcode = editingColor?.barcode || '';
-        generatedBarcode = generateLocalVariantBarcode(baseBarcode);
+        generatedBarcode = await generateVariantBarcode(productId, editingColor?.id || '');
       }
       
       if (generatedBarcode) {

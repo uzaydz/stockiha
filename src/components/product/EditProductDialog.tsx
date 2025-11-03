@@ -59,8 +59,6 @@ import WholesaleTierManager from './WholesaleTierManager';
 import { Checkbox } from "@/components/ui/checkbox";
 import { updateProduct as updateOnlineProduct } from '@/lib/api/products';
 import { updateProduct as updateOfflineProduct } from '@/lib/api/offlineProductsAdapter';
-import { updateIndexDBProduct } from '@/lib/api/indexedDBProducts';
-import { generateLocalSku, generateLocalEAN13 } from '@/lib/api/indexedDBProducts';
 import { syncProductImages } from '@/lib/api/productHelpers';
 
 // استيراد المكونات الفرعية
