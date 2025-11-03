@@ -287,9 +287,6 @@ Schema:
         const method = q((a as any).method);
         return { type: 'repair_add_payment', fields: { customerQuery, amount: Number.isFinite(amount) ? amount : 0, method } } as any;
       }
-      case 'repair_status': {
-        return { type: 'repair_status', customerQuery: q((a as any).customerQuery) || q((a as any).query) } as any;
-      }
       default:
         return null;
     }
