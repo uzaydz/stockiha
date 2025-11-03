@@ -22,7 +22,7 @@ const PublicRoute = lazy(() => import('@/components/auth/PublicRoute'));
 const RoleBasedRedirect = lazy(() => import('@/components/auth/RoleBasedRedirect'));
 const NotFoundPage = lazy(() => import('@/pages/NotFound'));
 const StaffLogin = lazy(() => import('@/pages/StaffLogin'));
-const DesktopHome = lazy(() => import('@/pages/DesktopHome'));
+const POSDashboard = lazy(() => import('@/pages/POSDashboard'));
 
 import * as LazyRoutes from '@/app-components/LazyRoutes.enhanced';
 
@@ -220,9 +220,9 @@ const AdminApp: React.FC = () => {
                 <Route
                   path="/"
                   element={
-                    <SuspenseRoute fallback={<SharedPageLoader message="جاري تحميل سطح المكتب..." />}>
+                    <SuspenseRoute fallback={<SharedPageLoader message="جاري تحميل لوحة التحكم..." />}>
                       <ProtectedRoute>
-                        <DesktopHome />
+                        <POSDashboard />
                       </ProtectedRoute>
                     </SuspenseRoute>
                   }
@@ -231,9 +231,9 @@ const AdminApp: React.FC = () => {
                 <Route
                   path="/desktop"
                   element={
-                    <SuspenseRoute fallback={<SharedPageLoader message="جاري تحميل سطح المكتب..." />}>
+                    <SuspenseRoute fallback={<SharedPageLoader message="جاري تحميل لوحة التحكم..." />}>
                       <ProtectedRoute>
-                        <DesktopHome />
+                        <POSDashboard />
                       </ProtectedRoute>
                     </SuspenseRoute>
                   }
