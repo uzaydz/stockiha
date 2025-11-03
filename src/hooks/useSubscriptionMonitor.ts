@@ -1,4 +1,5 @@
 import { useEffect, useCallback } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
 import { supabase } from '@/lib/supabase';
@@ -10,10 +11,11 @@ import { clearPermissionsCache } from '@/lib/PermissionsCache';
  */
 export const useSubscriptionMonitor = () => {
   const { organization } = useAuth();
+  const location = useLocation();
   const { refreshOrganizationData } = useTenant();
 
   // تجاهل المراقبة في صفحة الاشتراك
-  const isSubscriptionPage = window.location.pathname.includes('/dashboard/subscription');
+  const isSubscriptionPage = location.pathname.includes('/dashboard/subscription');
   if (isSubscriptionPage) {
     return { checkSubscriptionStatus: () => {} };
   }

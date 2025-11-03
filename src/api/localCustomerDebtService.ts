@@ -127,7 +127,8 @@ export const getAllLocalCustomerDebts = async (organizationId: string): Promise<
 // جلب الديون غير المتزامنة
 export const getUnsyncedCustomerDebts = async (): Promise<LocalCustomerDebt[]> => {
   return await inventoryDB.customerDebts
-    .filter(debt => debt.synced === false)
+    .where('synced')
+    .equals(false)
     .toArray();
 };
 

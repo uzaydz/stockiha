@@ -1,4 +1,4 @@
-/* Orders Performance CSS - حل مشكلة Forced Reflow */
+/* Orders Performance CSS - تحسينات شاملة للأداء والتصميم */
 
 /* تحسين القوائم المنسدلة */
 .orders-dropdown {
@@ -35,4 +35,92 @@
 .orders-table-container {
   min-height: 400px;
   contain: layout;
+}
+
+/* =================================
+   تحسينات الجدول الجديدة
+   ================================= */
+
+/* تحسين عرض الجدول */
+table {
+  border-spacing: 0;
+  border-collapse: separate;
+}
+
+/* تحسين رأس الجدول */
+thead tr {
+  background: linear-gradient(to right, hsl(var(--muted) / 0.95), hsl(var(--muted) / 0.8));
+}
+
+/* تحسين الصفوف */
+tbody tr {
+  transition: background-color 0.15s ease-in-out, border-color 0.15s ease-in-out;
+}
+
+tbody tr:hover {
+  background-color: hsl(var(--accent) / 0.1);
+}
+
+/* تحديد الصفوف */
+tbody tr[data-selected="true"] {
+  background-color: hsl(var(--primary) / 0.08);
+  border-left: 4px solid hsl(var(--primary));
+}
+
+/* تحسين الخلايا */
+td, th {
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+/* تحسين scroll للجدول - للتمرير الأفقي والعمودي */
+.orders-table-wrapper {
+  scrollbar-width: auto;
+  scrollbar-color: hsl(var(--primary) / 0.5) hsl(var(--muted) / 0.2);
+  position: relative;
+  display: block;
+}
+
+.orders-table-wrapper::-webkit-scrollbar {
+  height: 16px;
+  width: 16px;
+}
+
+.orders-table-wrapper::-webkit-scrollbar-track {
+  background: hsl(var(--muted) / 0.2);
+  border-radius: 0;
+}
+
+.orders-table-wrapper::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary) / 0.6);
+  border-radius: 8px;
+  border: 3px solid hsl(var(--card));
+  transition: background 0.2s ease;
+}
+
+.orders-table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary) / 0.8);
+}
+
+.orders-table-wrapper::-webkit-scrollbar-thumb:active {
+  background: hsl(var(--primary));
+}
+
+/* تحسين الزوايا عند التمرير */
+.orders-table-wrapper::-webkit-scrollbar-corner {
+  background: hsl(var(--muted) / 0.2);
+}
+
+/* تحسين حدود الجدول */
+tbody tr {
+  border-bottom: 1px solid hsl(var(--border) / 0.4);
+}
+
+tbody tr:last-child {
+  border-bottom: none;
+}
+
+/* تحسين الظلال */
+thead {
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
 }

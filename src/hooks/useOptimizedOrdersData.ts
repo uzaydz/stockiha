@@ -2,7 +2,11 @@ import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { useTenant } from '@/context/TenantContext';
+import { usePermissions } from '@/hooks/usePermissions';
+// server-side rules are applied; local groups service no longer needed
 import { Order } from '@/components/orders/table/OrderTableTypes';
+import { useAuth } from '@/context/AuthContext';
+import onlineOrdersGroupsApi from '@/services/onlineOrdersGroupsApi';
 // Simple debounce implementation with cancel method
 const debounce = <T extends (...args: any[]) => any>(
   func: T,
@@ -69,6 +73,7 @@ interface Filters {
   dateTo: Date | null;
   callConfirmationStatusId: number | null;
   shippingProvider: string | null;
+  viewMode?: 'all' | 'mine' | 'unassigned'; // إضافة viewMode للتحكم في التصفية
 }
 
 const DEFAULT_PAGE_SIZE = 20;
@@ -106,6 +111,8 @@ export const useOptimizedOrdersData = (options: OptimizedOrdersDataOptions = {})
   const rpcOptions = (memoizedOptions as OptimizedOrdersDataOptions).rpcOptions || { includeItems: false, includeShared: false, includeCounts: true };
 
   const { currentOrganization } = useTenant();
+  const { userProfile } = useAuth();
+  const perms = usePermissions();
   const { toast } = useToast();
 
   const [state, setState] = useState<OrdersDataState>({
@@ -144,6 +151,7 @@ export const useOptimizedOrdersData = (options: OptimizedOrdersDataOptions = {})
     dateTo: null,
     callConfirmationStatusId: null,
     shippingProvider: null,
+    viewMode: 'all', // القيمة الافتراضية
   });
 
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -285,51 +293,56 @@ export const useOptimizedOrdersData = (options: OptimizedOrdersDataOptions = {})
       
       const startTime = performance.now();
 
-      // استدعاء الدالة مع دعم الأعلام الإضافية وفولباك في حال عدم توافق التوقيع
-      let data: any;
-      let error: any;
+      // Server-first fetch via get_online_orders_for_staff (Groups rules)
+      let data: any; let error: any;
       const requestPromise = (async () => {
+        const groupId = (perms?.data?.permissions as any)?.onlineOrdersGroupId as string | undefined;
         try {
-          const resp = await supabase.rpc('get_orders_complete_data' as any, {
-          p_organization_id: currentOrganization.id,
-          p_page: page,
-          p_page_size: pageSize,
-          p_status: currentFilters.status === 'all' ? null : currentFilters.status,
-          p_call_confirmation_status_id: currentFilters.callConfirmationStatusId,
-          p_shipping_provider: currentFilters.shippingProvider,
-          p_search_term: currentFilters.searchTerm || null,
-          p_date_from: currentFilters.dateFrom?.toISOString() || null,
-          p_date_to: currentFilters.dateTo?.toISOString() || null,
-          p_sort_by: 'created_at',
-          p_sort_order: 'desc',
-          p_include_items: rpcOptions.includeItems ?? false,
-          p_include_shared: rpcOptions.includeShared ?? false,
-          // اجعل العد ديناميكياً: الصفحة الأولى فقط لتقليل التكلفة
-            p_include_counts: (rpcOptions.includeCounts ?? true) && page === 1,
-            p_fetch_all: rpcOptions.fetchAllOnce === true,
-          });
-          data = resp.data;
-          error = resp.error;
-          if (error && typeof error.message === 'string' && /get_orders_complete_data/i.test(error.message)) {
-            throw error;
+          if (groupId && userProfile?.id) {
+            const rpcRes = await onlineOrdersGroupsApi.getOnlineOrdersForStaff(
+              currentOrganization.id,
+              userProfile.id,
+              groupId,
+              {
+                page,
+                page_size: pageSize,
+                status: currentFilters.status === 'all' ? null : currentFilters.status,
+                search: currentFilters.searchTerm || null,
+                date_from: currentFilters.dateFrom?.toISOString() || null,
+                date_to: currentFilters.dateTo?.toISOString() || null,
+                provider: currentFilters.shippingProvider,
+                include_items: rpcOptions.includeItems ?? false,
+                include_counts: (rpcOptions.includeCounts ?? true) && page === 1,
+                mine_only: currentFilters.viewMode === 'mine',
+                unassigned_only: currentFilters.viewMode === 'unassigned',
+              }
+            );
+            if (rpcRes.success) {
+              data = rpcRes as any;
+              return;
+            } else {
+              throw new Error(rpcRes.error || 'rpc_failed');
+            }
           }
-        } catch (_) {
+          // Fallback: legacy RPC
           const respFallback = await supabase.rpc('get_orders_complete_data' as any, {
-          p_organization_id: currentOrganization.id,
-          p_page: page,
-          p_page_size: pageSize,
-          p_status: currentFilters.status === 'all' ? null : currentFilters.status,
-          p_call_confirmation_status_id: currentFilters.callConfirmationStatusId,
-          p_shipping_provider: currentFilters.shippingProvider,
-          p_search_term: currentFilters.searchTerm || null,
-          p_date_from: currentFilters.dateFrom?.toISOString() || null,
-          p_date_to: currentFilters.dateTo?.toISOString() || null,
-          p_sort_by: 'created_at',
-          p_sort_order: 'desc',
+            p_organization_id: currentOrganization.id,
+            p_page: page,
+            p_page_size: pageSize,
+            p_status: currentFilters.status === 'all' ? null : currentFilters.status,
+            p_call_confirmation_status_id: currentFilters.callConfirmationStatusId,
+            p_shipping_provider: currentFilters.shippingProvider,
+            p_search_term: currentFilters.searchTerm || null,
+            p_date_from: currentFilters.dateFrom?.toISOString() || null,
+            p_date_to: currentFilters.dateTo?.toISOString() || null,
+            p_sort_by: 'created_at',
+            p_sort_order: 'desc',
             p_fetch_all: rpcOptions.fetchAllOnce === true,
           });
           data = respFallback.data;
           error = respFallback.error;
+        } catch (e: any) {
+          error = e;
         }
       })();
 
@@ -338,14 +351,9 @@ export const useOptimizedOrdersData = (options: OptimizedOrdersDataOptions = {})
 
       const endTime = performance.now();
 
-      if (error) {
-        throw error;
-      }
-
+      if (error) { throw error; }
       const responseData = data as any;
-      if (!responseData?.success) {
-        throw new Error(responseData?.error || 'Failed to fetch orders data');
-      }
+      if (!responseData?.success) { throw new Error(responseData?.error || 'Failed to fetch orders data'); }
 
       // Process the response
       let processedOrders: Order[] = (responseData.orders || []).map((order: any) => ({
@@ -361,6 +369,8 @@ export const useOptimizedOrdersData = (options: OptimizedOrdersDataOptions = {})
         shipping_address: order.shipping_address || null,
         call_confirmation_status: order.call_confirmation_status || null,
       }));
+
+      // No client-side filtering; server-side rules applied via RPC
 
       // تأكد من الأحدث -> الأقدم حتى لو رجعت الدالة بدون ترتيب مثالي
       processedOrders = processedOrders.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
@@ -464,7 +474,7 @@ export const useOptimizedOrdersData = (options: OptimizedOrdersDataOptions = {})
         description: "حدث خطأ أثناء محاولة جلب الطلبات. يرجى المحاولة مرة أخرى.",
       });
     }
-  }, [currentOrganization?.id, pageSize, getCacheKey, isCacheValid, enableCache, readOnly]);
+  }, [currentOrganization?.id, pageSize, getCacheKey, isCacheValid, enableCache, readOnly, perms?.data?.permissions, userProfile?.id]);
 
   // Load more orders (for infinite scroll) مع Gate لمنع السباقات
   const loadMoreInFlightRef = useRef(false);

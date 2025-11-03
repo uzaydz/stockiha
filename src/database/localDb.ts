@@ -13,6 +13,14 @@ export interface LocalProduct extends Product {
   localUpdatedAt: string;
   pendingOperation?: 'create' | 'update' | 'delete';
   conflictResolution?: 'local' | 'remote' | 'merge';
+  name_lower?: string;
+  sku_lower?: string;
+  barcode_lower?: string;
+  // حقول مساعدة للبحث والتطبيع
+  name_search?: string;
+  sku_search?: string;
+  barcode_digits?: string;
+  category_id?: string | null;
 }
 
 // نموذج عنصر قائمة المزامنة
@@ -68,6 +76,10 @@ export interface LocalCustomer {
   lastSyncAttempt?: string;
   localUpdatedAt: string;
   pendingOperation?: 'create' | 'update' | 'delete';
+  // فهارس مساعدة للبحث
+  name_lower?: string;
+  email_lower?: string;
+  phone_digits?: string;
 }
 
 // تعريف واجهة بيانات عنوان العميل
@@ -97,6 +109,7 @@ export interface LocalPOSOrder {
   employee_id: string | null;
   customer_id?: string | null;
   customer_name?: string | null;
+  customer_name_lower?: string | null;
   subtotal: number;
   total: number;
   discount: number;
@@ -111,10 +124,12 @@ export interface LocalPOSOrder {
   syncStatus?: POSOrderSyncStatus;
   pendingOperation?: 'create' | 'update' | 'delete';
   created_at: string;
+  created_at_ts?: number;
   updated_at: string;
   lastSyncAttempt?: string;
   error?: string;
   local_order_number: number;
+  local_order_number_str?: string;
   remote_order_id?: string;
   remote_customer_order_number?: number;
   payload?: POSOrderPayload;
@@ -202,6 +217,47 @@ export interface LocalPOSSettings {
   [key: string]: any;
 }
 
+// Online Order Groups (offline-first)
+export interface LocalOrderGroup {
+  id: string;
+  organization_id: string;
+  name: string;
+  enabled: boolean;
+  strategy: 'round_robin' | 'least_busy' | 'weighted' | 'claim_only' | 'manual';
+  priority: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LocalOrderGroupRule {
+  id: string;
+  group_id: string;
+  type: 'all' | 'product_ids';
+  include: boolean;
+  values: string[]; // product ids when type=product_ids
+}
+
+export interface LocalOrderAssignment {
+  id: string;
+  organization_id: string;
+  order_id: string;
+  group_id: string;
+  staff_id: string;
+  status: 'assigned' | 'accepted' | 'closed';
+  assigned_at: string;
+}
+
+// بيانات اعتماد الموظف للأوفلاين (PIN مُشفّر)
+export interface LocalStaffPIN {
+  id: string; // staff_id
+  organization_id: string;
+  staff_name: string;
+  pin_hash: string; // SHA-256(salt:pin)
+  salt: string;     // base64
+  permissions?: any;
+  updated_at: string;
+}
+
 // تعريف واجهة ديون العملاء المحلية
 export interface LocalCustomerDebt {
   id: string;
@@ -223,14 +279,165 @@ export interface LocalCustomerDebt {
   pendingOperation?: 'create' | 'update' | 'delete';
 }
 
+// سجل مدفوعات ديون العملاء (Ledger)
+export interface LocalCustomerDebtPayment {
+  id: string;
+  organization_id: string;
+  customer_id: string;
+  amount: number;
+  method?: string | null;
+  note?: string | null;
+  created_at: string;
+  applied_by?: string | null;
+  // حالة المزامنة
+  synced: boolean;
+  pendingOperation?: 'create' | 'update' | 'delete';
+}
+
+// المصروفات المحلية (أوفلاين)
+export interface LocalExpense {
+  id: string;
+  organization_id: string;
+  title: string;
+  amount: number;
+  category: string; // category_id
+  expense_date: string; // ISO
+  notes?: string | null;
+  status: 'pending' | 'completed' | 'cancelled';
+  is_recurring: boolean;
+  payment_method?: string | null;
+  payment_ref?: string | null;
+  vendor_name?: string | null;
+  cost_center_id?: string | null;
+  receipt_url?: string | null;
+  created_at: string;
+  updated_at: string;
+  // تزامن
+  synced: boolean;
+  pendingOperation?: 'create' | 'update' | 'delete';
+}
+
+export interface LocalRecurringExpense {
+  id: string;
+  expense_id: string;
+  frequency: 'weekly' | 'bi_weekly' | 'monthly' | 'quarterly' | 'yearly';
+  start_date: string;
+  end_date?: string | null;
+  next_due?: string | null;
+  day_of_month?: number | null;
+  day_of_week?: number | null;
+  status: 'active' | 'paused' | 'completed';
+  created_at: string;
+  updated_at: string;
+  // تزامن
+  synced: boolean;
+  pendingOperation?: 'create' | 'update' | 'delete';
+}
+
+export interface LocalExpenseCategory {
+  id: string;
+  organization_id: string;
+  name: string;
+  description?: string | null;
+  icon?: string | null;
+  created_at: string;
+  updated_at: string;
+  synced: boolean;
+  pendingOperation?: 'create' | 'update' | 'delete';
+}
+
+// ==========================
+// Repairs (Offline-first)
+// ==========================
+export interface LocalRepairOrder {
+  id: string;
+  organization_id: string;
+  customer_name: string;
+  customer_phone: string;
+  customer_name_lower?: string;
+  device_type?: string | null;
+  device_type_lower?: string | null;
+  repair_location_id?: string | null;
+  custom_location?: string | null;
+  issue_description?: string | null;
+  status: string; // قيد الانتظار | جاري التصليح | مكتمل | ملغي | تم الاستلام | معلق
+  total_price: number | null; // قد يكون null إن كان يحدد لاحقاً
+  paid_amount: number; // تراكمية
+  price_to_be_determined_later?: boolean;
+  received_by?: string | null;
+  order_number?: string | null;
+  repair_tracking_code?: string | null;
+  payment_method?: string | null;
+  repair_notes?: string | null;
+  created_at: string;
+  updated_at: string;
+  // sync flags
+  synced: boolean;
+  pendingOperation?: 'create' | 'update' | 'delete';
+}
+
+export interface LocalRepairStatusHistory {
+  id: string;
+  repair_order_id: string;
+  status: string;
+  notes?: string | null;
+  created_by: string | 'customer';
+  created_at: string;
+  // sync
+  synced: boolean;
+  pendingOperation?: 'create' | 'update' | 'delete';
+}
+
+export interface LocalRepairImage {
+  id: string;
+  repair_order_id: string;
+  image_type: 'before' | 'after' | 'other';
+  description?: string | null;
+  created_at: string;
+  // storage linkage
+  image_url?: string | null; // after upload
+  storage_path?: string | null; // in remote bucket
+  // sync
+  synced: boolean;
+  pendingOperation?: 'create' | 'update' | 'delete';
+}
+
+export interface LocalRepairImageFile {
+  id: string; // same as image id or dedicated
+  repair_image_id: string;
+  mime: string;
+  size: number;
+  blob: Blob; // stored locally until uploaded
+  uploaded: boolean;
+}
+
+export interface LocalRepairLocation {
+  id: string;
+  organization_id: string;
+  name: string;
+  description?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  is_default?: boolean;
+  is_active?: boolean;
+  created_at: string;
+  updated_at: string;
+  // sync
+  synced: boolean;
+  pendingOperation?: 'create' | 'update' | 'delete';
+}
 // تعريف واجهة الإرجاعات المحلية
 export interface LocalProductReturn {
   id: string;
   return_number: string;
+  return_number_lower?: string;
+  remote_return_id?: string | null;
   original_order_id?: string | null;
   original_order_number?: string | null;
   customer_id?: string | null;
   customer_name?: string | null;
+  customer_name_lower?: string | null;
   customer_phone?: string | null;
   customer_email?: string | null;
   return_type: 'full' | 'partial';
@@ -286,6 +493,8 @@ export interface LocalReturnItem {
 export interface LocalLossDeclaration {
   id: string;
   loss_number: string;
+  loss_number_lower?: string;
+  remote_loss_id?: string | null;
   loss_type: 'damage' | 'theft' | 'expiry' | 'other';
   loss_category?: string | null;
   loss_description: string;
@@ -331,7 +540,10 @@ export interface LocalLossItem {
 export interface LocalInvoice {
   id: string;
   invoice_number: string;
+  invoice_number_lower?: string;
+  remote_invoice_id?: string | null;
   customer_name?: string | null;
+  customer_name_lower?: string | null;
   customer_id?: string | null;
   total_amount: number;
   invoice_date: string;
@@ -433,6 +645,21 @@ export class LocalDatabase extends Dexie {
   lossItems: Dexie.Table<LocalLossItem, string>;
   invoices: Dexie.Table<LocalInvoice, string>;
   invoiceItems: Dexie.Table<LocalInvoiceItem, string>;
+  staffPins: Dexie.Table<LocalStaffPIN, string>;
+  expenses: Dexie.Table<LocalExpense, string>;
+  recurringExpenses: Dexie.Table<LocalRecurringExpense, string>;
+  expenseCategories: Dexie.Table<LocalExpenseCategory, string>;
+  customerDebtPayments: Dexie.Table<LocalCustomerDebtPayment, string>;
+  // Repairs
+  repairOrders: Dexie.Table<LocalRepairOrder, string>;
+  repairStatusHistory: Dexie.Table<LocalRepairStatusHistory, string>;
+  repairImages: Dexie.Table<LocalRepairImage, string>;
+  repairImageFiles: Dexie.Table<LocalRepairImageFile, string>;
+  repairLocations: Dexie.Table<LocalRepairLocation, string>;
+  orderGroups: Dexie.Table<LocalOrderGroup, string>;
+  orderGroupRules: Dexie.Table<LocalOrderGroupRule, string>;
+  orderAssignments: Dexie.Table<LocalOrderAssignment, string>;
+  orderGroupMembers: Dexie.Table<LocalOrderGroupMember, string>;
 
   constructor() {
     super('bazaarDB_v2');
@@ -509,6 +736,470 @@ export class LocalDatabase extends Dexie {
       invoices: 'id, invoice_number, organization_id, status, synced, pendingOperation, created_at',
       invoiceItems: 'id, invoice_id, product_id'
     });
+
+    // Version 6: إضافة جدول بيانات اعتماد الموظف (PIN)
+    this.version(6).stores({
+      products: 'id, name, sku, category, organization_id, synced, pendingOperation',
+      inventory: 'id, product_id, variant_id, synced',
+      transactions: 'id, product_id, variant_id, reason, timestamp, synced, created_by',
+      syncQueue: 'id, objectType, objectId, operation, priority, createdAt',
+      customers: 'id, name, email, phone, organization_id, synced, pendingOperation', 
+      addresses: 'id, customer_id, organization_id, is_default, synced, pendingOperation',
+      posOrders: 'id, organization_id, status, synced, pendingOperation, local_order_number, created_at',
+      posOrderItems: 'id, order_id, product_id',
+      organizationSubscriptions: 'id, organization_id, status, end_date',
+      subscriptionPlans: 'id, code',
+      posSettings: 'organization_id',
+      workSessions: 'id, organization_id, staff_id, status, synced, started_at',
+      customerDebts: 'id, customer_id, order_id, organization_id, status, synced, pendingOperation, created_at',
+      productReturns: 'id, return_number, organization_id, status, synced, pendingOperation, created_at',
+      returnItems: 'id, return_id, product_id',
+      lossDeclarations: 'id, loss_number, organization_id, status, synced, pendingOperation, created_at',
+      lossItems: 'id, loss_id, product_id',
+      invoices: 'id, invoice_number, organization_id, status, synced, pendingOperation, created_at',
+      invoiceItems: 'id, invoice_id, product_id',
+      staffPins: 'id, organization_id' // id = staff_id، وفهرس على المؤسسة
+    });
+
+    // Version 7: فهارس بحث محلية فائقة السرعة للمنتجات
+    this.version(7)
+      .stores({
+        products: [
+          'id',
+          'organization_id',
+          'category_id',
+          'name',
+          'sku',
+          'name_lower',
+          'sku_lower',
+          'barcode_lower',
+          '[organization_id+name_lower]',
+          '[organization_id+sku_lower]',
+          '[organization_id+barcode_lower]',
+          'synced',
+          'pendingOperation'
+        ].join(', ')
+      })
+      .upgrade(async (tx) => {
+        const table = tx.table('products');
+        await table.toCollection().modify((p: any) => {
+          try {
+            p.name_lower = (p.name || '').toString().toLowerCase();
+            p.sku_lower = (p.sku || '').toString().toLowerCase();
+            p.barcode_lower = (p.barcode || '').toString().toLowerCase();
+            if (p.category_id == null) {
+              p.category_id = p.category_id || (p.category && p.category.id ? p.category.id : null);
+            }
+          } catch {}
+        });
+      });
+
+    // Version 8: فهارس إضافية للفئة والباركود الرقمي وتطبيع عربي
+    this.version(8)
+      .stores({
+        products: [
+          'id',
+          'organization_id',
+          'category_id',
+          'is_active',
+          'name',
+          'sku',
+          'name_lower',
+          'sku_lower',
+          'barcode_lower',
+          'name_search',
+          'sku_search',
+          'barcode_digits',
+          '[organization_id+name_lower]',
+          '[organization_id+sku_lower]',
+          '[organization_id+barcode_lower]',
+          '[organization_id+category_id]',
+          '[organization_id+barcode_digits]',
+          'synced',
+          'pendingOperation'
+        ].join(', ')
+      })
+      .upgrade(async (tx) => {
+        const table = tx.table('products');
+        const normalizeArabic = (s: string) => {
+          try {
+            let t = (s || '').toString().toLowerCase();
+            // إزالة التشكيل والتمطيط
+            t = t.replace(/[\u064B-\u0652\u0670\u0640]/g, '');
+            // توحيد الألف والهمزات والتاء المربوطة والياء المقصورة
+            t = t.replace(/[\u0622\u0623\u0625\u0671]/g, '\u0627'); // آأإٱ → ا
+            t = t.replace(/\u0624/g, '\u0648'); // ؤ → و
+            t = t.replace(/\u0626/g, '\u064a'); // ئ → ي
+            t = t.replace(/\u0629/g, '\u0647'); // ة → ه
+            t = t.replace(/\u0649/g, '\u064a'); // ى → ي
+            // إزالة الرموز غير الأحرف/الأرقام/المسافات
+            t = t.replace(/[^\u0600-\u06FFa-z0-9\s]/g, ' ');
+            t = t.replace(/\s+/g, ' ').trim();
+            return t;
+          } catch {
+            return (s || '').toString().toLowerCase();
+          }
+        };
+        await table.toCollection().modify((p: any) => {
+          try {
+            const name = (p.name || '').toString();
+            const sku = (p.sku || '').toString();
+            const barcode = (p.barcode || '').toString();
+            p.name_lower = name.toLowerCase();
+            p.sku_lower = sku.toLowerCase();
+            p.barcode_lower = barcode.toLowerCase();
+            p.name_search = normalizeArabic(name);
+            p.sku_search = normalizeArabic(sku);
+            p.barcode_digits = barcode.replace(/\D+/g, '');
+            if (p.category_id == null) {
+              p.category_id = p.category_id || (p.category && p.category.id ? p.category.id : null);
+            }
+          } catch {}
+        });
+      });
+
+    // Version 9: فهرس مرتب للاسم داخل الفئة
+    this.version(9)
+      .stores({
+        products: [
+          'id',
+          'organization_id',
+          'category_id',
+          'is_active',
+          'name',
+          'sku',
+          'name_lower',
+          'sku_lower',
+          'barcode_lower',
+          'name_search',
+          'sku_search',
+          'barcode_digits',
+          '[organization_id+name_lower]',
+          '[organization_id+sku_lower]',
+          '[organization_id+barcode_lower]',
+          '[organization_id+category_id]',
+          '[organization_id+category_id+name_lower]',
+          '[organization_id+barcode_digits]',
+          'synced',
+          'pendingOperation'
+        ].join(', ')
+      });
+
+    // Version 10: تحسينات الأوفلاين لطلبات POS، الفواتير، العملاء، الإرجاعات، والخسائر
+    this.version(10)
+      .stores({
+        posOrders: [
+          'id',
+          'organization_id',
+          'status',
+          'payment_status',
+          'customer_name_lower',
+          'created_at',
+          'created_at_ts',
+          'local_order_number',
+          'local_order_number_str',
+          'remote_order_id',
+          '[organization_id+created_at]',
+          '[organization_id+status+created_at]',
+          '[organization_id+customer_name_lower]'
+        ].join(', '),
+        invoices: [
+          'id',
+          'organization_id',
+          'status',
+          'invoice_number',
+          'invoice_number_lower',
+          'customer_name_lower',
+          'created_at',
+          '[organization_id+invoice_number_lower]',
+          '[organization_id+status]',
+          '[organization_id+created_at]'
+        ].join(', '),
+        customers: [
+          'id',
+          'organization_id',
+          'name',
+          'name_lower',
+          'email',
+          'email_lower',
+          'phone',
+          'phone_digits',
+          'synced',
+          'pendingOperation',
+          '[organization_id+name_lower]',
+          '[organization_id+phone_digits]',
+          '[organization_id+email_lower]'
+        ].join(', '),
+        productReturns: [
+          'id',
+          'organization_id',
+          'status',
+          'return_number',
+          'return_number_lower',
+          'customer_name_lower',
+          'created_at',
+          '[organization_id+status]',
+          '[organization_id+return_number_lower]',
+          '[organization_id+created_at]'
+        ].join(', '),
+        lossDeclarations: [
+          'id',
+          'organization_id',
+          'status',
+          'loss_number',
+          'loss_number_lower',
+          'created_at',
+          '[organization_id+status]',
+          '[organization_id+loss_number_lower]',
+          '[organization_id+created_at]'
+        ].join(', '),
+        workSessions: [
+          'id',
+          'organization_id',
+          'staff_id',
+          'status',
+          'started_at',
+          '[organization_id+status+started_at]'
+        ].join(', ')
+      })
+      .upgrade(async (tx) => {
+        // تطبيع الحقول للمساعدة في البحث والفهرسة
+        const toLower = (s: any) => (s || '').toString().toLowerCase();
+        const digits = (s: any) => (s || '').toString().replace(/\D+/g, '');
+
+        try {
+          const pos = tx.table('posOrders');
+          await pos.toCollection().modify((o: any) => {
+            o.customer_name_lower = toLower(o.customer_name);
+            o.created_at_ts = o.created_at ? Date.parse(o.created_at) : undefined;
+            o.local_order_number_str = (o.local_order_number != null) ? String(o.local_order_number) : undefined;
+          });
+        } catch {}
+
+        try {
+          const inv = tx.table('invoices');
+          await inv.toCollection().modify((i: any) => {
+            i.invoice_number_lower = toLower(i.invoice_number);
+            i.customer_name_lower = toLower(i.customer_name);
+          });
+        } catch {}
+
+        try {
+          const cust = tx.table('customers');
+          await cust.toCollection().modify((c: any) => {
+            c.name_lower = toLower(c.name);
+            c.email_lower = toLower(c.email);
+            c.phone_digits = digits(c.phone);
+          });
+        } catch {}
+
+        try {
+          const rets = tx.table('productReturns');
+          await rets.toCollection().modify((r: any) => {
+            r.return_number_lower = toLower(r.return_number);
+            r.customer_name_lower = toLower(r.customer_name);
+          });
+        } catch {}
+
+        try {
+          const losses = tx.table('lossDeclarations');
+          await losses.toCollection().modify((l: any) => {
+            l.loss_number_lower = toLower(l.loss_number);
+          });
+        } catch {}
+      });
+
+    // Version 11: إضافة فهرس pendingOperation وsynced لطلبات POS
+    this.version(11)
+      .stores({
+        posOrders: [
+          'id',
+          'organization_id',
+          'status',
+          'payment_status',
+          'customer_name_lower',
+          'created_at',
+          'created_at_ts',
+          'local_order_number',
+          'local_order_number_str',
+          'remote_order_id',
+          'pendingOperation',
+          'synced',
+          '[organization_id+created_at]',
+          '[organization_id+status+created_at]',
+          '[organization_id+customer_name_lower]'
+        ].join(', ')
+      });
+
+    // Version 12: جدول مدفوعات الديون
+    this.version(12)
+      .stores({
+        customerDebtPayments: [
+          'id',
+          'organization_id',
+          'customer_id',
+          'created_at',
+          'synced',
+          'pendingOperation',
+          '[organization_id+customer_id]',
+          '[organization_id+created_at]'
+        ].join(', ')
+      });
+
+    // Version 13: جداول المصروفات للأوفلاين
+    this.version(13)
+      .stores({
+        expenses: [
+          'id',
+          'organization_id',
+          'category',
+          'expense_date',
+          'status',
+          'is_recurring',
+          'synced',
+          'pendingOperation',
+          '[organization_id+expense_date]',
+          '[organization_id+category]'
+        ].join(', '),
+        recurringExpenses: [
+          'id',
+          'expense_id',
+          'frequency',
+          'start_date',
+          'next_due',
+          'status',
+          'synced',
+          'pendingOperation',
+          '[expense_id+status]'
+        ].join(', '),
+        expenseCategories: [
+          'id',
+          'organization_id',
+          'name',
+          'synced',
+          'pendingOperation',
+          '[organization_id+name]'
+        ].join(', ')
+      });
+    
+    // Version 14: جداول خدمات التصليح (أوفلاين)
+    this.version(14)
+      .stores({
+        repairOrders: [
+          'id',
+          'organization_id',
+          'status',
+          'order_number',
+          'repair_tracking_code',
+          'customer_phone',
+          'customer_name_lower',
+          'device_type_lower',
+          'synced',
+          'pendingOperation',
+          '[organization_id+created_at]',
+          '[organization_id+status+created_at]'
+        ].join(', '),
+        repairStatusHistory: [
+          'id',
+          'repair_order_id',
+          'created_at',
+          'synced',
+          'pendingOperation',
+          '[repair_order_id+created_at]'
+        ].join(', '),
+        repairImages: [
+          'id',
+          'repair_order_id',
+          'created_at',
+          'synced',
+          'pendingOperation',
+          '[repair_order_id+created_at]'
+        ].join(', '),
+        repairImageFiles: [
+          'id',
+          'repair_image_id',
+          'uploaded'
+        ].join(', '),
+        repairLocations: [
+          'id',
+          'organization_id',
+          'name',
+          'is_default',
+          'is_active',
+          'created_at',
+          'synced',
+          'pendingOperation',
+          '[organization_id+is_active]',
+          '[organization_id+name]'
+        ].join(', ')
+      });
+
+    // Version 15: إضافة فهارس مركبة لحالة الدفع وطريقة الدفع لطلبات POS
+    this.version(15)
+      .stores({
+        posOrders: [
+          'id',
+          'organization_id',
+          'status',
+          'payment_status',
+          'payment_method',
+          'customer_name_lower',
+          'created_at',
+          'created_at_ts',
+          'local_order_number',
+          'local_order_number_str',
+          'remote_order_id',
+          'pendingOperation',
+          'synced',
+          '[organization_id+created_at]',
+          '[organization_id+status+created_at]',
+          '[organization_id+customer_name_lower]',
+          '[organization_id+payment_status]',
+          '[organization_id+payment_method]'
+        ].join(', ')
+      });
+
+    // Version 16: Online order groups (local-only)
+    this.version(16)
+      .stores({
+        orderGroups: [
+          'id',
+          'organization_id',
+          'name',
+          'enabled',
+          'strategy',
+          'priority',
+          'created_at',
+          'updated_at',
+          '[organization_id+name]'
+        ].join(', '),
+        orderGroupRules: [
+          'id',
+          'group_id',
+          'type',
+          'include'
+        ].join(', '),
+        orderAssignments: [
+          'id',
+          'organization_id',
+          'order_id',
+          'group_id',
+          'staff_id',
+          'status',
+          'assigned_at',
+          '[organization_id+order_id]'
+        ].join(', ')
+      });
+
+    this.version(17)
+      .stores({
+        orderGroupMembers: [
+          'id',
+          'group_id',
+          'staff_id',
+          'active'
+        ].join(', ')
+      });
     
     // تعريف الجداول بأنواعها
     this.products = this.table('products');
@@ -530,6 +1221,22 @@ export class LocalDatabase extends Dexie {
     this.lossItems = this.table('lossItems');
     this.invoices = this.table('invoices');
     this.invoiceItems = this.table('invoiceItems');
+    this.staffPins = this.table('staffPins');
+    this.customerDebtPayments = this.table('customerDebtPayments');
+    this.expenses = this.table('expenses');
+    this.recurringExpenses = this.table('recurringExpenses');
+    this.expenseCategories = this.table('expenseCategories');
+    // repairs
+    this.repairOrders = this.table('repairOrders');
+    this.repairStatusHistory = this.table('repairStatusHistory');
+    this.repairImages = this.table('repairImages');
+    this.repairImageFiles = this.table('repairImageFiles');
+    this.repairLocations = this.table('repairLocations');
+    // online order groups
+    this.orderGroups = this.table('orderGroups');
+    this.orderGroupRules = this.table('orderGroupRules');
+    this.orderAssignments = this.table('orderAssignments');
+    this.orderGroupMembers = this.table('orderGroupMembers');
   }
 }
 

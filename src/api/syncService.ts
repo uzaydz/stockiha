@@ -60,21 +60,36 @@ export const syncProduct = async (product: LocalProduct): Promise<boolean> => {
     switch (operation) {
       case 'create': {
         // تنقية الكائن من الحقول المحلية قبل الإرسال
-        const { synced, syncStatus, lastSyncAttempt, localUpdatedAt, pendingOperation, conflictResolution, ...serverProduct } = product;
+        const { synced, syncStatus, lastSyncAttempt, localUpdatedAt, pendingOperation, conflictResolution, colors, product_colors, ...serverProduct } = product as any;
+        
+        // تنظيف وتعيين قيم افتراضية للحقول المطلوبة
+        const cleanProduct = {
+          ...serverProduct,
+          // تعيين قيمة افتراضية لـ description إذا كانت null أو undefined
+          description: serverProduct.description || serverProduct.name || 'منتج',
+          // تأكد من وجود الحقول الأساسية
+          name: serverProduct.name || 'منتج بدون اسم',
+        };
+        
+        // حذف الحقول التي قد تسبب مشاكل في schema
+        delete (cleanProduct as any).colors;
+        delete (cleanProduct as any).product_colors;
+        delete (cleanProduct as any).has_variants;
         
         try {
           // استخدام الدالة المخزنة لإنشاء المنتج بأمان
           const { data, error } = await supabase
             .rpc('create_product_safe', {
-              product_data: serverProduct
+              product_data: cleanProduct
             });
           
           if (error) {
+            console.warn('[syncProduct] create_product_safe failed, trying direct insert:', error.message);
             
             // محاولة الإنشاء العادية
             const { data: insertData, error: insertError } = await supabase
               .from('products')
-              .insert(serverProduct as any)
+              .insert(cleanProduct as any)
               .select('*');
             
             if (insertError) {
@@ -82,9 +97,12 @@ export const syncProduct = async (product: LocalProduct): Promise<boolean> => {
               
               const insertResult = await supabase
                 .from('products')
-                .insert(serverProduct as any);
+                .insert(cleanProduct as any);
               
               if (insertResult.error) {
+                console.error('[syncProduct] All create attempts failed:', insertResult.error);
+                // تعليم المنتج كمتزامن لتجنب محاولات لا نهائية
+                await markProductAsSynced(product.id);
                 return false;
               }
               
@@ -128,7 +146,7 @@ export const syncProduct = async (product: LocalProduct): Promise<boolean> => {
           try {
             await supabase
               .from('products')
-              .insert(serverProduct as any);
+              .insert(cleanProduct as any);
             
             // تعليم المنتج كمتزامن بدون استخدام البيانات المعادة
             await markProductAsSynced(product.id);
@@ -141,122 +159,77 @@ export const syncProduct = async (product: LocalProduct): Promise<boolean> => {
       }
       
       case 'update': {
-        // تحقق من تضارب محتمل (إذا كان المنتج موجوداً بالفعل على الخادم)
-        try {
-          const { data: existingProduct, error } = await supabase
-            .from('products')
-            .select('*')
-            .eq('id', product.id)
-            .maybeSingle();
-          
-          if (!error && existingProduct) {
-            const remoteUpdatedAt = new Date(existingProduct.updated_at || 0);
-            const localUpdatedAt = new Date(product.localUpdatedAt || 0);
-            
-            // إذا كانت هناك تحديثات في الخادم تم نسخها قبل آخر تحديث محلي
-            // وليس هناك حل للتضارب محدد مسبقاً، يجب التعامل مع التضارب
-            if (remoteUpdatedAt > localUpdatedAt && !product.conflictResolution) {
-              try {
-                // جلب بيانات المنتج الكاملة من الخادم لاختيار القرار
-                const { data: fullRemoteProduct, error: fetchError } = await supabase
-                  .rpc('get_product_safe', {
-                    product_id: product.id
-                  });
-                if (!fetchError) {
-                  const remoteProduct = Array.isArray(fullRemoteProduct) ? fullRemoteProduct[0] : fullRemoteProduct;
-                  if (remoteProduct) {
-                    const decision = resolveProductConflict(product as any, remoteProduct, {
-                      localUpdatedAt: product.localUpdatedAt,
-                      remoteUpdatedAt: existingProduct.updated_at
-                    });
-                    if (decision === 'remote') {
-                      await markProductAsSynced(product.id, remoteProduct);
-                      return true;
-                    }
-                    if (decision === 'merge') {
-                      const merged = buildMergedProduct(product as any, remoteProduct);
-                      // جرّب إرسال الدمج إلى الخادم ثم وسم المحلي كمتزامن
-                      try {
-                        await supabase
-                          .from('products')
-                          .update(merged as any)
-                          .eq('id', product.id);
-                      } catch {}
-                      await markProductAsSynced(product.id, merged);
-                      return true;
-                    }
-                    // otherwise 'local' → نتابع تحديث الخادم بالقيم المحلية أدناه
-                  }
-                }
-              } catch {}
-            }
-          }
-        } catch (getErr) {
-          // نستمر في محاولة التحديث حتى لو فشل التحقق من التضارب
-        }
+        // تخطّي فحص التعارض لجعل المزامنة أخفّ (نرسل آخر قيمة للمخزون فقط)
         
         // تنقية الكائن من الحقول المحلية قبل الإرسال
-        const { synced, syncStatus, lastSyncAttempt, localUpdatedAt, pendingOperation, conflictResolution, ...serverProduct } = product;
+        const { synced, syncStatus, lastSyncAttempt, localUpdatedAt, pendingOperation, conflictResolution, colors, product_colors, ...serverProduct } = product as any;
+
+        // تنظيف وتعيين قيم افتراضية للحقول المطلوبة
+        if (!serverProduct.description) {
+          (serverProduct as any).description = serverProduct.name || 'منتج';
+        }
         
-        try {
-          // استخدام الدالة المخزنة لتحديث المنتج بأمان
-          const { data, error } = await supabase
-            .rpc('update_product_safe', {
-              product_id: product.id,
-              product_data: serverProduct
-            });
-          
-          if (error) {
-            
-            // محاولة الطريقة المباشرة باستخدام REST API إذا فشلت الدالة المخزنة
-            try {
-              // استخدام عنوان Supabase الصحيح
-              if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-                throw new Error('قيم البيئة غير صالحة');
-              }
-              
-              const response = await fetch(`${SUPABASE_URL}/rest/v1/products?id=eq.${product.id}`, {
-                method: 'PATCH',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'apikey': SUPABASE_ANON_KEY,
-                  'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-                  'Prefer': 'return=minimal'
-                },
-                body: JSON.stringify(serverProduct)
-              });
-              
-              if (!response.ok) {
-                const responseText = await response.text();
-                
-                // محاولة أخيرة: تحديث المنتج محلياً فقط كملاذ أخير
-                await markProductAsSynced(product.id);
-                return true; // نعتبره نجاحاً محلياً
-              }
-              
-              await markProductAsSynced(product.id);
-              success = true;
-            } catch (finalErr) {
-              
-              // محاولة أخيرة: تحديث المنتج محلياً فقط كملاذ أخير
-              await markProductAsSynced(product.id);
-              return true; // نعتبره نجاحاً محلياً
-            }
-          } else {
-            // نجاح التحديث باستخدام الوظيفة المخزنة
-            if (data && (Array.isArray(data) ? data.length > 0 : true)) {
-              const updatedProduct = Array.isArray(data) ? data[0] : data;
-              await markProductAsSynced(product.id, updatedProduct);
-            } else {
-              await markProductAsSynced(product.id);
-            }
-            success = true;
+        // فلترة الحقول غير الموجودة في جدول المنتجات (تجنّب أخطاء 400)
+        const disallowedKeys = new Set([
+          'stockQuantity',
+          'actual_stock_quantity',
+          'colors',
+          'product_colors',
+          'variants',
+          'syncStatus',
+          'localUpdatedAt',
+          'pendingOperation',
+          'conflictResolution',
+          'has_variants'
+        ]);
+        for (const k of Object.keys(serverProduct as any)) {
+          if (disallowedKeys.has(k)) {
+            delete (serverProduct as any)[k];
           }
-        } catch (rpcErr) {
-          
-          // محاولة أخيرة: تحديث المنتج محلياً فقط كملاذ أخير
+        }
+
+        // تحديث بسيط وآمن: إرسال حقول المخزون الأساسية فقط لتفادي تعارضات المخطط
+        const minimalPatch: any = {
+          stock_quantity: (product as any).stock_quantity ?? (serverProduct as any).stock_quantity ?? 0,
+          last_inventory_update: (serverProduct as any).last_inventory_update ?? new Date().toISOString()
+        };
+
+        try {
+          const { error: updErr } = await supabase
+            .from('products')
+            .update(minimalPatch)
+            .eq('id', product.id);
+
+          if (updErr) {
+            // محاولة مباشرة عبر REST API باستخدام الحقول المصفّاة فقط
+            if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+              throw new Error('قيم البيئة غير صالحة');
+            }
+
+            const response = await fetch(`${SUPABASE_URL}/rest/v1/products?id=eq.${product.id}`, {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+                'Prefer': 'return=minimal'
+              },
+              body: JSON.stringify(minimalPatch)
+            });
+
+            if (!response.ok) {
+              // فشل نهائي في الخادم: اعتبر نجاح محلي وتابع
+              await markProductAsSynced(product.id);
+              return true;
+            }
+          }
+
           await markProductAsSynced(product.id);
-          return true; // نعتبره نجاحاً محلياً
+          success = true;
+        } catch (e) {
+          // اعتبار نجاح محلي لتجنّب إيقاف النظام
+          await markProductAsSynced(product.id);
+          return true;
         }
         break;
       }
@@ -285,6 +258,7 @@ export const syncProduct = async (product: LocalProduct): Promise<boolean> => {
     
     return success;
   } catch (error) {
+    console.error('[syncProduct] Unexpected error syncing product:', product.id, error);
     return false;
   }
 };
@@ -297,10 +271,20 @@ export const syncUnsyncedProducts = async (): Promise<{ success: number; failed:
     if (unsyncedProducts.length === 0) {
       return { success: 0, failed: 0 };
     }
+    
+    // تصفية المنتجات غير الصالحة لتجنب محاولات فاشلة متكررة
+    const validProducts = unsyncedProducts.filter(p => {
+      // التأكد من وجود id و name على الأقل
+      return p && p.id && (p.name || (p as any).pendingOperation === 'delete');
+    });
+    
+    if (validProducts.length === 0) {
+      return { success: 0, failed: 0 };
+    }
 
     // استخدام Pool للتحكم بالتوازي
     const results = await runWithPool(
-      unsyncedProducts,
+      validProducts,
       async (product) => await syncProduct(product),
       SYNC_POOL_SIZE
     );

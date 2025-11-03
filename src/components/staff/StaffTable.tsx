@@ -45,6 +45,9 @@ interface StaffTableProps {
   onEdit: (staff: POSStaffSession) => void;
   onDelete: (id: string) => void;
   onToggleActive: (id: string, currentStatus: boolean) => void;
+  offlineStatus?: Record<string, 'saved' | 'outdated' | 'not_saved'>;
+  onUpdateOffline?: (staff: POSStaffSession) => void;
+  onCustomizePermissions?: (staff: POSStaffSession) => void;
 }
 
 const StaffTable: React.FC<StaffTableProps> = ({
@@ -52,12 +55,16 @@ const StaffTable: React.FC<StaffTableProps> = ({
   onEdit,
   onDelete,
   onToggleActive,
+  offlineStatus = {},
+  onUpdateOffline,
+  onCustomizePermissions,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [permissionFilter, setPermissionFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  // permissions designer handled by parent
 
   // تصفية الموظفين
   const filteredStaff = useMemo(() => {
@@ -200,7 +207,7 @@ const StaffTable: React.FC<StaffTableProps> = ({
       </div>
 
       {/* الجدول */}
-      <div className="rounded-lg border border-border bg-card overflow-hidden">
+      <div className="rounded-lg border border-border bg-card overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50 hover:bg-muted/50">
@@ -208,13 +215,14 @@ const StaffTable: React.FC<StaffTableProps> = ({
               <TableHead className="font-semibold text-center">البريد الإلكتروني</TableHead>
               <TableHead className="font-semibold text-center">الصلاحيات</TableHead>
               <TableHead className="font-semibold text-center">الحالة</TableHead>
+              <TableHead className="font-semibold text-center">الأوفلاين</TableHead>
               <TableHead className="w-[100px] text-center font-semibold">الإجراءات</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {paginatedStaff.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
                   {searchQuery || statusFilter !== 'all' || permissionFilter !== 'all'
                     ? 'لا توجد نتائج للبحث'
                     : 'لا يوجد موظفين مسجلين'}
@@ -250,6 +258,22 @@ const StaffTable: React.FC<StaffTableProps> = ({
                     {getStatusBadge(staffMember.is_active)}
                   </TableCell>
                   <TableCell className="text-center">
+                    {(() => {
+                      const st = offlineStatus[staffMember.id];
+                      if (st === 'saved') {
+                        return (
+                          <Badge className="bg-green-500/10 text-green-600 dark:text-green-400 hover:bg-green-500/20 border-green-500/20">محفوظ</Badge>
+                        );
+                      }
+                      if (st === 'outdated') {
+                        return (
+                          <Badge className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 hover:bg-yellow-500/20 border-yellow-500/20">بحاجة تحديث</Badge>
+                        );
+                      }
+                      return <Badge variant="outline">غير محفوظ</Badge>;
+                    })()}
+                  </TableCell>
+                  <TableCell className="text-center">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -264,6 +288,22 @@ const StaffTable: React.FC<StaffTableProps> = ({
                           <Edit className="ml-2 h-4 w-4" />
                           تعديل
                         </DropdownMenuItem>
+                        {onCustomizePermissions && (
+                          <DropdownMenuItem
+                            onClick={() => onCustomizePermissions(staffMember)}
+                            className="cursor-pointer"
+                          >
+                            تخصيص الصلاحيات
+                          </DropdownMenuItem>
+                        )}
+                        {onUpdateOffline && (
+                          <DropdownMenuItem
+                            onClick={() => onUpdateOffline(staffMember)}
+                            className="cursor-pointer"
+                          >
+                            تحديث بيانات الأوفلاين
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem
                           onClick={() => onToggleActive(staffMember.id, staffMember.is_active)}
                           className="cursor-pointer"

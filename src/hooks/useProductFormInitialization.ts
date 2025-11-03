@@ -334,7 +334,23 @@ export const useProductFormInitialization = ({
       }
       setIsLoading(true);
       try {
-        const fetchedProductData = await getProductById(id); // Returns Product | null
+        // اختر المصدر بحسب حالة الاتصال
+        const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+        let fetchedProductData = null as any;
+
+        if (!isOnline) {
+          try {
+            const offline = await import('@/lib/api/offlineProductsAdapter');
+            fetchedProductData = await offline.getProductById(id);
+          } catch {
+            fetchedProductData = null;
+          }
+        }
+
+        if (isOnline || !fetchedProductData) {
+          // جرّب المسار المتصل أو كنسخة احتياطية عند فشل الأوفلاين
+          fetchedProductData = await getProductById(id);
+        }
         
         if (fetchedProductData) {
           // جلب الالوان منفصلاً

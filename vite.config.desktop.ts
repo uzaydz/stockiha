@@ -74,10 +74,11 @@ export default defineConfig(({ command, mode }) => {
         "@": path.resolve(__dirname, "./src"),
         'react': path.resolve(__dirname, './node_modules/react'),
         'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
-        'lodash': 'lodash-es'
+        'lodash': 'lodash-es',
+        'dayjs$': path.resolve(__dirname, './node_modules/dayjs/esm/index.js')
       },
       dedupe: ['react', 'react-dom', 'react-router-dom'],
-      mainFields: ['browser', 'module', 'main'],
+      mainFields: ['module', 'browser', 'main'],
       extensions: ['.ts', '.tsx', '.js', '.jsx', '.json']
     },
     
@@ -240,7 +241,10 @@ export default defineConfig(({ command, mode }) => {
         'clsx',
         'tailwind-merge',
         // إضافة Zustand للحالة
-        'zustand'
+        'zustand',
+        'axios-retry',
+        'is-retry-allowed',
+        'dayjs/esm/index.js'
       ],
       exclude: [
         // استثناء جميع المكتبات الثقيلة
@@ -261,8 +265,6 @@ export default defineConfig(({ command, mode }) => {
         'react-dnd',
         'react-dnd-html5-backend',
         'date-fns',
-        'dayjs',
-        'axios-retry',
         // استثناء مكتبات التطوير
         '@sentry/react',
         '@sentry/browser',

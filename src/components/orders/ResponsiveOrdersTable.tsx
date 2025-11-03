@@ -625,10 +625,10 @@ const ResponsiveOrdersTable = memo(({ ...props }: ResponsiveOrdersTableProps) =>
       </div>
 
       {/* عرض الجدول لسطح المكتب والأجهزة المتوسطة فما فوق */}
-      <div className={cn("hidden md:block transition-none")}> 
-        <OrdersTable 
-          {...props} 
-          orders={displayedOrders} 
+      <div className={cn("hidden md:block transition-none")}>
+        <OrdersTable
+          {...props}
+          orders={displayedOrders}
           onOrderUpdated={handleOrderUpdated}
           localUpdates={localUpdates}
         />

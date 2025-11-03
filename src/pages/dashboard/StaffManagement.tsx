@@ -44,6 +44,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { staffService } from '@/services/staffService';
 import type { POSStaffSession } from '@/types/staff';
+import { usePermissions } from '@/hooks/usePermissions';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AddStaffDialog } from '@/components/staff/AddStaffDialog';
 import { UpdatePinDialog } from '@/components/staff/UpdatePinDialog';
 import { POSLayoutState, RefreshHandler } from '@/components/pos-layout/types';
@@ -59,6 +61,7 @@ const StaffManagement: React.FC<StaffManagementProps> = ({
   onRegisterRefresh,
   onLayoutStateChange,
 }) => {
+  const perms = usePermissions();
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -66,6 +69,18 @@ const StaffManagement: React.FC<StaffManagementProps> = ({
   const [isUpdatePinDialogOpen, setIsUpdatePinDialogOpen] = useState(false);
   const [selectedStaffForPin, setSelectedStaffForPin] = useState<POSStaffSession | null>(null);
   const [deletingStaff, setDeletingStaff] = useState<POSStaffSession | null>(null);
+
+  // منع الوصول عند عدم وجود صلاحية إدارة الموظفين (حماية إضافية داخل الصفحة)
+  if (perms.ready && !perms.anyOf(['manageEmployees'])) {
+    return (
+      <div className="container mx-auto py-10">
+        <Alert variant="destructive">
+          <AlertTitle>غير مصرح</AlertTitle>
+          <AlertDescription>لا تملك صلاحية إدارة الموظفين.</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   // جلب الموظفين
   const { 

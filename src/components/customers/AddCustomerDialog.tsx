@@ -13,6 +13,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { createCustomer } from '@/lib/api/customers';
+import { createLocalCustomer } from '@/api/localCustomerService';
 import { useToast } from '@/components/ui/use-toast';
 import { UserPlus } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -136,17 +137,50 @@ const AddCustomerDialog = ({ onCustomerAdded }: AddCustomerDialogProps) => {
         throw new Error('لم يتم العثور على معرف المؤسسة');
       }
       
-      const newCustomer = await createCustomer({
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone.trim() === '' ? null : formData.phone,
-        organization_id: organizationId,
-        nif: formData.nif.trim() === '' ? null : formData.nif,
-        rc: formData.rc.trim() === '' ? null : formData.rc,
-        nis: formData.nis.trim() === '' ? null : formData.nis,
-        rib: formData.rib.trim() === '' ? null : formData.rib,
-        address: formData.address.trim() === '' ? null : formData.address
-      });
+      const offlineMode = typeof navigator !== 'undefined' && navigator.onLine === false;
+      let newCustomer: Customer;
+      if (offlineMode) {
+        const local = await createLocalCustomer({
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone.trim() === '' ? null : formData.phone,
+          organization_id: organizationId,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          // الحقول الإضافية اختيارية
+          nif: formData.nif.trim() === '' ? null : formData.nif,
+          rc: formData.rc.trim() === '' ? null : formData.rc,
+          nis: formData.nis.trim() === '' ? null : formData.nis,
+          rib: formData.rib.trim() === '' ? null : formData.rib,
+          address: formData.address.trim() === '' ? null : formData.address
+        } as any);
+        newCustomer = {
+          id: local.id,
+          name: local.name,
+          email: local.email || '',
+          phone: local.phone || null,
+          organization_id: local.organization_id,
+          created_at: local.created_at,
+          updated_at: local.updated_at,
+          nif: (local as any).nif ?? null,
+          rc: (local as any).rc ?? null,
+          nis: (local as any).nis ?? null,
+          rib: (local as any).rib ?? null,
+          address: (local as any).address ?? null,
+        };
+      } else {
+        newCustomer = await createCustomer({
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone.trim() === '' ? null : formData.phone,
+          organization_id: organizationId,
+          nif: formData.nif.trim() === '' ? null : formData.nif,
+          rc: formData.rc.trim() === '' ? null : formData.rc,
+          nis: formData.nis.trim() === '' ? null : formData.nis,
+          rib: formData.rib.trim() === '' ? null : formData.rib,
+          address: formData.address.trim() === '' ? null : formData.address
+        } as any);
+      }
       
       toast({
         title: 'تمت العملية بنجاح',
@@ -156,12 +190,47 @@ const AddCustomerDialog = ({ onCustomerAdded }: AddCustomerDialogProps) => {
       onCustomerAdded(newCustomer);
       setOpen(false);
       resetForm();
-    } catch (error) {
-      toast({
-        title: 'خطأ',
-        description: 'حدث خطأ أثناء إضافة العميل. الرجاء المحاولة مرة أخرى.',
-        variant: 'destructive'
-      });
+    } catch (error: any) {
+      try {
+        // محاولة حفظ محلياً كـ fallback في حالة أخطاء الشبكة
+        const isNetworkError = String(error?.message || '').toLowerCase().includes('network');
+        const organizationId = localStorage.getItem('bazaar_organization_id');
+        if (isNetworkError && organizationId) {
+          const local = await createLocalCustomer({
+            name: formData.name,
+            email: formData.email,
+            phone: formData.phone.trim() === '' ? null : formData.phone,
+            organization_id: organizationId,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            nif: formData.nif.trim() === '' ? null : formData.nif,
+            rc: formData.rc.trim() === '' ? null : formData.rc,
+            nis: formData.nis.trim() === '' ? null : formData.nis,
+            rib: formData.rib.trim() === '' ? null : formData.rib,
+            address: formData.address.trim() === '' ? null : formData.address
+          } as any);
+          const newCustomer: Customer = {
+            id: local.id,
+            name: local.name,
+            email: local.email || '',
+            phone: local.phone || null,
+            organization_id: local.organization_id,
+            created_at: local.created_at,
+            updated_at: local.updated_at,
+            nif: (local as any).nif ?? null,
+            rc: (local as any).rc ?? null,
+            nis: (local as any).nis ?? null,
+            rib: (local as any).rib ?? null,
+            address: (local as any).address ?? null,
+          };
+          toast({ title: 'وضع الأوفلاين', description: 'تم حفظ العميل محلياً وسيتم مزامنته لاحقاً.' });
+          onCustomerAdded(newCustomer);
+          setOpen(false);
+          resetForm();
+          return;
+        }
+      } catch {}
+      toast({ title: 'خطأ', description: 'حدث خطأ أثناء إضافة العميل. الرجاء المحاولة مرة أخرى.', variant: 'destructive' });
     } finally {
       setIsSubmitting(false);
     }

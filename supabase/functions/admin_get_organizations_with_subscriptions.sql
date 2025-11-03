@@ -16,32 +16,71 @@ RETURNS TABLE (
   created_at TIMESTAMPTZ,
   domain TEXT,
   subdomain TEXT,
-  users_count INTEGER,
+  users_count BIGINT,
   subscription_id UUID,
   plan_id UUID,
   plan_name TEXT,
   plan_code TEXT,
   subscription_state TEXT,
   billing_cycle TEXT,
-  start_date DATE,
-  end_date DATE,
+  start_date TIMESTAMPTZ,
+  end_date TIMESTAMPTZ,
   days_remaining INTEGER,
   amount_paid NUMERIC,
   last_updated TIMESTAMPTZ
 )
-SECURITY DEFINER
+SECURITY INVOKER  -- ✅ FIX: INVOKER preserves auth context (auth.uid() works)
 SET search_path = public
 LANGUAGE plpgsql AS $$
 DECLARE
   v_is_super BOOLEAN;
+  v_is_active BOOLEAN;
+  v_auth_id UUID;
   v_limit INT;
+  v_sanitized_search TEXT;
 BEGIN
-  SELECT is_super_admin INTO v_is_super FROM users WHERE id = auth.uid();
-  IF NOT COALESCE(v_is_super, FALSE) AND auth.role() <> 'service_role' THEN
-    RAISE EXCEPTION 'not_authorized';
+  -- ✅ حل المشكلة: تحسين التحقق من super admin
+  v_auth_id := auth.uid();
+  
+  IF v_auth_id IS NULL THEN
+    RAISE EXCEPTION 'authentication_required' USING HINT = 'User must be authenticated';
+  END IF;
+
+  -- Enhanced authorization check - use auth_user_id and handle NULL is_active
+  SELECT COALESCE(is_super_admin, false), COALESCE(is_active, true)
+  INTO v_is_super, v_is_active
+  FROM users
+  WHERE auth_user_id = v_auth_id
+  LIMIT 1;
+
+  -- Check if user was found
+  IF v_is_super IS NULL THEN
+    RAISE EXCEPTION 'user_not_found'
+      USING HINT = 'User record not found in database',
+            DETAIL = format('No user found with auth_user_id %s', v_auth_id);
+  END IF;
+
+  -- Verify super admin status
+  IF NOT v_is_super THEN
+    RAISE EXCEPTION 'not_authorized'
+      USING HINT = 'Super admin access required',
+            DETAIL = format('User %s is not a super admin (is_super_admin=%s)', v_auth_id, v_is_super);
+  END IF;
+
+  -- Verify active account
+  IF NOT v_is_active THEN
+    RAISE EXCEPTION 'account_inactive'
+      USING HINT = 'Account is inactive',
+            DETAIL = format('User %s account is not active', v_auth_id);
   END IF;
 
   v_limit := LEAST(GREATEST(COALESCE(p_limit, 50), 1), 200);
+
+  -- Sanitize search parameter to prevent SQL injection patterns
+  v_sanitized_search := CASE
+    WHEN p_search IS NULL OR p_search = '' THEN NULL
+    ELSE REPLACE(REPLACE(REPLACE(p_search, '%', '\%'), '_', '\_'), '\\', '\\\\')
+  END;
 
   RETURN QUERY
   WITH filtered_orgs AS (
@@ -50,10 +89,10 @@ BEGIN
     WHERE (p_status IS NULL OR p_status = '' OR o.subscription_status = p_status)
       AND (p_tier IS NULL OR p_tier = '' OR o.subscription_tier = p_tier)
       AND (
-        p_search IS NULL OR p_search = '' OR
-        o.name ILIKE '%' || p_search || '%' OR
-        COALESCE(o.domain, '') ILIKE '%' || p_search || '%' OR
-        COALESCE(o.subdomain, '') ILIKE '%' || p_search || '%'
+        v_sanitized_search IS NULL OR
+        o.name ILIKE '%' || v_sanitized_search || '%' ESCAPE '\' OR
+        COALESCE(o.domain, '') ILIKE '%' || v_sanitized_search || '%' ESCAPE '\' OR
+        COALESCE(o.subdomain, '') ILIKE '%' || v_sanitized_search || '%' ESCAPE '\'
       )
     ORDER BY o.created_at DESC
     LIMIT v_limit
@@ -77,8 +116,11 @@ BEGIN
     os.start_date,
     os.end_date,
     CASE
+      -- ✅ FIX: إذا كان الاشتراك ملغى أو منتهي، الأيام المتبقية = 0
+      WHEN os.status IN ('canceled', 'expired') THEN 0
       WHEN os.end_date IS NULL THEN NULL
-      ELSE GREATEST(0, (os.end_date::date - CURRENT_DATE))
+      WHEN os.end_date < CURRENT_TIMESTAMP THEN 0
+      ELSE GREATEST(0, EXTRACT(DAY FROM (os.end_date - CURRENT_TIMESTAMP))::INTEGER)
     END AS days_remaining,
     os.amount_paid,
     COALESCE(os.updated_at, o.updated_at) AS last_updated

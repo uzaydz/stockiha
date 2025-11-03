@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
@@ -403,9 +403,9 @@ const TenantRegistrationForm = () => {
       <CardFooter className="flex flex-col space-y-2">
         <div className="text-center text-sm text-muted-foreground">
           لديك حساب بالفعل؟{' '}
-          <a href="/login" className="underline underline-offset-4 text-primary">
+          <Link to="/login" className="underline underline-offset-4 text-primary">
             تسجيل الدخول
-          </a>
+          </Link>
         </div>
       </CardFooter>
     </Card>

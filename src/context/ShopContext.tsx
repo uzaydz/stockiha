@@ -305,7 +305,9 @@ export const ShopProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setCurrentOrganization(tenant.currentOrganization);
       
       // تحديد الصفحات التي تحتاج ShopContext فقط
-      const currentPath = window.location.pathname;
+      const currentPath = (typeof window !== 'undefined' && window.location.hash && window.location.hash.startsWith('#/'))
+        ? window.location.hash.slice(1)
+        : window.location.pathname;
       const needsShopContext = 
         currentPath === '/dashboard/pos' || // POS فقط يحتاج ShopContext
         currentPath === '/' || 

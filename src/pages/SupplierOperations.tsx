@@ -6,6 +6,7 @@ import { useTitle } from '@/hooks/useTitle';
 import { useTitlebar } from '@/context/TitlebarContext';
 import { POSLayoutState, RefreshHandler } from '@/components/pos-layout/types';
 import { Users, ShoppingBag, Receipt, FileBarChart, Loader2 } from 'lucide-react';
+import { usePermissions } from '@/hooks/usePermissions';
 
 const SuppliersTab = React.lazy(() => import('./dashboard/SuppliersManagement'));
 const PurchasesTab = React.lazy(() => import('./dashboard/SupplierPurchases'));
@@ -65,10 +66,27 @@ const SupplierOperationsPage: React.FC = () => {
   const params = useParams<{ tab?: string }>();
   const { setTabs, setActiveTab: setTitlebarActiveTab, setShowTabs, clearTabs } = useTitlebar();
 
+  const perms = usePermissions();
+
+  const allowedTabs = useMemo(() => {
+    const canSuppliers = perms.ready ? perms.anyOf(['viewSuppliers','manageSuppliers']) : false;
+    const canPurchases = perms.ready ? perms.anyOf(['viewPurchases','managePurchases','manageSuppliers']) : false;
+    const canPayments = perms.ready ? perms.anyOf(['viewSupplierPayments','manageSupplierPayments']) : false;
+    const canReports = perms.ready ? perms.anyOf(['viewSupplierReports']) : false;
+
+    return TAB_CONFIG.filter(t =>
+      (t.id === 'suppliers' && canSuppliers) ||
+      (t.id === 'purchases' && canPurchases) ||
+      (t.id === 'payments' && canPayments) ||
+      (t.id === 'reports' && canReports)
+    );
+  }, [perms.ready, perms.role, perms.isOrgAdmin, perms.isSuperAdmin]);
+
   const resolvedTab = useMemo<TabKey>(() => {
     const incoming = params.tab as TabKey | undefined;
-    return TAB_CONFIG.some((tab) => tab.id === incoming) ? (incoming as TabKey) : TAB_CONFIG[0].id;
-  }, [params.tab]);
+    const isAllowedIncoming = allowedTabs.some((t) => t.id === incoming);
+    return isAllowedIncoming ? (incoming as TabKey) : (allowedTabs[0]?.id || 'suppliers');
+  }, [params.tab, allowedTabs]);
 
   useEffect(() => {
     if (!params.tab || !TAB_CONFIG.some((tab) => tab.id === params.tab)) {
@@ -98,7 +116,7 @@ const SupplierOperationsPage: React.FC = () => {
   );
 
   useEffect(() => {
-    const titlebarTabs = TAB_CONFIG.map((tab) => {
+    const titlebarTabs = allowedTabs.map((tab) => {
       const Icon = tab.icon;
       return {
         id: tab.id,
@@ -206,7 +224,7 @@ const SupplierOperationsPage: React.FC = () => {
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="grid w-full grid-cols-4 gap-2 rounded-xl bg-slate-900/5 p-1 dark:bg-slate-800/30">
-          {TAB_CONFIG.map((tab) => {
+          {allowedTabs.map((tab) => {
             const Icon = tab.icon;
             return (
               <TabsTrigger

@@ -113,16 +113,15 @@ const OrdersTableBody = memo(({
 
         {visibleColumns.includes("status") && (
           <TableCell className="py-5 px-6" style={{ contain: 'layout' }}>
-            <Skeleton className="h-7 w-28 bg-muted/60 rounded-full animate-pulse" />
+            <Skeleton className="h-7 w-24 bg-muted/60 rounded-xl animate-pulse" />
           </TableCell>
         )}
 
-        {visibleColumns.includes("confirmation") && (
+        {/* عمود فريق التأكيد تم حذفه */}
+
+        {visibleColumns.includes("assignee") && (
           <TableCell className="py-5 px-6" style={{ contain: 'layout' }}>
-            <div className="flex flex-col gap-2">
-              <Skeleton className="h-5 w-32 bg-muted/60 rounded-lg animate-pulse" />
-              <Skeleton className="h-4 w-24 bg-muted/40 rounded-md animate-pulse" />
-            </div>
+            <Skeleton className="h-6 w-28 bg-muted/60 rounded-lg animate-pulse" />
           </TableCell>
         )}
 

@@ -26,6 +26,7 @@ export function analyzeAuthError(error: any): AuthErrorInfo {
     errorMessage.includes('failed to fetch') ||
     errorMessage.includes('network error') ||
     errorMessage.includes('fetch error') ||
+    errorMessage.includes('network disconnected') ||
     errorName === 'networkerror' ||
     errorCode === 'ERR_NETWORK'
   ) {
@@ -266,6 +267,7 @@ export function setupAuthErrorFiltering(): void {
     if (
       isOffline &&
       (message.includes('Failed to fetch') ||
+       message.includes('network disconnected') ||
        message.includes('ERR_INTERNET_DISCONNECTED') ||
        message.includes('net::ERR'))
     ) {

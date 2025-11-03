@@ -7,11 +7,15 @@ import { useToast } from "@/hooks/use-toast";
 interface OrdersHeaderProps {
   ordersCount: number;
   onRefresh: () => void;
+  viewMode?: 'all' | 'mine' | 'unassigned';
+  onViewModeChange?: (mode: 'all' | 'mine' | 'unassigned') => void;
 }
 
 const OrdersHeader = memo(({ 
   ordersCount, 
-  onRefresh 
+  onRefresh,
+  viewMode = 'all',
+  onViewModeChange,
 }: OrdersHeaderProps) => {
   const { toast } = useToast();
 
@@ -40,15 +44,24 @@ const OrdersHeader = memo(({
         </Badge>
       </div>
       
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={handleRefresh}
-        className="gap-1.5 md:gap-2 h-9 md:h-9 px-3 text-xs md:text-sm font-medium hover:bg-primary/5 hover:border-primary/20 transition-colors w-full sm:w-auto"
-      >
-        <RefreshCw className="h-3.5 md:h-4 w-3.5 md:w-4" />
-        تحديث
-      </Button>
+      <div className="flex gap-2 w-full sm:w-auto">
+        {onViewModeChange && (
+          <div className="flex gap-1 bg-muted/40 rounded-md p-1">
+            <Button variant={viewMode === 'all' ? 'default' : 'ghost'} size="sm" onClick={() => onViewModeChange('all')}>الكل</Button>
+            <Button variant={viewMode === 'mine' ? 'default' : 'ghost'} size="sm" onClick={() => onViewModeChange('mine')}>طلباتي</Button>
+            <Button variant={viewMode === 'unassigned' ? 'default' : 'ghost'} size="sm" onClick={() => onViewModeChange('unassigned')}>غير معين</Button>
+          </div>
+        )}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleRefresh}
+          className="gap-1.5 md:gap-2 h-9 md:h-9 px-3 text-xs md:text-sm font-medium hover:bg-primary/5 hover:border-primary/20 transition-colors w-full sm:w-auto"
+        >
+          <RefreshCw className="h-3.5 md:h-4 w-3.5 md:w-4" />
+          تحديث
+        </Button>
+      </div>
     </div>
   );
 });

@@ -186,8 +186,13 @@ const NotificationsWrapper = memo<{
   const needsNotifications = useMemo(() => {
     // تخطّي النوتيفيكيشن في محرر المتجر لتفادي أي جلب إضافي
     try {
-      if (typeof window !== 'undefined' && window.location.pathname.startsWith('/dashboard/store-editor')) {
-        return false;
+      if (typeof window !== 'undefined') {
+        const pathname = (window.location.hash && window.location.hash.startsWith('#/'))
+          ? window.location.hash.slice(1)
+          : window.location.pathname;
+        if (pathname.startsWith('/dashboard/store-editor')) {
+          return false;
+        }
       }
     } catch {}
 

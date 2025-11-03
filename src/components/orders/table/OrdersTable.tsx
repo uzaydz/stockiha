@@ -65,7 +65,7 @@ const OrdersTable = memo(({
   // تم حذف useScrollTableEffects لأنه غير مطلوب
 
   return (
-    <div className="relative min-h-0">
+    <div className="space-y-4">
       {/* شريط البحث والإجراءات العلوي */}
       <OrdersTableSearch
         searchFilter={searchFilter}
@@ -74,49 +74,58 @@ const OrdersTable = memo(({
           if (onSearchTermChange) onSearchTermChange(q);
         }}
         filteredOrdersCount={effectiveFilteredCount}
-                  selectedOrders={selectedOrders}
+        selectedOrders={selectedOrders}
         onBulkUpdateStatus={onBulkUpdateStatus}
         onResetSelections={resetSelections}
-                  hasUpdatePermission={hasUpdatePermission}
-                  hasCancelPermission={hasCancelPermission}
-                />
-      
-      {/* الجدول المحسن مع تصميم حديث */}
-      <div className="relative w-full overflow-auto" style={{ contain: 'layout paint', contentVisibility: 'auto' as any }}>
-        <Table className="table-fixed" style={{ minWidth: '1200px', tableLayout: 'fixed' as any }}>
-          {/* رأس الجدول */}
-          <OrdersTableHeader
-            visibleColumns={visibleColumns}
-            allSelected={allSelected}
-            filteredOrdersLength={filteredOrders.length}
-            onSelectAll={handleSelectAll}
-          />
-          
-          {/* جسم الجدول */}
-          <OrdersTableBody
-            loading={loading}
-            filteredOrders={filteredOrders}
-            searchFilter={searchFilter}
-            visibleColumns={visibleColumns}
-            selectedOrders={selectedOrders}
-            expandedOrders={expandedOrders}
-            onSelectOrder={handleSelectOrder}
-            onToggleExpand={handleToggleExpand}
-            onUpdateStatus={onUpdateStatus}
-            onUpdateCallConfirmation={onUpdateCallConfirmation}
-            onSendToProvider={onSendToProvider}
-            hasUpdatePermission={hasUpdatePermission}
-            hasCancelPermission={hasCancelPermission}
-            currentUserId={currentUserId}
-            shippingProviders={shippingProviders}
-            autoLoadMoreOnScroll={autoLoadMoreOnScroll}
-            onLoadMore={onLoadMore}
-            onOrderUpdated={onOrderUpdated}
-            localUpdates={localUpdates}
-          />
-        </Table>
+        hasUpdatePermission={hasUpdatePermission}
+        hasCancelPermission={hasCancelPermission}
+      />
+
+      {/* الجدول المحسن مع تصميم حديث واحترافي */}
+      <div className="relative w-full rounded-xl border border-border/30 shadow-md bg-card transition-shadow hover:shadow-lg">
+        {/* حاوية التمرير - ارتفاع ثابت نسبي */}
+        <div
+          className="overflow-auto orders-table-wrapper"
+          style={{
+            height: '500px',
+            maxHeight: '70vh'
+          }}
+        >
+          <Table className="w-full border-collapse" style={{ minWidth: '1200px' }}>
+            {/* رأس الجدول - ثابت في الأعلى */}
+            <OrdersTableHeader
+              visibleColumns={visibleColumns}
+              allSelected={allSelected}
+              filteredOrdersLength={filteredOrders.length}
+              onSelectAll={handleSelectAll}
+            />
+
+            {/* جسم الجدول */}
+            <OrdersTableBody
+              loading={loading}
+              filteredOrders={filteredOrders}
+              searchFilter={searchFilter}
+              visibleColumns={visibleColumns}
+              selectedOrders={selectedOrders}
+              expandedOrders={expandedOrders}
+              onSelectOrder={handleSelectOrder}
+              onToggleExpand={handleToggleExpand}
+              onUpdateStatus={onUpdateStatus}
+              onUpdateCallConfirmation={onUpdateCallConfirmation}
+              onSendToProvider={onSendToProvider}
+              hasUpdatePermission={hasUpdatePermission}
+              hasCancelPermission={hasCancelPermission}
+              currentUserId={currentUserId}
+              shippingProviders={shippingProviders}
+              autoLoadMoreOnScroll={autoLoadMoreOnScroll}
+              onLoadMore={onLoadMore}
+              onOrderUpdated={onOrderUpdated}
+              localUpdates={localUpdates}
+            />
+          </Table>
+        </div>
       </div>
-      
+
       {/* شريط التنقل السفلي */}
       {filteredOrders.length > 0 && (
         <OrdersTablePagination

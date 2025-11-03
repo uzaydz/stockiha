@@ -4,6 +4,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LineChart, BarChart, Activity } from 'lucide-react';
 import { SuppliersDashboard } from '@/components/suppliers/SuppliersDashboard';
 import Layout from '@/components/Layout';
+import { usePermissions } from '@/hooks/usePermissions';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { ShieldAlert } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { POSSharedLayoutControls } from '@/components/pos-layout/types';
 
@@ -17,6 +20,7 @@ export default function SupplierReports({
   const [activeTab, setActiveTab] = useState('dashboard');
   const { user } = useAuth();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const perms = usePermissions();
   
   // محاولة الحصول على organization_id بطرق متعددة
   const [organizationId, setOrganizationId] = useState<string | undefined>(undefined);
@@ -129,6 +133,19 @@ export default function SupplierReports({
         </Tabs>
     </div>
   );
+
+  if (perms.ready && !perms.anyOf(['viewReports','viewFinancialReports','viewSuppliers'])) {
+    const node = (
+      <div className="container mx-auto py-10">
+        <Alert variant="destructive">
+          <ShieldAlert className="h-4 w-4" />
+          <AlertTitle>غير مصرح</AlertTitle>
+          <AlertDescription>لا تملك صلاحية الوصول إلى تقارير الموردين.</AlertDescription>
+        </Alert>
+      </div>
+    );
+    return useStandaloneLayout ? <Layout>{node}</Layout> : node;
+  }
 
   return useStandaloneLayout ? <Layout>{content}</Layout> : content;
 }

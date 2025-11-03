@@ -39,7 +39,7 @@
   top: 0;
   right: 0;
   height: 100vh;
-  z-index: 40;
+  z-index: 60 !important; /* فوق MobileBottomNavigation (z-40) والنوافذ المنبثقة (z-50) */
   background: hsl(var(--background));
   border-left: 1px solid hsl(var(--border) / 0.3);
   box-shadow: -4px 0 24px hsl(var(--foreground) / 0.1);
@@ -57,7 +57,7 @@
 .layout-overlay {
   position: fixed;
   inset: 0;
-  z-index: 35;
+  z-index: 55; /* فوق النوافذ المنبثقة (z-50) ولكن تحت القائمة الجانبية (z-60) */
   background: hsl(var(--foreground) / 0.5);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
@@ -118,13 +118,16 @@
   bottom: 0;
   left: 0;
   right: 0;
-  z-index: 50;
-  background: hsl(var(--background) / 0.95);
+  z-index: 40 !important;
+  background: hsl(var(--background)) !important;
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-top: 1px solid hsl(var(--border) / 0.2);
+  border-top: 1px solid hsl(var(--border));
   box-shadow: 0 -4px 20px hsl(var(--foreground) / 0.1);
   contain: layout paint;
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
 }
 
 /* تأثيرات بصرية للقائمة */
@@ -176,8 +179,8 @@
     padding-bottom: 80px; /* مساحة للقائمة الثابتة */
   }
   
-  /* إضافة مساحة للصفحات التي تستخدم StoreLayout */
-  main {
+  /* إضافة مساحة للصفحات التي تستخدم StoreLayout فقط */
+  main.store-layout-main {
     padding-bottom: 80px !important;
   }
   
@@ -222,12 +225,8 @@
   
   /* تحسينات إضافية للقائمة الثابتة */
   .mobile-bottom-nav {
-    /* تأثيرات بصرية متقدمة */
-    background: linear-gradient(
-      180deg,
-      hsl(var(--background) / 0.8) 0%,
-      hsl(var(--background) / 0.95) 100%
-    );
+    /* خلفية واضحة وصلبة */
+    background: hsl(var(--background)) !important;
     
     /* تأثير الضبابية المحسن */
     backdrop-filter: blur(24px) saturate(180%);
@@ -238,6 +237,12 @@
       0 -8px 32px hsl(var(--foreground) / 0.08),
       0 -4px 16px hsl(var(--foreground) / 0.04),
       inset 0 1px 0 hsl(var(--background) / 0.8);
+    
+    /* تأكيد الرؤية */
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    z-index: 40 !important;
   }
   
   /* تأثيرات التفاعل للأزرار */

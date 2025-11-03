@@ -27,11 +27,15 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import Layout from '@/components/Layout';
+import { usePermissions } from '@/hooks/usePermissions';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { ShieldAlert } from 'lucide-react';
 import { POSSharedLayoutControls } from '@/components/pos-layout/types';
 
 interface ExpensesProps extends POSSharedLayoutControls {}
 
 export default function ExpensesPage({ useStandaloneLayout = true }: ExpensesProps) {
+  const perms = usePermissions();
   const { useCreateExpenseMutation } = useExpenses();
   const createExpenseMutation = useCreateExpenseMutation();
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -200,6 +204,19 @@ export default function ExpensesPage({ useStandaloneLayout = true }: ExpensesPro
         </Tabs>
       </div>
   );
+
+  if (perms.ready && !perms.anyOf(['viewFinancialReports'])) {
+    const node = (
+      <div className="container mx-auto py-10">
+        <Alert variant="destructive">
+          <ShieldAlert className="h-4 w-4" />
+          <AlertTitle>غير مصرح</AlertTitle>
+          <AlertDescription>لا تملك صلاحية الوصول إلى صفحة المصروفات.</AlertDescription>
+        </Alert>
+      </div>
+    );
+    return useStandaloneLayout ? <Layout>{node}</Layout> : node;
+  }
 
   return useStandaloneLayout ? <Layout>{content}</Layout> : content;
 }

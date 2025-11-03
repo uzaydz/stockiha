@@ -7,6 +7,9 @@ import { FileBarChart, Package, Receipt, ShoppingBag } from 'lucide-react';
 import { SuppliersList } from '@/components/suppliers/SuppliersList';
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink } from '@/components/ui/breadcrumb';
 import Layout from '@/components/Layout';
+import { usePermissions } from '@/hooks/usePermissions';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { ShieldAlert } from 'lucide-react';
 import { POSSharedLayoutControls } from '@/components/pos-layout/types';
 import { useEffect as useEffectForRefresh } from 'react';
 
@@ -20,6 +23,7 @@ export default function SuppliersManagement({
   const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const perms = usePermissions();
   const [activeTab, setActiveTab] = useState('suppliers');
   const [isRefreshing, setIsRefreshing] = useState(false);
   
@@ -117,17 +121,21 @@ export default function SuppliersManagement({
           
           {/* أزرار إضافة سريعة */}
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => navigate('/dashboard/suppliers/purchases/new')}
-            >
-              <ShoppingBag className="ml-2 h-4 w-4" />
-              مشتريات جديدة
-            </Button>
-            <Button onClick={() => navigate('/dashboard/suppliers/new')}>
-              <Package className="ml-2 h-4 w-4" />
-              مورد جديد
-            </Button>
+            {perms.anyOf(['canCreatePurchase','canManagePurchases']) && (
+              <Button
+                variant="outline"
+                onClick={() => navigate('/dashboard/suppliers/purchases/new')}
+              >
+                <ShoppingBag className="ml-2 h-4 w-4" />
+                مشتريات جديدة
+              </Button>
+            )}
+            {perms.anyOf(['canCreateSupplier','manageSuppliers']) && (
+              <Button onClick={() => navigate('/dashboard/suppliers/new')}>
+                <Package className="ml-2 h-4 w-4" />
+                مورد جديد
+              </Button>
+            )}
           </div>
         </div>
         
@@ -163,6 +171,19 @@ export default function SuppliersManagement({
         </Tabs>
       </div>
   );
+
+  if (perms.ready && !perms.anyOf(['viewSuppliers','manageSuppliers'])) {
+    const node = (
+      <div className="container mx-auto py-10">
+        <Alert variant="destructive">
+          <ShieldAlert className="h-4 w-4" />
+          <AlertTitle>غير مصرح</AlertTitle>
+          <AlertDescription>لا تملك صلاحية الوصول إلى إدارة الموردين.</AlertDescription>
+        </Alert>
+      </div>
+    );
+    return useStandaloneLayout ? <Layout>{node}</Layout> : node;
+  }
 
   return useStandaloneLayout ? <Layout>{content}</Layout> : content;
 }

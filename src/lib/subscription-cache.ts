@@ -8,7 +8,7 @@ import { supabase } from './supabase';
 
 export interface SubscriptionData {
   success: boolean;
-  status: 'active' | 'trial' | 'expired' | 'error' | 'not_found' | 'pending';
+  status: 'active' | 'trial' | 'expired' | 'canceled' | 'error' | 'not_found' | 'pending';
   subscription_type: 'paid' | 'trial_subscription' | 'organization_trial' | 'none';
   subscription_id: string | null;
   plan_name: string;

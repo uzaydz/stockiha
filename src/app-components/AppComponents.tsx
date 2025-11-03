@@ -12,7 +12,6 @@ import { useAuth } from '../context/AuthContext';
 // import { useSessionTracking } from '../hooks/useSessionTracking';
 import SyncManager from '../components/SyncManager';
 import { TitlebarProvider } from '../context/TitlebarContext';
-import AppleShell from '@/components/apple/AppleShell';
 import { ThemeProvider } from '../context/ThemeContext';
 import { StaffSessionProvider } from '../context/StaffSessionContext';
 import { VirtualNumpadProvider } from '../context/VirtualNumpadContext';
@@ -202,10 +201,7 @@ export const AppCore = ({ children }: { children: React.ReactNode }) => {
                 <div className="app-shell">
                   <div className="app-shell__content">
                     <TabFocusHandler>
-                      {/* Inject our AppleShell here so we don't need to touch individual pages */}
-                      <AppleShell>
-                        {children}
-                      </AppleShell>
+                      {children}
                       <GlobalNumpadManager />
                     </TabFocusHandler>
                   </div>

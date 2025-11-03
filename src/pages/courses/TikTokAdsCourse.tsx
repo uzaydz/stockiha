@@ -118,7 +118,7 @@ const TikTokAdsCourse: React.FC<TikTokAdsCourseProps> = ({ useStandaloneLayout =
             <TikTokHero />
 
             {/* Course Statistics */}
-            <CourseStats courseData={tiktokAdsCourseData} />
+            <CourseStats />
 
             {/* Course Features */}
             <TikTokFeatures />
@@ -127,39 +127,22 @@ const TikTokAdsCourse: React.FC<TikTokAdsCourseProps> = ({ useStandaloneLayout =
             <CourseModules modules={tiktokAdsCourseData.modules} courseSlug="tiktok-marketing" />
 
             {/* Additional Call to Action */}
-            <div className="mt-6 text-center">
-              <div className="bg-card border border-border rounded-md p-6">
-                <div className="max-w-xl mx-auto">
-                  <div className="w-12 h-12 bg-pink-50 rounded-xl flex items-center justify-center mx-auto mb-4">
-                    <span className="text-lg">🎵</span>
-                  </div>
+            <div className="mt-6">
+              <div className="bg-card border border-border rounded-lg p-6 text-center">
+                <h3 className="text-base font-bold text-foreground mb-2">
+                  هل أنت جاهز لتحقيق النجاح؟
+                </h3>
 
-                  <h3 className="text-lg font-bold text-foreground mb-3">
-                    هل أنت جاهز لإتقان TikTok Ads؟
-                  </h3>
+                <p className="text-sm text-muted-foreground mb-4 leading-relaxed max-w-xl mx-auto">
+                  ابدأ رحلتك في عالم إعلانات TikTok اليوم وانضم إلى المتخرجين الناجحين
+                </p>
 
-                  <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
-                    ابدأ رحلتك في عالم إعلانات TikTok اليوم وانضم إلى آلاف المتخرجين الناجحين
-                    الذين حققوا نتائج استثنائية على المنصة الأسرع نمواً
-                  </p>
-
-                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                    <button
-                      onClick={() => document.getElementById('course-modules')?.scrollIntoView({ behavior: 'smooth' })}
-                      className="bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white px-6 py-2.5 rounded-md font-bold text-sm"
-                    >
-                      ابدأ الدورة الآن
-                    </button>
-
-                    <button className="border border-border text-foreground hover:bg-muted px-6 py-2.5 rounded-md font-bold text-sm">
-                      شارك مع أصدقائك
-                    </button>
-                  </div>
-
-                  <div className="mt-4 text-xs text-muted-foreground">
-                    📞 تحتاج مساعدة؟ تواصل معنا في أي وقت
-                  </div>
-                </div>
+                <button
+                  onClick={() => document.getElementById('course-modules')?.scrollIntoView({ behavior: 'smooth' })}
+                  className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2.5 rounded-lg font-bold text-sm"
+                >
+                  ابدأ الدورة الآن
+                </button>
               </div>
             </div>
           </CourseAccessGuard>

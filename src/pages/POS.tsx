@@ -92,6 +92,7 @@ const POS = () => {
   const [isQuickReturnOpen, setIsQuickReturnOpen] = useState(false);
   const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
   const [isQuickExpenseOpen, setIsQuickExpenseOpen] = useState(false);
+  const [mobileView, setMobileView] = useState<'products' | 'cart'>('products');
 
   // مرجع لدالة تحديث المخزون
   const productCatalogUpdateFunction = useRef<((productId: string, stockChange: number) => void) | null>(null);
@@ -454,10 +455,44 @@ const POS = () => {
           onRefreshData={handleRefreshData}
           onQuickExpenseOpen={() => setIsQuickExpenseOpen(true)}
         />
+
+          {/* أزرار التبديل للهاتف فقط */}
+          <div className="md:hidden flex gap-2 mb-4 bg-card p-2 rounded-lg border">
+            <button
+              onClick={() => setMobileView('products')}
+              className={cn(
+                "flex-1 py-2 px-4 rounded-md font-medium transition-all",
+                mobileView === 'products'
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+              )}
+            >
+              المنتجات
+            </button>
+            <button
+              onClick={() => setMobileView('cart')}
+              className={cn(
+                "flex-1 py-2 px-4 rounded-md font-medium transition-all relative",
+                mobileView === 'cart'
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "bg-muted text-muted-foreground hover:bg-muted/80"
+              )}
+            >
+              السلة
+              {cartItems.length > 0 && (
+                <span className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                  {cartItems.length}
+                </span>
+              )}
+            </button>
+          </div>
           
           <div className="grid grid-cols-12 gap-4 h-full">
             {/* عمود المنتجات والاشتراكات */}
-            <div className="col-span-12 md:col-span-8 h-full flex flex-col">
+            <div className={cn(
+              "col-span-12 md:col-span-8 h-full flex flex-col",
+              mobileView === 'cart' && "hidden md:flex"
+            )}>
             <POSContent
               products={products}
               subscriptions={subscriptions}
@@ -478,7 +513,10 @@ const POS = () => {
                   </div>
 
           {/* عمود السلة */}
-          <div className="col-span-12 md:col-span-4 h-full">
+          <div className={cn(
+            "col-span-12 md:col-span-4 h-full",
+            mobileView === 'products' && "hidden md:block"
+          )}>
             <div className="flex flex-col gap-4 sticky top-4 h-[calc(100vh-5rem)] overflow-hidden">
                 <div className="flex-1 overflow-hidden flex flex-col border bg-card/30 rounded-lg">
                   {isReturnMode ? (

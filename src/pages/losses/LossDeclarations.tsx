@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { usePermissions } from '@/hooks/usePermissions';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { ShieldAlert } from 'lucide-react';
 import { useTenant } from '@/context/TenantContext';
 import POSPureLayout from '@/components/pos-layout/POSPureLayout';
 import { POSSharedLayoutControls } from '@/components/pos-layout/types';
@@ -152,6 +155,7 @@ const LossDeclarations: React.FC<LossDeclarationsProps> = ({
   onLayoutStateChange
 }) => {
   const { user } = useAuth();
+  const perms = usePermissions();
   const { currentOrganization } = useTenant();
   const { isOnline } = useNetworkStatus();
 
@@ -238,6 +242,23 @@ const LossDeclarations: React.FC<LossDeclarationsProps> = ({
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [lossToDelete, setLossToDelete] = useState<Loss | null>(null);
   const [lossToEdit, setLossToEdit] = useState<Loss | null>(null);
+
+  // صلاحيات الوصول: إدارة الخسائر تتطلب إدارة المخزون
+  const canManageLosses = perms.ready ? perms.anyOf(['manageInventory']) : false;
+
+  if (perms.ready && !canManageLosses) {
+    return (
+      <POSPureLayout onRefresh={() => {}} isRefreshing={false} connectionStatus={'connected'}>
+        <div className="container mx-auto py-10">
+          <Alert variant="destructive">
+            <ShieldAlert className="h-4 w-4" />
+            <AlertTitle>غير مصرح</AlertTitle>
+            <AlertDescription>لا تملك صلاحية إدارة تصاريح الخسائر.</AlertDescription>
+          </Alert>
+        </div>
+      </POSPureLayout>
+    );
+  }
   const [editFormData, setEditFormData] = useState<Partial<Loss>>({});
   const [isDeleting, setIsDeleting] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);

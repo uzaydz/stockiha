@@ -1,6 +1,17 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/lib/supabase';
+// import { supabase } from '@/lib/supabase';
+import { 
+  listLocalRepairOrders,
+  listLocalRepairLocations,
+  changeLocalRepairStatus,
+  addLocalRepairPayment,
+  getLocalRepairOrderDetailed,
+  deleteLocalRepairOrder
+} from '@/api/localRepairService';
 import { useUser } from '../context/UserContext';
+import { usePermissions } from '@/hooks/usePermissions';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { ShieldAlert } from 'lucide-react';
 import { useTenant } from '@/context/TenantContext';
 import { toast } from 'sonner';
 import { formatDate } from '@/lib/utils';
@@ -239,73 +250,44 @@ const RepairServicesContent: React.FC<RepairServicesContentProps> = ({
   });
   
   const fetchData = useCallback(async () => {
-      if (!organizationId) return;
-      
-      try {
-        setIsLoading(true);
-        
-        // جلب طلبيات التصليح
-        const { data: ordersData, error: ordersError } = await supabase
-          .from('repair_orders')
-          .select(`
-            *,
-            images:repair_images(*),
-            history:repair_status_history(*, users(name)),
-            repair_location:repair_locations(id, name, description, address, phone),
-            staff:users(id, name, email, phone)
-          `)
-          .eq('organization_id', organizationId)
-          .order('created_at', { ascending: false });
-          
-        if (ordersError) throw ordersError;
-        
-        // جلب أماكن التصليح
-        const { data: locationsData, error: locationsError } = await supabase
-          .from('repair_locations')
-          .select('*')
-          .eq('organization_id', organizationId)
-          .eq('is_active', true)
-          .order('name');
-          
-        if (locationsError) throw locationsError;
-        
-        if (ordersData) {
-          // تحويل البيانات إلى نوع RepairOrder
-          const typedData = ordersData as unknown as RepairOrder[];
-          setRepairOrders(typedData);
-          
-          // استخراج أنواع الأجهزة الفريدة
-          const uniqueDeviceTypes = [...new Set(
-            typedData
-              .map(order => order.device_type)
-              .filter(type => type && type.trim() !== '' && type !== 'غير محدد')
-          )].sort();
-          
-          setDeviceTypes(uniqueDeviceTypes);
-          
-          // حساب الإحصائيات
-          const statusCounts = {
-            total: typedData.length,
-            pending: typedData.filter(order => order.status === 'قيد الانتظار').length,
-            inProgress: typedData.filter(order => order.status === 'جاري التصليح').length,
-            completed: typedData.filter(order => order.status === 'مكتمل').length,
-            cancelled: typedData.filter(order => order.status === 'ملغي').length,
-          };
-          
-          setStats(statusCounts);
-        } else {
-          setRepairOrders([]);
-        }
-        
-        if (locationsData) {
-          setRepairLocations(locationsData);
-        }
-        
-      } catch (error) {
-        toast.error('فشل في جلب البيانات');
-      } finally {
-        setIsLoading(false);
-      }
+    if (!organizationId) return;
+    try {
+      setIsLoading(true);
+      // Local-first: load from IndexedDB
+      const [ordersRaw, locationsRaw] = await Promise.all([
+        listLocalRepairOrders(organizationId),
+        listLocalRepairLocations(organizationId)
+      ]);
+      const locMap = new Map<string, any>();
+      for (const l of locationsRaw) locMap.set(l.id, l);
+      const typedData: RepairOrder[] = ordersRaw.map((o: any) => ({
+        ...o,
+        total_price: (o.total_price ?? 0) as number,
+        repair_location: o.repair_location_id ? locMap.get(o.repair_location_id) : undefined,
+      }));
+      setRepairOrders(typedData);
+
+      const uniqueDeviceTypes = [...new Set(
+        typedData
+          .map(order => order.device_type)
+          .filter((type): type is string => !!type && type.trim() !== '' && type !== 'غير محدد')
+      )].sort();
+      setDeviceTypes(uniqueDeviceTypes);
+
+      const statusCounts = {
+        total: typedData.length,
+        pending: typedData.filter(order => order.status === 'قيد الانتظار').length,
+        inProgress: typedData.filter(order => order.status === 'جاري التصليح').length,
+        completed: typedData.filter(order => order.status === 'مكتمل').length,
+        cancelled: typedData.filter(order => order.status === 'ملغي').length,
+      };
+      setStats(statusCounts);
+      setRepairLocations(locationsRaw as any);
+    } catch (error) {
+      toast.error('فشل في جلب البيانات');
+    } finally {
+      setIsLoading(false);
+    }
   }, [organizationId]);
 
   // جلب طلبيات التصليح وبيانات الفلترة
@@ -423,41 +405,15 @@ const RepairServicesContent: React.FC<RepairServicesContentProps> = ({
   // التعامل مع إضافة طلبية جديدة
   const handleAddSuccess = async (orderId: string, trackingCode: string) => {
     try {
-      // جلب الطلبية الجديدة
-      const { data, error } = await supabase
-        .from('repair_orders')
-        .select(`
-          *,
-          images:repair_images(*),
-          history:repair_status_history(*, users(name)),
-          repair_location:repair_locations(id, name, description, address, phone),
-          staff:users(id, name, email, phone)
-        `)
-        .eq('id', orderId)
-        .single();
-        
-      if (error) throw error;
-      
-      // إضافة الطلبية إلى القائمة
+      const data = await getLocalRepairOrderDetailed(orderId);
       if (data) {
         const typedData = data as unknown as RepairOrder;
         setRepairOrders([typedData, ...repairOrders]);
-        
-        // تحديث الإحصائيات أيضًا
-        setStats(prev => ({
-          ...prev,
-          total: prev.total + 1,
-          pending: typedData.status === 'قيد الانتظار' ? prev.pending + 1 : prev.pending,
-        }));
-
-        // تحديد الطلبية المحددة لفتح نافذة الطباعة
+        setStats(prev => ({ ...prev, total: prev.total + 1, pending: typedData.status === 'قيد الانتظار' ? prev.pending + 1 : prev.pending }));
         setSelectedOrder(typedData);
         calculateQueuePosition(typedData);
-        
-        // فتح نافذة الطباعة مباشرة
         setIsPrintDialogOpen(true);
       }
-      
       toast.success('تم إضافة طلبية التصليح بنجاح');
     } catch (error) {
       toast.error('حدث خطأ أثناء إضافة الطلبية');
@@ -467,38 +423,7 @@ const RepairServicesContent: React.FC<RepairServicesContentProps> = ({
   // التعامل مع نجاح التعديل
   const handleEditSuccess = async () => {
     try {
-      if (!organizationId) return;
-      
-      const { data, error } = await supabase
-        .from('repair_orders')
-        .select(`
-          *,
-          images:repair_images(*),
-          history:repair_status_history(*, users(name)),
-          repair_location:repair_locations(id, name, description, address, phone),
-          staff:users(id, name, email, phone)
-        `)
-        .eq('organization_id', organizationId)
-        .order('created_at', { ascending: false });
-        
-      if (error) throw error;
-      
-      if (data) {
-        const typedData = data as unknown as RepairOrder[];
-        setRepairOrders(typedData);
-        
-        // إعادة حساب الإحصائيات
-        const statusCounts = {
-          total: typedData.length,
-          pending: typedData.filter(order => order.status === 'قيد الانتظار').length,
-          inProgress: typedData.filter(order => order.status === 'جاري التصليح').length,
-          completed: typedData.filter(order => order.status === 'مكتمل').length,
-          cancelled: typedData.filter(order => order.status === 'ملغي').length,
-        };
-        
-        setStats(statusCounts);
-      }
-      
+      await fetchData();
       toast.success('تم تحديث طلبية التصليح بنجاح');
     } catch (error) {
       toast.error('فشل في تحديث البيانات');
@@ -547,32 +472,7 @@ const RepairServicesContent: React.FC<RepairServicesContentProps> = ({
   // تحديث حالة طلبية التصليح
   const updateOrderStatus = async (orderId: string, newStatus: string, notes: string = '') => {
     try {
-      // 1. تحديث حالة الطلبية
-      const { error: updateError } = await supabase
-        .from('repair_orders')
-        .update({ 
-          status: newStatus,
-          updated_at: new Date().toISOString(),
-          ...(newStatus === 'مكتمل' ? { completed_at: new Date().toISOString() } : {})
-        })
-        .eq('id', orderId);
-        
-      if (updateError) throw updateError;
-      
-      // 2. إضافة سجل جديد في تاريخ الحالة
-      const historyEntry = {
-        repair_order_id: orderId,
-        status: newStatus,
-        notes: notes,
-        created_by: user?.id, // تم التحديث بواسطة المستخدم الحالي
-      };
-      
-      const { error: historyError } = await supabase
-        .from('repair_status_history')
-        .insert(historyEntry);
-        
-      if (historyError) throw historyError;
-      
+      await changeLocalRepairStatus(orderId, newStatus, notes, user?.id);
       // 3. تحديث الحالة في الواجهة
       if (selectedOrder && selectedOrder.id === orderId) {
         // إنشاء نسخة جديدة من التاريخ
@@ -622,49 +522,10 @@ const RepairServicesContent: React.FC<RepairServicesContentProps> = ({
     
     try {
       setIsProcessingPayment(true);
-      
-      // الحصول على الطلبية الحالية
-      const { data: orderData, error: orderError } = await supabase
-        .from('repair_orders')
-        .select('paid_amount, total_price')
-        .eq('id', orderId)
-        .single();
-        
-      if (orderError) throw orderError;
-      
-      // التحقق من أن المبلغ المدفوع لا يتجاوز السعر الكلي
-      const currentPaid = orderData.paid_amount || 0;
-      const newPaidAmount = currentPaid + amount;
-      
-      if (newPaidAmount > orderData.total_price) {
-        toast.error('مبلغ الدفعة يتجاوز المبلغ المتبقي');
-        return false;
-      }
-      
-      // تحديث الطلبية بالمبلغ المدفوع الجديد
-      const { error: updateError } = await supabase
-        .from('repair_orders')
-        .update({ 
-          paid_amount: newPaidAmount,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', orderId);
-        
-      if (updateError) throw updateError;
-      
-      // إضافة سجل للدفعة
-      const historyEntry = {
-        repair_order_id: orderId,
-        status: 'دفعة جديدة',
-        notes: `تم استلام دفعة بمبلغ ${amount.toLocaleString()} دج. المبلغ الإجمالي المدفوع: ${newPaidAmount.toLocaleString()} دج`,
-        created_by: user?.id,
-      };
-      
-      const { error: historyError } = await supabase
-        .from('repair_status_history')
-        .insert(historyEntry);
-        
-      if (historyError) throw historyError;
+      await addLocalRepairPayment(orderId, amount, user?.id);
+      // الحصول على المبلغ الجديد من الحالة المحلية
+      const current = repairOrders.find(o => o.id === orderId);
+      const newPaidAmount = (current?.paid_amount || 0) + amount;
       
       // تحديث واجهة المستخدم
       // 1. تحديث الطلبية المحددة إذا كانت هي نفسها
@@ -732,34 +593,8 @@ const RepairServicesContent: React.FC<RepairServicesContentProps> = ({
     try {
       setIsDeleting(true);
       
-      // 1. حذف صور الطلبية من التخزين
-      if (orderToDelete.images && orderToDelete.images.length > 0) {
-        const imagePromises = orderToDelete.images.map(async (image) => {
-          // استخراج مسار الملف من URL
-          const urlParts = image.image_url.split('/');
-          const filePath = `repair_images/${orderToDelete.id}/${urlParts[urlParts.length - 1]}`;
-          
-          // حذف الصورة من التخزين
-          const { error } = await supabase.storage
-            .from('repair_images')
-            .remove([filePath]);
-            
-          if (error) {
-          }
-        });
-        
-        await Promise.all(imagePromises);
-      }
-      
-      // 2. حذف الطلبية من قاعدة البيانات (سيتم حذف البيانات المرتبطة تلقائياً)
-      const { error } = await supabase
-        .from('repair_orders')
-        .delete()
-        .eq('id', orderToDelete.id);
-        
-      if (error) {
-        throw error;
-      }
+      // حذف محلي (سيتم مزامنة الحذف لاحقاً)
+      await deleteLocalRepairOrder(orderToDelete.id);
       
       // 3. تحديث القائمة والإحصائيات
       setRepairOrders(prevOrders => 
@@ -1974,6 +1809,23 @@ const RepairServicesContent: React.FC<RepairServicesContentProps> = ({
 
 // المكون الرئيسي مع POSDataProvider
 const RepairServices: React.FC<RepairServicesContentProps> = (props) => {
+  const perms = usePermissions();
+  const unauthorizedNode = (
+    <Layout>
+      <div className="container mx-auto py-10">
+        <Alert variant="destructive">
+          <ShieldAlert className="h-4 w-4" />
+          <AlertTitle>غير مصرح</AlertTitle>
+          <AlertDescription>لا تملك صلاحية الوصول إلى خدمات التصليح.</AlertDescription>
+        </Alert>
+      </div>
+    </Layout>
+  );
+
+  if (perms.ready && !perms.anyOf(['viewServices','manageServices'])) {
+    return unauthorizedNode;
+  }
+
   return (
     <POSDataProvider>
       <RepairServicesContent {...props} />

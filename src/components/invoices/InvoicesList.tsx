@@ -42,6 +42,7 @@ interface InvoicesListProps {
   onPrintInvoice: (invoice: Invoice) => void;
   onDownloadInvoice: (invoice: Invoice) => void;
   onEditInvoice: (invoice: Invoice) => void;
+  canManage?: boolean;
 }
 
 const InvoicesList = ({
@@ -50,6 +51,7 @@ const InvoicesList = ({
   onPrintInvoice,
   onDownloadInvoice,
   onEditInvoice,
+  canManage = true,
 }: InvoicesListProps) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -342,15 +344,17 @@ const InvoicesList = ({
                           >
                             <FileText className="h-4 w-4" />
                           </Button>
-                          <Button 
-                            variant="outline" 
-                            size="icon" 
-                            className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                            onClick={() => onEditInvoice(invoice)}
-                            title="تعديل الفاتورة"
-                          >
-                            <Edit className="h-4 w-4" />
-                          </Button>
+                          {canManage && (
+                            <Button 
+                              variant="outline" 
+                              size="icon" 
+                              className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              onClick={() => onEditInvoice(invoice)}
+                              title="تعديل الفاتورة"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                          )}
                           <Button 
                             variant="outline" 
                             size="icon" 

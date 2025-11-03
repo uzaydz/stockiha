@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { toast } from 'sonner';
-import { Category, Subcategory } from '@/lib/api/categories';
+import { Category, Subcategory, getLocalCategories, getLocalSubcategoriesByCategoryId } from '@/lib/api/categories';
 import {
   getCategories as fetchCategoriesAPI,
   getSubcategories as fetchSubcategoriesAPI,
@@ -17,35 +17,80 @@ export const useCategoryData = ({ organizationId, watchCategoryId }: UseCategory
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
   const [isLoadingSubcategories, setIsLoadingSubcategories] = useState(false);
 
-  // Fetch categories
+  // Fetch categories with offline-first fallback
   useEffect(() => {
-    if (organizationId) {
+    if (!organizationId) return;
+
+    let cancelled = false;
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
+    const loadLocalFirst = async () => {
+      try {
+        // محاولة تعبئة فورية من التخزين المحلي
+        const localCats = await getLocalCategories();
+        if (!cancelled && Array.isArray(localCats) && localCats.length > 0) {
+          const productCategories = localCats.filter((cat: any) => (cat?.type || 'product') === 'product');
+          setCategories(productCategories as Category[]);
+        }
+      } catch {}
+    };
+
+    const loadRemote = async () => {
       setIsLoadingCategories(true);
-      fetchCategoriesAPI(organizationId)
-        .then(categoriesData => {
-          const productCategories = categoriesData.filter(cat => cat.type === 'product');
-          setCategories(productCategories);
-        })
-        .catch(error => {
-          toast.error('حدث خطأ أثناء تحميل الفئات');
-        })
-        .finally(() => setIsLoadingCategories(false));
+      try {
+        const categoriesData = await fetchCategoriesAPI(organizationId);
+        const productCategories = categoriesData.filter(cat => cat.type === 'product');
+        if (!cancelled) setCategories(productCategories);
+      } catch (error) {
+        if (!cancelled) toast.error('حدث خطأ أثناء تحميل الفئات');
+      } finally {
+        if (!cancelled) setIsLoadingCategories(false);
+      }
+    };
+
+    void loadLocalFirst();
+    if (isOnline) {
+      void loadRemote();
+    } else {
+      // في وضع عدم الاتصال اكتف بالبيانات المحلية
+      setIsLoadingCategories(false);
     }
+
+    return () => { cancelled = true; };
   }, [organizationId]);
 
-  // Fetch subcategories when category_id changes
+  // Fetch subcategories when category_id changes (offline-first)
   useEffect(() => {
-    if (watchCategoryId) {
+    let cancelled = false;
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
+    const run = async () => {
+      if (!watchCategoryId) {
+        setSubcategories([]);
+        return;
+      }
+
+      // تعبئة محلية أولية
+      try {
+        const localSubs = await getLocalSubcategoriesByCategoryId(watchCategoryId);
+        if (!cancelled && Array.isArray(localSubs)) setSubcategories(localSubs as Subcategory[]);
+      } catch {}
+
+      if (!isOnline) return; // لا نحاول البعيد عند عدم الاتصال
+
       setIsLoadingSubcategories(true);
-      fetchSubcategoriesAPI(watchCategoryId, organizationId)
-        .then(setSubcategories)
-        .catch(error => {
-          toast.error('حدث خطأ أثناء تحميل الفئات الفرعية');
-        })
-        .finally(() => setIsLoadingSubcategories(false));
-    } else {
-      setSubcategories([]);
-    }
+      try {
+        const subs = await fetchSubcategoriesAPI(watchCategoryId, organizationId);
+        if (!cancelled) setSubcategories(subs);
+      } catch (error) {
+        if (!cancelled) toast.error('حدث خطأ أثناء تحميل الفئات الفرعية');
+      } finally {
+        if (!cancelled) setIsLoadingSubcategories(false);
+      }
+    };
+
+    void run();
+    return () => { cancelled = true; };
   }, [watchCategoryId, organizationId]);
 
   const handleCategoryCreated = useCallback((category: Category) => {

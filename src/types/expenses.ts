@@ -10,6 +10,10 @@ export interface Expense {
   category: string;
   expense_date: string;
   notes?: string;
+  payment_method?: string;
+  payment_ref?: string;
+  vendor_name?: string;
+  cost_center_id?: string;
   status: ExpenseStatus;
   is_recurring: boolean;
   receipt_url?: string;
@@ -99,6 +103,10 @@ export interface ExpenseFormData {
   category: string;
   expense_date: Date | string;
   notes?: string;
+  payment_method?: string;
+  payment_ref?: string;
+  vendor_name?: string;
+  cost_center_id?: string;
   status?: ExpenseStatus;
   is_recurring: boolean;
   recurring?: {

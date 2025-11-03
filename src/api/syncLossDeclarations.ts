@@ -76,6 +76,13 @@ const syncSingleLoss = async (loss: LocalLossDeclaration): Promise<boolean> => {
 
       if (lossError) throw lossError;
 
+      // حفظ معرف السيرفر محلياً للتحديثات اللاحقة
+      try {
+        await inventoryDB.lossDeclarations.update(loss.id, {
+          remote_loss_id: lossData.id
+        });
+      } catch {}
+
       // إضافة عناصر الخسارة
       if (items.length > 0) {
         const itemsToInsert = items.map(item => ({
@@ -120,7 +127,24 @@ const syncSingleLoss = async (loss: LocalLossDeclaration): Promise<boolean> => {
 
       if (error) throw error;
 
-      // تحديث حالة تعديل المخزون للعناصر
+      // تحديد معرف التصريح في السيرفر لاستخدامه مع عناصر الخسارة
+      let remoteLossId = (loss as any).remote_loss_id as string | undefined;
+      if (!remoteLossId) {
+        const { data: foundLoss, error: findErr } = await supabase
+          .from('losses')
+          .select('id')
+          .eq('loss_number', loss.loss_number)
+          .single();
+        if (findErr) throw findErr;
+        remoteLossId = foundLoss?.id;
+        if (remoteLossId) {
+          await inventoryDB.lossDeclarations.update(loss.id, { remote_loss_id: remoteLossId });
+        }
+      }
+
+      if (!remoteLossId) throw new Error('missing_remote_loss_id');
+
+      // تحديث حالة تعديل المخزون للعناصر باستخدام معرف السيرفر
       const items = await inventoryDB.lossItems
         .where('loss_id')
         .equals(loss.id)
@@ -131,7 +155,7 @@ const syncSingleLoss = async (loss: LocalLossDeclaration): Promise<boolean> => {
           await supabase
             .from('loss_items')
             .update({ inventory_adjusted: true })
-            .eq('loss_id', loss.id)
+            .eq('loss_id', remoteLossId)
             .eq('product_id', item.product_id);
         }
       }
@@ -235,6 +259,7 @@ export const fetchLossDeclarationsFromServer = async (organizationId: string): P
       const localLoss: LocalLossDeclaration = {
         id: lossData.id,
         loss_number: lossData.loss_number,
+        remote_loss_id: lossData.id,
         loss_type: lossData.loss_type,
         loss_category: lossData.loss_category,
         loss_description: lossData.loss_description,

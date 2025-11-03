@@ -41,20 +41,18 @@ const TabsSection = React.memo<{
   subscriptionsCount: number;
   isAppEnabled: (appName: string) => boolean;
   onTabChange: (tab: string) => void;
-  isPending?: boolean;
   isMobile?: boolean;
-}>(({ activeTab, filteredProductsCount, subscriptionsCount, isAppEnabled, onTabChange, isPending, isMobile }) => (
+}>(({ activeTab, filteredProductsCount, subscriptionsCount, isAppEnabled, onTabChange, isMobile }) => (
   <Tabs value={activeTab} onValueChange={onTabChange} className="w-full">
     <TabsList className="h-10 bg-muted/50 p-1 rounded-xl border border-border/50 w-full sm:w-auto inline-flex">
       <TabsTrigger 
         value="products" 
         className="h-8 gap-2 px-4 text-sm rounded-lg transition-all flex-1 sm:flex-initial"
-        disabled={isPending}
       >
         <Package2 className="h-4 w-4 flex-shrink-0" />
         <span className="font-medium whitespace-nowrap">المنتجات</span>
         <Badge variant="secondary" className="text-xs font-semibold">
-          {isPending ? '...' : filteredProductsCount.toLocaleString('ar-DZ')}
+          {filteredProductsCount.toLocaleString('ar-DZ')}
         </Badge>
       </TabsTrigger>
       
@@ -62,7 +60,6 @@ const TabsSection = React.memo<{
         <TabsTrigger 
           value="subscriptions" 
           className="h-8 gap-2 px-4 text-sm rounded-lg transition-all flex-1 sm:flex-initial"
-          disabled={isPending}
         >
           <CreditCard className="h-4 w-4 flex-shrink-0" />
           <span className="font-medium whitespace-nowrap">الاشتراكات</span>
@@ -82,9 +79,8 @@ const CategorySelect = React.memo<{
   selectedCategory: string;
   availableCategories: { id: string; name: string }[];
   onCategoryChange: (value: string) => void;
-  isPending?: boolean;
   isMobile?: boolean;
-}>(({ selectedCategory, availableCategories, onCategoryChange, isPending, isMobile }) => {
+}>(({ selectedCategory, availableCategories, onCategoryChange, isMobile }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [categoriesLoaded, setCategoriesLoaded] = useState(false);
 
@@ -132,14 +128,10 @@ const CategorySelect = React.memo<{
     <Select 
       value={selectedCategory} 
       onValueChange={onCategoryChange} 
-      disabled={isPending}
       open={isOpen}
       onOpenChange={setIsOpen}
     >
-      <SelectTrigger className={cn(
-        "h-9 rounded-lg border-border/50 bg-background hover:bg-muted/50 transition-colors w-36",
-        isPending && "opacity-50 cursor-not-allowed"
-      )}>
+      <SelectTrigger className="h-9 rounded-lg border-border/50 bg-background hover:bg-muted/50 transition-colors w-36">
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <Tag className="h-4 w-4 text-muted-foreground" />
           <span className="truncate text-sm">
@@ -177,7 +169,6 @@ const ControlsSection = React.memo<{
   onStockFilterChange: (value: string) => void;
   onSortChange: (sortBy: string, sortOrder: string) => void;
   onViewModeChange: (mode: string) => void;
-  isPending?: boolean;
   isMobile?: boolean;
 }>(({ 
   selectedCategory, 
@@ -189,7 +180,6 @@ const ControlsSection = React.memo<{
   onStockFilterChange,
   onSortChange,
   onViewModeChange,
-  isPending,
   isMobile
 }) => {
   const sortIcon = useMemo(() => 
@@ -228,18 +218,14 @@ const ControlsSection = React.memo<{
           selectedCategory={selectedCategory}
           availableCategories={availableCategories}
           onCategoryChange={handleCategoryChange}
-          isPending={isPending}
           isMobile={isMobile}
         />
       </div>
 
       {/* تصفية المخزون */}
       <div className="flex-shrink-0">
-        <Select value={stockFilter} onValueChange={handleStockFilterChange} disabled={isPending}>
-          <SelectTrigger className={cn(
-            "h-9 rounded-lg border-border/50 bg-background hover:bg-muted/50 transition-colors w-28",
-            isPending && "opacity-50 cursor-not-allowed"
-          )}>
+        <Select value={stockFilter} onValueChange={handleStockFilterChange}>
+          <SelectTrigger className="h-9 rounded-lg border-border/50 bg-background hover:bg-muted/50 transition-colors w-28">
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
             <SelectValue />
           </SelectTrigger>
@@ -259,17 +245,9 @@ const ControlsSection = React.memo<{
             <Button 
               variant="outline" 
               size="sm" 
-              className={cn(
-                "h-9 gap-2 rounded-lg border-border/50 hover:bg-muted/50 transition-colors min-w-24",
-                isPending && "opacity-50 cursor-not-allowed"
-              )}
-              disabled={isPending}
+              className="h-9 gap-2 rounded-lg border-border/50 hover:bg-muted/50 transition-colors min-w-24"
             >
-              {isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                sortIcon
-              )}
+              {sortIcon}
               <span className={cn(!isMobile && "hidden sm:inline")}>ترتيب</span>
             </Button>
           </DropdownMenuTrigger>
@@ -325,14 +303,13 @@ const ControlsSection = React.memo<{
 
 ControlsSection.displayName = 'ControlsSection';
 
-const FilterControls: React.FC<FilterControlsProps & { isPending?: boolean; isMobile?: boolean }> = ({
+const FilterControls: React.FC<FilterControlsProps & { isMobile?: boolean }> = ({
   filterState,
   availableCategories,
   filteredProductsCount,
   subscriptionsCount,
   isAppEnabled,
   onFilterChange,
-  isPending = false,
   isMobile = false
 }) => {
   // استخدام useCallback لتحسين الأداء
@@ -370,7 +347,6 @@ const FilterControls: React.FC<FilterControlsProps & { isPending?: boolean; isMo
             subscriptionsCount={subscriptionsCount}
             isAppEnabled={isAppEnabled}
             onTabChange={handleTabChange}
-            isPending={isPending}
             isMobile={isMobile}
           />
         </div>
@@ -388,7 +364,6 @@ const FilterControls: React.FC<FilterControlsProps & { isPending?: boolean; isMo
               onStockFilterChange={handleStockFilterChange}
               onSortChange={handleSortChange}
               onViewModeChange={handleViewModeChange}
-              isPending={isPending}
               isMobile={isMobile}
             />
           </div>

@@ -1,0 +1,75 @@
+/* تحسينات أداء DesktopTitlebar - محسّن للسرعة */
+
+/* Titlebar الرئيسي */
+.desktop-titlebar {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* تحسين أداء نظام التبديل بين الأزرار */
+.desktop-titlebar [class*="transition-all"] {
+  will-change: transform, opacity;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+
+/* أزرار النافذة (Windows/Linux) */
+.titlebar-button {
+  display: inline-flex;
+  align-items: center;
+  justify-center: center;
+  height: 48px;
+  width: 48px;
+  color: rgba(255, 255, 255, 0.8);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.titlebar-button:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 1);
+}
+
+.titlebar-button:active {
+  background-color: rgba(255, 255, 255, 0.15);
+}
+
+.titlebar-button--close:hover {
+  background-color: rgb(220, 38, 38);
+  color: white;
+}
+
+.titlebar-button--close:active {
+  background-color: rgb(185, 28, 28);
+}
+
+/* تحسين أداء الأزرار */
+.desktop-titlebar button {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* تحسين الانتقالات */
+.desktop-titlebar button,
+.desktop-titlebar a {
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+/* تقليل الحركة للمستخدمين الذين يفضلون ذلك */
+@media (prefers-reduced-motion: reduce) {
+  .desktop-titlebar button,
+  .desktop-titlebar a,
+  .titlebar-button {
+    transition: none !important;
+  }
+}
+
+/* تحسين الأداء على الأجهزة المحمولة */
+@media (max-width: 768px) {
+  .desktop-titlebar button {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+}

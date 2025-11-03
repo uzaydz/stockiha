@@ -4,6 +4,7 @@
  */
 
 import { useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { getAppInitData } from '@/lib/appInitializer';
 
 /**
@@ -17,20 +18,16 @@ export function useAppInitData() {
  * Hook للحصول على بيانات المتجر - مع تحسين للأداء
  */
 export function useStoreInfo() {
-  // فحص هل نحن في صفحة متجر أم لا
+  const location = useLocation();
+  // فحص هل نحن في صفحة متجر أم لا (سيتعامل React Router مع hash في Electron)
   const isStoreContext = useMemo(() => {
-    if (typeof window === 'undefined') return false;
-    
-    const hostname = window.location.hostname;
-    const pathname = window.location.pathname;
-    
-    // التحقق من صفحات المتجر والمنتجات
+    const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+    const pathname = location.pathname;
     const isProductPage = pathname.includes('/product') || pathname.includes('/products');
     const isStorePage = pathname === '/' || pathname.includes('/category/') || pathname.includes('/thank-you');
-    const hasSubdomainOrCustomDomain = !hostname.includes('stockiha.com') && !hostname.includes('ktobi.online');
-    
+    const hasSubdomainOrCustomDomain = !!hostname && !hostname.includes('stockiha.com') && !hostname.includes('ktobi.online') && !hostname.includes('localhost');
     return (isProductPage || isStorePage) && hasSubdomainOrCustomDomain;
-  }, []);
+  }, [location.pathname]);
   
   // نستدعي useAppInitData دائماً، لكن نرجع null إذا لم نكن في صفحة متجر
   const data = useAppInitData();

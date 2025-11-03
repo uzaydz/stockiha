@@ -40,8 +40,22 @@ export const UnifiedQueue = {
   },
 
   async listByType(types: UnifiedQueueType[]): Promise<SyncQueueItem[]> {
-    const all = await inventoryDB.syncQueue.toArray();
-    return all.filter(i => types.includes(i.objectType));
+    try {
+      // استخدام الفهرس على objectType للحصول على أداء أفضل
+      if (types.length === 1) {
+        return await inventoryDB.syncQueue
+          .where('objectType' as any)
+          .equals(types[0] as any)
+          .toArray();
+      }
+      return await inventoryDB.syncQueue
+        .where('objectType' as any)
+        .anyOf(...(types as any))
+        .toArray();
+    } catch {
+      const all = await inventoryDB.syncQueue.toArray();
+      return all.filter(i => types.includes(i.objectType));
+    }
   },
 
   async count(): Promise<number> {

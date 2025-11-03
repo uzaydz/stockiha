@@ -58,8 +58,19 @@
     // Dynamic import avoids early bundling issues
     import('@/sync/SyncEngine').then(({ SyncEngine }) => {
       try {
+        const env = (import.meta as any)?.env || {};
+        const verbose = String(env?.VITE_SYNC_VERBOSE ?? '').toLowerCase() === 'true';
         const unsubscribe = SyncEngine.onStatus((s: { phase: string; timestamp: number; data?: any }) => {
-          try { console.log(`🔁 [SyncEngine] ${s.phase}`, { t: s.timestamp, data: s.data }); } catch {}
+          try {
+            if (verbose) {
+              console.log(`🔁 [SyncEngine] ${s.phase}`, { t: s.timestamp, data: s.data });
+            } else {
+              // وضع مختصر: سجل البداية والنهاية فقط لتقليل الضجيج
+              if (s.phase === 'start' || s.phase === 'done') {
+                console.log(`🔁 [SyncEngine] ${s.phase}`, { t: s.timestamp });
+              }
+            }
+          } catch {}
         });
         (window as any).__diag_unsub_sync = unsubscribe;
       } catch {}

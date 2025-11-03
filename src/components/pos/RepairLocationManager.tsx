@@ -25,7 +25,8 @@ import {
 } from "@/components/ui/table";
 import { Switch } from '@/components/ui/switch';
 import { Building, Loader2, Plus, Edit, Trash2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+// import { supabase } from '@/lib/supabase';
+import { listLocalRepairLocations, createLocalRepairLocation, updateLocalRepairLocation, softDeleteLocalRepairLocation } from '@/api/localRepairService';
 
 // واجهة بيانات مكان التصليح
 export interface RepairLocation {
@@ -69,20 +70,10 @@ const RepairLocationManager = ({ isOpen, onClose, onSelectLocation }: RepairLoca
   useEffect(() => {
     const fetchLocations = async () => {
       if (!organizationId) return;
-      
       setIsLoading(true);
       try {
-        const { data, error } = await supabase
-          .from('repair_locations')
-          .select('*')
-          .eq('organization_id', organizationId)
-          .eq('is_active', true)
-          .order('is_default', { ascending: false })
-          .order('created_at', { ascending: false });
-          
-        if (error) throw error;
-        
-        setLocations(data || []);
+        const data = await listLocalRepairLocations(organizationId);
+        setLocations(data as any);
       } catch (error) {
         toast.error('فشل في جلب أماكن التصليح');
       } finally {
@@ -128,21 +119,15 @@ const RepairLocationManager = ({ isOpen, onClose, onSelectLocation }: RepairLoca
 
   // حذف مكان
   const handleDelete = async (location: RepairLocation) => {
-    if (!confirm(`هل أنت متأكد من حذف "${location.name}"؟`)) {
-      return;
-    }
-    
+    if (!confirm(`هل أنت متأكد من حذف "${location.name}"؟`)) return;
     try {
-      const { error } = await supabase
-        .from('repair_locations')
-        .update({ is_active: false })
-        .eq('id', location.id);
-        
-      if (error) throw error;
-      
-      // تحديث القائمة المحلية
-      setLocations(locations.filter(loc => loc.id !== location.id));
-      toast.success('تم حذف مكان التصليح بنجاح');
+      const ok = await softDeleteLocalRepairLocation(location.id);
+      if (ok) {
+        setLocations(locations.filter(loc => loc.id !== location.id));
+        toast.success('تم حذف مكان التصليح بنجاح');
+      } else {
+        toast.error('تعذر حذف مكان التصليح');
+      }
     } catch (error) {
       toast.error('فشل في حذف مكان التصليح');
     }
@@ -158,51 +143,8 @@ const RepairLocationManager = ({ isOpen, onClose, onSelectLocation }: RepairLoca
     setIsSubmitting(true);
     
     try {
-      // إذا كان المكان الجديد هو المكان الافتراضي، قم بإلغاء تعيين المكان الافتراضي الحالي
-      if (isDefault) {
-        await supabase
-          .from('repair_locations')
-          .update({ is_default: false })
-          .eq('organization_id', organizationId)
-          .eq('is_default', true);
-      }
-      
       if (isEditMode && currentLocation) {
-        // تحديث مكان موجود
-        const { error } = await supabase
-          .from('repair_locations')
-          .update({
-            name: locationName,
-            description: locationDescription,
-            address: locationAddress,
-            phone: locationPhone,
-            email: locationEmail,
-            is_default: isDefault,
-          })
-          .eq('id', currentLocation.id);
-          
-        if (error) throw error;
-        
-        // تحديث القائمة المحلية
-        setLocations(locations.map(loc => 
-          loc.id === currentLocation.id 
-            ? { 
-                ...loc, 
-                name: locationName, 
-                description: locationDescription,
-                address: locationAddress,
-                phone: locationPhone,
-                email: locationEmail,
-                is_default: isDefault 
-              }
-            : isDefault ? { ...loc, is_default: false } : loc
-        ));
-        
-        toast.success('تم تحديث مكان التصليح بنجاح');
-      } else {
-        // إضافة مكان جديد
-        const newLocation = {
-          id: uuidv4(),
+        const updated = await updateLocalRepairLocation(currentLocation.id, {
           name: locationName,
           description: locationDescription,
           address: locationAddress,
@@ -210,25 +152,22 @@ const RepairLocationManager = ({ isOpen, onClose, onSelectLocation }: RepairLoca
           email: locationEmail,
           is_default: isDefault,
           is_active: true,
-          organization_id: organizationId,
-        };
-        
-        const { error } = await supabase
-          .from('repair_locations')
-          .insert(newLocation);
-          
-        if (error) throw error;
-        
-        // تحديث القائمة المحلية
-        setLocations(isDefault 
-          ? [newLocation, ...locations.map(loc => ({ ...loc, is_default: false }))]
-          : [newLocation, ...locations]
-        );
-        
+        });
+        if (!updated) throw new Error('تعذر تحديث المكان محلياً');
+        setLocations(locations.map(loc => loc.id === currentLocation.id ? { ...loc, ...updated } as any : (isDefault ? { ...loc, is_default: false } : loc)));
+        toast.success('تم تحديث مكان التصليح بنجاح');
+      } else {
+        const newLoc = await createLocalRepairLocation({
+          name: locationName,
+          description: locationDescription,
+          address: locationAddress,
+          phone: locationPhone,
+          email: locationEmail,
+          is_default: isDefault,
+        });
+        setLocations(isDefault ? [newLoc as any, ...locations.map(loc => ({ ...loc, is_default: false }))] : [newLoc as any, ...locations]);
         toast.success('تم إضافة مكان التصليح بنجاح');
       }
-      
-      // إعادة تعيين النموذج وإغلاقه
       resetForm();
       setIsAddFormVisible(false);
     } catch (error) {

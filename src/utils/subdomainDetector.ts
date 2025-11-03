@@ -31,7 +31,8 @@ export function getCurrentSubdomain(): string | null { return null; }
 /**
  * إنشاء URL لنطاق فرعي محدد
  */
-export function createSubdomainUrl(_subdomain: string, path: string = '/'): string { return `${window.location.origin}${path}`; }
+import { getWebOrigin } from '@/lib/navigation';
+export function createSubdomainUrl(_subdomain: string, path: string = '/'): string { return `${getWebOrigin()}${path}`; }
 
 /**
  * التحقق من صحة النطاق الفرعي

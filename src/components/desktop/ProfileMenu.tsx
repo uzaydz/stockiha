@@ -71,7 +71,6 @@ const ProfileMenu: React.FC = () => {
   const displayName = currentStaff?.staff_name || (isAdminMode ? 'مدير' : userProfile?.full_name || user?.email || 'مستخدم');
   const userRole = isAdminMode ? 'مدير' : (currentStaff ? 'موظف' : (userProfile?.role === 'admin' ? 'مدير' : userProfile?.role === 'employee' ? 'موظف' : 'مستخدم'));
   const isAdmin = isAdminMode || userProfile?.role === 'admin';
-  const isEmployee = currentStaff && !isAdminMode;
 
   return (
     <div className="relative" ref={menuRef}>
@@ -80,8 +79,8 @@ const ProfileMenu: React.FC = () => {
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "flex items-center gap-2 h-8 px-2 rounded-lg transition-all duration-200",
-          "hover:bg-white/15 active:scale-95",
+          "flex items-center gap-2 h-8 px-2 rounded-lg transition-colors duration-150",
+          "hover:bg-white/10 active:bg-white/15",
           isOpen && "bg-white/15"
         )}
         aria-label="قائمة البروفايل"
@@ -98,7 +97,7 @@ const ProfileMenu: React.FC = () => {
         
         {/* سهم للأسفل */}
         <ChevronDown className={cn(
-          "h-3.5 w-3.5 text-white/70 transition-transform duration-200",
+          "h-3.5 w-3.5 text-white/70 transition-transform duration-150",
           isOpen && "rotate-180"
         )} />
       </button>
@@ -136,9 +135,9 @@ const ProfileMenu: React.FC = () => {
               <button
                 type="button"
                 onClick={() => handleNavigate('/dashboard/settings')}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-white/90 hover:bg-white/10 transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-white/10 active:bg-white/15 transition-colors duration-150"
               >
-                <Settings className="h-4 w-4 text-white/70" />
+                <Settings className="h-4 w-4" />
                 <span>الإعدادات</span>
               </button>
             )}
@@ -147,9 +146,9 @@ const ProfileMenu: React.FC = () => {
             <button
               type="button"
               onClick={() => handleNavigate('/dashboard/profile')}
-              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-white/90 hover:bg-white/10 transition-colors"
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-white/10 active:bg-white/15 transition-colors duration-150"
             >
-              <User className="h-4 w-4 text-white/70" />
+              <User className="h-4 w-4" />
               <span>الملف الشخصي</span>
             </button>
 
@@ -158,9 +157,9 @@ const ProfileMenu: React.FC = () => {
               <button
                 type="button"
                 onClick={() => handleNavigate('/dashboard/notifications')}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-white/90 hover:bg-white/10 transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-white/10 active:bg-white/15 transition-colors duration-150"
               >
-                <Bell className="h-4 w-4 text-white/70" />
+                <Bell className="h-4 w-4" />
                 <span>الإشعارات</span>
               </button>
             )}
@@ -170,9 +169,9 @@ const ProfileMenu: React.FC = () => {
               <button
                 type="button"
                 onClick={() => handleNavigate('/dashboard/security')}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-white/90 hover:bg-white/10 transition-colors"
+                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-white/10 active:bg-white/15 transition-colors duration-150"
               >
-                <Lock className="h-4 w-4 text-white/70" />
+                <Lock className="h-4 w-4" />
                 <span>الأمان والخصوصية</span>
               </button>
             )}
@@ -181,9 +180,9 @@ const ProfileMenu: React.FC = () => {
             <button
               type="button"
               onClick={() => handleNavigate('/dashboard/appearance')}
-              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-white/90 hover:bg-white/10 transition-colors"
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-white/10 active:bg-white/15 transition-colors duration-150"
             >
-              <Palette className="h-4 w-4 text-white/70" />
+              <Palette className="h-4 w-4" />
               <span>المظهر</span>
             </button>
 
@@ -191,9 +190,9 @@ const ProfileMenu: React.FC = () => {
             <button
               type="button"
               onClick={() => handleNavigate('/dashboard/help')}
-              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-white/90 hover:bg-white/10 transition-colors"
+              className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-white/80 hover:text-white hover:bg-white/10 active:bg-white/15 transition-colors duration-150"
             >
-              <HelpCircle className="h-4 w-4 text-white/70" />
+              <HelpCircle className="h-4 w-4" />
               <span>المساعدة والدعم</span>
             </button>
           </div>

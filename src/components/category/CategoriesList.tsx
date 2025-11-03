@@ -65,8 +65,23 @@ const CategoriesList = ({ categories, onRefreshCategories }: CategoriesListProps
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>('grid');
+  const [isMobile, setIsMobile] = useState(false);
   const [hasSubcategories, setHasSubcategories] = useState(false);
+
+  // اكتشاف الشاشات الصغيرة
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+      if (window.innerWidth < 768) {
+        setViewMode('grid');
+      }
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   const handleView = (category: Category) => {
     setViewCategory(category);
@@ -198,46 +213,48 @@ const CategoriesList = ({ categories, onRefreshCategories }: CategoriesListProps
   return (
     <>
       <div className="bg-background rounded-lg border shadow-sm overflow-hidden">
-        <div className="flex justify-end p-2">
-          <div className="flex space-x-1 rounded-lg bg-muted p-1">
-            <Button
-              variant={viewMode === 'table' ? 'secondary' : 'ghost'}
-              size="sm"
-              className="text-xs"
-              onClick={() => setViewMode('table')}
-            >
-              جدول
-            </Button>
-            <Button
-              variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
-              size="sm"
-              className="text-xs"
-              onClick={() => setViewMode('grid')}
-            >
-              شبكة
-            </Button>
+        {!isMobile && (
+          <div className="flex justify-end p-3 border-b">
+            <div className="flex gap-1 rounded-lg bg-muted p-1">
+              <Button
+                variant={viewMode === 'table' ? 'secondary' : 'ghost'}
+                size="sm"
+                className="text-xs px-3"
+                onClick={() => setViewMode('table')}
+              >
+                جدول
+              </Button>
+              <Button
+                variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
+                size="sm"
+                className="text-xs px-3"
+                onClick={() => setViewMode('grid')}
+              >
+                شبكة
+              </Button>
+            </div>
           </div>
-        </div>
+        )}
         
-        {viewMode === 'table' ? (
-          <div className="overflow-auto">
+        {!isMobile && viewMode === 'table' ? (
+          <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>الفئة</TableHead>
-                  <TableHead>الوصف</TableHead>
-                  <TableHead>النوع</TableHead>
-                  <TableHead>الرابط</TableHead>
-                  <TableHead>تاريخ الإنشاء</TableHead>
-                  <TableHead>الحالة</TableHead>
-                  <TableHead className="text-left">إجراءات</TableHead>
+                  <TableHead className="min-w-[200px]">الفئة</TableHead>
+                  <TableHead className="hidden md:table-cell min-w-[200px]">الوصف</TableHead>
+                  <TableHead className="min-w-[100px]">النوع</TableHead>
+                  <TableHead className="hidden lg:table-cell min-w-[150px]">الرابط</TableHead>
+                  <TableHead className="hidden lg:table-cell min-w-[120px]">تاريخ الإنشاء</TableHead>
+                  <TableHead className="min-w-[100px]">الحالة</TableHead>
+                  <TableHead className="text-left min-w-[120px] sticky left-0 bg-background">إجراءات</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {categories.map((category) => (
                   <TableRow key={category.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
+                    <TableCell className="min-w-[200px]">
+                      <div className="flex items-center gap-2 sm:gap-3">
                         {category.image_url ? (
                           <Avatar className="h-9 w-9 rounded-md border border-muted">
                             <img src={category.image_url} alt={category.name} className="object-cover" width={128} height={96} />
@@ -253,12 +270,12 @@ const CategoriesList = ({ categories, onRefreshCategories }: CategoriesListProps
                         <div className="font-medium">{category.name}</div>
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell min-w-[200px]">
                       <div className="truncate max-w-[250px]">
                         {category.description || 'لا يوجد وصف'}
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="min-w-[100px]">
                       <Badge 
                         variant="outline" 
                         className={category.type === 'product' 
@@ -268,9 +285,9 @@ const CategoriesList = ({ categories, onRefreshCategories }: CategoriesListProps
                         {category.type === 'product' ? 'منتجات' : 'خدمات'}
                       </Badge>
                     </TableCell>
-                    <TableCell dir="ltr">{category.slug}</TableCell>
-                    <TableCell>{formatDate(category.created_at)}</TableCell>
-                    <TableCell>
+                    <TableCell dir="ltr" className="hidden lg:table-cell min-w-[150px]">{category.slug}</TableCell>
+                    <TableCell className="hidden lg:table-cell min-w-[120px]">{formatDate(category.created_at)}</TableCell>
+                    <TableCell className="min-w-[100px]">
                       <Badge 
                         variant={category.is_active ? "default" : "secondary"}
                         className={category.is_active 
@@ -280,11 +297,12 @@ const CategoriesList = ({ categories, onRefreshCategories }: CategoriesListProps
                         {category.is_active ? 'نشط' : 'غير نشط'}
                       </Badge>
                     </TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-end space-x-2">
+                    <TableCell className="sticky left-0 bg-background min-w-[120px]">
+                      <div className="flex items-center justify-end gap-1">
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="h-8 w-8"
                           onClick={() => handleView(category)}
                         >
                           <Eye className="h-4 w-4" />
@@ -293,19 +311,20 @@ const CategoriesList = ({ categories, onRefreshCategories }: CategoriesListProps
                         <Button
                           variant="ghost"
                           size="icon"
+                          className="h-8 w-8"
                           onClick={() => handleEdit(category)}
                         >
                           <Edit className="h-4 w-4" />
                           <span className="sr-only">تعديل</span>
                         </Button>
-                        <DropdownMenu>
+                        <DropdownMenu modal={false}>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
                               <MoreVertical className="h-4 w-4" />
                               <span className="sr-only">المزيد</span>
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
+                          <DropdownMenuContent align="end" side="bottom" sideOffset={5} className="z-50">
                             <DropdownMenuItem onClick={() => handleView(category)}>
                               <Eye className="ml-2 h-4 w-4" />
                               عرض التفاصيل
@@ -345,11 +364,11 @@ const CategoriesList = ({ categories, onRefreshCategories }: CategoriesListProps
             </Table>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 p-3 sm:p-4">
             {categories.map((category) => (
-              <Card key={category.id} className="overflow-hidden">
+              <Card key={category.id} className="overflow-hidden hover:shadow-lg transition-all">
                 {category.image_url ? (
-                  <div className="h-40 overflow-hidden bg-muted relative">
+                  <div className="h-40 sm:h-48 overflow-hidden bg-muted relative">
                     <img 
                       src={category.image_url} 
                       alt={category.name} 
@@ -365,7 +384,7 @@ const CategoriesList = ({ categories, onRefreshCategories }: CategoriesListProps
                     </Badge>
                   </div>
                 ) : (
-                  <div className="h-40 flex items-center justify-center bg-primary/10">
+                  <div className="h-40 sm:h-48 flex items-center justify-center bg-primary/10 relative">
                     {renderCategoryIcon(category.icon, "h-16 w-16 text-primary")}
                     <Badge 
                       variant={category.is_active ? "default" : "secondary"}
@@ -377,52 +396,77 @@ const CategoriesList = ({ categories, onRefreshCategories }: CategoriesListProps
                     </Badge>
                   </div>
                 )}
-                <CardHeader className="pb-2">
+                <CardHeader className="pb-3 space-y-2">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Badge 
-                        variant="outline" 
-                        className={category.type === 'product' 
-                          ? "bg-blue-50 text-blue-700 border-blue-200" 
-                          : "bg-purple-50 text-purple-700 border-purple-200"}
-                      >
-                        {category.type === 'product' ? 'منتجات' : 'خدمات'}
-                      </Badge>
-                    </div>
+                    <Badge 
+                      variant="outline" 
+                      className={category.type === 'product' 
+                        ? "bg-blue-50 text-blue-700 border-blue-200" 
+                        : "bg-purple-50 text-purple-700 border-purple-200"}
+                    >
+                      {category.type === 'product' ? 'منتجات' : 'خدمات'}
+                    </Badge>
                   </div>
-                  <CardTitle className="text-lg truncate">{category.name}</CardTitle>
-                  <CardDescription className="line-clamp-2 h-10">
+                  <CardTitle className="text-base sm:text-lg line-clamp-1">{category.name}</CardTitle>
+                  <CardDescription className="line-clamp-2 text-sm min-h-[2.5rem]">
                     {category.description || 'لا يوجد وصف'}
                   </CardDescription>
-                </CardHeader>
-                <CardFooter className="pt-0 flex justify-between">
-                  <div className="text-sm text-muted-foreground">
-                    {formatDate(category.created_at)}
+                  <div className="flex items-center gap-2 pt-1">
+                    <span className="text-xs text-muted-foreground">الرابط:</span>
+                    <code className="text-xs bg-muted px-2 py-0.5 rounded truncate" dir="ltr">{category.slug}</code>
                   </div>
-                  <div className="flex gap-1">
+                </CardHeader>
+                <CardFooter className="pt-0 flex flex-col gap-3">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>{formatDate(category.created_at)}</span>
+                  </div>
+                  
+                  {/* الأزرار الرئيسية */}
+                  <div className="grid grid-cols-2 gap-2">
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
+                      className="w-full text-xs h-9"
                       onClick={() => handleView(category)}
                     >
-                      <Eye className="h-4 w-4" />
-                      <span className="sr-only">عرض</span>
+                      <Eye className="ml-1 h-3.5 w-3.5" />
+                      عرض
                     </Button>
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
+                      className="w-full text-xs h-9"
                       onClick={() => handleEdit(category)}
                     >
-                      <Edit className="h-4 w-4" />
-                      <span className="sr-only">تعديل</span>
+                      <Edit className="ml-1 h-3.5 w-3.5" />
+                      تعديل
                     </Button>
                     <Button
-                      variant="ghost"
+                      variant={category.is_active ? "outline" : "default"}
                       size="sm"
+                      className="w-full text-xs h-9"
+                      onClick={() => handleToggleActive(category)}
+                    >
+                      {category.is_active ? (
+                        <>
+                          <FolderCog className="ml-1 h-3.5 w-3.5" />
+                          تعطيل
+                        </>
+                      ) : (
+                        <>
+                          <FolderPlus className="ml-1 h-3.5 w-3.5" />
+                          تفعيل
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      className="w-full text-xs h-9"
                       onClick={() => handleDelete(category)}
                     >
-                      <Trash2 className="h-4 w-4" />
-                      <span className="sr-only">حذف</span>
+                      <Trash2 className="ml-1 h-3.5 w-3.5" />
+                      حذف
                     </Button>
                   </div>
                 </CardFooter>

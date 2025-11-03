@@ -9,6 +9,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useTenant } from '@/context/TenantContext';
 import { useAuth } from '@/context/AuthContext';
 import { subscriptionCache, SubscriptionData } from '@/lib/subscription-cache';
+import SubscriptionExpiredPage from './SubscriptionExpiredPage';
 
 interface SubscriptionCheckProps {
   children: React.ReactNode;
@@ -51,14 +52,14 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
   const location = useLocation();
   const [isChecking, setIsChecking] = useState(false);
   const [subscriptionData, setSubscriptionData] = useState<SubscriptionData | null>(null);
-  const [showExpiredWarning, setShowExpiredWarning] = useState(false);
   const checkTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const hasCheckedRef = useRef(false);
   const lastCheckTimeRef = useRef<number>(0);
 
-  // تجاهل التحقق في صفحة الاشتراك
-  const isSubscriptionPage = useMemo(() => 
-    location.pathname.includes('/dashboard/subscription'),
+  // تجاهل التحقق في صفحات الاشتراك والإعدادات
+  const isSubscriptionPage = useMemo(() =>
+    location.pathname.includes('/subscription') ||
+    location.pathname.includes('/settings'),
     [location.pathname]
   );
 
@@ -144,26 +145,27 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
         
         setSubscriptionData(subscription);
 
-        // التحقق من صحة الاشتراك
+        // ✅ التحقق من صحة الاشتراك - لا نسمح بالوصول إذا لم تكن البيانات صالحة
         if (!subscription.success) {
-          // في حالة الخطأ، لا نعيد التوجيه - نسمح بالوصول
+          // ⚠️ في حالة الخطأ، نعيد التوجيه إلى صفحة الاشتراك
+          if (!isSubscriptionPage) {
+            navigate('/dashboard/subscription', { replace: true });
+          }
           return;
         }
 
-        // إذا كان الاشتراك منتهي الصلاحية
-        if (subscription.status === 'expired' || subscription.days_left <= 0) {
-          if (organization?.subscription_status === 'pending' || subscription.status === 'pending') {
+        // ✅ إذا كان الاشتراك منتهي الصلاحية - منع الوصول تماماً
+        if (subscription.status === 'expired' || subscription.status === 'canceled' || subscription.days_left <= 0) {
+          // ✅ السماح فقط للاشتراكات المعلقة (pending) - في انتظار التفعيل
+          if (subscription.status === 'pending') {
             // نسمح للمستخدمين بالاستمرار أثناء انتظار التفعيل
             return;
           }
-          
-          // إذا كان المستخدم في صفحة نقطة البيع والمستخدم موظف، أبقه هناك مع تحذير
-          if (location.pathname === '/pos' && user?.role === 'employee') {
-            setShowExpiredWarning(true);
-            return;
+
+          // ⚠️ منع الوصول لجميع الصفحات ما عدا صفحة الاشتراك
+          if (!isSubscriptionPage) {
+            navigate('/dashboard/subscription', { replace: true });
           }
-          
-          navigate('/dashboard/subscription', { replace: true });
           return;
         }
 
@@ -241,35 +243,24 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
     return <>{children}</>;
   }
 
-  // إذا تم فحص الاشتراك وكان صالح، اعرض المحتوى
-  if (subscriptionData && subscriptionData.success && 
-      (subscriptionData.status === 'active' || subscriptionData.status === 'trial') &&
+  // ✅ إذا تم فحص الاشتراك وكان صالح، اعرض المحتوى
+  if (subscriptionData && subscriptionData.success &&
+      (subscriptionData.status === 'active' || subscriptionData.status === 'trial' || subscriptionData.status === 'pending') &&
       subscriptionData.days_left > 0) {
     return <>{children}</>;
   }
 
-  // في جميع الحالات الأخرى، اعرض المحتوى (لا نحجب المستخدم)
-  // الإعادة إلى صفحة الاشتراك تتم عبر navigate في useEffect
-  return (
-    <>
-      {/* تحذير للموظفين عند انتهاء الاشتراك */}
-      {showExpiredWarning && location.pathname === '/pos' && user?.role === 'employee' && (
-        <div className="fixed top-0 left-0 right-0 bg-red-600 text-white p-3 text-center z-50 shadow-lg">
-          <div className="flex items-center justify-center gap-2">
-            <span className="animate-pulse">⚠️</span>
-            <span className="font-medium">تنبيه: اشتراك المؤسسة منتهي الصلاحية - يرجى التواصل مع المدير</span>
-            <button 
-              onClick={() => setShowExpiredWarning(false)}
-              className="mr-4 px-2 py-1 bg-red-700 hover:bg-red-800 rounded text-sm"
-            >
-              إخفاء
-            </button>
-          </div>
-        </div>
-      )}
-      {children}
-    </>
-  );
+  // ✅ إذا تم فحص الاشتراك وكان منتهي أو ملغي - منع الوصول
+  if (subscriptionData &&
+      (subscriptionData.status === 'expired' || subscriptionData.status === 'canceled' || subscriptionData.days_left <= 0)) {
+    // ✅ عرض رسالة للمستخدم أن الاشتراك منتهي
+    if (!isSubscriptionPage) {
+      return <SubscriptionExpiredPage onNavigateToSubscription={() => navigate('/dashboard/subscription', { replace: true })} />;
+    }
+  }
+
+  // ✅ في حالة عدم وجود بيانات بعد - عرض المحتوى مؤقتاً (سيتم التحقق لاحقاً في useEffect)
+  return <>{children}</>;
 };
 
 export default SubscriptionCheck;

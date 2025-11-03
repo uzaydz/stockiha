@@ -752,7 +752,7 @@ const POSAdvanced = () => {
       <div className="relative flex flex-col min-h-screen gap-3 bg-transparent">
 
         {/* الهيدر */}
-        <div className="ml-80 xl:ml-[340px] 2xl:ml-[360px]">
+        <div className="lg:ml-80 xl:ml-[340px] 2xl:ml-[360px]">
           <POSAdvancedHeader
             isReturnMode={isReturnMode}
             returnItemsCount={returnItems.length}
@@ -768,7 +768,7 @@ const POSAdvanced = () => {
         {/* المحتوى الأساسي */}
         <div className="flex flex-col lg:flex-row gap-0 w-full pb-4">
           {/* منطقة المنتجات والاشتراكات */}
-          <div className="flex-1 flex flex-col min-w-0 ml-80 xl:ml-[340px] 2xl:ml-[360px]">
+          <div className="flex-1 flex flex-col min-w-0 lg:ml-80 xl:ml-[340px] 2xl:ml-[360px]">
             <Suspense fallback={<Skeleton className="h-full w-full" />}>
               <div className="w-full bg-background">
                 <POSAdvancedContent
@@ -822,8 +822,8 @@ const POSAdvanced = () => {
           </div>
         </div>
 
-        {/* السلة الذكية - كاملة مثل القائمة الجانبية */}
-        <div className="fixed left-2 w-80 xl:w-[340px] 2xl:w-[360px] z-20" style={{ top: 'calc(var(--titlebar-height, 48px) + 0.25rem)', bottom: '1rem' }}>
+        {/* السلة الذكية - كاملة مثل القائمة الجانبية - مخفية على الهاتف */}
+        <div className="hidden lg:block fixed left-2 w-80 xl:w-[340px] 2xl:w-[360px] z-20" style={{ top: 'calc(var(--titlebar-height, 48px) + 0.25rem)', bottom: '1rem' }}>
           <Suspense fallback={<Skeleton className="h-full w-full" />}>
             <div className="h-full w-full bg-background overflow-hidden rounded-lg border border-border/40 shadow-2xl">
               <POSAdvancedCart
@@ -891,7 +891,7 @@ const POSAdvanced = () => {
       {isCompactLayout && typeof document !== 'undefined' && createPortal(
         (
           <div
-            className="fixed inset-x-0 bottom-0 z-[10000] px-3 pb-3"
+            className="fixed inset-x-0 bottom-0 z-40 px-3 pb-3"
             style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}
           >
             <div className="flex items-end gap-2">
@@ -1113,6 +1113,7 @@ const POSAdvanced = () => {
         onOpenChange={keyboardShortcuts.setIsHelpOpen}
         shortcuts={keyboardShortcuts.shortcuts}
       />
+
     </POSPureLayout>
   );
 };

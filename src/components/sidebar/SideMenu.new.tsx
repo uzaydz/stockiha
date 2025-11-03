@@ -28,7 +28,16 @@ const SideMenu: React.FC<SideMenuProps> = ({ userRole, userPermissions }) => {
 
   const handleLogout = () => {
     signOut();
-    window.location.href = '/login';
+    try {
+      const isElectron = typeof window !== 'undefined' && window.navigator?.userAgent?.includes('Electron');
+      if (isElectron) {
+        window.location.hash = '#/login';
+      } else {
+        window.location.href = '/login';
+      }
+    } catch {
+      window.location.href = '/login';
+    }
   };
 
   // إزالة معالجة القوائم المنبثقة - لا حاجة لها بعد إزالة الطي

@@ -4,9 +4,7 @@
 /* Lines: 178 | Size: 6289 bytes */
 
 /* 🎨 تحميل خطوط Tajawal محلياً - أداء أفضل + لا Render Blocking */
-@import "@fontsource/tajawal/400.css";
-@import "@fontsource/tajawal/500.css"; 
-@import "@fontsource/tajawal/700.css";
+ 
 
 /* استيراد ملفات CSS الإضافية */
 @import './components/landing-page-builder/styles/cta-button.css';
@@ -18,9 +16,7 @@
   font-style: normal;
   font-weight: 400;
   font-display: swap; /* تغيير إلى swap لتجنب حجب النص وتحسين LCP/CLS */
-  src: url('/fonts/tajawal-regular.woff2') format('woff2'),
-       url('./fonts/tajawal-regular.woff2') format('woff2'),
-       url('../public/fonts/tajawal-regular.woff2') format('woff2');
+  src: url('/fonts/tajawal-regular.woff2') format('woff2');
 }
 
 @font-face {
@@ -28,9 +24,7 @@
   font-style: normal;
   font-weight: 500;
   font-display: swap;
-  src: url('/fonts/tajawal-medium.woff2') format('woff2'),
-       url('./fonts/tajawal-medium.woff2') format('woff2'),
-       url('../public/fonts/tajawal-medium.woff2') format('woff2');
+  src: url('/fonts/tajawal-medium.woff2') format('woff2');
 }
 
 @font-face {
@@ -38,9 +32,7 @@
   font-style: normal;
   font-weight: 700;
   font-display: swap;
-  src: url('/fonts/tajawal-bold.woff2') format('woff2'),
-       url('./fonts/tajawal-bold.woff2') format('woff2'),
-       url('../public/fonts/tajawal-bold.woff2') format('woff2');
+  src: url('/fonts/tajawal-bold.woff2') format('woff2');
 }
 
 @font-face {
@@ -48,9 +40,7 @@
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url('/fonts/tajawal-regular.woff2') format('woff2'),
-       url('./fonts/tajawal-regular.woff2') format('woff2'),
-       url('../public/fonts/tajawal-regular.woff2') format('woff2');
+  src: url('/fonts/tajawal-regular.woff2') format('woff2');
 }
 
 @font-face {
@@ -58,9 +48,7 @@
   font-style: normal;
   font-weight: 500;
   font-display: swap;
-  src: url('/fonts/tajawal-medium.woff2') format('woff2'),
-       url('./fonts/tajawal-medium.woff2') format('woff2'),
-       url('../public/fonts/tajawal-medium.woff2') format('woff2');
+  src: url('/fonts/tajawal-medium.woff2') format('woff2');
 }
 
 @font-face {
@@ -68,9 +56,7 @@
   font-style: normal;
   font-weight: 700;
   font-display: swap;
-  src: url('/fonts/tajawal-bold.woff2') format('woff2'),
-       url('./fonts/tajawal-bold.woff2') format('woff2'),
-       url('../public/fonts/tajawal-bold.woff2') format('woff2');
+  src: url('/fonts/tajawal-bold.woff2') format('woff2');
 }
 
 /* 🚀 تطبيق أساسي للخطوط العربية */

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import { usePermissions } from '@/hooks/usePermissions';
 import { 
   SupplierPurchase, 
   Supplier, 
@@ -70,6 +71,7 @@ interface SupplierPurchasesListProps {
 export function SupplierPurchasesList({ onPurchaseCreate, refreshTrigger }: SupplierPurchasesListProps = {}) {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const perms = usePermissions();
   const { toast } = useToast();
   const [organizationId, setOrganizationId] = useState<string | undefined>(undefined);
   
@@ -82,6 +84,11 @@ export function SupplierPurchasesList({ onPurchaseCreate, refreshTrigger }: Supp
   const [statusFilter, setStatusFilter] = useState('all');
   const [dateFilter, setDateFilter] = useState('all');
   const [selectedSupplierId, setSelectedSupplierId] = useState('all');
+  // Permissions: view-only vs manage
+  const canCreatePurchase = perms.ready ? perms.anyOf(['canCreatePurchase','canManagePurchases']) : false;
+  const canEditPurchase = perms.ready ? perms.anyOf(['canEditPurchase','canManagePurchases']) : false;
+  const canDeletePurchase = perms.ready ? perms.anyOf(['canDeletePurchase','canManagePurchases']) : false;
+  const canRecordSupplierPayment = perms.ready ? perms.anyOf(['canRecordSupplierPayment','canManageSupplierPayments']) : false;
   
   // حالات جديدة للدفعات والتأكيدات
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
@@ -242,8 +249,18 @@ export function SupplierPurchasesList({ onPurchaseCreate, refreshTrigger }: Supp
     const purchase = purchases.find(p => p.id === purchaseId);
     if (!purchase) return;
 
+    // صلاحيات: تعديل الحالة يحتاج صلاحية تعديل المشتريات
+    if (newStatus !== 'paid' && !canEditPurchase) {
+      toast({ title: 'غير مصرح', description: 'لا تملك صلاحية تعديل حالة المشتريات', variant: 'destructive' });
+      return;
+    }
+
     // إظهار تأكيد للحالات الحساسة
     if (newStatus === 'paid') {
+      if (!canRecordSupplierPayment || !canEditPurchase) {
+        toast({ title: 'غير مصرح', description: 'لا تملك صلاحية تسجيل دفعة/تسديد كامل', variant: 'destructive' });
+        return;
+      }
       setConfirmationDialog({
         open: true,
         title: 'تأكيد الدفع الكامل',
@@ -297,6 +314,10 @@ export function SupplierPurchasesList({ onPurchaseCreate, refreshTrigger }: Supp
   // معالجة الدفع الكامل
   const handleFullPayment = async (purchase: SupplierPurchase) => {
     if (!organizationId || purchase.balance_due <= 0) return;
+    if (!canRecordSupplierPayment || !canEditPurchase) {
+      toast({ title: 'غير مصرح', description: 'لا تملك صلاحية تسجيل دفعة/تسديد كامل', variant: 'destructive' });
+      return;
+    }
 
     setProcessingPayment(purchase.id);
     try {
@@ -345,6 +366,10 @@ export function SupplierPurchasesList({ onPurchaseCreate, refreshTrigger }: Supp
 
   // فتح حوار الدفع لمشتريات محددة
   const handleAddPayment = (purchase: SupplierPurchase) => {
+    if (!canRecordSupplierPayment) {
+      toast({ title: 'غير مصرح', description: 'لا تملك صلاحية تسجيل دفعات موردين', variant: 'destructive' });
+      return;
+    }
     setSelectedPurchaseForPayment(purchase);
     setPaymentDialogOpen(true);
   };
@@ -421,6 +446,10 @@ export function SupplierPurchasesList({ onPurchaseCreate, refreshTrigger }: Supp
 
   const performDeletePurchase = async (purchaseId: string) => {
     if (!organizationId) return;
+    if (!canDeletePurchase) {
+      toast({ title: 'غير مصرح', description: 'لا تملك صلاحية حذف المشتريات', variant: 'destructive' });
+      return;
+    }
     
     setDeletingPurchase(purchaseId);
     
@@ -544,6 +573,7 @@ export function SupplierPurchasesList({ onPurchaseCreate, refreshTrigger }: Supp
               <RefreshCw className={`h-4 w-4 ml-2 ${isRefreshing ? 'animate-spin' : ''}`} />
               تحديث
             </Button>
+            {canCreatePurchase && (
             <Button onClick={() => {
             
             try {
@@ -569,6 +599,7 @@ export function SupplierPurchasesList({ onPurchaseCreate, refreshTrigger }: Supp
             <Plus className="h-4 w-4 ml-2" />
             إضافة مشتريات
           </Button>
+            )}
           </div>
         </div>
       </CardHeader>
@@ -647,7 +678,7 @@ export function SupplierPurchasesList({ onPurchaseCreate, refreshTrigger }: Supp
                 : 'لم يتم إنشاء أي مشتريات بعد'
               }
             </p>
-            {(!searchQuery && statusFilter === 'all' && selectedSupplierId === 'all') && (
+            {(!searchQuery && statusFilter === 'all' && selectedSupplierId === 'all' && canCreatePurchase) && (
               <Button onClick={() => navigate('/dashboard/suppliers/purchases/new')}>
                 <Plus className="h-4 w-4 ml-2" />
                 إضافة مشتريات جديدة
@@ -700,6 +731,7 @@ export function SupplierPurchasesList({ onPurchaseCreate, refreshTrigger }: Supp
                       <div className="flex gap-1">
                         {purchase.balance_due > 0 && purchase.status !== 'cancelled' && (
                           <>
+                            {canRecordSupplierPayment && (
                             <Button
                               size="sm"
                               variant="outline"
@@ -709,6 +741,8 @@ export function SupplierPurchasesList({ onPurchaseCreate, refreshTrigger }: Supp
                             >
                               <CreditCard className="h-3 w-3" />
                             </Button>
+                            )}
+                            {canEditPurchase && (
                             <Button
                               size="sm"
                               variant="default"
@@ -723,6 +757,7 @@ export function SupplierPurchasesList({ onPurchaseCreate, refreshTrigger }: Supp
                                 <DollarSign className="h-3 w-3" />
                               )}
                             </Button>
+                            )}
                           </>
                         )}
                       </div>
@@ -741,7 +776,7 @@ export function SupplierPurchasesList({ onPurchaseCreate, refreshTrigger }: Supp
                             <Eye className="ml-2 h-4 w-4" />
                             <span>عرض التفاصيل</span>
                           </DropdownMenuItem>
-                          {purchase.status !== 'cancelled' && (
+                          {purchase.status !== 'cancelled' && canEditPurchase && (
                             <DropdownMenuItem onClick={() => navigate(`/dashboard/suppliers/purchases/${purchase.id}/edit`)}>
                               <FileEdit className="ml-2 h-4 w-4" />
                               <span>تعديل</span>
@@ -749,7 +784,7 @@ export function SupplierPurchasesList({ onPurchaseCreate, refreshTrigger }: Supp
                           )}
                           
                           {/* خيارات الدفع */}
-                          {purchase.balance_due > 0 && purchase.status !== 'cancelled' && (
+                          {purchase.balance_due > 0 && purchase.status !== 'cancelled' && canRecordSupplierPayment && (
                             <>
                               <DropdownMenuSeparator />
                               <DropdownMenuLabel>إدارة المدفوعات</DropdownMenuLabel>
@@ -757,10 +792,12 @@ export function SupplierPurchasesList({ onPurchaseCreate, refreshTrigger }: Supp
                                 <CreditCard className="ml-2 h-4 w-4 text-blue-600" />
                                 <span>إضافة دفعة</span>
                               </DropdownMenuItem>
+                              {canEditPurchase && (
                               <DropdownMenuItem onClick={() => handleStatusChange(purchase.id, 'paid')}>
                                 <CheckCircle2 className="ml-2 h-4 w-4 text-green-600" />
                                 <span>تسديد كامل ({purchase.balance_due.toFixed(2)} دج)</span>
                               </DropdownMenuItem>
+                              )}
                             </>
                           )}
                           
@@ -768,19 +805,19 @@ export function SupplierPurchasesList({ onPurchaseCreate, refreshTrigger }: Supp
                           
                           {/* خيارات تغيير الحالة */}
                           <DropdownMenuLabel>تغيير الحالة</DropdownMenuLabel>
-                          {purchase.status !== 'confirmed' && purchase.status !== 'cancelled' && (
+                          {purchase.status !== 'confirmed' && purchase.status !== 'cancelled' && canEditPurchase && (
                             <DropdownMenuItem onClick={() => handleStatusChange(purchase.id, 'confirmed')}>
                               <ClipboardCheck className="ml-2 h-4 w-4 text-green-600" />
                               <span>تأكيد الطلب</span>
                             </DropdownMenuItem>
                           )}
-                          {purchase.status !== 'overdue' && purchase.balance_due > 0 && purchase.status !== 'cancelled' && (
+                          {purchase.status !== 'overdue' && purchase.balance_due > 0 && purchase.status !== 'cancelled' && canEditPurchase && (
                             <DropdownMenuItem onClick={() => handleStatusChange(purchase.id, 'overdue')}>
                               <AlertCircle className="ml-2 h-4 w-4 text-amber-600" />
                               <span>تأخير الدفع</span>
                             </DropdownMenuItem>
                           )}
-                          {purchase.status !== 'cancelled' && (
+                          {purchase.status !== 'cancelled' && canEditPurchase && (
                             <DropdownMenuItem onClick={() => handleStatusChange(purchase.id, 'cancelled')}>
                               <BanIcon className="ml-2 h-4 w-4 text-red-600" />
                               <span>إلغاء الطلب</span>
@@ -788,7 +825,7 @@ export function SupplierPurchasesList({ onPurchaseCreate, refreshTrigger }: Supp
                           )}
                           
                           {/* خيار حذف المشتريات */}
-                          {(['draft', 'confirmed'].includes(purchase.status)) && (
+                          {(['draft', 'confirmed'].includes(purchase.status)) && canDeletePurchase && (
                             <>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem 

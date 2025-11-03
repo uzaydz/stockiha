@@ -72,19 +72,17 @@ export const DEFAULT_EMPLOYEE_PERMISSIONS: Partial<EmployeePermissions> = {
   editProducts: false,
   deleteProducts: false,
   manageInventory: false,
+  manageProductCategories: false,
   
   // الطلبات
   viewOrders: true,
-  addOrders: true,
-  editOrders: false,
-  deleteOrders: false,
-  processOrders: false,
+  viewPOSOrders: false,
+  updateOrderStatus: false,
+  cancelOrders: false,
   
   // العملاء
   viewCustomers: true,
-  addCustomers: true,
-  editCustomers: false,
-  deleteCustomers: false,
+  manageCustomers: false,
   
   // التقارير
   viewReports: false,
@@ -141,15 +139,13 @@ export const getPermissionDisplayName = (permission: keyof EmployeePermissions):
     deleteProducts: 'حذف المنتجات',
     viewInventory: 'عرض المخزون',
     manageInventory: 'إدارة المخزون',
+    manageProductCategories: 'إدارة فئات المنتجات',
     viewOrders: 'عرض الطلبات',
-    addOrders: 'إضافة طلبات',
-    editOrders: 'تعديل الطلبات',
-    deleteOrders: 'حذف الطلبات',
-    processOrders: 'معالجة الطلبات',
+    viewPOSOrders: 'عرض طلبات نقطة البيع',
+    updateOrderStatus: 'تحديث حالة الطلب',
+    cancelOrders: 'إلغاء الطلبات',
     viewCustomers: 'عرض العملاء',
-    addCustomers: 'إضافة عملاء',
-    editCustomers: 'تعديل العملاء',
-    deleteCustomers: 'حذف العملاء',
+    manageCustomers: 'إدارة العملاء',
     manageEmployees: 'إدارة الموظفين',
   };
   

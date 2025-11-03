@@ -4,6 +4,9 @@ import { useIsAppEnabled, useSuperUnifiedData } from '@/context/SuperUnifiedData
 import EnhancedLoader from '@/components/EnhancedLoader';
 import { GameDownloadsApp } from '@/components/apps/game-downloads';
 import { POSLayoutState, RefreshHandler } from '@/components/pos-layout/types';
+import { usePermissions } from '@/hooks/usePermissions';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { ShieldAlert } from 'lucide-react';
 
 interface GameDownloadsPageProps {
   useStandaloneLayout?: boolean;
@@ -18,6 +21,7 @@ const GameDownloadsPage: React.FC<GameDownloadsPageProps> = ({
 }) => {
   const { isLoading } = useSuperUnifiedData();
   const isAppEnabled = useIsAppEnabled('game-downloads');
+  const perms = usePermissions();
 
   // تسجيل دالة التحديث للـ Layout
   useEffect(() => {
@@ -47,7 +51,17 @@ const GameDownloadsPage: React.FC<GameDownloadsPageProps> = ({
 
   const content = (
     <>
-      {isLoading ? (
+      {perms.ready && !perms.anyOf(['viewServices','manageServices']) ? (
+        <div className="flex items-center justify-center h-64">
+          <div className="max-w-xl w-full">
+            <Alert variant="destructive">
+              <ShieldAlert className="h-4 w-4" />
+              <AlertTitle>غير مصرح</AlertTitle>
+              <AlertDescription>لا تملك صلاحية الوصول إلى تطبيق تحميل الألعاب.</AlertDescription>
+            </Alert>
+          </div>
+        </div>
+      ) : isLoading ? (
         <div className="flex items-center justify-center h-64">
           <EnhancedLoader text="جاري تحميل تطبيق الألعاب..." />
         </div>

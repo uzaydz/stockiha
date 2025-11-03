@@ -65,38 +65,67 @@ const AppInitializationContext = createContext<AppInitializationContextType | un
 // ============================================================================
 
 export const AppInitializationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user: authUser } = useAuth();
-  
+  const { user: authUser, userProfile } = useAuth();
+
   const [data, setData] = useState<AppInitializationData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+  const [hasCheckedProfile, setHasCheckedProfile] = useState(false);
 
   /**
    * جلب البيانات من الخادم
    */
   const fetchData = useCallback(async (forceRefresh: boolean = false) => {
+    console.log('[AppInitialization] fetchData called:', {
+      hasAuthUser: !!authUser?.id,
+      userProfileStatus: userProfile === undefined ? 'undefined' : userProfile === null ? 'null' : 'loaded',
+      isSuperAdmin: userProfile?.is_super_admin,
+      isInitialized
+    });
+
     if (!authUser?.id) {
       console.log('⏸️ [AppInitialization] لا يوجد مستخدم مسجل');
       setIsLoading(false);
       return;
     }
 
+    // انتظار تحميل userProfile قبل المتابعة
+    // ملاحظة: userProfile يكون undefined أو null قبل التحميل
+    if (userProfile === undefined || userProfile === null) {
+      console.log('⏳ [AppInitialization] في انتظار تحميل userProfile...');
+      return;
+    }
+
+    // تخطي التحميل للسوبر أدمين - ليس لديهم organization
+    if (userProfile?.is_super_admin) {
+      console.log('👑 [AppInitialization] تخطي التحميل للسوبر أدمين');
+      setIsLoading(false);
+      setIsInitialized(true);
+      return;
+    }
+
+    // التأكد من عدم جلب البيانات مرة أخرى إذا كانت موجودة بالفعل
+    if (isInitialized && !forceRefresh) {
+      console.log('✅ [AppInitialization] البيانات موجودة بالفعل، تخطي الجلب');
+      return;
+    }
+
     try {
       setIsLoading(true);
       setError(null);
-      
+
       console.log('🚀 [AppInitialization] بدء جلب البيانات...');
-      
+
       const appData = forceRefresh
         ? await refreshAppInitializationData(authUser.id)
         : await getAppInitializationData(authUser.id);
-      
+
       setData(appData);
       setIsInitialized(true);
-      
+
       console.log('✅ [AppInitialization] تم جلب البيانات بنجاح');
-      
+
     } catch (err) {
       const error = err as Error;
       console.error('❌ [AppInitialization] خطأ في جلب البيانات:', error);
@@ -104,16 +133,29 @@ export const AppInitializationProvider: React.FC<{ children: React.ReactNode }> 
     } finally {
       setIsLoading(false);
     }
-  }, [authUser?.id]);
+  }, [authUser?.id, userProfile, isInitialized]);
+
+  /**
+   * تحديث حالة hasCheckedProfile عندما يتم تحميل userProfile
+   */
+  useEffect(() => {
+    // userProfile محمل عندما لا يكون undefined ولا null
+    if (userProfile !== undefined && userProfile !== null && !hasCheckedProfile) {
+      console.log('✅ [AppInitialization] تم تحميل userProfile، جاهز للمتابعة');
+      setHasCheckedProfile(true);
+    }
+  }, [userProfile, hasCheckedProfile]);
 
   /**
    * تحميل البيانات عند تسجيل الدخول
+   * ملاحظة: ننتظر حتى يتم تحميل userProfile قبل محاولة جلب البيانات
    */
   useEffect(() => {
-    if (authUser?.id && !isInitialized) {
+    // التأكد من وجود authUser وأن userProfile قد تم تحميله وأننا لم نقم بالتهيئة بعد
+    if (authUser?.id && hasCheckedProfile && !isInitialized) {
       fetchData(false);
     }
-  }, [authUser?.id, isInitialized, fetchData]);
+  }, [authUser?.id, hasCheckedProfile, isInitialized, fetchData]);
 
   /**
    * إعادة تحميل البيانات

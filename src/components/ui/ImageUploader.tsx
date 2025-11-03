@@ -702,6 +702,27 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
       setUploadProgress(50);
       setUploadStage('uploading');
 
+      // إذا كنا أوفلاين، خزّن الصورة محلياً وتخطّ الرفع
+      const offline = typeof navigator !== 'undefined' ? !navigator.onLine : false;
+      if (offline) {
+        const base64 = await convertImageToBase64(compressedFile);
+        const localKey = `local_img_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+        try { localStorage.setItem(localKey, base64); } catch {}
+        if (isMountedRef.current) {
+          setPreview(base64);
+          setUploadedImageUrl(`local:${localKey}`);
+        }
+        if (!disableAutoCallback && isMountedRef.current) {
+          onImageUploaded(`local:${localKey}`);
+        }
+        if (isMountedRef.current) {
+          toast({ title: 'تم حفظ الصورة محليًا', description: 'سيتم رفعها عند الاتصال بالإنترنت' });
+        }
+        setUploadProgress(100);
+        setUploadStage('complete');
+        return;
+      }
+
       // إنشاء مسار الملف مع تنظيف الاسم
       const fileExtension = compressedFile.name.split('.').pop();
 
@@ -770,6 +791,28 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
       
       console.error('❌ خطأ نهائي في رفع الصورة:', error);
       
+      // كحل أوفلاين: في حال فشل الرفع لأي سبب، خزّن الصورة محليًا كنسخة احتياطية
+      try {
+        const inputEl = event?.target as HTMLInputElement | undefined;
+        const f = inputEl?.files?.[0] || null;
+        if (f) {
+          const base64 = await convertImageToBase64(f);
+          const localKey = `local_img_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+          try { localStorage.setItem(localKey, base64); } catch {}
+          if (isMountedRef.current) {
+            setPreview(base64);
+            setUploadedImageUrl(`local:${localKey}`);
+          }
+          if (!disableAutoCallback && isMountedRef.current) {
+            onImageUploaded(`local:${localKey}`);
+          }
+          if (isMountedRef.current) {
+            toast({ title: 'تم حفظ الصورة محليًا', description: 'تعذر الرفع الآن، سنحاول لاحقًا' });
+          }
+          return;
+        }
+      } catch {}
+
       // معالجة أخطاء المصادقة بشكل خاص
       if (error.message?.includes('تسجيل الدخول') || 
           error.message?.includes('مصادقة') ||

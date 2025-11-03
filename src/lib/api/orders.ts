@@ -9,24 +9,36 @@ export type UpdateOrder = Database['public']['Tables']['orders']['Update'];
 export type OrderItem = Database['public']['Tables']['order_items']['Row'];
 export type InsertOrderItem = Database['public']['Tables']['order_items']['Insert'];
 
-export const getOrders = async (organizationId?: string): Promise<Order[]> => {
+export const getOrders = async (
+  organizationId?: string,
+  page: number = 1,
+  limit: number = 50,
+  status?: string,
+  search?: string
+): Promise<any[]> => {
   try {
     if (!organizationId) {
       return [];
     }
 
+    // استخدام RPC المحسنة
     const { data, error } = await supabase
-      .from('orders')
-      .select('*')
-      .eq('organization_id', organizationId)
-      .order('created_at', { ascending: false });
+      .rpc('get_orders_optimized', {
+        p_organization_id: organizationId,
+        p_page: page,
+        p_limit: limit,
+        p_status: status || null,
+        p_search: search || null
+      });
 
     if (error) {
+      console.error('Error fetching orders:', error);
       throw error;
     }
 
     return data || [];
   } catch (error) {
+    console.error('Error in getOrders:', error);
     return [];
   }
 };
@@ -45,18 +57,25 @@ export const getOrdersByCustomerId = async (customerId: string): Promise<Order[]
   return data;
 };
 
-export const getOrderById = async (id: string): Promise<Order | null> => {
-  const { data, error } = await supabase
-    .from('orders')
-    .select('*')
-    .eq('id', id)
-    .single();
+export const getOrderById = async (id: string): Promise<any | null> => {
+  try {
+    // استخدام RPC المحسنة لجلب تفاصيل الطلب مع المنتجات
+    const { data, error } = await supabase
+      .rpc('get_order_details_optimized', {
+        p_order_id: id
+      })
+      .single();
 
-  if (error) {
-    throw error;
+    if (error) {
+      console.error('Error fetching order details:', error);
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in getOrderById:', error);
+    return null;
   }
-
-  return data;
 };
 
 export const getOrderItems = async (orderId: string): Promise<OrderItem[]> => {

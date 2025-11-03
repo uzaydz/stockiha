@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { checkPermission } from '@/components/sidebar/utils';
 import { useAuth } from '@/context/AuthContext';
 import { loadUserDataFromStorage } from '@/context/auth/utils/authStorage';
 import { isAppOnline, markNetworkOffline, markNetworkOnline } from '@/utils/networkStatus';
@@ -174,13 +175,10 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const message = isNetworkError(e) ? 'network_offline' : e?.message || 'Failed to load permissions';
       setError(message);
 
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('[PermissionsProvider] Falling back to local metadata with read-only access due to RPC error:', message);
-      }
-
       try {
         const saved = loadUserDataFromStorage();
         const fallbackProfile = saved?.userProfile;
+        const permissions = (fallbackProfile?.permissions || {}) as any;
         const fallback: UnifiedPermissionsData = {
           user_id: fallbackProfile?.id || user?.id || '',
           auth_user_id: fallbackProfile?.id || user?.id || '',
@@ -191,14 +189,14 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
           is_active: true,
           is_org_admin: Boolean(fallbackProfile?.role === 'org_admin'),
           is_super_admin: Boolean(fallbackProfile?.role === 'super_admin'),
-          has_inventory_access: fallbackProfile?.permissions?.viewInventory || false,
-          can_manage_products: fallbackProfile?.permissions?.manageProducts || false,
-          can_view_reports: fallbackProfile?.permissions?.viewReports || false,
-          can_manage_users: fallbackProfile?.permissions?.manageUsers || false,
-          can_manage_orders: fallbackProfile?.permissions?.manageOrders || false,
-          can_access_pos: fallbackProfile?.permissions?.accessPOS || false,
-          can_manage_settings: fallbackProfile?.permissions?.manageSettings || false,
-          permissions: fallbackProfile?.permissions || {},
+          has_inventory_access: permissions.viewInventory || false,
+          can_manage_products: permissions.manageProducts || false,
+          can_view_reports: permissions.viewReports || false,
+          can_manage_users: permissions.manageUsers || false,
+          can_manage_orders: permissions.manageOrders || false,
+          can_access_pos: permissions.accessPOS || false,
+          can_manage_settings: permissions.manageSettings || false,
+          permissions: permissions,
         };
 
         setData(fallback);
@@ -208,9 +206,7 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
           setError('network_offline');
         }
       } catch (metaError) {
-        if (process.env.NODE_ENV === 'development') {
-          console.error('[PermissionsProvider] Failed to build read-only fallback from metadata:', metaError);
-        }
+        // Fallback failed
       }
     } finally {
       setLoading(false);
@@ -230,27 +226,15 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, [user?.id, fetchUnified]);
 
   const has = useCallback((permission: string) => {
-    console.log('🔍 [PermissionsContext.has] التحقق من الصلاحية:', {
-      permission,
-      hasData: !!data,
-      dataPermissions: data?.permissions,
-      dataPermissionsAccessPOS: data?.permissions?.accessPOS,
-      dataPermissionsType: typeof data?.permissions,
-      canAccessPos: data?.can_access_pos,
-    });
-    
     if (!data) {
-      console.log('❌ [PermissionsContext.has] لا توجد بيانات');
       return false;
     }
     
     if (data.is_super_admin) {
-      console.log('✅ [PermissionsContext.has] super admin');
       return true;
     }
     
     if (data.is_org_admin) {
-      console.log('✅ [PermissionsContext.has] org admin');
       return true;
     }
     
@@ -264,17 +248,15 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       viewInventory: data.has_inventory_access || (data.permissions?.viewInventory === true),
     };
     
-    console.log('📊 [PermissionsContext.has] computed shortcuts:', computed);
-    
     if (computed[permission] === true) {
-      console.log('✅ [PermissionsContext.has] من computed shortcuts');
       return true;
     }
     
-    const hasPermission = data.permissions?.[permission] === true;
-    console.log(hasPermission ? '✅' : '❌', '[PermissionsContext.has] من permissions:', hasPermission);
-    
-    return hasPermission;
+    // تحقق مباشر + عبر خريطة التصحيح الموحدة
+    const direct = data.permissions?.[permission] === true;
+    const mapped = checkPermission(permission, data.permissions);
+    const result = Boolean(direct || mapped);
+    return result;
   }, [data]);
 
   const anyOf = useCallback((perms: string[]) => {

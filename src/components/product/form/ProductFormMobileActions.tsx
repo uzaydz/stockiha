@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useState } from 'react';
+import React, { memo, useCallback, useEffect, useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { Loader2, Save, ArrowLeft, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -61,19 +61,26 @@ const ProductFormMobileActions: React.FC<ProductFormMobileActionsProps> = memo((
     ];
     let observedEl: HTMLElement | null = null;
     let resizeObserver: ResizeObserver | null = null;
+    let lastOffset = 0; // تتبع القيمة السابقة لتجنب التحديثات غير الضرورية
 
     const computeOffset = () => {
       const el = selectors
         .map(sel => document.querySelector(sel) as HTMLElement | null)
         .find(Boolean) as HTMLElement | null;
+      
+      let newOffset = 0;
       if (el) {
         const rect = el.getBoundingClientRect();
         // اعتبر العنصر مثبتاً أسفل الشاشة فقط إذا كان قريباً من الحافة السفلية
         const isBottomFixed = Math.abs((window.innerHeight - rect.bottom)) < 8 || getComputedStyle(el).position === 'fixed';
-        setBottomBarOffset(isBottomFixed ? Math.ceil(rect.height) : 0);
+        newOffset = isBottomFixed ? Math.ceil(rect.height) : 0;
         observedEl = el;
-      } else {
-        setBottomBarOffset(0);
+      }
+      
+      // فقط تحديث الحالة إذا تغيرت القيمة فعلياً
+      if (newOffset !== lastOffset) {
+        lastOffset = newOffset;
+        setBottomBarOffset(newOffset);
       }
     };
 
@@ -93,6 +100,7 @@ const ProductFormMobileActions: React.FC<ProductFormMobileActionsProps> = memo((
       window.removeEventListener('orientationchange', onResize);
       if (resizeObserver && observedEl) {
         resizeObserver.unobserve(observedEl);
+        resizeObserver.disconnect();
       }
     };
   }, []);
@@ -112,6 +120,36 @@ const ProductFormMobileActions: React.FC<ProductFormMobileActionsProps> = memo((
     setIsDropdownOpen(false);
     onSchedule?.();
   }, [onSchedule]);
+
+  // Memoize the trigger button to prevent ref thrashing
+  const triggerButton = useMemo(() => (
+    <Button
+      type="button"
+      disabled={disabled || isSubmitting}
+      className={cn(
+        "relative h-16 px-6 rounded-full shadow-2xl transition-all duration-300 hover:shadow-3xl hover:scale-105 active:scale-95 font-semibold text-base",
+        "bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80",
+        "border-2 border-primary-foreground/20 flex items-center gap-2",
+        permissionWarning && "from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800"
+      )}
+    >
+      {isSubmitting ? (
+        <>
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <span className="text-sm">جاري المعالجة...</span>
+        </>
+      ) : (
+        <>
+          <Save className="h-5 w-5" />
+          <span className="text-sm">
+            {isEditMode ? 'حفظ' : 'إنشاء'}
+          </span>
+          <ChevronUp className="h-4 w-4" />
+        </>
+      )}
+    </Button>
+  ), [disabled, isSubmitting, permissionWarning, isEditMode]);
+
   // Check if we're in browser environment
   if (typeof window === 'undefined' || !document.body) {
     return null;
@@ -150,31 +188,7 @@ const ProductFormMobileActions: React.FC<ProductFormMobileActionsProps> = memo((
             onOpenChange={setIsDropdownOpen}
           >
             <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                disabled={disabled || isSubmitting}
-                className={cn(
-                  "relative h-16 px-6 rounded-full shadow-2xl transition-all duration-300 hover:shadow-3xl hover:scale-105 active:scale-95 font-semibold text-base",
-                  "bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary/80",
-                  "border-2 border-primary-foreground/20 flex items-center gap-2",
-                  permissionWarning && "from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800"
-                )}
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="h-5 w-5 animate-spin" />
-                    <span className="text-sm">جاري المعالجة...</span>
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-5 w-5" />
-                    <span className="text-sm">
-                      {isEditMode ? 'حفظ' : 'إنشاء'}
-                    </span>
-                    <ChevronUp className="h-4 w-4" />
-                  </>
-                )}
-              </Button>
+              {triggerButton}
             </DropdownMenuTrigger>
             
             <DropdownMenuContent 

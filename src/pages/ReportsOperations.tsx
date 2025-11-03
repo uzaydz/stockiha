@@ -6,6 +6,7 @@ import { useTitle } from '@/hooks/useTitle';
 import { useTitlebar } from '@/context/TitlebarContext';
 import { POSLayoutState, RefreshHandler } from '@/components/pos-layout/types';
 import { Activity, BarChart3, DollarSign, FileBarChart, Loader2 } from 'lucide-react';
+import { usePermissions } from '@/hooks/usePermissions';
 
 const FinancialAnalyticsTab = React.lazy(() => import('../pages/FinancialAnalyticsOptimized'));
 const SalesAnalyticsTab = React.lazy(() => import('../pages/dashboard/Analytics'));
@@ -43,10 +44,29 @@ const ReportsOperationsPage: React.FC = () => {
   const params = useParams<{ tab?: string }>();
   const { setTabs, setActiveTab: setTitlebarActiveTab, setShowTabs, clearTabs } = useTitlebar();
 
+  const perms = usePermissions();
+
+  const allowedTabs = useMemo(() => {
+    const canFinancial = perms.ready ? perms.anyOf(['viewFinancialReports']) : false;
+    const canSales = perms.ready ? perms.anyOf(['viewSalesReports','viewReports']) : false;
+    const canExpenses = perms.ready ? perms.anyOf(['viewFinancialReports']) : false;
+    const canZakat = perms.ready ? perms.anyOf(['viewFinancialReports']) : false;
+    const canSuppliers = perms.ready ? perms.anyOf(['viewReports','viewSuppliers','viewSupplierReportsInReports']) : false;
+
+    return TAB_CONFIG.filter(t =>
+      (t.id === 'financial' && canFinancial) ||
+      (t.id === 'sales' && canSales) ||
+      (t.id === 'expenses' && canExpenses) ||
+      (t.id === 'zakat' && canZakat) ||
+      (t.id === 'suppliers' && canSuppliers)
+    );
+  }, [perms.ready, perms.role, perms.isOrgAdmin, perms.isSuperAdmin]);
+
   const resolvedTab = useMemo<TabKey>(() => {
     const incoming = params.tab as TabKey | undefined;
-    return TAB_CONFIG.some((tab) => tab.id === incoming) ? (incoming as TabKey) : TAB_CONFIG[0].id;
-  }, [params.tab]);
+    const isAllowedIncoming = allowedTabs.some((t) => t.id === incoming);
+    return isAllowedIncoming ? (incoming as TabKey) : (allowedTabs[0]?.id || 'financial');
+  }, [params.tab, allowedTabs]);
 
   useEffect(() => {
     if (!params.tab || !TAB_CONFIG.some((tab) => tab.id === params.tab)) {
@@ -67,7 +87,7 @@ const ReportsOperationsPage: React.FC = () => {
   }, [activeTab, navigate]);
 
   useEffect(() => {
-    const titlebarTabs = TAB_CONFIG.map((tab) => {
+    const titlebarTabs = allowedTabs.map((tab) => {
       const Icon = tab.icon;
       return { id: tab.id, title: tab.title, icon: <Icon className="h-3 w-3" />, onSelect: () => handleTabChange(tab.id) };
     });
@@ -132,7 +152,7 @@ const ReportsOperationsPage: React.FC = () => {
       </div>
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="grid w-full grid-cols-5 gap-2 rounded-xl bg-slate-900/5 p-1 dark:bg-slate-800/30">
-          {TAB_CONFIG.map((tab) => {
+          {allowedTabs.map((tab) => {
             const Icon = tab.icon;
             return (
               <TabsTrigger key={tab.id} value={tab.id} className="flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow">
@@ -158,5 +178,3 @@ const ReportsOperationsPage: React.FC = () => {
 };
 
 export default ReportsOperationsPage;
-
-

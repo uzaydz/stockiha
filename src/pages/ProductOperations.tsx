@@ -2,6 +2,7 @@ import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'reac
 import { useNavigate, useParams } from 'react-router-dom';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import POSPureLayout from '@/components/pos-layout/POSPureLayout';
+import { usePermissions } from '@/hooks/usePermissions';
 import { useTitle } from '@/hooks/useTitle';
 import { useTitlebar } from '@/context/TitlebarContext';
 import { POSLayoutState, RefreshHandler } from '@/components/pos-layout/types';
@@ -66,10 +67,26 @@ const ProductOperationsPage: React.FC = () => {
   const params = useParams<{ tab?: string }>();
   const { setTabs, setActiveTab: setTitlebarActiveTab, setShowTabs, clearTabs } = useTitlebar();
 
+  const perms = usePermissions();
+
+  const allowedTabs = useMemo(() => {
+    const canProducts = perms.ready ? perms.anyOf(['viewProducts', 'manageProducts']) : false;
+    const canCategories = perms.ready ? perms.anyOf(['manageProductCategories', 'viewProducts', 'manageProducts']) : false;
+    const canInventory = perms.ready ? perms.anyOf(['viewInventory']) : false;
+    const canTracking = perms.ready ? perms.anyOf(['viewInventory']) : false;
+    return TAB_CONFIG.filter(t =>
+      (t.id === 'products' && canProducts) ||
+      (t.id === 'categories' && canCategories) ||
+      (t.id === 'inventory' && canInventory) ||
+      (t.id === 'inventoryTracking' && canTracking)
+    );
+  }, [perms.ready, perms.role, perms.isOrgAdmin, perms.isSuperAdmin]);
+
   const resolvedTab = useMemo<TabKey>(() => {
     const incoming = params.tab as TabKey | undefined;
-    return TAB_CONFIG.some((tab) => tab.id === incoming) ? (incoming as TabKey) : TAB_CONFIG[0].id;
-  }, [params.tab]);
+    const isAllowedIncoming = allowedTabs.some((t) => t.id === incoming);
+    return isAllowedIncoming ? (incoming as TabKey) : (allowedTabs[0]?.id || 'products');
+  }, [params.tab, allowedTabs]);
 
   useEffect(() => {
     if (!params.tab || !TAB_CONFIG.some((tab) => tab.id === params.tab)) {
@@ -99,7 +116,7 @@ const ProductOperationsPage: React.FC = () => {
   );
 
   useEffect(() => {
-    const titlebarTabs = TAB_CONFIG.map((tab) => {
+    const titlebarTabs = allowedTabs.map((tab) => {
       const Icon = tab.icon;
       return {
         id: tab.id,
@@ -115,7 +132,7 @@ const ProductOperationsPage: React.FC = () => {
     return () => {
       clearTabs();
     };
-  }, [handleTabChange, setTabs, setShowTabs, clearTabs]);
+  }, [allowedTabs, handleTabChange, setTabs, setShowTabs, clearTabs]);
 
   useEffect(() => {
     setTitlebarActiveTab(activeTab);
@@ -197,37 +214,41 @@ const ProductOperationsPage: React.FC = () => {
   }, [activeTab, handleRegisterRefresh, handleChildLayoutStateChange]);
 
   const layoutContent = (
-    <div className="space-y-6 p-6" dir="rtl">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-bold text-foreground">إدارة المنتجات</h1>
-        <p className="text-sm text-muted-foreground">
-          إدارة موحدة للمنتجات، الفئات، المخزون وتتبعه من واجهة واحدة.
-        </p>
-      </div>
+    <div className="h-full w-full overflow-y-auto" dir="rtl">
+      <div className="space-y-3 sm:space-y-4">
+        {/* Header */}
+        <div className="sticky top-0 z-10 space-y-3 p-3 sm:p-4 border-b border-border/50 bg-background/95 backdrop-blur">
+          <div className="flex flex-col gap-2">
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">إدارة المنتجات</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground">
+              إدارة موحدة للمنتجات، الفئات، المخزون وتتبعه من واجهة واحدة.
+            </p>
+          </div>
 
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 gap-2 rounded-xl bg-slate-900/5 p-1 dark:bg-slate-800/30">
-          {TAB_CONFIG.map((tab) => {
-            const Icon = tab.icon;
-            return (
-              <TabsTrigger
-                key={tab.id}
-                value={tab.id}
-                className="flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow"
-              >
-                <Icon className="h-4 w-4" />
-                <span>{tab.title}</span>
-              </TabsTrigger>
-            );
-          })}
-        </TabsList>
-      </Tabs>
-
-      <div className="rounded-2xl border border-border/50 bg-card shadow-sm">
-        <div className="border-b border-border/40 px-6 py-4">
-          <p className="text-sm text-muted-foreground">{activeTabMeta.description}</p>
+          <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 gap-2 rounded-xl bg-slate-900/5 p-1 dark:bg-slate-800/30">
+              {allowedTabs.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <TabsTrigger
+                    key={tab.id}
+                    value={tab.id}
+                    className="flex items-center justify-center gap-2 rounded-lg px-2 sm:px-3 py-2 text-xs sm:text-sm font-medium transition-all data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow"
+                  >
+                    <Icon className="h-3 w-3 sm:h-4 sm:w-4" />
+                    <span className="hidden sm:inline">{tab.title}</span>
+                    <span className="sm:hidden text-xs">{tab.title}</span>
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+          </Tabs>
         </div>
-        <div className="px-2 py-4 sm:px-6">{renderActiveContent}</div>
+
+        {/* Content */}
+        <div>
+          {renderActiveContent}
+        </div>
       </div>
     </div>
   );
@@ -238,6 +259,7 @@ const ProductOperationsPage: React.FC = () => {
       isRefreshing={Boolean(layoutState.isRefreshing)}
       connectionStatus={layoutState.connectionStatus ?? 'connected'}
       executionTime={layoutState.executionTime}
+      disableScroll={true}
     >
       {layoutContent}
     </POSPureLayout>

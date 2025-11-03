@@ -246,3 +246,45 @@ export const calculateLossTotals = (items: LocalLossItem[]): {
     { totalCostValue: 0, totalSellingValue: 0, totalItemsCount: 0 }
   );
 };
+
+// ==================== بحث وتصفح محلي لتصاريح الخسائر ====================
+
+export async function getLocalLossDeclarationsPage(
+  organizationId: string,
+  options: { offset?: number; limit?: number; status?: string | string[]; createdSort?: 'asc' | 'desc' } = {}
+): Promise<{ losses: LocalLossDeclaration[]; total: number }> {
+  const { offset = 0, limit = 50, status, createdSort = 'desc' } = options;
+  let coll = inventoryDB.lossDeclarations
+    .where('[organization_id+created_at]') as any;
+  coll = coll.between([organizationId, ''], [organizationId, '\\uffff']);
+  if (createdSort === 'desc') coll = coll.reverse();
+  if (status) {
+    const statuses = Array.isArray(status) ? status : [status];
+    coll = coll.and((l: any) => statuses.includes(l.status));
+  }
+  const total = await coll.count();
+  const page = await coll.offset(offset).limit(limit).toArray();
+  return { losses: page as any, total };
+}
+
+export async function fastSearchLocalLossDeclarations(
+  organizationId: string,
+  query: string,
+  options: { limit?: number; status?: string | string[] } = {}
+): Promise<LocalLossDeclaration[]> {
+  const q = (query || '').toLowerCase();
+  if (!q) return [];
+  const limit = options.limit ?? 200;
+  const statuses = options.status ? (Array.isArray(options.status) ? options.status : [options.status]) : null;
+
+  const results = new Map<string, LocalLossDeclaration>();
+
+  const byNum = await (inventoryDB.lossDeclarations
+    .where('[organization_id+loss_number_lower]') as any)
+    .between([organizationId, q], [organizationId, q + '\\uffff'])
+    .limit(limit)
+    .toArray();
+  byNum.forEach((l: any) => { if (!statuses || statuses.includes(l.status)) results.set(l.id, l); });
+
+  return Array.from(results.values()).slice(0, limit);
+}

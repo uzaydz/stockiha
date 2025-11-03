@@ -14,6 +14,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { CoursesAccessType } from '@/types/activation';
+import { goTo } from '@/lib/navigation';
 
 interface CourseAccessGuardProps {
   courseId: string;
@@ -81,7 +82,18 @@ const CourseAccessGuard: React.FC<CourseAccessGuardProps> = ({
           <p className="text-gray-600 dark:text-gray-400 mb-4">
             يجب عليك تسجيل الدخول للوصول لهذه الدورة
           </p>
-          <Button className="w-full" onClick={() => window.location.href = '/login'}>
+          <Button className="w-full" onClick={() => {
+            try {
+              const isElectron = typeof window !== 'undefined' && window.navigator?.userAgent?.includes('Electron');
+              if (isElectron) {
+                window.location.hash = '#/login';
+              } else {
+                window.location.href = '/login';
+              }
+            } catch {
+              window.location.href = '/login';
+            }
+          }}>
             تسجيل الدخول
           </Button>
         </CardContent>
@@ -103,7 +115,7 @@ const CourseAccessGuard: React.FC<CourseAccessGuardProps> = ({
           <p className="text-gray-600 dark:text-gray-400 mb-4">
             يجب أن تكون عضواً في مؤسسة للوصول لهذه الدورة
           </p>
-          <Button className="w-full" onClick={() => window.location.href = '/dashboard'}>
+          <Button className="w-full" onClick={() => goTo('/dashboard', { replace: true })}>
             العودة للوحة التحكم
           </Button>
         </CardContent>
@@ -172,13 +184,13 @@ const CourseAccessGuard: React.FC<CourseAccessGuardProps> = ({
               <Button 
                 variant="outline" 
                 className="flex-1"
-                onClick={() => window.location.href = '/dashboard/courses'}
+                onClick={() => goTo('/dashboard/courses')}
               >
                 عرض الدورات المتاحة
               </Button>
               <Button 
                 className="flex-1"
-                onClick={() => window.location.href = '/dashboard/subscription'}
+                onClick={() => goTo('/dashboard/subscription')}
               >
                 تجديد الاشتراك
               </Button>

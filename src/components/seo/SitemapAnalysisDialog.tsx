@@ -30,6 +30,7 @@ import {
   Info
 } from 'lucide-react';
 import { sitemapAnalysisService, PageAnalysis, SitemapGenerationOptions } from '@/api/sitemapAnalysisService';
+import { getWebOrigin } from '@/lib/navigation';
 
 interface SitemapAnalysisDialogProps {
   open: boolean;
@@ -49,7 +50,7 @@ export function SitemapAnalysisDialog({ open, onOpenChange, onComplete }: Sitema
     includeLandingPages: true,
     includeCustomPages: true,
     includeServices: true,
-    baseUrl: window.location.origin,
+    baseUrl: getWebOrigin(),
     maxUrls: 1000,
     minPriority: 0.3
   });

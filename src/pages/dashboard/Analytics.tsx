@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
+import { usePermissions } from '@/hooks/usePermissions';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { ShieldAlert } from 'lucide-react';
 import { POSSharedLayoutControls, POSLayoutState } from '@/components/pos-layout/types';
 import { useTenant } from '@/context/TenantContext';
 import { toast } from 'sonner';
@@ -31,6 +34,7 @@ const Analytics: React.FC<AnalyticsProps> = ({
 }) => {
   const navigate = useNavigate();
   const { currentOrganization } = useTenant();
+  const perms = usePermissions();
   const [isLoading, setIsLoading] = useState(true);
   const [period, setPeriod] = useState<AnalyticsPeriod>('month');
   const [customDateRange, setCustomDateRange] = useState<{start: Date, end: Date}>({
@@ -193,6 +197,19 @@ const Analytics: React.FC<AnalyticsProps> = ({
   const renderWithLayout = (node: React.ReactElement) => (
     useStandaloneLayout ? <Layout>{node}</Layout> : node
   );
+
+  // صلاحيات عرض التحليلات العامة: viewSalesReports أو viewReports
+  if (perms.ready && !perms.anyOf(['viewSalesReports','viewReports'])) {
+    return renderWithLayout(
+      <div className="container mx-auto py-10">
+        <Alert variant="destructive">
+          <ShieldAlert className="h-4 w-4" />
+          <AlertTitle>غير مصرح</AlertTitle>
+          <AlertDescription>لا تملك صلاحية الوصول إلى تحليلات المبيعات.</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   // Register refresh
   useEffect(() => {

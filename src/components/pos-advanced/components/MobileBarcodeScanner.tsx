@@ -163,69 +163,77 @@ const MobileBarcodeScanner: React.FC<MobileBarcodeScannerProps> = ({
       onOpenChange(value);
     }}>
       <DialogContent className="w-[95%] max-w-xl border border-border/40 bg-background p-0 sm:max-w-2xl" dir="rtl">
-        <DialogHeader className="px-5 pt-5">
-          <DialogTitle className="text-lg font-semibold">سكان الباركود بالكاميرا</DialogTitle>
+        <DialogHeader className="px-3 pt-3 sm:px-4 sm:pt-4 md:px-5 md:pt-5">
+          <DialogTitle className="text-base sm:text-lg font-semibold flex items-center gap-2">
+            <Scan className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+            سكان الباركود
+          </DialogTitle>
         </DialogHeader>
 
-        <div className="flex flex-col gap-4 px-5 pb-5">
+        <div className="flex flex-col gap-2.5 sm:gap-3 md:gap-4 px-3 pb-3 sm:px-4 sm:pb-4 md:px-5 md:pb-5">
           {hasCameraAccess ? (
-            <div className="relative aspect-video w-full overflow-hidden rounded-2xl border border-primary/30 bg-black/80">
+            <div className="relative aspect-video w-full overflow-hidden rounded-xl sm:rounded-2xl border border-primary/30 bg-black/80">
               <video
                 ref={videoRef}
                 className="h-full w-full object-cover"
                 playsInline
                 muted
               />
-              <div className="pointer-events-none absolute inset-6 rounded-2xl border-2 border-primary/60 shadow-[0_0_0_2000px_rgba(0,0,0,0.35)]" />
-              <div className="pointer-events-none absolute left-0 right-0 bottom-4 flex items-center justify-center gap-2 text-sm font-medium text-white/90">
-                <Scan className="h-4 w-4" />
-                وجّه الكاميرا نحو الباركود حتى يظهر بوضوح
+              <div className="pointer-events-none absolute inset-4 sm:inset-6 rounded-xl sm:rounded-2xl border-2 border-primary/60 shadow-[0_0_0_2000px_rgba(0,0,0,0.35)]" />
+              <div className="pointer-events-none absolute left-0 right-0 bottom-2 sm:bottom-3 md:bottom-4 flex items-center justify-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium text-white/90 px-2">
+                <Scan className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span className="text-center">وجّه الكاميرا نحو الباركود</span>
               </div>
               {(isInitializing || isProcessing) && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                  <Loader2 className="h-10 w-10 animate-spin text-white" />
+                  <Loader2 className="h-8 w-8 sm:h-10 sm:w-10 animate-spin text-white" />
                 </div>
               )}
             </div>
           ) : (
-            <div className="flex flex-col items-center gap-3 rounded-2xl border border-dashed border-amber-300 bg-amber-50/70 p-6 text-center text-amber-800">
-              <AlertTriangle className="h-8 w-8" />
-              <p className="text-sm font-medium">لا يمكن الوصول إلى الكاميرا على هذا الجهاز.</p>
-              <p className="text-xs">تحقق من الأذونات أو استخدم إدخال الباركود اليدوي.</p>
+            <div className="flex flex-col items-center gap-2 sm:gap-3 rounded-xl sm:rounded-2xl border border-dashed border-amber-300 bg-amber-50/70 p-4 sm:p-6 text-center text-amber-800">
+              <AlertTriangle className="h-6 w-6 sm:h-8 sm:w-8" />
+              <p className="text-xs sm:text-sm font-medium">لا يمكن الوصول إلى الكاميرا</p>
+              <p className="text-[10px] sm:text-xs">تحقق من الأذونات أو استخدم الإدخال اليدوي</p>
             </div>
           )}
 
           {error && (
-            <div className="flex items-center gap-2 rounded-xl border border-red-300/70 bg-red-50/80 p-3 text-sm text-red-700">
-              <AlertTriangle className="h-4 w-4" />
-              <span>{error}</span>
+            <div className="flex items-start gap-2 rounded-lg sm:rounded-xl border border-red-300/70 bg-red-50/80 p-2 sm:p-3 text-xs sm:text-sm text-red-700">
+              <AlertTriangle className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0 mt-0.5" />
+              <span className="flex-1">{error}</span>
             </div>
           )}
 
           {detectedValue && (
-            <div className="flex items-center justify-between rounded-xl border border-emerald-300/70 bg-emerald-50/80 p-3 text-sm text-emerald-700">
-              <div className="flex flex-col">
-                <span className="font-medium">تم التقاط الباركود</span>
-                <span className="font-mono text-lg">{detectedValue}</span>
+            <div className="flex items-center justify-between rounded-lg sm:rounded-xl border border-emerald-300/70 bg-emerald-50/80 p-2 sm:p-3 text-xs sm:text-sm text-emerald-700">
+              <div className="flex flex-col gap-0.5">
+                <span className="font-medium text-xs sm:text-sm">تم التقاط الباركود</span>
+                <span className="font-mono text-sm sm:text-base md:text-lg">{detectedValue}</span>
               </div>
-              <Badge variant="secondary" className="bg-emerald-100 text-emerald-700">تم</Badge>
+              <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 text-[10px] sm:text-xs h-5 sm:h-6">تم</Badge>
             </div>
           )}
 
-          <div className="flex flex-col gap-3 rounded-xl border border-border/40 bg-muted/30 p-3 text-xs text-muted-foreground">
-            <div className="flex items-center gap-2">
-              <Smartphone className="h-4 w-4" />
-              <span>نصائح:</span>
+          <div className="flex flex-col gap-1.5 sm:gap-2 md:gap-3 rounded-lg sm:rounded-xl border border-border/40 bg-muted/30 p-2 sm:p-2.5 md:p-3 text-[10px] sm:text-xs text-muted-foreground">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <Smartphone className="h-3 w-3 sm:h-3.5 sm:w-3.5 md:h-4 md:w-4" />
+              <span className="font-medium">نصائح:</span>
             </div>
-            <ul className="list-disc space-y-1 pr-5">
-              <li>اجعل الباركود داخل الإطار مع إضاءة جيدة.</li>
-              <li>حافظ على ثبات الهاتف حتى يظهر الكود بوضوح.</li>
-              <li>يمكنك دائماً إدخال الباركود يدوياً إذا لم ينجح السكانر.</li>
+            <ul className="list-disc space-y-0.5 sm:space-y-1 pr-4 sm:pr-5">
+              <li>إضاءة جيدة والباركود داخل الإطار</li>
+              <li>ثبّت الهاتف حتى يظهر الكود</li>
+              <li>يمكنك الإدخال يدوياً إذا لم ينجح</li>
             </ul>
           </div>
 
-          <div className="flex items-center justify-end">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <div className="flex items-center justify-end pt-1">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => onOpenChange(false)}
+              className="h-8 sm:h-9 text-xs sm:text-sm px-4 sm:px-6"
+            >
               إغلاق
             </Button>
           </div>

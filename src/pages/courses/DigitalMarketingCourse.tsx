@@ -80,14 +80,11 @@ const DigitalMarketingCourse: React.FC<DigitalMarketingCourseProps> = ({ useStan
         {/* Course Access Info */}
         {user && organizationId && (
           <div className="mb-4">
-            <div className="bg-card border border-border rounded-md p-4">
+            <div className="bg-card border border-border rounded-lg p-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 bg-brand-50 rounded-md flex items-center justify-center">
-                    <span className="text-sm">🔓</span>
-                  </div>
+                <div className="flex items-center gap-2">
                   <div>
-                    <span className="text-xs font-medium text-muted-foreground block">حالة الوصول للدورة</span>
+                    <span className="text-xs text-muted-foreground block mb-1">حالة الوصول للدورة</span>
                     <CourseAccessBadge
                       accessType={course.access_type}
                       isAccessible={course.is_accessible || false}
@@ -99,12 +96,8 @@ const DigitalMarketingCourse: React.FC<DigitalMarketingCourseProps> = ({ useStan
                 </div>
 
                 {course.is_lifetime && (
-                  <div className="flex items-center gap-2 bg-brand-50 rounded-md px-3 py-1.5">
-                    <span className="text-sm">🎉</span>
-                    <div>
-                      <span className="text-xs font-bold text-brand-700">وصول مدى الحياة</span>
-                      <p className="text-xs text-brand-600">لا تنتهي صلاحيتها أبداً</p>
-                    </div>
+                  <div className="bg-green-50 rounded-lg px-3 py-1.5">
+                    <span className="text-xs font-bold text-green-700">وصول مدى الحياة</span>
                   </div>
                 )}
               </div>
@@ -127,39 +120,22 @@ const DigitalMarketingCourse: React.FC<DigitalMarketingCourseProps> = ({ useStan
             <CourseModules modules={courseData.modules} courseSlug="digital-marketing" />
 
             {/* Additional Call to Action */}
-            <div className="mt-6 text-center">
-              <div className="bg-card border border-border rounded-md p-6">
-                <div className="max-w-xl mx-auto">
-                  <div className="w-12 h-12 bg-brand-50 rounded-xl flex items-center justify-center mx-auto mb-4">
-                    <span className="text-lg">🚀</span>
-                  </div>
+            <div className="mt-6">
+              <div className="bg-card border border-border rounded-lg p-6 text-center">
+                <h3 className="text-base font-bold text-foreground mb-2">
+                  هل أنت جاهز لتحقيق النجاح؟
+                </h3>
 
-                  <h3 className="text-lg font-bold text-foreground mb-3">
-                    هل أنت جاهز لتحقيق النجاح؟
-                  </h3>
+                <p className="text-sm text-muted-foreground mb-4 leading-relaxed max-w-xl mx-auto">
+                  ابدأ رحلتك في عالم التسويق الرقمي اليوم وانضم إلى المتخرجين الناجحين
+                </p>
 
-                  <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
-                    ابدأ رحلتك في عالم التسويق الرقمي اليوم وانضم إلى آلاف المتخرجين الناجحين
-                    الذين حوّلوا معرفتهم إلى أرباح حقيقية
-                  </p>
-
-                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                    <button
-                      onClick={() => document.getElementById('course-modules')?.scrollIntoView({ behavior: 'smooth' })}
-                      className="bg-brand-500 hover:bg-brand-600 text-white px-6 py-2.5 rounded-md font-bold text-sm"
-                    >
-                      ابدأ الدورة الآن
-                    </button>
-
-                    <button className="border border-border text-foreground hover:bg-muted px-6 py-2.5 rounded-md font-bold text-sm">
-                      شارك مع أصدقائك
-                    </button>
-                  </div>
-
-                  <div className="mt-4 text-xs text-muted-foreground">
-                    📞 تحتاج مساعدة؟ تواصل معنا في أي وقت
-                  </div>
-                </div>
+                <button
+                  onClick={() => document.getElementById('course-modules')?.scrollIntoView({ behavior: 'smooth' })}
+                  className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2.5 rounded-lg font-bold text-sm"
+                >
+                  ابدأ الدورة الآن
+                </button>
               </div>
             </div>
           </CourseAccessGuard>

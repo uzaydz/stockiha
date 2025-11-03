@@ -3,7 +3,8 @@ import { UseFormReturn } from 'react-hook-form';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { ProductFormValues, ProductColor, WholesaleTier } from '@/types/product';
-import { createProduct, updateProduct } from '@/lib/api/products';
+// افتراضيًا نستخدم الواجهة المتصلة
+import { createProduct as createProductOnline, updateProduct as updateProductOnline } from '@/lib/api/products';
 import { addCSRFTokenToFormData } from '@/utils/csrf';
 import { 
   prepareFormSubmissionData, 
@@ -89,17 +90,34 @@ export const useProductFormSubmission = ({
 
       // Submit to API
       let result;
-      if (isEditMode && productId) {
-        result = await updateProduct(productId, protectedSubmissionData);
+
+      // تحديد المسار بحسب حالة الاتصال
+      const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+
+      if (!isOnline) {
+        // أوفلاين: استخدم المحول الأوفلاين الذي يكتب إلى Dexie + Queue
+        const offline = await import('@/lib/api/offlineProductsAdapter');
+        if (isEditMode && productId) {
+          result = await offline.updateProduct(productId, protectedSubmissionData as any);
+        } else {
+          result = await offline.createProduct(protectedSubmissionData as any);
+        }
       } else {
-        result = await createProduct(protectedSubmissionData);
+        // أونلاين: المسار المتصل المعتاد
+        if (isEditMode && productId) {
+          result = await updateProductOnline(productId, protectedSubmissionData);
+        } else {
+          result = await createProductOnline(protectedSubmissionData);
+        }
       }
 
       if (result) {
         toast.dismiss(loadingToast);
-        toast.success(
-          isEditMode ? 'تم تحديث المنتج بنجاح' : 'تم إنشاء المنتج بنجاح'
-        );
+        if (!isOnline) {
+          toast.success(isEditMode ? 'تم تحديث المنتج محليًا وسيتم المزامنة عند الاتصال' : 'تم حفظ المنتج محليًا وسيتم المزامنة عند الاتصال');
+        } else {
+          toast.success(isEditMode ? 'تم تحديث المنتج بنجاح' : 'تم إنشاء المنتج بنجاح');
+        }
 
         // Trigger custom event for data refresh
         try {

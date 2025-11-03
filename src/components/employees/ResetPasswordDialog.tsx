@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import { resetEmployeePassword } from '@/lib/api/employees';
+import { supabase } from '@/lib/supabase';
 import { Eye, EyeOff, Key } from 'lucide-react';
 
 interface ResetPasswordDialogProps {
@@ -57,7 +58,21 @@ const ResetPasswordDialog = ({
     setError('');
     
     try {
-      await resetEmployeePassword(employee.id, newPassword);
+      // نحتاج auth_user_id من أجل وظيفة السيرفر الآمنة
+      let targetAuthUserId = employee.user_id || '';
+      if (!targetAuthUserId) {
+        const { data: row, error } = await supabase
+          .from('users')
+          .select('auth_user_id')
+          .eq('id', employee.id)
+          .single();
+        if (error || !row?.auth_user_id) {
+          throw new Error('تعذر تحديد حساب المصادقة للموظف');
+        }
+        targetAuthUserId = row.auth_user_id;
+      }
+
+      await resetEmployeePassword(targetAuthUserId, newPassword);
       
       toast({
         title: 'تمت العملية بنجاح',

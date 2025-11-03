@@ -3,7 +3,7 @@
  * واجهة المخزون العصرية - نظيفة واحترافية
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useInventoryOptimized } from '@/hooks/useInventoryOptimized';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
+import { Package, Edit, Eye, BarChart3 } from 'lucide-react';
 import StockUpdateModern from './StockUpdateModern';
 import type { InventoryProduct } from '@/lib/api/inventory-optimized';
 
@@ -32,15 +33,34 @@ export default function InventoryModern() {
   const [selectedStatus, setSelectedStatus] = useState<'all' | 'in-stock' | 'low-stock' | 'out-of-stock'>('all');
   const [selectedItem, setSelectedItem] = useState<InventoryProduct | null>(null);
   const [showUpdateDialog, setShowUpdateDialog] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  // اكتشاف الشاشات الصغيرة
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Handle search with debounce
   const handleSearch = (value: string) => {
     setSearchTerm(value);
-    const timeoutId = setTimeout(() => {
-      updateFilters({ search: value, page: 1 });
-    }, 400);
-    return () => clearTimeout(timeoutId);
   };
+
+  // Debounce search with useEffect
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (searchTerm !== undefined && searchTerm !== filters.search) {
+        updateFilters({ search: searchTerm, page: 1 });
+      }
+    }, 400);
+    
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm, updateFilters, filters.search]);
 
   // Handle status filter
   const handleStatusFilter = (status: typeof selectedStatus) => {
@@ -62,7 +82,7 @@ export default function InventoryModern() {
   return (
     <div className="space-y-6">
       {/* Stats Section */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {loading && !stats ? (
           Array.from({ length: 4 }).map((_, i) => (
             <Card key={i} className="p-6">
@@ -97,8 +117,8 @@ export default function InventoryModern() {
       </div>
 
       {/* Search & Filters */}
-      <Card className="p-4">
-        <div className="flex flex-col sm:flex-row gap-3">
+      <Card className="p-3 sm:p-4">
+        <div className="flex flex-col gap-3">
           <div className="flex-1">
             <Input
               placeholder="ابحث عن منتج..."
@@ -107,7 +127,7 @@ export default function InventoryModern() {
               className="w-full"
             />
           </div>
-          <div className="flex gap-2 flex-wrap">
+          <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2">
             <FilterButton
               active={selectedStatus === 'all'}
               onClick={() => handleStatusFilter('all')}
@@ -167,22 +187,24 @@ export default function InventoryModern() {
                 key={item.id}
                 item={item}
                 onClick={() => handleItemClick(item)}
+                isMobile={isMobile}
               />
             ))}
             
             {/* Pagination */}
             {totalPages > 1 && (
-              <Card className="p-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-muted-foreground">
+              <Card className="p-3 sm:p-4">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <p className="text-xs sm:text-sm text-muted-foreground">
                     صفحة {filters.page || 1} من {totalPages} ({filtered} نتيجة)
                   </p>
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 w-full sm:w-auto">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => goToPage((filters.page || 1) - 1)}
                       disabled={loading || (filters.page || 1) === 1}
+                      className="flex-1 sm:flex-initial"
                     >
                       السابق
                     </Button>
@@ -191,6 +213,7 @@ export default function InventoryModern() {
                       size="sm"
                       onClick={() => goToPage((filters.page || 1) + 1)}
                       disabled={loading || (filters.page || 1) >= totalPages}
+                      className="flex-1 sm:flex-initial"
                     >
                       التالي
                     </Button>
@@ -232,9 +255,9 @@ function StatCard({ label, value, variant = 'default' }: StatCardProps) {
   };
 
   return (
-    <Card className={cn('p-6 border-l-4 transition-all hover:shadow-md', colors[variant])}>
-      <p className="text-sm text-muted-foreground mb-1">{label}</p>
-      <p className="text-3xl font-bold">{value.toLocaleString()}</p>
+    <Card className={cn('p-3 sm:p-4 lg:p-6 border-l-4 transition-all hover:shadow-md', colors[variant])}>
+      <p className="text-xs sm:text-sm text-muted-foreground mb-1">{label}</p>
+      <p className="text-xl sm:text-2xl lg:text-3xl font-bold">{value.toLocaleString()}</p>
     </Card>
   );
 }
@@ -258,7 +281,7 @@ function FilterButton({ active, onClick, variant = 'default', children }: Filter
     <Button
       variant="outline"
       size="sm"
-      className={cn('transition-all', colors[variant])}
+      className={cn('transition-all text-xs sm:text-sm h-9', colors[variant])}
       onClick={onClick}
     >
       {children}
@@ -269,9 +292,10 @@ function FilterButton({ active, onClick, variant = 'default', children }: Filter
 interface ProductCardProps {
   item: InventoryProduct;
   onClick: () => void;
+  isMobile?: boolean;
 }
 
-function ProductCard({ item, onClick }: ProductCardProps) {
+function ProductCard({ item, onClick, isMobile = false }: ProductCardProps) {
   const statusColors = {
     'in-stock': 'bg-green-50 text-green-700 border-green-200',
     'low-stock': 'bg-amber-50 text-amber-700 border-amber-200',
@@ -288,24 +312,21 @@ function ProductCard({ item, onClick }: ProductCardProps) {
 
   return (
     <Card
-      className="p-4 cursor-pointer transition-all hover:shadow-md hover:border-primary/50"
-      onClick={onClick}
+      className="p-3 sm:p-4 transition-all hover:shadow-lg border"
     >
       {/* Mobile Layout */}
-      <div className="flex gap-4">
+      <div className="flex gap-3 sm:gap-4">
         {/* Product Image */}
         <div className="flex-shrink-0">
           {item.thumbnail_image ? (
             <img
               src={item.thumbnail_image}
               alt={item.name}
-              className="h-16 w-16 sm:h-20 sm:w-20 rounded-lg object-cover"
+              className="h-20 w-20 sm:h-24 sm:w-24 rounded-lg object-cover border"
             />
           ) : (
-            <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-lg bg-slate-100 flex items-center justify-center">
-              <span className="text-xl font-bold text-slate-400">
-                {item.name.charAt(0)}
-              </span>
+            <div className="h-20 w-20 sm:h-24 sm:w-24 rounded-lg bg-primary/10 flex items-center justify-center border">
+              <Package className="h-8 w-8 sm:h-10 sm:w-10 text-primary" />
             </div>
           )}
         </div>
@@ -330,41 +351,69 @@ function ProductCard({ item, onClick }: ProductCardProps) {
           </div>
 
           {/* Stock Info */}
-          <div className="flex items-center gap-4 text-sm">
-            <div>
-              <span className="text-muted-foreground">الكمية: </span>
-              <span className="font-semibold">{item.stock_quantity || 0}</span>
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs sm:text-sm">
+            <div className="flex items-center gap-1">
+              <span className="text-muted-foreground">الكمية:</span>
+              <span className="font-bold text-primary">{item.stock_quantity || 0}</span>
             </div>
-            <div>
-              <span className="text-muted-foreground">السعر: </span>
+            <div className="flex items-center gap-1">
+              <span className="text-muted-foreground">السعر:</span>
               <span className="font-semibold">{Number(item.price || 0).toLocaleString()} د.ج</span>
             </div>
           </div>
 
           {/* Variants Info */}
           {item.has_variants && (
-            <div className="mt-2 flex gap-2 flex-wrap">
-              {item.colors?.slice(0, 3).map((color) => (
+            <div className="mt-2 flex gap-1.5 sm:gap-2 flex-wrap">
+              {item.colors?.slice(0, isMobile ? 2 : 3).map((color) => (
                 <div
                   key={color.id}
-                  className="flex items-center gap-1.5 text-xs bg-slate-50 px-2 py-1 rounded"
+                  className="flex items-center gap-1 sm:gap-1.5 text-xs bg-muted px-1.5 sm:px-2 py-0.5 sm:py-1 rounded"
                 >
                   <div
-                    className="w-3 h-3 rounded-full border border-slate-300"
+                    className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full border"
                     style={{ backgroundColor: color.color_code }}
                   />
-                  <span>{color.name}</span>
+                  <span className="text-xs">{color.name}</span>
                   <span className="text-muted-foreground">({color.quantity})</span>
                 </div>
               ))}
-              {item.variant_count && item.variant_count > 3 && (
-                <span className="text-xs text-muted-foreground px-2 py-1">
-                  +{item.variant_count - 3} أخرى
+              {item.variant_count && item.variant_count > (isMobile ? 2 : 3) && (
+                <span className="text-xs text-muted-foreground px-1.5 sm:px-2 py-0.5 sm:py-1">
+                  +{item.variant_count - (isMobile ? 2 : 3)} أخرى
                 </span>
               )}
             </div>
           )}
         </div>
+      </div>
+      
+      {/* الأزرار - تظهر دائماً على الهاتف */}
+      <div className="mt-3 pt-3 border-t grid grid-cols-2 gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full text-xs h-9"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClick();
+          }}
+        >
+          <Edit className="ml-1 h-3.5 w-3.5" />
+          تحديث المخزون
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full text-xs h-9"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClick();
+          }}
+        >
+          <Eye className="ml-1 h-3.5 w-3.5" />
+          عرض التفاصيل
+        </Button>
       </div>
     </Card>
   );

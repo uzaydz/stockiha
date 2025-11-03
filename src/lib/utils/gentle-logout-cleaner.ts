@@ -348,7 +348,16 @@ export class GentleLogoutCleaner {
       });
 
       // الانتقال فوراً
-      window.location.href = '/login?emergency=1';
+      try {
+        const isElectron = typeof window !== 'undefined' && window.navigator?.userAgent?.includes('Electron');
+        if (isElectron) {
+          window.location.hash = '#/login?emergency=1';
+        } else {
+          window.location.href = '/login?emergency=1';
+        }
+      } catch {
+        window.location.href = '/login?emergency=1';
+      }
     } catch (error) {
       // إجبار إعادة تحميل الصفحة كآخر حل
       window.location.reload();

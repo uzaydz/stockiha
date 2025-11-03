@@ -159,14 +159,12 @@ export default function ProductImagesManager({
                   <span className="text-destructive">*</span>
                   <Badge variant="destructive" className="text-[10px] sm:text-xs shadow-sm">مطلوب</Badge>
                   <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        className="inline-flex items-center justify-center min-h-[44px] sm:min-h-auto p-2 sm:p-0 -m-2 sm:m-0"
-                        onClick={(e) => e.preventDefault()}
-                      >
-                        <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
-                      </button>
+                    <TooltipTrigger
+                      type="button"
+                      className="inline-flex items-center justify-center min-h-[44px] sm:min-h-auto p-2 sm:p-0 -m-2 sm:m-0"
+                      onClick={(e) => e.preventDefault()}
+                    >
+                      <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent 
                       className="max-w-[280px] sm:max-w-xs z-50 bg-popover border border-border shadow-lg"
@@ -207,14 +205,12 @@ export default function ProductImagesManager({
                   <span className="text-xs sm:text-sm font-medium text-foreground">الصور الإضافية</span>
                   <Badge variant="secondary" className="text-[10px] sm:text-xs shadow-sm">اختياري</Badge>
                   <Tooltip>
-                    <TooltipTrigger asChild>
-                      <button
-                        type="button"
-                        className="inline-flex items-center justify-center min-h-[44px] sm:min-h-auto p-2 sm:p-0 -m-2 sm:m-0"
-                        onClick={(e) => e.preventDefault()}
-                      >
-                        <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
-                      </button>
+                    <TooltipTrigger
+                      type="button"
+                      className="inline-flex items-center justify-center min-h-[44px] sm:min-h-auto p-2 sm:p-0 -m-2 sm:m-0"
+                      onClick={(e) => e.preventDefault()}
+                    >
+                      <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent 
                       className="max-w-[280px] sm:max-w-xs z-50 bg-popover border border-border shadow-lg"

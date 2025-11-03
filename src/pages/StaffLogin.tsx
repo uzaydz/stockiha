@@ -9,11 +9,12 @@ import { Separator } from '@/components/ui/separator';
 import { useStaffSession } from '@/context/StaffSessionContext';
 import { staffService } from '@/services/staffService';
 import { useAuth } from '@/context/AuthContext';
+import { saveStaffPinOffline, verifyStaffPinOffline } from '@/lib/offline/staffCredentials';
 
 const StaffLogin: React.FC = () => {
   const navigate = useNavigate();
   const { setStaffSession, setAdminMode } = useStaffSession();
-  const { signOut } = useAuth();
+  const { signOut, organization } = useAuth();
   
   const [pin, setPin] = useState(['', '', '', '', '', '']);
   const [isLoading, setIsLoading] = useState(false);
@@ -82,12 +83,50 @@ const StaffLogin: React.FC = () => {
 
       setIsLoading(true);
       try {
+        // إذا كنا أوفلاين، جرّب الأوفلاين مباشرة
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+          if (!organization?.id) throw new Error('لا يمكن التحقق بدون معرف المؤسسة');
+          const off = await verifyStaffPinOffline({ organizationId: organization.id, pin: pinCode });
+          if (off.success && off.staff) {
+            toast.success(`مرحباً ${off.staff.staff_name}! (أوفلاين)`);
+            setStaffSession({
+              id: off.staff.id,
+              organization_id: off.staff.organization_id,
+              staff_name: off.staff.staff_name,
+              permissions: (off.staff.permissions || {}) as any,
+              is_active: true,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              email: undefined,
+              last_login: new Date().toISOString(),
+            } as any);
+            setAdminMode(false);
+            navigate('/dashboard/pos-dashboard');
+            return;
+          } else {
+            throw new Error('لا يمكن التحقق من كود PIN في وضع الأوفلاين');
+          }
+        }
+
+        // أونلاين: تحقق من السيرفر
         const result = await staffService.verifyPin(pinCode);
 
         if (result.success && result.staff) {
           toast.success(`مرحباً ${result.staff.staff_name}!`);
           setStaffSession(result.staff);
           setAdminMode(false);
+          // حفظ بيانات PIN للأوفلاين (بشكل مُشفّر)
+          try {
+            if (organization?.id && result.staff?.id) {
+              await saveStaffPinOffline({
+                staffId: result.staff.id,
+                organizationId: organization.id,
+                staffName: result.staff.staff_name,
+                pin: pinCode,
+                permissions: result.staff.permissions,
+              });
+            }
+          } catch {}
           
           // التوجيه إلى لوحة التحكم
           navigate('/dashboard/pos-dashboard');
@@ -98,14 +137,38 @@ const StaffLogin: React.FC = () => {
           inputRefs[0].current?.focus();
         }
       } catch (error: any) {
-        toast.error(error.message || 'حدث خطأ أثناء التحقق من كود PIN');
+        // فالباك: إذا كان الخطأ مرتبطاً بالشبكة، جرّب الأوفلاين إن أمكن
+        const message = String(error?.message || '').toLowerCase();
+        if ((message.includes('network') || message.includes('fetch') || message.includes('offline')) && organization?.id) {
+          const off = await verifyStaffPinOffline({ organizationId: organization.id, pin: pinCode });
+          if (off.success && off.staff) {
+            toast.success(`مرحباً ${off.staff.staff_name}! (أوفلاين)`);
+            setStaffSession({
+              id: off.staff.id,
+              organization_id: off.staff.organization_id,
+              staff_name: off.staff.staff_name,
+              permissions: (off.staff.permissions || {}) as any,
+              is_active: true,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              email: undefined,
+              last_login: new Date().toISOString(),
+            } as any);
+            setAdminMode(false);
+            navigate('/dashboard/pos-dashboard');
+          } else {
+            toast.error('تعذر التحقق من كود PIN في وضع الأوفلاين');
+          }
+        } else {
+          toast.error(error.message || 'حدث خطأ أثناء التحقق من كود PIN');
+        }
         setPin(['', '', '', '', '', '']);
         inputRefs[0].current?.focus();
       } finally {
         setIsLoading(false);
       }
     },
-    [setStaffSession, setAdminMode, navigate]
+    [setStaffSession, setAdminMode, navigate, organization?.id]
   );
 
   // تسجيل دخول كأدمن

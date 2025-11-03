@@ -111,9 +111,10 @@ const syncSingleInvoice = async (invoice: LocalInvoice): Promise<boolean> => {
         if (itemsError) throw itemsError;
       }
 
-      // تحديث رقم الفاتورة المحلي بالرقم النهائي من السيرفر
+      // تحديث رقم الفاتورة المحلي بالرقم النهائي من السيرفر + حفظ معرف السيرفر
       await inventoryDB.invoices.update(invoice.id, {
         invoice_number: invoiceData.invoice_number,
+        remote_invoice_id: invoiceData.id,
         synced: true,
         syncStatus: undefined,
         pendingOperation: undefined
@@ -148,11 +149,28 @@ const syncSingleInvoice = async (invoice: LocalInvoice): Promise<boolean> => {
 
       if (error) throw error;
 
-      // حذف العناصر القديمة وإضافة الجديدة
+      // تحديد معرف الفاتورة في السيرفر لاستخدامه مع عناصر الفاتورة
+      let remoteInvoiceId = (invoice as any).remote_invoice_id as string | undefined;
+      if (!remoteInvoiceId) {
+        const { data: foundInvoice, error: findErr } = await supabase
+          .from('invoices')
+          .select('id')
+          .eq('invoice_number', invoice.invoice_number)
+          .single();
+        if (findErr) throw findErr;
+        remoteInvoiceId = foundInvoice?.id;
+        if (remoteInvoiceId) {
+          await inventoryDB.invoices.update(invoice.id, { remote_invoice_id: remoteInvoiceId });
+        }
+      }
+
+      if (!remoteInvoiceId) throw new Error('missing_remote_invoice_id');
+
+      // حذف العناصر القديمة وإضافة الجديدة بناءً على معرف السيرفر
       const { error: deleteError } = await supabase
         .from('invoice_items')
         .delete()
-        .eq('invoice_id', invoice.id);
+        .eq('invoice_id', remoteInvoiceId);
 
       if (deleteError) throw deleteError;
 
@@ -163,7 +181,7 @@ const syncSingleInvoice = async (invoice: LocalInvoice): Promise<boolean> => {
 
       if (items.length > 0) {
         const itemsToInsert = items.map(item => ({
-          invoice_id: invoice.id,
+          invoice_id: remoteInvoiceId!,
           name: item.name,
           description: item.description,
           quantity: item.quantity,
@@ -287,6 +305,7 @@ export const fetchInvoicesFromServer = async (organizationId: string): Promise<n
       const localInvoice: LocalInvoice = {
         id: invoiceData.id,
         invoice_number: invoiceData.invoice_number,
+        remote_invoice_id: invoiceData.id,
         customer_name: invoiceData.customer_name,
         customer_id: invoiceData.customer_id,
         total_amount: invoiceData.total_amount,

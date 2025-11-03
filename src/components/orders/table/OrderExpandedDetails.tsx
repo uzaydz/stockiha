@@ -91,10 +91,10 @@ const OrderExpandedDetails = memo(({
 
   return (
     <>
-      <TableRow id={containerId} className="bg-muted/20 hover:bg-muted/30 transition-colors duration-200 transform-gpu" style={{ contain: 'layout' }}>
-        <TableCell colSpan={visibleColumns?.length || 10} className="py-4 px-4 md:py-5 md:px-6 lg:py-6 lg:px-8" style={{ contain: 'layout' }}>
-          <div className="rounded-lg bg-background/95 border border-border/30 shadow-sm w-full transform-gpu" role="group" aria-labelledby={headingId} style={{ contain: 'layout' }}>
-            <div className="p-4 md:p-5 lg:p-6 w-full" style={{ contain: 'layout' }}>
+      <TableRow id={containerId} className="bg-gradient-to-r from-muted/30 to-muted/20 hover:from-muted/40 hover:to-muted/30 transition-colors duration-200">
+        <TableCell colSpan={visibleColumns?.length || 10} className="py-5 px-6">
+          <div className="rounded-xl bg-background border-2 border-border/40 shadow-md w-full overflow-hidden" role="group" aria-labelledby={headingId}>
+            <div className="p-6 w-full bg-gradient-to-br from-background to-muted/5">
               <ExpandedHeader
                 headingId={headingId}
                 readableOrderNumber={readableOrderNumber}
@@ -106,21 +106,40 @@ const OrderExpandedDetails = memo(({
               />
               
               {(() => {
-                // استخدام العناصر المحدثة محلياً فقط - لا حاجة للخادم
+                // استخدام العناصر من الطلب - أولوية للعناصر المحملة مع الطلب
                 const itemsFromOrder = (updatedOrder as any)?.order_items as any[] | undefined;
                 const itemsFromServer = (detailsData as any)?.order_items as any[] | undefined;
-                // أولوية للتحديثات المحلية، ثم البيانات المحفوظة، ثم الخادم
-                const effectiveItems = itemsFromOrder ?? itemsFromServer ?? [];
+                // أولوية للعناصر المحملة مع الطلب، ثم من السيرفر
+                const effectiveItems = itemsFromOrder && itemsFromOrder.length > 0 
+                  ? itemsFromOrder 
+                  : itemsFromServer && itemsFromServer.length > 0
+                  ? itemsFromServer
+                  : [];
+                
+                // تشخيص لعناصر الطلب
+                if (process.env.NODE_ENV === 'development') {
+                  console.log('OrderExpandedDetails Items Debug:', {
+                    orderId: order.id,
+                    itemsFromOrderCount: itemsFromOrder?.length || 0,
+                    itemsFromServerCount: itemsFromServer?.length || 0,
+                    effectiveItemsCount: effectiveItems.length,
+                    detailsStatus,
+                    hasOrderItems: !!(updatedOrder as any)?.order_items
+                  });
+                }
+                
+                const currentStatus = effectiveItems.length > 0 ? 'success' : detailsStatus;
+                
                 return (
                 <ExpandedInfoGrid
                   order={updatedOrder}
                   currentUserId={currentUserId}
                   isEditing={false}
                   draft={{ items: effectiveItems }}
-                  detailsStatus="success" // نجح التحديث المحلي
+                  detailsStatus={currentStatus}
                   detailsItems={effectiveItems}
                   onChangeDraft={() => {}}
-                  onRefetch={() => {}} // لا حاجة لإعادة جلب
+                  onRefetch={refetch}
                 />
                 );
               })()}

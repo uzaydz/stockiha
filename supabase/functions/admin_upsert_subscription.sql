@@ -19,15 +19,30 @@ SET search_path = public
 LANGUAGE plpgsql AS $$
 DECLARE
   v_is_super BOOLEAN;
+  v_is_active BOOLEAN;
+  v_auth_id UUID;
   v_plan subscription_plans%ROWTYPE;
   v_new_subscription organization_subscriptions%ROWTYPE;
   v_valid_status CONSTANT TEXT[] := ARRAY['pending','active','expired','canceled'];
   v_valid_billing CONSTANT TEXT[] := ARRAY['monthly','yearly'];
   v_effective_end DATE;
 BEGIN
-  SELECT is_super_admin INTO v_is_super FROM users WHERE id = auth.uid();
-  IF NOT COALESCE(v_is_super, FALSE) AND auth.role() <> 'service_role' THEN
-    RAISE EXCEPTION 'not_authorized';
+  -- Enhanced authorization check - use auth_user_id and check is_active
+  SELECT is_super_admin, is_active, auth_user_id
+  INTO v_is_super, v_is_active, v_auth_id
+  FROM users
+  WHERE auth_user_id = auth.uid()
+    AND is_active = true
+  LIMIT 1;
+
+  -- Verify super admin status and active account
+  IF NOT COALESCE(v_is_super, FALSE) THEN
+    RAISE EXCEPTION 'not_authorized' USING HINT = 'Super admin access required';
+  END IF;
+
+  -- Verify auth_user_id matches
+  IF v_auth_id IS NULL OR v_auth_id != auth.uid() THEN
+    RAISE EXCEPTION 'authentication_mismatch' USING HINT = 'User authentication validation failed';
   END IF;
 
   IF p_status IS NULL OR NOT (p_status = ANY (v_valid_status)) THEN
@@ -40,6 +55,16 @@ BEGIN
 
   IF p_start_date IS NULL THEN
     RAISE EXCEPTION 'start_date_required';
+  END IF;
+
+  -- Validate amount_paid - prevent negative or excessive values
+  IF p_amount_paid < 0 OR p_amount_paid > 99999999.99 THEN
+    RAISE EXCEPTION 'invalid_amount' USING HINT = 'Amount must be between 0 and 99999999.99';
+  END IF;
+
+  -- Validate currency - only allow specific currencies
+  IF p_currency IS NOT NULL AND UPPER(TRIM(p_currency)) NOT IN ('DZD', 'USD', 'EUR') THEN
+    RAISE EXCEPTION 'invalid_currency' USING HINT = 'Currency must be DZD, USD, or EUR';
   END IF;
 
   SELECT * INTO v_plan FROM subscription_plans WHERE id = p_plan_id;
@@ -127,11 +152,16 @@ BEGIN
     RETURNING * INTO v_new_subscription;
   END IF;
 
+  -- ✅ FIX: تحديث حالة المؤسسة بناءً على حالة الاشتراك
   UPDATE organizations
-  SET 
+  SET
     subscription_id = v_new_subscription.id,
     subscription_status = p_status,
-    subscription_tier = v_plan.code,
+    -- إذا كان الاشتراك ملغى أو منتهي، لا تعرض tier
+    subscription_tier = CASE
+      WHEN p_status IN ('canceled', 'expired') THEN NULL
+      ELSE v_plan.code
+    END,
     updated_at = NOW()
   WHERE id = p_organization_id;
 

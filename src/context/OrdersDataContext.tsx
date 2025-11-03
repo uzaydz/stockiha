@@ -40,6 +40,7 @@ type OrdersDataContextType = {
   refreshData: () => Promise<void>;
   addCallConfirmationStatus: (name: string, color: string) => Promise<number>;
   updateCallConfirmationStatus: (id: number, updates: Partial<CallConfirmationStatus>) => void;
+  deleteCallConfirmationStatus: (id: number) => Promise<void>;
 };
 
 // إنشاء السياق
@@ -242,7 +243,7 @@ export const OrdersDataProvider: React.FC<{ children: ReactNode }> = ({ children
 
   // تحديث حالة تأكيد اتصال محلياً
   const updateCallConfirmationStatus = useCallback((id: number, updates: Partial<CallConfirmationStatus>) => {
-    
+
     setData(prev => ({
       ...prev,
       callConfirmationStatuses: prev.callConfirmationStatuses.map(status =>
@@ -250,6 +251,70 @@ export const OrdersDataProvider: React.FC<{ children: ReactNode }> = ({ children
       )
     }));
   }, []);
+
+  // حذف حالة تأكيد اتصال
+  const deleteCallConfirmationStatus = useCallback(async (id: number): Promise<void> => {
+    if (!currentOrganization?.id) {
+      throw new Error('لا يوجد معرف منظمة');
+    }
+
+    try {
+      // التحقق من أن الحالة ليست افتراضية
+      const statusToDelete = data.callConfirmationStatuses.find(s => s.id === id);
+      if (statusToDelete?.is_default) {
+        throw new Error('لا يمكن حذف الحالة الافتراضية');
+      }
+
+      // التحقق من عدم استخدام الحالة في أي طلبات
+      const { count, error: countError } = await supabase
+        .from('online_orders')
+        .select('id', { count: 'exact', head: true })
+        .eq('call_confirmation_status_id', id)
+        .eq('organization_id', currentOrganization.id);
+
+      if (countError) {
+        throw countError;
+      }
+
+      if (count && count > 0) {
+        throw new Error(`لا يمكن حذف هذه الحالة لأنها مستخدمة في ${count} طلب. يرجى تغيير حالة الطلبات أولاً.`);
+      }
+
+      // حذف من قاعدة البيانات
+      const { error } = await supabase
+        .from('call_confirmation_statuses')
+        .delete()
+        .eq('id', id)
+        .eq('organization_id', currentOrganization.id);
+
+      if (error) {
+        // معالجة خطأ القيد المرجعي
+        if (error.code === '23503') {
+          throw new Error('لا يمكن حذف هذه الحالة لأنها مستخدمة في طلبات. يرجى تغيير حالة الطلبات أولاً.');
+        }
+        throw error;
+      }
+
+      // حذف من البيانات المحلية
+      setData(prev => ({
+        ...prev,
+        callConfirmationStatuses: prev.callConfirmationStatuses.filter(status => status.id !== id)
+      }));
+
+      toast({
+        title: "تم الحذف",
+        description: "تم حذف حالة تأكيد الإتصال بنجاح",
+      });
+    } catch (error: any) {
+      const errorMessage = error?.message || "فشل حذف حالة تأكيد الإتصال";
+      toast({
+        variant: "destructive",
+        title: "خطأ",
+        description: errorMessage,
+      });
+      throw error;
+    }
+  }, [currentOrganization?.id, data.callConfirmationStatuses, toast]);
 
   // تحديث البيانات عند تغيير المنظمة
   useEffect(() => {
@@ -263,6 +328,7 @@ export const OrdersDataProvider: React.FC<{ children: ReactNode }> = ({ children
     refreshData: fetchAllData,
     addCallConfirmationStatus,
     updateCallConfirmationStatus,
+    deleteCallConfirmationStatus,
   };
 
   return (

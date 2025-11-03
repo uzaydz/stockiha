@@ -2,13 +2,14 @@ import { supabase } from '@/lib/supabase';
 import { 
   createLocalProduct,
   updateLocalProduct,
-  deleteLocalProduct,
-  getLocalProducts as fetchLocalProducts
+  deleteLocalProduct
 } from './localProductService';
-import { synchronizeWithServer } from './syncService';
+import { synchronizeWithServer, syncUnsyncedProducts } from './syncService';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { Product } from './productService';
-import { LocalProduct } from '@/database/localDb';
+import { LocalProduct, inventoryDB } from '@/database/localDb';
+import { computeAvailableStock } from '@/lib/stock';
+import { replaceProductInPOSCache, bumpProductStockInPOSCache } from '@/lib/cache/posCacheUpdater';
 
 /**
  * خدمة المنتجات المُوحدة (Offline-First)
@@ -16,8 +17,20 @@ import { LocalProduct } from '@/database/localDb';
  */
 
 // التحقق من حالة الاتصال
-const isOnline = (): boolean => {
-  return navigator.onLine;
+const isOnline = (): boolean => navigator.onLine;
+
+// جدولة مزامنة خفيفة لتجنب الاستدعاءات المتكررة
+let pendingSyncTimer: any = null;
+const scheduleLightSync = () => {
+  if (!isOnline()) return;
+  if (pendingSyncTimer) return; // دمج الاستدعاءات المتقاربة
+  pendingSyncTimer = setTimeout(async () => {
+    pendingSyncTimer = null;
+    try {
+      // مزامنة المنتجات فقط لتقليل عدد الاستدعاءات
+      await syncUnsyncedProducts();
+    } catch {}
+  }, 1500);
 };
 
 // جلب المنتجات - تجمع بين المحلي والبعيد
@@ -31,11 +44,12 @@ export const getProducts = async (organizationId: string): Promise<LocalProduct[
       }
     }
 
-    // استخدام البيانات المحلية بغض النظر عن حالة الاتصال
-    const products = await fetchLocalProducts();
-    
-    // تصفية حسب المؤسسة
-    return products.filter(product => product.organization_id === organizationId);
+    // جلب مباشر باستخدام فهرس Dexie بدلاً من تحميل كل المنتجات ثم تصفيتها
+    const products = await inventoryDB.products
+      .where('organization_id')
+      .equals(organizationId)
+      .toArray();
+    return products as any;
     
   } catch (error) {
     throw error;
@@ -64,13 +78,8 @@ export const createProduct = async (
       organization_id: organizationId
     });
     
-    // محاولة المزامنة إذا كان متصلاً
-    if (isOnline()) {
-      try {
-        await synchronizeWithServer();
-      } catch (error) {
-      }
-    }
+    // مزامنة خفيفة مجدولة (تجنب ضغط الشبكة)
+    scheduleLightSync();
     
     return newProduct;
   } catch (error) {
@@ -92,13 +101,8 @@ export const updateProduct = async (
       throw new Error(`لم يتم العثور على المنتج بالمعرف: ${productId}`);
     }
     
-    // محاولة المزامنة إذا كان متصلاً
-    if (isOnline()) {
-      try {
-        await synchronizeWithServer();
-      } catch (error) {
-      }
-    }
+    // مزامنة خفيفة مجدولة (تجنب ضغط الشبكة)
+    scheduleLightSync();
     
     return updatedProduct;
   } catch (error) {
@@ -258,7 +262,7 @@ export const updateProductStock = async (
   productId: string, 
   quantity: number, 
   isReduction: boolean = true,
-  options?: VariantUpdateOptions
+  options?: VariantUpdateOptions & { skipSync?: boolean }
 ): Promise<LocalProduct | null> => {
   try {
     const product = await getProductById(organizationId, productId);
@@ -271,11 +275,10 @@ export const updateProductStock = async (
     const safeQuantity = Math.abs(quantity);
     const signedDelta = isReduction ? -safeQuantity : safeQuantity;
 
-    const currentNumericStock = Number(
-      (product as any)?.actual_stock_quantity ??
-      product.stock_quantity ??
-      (product as any)?.stockQuantity ??
-      0
+    const currentNumericStock = Math.max(
+      Number((product as any)?.actual_stock_quantity ?? 0) || 0,
+      Number((product as any)?.stock_quantity ?? 0) || 0,
+      Number((product as any)?.stockQuantity ?? 0) || 0
     );
 
     const baseStockAfterChange = Math.max(0, currentNumericStock + signedDelta);
@@ -339,15 +342,77 @@ export const updateProductStock = async (
 
     let updatedProduct: LocalProduct | null = await updateLocalProduct(productId, updates as any);
 
-    // محاولة المزامنة إذا كان متصلاً
-    if (isOnline()) {
-      try {
-        await synchronizeWithServer();
-      } catch (error) {
-      }
+    // تحديث الكاش فوراً بدون انتظار أي مزامنة/إعادة جلب
+    if (updatedProduct) {
+      replaceProductInPOSCache(updatedProduct as any);
+    } else {
+      bumpProductStockInPOSCache(productId, signedDelta);
+    }
+
+    // مزامنة خفيفة مجدولة لتقليل عدد الاستدعاءات
+    if (!options?.skipSync) {
+      scheduleLightSync();
     }
     
     return updatedProduct;
+  } catch (error) {
+    throw error;
+  }
+};
+
+// الحصول على كمية المتغير (لون/مقاس) الحالية
+const getCurrentVariantQuantity = (product: any, colorId?: string | null, sizeId?: string | null): number => {
+  const colors = product?.colors || product?.product_colors;
+  if (!colorId) {
+    const a = Number(product?.actual_stock_quantity ?? 0) || 0;
+    const b = Number(product?.stock_quantity ?? 0) || 0;
+    const c = Number(product?.stockQuantity ?? 0) || 0;
+    return Math.max(a, b, c);
+  }
+  const color = Array.isArray(colors) ? colors.find((c: any) => c?.id === colorId) : undefined;
+  if (!color) return 0;
+  if (sizeId) {
+    const sizes = color?.sizes || color?.product_sizes;
+    const size = Array.isArray(sizes) ? sizes.find((s: any) => s?.id === sizeId) : undefined;
+    return Number(size?.quantity ?? 0) || 0;
+  }
+  const hasSizes = Boolean(color?.has_sizes);
+  if (hasSizes) {
+    const sizes = color?.sizes || color?.product_sizes;
+    if (!Array.isArray(sizes)) return 0;
+    return sizes.reduce((sum: number, s: any) => sum + (Number(s?.quantity ?? 0) || 0), 0);
+  }
+  return Number(color?.quantity ?? 0) || 0;
+};
+
+export const setProductStockAbsolute = async (
+  organizationId: string,
+  productId: string,
+  newQuantity: number,
+  options?: VariantUpdateOptions
+): Promise<LocalProduct | null> => {
+  try {
+    const product = await getProductById(organizationId, productId);
+    if (!product) {
+      throw new Error(`لم يتم العثور على المنتج بالمعرف: ${productId}`);
+    }
+
+    const colorId = options?.colorId ?? null;
+    const sizeId = options?.sizeId ?? null;
+
+    const currentQty = getCurrentVariantQuantity(product as any, colorId, sizeId);
+    const delta = Number(newQuantity) - Number(currentQty);
+    if (delta === 0) {
+      // تحديث الكاش أيضاً لضمان التزامن الفوري
+      replaceProductInPOSCache(product as any);
+      return product; // لا تغيير
+    }
+
+    const isReduction = delta < 0;
+    const absDelta = Math.abs(delta);
+    const res = await updateProductStock(organizationId, productId, absDelta, isReduction, { colorId, sizeId });
+    if (res) replaceProductInPOSCache(res as any);
+    return res;
   } catch (error) {
     throw error;
   }

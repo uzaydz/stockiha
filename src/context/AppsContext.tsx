@@ -83,7 +83,7 @@ export const AVAILABLE_APPS: AppDefinition[] = [
       'طباعة الفواتير والإيصالات',
       'دعم متغيرات المنتجات (ألوان، أحجام)'
     ],
-    permissions: ['accessPOS', 'viewPOSOrders', 'viewDebts', 'manageReturns', 'manageLosses']
+    permissions: ['accessPOS', 'viewPOSOrders', 'viewDebts', 'manageOrders', 'manageInventory']
   },
   {
     id: 'repair-services',

@@ -17,9 +17,11 @@ interface SupplierActionsMenuProps {
   onEdit: () => void;
   onDelete: () => void;
   onViewPurchases: () => void;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
-export function SupplierActionsMenu({ supplier, onEdit, onDelete, onViewPurchases }: SupplierActionsMenuProps) {
+export function SupplierActionsMenu({ supplier, onEdit, onDelete, onViewPurchases, canEdit = true, canDelete = true }: SupplierActionsMenuProps) {
   const navigate = useNavigate();
   
   return (
@@ -33,10 +35,12 @@ export function SupplierActionsMenu({ supplier, onEdit, onDelete, onViewPurchase
       <DropdownMenuContent align="end">
         <DropdownMenuLabel>إجراءات</DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={onEdit}>
-          <Edit className="ml-2 h-4 w-4" />
-          تعديل المورد
-        </DropdownMenuItem>
+        {canEdit && (
+          <DropdownMenuItem onClick={onEdit}>
+            <Edit className="ml-2 h-4 w-4" />
+            تعديل المورد
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onClick={onViewPurchases}>
           <ShoppingCart className="ml-2 h-4 w-4" />
           المشتريات
@@ -49,11 +53,15 @@ export function SupplierActionsMenu({ supplier, onEdit, onDelete, onViewPurchase
           <BarChart className="ml-2 h-4 w-4" />
           التقارير
         </DropdownMenuItem>
-        <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={onDelete} className="text-red-600">
-          <Trash className="ml-2 h-4 w-4" />
-          حذف المورد
-        </DropdownMenuItem>
+        {canDelete && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onDelete} className="text-red-600">
+              <Trash className="ml-2 h-4 w-4" />
+              حذف المورد
+            </DropdownMenuItem>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -17,7 +17,9 @@ export class ProductPageManager {
   isProductPage(): boolean {
     if (typeof window === 'undefined') return false;
 
-    const pathname = window.location.pathname;
+    const pathname = (typeof window !== 'undefined' && window.location.hash && window.location.hash.startsWith('#/'))
+      ? window.location.hash.slice(1)
+      : window.location.pathname;
     const productPatterns = [
       '/product-purchase-max-v2/',
       '/product-purchase/',
@@ -33,7 +35,9 @@ export class ProductPageManager {
   extractProductId(): string | null {
     if (typeof window === 'undefined') return null;
 
-    const pathname = window.location.pathname;
+    const pathname = (typeof window !== 'undefined' && window.location.hash && window.location.hash.startsWith('#/'))
+      ? window.location.hash.slice(1)
+      : window.location.pathname;
     const productMatch = pathname.match(/\/(?:product-purchase-max-v2|product-purchase|product)\/([^\/]+)/);
     return productMatch ? productMatch[1] : null;
   }

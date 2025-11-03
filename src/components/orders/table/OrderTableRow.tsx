@@ -97,21 +97,19 @@ const OrdersTableRow = ({
 
   return (
     <>
-      <TableRow 
+      <TableRow
         className={`
-          ${selected ? "bg-primary/5 border-primary/20" : ""}
-          hover:bg-accent/20 
-          transition-colors duration-200
+          ${selected ? "bg-primary/5 border-l-[3px] border-l-primary" : "border-l-[3px] border-l-transparent"}
+          hover:bg-muted/40
+          transition-all duration-200 ease-in-out
           group
           border-b border-border/30
           ${selected ? "shadow-sm" : ""}
           select-text
-          transform-gpu
+          cursor-default
         `}
-        style={{ 
-          userSelect: 'text', 
-          contain: 'layout paint', 
-          willChange: selected ? 'background-color' : 'auto' 
+        style={{
+          userSelect: 'text'
         }}
       >
         {/* خانة تحديد الطلب */}
@@ -177,11 +175,13 @@ const OrdersTableRow = ({
 
         {/* الموظف المعين */}
         {visibleColumns.includes("assignee") && (
-          <TableCell className="py-4 px-4" style={{ contain: 'layout' }}>
+          <TableCell className="w-[150px] min-w-[150px] py-3 px-4 align-middle">
             {assignedStaffDisplayName ? (
-              <span className="text-sm">{assignedStaffDisplayName}</span>
+              <div className="text-xs font-medium text-primary bg-primary/10 border border-primary/20 px-2.5 py-1.5 rounded-lg inline-block">
+                {assignedStaffDisplayName}
+              </div>
             ) : (
-              <span className="text-sm text-muted-foreground">غير معين</span>
+              <span className="text-xs text-muted-foreground">غير معين</span>
             )}
           </TableCell>
         )}
@@ -199,7 +199,7 @@ const OrdersTableRow = ({
         
         {/* مزود الشحن */}
         {visibleColumns.includes("shipping_provider") && (
-          <TableCell className="py-4 px-4" style={{ contain: 'layout' }}>
+          <TableCell className="w-[200px] min-w-[200px] py-3 px-4 align-middle">
             <ShippingProviderColumn
               order={order}
               onSendToProvider={onSendToProvider}
@@ -208,10 +208,10 @@ const OrdersTableRow = ({
             />
           </TableCell>
         )}
-        
+
         {/* نوع التوصيل */}
         {visibleColumns.includes("delivery_type") && (
-          <TableCell className="py-4 px-4" style={{ contain: 'layout' }}>
+          <TableCell className="w-[140px] min-w-[140px] py-3 px-4 align-middle">
             <OrderDeliveryTypeEditor
               order={order}
               hasUpdatePermission={hasUpdatePermission}
@@ -223,10 +223,10 @@ const OrdersTableRow = ({
             />
           </TableCell>
         )}
-        
+
         {/* المبالغ المالية */}
         {visibleColumns.includes("financial") && (
-          <TableCell className="py-4 px-4" style={{ contain: 'layout' }}>
+          <TableCell className="w-[160px] min-w-[160px] py-3 px-4 align-middle">
             <OrderFinancialEditor
               order={order}
               hasUpdatePermission={hasUpdatePermission}
@@ -238,20 +238,22 @@ const OrdersTableRow = ({
             />
           </TableCell>
         )}
-        
+
         {/* إجراءات الطلب */}
         {visibleColumns.includes("actions") && (
-          <OrderRowActions
-            order={order}
-            hasUpdatePermission={hasUpdatePermission}
-            hasCancelPermission={hasCancelPermission}
-            onUpdateStatus={onUpdateStatus}
-            onOrderUpdated={(updatedOrder) => {
-              if (onOrderUpdated) {
-                onOrderUpdated(order.id, updatedOrder);
-              }
-            }}
-          />
+          <TableCell className="w-[80px] min-w-[80px] py-3 px-3 align-middle text-center">
+            <OrderRowActions
+              order={order}
+              hasUpdatePermission={hasUpdatePermission}
+              hasCancelPermission={hasCancelPermission}
+              onUpdateStatus={onUpdateStatus}
+              onOrderUpdated={(updatedOrder) => {
+                if (onOrderUpdated) {
+                  onOrderUpdated(order.id, updatedOrder);
+                }
+              }}
+            />
+          </TableCell>
         )}
       </TableRow>
       

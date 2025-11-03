@@ -10,8 +10,7 @@
   font-style: normal;
   font-weight: 400;
   font-display: block;
-  src: url('../fonts/tajawal-regular.woff2') format('woff2'),
-       url('./fonts/tajawal-regular.woff2') format('woff2');
+  src: url('/fonts/tajawal-regular.woff2') format('woff2');
   unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF, U+2000-206F, U+2070-209F;
 }
 
@@ -20,8 +19,7 @@
   font-style: normal;
   font-weight: 500;
   font-display: swap;
-  src: url('../fonts/tajawal-medium.woff2') format('woff2'),
-       url('./fonts/tajawal-medium.woff2') format('woff2');
+  src: url('/fonts/tajawal-medium.woff2') format('woff2');
   unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF, U+2000-206F, U+2070-209F;
 }
 
@@ -30,8 +28,7 @@
   font-style: normal;
   font-weight: 700;
   font-display: swap;
-  src: url('../fonts/tajawal-bold.woff2') format('woff2'),
-       url('./fonts/tajawal-bold.woff2') format('woff2');
+  src: url('/fonts/tajawal-bold.woff2') format('woff2');
   unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF, U+2000-206F, U+2070-209F;
 }
 

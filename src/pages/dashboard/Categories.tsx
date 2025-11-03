@@ -4,12 +4,14 @@ import { toast } from 'sonner';
 import { getCategories } from '@/lib/api/unified-api';
 import type { Category } from '@/lib/api/categories';
 import CategoriesHeader from '@/components/category/CategoriesHeader';
-import CategoriesList from '@/components/category/CategoriesList';
+import { usePermissions } from '@/hooks/usePermissions';
+import CategoriesListResponsive from '@/components/category/CategoriesListResponsive';
 import CategoriesFilter from '@/components/category/CategoriesFilter';
 import AddCategoryDialog from '@/components/category/AddCategoryDialog';
 import { useTenant } from '@/context/TenantContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { POSSharedLayoutControls } from '@/components/pos-layout/types';
+import { cn } from '@/lib/utils';
 // import { forceDataRefresh } from '@/lib/ultimateRequestController'; // تعطيل مؤقت
 
 interface CategoriesProps extends POSSharedLayoutControls {}
@@ -33,6 +35,8 @@ const CategoriesComponent = ({
   const renderWithLayout = (node: React.ReactElement) => (
     useStandaloneLayout ? <Layout>{node}</Layout> : node
   );
+  const perms = usePermissions();
+  const canManageCategories = perms.ready ? perms.anyOf(['manageProductCategories','manageProducts']) : false;
   
   // flag لمنع التداخل بين عمليات التحديث
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -344,10 +348,14 @@ const CategoriesComponent = ({
   }
 
   const pageContent = (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className={cn(
+      "space-y-4 sm:space-y-6 products-page-container",
+      useStandaloneLayout ? "container mx-auto p-2 sm:p-4 lg:p-6" : "px-3 sm:px-4"
+    )}>
       <CategoriesHeader 
         categoryCount={filteredCategories.length}
         onAddCategory={handleAddCategory}
+        canAdd={canManageCategories}
       />
 
       <CategoriesFilter
@@ -361,16 +369,18 @@ const CategoriesComponent = ({
         onTypeFilterChange={setTypeFilter}
       />
 
-      <CategoriesList 
+      <CategoriesListResponsive
         categories={filteredCategories}
         onRefreshCategories={refreshCategories}
       />
 
-      <AddCategoryDialog
-        open={isAddCategoryOpen}
-        onOpenChange={setIsAddCategoryOpen}
-        onCategoryAdded={refreshCategories}
-      />
+      {canManageCategories && (
+        <AddCategoryDialog
+          open={isAddCategoryOpen}
+          onOpenChange={setIsAddCategoryOpen}
+          onCategoryAdded={refreshCategories}
+        />
+      )}
     </div>
   );
 

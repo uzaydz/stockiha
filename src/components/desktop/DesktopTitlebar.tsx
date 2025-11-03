@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
-import { Minus, Square, X as CloseIcon, ChevronLeft, ChevronRight, Home, Sun, Moon, LogOut, Shield, User, Calculator, MoreHorizontal } from 'lucide-react';
+import { Minus, Square, X as CloseIcon, ChevronLeft, ChevronRight, Home, Sun, Moon, LogOut, Shield, User, Calculator, MoreHorizontal, Crown } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTitlebar } from '@/context/TitlebarContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -10,6 +10,9 @@ import { NavbarSyncIndicator } from '@/components/navbar/NavbarSyncIndicator';
 import POSTitleBarActions from '@/components/pos/POSTitleBarActions';
 import ProfileMenu from './ProfileMenu';
 import UpdateButton from './UpdateButton';
+import { SubscriptionButton } from './SubscriptionButton';
+import { SmartAssistantChat } from '@/components/pos/SmartAssistantChat';
+import './DesktopTitlebar.css';
 
 type Platform = 'darwin' | 'win32' | 'linux' | 'web';
 
@@ -20,14 +23,13 @@ const DesktopTitlebar: React.FC = () => {
   const { theme, fastThemeController } = useTheme();
   const { currentStaff, isAdminMode, clearSession } = useStaffSession();
   const { isEnabled, toggleNumpad } = useVirtualNumpad();
+  const [showAIChat, setShowAIChat] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const [platform, setPlatform] = useState<Platform>('web');
   const [canGoBack, setCanGoBack] = useState(false);
-  const [canGoForward, setCanGoForward] = useState(false);
-  const [showMoreTools, setShowMoreTools] = useState(false);
+  const [activeToolsGroup, setActiveToolsGroup] = useState<'primary' | 'secondary'>('primary');
   const tabsContainerRef = useRef<HTMLDivElement>(null);
-  const moreToolsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && (window as any).electronAPI?.platform) {
@@ -55,25 +57,7 @@ const DesktopTitlebar: React.FC = () => {
   // تتبع حالة التنقل
   useEffect(() => {
     setCanGoBack(window.history.length > 1);
-    setCanGoForward(false);
   }, [location]);
-
-  // إغلاق قائمة المزيد عند النقر خارجها
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (moreToolsRef.current && !moreToolsRef.current.contains(event.target as Node)) {
-        setShowMoreTools(false);
-      }
-    };
-
-    if (showMoreTools) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showMoreTools]);
 
   const handleGoBack = useCallback(() => {
     if (canGoBack) {
@@ -114,194 +98,160 @@ const DesktopTitlebar: React.FC = () => {
       className="desktop-titlebar fixed inset-x-0 top-0 z-[1000] flex h-[var(--titlebar-height,48px)] items-center bg-gradient-to-r from-slate-900/98 via-slate-900/96 to-slate-900/98 text-white backdrop-blur-xl border-b border-white/5 shadow-lg"
       style={{ WebkitAppRegion: 'drag', height: `var(--titlebar-height, ${TITLEBAR_HEIGHT}px)` } as any}
     >
-      {/* القسم الأيسر: أزرار التنقل والأدوات */}
-      <div 
-        className="flex items-center gap-1.5 px-2 sm:px-3 shrink-0"
+      {/* القسم الأيسر: نظام تبديل الأزرار */}
+      <div
+        className="flex items-center gap-0.5 sm:gap-1.5 px-1 sm:px-2 lg:px-3 shrink-0 relative"
         style={{ WebkitAppRegion: 'no-drag' } as any}
       >
-        {/* مجموعة أزرار التنقل */}
-        <div className="flex items-center gap-0.5 bg-white/5 rounded-lg p-0.5 border border-white/10 backdrop-blur-sm">
-          <button
-            type="button"
-            onClick={handleGoBack}
-            disabled={!canGoBack}
+        {/* Container مع أنيميشن التبديل */}
+        <div className="relative overflow-hidden">
+          {/* المجموعة الأساسية */}
+          <div
             className={cn(
-              "flex items-center justify-center h-6 w-6 lg:h-7 lg:w-7 rounded-md transition-all duration-200",
-              canGoBack
-                ? "hover:bg-white/15 text-white/90 hover:text-white active:scale-95"
-                : "text-white/30 cursor-not-allowed opacity-50"
+              "flex items-center gap-0.5 transition-all duration-300 ease-in-out",
+              activeToolsGroup === 'primary'
+                ? "opacity-100 translate-x-0"
+                : "opacity-0 -translate-x-full absolute inset-0 pointer-events-none"
             )}
-            aria-label="الرجوع"
-            title="الرجوع"
           >
-            <ChevronRight className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={handleGoForward}
-            className="hidden sm:flex items-center justify-center h-6 w-6 lg:h-7 lg:w-7 rounded-md hover:bg-white/15 text-white/90 hover:text-white active:scale-95 transition-all duration-200"
-            aria-label="التقدم"
-            title="التقدم"
-          >
-            <ChevronLeft className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
-          </button>
-          <div className="hidden sm:block h-4 w-px bg-white/15" />
-          <button
-            type="button"
-            onClick={handleGoHome}
-            className="flex items-center justify-center h-6 w-6 lg:h-7 lg:w-7 rounded-md hover:bg-white/15 text-white/90 hover:text-white active:scale-95 transition-all duration-200"
-            aria-label="الصفحة الرئيسية"
-            title="الصفحة الرئيسية"
-          >
-            <Home className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
-          </button>
-        </div>
-        
-        {/* مجموعة الأدوات */}
-        <div className="flex items-center gap-0.5 bg-white/5 rounded-lg p-0.5 border border-white/10 backdrop-blur-sm">
-          {/* المزامنة - دائماً ظاهرة */}
-          <div className="flex items-center">
-            <NavbarSyncIndicator />
-          </div>
-          
-          {/* أزرار Actions - مخفية في الشاشات الصغيرة */}
-          {actions && actions.length > 0 && (
-            <>
-              <div className="hidden md:block h-4 w-px bg-white/15" />
-              {actions.map((action) => (
-                <button
-                  key={action.id}
-                  type="button"
-                  onClick={action.onClick}
-                  disabled={action.disabled}
-                  className={cn(
-                    "hidden md:flex items-center justify-center h-6 w-6 lg:h-7 lg:w-7 rounded-md transition-all duration-200",
-                    action.disabled
-                      ? "text-white/30 cursor-not-allowed opacity-50"
-                      : "hover:bg-white/15 text-white/90 hover:text-white active:scale-95"
-                  )}
-                  aria-label={action.label}
-                  title={action.label}
-                >
-                  {action.icon}
-                </button>
-              ))}
-            </>
-          )}
-          
-          {/* معلومات الموظف */}
-          {staffDisplayName && (
-            <>
-              <div className="h-4 w-px bg-white/15" />
-              <div className="flex items-center gap-0.5 px-1 lg:px-2">
-                <div className="hidden lg:flex items-center gap-1.5 text-xs text-white/80">
-                  {isAdminMode ? (
-                    <Shield className="h-3.5 w-3.5 text-yellow-400" />
-                  ) : (
-                    <User className="h-3.5 w-3.5 text-blue-400" />
-                  )}
-                  <span className="font-medium truncate max-w-[80px]">{staffDisplayName}</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleStaffLogout}
-                  className="flex items-center justify-center h-6 w-6 lg:h-7 lg:w-7 rounded-md hover:bg-red-500/20 text-red-400 hover:text-red-300 active:scale-95 transition-all duration-200"
-                  aria-label="تسجيل خروج الموظف"
-                  title="تسجيل خروج الموظف"
-                >
-                  <LogOut className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
-                </button>
-              </div>
-            </>
-          )}
-          
-          {/* التحديثات - Electron فقط */}
-          {isElectron && (
-            <>
-              <div className="h-4 w-px bg-white/15" />
-              <UpdateButton />
-            </>
-          )}
-          
-          {/* الثيم - دائماً ظاهر */}
-          <div className="h-4 w-px bg-white/15" />
-          <button
-            type="button"
-            onClick={fastThemeController.toggleFast}
-            className="flex items-center justify-center h-6 w-6 lg:h-7 lg:w-7 rounded-md hover:bg-white/15 text-white/90 hover:text-white active:scale-95 transition-all duration-200"
-            aria-label="تبديل الثيم"
-            title="تبديل الثيم"
-          >
-            {theme === 'dark' ? (
-              <Sun className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
-            ) : (
-              <Moon className="h-3.5 w-3.5 lg:h-4 lg:w-4" />
-            )}
-          </button>
-          
-          {/* البروفايل - دائماً ظاهر */}
-          <div className="h-4 w-px bg-white/15" />
-          <ProfileMenu />
-          
-          {/* زر المزيد للشاشات الصغيرة/المتوسطة */}
-          <div className="relative lg:hidden" ref={moreToolsRef}>
-            <div className="h-4 w-px bg-white/15" />
-            <button
-              type="button"
-              onClick={() => setShowMoreTools(!showMoreTools)}
-              className={cn(
-                "flex items-center justify-center h-6 w-6 rounded-md transition-all duration-200 active:scale-95",
-                showMoreTools
-                  ? "bg-white/15 text-white"
-                  : "hover:bg-white/15 text-white/90 hover:text-white"
-              )}
-              aria-label="المزيد من الأدوات"
-              title="المزيد"
-            >
-              <MoreHorizontal className="h-3.5 w-3.5" />
-            </button>
-            
-            {/* قائمة منسدلة للأدوات الإضافية */}
-            {showMoreTools && (
-              <div 
-                className="absolute left-0 mt-2 w-48 bg-slate-800/98 backdrop-blur-xl rounded-lg shadow-2xl border border-white/10 overflow-hidden z-50"
-                style={{ WebkitAppRegion: 'no-drag' } as any}
+            <div className="flex items-center gap-0.5 bg-white/5 rounded-md sm:rounded-lg p-0.5 border border-white/10 backdrop-blur-sm">
+              {/* التنقل */}
+              <button
+                type="button"
+                onClick={handleGoBack}
+                disabled={!canGoBack}
+                className={cn(
+                  "flex items-center justify-center h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 rounded transition-colors duration-150",
+                  canGoBack
+                    ? "hover:bg-white/10 text-white hover:text-white active:bg-white/15"
+                    : "text-white/25 cursor-not-allowed"
+                )}
+                aria-label="الرجوع"
+                title="الرجوع"
               >
-                <div className="py-1">
+                <ChevronRight className="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4" />
+              </button>
+              <button
+                type="button"
+                onClick={handleGoHome}
+                className="flex items-center justify-center h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 rounded hover:bg-white/10 text-white/80 hover:text-white active:bg-white/15 transition-colors duration-150"
+                aria-label="الصفحة الرئيسية"
+                title="الصفحة الرئيسية"
+              >
+                <Home className="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4" />
+              </button>
+              <div className="h-4 w-px bg-white/15" />
+              <div className="flex items-center">
+                <NavbarSyncIndicator />
+              </div>
+              {/* تسجيل خروج الموظف */}
+              {staffDisplayName && (
+                <>
+                  <div className="h-4 w-px bg-white/15" />
                   <button
                     type="button"
-                    onClick={() => {
-                      toggleNumpad();
-                      setShowMoreTools(false);
-                    }}
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-white/90 hover:bg-white/10 transition-colors"
+                    onClick={handleStaffLogout}
+                    className="flex items-center justify-center h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 rounded hover:bg-red-500/15 text-red-400 hover:text-red-300 active:bg-red-500/25 transition-colors duration-150"
+                    aria-label="تسجيل خروج الموظف"
+                    title="تسجيل خروج الموظف"
                   >
-                    <Calculator className="h-4 w-4" />
-                    <span>{isEnabled ? 'تعطيل' : 'تفعيل'} لوحة الأرقام</span>
-                    {isEnabled && <span className="mr-auto text-blue-400 text-xs">✓</span>}
+                    <LogOut className="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4" />
                   </button>
-                </div>
-              </div>
-            )}
+                </>
+              )}
+            </div>
           </div>
-          
-          {/* لوحة الأرقام - ظاهر فقط في الشاشات الكبيرة */}
-          <div className="hidden lg:block h-4 w-px bg-white/15" />
-          <button
-            type="button"
-            onClick={toggleNumpad}
+
+          {/* المجموعة الثانوية */}
+          <div
             className={cn(
-              "hidden lg:flex items-center justify-center h-7 w-7 rounded-md transition-all duration-200 active:scale-95",
-              isEnabled
-                ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/30 hover:text-blue-300"
-                : "hover:bg-white/15 text-white/90 hover:text-white"
+              "flex items-center gap-0.5 transition-all duration-300 ease-in-out",
+              activeToolsGroup === 'secondary'
+                ? "opacity-100 translate-x-0"
+                : "opacity-0 translate-x-full absolute inset-0 pointer-events-none"
             )}
-            aria-label="لوحة الأرقام الافتراضية"
-            title={isEnabled ? "تعطيل لوحة الأرقام" : "تفعيل لوحة الأرقام"}
           >
-            <Calculator className="h-4 w-4" />
-          </button>
+            <div className="flex items-center gap-0.5 bg-white/5 rounded-md sm:rounded-lg p-0.5 border border-white/10 backdrop-blur-sm">
+              {/* SIRA */}
+              <button
+                type="button"
+                onClick={() => setShowAIChat(true)}
+                className="flex items-center justify-center h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 rounded hover:bg-white/10 active:bg-white/15 transition-colors duration-150 group"
+                aria-label="SIRA – تتحدث لغة تجارتك"
+                title="SIRA – تتحدث لغة تجارتك"
+              >
+                <img
+                  src="/images/selkia-logo.webp"
+                  alt="SIRA AI"
+                  className="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-5 lg:w-5 object-contain"
+                />
+              </button>
+              <div className="h-4 w-px bg-white/15" />
+              {/* الثيم */}
+              <button
+                type="button"
+                onClick={fastThemeController.toggleFast}
+                className="flex items-center justify-center h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 rounded hover:bg-white/10 text-white/80 hover:text-white active:bg-white/15 transition-colors duration-150"
+                aria-label="تبديل الثيم"
+                title="تبديل الثيم"
+              >
+                {theme === 'dark' ? (
+                  <Sun className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                ) : (
+                  <Moon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                )}
+              </button>
+              <div className="h-4 w-px bg-white/15" />
+              {/* الاشتراك */}
+              <div className="flex items-center">
+                <SubscriptionButton />
+              </div>
+              <div className="h-4 w-px bg-white/15" />
+              {/* البروفايل */}
+              <div className="flex items-center">
+                <ProfileMenu />
+              </div>
+              <div className="h-4 w-px bg-white/15" />
+              {/* لوحة الأرقام */}
+              <button
+                type="button"
+                onClick={toggleNumpad}
+                className={cn(
+                  "flex items-center justify-center h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 rounded transition-colors duration-150",
+                  isEnabled
+                    ? "bg-blue-500/20 text-blue-400 hover:bg-blue-500/25 hover:text-blue-300 active:bg-blue-500/30"
+                    : "hover:bg-white/10 text-white/80 hover:text-white active:bg-white/15"
+                )}
+                aria-label="لوحة الأرقام الافتراضية"
+                title={isEnabled ? "تعطيل لوحة الأرقام" : "تفعيل لوحة الأرقام"}
+              >
+                <Calculator className="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4" />
+              </button>
+            </div>
+          </div>
         </div>
+
+        {/* زر التبديل بين المجموعتين */}
+        <button
+          type="button"
+          onClick={() => setActiveToolsGroup(prev => prev === 'primary' ? 'secondary' : 'primary')}
+          className={cn(
+            "flex items-center justify-center h-7 w-7 sm:h-8 sm:w-8 rounded-lg transition-all duration-300",
+            "bg-gradient-to-br shadow-lg border",
+            activeToolsGroup === 'primary'
+              ? "from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 shadow-orange-500/25 border-orange-400/40"
+              : "from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-blue-500/25 border-blue-400/40"
+          )}
+          aria-label="تبديل الأدوات"
+          title={activeToolsGroup === 'primary' ? 'عرض الأدوات الإضافية' : 'عرض الأدوات الأساسية'}
+        >
+          <div className={cn(
+            "transition-transform duration-300",
+            activeToolsGroup === 'secondary' && "rotate-180"
+          )}>
+            <ChevronLeft className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-white" />
+          </div>
+        </button>
       </div>
 
       {/* القسم الأوسط: التبويبات أو العنوان */}
@@ -331,17 +281,17 @@ const DesktopTitlebar: React.FC = () => {
                 type="button"
                 onClick={tab.onSelect}
                 className={cn(
-                  'relative flex items-center justify-center rounded-lg transition-all duration-200 shrink-0',
+                  'relative flex items-center justify-center rounded-lg transition-colors duration-150 shrink-0',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30',
                   // الأحجام تتناسب مع عدد التبويبات - بدون max-width
-                  tabs.length <= 3 
+                  tabs.length <= 3
                     ? 'h-8 w-8 sm:h-9 sm:w-auto sm:gap-2 sm:px-4'
                     : tabs.length <= 5
                     ? 'h-8 w-8 sm:h-8 sm:w-auto sm:gap-1.5 sm:px-3'
                     : 'h-7 w-7 sm:h-7 sm:w-auto sm:gap-1.5 sm:px-2.5',
                   tab.id === activeTabId
-                    ? 'bg-white text-slate-900 shadow-lg scale-[1.02] font-semibold'
-                    : 'text-white/70 hover:text-white hover:bg-white/[0.12] active:scale-95'
+                    ? 'bg-white text-slate-900 shadow-md font-semibold'
+                    : 'text-white/70 hover:text-white hover:bg-white/10 active:bg-white/15'
                 )}
                 style={{ WebkitAppRegion: 'no-drag', pointerEvents: 'auto' } as any}
                 title={tab.title}
@@ -427,6 +377,9 @@ const DesktopTitlebar: React.FC = () => {
           <div className="px-3 text-[10px] text-slate-400 select-none hidden sm:block">نسخة المتصفح</div>
         )}
       </div>
+      
+      {/* نافذة الذكاء الاصطناعي */}
+      <SmartAssistantChat open={showAIChat} onOpenChange={setShowAIChat} />
     </div>
   );
 };

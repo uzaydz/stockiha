@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getSupabaseClient } from '@/lib/supabase';
+import { createLocalExpense, updateLocalExpense } from '@/api/localExpenseService';
+import { syncPendingExpenses } from '@/api/syncExpenses';
 import { useExpenseCategories } from '@/context/AppInitializationContext';
 import { 
   Expense, 
@@ -150,154 +152,51 @@ export const useExpenses = () => {
   };
 
   // Create a new expense
-  const createExpense = async (
-    expenseData: ExpenseFormData
-  ): Promise<Expense> => {
-    try {
-      // Obtenemos el ID de la organización desde localStorage con fallback
-      const organizationId = localStorage.getItem('currentOrganizationId') || 
-                             localStorage.getItem('bazaar_organization_id') || 
-                             '11111111-1111-1111-1111-111111111111';
-      
-      // Create the expense with explicit organization_id
-      const { data: expense, error: expenseError } = await supabase
-        .from('expenses')
-        .insert({
-          title: expenseData.title,
-          amount: expenseData.amount,
-          expense_date: expenseData.expense_date,
-          description: expenseData.notes,
-          category: expenseData.category,
-          payment_method: 'cash', // قيمة افتراضية لطريقة الدفع
-          status: expenseData.status,
-          is_recurring: expenseData.is_recurring,
-          organization_id: organizationId // Usamos el ID de organización obtenido
-        })
-        .select()
-        .single();
-      
-      if (expenseError) throw expenseError;
-      
-      // If this is a recurring expense, create the recurring configuration
-      if (expenseData.recurring && expense) {
-        const { frequency, start_date, day_of_month, day_of_week } = expenseData.recurring;
-        
-        // Calculate next due date based on frequency
-        let nextDue = new Date(start_date);
-        
-        const { error: recurringError } = await supabase
-          .from('recurring_expenses')
-          .insert({
-            expense_id: expense.id,
-            frequency,
-            start_date,
-            next_due: nextDue.toISOString(),
-            day_of_month,
-            day_of_week,
-            status: 'active'
-          });
-        
-        if (recurringError) throw recurringError;
-      }
-      
-      return expense as Expense;
-    } catch (error) {
-      throw error;
-    }
+  const createExpense = async (expenseData: ExpenseFormData): Promise<Expense> => {
+    // أوفلاين أولاً
+    const local = await createLocalExpense(expenseData);
+    // محاولة مزامنة فورية (لا تعطل واجهة المستخدم)
+    try { void syncPendingExpenses(); } catch {}
+    // تحويل إلى شكل Expense (تقريبًا)
+    const exp: Expense = {
+      id: local.id,
+      title: local.title,
+      amount: local.amount,
+      category: local.category,
+      expense_date: local.expense_date,
+      notes: local.notes || undefined,
+      status: local.status,
+      is_recurring: local.is_recurring,
+      receipt_url: local.receipt_url || undefined,
+      created_at: local.created_at,
+      updated_at: local.updated_at,
+      organization_id: local.organization_id,
+      recurring: undefined,
+    };
+    return exp;
   };
 
   // Update an existing expense
-  const updateExpense = async (
-    id: string,
-    expenseData: ExpenseFormData
-  ): Promise<Expense> => {
-    try {
-      // Obtenemos el ID de la organización desde localStorage con fallback
-      const organizationId = localStorage.getItem('currentOrganizationId') || 
-                             localStorage.getItem('bazaar_organization_id') || 
-                             '11111111-1111-1111-1111-111111111111';
-      
-      // Update the expense
-      const { data: expense, error: expenseError } = await supabase
-        .from('expenses')
-        .update({
-          title: expenseData.title,
-          amount: expenseData.amount,
-          expense_date: expenseData.expense_date,
-          description: expenseData.notes,
-          category: expenseData.category,
-          payment_method: 'cash', // قيمة افتراضية لطريقة الدفع
-          is_recurring: !!expenseData.recurring,
-          status: expenseData.status,
-          organization_id: organizationId, // Usamos el ID de organización obtenido
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', id)
-        .select()
-        .single();
-      
-      if (expenseError) throw expenseError;
-      
-      // Handle recurring configuration
-      if (expenseData.recurring) {
-        const { frequency, start_date, end_date, day_of_month, day_of_week } = expenseData.recurring;
-        
-        // Check if recurring config already exists
-        const { data: existingRecurring } = await supabase
-          .from('recurring_expenses')
-          .select('*')
-          .eq('expense_id', id)
-          .maybeSingle();
-        
-        if (existingRecurring) {
-          // Update existing recurring config
-          const { error: recurringError } = await supabase
-            .from('recurring_expenses')
-            .update({
-              frequency,
-              start_date,
-              end_date,
-              day_of_month,
-              day_of_week,
-              status: 'active',
-              updated_at: new Date().toISOString(),
-            })
-            .eq('expense_id', id);
-          
-          if (recurringError) throw recurringError;
-        } else {
-          // Create new recurring config
-          let nextDue = new Date(start_date);
-          
-          const { error: recurringError } = await supabase
-            .from('recurring_expenses')
-            .insert({
-              expense_id: id,
-              frequency,
-              start_date,
-              end_date,
-              next_due: nextDue.toISOString(),
-              day_of_month,
-              day_of_week,
-              status: 'active',
-            });
-          
-          if (recurringError) throw recurringError;
-        }
-      } else {
-        // Remove recurring configuration if it exists
-        const { error: deleteError } = await supabase
-          .from('recurring_expenses')
-          .delete()
-          .eq('expense_id', id);
-        
-        if (deleteError) throw deleteError;
-      }
-      
-      return expense as Expense;
-    } catch (error) {
-      throw error;
-    }
+  const updateExpense = async (id: string, expenseData: ExpenseFormData): Promise<Expense> => {
+    const local = await updateLocalExpense(id, expenseData);
+    if (!local) throw new Error('Expense not found locally');
+    try { void syncPendingExpenses(); } catch {}
+    const exp: Expense = {
+      id: local.id,
+      title: local.title,
+      amount: local.amount,
+      category: local.category,
+      expense_date: local.expense_date,
+      notes: local.notes || undefined,
+      status: local.status,
+      is_recurring: local.is_recurring,
+      receipt_url: local.receipt_url || undefined,
+      created_at: local.created_at,
+      updated_at: local.updated_at,
+      organization_id: local.organization_id,
+      recurring: undefined,
+    };
+    return exp;
   };
 
   // Delete an expense
@@ -324,62 +223,71 @@ export const useExpenses = () => {
   // ✅ Get all expense categories - استخدام البيانات من AppInitializationContext
   const getExpenseCategories = async (): Promise<ExpenseCategory[]> => {
     try {
-      // استخدام البيانات المحفوظة من AppInitializationContext
-      if (cachedExpenseCategories && cachedExpenseCategories.length > 0) {
-        console.log('✅ [useExpenses] استخدام expense_categories من AppInitializationContext');
-        return cachedExpenseCategories as ExpenseCategory[];
-      }
-      
-      // Fallback: جلب من قاعدة البيانات إذا لم تكن متوفرة في Context
-      console.log('⚠️ [useExpenses] fallback - جلب expense_categories من قاعدة البيانات');
       const organizationId = localStorage.getItem('currentOrganizationId') || 
                              localStorage.getItem('bazaar_organization_id') || 
                              '11111111-1111-1111-1111-111111111111';
-      
+      // 1) حاول الأوفلاين أولاً
+      try {
+        const offline = await (await import('@/api/localExpenseCategoryService')).listLocalExpenseCategories();
+        if (offline && offline.length > 0) {
+          return offline.map(cat => ({
+            id: cat.id,
+            name: cat.name,
+            description: cat.description || undefined,
+            icon: cat.icon || undefined,
+            created_at: cat.created_at,
+          }));
+        }
+      } catch {}
+
+      // 2) استخدم بيانات التهيئة إن توفرت ثم خزّنها محلياً
+      if (cachedExpenseCategories && cachedExpenseCategories.length > 0) {
+        try {
+          const { fetchExpenseCategoriesFromServer } = await import('@/api/syncExpenseCategories');
+          await fetchExpenseCategoriesFromServer(organizationId);
+        } catch {}
+        return cachedExpenseCategories as ExpenseCategory[];
+      }
+
+      // 3) Fallback: جلب من السيرفر مع حفظ محلي
       const { data, error } = await supabase
         .from('expense_categories')
         .select('*')
         .eq('organization_id', organizationId)
         .order('name');
-      
       if (error) throw error;
-      
-      const uniqueCategories = data ? Array.from(
-        new Map(data.map(item => [item.id, item])).values()
-      ) : [];
-      
-      return uniqueCategories as ExpenseCategory[];
+      for (const row of data || []) {
+        try {
+          await (await import('@/database/localDb')).inventoryDB.expenseCategories.put({
+            id: row.id,
+            organization_id: row.organization_id,
+            name: row.name,
+            description: row.description,
+            icon: row.icon,
+            created_at: row.created_at,
+            updated_at: row.updated_at,
+            synced: true,
+          } as any);
+        } catch {}
+      }
+      return (data || []) as unknown as ExpenseCategory[];
     } catch (error) {
       throw error;
     }
   };
 
   // Create a new expense category
-  const createExpenseCategory = async (
-    categoryData: ExpenseCategoryFormData
-  ): Promise<ExpenseCategory> => {
-    try {
-      // Obtenemos el ID de la organización desde localStorage con fallback
-      const organizationId = localStorage.getItem('currentOrganizationId') || 
-                             localStorage.getItem('bazaar_organization_id') || 
-                             '11111111-1111-1111-1111-111111111111';
-      
-      const { data, error } = await supabase
-        .from('expense_categories')
-        .insert({
-          name: categoryData.name,
-          description: categoryData.description,
-          organization_id: organizationId // Usamos el ID de organización obtenido
-        })
-        .select()
-        .single();
-      
-      if (error) throw error;
-      
-      return data as ExpenseCategory;
-    } catch (error) {
-      throw error;
-    }
+  const createExpenseCategory = async (categoryData: ExpenseCategoryFormData): Promise<ExpenseCategory> => {
+    // create offline first
+    const local = await (await import('@/api/localExpenseCategoryService')).createLocalExpenseCategory(categoryData.name, categoryData.description, categoryData.icon);
+    try { void (await import('@/api/syncExpenseCategories')).syncPendingExpenseCategories(); } catch {}
+    return {
+      id: local.id,
+      name: local.name,
+      description: local.description || undefined,
+      icon: local.icon || undefined,
+      created_at: local.created_at,
+    };
   };
 
   // Update an expense category

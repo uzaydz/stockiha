@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { usePermissions } from '@/hooks/usePermissions';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { ShieldAlert } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
 import POSPureLayout from '@/components/pos-layout/POSPureLayout';
@@ -155,6 +158,7 @@ const ProductReturns: React.FC<ProductReturnsProps> = ({
   onLayoutStateChange
 }) => {
   const { user } = useAuth();
+  const perms = usePermissions();
   const { currentOrganization } = useTenant();
   const { isOnline } = useNetworkStatus();
 
@@ -221,6 +225,24 @@ const ProductReturns: React.FC<ProductReturnsProps> = ({
   const [searchOrderId, setSearchOrderId] = useState('');
   const [foundOrder, setFoundOrder] = useState<Order | null>(null);
   const [searchingOrder, setSearchingOrder] = useState(false);
+
+  // صلاحيات الصفحة: السماح فقط لمن يملك manageOrders (إنشاء/معالجة الإرجاعات)
+  const canManageReturns = perms.ready ? perms.anyOf(['manageOrders']) : false;
+
+  // منع الوصول عند عدم وجود صلاحية
+  if (perms.ready && !canManageReturns) {
+    return (
+      <POSPureLayout onRefresh={() => {}} isRefreshing={false} connectionStatus={'connected'}>
+        <div className="container mx-auto py-10">
+          <Alert variant="destructive">
+            <ShieldAlert className="h-4 w-4" />
+            <AlertTitle>غير مصرح</AlertTitle>
+            <AlertDescription>لا تملك صلاحية إدارة الإرجاعات.</AlertDescription>
+          </Alert>
+        </div>
+      </POSPureLayout>
+    );
+  }
 
   // مزامنة في الخلفية
   const syncInBackground = async () => {

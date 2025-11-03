@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase-unified';
+import { getWebOrigin } from '@/lib/navigation';
 import { ArrowRight, Mail, ArrowLeft, CheckCircle } from 'lucide-react';
 import AuthLayout from './AuthLayout';
 
@@ -26,8 +27,9 @@ const ForgotPasswordForm = () => {
     setIsLoading(true);
 
     try {
+      const origin = getWebOrigin();
       const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: `${origin}/reset-password`,
       });
 
       if (error) {

@@ -316,6 +316,11 @@ export const SuperAdminRoutes = () => (
           <LazyRoutes.SuperAdminSubscriptions />
         </Suspense>
       } />
+      <Route path="subscription-requests" element={
+        <Suspense fallback={<PageLoader message="جاري تحميل طلبات الاشتراك..." />}>
+          <LazyRoutes.SuperAdminSubscriptionRequests />
+        </Suspense>
+      } />
       <Route path="payment-methods" element={
         <Suspense fallback={<PageLoader />}>
           <LazyRoutes.SuperAdminPaymentMethods />

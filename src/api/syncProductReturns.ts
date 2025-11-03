@@ -81,6 +81,13 @@ const syncSingleReturn = async (productReturn: LocalProductReturn): Promise<bool
 
       if (returnError) throw returnError;
 
+      // حفظ معرف السيرفر محلياً لتسهيل التتبع لاحقاً
+      try {
+        await inventoryDB.productReturns.update(productReturn.id, {
+          remote_return_id: returnData.id
+        });
+      } catch {}
+
       // إضافة عناصر الإرجاع
       if (items.length > 0) {
         const itemsToInsert = items.map(item => ({
@@ -225,6 +232,7 @@ export const fetchProductReturnsFromServer = async (organizationId: string): Pro
       const localReturn: LocalProductReturn = {
         id: returnData.id,
         return_number: returnData.return_number,
+        remote_return_id: returnData.id,
         original_order_id: returnData.original_order_id,
         original_order_number: returnData.original_order_number,
         customer_id: returnData.customer_id,

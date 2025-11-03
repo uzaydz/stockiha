@@ -9,12 +9,11 @@ const OrderRowNumber: React.FC<OrderRowNumberProps> = ({
   formattedOrderNumber,
 }) => {
   return (
-    <TableCell className="py-4 px-4 select-text" style={{ contain: 'layout', minWidth: '140px', minHeight: '32px' }}>
-      <div className="flex items-center gap-2">
-        <div 
-          className="font-semibold text-foreground bg-accent/30 px-2 py-1 rounded-md text-sm select-text" 
+    <TableCell className="w-[140px] min-w-[140px] py-3 px-4 select-text align-middle">
+      <div className="flex items-center justify-start">
+        <div
+          className="font-semibold text-xs text-foreground/90 bg-muted/60 px-2.5 py-1.5 rounded-md select-text border border-border/40 transition-colors hover:bg-muted/80"
           title={formattedOrderNumber}
-          style={{ willChange: 'auto' }}
         >
           {formattedOrderNumber}
         </div>

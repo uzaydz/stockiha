@@ -134,12 +134,12 @@ const POSContent: React.FC<POSContentProps> = ({
       </Card>
 
       {/* المحتوى الرئيسي - المنتجات والاشتراكات */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Tabs 
-          defaultValue="products" 
-          value={activeView} 
+      <div className="flex-1 flex flex-col overflow-hidden relative">
+        <Tabs
+          defaultValue="products"
+          value={activeView}
           onValueChange={(value) => setActiveView(value as 'products' | 'subscriptions')}
-          className="flex-1 flex flex-col"
+          className="flex-1 flex flex-col relative"
           dir="rtl"
         >
           <TabsList className={cn(

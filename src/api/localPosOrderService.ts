@@ -74,6 +74,7 @@ export const createLocalPOSOrder = async (
     employee_id: orderData.employeeId ?? null,
     customer_id: orderData.customerId ?? null,
     customer_name: orderData.customerName ?? null,
+    customer_name_lower: (orderData.customerName || '').toLowerCase() || null,
     subtotal: orderData.subtotal ?? orderData.total ?? 0,
     total: orderData.total ?? 0,
     discount: orderData.discount ?? 0,
@@ -88,8 +89,10 @@ export const createLocalPOSOrder = async (
     syncStatus: 'pending',
     pendingOperation: 'create',
     created_at: now,
+    created_at_ts: Date.parse(now),
     updated_at: now,
     local_order_number: localNumber,
+    local_order_number_str: String(localNumber),
     payload: {
       ...orderData,
       metadata: orderData.metadata
@@ -172,15 +175,16 @@ export const createLocalPOSOrder = async (
 
 export const getPendingPOSOrders = async (): Promise<LocalPOSOrder[]> => {
   try {
-    // استخدام filter بدلاً من equals للـ boolean
+    // استخدام filter بدلاً من equals للـ boolean لتجنب مشاكل IDBKeyRange
     const byStatus = await inventoryDB.posOrders
       .where('status')
       .anyOf(['pending_sync', 'syncing', 'failed'])
       .toArray();
     
-    const bySynced = await inventoryDB.posOrders
-      .filter(order => order.synced === false)
-      .toArray();
+    // استخدام toArray مع filter بدلاً من indexed query على boolean
+    // لأن indexed queries على boolean fields يمكن أن تفشل إذا كانت هناك قيم null/undefined
+    const allOrders = await inventoryDB.posOrders.toArray();
+    const bySynced = allOrders.filter(order => order.synced === false);
 
     // دمج النتائج مع إزالة التكرار حسب id
     const map = new Map<string, LocalPOSOrder>();
@@ -304,6 +308,7 @@ const mapRemoteOrderToLocal = (order: any): LocalPOSOrder => {
     employee_id: order.employee_id ?? null,
     customer_id: order.customer_id ?? null,
     customer_name: order.customer_name ?? order.customer?.name ?? null,
+    customer_name_lower: (order.customer_name ?? order.customer?.name ?? '')?.toString().toLowerCase() || null,
     subtotal: Number(order.subtotal ?? order.original_total ?? order.total ?? 0),
     total: Number(order.effective_total ?? order.total ?? 0),
     discount: Number(order.discount ?? 0),
@@ -318,8 +323,10 @@ const mapRemoteOrderToLocal = (order: any): LocalPOSOrder => {
     syncStatus: 'synced',
     pendingOperation: undefined,
     created_at: createdAt,
+    created_at_ts: Date.parse(createdAt),
     updated_at: updatedAt,
     local_order_number: Number(order.customer_order_number ?? order.local_order_number ?? 0),
+    local_order_number_str: String(order.customer_order_number ?? order.local_order_number ?? ''),
     remote_order_id: order.id,
     remote_customer_order_number: order.customer_order_number ?? null,
     metadata: order.metadata ?? {},
@@ -518,16 +525,202 @@ export const markLocalPOSOrderUpdateInProgress = async (orderId: string): Promis
 
 export const findLocalOrderByRemoteId = async (remoteOrderId: string): Promise<LocalPOSOrder | null> => {
   if (!remoteOrderId) return null;
-  // Dexie لا يدعم فهرسًا لهذا الحقل، لذا استخدم filter على الجدول مباشرةً لتفادي أخطاء WhereClause
-  const matches = await inventoryDB.posOrders
-    .filter((order) => order.remote_order_id === remoteOrderId)
-    .toArray();
-
-  if (matches.length > 0) {
-    return matches[0];
+  try {
+    const found = await inventoryDB.posOrders
+      .where('remote_order_id' as any)
+      .equals(remoteOrderId as any)
+      .first();
+    if (found) return found as any;
+  } catch {
+    // تجاهل ونستخدم طريقة احتياطية
   }
-
-  // كحل احتياطي، ابحث في جميع السجلات
+  // كحل احتياطي، ابحث عبر فلترة كاملة
   const allOrders = await inventoryDB.posOrders.toArray();
   return allOrders.find((order) => order.remote_order_id === remoteOrderId) || null;
 };
+
+// ==================== بحث وتصفح محلي مفهرس ====================
+
+export interface POSOrdersPageOptions {
+  offset?: number;
+  limit?: number;
+  status?: string | string[];
+  payment_status?: string | string[];
+  createdSort?: 'asc' | 'desc';
+}
+
+export async function getLocalPOSOrdersPage(
+  organizationId: string,
+  options: POSOrdersPageOptions = {}
+): Promise<{ orders: LocalPOSOrder[]; total: number }> {
+  const {
+    offset = 0,
+    limit = 20,
+    status,
+    payment_status,
+    createdSort = 'desc',
+  } = options;
+
+  let coll = inventoryDB.posOrders
+    .where('[organization_id+created_at]')
+    .between([organizationId, ''], [organizationId, '\uffff']);
+
+  // ترتيب حسب التاريخ
+  if (createdSort === 'desc') coll = coll.reverse();
+
+  // تطبيق الفلاتر
+  if (status) {
+    const statuses = Array.isArray(status) ? status : [status];
+    coll = coll.and((o: any) => statuses.includes(o.status as any));
+  }
+  if (payment_status) {
+    const pstats = Array.isArray(payment_status) ? payment_status : [payment_status];
+    coll = coll.and((o: any) => pstats.includes(o.payment_status as any));
+  }
+
+  const total = await coll.count();
+  const page = await coll.offset(offset).limit(limit).toArray();
+  return { orders: page as any, total };
+}
+
+export async function fastSearchLocalPOSOrders(
+  organizationId: string,
+  query: string,
+  options: { limit?: number; status?: string | string[] } = {}
+): Promise<LocalPOSOrder[]> {
+  const q = (query || '').toLowerCase();
+  if (!q) return [];
+  const limit = options.limit ?? 200;
+  const statuses = options.status ? (Array.isArray(options.status) ? options.status : [options.status]) : null;
+
+  const results = new Map<string, LocalPOSOrder>();
+
+  // بحث بالاسم
+  const nameMatches = await inventoryDB.posOrders
+    .where('[organization_id+customer_name_lower]')
+    .between([organizationId, q], [organizationId, q + '\uffff'])
+    .limit(limit)
+    .toArray();
+  nameMatches.forEach((o: any) => {
+    if (!statuses || statuses.includes(o.status)) results.set(o.id, o);
+  });
+
+  // بحث بالأرقام: رقم الطلب المحلي/العميل عن طريق مطابقة جزئية
+  if (results.size < limit) {
+    const digits = q.replace(/\D+/g, '');
+    if (digits) {
+      const more = await inventoryDB.posOrders
+        .where('organization_id')
+        .equals(organizationId)
+        .filter((o: any) => {
+          const localStr = o.local_order_number_str || String(o.local_order_number || '');
+          const remoteStr = String(o.remote_customer_order_number || '');
+          return localStr.startsWith(digits) || remoteStr.startsWith(digits);
+        })
+        .limit(limit - results.size)
+        .toArray();
+      more.forEach((o: any) => {
+        if (!statuses || statuses.includes(o.status)) results.set(o.id, o);
+      });
+    }
+  }
+
+  return Array.from(results.values()).slice(0, limit);
+}
+
+export async function getLocalPOSOrderStats(organizationId: string): Promise<{
+  total_orders: number;
+  total_revenue: number;
+  completed_orders: number;
+  pending_orders: number;
+  pending_payment_orders: number;
+  cancelled_orders: number;
+  cash_orders: number;
+  card_orders: number;
+}> {
+  // إجمالي الطلبات (مفهرس على organization_id)
+  const total_orders = await inventoryDB.posOrders
+    .where('organization_id')
+    .equals(organizationId)
+    .count();
+
+  // حساب عدد الطلبات لكل حالة باستخدام الفهرس المركب [organization_id+status+created_at]
+  const countByStatus = async (status: string): Promise<number> => {
+    try {
+      // نطاق يبدأ من organizationId + status ويغطي كل created_at
+      const coll = inventoryDB.posOrders
+        .where('[organization_id+status+created_at]' as any)
+        .between([organizationId, status, ''], [organizationId, status, '\uffff']);
+      return await coll.count();
+    } catch {
+      // احتياطي: فلترة حسب المؤسسة ثم الحالة
+      return await inventoryDB.posOrders
+        .where('organization_id')
+        .equals(organizationId)
+        .filter((o: any) => o.status === status)
+        .count();
+    }
+  };
+
+  const completed_orders = (await countByStatus('completed')) + (await countByStatus('synced'));
+  const pending_orders = (await countByStatus('pending')) + (await countByStatus('pending_sync'));
+  const cancelled_orders = await countByStatus('cancelled');
+
+  // عدد الطلبات ذات حالة دفع معلّقة: استخدام الفهرس المركب [organization_id+payment_status]
+  let pending_payment_orders = 0;
+  try {
+    pending_payment_orders = await (inventoryDB.posOrders
+      .where('[organization_id+payment_status]' as any)
+      .equals([organizationId, 'pending'] as any)
+      .count());
+  } catch {
+    pending_payment_orders = await inventoryDB.posOrders
+      .where('organization_id')
+      .equals(organizationId)
+      .filter((o: any) => o.payment_status === 'pending')
+      .count();
+  }
+
+  // عدد الطلبات حسب طريقة الدفع: فلترة احتياطية لعدم وجود فهرس مركب
+  let cash_orders = 0;
+  let card_orders = 0;
+  try {
+    cash_orders = await (inventoryDB.posOrders
+      .where('[organization_id+payment_method]' as any)
+      .equals([organizationId, 'cash'] as any)
+      .count());
+    card_orders = await (inventoryDB.posOrders
+      .where('[organization_id+payment_method]' as any)
+      .equals([organizationId, 'card'] as any)
+      .count());
+  } catch {
+    cash_orders = await inventoryDB.posOrders
+      .where('organization_id')
+      .equals(organizationId)
+      .filter((o: any) => o.payment_method === 'cash')
+      .count();
+    card_orders = await inventoryDB.posOrders
+      .where('organization_id')
+      .equals(organizationId)
+      .filter((o: any) => o.payment_method === 'card')
+      .count();
+  }
+
+  // إجمالي الإيرادات بدون تحميل كل الصفوف في الذاكرة
+  let total_revenue = 0;
+  await inventoryDB.posOrders
+    .where('organization_id')
+    .equals(organizationId)
+    .each((o: any) => { total_revenue += Number(o.total || 0); });
+
+  return {
+    total_orders,
+    total_revenue,
+    completed_orders,
+    pending_orders,
+    pending_payment_orders,
+    cancelled_orders,
+    cash_orders,
+    card_orders
+  };
+}

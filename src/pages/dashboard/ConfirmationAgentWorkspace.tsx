@@ -147,7 +147,7 @@ const ConfirmationAgentWorkspace = () => {
   // إعدادات الأعمدة المرئية
   const [visibleColumns] = useState<string[]>([
     'checkbox', 'expand', 'id', 'customer_name', 'customer_contact',
-    'total', 'status', 'confirmation', 'call_confirmation', 'shipping_provider', 'actions'
+    'total', 'status', 'call_confirmation', 'shipping_provider', 'actions'
   ]);
 
   // إعدادات الصفحات
@@ -418,7 +418,7 @@ const ConfirmationAgentWorkspace = () => {
                     hasCancelPermission={true}
                     visibleColumns={[
                       'checkbox', 'expand', 'id', 'customer_name', 'customer_contact',
-                      'total', 'status', 'confirmation', 'call_confirmation', 'shipping_provider', 'actions'
+                      'total', 'status', 'call_confirmation', 'shipping_provider', 'actions'
                     ]}
                     currentUserId={userProfile?.id}
                     currentPage={currentPage}
@@ -470,7 +470,7 @@ const ConfirmationAgentWorkspace = () => {
                     hasCancelPermission={true}
                     visibleColumns={[
                       'checkbox', 'expand', 'id', 'customer_name', 'customer_contact',
-                      'total', 'status', 'confirmation', 'call_confirmation', 'shipping_provider', 'actions'
+                      'total', 'status', 'call_confirmation', 'shipping_provider', 'actions'
                     ]}
                     currentUserId={userProfile?.id}
                     currentPage={currentPage}

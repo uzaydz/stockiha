@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { usePermissions } from '@/hooks/usePermissions';
 import { 
   Supplier, 
   getSuppliers, 
@@ -47,6 +48,7 @@ import {
 
 export function SuppliersList() {
   const { user } = useAuth();
+  const perms = usePermissions();
   // محاولة الحصول على organization_id بطرق متعددة
   const [organizationId, setOrganizationId] = useState<string | undefined>(undefined);
   
@@ -83,6 +85,11 @@ export function SuppliersList() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
   const [filterCategory, setFilterCategory] = useState<string>('all');
+
+  // صلاحيات الإدارة/العرض فقط
+  const canCreateSupplier = perms.ready ? perms.anyOf(['canCreateSupplier','manageSuppliers']) : false;
+  const canEditSupplier = perms.ready ? perms.anyOf(['canEditSupplier','manageSuppliers']) : false;
+  const canDeleteSupplier = perms.ready ? perms.anyOf(['canDeleteSupplier','manageSuppliers']) : false;
   
   // جلب قائمة الموردين
   const loadSuppliers = async () => {
@@ -154,6 +161,10 @@ export function SuppliersList() {
     try {
 
       if (selectedSupplier) {
+        if (!canEditSupplier) {
+          toast({ title: 'غير مصرح', description: 'لا تملك صلاحية تعديل المورد', variant: 'destructive' });
+          return;
+        }
         // تحديث مورد موجود
         const updatedSupplier = await updateSupplier(organizationId, selectedSupplier.id, data);
 
@@ -166,6 +177,10 @@ export function SuppliersList() {
           description: 'تم تحديث بيانات المورد بنجاح',
         });
       } else {
+        if (!canCreateSupplier) {
+          toast({ title: 'غير مصرح', description: 'لا تملك صلاحية إضافة مورد', variant: 'destructive' });
+          return;
+        }
         // إضافة مورد جديد
         const newSupplier = await createSupplier(organizationId, { ...data, rating: 0 });
 
@@ -205,6 +220,10 @@ export function SuppliersList() {
   
   // فتح نافذة تأكيد الحذف
   const handleConfirmDelete = (supplier: Supplier) => {
+    if (!canDeleteSupplier) {
+      toast({ title: 'غير مصرح', description: 'لا تملك صلاحية حذف المورد', variant: 'destructive' });
+      return;
+    }
     setSelectedSupplier(supplier);
     setConfirmDialogOpen(true);
   };
@@ -212,6 +231,10 @@ export function SuppliersList() {
   // حذف مورد
   const handleDelete = async () => {
     if (!selectedSupplier || !organizationId) return;
+    if (!canDeleteSupplier) {
+      toast({ title: 'غير مصرح', description: 'لا تملك صلاحية حذف المورد', variant: 'destructive' });
+      return;
+    }
     
     try {
       await deleteSupplier(organizationId, selectedSupplier.id);
@@ -282,10 +305,12 @@ export function SuppliersList() {
             <CardTitle>قائمة الموردين</CardTitle>
             <CardDescription>إدارة الموردين والمشتريات</CardDescription>
           </div>
-          <Button onClick={() => { setSelectedSupplier(null); setDialogOpen(true); }}>
-            <Plus className="h-4 w-4 ml-2" />
-            إضافة مورد
-          </Button>
+          {canCreateSupplier && (
+            <Button onClick={() => { setSelectedSupplier(null); setDialogOpen(true); }}>
+              <Plus className="h-4 w-4 ml-2" />
+              إضافة مورد
+            </Button>
+          )}
         </div>
       </CardHeader>
       <CardContent>
@@ -384,6 +409,8 @@ export function SuppliersList() {
                         onEdit={() => handleEdit(supplier)}
                         onDelete={() => handleConfirmDelete(supplier)}
                         onViewPurchases={() => {/* سيتم تنفيذها لاحقًا */}}
+                        canEdit={canEditSupplier}
+                        canDelete={canDeleteSupplier}
                       />
                     </TableCell>
                   </TableRow>

@@ -57,7 +57,7 @@ export const Categories = lazy(() => import('../pages/dashboard/Categories'));
 
 // ============ المبيعات والطلبات - محسنة ============
 export const Orders = lazy(() => import('../pages/dashboard/Orders'));
-export const OrdersV2 = lazy(() => import('../pages/dashboard/OrdersV2'));
+export const OrdersV2 = lazy(() => import('../pages/dashboard/OrdersV2')); // OrdersV2 الأصلي المحدث بـ useOptimizedOrdersDataV2
 export const OrderDetailsV2 = lazy(() => import('../pages/dashboard/OrderDetailsV2'));
 export const AdvancedOrders = lazy(() => import('../pages/dashboard/AdvancedOrders'));
 export const AbandonedOrders = lazy(() => import('../pages/dashboard/AbandonedOrders'));
@@ -186,6 +186,7 @@ export const SuperAdminLogin = lazy(() => import('../pages/SuperAdminLogin'));
 export const SuperAdminDashboard = lazy(() => import('../pages/super-admin/SuperAdminDashboard'));
 export const SuperAdminOrganizations = lazy(() => import('../pages/super-admin/Organizations'));
 export const SuperAdminSubscriptions = lazy(() => import('../pages/super-admin/Subscriptions'));
+export const SuperAdminSubscriptionRequests = lazy(() => import('../pages/super-admin/SubscriptionRequests'));
 export const SuperAdminPaymentMethods = lazy(() => import('../pages/super-admin/PaymentMethods'));
 export const ActivationCodesPage = lazy(() => import('../pages/super-admin/activation-codes'));
 export const YalidineSyncPage = lazy(() => import('../pages/super-admin/YalidineSyncPage'));

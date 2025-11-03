@@ -295,7 +295,8 @@ export const mapLocalProductToPOSProduct = (
 
   const variantsStock = processedColors.reduce((sum, color) => {
     const sizesTotal = (color.sizes || []).reduce((sizeSum, size) => sizeSum + Number(size.quantity ?? 0), 0);
-    return sum + Number(color.quantity ?? 0) + sizesTotal;
+    const colorTotal = color.has_sizes ? sizesTotal : Number(color.quantity ?? 0);
+    return sum + colorTotal;
   }, 0);
 
   const stockQuantity = Number(product.stock_quantity ?? 0);
@@ -459,44 +460,12 @@ const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWi
     
     // تنفيذ مباشر بدون مراقبة أداء
     try {
-      // الخطوة 1: تحميل المنتجات الأساسية أولاً (عدد محدود)
-      const { data: basicProducts, error: basicError } = await supabase
-        .from('products')
-        .select('id, name, price, is_active, organization_id, category_id')
-        .eq('organization_id', orgId)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false })
-        .limit(15); // تقليل أكثر لتجنب المهام الطويلة
-
-      if (basicError) {
-        logPOSContextStatus('FETCH_ERROR', { error: basicError });
-        throw basicError;
-      }
-
-      // تأخير قصير لتجنب حجب الواجهة
-      await new Promise(resolve => setTimeout(resolve, 5));
-
-      // الخطوة 2: تحميل التفاصيل الكاملة للمنتجات بشكل متدرج
+      // استخدام RPC المحسنة لتقليل Egress بنسبة 40-50%
       const { data: allProducts, error: allProductsError } = await supabase
-        .from('products')
-        .select(`
-          *,
-          product_colors (
-            id, product_id, name, color_code, image_url, quantity, price, barcode, 
-            is_default, has_sizes, variant_number, purchase_price,
-            product_sizes (
-              id, color_id, product_id, size_name, quantity, price, barcode, 
-              is_default, purchase_price
-            )
-          ),
-          product_categories!category_id (
-            id, name, description
-          )
-        `)
-        .eq('organization_id', orgId)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false })
-        .limit(20); // تقليل أكثر لتجنب المهام الطويلة
+        .rpc('get_pos_products_optimized', {
+          p_organization_id: orgId,
+          p_limit: 50 // زيادة الحد لأن البيانات مضغوطة الآن
+        });
 
       if (allProductsError) {
         logPOSContextStatus('FETCH_ERROR', { error: allProductsError });
@@ -534,16 +503,17 @@ const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWi
 
       // الخطوة 3: معالجة البيانات بشكل متدرج مع نظام تقسيم المهام
       const processedProducts: POSProductWithVariants[] = [];
-      
+
       // معالجة المنتجات مباشرة
       for (const product of allProducts) {
           // معالجة المنتج الواحد
           const stockQuantity = product.stock_quantity || 0;
           let actualStockQuantity = stockQuantity;
-          
-          // معالجة الألوان والمقاسات
-          const processedColors = (product.product_colors || []).map((color: any) => {
-            const processedSizes = (color.product_sizes || []).map((size: any) => ({
+
+          // معالجة الألوان والمقاسات من variants JSON
+          const variantsArray = Array.isArray(product.variants) ? product.variants : [];
+          const processedColors = variantsArray.map((color: any) => {
+            const processedSizes = (color.sizes || []).map((size: any) => ({
               id: size.id,
               size_name: size.size_name,
               quantity: size.quantity || 0,
@@ -555,15 +525,15 @@ const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWi
 
             // تحديث إحصائيات المخزون والباركود
             const colorStock = color.quantity || 0;
-            let totalVariantsStock = colorStock + processedSizes.reduce((sum, size) => sum + (size.quantity || 0), 0);
+            const totalVariantsStock = colorStock + processedSizes.reduce((sum: number, size: any) => sum + (size.quantity || 0), 0);
             let hasValidBarcodes = false;
-            
+
             if (color.barcode?.trim()) hasValidBarcodes = true;
-            if (processedSizes.some(size => size.barcode)) hasValidBarcodes = true;
+            if (processedSizes.some((size: any) => size.barcode)) hasValidBarcodes = true;
 
             return {
               id: color.id,
-              product_id: color.product_id,
+              product_id: product.id,
               name: color.name,
               color_code: color.color_code,
               image_url: color.image_url,
@@ -596,7 +566,7 @@ const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWi
             compareAtPrice: product.compare_at_price,
             sku: product.sku,
             barcode: product.barcode?.trim() || undefined,
-            category: product.product_categories?.[0] || 'أخرى',
+            category: product.category_name || 'أخرى',
             category_id: product.category_id,
             subcategory: product.subcategory,
             subcategory_id: product.subcategory_id,

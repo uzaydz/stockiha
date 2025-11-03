@@ -4,6 +4,7 @@ import POSPureLayout from '@/components/pos-layout/POSPureLayout';
 import { useTenant } from '@/context/TenantContext';
 import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
+import { usePermissions } from '@/hooks/usePermissions';
 import { hasPermissions } from '@/lib/api/userPermissionsUnified';
 import { AlertTriangle, Plus } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -42,6 +43,7 @@ const CustomerDebts: React.FC<CustomerDebtsProps> = ({
   const [hasViewPermission, setHasViewPermission] = useState(false);
   const [hasPaymentPermission, setHasPaymentPermission] = useState(false);
   const [hasAddDebtPermission, setHasAddDebtPermission] = useState(false);
+  const perms = usePermissions();
   
   // حالة نافذة تسجيل الدفع
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
@@ -53,6 +55,19 @@ const CustomerDebts: React.FC<CustomerDebtsProps> = ({
   const handleRefresh = useCallback(() => {
     setRefreshTrigger(prev => prev + 1);
   }, []);
+
+  // منع الوصول عند عدم وجود صلاحية العرض بعد التحقق
+  if (permissionsChecked && !hasViewPermission) {
+    return renderWithLayout(
+      <div className="container mx-auto py-10">
+        <Alert variant="destructive">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertTitle>غير مصرح</AlertTitle>
+          <AlertDescription>لا تملك صلاحية عرض مديونيات العملاء.</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   useEffect(() => {
     if (!onRegisterRefresh) return;
@@ -102,32 +117,23 @@ const CustomerDebts: React.FC<CustomerDebtsProps> = ({
           return;
         }
 
-        // المدير والموظف لهم صلاحية تلقائياً لصفحة الديون
-        const userRole = user.user_metadata?.role || user.app_metadata?.role;
-        const profileRole = userProfile?.role;
-        const isAdmin = userRole === 'admin' || profileRole === 'admin';
-        const isEmployee = userRole === 'employee' || profileRole === 'employee';
-        const isStaff = isAdmin || isEmployee;
-        
-        // تشخيص للتطوير
-        if (process.env.NODE_ENV === 'development') {
-        }
-        
-        if (isStaff) {
-          setHasViewPermission(true);
-          setHasPaymentPermission(true);
-          setHasAddDebtPermission(true);
+        // استخدام PermissionsContext أولاً
+        const view = perms.ready ? perms.anyOf(['viewDebts','viewFinancialReports']) : false;
+        const record = perms.ready ? perms.has('recordDebtPayments') : false;
+
+        if (perms.ready) {
+          setHasViewPermission(view);
+          setHasPaymentPermission(record);
+          setHasAddDebtPermission(record);
           setPermissionsChecked(true);
           return;
         }
 
-        // التحقق من الصلاحيات للأدوار الأخرى باستخدام الدالة الموحدة
+        // فالباك عبر RPC الموحد عند عدم توفر المزود
         const permissionsResult = await hasPermissions(['viewDebts', 'recordDebtPayments'], user.id);
-        
-        setHasViewPermission(permissionsResult.viewDebts || false);
-        setHasPaymentPermission(permissionsResult.recordDebtPayments || false);
-        setHasAddDebtPermission(permissionsResult.recordDebtPayments || false);
-
+        setHasViewPermission(!!permissionsResult.viewDebts);
+        setHasPaymentPermission(!!permissionsResult.recordDebtPayments);
+        setHasAddDebtPermission(!!permissionsResult.recordDebtPayments);
         setPermissionsChecked(true);
       } catch (err) {
         setHasViewPermission(false);
@@ -138,7 +144,7 @@ const CustomerDebts: React.FC<CustomerDebtsProps> = ({
     };
 
     checkPermissions();
-  }, [user, userProfile]);
+  }, [user, userProfile, perms.ready, perms.role, perms.isOrgAdmin, perms.isSuperAdmin]);
 
   // تحميل بيانات الديون
   useEffect(() => {

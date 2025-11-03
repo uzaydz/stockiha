@@ -3,6 +3,9 @@ import Layout from '@/components/Layout';
 import { POSSharedLayoutControls, POSLayoutState, RefreshHandler } from '@/components/pos-layout/types';
 import { toast } from 'sonner';
 import { useTenant } from '@/context/TenantContext';
+import { usePermissions } from '@/hooks/usePermissions';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { ShieldAlert } from 'lucide-react';
 import InvoicesHeader from '@/components/invoices/InvoicesHeader';
 import InvoicesList from '@/components/invoices/InvoicesList';
 import InvoicePrintViewUpdated from '@/components/invoices/InvoicePrintViewUpdated';
@@ -26,6 +29,7 @@ const Invoices: React.FC<InvoicesProps> = ({
   onLayoutStateChange
 }) => {
   const { currentOrganization } = useTenant();
+  const perms = usePermissions();
   const { isOnline } = useNetworkStatus();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
@@ -36,6 +40,26 @@ const Invoices: React.FC<InvoicesProps> = ({
   const [createDialogType, setCreateDialogType] = useState<'new' | 'order' | 'online' | 'service' | 'combined' | 'proforma' | 'bon_commande'>('new');
   const [selectOrderDialogOpen, setSelectOrderDialogOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+
+  // السماح لمن يملك مفاتيح عرض الفواتير الحديثة أو بدائل قديمة
+  // الجديد: canViewInvoices
+  // دعم بدائل سابقة: viewFinancialReports / processPayments / manageOrders
+  const canViewInvoices = perms.ready ? perms.anyOf(['canViewInvoices','viewFinancialReports','processPayments','manageOrders']) : false;
+  // إدارة/إنشاء الفواتير للمستخدمين المصرح لهم فقط
+  const canManageInvoices = perms.ready ? perms.anyOf(['canManageInvoices','processPayments','manageOrders']) : false;
+
+  if (perms.ready && !canViewInvoices) {
+    const node = (
+      <div className="container mx-auto py-10">
+        <Alert variant="destructive">
+          <ShieldAlert className="h-4 w-4" />
+          <AlertTitle>غير مصرح</AlertTitle>
+          <AlertDescription>لا تملك صلاحية الوصول إلى الفواتير.</AlertDescription>
+        </Alert>
+      </div>
+    );
+    return useStandaloneLayout ? <Layout>{node}</Layout> : node;
+  }
 
   // دالة جلب الفواتير من المخزن المحلي
   const fetchInvoices = async () => {
@@ -371,6 +395,7 @@ const Invoices: React.FC<InvoicesProps> = ({
 
   // تعديل الفاتورة
   const handleEditInvoice = (invoice: Invoice) => {
+    if (!canManageInvoices) return; // عرض فقط
     setEditingInvoice(invoice);
     setCreateDialogType('new');
     setCreateDialogOpen(true);
@@ -412,6 +437,7 @@ const Invoices: React.FC<InvoicesProps> = ({
             onCreateCombined={handleCreateCombined}
             onCreateProforma={handleCreateProforma}
             onCreateBonCommande={handleCreateBonCommande}
+            canCreate={canManageInvoices}
           />
           
           {/* قائمة الفواتير */}
@@ -421,18 +447,21 @@ const Invoices: React.FC<InvoicesProps> = ({
             onPrintInvoice={handlePrintInvoice}
             onDownloadInvoice={handleDownloadInvoice}
             onEditInvoice={handleEditInvoice}
+            canManage={canManageInvoices}
           />
         </div>
       )}
       
       {/* مربع حوار إنشاء/تعديل فاتورة */}
-      <CreateInvoiceDialogAdvanced 
-        open={createDialogOpen}
-        onOpenChange={handleCloseDialog}
-        onInvoiceCreated={handleInvoiceCreated}
-        type={createDialogType}
-        editingInvoice={editingInvoice}
-      />
+      {canManageInvoices && (
+        <CreateInvoiceDialogAdvanced 
+          open={createDialogOpen}
+          onOpenChange={handleCloseDialog}
+          onInvoiceCreated={handleInvoiceCreated}
+          type={createDialogType}
+          editingInvoice={editingInvoice}
+        />
+      )}
     </>
   );
 

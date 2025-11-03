@@ -3,6 +3,7 @@
 // =================================================================
 
 import React, { useEffect, useState, useMemo } from 'react';
+import { computeAvailableStock } from '@/lib/stock';
 import { usePOSData, useAppData, useOrdersData, useUnifiedData } from '@/context/UnifiedDataContext';
 import { useIsDataRequired } from '@/hooks/useSmartDataLoading';
 import { AlertCircle, Loader2, Package, TrendingUp, AlertTriangle, CheckCircle, RefreshCw, ShoppingCart, Users, DollarSign } from 'lucide-react';
@@ -48,9 +49,7 @@ interface ProductCardProps {
 
 const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
   const productData = product.product || product;
-  const actualStock = product.actual_stock || productData.stock_quantity || 0;
-  const variantsStock = product.variants_stock || 0;
-  const totalStock = Math.max(actualStock, variantsStock);
+  const totalStock = computeAvailableStock(productData);
 
   return (
     <div className="bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow p-4">

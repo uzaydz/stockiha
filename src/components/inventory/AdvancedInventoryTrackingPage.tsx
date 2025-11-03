@@ -351,7 +351,7 @@ const AdvancedInventoryTrackingPageComponent: React.FC<AdvancedInventoryTracking
   }
 
 const pageContent = (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto p-2 sm:p-4 lg:p-6 space-y-4 sm:space-y-6 products-page-container">
         {/* رأس الصفحة */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -360,13 +360,13 @@ const pageContent = (
           className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4"
         >
           <div>
-            <h1 className="text-3xl font-bold flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-3">
               <div className="p-2 rounded-lg bg-primary/10">
-                <Activity className="h-6 w-6 text-primary" />
+                <Activity className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
               </div>
               تتبع المخزون المتقدم
             </h1>
-            <p className="text-muted-foreground mt-2">
+            <p className="text-sm sm:text-base text-muted-foreground mt-2">
               نظرة شاملة على حركات المخزون والعمليات مع تحليلات ذكية وإحصائيات تفصيلية
             </p>
           

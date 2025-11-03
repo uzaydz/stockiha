@@ -22,8 +22,8 @@ const ShippingStatusDisplay: React.FC<ShippingStatusDisplayProps> = ({
           text: 'لم يتم الشحن',
           bgColor: 'bg-gray-100',
           textColor: 'text-gray-600',
-          borderColor: 'border-gray-200',
-          tooltip: null
+          borderColor: 'border-200',
+          tooltip: 'يمكن إرسال الطلب للشحن عندما يكون في حالة "معلق" أو "قيد المعالجة"'
         };
       
       case 'loading':

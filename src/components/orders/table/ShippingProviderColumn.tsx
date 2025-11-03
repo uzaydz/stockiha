@@ -43,6 +43,15 @@ export const ShippingProviderColumn: React.FC<ShippingProviderColumnProps> = ({
 
   // تشخيص للمساعدة في حل المشاكل
   if (process.env.NODE_ENV === 'development') {
+    console.log('ShippingProviderColumn Debug:', {
+      orderId: order.id,
+      orderStatus: order.status,
+      canSendToShipping,
+      enabledProvidersCount: enabledProviders.length,
+      enabledProviders: enabledProviders.map(p => p.provider_code),
+      activeProvider,
+      uniqueProvidersCount: uniqueProviders.length
+    });
   }
 
   // إذا كان هناك مزود نشط، عرض معلوماته مع إمكانية التغيير

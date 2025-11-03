@@ -1,6 +1,7 @@
 // Hook لتطهير حالة المصادقة القديمة ومنع تضارب البيانات
 import { useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import { goTo } from '@/lib/navigation';
 
 export const useAuthStateCleanup = () => {
   useEffect(() => {
@@ -70,7 +71,7 @@ export const forcePageRefresh = (path: string = '/dashboard') => {
   sessionStorage.clear();
   
   // استخدام window.location بدلاً من navigate لضمان إعادة تحميل كاملة
-  window.location.href = path;
+  goTo(path, { replace: true });
 };
 
 /**

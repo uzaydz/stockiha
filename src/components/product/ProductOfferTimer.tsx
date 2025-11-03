@@ -62,7 +62,10 @@ const useOfferTimer = (settings: OfferTimerSettings) => {
         
       case 'evergreen':
       case 'fixed_duration_per_visitor':
-        const cookieKey = `offer_timer_${settings.offer_timer_type}_${window.location.pathname}`;
+        const currentPath = (typeof window !== 'undefined' && window.location.hash && window.location.hash.startsWith('#/'))
+          ? window.location.hash.slice(1)
+          : window.location.pathname;
+        const cookieKey = `offer_timer_${settings.offer_timer_type}_${currentPath}`;
         const existingTimer = localStorage.getItem(cookieKey);
         
         if (existingTimer && !settings.offer_timer_restart_for_new_session) {

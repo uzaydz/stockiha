@@ -51,6 +51,7 @@ BEGIN
     'role', u.role,
     'organization_id', u.organization_id,
     'is_active', u.is_active,
+    'is_super_admin', u.is_super_admin,
     'avatar_url', u.avatar_url,
     'created_at', u.created_at,
     'updated_at', u.updated_at,
@@ -72,7 +73,27 @@ BEGIN
     (v_user_data->>'organization_id')::UUID
   );
 
+  -- ✅ حل المشكلة: السماح للـ super admin بالعمل بدون مؤسسة
   IF v_organization_id IS NULL THEN
+    -- التحقق إذا كان super admin
+    IF COALESCE((v_user_data->>'is_super_admin')::boolean, false) = true THEN
+      -- إرجاع بيانات المستخدم فقط للسوبر أدمن
+      v_result := json_build_object(
+        'user', v_user_data,
+        'is_super_admin', true,
+        'organization', NULL,
+        'organization_settings', NULL,
+        'pos_settings', NULL,
+        'categories', '[]'::json,
+        'subcategories', '[]'::json,
+        'employees', '[]'::json,
+        'confirmation_agents', '[]'::json,
+        'expense_categories', '[]'::json,
+        'timestamp', extract(epoch from now())::bigint
+      );
+      RETURN v_result;
+    END IF;
+    
     RAISE EXCEPTION 'Organization not found';
   END IF;
 

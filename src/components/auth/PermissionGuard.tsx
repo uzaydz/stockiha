@@ -48,9 +48,8 @@ const permissionMapping: Record<string, string[]> = {
   'manageProductCategories': ['manageProductCategories', 'manageProducts', 'admin', 'owner', 'org_admin', 'super_admin'],
   // إضافة صلاحيات عرض المنتجات
   'viewProducts': ['viewProducts', 'manageProducts', 'admin', 'owner', 'org_admin', 'super_admin'],
-  // إضافة الصلاحيات المطلوبة للديون
-  'viewDebts': ['viewDebts', 'manageDebts', 'viewFinancialReports', 'admin', 'owner', 'org_admin', 'super_admin'],
-  'manageDebts': ['manageDebts', 'viewDebts', 'admin', 'owner', 'org_admin', 'super_admin'],
+  // الديون: توحيد مع الصلاحيات المعتمدة في EmployeePermissions
+  'viewDebts': ['viewDebts', 'recordDebtPayments', 'viewCustomerDebtHistory', 'viewFinancialReports', 'admin', 'owner', 'org_admin', 'super_admin'],
   // إضافة الصلاحيات المطلوبة للتقارير
   'viewFinancialReports': ['viewFinancialReports', 'viewReports', 'admin', 'owner', 'org_admin', 'super_admin'],
   'viewSalesReports': ['viewSalesReports', 'viewReports', 'admin', 'owner', 'org_admin', 'super_admin'],

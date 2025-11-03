@@ -4,7 +4,10 @@ import { useTitlebar } from '@/context/TitlebarContext';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Loader2, Menu, X, RefreshCw } from 'lucide-react';
-import POSPureSidebar, { POSSidebarItem } from './POSPureSidebar';
+import POSPureSidebar, { POSSidebarItem, posSidebarItems } from './POSPureSidebar';
+import POSMobileSidebar from './POSMobileSidebar';
+import MobileBottomNavigation from '@/components/navbar/MobileBottomNavigation';
+import { usePermissions } from '@/hooks/usePermissions';
 
 interface POSPureLayoutProps {
   children: React.ReactNode;
@@ -26,6 +29,7 @@ const POSPureLayout = memo(function POSPureLayout({
   disableScroll = false
 }: POSPureLayoutProps) {
   const { user, userProfile, isLoading } = useAuth();
+  const perms = usePermissions();
   const { setActions, clearActions } = useTitlebar();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -82,11 +86,6 @@ const POSPureLayout = memo(function POSPureLayout({
   const toggleMobileSidebar = useCallback(() => {
     setIsMobileSidebarOpen(prev => !prev);
   }, []);
-
-  // معالج إغلاق السايدبار عند النقر على الخلفية
-  const handleOverlayClick = useCallback(() => {
-    setIsMobileSidebarOpen(false);
-  }, []);
   
   // معالج توسيع/تصغير القائمة الجانبية
   const toggleSidebarExpand = useCallback(() => {
@@ -119,86 +118,116 @@ const POSPureLayout = memo(function POSPureLayout({
   const sidebarWidth = isSidebarExpanded ? 'w-64' : 'w-20';
   const contentMargin = isSidebarExpanded ? 'mr-[17rem]' : 'mr-24';
 
+  // حساب عناصر السايدبار حسب الصلاحيات
+  const gatedSidebarItems = React.useMemo(() => {
+    if (sidebarItems) return sidebarItems;
+    // خريطة سريعة من المسار إلى مفتاح الصلاحية المناسب
+    const requiredKeyFor = (href: string): string | null => {
+      if (href.startsWith('/dashboard/sales-operations/groups')) return 'canManageOnlineOrderGroups';
+      if (href.startsWith('/dashboard/pos-dashboard')) return 'canAccessPosDashboard';
+      if (href.startsWith('/dashboard/pos-advanced')) return 'canAccessPosAdvanced';
+      if (href.startsWith('/dashboard/pos-operations')) return 'canAccessPosOperations';
+      if (href.startsWith('/dashboard/etat104')) return 'accessPOS';
+      if (href.startsWith('/dashboard/store-business-settings')) return 'canManageStoreSettings';
+      if (href.startsWith('/dashboard/staff-management')) return 'canManageSettings';
+      if (href.startsWith('/dashboard/product-operations')) return 'canAccessProductOperations';
+      if (href.startsWith('/dashboard/sales-operations')) return 'canAccessSalesOperations';
+      if (href.startsWith('/dashboard/services-operations')) return 'canAccessServicesOperations';
+      if (href.startsWith('/dashboard/supplier-operations')) return 'canAccessSupplierOperations';
+      if (href.startsWith('/dashboard/courses-operations')) return 'canAccessCoursesOperations';
+      if (href.startsWith('/dashboard/store-operations')) return 'canAccessStoreOperations';
+      if (href.startsWith('/dashboard/settings-operations')) return 'canAccessSettingsOperations';
+      if (href.startsWith('/dashboard/reports-operations')) return 'canAccessReportsOperations';
+      return null;
+    };
+
+    // استخدام القائمة الكاملة مع الأيقونات من POSPureSidebar
+    const filtered = posSidebarItems.filter(item => {
+      const key = requiredKeyFor(item.href);
+      if (!key) return true;
+      if (!perms.ready) return true;
+      return perms.has(key);
+    });
+
+    return filtered;
+  }, [sidebarItems, perms.ready, perms.has]);
+
   return (
-    <div dir="rtl" className={cn("relative", disableScroll ? "overflow-hidden" : "overflow-auto")} style={{ background: layoutBackground, height: disableScroll ? 'calc(100vh - var(--titlebar-height, 48px))' : 'auto', minHeight: disableScroll ? undefined : 'calc(100vh - var(--titlebar-height, 48px))' }}>
-      <div className="relative h-full w-full" style={{ background: layoutBackground }}>
-        <div className={cn("relative flex w-full", disableScroll ? "h-full" : "min-h-full")} style={{ background: layoutBackground }}>
+    <div dir="rtl" className="relative overflow-hidden" style={{ 
+      background: layoutBackground, 
+      height: 'calc(100vh - var(--titlebar-height, 48px))'
+    }}>
+      <div className="relative h-full w-full overflow-hidden" style={{ background: layoutBackground }}>
+        <div className={cn("relative flex w-full h-full overflow-hidden")} style={{ background: layoutBackground }}>
       {/* أزرار السايدبار للجوال */}
       {isStaff && !isLoading && isMobile && (
         <Button
           variant="ghost"
           size="sm"
           onClick={toggleMobileSidebar}
-          className="fixed right-4 z-50 bg-background/80 backdrop-blur-sm border border-border/50 shadow-lg"
+          className="fixed right-4 z-50 bg-slate-900/95 backdrop-blur-sm border-2 border-orange-500/30 shadow-xl rounded-xl hover:bg-orange-500/10 hover:border-orange-500/50 transition-all duration-300"
           style={{ top: mobileToggleOffset }}
         >
           {isMobileSidebarOpen ? (
-            <X className="h-4 w-4" />
+            <X className="h-5 w-5 text-orange-400" />
           ) : (
-            <Menu className="h-4 w-4" />
+            <Menu className="h-5 w-5 text-orange-400" />
           )}
         </Button>
       )}
-      
+
       {/* السايدبار - Desktop - مدمج مع البوردر */}
       {isStaff && !isLoading && !isMobile && (
         <aside
           className={cn(
-            "fixed right-2 z-30 overflow-visible shadow-2xl transition-all duration-300",
+            "fixed right-3 z-30 overflow-visible transition-all duration-300 rounded-2xl",
             sidebarWidth
           )}
           style={{ top: sidebarOffset, bottom: '1rem' }}
         >
-          <POSPureSidebar 
-            items={sidebarItems} 
+          <POSPureSidebar
+            items={gatedSidebarItems}
             isExpanded={isSidebarExpanded}
             onToggleExpand={toggleSidebarExpand}
           />
         </aside>
       )}
-      
+
       {/* السايدبار - Mobile */}
       {isStaff && !isLoading && isMobile && (
-        <>
-          {/* Overlay */}
-          {isMobileSidebarOpen && (
-            <div 
-              className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
-              onClick={handleOverlayClick}
-            />
-          )}
-          
-          {/* Mobile Sidebar - عرض مناسب للجوال */}
-          <aside
-            className={cn(
-              'fixed bottom-0 right-0 w-20 z-50 transition-transform duration-300 ease-in-out',
-              isMobileSidebarOpen ? 'translate-x-0' : 'translate-x-full'
-            )}
-            style={{ top: sidebarOffset }}
-          >
-            <POSPureSidebar 
-              items={sidebarItems}
-              isExpanded={false}
-            />
-          </aside>
-        </>
+        <POSMobileSidebar
+          isOpen={isMobileSidebarOpen}
+          onClose={() => setIsMobileSidebarOpen(false)}
+          items={gatedSidebarItems}
+        />
       )}
-      
-      {/* المحتوى الرئيسي - مساحة أكبر */}
+
+      {/* المحتوى الرئيسي - مع بوردر سميك ومنع الخروج */}
       <main className={cn(
-        "transition-all duration-300 w-full",
-        disableScroll ? "h-full overflow-hidden" : "min-h-full overflow-auto",
-        !isMobile && isStaff && !isLoading ? `${contentMargin} p-2` : "p-2"
+        "transition-all duration-300 w-full h-full overflow-hidden",
+        !isMobile && isStaff && !isLoading ? `${contentMargin} p-3` : isMobile ? "p-2 pb-2" : "p-3"
       )}>
         <div className={cn(
-          "w-full bg-background rounded-sm border border-black/80",
-          disableScroll ? "h-full" : "min-h-full"
+          "w-full h-full bg-background shadow-2xl overflow-hidden",
+          "relative flex flex-col",
+          isMobile ? "rounded-t-2xl border-t-[3px] border-x-[3px] border-black/80" : "rounded-2xl border-[3px] border-black/80"
         )}>
-          {children}
+          <div className={cn(
+            "w-full flex-1 overflow-hidden",
+            disableScroll ? "" : "overflow-y-auto"
+          )}>
+            {children}
+          </div>
         </div>
       </main>
         </div>
       </div>
+      
+      {/* القائمة الثابتة في الأسفل للهاتف */}
+      <MobileBottomNavigation 
+        onMenuToggle={toggleMobileSidebar}
+        isMenuOpen={isMobileSidebarOpen}
+      />
     </div>
   );
 });

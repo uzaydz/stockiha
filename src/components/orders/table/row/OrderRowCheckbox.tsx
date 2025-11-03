@@ -16,8 +16,8 @@ const OrderRowCheckbox: React.FC<OrderRowCheckboxProps> = ({
   onSelect,
 }) => {
   return (
-    <TableCell 
-      className="w-12 py-4 px-4" 
+    <TableCell
+      className="w-[50px] min-w-[50px] py-3 px-3 text-center align-middle"
       onClick={(e) => e.stopPropagation()}
       style={{ contain: 'layout' }}
     >
@@ -25,7 +25,7 @@ const OrderRowCheckbox: React.FC<OrderRowCheckboxProps> = ({
         checked={selected}
         onCheckedChange={(checked) => onSelect(orderId, !!checked)}
         aria-label={`تحديد الطلب ${formattedOrderNumber}`}
-        className="border-border/50 data-[state=checked]:border-primary"
+        className="border-2 border-border mx-auto transition-all"
       />
     </TableCell>
   );

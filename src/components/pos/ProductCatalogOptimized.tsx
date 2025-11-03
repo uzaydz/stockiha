@@ -1,25 +1,31 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Product } from '@/types';
-import { Search, Filter, ShoppingCart, Tag, Package, LayoutGrid, ListFilter, Percent, Users, Plus, ArrowUpDown, Layers, Grid3X3, Grid2X2, List, ChevronDown, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Search, Filter, Tag, Package, Percent, Users, Plus, ArrowUpDown, Grid3X3, Grid2X2, List, ChevronDown, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { formatPrice } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import { useTenant } from '@/context/TenantContext';
 import { usePOSData } from '@/context/POSDataContext';
-import { getPaginatedProducts, searchProductsAutocomplete, getProductsStats, transformDatabaseProduct } from '@/lib/api/pos-products-api';
+import { getPaginatedProducts, getProductsStats, transformDatabaseProduct } from '@/lib/api/pos-products-api';
+import {
+  getProducts as getAllProductsOffline,
+  saveProductLocally,
+  fastSearchLocalProducts,
+  getLocalProductsPage,
+  getLocalProductStats
+} from '@/lib/api/offlineProductsAdapter';
 import { useInView } from 'react-intersection-observer';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useDebounce } from '@/hooks/useDebounce';
-import { logProductAdd, logStockUpdate, logError } from '@/utils/inventoryLogger';
+import { logProductAdd, logError } from '@/utils/inventoryLogger';
 
 interface ProductCatalogOptimizedProps {
   onAddToCart: (product: Product) => void;
@@ -42,6 +48,10 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
   const [hasNextPage, setHasNextPage] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [useCacheBrowse, setUseCacheBrowse] = useState(true); // تصفح من الكاش لتخفيف الضغط
+  const [allProducts, setAllProducts] = useState<Product[]>([]); // الكاش الكامل للتصفح
+  const [useLocalPagination, setUseLocalPagination] = useState<boolean>(false); // تفعيل pagination من IndexedDB
+  const offlineMode = typeof navigator !== 'undefined' ? !navigator.onLine : false;
   
   // حالة الفلترة والبحث
   const [searchQuery, setSearchQuery] = useState('');
@@ -75,28 +85,109 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
   useEffect(() => {
     const fetchStats = async () => {
       if (!currentOrganization?.id) return;
-      
       try {
-        const stats = await getProductsStats(currentOrganization.id);
-        setStats(stats);
-      } catch (error) {
-      }
+        if (useCacheBrowse || offlineMode) {
+          const s = await getLocalProductStats(currentOrganization.id);
+          setStats(s);
+        } else {
+          const s = await getProductsStats(currentOrganization.id);
+          setStats(s);
+        }
+      } catch {}
     };
-
     fetchStats();
-  }, [currentOrganization?.id]);
+  }, [currentOrganization?.id, useCacheBrowse, offlineMode]);
 
   // تحميل الصفحة الأولى عند تغيير الفلاتر
   useEffect(() => {
     if (!currentOrganization?.id) return;
-    
-    const loadFirstPage = async () => {
+    const orgId = currentOrganization.id;
+
+    const loadFromCache = async () => {
+      setIsInitialLoading(true);
+      setError(null);
+      try {
+        // تقرير متى نستخدم pagination من IndexedDB بشكل مفهرس
+        const canUseIndexedPagination = !debouncedSearchQuery && sortOption === 'name';
+        setUseLocalPagination(canUseIndexedPagination);
+
+        if (debouncedSearchQuery) {
+          // بحث محلي سريع عبر الفهارس
+          const localMatches = await fastSearchLocalProducts(orgId, debouncedSearchQuery, 1500);
+          const transformed = localMatches.map(transformDatabaseProduct);
+          setAllProducts(transformed);
+          const filtered = transformed
+            .filter(p => (selectedCategory === 'all' ? true : (p as any).category_id === selectedCategory));
+          const sorted = filtered.sort((a, b) => {
+            const dir = sortOrder === 'ASC' ? 1 : -1;
+            switch (sortOption) {
+              case 'price': return dir * (((a as any).price || 0) - ((b as any).price || 0));
+              case 'stock': {
+                const sa = (a as any).stockQuantity ?? (a as any).stock_quantity ?? 0;
+                const sb = (b as any).stockQuantity ?? (b as any).stock_quantity ?? 0;
+                return dir * (sa - sb);
+              }
+              case 'created': return dir * ((a as any).createdAt?.getTime?.() - (b as any).createdAt?.getTime?.());
+              default: return dir * (a.name?.localeCompare(b.name) || 0);
+            }
+          });
+          setProducts(sorted.slice(0, pageSize));
+          setCurrentPage(1);
+          setTotalPages(Math.ceil(sorted.length / pageSize));
+          setTotalProducts(sorted.length);
+          setHasNextPage(sorted.length > pageSize);
+          if (scrollAreaRef.current) scrollAreaRef.current.scrollTop = 0;
+        } else if (canUseIndexedPagination) {
+          // صفحة أولى عبر الفهرس المحلي بدون تحميل كامل للذاكرة
+          const res = await getLocalProductsPage(orgId, { offset: 0, limit: pageSize, includeInactive: true, sortBy: 'name', categoryId: selectedCategory === 'all' ? 'all' : selectedCategory });
+          const transformed = (res.products as any[]).map(transformDatabaseProduct);
+          setProducts(transformed);
+          setAllProducts([]);
+          setCurrentPage(1);
+          setTotalProducts(res.total);
+          setTotalPages(Math.ceil(res.total / pageSize));
+          setHasNextPage(res.total > pageSize);
+          if (scrollAreaRef.current) scrollAreaRef.current.scrollTop = 0;
+        } else {
+          // الرجوع للسلوك السابق: تحميل كامل ثم التصفح محلياً
+          const raw = await getAllProductsOffline(orgId, true);
+          const transformed = (raw as any[]).map(transformDatabaseProduct);
+          setAllProducts(transformed);
+          const filtered = transformed
+            .filter(p => (selectedCategory === 'all' ? true : (p as any).category_id === selectedCategory));
+          const sorted = filtered.sort((a, b) => {
+            const dir = sortOrder === 'ASC' ? 1 : -1;
+            switch (sortOption) {
+              case 'price': return dir * (((a as any).price || 0) - ((b as any).price || 0));
+              case 'stock': {
+                const sa = (a as any).stockQuantity ?? (a as any).stock_quantity ?? 0;
+                const sb = (b as any).stockQuantity ?? (b as any).stock_quantity ?? 0;
+                return dir * (sa - sb);
+              }
+              case 'created': return dir * ((a as any).createdAt?.getTime?.() - (b as any).createdAt?.getTime?.());
+              default: return dir * (a.name?.localeCompare(b.name) || 0);
+            }
+          });
+          setProducts(sorted.slice(0, pageSize));
+          setCurrentPage(1);
+          setTotalPages(Math.ceil(sorted.length / pageSize));
+          setTotalProducts(sorted.length);
+          setHasNextPage(sorted.length > pageSize);
+          if (scrollAreaRef.current) scrollAreaRef.current.scrollTop = 0;
+        }
+      } catch (e) {
+        setError('تعذر تحميل المنتجات من الكاش');
+      } finally {
+        setIsInitialLoading(false);
+      }
+    };
+
+    const loadOnline = async () => {
       setCurrentPage(1);
       setIsInitialLoading(true);
       setError(null);
-      
       try {
-        const response = await getPaginatedProducts(currentOrganization.id, {
+        const response = await getPaginatedProducts(orgId, {
           page: 1,
           pageSize,
           searchQuery: debouncedSearchQuery || undefined,
@@ -105,15 +196,13 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
           sortOrder: sortOrder,
           includeVariants: true
         });
-        
         const transformedProducts = response.products.map(transformDatabaseProduct);
         setProducts(transformedProducts);
-        
-        // إعادة التمرير إلى الأعلى عند إعادة التعيين
-        if (scrollAreaRef.current) {
-          scrollAreaRef.current.scrollTop = 0;
+        // احفظ في الكاش للأوفلاين
+        for (const p of transformedProducts) {
+          try { await saveProductLocally(p as any); } catch {}
         }
-        
+        if (scrollAreaRef.current) scrollAreaRef.current.scrollTop = 0;
         setCurrentPage(response.currentPage);
         setTotalPages(response.pageCount);
         setTotalProducts(response.totalCount);
@@ -124,9 +213,13 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
         setIsInitialLoading(false);
       }
     };
-    
-    loadFirstPage();
-  }, [debouncedSearchQuery, selectedCategory, sortOption, sortOrder, currentOrganization?.id, pageSize]);
+
+    if (useCacheBrowse || offlineMode) {
+      void loadFromCache();
+    } else {
+      void loadOnline();
+    }
+  }, [debouncedSearchQuery, selectedCategory, sortOption, sortOrder, currentOrganization?.id, pageSize, useCacheBrowse, offlineMode]);
 
   // دالة لتحديث المخزون محلياً (يمكن استدعاؤها من الخارج)
   const updateLocalStock = useCallback((productId: string, stockChange: number) => {
@@ -161,38 +254,61 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
   // إضافة دالة للتحديث اليدوي
   const handleManualRefresh = useCallback(async () => {
     if (!currentOrganization?.id || isInitialLoading) return;
-    
     setIsInitialLoading(true);
     setError(null);
-    
     try {
-      const response = await getPaginatedProducts(currentOrganization.id, {
-        page: 1,
-        pageSize,
-        searchQuery: debouncedSearchQuery || undefined,
-        categoryId: selectedCategory !== 'all' ? selectedCategory : undefined,
-        sortBy: sortOption,
-        sortOrder: sortOrder,
-        includeVariants: true
-      });
-      
-      const transformedProducts = response.products.map(transformDatabaseProduct);
-      setProducts(transformedProducts);
-      setCurrentPage(response.currentPage);
-      setTotalPages(response.pageCount);
-      setTotalProducts(response.totalCount);
-      setHasNextPage(response.hasNextPage);
-      
-      // إعادة التمرير إلى الأعلى
-      if (scrollAreaRef.current) {
-        scrollAreaRef.current.scrollTop = 0;
-      }
+      // اجلب كل المنتجات من الخادم واحفظها محلياً، ثم اعرضها من الكاش
+      const raw = await getAllProductsOffline(currentOrganization.id, true);
+      const transformed = (raw as any[]).map(transformDatabaseProduct);
+      setAllProducts(transformed);
+      // تطبيق الفلاتر محلياً
+      const filtered = transformed
+        .filter(p => (selectedCategory === 'all' ? true : (p as any).category_id === selectedCategory))
+        .filter(p => (debouncedSearchQuery ? (p.name?.toLowerCase()?.includes(debouncedSearchQuery.toLowerCase())) : true));
+      setProducts(filtered.slice(0, pageSize));
+      setCurrentPage(1);
+      setTotalPages(Math.ceil(filtered.length / pageSize));
+      setTotalProducts(filtered.length);
+      setHasNextPage(filtered.length > pageSize);
+      if (scrollAreaRef.current) scrollAreaRef.current.scrollTop = 0;
     } catch (error) {
-      setError('حدث خطأ في تحميل المنتجات. يرجى المحاولة مرة أخرى.');
+      setError('حدث خطأ في التحديث.');
     } finally {
       setIsInitialLoading(false);
     }
   }, [currentOrganization?.id, pageSize, debouncedSearchQuery, selectedCategory, sortOption, sortOrder, isInitialLoading]);
+
+  // تحميل المزيد (صفحات) عند التمرير في وضع الكاش
+  useEffect(() => {
+    if (!useCacheBrowse || isInitialLoading) return;
+    if (inView && hasNextPage && !isLoadingMore) {
+      setIsLoadingMore(true);
+      setTimeout(async () => {
+        try {
+          const nextPage = currentPage + 1;
+          if (useLocalPagination && !debouncedSearchQuery) {
+            const orgId = currentOrganization?.id as string;
+            const res = await getLocalProductsPage(orgId, { offset: (nextPage - 1) * pageSize, limit: pageSize, includeInactive: true, sortBy: 'name', categoryId: selectedCategory === 'all' ? 'all' : selectedCategory });
+            const slice = (res.products as any[]).map(transformDatabaseProduct);
+            setProducts(prev => prev.concat(slice));
+            setCurrentPage(nextPage);
+            setHasNextPage(res.total > nextPage * pageSize);
+          } else {
+            // fallback: احسب الصفحة التالية من allProducts
+            const filtered = allProducts
+              .filter(p => (selectedCategory === 'all' ? true : (p as any).category_id === selectedCategory))
+              .filter(p => (debouncedSearchQuery ? (p.name?.toLowerCase()?.includes(debouncedSearchQuery.toLowerCase())) : true));
+            const slice = filtered.slice((nextPage - 1) * pageSize, nextPage * pageSize);
+            setProducts(prev => prev.concat(slice));
+            setCurrentPage(nextPage);
+            setHasNextPage(filtered.length > nextPage * pageSize);
+          }
+        } finally {
+          setIsLoadingMore(false);
+        }
+      }, 0);
+    }
+  }, [useCacheBrowse, inView, hasNextPage, isLoadingMore, isInitialLoading, allProducts, selectedCategory, debouncedSearchQuery, pageSize, currentPage, useLocalPagination, currentOrganization?.id]);
 
   // دالة للحصول على الفئات المعروضة
   const displayCategories = useMemo(() => {
@@ -313,6 +429,13 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
   
     // مكون لعرض المنتج الواحد
   const ProductCard = useCallback(({ product }: { product: Product }) => {
+    const isOutOfStock = product.stockQuantity <= 0;
+    const isLowStock = product.stockQuantity > 0 && product.stockQuantity <= 5;
+    const hasDiscount = product.compareAtPrice && product.compareAtPrice > product.price;
+    const discountPercentage = hasDiscount
+      ? Math.round(((product.compareAtPrice - product.price) / product.compareAtPrice) * 100)
+      : 0;
+
     return (
       <motion.div
         layout
@@ -321,147 +444,196 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
         exit={{ opacity: 0, scale: 0.9 }}
         transition={{ duration: 0.2 }}
         className={cn(
-          "rounded-xl border overflow-hidden transition-all hover:shadow-lg relative group",
-          product.stockQuantity > 0 
-            ? "hover:border-primary/50 bg-card hover:translate-y-[-2px]" 
-            : "opacity-70 bg-muted/40 border-muted"
+          "relative group rounded-2xl border bg-gradient-to-b overflow-hidden transition-all duration-300 z-0",
+          "hover:shadow-xl hover:shadow-primary/5 hover:z-10",
+          product.stockQuantity > 0
+            ? "from-card to-card/80 border-border/50 hover:border-primary/30 hover:-translate-y-1 hover:shadow-2xl"
+            : "from-muted/30 to-muted/20 border-muted opacity-75"
         )}
       >
-        <div 
-          className="relative aspect-square bg-gradient-to-br from-muted/30 to-muted/10 dark:from-slate-800/50 dark:to-slate-900/30 cursor-pointer"
+        {/* خلفية gradient عند hover */}
+        <div className={cn(
+          "absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+        )} />
+
+        <div
+          className="relative aspect-square bg-gradient-to-br from-muted/20 via-background/50 to-muted/30 cursor-pointer overflow-hidden"
           onClick={() => handleProductClick(product)}
         >
-          <img
-            src={product.thumbnailImage || '/placeholder-product.svg'}
-            alt={product.name}
-            className="object-contain w-full h-full p-2"
-            loading="lazy"
-          />
-          
-          {product.stockQuantity <= 0 && (
-            <div className="absolute inset-0 bg-black/60 flex items-center justify-center backdrop-blur-sm">
-              <span className="text-white text-sm font-medium px-3 py-1.5 bg-black/70 rounded-full">نفذت الكمية</span>
+          {/* شريط التخفيض */}
+          {hasDiscount && !isOutOfStock && (
+            <div className="absolute top-3 right-3 z-10">
+              <div className="bg-gradient-to-r from-red-500 to-pink-500 text-white px-2.5 py-1 rounded-full shadow-lg flex items-center gap-1">
+                <Percent className="h-3 w-3" />
+                <span className="text-xs font-bold">-{discountPercentage}%</span>
+              </div>
             </div>
           )}
-          
+
+          {/* الصورة */}
+          <div className="relative w-full h-full p-4 flex items-center justify-center">
+            <img
+              src={product.thumbnailImage || '/placeholder-product.svg'}
+              alt={product.name}
+              className="object-contain w-full h-full transition-transform duration-300 group-hover:scale-105"
+              loading="lazy"
+            />
+
+            {/* تأثير blur للصورة عند نفاذ المخزون */}
+            {isOutOfStock && (
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/50 to-black/30 flex items-center justify-center backdrop-blur-[2px]">
+                <div className="bg-black/80 px-4 py-2 rounded-full shadow-2xl">
+                  <span className="text-white text-sm font-bold">نفذت الكمية</span>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* شارات المنتج */}
-          <div className="absolute top-2 left-2 flex flex-col gap-1">
+          <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10">
             {(product as any).allow_wholesale && (product as any).wholesale_price !== undefined && (
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <div className="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 bg-blue-500/90 text-white border-blue-600 cursor-pointer">
+                    <div className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg hover:shadow-xl hover:scale-105 border border-blue-400/20">
                       <Users className="h-3 w-3 mr-1" />
-                      جملة
+                      <span>جملة</span>
                     </div>
                   </TooltipTrigger>
-                  <TooltipContent side="left">
-                    <p className="text-xs">سعر الجملة: {formatPrice((product as any).wholesale_price ?? 0)}</p>
-                    <p className="text-xs">الحد الأدنى: {(product as any).min_wholesale_quantity} قطعة</p>
+                  <TooltipContent side="left" className="bg-gradient-to-br from-slate-900 to-slate-800 border-slate-700">
+                    <p className="text-xs font-medium">سعر الجملة: {formatPrice((product as any).wholesale_price ?? 0)}</p>
+                    <p className="text-xs text-slate-300">الحد الأدنى: {(product as any).min_wholesale_quantity} قطعة</p>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             )}
-            
+
             {product.isDigital && (
-              <Badge variant="secondary" className="shadow-sm">
+              <div className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg border border-purple-400/20">
                 رقمي
-              </Badge>
+              </div>
             )}
           </div>
-          
+
           {/* زر الإضافة للسلة */}
           {(isReturnMode || product.stockQuantity > 0) && (
-            <Button 
-              size="sm" 
-              variant="ghost" 
+            <Button
+              size="sm"
+              variant="ghost"
               className={cn(
-                "absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-all rounded-full w-8 h-8 p-0 shadow-md",
-                isReturnMode 
-                  ? "bg-orange-500 text-white hover:bg-orange-600" 
-                  : "bg-primary text-primary-foreground hover:bg-primary/90"
+                "absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300 rounded-xl w-10 h-10 p-0 shadow-lg hover:shadow-xl hover:scale-110 z-10",
+                isReturnMode
+                  ? "bg-gradient-to-br from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700 border border-orange-400/30"
+                  : "bg-gradient-to-br from-primary to-primary/90 text-primary-foreground hover:from-primary hover:to-primary border border-primary/20"
               )}
               onClick={(e) => {
                 e.stopPropagation();
                 if (isReturnMode || product.stockQuantity > 0) {
                   onAddToCart(product);
-                  // ⚠️ تم إزالة التحديث المبكر للمخزون - يحدث فقط عند إتمام الشراء الفعلي
                 }
               }}
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-5 w-5" />
               <span className="sr-only">{isReturnMode ? 'إضافة للإرجاع' : 'إضافة إلى السلة'}</span>
             </Button>
           )}
         </div>
-        
-        <div className="p-3 space-y-2">
-          <h3 className="text-sm font-medium line-clamp-2 min-h-[2.5rem]">{product.name}</h3>
-          
-          <div className="flex items-center justify-between">
-            <div className="flex flex-col">
-              <span className="text-lg font-bold text-primary">{formatPrice(product.price)}</span>
-              {product.compareAtPrice && product.compareAtPrice > product.price && (
-                <span className="text-xs text-muted-foreground line-through">{formatPrice(product.compareAtPrice)}</span>
-              )}
+
+        {/* معلومات المنتج */}
+        <div className="relative p-4 space-y-3 bg-gradient-to-b from-card/50 to-card">
+          {/* اسم المنتج */}
+          <h3 className="text-sm font-semibold line-clamp-2 min-h-[2.5rem] text-foreground/90 leading-relaxed group-hover:text-primary transition-colors">
+            {product.name}
+          </h3>
+
+          {/* السعر والمخزون */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex flex-col gap-0.5">
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
+                  {formatPrice(product.price)}
+                </span>
+                {hasDiscount && (
+                  <span className="text-xs text-muted-foreground line-through font-medium">
+                    {formatPrice(product.compareAtPrice)}
+                  </span>
+                )}
+              </div>
             </div>
-            
-            <Badge variant={product.stockQuantity > 10 ? "secondary" : product.stockQuantity > 0 ? "outline" : "destructive"} className="text-xs">
-              {product.stockQuantity > 0 ? `${product.stockQuantity} متاح` : 'نفذ'}
+
+            {/* شارة المخزون */}
+            <Badge
+              variant={isOutOfStock ? "destructive" : isLowStock ? "outline" : "secondary"}
+              className={cn(
+                "text-xs font-semibold shadow-sm transition-all",
+                isLowStock && "border-orange-500/50 text-orange-700 dark:text-orange-400 bg-orange-50 dark:bg-orange-950/30",
+                !isOutOfStock && !isLowStock && "bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-950/30 dark:to-emerald-950/30 text-green-700 dark:text-green-400 border-green-500/30"
+              )}
+            >
+              {isOutOfStock ? (
+                <span className="flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  نفذ
+                </span>
+              ) : (
+                <span>{product.stockQuantity} متاح</span>
+              )}
             </Badge>
           </div>
-          
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>SKU: {product.sku}</span>
+
+          {/* SKU و Barcode */}
+          <div className="flex items-center gap-2 text-xs text-muted-foreground/80 border-t border-border/50 pt-2">
+            <span className="font-medium">SKU:</span>
+            <span className="font-mono">{product.sku}</span>
             {product.barcode && (
               <>
-                <span>•</span>
-                <span>{product.barcode}</span>
+                <span className="text-muted-foreground/40">•</span>
+                <span className="font-mono">{product.barcode}</span>
               </>
             )}
           </div>
         </div>
       </motion.div>
     );
-  }, [handleProductClick, onAddToCart]);
+  }, [handleProductClick, onAddToCart, isReturnMode]);
   
   // مكون لعرض skeleton loader
   const ProductSkeleton = () => (
-    <div className="rounded-xl border overflow-hidden">
-      <Skeleton className="aspect-square" />
-      <div className="p-3 space-y-2">
-        <Skeleton className="h-4 w-3/4" />
-        <Skeleton className="h-4 w-1/2" />
-        <div className="flex justify-between items-center">
-          <Skeleton className="h-6 w-20" />
-          <Skeleton className="h-5 w-16" />
+    <div className="rounded-2xl border border-border/50 overflow-hidden bg-gradient-to-b from-card to-card/80 animate-pulse">
+      <Skeleton className="aspect-square bg-gradient-to-br from-muted/30 to-muted/10" />
+      <div className="p-4 space-y-3">
+        <Skeleton className="h-5 w-3/4 rounded-lg" />
+        <div className="flex justify-between items-center gap-2">
+          <Skeleton className="h-7 w-24 rounded-lg" />
+          <Skeleton className="h-6 w-20 rounded-full" />
         </div>
+        <Skeleton className="h-3 w-full rounded-md" />
       </div>
     </div>
   );
   
   return (
-    <div className="flex flex-col h-full bg-gradient-to-b from-card/50 to-background/50 rounded-lg border shadow-md overflow-hidden">
+    <div className="flex flex-col h-full bg-gradient-to-br from-background via-card/30 to-background rounded-2xl border border-border/50 shadow-xl overflow-hidden relative isolate">
       {/* شريط البحث والفلترة */}
-      <div className="bg-gradient-to-r from-card/95 to-card/80 backdrop-blur-sm p-3 border-b sticky top-0 z-[1]">
-        <div className="flex gap-2 mb-2">
+      <div className="bg-gradient-to-r from-card via-card/95 to-card/90 backdrop-blur-md p-4 border-b border-border/50 sticky top-0 z-50 shadow-sm">
+        <div className="flex gap-2 mb-3">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground/60" />
             <Input
               type="text"
               placeholder="بحث عن منتج، باركود، SKU..."
-              className="pl-9 w-full border-primary/20 focus:border-primary shadow-sm"
+              className="pl-9 w-full border-border/60 bg-background/50 focus:bg-background focus:border-primary/50 shadow-sm hover:shadow-md transition-all rounded-xl h-10"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          
+
           {/* أزرار التحكم */}
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   size="icon"
                   onClick={() => {
                     if (sortOption === 'name') {
@@ -471,26 +643,29 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
                       setSortOrder('ASC');
                     }
                   }}
-                  className="flex-shrink-0 shadow-sm"
+                  className="flex-shrink-0 shadow-sm hover:shadow-md transition-all rounded-xl bg-background/50 hover:bg-background border-border/60"
                 >
                   <ArrowUpDown className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>
+              <TooltipContent className="bg-gradient-to-br from-slate-900 to-slate-800 border-slate-700">
                 <p>ترتيب: {sortOption === 'name' ? 'الاسم' : sortOption === 'price' ? 'السعر' : sortOption === 'stock' ? 'المخزون' : 'التاريخ'}</p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-          
-          <Button 
-            variant="outline" 
+
+          <Button
+            variant="outline"
             size="icon"
             onClick={() => setShowFilters(!showFilters)}
-            className={cn("flex-shrink-0 shadow-sm", showFilters && "bg-primary/10 text-primary border-primary/50")}
+            className={cn(
+              "flex-shrink-0 shadow-sm hover:shadow-md transition-all rounded-xl bg-background/50 border-border/60",
+              showFilters && "bg-gradient-to-br from-primary/20 to-primary/10 text-primary border-primary/50 shadow-md"
+            )}
           >
             <Filter className="h-4 w-4" />
           </Button>
-          
+
           <Button
             variant="outline"
             size="icon"
@@ -499,31 +674,49 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
               else if (viewMode === 'compact') setViewMode('list');
               else setViewMode('grid');
             }}
-            className="flex-shrink-0 shadow-sm"
+            className="flex-shrink-0 shadow-sm hover:shadow-md transition-all rounded-xl bg-background/50 hover:bg-background border-border/60"
           >
             {viewMode === 'grid' && <Grid3X3 className="h-4 w-4" />}
             {viewMode === 'compact' && <Grid2X2 className="h-4 w-4" />}
             {viewMode === 'list' && <List className="h-4 w-4" />}
           </Button>
-          
+
           <Button
             variant="outline"
             size="icon"
             onClick={handleManualRefresh}
             disabled={isInitialLoading}
-            className="flex-shrink-0 shadow-sm"
+            className="flex-shrink-0 shadow-sm hover:shadow-md transition-all rounded-xl bg-background/50 hover:bg-background border-border/60 disabled:opacity-50"
           >
             <RefreshCw className={cn("h-4 w-4", isInitialLoading && "animate-spin")} />
           </Button>
+          <Button
+            variant={useCacheBrowse ? 'default' : 'outline'}
+            onClick={() => setUseCacheBrowse(v => !v)}
+            className={cn(
+              "flex-shrink-0 shadow-sm hover:shadow-md transition-all rounded-xl",
+              useCacheBrowse
+                ? "bg-gradient-to-r from-primary to-primary/90 text-primary-foreground border-primary/20"
+                : "bg-background/50 hover:bg-background border-border/60"
+            )}
+          >
+            {useCacheBrowse ? 'تصفح من الكاش' : 'تصفح أونلاين'}
+          </Button>
+          {offlineMode && (
+            <Badge className="bg-gradient-to-r from-yellow-500/20 to-amber-500/20 text-yellow-700 dark:text-yellow-400 border-yellow-500/30 shadow-sm">
+              وضع الأوفلاين
+            </Badge>
+          )}
         </div>
         
         {/* الفئات */}
         {showFilters && (
-          <div className="pt-1 pb-1">
-            <motion.div 
+          <div className="pt-1 pb-1 relative z-50">
+            <motion.div
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
+              className="relative z-50"
             >
               {productCategories.length > 5 && (
                 <div className="mb-2">
@@ -588,27 +781,39 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
         )}
       </div>
 
-      <Separator className="opacity-50" />
+      <Separator className="opacity-30" />
 
       {/* معلومات المنتجات */}
-      <div className="bg-gradient-to-r from-muted/30 to-muted/10 px-4 py-2 flex items-center justify-between text-sm border-b sticky top-[68px] z-10">
-        <div className="flex items-center gap-2">
-          <Package className="h-4 w-4 text-primary/70" />
-          <span>
-            عرض {products.length} من {totalProducts} منتج
+      <div className="bg-gradient-to-r from-muted/20 via-muted/10 to-transparent px-4 py-3 flex items-center justify-between text-sm border-b border-border/30 sticky top-[68px] z-40 backdrop-blur-sm">
+        <div className="flex items-center gap-2.5">
+          <div className="p-1.5 rounded-lg bg-primary/10">
+            <Package className="h-4 w-4 text-primary" />
+          </div>
+          <span className="font-medium text-foreground/80">
+            عرض <span className="text-primary font-bold">{products.length}</span> من{' '}
+            <span className="text-primary font-bold">{totalProducts}</span> منتج
           </span>
           {isLoadingMore && (
-            <Loader2 className="h-3 w-3 animate-spin text-primary" />
+            <div className="flex items-center gap-1.5 text-primary">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              <span className="text-xs">جاري التحميل...</span>
+            </div>
           )}
         </div>
         <div className="text-muted-foreground flex items-center gap-2">
           {selectedCategory !== 'all' && (
-            <Badge variant="outline" className="bg-background/80 shadow-sm border-primary/20">
+            <Badge
+              variant="outline"
+              className="bg-gradient-to-r from-primary/10 to-primary/5 shadow-sm border-primary/30 text-primary font-medium"
+            >
               {displayCategories.find(cat => cat.id === selectedCategory)?.name || selectedCategory}
             </Badge>
           )}
           {searchQuery && (
-            <Badge variant="outline" className="bg-background/80 shadow-sm border-primary/20">
+            <Badge
+              variant="outline"
+              className="bg-gradient-to-r from-blue-500/10 to-blue-400/5 shadow-sm border-blue-500/30 text-blue-700 dark:text-blue-400 font-medium"
+            >
               بحث: {searchQuery}
             </Badge>
           )}
@@ -618,9 +823,9 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
       {/* كتالوج المنتجات */}
       <ScrollArea className="flex-1" ref={scrollAreaRef}>
         {error && (
-          <Alert variant="destructive" className="m-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
+          <Alert variant="destructive" className="m-4 border-red-500/30 bg-gradient-to-r from-red-50 to-red-50/50 dark:from-red-950/30 dark:to-red-950/10 shadow-lg rounded-xl">
+            <AlertCircle className="h-5 w-5" />
+            <AlertDescription className="font-medium">{error}</AlertDescription>
           </Alert>
         )}
         
@@ -636,17 +841,26 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
             ))}
           </div>
         ) : products.length === 0 ? (
-          <div className="h-40 flex flex-col items-center justify-center text-muted-foreground p-6">
-            <Package className="h-12 w-12 mb-2 opacity-20" />
-            <p className="mb-2">لم يتم العثور على منتجات</p>
-            <Button 
-              variant="outline" 
+          <div className="h-96 flex flex-col items-center justify-center text-muted-foreground p-8">
+            <div className="relative mb-6">
+              <div className="absolute inset-0 bg-primary/5 blur-2xl rounded-full" />
+              <div className="relative p-6 rounded-full bg-gradient-to-br from-muted/30 to-muted/10 border border-border/50">
+                <Package className="h-16 w-16 text-muted-foreground/40" />
+              </div>
+            </div>
+            <h3 className="text-lg font-semibold text-foreground/80 mb-2">لم يتم العثور على منتجات</h3>
+            <p className="text-sm text-muted-foreground mb-6 text-center max-w-sm">
+              لا توجد منتجات تطابق معايير البحث الحالية. جرب تغيير الفلاتر أو البحث بكلمات مختلفة.
+            </p>
+            <Button
+              variant="outline"
               onClick={() => {
                 setSearchQuery('');
                 setSelectedCategory('all');
               }}
-              className="bg-background/80"
+              className="bg-gradient-to-r from-background to-card hover:from-card hover:to-background border-border/60 shadow-sm hover:shadow-md transition-all rounded-xl"
             >
+              <RefreshCw className="h-4 w-4 mr-2" />
               إعادة ضبط الفلتر
             </Button>
           </div>
@@ -665,11 +879,11 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
             
             {/* مؤشر تحميل المزيد */}
             {hasNextPage && (
-              <div ref={loadMoreRef} className="p-4 flex justify-center">
+              <div ref={loadMoreRef} className="p-6 flex justify-center">
                 {isLoadingMore ? (
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    <span>جاري تحميل المزيد...</span>
+                  <div className="flex items-center gap-3 text-muted-foreground bg-gradient-to-r from-muted/20 to-transparent px-6 py-3 rounded-xl border border-border/30">
+                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                    <span className="font-medium">جاري تحميل المزيد...</span>
                   </div>
                 ) : (
                   <Button
@@ -677,7 +891,7 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
                     onClick={async () => {
                       if (currentOrganization?.id && !isLoadingMore) {
                         setIsLoadingMore(true);
-                        
+
                         try {
                           const response = await getPaginatedProducts(currentOrganization.id, {
                             page: currentPage + 1,
@@ -688,7 +902,7 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
                             sortOrder: sortOrder,
                             includeVariants: true
                           });
-                          
+
                           const transformedProducts = response.products.map(transformDatabaseProduct);
                           setProducts(prev => [...prev, ...transformedProducts]);
                           setCurrentPage(response.currentPage);
@@ -701,9 +915,12 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
                         }
                       }
                     }}
-                    className="text-muted-foreground"
+                    className="bg-gradient-to-r from-background to-card hover:from-card hover:to-background border-border/60 shadow-md hover:shadow-lg transition-all rounded-xl px-8 py-2.5 font-medium group"
                   >
-                    تحميل المزيد
+                    <span className="flex items-center gap-2">
+                      تحميل المزيد
+                      <ChevronDown className="h-4 w-4 group-hover:translate-y-0.5 transition-transform" />
+                    </span>
                   </Button>
                 )}
               </div>

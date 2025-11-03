@@ -1,14 +1,18 @@
-import { Navigate, Outlet, useLocation } from 'react-router-dom';
+import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
+import { useToast } from '@/components/ui/use-toast';
+import { shouldBlockRouteInElectron } from '@/lib/utils/electronSecurity';
 
 /**
  * Protected route component that ensures the user is a super admin
  * Redirects to login page if not authenticated
  * Redirects to dashboard if authenticated but not a super admin
  */
-const CACHE_TTL_MS = 60 * 1000; // 1 minute cache window
+const CACHE_TTL_MS = 10 * 1000; // 10 seconds cache window - reduced for security
+const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes inactivity timeout
+const SESSION_WARNING_MS = 25 * 60 * 1000; // Show warning 5 minutes before timeout
 
 export default function SuperAdminRoute() {
   const { user, session, userProfile } = useAuth();
@@ -17,9 +21,14 @@ export default function SuperAdminRoute() {
   const [authError, setAuthError] = useState(false);
   const [debugInfo, setDebugInfo] = useState<string>('');
   const location = useLocation();
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const lastCheckedUserId = useRef<string | null>(null);
   const superAdminCache = useRef<{ [userId: string]: { status: boolean; timestamp: number } }>({});
   const pendingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastActivityTime = useRef<number>(Date.now());
+  const sessionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const warningShownRef = useRef<boolean>(false);
 
   const clearPendingTimeout = () => {
     if (pendingTimeoutRef.current) {
@@ -27,6 +36,101 @@ export default function SuperAdminRoute() {
       pendingTimeoutRef.current = null;
     }
   };
+
+  const clearSessionTimeout = () => {
+    if (sessionTimeoutRef.current) {
+      clearTimeout(sessionTimeoutRef.current);
+      sessionTimeoutRef.current = null;
+    }
+  };
+
+  const handleSessionExpiry = useCallback(async () => {
+    clearSessionTimeout();
+
+    toast({
+      variant: 'destructive',
+      title: 'انتهت الجلسة',
+      description: 'تم تسجيل خروجك تلقائياً بسبب عدم النشاط لمدة 30 دقيقة',
+    });
+
+    // Sign out user
+    await supabase.auth.signOut();
+
+    // Redirect to login
+    window.location.href = '/super-admin/login';
+  }, [toast]);
+
+  const resetSessionTimeout = useCallback(() => {
+    clearSessionTimeout();
+    warningShownRef.current = false;
+    lastActivityTime.current = Date.now();
+
+    // Set timeout for session expiry
+    sessionTimeoutRef.current = setTimeout(() => {
+      handleSessionExpiry();
+    }, SESSION_TIMEOUT_MS);
+
+    // Set timeout for warning
+    setTimeout(() => {
+      const timeSinceLastActivity = Date.now() - lastActivityTime.current;
+      if (timeSinceLastActivity >= SESSION_WARNING_MS && !warningShownRef.current) {
+        warningShownRef.current = true;
+        toast({
+          variant: 'default',
+          title: 'تحذير: الجلسة على وشك الانتهاء',
+          description: 'ستنتهي جلستك خلال 5 دقائق بسبب عدم النشاط. قم بأي نشاط للحفاظ على جلستك نشطة.',
+          duration: 10000,
+        });
+      }
+    }, SESSION_WARNING_MS);
+  }, [handleSessionExpiry, toast]);
+
+  // Session timeout management - track user activity
+  useEffect(() => {
+    if (!user || !isSuperAdmin) {
+      clearSessionTimeout();
+      return;
+    }
+
+    // Initialize session timeout
+    resetSessionTimeout();
+
+    // Activity event handlers
+    const activityEvents = ['mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
+    const handleActivity = () => {
+      resetSessionTimeout();
+    };
+
+    // Add event listeners for user activity
+    activityEvents.forEach(event => {
+      document.addEventListener(event, handleActivity);
+    });
+
+    // Cleanup
+    return () => {
+      clearSessionTimeout();
+      activityEvents.forEach(event => {
+        document.removeEventListener(event, handleActivity);
+      });
+    };
+  }, [user, isSuperAdmin, resetSessionTimeout]);
+
+  // ===== Electron Security: Block Super Admin access in desktop app =====
+  useEffect(() => {
+    if (shouldBlockRouteInElectron(location.pathname)) {
+      console.warn('[Electron Security] محاولة الوصول إلى لوحة السوبر أدمين من تطبيق سطح المكتب');
+
+      toast({
+        variant: 'destructive',
+        title: 'وصول محظور',
+        description: 'لوحة السوبر أدمين متاحة فقط عبر المتصفح الويب',
+        duration: 5000,
+      });
+
+      // Redirect to home
+      navigate('/', { replace: true });
+    }
+  }, [location.pathname, navigate, toast]);
 
   // إضافة logging للتشخيص
   useEffect(() => {
@@ -146,6 +250,7 @@ export default function SuperAdminRoute() {
 
     return () => {
       clearPendingTimeout();
+      clearSessionTimeout();
       subscription?.subscription.unsubscribe();
     };
   }, [checkSuperAdminStatus]);
@@ -220,7 +325,18 @@ export default function SuperAdminRoute() {
               إعادة المحاولة
             </button>
             <button
-              onClick={() => window.location.href = '/dashboard'}
+              onClick={() => {
+                try {
+                  const isElectron = typeof window !== 'undefined' && window.navigator?.userAgent?.includes('Electron');
+                  if (isElectron) {
+                    window.location.hash = '#/dashboard';
+                  } else {
+                    window.location.href = '/dashboard';
+                  }
+                } catch {
+                  window.location.href = '/dashboard';
+                }
+              }}
               className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
             >
               العودة إلى لوحة التحكم

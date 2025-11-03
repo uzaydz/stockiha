@@ -206,7 +206,8 @@ export const getAllLocalReturns = getAllLocalProductReturns;
 // جلب الإرجاعات غير المتزامنة
 export const getUnsyncedProductReturns = async (): Promise<LocalProductReturn[]> => {
   return await inventoryDB.productReturns
-    .filter(ret => ret.synced === false)
+    .where('synced')
+    .equals(false)
     .toArray();
 };
 
@@ -248,3 +249,56 @@ export const cleanupSyncedReturns = async (): Promise<number> => {
 
   return toDelete.length;
 };
+
+// ==================== بحث وتصفح محلي للإرجاعات ====================
+
+export async function getLocalProductReturnsPage(
+  organizationId: string,
+  options: { offset?: number; limit?: number; status?: string | string[]; createdSort?: 'asc' | 'desc' } = {}
+): Promise<{ returns: LocalProductReturn[]; total: number }> {
+  const { offset = 0, limit = 50, status, createdSort = 'desc' } = options;
+  let coll = inventoryDB.productReturns
+    .where('[organization_id+created_at]') as any;
+  coll = coll.between([organizationId, ''], [organizationId, '\\uffff']);
+  if (createdSort === 'desc') coll = coll.reverse();
+  if (status) {
+    const statuses = Array.isArray(status) ? status : [status];
+    coll = coll.and((r: any) => statuses.includes(r.status));
+  }
+  const total = await coll.count();
+  const page = await coll.offset(offset).limit(limit).toArray();
+  return { returns: page as any, total };
+}
+
+export async function fastSearchLocalProductReturns(
+  organizationId: string,
+  query: string,
+  options: { limit?: number; status?: string | string[] } = {}
+): Promise<LocalProductReturn[]> {
+  const q = (query || '').toLowerCase();
+  if (!q) return [];
+  const limit = options.limit ?? 200;
+  const statuses = options.status ? (Array.isArray(options.status) ? options.status : [options.status]) : null;
+
+  const results = new Map<string, LocalProductReturn>();
+
+  const numMatches = await inventoryDB.productReturns
+    .where('[organization_id+return_number_lower]') as any;
+  const byNum = await numMatches
+    .between([organizationId, q], [organizationId, q + '\\uffff'])
+    .limit(limit)
+    .toArray();
+  byNum.forEach((r: any) => { if (!statuses || statuses.includes(r.status)) results.set(r.id, r); });
+
+  if (results.size < limit) {
+    const nameMatches = await inventoryDB.productReturns
+      .where('[organization_id+customer_name_lower]') as any;
+    const byName = await nameMatches
+      .between([organizationId, q], [organizationId, q + '\\uffff'])
+      .limit(limit - results.size)
+      .toArray();
+    byName.forEach((r: any) => { if (!statuses || statuses.includes(r.status)) results.set(r.id, r); });
+  }
+
+  return Array.from(results.values()).slice(0, limit);
+}

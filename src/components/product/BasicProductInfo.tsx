@@ -8,9 +8,10 @@ import { ProductFormValues } from "@/types/product";
 import { Package, Tag, FileText, Star, Gift, Eye, Info, HelpCircle, Link, Wand2, Sparkles, Bot } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+// تم تعطيل Tooltip لتجنب حلقات التحديث العميقة في بعض البيئات
+// import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { Button } from "@/components/ui/button";
-import React, { useEffect, useState, lazy, Suspense } from "react";
+import React, { useEffect, useState, useRef, lazy, Suspense } from "react";
 import { generateSlugFromText, cleanSlug, isValidSlug } from "@/utils/slugUtils";
 const AdvancedDescriptionBuilder = lazy(async () => ({
   default: (await import("@/components/advanced-description/AdvancedDescriptionBuilder")).AdvancedDescriptionBuilder,
@@ -35,27 +36,25 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
   const [showProductInfoGenerator, setShowProductInfoGenerator] = useState(false);
   const [isFromProductInfoGenerator, setIsFromProductInfoGenerator] = useState(false);
   
-  // Watch product name to auto-generate slug
+  // Watch product name/slug
   const watchedName = form.watch('name');
   const watchedSlug = form.watch('slug');
+  const prevNameRef = useRef<string | undefined>(undefined);
 
   // Auto-generate slug when name changes (only if not manually edited and not from ProductInfoGenerator)
   useEffect(() => {
+    // امنع حلقات التحديث: نفّذ فقط عندما يتغير الاسم فعلياً
+    if (watchedName === prevNameRef.current) return;
+    prevNameRef.current = watchedName;
+
     if (watchedName && !isSlugManual && !isFromProductInfoGenerator) {
-      // فقط إذا كان الـ slug فارغ أو يحتوي على قيمة افتراضية
       const currentSlug = form.getValues('slug');
-      
       if (!currentSlug || currentSlug === 'product' || currentSlug === '') {
         const generatedSlug = generateSlugFromText(watchedName);
         form.setValue('slug', generatedSlug, { shouldValidate: true, shouldDirty: true });
-        
-        // Debug: فحص القيمة بعد الحفظ
-        setTimeout(() => {
-          const savedSlug = form.getValues('slug');
-        }, 100);
       }
     }
-  }, [watchedName, isSlugManual, isFromProductInfoGenerator, form]);
+  }, [watchedName, isSlugManual, isFromProductInfoGenerator]);
 
   // Sync advanced description from form data (avoid watch() in deps)
   const watchedAdvancedDescription = form.watch('advanced_description');
@@ -111,7 +110,6 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
   };
 
   return (
-    <TooltipProvider>
       <div className="space-y-4 sm:space-y-5 lg:space-y-6">
         {/* Basic Information Section */}
         <Card className="border-border/50 shadow-md sm:shadow-lg dark:shadow-xl sm:dark:shadow-2xl dark:shadow-black/20 bg-card/50 backdrop-blur-sm">
@@ -164,24 +162,14 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
                     <FormLabel className="text-xs sm:text-sm font-medium text-foreground flex items-center gap-1.5 sm:gap-2">
                       اسم المنتج
                       <span className="text-destructive">*</span>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            className="inline-flex items-center justify-center min-h-[44px] sm:min-h-auto p-2 sm:p-0 -m-2 sm:m-0"
-                            onClick={(e) => e.preventDefault()}
-                          >
-                            <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent 
-                          className="max-w-[280px] sm:max-w-xs z-50 bg-popover border border-border shadow-lg"
-                          side="top"
-                          sideOffset={5}
-                        >
-                          <p className="text-xs">أدخل اسم المنتج كما سيظهر للعملاء في المتجر. يجب أن يكون واضحاً ووصفياً.</p>
-                        </TooltipContent>
-                      </Tooltip>
+                      <span
+                        role="img"
+                        aria-label="أدخل اسم المنتج كما سيظهر للعملاء في المتجر. يجب أن يكون واضحاً ووصفياً."
+                        title="أدخل اسم المنتج كما سيظهر للعملاء في المتجر. يجب أن يكون واضحاً ووصفياً."
+                        className="inline-flex items-center justify-center min-h-[44px] sm:min-h-auto p-2 sm:p-0 -m-2 sm:m-0"
+                      >
+                        <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
+                      </span>
                     </FormLabel>
                     <FormControl>
                       <Input
@@ -212,24 +200,14 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
                   <FormItem className="space-y-1.5 sm:space-y-2">
                     <FormLabel className="text-xs sm:text-sm font-medium text-foreground flex items-center gap-1.5 sm:gap-2">
                       اسم المنتج للشحن
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            className="inline-flex items-center justify-center min-h-[44px] sm:min-h-auto p-2 sm:p-0 -m-2 sm:m-0"
-                            onClick={(e) => e.preventDefault()}
-                          >
-                            <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent 
-                          className="max-w-[280px] sm:max-w-xs z-50 bg-popover border border-border shadow-lg"
-                          side="top"
-                          sideOffset={5}
-                        >
-                          <p className="text-xs">اسم مختصر للمنتج يظهر في وثائق الشحن والفواتير. اتركه فارغاً لاستخدام الاسم الأساسي.</p>
-                        </TooltipContent>
-                      </Tooltip>
+                      <span
+                        role="img"
+                        aria-label="اسم مختصر للمنتج يظهر في وثائق الشحن والفواتير. اتركه فارغاً لاستخدام الاسم الأساسي."
+                        title="اسم مختصر للمنتج يظهر في وثائق الشحن والفواتير. اتركه فارغاً لاستخدام الاسم الأساسي."
+                        className="inline-flex items-center justify-center min-h-[44px] sm:min-h-auto p-2 sm:p-0 -m-2 sm:m-0"
+                      >
+                        <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
+                      </span>
                     </FormLabel>
                     <FormControl>
                       <Input
@@ -254,24 +232,14 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
                     <FormLabel className="text-xs sm:text-sm font-medium text-foreground flex flex-wrap items-center gap-1.5 sm:gap-2">
                       <span>رابط المنتج (Slug)</span>
                       <Badge variant="outline" className="text-[10px] sm:text-xs shadow-sm">SEO</Badge>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            className="inline-flex items-center justify-center min-h-[44px] sm:min-h-auto p-2 sm:p-0 -m-2 sm:m-0"
-                            onClick={(e) => e.preventDefault()}
-                          >
-                            <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent 
-                          className="max-w-[280px] sm:max-w-xs z-50 bg-popover border border-border shadow-lg"
-                          side="top"
-                          sideOffset={5}
-                        >
-                          <p className="text-xs">رابط المنتج الذي سيظهر في شريط العنوان ومحركات البحث. يتم إنشاؤه تلقائياً من اسم المنتج أو يمكنك تخصيصه يدوياً لتحسين SEO.</p>
-                        </TooltipContent>
-                      </Tooltip>
+                      <span
+                        role="img"
+                        aria-label="رابط المنتج الذي سيظهر في شريط العنوان ومحركات البحث. يتم إنشاؤه تلقائياً من اسم المنتج أو يمكنك تخصيصه يدوياً لتحسين SEO."
+                        title="رابط المنتج الذي سيظهر في شريط العنوان ومحركات البحث. يتم إنشاؤه تلقائياً من اسم المنتج أو يمكنك تخصيصه يدوياً لتحسين SEO."
+                        className="inline-flex items-center justify-center min-h-[44px] sm:min-h-auto p-2 sm:p-0 -m-2 sm:m-0"
+                      >
+                        <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
+                      </span>
                     </FormLabel>
                     <div className="flex flex-col sm:flex-row gap-2">
                       <FormControl>
@@ -319,22 +287,16 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
                         </div>
                       </FormControl>
                       {isSlugManual && (
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={resetSlugToAuto}
-                              className="px-3 h-10 text-xs sm:text-sm hover:bg-primary/5 hover:border-primary/50 w-full sm:w-auto"
-                            >
-                              🔄 تلقائي
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p className="text-xs">إعادة تعيين الرابط ليتم إنشاؤه تلقائياً من اسم المنتج</p>
-                          </TooltipContent>
-                        </Tooltip>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={resetSlugToAuto}
+                          title="إعادة تعيين الرابط ليتم إنشاؤه تلقائياً من اسم المنتج"
+                          className="px-3 h-10 text-xs sm:text-sm hover:bg-primary/5 hover:border-primary/50 w-full sm:w-auto"
+                        >
+                          🔄 تلقائي
+                        </Button>
                       )}
                     </div>
                     <FormMessage className="text-xs" />
@@ -350,24 +312,14 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
                 <FormItem className="space-y-1.5 sm:space-y-2">
                   <FormLabel className="text-xs sm:text-sm font-medium text-foreground flex items-center gap-1.5 sm:gap-2">
                     العلامة التجارية
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          className="inline-flex items-center justify-center min-h-[44px] sm:min-h-auto p-2 sm:p-0 -m-2 sm:m-0"
-                          onClick={(e) => e.preventDefault()}
-                        >
-                          <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent 
-                        className="max-w-[280px] sm:max-w-xs z-50 bg-popover border border-border shadow-lg"
-                        side="top"
-                        sideOffset={5}
-                      >
-                        <p className="text-xs">اسم الشركة المصنعة أو العلامة التجارية للمنتج. يساعد العملاء في التعرف على المنتج.</p>
-                      </TooltipContent>
-                    </Tooltip>
+                    <span
+                      role="img"
+                      aria-label="اسم الشركة المصنعة أو العلامة التجارية للمنتج. يساعد العملاء في التعرف على المنتج."
+                      title="اسم الشركة المصنعة أو العلامة التجارية للمنتج. يساعد العملاء في التعرف على المنتج."
+                      className="inline-flex items-center justify-center min-h-[44px] sm:min-h-auto p-2 sm:p-0 -m-2 sm:m-0"
+                    >
+                      <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
+                    </span>
                   </FormLabel>
                   <FormControl>
                     <Input
@@ -391,24 +343,14 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
                     <span>وصف المنتج</span>
                     <span className="text-destructive">*</span>
                     <Badge variant="destructive" className="text-[10px] sm:text-xs shadow-sm">مطلوب</Badge>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button
-                          type="button"
-                          className="inline-flex items-center justify-center min-h-[44px] sm:min-h-auto p-2 sm:p-0 -m-2 sm:m-0"
-                          onClick={(e) => e.preventDefault()}
-                        >
-                          <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent 
-                        className="max-w-[280px] sm:max-w-xs z-50 bg-popover border border-border shadow-lg"
-                        side="top"
-                        sideOffset={5}
-                      >
-                        <p className="text-xs">وصف تفصيلي للمنتج يشمل المميزات والفوائد. هذا الحقل مطلوب ويساعد العملاء في اتخاذ قرار الشراء.</p>
-                      </TooltipContent>
-                    </Tooltip>
+                    <span
+                      role="img"
+                      aria-label="وصف تفصيلي للمنتج يشمل المميزات والفوائد. هذا الحقل مطلوب ويساعد العملاء في اتخاذ قرار الشراء."
+                      title="وصف تفصيلي للمنتج يشمل المميزات والفوائد. هذا الحقل مطلوب ويساعد العملاء في اتخاذ قرار الشراء."
+                      className="inline-flex items-center justify-center min-h-[44px] sm:min-h-auto p-2 sm:p-0 -m-2 sm:m-0"
+                    >
+                      <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
+                    </span>
                   </FormLabel>
                   
                   {/* AI Description Generator Button */}
@@ -568,6 +510,5 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
 
 
       </div>
-    </TooltipProvider>
   );
 }

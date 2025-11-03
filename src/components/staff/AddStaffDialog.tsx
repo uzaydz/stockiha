@@ -14,12 +14,12 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { staffService } from '@/services/staffService';
 import type { POSStaffSession, StaffPermissions, SaveStaffSessionInput } from '@/types/staff';
-import { PERMISSION_GROUPS, PERMISSION_LABELS, PERMISSION_PRESETS } from '@/types/staff';
+import { PERMISSION_PRESETS } from '@/types/staff';
+import { PermissionsDesignerPanel } from '@/components/staff/PermissionsDesignerDialog';
 
 interface AddStaffDialogProps {
   open: boolean;
@@ -61,16 +61,8 @@ export const AddStaffDialog: React.FC<AddStaffDialogProps> = ({
       setConfirmPinCode('');
       setIsActive(editingStaff.is_active);
       
-      // تهيئة جميع الصلاحيات (حتى false/undefined) من editingStaff
-      const allPermissions: StaffPermissions = {};
-      PERMISSION_GROUPS.forEach(group => {
-        group.permissions.forEach(perm => {
-          const key = perm as keyof StaffPermissions;
-          // إذا كانت الصلاحية موجودة في editingStaff، استخدم قيمتها، وإلا false
-          allPermissions[key] = editingStaff.permissions?.[key] || false;
-        });
-      });
-      setPermissions(allPermissions);
+      // استخدم صلاحيات الموظف كما هي (لشمل جميع المفاتيح المتقدمة)
+      setPermissions((editingStaff.permissions || {}) as StaffPermissions);
       setSelectedPreset('');
     } else if (!open) {
       // إعادة تعيين عند الإغلاق
@@ -236,7 +228,7 @@ export const AddStaffDialog: React.FC<AddStaffDialogProps> = ({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh]" dir="rtl">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto" dir="rtl">
         <DialogHeader>
           <DialogTitle className="text-2xl">
             {isEdit ? 'تعديل موظف' : 'إضافة موظف جديد'}
@@ -262,9 +254,9 @@ export const AddStaffDialog: React.FC<AddStaffDialogProps> = ({
             </TabsTrigger>
           </TabsList>
 
-          <ScrollArea className="max-h-[60vh] mt-4">
+          <div className="mt-4 max-h-[55vh] overflow-y-auto pr-2">
             {/* البيانات الأساسية */}
-            <TabsContent value="basic" className="space-y-4">
+            <TabsContent value="basic" className="space-y-4 mt-0">
               <div className="space-y-2">
                 <Label htmlFor="staff-name">
                   اسم الموظف <span className="text-red-500">*</span>
@@ -446,7 +438,7 @@ export const AddStaffDialog: React.FC<AddStaffDialogProps> = ({
             </TabsContent>
 
             {/* الصلاحيات */}
-            <TabsContent value="permissions" className="space-y-4">
+            <TabsContent value="permissions" className="space-y-4 mt-0">
               {/* Presets */}
               <div className="space-y-2">
                 <Label>القوالب الجاهزة</Label>
@@ -470,58 +462,13 @@ export const AddStaffDialog: React.FC<AddStaffDialogProps> = ({
 
               <Separator />
 
-              {/* مجموعات الصلاحيات */}
-              <div className="space-y-4">
-                {PERMISSION_GROUPS.map((group) => {
-                  const groupPermissions = group.permissions as readonly string[];
-                  const allEnabled = groupPermissions.every((perm) => 
-                    permissions[perm as keyof StaffPermissions]
-                  );
-                  const someEnabled = groupPermissions.some((perm) => 
-                    permissions[perm as keyof StaffPermissions]
-                  );
-
-                  return (
-                    <div key={group.title} className="space-y-2 rounded-lg border p-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-semibold">{group.title}</h4>
-                          {someEnabled && (
-                            <Badge variant="secondary" className="text-xs">
-                              {groupPermissions.filter((p) => permissions[p as keyof StaffPermissions]).length}
-                              /
-                              {groupPermissions.length}
-                            </Badge>
-                          )}
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleToggleGroup(groupPermissions)}
-                        >
-                          {allEnabled ? 'إلغاء الكل' : 'تحديد الكل'}
-                        </Button>
-                      </div>
-                      <div className="space-y-2">
-                        {groupPermissions.map((permKey) => (
-                          <div key={permKey} className="flex items-center justify-between">
-                            <Label htmlFor={permKey} className="cursor-pointer text-sm font-normal">
-                              {PERMISSION_LABELS[permKey as keyof StaffPermissions]}
-                            </Label>
-                            <Switch
-                              id={permKey}
-                              checked={!!permissions[permKey as keyof StaffPermissions]}
-                              onCheckedChange={() => handleTogglePermission(permKey as keyof StaffPermissions)}
-                            />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              {/* مصمم الصلاحيات الموحّد */}
+              <PermissionsDesignerPanel
+                perms={permissions as any}
+                onChange={(next) => setPermissions(next as StaffPermissions)}
+              />
             </TabsContent>
-          </ScrollArea>
+          </div>
         </Tabs>
 
         {/* أخطاء التحقق */}

@@ -89,7 +89,18 @@ const POSDashboard: React.FC<POSDashboardProps> = () => {
           duration: 5000,
           action: {
             label: 'تسجيل الدخول',
-            onClick: () => window.location.href = '/login'
+            onClick: () => {
+              try {
+                const isElectron = typeof window !== 'undefined' && window.navigator?.userAgent?.includes('Electron');
+                if (isElectron) {
+                  window.location.hash = '#/login';
+                } else {
+                  window.location.href = '/login';
+                }
+              } catch {
+                window.location.href = '/login';
+              }
+            }
           }
         });
       } else {

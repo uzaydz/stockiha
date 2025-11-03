@@ -13,6 +13,12 @@ import {
 } from '@/lib/api/inventory-optimized';
 import { updateVariantInventory } from '@/services/InventoryService';
 import { toast } from 'sonner';
+import { 
+  getLocalProductsPage,
+  fastSearchLocalProducts,
+  getLocalProductStats
+} from '@/lib/api/offlineProductsAdapter';
+import { transformDatabaseProduct } from '@/lib/api/pos-products-api';
 
 export interface StockUpdatePayload {
   product_id: string;
@@ -54,20 +60,74 @@ export function useInventoryOptimized(initialFilters: InventoryFilters = {}) {
 
     setLoading(true);
     try {
-      const result = await fetchInventoryOptimized(organizationId, filters);
-      
-      setProducts(result.products);
-      setTotal(result.total);
-      setFiltered(result.filtered);
-      setTotalPages(result.totalPages);
+      const offlineMode = typeof navigator !== 'undefined' ? !navigator.onLine : false;
+      const forceLocal = typeof window !== 'undefined' && window.localStorage.getItem('inventory_use_cache') === '1';
+      if (offlineMode || forceLocal) {
+        // تصفح محلي مفهرس
+        const pageIndex = (filters.page || 1) - 1;
+        const pageSize = filters.pageSize || 50;
+        const search = (filters.search || '').trim();
+        let items: any[] = [];
+        let totalCount = 0;
+        if (search) {
+          const local = await fastSearchLocalProducts(organizationId, search, { limit: 2000 });
+          items = local.map(transformDatabaseProduct);
+          totalCount = items.length;
+        } else {
+          const res = await getLocalProductsPage(organizationId, { offset: pageIndex * pageSize, limit: pageSize, includeInactive: true, sortBy: 'name' });
+          items = (res.products as any[]).map(transformDatabaseProduct);
+          totalCount = res.total;
+        }
+        const mapToInventory = (p: any) => ({
+          id: p.id,
+          name: p.name,
+          sku: p.sku || null,
+          stock_quantity: p.stock_quantity ?? p.stockQuantity ?? 0,
+          price: Number(p.price || 0),
+          purchase_price: (p.purchase_price != null) ? Number(p.purchase_price) : null,
+          thumbnail_image: p.thumbnail_image || p.thumbnailImage || null,
+          has_variants: Boolean(p.has_variants || p.colors?.length || p.variants?.length),
+          stock_status: (p.stock_quantity ?? p.stockQuantity ?? 0) === 0
+            ? 'out-of-stock'
+            : ((p.stock_quantity ?? p.stockQuantity ?? 0) <= 5 ? 'low-stock' : 'in-stock'),
+          variant_count: Array.isArray(p.colors) ? p.colors.length : 0,
+          total_variant_stock: p.total_variants_stock ?? p.actual_stock_quantity ?? (p.stock_quantity ?? 0),
+          colors: Array.isArray(p.colors) ? p.colors : [],
+          total_count: totalCount,
+          filtered_count: totalCount,
+        });
+        const invProducts = items.map(mapToInventory);
+        setProducts(invProducts);
+        setTotal(totalCount);
+        setFiltered(totalCount);
+        setTotalPages(Math.ceil(totalCount / (filters.pageSize || 50)));
+      } else {
+        const result = await fetchInventoryOptimized(organizationId, filters);
+        setProducts(result.products);
+        setTotal(result.total);
+        setFiltered(result.filtered);
+        setTotalPages(result.totalPages);
+      }
 
-      console.log('📦 Inventory loaded:', {
-        products: result.products.length,
-        total: result.total,
-        filtered: result.filtered,
-        page: result.page,
-        totalPages: result.totalPages,
-      });
+      try {
+        const offlineMode2 = typeof navigator !== 'undefined' ? !navigator.onLine : false;
+        const forceLocal2 = typeof window !== 'undefined' && window.localStorage.getItem('inventory_use_cache') === '1';
+        if (offlineMode2 || forceLocal2) {
+          console.log('📦 Inventory loaded (local):', {
+            total,
+            filtered,
+            page: filters.page || 1,
+            totalPages,
+          });
+        } else {
+          console.log('📦 Inventory loaded (online):', {
+            total,
+            filtered,
+            page: filters.page || 1,
+            totalPages,
+          });
+        }
+      } catch {}
     } catch (error) {
       console.error('Failed to load inventory:', error);
       toast.error('فشل تحميل المخزون');
@@ -81,8 +141,28 @@ export function useInventoryOptimized(initialFilters: InventoryFilters = {}) {
     if (!organizationId) return;
 
     try {
-      const statsData = await fetchInventoryStatsQuick(organizationId);
-      setStats(statsData);
+      const offlineMode = typeof navigator !== 'undefined' ? !navigator.onLine : false;
+      const forceLocal = typeof window !== 'undefined' && window.localStorage.getItem('inventory_use_cache') === '1';
+      if (offlineMode || forceLocal) {
+        const s = await getLocalProductStats(organizationId);
+        // تقريب إجمالي القيمة محلياً بسرعة (قيمة تقريبية من السعر * الكمية)
+        const allLocal = await getLocalProductsPage(organizationId, { offset: 0, limit: 10000, includeInactive: true, sortBy: 'name' });
+        const total_value = (allLocal.products as any[]).reduce((acc, p: any) => {
+          const qty = p.stock_quantity ?? 0;
+          const price = p.purchase_price ?? p.price ?? 0;
+          return acc + (Number(qty) * Number(price));
+        }, 0);
+        setStats({
+          total_products: s.totalProducts,
+          in_stock: s.activeProducts - s.outOfStockProducts,
+          low_stock: s.lowStockProducts,
+          out_of_stock: s.outOfStockProducts,
+          total_value: total_value
+        });
+      } else {
+        const statsData = await fetchInventoryStatsQuick(organizationId);
+        setStats(statsData);
+      }
     } catch (error) {
       console.error('Failed to load stats:', error);
     }
@@ -245,4 +325,3 @@ export function useInventoryOptimized(initialFilters: InventoryFilters = {}) {
     refresh,
   };
 }
-

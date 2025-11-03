@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { inventoryDB } from '@/database/localDb';
 
 // نوع بسيط للمنتج
 interface SimpleProduct {
@@ -41,6 +42,37 @@ export const loadProductsToCache = async (organizationId: string): Promise<void>
   }
   
   try {
+    const offlineMode = typeof navigator !== 'undefined' && navigator.onLine === false;
+    if (offlineMode) {
+      // 📦 أوفلاين: حمّل من IndexedDB مباشرة بدون ضرب الخادم
+      const local = await inventoryDB.products
+        .where('organization_id')
+        .equals(organizationId)
+        .toArray();
+      const mapped = (local || []).map((p: any) => ({
+        id: p.id,
+        name: p.name,
+        sku: p.sku,
+        barcode: p.barcode,
+        description: p.description,
+        price: Number(p.price || 0),
+        stock_quantity: Number(p.stock_quantity || 0),
+        category_id: p.category_id,
+        subcategory_id: p.subcategory_id,
+        is_active: p.is_active !== false,
+        created_at: p.created_at || new Date().toISOString(),
+        thumbnail_image: p.thumbnail_image,
+        images: p.images,
+        slug: p.slug
+      })) as SimpleProduct[];
+
+      productsCache = mapped.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'));
+      cacheTimestamp = now;
+      cachedOrganizationId = organizationId;
+      console.log(`تم جلب ${productsCache.length} منتج محلياً (أوفلاين)`);
+      return;
+    }
+
     // جلب عدد المنتجات الفعلي أولاً
     const totalProductsCount = await getProductsCount(organizationId);
     console.log(`إجمالي المنتجات في قاعدة البيانات: ${totalProductsCount}`);
@@ -258,6 +290,18 @@ export const clearCache = () => {
 // دالة للحصول على عدد المنتجات في قاعدة البيانات
 export const getProductsCount = async (organizationId: string): Promise<number> => {
   try {
+    const offlineMode = typeof navigator !== 'undefined' && navigator.onLine === false;
+    if (offlineMode) {
+      try {
+        const count = await inventoryDB.products
+          .where('organization_id')
+          .equals(organizationId)
+          .count();
+        return count;
+      } catch {
+        return 0;
+      }
+    }
     const { count, error } = await supabase
       .from('products')
       .select('id', { count: 'exact', head: false })

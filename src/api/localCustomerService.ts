@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { customersStore, addressesStore, syncQueueStore, LocalCustomer, LocalAddress, SyncQueueItem } from '@/database/localDb';
+import { customersStore, addressesStore, syncQueueStore, LocalCustomer, LocalAddress, SyncQueueItem, inventoryDB } from '@/database/localDb';
 import { UnifiedQueue } from '@/sync/UnifiedQueue';
 
 /**
@@ -26,6 +26,9 @@ export const createLocalCustomer = async (
     const now = new Date().toISOString();
     
     // إنشاء كائن العميل المحلي
+    const toLower = (s: any) => (s || '').toString().toLowerCase();
+    const digits = (s: any) => (s || '').toString().replace(/\D+/g, '');
+
     const localCustomer: LocalCustomer = {
       id,
       ...customer,
@@ -35,7 +38,10 @@ export const createLocalCustomer = async (
       synced: false,
       syncStatus: 'pending',
       localUpdatedAt: now,
-      pendingOperation: 'create'
+      pendingOperation: 'create',
+      name_lower: toLower((customer as any).name),
+      email_lower: toLower((customer as any).email),
+      phone_digits: digits((customer as any).phone)
     };
     
     // حفظ العميل في قاعدة البيانات المحلية
@@ -77,6 +83,9 @@ export const updateLocalCustomer = async (
     const now = new Date().toISOString();
     
     // تحديث بيانات العميل
+    const toLower = (s: any) => (s || '').toString().toLowerCase();
+    const digits = (s: any) => (s || '').toString().replace(/\D+/g, '');
+
     const updatedCustomer: LocalCustomer = {
       ...existingCustomer,
       ...updates,
@@ -84,7 +93,10 @@ export const updateLocalCustomer = async (
       synced: false,
       syncStatus: 'pending',
       localUpdatedAt: now,
-      pendingOperation: 'update'
+      pendingOperation: 'update',
+      name_lower: (updates as any).name ? toLower((updates as any).name) : existingCustomer.name_lower,
+      email_lower: (updates as any).email ? toLower((updates as any).email) : existingCustomer.email_lower,
+      phone_digits: (updates as any).phone ? digits((updates as any).phone) : existingCustomer.phone_digits
     };
     
     // حفظ العميل المحدّث في التخزين المحلي
@@ -104,6 +116,63 @@ export const updateLocalCustomer = async (
     throw new Error(`فشل في تحديث العميل محلياً`);
   }
 };
+
+// ==================== بحث وتصفح محلي للعملاء ====================
+
+export async function fastSearchLocalCustomers(
+  organizationId: string,
+  query: string,
+  options: { limit?: number } = {}
+): Promise<LocalCustomer[]> {
+  const q = (query || '').toLowerCase();
+  if (!q) return [];
+  const limit = options.limit ?? 200;
+
+  const results = new Map<string, LocalCustomer>();
+
+  const byName = await (inventoryDB.customers as any)
+    .where('[organization_id+name_lower]')
+    .between([organizationId, q], [organizationId, q + '\\uffff'])
+    .limit(limit)
+    .toArray();
+  byName.forEach((c: any) => results.set(c.id, c));
+
+  if (results.size < limit) {
+    const digits = q.replace(/\D+/g, '');
+    if (digits) {
+      const byPhone = await (inventoryDB.customers as any)
+        .where('[organization_id+phone_digits]')
+        .between([organizationId, digits], [organizationId, digits + '\\uffff'])
+        .limit(limit - results.size)
+        .toArray();
+      byPhone.forEach((c: any) => results.set(c.id, c));
+    }
+  }
+
+  if (results.size < limit) {
+    const byEmail = await (inventoryDB.customers as any)
+      .where('[organization_id+email_lower]')
+      .between([organizationId, q], [organizationId, q + '\\uffff'])
+      .limit(limit - results.size)
+      .toArray();
+    byEmail.forEach((c: any) => results.set(c.id, c));
+  }
+
+  return Array.from(results.values()).slice(0, limit);
+}
+
+export async function getLocalCustomersPage(
+  organizationId: string,
+  options: { offset?: number; limit?: number } = {}
+): Promise<{ customers: LocalCustomer[]; total: number }> {
+  const { offset = 0, limit = 50 } = options;
+  const coll = (inventoryDB.customers as any)
+    .where('[organization_id+name_lower]')
+    .between([organizationId, ''], [organizationId, '\\uffff']);
+  const total = await coll.count();
+  const page = await coll.offset(offset).limit(limit).toArray();
+  return { customers: page as any, total };
+}
 
 /**
  * حذف عميل محلي

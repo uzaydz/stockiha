@@ -88,6 +88,26 @@ export const staffService = {
         throw new Error(error.message);
       }
 
+      // تحديث نسخة الأوفلاين إذا توفرت organization_id للمستخدم الحالي
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: currentUser } = await supabase
+            .from('users')
+            .select('organization_id')
+            .eq('auth_user_id', user.id)
+            .maybeSingle();
+          if (currentUser?.organization_id) {
+            const { updateStaffPinOffline } = await import('@/lib/offline/staffCredentials');
+            await updateStaffPinOffline({
+              staffId,
+              organizationId: currentUser.organization_id,
+              newPin: newPin.toString()
+            });
+          }
+        }
+      } catch {}
+
       return data as UpdatePinResponse;
     } catch (error) {
       console.error('Error in updatePin:', error);
@@ -284,6 +304,20 @@ export const staffService = {
       }
 
       console.log('✅ [staffService] تم إنشاء staff بنجاح:', staffData.id);
+
+      // حفظ PIN للأوفلاين عند الإنشاء الأولي
+      try {
+        if (input.pin_code && userData.organization_id) {
+          const { saveStaffPinOffline } = await import('@/lib/offline/staffCredentials');
+          await saveStaffPinOffline({
+            staffId: staffData.id,
+            organizationId: userData.organization_id,
+            staffName: input.staff_name,
+            pin: input.pin_code,
+            permissions: input.permissions
+          });
+        }
+      } catch {}
 
       // استعادة جلسة المدير (لمنع تسجيل دخول الموظف الجديد تلقائياً)
       if (currentSession) {

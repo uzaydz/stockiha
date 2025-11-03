@@ -9,7 +9,7 @@ interface OrderRowCallConfirmationProps {
   orderId: string;
   hasUpdatePermission: boolean;
   currentUserId?: string;
-  onUpdateCallConfirmation?: (orderId: string, statusId: number, notes?: string, userId?: string) => void;
+  onUpdateCallConfirmation?: (orderId: string, statusId: number, notes?: string, userId?: string) => Promise<void>;
 }
 
 const OrderRowCallConfirmation: React.FC<OrderRowCallConfirmationProps> = ({
@@ -54,7 +54,7 @@ const OrderRowCallConfirmation: React.FC<OrderRowCallConfirmationProps> = ({
     }
     
     return (
-      <span className="text-xs text-muted-foreground px-2 py-1 bg-muted/20 rounded-md">
+      <span className="text-xs text-muted-foreground px-2.5 py-1.5 bg-muted/30 rounded-md border border-border/30 italic">
         لم يتم تحديد
       </span>
     );
@@ -62,11 +62,10 @@ const OrderRowCallConfirmation: React.FC<OrderRowCallConfirmationProps> = ({
 
   return (
     <TableCell 
-      className="py-4 px-4" 
+      className="w-[170px] min-w-[170px] py-4 px-4 align-middle" 
       onClick={handleCellClick}
-      style={{ contain: 'layout', minWidth: '160px', minHeight: '32px' }}
     >
-      <div className="flex justify-start" style={{ willChange: 'auto' }}>
+      <div className="flex justify-start">
         {renderContent()}
       </div>
     </TableCell>

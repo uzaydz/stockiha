@@ -26,6 +26,7 @@ interface InvoicesHeaderProps {
   onCreateCombined: () => void;
   onCreateProforma: () => void;
   onCreateBonCommande: () => void;
+  canCreate?: boolean;
 }
 
 const InvoicesHeader = ({
@@ -37,6 +38,7 @@ const InvoicesHeader = ({
   onCreateCombined,
   onCreateProforma,
   onCreateBonCommande,
+  canCreate = true,
 }: InvoicesHeaderProps) => {
   const { currentOrganization } = useTenant();
 
@@ -56,46 +58,48 @@ const InvoicesHeader = ({
       </div>
 
       <div className="flex gap-2">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button className="gap-2">
-              <Plus className="h-4 w-4" />
-              إنشاء فاتورة
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuItem onClick={onCreateInvoice}>
-              <FileText className="h-4 w-4 ml-2" />
-              <span>فاتورة جديدة</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={onCreateFromOrder}>
-              <FileText className="h-4 w-4 ml-2" />
-              <span>من طلب نقاط البيع</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={onCreateFromOnlineOrder}>
-              <FileText className="h-4 w-4 ml-2" />
-              <span>من طلب المتجر الإلكتروني</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={onCreateFromService}>
-              <FileText className="h-4 w-4 ml-2" />
-              <span>من خدمة</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={onCreateCombined}>
-              <FileText className="h-4 w-4 ml-2" />
-              <span>دمج طلبات متعددة</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={onCreateProforma} className="text-blue-600">
-              <FileCheck className="h-4 w-4 ml-2" />
-              <span>فاتورة شكلية (Proforma)</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={onCreateBonCommande} className="text-green-600">
-              <ShoppingCart className="h-4 w-4 ml-2" />
-              <span>أمر شراء (Bon de Commande)</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {canCreate && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button className="gap-2">
+                <Plus className="h-4 w-4" />
+                إنشاء فاتورة
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuItem onClick={onCreateInvoice}>
+                <FileText className="h-4 w-4 ml-2" />
+                <span>فاتورة جديدة</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={onCreateFromOrder}>
+                <FileText className="h-4 w-4 ml-2" />
+                <span>من طلب نقاط البيع</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onCreateFromOnlineOrder}>
+                <FileText className="h-4 w-4 ml-2" />
+                <span>من طلب المتجر الإلكتروني</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onCreateFromService}>
+                <FileText className="h-4 w-4 ml-2" />
+                <span>من خدمة</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onCreateCombined}>
+                <FileText className="h-4 w-4 ml-2" />
+                <span>دمج طلبات متعددة</span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={onCreateProforma} className="text-blue-600">
+                <FileCheck className="h-4 w-4 ml-2" />
+                <span>فاتورة شكلية (Proforma)</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onCreateBonCommande} className="text-green-600">
+                <ShoppingCart className="h-4 w-4 ml-2" />
+                <span>أمر شراء (Bon de Commande)</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

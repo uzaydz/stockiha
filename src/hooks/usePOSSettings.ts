@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/context/TenantContext';
 import { useAuth } from '@/context/AuthContext';
 import { useAppInitialization } from '@/context/AppInitializationContext'; // ✅ استيراد جديد
+import { usePermissions } from '@/hooks/usePermissions';
 import { useToast } from '@/components/ui/use-toast';
 import { useCallback, useState, useEffect } from 'react';
 import { POSSettings, defaultPOSSettings } from '@/types/posSettings';
@@ -47,45 +48,36 @@ export const usePOSSettings = ({ organizationId }: UsePOSSettingsProps): UsePOSS
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
 
-  // دالة التحقق من الصلاحيات
+  // دالة التحقق من الصلاحيات — موحّدة مع PermissionGuard
+  const perms = usePermissions();
   const hasPermission = useCallback(() => {
-    if (!userProfile) {
-      return false;
+    // إن توفر مزود الصلاحيات، استخدمه كمصدر وحيد
+    if (perms && perms.ready) {
+      return (
+        perms.isSuperAdmin ||
+        perms.isOrgAdmin ||
+        perms.has('manageOrganizationSettings') ||
+        // دعم قديم إذا تم تعريفه
+        perms.has('managePOSSettings') ||
+        // تسهيلات الوصول لمن لديه وصول POS عام
+        perms.has('accessPOS') ||
+        perms.has('manageOrders')
+      );
     }
-    
-    // التحقق من المدير الأعلى
-    if (userProfile.is_super_admin === true) {
-      return true;
-    }
-    
-    // التحقق من مدير المؤسسة
-    if (userProfile.is_org_admin === true) {
-      return true;
-    }
-    
-    // التحقق من الدور - admin أو owner
-    if (userProfile.role === 'admin' || userProfile.role === 'owner') {
-      return true;
-    }
-    
-    // التحقق من الصلاحية المحددة managePOSSettings
-    if (userProfile.permissions && typeof userProfile.permissions === 'object') {
-      const permissions = userProfile.permissions as any;
-      if (permissions.managePOSSettings === true) {
-        return true;
-      }
-    }
-    
-    // إذا كان المستخدم لديه صلاحية الوصول لنقطة البيع، فلنسمح له بالوصول للإعدادات
-    if (userProfile.permissions && typeof userProfile.permissions === 'object') {
-      const permissions = userProfile.permissions as any;
-      if (permissions.accessPOS === true || permissions.manageOrders === true) {
-        return true;
-      }
-    }
-    
-    return false;
-  }, [userProfile]);
+
+    // فالباك قديم عندما لا تتوفر PermissionsContext
+    if (!userProfile) return false;
+    if (userProfile.is_super_admin === true) return true;
+    if (userProfile.is_org_admin === true) return true;
+    if (userProfile.role === 'admin' || userProfile.role === 'owner') return true;
+    const permissions = (userProfile.permissions || {}) as any;
+    return (
+      permissions.manageOrganizationSettings === true ||
+      permissions.managePOSSettings === true ||
+      permissions.accessPOS === true ||
+      permissions.manageOrders === true
+    );
+  }, [perms, userProfile]);
 
   const {
     data: response,

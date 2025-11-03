@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
-import { Shield, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import { Shield, Eye, EyeOff, AlertCircle, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -17,11 +17,18 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
+import { loginRateLimiter, formatRemainingTime } from '@/lib/utils/rateLimit';
+import { isElectron } from '@/lib/utils/electronSecurity';
 
-// Define form validation schema
+// Define form validation schema with stronger password requirements
 const formSchema = z.object({
   email: z.string().email({ message: 'يرجى إدخال بريد إلكتروني صحيح' }),
-  password: z.string().min(6, { message: 'كلمة المرور يجب أن تكون 6 أحرف على الأقل' })
+  password: z.string()
+    .min(12, { message: 'كلمة المرور يجب أن تكون 12 حرفاً على الأقل' })
+    .regex(/[a-z]/, { message: 'كلمة المرور يجب أن تحتوي على حرف صغير واحد على الأقل' })
+    .regex(/[A-Z]/, { message: 'كلمة المرور يجب أن تحتوي على حرف كبير واحد على الأقل' })
+    .regex(/[0-9]/, { message: 'كلمة المرور يجب أن تحتوي على رقم واحد على الأقل' })
+    .regex(/[@$!%*?&#]/, { message: 'كلمة المرور يجب أن تحتوي على رمز خاص واحد على الأقل (@$!%*?&#)' })
 });
 
 export default function SuperAdminLogin() {
@@ -31,6 +38,22 @@ export default function SuperAdminLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [rateLimitInfo, setRateLimitInfo] = useState<{ isBlocked: boolean; remainingTime?: number; attemptsLeft?: number } | null>(null);
+
+  // ===== Electron Security: Block Super Admin login in desktop app =====
+  useEffect(() => {
+    if (isElectron()) {
+      toast({
+        variant: 'destructive',
+        title: 'وصول محظور',
+        description: 'تسجيل الدخول كسوبر أدمين غير متاح في تطبيق سطح المكتب',
+        duration: 5000,
+      });
+
+      // Redirect to home
+      navigate('/', { replace: true });
+    }
+  }, [navigate, toast]);
 
   // Initialize form
   const form = useForm<z.infer<typeof formSchema>>({
@@ -78,8 +101,17 @@ export default function SuperAdminLogin() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     setLoginError(null);
-    
+
     try {
+      // Check rate limit before attempting login
+      const rateLimitCheck = loginRateLimiter.check(values.email);
+      setRateLimitInfo(rateLimitCheck);
+
+      if (rateLimitCheck.isBlocked) {
+        const timeRemaining = formatRemainingTime(rateLimitCheck.remainingTime || 0);
+        throw new Error(`تم حظر محاولات تسجيل الدخول بشكل مؤقت. يرجى المحاولة بعد ${timeRemaining}`);
+      }
+
       // محاولة تسجيل الدخول مباشرة باستخدام Supabase
       const { data, error } = await supabase.auth.signInWithPassword({
         email: values.email,
@@ -87,9 +119,18 @@ export default function SuperAdminLogin() {
       });
 
       if (error) {
+        // Record failed attempt
+        const rateLimitStatus = loginRateLimiter.recordAttempt(values.email);
+        setRateLimitInfo(rateLimitStatus);
+
+        if (rateLimitStatus.isBlocked) {
+          const timeRemaining = formatRemainingTime(rateLimitStatus.remainingTime || 0);
+          throw new Error(`تم تجاوز الحد الأقصى لمحاولات تسجيل الدخول. تم حظر الحساب لمدة ${timeRemaining}`);
+        }
+
         throw new Error(error.message);
       }
-      
+
       if (!data.user) {
         throw new Error('فشل تسجيل الدخول لسبب غير معروف');
       }
@@ -98,24 +139,26 @@ export default function SuperAdminLogin() {
       const isSuperAdmin = await checkSuperAdminStatus(data.user.id);
 
       if (!isSuperAdmin) {
+        // Record failed attempt for authorization failure
+        const rateLimitStatus = loginRateLimiter.recordAttempt(values.email);
+        setRateLimitInfo(rateLimitStatus);
+
         // تسجيل الخروج إذا لم يكن مسؤول رئيسي
         await supabase.auth.signOut();
         throw new Error('ليس لديك صلاحيات للوصول إلى لوحة المسؤول الرئيسي');
       }
 
-      // لا نحتاج لحفظ في localStorage - الجلسة كافية
-      // Session يتم إدارتها بشكل آمن من Supabase Auth
-      
+      // Reset rate limit on successful login
+      loginRateLimiter.reset(values.email);
+      setRateLimitInfo(null);
+
       if (process.env.NODE_ENV === 'development') {
-        console.log('[SuperAdminLogin] تم تسجيل دخول Super Admin بنجاح:', {
-          userId: data.user.id,
-          email: data.user.email
-        });
+        console.log('[SuperAdminLogin] تم تسجيل دخول Super Admin بنجاح');
       }
 
       // إنتظار قصير للتأكد من تحديث AuthContext
       await new Promise(resolve => setTimeout(resolve, 300));
-      
+
       // توجيه المستخدم إلى لوحة المسؤول الرئيسي
       toast({
         title: 'تم تسجيل الدخول بنجاح',
@@ -125,20 +168,26 @@ export default function SuperAdminLogin() {
       // استخدام navigate بدلاً من window.location لتجنب إعادة التحميل
       navigate('/super-admin');
     } catch (err: any) {
-      
-      // تحسين رسائل الخطأ
+
+      // تحسين رسائل الخطأ - don't expose system details
       let errorMessage: string;
-      
-      if (err.message.includes('Invalid login credentials')) {
+
+      if (err.message.includes('حظر') || err.message.includes('تجاوز الحد')) {
+        errorMessage = err.message;
+      } else if (err.message.includes('Invalid login credentials')) {
         errorMessage = 'بيانات تسجيل الدخول غير صحيحة. يرجى التحقق من البريد الإلكتروني وكلمة المرور.';
       } else if (err.message.includes('صلاحيات')) {
-        errorMessage = err.message;
+        errorMessage = 'ليس لديك صلاحيات للوصول إلى هذه الصفحة.';
       } else {
         errorMessage = 'حدث خطأ أثناء تسجيل الدخول. يرجى المحاولة مرة أخرى.';
+        // Only log detailed error in development
+        if (process.env.NODE_ENV === 'development') {
+          console.error('[SuperAdminLogin] خطأ في تسجيل الدخول:', err);
+        }
       }
-      
+
       setLoginError(errorMessage);
-      
+
       toast({
         variant: 'destructive',
         title: 'فشل تسجيل الدخول',
@@ -163,6 +212,14 @@ export default function SuperAdminLogin() {
           </p>
         </div>
         
+        {/* Rate limit warning */}
+        {rateLimitInfo && !rateLimitInfo.isBlocked && rateLimitInfo.attemptsLeft !== undefined && rateLimitInfo.attemptsLeft < 3 && (
+          <div className="flex items-center gap-2 rounded-lg bg-yellow-500/10 p-3 text-sm text-yellow-600 dark:text-yellow-500">
+            <Clock className="h-4 w-4" />
+            <p>تحذير: تبقى لديك {rateLimitInfo.attemptsLeft} محاولة فقط قبل الحظر المؤقت</p>
+          </div>
+        )}
+
         {/* Login error alert */}
         {loginError && (
           <div className="flex items-center gap-2 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">

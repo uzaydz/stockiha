@@ -2,19 +2,25 @@ import React, { lazy, Suspense, useCallback, useMemo, useRef, useState, useEffec
 import Layout from '@/components/Layout';
 import { POSSharedLayoutControls, POSLayoutState } from '@/components/pos-layout/types';
 import { Loader2 } from 'lucide-react';
+import { Shuffle } from 'lucide-react';
 import { useTenant } from '@/context/TenantContext';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/lib/supabase';
+import { usePermissions } from '@/hooks/usePermissions';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { ShieldAlert } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import OrdersHeader from '@/components/orders/OrdersHeader';
 import OrdersSettings from '@/components/orders/OrdersSettings';
 import OrdersStatsCards from '@/components/orders/OrdersStatsCards';
 import OrdersAdvancedFilters from '@/components/orders/OrdersAdvancedFilters';
-import { useOptimizedOrdersData } from '@/hooks/useOptimizedOrdersData';
+import { useOptimizedOrdersDataV2 } from '@/hooks/useOptimizedOrdersDataV2';
 import { useOrderOperations } from '@/hooks/useOrdersData';
 import { StopDeskSelectionDialog } from '@/components/orders/dialogs/StopDeskSelectionDialog';
 import { useConfirmationAssignments } from '@/hooks/useConfirmationAssignments';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import BulkAutoAssignDialog from '@/components/orders/dialogs/BulkAutoAssignDialog';
+import { OrdersDataProvider } from '@/context/OrdersDataContext';
 
 // استيراد ملف CSS المخصص لتحسين الأداء
 import '@/components/orders/orders-performance.css';
@@ -52,45 +58,50 @@ const OrdersV2: React.FC<OrdersV2Props> = ({
   );
 
   const { currentOrganization } = useTenant();
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
   const { toast } = useToast();
+  const perms = usePermissions();
 
-  // تهيئة خيارات الهوك: استدعاء واحد (يشمل البيانات المشتركة والعدّ) مع العناصر التفصيلية
-  const hookOptions = useMemo(() => ({
-    pageSize: 20,
-    enablePolling: false,
-    enableCache: true,
-    rpcOptions: {
-      // جلب عناصر الطلب داخل القائمة لعرضها في البطاقات
-      includeItems: true,
-      includeShared: true,
-      includeCounts: true,
-      // استخدم Pagination من الخادم بدل fetchAllOnce لتجنب تحميل ضخم للذاكرة
-      fetchAllOnce: false,
-    },
-  }), []);
-
+  // استخدام الـ Hook المحسّن الجديد V2
   const {
     orders,
-    loading,
-    error,
-    hasMore,
     totalCount,
     currentPage,
+    hasMore,
+    loading,
+    fetching,
+    error,
+    sharedData,
     orderCounts,
     orderStats,
-    sharedData,
-    metadata,
     filters,
-    loadMore,
-    applyFilters,
+    metadata,
     goToPage,
-    updateOrderLocally,
+    applyFilters,
+    resetFilters,
     refresh,
+    refreshStats,
+    updateOrderLocally,
+    getOrderDetails,
     pageSize,
-  } = useOptimizedOrdersData(hookOptions);
+  } = useOptimizedOrdersDataV2({
+    pageSize: 20,
+    initialPage: 1,
+    enableAutoRefresh: false,
+    autoRefreshInterval: 60000,
+  });
 
-  const orderIds = useMemo(() => orders.map(order => order.id), [orders]);
+  // Register refresh function for parent components
+  useEffect(() => {
+    if (onRegisterRefresh) {
+      onRegisterRefresh(() => {
+        refresh();
+        refreshStats();
+      });
+    }
+  }, [onRegisterRefresh, refresh, refreshStats]);
+
+  const orderIds = useMemo(() => orders.map((order: any) => order.id), [orders]);
   const {
     assignmentsByOrderId,
     agentById: confirmationAgentsById,
@@ -100,7 +111,7 @@ const OrdersV2: React.FC<OrdersV2Props> = ({
 
   const enrichedOrders = useMemo(() => {
     if (!orders.length) return orders;
-    return orders.map(order => {
+    return orders.map((order: any) => {
       const assignment = assignmentsByOrderId[order.id];
       const agent = assignment?.agent_id ? confirmationAgentsById[assignment.agent_id] : null;
       return {
@@ -110,6 +121,85 @@ const OrdersV2: React.FC<OrdersV2Props> = ({
       };
     });
   }, [orders, assignmentsByOrderId, confirmationAgentsById]);
+
+  // Resolve names for previously assigned orders that may miss assigned_staff_name
+  const [assigneeNames, setAssigneeNames] = useState<Record<string, string>>({});
+  // Local fallback for group assignments when legacy RPC is used (admin view without groupId)
+  const [groupAssignmentsByOrderId, setGroupAssignmentsByOrderId] = useState<Record<string, { staff_id: string; status: string }>>({});
+
+  // Fetch group assignments for orders missing assignment info (admin/all view)
+  useEffect(() => {
+    if (!currentOrganization?.id || !enrichedOrders.length) return;
+    const missingOrderIds = enrichedOrders
+      .filter((o: any) => !o?.assignment || !o.assignment?.staff_id)
+      .map((o: any) => o.id);
+    if (missingOrderIds.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await (supabase as any)
+        .from('online_order_assignments')
+        .select('order_id, staff_id, status')
+        .in('order_id', missingOrderIds)
+        .eq('organization_id', currentOrganization.id)
+        .in('status', ['assigned','accepted']);
+      if (error || !data) return;
+      if (cancelled) return;
+      const map: Record<string, { staff_id: string; status: string }> = {};
+      for (const row of data) {
+        if (row?.order_id && row?.staff_id) map[row.order_id] = { staff_id: row.staff_id, status: row.status || 'assigned' };
+      }
+      setGroupAssignmentsByOrderId(prev => ({ ...prev, ...map }));
+    })();
+    return () => { cancelled = true; };
+  }, [currentOrganization?.id, enrichedOrders]);
+  useEffect(() => {
+    const staffIdsDirect = enrichedOrders
+      .map((o: any) => o?.assignment?.staff_id as string | undefined)
+      .filter((id): id is string => Boolean(id));
+    const staffIdsFallback = enrichedOrders
+      .map((o: any) => groupAssignmentsByOrderId[o.id]?.staff_id as string | undefined)
+      .filter((id): id is string => Boolean(id));
+    const combined = Array.from(new Set([...staffIdsDirect, ...staffIdsFallback]));
+    const missingIds = combined.filter((id) => {
+      const o = enrichedOrders.find((ord: any) => (ord?.assignment?.staff_id || groupAssignmentsByOrderId[ord.id]?.staff_id) === id);
+      const hasName = (o as any)?.assigned_staff_name;
+      return !hasName && !assigneeNames[id];
+    });
+    if (!missingIds.length) return;
+    let cancelled = false;
+    (async () => {
+      // 1) Try users table
+      const usersRes = await supabase
+        .from('users')
+        .select('id,name,email')
+        .in('id', missingIds);
+      const users = usersRes.data || [];
+      if (cancelled) return;
+      let resolved: Record<string,string> = {};
+      for (const u of users) {
+        if (u?.id) resolved[u.id] = (u as any).name || (u as any).email || u.id;
+      }
+
+      // 2) For any remaining ids, try POS staff sessions fallback
+      const unresolvedIds = missingIds.filter(id => !resolved[id]);
+      if (unresolvedIds.length) {
+        try {
+          const pssRes = await supabase
+            .from('pos_staff_sessions' as any)
+            .select('id, staff_name')
+            .in('id', unresolvedIds as any);
+          const sessions = (pssRes.data || []) as any[];
+          for (const s of sessions) {
+            if (s?.id) resolved[s.id] = (s as any).staff_name || s.id;
+          }
+        } catch {}
+      }
+
+      if (Object.keys(resolved).length === 0) return;
+      setAssigneeNames(prev => ({ ...prev, ...resolved }));
+    })();
+    return () => { cancelled = true; };
+  }, [enrichedOrders, groupAssignmentsByOrderId, supabase, assigneeNames]);
 
   // استخدام useOrderOperations للحصول على دالة updateOrderStatus التي تدعم إرجاع المخزون
   const { updateOrderStatus } = useOrderOperations(updateOrderLocally);
@@ -164,7 +254,7 @@ const OrdersV2: React.FC<OrdersV2Props> = ({
 
   const [visibleColumns] = useState<string[]>([
     'checkbox', 'expand', 'id', 'customer_name', 'customer_contact',
-    'total', 'status', 'confirmation', 'call_confirmation', 'shipping_provider', 'actions'
+    'total', 'status', 'assignee', 'call_confirmation', 'shipping_provider', 'actions'
   ]);
 
   // حالة لإدارة النافذة المنبثقة لاختيار المكتب
@@ -174,6 +264,20 @@ const OrdersV2: React.FC<OrdersV2Props> = ({
     providerCode: string;
     order: any;
   } | null>(null);
+
+  // التحقق من صلاحية عرض الطلبات
+  if (perms.ready && !perms.anyOf(['viewOrders'])) {
+    const node = (
+      <div className="container mx-auto py-10">
+        <Alert variant="destructive">
+          <ShieldAlert className="h-4 w-4" />
+          <AlertTitle>غير مصرح</AlertTitle>
+          <AlertDescription>لا تملك صلاحية عرض الطلبات.</AlertDescription>
+        </Alert>
+      </div>
+    );
+    return useStandaloneLayout ? <Layout>{node}</Layout> : node;
+  }
 
   // ===============================
   // Debounced, optimistic updates
@@ -460,14 +564,77 @@ const OrdersV2: React.FC<OrdersV2Props> = ({
     };
   }, []);
 
+  // New view mode: all | mine | unassigned
+  // القيمة الافتراضية تعتمد على دور المستخدم
+  const defaultViewMode = useMemo(() => {
+    const role = userProfile?.role;
+    // المديرون يرون كل الطلبيات افتراضياً
+    if (role === 'admin' || role === 'owner') {
+      return 'all';
+    }
+    // الموظفون يرون فقط طلبياتهم افتراضياً
+    return 'mine';
+  }, [userProfile?.role]);
+  
+  const [viewMode, setViewMode] = useState<'all' | 'mine' | 'unassigned'>(defaultViewMode);
+  const [viewModeInitialized, setViewModeInitialized] = useState(false);
+
+  // تحديث viewMode عند تغيير دور المستخدم
+  useEffect(() => {
+    setViewMode(defaultViewMode);
+  }, [defaultViewMode]);
+
+  // تهيئة الفلاتر بـ viewMode الافتراضي عند التحميل الأول
+  useEffect(() => {
+    if (!viewModeInitialized && filters) {
+      applyFilters({ ...filters, viewMode: defaultViewMode });
+      setViewModeInitialized(true);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultViewMode, viewModeInitialized]);
+
+  // تطبيق viewMode على الفلاتر لجلب البيانات الصحيحة من السيرفر
+  useEffect(() => {
+    if (viewModeInitialized && filters.viewMode !== viewMode) {
+      applyFilters({ ...filters, viewMode });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, viewModeInitialized]);
+
+  // Augment orders with resolved assignee display name
+  const displayOrders = useMemo(() => {
+    return enrichedOrders.map((o: any) => {
+      const fallbackAssign = groupAssignmentsByOrderId[o.id];
+      const assignment = o?.assignment && o.assignment?.staff_id ? o.assignment : fallbackAssign ? { staff_id: fallbackAssign.staff_id, status: fallbackAssign.status } : null;
+      const sid = assignment?.staff_id as string | undefined;
+      const name = o?.assigned_staff_name || (sid ? assigneeNames[sid] : undefined) || null;
+      return { ...o, assignment, assigned_staff_name_resolved: name };
+    });
+  }, [enrichedOrders, assigneeNames, groupAssignmentsByOrderId]);
+
+  // Bulk auto-assign dialog state
+  const [bulkAutoAssignOpen, setBulkAutoAssignOpen] = useState(false);
+
   const pageContent = (
     <>
       <div className="space-y-6">
         {/* رأس الصفحة */}
         <OrdersHeader
-          ordersCount={orders.length}
+          ordersCount={displayOrders.length}
           onRefresh={() => refresh()}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
         />
+
+        {/* Bulk actions toolbar */}
+        {perms.anyOf(['canManageOnlineOrderGroups']) && (
+          <div className="flex justify-end -mt-2">
+            <Button variant="outline" size="sm" className="gap-2" onClick={() => setBulkAutoAssignOpen(true)}>
+              <Shuffle className="h-4 w-4" />
+              تعيين تلقائي للكل (غير المعين)
+            </Button>
+          </div>
+        )}
 
         {/* إعدادات خصم المخزون التلقائي */}
         <div className="flex justify-end">
@@ -516,10 +683,9 @@ const OrdersV2: React.FC<OrdersV2Props> = ({
         )}
 
         {/* جدول الطلبات - متجاوب للهاتف والكمبيوتر */}
-        <div className="bg-card border border-border/20 rounded-lg overflow-hidden">
-          <Suspense fallback={<Loading />}>
-            <ResponsiveOrdersTable
-              orders={enrichedOrders}
+        <Suspense fallback={<Loading />}>
+          <ResponsiveOrdersTable
+              orders={displayOrders}
               loading={loading || confirmationAssignmentsLoading}
               onUpdateStatus={handleUpdateStatus}
               onUpdateCallConfirmation={handleUpdateCallConfirmation}
@@ -542,7 +708,6 @@ const OrdersV2: React.FC<OrdersV2Props> = ({
               autoLoadMoreOnScroll={false}
             />
           </Suspense>
-        </div>
       </div>
 
       {/* نافذة اختيار المكتب */}
@@ -553,6 +718,15 @@ const OrdersV2: React.FC<OrdersV2Props> = ({
           onConfirm={handleStopDeskConfirm}
           wilayaId={(pendingShipmentData.order as any).wilayaId}
           communeId={(pendingShipmentData.order as any).communeId}
+          organizationId={currentOrganization?.id || ''}
+        />
+      )}
+
+      {/* Bulk auto-assign dialog */}
+      {bulkAutoAssignOpen && (
+        <BulkAutoAssignDialog
+          open={bulkAutoAssignOpen}
+          onOpenChange={setBulkAutoAssignOpen}
           organizationId={currentOrganization?.id || ''}
         />
       )}
@@ -567,6 +741,13 @@ const OrdersV2: React.FC<OrdersV2Props> = ({
     }
   }, [onRegisterRefresh, refresh]);
 
+  // استمع لحدث تحديث عام من النوافذ الفرعية (مثل التعيين التلقائي)
+  useEffect(() => {
+    const handler = () => refresh();
+    window.addEventListener('orders:refresh', handler as any);
+    return () => window.removeEventListener('orders:refresh', handler as any);
+  }, [refresh]);
+
   useEffect(() => {
     const state: POSLayoutState = {
       isRefreshing: Boolean(loading || confirmationAssignmentsLoading),
@@ -579,4 +760,13 @@ const OrdersV2: React.FC<OrdersV2Props> = ({
   return renderWithLayout(pageContent);
 };
 
-export default OrdersV2;
+// Export with OrdersDataProvider wrapper
+const OrdersV2WithProvider: React.FC<OrdersV2Props> = (props) => {
+  return (
+    <OrdersDataProvider>
+      <OrdersV2 {...props} />
+    </OrdersDataProvider>
+  );
+};
+
+export default OrdersV2WithProvider;

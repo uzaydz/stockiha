@@ -99,7 +99,16 @@ export async function fetchWithAuth(url: string, options: FetchOptions = {}): Pr
       localStorage.removeItem('token');
       
       // إعادة توجيه المستخدم إلى صفحة تسجيل الدخول
-      window.location.href = '/login';
+      try {
+        const isElectron = typeof window !== 'undefined' && window.navigator?.userAgent?.includes('Electron');
+        if (isElectron) {
+          window.location.hash = '#/login';
+        } else {
+          window.location.href = '/login';
+        }
+      } catch {
+        window.location.href = '/login';
+      }
     }
     
     // التحقق من الاستجابة

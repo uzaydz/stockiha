@@ -11,6 +11,7 @@ import React, {
   useState,
   useCallback
 } from 'react';
+import { useLocation } from 'react-router-dom';
 import { PageType } from './types';
 import { addPerformanceWarning } from './utils';
 
@@ -370,20 +371,33 @@ ErrorFallbackUI.displayName = 'ErrorFallbackUI';
 export const AuthErrorBoundary = memo<{ children: ReactNode; pageType?: PageType }>(({ 
   children, 
   pageType 
-}) => (
-  <EnhancedErrorBoundary
-    pageType={pageType}
-    pathname={window.location.pathname}
-    onError={(details) => {
-      // إرسال تحليلات خاصة بالمصادقة
-    }}
-    fallback={
+}) => {
+  const location = useLocation();
+  return (
+    <EnhancedErrorBoundary
+      pageType={pageType}
+      pathname={location.pathname}
+      onError={(details) => {
+        // إرسال تحليلات خاصة بالمصادقة
+      }}
+      fallback={
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-xl font-bold mb-4">خطأ في نظام المصادقة</h2>
           <p className="text-gray-600 mb-4">حدث خطأ في تحميل نظام المصادقة.</p>
           <button
-            onClick={() => window.location.href = '/login'}
+            onClick={() => {
+              try {
+                const isElectron = typeof window !== 'undefined' && window.navigator?.userAgent?.includes('Electron');
+                if (isElectron) {
+                  window.location.hash = '#/login';
+                } else {
+                  window.location.href = '/login';
+                }
+              } catch {
+                window.location.href = '/login';
+              }
+            }}
             className="bg-blue-600 text-white px-4 py-2 rounded"
           >
             العودة لتسجيل الدخول
@@ -391,10 +405,11 @@ export const AuthErrorBoundary = memo<{ children: ReactNode; pageType?: PageType
         </div>
       </div>
     }
-  >
-    {children}
-  </EnhancedErrorBoundary>
-));
+    >
+      {children}
+    </EnhancedErrorBoundary>
+  );
+});
 
 AuthErrorBoundary.displayName = 'AuthErrorBoundary';
 
@@ -402,13 +417,15 @@ AuthErrorBoundary.displayName = 'AuthErrorBoundary';
 export const DataErrorBoundary = memo<{ children: ReactNode; pageType?: PageType }>(({ 
   children, 
   pageType 
-}) => (
-  <EnhancedErrorBoundary
-    pageType={pageType}
-    pathname={window.location.pathname}
-    onError={(details) => {
-    }}
-    fallback={
+}) => {
+  const location = useLocation();
+  return (
+    <EnhancedErrorBoundary
+      pageType={pageType}
+      pathname={location.pathname}
+      onError={(details) => {
+      }}
+      fallback={
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-xl font-bold mb-4">خطأ في تحميل البيانات</h2>
@@ -422,10 +439,11 @@ export const DataErrorBoundary = memo<{ children: ReactNode; pageType?: PageType
         </div>
       </div>
     }
-  >
-    {children}
-  </EnhancedErrorBoundary>
-));
+    >
+      {children}
+    </EnhancedErrorBoundary>
+  );
+});
 
 DataErrorBoundary.displayName = 'DataErrorBoundary';
 

@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import { supabase } from '@/lib/supabase'; // استيراد كائن supabase مباشرة
 import { useUser } from '../../context/UserContext';
 import { toast } from 'sonner';
 
@@ -34,6 +33,14 @@ import { Loader2, Upload, Wrench, Trash2, Plus, Share2, User, DollarSign } from 
 // استيراد مدير أماكن التصليح
 import RepairLocationManager from '@/components/pos/RepairLocationManager';
 import { RepairLocation } from '@/components/pos/RepairLocationManager';
+import { 
+  createLocalRepairOrder,
+  updateLocalRepairOrder,
+  addLocalRepairHistory,
+  addLocalRepairImage,
+  listLocalRepairLocations,
+  generateRepairIdentifiers
+} from '@/api/localRepairService';
 
 // واجهات البيانات
 interface RepairServiceDialogProps {
@@ -73,27 +80,13 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
   
   // جلب قائمة أماكن التصليح
   const fetchRepairLocations = async () => {
-    if (!organizationId) return;
-
     try {
-      const { data, error } = await supabase
-        .from('repair_locations')
-        .select('id, name, is_default')
-        .eq('organization_id', organizationId)
-        .eq('is_active', true);
-
-      if (error) throw error;
-
-      // تحويل البيانات إلى النوع RepairLocation
+      const data = await listLocalRepairLocations(organizationId || undefined);
       const typedData = data as unknown as RepairLocation[];
       setRepairLocations(typedData || []);
-      
-      // تعيين المكان الافتراضي إذا وجد
       const defaultLocation = typedData?.find(loc => loc.is_default);
-      if (defaultLocation && !repairLocation) {
-        setRepairLocation(defaultLocation.id);
-      }
-    } catch (error) {
+      if (defaultLocation && !repairLocation) setRepairLocation(defaultLocation.id);
+    } catch {
       toast.error('فشل في جلب أماكن التصليح');
     }
   };
@@ -127,7 +120,7 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
         setPriceToBeDetLater(repairOrder.price_to_be_determined_later || false);
       }
     }
-  }, [supabase, organizationId, isOpen, editMode, repairOrder]);
+  }, [organizationId, isOpen, editMode, repairOrder]);
 
   // إعادة تعيين النموذج عند الإغلاق
   useEffect(() => {
@@ -247,13 +240,12 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
       let trackingCode: string;
 
       if (editMode && repairOrder) {
-        // في حالة التعديل، نستخدم المعرفات الموجودة
+        // تحديث محلي
         repairOrderId = repairOrder.id;
         orderNumber = repairOrder.order_number || '';
         trackingCode = repairOrder.repair_tracking_code || '';
 
-        // إعداد بيانات التحديث
-        const updateData: any = {
+        const patch: any = {
           customer_name: customerName,
           customer_phone: customerPhone,
           device_type: deviceType || null,
@@ -262,146 +254,55 @@ const RepairServiceDialog = ({ isOpen, onClose, onSuccess, editMode = false, rep
           paid_amount: priceToBeDetLater ? 0 : (paidAmount || 0),
           payment_method: paymentMethod,
           price_to_be_determined_later: priceToBeDetLater,
-          updated_at: new Date().toISOString(),
         };
-
-        // إضافة حقل repair_location_id فقط إذا كان له قيمة
         if (repairLocation && repairLocation !== 'أخرى') {
-          updateData.repair_location_id = repairLocation;
-          updateData.custom_location = null;
+          patch.repair_location_id = repairLocation;
+          patch.custom_location = null;
         } else if (repairLocation === 'أخرى') {
-          updateData.repair_location_id = null;
-          updateData.custom_location = customLocation || null;
+          patch.repair_location_id = null;
+          patch.custom_location = customLocation || null;
         }
-
-        // تحديث الطلبية في قاعدة البيانات
-        
-        const { error: updateError } = await supabase
-          .from('repair_orders')
-          .update(updateData)
-          .eq('id', repairOrderId);
-
-        if (updateError) {
-          throw new Error(`فشل في تحديث طلبية التصليح: ${updateError.message}`);
-        }
+        const updated = await updateLocalRepairOrder(repairOrderId, patch);
+        if (!updated) throw new Error('تعذر تحديث طلبية التصليح محلياً');
+        await addLocalRepairHistory({ orderId: repairOrderId, status: 'تم التحديث', notes: 'تم تحديث بيانات طلبية التصليح', createdBy: user?.id });
       } else {
-        // في حالة الإضافة، ننشئ معرفات جديدة
-        repairOrderId = uuidv4();
-        
-        // توليد رقم الطلبية ورمز التتبع
-        const now = new Date();
-        const year = now.getFullYear().toString().slice(-2);
-        const month = (now.getMonth() + 1).toString().padStart(2, '0');
-        const randomDigits = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-        
-        orderNumber = `RPR-${year}${month}-${randomDigits}`;
-        trackingCode = `TR-${year}${month}-${randomDigits}-${repairOrderId.slice(0, 4)}`;
-
-        // إعداد بيانات الطلبية
-        const repairOrderData = {
-          id: repairOrderId,
-          organization_id: organizationId,
+        // إنشاء محلي
+        const ids = generateRepairIdentifiers();
+        const created = await createLocalRepairOrder({
           customer_name: customerName,
           customer_phone: customerPhone,
-          device_type: deviceType || null,
+          device_type: deviceType || undefined,
           repair_location_id: repairLocation === 'أخرى' ? null : repairLocation,
           custom_location: repairLocation === 'أخرى' ? customLocation : null,
-          issue_description: issueDescription,
+          issue_description: issueDescription || undefined,
           total_price: priceToBeDetLater ? null : totalPrice,
           paid_amount: priceToBeDetLater ? 0 : (paidAmount || 0),
           payment_method: paymentMethod,
           price_to_be_determined_later: priceToBeDetLater,
           received_by: user?.id,
           status: 'قيد الانتظار',
-          order_number: orderNumber,
-          repair_tracking_code: trackingCode,
-        };
-
-        // إدراج الطلبية في قاعدة البيانات
-        
-        const { data: insertedData, error: insertError } = await supabase
-          .from('repair_orders')
-          .insert(repairOrderData)
-          .select()
-          .single();
-
-        if (insertError) {
-          throw new Error(`فشل في إضافة طلبية التصليح: ${insertError.message}`);
-        }
-        
-      }
-
-      // إنشاء سجل تاريخ
-      const historyEntry = {
-        repair_order_id: repairOrderId,
-        status: editMode ? 'تم التحديث' : 'قيد الانتظار',
-        notes: editMode ? 'تم تحديث بيانات طلبية التصليح' : 'تم إنشاء طلبية التصليح',
-        created_by: user?.id
-      };
-
-      const { error: historyError } = await supabase
-        .from('repair_status_history')
-        .insert(historyEntry);
-
-      if (historyError) {
-        // لا نوقف العملية بسبب خطأ في السجل
-      } else {
-      }
-
-      // رفع الصور إذا كانت موجودة (في كل من الإضافة والتعديل)
-      if (fileList.length > 0) {
-        const imagePromises = fileList.map(async (file, index) => {
-          const fileExt = file.name.split('.').pop();
-          const fileName = `${repairOrderId}/${uuidv4()}.${fileExt}`;
-          const filePath = `repair_images/${fileName}`;
-
-          // رفع الملف إلى التخزين
-          const { error: uploadError } = await supabase.storage
-            .from('repair_images')
-            .upload(filePath, file, { cacheControl: '31536000', upsert: false });
-
-          if (uploadError) {
-            throw new Error(`فشل في رفع الصورة: ${uploadError.message}`);
-          }
-
-          // الحصول على رابط عام للصورة
-          const { data: urlData } = await supabase.storage
-            .from('repair_images')
-            .getPublicUrl(filePath);
-
-          // إضافة الصورة إلى جدول صور التصليح
-          const imageData = {
-            repair_order_id: repairOrderId,
-            image_url: urlData.publicUrl,
-            image_type: 'before',
-            description: 'صورة قبل التصليح'
-          };
-
-          const { error: imageInsertError } = await supabase
-            .from('repair_images')
-            .insert(imageData as any);
-
-          if (imageInsertError) {
-            throw new Error(`فشل في تسجيل بيانات الصورة: ${imageInsertError.message}`);
-          }
-
-          return urlData.publicUrl;
+          order_number: ids.orderNumber,
+          repair_tracking_code: ids.trackingCode,
         });
+        repairOrderId = created.id;
+        orderNumber = created.order_number || '';
+        trackingCode = created.repair_tracking_code || '';
+        await addLocalRepairHistory({ orderId: repairOrderId, status: 'قيد الانتظار', notes: 'تم إنشاء طلبية التصليح', createdBy: user?.id });
+      }
 
-        // انتظار اكتمال رفع جميع الصور
-        await Promise.all(imagePromises);
+      // حفظ الصور محلياً للرفع لاحقاً
+      if (fileList.length > 0) {
+        await Promise.all(
+          fileList.map((file) => addLocalRepairImage(repairOrderId, file, { image_type: 'before', description: 'صورة قبل التصليح' }))
+        );
       }
 
       toast.success(editMode ? 'تم تحديث طلبية التصليح بنجاح' : 'تم إضافة طلبية التصليح بنجاح');
-        
-      // استدعاء دالة النجاح مع معرّف الطلبية ورمز التتبع
       onSuccess(repairOrderId, trackingCode);
-      
-      // إغلاق النافذة وإعادة تعيين النموذج
       onClose();
       resetForm();
     } catch (error: any) {
-      toast.error(error.message || 'حدث خطأ أثناء حفظ طلبية التصليح');
+      toast.error(error?.message || 'حدث خطأ أثناء حفظ طلبية التصليح');
     } finally {
       setIsSubmitting(false);
     }

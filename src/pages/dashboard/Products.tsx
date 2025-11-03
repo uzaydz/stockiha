@@ -7,7 +7,7 @@ import { getProductsPaginated } from '@/lib/api/products';
 
 
 
-import ProductsList from '@/components/product/ProductsList';
+import ProductsListResponsive from '@/components/product/ProductsListResponsive';
 import ProductsFilter from '@/components/product/ProductsFilter';
 import ProductsSearchHeader from '@/components/product/ProductsSearchHeader';
 import AddProductDialog from '@/components/product/AddProductDialog';
@@ -599,7 +599,7 @@ const ProductsComponent = ({
   // Error state
   if (loadError && (!Array.isArray(products) || products.length === 0)) {
     return renderWithLayout(
-      <div className="container mx-auto p-6">
+      <div className="container mx-auto p-2 sm:p-4 lg:p-6">
         {renderErrorState()}
       </div>
     );
@@ -607,7 +607,10 @@ const ProductsComponent = ({
 
   const pageContent = (
       <>
-      <div className="container mx-auto p-6 space-y-6">
+      <div className={cn(
+        "space-y-4 sm:space-y-6 products-page-container",
+        useStandaloneLayout ? "container mx-auto p-2 sm:p-4 lg:p-6" : "px-3 sm:px-4"
+      )}>
         {/* Products Search Header with enhanced features */}
         <ProductsSearchHeader
           searchQuery={filters.searchQuery}
@@ -758,8 +761,8 @@ const ProductsComponent = ({
             renderEmptyState()
           ) : (
             <>
-              <ProductsList 
-                products={products} 
+              <ProductsListResponsive
+                products={products}
                 viewMode={viewMode}
                 isLoading={isRefreshing}
                 onRefreshProducts={refreshProducts}

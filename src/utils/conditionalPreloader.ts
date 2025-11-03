@@ -104,7 +104,9 @@ class ConditionalPreloader {
   }
 
   private isOnProductPage(): boolean {
-    const pathname = window.location.pathname;
+    const pathname = (typeof window !== 'undefined' && window.location.hash && window.location.hash.startsWith('#/'))
+      ? window.location.hash.slice(1)
+      : window.location.pathname;
     return pathname.includes('/product-purchase-max-v3/') ||
            pathname.includes('/product-purchase-max-v2/') ||
            pathname.includes('/product-purchase/') ||
@@ -112,7 +114,10 @@ class ConditionalPreloader {
   }
 
   private isOnDashboard(): boolean {
-    return window.location.pathname.startsWith('/dashboard');
+    const pathname = (typeof window !== 'undefined' && window.location.hash && window.location.hash.startsWith('#/'))
+      ? window.location.hash.slice(1)
+      : window.location.pathname;
+    return pathname.startsWith('/dashboard');
   }
 
   private isAuthenticatedUser(): boolean {

@@ -1,7 +1,8 @@
 import { useState, useCallback } from 'react';
 import { toast } from "sonner";
 import { Product } from '@/types';
-import { supabase } from '@/lib/supabase';
+// import { supabase } from '@/lib/supabase';
+import { getLocalRepairOrderDetailed } from '@/api/localRepairService';
 
 export const usePOSAdvancedDialogs = () => {
   // حالة النوافذ الحوارية
@@ -38,31 +39,17 @@ export const usePOSAdvancedDialogs = () => {
   // دالة معالجة نجاح إضافة خدمة التصليح
   const handleRepairServiceSuccess = useCallback(async (orderId: string, trackingCode: string) => {
     try {
-      const { data, error } = await supabase
-        .from('repair_orders')
-        .select(`
-          *,
-          images:repair_images(*),
-          history:repair_status_history(*, users(name)),
-          repair_location:repair_locations(id, name, description, address, phone),
-          staff:users(id, name, email, phone)
-        `)
-        .eq('id', orderId)
-        .single();
-
-      if (error) throw error;
-
+      const data = await getLocalRepairOrderDetailed(orderId);
       if (data) {
         setSelectedRepairOrder(data);
         setRepairQueuePosition(1);
         setIsRepairPrintDialogOpen(true);
       }
-
       setIsRepairDialogOpen(false);
-      toast.success('تم إنشاء طلبية تصليح جديدة بنجاح');
+      toast.success(' تم إنشاء طلبية تصليح (محلياً) بنجاح');
     } catch (error) {
       setIsRepairDialogOpen(false);
-      toast.success('تم إنشاء طلبية تصليح جديدة بنجاح');
+      toast.success('تم إنشاء طلبية تصليح بنجاح');
     }
   }, []);
 

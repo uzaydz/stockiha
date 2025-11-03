@@ -5,6 +5,9 @@ import { AlertCircle, TrendingUp, DollarSign, Users, Package } from 'lucide-reac
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useQueryClient } from '@tanstack/react-query';
 import Layout from '@/components/Layout';
+import { usePermissions } from '@/hooks/usePermissions';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { ShieldAlert } from 'lucide-react';
 import { POSSharedLayoutControls, POSLayoutState } from '@/components/pos-layout/types';
 
 // المكونات المحسنة
@@ -31,6 +34,7 @@ const FinancialAnalyticsOptimized: React.FC<FinancialAnalyticsProps> = ({
   onRegisterRefresh,
   onLayoutStateChange
 }) => {
+  const perms = usePermissions();
   // خدمات React Query
   const queryClient = useQueryClient();
   
@@ -132,6 +136,18 @@ const FinancialAnalyticsOptimized: React.FC<FinancialAnalyticsProps> = ({
   const renderWithLayout = (node: React.ReactElement) => (
     useStandaloneLayout ? <Layout>{node}</Layout> : node
   );
+
+  if (perms.ready && !perms.anyOf(['viewFinancialReports'])) {
+    return renderWithLayout(
+      <div className="container mx-auto py-10">
+        <Alert variant="destructive">
+          <ShieldAlert className="h-4 w-4" />
+          <AlertTitle>غير مصرح</AlertTitle>
+          <AlertDescription>لا تملك صلاحية الوصول إلى التحليلات المالية.</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   // Register refresh to titlebar
   useEffect(() => {

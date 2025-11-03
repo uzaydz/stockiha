@@ -163,6 +163,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
     }
   }, [profileLoaded, organizationLoaded, isLoadingProfile, isLoadingOrganization]);
 
+  // ✅ فالباك ذكي: إذا تأخر تحميل الملف الشخصي/المؤسسة بعد تسجيل الدخول، فعّل authReady بعد مهلة قصيرة
+  const authReadyFallbackRef = useRef<NodeJS.Timeout | null>(null);
+  useEffect(() => {
+    if (user && !authReady) {
+      if (authReadyFallbackRef.current) {
+        clearTimeout(authReadyFallbackRef.current);
+      }
+      authReadyFallbackRef.current = setTimeout(() => {
+        try { console.warn('⏳ [Auth] enabling authReady fallback (profile/org slow)'); } catch {}
+        setAuthReady(true);
+      }, 7000);
+      return () => {
+        if (authReadyFallbackRef.current) {
+          clearTimeout(authReadyFallbackRef.current);
+          authReadyFallbackRef.current = null;
+        }
+      };
+    }
+    return () => {
+      if (authReadyFallbackRef.current) {
+        clearTimeout(authReadyFallbackRef.current);
+        authReadyFallbackRef.current = null;
+      }
+    };
+  }, [user?.id, authReady]);
+
   // الاستماع للأحداث من useUserOrganization - محسن لعدم إرسال حدث متكرر
   useEffect(() => {
     const unsubscribe = addAppEventListener<{ organization: Organization }>(
@@ -188,6 +214,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
   const lastUpdateRef = useRef<number>(0);
   const initializationInProgressRef = useRef(false);
   const sessionCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // معرف لنسخ التحقق المؤجلة لإلغاء المجدول القديم عند تبدل الجلسة
+  const validationRunIdRef = useRef(0);
 
   // دالة مساعدة للحصول على الجلسة من cache
   const getCachedSession = useCallback((userId: string): Session | null => {
@@ -256,6 +284,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
       return;
     }
 
+    // إلغاء أي عمليات تحقق مؤجلة عند تبدل الجلسة
+    validationRunIdRef.current++;
+    if (sessionCheckTimeoutRef.current) {
+      clearTimeout(sessionCheckTimeoutRef.current);
+      sessionCheckTimeoutRef.current = null;
+    }
     setIsProcessingToken(true);
 
     try {
@@ -309,6 +343,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
     if (process.env.NODE_ENV === 'development') {
     }
 
+    // إلغاء أي عمليات تحقق مؤجلة عند تبدل الجلسة
+    validationRunIdRef.current++;
+    if (sessionCheckTimeoutRef.current) {
+      clearTimeout(sessionCheckTimeoutRef.current);
+      sessionCheckTimeoutRef.current = null;
+    }
     setIsProcessingToken(true);
 
     try {
@@ -411,7 +451,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
           clearTimeout(sessionCheckTimeoutRef.current);
         }
 
+        const runId = ++validationRunIdRef.current;
         sessionCheckTimeoutRef.current = setTimeout(async () => {
+          if (runId !== validationRunIdRef.current) return; // تم تبديل الجلسة لاحقاً
           try {
             const cachedSession = getCachedSession(restoredUser.id);
             if (cachedSession) {
@@ -464,7 +506,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
           clearTimeout(sessionCheckTimeoutRef.current);
         }
 
+        const runId2 = ++validationRunIdRef.current;
         sessionCheckTimeoutRef.current = setTimeout(async () => {
+          if (runId2 !== validationRunIdRef.current) return; // تم تبديل الجلسة لاحقاً
           try {
             const cachedSession = getCachedSession(savedAuth.user.id);
             if (cachedSession) {

@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, Store, X, Menu } from 'lucide-react';
 import Navbar from '@/components/Navbar';
 import SideMenu from '@/components/sidebar/SideMenu';
+import MobileBottomNavigation from '@/components/navbar/MobileBottomNavigation';
 
 interface POSLayoutProps {
   children: React.ReactNode;
@@ -142,6 +143,12 @@ export default function POSLayout({ children }: POSLayoutProps) {
           )}
         </>
       )}
+      
+      {/* القائمة الثابتة في الأسفل للهاتف */}
+      <MobileBottomNavigation 
+        onMenuToggle={toggleSidebar}
+        isMenuOpen={isMobileSidebarOpen}
+      />
     </div>
   );
 }

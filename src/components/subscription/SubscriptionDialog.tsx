@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
+import { createSubscriptionRequest } from '@/lib/subscription-requests-service';
 
 // مكونات UI
 import {
@@ -76,7 +77,7 @@ const SubscriptionDialog: React.FC<SubscriptionDialogProps> = ({
   isRenewal = false,
   onSubscriptionComplete,
 }) => {
-  const { user } = useAuth();
+  const { user, userData } = useAuth();
   const [step, setStep] = useState<'plan' | 'payment' | 'complete'>('plan');
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod | null>(null);
@@ -104,11 +105,11 @@ const SubscriptionDialog: React.FC<SubscriptionDialogProps> = ({
           .order('name');
           
         if (error) throw error;
-        setPaymentMethods(data || []);
-        
+        setPaymentMethods((data as any) || []);
+
         // اختيار طريقة الدفع الأولى افتراضياً
         if (data && data.length > 0) {
-          setSelectedPaymentMethod(data[0]);
+          setSelectedPaymentMethod(data[0] as any);
         }
       } catch (error) {
         toast.error('حدث خطأ أثناء جلب طرق الدفع');
@@ -157,7 +158,7 @@ const SubscriptionDialog: React.FC<SubscriptionDialogProps> = ({
     return requiredFields.every(field => formFields[field.name] && formFields[field.name].trim() !== '');
   };
 
-  // معالجة عملية الاشتراك
+  // معالجة عملية الاشتراك - إرسال طلب اشتراك للمراجعة
   const handleSubscribe = async () => {
     if (!organizationId) {
       toast.error('لم يتم العثور على معلومات المؤسسة');
@@ -177,65 +178,43 @@ const SubscriptionDialog: React.FC<SubscriptionDialogProps> = ({
     setLoading(true);
 
     try {
-      // إنشاء اشتراك جديد
-      const { data: subscription, error: subscriptionError } = await supabase
-        .from('organization_subscriptions')
-        .insert([
-          {
-            organization_id: organizationId,
-            plan_id: plan.id,
-            billing_cycle: billingCycle,
-            status: 'pending',
-            start_date: startDate,
-            end_date: endDate,
-            payment_method: selectedPaymentMethod.id,
-            payment_details: {
-              ...formFields,
-              ...(uploadUrl && { payment_proof_url: uploadUrl })
-            },
-            amount_paid: price
-          }
-        ])
-        .select('id')
-        .single();
+      // إرسال طلب اشتراك جديد للمراجعة من قبل السوبر أدمين
+      const result = await createSubscriptionRequest({
+        organizationId,
+        planId: plan.id,
+        billingCycle,
+        amount: price,
+        currency: 'DZD',
+        paymentMethod: selectedPaymentMethod.name,
+        paymentProofUrl: uploadUrl || undefined,
+        paymentReference: formFields.reference || formFields.transaction_id || undefined,
+        paymentNotes: JSON.stringify({
+          ...formFields,
+          payment_method_code: selectedPaymentMethod.code
+        }),
+        contactName: userData?.name || formFields.contact_name || undefined,
+        contactEmail: user?.email || formFields.contact_email || undefined,
+        contactPhone: formFields.contact_phone || undefined,
+        customerNotes: formFields.notes || undefined
+      });
 
-      if (subscriptionError) throw subscriptionError;
+      if (!result.success) {
+        throw new Error(result.error || 'فشل في إرسال طلب الاشتراك');
+      }
 
-      // تحديث حالة الاشتراك للمؤسسة
-      const { error: orgError } = await supabase
-        .from('organizations')
-        .update({
-          subscription_id: subscription.id,
-          subscription_tier: plan.code,
-          subscription_status: 'pending'
-        })
-        .eq('id', organizationId);
-
-      if (orgError) throw orgError;
-
-      // إضافة سجل في سجل الاشتراكات
-      await supabase
-        .from('subscription_history')
-        .insert([
-          {
-            organization_id: organizationId,
-            plan_id: plan.id,
-            action: isRenewal ? 'renewed' : 'created',
-            to_status: 'pending',
-            amount: price,
-            notes: JSON.stringify({
-              plan_name: plan.name,
-              plan_code: plan.code,
-              billing_cycle: billingCycle,
-              payment_method: selectedPaymentMethod.name
-            })
-          }
-        ]);
-
-      toast.success(isRenewal ? 'تم تجديد الاشتراك بنجاح' : 'تم الاشتراك بنجاح');
+      toast.success('تم إرسال طلب الاشتراك بنجاح! سيتم مراجعته من قبل الإدارة وتفعيل حسابك قريباً.', {
+        duration: 6000
+      });
       setStep('complete');
+
+      // تحديث الصفحة بعد 3 ثواني للحصول على أحدث البيانات
+      setTimeout(() => {
+        onSubscriptionComplete();
+        onOpenChange(false);
+      }, 3000);
     } catch (error: any) {
-      toast.error(error.message || 'حدث خطأ أثناء عملية الاشتراك');
+      console.error('Error submitting subscription request:', error);
+      toast.error(error.message || 'حدث خطأ أثناء إرسال طلب الاشتراك');
     } finally {
       setLoading(false);
     }
@@ -244,26 +223,37 @@ const SubscriptionDialog: React.FC<SubscriptionDialogProps> = ({
   // معالجة رفع ملف إثبات الدفع
   const handleUpload = async (file: File) => {
     setUploading(true);
-    
+
     try {
       const fileExt = file.name.split('.').pop();
       const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
       const filePath = `payment_proofs/${organizationId}/${fileName}`;
-      
+
+      // محاولة الرفع إلى bucket 'subscriptions'
       const { error: uploadError } = await supabase.storage
         .from('subscriptions')
         .upload(filePath, file, { cacheControl: '31536000', upsert: false });
-        
-      if (uploadError) throw uploadError;
-      
+
+      if (uploadError) {
+        // إذا كان الـ bucket غير موجود، نعلم المستخدم ونستمر بدون رفع
+        if (uploadError.message.includes('Bucket not found')) {
+          toast.warning('رفع الملف غير متاح حالياً. يمكنك إرسال الطلب ورفع إثبات الدفع لاحقاً.');
+          setUploadUrl(null);
+          return;
+        }
+        throw uploadError;
+      }
+
       const { data } = supabase.storage
         .from('subscriptions')
         .getPublicUrl(filePath);
-        
+
       setUploadUrl(data.publicUrl);
       toast.success('تم رفع إثبات الدفع بنجاح');
     } catch (error: any) {
-      toast.error(error.message || 'حدث خطأ أثناء رفع إثبات الدفع');
+      console.error('Error uploading payment proof:', error);
+      toast.error('حدث خطأ أثناء رفع إثبات الدفع. يمكنك المتابعة بدونه.');
+      setUploadUrl(null);
     } finally {
       setUploading(false);
     }
@@ -452,12 +442,12 @@ const SubscriptionDialog: React.FC<SubscriptionDialogProps> = ({
               <Button variant="outline" onClick={() => setStep('plan')}>
                 رجوع
               </Button>
-              <Button 
-                onClick={handleSubscribe} 
-                disabled={loading || !isFormComplete() || (selectedPaymentMethod?.code !== 'cash_on_delivery' && !uploadUrl)}
+              <Button
+                onClick={handleSubscribe}
+                disabled={loading || !isFormComplete()}
               >
                 {loading && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
-                تأكيد الاشتراك
+                إرسال طلب الاشتراك
               </Button>
             </DialogFooter>
           </>

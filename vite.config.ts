@@ -53,6 +53,30 @@ function lodashResolverPlugin(): Plugin {
   };
 }
 
+// Plugin to fix is-retry-allowed CommonJS module exports
+function fixRetryAllowedPlugin(): Plugin {
+  return {
+    name: 'fix-retry-allowed',
+    enforce: 'pre',
+    resolveId(id: string) {
+      if (id === 'is-retry-allowed') {
+        return '\0is-retry-allowed-virtual';
+      }
+      return null;
+    },
+    load(id: string) {
+      if (id === '\0is-retry-allowed-virtual') {
+        return `
+          import isRetryAllowed from 'is-retry-allowed/index.js';
+          export default isRetryAllowed;
+          export { isRetryAllowed };
+        `;
+      }
+      return null;
+    }
+  };
+}
+
 
 // Plugin لخدمة critical.css في التطوير
 function devCriticalCSSPlugin(): Plugin {
@@ -330,6 +354,9 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
       }
     },
     plugins: [
+      // Fix retry-allowed module first
+      fixRetryAllowedPlugin(),
+      
       // Content Type Plugin - يجب أن يكون أولاً لإصلاح مشاكل MIME
       contentTypePlugin(),
       // تم إزالة devStoreRewritePlugin - البناء يركز على الموقع الرئيسي فقط
@@ -892,6 +919,8 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
         ignoreTryCatch: false,
         strictRequires: false,
         esmExternals: true,
+        // Force default export for CJS modules that need it
+        defaultIsModuleExports: true,
       },
       
       chunkSizeWarningLimit: 1500, // تقليل الحد للحصول على chunks أصغر
@@ -947,7 +976,10 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
         },
         keepNames: true,
         minify: false,
-        treeShaking: false
+        treeShaking: false,
+        // Better CommonJS interop for problematic modules
+        mainFields: ['module', 'main'],
+        conditions: ['import', 'module', 'default'],
       },
       // ✅ تحسين مسبق للضروريات المطلقة فقط - تقليل startup time
       include: [
@@ -977,6 +1009,8 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
         'buffer',
         'use-sync-external-store',
         'use-sync-external-store/shim',
+        // HTTP retry utilities - must be together to avoid CJS/ESM conflicts
+        'axios-retry',
       ],
       
       // 🚨 استبعاد جميع المكتبات الثقيلة من التحسين المسبق  
@@ -1020,9 +1054,6 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
         '@radix-ui/react-switch', '@radix-ui/react-tabs', 
         '@radix-ui/react-toast', '@radix-ui/react-toggle', 
         '@radix-ui/react-toggle-group',
-        
-        // Heavy HTTP utilities (defer until needed)
-        'axios-retry',
         
         // Heavy drag and drop
         '@dnd-kit/core', '@dnd-kit/sortable',

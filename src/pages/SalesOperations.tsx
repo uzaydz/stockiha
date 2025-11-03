@@ -5,13 +5,15 @@ import POSPureLayout from '@/components/pos-layout/POSPureLayout';
 import { useTitle } from '@/hooks/useTitle';
 import { useTitlebar } from '@/context/TitlebarContext';
 import { POSLayoutState, RefreshHandler } from '@/components/pos-layout/types';
-import { ShoppingBag, Ban, Activity, Loader2 } from 'lucide-react';
+import { ShoppingBag, Ban, Activity, Loader2, Users } from 'lucide-react';
+import { usePermissions } from '@/hooks/usePermissions';
 
-const OrdersV2Tab = React.lazy(() => import('./dashboard/OrdersV2'));
+const OrdersV2Tab = React.lazy(() => import('./dashboard/OrdersV2')); // استخدام OrdersV2 الأصلي المحدث بالـ hook الجديد
 const BlockedCustomersTab = React.lazy(() => import('./dashboard/BlockedCustomers'));
 const AbandonedOrdersTab = React.lazy(() => import('./dashboard/AbandonedOrders'));
+const OrderGroupsTab = React.lazy(() => import('./dashboard/OrderGroups'));
 
-type TabKey = 'onlineOrders' | 'blocked' | 'abandoned';
+type TabKey = 'onlineOrders' | 'blocked' | 'abandoned' | 'groups';
 
 interface TabDefinition {
   id: TabKey;
@@ -42,6 +44,13 @@ const TAB_CONFIG: TabDefinition[] = [
     description: 'تحليل وإدارة الطلبات المتروكة واسترجاعها.',
     icon: Activity,
     loaderMessage: 'جاري تحميل الطلبات المتروكة...'
+  },
+  {
+    id: 'groups',
+    title: 'مجموعات الطلبات',
+    description: 'إدارة مجموعات الطلبات الإلكترونية وتصفية المنتجات.',
+    icon: Users,
+    loaderMessage: 'جاري تحميل مجموعات الطلبات...'
   }
 ];
 
@@ -57,10 +66,26 @@ const SalesOperationsPage: React.FC = () => {
   const params = useParams<{ tab?: string }>();
   const { setTabs, setActiveTab: setTitlebarActiveTab, setShowTabs, clearTabs } = useTitlebar();
 
+  const perms = usePermissions();
+
+  const allowedTabs = useMemo(() => {
+    const canOnline = perms.ready ? perms.anyOf(['viewOrders', 'canViewOnlineOrders']) : false;
+    const canBlocked = perms.ready ? perms.anyOf(['viewOrders', 'canViewBlockedCustomers']) : false;
+    const canAbandoned = perms.ready ? perms.anyOf(['viewOrders', 'canViewAbandonedOrders']) : false;
+    const canGroups = perms.ready ? perms.anyOf(['canManageOnlineOrderGroups']) : false;
+    return TAB_CONFIG.filter(t =>
+      (t.id === 'onlineOrders' && canOnline) ||
+      (t.id === 'blocked' && canBlocked) ||
+      (t.id === 'abandoned' && canAbandoned) ||
+      (t.id === 'groups' && canGroups)
+    );
+  }, [perms.ready, perms.role, perms.isOrgAdmin, perms.isSuperAdmin]);
+
   const resolvedTab = useMemo<TabKey>(() => {
     const incoming = params.tab as TabKey | undefined;
-    return TAB_CONFIG.some((tab) => tab.id === incoming) ? (incoming as TabKey) : TAB_CONFIG[0].id;
-  }, [params.tab]);
+    const isAllowedIncoming = allowedTabs.some((t) => t.id === incoming);
+    return isAllowedIncoming ? (incoming as TabKey) : (allowedTabs[0]?.id || 'onlineOrders');
+  }, [params.tab, allowedTabs]);
 
   useEffect(() => {
     if (!params.tab || !TAB_CONFIG.some((tab) => tab.id === params.tab)) {
@@ -90,7 +115,7 @@ const SalesOperationsPage: React.FC = () => {
   );
 
   useEffect(() => {
-    const titlebarTabs = TAB_CONFIG.map((tab) => {
+    const titlebarTabs = allowedTabs.map((tab) => {
       const Icon = tab.icon;
       return {
         id: tab.id,
@@ -169,6 +194,12 @@ const SalesOperationsPage: React.FC = () => {
             />
           </Suspense>
         );
+      case 'groups':
+        return (
+          <Suspense key="groups" fallback={<LoadingView message={TAB_CONFIG[3].loaderMessage} />}>
+            <OrderGroupsTab />
+          </Suspense>
+        );
       default:
         return null;
     }
@@ -182,8 +213,8 @@ const SalesOperationsPage: React.FC = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 gap-2 rounded-xl bg-slate-900/5 p-1 dark:bg-slate-800/30">
-          {TAB_CONFIG.map((tab) => {
+        <TabsList className={`grid w-full grid-cols-4 gap-2 rounded-xl bg-slate-900/5 p-1 dark:bg-slate-800/30`}>
+          {allowedTabs.map((tab) => {
             const Icon = tab.icon;
             return (
               <TabsTrigger
@@ -221,5 +252,3 @@ const SalesOperationsPage: React.FC = () => {
 };
 
 export default SalesOperationsPage;
-
-

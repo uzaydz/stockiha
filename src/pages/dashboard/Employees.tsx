@@ -13,6 +13,8 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { Loader2, Search, PlusCircle, UserPlus, Filter, RefreshCw, UsersRound, UserCheck, UserMinus } from 'lucide-react';
+import { usePermissions } from '@/hooks/usePermissions';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 // مكونات خاصة بإدارة الموظفين
 import EmployeeList from '@/components/employees/EmployeeList';
@@ -22,6 +24,7 @@ import AddEmployeeDialog from '@/components/employees/AddEmployeeDialog';
 
 const Employees = () => {
   const { toast } = useToast();
+  const perms = usePermissions();
   const [loading, setLoading] = useState(true);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [filteredEmployees, setFilteredEmployees] = useState<Employee[]>([]);
@@ -214,6 +217,23 @@ const Employees = () => {
     loadEmployees();
   }, [loadEmployees]);
 
+  // صلاحيات الوصول: عرض الموظفين أو إدارتهم
+  const canView = perms.ready ? perms.anyOf(['viewEmployees','manageEmployees']) : true;
+  const canManage = perms.ready ? perms.anyOf(['manageEmployees']) : false;
+
+  if (perms.ready && !canView) {
+    return (
+      <Layout>
+        <div className="container mx-auto py-10">
+          <Alert variant="destructive">
+            <AlertTitle>غير مصرح</AlertTitle>
+            <AlertDescription>لا تملك صلاحية عرض الموظفين.</AlertDescription>
+          </Alert>
+        </div>
+      </Layout>
+    );
+  }
+
   return (
     <Layout>
       {loading ? (
@@ -241,7 +261,7 @@ const Employees = () => {
               >
                 <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
               </Button>
-              <AddEmployeeDialog onEmployeeAdded={handleEmployeeAdded} />
+              {canManage && <AddEmployeeDialog onEmployeeAdded={handleEmployeeAdded} />}
             </div>
           </div>
 
@@ -261,9 +281,11 @@ const Employees = () => {
                   <p className="text-muted-foreground mt-1 mb-4">
                     لم يتم العثور على موظفين في مؤسستك. يمكنك إضافة موظفين جدد للبدء.
                   </p>
-                  <div className="flex justify-center">
-                    <AddEmployeeDialog onEmployeeAdded={handleEmployeeAdded} />
-                  </div>
+                  {canManage && (
+                    <div className="flex justify-center">
+                      <AddEmployeeDialog onEmployeeAdded={handleEmployeeAdded} />
+                    </div>
+                  )}
                 </div>
               ) : (
                 <>

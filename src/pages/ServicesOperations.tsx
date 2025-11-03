@@ -6,6 +6,7 @@ import { useTitle } from '@/hooks/useTitle';
 import { useTitlebar } from '@/context/TitlebarContext';
 import { POSLayoutState, RefreshHandler } from '@/components/pos-layout/types';
 import { Wrench, Tv, Loader2, Download } from 'lucide-react';
+import { usePermissions } from '@/hooks/usePermissions';
 
 const RepairServicesTab = React.lazy(() => import('../pages/RepairServices'));
 const SubscriptionServicesTab = React.lazy(() => import('../pages/dashboard/SubscriptionServices'));
@@ -57,10 +58,18 @@ const ServicesOperationsPage: React.FC = () => {
   const params = useParams<{ tab?: string }>();
   const { setTabs, setActiveTab: setTitlebarActiveTab, setShowTabs, clearTabs } = useTitlebar();
 
+  const perms = usePermissions();
+
+  const allowedTabs = useMemo(() => {
+    const canServices = perms.ready ? perms.anyOf(['viewServices','manageServices']) : false;
+    return TAB_CONFIG.filter(t => canServices);
+  }, [perms.ready, perms.role, perms.isOrgAdmin, perms.isSuperAdmin]);
+
   const resolvedTab = useMemo<TabKey>(() => {
     const incoming = params.tab as TabKey | undefined;
-    return TAB_CONFIG.some((tab) => tab.id === incoming) ? (incoming as TabKey) : TAB_CONFIG[0].id;
-  }, [params.tab]);
+    const isAllowedIncoming = allowedTabs.some((t) => t.id === incoming);
+    return isAllowedIncoming ? (incoming as TabKey) : (allowedTabs[0]?.id || 'repair');
+  }, [params.tab, allowedTabs]);
 
   useEffect(() => {
     if (!params.tab || !TAB_CONFIG.some((tab) => tab.id === params.tab)) {
@@ -90,7 +99,7 @@ const ServicesOperationsPage: React.FC = () => {
   );
 
   useEffect(() => {
-    const titlebarTabs = TAB_CONFIG.map((tab) => {
+    const titlebarTabs = allowedTabs.map((tab) => {
       const Icon = tab.icon;
       return {
         id: tab.id,
@@ -183,7 +192,7 @@ const ServicesOperationsPage: React.FC = () => {
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="grid w-full grid-cols-3 gap-2 rounded-xl bg-slate-900/5 p-1 dark:bg-slate-800/30">
-          {TAB_CONFIG.map((tab) => {
+          {allowedTabs.map((tab) => {
             const Icon = tab.icon;
             return (
               <TabsTrigger
@@ -221,5 +230,4 @@ const ServicesOperationsPage: React.FC = () => {
 };
 
 export default ServicesOperationsPage;
-
 

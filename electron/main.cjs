@@ -14,6 +14,11 @@ const isDev = process.env.NODE_ENV === 'development' ||
 const isMac = process.platform === 'darwin';
 const isWindows = process.platform === 'win32';
 
+// إخفاء تحذيرات الأمان في وضع التطوير فقط
+if (process.env.NODE_ENV === 'development' || process.argv.includes('--dev') || process.env.ELECTRON_IS_DEV === 'true') {
+  process.env.ELECTRON_DISABLE_SECURITY_WARNINGS = 'true';
+}
+
 const SECURE_SESSION_SERVICE = 'stockiha-pos-offline-session';
 const SECURE_SESSION_ACCOUNT = 'session-encryption-key';
 
@@ -97,9 +102,10 @@ function createMainWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: false, // تعطيل sandbox لتحميل الموارد المحلية
       enableRemoteModule: false,
       preload: path.join(__dirname, 'preload.cjs'),
-      webSecurity: true,
+      webSecurity: true, // تفعيل دوماً لتفادي تحذيرات الأمان
       allowRunningInsecureContent: false,
       experimentalFeatures: false
     },
@@ -113,25 +119,43 @@ function createMainWindow() {
   console.log('[Electron] __dirname:', __dirname);
 
   if (isDev) {
-    // للتطبيق المكتبي، ابدأ بصفحة تسجيل الدخول
-    const devUrl = 'http://localhost:8080/login';
+    // في التطوير: حمّل الجذر ودع الموجه يقرر (يتجنب مسارات مطلقة تسبب 404)
+    const devUrl = 'http://localhost:8080/';
     console.log('[Electron] تحميل التطبيق المكتبي من:', devUrl);
     mainWindow.loadURL(devUrl);
 
     // فتح DevTools دائماً في التطوير
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
-    // تحميل التطبيق من dist
-    const prodPath = path.join(__dirname, '../dist/index.html');
-    console.log('[Electron] تحميل من ملف:', prodPath);
-    mainWindow.loadFile(prodPath);
+    // تحميل التطبيق من dist باستخدام file:// URL
+    const distPath = path.resolve(__dirname, '../dist');
+    const indexPath = path.join(distPath, 'index.html');
+    const indexUrl = `file://${indexPath}`;
+    
+    console.log('[Electron] مسار dist:', distPath);
+    console.log('[Electron] مسار index:', indexPath);
+    console.log('[Electron] URL:', indexUrl);
+    
+    // تحميل index.html - RoleBasedRedirect سيوجه المستخدم غير المسجل إلى /login تلقائياً
+    mainWindow.loadURL(indexUrl);
     
     // إضافة fallback لأي مسار غير موجود - تحميل index.html (SPA fallback)
     mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
       console.log('[Electron] فشل التحميل:', errorCode, errorDescription, validatedURL);
-      // إعادة تحميل index.html للسماح لـ React Router بالتعامل مع المسار
-      if (validatedURL && !validatedURL.startsWith('file://')) {
-        mainWindow.loadFile(prodPath);
+      // أي محاولة تحميل غير file:// أو ملف محلي غير index → أعد تحميل index
+      try {
+        if (!validatedURL) {
+          mainWindow.loadURL(indexUrl);
+          return;
+        }
+        const urlObj = new URL(validatedURL);
+        const isFile = urlObj.protocol === 'file:';
+        const isIndex = decodeURI(urlObj.pathname || '').endsWith('/index.html');
+        if (!isFile || !isIndex) {
+          mainWindow.loadURL(indexUrl);
+        }
+      } catch {
+        mainWindow.loadURL(indexUrl);
       }
     });
   }
@@ -151,6 +175,80 @@ function createMainWindow() {
     }
   });
 
+  // ===== حماية أمنية: منع الوصول إلى صفحات السوبر أدمين =====
+  // قائمة المسارات المحظورة في Electron (Super Admin only routes)
+  const BLOCKED_PATHS = [
+    '/super-admin',
+    '/super-admin/login',
+    '/super-admin/dashboard',
+    '/super-admin/organizations',
+    '/super-admin/subscriptions',
+    '/super-admin/payment-methods',
+    '/super-admin/activation-codes',
+    '/super-admin/yalidine-sync'
+  ];
+
+  // منع التنقل إلى صفحات السوبر أدمين
+  mainWindow.webContents.on('will-navigate', (event, navigationUrl) => {
+    try {
+      const url = new URL(navigationUrl);
+      const pathname = url.pathname || url.hash.replace('#', '');
+
+      // التحقق من المسارات المحظورة
+      const isBlocked = BLOCKED_PATHS.some(blockedPath =>
+        pathname === blockedPath || pathname.startsWith(blockedPath + '/')
+      );
+
+      if (isBlocked) {
+        console.warn('[Electron Security] محاولة الوصول إلى صفحة محظورة:', pathname);
+        event.preventDefault();
+
+        // إعادة التوجيه إلى الصفحة الرئيسية
+        if (isDev) {
+          mainWindow.loadURL('http://localhost:8080/');
+        } else {
+          mainWindow.loadURL(`file://${path.join(__dirname, '../dist/index.html')}`);
+        }
+
+        // إظهار رسالة تحذير للمستخدم
+        dialog.showMessageBox(mainWindow, {
+          type: 'warning',
+          title: 'وصول محظور',
+          message: 'غير مسموح بالوصول إلى لوحة السوبر أدمين',
+          detail: 'لوحة السوبر أدمين متاحة فقط عبر المتصفح الويب. يرجى استخدام متصفح الويب للوصول إلى هذه الصفحة.',
+          buttons: ['حسناً']
+        });
+      }
+    } catch (error) {
+      console.error('[Electron Security] خطأ في التحقق من المسار:', error);
+    }
+  });
+
+  // منع تحميل محتوى السوبر أدمين عبر did-navigate
+  mainWindow.webContents.on('did-navigate', (event, navigationUrl) => {
+    try {
+      const url = new URL(navigationUrl);
+      const pathname = url.pathname || url.hash.replace('#', '');
+
+      const isBlocked = BLOCKED_PATHS.some(blockedPath =>
+        pathname === blockedPath || pathname.startsWith(blockedPath + '/')
+      );
+
+      if (isBlocked) {
+        console.warn('[Electron Security] تم اكتشاف محاولة تحميل صفحة محظورة:', pathname);
+
+        // إعادة التوجيه فوراً
+        if (isDev) {
+          mainWindow.loadURL('http://localhost:8080/');
+        } else {
+          mainWindow.loadURL(`file://${path.join(__dirname, '../dist/index.html')}`);
+        }
+      }
+    } catch (error) {
+      console.error('[Electron Security] خطأ في التحقق من التنقل:', error);
+    }
+  });
+
   // مراقبة أحداث التحميل
   mainWindow.webContents.on('did-start-loading', () => {
     console.log('[Electron] بدء التحميل...');
@@ -158,6 +256,24 @@ function createMainWindow() {
 
   mainWindow.webContents.on('did-finish-load', () => {
     console.log('[Electron] انتهى التحميل بنجاح');
+
+    // التحقق الإضافي: حقن JavaScript للتحقق من المسار الحالي
+    mainWindow.webContents.executeJavaScript(`
+      (function() {
+        const currentPath = window.location.pathname || window.location.hash.replace('#', '');
+        const blockedPaths = ${JSON.stringify(BLOCKED_PATHS)};
+        const isBlocked = blockedPaths.some(path =>
+          currentPath === path || currentPath.startsWith(path + '/')
+        );
+
+        if (isBlocked) {
+          console.warn('[Electron Security] صفحة محظورة تم اكتشافها، إعادة التوجيه...');
+          window.location.href = '/';
+        }
+      })();
+    `).catch(err => {
+      console.error('[Electron Security] خطأ في حقن JavaScript للتحقق:', err);
+    });
   });
 
   mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
@@ -187,13 +303,40 @@ function createMainWindow() {
     return { action: 'deny' };
   });
 
-  // إدارة الروابط الخارجية
+  // إدارة الروابط والتنقلات لمنع file:///login وأي مسارات محلية خاطئة
   mainWindow.webContents.on('will-navigate', (event, navigationUrl) => {
-    const parsedUrl = new URL(navigationUrl);
-    
-    if (parsedUrl.origin !== 'http://localhost:8080' && parsedUrl.origin !== 'file://') {
+    try {
+      const parsedUrl = new URL(navigationUrl);
+
+      if (isDev) {
+        const isLocalDev = parsedUrl.protocol === 'http:' && parsedUrl.host === 'localhost:8080';
+        if (!isLocalDev) {
+          event.preventDefault();
+          shell.openExternal(navigationUrl);
+        }
+        return;
+      }
+
+      // في الإنتاج: لا نسمح إلا بالتنقل داخل index.html (HashRouter يدير الباقي)
+      if (parsedUrl.protocol !== 'file:') {
+        event.preventDefault();
+        shell.openExternal(navigationUrl);
+        return;
+      }
+
+      // منع تحميل file:///login أو أي ملف محلي غير index.html
+      const distPath = path.resolve(__dirname, '../dist');
+      const indexPath = path.join(distPath, 'index.html');
+      const indexUrl = `file://${indexPath}`;
+      const pathname = decodeURI(parsedUrl.pathname || '');
+      const isIndex = pathname.endsWith('/index.html');
+      if (!isIndex) {
+        event.preventDefault();
+        mainWindow.loadURL(indexUrl);
+      }
+    } catch (e) {
+      console.warn('[Electron] will-navigate parsing failed:', e);
       event.preventDefault();
-      shell.openExternal(navigationUrl);
     }
   });
 
@@ -556,21 +699,8 @@ function registerGlobalShortcuts() {
   });
 }
 
-// تسجيل file protocol handler لإصلاح تحميل الموارد
+// إدارة الأحداث
 app.whenReady().then(() => {
-  // تسجيل protocol interceptor لحل مشكلة file://
-  protocol.interceptFileProtocol('file', (request, callback) => {
-    const url = request.url.substr(7); // إزالة "file://"
-    
-    // إذا كان المسار يبدأ بـ / (absolute)، فهو يبحث عن موارد في dist
-    if (url.startsWith('/')) {
-      const distPath = path.join(__dirname, '../dist', url);
-      callback({ path: distPath });
-    } else {
-      callback({ path: path.normalize(url) });
-    }
-  });
-  
   createApp();
   
   // تهيئة نظام التحديث التلقائي (فقط في الإنتاج)
@@ -929,9 +1059,20 @@ ipcMain.handle('updater:get-version', () => {
 // منع التنقل الخارجي
 app.on('web-contents-created', (event, contents) => {
   contents.on('will-navigate', (event, navigationUrl) => {
-    const parsedUrl = new URL(navigationUrl);
-    
-    if (parsedUrl.origin !== 'http://localhost:8080' && parsedUrl.origin !== 'file://') {
+    try {
+      const parsedUrl = new URL(navigationUrl);
+      if (isDev) {
+        const isLocalDev = parsedUrl.protocol === 'http:' && parsedUrl.host === 'localhost:8080';
+        if (!isLocalDev) {
+          event.preventDefault();
+        }
+        return;
+      }
+      // في الإنتاج: لا نسمح إلا بـ file: (وسيتم التعامل مع non-index في createMainWindow)
+      if (parsedUrl.protocol !== 'file:') {
+        event.preventDefault();
+      }
+    } catch {
       event.preventDefault();
     }
   });

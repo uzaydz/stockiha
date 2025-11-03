@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useStaffSession } from '@/context/StaffSessionContext';
 import { useAuth } from '@/context/AuthContext';
 
@@ -11,6 +11,7 @@ import { useAuth } from '@/context/AuthContext';
 const StaffLoginRedirect: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
   const { currentStaff, isAdminMode } = useStaffSession();
+  const location = useLocation();
   const { user } = useAuth();
 
   useEffect(() => {
@@ -19,7 +20,7 @@ const StaffLoginRedirect: React.FC<{ children: React.ReactNode }> = ({ children 
       // إذا لم يكن لديه جلسة موظف ولا في وضع أدمن
       if (!currentStaff && !isAdminMode) {
         // التوجيه لصفحة تسجيل دخول الموظف
-        const currentPath = window.location.pathname;
+        const currentPath = location.pathname;
         
         // تجنب التوجيه المستمر (loop)
         if (currentPath !== '/staff-login' && currentPath.startsWith('/dashboard')) {
@@ -27,7 +28,7 @@ const StaffLoginRedirect: React.FC<{ children: React.ReactNode }> = ({ children 
         }
       }
     }
-  }, [user, currentStaff, isAdminMode, navigate]);
+  }, [user, currentStaff, isAdminMode, navigate, location.pathname]);
 
   return <>{children}</>;
 };

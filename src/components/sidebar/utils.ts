@@ -1,42 +1,48 @@
 // خريطة لتصحيح أسماء الصلاحيات - محدثة ومحسنة
 export const permissionMapping: Record<string, string[]> = {
   // الصلاحيات الأساسية
-  'viewServices': ['viewServices', 'manageServices'],
-  'viewProducts': ['viewProducts', 'manageProducts', 'editProducts'],
-  'viewOrders': ['viewOrders', 'manageOrders'],
-  'viewPOSOrders': ['viewPOSOrders', 'accessPOS', 'manageOrders'],
-  'viewSalesReports': ['viewSalesReports', 'viewReports'],
-  'viewFinancialReports': ['viewFinancialReports', 'viewReports'],
+  'viewServices': ['viewServices', 'manageServices', 'canAccessServicesOperations', 'canViewRepairServices', 'canViewSubscriptionServices'],
+  'viewProducts': ['viewProducts', 'manageProducts', 'editProducts', 'canAccessProductOperations', 'canViewProducts'],
+  'viewOrders': ['viewOrders', 'manageOrders', 'canAccessSalesOperations', 'canViewOnlineOrders'],
+  'viewPOSOrders': ['viewPOSOrders', 'accessPOS', 'manageOrders', 'canViewPosOrders'],
+  'viewSalesReports': ['viewSalesReports', 'viewReports', 'canAccessReportsOperations', 'canViewSalesReports'],
+  'viewFinancialReports': ['viewFinancialReports', 'viewReports', 'canAccessReportsOperations', 'canViewFinancialReports'],
   'viewCustomers': ['viewCustomers', 'manageCustomers'],
-  'viewDebts': ['viewDebts', 'manageCustomers', 'viewCustomers'],
+  'viewDebts': ['viewDebts', 'manageCustomers', 'viewCustomers', 'canViewDebts'],
   'viewEmployees': ['viewEmployees', 'manageEmployees'],
-  'manageOrganizationSettings': ['manageOrganizationSettings', 'manageSettings'],
-  'viewSettings': ['viewSettings', 'manageSettings'],
-  'viewInventory': ['viewInventory', 'manageInventory'],
+  'manageOrganizationSettings': ['manageOrganizationSettings', 'manageSettings', 'canManageStoreSettings', 'canManageSettings'],
+  'viewSettings': ['viewSettings', 'manageSettings', 'canAccessSettingsOperations', 'canViewSettings'],
+  'viewInventory': ['viewInventory', 'manageInventory', 'canViewInventory'],
   'accessPOS': ['accessPOS'],
+  // أوامر إدارة: ربط القديم بالجديد
+  'manageOrders': ['manageOrders', 'canManagePosOrders', 'canManageOnlineOrders'],
+  'processPayments': ['processPayments', 'canProcessOrderPayments', 'canRecordSupplierPayment'],
   
   // صلاحيات الخدمات
-  'trackServices': ['trackServices', 'manageServices'],
-  'addServices': ['addServices', 'manageServices'],
-  'editServices': ['editServices', 'manageServices'],
-  'deleteServices': ['deleteServices', 'manageServices'],
+  'trackServices': ['trackServices', 'manageServices', 'canAccessServicesOperations'],
+  'addServices': ['addServices', 'manageServices', 'canManageRepairServices', 'canCreateRepairOrder', 'canCreateSubscriptionService'],
+  'editServices': ['editServices', 'manageServices', 'canManageRepairServices', 'canUpdateRepairStatus', 'canEditSubscriptionService'],
+  'deleteServices': ['deleteServices', 'manageServices', 'canManageRepairServices', 'canDeleteRepairOrder', 'canDeleteSubscriptionService'],
   
   // صلاحيات المنتجات
-  'addProducts': ['addProducts', 'manageProducts'],
-  'editProducts': ['editProducts', 'manageProducts'],
-  'deleteProducts': ['deleteProducts', 'manageProducts'],
-  'manageProductCategories': ['manageProductCategories', 'manageProducts', 'editProducts'],
+  'addProducts': ['addProducts', 'manageProducts', 'canManageProducts', 'canAddProducts'],
+  'editProducts': ['editProducts', 'manageProducts', 'canManageProducts', 'canEditProducts'],
+  'deleteProducts': ['deleteProducts', 'manageProducts', 'canManageProducts', 'canDeleteProducts'],
+  'manageProductCategories': ['manageProductCategories', 'manageProducts', 'editProducts', 'canManageCategories'],
   
   // صلاحيات الطلبات
-  'updateOrderStatus': ['updateOrderStatus', 'manageOrders'],
-  'cancelOrders': ['cancelOrders', 'manageOrders'],
+  'updateOrderStatus': ['updateOrderStatus', 'manageOrders', 'canUpdateOrderStatus'],
+  'cancelOrders': ['cancelOrders', 'manageOrders', 'canCancelOrders'],
   
   // صلاحيات الموردين
-  'viewSuppliers': ['viewSuppliers', 'manageSuppliers'],
-  'managePurchases': ['managePurchases', 'manageSuppliers'],
+  'viewSuppliers': ['viewSuppliers', 'manageSuppliers', 'canAccessSupplierOperations', 'canViewSuppliers'],
+  'viewPurchases': ['viewPurchases', 'canViewPurchases'],
+  'managePurchases': ['managePurchases', 'manageSuppliers', 'canManagePurchases'],
+  'viewSupplierPayments': ['viewSupplierPayments', 'canViewSupplierPayments'],
+  'viewSupplierReports': ['viewSupplierReports', 'canViewSupplierReports'],
   
   // صلاحيات التقارير
-  'viewReports': ['viewReports'],
+  'viewReports': ['viewReports', 'canAccessReportsOperations'],
   
   // صلاحيات فليكسي والعملات الرقمية
   'manageFlexiAndDigitalCurrency': ['manageFlexi', 'manageFlexiAndDigitalCurrency'],

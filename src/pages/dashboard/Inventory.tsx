@@ -1,11 +1,15 @@
 import { useEffect, useState, useCallback, memo } from 'react';
 import Layout from '@/components/Layout';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle, Loader2, Lock } from 'lucide-react';
+import { AlertCircle, Loader2, Lock, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import InventoryModern from '@/components/inventory/InventoryModern';
 import { POSSharedLayoutControls } from '@/components/pos-layout/types';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import { getProducts as syncProductsOnline } from '@/lib/api/offlineProductsAdapter';
 
 interface InventoryProps extends POSSharedLayoutControls {}
 
@@ -16,6 +20,7 @@ const InventoryComponent = ({
 }: InventoryProps) => {
   const { user } = useAuth();
   const perms = usePermissions();
+  const { isOnline } = useNetworkStatus();
   
   // صلاحيات المستخدم
   const [canViewInventory, setCanViewInventory] = useState(false);
@@ -23,7 +28,10 @@ const InventoryComponent = ({
   const [isCheckingPermissions, setIsCheckingPermissions] = useState(true);
 
   const [refreshKey, setRefreshKey] = useState(0);
-  const renderWithLayout = (node: JSX.Element) => (
+  const [useCacheBrowse, setUseCacheBrowse] = useState<boolean>(
+    typeof window !== 'undefined' ? window.localStorage.getItem('inventory_use_cache') === '1' : false
+  );
+  const renderWithLayout = (node: React.ReactElement) => (
     useStandaloneLayout ? <Layout>{node}</Layout> : node
   );
 
@@ -100,6 +108,29 @@ const InventoryComponent = ({
     setRefreshKey((prev) => prev + 1);
   }, []);
 
+  const handleToggleCacheBrowse = useCallback(() => {
+    const next = !useCacheBrowse;
+    setUseCacheBrowse(next);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('inventory_use_cache', next ? '1' : '0');
+    }
+    setRefreshKey((prev) => prev + 1);
+  }, [useCacheBrowse]);
+
+  const handleSyncNow = useCallback(async () => {
+    try {
+      if (!isOnline) return;
+      // جلب من الخادم وحفظ Bulk عبر offlineProductsAdapter
+      // includeInactive = true لضمان إتاحة التصفح الكامل محلياً
+      const orgId = (user as any)?.user_metadata?.organization_id;
+      if (!orgId) return;
+      await syncProductsOnline(orgId, true);
+      setRefreshKey((prev) => prev + 1);
+    } catch {
+      // تجاهل
+    }
+  }, [isOnline, user]);
+
   useEffect(() => {
     if (!onRegisterRefresh) return;
     onRegisterRefresh(() => {
@@ -150,13 +181,46 @@ const InventoryComponent = ({
 
   // عرض النظام الجديد
   const pageContent = (
-    <div className="container mx-auto py-6 px-4 sm:py-10">
-      <div className="space-y-6">
+    <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-10">
+      <div className="space-y-4 sm:space-y-6">
         <div>
-          <h1 className="text-3xl font-bold mb-2">إدارة المخزون</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold mb-2">إدارة المخزون</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">
             نظام بسيط وسريع لإدارة مخزونك بسهولة
           </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            className="h-8"
+          >
+            <RefreshCw className="h-4 w-4 mr-1" /> تحديث
+          </Button>
+          <Button
+            variant={useCacheBrowse ? 'default' : 'outline'}
+            size="sm"
+            onClick={handleToggleCacheBrowse}
+            className="h-8"
+          >
+            {useCacheBrowse ? 'تصفح من الكاش' : 'تصفح أونلاين'}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleSyncNow}
+            disabled={!isOnline}
+            className="h-8"
+          >
+            مزامنة الآن
+          </Button>
+          {(!isOnline || useCacheBrowse) && (
+            <Badge className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20">
+              {isOnline ? 'التصفح من الكاش' : 'وضع الأوفلاين'}
+            </Badge>
+          )}
         </div>
 
         <InventoryModern key={refreshKey} />

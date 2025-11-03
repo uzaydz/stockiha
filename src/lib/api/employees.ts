@@ -858,18 +858,23 @@ export const inviteEmployeeAuth = async (
 
 // تحديث بيانات موظف
 export const updateEmployee = async (
-  id: string, 
+  id: string,
   updates: Partial<Omit<Employee, 'id' | 'created_at'>>
 ): Promise<Employee> => {
   // مسح Cache عند تحديث موظف
   clearEmployeeCache();
-  // إزالة permissions من التحديثات لتجنب تعارض الأنواع
-  const { permissions, ...otherUpdates } = updates;
-  const processedUpdates = {
-    ...otherUpdates,
-    updated_at: new Date().toISOString()
-  };
 
+  // نمرر permissions بشكل صريح إن وُجدت مع باقي الحقول
+  const { permissions, ...otherUpdates } = updates;
+  const processedUpdates: Record<string, any> = {
+    ...otherUpdates,
+    updated_at: new Date().toISOString(),
+  };
+  if (typeof permissions === 'object') {
+    processedUpdates.permissions = permissions;
+  }
+
+  // المحاولة الأولى: تحديث مباشر عبر RLS (للمسؤول في نفس المؤسسة)
   const { data, error } = await supabase
     .from('users')
     .update(processedUpdates)
@@ -877,28 +882,88 @@ export const updateEmployee = async (
     .eq('role', 'employee')
     .select()
     .single();
-    
-  if (error) {
-    throw new Error(error.message);
+
+  if (!error && data) {
+    return {
+      ...data,
+      role: data.role as 'employee' | 'admin',
+      permissions: typeof data.permissions === 'object' ? data.permissions : {},
+    } as unknown as Employee;
   }
-  
-  // تحويل البيانات للنوع المطلوب
-  return {
-    ...data,
-    role: data.role as 'employee' | 'admin',
-    permissions: typeof data.permissions === 'object' ? data.permissions : {}
-  } as unknown as Employee;
+
+  // المحاولة الثانية: استخدام RPC موحد إذا فشل RLS (يتطلب توفر manage_employee في السيرفر)
+  try {
+    const { data: rpcData, error: rpcError } = await supabase.rpc('manage_employee' as any, {
+      p_action: 'upsert',
+      p_payload: {
+        employee_id: id,
+        // عند عدم تمرير البريد/الاسم سيحتفظ الـ RPC بالقيم الحالية
+        ...(processedUpdates.name ? { name: processedUpdates.name } : {}),
+        ...(processedUpdates.email ? { email: processedUpdates.email } : {}),
+        ...(processedUpdates.phone ? { phone: processedUpdates.phone } : {}),
+        ...(processedUpdates.permissions ? { permissions: processedUpdates.permissions } : {}),
+      },
+    });
+
+    if (rpcError) throw rpcError;
+    if (!rpcData?.success || !rpcData?.employee) {
+      throw new Error(rpcData?.error || 'فشل في تحديث الموظف عبر RPC');
+    }
+
+    const e = rpcData.employee;
+    return {
+      id: e.id,
+      user_id: e.user_id,
+      name: e.name,
+      email: e.email,
+      phone: e.phone,
+      role: e.role as 'employee' | 'admin',
+      is_active: e.is_active,
+      last_login: e.last_login ?? null,
+      created_at: e.created_at,
+      updated_at: e.updated_at,
+      organization_id: e.organization_id,
+      permissions: e.permissions || {},
+    } as Employee;
+  } catch (fallbackErr: any) {
+    // إن فشل كلا المسارين، أعد الخطأ الأصلي الأكثر وضوحاً إن وجد
+    if (error) {
+      throw new Error(error.message);
+    }
+    throw new Error(fallbackErr?.message || 'فشل تحديث الموظف');
+  }
 };
 
 // تغيير كلمة مرور الموظف
-export const resetEmployeePassword = async (id: string, newPassword: string): Promise<void> => {
-  const { error } = await supabase.auth.admin.updateUserById(
-    id,
-    { password: newPassword }
-  );
-  
-  if (error) {
-    throw new Error(error.message);
+// إعادة تعيين كلمة المرور - آمن عبر Edge Function/ RPC من السيرفر فقط
+// ملاحظة: لا يجوز استخدام admin SDK في المتصفح. هذه الدالة تستدعي Function مخصصة على السيرفر.
+export const resetEmployeePassword = async (employeeAuthUserId: string, newPassword: string): Promise<void> => {
+  if (!employeeAuthUserId) {
+    throw new Error('auth_user_id مفقود للموظف');
+  }
+
+  // المحاولة الأولى: RPC آمن على قاعدة البيانات (يوصى به مع RLS والتحقق داخل الدالة)
+  try {
+    const { data: rpcData, error: rpcError } = await supabase.rpc('admin_reset_user_password' as any, {
+      p_auth_user_id: employeeAuthUserId,
+      p_new_password: newPassword,
+    });
+    if (rpcError) throw rpcError;
+    if (!rpcData || rpcData.success !== true) {
+      throw new Error((rpcData && (rpcData.error || rpcData.code)) || 'فشل إعادة تعيين كلمة المرور');
+    }
+    return;
+  } catch (rpcErr: any) {
+    // فالباك: Edge Function (إذا كانت مفعلة في بيئة المشروع)
+    const { data, error } = await (supabase.functions as any).invoke('admin-reset-user-password', {
+      body: { auth_user_id: employeeAuthUserId, new_password: newPassword },
+    });
+    if (error) {
+      throw new Error(error.message || rpcErr?.message || 'فشل في تغيير كلمة المرور');
+    }
+    if (!data || data.success !== true) {
+      throw new Error((data && (data.error || data.code)) || rpcErr?.message || 'فشل إعادة تعيين كلمة المرور');
+    }
   }
 };
 

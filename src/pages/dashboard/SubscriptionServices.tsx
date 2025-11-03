@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import Layout from '@/components/Layout';
 import { POSSharedLayoutControls, POSLayoutState } from '@/components/pos-layout/types';
+import { usePermissions } from '@/hooks/usePermissions';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { ShieldAlert } from 'lucide-react';
 import { useUser } from '@/context/UserContext';
 import { useTenant } from '@/context/TenantContext';
 import { Button } from '@/components/ui/button';
@@ -32,6 +35,7 @@ const SubscriptionServicesPage: React.FC<SubscriptionServicesProps> = ({
 }) => {
   const { user, organizationId, isLoading } = useUser();
   const { currentOrganization } = useTenant();
+  const perms = usePermissions();
 
   // Dialog states
   const [isPricingDialogOpen, setIsPricingDialogOpen] = useState(false);
@@ -123,6 +127,19 @@ const SubscriptionServicesPage: React.FC<SubscriptionServicesProps> = ({
   const renderWithLayout = (node: React.ReactElement) => (
     useStandaloneLayout ? <Layout>{node}</Layout> : node
   );
+
+  // صلاحيات الوصول: عرض أو إدارة الخدمات
+  if (perms.ready && !perms.anyOf(['viewServices','manageServices'])) {
+    return renderWithLayout(
+      <div className="container mx-auto py-10">
+        <Alert variant="destructive">
+          <ShieldAlert className="h-4 w-4" />
+          <AlertTitle>غير مصرح</AlertTitle>
+          <AlertDescription>لا تملك صلاحية الوصول إلى خدمات الاشتراكات.</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   const pageContent = (
     <div className="max-w-7xl mx-auto p-6 space-y-6" dir="rtl">

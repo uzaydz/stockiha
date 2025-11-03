@@ -9,6 +9,7 @@ import {
   Star
 } from 'lucide-react';
 import { ProductItemProps } from '../types';
+import { computeAvailableStock, isOutOfStock as calcOutOfStock } from '@/lib/stock';
 
 const ProductListItem: React.FC<ProductItemProps> = ({ 
   product, 
@@ -16,9 +17,9 @@ const ProductListItem: React.FC<ProductItemProps> = ({
   isReturnMode, 
   onAddToCart 
 }) => {
-  const stock = product.stock_quantity || 0;
-  const isOutOfStock = stock === 0;
-  const isLowStock = stock > 0 && stock <= ((product as any).low_stock_threshold || 10);
+  const stock = computeAvailableStock(product);
+  const isOutOfStock = calcOutOfStock(product);
+  const isLowStock = stock > 0 && stock <= ((product as any).low_stock_threshold || (product as any).min_stock_level || 10);
   const isFavorite = favoriteProducts.some(fav => fav.id === product.id);
 
   const handleClick = useCallback(() => {

@@ -13,6 +13,8 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useAuth } from '@/context/AuthContext';
 import { hasPermissions } from '@/lib/api/userPermissionsUnified';
 import { checkUserPermissionsLocal } from '@/lib/utils/permissions-utils';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import { fastSearchLocalCustomers, getLocalCustomersPage } from '@/api/localCustomerService';
 
 // Import customer-specific components with lazy loading
 const CustomersList = React.lazy(() => import('@/components/customers/CustomersList'));
@@ -38,6 +40,8 @@ const Customers: React.FC<CustomersProps> = ({
   const { user, userProfile } = useAuth();
   const { isLoading: unifiedLoading } = useSuperUnifiedData();
   const { customers } = useCustomersData();
+  const { isOnline } = useNetworkStatus();
+  const [localCustomers, setLocalCustomers] = useState<Customer[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<CustomerFilter>({
     sortBy: 'created_at',
@@ -45,22 +49,26 @@ const Customers: React.FC<CustomersProps> = ({
   });
   const [activeTab, setActiveTab] = useState('all');
 
+  const dataSource: Customer[] = useMemo(() => {
+    return (!isOnline || customers.length === 0) ? localCustomers : customers;
+  }, [isOnline, customers, localCustomers]);
+
   const stats = useMemo((): CustomerStats => {
     // حساب الإحصائيات من بيانات العملاء المتاحة
     const now = new Date();
     const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
     
-    const newLast30Days = customers.filter(customer => {
+    const newLast30Days = dataSource.filter(customer => {
       const createdAt = new Date(customer.created_at);
       return createdAt >= thirtyDaysAgo;
     }).length;
 
     return {
-      total: customers.length,
+      total: dataSource.length,
       newLast30Days,
       activeLast30Days: newLast30Days // يمكن تحسينها لاحقاً
     };
-  }, [customers]);
+  }, [dataSource]);
   
   // حالات الصلاحيات
   const [hasViewPermission, setHasViewPermission] = useState(false);
@@ -106,9 +114,65 @@ const Customers: React.FC<CustomersProps> = ({
     // البيانات تأتي من SuperUnifiedDataContext، لا حاجة لجلب منفصل
   const isLoading = unifiedLoading || permissionLoading;
 
+  // تحميل العملاء محلياً عند الأوفلاين أو عند غياب بيانات الخادم
+  useEffect(() => {
+    const loadLocal = async () => {
+      try {
+        const orgId = localStorage.getItem('bazaar_organization_id') || '';
+        if (!orgId) {
+          setLocalCustomers([]);
+          return;
+        }
+        const q = (searchQuery || '').trim();
+        if (q) {
+          const matches = await fastSearchLocalCustomers(orgId, q, { limit: 2000 });
+          const mapped = (matches as any[]).map((c) => ({
+            id: c.id,
+            name: c.name,
+            email: c.email || '',
+            phone: c.phone || null,
+            organization_id: c.organization_id,
+            created_at: c.created_at,
+            updated_at: c.updated_at,
+            nif: (c as any).nif ?? null,
+            rc: (c as any).rc ?? null,
+            nis: (c as any).nis ?? null,
+            rib: (c as any).rib ?? null,
+            address: (c as any).address ?? null,
+          } as Customer));
+          setLocalCustomers(mapped);
+        } else {
+          const res = await getLocalCustomersPage(orgId, { offset: 0, limit: 2000 });
+          const mapped = (res.customers as any[]).map((c) => ({
+            id: c.id,
+            name: c.name,
+            email: c.email || '',
+            phone: c.phone || null,
+            organization_id: c.organization_id,
+            created_at: c.created_at,
+            updated_at: c.updated_at,
+            nif: (c as any).nif ?? null,
+            rc: (c as any).rc ?? null,
+            nis: (c as any).nis ?? null,
+            rib: (c as any).rib ?? null,
+            address: (c as any).address ?? null,
+          } as Customer));
+          setLocalCustomers(mapped);
+        }
+      } catch {
+        setLocalCustomers([]);
+      }
+    };
+    if (!isOnline || customers.length === 0) {
+      void loadLocal();
+    } else {
+      setLocalCustomers([]);
+    }
+  }, [isOnline, customers.length, searchQuery]);
+
   // Memoized filtered and sorted customers
   const filteredCustomers = useMemo(() => {
-    let result = [...customers];
+    let result = [...dataSource];
     
     // Apply search filter
     if (searchQuery) {
@@ -145,7 +209,7 @@ const Customers: React.FC<CustomersProps> = ({
     }
     
     return result;
-  }, [customers, searchQuery, filter, activeTab]);
+  }, [dataSource, searchQuery, filter, activeTab]);
 
   const handleSearch = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);

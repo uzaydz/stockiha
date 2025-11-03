@@ -22,28 +22,29 @@ const OrderRowTotal: React.FC<OrderRowTotalProps> = ({
   }, [total, itemsCount]);
 
   return (
-    <TableCell className="py-4 px-4 select-text" style={{ contain: 'layout' }}>
-      <div className="flex items-center gap-2">
-        <span 
-          className="font-semibold text-emerald-600 dark:text-emerald-400 select-text"
-          style={{ willChange: 'auto' }}
-        >
-          {formatPrice(total)}
-        </span>
-        {hasOffer && (
-          <Badge 
-            variant="outline" 
-            className="text-xs px-2 py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-700/30 rounded-full"
+    <TableCell className="w-[140px] min-w-[140px] py-3 px-4 select-text align-middle">
+      <div className="flex flex-col gap-0.5">
+        <div className="flex items-center gap-1.5">
+          <span
+            className="font-semibold text-xs text-emerald-600 dark:text-emerald-400 select-text"
           >
-            عرض
-          </Badge>
+            {formatPrice(total)}
+          </span>
+          {hasOffer && (
+            <Badge
+              variant="outline"
+              className="text-[9px] px-1 py-0 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-700/30 rounded-full"
+            >
+              عرض
+            </Badge>
+          )}
+        </div>
+        {itemsCount > 0 && (
+          <div className="text-[10px] text-muted-foreground">
+            {itemsCount} {itemsCount === 1 ? 'منتج' : 'منتجات'}
+          </div>
         )}
       </div>
-      {itemsCount > 0 && (
-        <div className="text-xs text-muted-foreground mt-1">
-          {averagePrice} د.ج لكل منتج
-        </div>
-      )}
     </TableCell>
   );
 };

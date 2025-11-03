@@ -7,6 +7,7 @@ import { useTitle } from '@/hooks/useTitle';
 import { useTitlebar } from '@/context/TitlebarContext';
 import { POSLayoutState, RefreshHandler } from '@/components/pos-layout/types';
 import { ShoppingCart, Wallet, RotateCcw, ShieldAlert, Loader2, Users, FileText } from 'lucide-react';
+import { usePermissions } from '@/hooks/usePermissions';
 
 const POSOrdersTab = React.lazy(() => import('./POSOrdersOptimized'));
 const CustomersTab = React.lazy(() => import('./dashboard/Customers'));
@@ -82,10 +83,32 @@ const POSOperationsPage: React.FC = () => {
   const params = useParams<{ tab?: string }>();
   const { setTabs, setActiveTab: setTitlebarActiveTab, setShowTabs, clearTabs } = useTitlebar();
 
+  const perms = usePermissions();
+
+  const allowedTabs = useMemo(() => {
+    // تحديد تبويبات مسموح بها بناءً على صلاحيات StaffPermissions الجديدة
+    const canOrders = perms.ready ? perms.anyOf(['accessPOS', 'canViewPosOrders']) : false;
+    const canCustomers = perms.ready ? perms.anyOf(['viewCustomers','manageCustomers']) : false; // تعتمد على نظام العملاء الحالي
+    const canDebts = perms.ready ? perms.anyOf(['canViewDebts']) : false;
+    const canReturns = perms.ready ? perms.anyOf(['canViewReturns']) : false;
+    const canLosses = perms.ready ? perms.anyOf(['canViewLosses']) : false;
+    const canInvoices = perms.ready ? perms.anyOf(['canViewInvoices']) : false;
+
+    return TAB_CONFIG.filter(t =>
+      (t.id === 'orders' && canOrders) ||
+      (t.id === 'customers' && canCustomers) ||
+      (t.id === 'debts' && canDebts) ||
+      (t.id === 'returns' && canReturns) ||
+      (t.id === 'losses' && canLosses) ||
+      (t.id === 'invoices' && canInvoices)
+    );
+  }, [perms.ready, perms.role, perms.isOrgAdmin, perms.isSuperAdmin]);
+
   const resolvedTab = useMemo<TabKey>(() => {
     const incoming = params.tab as TabKey | undefined;
-    return TAB_CONFIG.some((tab) => tab.id === incoming) ? (incoming as TabKey) : TAB_CONFIG[0].id;
-  }, [params.tab]);
+    const isAllowedIncoming = allowedTabs.some((t) => t.id === incoming);
+    return isAllowedIncoming ? (incoming as TabKey) : (allowedTabs[0]?.id || 'orders');
+  }, [params.tab, allowedTabs]);
 
   useEffect(() => {
     if (!params.tab || !TAB_CONFIG.some((tab) => tab.id === params.tab)) {
@@ -115,7 +138,7 @@ const POSOperationsPage: React.FC = () => {
   );
 
   useEffect(() => {
-    const titlebarTabs = TAB_CONFIG.map((tab) => {
+    const titlebarTabs = allowedTabs.map((tab) => {
       const Icon = tab.icon;
       return {
         id: tab.id,
@@ -245,7 +268,7 @@ const POSOperationsPage: React.FC = () => {
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="grid w-full grid-cols-6 gap-2 rounded-xl bg-slate-900/5 p-1 dark:bg-slate-800/30">
-          {TAB_CONFIG.map((tab) => {
+          {allowedTabs.map((tab) => {
             const Icon = tab.icon;
             return (
               <TabsTrigger
@@ -261,11 +284,11 @@ const POSOperationsPage: React.FC = () => {
         </TabsList>
       </Tabs>
 
-      <div className="rounded-2xl border border-border/50 bg-card shadow-sm overflow-hidden flex flex-col max-h-[calc(100vh-20rem)]">
-        <div className="border-b border-border/40 px-6 py-4 flex-shrink-0">
+      <div className="rounded-2xl border border-border/50 bg-card shadow-sm">
+        <div className="border-b border-border/40 px-6 py-4">
           <p className="text-sm text-muted-foreground">{activeTabMeta.description}</p>
         </div>
-        <div className="px-2 py-4 sm:px-6 overflow-y-auto flex-1">{renderActiveContent}</div>
+        <div className="px-2 py-4 sm:px-6">{renderActiveContent}</div>
       </div>
     </div>
   );

@@ -1,5 +1,8 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import Layout from '@/components/Layout';
+import { usePermissions } from '@/hooks/usePermissions';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { ShieldAlert } from 'lucide-react';
 import { POSSharedLayoutControls, POSLayoutState } from '@/components/pos-layout/types';
 import { useTenant } from '@/context/TenantContext';
 import { listBlockedCustomers, blockCustomer, unblockCustomerById, BlockedCustomer } from '@/lib/api/blocked-customers';
@@ -21,6 +24,7 @@ const BlockedCustomers: React.FC<BlockedCustomersProps> = ({
 }) => {
   const { currentOrganization } = useTenant();
   const orgId = currentOrganization?.id;
+  const perms = usePermissions();
   const { showSuccess, showError } = useToastNotifications();
 
   const [query, setQuery] = useState('');
@@ -51,7 +55,13 @@ const BlockedCustomers: React.FC<BlockedCustomersProps> = ({
 
   useEffect(() => { load(); }, [load]);
 
+  const canManage = perms.ready ? perms.anyOf(['manageCustomers']) : false;
+
   const handleAdd = async () => {
+    if (!canManage) {
+      showError('ليس لديك صلاحية لإضافة محظورين');
+      return;
+    }
     if (!orgId || !newPhone) return;
     setSaving(true);
     try {
@@ -68,6 +78,10 @@ const BlockedCustomers: React.FC<BlockedCustomersProps> = ({
   };
 
   const handleUnblock = async (id: string) => {
+    if (!canManage) {
+      showError('ليس لديك صلاحية لإلغاء الحظر');
+      return;
+    }
     if (!orgId) return;
     try {
       await unblockCustomerById(orgId, id);
@@ -82,12 +96,29 @@ const BlockedCustomers: React.FC<BlockedCustomersProps> = ({
     useStandaloneLayout ? <Layout>{node}</Layout> : node
   );
 
+  const canView = perms.ready ? perms.anyOf(['viewOrders']) : false;
+
+  if (perms.ready && !canView) {
+    const node = (
+      <div className="container mx-auto py-10">
+        <Alert variant="destructive">
+          <ShieldAlert className="h-4 w-4" />
+          <AlertTitle>غير مصرح</AlertTitle>
+          <AlertDescription>لا تملك صلاحية الوصول إلى قائمة المحظورين.</AlertDescription>
+        </Alert>
+      </div>
+    );
+    return renderWithLayout(node);
+  }
+
   const pageContent = (
     <>
     <div className="p-4 md:p-6">
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-xl font-semibold flex items-center gap-2"><Ban className="h-5 w-5"/> قائمة المحظورين</h1>
-        <Button onClick={() => setOpenAdd(true)} className="gap-2"><Plus className="h-4 w-4"/> إضافة محظور</Button>
+        {canManage && (
+          <Button onClick={() => setOpenAdd(true)} className="gap-2"><Plus className="h-4 w-4"/> إضافة محظور</Button>
+        )}
       </div>
 
       <div className="flex items-center gap-2 mb-4">
@@ -117,9 +148,11 @@ const BlockedCustomers: React.FC<BlockedCustomersProps> = ({
                   <TableCell className="max-w-[320px] truncate" title={row.reason || ''}>{row.reason || '-'}</TableCell>
                   <TableCell>{new Date(row.created_at).toLocaleString()}</TableCell>
                   <TableCell>
-                    <Button variant="destructive" size="sm" className="gap-2" onClick={() => handleUnblock(row.id)}>
-                      <Trash2 className="h-4 w-4"/> إلغاء الحظر
-                    </Button>
+                    {canManage && (
+                      <Button variant="destructive" size="sm" className="gap-2" onClick={() => handleUnblock(row.id)}>
+                        <Trash2 className="h-4 w-4"/> إلغاء الحظر
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

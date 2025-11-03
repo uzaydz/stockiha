@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -138,11 +138,11 @@ const AdminSignup = () => {
         <CardFooter className="flex flex-col space-y-2">
           <div className="text-center text-sm text-muted-foreground">
             لديك حساب بالفعل؟{' '}
-            <a href="/login" className="underline underline-offset-4 text-primary">
+            <Link to="/login" className="underline underline-offset-4 text-primary">
               تسجيل الدخول
-            </a>
+            </Link>
           </div>
-        </CardFooter>
+      </CardFooter>
       </Card>
     </div>
   );

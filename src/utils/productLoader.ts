@@ -12,7 +12,9 @@ export class ProductLoader {
    */
   static extractProductSlugFromURL(): string | null {
     try {
-      const pathname = window.location.pathname;
+      const pathname = (typeof window !== 'undefined' && window.location.hash && window.location.hash.startsWith('#/'))
+        ? window.location.hash.slice(1)
+        : window.location.pathname;
       
       const productPathPatterns = [
         /^\/product-purchase-max-v3\/([^\/]+)$/,

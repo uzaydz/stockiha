@@ -721,11 +721,29 @@ export class CompleteLogoutCleaner {
           
           // إعادة التحميل بعد delay أطول لضمان التنظيف الكامل
           setTimeout(() => {
-            window.location.href = '/login?cleared=1';
+            try {
+              const isElectron = typeof window !== 'undefined' && window.navigator?.userAgent?.includes('Electron');
+              if (isElectron) {
+                window.location.hash = '#/login?cleared=1';
+              } else {
+                window.location.href = '/login?cleared=1';
+              }
+            } catch {
+              window.location.href = '/login?cleared=1';
+            }
           }, 2000);
         } else {
           // إذا لم نجد root element، أعد التحميل مباشرة
-          window.location.href = '/login?cleared=1';
+          try {
+            const isElectron = typeof window !== 'undefined' && window.navigator?.userAgent?.includes('Electron');
+            if (isElectron) {
+              window.location.hash = '#/login?cleared=1';
+            } else {
+              window.location.href = '/login?cleared=1';
+            }
+          } catch {
+            window.location.href = '/login?cleared=1';
+          }
         }
         
         // 3. إجبار garbage collection إذا كان متاحاً
@@ -747,7 +765,16 @@ export class CompleteLogoutCleaner {
       }
     } catch (error) {
       // إعادة تحميل الصفحة كـ fallback
-      window.location.href = '/login?cleared=1&fallback=1';
+      try {
+        const isElectron = typeof window !== 'undefined' && window.navigator?.userAgent?.includes('Electron');
+        if (isElectron) {
+          window.location.hash = '#/login?cleared=1&fallback=1';
+        } else {
+          window.location.href = '/login?cleared=1&fallback=1';
+        }
+      } catch {
+        window.location.href = '/login?cleared=1&fallback=1';
+      }
     }
   }
 

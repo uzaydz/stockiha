@@ -29,7 +29,9 @@ export const EarlyDomainDetector: React.FC<EarlyDomainDetectorProps> = ({
     const detectDomainEarly = () => {
       try {
         const hostname = window.location.hostname;
-        const pathname = window.location.pathname;
+        const pathname = (typeof window !== 'undefined' && window.location.hash && window.location.hash.startsWith('#/'))
+          ? window.location.hash.slice(1)
+          : window.location.pathname;
 
         // فحص النطاقات العامة
         const publicDomains = ['ktobi.online', 'www.ktobi.online', 'stockiha.com', 'www.stockiha.com', 'stockiha.pages.dev'];

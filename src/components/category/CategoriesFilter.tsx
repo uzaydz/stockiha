@@ -88,11 +88,12 @@ const CategoriesFilter = ({
         </div>
 
         {/* Advanced Filters */}
-        <DropdownMenu>
+        <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="gap-2">
+            <Button variant="outline" className="gap-2 w-full md:w-auto">
               <SlidersHorizontal className="h-4 w-4" />
-              فلترة متقدمة
+              <span className="hidden sm:inline">فلترة متقدمة</span>
+              <span className="sm:hidden">فلترة</span>
               {activeFiltersCount > 0 && (
                 <Badge variant="secondary" className="ml-1 rounded-sm px-1 py-0">
                   {activeFiltersCount}
@@ -100,7 +101,7 @@ const CategoriesFilter = ({
               )}
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-[220px]">
+          <DropdownMenuContent align="end" side="bottom" sideOffset={5} className="w-[220px] z-50">
             <DropdownMenuLabel>خيارات الفلترة</DropdownMenuLabel>
             <DropdownMenuSeparator />
             

@@ -54,23 +54,29 @@ export const DashboardRoutes = () => (
 
           {/* مركز المبيعات والطلبات */}
           <Route path="sales-operations/:tab?" element={
-            <Suspense fallback={<PageLoader message="جاري تحميل مركز المبيعات والطلبات..." />}>
-              <LazyRoutes.SalesOperationsPage />
-            </Suspense>
+            <PermissionGuard requiredPermissions={['viewOrders']}>
+              <Suspense fallback={<PageLoader message="جاري تحميل مركز المبيعات والطلبات..." />}>
+                <LazyRoutes.SalesOperationsPage />
+              </Suspense>
+            </PermissionGuard>
           } />
 
           {/* مركز الخدمات */}
           <Route path="services-operations/:tab?" element={
-            <Suspense fallback={<PageLoader message="جاري تحميل مركز الخدمات..." />}>
-              <LazyRoutes.ServicesOperationsPage />
-            </Suspense>
+            <PermissionGuard requiredPermissions={['viewServices']}>
+              <Suspense fallback={<PageLoader message="جاري تحميل مركز الخدمات..." />}>
+                <LazyRoutes.ServicesOperationsPage />
+              </Suspense>
+            </PermissionGuard>
           } />
 
           {/* مركز التقارير والتحليلات */}
           <Route path="reports-operations/:tab?" element={
-            <Suspense fallback={<PageLoader message="جاري تحميل مركز التقارير..." />}>
-              <LazyRoutes.ReportsOperationsPage />
-            </Suspense>
+            <PermissionGuard requiredPermissions={['viewReports']}>
+              <Suspense fallback={<PageLoader message="جاري تحميل مركز التقارير..." />}>
+                <LazyRoutes.ReportsOperationsPage />
+              </Suspense>
+            </PermissionGuard>
           } />
 
           {/* توجيه المسارات القديمة إلى المركز الجديد لضمان POS layout */}

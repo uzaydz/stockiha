@@ -62,6 +62,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/lib/supabase';
 import { subscriptionCache } from '@/lib/subscription-cache';
 import { SubscriptionPlan } from '@/types/subscription';
+import { sanitizeOrganizationName, sanitizeText, sanitizeSearchQuery } from '@/lib/utils/sanitization';
 
 // نوع بيانات المؤسسة
 interface AdminOrganization {
@@ -180,10 +181,26 @@ export default function SuperAdminOrganizations() {
     setError(null);
 
     try {
+      // 🔍 التحقق من الـ session قبل الاستدعاء
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError || !sessionData?.session) {
+        console.error('[Organizations] Session error:', sessionError);
+        throw new Error('Session not found. Please login again.');
+      }
+
+      console.log('[Organizations] Session active:', {
+        userId: sessionData.session.user.id,
+        expiresAt: sessionData.session.expires_at
+      });
+
       const offset = (currentPage - 1) * pageSize;
-      
+
+      // Sanitize search query before sending to backend
+      const sanitizedSearch = debouncedSearchQuery ? sanitizeSearchQuery(debouncedSearchQuery) : null;
+
       const { data, error } = await supabase.rpc('admin_get_organizations_with_subscriptions' as any, {
-        p_search: debouncedSearchQuery.trim() || null,
+        p_search: sanitizedSearch,
         p_status: subscriptionFilter === 'all' ? null : subscriptionFilter,
         p_tier: tierFilter === 'all' ? null : tierFilter,
         p_limit: pageSize,
@@ -759,13 +776,13 @@ export default function SuperAdminOrganizations() {
                               <Building className="w-5 h-5 text-primary" />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <div className="font-semibold text-foreground break-words leading-tight" title={org.organization_name}>
-                                {org.organization_name}
+                              <div className="font-semibold text-foreground break-words leading-tight" title={sanitizeOrganizationName(org.organization_name)}>
+                                {sanitizeOrganizationName(org.organization_name)}
                               </div>
                               {org.plan_name && (
                                 <div className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
                                   <Package className="w-3 h-3 flex-shrink-0" />
-                                  <span className="truncate" title={org.plan_name}>{org.plan_name}</span>
+                                  <span className="truncate" title={sanitizeText(org.plan_name)}>{sanitizeText(org.plan_name)}</span>
                                 </div>
                               )}
                             </div>

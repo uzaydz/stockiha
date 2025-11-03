@@ -180,8 +180,7 @@ const InventoryActivitiesTable: React.FC<InventoryActivitiesTableProps> = ({
 }) => {
   const [sortField, setSortField] = useState<string>('created_at');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
-  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
-  
+
   // state لعرض تفاصيل الحركة
   const [selectedActivity, setSelectedActivity] = useState<InventoryActivity | null>(null);
   const [showDetails, setShowDetails] = useState(false);
@@ -275,34 +274,12 @@ const InventoryActivitiesTable: React.FC<InventoryActivitiesTableProps> = ({
             </p>
           </div>
           
-          <div className="flex items-center gap-2">
-            {/* تبديل عرض الجدول/البطاقات للهواتف */}
-            <div className="flex rounded-lg border bg-background lg:hidden">
-              <Button
-                variant={viewMode === 'table' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setViewMode('table')}
-                className="rounded-r-none"
-              >
-                <Package className="h-4 w-4" />
-              </Button>
-              <Button
-                variant={viewMode === 'cards' ? 'default' : 'ghost'}
-                size="sm"
-                onClick={() => setViewMode('cards')}
-                className="rounded-l-none"
-              >
-                <Eye className="h-4 w-4" />
-              </Button>
-            </div>
-            
-            {onExport && (
-              <Button variant="outline" onClick={onExport} size="sm">
-                <Download className="h-4 w-4 ml-2" />
-                تصدير CSV
-              </Button>
-            )}
-          </div>
+          {onExport && (
+            <Button variant="outline" onClick={onExport} size="sm">
+              <Download className="h-4 w-4 ml-2" />
+              تصدير CSV
+            </Button>
+          )}
         </div>
       </CardHeader>
 
@@ -320,7 +297,7 @@ const InventoryActivitiesTable: React.FC<InventoryActivitiesTableProps> = ({
         ) : (
           <>
             {/* عرض الجدول للكمبيوتر */}
-            <div className={cn("overflow-x-auto", viewMode === 'cards' ? "lg:block hidden" : "block")}>
+            <div className="hidden lg:block overflow-x-auto">
               <Table>
                 <TableHeader className="bg-muted/10">
                   <TableRow className="hover:bg-transparent border-b border-border/50">
@@ -475,77 +452,121 @@ const InventoryActivitiesTable: React.FC<InventoryActivitiesTableProps> = ({
               </Table>
             </div>
 
-            {/* عرض البطاقات للهواتف */}
-            <div className={cn("lg:hidden space-y-3 p-4", viewMode === 'table' && "hidden")}>
+            {/* عرض البطاقات للهواتف - تصميم محسن */}
+            <div className="lg:hidden space-y-3 p-3 sm:p-4">
               {activities.map((activity, index) => {
                 const operationConfig = operationIcons[activity.operation_type as keyof typeof operationIcons] || operationIcons.manual;
                 const OperationIcon = operationConfig.icon;
-                
+
                 return (
                   <motion.div
                     key={activity.id}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.2, delay: index * 0.05 }}
-                    className="bg-card border border-border rounded-lg p-4 space-y-3"
+                    className="bg-card border border-border rounded-xl overflow-hidden"
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className={cn("p-2 rounded-lg", operationConfig.bg)}>
-                          <OperationIcon className={cn("h-4 w-4", operationConfig.color)} />
-                        </div>
-                        <div>
-                          <div className="font-medium text-sm">
-                            {operationLabels[activity.operation_type as keyof typeof operationLabels] || activity.operation_type}
+                    {/* رأس البطاقة مع gradient */}
+                    <div className={cn("p-3 bg-gradient-to-r", operationConfig.bg)}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="h-10 w-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                            <OperationIcon className={cn("h-5 w-5", operationConfig.color)} />
                           </div>
-                          <div className="text-xs text-muted-foreground">
-                            {formatDateTime(activity.created_at)}
+                          <div>
+                            <div className="font-semibold text-sm">
+                              {operationLabels[activity.operation_type as keyof typeof operationLabels] || activity.operation_type}
+                            </div>
+                            <div className="text-xs opacity-80">
+                              {formatDateTime(activity.created_at)}
+                            </div>
                           </div>
                         </div>
+
+                        <Badge variant="secondary" className="bg-white/90 hover:bg-white text-xs">
+                          #{activity.id.substring(0, 6)}
+                        </Badge>
                       </div>
-                      
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="h-8 w-8 p-0"
-                        onClick={() => handleViewDetails(activity)}
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
                     </div>
-                    
-                    <div className="space-y-2">
+
+                    {/* محتوى البطاقة */}
+                    <div className="p-3 space-y-3">
+                      {/* معلومات المنتج */}
                       <div>
-                        <div className="font-medium text-sm">{activity.product?.name}</div>
+                        <div className="font-semibold text-base mb-1">{activity.product?.name}</div>
                         {activity.product?.sku && (
                           <div className="text-xs text-muted-foreground">SKU: {activity.product?.sku}</div>
                         )}
                       </div>
-                      
-                      <div className="flex items-center justify-between">
-                        <QuantityChange
-                          change={activity.quantity}
-                          before={activity.previous_stock}
-                          after={activity.new_stock}
-                          operationType={activity.operation_type}
-                        />
-                        
-                        {activity.transaction_value && (
-                          <div className="text-right">
-                            <div className="font-medium text-sm">{formatCurrency(activity.transaction_value)}</div>
+
+                      {/* تغيير الكمية والقيمة */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-muted/30 rounded-lg p-2">
+                          <div className="text-xs text-muted-foreground mb-1">تغيير الكمية</div>
+                          <QuantityChange
+                            change={activity.quantity}
+                            before={activity.previous_stock}
+                            after={activity.new_stock}
+                            operationType={activity.operation_type}
+                          />
+                        </div>
+
+                        {activity.transaction_value ? (
+                          <div className="bg-muted/30 rounded-lg p-2">
+                            <div className="text-xs text-muted-foreground mb-1">القيمة</div>
+                            <div className="font-semibold text-sm mt-1">{formatCurrency(activity.transaction_value)}</div>
+                          </div>
+                        ) : (
+                          <div className="bg-muted/30 rounded-lg p-2">
+                            <div className="text-xs text-muted-foreground mb-1">المستخدم</div>
+                            <div className="font-medium text-xs truncate">
+                              {activity.user?.name || 'تحديث تلقائي'}
+                            </div>
                           </div>
                         )}
                       </div>
-                      
-                      <div className="flex items-center justify-between text-xs">
-                        <div className="text-muted-foreground">
-                          {activity.user?.name || 'تحديث تلقائي'}
+
+                      {/* الملاحظات */}
+                      {activity.notes && (
+                        <div className="bg-muted/20 rounded-lg p-2">
+                          <div className="text-xs text-muted-foreground mb-1">ملاحظات</div>
+                          <div className="text-xs line-clamp-2">{activity.notes}</div>
                         </div>
-                        {activity.notes && (
-                          <div className="text-muted-foreground truncate max-w-32">
-                            {activity.notes}
-                          </div>
-                        )}
+                      )}
+                    </div>
+
+                    {/* أزرار الإجراءات - 3 أعمدة */}
+                    <div className="p-3 border-t bg-muted/30">
+                      <div className="grid grid-cols-3 gap-2 w-full">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="flex flex-col py-2 h-auto"
+                          onClick={() => handleViewDetails(activity)}
+                        >
+                          <Eye className="h-4 w-4 mb-1" />
+                          <span className="text-xs">عرض</span>
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="flex flex-col py-2 h-auto"
+                          disabled={!activity.product}
+                        >
+                          <Package className="h-4 w-4 mb-1" />
+                          <span className="text-xs">المنتج</span>
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="flex flex-col py-2 h-auto"
+                          disabled={!activity.user}
+                        >
+                          <Settings className="h-4 w-4 mb-1" />
+                          <span className="text-xs">المزيد</span>
+                        </Button>
                       </div>
                     </div>
                   </motion.div>

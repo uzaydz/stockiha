@@ -8,7 +8,7 @@ interface OrderRowStatusProps {
   orderId: string;
   hasUpdatePermission: boolean;
   hasCancelPermission: boolean;
-  onUpdateStatus: (orderId: string, status: string) => void;
+  onUpdateStatus: (orderId: string, newStatus: string, userId?: string) => Promise<void>;
 }
 
 const OrderRowStatus: React.FC<OrderRowStatusProps> = ({
@@ -25,12 +25,11 @@ const OrderRowStatus: React.FC<OrderRowStatusProps> = ({
   }, [hasUpdatePermission]);
 
   return (
-    <TableCell 
-      className="py-4 px-4" 
+    <TableCell
+      className="w-[160px] min-w-[160px] py-3 px-4 align-middle"
       onClick={handleCellClick}
-      style={{ contain: 'layout', minWidth: '140px', minHeight: '32px' }}
     >
-      <div className="flex justify-start" style={{ willChange: 'auto' }}>
+      <div className="flex justify-start">
         {hasUpdatePermission ? (
           <OrderStatusDropdown
             currentStatus={status}

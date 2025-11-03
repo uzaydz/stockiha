@@ -201,7 +201,8 @@ export const getAllLocalInvoices = async (organizationId: string): Promise<Local
 // جلب الفواتير غير المتزامنة
 export const getUnsyncedInvoices = async (): Promise<LocalInvoice[]> => {
   return await inventoryDB.invoices
-    .filter(invoice => invoice.synced === false)
+    .where('synced')
+    .equals(false)
     .toArray();
 };
 
@@ -261,6 +262,79 @@ export const cleanupSyncedInvoices = async (): Promise<number> => {
 
   return toDelete.length;
 };
+
+// ==================== بحث وتصفح محلي للفواتير ====================
+
+export async function getLocalInvoicesPage(
+  organizationId: string,
+  options: { offset?: number; limit?: number; status?: string | string[]; createdSort?: 'asc' | 'desc' } = {}
+): Promise<{ invoices: LocalInvoice[]; total: number }> {
+  const { offset = 0, limit = 50, status, createdSort = 'desc' } = options;
+  let coll = inventoryDB.invoices
+    .where('[organization_id+created_at]')
+    .between([organizationId, ''], [organizationId, '\\uffff']);
+  if (createdSort === 'desc') coll = coll.reverse();
+  if (status) {
+    const statuses = Array.isArray(status) ? status : [status];
+    coll = coll.and((i: any) => statuses.includes(i.status));
+  }
+  const total = await coll.count();
+  const page = await coll.offset(offset).limit(limit).toArray();
+  return { invoices: page as any, total };
+}
+
+export async function fastSearchLocalInvoices(
+  organizationId: string,
+  query: string,
+  options: { limit?: number; status?: string | string[] } = {}
+): Promise<LocalInvoice[]> {
+  const q = (query || '').toLowerCase();
+  if (!q) return [];
+  const limit = options.limit ?? 200;
+  const statuses = options.status ? (Array.isArray(options.status) ? options.status : [options.status]) : null;
+
+  const results = new Map<string, LocalInvoice>();
+
+  // حسب رقم الفاتورة
+  const invMatches = await inventoryDB.invoices
+    .where('[organization_id+invoice_number_lower]')
+    .between([organizationId, q], [organizationId, q + '\\uffff'])
+    .limit(limit)
+    .toArray();
+  invMatches.forEach((i: any) => {
+    if (!statuses || statuses.includes(i.status)) results.set(i.id, i);
+  });
+
+  // حسب اسم العميل
+  if (results.size < limit) {
+    const nameMatches = await inventoryDB.invoices
+      .where('[organization_id+customer_name_lower]') as any;
+    const byName = await nameMatches
+      .between([organizationId, q], [organizationId, q + '\\uffff'])
+      .limit(limit - results.size)
+      .toArray();
+    byName.forEach((i: any) => {
+      if (!statuses || statuses.includes(i.status)) results.set(i.id, i);
+    });
+  }
+
+  return Array.from(results.values()).slice(0, limit);
+}
+
+export async function getLocalInvoiceStats(organizationId: string): Promise<{
+  total: number;
+  pending: number;
+  paid: number;
+  draft: number;
+}> {
+  const base = inventoryDB.invoices.where('organization_id').equals(organizationId);
+  const all = await base.toArray();
+  const total = all.length;
+  const pending = all.filter((i: any) => i.payment_status === 'pending').length;
+  const paid = all.filter((i: any) => i.payment_status === 'paid').length;
+  const draft = all.filter((i: any) => i.status === 'draft').length;
+  return { total, pending, paid, draft };
+}
 
 // حساب إجماليات الفاتورة
 export const calculateInvoiceTotals = (

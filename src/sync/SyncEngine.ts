@@ -109,13 +109,16 @@ class SyncEngineClass {
     const useParallel = String((import.meta as any)?.env?.VITE_SYNCENGINE_PARALLEL ?? 'true') !== 'false';
 
     let base, orders, updates, sessions, inventory, debts, returns, losses, invoices;
+    const disableBase = String((import.meta as any)?.env?.VITE_DISABLE_BASE_SYNC ?? 'false') === 'true';
     if (useParallel) {
       // تنفيذ متوازي مع تكرار تلقائي عند الفشل لكل مهمة
       [base, orders, updates, sessions, inventory, debts, returns, losses, invoices] = await Promise.all([
-        this.runWithRetry('base', async () => {
-          this.notify('base');
-          return await synchronizeWithServer();
-        }),
+        disableBase
+          ? Promise.resolve({ ok: true, value: true, attempts: 0, duration: 0 } as any)
+          : this.runWithRetry('base', async () => {
+              this.notify('base');
+              return await synchronizeWithServer();
+            }),
         this.runWithRetry('orders', async () => {
           this.notify('orders');
           return await syncPendingPOSOrders();
@@ -152,10 +155,14 @@ class SyncEngineClass {
       ]);
     } else {
       // تنفيذ تسلسلي لتخفيف الضغط على الـ API
-      base = await this.runWithRetry('base', async () => {
-        this.notify('base');
-        return await synchronizeWithServer();
-      });
+      if (disableBase) {
+        base = { ok: true, value: true, attempts: 0, duration: 0 } as any;
+      } else {
+        base = await this.runWithRetry('base', async () => {
+          this.notify('base');
+          return await synchronizeWithServer();
+        });
+      }
       orders = await this.runWithRetry('orders', async () => {
         this.notify('orders');
         return await syncPendingPOSOrders();

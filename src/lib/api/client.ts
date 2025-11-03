@@ -64,7 +64,16 @@ apiClient.interceptors.response.use(
         case 401:
           // انتهت صلاحية الجلسة، تسجيل خروج المستخدم
           localStorage.removeItem('authToken');
-          window.location.href = '/login?session=expired';
+          try {
+            const isElectron = typeof window !== 'undefined' && window.navigator?.userAgent?.includes('Electron');
+            if (isElectron) {
+              window.location.hash = '#/login?session=expired';
+            } else {
+              window.location.href = '/login?session=expired';
+            }
+          } catch {
+            window.location.href = '/login?session=expired';
+          }
           break;
         case 403:
           toast({

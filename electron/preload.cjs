@@ -412,8 +412,7 @@ if (process.env.NODE_ENV === 'production') {
 
 // إدارة الأحداث العامة
 window.addEventListener('DOMContentLoaded', () => {
-  // إعداد التطبيق عند تحميل الصفحة
-  console.log('سطوكيها - تطبيق سطح المكتب جاهز');
+  // إعداد التطبيق عند تحميل الصفحة (بدون أي logs لتقليل الضوضاء)
   
   // إعداد الإشعارات
   if ('Notification' in window) {

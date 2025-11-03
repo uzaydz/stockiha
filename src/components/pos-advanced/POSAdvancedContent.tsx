@@ -49,15 +49,15 @@ const POSAdvancedContent: React.FC<POSAdvancedContentProps> = ({
   hasNativeBarcodeDetector,
   isMobile
 }) => {
-  // استخدام hook المخصص للتصفية المحلية فقط (البحث يتم على مستوى قاعدة البيانات)
+  // Hook محسّن لإدارة UI state فقط (viewMode, activeTab)
+  // التصفية والبحث والترتيب يتم بالكامل على مستوى الـ API
   const {
     filterState,
     updateFilterState,
-    availableCategories,
-    isPending
-  } = usePOSFilters(products, productCategories, subscriptionCategories);
+    availableCategories
+  } = usePOSFilters(productCategories);
   
-  // المنتجات تأتي مفلترة من API، لا نحتاج لفلترة إضافية
+  // المنتجات تأتي مُصفّاة ومُرتّبة ومُقسّمة من الـ API - نستخدمها مباشرة
   const displayProducts = products;
 
   // حساب عدد الاشتراكات مع تحسين الأداء
@@ -71,18 +71,16 @@ const POSAdvancedContent: React.FC<POSAdvancedContentProps> = ({
     setIsMobileFiltersOpen(!isMobile);
   }, [isMobile]);
 
-  const totalProducts = useMemo(() => (
-    pagination?.total_count ?? displayProducts.length
-  ), [pagination?.total_count, displayProducts.length]);
+  // العدد الإجمالي من pagination API
+  const totalProducts = pagination?.total_count ?? displayProducts.length;
 
+  // حساب عدد الفلاتر النشطة من المعاملات الخارجية (API)
   const activeFiltersCount = useMemo(() => {
     let count = 0;
-    if (filterState.selectedCategory && filterState.selectedCategory !== 'all') count += 1;
-    if (filterState.stockFilter && filterState.stockFilter !== 'all') count += 1;
+    if (categoryFilter && categoryFilter !== 'all') count += 1;
     if (searchQuery.trim().length > 0) count += 1;
-    if (filterState.sortBy && filterState.sortBy !== 'created_at' as any) count += 1;
     return count;
-  }, [filterState.selectedCategory, filterState.stockFilter, filterState.sortBy, searchQuery]);
+  }, [categoryFilter, searchQuery]);
 
   return (
     <Tabs 
@@ -90,12 +88,12 @@ const POSAdvancedContent: React.FC<POSAdvancedContentProps> = ({
       onValueChange={(value) => updateFilterState({ activeTab: value as any })}
       className="flex flex-col w-full bg-background dark:bg-slate-950 rounded-2xl shadow-sm border border-border/40"
     >
-      {/* الرأس مع البحث والسكانر - Sticky في الأعلى */}
-      <div className="sticky top-0 z-10 bg-background dark:bg-slate-950 rounded-t-2xl shadow-sm">
+      {/* الرأس مع البحث والسكانر - غير ثابت على الهاتف */}
+      <div className="md:sticky md:top-0 z-10 bg-background dark:bg-slate-950 rounded-t-2xl shadow-sm">
         <Header
           isReturnMode={isReturnMode}
           filteredProductsCount={displayProducts.length}
-          isPOSDataLoading={isPOSDataLoading || isPending}
+          isPOSDataLoading={isPOSDataLoading}
           onRefreshData={onRefreshData}
           searchQuery={searchQuery}
           onSearchChange={onSearchChange}
@@ -108,15 +106,15 @@ const POSAdvancedContent: React.FC<POSAdvancedContentProps> = ({
         />
 
         {isMobile && (
-          <div className="px-4 pb-3 pt-2 space-y-3 bg-card/30 border-b border-border/40">
-            <div className="grid grid-cols-2 gap-2">
-              <div className="rounded-lg border border-border/50 bg-background/80 backdrop-blur-sm px-3 py-2.5 shadow-sm">
-                <p className="text-xs text-muted-foreground font-medium">إجمالي المنتجات</p>
-                <p className="mt-1 text-lg font-bold tracking-tight text-primary">{totalProducts.toLocaleString('ar-DZ')}</p>
+          <div className="px-3 pb-2 pt-1.5 space-y-2 bg-card/30 border-b border-border/40">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex-1 rounded-lg border border-border/50 bg-background/80 backdrop-blur-sm px-2 py-1.5 shadow-sm">
+                <p className="text-[10px] text-muted-foreground font-medium">إجمالي</p>
+                <p className="text-sm font-bold tracking-tight text-primary">{totalProducts.toLocaleString('ar-DZ')}</p>
               </div>
-              <div className="rounded-lg border border-border/50 bg-background/80 backdrop-blur-sm px-3 py-2.5 shadow-sm">
-                <p className="text-xs text-muted-foreground font-medium">المنتجات المعروضة</p>
-                <p className="mt-1 text-lg font-bold tracking-tight text-primary">{displayProducts.length.toLocaleString('ar-DZ')}</p>
+              <div className="flex-1 rounded-lg border border-border/50 bg-background/80 backdrop-blur-sm px-2 py-1.5 shadow-sm">
+                <p className="text-[10px] text-muted-foreground font-medium">المعروضة</p>
+                <p className="text-sm font-bold tracking-tight text-primary">{displayProducts.length.toLocaleString('ar-DZ')}</p>
               </div>
             </div>
             <Button
@@ -124,12 +122,12 @@ const POSAdvancedContent: React.FC<POSAdvancedContentProps> = ({
               variant="outline"
               size="sm"
               onClick={() => setIsMobileFiltersOpen(prev => !prev)}
-              className="w-full justify-center gap-2 rounded-lg border-border/50 bg-background hover:bg-muted/50 transition-colors font-medium"
+              className="w-full h-8 justify-center gap-2 rounded-lg border-border/50 bg-background hover:bg-muted/50 transition-colors font-medium text-xs"
             >
-              <Filter className="h-4 w-4" />
-              {isMobileFiltersOpen ? 'إخفاء خيارات التصفية' : 'عرض خيارات التصفية'}
+              <Filter className="h-3.5 w-3.5" />
+              {isMobileFiltersOpen ? 'إخفاء الفلاتر' : 'فلاتر'}
               {activeFiltersCount > 0 && (
-                <span className="ml-1 inline-flex h-5 min-w-[1.5rem] items-center justify-center rounded-full bg-primary px-2 text-xs font-bold text-primary-foreground">
+                <span className="ml-1 inline-flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
                   {activeFiltersCount}
                 </span>
               )}
@@ -150,7 +148,6 @@ const POSAdvancedContent: React.FC<POSAdvancedContentProps> = ({
               subscriptionsCount={subscriptionsCount}
               isAppEnabled={isAppEnabled}
               onFilterChange={updateFilterState}
-              isPending={isPending}
               isMobile={isMobile}
             />
           </div>
@@ -183,7 +180,7 @@ const POSAdvancedContent: React.FC<POSAdvancedContentProps> = ({
             totalItems={pagination.total_count}
             onPageChange={onPageChange}
             onPageSizeChange={onPageSizeChange}
-            isLoading={isPOSDataLoading || isPending}
+            isLoading={isPOSDataLoading}
           />
         </div>
       )}

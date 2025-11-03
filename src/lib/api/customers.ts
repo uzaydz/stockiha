@@ -22,14 +22,17 @@ export const getCustomers = async (): Promise<Customer[]> => {
     return [];
   }
 
-  // Get all customers from the organization
+  // استخدام RPC المحسنة لجلب العملاء مع الإحصائيات
   const { data: orgCustomers, error } = await supabase
-    .from('customers')
-    .select('*')
-    .eq('organization_id', organizationId)
-    .order('created_at', { ascending: false });
-  
+    .rpc('get_customers_optimized', {
+      p_organization_id: organizationId,
+      p_page: 1,
+      p_limit: 1000,
+      p_search: null
+    });
+
   if (error) {
+    console.error('Error fetching customers:', error);
     throw new Error(error.message);
   }
   

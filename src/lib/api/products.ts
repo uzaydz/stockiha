@@ -288,7 +288,27 @@ export const getProducts = async (organizationId?: string, includeInactive: bool
           .select(`
             *,
             category:category_id(id, name, slug),
-            subcategory:subcategory_id(id, name, slug)
+            subcategory:subcategory_id(id, name, slug),
+            colors:product_colors(
+              id,
+              name,
+              color_code,
+              quantity,
+              price,
+              purchase_price,
+              image_url,
+              barcode,
+              is_default,
+              has_sizes,
+              sizes:product_sizes(
+                id,
+                size_name,
+                quantity,
+                price,
+                purchase_price,
+                barcode
+              )
+            )
           `);
 
         // Add organization filter
@@ -409,66 +429,21 @@ export const getProductsPaginated = async (
         .select(`
           id,
           name,
-          description,
           price,
           compare_at_price,
           sku,
           barcode,
-          category_id,
-          subcategory_id,
-          brand,
-          images,
           thumbnail_image,
           stock_quantity,
-          features,
-          specifications,
-          is_digital,
-          is_new,
-          is_featured,
-          created_at,
-          updated_at,
-          purchase_price,
-          min_stock_level,
-          reorder_level,
-          reorder_quantity,
-          organization_id,
-          slug,
+          is_active,
           has_variants,
-          show_price_on_landing,
-          wholesale_price,
-          partial_wholesale_price,
-          min_wholesale_quantity,
-          min_partial_wholesale_quantity,
           allow_retail,
           allow_wholesale,
           allow_partial_wholesale,
-          last_inventory_update,
-          is_active,
-          use_sizes,
-          has_fast_shipping,
-          has_money_back,
-          has_quality_guarantee,
-          fast_shipping_text,
-          money_back_text,
-          quality_guarantee_text,
-          is_sold_by_unit,
-          unit_type,
-          use_variant_prices,
-          unit_purchase_price,
-          unit_sale_price,
-          purchase_page_config,
-          shipping_clone_id,
-          name_for_shipping,
-          created_by_user_id,
-          updated_by_user_id,
-          form_template_id,
-          shipping_provider_id,
-          use_shipping_clone,
-          shipping_method_type,
-          special_offers_config,
-          advanced_description,
-          category:category_id(id, name, slug),
-          subcategory:subcategory_id(id, name, slug)
+          wholesale_price,
+          partial_wholesale_price,
+          category:category_id(name),
+          subcategory:subcategory_id(name)
         `, { count: 'exact' })
         .eq('organization_id', organizationId);
 
@@ -501,32 +476,26 @@ export const getProductsPaginated = async (
             .split(' ')
             .filter(word => word.length >= 1);
 
-          // البحث الذكي المحسن مع نظام أولويات
-          const allWords = searchWords.join(' ');
-
-          // بحث مبسط وقوي: تركيز أساسي على الاسم
+          // البحث المحسن - بدون تكرار لتقليل التكاليف
           let searchConditions: string[] = [];
-          
-          // أولوية عليا جداً: الاسم يحتوي على جميع الكلمات (تكرار أكثر = وزن أكبر)
+
+          // البحث في الاسم (مرة واحدة فقط لكل كلمة)
           searchWords.forEach(word => {
-            // 5 مرات للاسم = وزن عالي جداً
-            for (let i = 0; i < 5; i++) {
-              searchConditions.push(`name.ilike.%${word}%`);
-            }
+            searchConditions.push(`name.ilike.%${word}%`);
           });
-          
-          // أولوية متوسطة: SKU (مرة واحدة فقط)
+
+          // البحث في SKU
           searchWords.forEach(word => {
             searchConditions.push(`sku.ilike.%${word}%`);
           });
-          
-          // أولوية منخفضة: الوصف (للكلمات المهمة فقط)
+
+          // البحث في الوصف (للكلمات المهمة فقط)
           searchWords.forEach(word => {
-            if (word.length >= 4) { // كلمات مهمة فقط
+            if (word.length >= 4) {
               searchConditions.push(`description.ilike.%${word}%`);
             }
           });
-          
+
           query = query.or(searchConditions.join(','));
           
         } else {
@@ -712,7 +681,27 @@ export const getProductById = async (id: string): Promise<Product | null> => {
       subcategory:subcategory_id(id, name, slug),
       product_images ( product_id, image_url, sort_order ),
       product_advanced_settings (*),
-      product_marketing_settings (*)
+      product_marketing_settings (*),
+      colors:product_colors(
+        id,
+        name,
+        color_code,
+        quantity,
+        price,
+        purchase_price,
+        image_url,
+        barcode,
+        is_default,
+        has_sizes,
+        sizes:product_sizes(
+          id,
+          size_name,
+          quantity,
+          price,
+          purchase_price,
+          barcode
+        )
+      )
     `)
     .eq('id', id)
     .maybeSingle();

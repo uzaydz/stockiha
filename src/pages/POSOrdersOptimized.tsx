@@ -35,7 +35,14 @@ import { usePermissions } from '@/hooks/usePermissions';
 // Services
 import { supabase } from '@/lib/supabase-unified';
 import { inventoryDB } from '@/database/localDb';
-import { getOrdersByOrganization, saveRemoteOrders, saveRemoteOrderItems, getLocalPOSOrderItems } from '@/api/localPosOrderService';
+import { 
+  saveRemoteOrders, 
+  saveRemoteOrderItems, 
+  getLocalPOSOrderItems,
+  getLocalPOSOrdersPage,
+  fastSearchLocalPOSOrders,
+  getLocalPOSOrderStats
+} from '@/api/localPosOrderService';
 
 // Types
 interface OptimizedPOSOrder {
@@ -158,10 +165,32 @@ interface DialogState {
 const fetchFromIndexedDB = async (
   orgId: string,
   page: number = 1,
-  pageSize: number = 20
+  pageSize: number = 20,
+  filters: POSOrderFilters = {}
 ) => {
   try {
-    const { orders, total } = await getOrdersByOrganization(orgId, page, pageSize);
+    const offset = (page - 1) * pageSize;
+    const search = (filters.search || '').trim();
+    let orders: any[] = [];
+    let total = 0;
+
+    if (search) {
+      const matches = await fastSearchLocalPOSOrders(orgId, search, { limit: 2000, status: filters.statuses || filters.status });
+      // ترتيب الأحدث أولاً ثم تقطيع
+      const sorted = matches.sort((a: any, b: any) => (Date.parse(b.created_at || '') - Date.parse(a.created_at || '')));
+      total = sorted.length;
+      orders = sorted.slice(offset, offset + pageSize);
+    } else {
+      const res = await getLocalPOSOrdersPage(orgId, {
+        offset,
+        limit: pageSize,
+        status: filters.statuses || filters.status,
+        payment_status: filters.payment_statuses || filters.payment_status,
+        createdSort: 'desc'
+      });
+      orders = res.orders as any[];
+      total = res.total;
+    }
     
     // جلب عناصر كل طلبية
     const ordersWithItems = await Promise.all(
@@ -206,20 +235,13 @@ const fetchFromIndexedDB = async (
     );
     
     // حساب إحصائيات بسيطة من البيانات المحلية
-    const allOrders = await inventoryDB.posOrders.where('organization_id').equals(orgId).toArray();
+    const statsLocal = await getLocalPOSOrderStats(orgId);
     const stats = {
-      total_orders: allOrders.length,
-      total_revenue: allOrders.reduce((sum, o) => sum + (o.total || 0), 0),
-      completed_orders: allOrders.filter(o => (o.status as string) === 'completed' || o.status === 'synced').length,
-      pending_orders: allOrders.filter(o => (o.status as string) === 'pending' || o.status === 'pending_sync').length,
-      pending_payment_orders: allOrders.filter(o => o.payment_status === 'pending').length,
-      cancelled_orders: allOrders.filter(o => (o.status as string) === 'cancelled').length,
-      cash_orders: allOrders.filter(o => o.payment_method === 'cash').length,
-      card_orders: allOrders.filter(o => o.payment_method === 'card').length,
-      avg_order_value: allOrders.length > 0 ? allOrders.reduce((sum, o) => sum + (o.total || 0), 0) / allOrders.length : 0,
+      ...statsLocal,
+      avg_order_value: statsLocal.total_orders > 0 ? (statsLocal.total_revenue / statsLocal.total_orders) : 0,
       today_orders: 0,
       today_revenue: 0
-    };
+    } as any;
 
     return {
       success: true,
@@ -307,6 +329,9 @@ export const POSOrdersOptimized: React.FC<POSOrdersOptimizedProps> = ({
   const perms = usePermissions();
   const queryClient = useQueryClient();
   const { isOnline, isOffline } = useOfflineStatus();
+  const [useCacheBrowse, setUseCacheBrowse] = useState<boolean>(
+    typeof window !== 'undefined' ? window.localStorage.getItem('pos_orders_use_cache') === '1' : false
+  );
 
   // الحالات المحلية
   const [currentPage, setCurrentPage] = useState(1);
@@ -342,11 +367,11 @@ export const POSOrdersOptimized: React.FC<POSOrdersOptimizedProps> = ({
     [perms]
   );
   const canEditOrder = useMemo(
-    () => perms.anyOf(["editOrders", "manageOrders"]),
+    () => perms.anyOf(["updateOrderStatus", "manageOrders"]),
     [perms]
   );
   const canDeleteOrder = useMemo(
-    () => perms.anyOf(["deleteOrders", "manageOrders"]),
+    () => perms.anyOf(["cancelOrders", "manageOrders"]),
     [perms]
   );
   const canUpdatePayment = useMemo(
@@ -364,8 +389,8 @@ export const POSOrdersOptimized: React.FC<POSOrdersOptimizedProps> = ({
   } = useQuery({
     queryKey,
     queryFn: async () => {
-      // في حالة الأوفلاين، نستخدم البيانات من IndexedDB
-      if (isOffline) {
+      // في حالة الأوفلاين أو وضع تصفح الكاش، نستخدم البيانات من IndexedDB
+      if (isOffline || useCacheBrowse) {
         // أولاً نحاول جلب من React Query cache
         const cachedData = queryClient.getQueryData(queryKey);
         if (cachedData) {
@@ -374,7 +399,7 @@ export const POSOrdersOptimized: React.FC<POSOrdersOptimizedProps> = ({
         // ثانياً نجلب من IndexedDB
         if (tenant?.id) {
           try {
-            return await fetchFromIndexedDB(tenant.id, currentPage, pageSize);
+            return await fetchFromIndexedDB(tenant.id, currentPage, pageSize, filters);
           } catch (error) {
             console.error('Error fetching from IndexedDB:', error);
           }
@@ -403,14 +428,14 @@ export const POSOrdersOptimized: React.FC<POSOrdersOptimizedProps> = ({
       );
     },
     enabled: !!tenant?.id && !!userProfile?.id, // تفعيل فقط عند وجود البيانات المطلوبة
-    staleTime: isOffline ? Infinity : 10 * 60 * 1000, // 10 دقائق في الأونلاين - زيادة من 5
+    staleTime: (isOffline || useCacheBrowse) ? Infinity : 10 * 60 * 1000, // 10 دقائق في الأونلاين
     gcTime: 30 * 60 * 1000, // 30 دقيقة - زيادة من 15
     refetchOnWindowFocus: false,
     refetchOnMount: true, // استخدام true مع staleTime أطول لمنع الاستدعاءات المكررة
     refetchOnReconnect: true,
     refetchInterval: false,
     retry: (failureCount, error: any) => {
-      if (isOffline) return false;
+      if (isOffline || useCacheBrowse) return false;
       if (error?.code === 'UNAUTHORIZED') return false;
       return failureCount < 1; // تقليل عدد المحاولات
     },
@@ -614,8 +639,8 @@ export const POSOrdersOptimized: React.FC<POSOrdersOptimizedProps> = ({
     return (
       <POSPureLayout
         onRefresh={handleRefresh}
-        isRefreshing={overrides?.isRefreshing ?? (isFetching && isOnline)}
-        connectionStatus={overrides?.connectionStatus ?? (isOffline ? 'disconnected' : 'connected')}
+        isRefreshing={overrides?.isRefreshing ?? (isFetching && isOnline && !useCacheBrowse)}
+        connectionStatus={overrides?.connectionStatus ?? ((isOffline || useCacheBrowse) ? 'disconnected' : 'connected')}
         executionTime={
           overrides?.executionTime ??
           (Number((data as any)?.debug?.timings_ms?.total_ms) || undefined)
@@ -920,14 +945,14 @@ export const POSOrdersOptimized: React.FC<POSOrdersOptimizedProps> = ({
 
   const mainContent = (
       <div className="space-y-4" dir="rtl">
-        {/* مؤشر حالة الأوفلاين - مبسط */}
-        {isOffline && (
+        {/* مؤشر حالة الأوفلاين/التصفح من الكاش - مبسط */}
+        {(isOffline || useCacheBrowse) && (
           <Card className="bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-800">
             <CardContent className="p-3">
               <div className="flex items-center gap-2">
                 <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400 flex-shrink-0" />
                 <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                  وضع الأوفلاين - يتم عرض البيانات المخزنة محلياً
+                  {isOffline ? 'وضع الأوفلاين - يتم عرض البيانات المخزنة محلياً' : 'التصفح من الكاش - لن يتم ضرب الخادم'}
                 </p>
               </div>
             </CardContent>
@@ -959,6 +984,54 @@ export const POSOrdersOptimized: React.FC<POSOrdersOptimizedProps> = ({
             </Button>
 
             <Button
+              variant={useCacheBrowse ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => {
+                const next = !useCacheBrowse;
+                setUseCacheBrowse(next);
+                if (typeof window !== 'undefined') {
+                  window.localStorage.setItem('pos_orders_use_cache', next ? '1' : '0');
+                }
+                // مسح الكاش لضمان إعادة الجلب من المصدر المحدد
+                queryClient.removeQueries({ queryKey: ['pos-orders-page-data', tenant?.id, userProfile?.id], exact: false });
+                setCurrentPage(1);
+                void refetch();
+              }}
+              className="h-8"
+            >
+              {useCacheBrowse ? 'تصفح من الكاش' : 'تصفح أونلاين'}
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!isOnline}
+              onClick={async () => {
+                if (!tenant?.id || !userProfile?.id || !isOnline) return;
+                try {
+                  // جلب أول 3 صفحات وحفظ محلياً كتحديث سريع
+                  for (let p = 1; p <= 3; p++) {
+                    const res = await fetchPOSOrdersPageData(tenant.id, userProfile.id, p, pageSize, filters, sortConfig);
+                    // حفظ في IndexedDB يحصل داخل fetchPOSOrdersPageData بالفعل
+                    if (!(res as any)?.data?.pagination?.has_next_page) break;
+                  }
+                  toast.success('تمت مزامنة أحدث الطلبيات');
+                  // تحديث العرض المحلي إن كنا في تصفح الكاش
+                  if (useCacheBrowse) {
+                    queryClient.removeQueries({ queryKey: ['pos-orders-page-data', tenant?.id, userProfile?.id], exact: false });
+                    setCurrentPage(1);
+                    void refetch();
+                  }
+                } catch {
+                  toast.error('فشل في المزامنة');
+                }
+              }}
+              className="h-8"
+            >
+              مزامنة الآن
+            </Button>
+
+          <Button
               variant="outline"
               size="sm"
               onClick={handleExport}

@@ -36,10 +36,23 @@ export interface StaffPermissions {
   canAccessSalesOperations?: boolean;
   canViewOnlineOrders?: boolean;
   canManageOnlineOrders?: boolean;
+  // مجموعات الطلبات الإلكترونية
+  onlineOrdersGroupId?: string;
+  onlineOrdersGroupRole?: 'member' | 'manager';
+  canSelfAssignOnlineOrders?: boolean;
+  canReassignOnlineOrders?: boolean;
+  canManageOnlineOrderGroups?: boolean;
+  // أفعال تفصيلية - الطلبات الإلكترونية
+  canUpdateOrderStatus?: boolean;
+  canCancelOrders?: boolean;
+  canProcessOrderPayments?: boolean;
   canViewBlockedCustomers?: boolean;
   canManageBlockedCustomers?: boolean;
   canViewAbandonedOrders?: boolean;
   canManageAbandonedOrders?: boolean;
+  // أفعال تفصيلية - الطلبات المتروكة
+  canRecoverAbandonedOrder?: boolean;
+  canExportAbandonedReports?: boolean;
   canViewInvoices?: boolean;
   canManageInvoices?: boolean;
   
@@ -47,18 +60,44 @@ export interface StaffPermissions {
   canAccessServicesOperations?: boolean;
   canViewRepairServices?: boolean;
   canManageRepairServices?: boolean;
+  // أفعال تفصيلية - خدمات التصليح
+  canCreateRepairOrder?: boolean;
+  canUpdateRepairStatus?: boolean;
+  canDeleteRepairOrder?: boolean;
+  canPrintRepairTicket?: boolean;
   canViewSubscriptionServices?: boolean;
   canManageSubscriptionServices?: boolean;
+  // أفعال تفصيلية - خدمات الاشتراكات
+  canCreateSubscriptionService?: boolean;
+  canEditSubscriptionService?: boolean;
+  canDeleteSubscriptionService?: boolean;
+  canViewSubscriptionTransactions?: boolean;
+  canRefundSubscriptionPayment?: boolean;
   
   // مركز الموردين (supplier-operations)
   canAccessSupplierOperations?: boolean;
   canViewSuppliers?: boolean;
   canManageSuppliers?: boolean;
+  // أفعال تفصيلية - الموردون
+  canCreateSupplier?: boolean;
+  canEditSupplier?: boolean;
+  canDeleteSupplier?: boolean;
   canViewPurchases?: boolean;
   canManagePurchases?: boolean;
+  // أفعال تفصيلية - المشتريات
+  canCreatePurchase?: boolean;
+  canEditPurchase?: boolean;
+  canDeletePurchase?: boolean;
   canViewSupplierPayments?: boolean;
   canManageSupplierPayments?: boolean;
+  // أفعال تفصيلية - مدفوعات الموردين
+  canRecordSupplierPayment?: boolean;
+  canEditSupplierPayment?: boolean;
+  canDeleteSupplierPayment?: boolean;
+  canExportSupplierPayments?: boolean;
   canViewSupplierReports?: boolean;
+  // أفعال تفصيلية - تقارير الموردين
+  canExportSupplierReports?: boolean;
   
   // دورات ستوكيها (courses-operations)
   canAccessCoursesOperations?: boolean;
@@ -94,12 +133,25 @@ export interface StaffPermissions {
   // مركز التقارير (reports-operations)
   canAccessReportsOperations?: boolean;
   canViewFinancialReports?: boolean;
+  // أفعال تفصيلية - مالية
+  canExportFinancialReports?: boolean;
   canViewSalesReports?: boolean;
+  // أفعال تفصيلية - المبيعات
+  canExportSalesReports?: boolean;
   canViewExpenses?: boolean;
   canManageExpenses?: boolean;
+  // أفعال تفصيلية - المصروفات
+  canCreateExpense?: boolean;
+  canEditExpense?: boolean;
+  canDeleteExpense?: boolean;
+  canExportExpenses?: boolean;
   canViewZakat?: boolean;
   canManageZakat?: boolean;
+  // أفعال تفصيلية - الزكاة
+  canExportZakatReports?: boolean;
   canViewSupplierReportsInReports?: boolean;
+  // أفعال تفصيلية - تقارير الموردين داخل مركز التقارير
+  canExportSupplierReportsInReports?: boolean;
 }
 
 // بيانات الموظف
@@ -198,25 +250,63 @@ export const PERMISSION_PRESETS = {
       canAccessSalesOperations: true,
       canViewOnlineOrders: true,
       canManageOnlineOrders: true,
+      onlineOrdersGroupId: undefined,
+      onlineOrdersGroupRole: 'manager',
+      canSelfAssignOnlineOrders: true,
+      canReassignOnlineOrders: true,
+      canManageOnlineOrderGroups: true,
+      // أفعال تفصيلية - الطلبات الإلكترونية
+      canUpdateOrderStatus: true,
+      canCancelOrders: true,
+      canProcessOrderPayments: true,
       canViewBlockedCustomers: true,
       canManageBlockedCustomers: true,
       canViewAbandonedOrders: true,
       canManageAbandonedOrders: true,
+      // أفعال تفصيلية - الطلبات المتروكة
+      canRecoverAbandonedOrder: true,
+      canExportAbandonedReports: true,
       canViewInvoices: true,
       canManageInvoices: true,
       canAccessServicesOperations: true,
       canViewRepairServices: true,
       canManageRepairServices: true,
+      // أفعال تفصيلية - خدمات التصليح
+      canCreateRepairOrder: true,
+      canUpdateRepairStatus: true,
+      canDeleteRepairOrder: true,
+      canPrintRepairTicket: true,
       canViewSubscriptionServices: true,
       canManageSubscriptionServices: true,
+      // أفعال تفصيلية - خدمات الاشتراكات
+      canCreateSubscriptionService: true,
+      canEditSubscriptionService: true,
+      canDeleteSubscriptionService: true,
+      canViewSubscriptionTransactions: true,
+      canRefundSubscriptionPayment: true,
       canAccessSupplierOperations: true,
       canViewSuppliers: true,
       canManageSuppliers: true,
+      // أفعال تفصيلية - الموردون
+      canCreateSupplier: true,
+      canEditSupplier: true,
+      canDeleteSupplier: true,
       canViewPurchases: true,
       canManagePurchases: true,
+      // أفعال تفصيلية - المشتريات
+      canCreatePurchase: true,
+      canEditPurchase: true,
+      canDeletePurchase: true,
       canViewSupplierPayments: true,
       canManageSupplierPayments: true,
+      // أفعال تفصيلية - مدفوعات الموردين
+      canRecordSupplierPayment: true,
+      canEditSupplierPayment: true,
+      canDeleteSupplierPayment: true,
+      canExportSupplierPayments: true,
       canViewSupplierReports: true,
+      // أفعال تفصيلية - تقارير الموردين
+      canExportSupplierReports: true,
       canAccessCoursesOperations: true,
       canViewAllCourses: true,
       canAccessStoreOperations: true,
@@ -244,12 +334,25 @@ export const PERMISSION_PRESETS = {
       canViewDomainsDocs: true,
       canAccessReportsOperations: true,
       canViewFinancialReports: true,
+      // أفعال تفصيلية - مالية
+      canExportFinancialReports: true,
       canViewSalesReports: true,
+      // أفعال تفصيلية - المبيعات
+      canExportSalesReports: true,
       canViewExpenses: true,
       canManageExpenses: true,
+      // أفعال تفصيلية - المصروفات
+      canCreateExpense: true,
+      canEditExpense: true,
+      canDeleteExpense: true,
+      canExportExpenses: true,
       canViewZakat: true,
       canManageZakat: true,
+      // أفعال تفصيلية - الزكاة
+      canExportZakatReports: true,
       canViewSupplierReportsInReports: true,
+      // أفعال تفصيلية - تقارير الموردين داخل مركز التقارير
+      canExportSupplierReportsInReports: true,
     } as StaffPermissions,
   },
   
@@ -287,6 +390,10 @@ export const PERMISSION_PRESETS = {
       canViewSuppliers: true,
       canViewPurchases: true,
       canManagePurchases: true,
+      // أفعال تفصيلية - المشتريات
+      canCreatePurchase: true,
+      canEditPurchase: true,
+      canDeletePurchase: true,
     } as StaffPermissions,
   },
   
@@ -341,25 +448,55 @@ export const PERMISSION_LABELS: Record<keyof StaffPermissions, string> = {
   canAccessSalesOperations: 'مركز المبيعات والطلبات',
   canViewOnlineOrders: 'عرض الطلبات الإلكترونية',
   canManageOnlineOrders: 'إدارة الطلبات الإلكترونية',
+  onlineOrdersGroupId: 'مجموعة الطلبات الإلكترونية',
+  onlineOrdersGroupRole: 'دور المجموعة (طلبات إلكترونية)',
+  canSelfAssignOnlineOrders: 'تعيين الطلب لنفسي (Claim)',
+  canReassignOnlineOrders: 'إعادة تعيين طلب إلكتروني',
+  canManageOnlineOrderGroups: 'إدارة مجموعات الطلبات الإلكترونية',
+  canUpdateOrderStatus: 'تحديث حالة الطلب',
+  canCancelOrders: 'إلغاء الطلب',
+  canProcessOrderPayments: 'معالجة المدفوعات',
   canViewBlockedCustomers: 'عرض قائمة المحظورين',
   canManageBlockedCustomers: 'إدارة قائمة المحظورين',
   canViewAbandonedOrders: 'عرض الطلبات المتروكة',
   canManageAbandonedOrders: 'إدارة الطلبات المتروكة',
+  canRecoverAbandonedOrder: 'استرجاع الطلب المتروك',
+  canExportAbandonedReports: 'تصدير تقارير المتروكة',
   canViewInvoices: 'عرض الفواتير',
   canManageInvoices: 'إدارة الفواتير',
   canAccessServicesOperations: 'مركز الخدمات',
   canViewRepairServices: 'عرض خدمات التصليح',
   canManageRepairServices: 'إدارة خدمات التصليح',
+  canCreateRepairOrder: 'إنشاء تذكرة تصليح',
+  canUpdateRepairStatus: 'تحديث حالة التصليح',
+  canDeleteRepairOrder: 'حذف تذكرة',
+  canPrintRepairTicket: 'طباعة التذكرة',
   canViewSubscriptionServices: 'عرض خدمات الاشتراكات',
   canManageSubscriptionServices: 'إدارة خدمات الاشتراكات',
+  canCreateSubscriptionService: 'إضافة خدمة اشتراك',
+  canEditSubscriptionService: 'تعديل خدمة اشتراك',
+  canDeleteSubscriptionService: 'حذف خدمة اشتراك',
+  canViewSubscriptionTransactions: 'عرض معاملات الاشتراكات',
+  canRefundSubscriptionPayment: 'استرجاع مدفوعات الاشتراك',
   canAccessSupplierOperations: 'مركز الموردين',
   canViewSuppliers: 'عرض الموردين',
   canManageSuppliers: 'إدارة الموردين',
+  canCreateSupplier: 'إضافة مورد',
+  canEditSupplier: 'تعديل مورد',
+  canDeleteSupplier: 'حذف مورد',
   canViewPurchases: 'عرض المشتريات',
   canManagePurchases: 'إدارة المشتريات',
+  canCreatePurchase: 'إنشاء مشتريات',
+  canEditPurchase: 'تعديل مشتريات',
+  canDeletePurchase: 'حذف مشتريات',
   canViewSupplierPayments: 'عرض مدفوعات الموردين',
   canManageSupplierPayments: 'إدارة مدفوعات الموردين',
+  canRecordSupplierPayment: 'تسجيل دفع',
+  canEditSupplierPayment: 'تعديل دفع',
+  canDeleteSupplierPayment: 'حذف دفع',
+  canExportSupplierPayments: 'تصدير المدفوعات',
   canViewSupplierReports: 'عرض تقارير الموردين',
+  canExportSupplierReports: 'تصدير تقارير الموردين',
   canAccessCoursesOperations: 'دورات ستوكيها',
   canViewAllCourses: 'عرض جميع الدورات',
   canAccessStoreOperations: 'إدارة المتجر',
@@ -387,12 +524,20 @@ export const PERMISSION_LABELS: Record<keyof StaffPermissions, string> = {
   canViewDomainsDocs: 'دليل النطاقات',
   canAccessReportsOperations: 'مركز التقارير',
   canViewFinancialReports: 'عرض التحليلات المالية',
+  canExportFinancialReports: 'تصدير التقارير المالية',
   canViewSalesReports: 'عرض تحليلات المبيعات',
+  canExportSalesReports: 'تصدير تقارير المبيعات',
   canViewExpenses: 'عرض المصروفات',
   canManageExpenses: 'إدارة المصروفات',
+  canCreateExpense: 'إضافة مصروف',
+  canEditExpense: 'تعديل مصروف',
+  canDeleteExpense: 'حذف مصروف',
+  canExportExpenses: 'تصدير المصروفات',
   canViewZakat: 'عرض الزكاة',
   canManageZakat: 'إدارة الزكاة',
+  canExportZakatReports: 'تصدير تقارير الزكاة',
   canViewSupplierReportsInReports: 'عرض تقارير الموردين في التقارير',
+  canExportSupplierReportsInReports: 'تصدير تقارير الموردين (مركز التقارير)',
 };
 
 // مجموعات الصلاحيات للعرض المنظم

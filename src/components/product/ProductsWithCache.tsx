@@ -89,6 +89,8 @@ const ProductsWithCache: React.FC = () => {
     autoLoad: true
   });
 
+  
+
   // معالجة تغيير البحث
   const handleSearchChange = (query: string) => {
     setFilters(prev => ({ ...prev, searchQuery: query }));
@@ -144,6 +146,19 @@ const ProductsWithCache: React.FC = () => {
       toast.error('فشل في تحديث البيانات');
     }
   };
+
+  // حدّث الكاش عندما تكتمل عمليات إنشاء/تعديل المنتجات
+  useEffect(() => {
+    const handler = () => {
+      void handleRefreshCache();
+    };
+    window.addEventListener('product-operation-completed', handler as EventListener);
+    window.addEventListener('products-updated', handler as EventListener);
+    return () => {
+      window.removeEventListener('product-operation-completed', handler as EventListener);
+      window.removeEventListener('products-updated', handler as EventListener);
+    };
+  }, [handleRefreshCache]);
 
   if (error) {
     return (
