@@ -15,6 +15,41 @@ import { NotificationItem as NotificationItemComponent } from '@/components/navb
 import { NotificationActions } from '@/components/navbar/NotificationActions';
 import { playTestNotificationSound } from '@/lib/notification-sounds';
 
+/**
+ * Error Boundary Wrapper للتعامل مع حالة عدم توفر NotificationsProvider
+ */
+class NotificationsErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      // عرض أيقونة معطلة إذا فشل Context
+      return (
+        <button
+          type="button"
+          disabled
+          className="flex items-center justify-center h-6 w-6 sm:h-7 sm:w-7 lg:h-8 lg:w-8 rounded opacity-30 cursor-not-allowed"
+          title="الإشعارات غير متوفرة حالياً"
+        >
+          <Bell className="h-3 w-3 sm:h-3.5 sm:w-3.5 lg:h-4 lg:w-4 text-white/50" />
+        </button>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 interface TitlebarNotificationsProps {
   className?: string;
   maxItems?: number;
@@ -26,7 +61,7 @@ interface TitlebarNotificationsProps {
  * - badge صغير لعدد الإشعارات
  * - نفس نافذة الإشعارات الكاملة عند النقر
  */
-export const TitlebarNotifications = memo(({ className, maxItems = 8 }: TitlebarNotificationsProps) => {
+const TitlebarNotificationsInner = memo(({ className, maxItems = 8 }: TitlebarNotificationsProps) => {
   const navigate = useNavigate();
   const {
     notifications,
@@ -274,6 +309,19 @@ export const TitlebarNotifications = memo(({ className, maxItems = 8 }: Titlebar
     </Popover>
   );
 });
+
+TitlebarNotificationsInner.displayName = 'TitlebarNotificationsInner';
+
+/**
+ * مكون الإشعارات مع Error Boundary
+ */
+export const TitlebarNotifications: React.FC<TitlebarNotificationsProps> = (props) => {
+  return (
+    <NotificationsErrorBoundary>
+      <TitlebarNotificationsInner {...props} />
+    </NotificationsErrorBoundary>
+  );
+};
 
 TitlebarNotifications.displayName = 'TitlebarNotifications';
 
