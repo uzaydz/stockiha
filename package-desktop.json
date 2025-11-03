@@ -93,7 +93,7 @@
           "arch": ["x64"]
         }
       ],
-      "icon": "assets/stockiha-logo.webp",
+      "icon": "assets/icon.png",
       "category": "Office"
     },
     "nsis": {

@@ -12,6 +12,7 @@ import ProfileMenu from './ProfileMenu';
 import UpdateButton from './UpdateButton';
 import { SubscriptionButton } from './SubscriptionButton';
 import { SmartAssistantChat } from '@/components/pos/SmartAssistantChat';
+import { TitlebarNotifications } from './TitlebarNotifications';
 import './DesktopTitlebar.css';
 
 type Platform = 'darwin' | 'win32' | 'linux' | 'web';
@@ -144,6 +145,9 @@ const DesktopTitlebar: React.FC = () => {
               <div className="flex items-center">
                 <NavbarSyncIndicator />
               </div>
+              <div className="h-4 w-px bg-white/15" />
+              {/* الإشعارات */}
+              <TitlebarNotifications />
               {/* تسجيل خروج الموظف */}
               {staffDisplayName && (
                 <>
