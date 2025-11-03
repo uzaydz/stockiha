@@ -306,7 +306,10 @@
     "electron",
     "desktop"
   ],
-  "author": "Stockiha Team",
+  "author": {
+    "name": "Stockiha Team",
+    "email": "support@stockiha.com"
+  },
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/uzaydz/stockiha/issues"
