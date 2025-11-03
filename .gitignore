@@ -66,3 +66,4 @@ dist-electron/*.dmg
 dist-electron/*.blockmap
 dist-electron/mac/
 dist-electron/mac-arm64/
+dist-electron/
