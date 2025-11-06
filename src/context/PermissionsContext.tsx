@@ -4,6 +4,7 @@ import { checkPermission } from '@/components/sidebar/utils';
 import { useAuth } from '@/context/AuthContext';
 import { loadUserDataFromStorage } from '@/context/auth/utils/authStorage';
 import { isAppOnline, markNetworkOffline, markNetworkOnline } from '@/utils/networkStatus';
+import { inventoryDB } from '@/lib/db/dbAdapter';
 
 type PermissionMap = Record<string, boolean>;
 
@@ -79,6 +80,71 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
   };
 
+  const saveLocal = useCallback(async (perm: UnifiedPermissionsData) => {
+    try {
+      const id = `${perm.organization_id || 'global'}:${perm.auth_user_id}`;
+      const now = new Date().toISOString();
+      const rec: any = {
+        id,
+        auth_user_id: perm.auth_user_id,
+        user_id: perm.user_id,
+        email: perm.email,
+        name: perm.name,
+        role: perm.role,
+        organization_id: perm.organization_id,
+        is_active: perm.is_active,
+        is_org_admin: perm.is_org_admin,
+        is_super_admin: perm.is_super_admin,
+        permissions: perm.permissions || {},
+        has_inventory_access: perm.has_inventory_access || false,
+        can_manage_products: perm.can_manage_products || false,
+        can_view_reports: perm.can_view_reports || false,
+        can_manage_users: perm.can_manage_users || false,
+        can_manage_orders: perm.can_manage_orders || false,
+        can_access_pos: perm.can_access_pos || false,
+        can_manage_settings: perm.can_manage_settings || false,
+        created_at: now,
+        updated_at: now,
+        last_updated: now
+      };
+      await inventoryDB.userPermissions.put(rec);
+    } catch {}
+  }, []);
+
+  const loadLocal = useCallback(async (authId?: string): Promise<UnifiedPermissionsData | null> => {
+    try {
+      if (!authId) return null;
+      const orgId = localStorage.getItem('currentOrganizationId') || localStorage.getItem('bazaar_organization_id') || undefined;
+      const rec = orgId
+        ? await (inventoryDB.userPermissions as any).where({ auth_user_id: authId, organization_id: orgId }).first()
+        : await inventoryDB.userPermissions.where('auth_user_id').equals(authId).first();
+      if (!rec) return null;
+      const perms = typeof rec.permissions === 'string' ? JSON.parse(rec.permissions) : rec.permissions || {};
+      const row = {
+        user_id: rec.user_id || authId,
+        auth_user_id: rec.auth_user_id || authId,
+        email: rec.email || '',
+        name: rec.name || '',
+        role: rec.role || 'authenticated',
+        organization_id: rec.organization_id || null,
+        is_active: rec.is_active === 1 || rec.is_active === true || rec.is_active === undefined,
+        is_org_admin: rec.is_org_admin === 1 || rec.is_org_admin === true,
+        is_super_admin: rec.is_super_admin === 1 || rec.is_super_admin === true,
+        permissions: perms,
+        has_inventory_access: rec.has_inventory_access === 1 || rec.has_inventory_access === true,
+        can_manage_products: rec.can_manage_products === 1 || rec.can_manage_products === true,
+        can_view_reports: rec.can_view_reports === 1 || rec.can_view_reports === true,
+        can_manage_users: rec.can_manage_users === 1 || rec.can_manage_users === true,
+        can_manage_orders: rec.can_manage_orders === 1 || rec.can_manage_orders === true,
+        can_access_pos: rec.can_access_pos === 1 || rec.can_access_pos === true,
+        can_manage_settings: rec.can_manage_settings === 1 || rec.can_manage_settings === true,
+      };
+      return parseUnifiedRow(row);
+    } catch {
+      return null;
+    }
+  }, []);
+
   const fetchUnified = useCallback(async () => {
     if (fetchingRef.current) return;
     fetchingRef.current = true;
@@ -113,6 +179,14 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       if (!isOnline) {
         markNetworkOffline({ force: true });
         const saved = loadUserDataFromStorage();
+        const fallbackAuthId = user?.id || saved?.userProfile?.id || null;
+        const local = await loadLocal(fallbackAuthId || undefined);
+        if (local) {
+          setData(local);
+          setReady(true);
+          setError(null);
+          return;
+        }
         if (saved?.userProfile) {
           const fallback = parseUnifiedRow({
             user_id: saved.userProfile.id,
@@ -126,13 +200,11 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
             is_super_admin: saved.userProfile.role === 'super_admin',
             permissions: saved.userProfile.permissions || {}
           });
-
           setData(fallback);
           setReady(true);
           setError(null);
           return;
         }
-
         throw new Error('network_offline');
       }
 
@@ -164,6 +236,7 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       }
 
       setData(parsed);
+      try { await saveLocal(parsed); } catch {}
       cachedValue = { data: parsed, ts: Date.now() };
       setReady(true);
       setError(null);
@@ -177,6 +250,17 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
       try {
         const saved = loadUserDataFromStorage();
+        const fallbackAuthId = user?.id || saved?.userProfile?.id || '';
+        const local = await loadLocal(fallbackAuthId);
+        if (local) {
+          setData(local);
+          cachedValue = null;
+          setReady(true);
+          if (isNetworkError(e)) {
+            setError('network_offline');
+          }
+          return;
+        }
         const fallbackProfile = saved?.userProfile;
         const permissions = (fallbackProfile?.permissions || {}) as any;
         const fallback: UnifiedPermissionsData = {
@@ -198,7 +282,6 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
           can_manage_settings: permissions.manageSettings || false,
           permissions: permissions,
         };
-
         setData(fallback);
         cachedValue = null;
         setReady(true);
@@ -206,7 +289,6 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
           setError('network_offline');
         }
       } catch (metaError) {
-        // Fallback failed
       }
     } finally {
       setLoading(false);

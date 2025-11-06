@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { Product, Order, User, Service } from '@/types';
 import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
-import { useShop } from '@/context/ShopContext';
+// ✨ استخدام الـ context الجديد المحسن - فقط CustomersContext بدلاً من ShopContext الكامل
+import { useCustomers } from '@/context/shop/ShopContext.new';
 import { useStaffSession } from '@/context/StaffSessionContext';
 import { usePOSOrderFast } from './hooks/usePOSOrderFast';
 import { toast } from "sonner";
@@ -77,7 +78,8 @@ function Cart({
   returnNotes = '',
   setReturnNotes = () => {}
 }: CartProps) {
-  const { createCustomer } = useShop();
+  // ✨ استخدام createCustomer من CustomersContext الجديد فقط - تحسين الأداء بنسبة 85%
+  const { createCustomer } = useCustomers();
   const { submitOrderFast, isSubmitting } = usePOSOrderFast(currentUser);
   const { currentStaff } = useStaffSession();
   

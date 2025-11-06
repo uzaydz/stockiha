@@ -295,10 +295,10 @@ const reconstructOrderPayload = (order: LocalPOSOrder, items: LocalPOSOrderItem[
     slug: `product-${item.product_id}`,
     quantity: item.quantity,
     unitPrice: item.unit_price,
-    totalPrice: item.total_price,
+    totalPrice: (item as any).total_price ?? (item.unit_price * item.quantity),
     isDigital: false,
     isWholesale: item.is_wholesale,
-    originalPrice: item.original_price,
+    originalPrice: (item as any).original_price ?? item.unit_price,
     variant_info: item.variant_info ?? undefined
   }));
 

@@ -179,6 +179,25 @@ interface ElectronAPI {
   // إدارة الأمان
   security?: SecurityAPI;
 
+  // قاعدة بيانات SQLite
+  db?: {
+    initialize: (organizationId: string) => Promise<{ success: boolean; path?: string; error?: string; size?: number }>;
+    upsertProduct: (product: any) => Promise<{ success: boolean; changes?: number; error?: string }>;
+    searchProducts: (query: string, options?: any) => Promise<{ success: boolean; data: any[]; error?: string }>;
+    query: (sql: string, params?: any) => Promise<{ success: boolean; data: any[]; error?: string }>;
+    queryOne: (sql: string, params?: any) => Promise<{ success: boolean; data: any; error?: string }>;
+    upsert: (table: string, data: any) => Promise<{ success: boolean; changes?: number; error?: string }>;
+    delete: (table: string, id: string) => Promise<{ success: boolean; changes?: number; error?: string }>;
+    addPOSOrder: (order: any, items: any[]) => Promise<{ success: boolean; error?: string }>;
+    getStatistics: (organizationId: string, dateFrom: string, dateTo: string) => Promise<{ success: boolean; data?: any; error?: string }>;
+    cleanupOldData: (daysToKeep?: number) => Promise<{ success: boolean; ordersDeleted?: number; invoicesDeleted?: number; error?: string }>;
+    vacuum: () => Promise<{ success: boolean; before?: number; after?: number; saved?: number; error?: string }>;
+    getSize: () => Promise<{ success: boolean; size?: number; error?: string }>;
+    backup: (destinationPath: string) => Promise<{ success: boolean; path?: string; error?: string }>;
+    restore: (backupPath: string) => Promise<{ success: boolean; error?: string }>;
+    close: () => Promise<{ success: boolean; error?: string }>;
+  };
+
   // معلومات إضافية
   isElectron: boolean;
   isDevelopment: boolean;
@@ -187,7 +206,7 @@ interface ElectronAPI {
 // تعريف window.electronAPI
 declare global {
   interface Window {
-    electronAPI: ElectronAPI;
+    electronAPI?: ElectronAPI;
   }
 }
 

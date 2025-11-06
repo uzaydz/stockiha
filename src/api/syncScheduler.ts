@@ -33,10 +33,12 @@ async function processQueueBatch(limit = 20): Promise<SyncResult> {
       processed++;
     } catch (error) {
       const attempts = (item.attempts || 0) + 1;
+      const now = new Date().toISOString();
       const updated: SyncQueueItem = {
         ...item,
         attempts,
-        lastAttempt: new Date().toISOString(),
+        lastAttempt: now,
+        updatedAt: now,
         error: error instanceof Error ? error.message : String(error)
       };
       await inventoryDB.syncQueue.put(updated);

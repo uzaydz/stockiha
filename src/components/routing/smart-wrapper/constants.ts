@@ -144,8 +144,8 @@ export const PROVIDER_CONFIGS: ProviderConfigMap = {
    */
   'dashboard': {
     core: true,
-    auth: true,
-    tenant: true,
+    auth: false,          // ❌ معطّل - CoreInfrastructureWrapper يحتويه
+    tenant: false,        // ❌ معطّل - CoreInfrastructureWrapper يحتويه
     unifiedData: true,     // جميع البيانات مطلوبة
     organizationData: false,   // متضمنة في SuperUnified
     dashboard: false,      // متضمنة في SuperUnified
@@ -193,8 +193,8 @@ export const PROVIDER_CONFIGS: ProviderConfigMap = {
    */
   'pos': {
     core: true,
-    auth: true,
-    tenant: true,
+    auth: false,          // ❌ معطّل - CoreInfrastructureWrapper يحتويه
+    tenant: false,        // ❌ معطّل - CoreInfrastructureWrapper يحتويه
     unifiedData: true,     // للتطبيقات والقوائم
     organizationData: false,
     dashboard: false,
@@ -210,8 +210,8 @@ export const PROVIDER_CONFIGS: ProviderConfigMap = {
    */
   'pos-orders': {
     core: true,
-    auth: true,
-    tenant: true,
+    auth: false,          // ❌ معطّل - CoreInfrastructureWrapper يحتويه
+    tenant: false,        // ❌ معطّل - CoreInfrastructureWrapper يحتويه
     unifiedData: false,    // ❌ إيقاف SuperUnifiedDataProvider
     organizationData: false,
     dashboard: false,
@@ -220,7 +220,7 @@ export const PROVIDER_CONFIGS: ProviderConfigMap = {
     productPage: false,
     storePage: false,
     productsPage: false,
-    notifications: true,   // مطلوب للإشعارات
+    notifications: true,   // مطلوق للإشعارات
   },
 
   /**
@@ -243,8 +243,8 @@ export const PROVIDER_CONFIGS: ProviderConfigMap = {
    */
   'call-center': {
     core: true,
-    auth: true,
-    tenant: true,
+    auth: false,          // ❌ معطّل - CoreInfrastructureWrapper يحتويه
+    tenant: false,        // ❌ معطّل - CoreInfrastructureWrapper يحتويه
     unifiedData: true,         // للطلبات والعملاء
     organizationData: true,    // لبيانات المؤسسة
     dashboard: false,

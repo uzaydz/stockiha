@@ -2,6 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { Download, CheckCircle2, AlertCircle, Loader2, RefreshCw, ArrowDownCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import toast from 'react-hot-toast';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 
 interface UpdateInfo {
   version: string;
@@ -41,11 +46,11 @@ const UpdateButton: React.FC = () => {
 
     (window as any).electronAPI.updater.getVersion().then((version: string) => {
       setCurrentVersion(version);
-    }).catch(() => {
+    }).catch((error: any) => {
       setCurrentVersion('dev');
       setIsDevMode(true);
     });
-
+    
     const unsubscribeChecking = (window as any).electronAPI.updater.onCheckingForUpdate(() => {
       setUpdateStatus('checking');
       setLastCheckTime(new Date());
@@ -73,7 +78,7 @@ const UpdateButton: React.FC = () => {
       toast.success('تم تنزيل التحديث!', { icon: '✅' });
     });
 
-    const unsubscribeError = (window as any).electronAPI.updater.onUpdateError(() => {
+    const unsubscribeError = (window as any).electronAPI.updater.onUpdateError((error: any) => {
       setUpdateStatus('error');
     });
 
@@ -98,6 +103,7 @@ const UpdateButton: React.FC = () => {
     try {
       setUpdateStatus('checking');
       const result = await (window as any).electronAPI.updater.checkForUpdates();
+      
       if (!result || !result.success) {
         setUpdateStatus('not-available');
         setIsDevMode(true);
@@ -181,36 +187,31 @@ const UpdateButton: React.FC = () => {
   const hasUpdate = updateStatus === 'available' || updateStatus === 'downloaded';
 
   return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setShowDropdown(!showDropdown)}
-        className={cn(
-          "flex items-center justify-center h-6 w-6 lg:h-7 lg:w-7 rounded-md transition-all duration-200 active:scale-95 relative",
-          getStatusColor()
-        )}
-        aria-label="التحديثات"
-        title="التحديثات"
-      >
-        {getStatusIcon()}
-        
-        {hasUpdate && (
-          <span className="absolute -top-0.5 -right-0.5 h-2 w-2 bg-blue-500 rounded-full animate-pulse border border-slate-900" />
-        )}
-      </button>
-
-      {showDropdown && (
-        <>
-          <div 
-            className="fixed inset-0 z-40" 
-            onClick={() => setShowDropdown(false)}
-            style={{ WebkitAppRegion: 'no-drag' } as any}
-          />
+    <Popover open={showDropdown} onOpenChange={setShowDropdown}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={cn(
+            "flex items-center justify-center h-6 w-6 lg:h-7 lg:w-7 rounded-md transition-all duration-200 active:scale-95 relative",
+            getStatusColor()
+          )}
+          style={{ WebkitAppRegion: 'no-drag' } as any}
+          aria-label="التحديثات"
+          title="التحديثات"
+        >
+          {getStatusIcon()}
           
-          <div 
-            className="absolute left-0 mt-2 w-64 bg-slate-800/95 backdrop-blur-md rounded-lg shadow-2xl border border-white/10 overflow-hidden z-50"
-            style={{ WebkitAppRegion: 'no-drag' } as any}
-          >
+          {hasUpdate && (
+            <span className="absolute -top-0.5 -right-0.5 h-2 w-2 bg-blue-500 rounded-full animate-pulse border border-slate-900" />
+          )}
+        </button>
+      </PopoverTrigger>
+
+      <PopoverContent 
+        align="start" 
+        className="w-64 bg-slate-800/95 backdrop-blur-md border border-white/10 p-0 overflow-hidden"
+        style={{ WebkitAppRegion: 'no-drag' } as any}
+      >
             <div className="px-4 py-3 border-b border-white/10">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -364,10 +365,8 @@ const UpdateButton: React.FC = () => {
                 )}
               </div>
             </div>
-          </div>
-        </>
-      )}
-    </div>
+      </PopoverContent>
+    </Popover>
   );
 };
 

@@ -32,22 +32,43 @@ const PublicRoute = ({ children, redirectTo = '/dashboard' }: PublicRouteProps) 
     isLoading = auth.isLoading;
   } catch (error) {
     // إذا لم يكن AuthProvider متاحاً، نعرض المحتوى مباشرة
-    return <>{children}</>;
+    if (import.meta.env.DEV) {
+    try { console.log('[PublicRoute] render children (public)'); } catch {}
+  }
+  return <>{children}</>;
   }
 
   const { user, userProfile } = authData || {};
+  if (import.meta.env.DEV) {
+    try {
+      console.log('[PublicRoute] enter', {
+        path: location.pathname,
+        search: location.search,
+        hash: location.hash,
+        isLoading,
+        hasUser: !!user,
+        hasProfile: !!userProfile,
+      });
+    } catch {}
+  }
 
   // إذا كان التحميل جارياً، نعرض المحتوى
   if (isLoading) {
+    if (import.meta.env.DEV) {
+      try { console.log('[PublicRoute] render children (loading)'); } catch {}
+    }
     return <>{children}</>;
   }
 
   // لا تقم بإعادة التوجيه القسري في صفحات الاسترجاع أو عند وجود أخطاء/معلمات الاسترجاع
   if (allowAnonymousEvenIfLoggedIn) {
+    if (import.meta.env.DEV) {
+      try { console.log('[PublicRoute] allow anonymous even if logged in'); } catch {}
+    }
     return <>{children}</>;
   }
 
-  // إذا كان المستخدم مسجل الدخول، نعيد توجيهه
+  // إذا كان المستخدم مسجلاً الدخول ومعه ملف شخصي كامل، نعيد توجيهه حسب الدور
   if (user && userProfile) {
     // تحديد المسار المناسب حسب دور المستخدم
     let targetPath = redirectTo;
@@ -69,7 +90,19 @@ const PublicRoute = ({ children, redirectTo = '/dashboard' }: PublicRouteProps) 
         targetPath = '/dashboard';
     }
 
+    if (import.meta.env.DEV) {
+      try { console.log('[PublicRoute] redirecting logged-in user to', targetPath); } catch {}
+    }
     return <Navigate to={targetPath} replace />;
+  }
+
+  // حالة خاصة: المستخدم موجود لكن لم يكتمل تحميل الملف الشخصي بعد
+  // لتجنب بقاء المستخدم في /login، أعد التوجيه لمسار مركزي يقوم بإعادة التوجيه حسب الدور لاحقاً
+  if (user && !userProfile && !allowAnonymousEvenIfLoggedIn) {
+    if (import.meta.env.DEV) {
+      try { console.log('[PublicRoute] user present without profile -> redirecting to /dashboard'); } catch {}
+    }
+    return <Navigate to="/dashboard" replace />;
   }
 
   // إذا لم يكن المستخدم مسجل الدخول، نعرض المحتوى العام

@@ -1,6 +1,5 @@
 import { defineConfig, loadEnv, Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
-// import million from "million/compiler"; // DISABLED temporarily
 import Icons from 'unplugin-icons/vite';
 import * as path from "path";
 import { instagramCompatibilityPlugin } from './src/middleware/instagram-compatibility';
@@ -16,9 +15,6 @@ import compression from 'vite-plugin-compression';
 import { gzipSync, brotliCompressSync } from 'zlib';
 import fs from 'fs';
 import type { OutputAsset } from 'rollup';
-
-// 🔒 حماية كود الإنتاج - Obfuscator Plugin
-import obfuscator from 'rollup-plugin-obfuscator';
 import desktopConfig from './vite.config.desktop';
 
 // تكوين استيراد ملفات Markdown كنصوص
@@ -686,179 +682,73 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
             return `assets/[name]-[hash].${ext}`;
           },
           manualChunks: (id) => {
-            // تم إزالة store build chunking - البناء يركز على الموقع الرئيسي فقط
-
-            // More granular chunking to reduce main bundle size
+            // 🚀 Simplified & Optimized Chunking Strategy
+            // تم تبسيط الاستراتيجية من 25 chunk إلى 13 chunk - تحسين 48%
             const is = (re: RegExp) => re.test(id);
 
-            // Group small internal runtime modules into one chunk to avoid many tiny requests
-            const appCoreSmallPaths = [
-              '/src/lib/themeManager',
-              '/src/lib/headGuard',
-              '/src/lib/requestDeduplicator',
-              '/src/lib/supabase-unified',
-              '/src/lib/supabase-client',
-              '/src/lib/api/deduplicatedApi',
-              '/src/utils/earlyPreload'
-            ];
-            if (appCoreSmallPaths.some((p) => id.includes(p))) {
-              return 'app-core-small';
-            }
-
-            // Core React - keep React and ReactDOM together to avoid scheduler issues
-            if (is(/[\\/]node_modules[\\/]react[\\/]/) || 
-                is(/[\\/]node_modules[\\/]react-dom[\\/]/) ||
-                is(/[\\/]node_modules[\\/]scheduler[\\/]/)) {
+            // 1. React Core (Must be separate for optimal caching)
+            if (is(/[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/)) {
               return 'react-core';
             }
-            
-            // Million optimization - DISABLED
-            // if (is(/[\\/]node_modules[\\/]million[\\/]/)) {
-            //   return 'vendor-million';
-            // }
-            
-            // Chance library - separate to avoid initialization issues
-            if (is(/[\\/]node_modules[\\/]chance[\\/]/)) {
-              return 'vendor-utils';
-            }
 
-            // Router (essential but can be separate)
-            if (is(/[\\/]node_modules[\\/]react-router(-dom)?[\\/]/) || is(/[\\/]node_modules[\\/]@remix-run[\\/]router[\\/]/)) {
+            // 2. Router (Critical for navigation)
+            if (is(/[\\/]node_modules[\\/](react-router-dom|@remix-run)[\\/]/)) {
               return 'router';
             }
 
-            // Query client (separate from main)
+            // 3. Network (Supabase + Axios)
+            if (is(/[\\/]node_modules[\\/](@supabase|axios)[\\/]/)) {
+              return 'network';
+            }
+
+            // 4. UI Core (Radix + Class utilities)
+            if (is(/[\\/]node_modules[\\/](@radix-ui|clsx|class-variance-authority|tailwind-merge)[\\/]/)) {
+              return 'ui-core';
+            }
+
+            // 5. Icons (Lucide only)
+            if (is(/[\\/]node_modules[\\/]lucide-react[\\/]/)) {
+              return 'icons';
+            }
+
+            // 6. Forms & Validation (Heavy, but used together)
+            if (is(/[\\/]node_modules[\\/](react-hook-form|zod|@hookform)[\\/]/)) {
+              return 'forms';
+            }
+
+            // 7. Charts (All charts together - lazy loaded)
+            if (is(/[\\/]node_modules[\\/](chart\.js|react-chartjs-2|recharts|@nivo)[\\/]/)) {
+              return 'charts';
+            }
+
+            // 8. PDF & Image Processing (Heavy - lazy loaded)
+            if (is(/[\\/]node_modules[\\/](jspdf|html2canvas|jspdf-autotable|qrcode|qr-code-styling|browser-image-compression)[\\/]/)) {
+              return 'pdf-images';
+            }
+
+            // 9. Editors (Very heavy - lazy loaded)
+            if (is(/[\\/]node_modules[\\/](@monaco-editor|@tinymce)[\\/]/)) {
+              return 'editors';
+            }
+
+            // 10. Animation (Framer Motion)
+            if (is(/[\\/]node_modules[\\/](framer-motion|motion)[\\/]/)) {
+              return 'animation';
+            }
+
+            // 11. Utils (Date, Lodash, etc.)
+            if (is(/[\\/]node_modules[\\/](lodash-es|lodash|date-fns|dayjs|moment|chance|ramda|underscore)[\\/]/)) {
+              return 'utils';
+            }
+
+            // 12. TanStack Query
             if (is(/[\\/]node_modules[\\/]@tanstack[\\/]react-query/)) {
               return 'query';
             }
 
-            // Supabase dependencies are widely shared; keep them with general vendor chunks to avoid circular pre-initialisation issues
-
-            // Forms (used in specific pages)
-            if (is(/[\\/]node_modules[\\/]react-hook-form[\\/]/) || is(/[\\/]node_modules[\\/]zod[\\/]/) || is(/[\\/]node_modules[\\/]@hookform[\\/]/)) {
-              return 'forms';
-            }
-
-            // Utils (large but shared)
-            if (is(/[\\/]node_modules[\\/]lodash(-es)?[\\/]/) || is(/[\\/]node_modules[\\/]date-fns[\\/]/)) {
-              return 'utils';
-            }
-
-            // HTTP client
-            if (is(/[\\/]node_modules[\\/]axios[\\/]/)) {
-              return 'http';
-            }
-
-            // Charts - split by library to avoid loading all at once
-            if (is(/[\\/]node_modules[\\/]chart\.js[\\/]/) || is(/[\\/]node_modules[\\/]react-chartjs-2[\\/]/)) {
-              return 'vendor-chartjs';
-            }
-            if (is(/[\\/]node_modules[\\/]recharts[\\/]/)) {
-              return 'vendor-recharts';
-            }
-            if (is(/[\\/]node_modules[\\/]@nivo[\\/]/)) {
-              return 'vendor-nivo';
-            }
-
-            // PDF libs - separate (lazy loaded)
-            if (is(/[\\/]node_modules[\\/]jspdf[\\/]/) || 
-                is(/[\\/]node_modules[\\/]html2canvas[\\/]/) || 
-                is(/[\\/]node_modules[\\/]jspdf-autotable[\\/]/)) {
-              return 'vendor-pdf';
-            }
-
-            // Editors - separate (lazy loaded)
-            if (is(/[\\/]node_modules[\\/]@monaco-editor[\\/]/) || 
-                is(/[\\/]node_modules[\\/]@tinymce[\\/]/)) {
-              return 'editors';
-            }
-
-            // Icons: split lucide-react to its own chunk for better caching
-            if (is(/[\\/]node_modules[\\/]lucide-react[\\/]/)) {
-              return 'vendor-icons';
-            }
-            // Core UI utilities
-            if (is(/[\\/]node_modules[\\/]class-variance-authority[\\/]/) ||
-                is(/[\\/]node_modules[\\/]clsx[\\/]/) ||
-                is(/[\\/]node_modules[\\/]tailwind-merge[\\/]/)) {
-              return 'ui-core';
-            }
-
-            // Radix UI - keep together to avoid dependency issues
-            if (is(/[\\/]node_modules[\\/]@radix-ui[\\/]/)) {
-              return 'ui-radix';
-            }
-
-            // Animation
-            if (is(/[\\/]node_modules[\\/]framer-motion[\\/]/)) {
-              return 'animation';
-            }
-
-            // i18n (lazy loaded)
-            if (is(/[\\/]node_modules[\\/]i18next/) || is(/[\\/]node_modules[\\/]react-i18next/)) {
-              return 'i18n';
-            }
-
-            // Split remaining vendor libraries by size/type
+            // 13. Remaining vendor code
             if (is(/[\\/]node_modules[\\/]/)) {
-              const packageName = id.split('node_modules/')[1]?.split('/')[0];
-              
-              // Heavy libraries get their own chunks
-              const heavyLibs = ['@monaco-editor', '@tinymce', 'html2canvas', 'jspdf', 'jimp'];
-              if (heavyLibs.some(lib => packageName?.startsWith(lib))) {
-                return `heavy-${packageName?.replace('@', '').replace('/', '-')}`;
-              }
-              
-              // Medium-sized vendor chunk
-              const mediumLibs = ['@radix-ui', '@heroicons', '@headlessui', 'framer-motion'];
-              if (mediumLibs.some(lib => packageName?.startsWith(lib))) {
-                return 'vendor-ui';
-              }
-              
-              // Split vendor-misc into smaller chunks by category
-              const dataLibs = ['date-fns', 'dayjs', 'moment', 'luxon'];
-              if (dataLibs.some(lib => packageName?.startsWith(lib))) {
-                return 'vendor-dates';
-              }
-              
-              const validationLibs = ['zod', 'yup', 'joi', 'ajv'];
-              if (validationLibs.some(lib => packageName?.startsWith(lib))) {
-                return 'vendor-validation';
-              }
-              
-              const storageLibs = ['localforage', 'idb', 'dexie'];
-              if (storageLibs.some(lib => packageName?.startsWith(lib))) {
-                return 'vendor-storage';
-              }
-              
-              const cryptoLibs = ['crypto-js', 'bcrypt', 'uuid', 'nanoid'];
-              if (cryptoLibs.some(lib => packageName?.startsWith(lib))) {
-                return 'vendor-crypto';
-              }
-              
-              const imageLibs = ['browser-image-compression', 'qrcode', 'qr-code-styling'];
-              if (imageLibs.some(lib => packageName?.startsWith(lib))) {
-                return 'vendor-images';
-              }
-              
-              const animationLibs = ['framer-motion', 'motion', 'lottie'];
-              if (animationLibs.some(lib => packageName?.startsWith(lib))) {
-                return 'vendor-animation';
-              }
-              
-              const i18nLibs = ['i18next', 'react-i18next'];
-              if (i18nLibs.some(lib => packageName?.startsWith(lib))) {
-                return 'vendor-i18n';
-              }
-              
-              // Utility libraries that might have initialization issues
-              const utilityLibs = ['chance', 'lodash', 'ramda', 'underscore'];
-              if (utilityLibs.some(lib => packageName?.startsWith(lib))) {
-                return 'vendor-utils';
-              }
-              
-              // Remaining small libraries
-              return 'vendor-misc';
+              return 'vendor';
             }
 
             return undefined;
@@ -884,10 +774,13 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
           preset: 'smallest',
           moduleSideEffects: (id) => {
             // Keep side effects for CSS and critical modules
-            return id.includes('.css') || 
-                   id.includes('polyfill') || 
+            return id.includes('.css') ||
+                   id.includes('polyfill') ||
                    id.includes('@supabase') ||
-                   id.includes('react-dom');
+                   id.includes('react-dom') ||
+                   id.includes('@radix-ui') ||      // UI components need side effects
+                   id.includes('framer-motion') ||  // Animation library
+                   id.includes('lucide-react');     // Icon library
           },
           propertyReadSideEffects: false, // تحسين أقوى
           tryCatchDeoptimization: false,
@@ -922,9 +815,9 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
         // Force default export for CJS modules that need it
         defaultIsModuleExports: true,
       },
-      
-      chunkSizeWarningLimit: 1500, // تقليل الحد للحصول على chunks أصغر
-      
+
+      chunkSizeWarningLimit: 500, // 500KB - حد واقعي للتحذيرات
+
       // 🎨 تقسيم CSS للأداء - مُفعّل مع تحسينات
       cssCodeSplit: true,
       
@@ -960,7 +853,7 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
         // تعطيل تحسينات قد تؤثر على DevTools
         reportCompressedSize: false,
         // تقليل chunk size warning في التطوير
-        chunkSizeWarningLimit: 5000,
+        chunkSizeWarningLimit: 1000, // 1MB للتطوير
         // تسريع التطوير
         sourcemap: true,
         minify: false,
@@ -987,39 +880,32 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
         'react',
         'react/jsx-runtime',
         'react-dom/client',
-        
+
         // Core Routing (فقط للتنقل الأساسي)
         'react-router-dom',
-        
+
         // Essential Network (أساسي للتطبيق)
         '@supabase/supabase-js',
-        
+
         // Essential Utils (خفيف ومطلوب)
         'clsx',
         'tailwind-merge',
-        // Ensure CJS-only modules get prebundled for proper default interop
+
+        // CJS-only modules - prebundled for proper default interop
         'is-retry-allowed',
-        // dayjs ships dual bundles; prebundle the ESM build to keep default import working
-        'dayjs/esm/index.js',
-        
-        // Essential UI (أيقونات فقط) - لا ندرجها هنا لتفادي prebundle 1MB في dev
-        
+
         // Core Polyfills (ضروري للتوافق)
-        'util',
-        'buffer',
         'use-sync-external-store',
         'use-sync-external-store/shim',
-        // HTTP retry utilities - must be together to avoid CJS/ESM conflicts
-        'axios-retry',
       ],
       
-      // 🚨 استبعاد جميع المكتبات الثقيلة من التحسين المسبق  
+      // 🚨 استبعاد جميع المكتبات الثقيلة من التحسين المسبق
       exclude: [
         // lucide-react كبير في dev، نمنعه من prebundle ليُقسم عند الطلب
         'lucide-react',
         // Heavy Charts & Graphics (keep these for lazy loading)
-        '@nivo/bar', '@nivo/line', '@nivo/pie',
-        'recharts', 'chart.js', 'react-chartjs-2',
+        'chart.js', 'react-chartjs-2', 'recharts',
+        '@nivo/core', '@nivo/bar', '@nivo/line', '@nivo/pie',
       
         // Heavy Editors
         '@monaco-editor/react',

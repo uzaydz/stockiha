@@ -12,6 +12,7 @@ import { UserProvider } from '@/context/UserContext';
 import { TenantProvider } from '@/context/TenantContext';
 import { AppInitializationProvider } from '@/context/AppInitializationContext';
 import { WorkSessionProvider } from '@/context/WorkSessionContext';
+import { NotificationsProvider } from '@/context/NotificationsContext';
 import DesktopTitlebar from '@/components/desktop/DesktopTitlebar';
 import { queryClient } from '@/lib/config/queryClient';
 
@@ -29,8 +30,10 @@ export const CoreInfrastructureWrapper: React.FC<CoreInfrastructureWrapperProps>
               <UserProvider>
                 <TenantProvider>
                   <WorkSessionProvider>
-                    <DesktopTitlebar />
-                    {children}
+                    <NotificationsProvider>
+                      <DesktopTitlebar />
+                      {children}
+                    </NotificationsProvider>
                   </WorkSessionProvider>
                 </TenantProvider>
               </UserProvider>
@@ -55,8 +58,10 @@ export const MinimalCoreInfrastructureWrapper: React.FC<CoreInfrastructureWrappe
               <UserProvider>
                 <TenantProvider>
                   <WorkSessionProvider>
-                    <DesktopTitlebar />
-                    {children}
+                    <NotificationsProvider>
+                      <DesktopTitlebar />
+                      {children}
+                    </NotificationsProvider>
                   </WorkSessionProvider>
                 </TenantProvider>
               </UserProvider>

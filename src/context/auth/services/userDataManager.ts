@@ -8,18 +8,19 @@ import { supabase } from '@/lib/supabase';
 import { getOrganizationById } from '@/lib/api/deduplicatedApi';
 import { getCurrentUserProfile } from '@/lib/api/users';
 import type { UserProfile, Organization, AuthError, UserDataCacheItem } from '../types';
-import { 
-  saveUserDataToStorage, 
-  loadUserDataFromStorage 
+import {
+  saveUserDataToStorage,
+  loadUserDataFromStorage
 } from '../utils/authStorage';
-import { 
-  createAuthError, 
-  handleAuthError, 
+import {
+  createAuthError,
+  handleAuthError,
   mergeCallCenterData,
   trackPerformance,
-  retryOperation 
+  retryOperation
 } from '../utils/authHelpers';
 import { AUTH_TIMEOUTS } from '../constants/authConstants';
+import { devLog, errorLog } from '@/lib/utils/logger';
 
 /**
  * فئة إدارة بيانات المستخدم
@@ -81,8 +82,7 @@ export class UserDataManager {
       
       // إذا لم تكن هناك صلاحيات صحيحة، اجبر جلب البيانات الجديدة
       if (!hasValidPermissions) {
-        if (process.env.NODE_ENV === 'development') {
-        }
+        devLog('⚠️ [UserDataManager] saved data has no valid permissions, fetching fresh data');
       } else {
         // التحقق من عمر البيانات المحفوظة قبل التحديث في الخلفية
         const savedTimestamp = savedData.userProfile.updated_at ? 
@@ -261,26 +261,30 @@ export class UserDataManager {
     }
 
     try {
-      console.log('🔍 [UserDataManager] بدء جلب بيانات المستخدم', { userId: user.id });
-      
-      // استخدام getUserByAuthId مباشرة للحصول على بيانات المستخدم
-      const { getUserByAuthId } = await import('@/lib/api/deduplicatedApi');
-      console.log('📦 [UserDataManager] تم استيراد getUserByAuthId');
-      
-      let profile = await getUserByAuthId(user.id);
-      console.log('✅ [UserDataManager] نتيجة getUserByAuthId:', { hasProfile: !!profile });
-      
+      devLog('🔍 [UserDataManager] fetching user data', { userId: user.id });
+
+      // ✅ أولاً: مسار سريع محلي لتكوين الملف من بيانات الجلسة/التخزين (يتضمن timeouts داخلية قصيرة)
+      let profile = await getCurrentUserProfile();
+      devLog('⚡ [UserDataManager] fast local profile result:', { hasProfile: !!profile });
+
+      // إذا لم يتوفر ملف من المسار السريع، جرّب استعلام القاعدة لكن بمهلة قصيرة لتفادي التعليق
       if (!profile) {
-        console.log('⚠️ [UserDataManager] لم يتم العثور على البروفايل، استخدام fallback');
-        // fallback للطريقة القديمة
-        const profilePromise = getCurrentUserProfile();
-        const timeoutPromise = new Promise<null>((_, reject) => 
-          setTimeout(() => reject(new Error('timeout')), AUTH_TIMEOUTS.LOADING_TIMEOUT)
-        );
-        
-        profile = await Promise.race([profilePromise, timeoutPromise]);
-        console.log('✅ [UserDataManager] نتيجة getCurrentUserProfile:', { hasProfile: !!profile });
-        
+        // استخدام getUserByAuthId مع timebox
+        const { getUserByAuthId } = await import('@/lib/api/deduplicatedApi');
+        devLog('📦 [UserDataManager] getUserByAuthId imported');
+
+        try {
+          const timeoutMs = 1200;
+          profile = await Promise.race([
+            getUserByAuthId(user.id),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs))
+          ]);
+          devLog('✅ [UserDataManager] getUserByAuthId timed result:', { hasProfile: !!profile, timeoutMs });
+        } catch (e) {
+          // في حالة الخطأ، سنسقط إلى عدم وجود ملف لإطلاق الخطأ القياسي لاحقاً
+          profile = null;
+        }
+
         if (!profile) {
           throw new Error('لم يتم العثور على بيانات المستخدم');
         }
@@ -300,8 +304,7 @@ export class UserDataManager {
             );
           } catch (orgError) {
             // استكمال بدون المؤسسة إذا فشل جلبها
-            if (process.env.NODE_ENV === 'development') {
-            }
+            errorLog('[UserDataManager] failed to fetch organization:', orgError);
           }
         }
 
@@ -366,13 +369,12 @@ export class UserDataManager {
 
           // تحديث localStorage
           saveUserDataToStorage(
-            result.userProfile, 
-            result.organization, 
+            result.userProfile,
+            result.organization,
             result.userProfile.organization_id
           );
 
-          if (process.env.NODE_ENV === 'development') {
-          }
+          devLog('[UserDataManager] background refresh completed');
         }
       }, 1000);
     } catch (error) {
@@ -442,8 +444,7 @@ export class UserDataManager {
       this.userDataCache.clear();
     }
 
-    if (process.env.NODE_ENV === 'development') {
-    }
+    devLog('[UserDataManager] cache cleared', { userId });
   }
 
   /**
@@ -461,7 +462,8 @@ export class UserDataManager {
 
     keysToDelete.forEach(userId => this.userDataCache.delete(userId));
 
-    if (process.env.NODE_ENV === 'development' && keysToDelete.length > 0) {
+    if (keysToDelete.length > 0) {
+      devLog('[UserDataManager] expired cache cleaned', { count: keysToDelete.length });
     }
   }
 

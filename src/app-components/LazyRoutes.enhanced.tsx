@@ -99,7 +99,7 @@ export const OrderDistributionSettings = lazy(() => import('../pages/OrderDistri
 export const ConfirmationCenter = lazy(() => import('../pages/dashboard/ConfirmationCenter'));
 
 // ============ ENHANCED ANALYTICS with Heavy Chart Preloading ============
-export const Analytics = lazy(() => 
+export const Analytics = lazy(() =>
   import('../pages/dashboard/Analytics').then(module => {
     // Preload ALL chart dependencies when analytics loads
     Promise.all([
@@ -114,11 +114,14 @@ export const Analytics = lazy(() =>
   })
 );
 
-export const FinancialAnalytics = lazy(() => 
+export const FinancialAnalytics = lazy(() =>
   import('../pages/FinancialAnalytics').then(module => {
     // Preload financial chart dependencies
-    import('recharts').catch(() => {});
-    import('chart.js').catch(() => {});
+    Promise.all([
+      import('recharts'),
+      import('chart.js'),
+      import('react-chartjs-2')
+    ]).catch(() => {});
     return module;
   })
 );
@@ -144,13 +147,39 @@ export const POSOptimized = lazy(() =>
   })
 );
 
-export const POSAdvanced = lazy(() => import('../pages/POSAdvanced'));
+export const POSAdvanced = lazy(() => 
+  import('../pages/POSAdvanced').then(module => {
+    // Preload POS dependencies
+    import('react-barcode').catch(() => {});
+    import('qrcode.react').catch(() => {});
+    return module;
+  }).catch((error) => {
+    console.error('❌ فشل تحميل POSAdvanced:', error);
+    // fallback في حالة فشل التحميل
+    return { default: () => <div className="flex items-center justify-center min-h-screen"><div className="text-center"><div className="text-xl mb-2">⚠️ فشل تحميل نقطة البيع</div><div className="text-sm text-gray-600">يرجى تحديث الصفحة</div></div></div> };
+  })
+);
 export const POSDashboard = lazy(() => import('../pages/POSDashboard'));
 export const POSOrdersOptimized = lazy(() => import('../pages/POSOrdersOptimized'));
 export const POSOperationsPage = lazy(() => import('../pages/POSOperations'));
+export const POSSettingsPage = lazy(() => import('../pages/POSSettingsPage'));
+export const StoreBusinessSettings = lazy(() => import('../pages/StoreBusinessSettings'));
+export const StaffManagement = lazy(() => import('../pages/StaffManagement'));
+export const Etat104 = lazy(() => import('../pages/dashboard/Etat104'));
 export const ProductReturns = lazy(() => import('../pages/returns/ProductReturns'));
 export const LossDeclarations = lazy(() => import('../pages/losses/LossDeclarations'));
 export const ProductOperationsPage = lazy(() => import('../pages/ProductOperations'));
+
+// ============ OPERATIONS CENTERS ============
+export const SalesOperationsPage = lazy(() => import('../pages/SalesOperations'));
+export const ServicesOperationsPage = lazy(() => import('../pages/ServicesOperations'));
+export const ReportsOperationsPage = lazy(() => import('../pages/ReportsOperations'));
+export const SettingsOperationsPage = lazy(() => import('../pages/SettingsOperations'));
+export const StaffOperationsPage = lazy(() => import('../pages/StaffOperations'));
+export const SupplierOperationsPage = lazy(() => import('../pages/SupplierOperations'));
+export const StoreOperationsPage = lazy(() => import('../pages/StoreOperations'));
+export const CoursesOperationsPage = lazy(() => import('../pages/CoursesOperations'));
+export const OpenStoreRedirect = lazy(() => import('../pages/dashboard/OpenStoreRedirect'));
 
 // ============ SUPPLIER MANAGEMENT ============
 export const SuppliersManagement = lazy(() => import('../pages/dashboard/SuppliersManagement'));
@@ -213,6 +242,9 @@ export const ThankYouPageEditor = lazy(() => import('../pages/dashboard/ThankYou
 // ============ SETTINGS & CONFIGURATION ============
 export const SettingsPage = lazy(() => import('../pages/dashboard/settings'));
 export const DomainSettings = lazy(() => import('../pages/dashboard/DomainSettings'));
+
+// ============ DATABASE ADMIN (Electron Only) ============
+export const DatabaseAdmin = lazy(() => import('../pages/DatabaseAdmin'));
 
 // ============ BUSINESS FEATURES ============
 export const GameDownloadsPage = lazy(() => import('../pages/GameDownloadsPage'));
@@ -306,9 +338,11 @@ export const preloadByRoute = (pathname: string) => {
 export const preloadHeavyDependencies = () => {
   const heavyDeps = [
     () => import('@nivo/bar'),
-    () => import('@nivo/line'), 
+    () => import('@nivo/line'),
     () => import('@nivo/pie'),
     () => import('recharts'),
+    () => import('chart.js'),
+    () => import('react-chartjs-2'),
     () => import('jspdf'),
     () => import('@monaco-editor/react'),
     () => import('@dnd-kit/core'),

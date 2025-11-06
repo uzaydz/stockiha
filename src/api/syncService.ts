@@ -410,10 +410,12 @@ export const processSyncQueue = async (): Promise<{ processed: number; failed: n
           processed++;
         } else {
           // تحديث عدد المحاولات
+          const now = new Date().toISOString();
           const updatedItem: SyncQueueItem = {
             ...item,
             attempts: item.attempts + 1,
-            lastAttempt: new Date().toISOString()
+            lastAttempt: now,
+            updatedAt: now
           };
           
           if (updatedItem.attempts >= 5) {

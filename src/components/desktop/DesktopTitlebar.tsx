@@ -148,6 +148,15 @@ const DesktopTitlebar: React.FC = () => {
               <div className="h-4 w-px bg-white/15" />
               {/* الإشعارات */}
               <TitlebarNotifications />
+              {/* التحديثات */}
+              {isElectron && (
+                <>
+                  <div className="h-4 w-px bg-white/15" />
+                  <div className="flex items-center">
+                    <UpdateButton />
+                  </div>
+                </>
+              )}
               {/* تسجيل خروج الموظف */}
               {staffDisplayName && (
                 <>

@@ -206,8 +206,7 @@ export const getAllLocalReturns = getAllLocalProductReturns;
 // جلب الإرجاعات غير المتزامنة
 export const getUnsyncedProductReturns = async (): Promise<LocalProductReturn[]> => {
   return await inventoryDB.productReturns
-    .where('synced')
-    .equals(false)
+    .filter(r => !r.synced)
     .toArray();
 };
 

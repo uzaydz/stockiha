@@ -3,7 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Store, BarChart3, Zap, Layers, Package, LogOut, Truck, GraduationCap, Settings, Users, Building2, FileSpreadsheet, ChevronRight, ChevronLeft, ExternalLink, ShoppingCart } from 'lucide-react';
+import { Store, BarChart3, Zap, Layers, Package, LogOut, Truck, GraduationCap, Settings, Users, Building2, FileSpreadsheet, ChevronRight, ChevronLeft, ExternalLink, ShoppingCart, Database } from 'lucide-react';
 import { ShoppingBag, Wrench, BarChart3 as ReportsIcon } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
@@ -201,6 +201,15 @@ export const posSidebarItems: POSSidebarItem[] = [
     icon: ReportsIcon,
     href: '/dashboard/reports-operations/financial',
     isOnlineOnly: true, // خاص بالتجار الإلكترونيين
+  },
+  {
+    id: 'database-admin',
+    title: 'قاعدة البيانات',
+    icon: Database,
+    href: '/dashboard/database-admin',
+    badge: 'جديد',
+    isOnlineOnly: false, // متاح للجميع
+    alwaysShow: false, // لا يظهر في جميع الأوضاع
   },
 ];
 

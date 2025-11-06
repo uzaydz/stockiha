@@ -378,7 +378,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
         setSession(newSession);
         setUser(newUser);
         setIsExplicitSignOut(false);
-        // لا نضع authReady هنا - يتم تحديده في signIn بعد تحميل البيانات
+        // لا نضع authReady هنا - يتم تحديده لاحقاً بعد تحميل البيانات
+        // ✅ مهم: اعتبر فحص الجلسة الأولي مكتملاً لضمان تفعيل useUserProfile/useUserOrganization
+        setHasInitialSessionCheck(true);
 
         if (newSession && newUser) {
           saveAuthToStorage(newSession, newUser);
@@ -387,6 +389,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
           // حفظ في cache
           cacheSession(newUser.id, newSession);
           cacheUser(newUser.id, newUser);
+
+          // ✅ بدء جلب الملف الشخصي فوراً لتجنب الانتظار الطويل في الواجهة
+          try {
+            setTimeout(() => { void refetchProfile(); }, 0);
+          } catch {}
         }
       }
 

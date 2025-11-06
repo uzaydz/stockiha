@@ -200,6 +200,16 @@ export const getCurrentUserProfile = async (): Promise<User | null> => {
           if (cachedProfile && (startTime - cachedProfile.timestamp) < CACHE_DURATION) {
             return cachedProfile.data;
           }
+        } else if (authState.user) {
+          // ✅ دعم قراءة المستخدم المحفوظ حتى لو لم تُحفظ الجلسة في التخزين
+          authData = { user: authState.user };
+          const userId = authState.user.id;
+          if (userId) {
+            const cachedProfile = profileCache[userId];
+            if (cachedProfile && (startTime - cachedProfile.timestamp) < CACHE_DURATION) {
+              return cachedProfile.data;
+            }
+          }
         }
       }
     } catch (storageError) {

@@ -6,7 +6,7 @@ import SubscriptionCheck from '../components/subscription/SubscriptionCheck';
 import PermissionGuard from '../components/auth/PermissionGuard';
 import ConditionalRoute from '../components/ConditionalRoute';
 import StaffLoginRedirect from '../components/auth/StaffLoginRedirect';
-import * as LazyRoutes from './LazyRoutes.optimized';
+import * as LazyRoutes from './LazyRoutes.enhanced';
 import { PageLoader } from './RouteComponents';
 import { ConfirmationProvider } from '@/context/ConfirmationContext';
 
@@ -406,6 +406,15 @@ export const DashboardRoutes = () => (
             <Suspense fallback={<PageLoader message="جاري تحميل مركز الإعدادات..." />}>
               <LazyRoutes.SettingsOperationsPage />
             </Suspense>
+          } />
+
+          {/* مستكشف قاعدة البيانات (Electron Only) */}
+          <Route path="database-admin" element={
+            <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+              <Suspense fallback={<PageLoader message="جاري تحميل مستكشف قاعدة البيانات..." />}>
+                <LazyRoutes.DatabaseAdmin />
+              </Suspense>
+            </PermissionGuard>
           } />
 
           {/* توجيه المسارات القديمة إلى المركز الجديد */}

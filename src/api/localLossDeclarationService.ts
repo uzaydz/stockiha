@@ -187,6 +187,12 @@ export const getAllLocalLossDeclarations = async (organizationId: string): Promi
 
 // جلب التصاريح غير المتزامنة
 export const getUnsyncedLossDeclarations = async (): Promise<LocalLossDeclaration[]> => {
+  // التحقق من وجود الجدول قبل الوصول إليه
+  if (!inventoryDB.lossDeclarations) {
+    console.warn('[getUnsyncedLossDeclarations] lossDeclarations table not available');
+    return [];
+  }
+  
   return await inventoryDB.lossDeclarations
     .filter(loss => loss.synced === false)
     .toArray();

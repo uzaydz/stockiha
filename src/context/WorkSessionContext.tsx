@@ -69,7 +69,13 @@ export const WorkSessionProvider: React.FC<{ children: React.ReactNode }> = ({ c
   // مزامنة الجلسات المعلقة عند الاتصال
   useEffect(() => {
     const syncInterval = setInterval(() => {
-      syncPendingWorkSessions().catch(console.error);
+      syncPendingWorkSessions().catch(error => {
+        // تجاهل أخطاء التهيئة المبكرة بشكل صامت
+        if (error?.message?.includes('Database not initialized')) {
+          return;
+        }
+        console.error(error);
+      });
     }, 30000); // كل 30 ثانية
 
     return () => clearInterval(syncInterval);

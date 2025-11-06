@@ -273,6 +273,11 @@ export function setupAuthErrorFiltering(): void {
     ) {
       return;
     }
+
+    // تجاهل أخطاء تهيئة القاعدة المبكرة (ستُحل تلقائياً عند اكتمال التهيئة)
+    if (message.includes('Database not initialized')) {
+      return;
+    }
     
     // فحص ما إذا كان الخطأ متعلق بـ Supabase Auth
     if (message.includes('supabase') || message.includes('_getUser') || message.includes('_useSession')) {

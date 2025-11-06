@@ -201,8 +201,7 @@ export const getAllLocalInvoices = async (organizationId: string): Promise<Local
 // جلب الفواتير غير المتزامنة
 export const getUnsyncedInvoices = async (): Promise<LocalInvoice[]> => {
   return await inventoryDB.invoices
-    .where('synced')
-    .equals(false)
+    .filter(i => !i.synced)
     .toArray();
 };
 

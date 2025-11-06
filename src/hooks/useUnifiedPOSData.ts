@@ -240,6 +240,8 @@ const hydrateDexieFromCachedResponse = async (
               updated_at: updatedAt,
               lastSyncAttempt: now,
               error: undefined,
+              order_number: '',
+              localCreatedAt: createdAt,
               local_order_number:
                 Number((order as any).customer_order_number ?? 0) || 0,
               remote_order_id: (order as any).remote_order_id ?? order.id,
@@ -253,6 +255,22 @@ const hydrateDexieFromCachedResponse = async (
                 remote_status: (order as any).status ?? 'unknown'
               }
             };
+
+            // ضمان وجود order_number (NOT NULL في SQLite)
+            const computedOrderNumber =
+              (order as any).order_number ||
+              (order as any).orderNumber ||
+              ((order as any).customer_order_number != null
+                ? String((order as any).customer_order_number)
+                : null) ||
+              (localOrder.local_order_number
+                ? String(localOrder.local_order_number)
+                : null) ||
+              (localOrder.remote_customer_order_number != null
+                ? String(localOrder.remote_customer_order_number)
+                : null) ||
+              String(order.id);
+            (localOrder as any).order_number = computedOrderNumber;
 
             await inventoryDB.posOrders.put(localOrder);
           }
@@ -356,6 +374,7 @@ const loadInitialDataFromIndexedDB = async (
   categoryId?: string
 ) => {
   try {
+    await inventoryDB.initialize(orgId);
     const logPrefix = '[UnifiedPOSData][IndexedDB]';
     console.info(
       `${logPrefix} بدء تحميل البيانات المحلية`,
@@ -575,7 +594,8 @@ const loadInitialDataFromIndexedDB = async (
       }
     ];
 
-    if (!mappedProducts.length && shouldCacheQuery(page, search, categoryId)) {
+    const sqliteOnly = (inventoryDB as any).isSQLite && (inventoryDB as any).isSQLite();
+    if (!mappedProducts.length && shouldCacheQuery(page, search, categoryId) && !sqliteOnly) {
       const cachedResponse = await loadCachedCompletePOSData(
         orgId,
         page,

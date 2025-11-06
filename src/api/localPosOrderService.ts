@@ -70,6 +70,7 @@ export const createLocalPOSOrder = async (
 
   const orderRecord: LocalPOSOrder = {
     id: orderId,
+    order_number: String(localNumber),
     organization_id: orderData.organizationId,
     employee_id: orderData.employeeId ?? null,
     customer_id: orderData.customerId ?? null,
@@ -91,6 +92,8 @@ export const createLocalPOSOrder = async (
     created_at: now,
     created_at_ts: Date.parse(now),
     updated_at: now,
+    localCreatedAt: now,
+    serverCreatedAt: undefined,
     local_order_number: localNumber,
     local_order_number_str: String(localNumber),
     payload: {
@@ -121,6 +124,8 @@ export const createLocalPOSOrder = async (
       quantity: item.quantity,
       unit_price: item.unitPrice,
       total_price: item.totalPrice,
+      subtotal: item.totalPrice,
+      discount: 0,
       is_wholesale: item.isWholesale ?? false,
       original_price: item.originalPrice ?? item.unitPrice,
       color_id: item.colorId ?? null,
@@ -184,7 +189,8 @@ export const getPendingPOSOrders = async (): Promise<LocalPOSOrder[]> => {
     // استخدام toArray مع filter بدلاً من indexed query على boolean
     // لأن indexed queries على boolean fields يمكن أن تفشل إذا كانت هناك قيم null/undefined
     const allOrders = await inventoryDB.posOrders.toArray();
-    const bySynced = allOrders.filter(order => order.synced === false);
+    const isFalse = (v: any) => v === false || v === 0 || v === '0' || v == null;
+    const bySynced = allOrders.filter((order: any) => isFalse(order.synced));
 
     // دمج النتائج مع إزالة التكرار حسب id
     const map = new Map<string, LocalPOSOrder>();
@@ -203,11 +209,12 @@ export const getPendingPOSOrders = async (): Promise<LocalPOSOrder[]> => {
     console.error('[getPendingPOSOrders] خطأ:', error);
     // في حال فشل، استخدم فلترة كاملة كحل احتياطي
     const allOrders = await inventoryDB.posOrders.toArray();
-    return allOrders.filter((order) => 
+    const isFalse = (v: any) => v === false || v === 0 || v === '0' || v == null;
+    return allOrders.filter((order: any) => 
       order.status === 'pending_sync' || 
       order.status === 'failed' ||
       order.status === 'syncing' ||
-      order.synced === false
+      isFalse(order.synced)
     );
   }
 };
@@ -302,6 +309,18 @@ const mapRemoteOrderToLocal = (order: any): LocalPOSOrder => {
   const createdAt = order.created_at || new Date().toISOString();
   const updatedAt = order.updated_at || createdAt;
 
+  // Compute robust order_number to satisfy NOT NULL in SQLite
+  const computedOrderNumber =
+    order.order_number ||
+    order.orderNumber ||
+    (order.customer_order_number != null ? String(order.customer_order_number) : null) ||
+    (order.local_order_number != null ? String(order.local_order_number) : null) ||
+    (order.local_order_number_str ? String(order.local_order_number_str) : null) ||
+    (order.remote_customer_order_number != null ? String(order.remote_customer_order_number) : null) ||
+    (order.slug ? String(order.slug) : null) ||
+    (order.id ? String(order.id) : null) ||
+    new Date().toISOString().replace(/\D/g, '').slice(-12);
+
   return {
     id: order.id,
     organization_id: order.organization_id,
@@ -309,6 +328,7 @@ const mapRemoteOrderToLocal = (order: any): LocalPOSOrder => {
     customer_id: order.customer_id ?? null,
     customer_name: order.customer_name ?? order.customer?.name ?? null,
     customer_name_lower: (order.customer_name ?? order.customer?.name ?? '')?.toString().toLowerCase() || null,
+    order_number: computedOrderNumber,
     subtotal: Number(order.subtotal ?? order.original_total ?? order.total ?? 0),
     total: Number(order.effective_total ?? order.total ?? 0),
     discount: Number(order.discount ?? 0),
@@ -325,6 +345,8 @@ const mapRemoteOrderToLocal = (order: any): LocalPOSOrder => {
     created_at: createdAt,
     created_at_ts: Date.parse(createdAt),
     updated_at: updatedAt,
+    localCreatedAt: createdAt,
+    serverCreatedAt: createdAt,
     local_order_number: Number(order.customer_order_number ?? order.local_order_number ?? 0),
     local_order_number_str: String(order.customer_order_number ?? order.local_order_number ?? ''),
     remote_order_id: order.id,
@@ -376,6 +398,11 @@ export const saveRemoteOrderItems = async (orderId: string, items: any[]): Promi
         quantity: Number(item.quantity ?? 0),
         unit_price: Number(item.unit_price ?? item.price ?? 0),
         total_price: Number(item.total_price ?? item.total ?? 0),
+        subtotal: Number(
+          item.subtotal ??
+          (item.total_price ?? item.total ?? ((item.quantity ?? 0) * (item.unit_price ?? item.price ?? 0)))
+        ),
+        discount: Number(item.discount ?? 0),
         is_wholesale: Boolean(item.is_wholesale ?? false),
         original_price: Number(item.original_price ?? item.unit_price ?? 0),
         color_id: item.color_id ?? null,
@@ -561,26 +588,75 @@ export async function getLocalPOSOrdersPage(
     createdSort = 'desc',
   } = options;
 
-  let coll = inventoryDB.posOrders
-    .where('[organization_id+created_at]')
-    .between([organizationId, ''], [organizationId, '\uffff']);
+  try {
+    // مسار SQLite: تجنب سلاسل Dexie (reverse/and/offset/limit) واستخدم معالجة يدوية
+    if ((inventoryDB as any).isSQLite && (inventoryDB as any).isSQLite()) {
+      let items = await inventoryDB.posOrders
+        .where('organization_id')
+        .equals(organizationId)
+        .toArray();
 
-  // ترتيب حسب التاريخ
-  if (createdSort === 'desc') coll = coll.reverse();
+      if (status) {
+        const statuses = Array.isArray(status) ? status : [status];
+        items = items.filter((o: any) => statuses.includes(o.status as any));
+      }
+      if (payment_status) {
+        const pstats = Array.isArray(payment_status) ? payment_status : [payment_status];
+        items = items.filter((o: any) => pstats.includes(o.payment_status as any));
+      }
 
-  // تطبيق الفلاتر
-  if (status) {
-    const statuses = Array.isArray(status) ? status : [status];
-    coll = coll.and((o: any) => statuses.includes(o.status as any));
+      items.sort((a: any, b: any) => {
+        const ta = new Date(a.created_at || a.updated_at || 0).getTime();
+        const tb = new Date(b.created_at || b.updated_at || 0).getTime();
+        return createdSort === 'desc' ? tb - ta : ta - tb;
+      });
+
+      const total = items.length;
+      const page = items.slice(offset, offset + limit);
+      return { orders: page as any, total };
+    }
+
+    // مسار IndexedDB (Dexie)
+    let coll = inventoryDB.posOrders
+      .where('[organization_id+created_at]' as any)
+      .between([organizationId, ''], [organizationId, '\uffff']);
+
+    if (createdSort === 'desc') coll = (coll as any).reverse();
+    if (status) {
+      const statuses = Array.isArray(status) ? status : [status];
+      coll = (coll as any).and((o: any) => statuses.includes(o.status as any));
+    }
+    if (payment_status) {
+      const pstats = Array.isArray(payment_status) ? payment_status : [payment_status];
+      coll = (coll as any).and((o: any) => pstats.includes(o.payment_status as any));
+    }
+
+    const total = await (coll as any).count();
+    const page = await (coll as any).offset(offset).limit(limit).toArray();
+    return { orders: page as any, total };
+  } catch (error) {
+    // احتياطي: فلترة كاملة
+    let items = await inventoryDB.posOrders
+      .where('organization_id')
+      .equals(organizationId)
+      .toArray();
+    if (status) {
+      const statuses = Array.isArray(status) ? status : [status];
+      items = items.filter((o: any) => statuses.includes(o.status as any));
+    }
+    if (payment_status) {
+      const pstats = Array.isArray(payment_status) ? payment_status : [payment_status];
+      items = items.filter((o: any) => pstats.includes(o.payment_status as any));
+    }
+    items.sort((a: any, b: any) => {
+      const ta = new Date(a.created_at || a.updated_at || 0).getTime();
+      const tb = new Date(b.created_at || b.updated_at || 0).getTime();
+      return createdSort === 'desc' ? tb - ta : ta - tb;
+    });
+    const total = items.length;
+    const page = items.slice(offset, offset + limit);
+    return { orders: page as any, total };
   }
-  if (payment_status) {
-    const pstats = Array.isArray(payment_status) ? payment_status : [payment_status];
-    coll = coll.and((o: any) => pstats.includes(o.payment_status as any));
-  }
-
-  const total = await coll.count();
-  const page = await coll.offset(offset).limit(limit).toArray();
-  return { orders: page as any, total };
 }
 
 export async function fastSearchLocalPOSOrders(

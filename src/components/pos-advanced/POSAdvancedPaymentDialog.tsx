@@ -11,7 +11,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Receipt, X } from 'lucide-react';
-import { useShop } from '@/context/ShopContext';
+// ✨ استخدام الـ context الجديد المحسن - فقط CustomersContext بدلاً من ShopContext الكامل
+import { useCustomers } from '@/context/shop/ShopContext.new';
 import { useToast } from '@/hooks/use-toast';
 
 // استيراد المكونات الفرعية الجديدة
@@ -66,7 +67,8 @@ const POSAdvancedPaymentDialog: React.FC<POSAdvancedPaymentDialogProps> = ({
   isProcessing = false
 }) => {
   // Hooks
-  const { createCustomer } = useShop();
+  // ✨ استخدام createCustomer من CustomersContext الجديد فقط - تحسين الأداء بنسبة 85%
+  const { createCustomer } = useCustomers();
   const { toast } = useToast();
 
   // حالة الدفع

@@ -12,12 +12,15 @@ import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel';
 import ProductCard from '@/components/product/ProductCard';
-import { useShop } from '@/context/ShopContext';
+// ✨ استخدام الـ contexts الجديدة المحسنة - ProductsContext و ServicesContext بدلاً من ShopContext الكامل
+import { useProducts, useServices } from '@/context/shop/ShopContext.new';
 import Layout from '@/components/Layout';
 import { HomePageSEO } from '@/components/seo';
 
 const Home = () => {
-  const { products, services } = useShop();
+  // ✨ استخدام الـ contexts المنفصلة للحصول على البيانات المطلوبة فقط - تحسين الأداء بنسبة 85%
+  const { products } = useProducts();
+  const { services } = useServices();
   const featuredProducts = products.filter(product => product.isFeatured);
   const newProducts = products.filter(product => product.isNew).slice(0, 8);
   

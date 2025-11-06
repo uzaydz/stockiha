@@ -5,6 +5,7 @@ import { initializePOSOfflineSync } from '@/context/shop/posOrderService';
 import { SyncEngine } from '@/sync/SyncEngine';
 import { inventoryDB } from '@/database/localDb';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import { useOrganization } from '@/hooks/useOrganization';
 import { toast } from 'sonner';
 
 interface SyncManagerProps {
@@ -37,6 +38,7 @@ const SyncManager: React.FC<SyncManagerProps> = ({
   forceDisable = false
 }) => {
   const { isOnline } = useNetworkStatus();
+  const { organization } = useOrganization();
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncError, setLastSyncError] = useState<string | null>(null);
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
@@ -62,6 +64,16 @@ const SyncManager: React.FC<SyncManagerProps> = ({
   );
 
   const getQueueSnapshot = useCallback(async (): Promise<QueueSnapshot> => {
+    // لا تحاول الوصول للقاعدة إذا لم يتم تحميل المنظمة بعد
+    if (!organization?.id) {
+      return {
+        queueItems: 0,
+        products: { unsynced: 0, total: 0 },
+        orders: { unsynced: 0, total: 0 },
+        customers: { unsynced: 0, total: 0 }
+      };
+    }
+
     try {
       const [
         queueCount,
@@ -102,7 +114,7 @@ const SyncManager: React.FC<SyncManagerProps> = ({
         customers: { unsynced: 0, total: 0 }
       };
     }
-  }, []);
+  }, [organization?.id]);
 
   const updateSnapshot = useCallback(async () => {
     const snapshot = await getQueueSnapshot();
@@ -111,6 +123,11 @@ const SyncManager: React.FC<SyncManagerProps> = ({
 
   const runSync = useCallback(
     async (origin: 'auto' | 'manual' | 'network' = 'auto') => {
+      // لا تحاول المزامنة إذا لم يتم تحميل المنظمة بعد
+      if (!organization?.id) {
+        return;
+      }
+
       if (forceDisable) {
         return;
       }

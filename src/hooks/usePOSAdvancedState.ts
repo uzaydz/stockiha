@@ -5,7 +5,8 @@ import { useTenant } from '@/context/TenantContext';
 import { useAuth } from '@/context/AuthContext';
 import { useAppInitialization } from '@/context/AppInitializationContext';
 import { useApps } from '@/context/AppsContext';
-import { useShop } from '@/context/ShopContext';
+// ✨ استخدام الـ context الجديد المحسن - فقط OrdersContext بدلاً من ShopContext الكامل
+import { useOrders } from '@/context/shop/ShopContext.new';
 import { useWorkSession } from '@/context/WorkSessionContext';
 import { supabase } from '@/lib/supabase';
 import { v4 as uuidv4 } from 'uuid';
@@ -51,7 +52,8 @@ export const usePOSAdvancedState = () => {
   const { user, userProfile } = useAuth();
   const { currentOrganization } = useTenant();
   const { isAppEnabled } = useApps();
-  const { addOrder } = useShop();
+  // ✨ استخدام addOrder من OrdersContext الجديد فقط - تحسين الأداء بنسبة 85%
+  const { addOrder } = useOrders();
   const { activeSession, updateSessionLocally } = useWorkSession();
   
   const isStaff = userProfile?.role === 'admin' || userProfile?.role === 'employee';

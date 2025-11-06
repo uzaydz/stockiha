@@ -798,9 +798,9 @@ const fetchPOSSettings = async (orgId: string): Promise<any> => {
         return remote;
       }
 
-      // fallback للـ RPC function القديمة
+      // fallback للـ RPC function القديمة (اسم المعامل الصحيح)
       const { data: rpcData, error: rpcError } = await (supabase as any)
-        .rpc('get_pos_settings', { p_org_id: orgId });
+        .rpc('get_pos_settings', { p_organization_id: orgId });
 
       if (!rpcError && rpcData && Array.isArray(rpcData) && rpcData.length > 0) {
         const remote = rpcData[0];

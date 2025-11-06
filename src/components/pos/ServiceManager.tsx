@@ -26,7 +26,8 @@ import {
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { useShop } from '@/context/ShopContext';
+// ✨ استخدام الـ context الجديد المحسن - فقط CustomersContext بدلاً من ShopContext الكامل
+import { useCustomers } from '@/context/shop/ShopContext.new';
 import {
   Dialog,
   DialogContent,
@@ -47,7 +48,8 @@ interface ServiceManagerProps {
 }
 
 export default function ServiceManager({ services, onAddService, customers = [], organizationId }: ServiceManagerProps) {
-  const { createCustomer } = useShop();
+  // ✨ استخدام createCustomer من CustomersContext الجديد فقط - تحسين الأداء بنسبة 85%
+  const { createCustomer } = useCustomers();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');

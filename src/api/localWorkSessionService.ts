@@ -40,7 +40,8 @@ export const getActiveWorkSession = async (staffId: string, organizationId: stri
           return localSession;
         }
       } catch (error) {
-        console.log('⚠️ فشل جلب الجلسة من السيرفر، استخدام البيانات المحلية');
+        console.warn('⚠️ فشل جلب الجلسة من السيرفر، استخدام البيانات المحلية:', error instanceof Error ? error.message : error);
+        // لا مشكلة، سنستخدم البيانات المحلية
       }
     }
 
@@ -261,6 +262,12 @@ export const syncPendingWorkSessions = async (): Promise<void> => {
   }
 
   try {
+    // التحقق من جاهزية القاعدة قبل المزامنة
+    const orgId = localStorage.getItem('currentOrganizationId') || localStorage.getItem('bazaar_organization_id');
+    if (!orgId) {
+      return; // لا يوجد org ID بعد، انتظر الجلسة القادمة
+    }
+
     const pendingSessions = await inventoryDB.workSessions
       .filter(session => session.synced === false)
       .toArray();
@@ -550,7 +557,8 @@ export const getActiveOrPausedSession = async (staffId: string, organizationId: 
           return localSession;
         }
       } catch (error) {
-        console.log('⚠️ فشل جلب الجلسة من السيرفر، استخدام البيانات المحلية');
+        console.warn('⚠️ فشل جلب الجلسة من السيرفر، استخدام البيانات المحلية:', error instanceof Error ? error.message : error);
+        // لا مشكلة، سنستخدم البيانات المحلية
       }
     }
 

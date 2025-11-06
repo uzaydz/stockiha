@@ -7,16 +7,11 @@ import React, { memo, ReactNode, useMemo, useEffect, useRef } from 'react';
 import { PageType, ProviderConfig } from './types';
 
 // Context Providers
-import { TenantProvider } from '@/context/TenantContext';
-import { PublicTenantProvider } from '@/context/tenant/TenantProvider';
-import { AuthProvider } from '@/context/AuthContext';
 import { DashboardDataProvider } from '@/context/DashboardDataContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { AppsProvider } from '@/context/AppsContext';
 import { OrganizationDataProvider } from '@/contexts/OrganizationDataContext';
-// Removed store-related providers
 import { SuperUnifiedDataProvider } from '@/context/SuperUnifiedDataContext';
-import { UserProvider } from '@/context/UserContext';
 import { PermissionsProvider } from '@/context/PermissionsContext';
 
 // Subscription Data Refresher
@@ -26,7 +21,8 @@ import SubscriptionDataRefresher from '@/components/subscription/SubscriptionDat
 
 // Removed Shared Store Data Providers - not needed for admin-only
 import { NotificationsProvider } from '@/context/NotificationsContext';
-import { ShopProvider } from '@/context/ShopContext';
+// ✨ استخدام ShopProvider الجديد المحسن - يحتوي على جميع الـ contexts المنفصلة
+import { ShopProvider } from '@/context/shop/ShopContext.new';
 
 interface ConditionalProviderProps {
   children: ReactNode;
@@ -101,27 +97,14 @@ const AuthTenantWrapper = memo<ConditionalProviderProps>(({
     let result = node;
     const needsRefresher = cfg.apps || cfg.notifications || pageType === 'dashboard' || pageType === 'pos' || pageType === 'pos-orders';
     const needsPermissions = pageType === 'dashboard' || pageType === 'call-center' || pageType === 'pos' || pageType === 'pos-orders';
-    const hasDomPreload = (() => {
-      try {
-        if (typeof document === 'undefined') return false;
-        return !!document.getElementById('__PRELOADED_PRODUCT__');
-      } catch { return false; }
-    })();
 
-    if (cfg.tenant) {
-      // ضع SubscriptionDataRefresher داخل TenantProvider لضمان توفر TenantContext
-      const withRefresher = (
+    // ✅ SubscriptionDataRefresher فقط (بدون TenantProvider - موجود بالفعل في CoreInfrastructureWrapper)
+    if (needsRefresher) {
+      result = (
         <>
           {result}
-          {needsRefresher ? <SubscriptionDataRefresher /> : null}
+          <SubscriptionDataRefresher />
         </>
-      );
-
-      // Use TenantProvider for all admin pages
-      result = (
-        <TenantProvider>
-          {withRefresher}
-        </TenantProvider>
       );
     }
 
@@ -133,16 +116,9 @@ const AuthTenantWrapper = memo<ConditionalProviderProps>(({
       );
     }
 
-    // Always attach Auth for admin pages
-    if (cfg.auth) {
-      result = (
-        <AuthProvider>
-          <UserProvider>
-            {result}
-          </UserProvider>
-        </AuthProvider>
-      );
-    }
+    // ❌ لا نضيف AuthProvider, UserProvider, TenantProvider هنا
+    // لأنها موجودة بالفعل في CoreInfrastructureWrapper
+    // هذا يحل مشكلة التكرار بشكل كامل!
 
     return result;
   };
@@ -458,19 +434,17 @@ export const ProviderComposition = memo<ConditionalProviderProps>(({
     }
 
     const result = (
-      <AuthTenantWrapper 
-        config={config} 
-        pageType={pageType} 
+      <AuthTenantWrapper
+        config={config}
+        pageType={pageType}
         pathname={pathname}
       >
         <SpecializedProviders config={config} pageType={pageType} pathname={pathname}>
           <DataProviders config={config} pageType={pageType} pathname={pathname}>
             <AppsProviders config={config} pageType={pageType} pathname={pathname}>
-              <NotificationsWrapper config={config} pageType={pageType}>
-                <ThemeProviderWrapper pageType={pageType}>
-                  {children}
-                </ThemeProviderWrapper>
-              </NotificationsWrapper>
+              <ThemeProviderWrapper pageType={pageType}>
+                {children}
+              </ThemeProviderWrapper>
             </AppsProviders>
           </DataProviders>
         </SpecializedProviders>

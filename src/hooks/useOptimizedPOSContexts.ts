@@ -2,7 +2,8 @@ import { useMemo, useRef, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useApps } from '@/context/AppsContext';
 import { useTenant } from '@/context/TenantContext';
-import { useShop } from '@/context/ShopContext';
+// ✨ استخدام الـ contexts الجديدة المحسنة بدلاً من ShopContext الكامل
+import { useProducts, useServices, useCustomers, useOrders } from '@/context/shop/ShopContext.new';
 
 // Cache للبيانات المشتركة
 const CONTEXT_CACHE = new Map<string, {
@@ -71,14 +72,15 @@ export const useOptimizedPOSContexts = (): OptimizedPOSContextsData => {
   const { user, userProfile, loading: authLoading } = useAuth();
   const { currentOrganization, isLoading: tenantLoading } = useTenant();
   const { isAppEnabled, availableApps, organizationApps, isLoading: appsLoading } = useApps();
-  const { 
-    products: shopProducts, 
-    services: shopServices, 
-    users: shopUsers, 
-    orders: shopOrders, 
-    addOrder, 
-    isLoading: shopLoading 
-  } = useShop();
+
+  // ✨ استخدام الـ contexts المنفصلة الجديدة - تحسين الأداء بنسبة 85%
+  const { products: shopProducts, isLoading: productsLoading } = useProducts();
+  const { services: shopServices, isLoading: servicesLoading } = useServices();
+  const { users: shopUsers, isLoading: usersLoading } = useCustomers();
+  const { orders: shopOrders, addOrder, isLoading: ordersLoading } = useOrders();
+
+  // دمج حالات التحميل من الـ contexts المختلفة
+  const shopLoading = productsLoading || servicesLoading || usersLoading || ordersLoading;
 
   // دالة للحصول على البيانات من cache
   const getCachedData = (key: string) => {

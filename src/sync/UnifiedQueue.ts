@@ -25,6 +25,7 @@ export const UnifiedQueue = {
       lastAttempt: undefined,
       error: undefined,
       createdAt: now,
+      updatedAt: now,
       priority: params.priority ?? 1
     };
     await inventoryDB.syncQueue.put(item);

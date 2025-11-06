@@ -31,6 +31,7 @@ const ProtectedRoute = ({
   const location = useLocation();
   const [hasWaited, setHasWaited] = useState(false);
   const [profileWaitTime, setProfileWaitTime] = useState(0);
+  const [noUserWaitTime, setNoUserWaitTime] = useState(0);
   
   // معرفة ما إذا كانت هذه زيارة مباشرة (refresh أو URL مباشر)
   const isDirectVisit = !location.state || performance.navigation.type === 1;
@@ -61,6 +62,18 @@ const ProtectedRoute = ({
     }
   }, [user, userProfile, isLoading]);
 
+  // تتبع وقت انتظار المستخدم (عند authReady && !user)
+  useEffect(() => {
+    if (authReady && !user) {
+      const timer = setInterval(() => {
+        setNoUserWaitTime(prev => prev + 1000);
+      }, 1000);
+      return () => clearInterval(timer);
+    } else {
+      setNoUserWaitTime(0);
+    }
+  }, [authReady, user]);
+
   // عرض شاشة التحميل فقط إذا كان isLoading صحيح وانتظرنا قليلاً
   if (isLoading && hasWaited) {
     return <LoadingSpinner />;
@@ -83,9 +96,13 @@ const ProtectedRoute = ({
     </div>;
   }
 
-  // الآن فقط، إذا كان AuthContext جاهزاً ولم يكن هناك مستخدم، إعادة توجيه لتسجيل الدخول
+  // إذا كان AuthContext جاهزاً ولا يوجد مستخدم: انتظر قليلاً قبل إعادة التوجيه لتجنب حلقات التبديل بعد تسجيل الدخول
   if (authReady && !user) {
-    if (import.meta.env.DEV) {
+    if (noUserWaitTime < 8000) {
+      if (import.meta.env.DEV) {
+        try { console.log('[ProtectedRoute] waiting for user...', { noUserWaitTime }); } catch {}
+      }
+      return <LoadingSpinner />;
     }
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
@@ -125,32 +142,26 @@ const ProtectedRoute = ({
     }
     
     // انتظار عادي إذا لم تكن البيانات محفوظة
-    if (profileWaitTime < 12000) {
-      if (import.meta.env.DEV) {
-      }
-      return <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 text-lg font-medium">جاري تحميل بيانات المستخدم...</p>
-          <p className="text-gray-500 text-sm mt-2">({Math.floor(profileWaitTime/1000)}s)</p>
-          {profileWaitTime > 5000 && (
-            <p className="text-orange-500 text-sm mt-2">
-              يرجى الانتظار، جاري تحميل البيانات...
-            </p>
-          )}
-          {profileWaitTime > 8000 && (
-            <p className="text-red-500 text-sm mt-2">
-              يبدو أن هناك مشكلة في الاتصال...
-            </p>
-          )}
-        </div>
-      </div>;
-    } else {
-      // بعد 12 ثانية، أعد التوجيه لتسجيل الدخول
-      if (import.meta.env.DEV) {
-      }
-      return <Navigate to="/login" state={{ from: location }} replace />;
+    if (import.meta.env.DEV && profileWaitTime >= 12000) {
+      try { console.warn('[ProtectedRoute] profile still loading after 12s, keeping user on current route to avoid loop'); } catch {}
     }
+    return <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <p className="text-gray-600 text-lg font-medium">جاري تحميل بيانات المستخدم...</p>
+        <p className="text-gray-500 text-sm mt-2">({Math.floor(profileWaitTime/1000)}s)</p>
+        {profileWaitTime > 5000 && (
+          <p className="text-orange-500 text-sm mt-2">
+            يرجى الانتظار، جاري تحميل البيانات...
+          </p>
+        )}
+        {profileWaitTime > 8000 && (
+          <p className="text-red-500 text-sm mt-2">
+            يبدو أن هناك مشكلة في الاتصال...
+          </p>
+        )}
+      </div>
+    </div>;
   }
 
   // التحقق من الأدوار المسموحة

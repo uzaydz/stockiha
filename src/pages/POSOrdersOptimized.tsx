@@ -330,7 +330,7 @@ export const POSOrdersOptimized: React.FC<POSOrdersOptimizedProps> = ({
   const queryClient = useQueryClient();
   const { isOnline, isOffline } = useOfflineStatus();
   const [useCacheBrowse, setUseCacheBrowse] = useState<boolean>(
-    typeof window !== 'undefined' ? window.localStorage.getItem('pos_orders_use_cache') === '1' : false
+    false // افتراضياً: جلب من الخادم دائماً
   );
 
   // الحالات المحلية

@@ -13,6 +13,7 @@ import { initializePOSOfflineSync } from '@/context/shop/posOrderService';
 import { SyncEngine } from '@/sync/SyncEngine';
 import { inventoryDB } from '@/database/localDb';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import { useOrganization } from '@/hooks/useOrganization';
 import { toast } from 'sonner';
 
 type EntitySyncStats = {
@@ -45,6 +46,7 @@ export function NavbarSyncIndicator({
   );
 
   const { isOnline } = useNetworkStatus();
+  const { organization } = useOrganization();
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncError, setLastSyncError] = useState<string | null>(null);
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
@@ -60,6 +62,16 @@ export function NavbarSyncIndicator({
   const [lastRun, setLastRun] = useState<any>(null);
 
   const getQueueSnapshot = useCallback(async (): Promise<QueueSnapshot> => {
+    // تحقق من وجود organization_id
+    if (!organization?.id) {
+      return {
+        queueItems: 0,
+        products: { unsynced: 0, total: 0 },
+        orders: { unsynced: 0, total: 0 },
+        customers: { unsynced: 0, total: 0 }
+      };
+    }
+
     try {
       const [
         queueCount,
@@ -84,6 +96,15 @@ export function NavbarSyncIndicator({
         inventoryDB.customers.filter((customer) => customer.synced === false).count()
       ]);
 
+      console.log('[NavbarSync] إحصائيات القاعدة المحلية:', {
+        products: totalProducts,
+        orders: totalOrders,
+        customers: totalCustomers,
+        unsyncedProducts,
+        unsyncedOrders,
+        unsyncedCustomers
+      });
+
       return {
         queueItems: queueCount,
         products: { unsynced: unsyncedProducts, total: totalProducts },
@@ -99,7 +120,7 @@ export function NavbarSyncIndicator({
         customers: { unsynced: 0, total: 0 }
       };
     }
-  }, []);
+  }, [organization?.id]);
 
   const updateSnapshot = useCallback(async () => {
     const snapshot = await getQueueSnapshot();
@@ -108,6 +129,11 @@ export function NavbarSyncIndicator({
 
   const runSync = useCallback(
     async (origin: 'auto' | 'manual' = 'auto') => {
+      // لا تحاول المزامنة إذا لم يتم تحميل المنظمة بعد
+      if (!organization?.id) {
+        return;
+      }
+
       if (!isOnline && origin !== 'manual') {
         await updateSnapshot();
         return;
@@ -158,7 +184,7 @@ export function NavbarSyncIndicator({
         await updateSnapshot();
       }
     },
-    [isOnline, updateSnapshot]
+    [organization?.id, isOnline, updateSnapshot]
   );
 
   // Auto sync
@@ -234,6 +260,11 @@ export function NavbarSyncIndicator({
 
   // إخفاء المكون في المتصفح - يظهر فقط في تطبيق سطح المكتب
   if (!isElectron) {
+    return null;
+  }
+
+  // لا تعرض المكون حتى يتم تحميل المنظمة
+  if (!organization?.id) {
     return null;
   }
 

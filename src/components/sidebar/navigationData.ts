@@ -506,6 +506,14 @@ export const createNavigationData = (
           badge: null,
           allowedMerchantTypes: ['traditional', 'ecommerce', 'both']
         },
+        {
+          title: 'مستكشف قاعدة البيانات',
+          icon: Database,
+          href: '/dashboard/database-admin',
+          requiredPermission: 'manageOrganizationSettings',
+          badge: 'جديد',
+          allowedMerchantTypes: ['traditional', 'ecommerce', 'both']
+        },
       ]
     },
   ];

@@ -790,73 +790,80 @@ const LoginForm = () => {
       setLoadingMessage('جاري تحميل بيانات المستخدم...');
       await new Promise(resolve => setTimeout(resolve, 500)); // انتظار محسن لتحميل البيانات
 
-      // التحقق من ربط المستخدم بالمؤسسة مع إعادة المحاولة
+      // التحقق من ربط المستخدم بالمؤسسة مع مهلة زمنية وعدم حظر التوجيه
+      setLoadingMessage('جاري التحقق من بيانات المؤسسة...');
+      loginFormDebugLog('🔗 التحقق من ربط المستخدم بالمؤسسة مع مهلة زمنية');
+
       try {
-        setLoadingMessage('جاري التحقق من بيانات المؤسسة...');
-        loginFormDebugLog('🔗 التحقق من ربط المستخدم بالمؤسسة مع آلية إعادة المحاولة');
-        
-        const linkResult = await ensureUserOrganizationLink(data.user.id, 3, 1000);
-        
-        if (!linkResult.success) {
-          loginFormDebugLog('❌ فشل في ربط المستخدم بالمؤسسة:', linkResult.error);
-          
-          // إذا كان المستخدم غير مرتبط بمؤسسة، وجهه لصفحة إعداد المؤسسة
-          if (linkResult.error?.includes('غير مرتبط بأي مؤسسة')) {
-            // تسجيل خروج المستخدم أولاً
-            await supabase.auth.signOut();
-            
+        const linkPromise = ensureUserOrganizationLink(data.user.id, 2, 800);
+        const timedOut = new Promise<{ success: false; error: string }>((resolve) =>
+          setTimeout(() => resolve({ success: false, error: 'timeout' }), 2000)
+        );
+        const linkResult: any = await Promise.race([linkPromise, timedOut]);
+
+        if (!linkResult?.success) {
+          loginFormDebugLog('⚠️ لم يكتمل ربط المؤسسة أو فشل/انتهت المهلة:', linkResult?.error);
+          // حالة خاصة: المستخدم غير مرتبط بأي مؤسسة -> وجّهه للإعداد
+          if (linkResult?.error?.includes?.('غير مرتبط بأي مؤسسة')) {
+            try { await supabase.auth.signOut(); } catch {}
             toast.error('حسابك غير مرتبط بأي مؤسسة. سيتم توجيهك لإعداد المؤسسة.');
+            setIsLoading(false);
             navigate('/setup-organization');
             return;
           }
-          
-          // أخطاء أخرى
-          await supabase.auth.signOut();
-          throw new Error(linkResult.error || 'فشل في التحقق من بيانات المؤسسة');
+          // غير ذلك: نتابع التوجيه ونحاول الربط في الخلفية بدون إيقاف المستخدم
+          setTimeout(() => { void ensureUserOrganizationLink(data.user.id, 2, 800); }, 0);
+        } else {
+          loginFormDebugLog('✅ تم ربط المستخدم بالمؤسسة بنجاح:', linkResult.organizationId);
         }
-        
-        loginFormDebugLog('✅ تم ربط المستخدم بالمؤسسة بنجاح:', linkResult.organizationId);
-        
       } catch (orgError) {
-        loginFormDebugLog('❌ خطأ في التحقق من ربط المؤسسة:', orgError);
-        await supabase.auth.signOut();
-        throw orgError;
-      }
-
-      // حفظ بيانات تسجيل الدخول للأوفلاين
-      await saveOfflineCredentials(normalizedEmail, loginPassword);
-      loginFormDebugLog('✅ تم حفظ بيانات تسجيل الدخول للأوفلاين');
-
-      setLoadingMessage('تم تسجيل الدخول بنجاح، جاري التحديث...');
-      loginFormDebugLog('بدء عملية التوجيه بعد نجاح تسجيل الدخول');
-      
-      // إخبار AuthContext أن العملية تمت بنجاح (بدون handleSuccessfulLogin لتجنب التكرار)
-      loginFormDebugLog('✅ تم التحقق من المصادقة، جاري التوجيه مباشرة');
-      
-      // تطهير البيانات المخزنة مؤقتاً لضمان البدء بحالة نظيفة
-      sessionStorage.clear();
-      
-      // انتظار مختصر لضمان حفظ البيانات في Supabase
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // استخدام React Router للتنقل بدلاً من window.location
-      // هذا يضمن التنقل السلس بدون إعادة تحميل كاملة
-      navigate('/dashboard');
-      
-    } catch (error) {
-      loginFormDebugLog('❌ خطأ في تسجيل الدخول المباشر:', error);
-
-      const offlineStatus = await attemptOfflineFallback(error, normalizedEmail, loginPassword);
-      if (offlineStatus !== 'skipped') {
-        return;
+        // لا نمنع التوجيه بسبب مشاكل ثانوية
+        loginFormDebugLog('⚠️ تخطي خطأ ربط المؤسسة والمتابعة:', orgError);
       }
       
-      // عرض رسالة خطأ واضحة للمستخدم
-      const errorMessage = error instanceof Error ? error.message : 'حدث خطأ غير متوقع';
-      toast.error(errorMessage);
-      throw error;
-    }
-  };
+// انتظار مختصر لضمان حفظ البيانات في Supabase
+await new Promise(resolve => setTimeout(resolve, 100));
+
+// إيقاف حالة التحميل قبل التوجيه
+try {
+  console.log('[LoginForm] pre-navigate state', {
+    isLoading,
+    authLoading,
+    userId: user?.id,
+    orgId: organization?.id,
+    currentHref: window.location.href,
+    currentHash: window.location.hash
+  });
+} catch {}
+setIsLoading(false);
+
+// سجل بعد تغيير حالة التحميل
+try {
+console.log('[LoginForm] setIsLoading(false) applied');
+} catch {}
+
+// استخدام React Router للتنقل بدلاً من window.location
+// هذا يضمن التنقل السلس بدون إعادة تحميل كاملة
+navigate('/dashboard');
+try {
+console.log('[LoginForm] navigate("/dashboard") called');
+setTimeout(() => {
+try { console.log('[LoginForm] post-navigate location', { href: window.location.href, hash: window.location.hash }); } catch {}
+}, 200);
+} catch {}
+return;
+} catch (error) {
+loginFormDebugLog('❌ خطأ في تسجيل الدخول المباشر:', error);
+const offlineStatus = await attemptOfflineFallback(error, normalizedEmail, loginPassword);
+if (offlineStatus !== 'skipped') {
+return;
+}
+// عرض رسالة خطأ واضحة للمستخدم
+const errorMessage = error instanceof Error ? error.message : 'حدث خطأ غير متوقع';
+toast.error(errorMessage);
+throw error;
+}
+};
 
   const proceedWithLogin = async (loginEmail: string, loginPassword: string) => {
     try {

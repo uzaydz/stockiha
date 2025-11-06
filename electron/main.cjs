@@ -2,8 +2,18 @@ const { app, BrowserWindow, Menu, shell, ipcMain, dialog, nativeImage, Tray, glo
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
-const keytar = require('keytar');
+8778
+const { SQLiteManager } = require('./sqliteManager.cjs');
 const { updaterManager } = require('./updater.cjs');
+
+// محاولة تحميل keytar (اختياري)
+let keytar = null;
+try {
+  keytar = require('keytar');
+  console.log('✅ [Electron] keytar loaded successfully');
+} catch (error) {
+  console.warn('⚠️ [Electron] keytar not available, using fallback storage:', error.message);
+}
 
 // كشف وضع التطوير بطرق متعددة
 const isDev = process.env.NODE_ENV === 'development' ||
@@ -21,29 +31,64 @@ if (process.env.NODE_ENV === 'development' || process.argv.includes('--dev') || 
 
 const SECURE_SESSION_SERVICE = 'stockiha-pos-offline-session';
 const SECURE_SESSION_ACCOUNT = 'session-encryption-key';
+const FALLBACK_KEY_PATH = path.join(app.getPath('userData'), '.session-key');
 
+// Fallback: حفظ المفتاح في ملف محلي إذا فشل keytar
 async function getOrCreateSecureSessionKey() {
   try {
-    let existingKey = await keytar.getPassword(SECURE_SESSION_SERVICE, SECURE_SESSION_ACCOUNT);
-    if (existingKey) {
+    // محاولة استخدام keytar أولاً
+    if (keytar) {
+      let existingKey = await keytar.getPassword(SECURE_SESSION_SERVICE, SECURE_SESSION_ACCOUNT);
+      if (existingKey) {
+        console.log('🔑 [Electron] Retrieved key from keytar');
+        return existingKey;
+      }
+
+      const randomKey = crypto.randomBytes(32).toString('base64');
+      await keytar.setPassword(SECURE_SESSION_SERVICE, SECURE_SESSION_ACCOUNT, randomKey);
+      console.log('🔑 [Electron] Created and stored key in keytar');
+      return randomKey;
+    }
+    
+    // Fallback: استخدام ملف محلي
+    console.log('🔑 [Electron] Using fallback file storage');
+    if (fs.existsSync(FALLBACK_KEY_PATH)) {
+      const existingKey = fs.readFileSync(FALLBACK_KEY_PATH, 'utf8');
+      console.log('🔑 [Electron] Retrieved key from fallback file');
       return existingKey;
     }
 
     const randomKey = crypto.randomBytes(32).toString('base64');
-    await keytar.setPassword(SECURE_SESSION_SERVICE, SECURE_SESSION_ACCOUNT, randomKey);
+    fs.writeFileSync(FALLBACK_KEY_PATH, randomKey, { mode: 0o600 });
+    console.log('🔑 [Electron] Created and stored key in fallback file');
     return randomKey;
   } catch (error) {
-    console.error('[Electron] فشل الحصول على مفتاح الجلسة الآمن:', error);
+    console.error('❌ [Electron] فشل الحصول على مفتاح الجلسة الآمن:', error);
     throw error;
   }
 }
 
 async function clearSecureSessionKey() {
   try {
-    await keytar.deletePassword(SECURE_SESSION_SERVICE, SECURE_SESSION_ACCOUNT);
-    return true;
+    let cleared = false;
+    
+    // محاولة حذف من keytar
+    if (keytar) {
+      await keytar.deletePassword(SECURE_SESSION_SERVICE, SECURE_SESSION_ACCOUNT);
+      console.log('🗑️ [Electron] Deleted key from keytar');
+      cleared = true;
+    }
+    
+    // حذف من fallback file
+    if (fs.existsSync(FALLBACK_KEY_PATH)) {
+      fs.unlinkSync(FALLBACK_KEY_PATH);
+      console.log('🗑️ [Electron] Deleted key from fallback file');
+      cleared = true;
+    }
+    
+    return cleared;
   } catch (error) {
-    console.error('[Electron] فشل حذف مفتاح الجلسة الآمن:', error);
+    console.error('❌ [Electron] فشل حذف مفتاح الجلسة الآمن:', error);
     return false;
   }
 }
@@ -59,6 +104,9 @@ console.log('  - isDev result:', isDev);
 let mainWindow;
 let tray;
 let isQuitting = false;
+
+// مدير قاعدة البيانات SQLite
+let sqliteManager = null;
 
 // إنشاء النافذة الرئيسية
 function createMainWindow() {
@@ -104,7 +152,8 @@ function createMainWindow() {
       contextIsolation: true,
       sandbox: false, // تعطيل sandbox لتحميل الموارد المحلية
       enableRemoteModule: false,
-      preload: path.join(__dirname, 'preload.cjs'),
+      // ✅ استخدام preload script الآمن والمحسن - تحسينات أمنية رئيسية
+      preload: path.join(__dirname, 'preload.secure.cjs'),
       webSecurity: true, // تفعيل دوماً لتفادي تحذيرات الأمان
       allowRunningInsecureContent: false,
       experimentalFeatures: false
@@ -188,70 +237,92 @@ function createMainWindow() {
     '/super-admin/yalidine-sync'
   ];
 
-  // منع التنقل إلى صفحات السوبر أدمين
+  // ===== دالة موحدة للتحقق من المسارات المحظورة =====
+  const isBlockedPath = (pathname) => {
+    return BLOCKED_PATHS.some(blockedPath =>
+      pathname === blockedPath || pathname.startsWith(blockedPath + '/')
+    );
+  };
+
+  // ===== دالة موحدة لمعالجة المسارات المحظورة =====
+  const handleBlockedPath = (pathname) => {
+    console.warn('[Electron Security] محاولة الوصول إلى صفحة محظورة:', pathname);
+
+    // إعادة التوجيه إلى الصفحة الرئيسية
+    if (isDev) {
+      mainWindow.loadURL('http://localhost:8080/');
+    } else {
+      mainWindow.loadURL(`file://${path.join(__dirname, '../dist/index.html')}`);
+    }
+
+    // إظهار رسالة تحذير للمستخدم
+    dialog.showMessageBox(mainWindow, {
+      type: 'warning',
+      title: 'وصول محظور',
+      message: 'غير مسموح بالوصول إلى لوحة السوبر أدمين',
+      detail: 'لوحة السوبر أدمين متاحة فقط عبر المتصفح الويب. يرجى استخدام متصفح الويب للوصول إلى هذه الصفحة.',
+      buttons: ['حسناً']
+    });
+  };
+
+  // ===== معالج موحد لجميع عمليات التنقل =====
   mainWindow.webContents.on('will-navigate', (event, navigationUrl) => {
     try {
-      const url = new URL(navigationUrl);
-      const pathname = url.pathname || url.hash.replace('#', '');
+      const parsedUrl = new URL(navigationUrl);
+      const pathname = parsedUrl.pathname || parsedUrl.hash.replace('#', '');
 
-      // التحقق من المسارات المحظورة
-      const isBlocked = BLOCKED_PATHS.some(blockedPath =>
-        pathname === blockedPath || pathname.startsWith(blockedPath + '/')
-      );
-
-      if (isBlocked) {
-        console.warn('[Electron Security] محاولة الوصول إلى صفحة محظورة:', pathname);
+      // 1. التحقق من المسارات المحظورة (Super Admin)
+      if (isBlockedPath(pathname)) {
         event.preventDefault();
-
-        // إعادة التوجيه إلى الصفحة الرئيسية
-        if (isDev) {
-          mainWindow.loadURL('http://localhost:8080/');
-        } else {
-          mainWindow.loadURL(`file://${path.join(__dirname, '../dist/index.html')}`);
-        }
-
-        // إظهار رسالة تحذير للمستخدم
-        dialog.showMessageBox(mainWindow, {
-          type: 'warning',
-          title: 'وصول محظور',
-          message: 'غير مسموح بالوصول إلى لوحة السوبر أدمين',
-          detail: 'لوحة السوبر أدمين متاحة فقط عبر المتصفح الويب. يرجى استخدام متصفح الويب للوصول إلى هذه الصفحة.',
-          buttons: ['حسناً']
-        });
+        handleBlockedPath(pathname);
+        return;
       }
-    } catch (error) {
-      console.error('[Electron Security] خطأ في التحقق من المسار:', error);
+
+      // 2. معالجة التنقل حسب البيئة
+      if (isDev) {
+        const isLocalDev = parsedUrl.protocol === 'http:' && parsedUrl.host === 'localhost:8080';
+        if (!isLocalDev) {
+          event.preventDefault();
+          shell.openExternal(navigationUrl);
+        }
+        return;
+      }
+
+      // 3. في الإنتاج: لا نسمح إلا بالتنقل داخل index.html (HashRouter يدير الباقي)
+      if (parsedUrl.protocol !== 'file:') {
+        event.preventDefault();
+        shell.openExternal(navigationUrl);
+        return;
+      }
+
+      // 4. منع تحميل file:///login أو أي ملف محلي غير index.html
+      const distPath = path.resolve(__dirname, '../dist');
+      const indexPath = path.join(distPath, 'index.html');
+      const indexUrl = `file://${indexPath}`;
+      const isIndex = decodeURI(pathname).endsWith('/index.html');
+      if (!isIndex) {
+        event.preventDefault();
+        mainWindow.loadURL(indexUrl);
+      }
+    } catch (e) {
+      console.warn('[Electron] will-navigate parsing failed:', e);
+      event.preventDefault();
     }
   });
 
-  // منع تحميل محتوى السوبر أدمين عبر did-navigate
+  // معالج إضافي للتحقق بعد التنقل (did-navigate)
   mainWindow.webContents.on('did-navigate', (event, navigationUrl) => {
     try {
       const url = new URL(navigationUrl);
       const pathname = url.pathname || url.hash.replace('#', '');
 
-      const isBlocked = BLOCKED_PATHS.some(blockedPath =>
-        pathname === blockedPath || pathname.startsWith(blockedPath + '/')
-      );
-
-      if (isBlocked) {
+      if (isBlockedPath(pathname)) {
         console.warn('[Electron Security] تم اكتشاف محاولة تحميل صفحة محظورة:', pathname);
-
-        // إعادة التوجيه فوراً
-        if (isDev) {
-          mainWindow.loadURL('http://localhost:8080/');
-        } else {
-          mainWindow.loadURL(`file://${path.join(__dirname, '../dist/index.html')}`);
-        }
+        handleBlockedPath(pathname);
       }
     } catch (error) {
       console.error('[Electron Security] خطأ في التحقق من التنقل:', error);
     }
-  });
-
-  // مراقبة أحداث التحميل
-  mainWindow.webContents.on('did-start-loading', () => {
-    console.log('[Electron] بدء التحميل...');
   });
 
   mainWindow.webContents.on('did-finish-load', () => {
@@ -301,43 +372,6 @@ function createMainWindow() {
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: 'deny' };
-  });
-
-  // إدارة الروابط والتنقلات لمنع file:///login وأي مسارات محلية خاطئة
-  mainWindow.webContents.on('will-navigate', (event, navigationUrl) => {
-    try {
-      const parsedUrl = new URL(navigationUrl);
-
-      if (isDev) {
-        const isLocalDev = parsedUrl.protocol === 'http:' && parsedUrl.host === 'localhost:8080';
-        if (!isLocalDev) {
-          event.preventDefault();
-          shell.openExternal(navigationUrl);
-        }
-        return;
-      }
-
-      // في الإنتاج: لا نسمح إلا بالتنقل داخل index.html (HashRouter يدير الباقي)
-      if (parsedUrl.protocol !== 'file:') {
-        event.preventDefault();
-        shell.openExternal(navigationUrl);
-        return;
-      }
-
-      // منع تحميل file:///login أو أي ملف محلي غير index.html
-      const distPath = path.resolve(__dirname, '../dist');
-      const indexPath = path.join(distPath, 'index.html');
-      const indexUrl = `file://${indexPath}`;
-      const pathname = decodeURI(parsedUrl.pathname || '');
-      const isIndex = pathname.endsWith('/index.html');
-      if (!isIndex) {
-        event.preventDefault();
-        mainWindow.loadURL(indexUrl);
-      }
-    } catch (e) {
-      console.warn('[Electron] will-navigate parsing failed:', e);
-      event.preventDefault();
-    }
   });
 
   return mainWindow;
@@ -744,11 +778,32 @@ app.on('will-quit', () => {
   }
 });
 
-// منع إنشاء نوافذ متعددة
+// معالج موحد لجميع web-contents (منع نوافذ متعددة والتنقل الخارجي)
 app.on('web-contents-created', (event, contents) => {
+  // منع نوافذ جديدة
   contents.on('new-window', (event, navigationUrl) => {
     event.preventDefault();
     shell.openExternal(navigationUrl);
+  });
+
+  // منع التنقل الخارجي
+  contents.on('will-navigate', (event, navigationUrl) => {
+    try {
+      const parsedUrl = new URL(navigationUrl);
+      if (isDev) {
+        const isLocalDev = parsedUrl.protocol === 'http:' && parsedUrl.host === 'localhost:8080';
+        if (!isLocalDev) {
+          event.preventDefault();
+        }
+        return;
+      }
+      // في الإنتاج: لا نسمح إلا بـ file: (وسيتم التعامل مع non-index في createMainWindow)
+      if (parsedUrl.protocol !== 'file:') {
+        event.preventDefault();
+      }
+    } catch {
+      event.preventDefault();
+    }
   });
 });
 
@@ -823,6 +878,280 @@ ipcMain.handle('get-system-info', () => {
     electronVersion: process.versions.electron,
     appVersion: app.getVersion()
   };
+});
+
+// ======= IPC Handlers لقاعدة بيانات SQLite =======
+
+// تهيئة قاعدة البيانات
+ipcMain.handle('db:initialize', async (event, organizationId) => {
+  try {
+    if (!sqliteManager) {
+      sqliteManager = new SQLiteManager(app);
+    }
+    const result = sqliteManager.initialize(organizationId);
+    console.log('[IPC] Database initialized:', result);
+    return result;
+  } catch (error) {
+    console.error('[IPC] Database initialization failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// استعلام عام
+ipcMain.handle('db:query', async (event, sql, params) => {
+  try {
+    if (!sqliteManager || !sqliteManager.isInitialized) {
+      return { success: false, error: 'Database not initialized', data: [] };
+    }
+    return sqliteManager.query(sql, params);
+  } catch (error) {
+    console.error('[IPC] Query failed:', error);
+    return { success: false, error: error.message, data: [] };
+  }
+});
+
+// استعلام لعنصر واحد
+ipcMain.handle('db:query-one', async (event, sql, params) => {
+  try {
+    if (!sqliteManager || !sqliteManager.isInitialized) {
+      return { success: false, error: 'Database not initialized', data: null };
+    }
+    return sqliteManager.queryOne(sql, params);
+  } catch (error) {
+    console.error('[IPC] QueryOne failed:', error);
+    return { success: false, error: error.message, data: null };
+  }
+});
+
+// إضافة أو تحديث بيانات عامة
+ipcMain.handle('db:upsert', async (event, table, data) => {
+  try {
+    if (!sqliteManager || !sqliteManager.isInitialized) {
+      return { success: false, error: 'Database not initialized' };
+    }
+    return sqliteManager.upsert(table, data);
+  } catch (error) {
+    console.error('[IPC] Upsert failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// حذف سجل
+ipcMain.handle('db:delete', async (event, table, id) => {
+  try {
+    if (!sqliteManager || !sqliteManager.isInitialized) {
+      return { success: false, error: 'Database not initialized' };
+    }
+    return sqliteManager.delete(table, id);
+  } catch (error) {
+    console.error('[IPC] Delete failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// إضافة أو تحديث منتج
+ipcMain.handle('db:upsert-product', async (event, product) => {
+  try {
+    if (!sqliteManager || !sqliteManager.isInitialized) {
+      return { success: false, error: 'Database not initialized' };
+    }
+    return sqliteManager.addProduct(product);
+  } catch (error) {
+    console.error('[IPC] Upsert product failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// البحث عن منتجات
+ipcMain.handle('db:search-products', async (event, query, options) => {
+  try {
+    if (!sqliteManager || !sqliteManager.isInitialized) {
+      return { success: false, error: 'Database not initialized', data: [] };
+    }
+    return sqliteManager.search('products', query, options);
+  } catch (error) {
+    console.error('[IPC] Search products failed:', error);
+    return { success: false, error: error.message, data: [] };
+  }
+});
+
+// إضافة طلب POS
+ipcMain.handle('db:add-pos-order', async (event, order, items) => {
+  try {
+    if (!sqliteManager || !sqliteManager.isInitialized) {
+      return { success: false, error: 'Database not initialized' };
+    }
+    return sqliteManager.addPOSOrder(order, items);
+  } catch (error) {
+    console.error('[IPC] Add POS order failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// الحصول على إحصائيات
+ipcMain.handle('db:get-statistics', async (event, organizationId, dateFrom, dateTo) => {
+  try {
+    if (!sqliteManager || !sqliteManager.isInitialized) {
+      return { success: false, error: 'Database not initialized' };
+    }
+    return sqliteManager.getStatistics(organizationId, dateFrom, dateTo);
+  } catch (error) {
+    console.error('[IPC] Get statistics failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// تنظيف البيانات القديمة
+ipcMain.handle('db:cleanup-old-data', async (event, daysToKeep) => {
+  try {
+    if (!sqliteManager || !sqliteManager.isInitialized) {
+      return { success: false, error: 'Database not initialized' };
+    }
+    return sqliteManager.cleanupOldData(daysToKeep || 30);
+  } catch (error) {
+    console.error('[IPC] Cleanup failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ضغط قاعدة البيانات
+ipcMain.handle('db:vacuum', async () => {
+  try {
+    if (!sqliteManager || !sqliteManager.isInitialized) {
+      return { success: false, error: 'Database not initialized' };
+    }
+    return sqliteManager.vacuum();
+  } catch (error) {
+    console.error('[IPC] Vacuum failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// حجم قاعدة البيانات
+ipcMain.handle('db:get-size', async () => {
+  try {
+    if (!sqliteManager || !sqliteManager.isInitialized) {
+      return { success: false, error: 'Database not initialized', size: 0 };
+    }
+    const size = sqliteManager.getDatabaseSize();
+    return { success: true, size };
+  } catch (error) {
+    console.error('[IPC] Get size failed:', error);
+    return { success: false, error: error.message, size: 0 };
+  }
+});
+
+// نسخ احتياطي
+ipcMain.handle('db:backup', async (event, destinationPath) => {
+  try {
+    if (!sqliteManager || !sqliteManager.isInitialized) {
+      return { success: false, error: 'Database not initialized' };
+    }
+    return sqliteManager.backup(destinationPath);
+  } catch (error) {
+    console.error('[IPC] Backup failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// استعادة من نسخة احتياطية
+ipcMain.handle('db:restore', async (event, backupPath) => {
+  try {
+    if (!sqliteManager) {
+      sqliteManager = new SQLiteManager(app);
+    }
+    return sqliteManager.restore(backupPath);
+  } catch (error) {
+    console.error('[IPC] Restore failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// إغلاق قاعدة البيانات
+ipcMain.handle('db:close', async () => {
+  try {
+    if (sqliteManager) {
+      sqliteManager.close();
+      sqliteManager = null;
+    }
+    return { success: true };
+  } catch (error) {
+    console.error('[IPC] Close failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// الحصول على قائمة الجداول
+ipcMain.handle('db:get-tables', async () => {
+  try {
+    if (!sqliteManager || !sqliteManager.isInitialized) {
+      return { success: false, error: 'Database not initialized', data: [] };
+    }
+
+    const result = sqliteManager.query(`
+      SELECT name FROM sqlite_master
+      WHERE type='table'
+      AND name NOT LIKE 'sqlite_%'
+      AND name NOT LIKE '%_fts%'
+      ORDER BY name
+    `);
+
+    return result;
+  } catch (error) {
+    console.error('[IPC] Get tables failed:', error);
+    return { success: false, error: error.message, data: [] };
+  }
+});
+
+// الحصول على معلومات الأعمدة لجدول
+ipcMain.handle('db:get-table-info', async (event, tableName) => {
+  try {
+    if (!sqliteManager || !sqliteManager.isInitialized) {
+      return { success: false, error: 'Database not initialized', data: [] };
+    }
+
+    const result = sqliteManager.query(`PRAGMA table_info(${tableName})`);
+    return result;
+  } catch (error) {
+    console.error('[IPC] Get table info failed:', error);
+    return { success: false, error: error.message, data: [] };
+  }
+});
+
+// الحصول على عدد السجلات في جدول
+ipcMain.handle('db:get-table-count', async (event, tableName) => {
+  try {
+    if (!sqliteManager || !sqliteManager.isInitialized) {
+      return { success: false, error: 'Database not initialized', data: 0 };
+    }
+
+    const result = sqliteManager.queryOne(`SELECT COUNT(*) as count FROM ${tableName}`);
+    return result;
+  } catch (error) {
+    console.error('[IPC] Get table count failed:', error);
+    return { success: false, error: error.message, data: 0 };
+  }
+});
+
+// الحصول على بيانات جدول مع pagination
+ipcMain.handle('db:get-table-data', async (event, tableName, options = {}) => {
+  try {
+    if (!sqliteManager || !sqliteManager.isInitialized) {
+      return { success: false, error: 'Database not initialized', data: [] };
+    }
+
+    const { limit = 50, offset = 0, orderBy = 'id', orderDir = 'DESC' } = options;
+
+    const result = sqliteManager.query(
+      `SELECT * FROM ${tableName} ORDER BY ${orderBy} ${orderDir} LIMIT ? OFFSET ?`,
+      [limit, offset]
+    );
+
+    return result;
+  } catch (error) {
+    console.error('[IPC] Get table data failed:', error);
+    return { success: false, error: error.message, data: [] };
+  }
 });
 
 ipcMain.handle('secure-session:get-key', async () => {
@@ -1054,28 +1383,6 @@ ipcMain.handle('updater:quit-and-install', () => {
 // الحصول على إصدار التطبيق الحالي
 ipcMain.handle('updater:get-version', () => {
   return app.getVersion();
-});
-
-// منع التنقل الخارجي
-app.on('web-contents-created', (event, contents) => {
-  contents.on('will-navigate', (event, navigationUrl) => {
-    try {
-      const parsedUrl = new URL(navigationUrl);
-      if (isDev) {
-        const isLocalDev = parsedUrl.protocol === 'http:' && parsedUrl.host === 'localhost:8080';
-        if (!isLocalDev) {
-          event.preventDefault();
-        }
-        return;
-      }
-      // في الإنتاج: لا نسمح إلا بـ file: (وسيتم التعامل مع non-index في createMainWindow)
-      if (parsedUrl.protocol !== 'file:') {
-        event.preventDefault();
-      }
-    } catch {
-      event.preventDefault();
-    }
-  });
 });
 
 // إدارة الأخطاء

@@ -165,42 +165,62 @@ export const usePOSSettings = ({ organizationId }: UsePOSSettingsProps): UsePOSS
           }
         }
 
-        const { data, error } = await supabase.rpc('get_pos_settings' as any, {
-          p_org_id: currentOrganization.id
-        });
+        // 1) حاول الدالة المحسنة أولاً
+        const { data: enhancedData, error: enhancedError } = await (supabase as any)
+          .rpc('get_pos_settings_enhanced', { p_org_id: currentOrganization.id });
 
-        if (error) {
-          throw new Error(`خطأ في جلب إعدادات POS: ${error.message}`);
+        if (!enhancedError && enhancedData && typeof enhancedData === 'object' && 'success' in enhancedData && (enhancedData as any).success) {
+          const result = (enhancedData as any).data as POSSettings;
+          if (result) {
+            await localPosSettingsService.save({
+              ...result,
+              pending_sync: false,
+              updated_at: (result as any)?.updated_at || new Date().toISOString()
+            } as any);
+          }
+          return { success: true, data: result } as any;
         }
 
-        if (!data) {
+        // 2) Fallback للدالة الأقدم مع اسم المعامل الصحيح
+        const { data: legacyData, error: legacyError } = await supabase.rpc('get_pos_settings' as any, {
+          p_organization_id: currentOrganization.id
+        });
+
+        if (!legacyError && legacyData) {
+          const responseData = Array.isArray(legacyData) ? legacyData[0] : legacyData;
+          const result = responseData as POSSettings;
+          if (result) {
+            await localPosSettingsService.save({
+              ...result,
+              pending_sync: false,
+              updated_at: (result as any)?.updated_at || new Date().toISOString()
+            } as any);
+          }
+          return { success: true, data: result } as any;
+        }
+
+        // 3) Fallback نهائي: استعلام مباشر من الجدول
+        const { data: directData, error: directError } = await supabase
+          .from('pos_settings')
+          .select('*')
+          .eq('organization_id', currentOrganization.id)
+          .maybeSingle();
+
+        if (directError) {
+          throw new Error(`خطأ في جلب إعدادات POS: ${directError.message}`);
+        }
+
+        if (!directData) {
           throw new Error('لم يتم إرجاع أي إعدادات من الخادم');
         }
 
-        const responseData = Array.isArray(data) ? data[0] : data;
+        await localPosSettingsService.save({
+          ...directData,
+          pending_sync: false,
+          updated_at: (directData as any)?.updated_at || new Date().toISOString()
+        } as any);
 
-        let result: POSSettings;
-        if (responseData && typeof responseData === 'object' && 'success' in responseData) {
-          if (!responseData.success) {
-            throw new Error(responseData.error || 'فشل في جلب الإعدادات');
-          }
-          result = responseData.data as POSSettings;
-        } else {
-          result = responseData as POSSettings;
-        }
-
-        if (result) {
-          await localPosSettingsService.save({
-            ...result,
-            pending_sync: false,
-            updated_at: (result as any)?.updated_at || new Date().toISOString()
-          } as any);
-        }
-
-        return {
-          success: true,
-          data: result
-        };
+        return { success: true, data: directData as any } as any;
 
       } catch (error) {
         const offlineSettings = await localPosSettingsService.get(currentOrganization.id);

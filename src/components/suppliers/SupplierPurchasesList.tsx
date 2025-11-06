@@ -574,28 +574,7 @@ export function SupplierPurchasesList({ onPurchaseCreate, refreshTrigger }: Supp
               تحديث
             </Button>
             {canCreatePurchase && (
-            <Button onClick={() => {
-            
-            try {
-              // نتأكد من أننا نستخدم window.location بدلاً من navigate في حالة وجود مشاكل مع الـ React Router
-              if (window.location.pathname.includes('/new')) {
-                
-                window.location.reload();
-              } else {
-                navigate('/dashboard/suppliers/purchases/new');
-                // استخدم window.location كخطة بديلة إذا لم يعمل navigate
-                setTimeout(() => {
-                  if (!window.location.pathname.includes('/new')) {
-                    
-                    window.location.href = '/dashboard/suppliers/purchases/new';
-                  }
-                }, 100);
-              }
-            } catch (error) {
-              // النقطة النهائية - تغيير المسار مباشرة
-              window.location.href = '/dashboard/suppliers/purchases/new';
-            }
-          }}>
+            <Button onClick={() => navigate('/dashboard/suppliers/purchases/new')}>
             <Plus className="h-4 w-4 ml-2" />
             إضافة مشتريات
           </Button>

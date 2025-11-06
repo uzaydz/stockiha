@@ -5,30 +5,39 @@ import { useAuth } from '@/context/AuthContext';
 
 /**
  * مكون لتوجيه المستخدمين بعد تسجيل الدخول
- * - إذا كان لديه جلسة موظف أو وضع أدمن نشط: يذهب للوحة التحكم
- * - وإلا: يذهب لصفحة تسجيل دخول الموظف
+ * - للمديرين (admin/owner): يوجههم لصفحة staff-login لاختيار وضع العمل
+ * - للموظفين العاديين: يسمح لهم بالمرور مباشرة
  */
 const StaffLoginRedirect: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const navigate = useNavigate();
   const { currentStaff, isAdminMode } = useStaffSession();
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
 
   useEffect(() => {
-    // إذا كان المستخدم مسجل دخول
-    if (user) {
-      // إذا لم يكن لديه جلسة موظف ولا في وضع أدمن
-      if (!currentStaff && !isAdminMode) {
-        // التوجيه لصفحة تسجيل دخول الموظف
-        const currentPath = location.pathname;
-        
-        // تجنب التوجيه المستمر (loop)
-        if (currentPath !== '/staff-login' && currentPath.startsWith('/dashboard')) {
+    const currentPath = location.pathname;
+
+    // تجنب التوجيه المستمر - إذا كان المستخدم في /staff-login، لا نفعل شيء
+    if (currentPath === '/staff-login') {
+      return;
+    }
+
+    // إذا كان المستخدم مسجل دخول وفي مسار dashboard
+    if (user && userProfile && currentPath.startsWith('/dashboard')) {
+      const userRole = userProfile.role;
+
+      // فقط المديرين (admin/owner) يحتاجون لاختيار وضع العمل
+      const isAdminOrOwner = userRole === 'admin' || userRole === 'owner';
+
+      if (isAdminOrOwner) {
+        // إذا لم يكن لديه جلسة موظف ولا في وضع أدمن، يوجه لصفحة اختيار الوضع
+        if (!currentStaff && !isAdminMode) {
           navigate('/staff-login', { replace: true });
         }
       }
+      // الموظفين العاديين (employee) لا يحتاجون staff-login
     }
-  }, [user, currentStaff, isAdminMode, navigate, location.pathname]);
+  }, [user, userProfile, currentStaff, isAdminMode, navigate, location.pathname]);
 
   return <>{children}</>;
 };

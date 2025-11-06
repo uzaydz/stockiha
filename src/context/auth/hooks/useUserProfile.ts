@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { User as SupabaseUser } from '@supabase/supabase-js';
 import type { UserProfile, UseUserProfileReturn, AuthError } from '../types';
 import { userDataManager } from '../services/userDataManager';
+import { getCurrentUserProfile } from '@/lib/api/users';
 import { trackPerformance, debounce, handleAuthError } from '../utils/authHelpers';
 import { AUTH_TIMEOUTS } from '../constants/authConstants';
 
@@ -43,11 +44,25 @@ export const useUserProfile = ({ user, enabled = true }: UseUserProfileProps): U
     setError(null);
 
     try {
-      const result = await userDataManager.fetchUserData(user);
+      // مسار سريع محلي لتقليل زمن الانتظار على الواجهة
+      let quickSet = false;
+      try {
+        const quick = await getCurrentUserProfile();
+        if (quick) {
+          setUserProfile(quick as unknown as UserProfile);
+          quickSet = true;
+        }
+      } catch {}
+
+      const result = forceRefresh
+        ? await userDataManager.forceRefreshUserData(user)
+        : await userDataManager.fetchUserData(user);
       
       if (result.error) {
         setError(result.error);
-        setUserProfile(null);
+        if (!quickSet) {
+          setUserProfile(null);
+        }
       } else {
         setUserProfile(result.userProfile);
         setError(null);

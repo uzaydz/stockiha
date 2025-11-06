@@ -157,8 +157,7 @@ export async function syncInventoryData(): Promise<number> {
     
     // الحصول على العمليات غير المتزامنة
     const unsyncedTransactions = await inventoryDB.transactions
-      .where('synced')
-      .equals(false)
+      .filter(t => !t.synced)
       .sortBy('timestamp');
     
     if (unsyncedTransactions.length === 0) {
@@ -250,8 +249,7 @@ export async function syncInventoryData(): Promise<number> {
 export async function getUnsyncedTransactionsCount(): Promise<number> {
   try {
     return await inventoryDB.transactions
-      .where('synced')
-      .equals(false)
+      .filter(t => !t.synced)
       .count();
   } catch (error) {
     return 0;

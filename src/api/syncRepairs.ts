@@ -152,7 +152,7 @@ async function pushRepairStatusHistory(): Promise<{ success: number; failed: num
   const orgId = getOrgId();
   if (!orgId) return { success: 0, failed: 0 };
   const list = await inventoryDB.repairStatusHistory
-    .where('synced').equals(false)
+    .filter(h => !h.synced)
     .toArray();
   let success = 0, failed = 0;
   for (const h of list) {
@@ -188,7 +188,7 @@ async function pushRepairImages(): Promise<{ success: number; failed: number }> 
   if (!orgId) return { success: 0, failed: 0 };
   // Ensure orders are synced first to satisfy FK
   const list = await inventoryDB.repairImages
-    .where('synced').equals(false)
+    .filter(img => !img.synced)
     .toArray();
   let success = 0, failed = 0;
   for (const img of list) {
