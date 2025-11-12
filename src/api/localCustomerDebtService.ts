@@ -1,6 +1,8 @@
 import { v4 as uuidv4 } from 'uuid';
 import { inventoryDB, type LocalCustomerDebt } from '@/database/localDb';
 import { UnifiedQueue } from '@/sync/UnifiedQueue';
+import { isSQLiteAvailable } from '@/lib/db/sqliteAPI';
+import { sqliteDB } from '@/lib/db/sqliteAPI';
 
 /**
  * خدمة إدارة ديون العملاء المحلية
@@ -27,16 +29,25 @@ export const createLocalCustomerDebt = async (
     pendingOperation: 'create'
   };
 
-  await inventoryDB.customerDebts.put(debtRecord);
+  if (isSQLiteAvailable()) {
+    // استخدام SQLite في Electron
+    const result = await sqliteDB.upsert('customer_debts', {
+      ...debtRecord,
+      synced: 0, // SQLite uses 0/1 for boolean
+      amount: debtRecord.amount || debtRecord.remaining_amount // Ensure amount is set
+    });
+    
+    if (!result.success) {
+      console.error('[createLocalCustomerDebt] Failed to save to SQLite:', result.error);
+      throw new Error(`Failed to create customer debt: ${result.error}`);
+    }
+  } else {
+    // Fallback لـ IndexedDB في المتصفح
+    await inventoryDB.customerDebts.put(debtRecord);
+  }
 
-  // إضافة إلى صف المزامنة
-  await UnifiedQueue.enqueue({
-    objectType: 'customer',
-    objectId: debtId,
-    operation: 'create',
-    data: debtRecord,
-    priority: 2
-  });
+  // ملاحظة: الديون تُزامن عبر syncCustomerDebts.ts مباشرة
+  // لا حاجة لإضافتها للـ queue لأنها تُزامن مع الطلبيات
 
   return debtRecord;
 };
@@ -108,6 +119,17 @@ export const getLocalCustomerDebt = async (debtId: string): Promise<LocalCustome
 
 // جلب جميع ديون عميل معين
 export const getLocalCustomerDebts = async (customerId: string): Promise<LocalCustomerDebt[]> => {
+  if (isSQLiteAvailable()) {
+    const result = await sqliteDB.query(
+      `SELECT * FROM customer_debts 
+       WHERE customer_id = ? 
+       AND (pending_operation IS NULL OR pending_operation != 'delete')
+       ORDER BY created_at DESC`,
+      [customerId]
+    );
+    return result.success ? (result.data || []) : [];
+  }
+  
   return await inventoryDB.customerDebts
     .where('customer_id')
     .equals(customerId)
@@ -117,6 +139,24 @@ export const getLocalCustomerDebts = async (customerId: string): Promise<LocalCu
 
 // جلب جميع الديون حسب المؤسسة
 export const getAllLocalCustomerDebts = async (organizationId: string): Promise<LocalCustomerDebt[]> => {
+  if (isSQLiteAvailable()) {
+    console.log('[getAllLocalCustomerDebts] 🔍 Fetching from SQLite', { organizationId });
+    const result = await sqliteDB.query(
+      `SELECT * FROM customer_debts 
+       WHERE organization_id = ? 
+       AND (pending_operation IS NULL OR pending_operation != 'delete')
+       AND remaining_amount > 0
+       ORDER BY created_at DESC`,
+      [organizationId]
+    );
+    console.log('[getAllLocalCustomerDebts] ✅ SQLite result:', { 
+      success: result.success, 
+      count: result.data?.length || 0,
+      sample: result.data?.[0]
+    });
+    return result.success ? (result.data || []) : [];
+  }
+  
   return await inventoryDB.customerDebts
     .where('organization_id')
     .equals(organizationId)
@@ -126,6 +166,16 @@ export const getAllLocalCustomerDebts = async (organizationId: string): Promise<
 
 // جلب الديون غير المتزامنة
 export const getUnsyncedCustomerDebts = async (): Promise<LocalCustomerDebt[]> => {
+  if (isSQLiteAvailable()) {
+    const result = await sqliteDB.query(
+      `SELECT * FROM customer_debts 
+       WHERE synced = 0 OR synced IS NULL
+       ORDER BY created_at ASC`,
+      []
+    );
+    return result.success ? (result.data || []) : [];
+  }
+  
   return await inventoryDB.customerDebts
     .filter(d => !d.synced)
     .toArray();
@@ -174,6 +224,15 @@ export const recordDebtPayment = async (
 
 // مسح الديون المتزامنة والمحذوفة
 export const cleanupSyncedDebts = async (): Promise<number> => {
+  if (isSQLiteAvailable()) {
+    const result = await sqliteDB.execute(
+      `DELETE FROM customer_debts 
+       WHERE synced = 1 AND pending_operation = 'delete'`,
+      []
+    );
+    return result.success ? (result.changes || 0) : 0;
+  }
+  
   const toDelete = await inventoryDB.customerDebts
     .filter(debt => debt.synced === true && debt.pendingOperation === 'delete')
     .toArray();

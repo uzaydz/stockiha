@@ -268,6 +268,15 @@ export const DashboardRoutes = () => (
             </PermissionGuard>
           } />
 
+          {/* Analytics Enhanced - Dashboard احترافي 100% مع RLS */}
+          <Route path="analytics-enhanced" element={
+            <PermissionGuard requiredPermissions={['viewSalesReports']}>
+              <Suspense fallback={<PageLoader message="جاري تحميل التحليلات المحسّنة..." />}>
+                <LazyRoutes.AnalyticsEnhanced />
+              </Suspense>
+            </PermissionGuard>
+          } />
+
           {/* التحليلات المالية الشاملة → المركز */}
           <Route path="financial-analytics" element={<Navigate to="/dashboard/reports-operations/financial" replace />} />
 

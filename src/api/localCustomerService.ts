@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { customersStore, addressesStore, syncQueueStore, LocalCustomer, LocalAddress, SyncQueueItem, inventoryDB } from '@/database/localDb';
+import { inventoryDB, LocalCustomer, LocalAddress } from '@/database/localDb';
 import { UnifiedQueue } from '@/sync/UnifiedQueue';
 
 /**
@@ -44,8 +44,8 @@ export const createLocalCustomer = async (
       phone_digits: digits((customer as any).phone)
     };
     
-    // حفظ العميل في قاعدة البيانات المحلية
-    await customersStore.setItem(id, localCustomer);
+    // حفظ العميل في قاعدة البيانات المحلية (SQLite)
+    await inventoryDB.customers.put(localCustomer);
     
     // إضافة العنصر إلى قائمة المزامنة (موحّد)
     await UnifiedQueue.enqueue({
@@ -73,8 +73,8 @@ export const updateLocalCustomer = async (
   updates: Partial<Omit<LocalCustomer, 'id' | 'created_at' | 'synced' | 'syncStatus' | 'localUpdatedAt' | 'pendingOperation'>>
 ): Promise<LocalCustomer | null> => {
   try {
-    // الحصول على العميل الحالي من التخزين المحلي
-    const existingCustomer = await customersStore.getItem<LocalCustomer>(id);
+    // الحصول على العميل الحالي من SQLite
+    const existingCustomer = await inventoryDB.customers.get(id);
     
     if (!existingCustomer) {
       return null;
@@ -99,8 +99,8 @@ export const updateLocalCustomer = async (
       phone_digits: (updates as any).phone ? digits((updates as any).phone) : existingCustomer.phone_digits
     };
     
-    // حفظ العميل المحدّث في التخزين المحلي
-    await customersStore.setItem(id, updatedCustomer);
+    // حفظ العميل المحدّث في SQLite
+    await inventoryDB.customers.put(updatedCustomer);
     
     // إضافة العنصر إلى قائمة المزامنة (موحّد)
     await UnifiedQueue.enqueue({
@@ -181,8 +181,8 @@ export async function getLocalCustomersPage(
  */
 export const deleteLocalCustomer = async (id: string): Promise<boolean> => {
   try {
-    // الحصول على العميل من التخزين المحلي
-    const existingCustomer = await customersStore.getItem<LocalCustomer>(id);
+    // الحصول على العميل من SQLite
+    const existingCustomer = await inventoryDB.customers.get(id);
     
     if (!existingCustomer) {
       return false;
@@ -199,7 +199,7 @@ export const deleteLocalCustomer = async (id: string): Promise<boolean> => {
       pendingOperation: 'delete'
     };
     
-    await customersStore.setItem(id, markedCustomer);
+    await inventoryDB.customers.put(markedCustomer);
     
     // إضافة العنصر إلى قائمة المزامنة (موحّد)
     await UnifiedQueue.enqueue({
@@ -233,28 +233,14 @@ export const getLocalCustomers = async (
     const customers: LocalCustomer[] = [];
     const { includeDeleted = false, onlySynced = false, onlyUnsynced = false, organizationId } = options;
     
-    await customersStore.iterate<LocalCustomer, void>((customer, key) => {
-      // تجاهل العناصر المحذوفة حسب الخيارات
-      if (!includeDeleted && customer.pendingOperation === 'delete') {
-        return;
-      }
-      
-      // فلترة حسب حالة المزامنة
-      if (onlySynced && !customer.synced) {
-        return;
-      }
-      
-      if (onlyUnsynced && customer.synced) {
-        return;
-      }
-      
-      // فلترة حسب المؤسسة
-      if (organizationId && customer.organization_id !== organizationId) {
-        return;
-      }
-      
+    const all = await inventoryDB.customers.toArray();
+    for (const customer of all as any[]) {
+      if (!includeDeleted && customer.pendingOperation === 'delete') continue;
+      if (onlySynced && !customer.synced) continue;
+      if (onlyUnsynced && customer.synced) continue;
+      if (organizationId && customer.organization_id !== organizationId) continue;
       customers.push(customer);
-    });
+    }
     
     return customers;
   } catch (error) {
@@ -269,7 +255,7 @@ export const getLocalCustomers = async (
  */
 export const getLocalCustomerById = async (id: string): Promise<LocalCustomer | null> => {
   try {
-    return await customersStore.getItem<LocalCustomer>(id);
+    return await inventoryDB.customers.get(id) as LocalCustomer | null;
   } catch (error) {
     return null;
   }
@@ -286,7 +272,7 @@ export const markCustomerAsSynced = async (
   remoteCustomer?: any
 ): Promise<LocalCustomer | null> => {
   try {
-    const localCustomer = await customersStore.getItem<LocalCustomer>(id);
+    const localCustomer = await inventoryDB.customers.get(id);
     
     if (!localCustomer) {
       return null;
@@ -294,8 +280,8 @@ export const markCustomerAsSynced = async (
     
     // في حالة وجود عملية حذف
     if (localCustomer.pendingOperation === 'delete') {
-      // حذف العميل فعلياً من التخزين المحلي
-      await customersStore.removeItem(id);
+      // حذف العميل فعلياً من SQLite
+      await inventoryDB.customers.delete(id);
       return null;
     }
     
@@ -309,7 +295,7 @@ export const markCustomerAsSynced = async (
       pendingOperation: undefined
     };
     
-    await customersStore.setItem(id, updatedCustomer);
+    await inventoryDB.customers.put(updatedCustomer);
     return updatedCustomer;
   } catch (error) {
     return null;
@@ -345,7 +331,7 @@ export const createLocalAddress = async (
       pendingOperation: 'create'
     };
     
-    await addressesStore.setItem(id, localAddress);
+    await inventoryDB.addresses.put(localAddress);
     
     // إضافة العنصر إلى قائمة المزامنة (موحّد)
     await UnifiedQueue.enqueue({
@@ -369,15 +355,11 @@ export const createLocalAddress = async (
  */
 export const getLocalAddressesByCustomerId = async (customerId: string): Promise<LocalAddress[]> => {
   try {
-    const addresses: LocalAddress[] = [];
-    
-    await addressesStore.iterate<LocalAddress, void>((address, key) => {
-      if (address.customer_id === customerId && address.pendingOperation !== 'delete') {
-        addresses.push(address);
-      }
-    });
-    
-    return addresses;
+    const addresses = await inventoryDB.addresses
+      .where('customer_id')
+      .equals(customerId)
+      .toArray();
+    return addresses.filter((a: any) => a.pendingOperation !== 'delete');
   } catch (error) {
     return [];
   }

@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { getProducts as syncProductsOnline } from '@/lib/api/offlineProductsAdapter';
+import { getUnsyncedTransactionsCount, syncInventoryData } from '@/lib/db/inventoryDB';
+import { toast } from 'sonner';
 
 interface InventoryProps extends POSSharedLayoutControls {}
 
@@ -31,6 +33,9 @@ const InventoryComponent = ({
   const [useCacheBrowse, setUseCacheBrowse] = useState<boolean>(
     typeof window !== 'undefined' ? window.localStorage.getItem('inventory_use_cache') === '1' : false
   );
+  const [unsyncedCount, setUnsyncedCount] = useState(0);
+  const [isSyncing, setIsSyncing] = useState(false);
+
   const renderWithLayout = (node: React.ReactElement) => (
     useStandaloneLayout ? <Layout>{node}</Layout> : node
   );
@@ -131,6 +136,47 @@ const InventoryComponent = ({
     }
   }, [isOnline, user]);
 
+  const handleSyncInventory = useCallback(async () => {
+    if (!isOnline || isSyncing) return;
+
+    setIsSyncing(true);
+    try {
+      const syncedCount = await syncInventoryData();
+      if (syncedCount > 0) {
+        toast.success(`تمت مزامنة ${syncedCount} عملية مخزون`);
+        setRefreshKey((prev) => prev + 1);
+        // تحديث العداد
+        const newCount = await getUnsyncedTransactionsCount();
+        setUnsyncedCount(newCount);
+      } else {
+        toast.info('لا توجد عمليات معلقة للمزامنة');
+      }
+    } catch (error: any) {
+      toast.error('فشلت المزامنة: ' + (error?.message || 'خطأ غير معروف'));
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [isOnline, isSyncing]);
+
+  // تحديث عداد العمليات غير المتزامنة
+  useEffect(() => {
+    const updateUnsyncedCount = async () => {
+      try {
+        const count = await getUnsyncedTransactionsCount();
+        setUnsyncedCount(count);
+      } catch {
+        // تجاهل
+      }
+    };
+
+    updateUnsyncedCount();
+
+    // تحديث العداد كل 10 ثوانٍ
+    const intervalId = setInterval(updateUnsyncedCount, 10000);
+
+    return () => clearInterval(intervalId);
+  }, [refreshKey]);
+
   useEffect(() => {
     if (!onRegisterRefresh) return;
     onRegisterRefresh(() => {
@@ -190,7 +236,7 @@ const InventoryComponent = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             size="sm"
@@ -214,11 +260,37 @@ const InventoryComponent = ({
             disabled={!isOnline}
             className="h-8"
           >
-            مزامنة الآن
+            مزامنة المنتجات
           </Button>
+          {unsyncedCount > 0 && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={handleSyncInventory}
+              disabled={!isOnline || isSyncing}
+              className="h-8 bg-orange-500 hover:bg-orange-600"
+            >
+              {isSyncing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  جاري المزامنة...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-1" />
+                  مزامنة المخزون ({unsyncedCount})
+                </>
+              )}
+            </Button>
+          )}
           {(!isOnline || useCacheBrowse) && (
             <Badge className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20">
               {isOnline ? 'التصفح من الكاش' : 'وضع الأوفلاين'}
+            </Badge>
+          )}
+          {unsyncedCount > 0 && !isOnline && (
+            <Badge className="bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20">
+              {unsyncedCount} عملية معلقة
             </Badge>
           )}
         </div>

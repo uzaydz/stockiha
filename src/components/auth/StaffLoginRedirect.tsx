@@ -24,6 +24,19 @@ const StaffLoginRedirect: React.FC<{ children: React.ReactNode }> = ({ children 
 
     // إذا كان المستخدم مسجل دخول وفي مسار dashboard
     if (user && userProfile && currentPath.startsWith('/dashboard')) {
+      const navState: any = (location as any).state;
+      const justSignedInStaff = navState?.staffSignedIn === true;
+      if (justSignedInStaff) {
+        return;
+      }
+
+      let storedStaff: any = null;
+      try {
+        const raw = localStorage.getItem('staff_session');
+        storedStaff = raw ? JSON.parse(raw) : null;
+      } catch {}
+      const storedAdminMode = localStorage.getItem('admin_mode') === 'true';
+
       const userRole = userProfile.role;
 
       // فقط المديرين (admin/owner) يحتاجون لاختيار وضع العمل
@@ -31,7 +44,7 @@ const StaffLoginRedirect: React.FC<{ children: React.ReactNode }> = ({ children 
 
       if (isAdminOrOwner) {
         // إذا لم يكن لديه جلسة موظف ولا في وضع أدمن، يوجه لصفحة اختيار الوضع
-        if (!currentStaff && !isAdminMode) {
+        if (!currentStaff && !isAdminMode && !storedStaff && !storedAdminMode) {
           navigate('/staff-login', { replace: true });
         }
       }

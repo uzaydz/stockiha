@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { toast } from 'sonner';
 import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase, getSupabaseClient } from '@/lib/supabase-unified';
+import { sqliteDB, isSQLiteAvailable } from '@/lib/db/sqliteAPI';
 import { checkUserRequires2FA } from '@/lib/api/authHelpers';
 import { ensureUserOrganizationLink } from '@/lib/api/auth-helpers';
 import { loadSecureSession, saveSecureSession } from '@/context/auth/utils/secureSessionStorage';
@@ -27,6 +28,18 @@ const loginFormDebugLog = (message: string, data?: any) => {
       // ignore console errors
     }
   }
+};
+
+const ensureGlobalDB = async (): Promise<boolean> => {
+  try {
+    if (isSQLiteAvailable()) {
+      const res = await sqliteDB.initialize('global');
+      return Boolean(res?.success);
+    }
+  } catch (e) {
+    loginFormDebugLog('⚠️ فشل تهيئة قاعدة بيانات global للأوفلاين:', e);
+  }
+  return false;
 };
 
 const getOfflineStorageSnapshot = () => {
@@ -84,6 +97,8 @@ type OfflineCredentialRecord = {
   salt: string;
   hash: string;
   updatedAt: number;
+  algo?: 'sha256' | 'raw';
+  fallbackHash?: string;
 };
 
 const bufferToHex = (input: ArrayBuffer | Uint8Array): string => {
@@ -99,6 +114,36 @@ const generateSalt = (): string => {
   }
   const bytes = window.crypto.getRandomValues(new Uint8Array(16));
   return bufferToHex(bytes);
+};
+
+const encodeSalted = (salt: string, password: string): Uint8Array => {
+  const enc = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
+  if (enc) {
+    return enc.encode(`${salt}:${password}`);
+  }
+  const fallback: number[] = [];
+  const raw = `${salt}:${password}`;
+  for (let i = 0; i < raw.length; i += 1) {
+    fallback.push(raw.charCodeAt(i) & 0xff);
+  }
+  return new Uint8Array(fallback);
+};
+
+const computeHashes = async (password: string, salt: string): Promise<{ sha?: string; raw: string }> => {
+  try {
+    const data = encodeSalted(salt, password);
+    let sha: string | undefined;
+    try {
+      if (typeof window !== 'undefined' && window.crypto?.subtle) {
+        const digest = await window.crypto.subtle.digest('SHA-256', data);
+        sha = bufferToHex(digest);
+      }
+    } catch {}
+    const raw = bufferToHex(data);
+    return { sha, raw };
+  } catch {
+    return { raw: '' };
+  }
 };
 
 const readOfflineCredentialStore = (): Record<string, OfflineCredentialRecord> => {
@@ -121,20 +166,8 @@ const readOfflineCredentialStore = (): Record<string, OfflineCredentialRecord> =
   }
 };
 
-const writeOfflineCredentialStore = (store: Record<string, OfflineCredentialRecord>) => {
-  if (typeof window === 'undefined') return;
-  try {
-    const serialized = JSON.stringify(store);
-    localStorage.setItem(OFFLINE_CREDENTIALS_KEY, serialized);
-    
-    loginFormDebugLog('💾 كتابة بيانات تسجيل الدخول الأوفلاين:', {
-      storeKeys: Object.keys(store),
-      storeSize: Object.keys(store).length,
-      serializedLength: serialized.length
-    });
-  } catch (error) {
-    loginFormDebugLog('⚠️ فشل حفظ بيانات تسجيل الدخول الأوفلاين:', error);
-  }
+const writeOfflineCredentialStore = (_store: Record<string, OfflineCredentialRecord>) => {
+  // تم إيقاف التخزين في localStorage لبيانات الاعتماد. سنستخدم SQLite فقط.
 };
 
 const hashOfflinePassword = async (password: string, salt: string): Promise<string | null> => {
@@ -183,27 +216,40 @@ const saveOfflineCredentials = async (email: string, password: string): Promise<
   const normalizedEmail = email.toLowerCase().trim();
   
   try {
+    const initialized = await ensureGlobalDB();
+    if (!initialized) {
+      loginFormDebugLog('⚠️ SQLite غير متاح لحفظ بيانات الاعتماد');
+      return;
+    }
+
     const salt = generateSalt();
-    const hash = await hashOfflinePassword(password, salt);
+    const { sha, raw } = await computeHashes(password, salt);
+    const hash = sha ?? raw;
     if (!hash) {
       loginFormDebugLog('⚠️ فشل في إنشاء hash لكلمة المرور الأوفلاين');
       return;
     }
 
-    const store = readOfflineCredentialStore();
-    store[normalizedEmail] = {
+    const now = new Date().toISOString();
+    const rec = {
+      id: normalizedEmail,
+      email: email,
+      email_lower: normalizedEmail,
       salt,
       hash,
-      updatedAt: Date.now()
-    };
-    writeOfflineCredentialStore(store);
-    
-    // تسجيل لحفظ البيانات للأوفلاين
-    loginFormDebugLog('💾 تم حفظ بيانات تسجيل الدخول للأوفلاين:', {
+      algo: sha ? 'sha256' : 'raw',
+      fallback_hash: raw,
+      user_id: null,
+      organization_id: localStorage.getItem('bazaar_organization_id') || null,
+      created_at: now,
+      updated_at: now
+    } as any;
+
+    const result = await sqliteDB.upsert('user_credentials', rec);
+    loginFormDebugLog('💾 تم حفظ بيانات تسجيل الدخول للأوفلاين في SQLite:', {
       email: normalizedEmail,
-      hasSalt: Boolean(salt),
-      hasHash: Boolean(hash),
-      timestamp: new Date().toISOString()
+      success: result.success,
+      changes: result.changes
     });
   } catch (error) {
     loginFormDebugLog('❌ خطأ في حفظ بيانات تسجيل الدخول للأوفلاين:', error);
@@ -215,32 +261,71 @@ const verifyOfflineCredentials = async (email: string, password: string): Promis
   if (typeof window === 'undefined') return false;
 
   const normalizedEmail = email.toLowerCase().trim();
-  const store = readOfflineCredentialStore();
-  const record = store[normalizedEmail];
-
-  loginFormDebugLog('🔍 التحقق من بيانات تسجيل الدخول الأوفلاين:', {
-    email: normalizedEmail,
-    hasRecord: Boolean(record),
-    recordKeys: record ? Object.keys(record) : null
-  });
-
-  if (!record) {
-    loginFormDebugLog('❌ لا توجد بيانات محفوظة لهذا البريد الإلكتروني');
+  const initialized = await ensureGlobalDB();
+  if (!initialized) {
+    loginFormDebugLog('❌ فشل تهيئة SQLite للتحقق من بيانات الاعتماد');
     return false;
   }
 
-  const hash = await hashOfflinePassword(password, record.salt);
-  if (!hash) {
-    loginFormDebugLog('❌ فشل في إنشاء hash للتحقق');
-    return false;
+  // قراءة السجل من SQLite
+  let res = await sqliteDB.queryOne('SELECT * FROM user_credentials WHERE email_lower = ?', [normalizedEmail]);
+  if (!res.success || !res.data) {
+    // محاولة ترحيل بيانات الاعتماد القديمة من localStorage إلى SQLite لمرة واحدة
+    const legacyStore = readOfflineCredentialStore();
+    const legacy = legacyStore[normalizedEmail];
+    if (legacy?.salt && legacy?.hash) {
+      try {
+        const now = new Date().toISOString();
+        const migrated = {
+          id: normalizedEmail,
+          email,
+          email_lower: normalizedEmail,
+          salt: legacy.salt,
+          hash: legacy.hash,
+          algo: legacy.algo ?? null,
+          fallback_hash: legacy.fallbackHash ?? null,
+          user_id: null,
+          organization_id: localStorage.getItem('bazaar_organization_id') || null,
+          created_at: now,
+          updated_at: now
+        } as any;
+        const up = await sqliteDB.upsert('user_credentials', migrated);
+        loginFormDebugLog('🔄 تم ترحيل بيانات الاعتماد من التخزين القديم إلى SQLite', { success: up.success, changes: up.changes });
+        // إعادة القراءة بعد الترحيل
+        res = await sqliteDB.queryOne('SELECT * FROM user_credentials WHERE email_lower = ?', [normalizedEmail]);
+      } catch (mErr) {
+        loginFormDebugLog('⚠️ فشل ترحيل بيانات الاعتماد القديمة:', mErr);
+      }
+    }
+    if (!res.success || !res.data) {
+      loginFormDebugLog('❌ لا توجد بيانات محفوظة لهذا البريد الإلكتروني في SQLite');
+      return false;
+    }
   }
 
-  const isValid = hash === record.hash;
-  loginFormDebugLog('🔐 نتيجة التحقق من كلمة المرور:', {
+  const record: any = res.data;
+  const { sha, raw } = await computeHashes(password, record.salt);
+  let isValid = false;
+  if (sha && record.hash === sha) isValid = true;
+  if (!isValid && record.hash === raw) isValid = true;
+  if (!isValid && record.fallback_hash) {
+    if (record.fallback_hash === raw) isValid = true;
+    if (!isValid && sha && record.fallback_hash === sha) isValid = true;
+  }
+
+  loginFormDebugLog('🔐 نتيجة التحقق من كلمة المرور (SQLite):', {
     isValid,
     hasStoredHash: Boolean(record.hash),
-    hasComputedHash: Boolean(hash)
+    hasComputedSHA: Boolean(sha),
+    hasComputedRaw: Boolean(raw)
   });
+
+  if (isValid) {
+    try {
+      // تحديث last_success_at
+      await sqliteDB.execute('UPDATE user_credentials SET last_success_at = ?, updated_at = ? WHERE id = ?', [new Date().toISOString(), new Date().toISOString(), record.id]);
+    } catch {}
+  }
 
   return isValid;
 };
@@ -383,7 +468,7 @@ const LoginForm = () => {
           refresh_token: `offline-refresh-${offlineUser.id}`,
           expires_in: Math.max(0, expiresAtSeconds - Math.floor(Date.now() / 1000)),
           expires_at: expiresAtSeconds,
-          token_type: 'offline',
+          token_type: 'bearer',
           user: offlineUser,
           provider_token: null,
           provider_refresh_token: null
@@ -780,6 +865,13 @@ const LoginForm = () => {
         loginFormDebugLog('⚠️ فشل حفظ الجلسة الآمنة بعد تسجيل الدخول المباشر:', secureError);
       }
       saveOfflineAuthSnapshot(data.session, data.user);
+      // ✅ حفظ بيانات الاعتماد للأوفلاين بعد نجاح التسجيل المباشر أيضاً
+      try {
+        await saveOfflineCredentials(normalizedEmail, loginPassword);
+        loginFormDebugLog('💾 تم حفظ بيانات الاعتماد للأوفلاين بعد تسجيل الدخول المباشر');
+      } catch (credErr) {
+        loginFormDebugLog('⚠️ فشل حفظ بيانات الاعتماد للأوفلاين بعد التسجيل المباشر:', credErr);
+      }
       loginFormDebugLog('📁 حالة التخزين بعد حفظ الجلسة', getOfflineStorageSnapshot());
 
       // انتظار تحديث AuthContext وتحميل البيانات

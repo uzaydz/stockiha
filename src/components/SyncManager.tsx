@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-// Scheduler معطّل لتجنب ازدواج مزامنة المخزون، نعتمد على SyncEngine فقط
-// import { startSyncScheduler, triggerImmediateSync } from '@/api/syncScheduler';
+// استخدام SmartSyncEngine الجديد - Event-Driven Sync
 import { initializePOSOfflineSync } from '@/context/shop/posOrderService';
-import { SyncEngine } from '@/sync/SyncEngine';
+import { smartSyncEngine } from '@/lib/sync/SmartSyncEngine';
+import { syncTracker } from '@/lib/sync/SyncTracker';
 import { inventoryDB } from '@/database/localDb';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { useOrganization } from '@/hooks/useOrganization';
@@ -151,24 +151,22 @@ const SyncManager: React.FC<SyncManagerProps> = ({
       initializePOSOfflineSync();
 
       try {
-        const res = await SyncEngine.run();
+        // 🚀 استخدام Smart Sync Engine الجديد
+        await smartSyncEngine.syncNow(true);
 
         const now = Date.now();
         setLastSyncAt(now);
 
-        const processed = (res?.posOrders?.synced || 0) + (res?.posOrderUpdates?.synced || 0);
-        const baseDone = !!res?.baseSynced;
+        const pendingCount = syncTracker.getPendingCount();
 
         if (origin === 'manual' || origin === 'network') {
-          if (processed > 0) {
-            toast.success('تمت مزامنة الطلبات بنجاح', {
-              description: `تم تحديث ${processed} سجل${processed > 1 ? 'ات' : ''}.`
+          if (pendingCount === 0) {
+            toast.success('تمت المزامنة بنجاح', {
+              description: 'جميع البيانات محدثة'
             });
-          } else if (baseDone) {
-            toast.success('تم تحديث البيانات المحلية');
           } else {
             // لا شيء مُعالج، نعرض إشعار خفيف فقط عند التنفيذ اليدوي
-            toast.message('لا توجد عناصر لمزامنتها الآن');
+            toast.message(`لا تزال هناك ${pendingCount} عناصر معلقة`);
           }
         }
       } catch (error) {
@@ -198,23 +196,40 @@ const SyncManager: React.FC<SyncManagerProps> = ({
       return;
     }
 
-    // تم تعطيل مُجدول الصف لمنع الازدواج. SyncEngine يدير المزامنة مركزياً.
-
-    syncTimerRef.current = setInterval(() => {
-      void runSync('auto');
-    }, effectiveInterval);
+    // ✅ SmartSyncEngine يدير المزامنة تلقائياً (Event-Driven + Fallback)
+    // لم نعد بحاجة لـ periodic sync هنا
+    
+    // التأكد من أن SmartSyncEngine يعمل
+    if (!smartSyncEngine.getStatus().isRunning) {
+      smartSyncEngine.start();
+    }
 
     return () => {
-      if (syncTimerRef.current) {
-        clearInterval(syncTimerRef.current);
-        syncTimerRef.current = null;
-      }
+      // لا نوقف Engine عند unmount - قد يُستخدم في أماكن أخرى
+      // smartSyncEngine.stop();
     };
-  }, [autoSync, effectiveInterval, forceDisable, runSync]);
+  }, [autoSync, forceDisable]);
 
   useEffect(() => {
     void updateSnapshot();
   }, [updateSnapshot]);
+
+  // 📢 الاستماع لتغييرات SyncTracker
+  useEffect(() => {
+    const unsubscribe = syncTracker.onChange((hasPending) => {
+      // تحديث snapshot عند تغيير حالة العناصر المعلقة
+      void updateSnapshot();
+      
+      // تحديث حالة المزامنة
+      const status = smartSyncEngine.getStatus();
+      if (status.isSyncing !== isSyncing) {
+        setIsSyncing(status.isSyncing);
+        notifySyncState(status.isSyncing);
+      }
+    });
+
+    return unsubscribe;
+  }, [updateSnapshot, isSyncing, notifySyncState]);
 
   useEffect(() => {
     if (forceDisable) {

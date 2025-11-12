@@ -1,7 +1,8 @@
 import { v4 as uuidv4 } from 'uuid';
-import { productsStore, syncQueueStore, LocalProduct, SyncQueueItem } from '@/database/localDb';
+import { productsStore, LocalProduct, SyncQueueItem, inventoryDB } from '@/database/localDb';
 import { UnifiedQueue } from '@/sync/UnifiedQueue';
 import { Product } from './productService';
+import { syncTracker } from '@/lib/sync/SyncTracker';
 
 // إضافة منتج جديد محلياً
 export const createLocalProduct = async (organizationId: string, product: Omit<Product, 'id' | 'created_at' | 'updated_at'>): Promise<LocalProduct> => {
@@ -27,6 +28,9 @@ export const createLocalProduct = async (organizationId: string, product: Omit<P
     data: newProduct,
     priority: 1
   });
+
+  // 🚀 إضافة للـ sync tracker
+  syncTracker.addPending(newProduct.id, 'products');
 
   return newProduct;
 };
@@ -61,6 +65,9 @@ export const updateLocalProduct = async (productId: string, updates: Partial<Loc
         data: updatedProduct,
         priority: 2
       });
+      
+      // 🚀 إضافة للـ sync tracker
+      syncTracker.addPending(productId, 'products');
     }
     
     return updatedProduct;
@@ -94,7 +101,8 @@ export const reduceLocalProductStock = async (productId: string, quantity: numbe
 
 // إضافة عنصر إلى قائمة المزامنة
 export const addToSyncQueue = async (item: SyncQueueItem) => {
-  await syncQueueStore.setItem(item.id, item);
+  // SQLite-only queue persistence
+  await inventoryDB.syncQueue.put(item as any);
 };
 
 // جلب المنتجات المحلية مع تصفية حسب حالة المزامنة
@@ -159,13 +167,16 @@ export const deleteLocalProduct = async (productId: string): Promise<boolean> =>
         priority: 3
       });
     } else if (product.pendingOperation === 'create') {
-      // إذا كان المنتج جديدًا وغير متزامن، يمكن حذفه مباشرةً من قائمة المزامنة
-      // البحث عن عناصر المزامنة المرتبطة بهذا المنتج وحذفها
-      await syncQueueStore.iterate<SyncQueueItem, void>((item, key) => {
-        if (item.objectId === productId) {
-          syncQueueStore.removeItem(key);
+      // إذا كان المنتج جديدًا وغير متزامن، احذف عناصر المزامنة من SQLite
+      try {
+        const items = await inventoryDB.syncQueue
+          .where('objectId' as any)
+          .equals(productId as any)
+          .toArray();
+        for (const it of items) {
+          await inventoryDB.syncQueue.delete((it as any).id);
         }
-      });
+      } catch {}
     }
     
     // حذف المنتج من المخزن المحلي

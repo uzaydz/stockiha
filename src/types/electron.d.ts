@@ -80,6 +80,13 @@ interface SecurityAPI {
   hashString: (str: string) => Promise<string | null>;
 }
 
+interface LicenseAPI {
+  setAnchor: (organizationId: string | null, serverNowMs: number) => Promise<{ success: boolean; error?: string }>;
+  getSecureNow: (
+    organizationId: string | null
+  ) => Promise<{ success: boolean; secureNowMs: number; tamperDetected?: boolean; tamperCount?: number; error?: string }>;
+}
+
 interface ElectronAPI {
   // معلومات التطبيق
   getAppVersion: () => Promise<string>;
@@ -139,6 +146,9 @@ interface ElectronAPI {
   // نظام التحديثات التلقائية
   updater: UpdaterAPI;
 
+  // الساعة الآمنة/الترخيص
+  license?: LicenseAPI;
+
   // إدارة الكوكيز
   getCookie?: (name: string) => string | null;
   setCookie?: (name: string, value: string, days?: number) => boolean;
@@ -186,6 +196,7 @@ interface ElectronAPI {
     searchProducts: (query: string, options?: any) => Promise<{ success: boolean; data: any[]; error?: string }>;
     query: (sql: string, params?: any) => Promise<{ success: boolean; data: any[]; error?: string }>;
     queryOne: (sql: string, params?: any) => Promise<{ success: boolean; data: any; error?: string }>;
+    execute: (sql: string, params?: any) => Promise<{ success: boolean; changes?: number; lastInsertRowid?: number; error?: string }>;
     upsert: (table: string, data: any) => Promise<{ success: boolean; changes?: number; error?: string }>;
     delete: (table: string, id: string) => Promise<{ success: boolean; changes?: number; error?: string }>;
     addPOSOrder: (order: any, items: any[]) => Promise<{ success: boolean; error?: string }>;
@@ -196,6 +207,44 @@ interface ElectronAPI {
     backup: (destinationPath: string) => Promise<{ success: boolean; path?: string; error?: string }>;
     restore: (backupPath: string) => Promise<{ success: boolean; error?: string }>;
     close: () => Promise<{ success: boolean; error?: string }>;
+    logConflict: (conflictEntry: {
+      id: string;
+      entityType: 'product' | 'customer' | 'invoice' | 'order';
+      entityId: string;
+      localVersion: any;
+      serverVersion: any;
+      conflictFields: string[];
+      severity: number;
+      resolution: 'server_wins' | 'client_wins' | 'merge' | 'manual';
+      resolvedVersion: any;
+      resolvedBy?: string;
+      detectedAt: string;
+      resolvedAt: string;
+      userId: string;
+      organizationId: string;
+      localTimestamp: string;
+      serverTimestamp: string;
+      notes?: string;
+    }) => Promise<{ success: boolean; changes?: number; error?: string }>;
+    getConflictHistory: (entityType: string, entityId: string) => Promise<{ success: boolean; data: any[]; error?: string }>;
+    getConflicts: (
+      organizationId: string,
+      options?: {
+        entityType?: string;
+        resolution?: string;
+        minSeverity?: number;
+        dateFrom?: string;
+        dateTo?: string;
+        limit?: number;
+        offset?: number;
+      }
+    ) => Promise<{ success: boolean; data: any[]; count: number; error?: string }>;
+    getConflictStatistics: (
+      organizationId: string,
+      dateFrom: string,
+      dateTo: string
+    ) => Promise<{ success: boolean; data?: any; error?: string }>;
+    cleanupOldConflicts: (daysToKeep?: number) => Promise<{ success: boolean; deleted?: number; error?: string }>;
   };
 
   // معلومات إضافية

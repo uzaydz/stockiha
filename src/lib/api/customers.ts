@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { Customer } from '@/types/customer';
+import { inventoryDB } from '@/database/localDb';
 import { getCurrentUserProfile } from './users';
 
 // Fetch all customers
@@ -22,27 +23,27 @@ export const getCustomers = async (): Promise<Customer[]> => {
     return [];
   }
 
-  // استخدام RPC المحسنة لجلب العملاء مع الإحصائيات
-  const { data: orgCustomers, error } = await supabase
-    .rpc('get_customers_optimized', {
-      p_organization_id: organizationId,
-      p_page: 1,
-      p_limit: 1000,
-      p_search: null
-    });
+  try {
+    // استخدام RPC المحسنة لجلب العملاء مع الإحصائيات
+    const { data: orgCustomers, error } = await supabase
+      .rpc('get_customers_optimized' as any, {
+        p_organization_id: organizationId,
+        p_page: 1,
+        p_limit: 1000,
+        p_search: null
+      });
 
-  if (error) {
-    console.error('Error fetching customers:', error);
-    throw new Error(error.message);
-  }
+    if (error) {
+      throw error;
+    }
   
   // Get customers from users table with role 'customer' - محاولة أولى بـ auth_user_id
-  let { data: userCustomers, error: userError } = await supabase
-    .from('users')
-    .select('*')
-    .eq('role', 'customer')
-    .eq('organization_id', organizationId)
-    .order('created_at', { ascending: false });
+    let { data: userCustomers, error: userError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('role', 'customer')
+      .eq('organization_id', organizationId)
+      .order('created_at', { ascending: false });
   
   // إذا فشل، جرب البحث بـ id
   if (userError) {
@@ -60,9 +61,10 @@ export const getCustomers = async (): Promise<Customer[]> => {
   }
   
   // Filter out any entries with the problematic ID '00000000-0000-0000-0000-000000000000'
-  const filteredOrgCustomers = orgCustomers?.filter(customer => 
-    customer.id !== '00000000-0000-0000-0000-000000000000'
-  ) || [];
+  const orgArr = Array.isArray(orgCustomers) ? orgCustomers : [];
+  const filteredOrgCustomers = orgArr.filter((customer: any) => 
+    customer && customer.id !== '00000000-0000-0000-0000-000000000000'
+  );
   
   const filteredUserCustomers = userCustomers?.filter(user => 
     user.id !== '00000000-0000-0000-0000-000000000000'
@@ -97,22 +99,82 @@ export const getCustomers = async (): Promise<Customer[]> => {
     }
   }
   
-  return allCustomers;
+    // مرآة إلى SQLite لاستخدام الأوفلاين
+    try {
+      for (const c of allCustomers) {
+        await inventoryDB.customers.put({
+          id: c.id,
+          name: c.name,
+          email: c.email,
+          phone: (c as any).phone || null,
+          organization_id: c.organization_id,
+          synced: true,
+          syncStatus: null,
+          pendingOperation: undefined,
+          localUpdatedAt: new Date().toISOString(),
+          created_at: (c as any).created_at || new Date().toISOString(),
+          updated_at: (c as any).updated_at || new Date().toISOString(),
+          name_lower: c.name ? String(c.name).toLowerCase() : null,
+          email_lower: c.email ? String(c.email).toLowerCase() : null,
+          phone_digits: (c as any).phone ? String((c as any).phone).replace(/\D/g, '') : null
+        } as any);
+      }
+    } catch {}
+
+    return allCustomers;
+  } catch (onlineErr) {
+    // أوفلاين: قراءة من SQLite
+    try {
+      const rows = await inventoryDB.customers.where({ organization_id: organizationId }).toArray();
+      return (rows || []).map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        email: r.email,
+        phone: r.phone,
+        organization_id: r.organization_id,
+        created_at: r.created_at,
+        updated_at: r.updated_at
+      })) as Customer[];
+    } catch {
+      return [];
+    }
+  }
 };
 
 // Fetch a single customer by ID
 export const getCustomerById = async (id: string): Promise<Customer | null> => {
-  const { data, error } = await supabase
-    .from('customers')
-    .select('*')
-    .eq('id', id)
-    .single();
-    
-  if (error) {
-    throw new Error(error.message);
+  try {
+    const { data, error } = await supabase
+      .from('customers')
+      .select('*')
+      .eq('id', id)
+      .single();
+    if (error) throw error;
+    try {
+      await inventoryDB.customers.put({
+        id: data.id,
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        organization_id: data.organization_id,
+        synced: true,
+        localUpdatedAt: new Date().toISOString(),
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+        name_lower: data.name ? String(data.name).toLowerCase() : null,
+        email_lower: data.email ? String(data.email).toLowerCase() : null,
+        phone_digits: data.phone ? String(data.phone).replace(/\D/g, '') : null
+      } as any);
+    } catch {}
+    return data;
+  } catch (onlineErr) {
+    try {
+      const r: any = await inventoryDB.customers.get(id);
+      return r || null;
+    } catch {
+      return null;
+    }
   }
-  
-  return data;
 };
 
 // Get customer orders count - تحديث لاستخدام البحث عن طريق اسم ومعرف العميل
@@ -268,17 +330,36 @@ export const createCustomer = async (customer: Omit<Customer, 'id' | 'created_at
   }
   
   // ثانياً: محاولة إنشاء عميل جديد
-  const { data, error } = await supabase
-    .from('customers')
-    .insert({ 
-      ...customer,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    })
-    .select()
-    .single();
-    
-  if (error) {
+  try {
+    const { data, error } = await supabase
+      .from('customers')
+      .insert({ 
+        ...customer,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    // مرآة إلى SQLite
+    try {
+      await inventoryDB.customers.put({
+        id: data.id,
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        organization_id: data.organization_id,
+        synced: true,
+        localUpdatedAt: new Date().toISOString(),
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+        name_lower: data.name ? String(data.name).toLowerCase() : null,
+        email_lower: data.email ? String(data.email).toLowerCase() : null,
+        phone_digits: data.phone ? String(data.phone).replace(/\D/g, '') : null
+      } as any);
+    } catch {}
+    return data;
+  } catch (error) {
     // إذا كان الخطأ بسبب تكرار (409 Conflict) رغم الفحص المسبق
     if (error.code === '23505' || error.message.includes('duplicate') || error.message.includes('unique')) {
       // محاولة أخيرة للبحث والتحديث
@@ -309,40 +390,112 @@ export const createCustomer = async (customer: Omit<Customer, 'id' | 'created_at
       }
     }
     
-    throw new Error(`فشل في إنشاء العميل: ${error.message}`);
+    // أوفلاين: إنشاء محلياً في SQLite وإضافته لصف المزامنة
+    try {
+      const id = (globalThis.crypto && globalThis.crypto.randomUUID) ? globalThis.crypto.randomUUID() : `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+      const now = new Date().toISOString();
+      await inventoryDB.customers.put({
+        id,
+        name: customer.name,
+        email: customer.email || null,
+        phone: customer.phone || null,
+        organization_id: customer.organization_id,
+        synced: false,
+        syncStatus: 'pending',
+        pendingOperation: 'create',
+        localUpdatedAt: now,
+        created_at: now,
+        updated_at: now,
+        name_lower: customer.name ? String(customer.name).toLowerCase() : null,
+        email_lower: customer.email ? String(customer.email).toLowerCase() : null,
+        phone_digits: customer.phone ? String(customer.phone).replace(/\D/g, '') : null
+      } as any);
+      await inventoryDB.syncQueue.put({
+        id: id + ':customer:create',
+        objectType: 'customer',
+        objectId: id,
+        operation: 'create',
+        data: customer as any,
+        attempts: 0,
+        createdAt: now,
+        updatedAt: now,
+        priority: 2
+      } as any);
+      return { id, ...customer, created_at: now, updated_at: now } as Customer;
+    } catch (e) {
+      throw new Error(`فشل في إنشاء العميل: ${error.message}`);
+    }
   }
   
-  return data;
 };
 
 // Update an existing customer
 export const updateCustomer = async (id: string, updates: Partial<Omit<Customer, 'id' | 'created_at'>>): Promise<Customer> => {
-  const { data, error } = await supabase
-    .from('customers')
-    .update({ 
-      ...updates,
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', id)
-    .select()
-    .single();
-    
-  if (error) {
-    throw new Error(error.message);
+  try {
+    const { data, error } = await supabase
+      .from('customers')
+      .update({ 
+        ...updates,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    try {
+      await inventoryDB.customers.put({ ...data } as any);
+    } catch {}
+    return data;
+  } catch (err: any) {
+    // أوفلاين: تحديث محلياً وإضافة إلى صف المزامنة
+    const now = new Date().toISOString();
+    try {
+      await inventoryDB.customers.update(id, { ...updates, updated_at: now } as any);
+      await inventoryDB.syncQueue.put({
+        id: id + ':customer:update:' + now,
+        objectType: 'customer',
+        objectId: id,
+        operation: 'update',
+        data: updates as any,
+        attempts: 0,
+        createdAt: now,
+        updatedAt: now,
+        priority: 2
+      } as any);
+      const local = await inventoryDB.customers.get(id) as any;
+      return local as Customer;
+    } catch {
+      throw new Error(err?.message || 'فشل تحديث العميل');
+    }
   }
-  
-  return data;
 };
 
 // Delete a customer
 export const deleteCustomer = async (id: string): Promise<void> => {
-  const { error } = await supabase
-    .from('customers')
-    .delete()
-    .eq('id', id);
-    
-  if (error) {
-    throw new Error(error.message);
+  try {
+    const { error } = await supabase
+      .from('customers')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+    try { await inventoryDB.customers.delete(id); } catch {}
+  } catch (err) {
+    // أوفلاين: علّم السجل للحذف وأضفه إلى صف المزامنة
+    const now = new Date().toISOString();
+    try {
+      await inventoryDB.customers.update(id, { pendingOperation: 'delete', updated_at: now } as any);
+      await inventoryDB.syncQueue.put({
+        id: id + ':customer:delete',
+        objectType: 'customer',
+        objectId: id,
+        operation: 'delete',
+        data: {},
+        attempts: 0,
+        createdAt: now,
+        updatedAt: now,
+        priority: 2
+      } as any);
+    } catch {}
   }
 };
 
@@ -366,18 +519,35 @@ export const searchCustomers = async (query: string): Promise<Customer[]> => {
     return [];
   }
   
-  const { data, error } = await supabase
-    .from('customers')
-    .select('*')
-    .eq('organization_id', organizationId)
-    .or(`name.ilike.%${query}%,email.ilike.%${query}%,phone.ilike.%${query}%`)
-    .order('created_at', { ascending: false });
-    
-  if (error) {
-    throw new Error(error.message);
+  try {
+    const { data, error } = await supabase
+      .from('customers')
+      .select('*')
+      .eq('organization_id', organizationId)
+      .or(`name.ilike.%${query}%,email.ilike.%${query}%,phone.ilike.%${query}%`)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    // مرآة نتائج البحث إلى SQLite (تحديثات فقط)
+    try {
+      for (const c of data || []) {
+        await inventoryDB.customers.put({ ...c } as any);
+      }
+    } catch {}
+    return data || [];
+  } catch (err) {
+    // أوفلاين: بحث محلي في SQLite
+    try {
+      const rows = await inventoryDB.customers.where({ organization_id: organizationId }).toArray();
+      const q = (query || '').toLowerCase();
+      return (rows || []).filter((r: any) =>
+        (r.name && String(r.name).toLowerCase().includes(q)) ||
+        (r.email && String(r.email).toLowerCase().includes(q)) ||
+        (r.phone && String(r.phone).toLowerCase().includes(q))
+      ) as Customer[];
+    } catch {
+      return [];
+    }
   }
-  
-  return data || [];
 };
 
 // Get customer statistics

@@ -9,7 +9,7 @@
 
 import { supabase } from '@/lib/supabase-unified';
 import { deduplicateRequest } from '@/lib/cache/deduplication';
-import localforage from 'localforage';
+import { sqliteDB, isSQLiteAvailable } from '@/lib/db/sqliteAPI';
 
 // ============================================================================
 // واجهات البيانات
@@ -144,11 +144,7 @@ interface CachedData {
 const cache = new Map<string, CachedData>();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 دقائق
 
-// Offline persistent cache (IndexedDB via localforage)
-const appInitOfflineCache = localforage.createInstance({
-  name: 'bazaar-pos',
-  storeName: 'app-init-cache'
-});
+// Offline persistent cache now stored in SQLite (app_init_cache table)
 
 const buildOfflineKey = (userId?: string, organizationId?: string) =>
   `app-init:${userId || 'current'}:${organizationId || 'default'}`;
@@ -213,6 +209,36 @@ export const getAppInitializationData = async (
       }
     }
 
+    // 1.5️⃣ فحص حالة الاتصال - إذا offline، استخدم البيانات المحفوظة مباشرة
+    const isOnline = typeof navigator !== 'undefined' && navigator.onLine;
+    if (!isOnline && !forceRefresh) {
+      console.warn('📴 [AppInitialization] في وضع Offline - استخدام البيانات المحفوظة');
+      
+      if (isSQLiteAvailable()) {
+        const initOrgId = organizationId || localStorage.getItem('currentOrganizationId') || localStorage.getItem('bazaar_organization_id') || undefined;
+        if (initOrgId) {
+          try { await sqliteDB.initialize(initOrgId); } catch {}
+        }
+        
+        const key = buildOfflineKey(userId, organizationId);
+        const byId = await sqliteDB.getAppInitCacheById(key);
+        if (byId.success && byId.data) {
+          const duration = performance.now() - startTime;
+          console.log(`✅ [AppInitialization] تم جلب البيانات من SQLite (offline) في ${duration.toFixed(2)}ms`);
+          return byId.data as AppInitializationData;
+        }
+        
+        const latest = await sqliteDB.getLatestAppInitCacheByUserOrg(userId || null, initOrgId || null);
+        if (latest.success && latest.data) {
+          const duration = performance.now() - startTime;
+          console.log(`✅ [AppInitialization] تم جلب آخر نسخة من SQLite (offline) في ${duration.toFixed(2)}ms`);
+          return latest.data as AppInitializationData;
+        }
+      }
+      
+      throw new Error('لا توجد بيانات محفوظة متاحة في وضع Offline');
+    }
+
     // 2️⃣ جلب البيانات من قاعدة البيانات باستخدام RPC موحد
     console.log('🚀 [AppInitialization] بدء جلب البيانات من قاعدة البيانات...');
     
@@ -245,12 +271,69 @@ export const getAppInitializationData = async (
       setCachedData(appData.user.auth_user_id, appData);
     }
 
-    // 4.1️⃣ حفظ نسخة للأوفلاين في IndexedDB
+    // 4.1️⃣ حفظ نسخة للأوفلاين في SQLite
     try {
-      await appInitOfflineCache.setItem(
-        buildOfflineKey(appData.user?.auth_user_id || userId, organizationId),
-        appData
-      );
+      const cacheId = buildOfflineKey(appData.user?.auth_user_id || userId, organizationId);
+      if (isSQLiteAvailable()) {
+        const initOrgId = appData.organization?.id || organizationId || localStorage.getItem('currentOrganizationId') || localStorage.getItem('bazaar_organization_id') || undefined;
+        if (initOrgId) {
+          await sqliteDB.initialize(initOrgId);
+          
+          // 📥 التأكد من تحميل المنتجات إلى SQLite إذا كانت فارغة
+          try {
+            const { ensureProductsInSQLite } = await import('./productSyncUtils');
+            const productSyncResult = await ensureProductsInSQLite(initOrgId);
+            if (productSyncResult.needed) {
+              console.log('[AppInitialization] 📥 Products sync result:', productSyncResult);
+            }
+          } catch (productSyncError) {
+            console.warn('[AppInitialization] ⚠️ Failed to sync products:', productSyncError);
+            // تجاهل الخطأ وعدم إيقاف التهيئة
+          }
+        }
+        // حفظ الموظفين في جدول employees للاستخدام الأوفلاين
+        try {
+          if (Array.isArray(appData.employees)) {
+            for (const e of appData.employees) {
+              await sqliteDB.upsert('employees', {
+                id: e.id || e.auth_user_id || crypto.randomUUID(),
+                auth_user_id: e.auth_user_id || e.id || null,
+                name: e.name || e.email || '',
+                email: e.email || '',
+                phone: (e as any).phone || null,
+                role: 'employee',
+                is_active: (e as any).is_active !== false,
+                organization_id: appData.organization?.id || organizationId || null,
+                permissions: (e as any).permissions || {},
+                created_at: (e as any).created_at || new Date().toISOString(),
+                updated_at: (e as any).updated_at || new Date().toISOString()
+              });
+            }
+          }
+          // حفظ المستخدم الحالي كـ admin أيضاً للاستخدام الأوفلاين
+          if (appData.user) {
+            await sqliteDB.upsert('employees', {
+              id: appData.user.id || appData.user.auth_user_id,
+              auth_user_id: appData.user.auth_user_id || appData.user.id,
+              name: appData.user.name || appData.user.email,
+              email: appData.user.email,
+              phone: (appData.user as any).phone || null,
+              role: (appData.user as any).role || 'admin',
+              is_active: appData.user.is_active !== false,
+              organization_id: appData.organization?.id || organizationId || null,
+              permissions: appData.user.permissions || [],
+              created_at: appData.user.created_at,
+              updated_at: appData.user.updated_at
+            });
+          }
+        } catch {}
+        await sqliteDB.setAppInitCache({
+          id: cacheId,
+          userId: appData.user?.auth_user_id || userId || null,
+          organizationId: appData.organization?.id || organizationId || null,
+          data: appData
+        });
+      }
     } catch {}
 
     const duration = performance.now() - startTime;
@@ -270,7 +353,7 @@ export const getAppInitializationData = async (
     const duration = performance.now() - startTime;
     console.error(`❌ [AppInitialization] فشل جلب البيانات بعد ${duration.toFixed(2)}ms:`, error);
 
-    // ✅ Offline fallback: حاول إرجاع النسخة الأخيرة المخزنة عند انقطاع الشبكة
+    // ✅ Offline fallback: حاول إرجاع النسخة الأخيرة المخزنة من SQLite عند انقطاع الشبكة
     try {
       const msg = (error as any)?.message ? String((error as any).message).toLowerCase() : '';
       const looksLikeNetwork =
@@ -281,12 +364,22 @@ export const getAppInitializationData = async (
         msg.includes('offline');
 
       if (looksLikeNetwork) {
-        const offline = await appInitOfflineCache.getItem<AppInitializationData>(
-          buildOfflineKey(userId, organizationId)
-        );
-        if (offline) {
-          console.warn('⚠️ [AppInitialization] استخدام نسخة الأوفلاين من IndexedDB بسبب انقطاع الشبكة');
-          return offline;
+        if (isSQLiteAvailable()) {
+          const initOrgId = organizationId || localStorage.getItem('currentOrganizationId') || localStorage.getItem('bazaar_organization_id') || undefined;
+          if (initOrgId) {
+            try { await sqliteDB.initialize(initOrgId); } catch {}
+          }
+          const key = buildOfflineKey(userId, organizationId);
+          const byId = await sqliteDB.getAppInitCacheById(key);
+          if (byId.success && byId.data) {
+            console.warn('⚠️ [AppInitialization] استخدام بيانات التهيئة المحفوظة (SQLite) بسبب انقطاع الشبكة');
+            return byId.data as AppInitializationData;
+          }
+          const latest = await sqliteDB.getLatestAppInitCacheByUserOrg(userId || null, initOrgId || null);
+          if (latest.success && latest.data) {
+            console.warn('⚠️ [AppInitialization] استخدام آخر نسخة محفوظة من بيانات التهيئة (SQLite)');
+            return latest.data as AppInitializationData;
+          }
         }
       }
     } catch {}

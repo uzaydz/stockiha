@@ -8,6 +8,7 @@ import {
   EmployeeActivity,
   EmployeePermissions
 } from '@/types/employee';
+import { inventoryDB } from '@/database/localDb';
 
 // التأكد من وجود جداول الموظفين
 export const ensureEmployeeTables = async (): Promise<void> => {
@@ -124,7 +125,7 @@ const getOrganizationId = async (): Promise<string | null> => {
         .from('users')
         .select('organization_id')
         .eq('auth_user_id', user.id)
-        .single();
+        .maybeSingle();
       
       if (!authResult.error && authResult.data?.organization_id) {
         userData = authResult.data;
@@ -139,8 +140,8 @@ const getOrganizationId = async (): Promise<string | null> => {
         const idResult = await supabase
           .from('users')
           .select('organization_id')
-          .eq('id', user.id)
-          .single();
+          .eq('auth_user_id', user.id)
+          .maybeSingle();
         
         if (!idResult.error && idResult.data?.organization_id) {
           userData = idResult.data;
@@ -329,33 +330,111 @@ const performGetEmployees = async (): Promise<Employee[]> => {
       }
     })) as unknown as Employee[];
     
+    // تحديث كاش SQLite للاستخدام الأوفلاين
+    try {
+      for (const e of transformedEmployees) {
+        await inventoryDB.employees.put({
+          id: e.id,
+          auth_user_id: e.user_id,
+          name: e.name,
+          email: e.email,
+          phone: e.phone,
+          role: e.role,
+          is_active: e.is_active,
+          organization_id: e.organization_id,
+          permissions: e.permissions || {},
+          created_at: e.created_at,
+          updated_at: e.updated_at
+        } as any);
+      }
+    } catch {}
+
     if (process.env.NODE_ENV === 'development') {
     }
     return transformedEmployees;
   } catch (err) {
-    return [];
+    // فallback أوفلاين: قراءة الموظفين من SQLite
+    try {
+      const orgId = localStorage.getItem('organizationId') || localStorage.getItem('currentOrganizationId') || localStorage.getItem('bazaar_organization_id');
+      if (!orgId) return [];
+      const rows = await inventoryDB.employees.where({ organization_id: orgId }).toArray();
+      return (rows || []).map((r: any) => ({
+        id: r.id,
+        user_id: r.auth_user_id || r.id,
+        name: r.name,
+        email: r.email,
+        phone: r.phone,
+        role: (r.role || 'employee') as 'employee' | 'admin',
+        is_active: r.is_active !== false,
+        last_login: null,
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+        organization_id: r.organization_id,
+        permissions: typeof r.permissions === 'object' ? r.permissions : {}
+      })) as Employee[];
+    } catch {
+      return [];
+    }
   }
 };
 
 // جلب موظف محدد بواسطة المعرف
 export const getEmployeeById = async (id: string): Promise<Employee | null> => {
-  const { data, error } = await supabase
-    .from('users')
-    .select('*')
-    .eq('id', id)
-    .eq('role', 'employee')
-    .single();
-    
-  if (error) {
-    throw new Error(error.message);
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', id)
+      .eq('role', 'employee')
+      .single();
+
+    if (error) throw error;
+
+    // حفظ/تحديث في SQLite
+    try {
+      await inventoryDB.employees.put({
+        id: data.id,
+        auth_user_id: data.auth_user_id || data.id,
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        role: data.role,
+        is_active: data.is_active,
+        organization_id: data.organization_id,
+        permissions: data.permissions || {},
+        created_at: data.created_at,
+        updated_at: data.updated_at
+      } as any);
+    } catch {}
+
+    return {
+      ...data,
+      role: data.role as 'employee' | 'admin',
+      permissions: typeof data.permissions === 'object' ? data.permissions : {}
+    } as unknown as Employee;
+  } catch (onlineErr) {
+    // فallback أوفلاين
+    try {
+      const r: any = await inventoryDB.employees.get(id);
+      if (!r) return null;
+      return {
+        id: r.id,
+        user_id: r.auth_user_id || r.id,
+        name: r.name,
+        email: r.email,
+        phone: r.phone,
+        role: (r.role || 'employee') as 'employee' | 'admin',
+        is_active: r.is_active !== false,
+        last_login: null,
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+        organization_id: r.organization_id,
+        permissions: typeof r.permissions === 'object' ? r.permissions : {}
+      } as Employee;
+    } catch {
+      return null;
+    }
   }
-  
-  // تحويل البيانات للنوع المطلوب
-  return {
-    ...data,
-    role: data.role as 'employee' | 'admin',
-    permissions: typeof data.permissions === 'object' ? data.permissions : {}
-  } as unknown as Employee;
 };
 
 // إنشاء موظف جديد
@@ -376,7 +455,7 @@ export const createEmployee = async (
     .from('users')
     .select('organization_id')
     .eq('id', adminUser.id)
-    .single();
+    .maybeSingle();
 
   if (userError) console.warn('Error fetching current user organization:', userError);
 
@@ -1361,7 +1440,7 @@ export const updateEmployeesWithMissingOrganizationId = async (): Promise<void> 
       .from('users')
       .select('organization_id')
       .eq('id', user.id)
-      .single();
+      .maybeSingle();
       
     if (userError) {
       return;

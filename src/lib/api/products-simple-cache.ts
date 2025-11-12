@@ -28,8 +28,16 @@ let cachedOrganizationId = '';
 // مدة صلاحية الـ cache (3 دقائق)
 const CACHE_DURATION = 3 * 60 * 1000;
 
+// 🔒 Deduplication: منع الطلبات المتزامنة المتعددة
+let loadingPromise: Promise<void> | null = null;
+
 // دالة لجلب جميع المنتجات وحفظها في الـ cache
 export const loadProductsToCache = async (organizationId: string): Promise<void> => {
+  // 🔒 إذا كان هناك تحميل جاري، انتظره بدلاً من بدء تحميل جديد
+  if (loadingPromise) {
+    console.log('[ProductsCache] ⏳ Waiting for existing load to complete...');
+    return loadingPromise;
+  }
   const now = Date.now();
   
   // فحص إذا كان الـ cache صالح
@@ -38,10 +46,14 @@ export const loadProductsToCache = async (organizationId: string): Promise<void>
     productsCache.length > 0 &&
     now - cacheTimestamp < CACHE_DURATION
   ) {
+    console.log('[ProductsCache] ✅ Using cached data:', { count: productsCache.length, age: Math.floor((now - cacheTimestamp) / 1000) + 's' });
     return; // الـ cache صالح
   }
   
+  // 🔒 بدء التحميل - حفظ Promise للـ deduplication
+  loadingPromise = (async () => {
   try {
+    console.log('[ProductsCache] 🔄 Starting fresh load...', { organizationId });
     const offlineMode = typeof navigator !== 'undefined' && navigator.onLine === false;
     if (offlineMode) {
       // 📦 أوفلاين: حمّل من IndexedDB مباشرة بدون ضرب الخادم
@@ -75,12 +87,14 @@ export const loadProductsToCache = async (organizationId: string): Promise<void>
 
     // جلب عدد المنتجات الفعلي أولاً
     const totalProductsCount = await getProductsCount(organizationId);
-    console.log(`إجمالي المنتجات في قاعدة البيانات: ${totalProductsCount}`);
+    console.log('[ProductsCache] 📊 Total products on server:', totalProductsCount);
     
     let allProducts: SimpleProduct[] = [];
+    const seenIds = new Set<string>(); // 🔍 لاكتشاف التكرار
     let page = 0;
     const pageSize = 1000; // حجم الصفحة
     let hasMore = true;
+    let duplicatesCount = 0;
     
     // جلب جميع المنتجات باستخدام pagination لتجاوز حد 1000
     while (hasMore) {
@@ -100,9 +114,27 @@ export const loadProductsToCache = async (organizationId: string): Promise<void>
       }
       
       if (data && data.length > 0) {
-        allProducts = allProducts.concat(data);
+        // 🔍 فحص التكرار وإضافة المنتجات الفريدة فقط
+        const uniqueProducts = data.filter((product: any) => {
+          if (seenIds.has(product.id)) {
+            duplicatesCount++;
+            console.warn('[ProductsCache] ⚠️ Duplicate product detected:', product.id);
+            return false;
+          }
+          seenIds.add(product.id);
+          return true;
+        });
+        
+        allProducts = allProducts.concat(uniqueProducts);
         hasMore = data.length === pageSize; // إذا كان العدد أقل من pageSize، فهذا يعني أننا وصلنا للنهاية
         page++;
+        
+        console.log('[ProductsCache] 📦 Page', page, ':', {
+          fetched: data.length,
+          unique: uniqueProducts.length,
+          duplicates: data.length - uniqueProducts.length,
+          total: allProducts.length
+        });
         
         // إضافة تأخير صغير لتجنب الضغط على قاعدة البيانات
         if (hasMore) {
@@ -124,16 +156,36 @@ export const loadProductsToCache = async (organizationId: string): Promise<void>
     cacheTimestamp = now;
     cachedOrganizationId = organizationId;
     
-    console.log(`تم جلب ${allProducts.length} منتج بنجاح من أصل ${totalProductsCount} منتج`);
+    console.log('[ProductsCache] ✅ Loading complete:', {
+      fetched: allProducts.length,
+      expected: totalProductsCount,
+      duplicates: duplicatesCount,
+      pages: page
+    });
     
     // التحقق من أننا جلبنا جميع المنتجات
     if (allProducts.length < totalProductsCount) {
-      console.warn(`تحذير: تم جلب ${allProducts.length} منتج فقط من أصل ${totalProductsCount} منتج. قد تكون هناك مشكلة في pagination.`);
+      console.warn('[ProductsCache] ⚠️ Mismatch:', {
+        fetched: allProducts.length,
+        expected: totalProductsCount,
+        missing: totalProductsCount - allProducts.length
+      });
+    }
+    
+    if (duplicatesCount > 0) {
+      console.warn(`[ProductsCache] ⚠️ Found ${duplicatesCount} duplicate(s) - removed from cache`);
     }
 
   } catch (error) {
-    console.error('خطأ في تحميل المنتجات:', error);
+    console.error('[ProductsCache] ❌ Error loading products:', error);
+  } finally {
+    // 🔓 إنهاء التحميل - السماح بتحميل جديد في المستقبل
+    loadingPromise = null;
   }
+  })(); // إغلاق الـ async IIFE
+  
+  // انتظار اكتمال التحميل
+  return loadingPromise;
 };
 
 // دالة البحث المحلي السريع

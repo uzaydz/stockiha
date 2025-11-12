@@ -123,21 +123,21 @@ const POSPureLayout = memo(function POSPureLayout({
     if (sidebarItems) return sidebarItems;
     // خريطة سريعة من المسار إلى مفتاح الصلاحية المناسب
     const requiredKeyFor = (href: string): string | null => {
-      if (href.startsWith('/dashboard/sales-operations/groups')) return 'canManageOnlineOrderGroups';
-      if (href.startsWith('/dashboard/pos-dashboard')) return 'canAccessPosDashboard';
-      if (href.startsWith('/dashboard/pos-advanced')) return 'canAccessPosAdvanced';
-      if (href.startsWith('/dashboard/pos-operations')) return 'canAccessPosOperations';
+      if (href.startsWith('/dashboard/sales-operations/groups')) return 'manageOrders';
+      if (href.startsWith('/dashboard/pos-dashboard')) return 'accessPOS';
+      if (href.startsWith('/dashboard/pos-advanced')) return 'accessPOS';
+      if (href.startsWith('/dashboard/pos-operations')) return 'accessPOS';
       if (href.startsWith('/dashboard/etat104')) return 'accessPOS';
-      if (href.startsWith('/dashboard/store-business-settings')) return 'canManageStoreSettings';
-      if (href.startsWith('/dashboard/staff-management')) return 'canManageSettings';
-      if (href.startsWith('/dashboard/product-operations')) return 'canAccessProductOperations';
-      if (href.startsWith('/dashboard/sales-operations')) return 'canAccessSalesOperations';
-      if (href.startsWith('/dashboard/services-operations')) return 'canAccessServicesOperations';
-      if (href.startsWith('/dashboard/supplier-operations')) return 'canAccessSupplierOperations';
-      if (href.startsWith('/dashboard/courses-operations')) return 'canAccessCoursesOperations';
-      if (href.startsWith('/dashboard/store-operations')) return 'canAccessStoreOperations';
-      if (href.startsWith('/dashboard/settings-operations')) return 'canAccessSettingsOperations';
-      if (href.startsWith('/dashboard/reports-operations')) return 'canAccessReportsOperations';
+      if (href.startsWith('/dashboard/store-business-settings')) return 'manageSettings';
+      if (href.startsWith('/dashboard/staff-management')) return 'manageUsers';
+      if (href.startsWith('/dashboard/product-operations')) return 'viewProducts';
+      if (href.startsWith('/dashboard/sales-operations')) return 'viewOrders';
+      if (href.startsWith('/dashboard/services-operations')) return 'viewServices';
+      if (href.startsWith('/dashboard/supplier-operations')) return 'viewSuppliers';
+      if (href.startsWith('/dashboard/courses-operations')) return null;
+      if (href.startsWith('/dashboard/store-operations')) return 'manageSettings';
+      if (href.startsWith('/dashboard/settings-operations')) return 'manageSettings';
+      if (href.startsWith('/dashboard/reports-operations')) return 'viewReports';
       return null;
     };
 

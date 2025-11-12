@@ -1,6 +1,6 @@
 import { useState, Suspense, lazy, ComponentType, type FC } from 'react';
 import POSPureLayout from '@/components/pos-layout/POSPureLayout';
-import { useSuperUnifiedData } from '@/context/SuperUnifiedDataContext';
+// import { useSuperUnifiedData } from '@/context/SuperUnifiedDataContext'; // غير مستخدم حالياً
 import { AnalyticsPeriod } from '@/lib/api/analytics';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -72,6 +72,12 @@ const InventorySectionFallback: FC = () => (
 const AnalyticsSectionFallback: FC = () => (
   <OfflineSectionMessage title="تحليلات متقدمة" height="h-64" />
 );
+const MapSectionFallback: FC = () => (
+  <OfflineSectionMessage title="خريطة توزيع الطلبات" height="h-96" />
+);
+const POSSalesSectionFallback: FC = () => (
+  <OfflineSectionMessage title="أداء مبيعات نقطة البيع" height="h-64" />
+);
 
 const TrialNotification = lazyWithOfflineFallback(
   () => import('@/components/subscription/TrialNotification'),
@@ -96,6 +102,14 @@ const OptimizedInventorySection = lazyWithOfflineFallback(
 const OptimizedAnalyticsSection = lazyWithOfflineFallback(
   () => import('@/components/dashboard/optimized/OptimizedAnalyticsSection'),
   AnalyticsSectionFallback
+);
+const OptimizedMapSection = lazyWithOfflineFallback(
+  () => import('@/components/dashboard/optimized/OptimizedMapSection'),
+  MapSectionFallback
+);
+const OptimizedPOSSalesSection = lazyWithOfflineFallback(
+  () => import('@/components/dashboard/optimized/OptimizedPOSSalesSection'),
+  POSSalesSectionFallback
 );
 
 // مكون التحميل الأساسي
@@ -217,7 +231,7 @@ const DashboardContent = () => {
           {/* قسم الإحصائيات الرئيسية */}
           <Suspense fallback={<SectionLoader height="h-40" />}>
             <OptimizedStatsSection timeframe={timeframe} />
-              </Suspense>
+          </Suspense>
 
           {/* قسم الروابط السريعة */}
           <Suspense fallback={<SectionLoader height="h-20" />}>
@@ -227,17 +241,30 @@ const DashboardContent = () => {
           {/* قسم الطلبات (عادية وأونلاين) */}
           <Suspense fallback={<SectionLoader height="h-64" />}>
             <OptimizedOrdersSection />
-              </Suspense>
+          </Suspense>
               
           {/* قسم المخزون منخفض المستوى */}
           <Suspense fallback={<SectionLoader height="h-48" />}>
             <OptimizedInventorySection />
-                </Suspense>
+          </Suspense>
                 
           {/* قسم التحليلات (الولايات وخريطة الوقت) */}
           <Suspense fallback={<SectionLoader height="h-64" />}>
             <OptimizedAnalyticsSection />
-                </Suspense>
+          </Suspense>
+
+          {/* قسم أداء المبيعات والخريطة جنباً إلى جنب */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            {/* قسم أداء مبيعات نقطة البيع */}
+            <Suspense fallback={<SectionLoader height="h-64" />}>
+              <OptimizedPOSSalesSection />
+            </Suspense>
+
+            {/* قسم خريطة توزيع الطلبات الأونلاين */}
+            <Suspense fallback={<SectionLoader height="h-96" />}>
+              <OptimizedMapSection />
+            </Suspense>
+          </div>
               </div>
       </div>
     </POSPureLayout>

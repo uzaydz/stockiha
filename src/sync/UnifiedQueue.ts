@@ -1,5 +1,6 @@
 import { inventoryDB, type SyncQueueItem } from '@/database/localDb';
 import { v4 as uuidv4 } from 'uuid';
+import { syncTracker } from '@/lib/sync/SyncTracker';
 
 export type UnifiedQueueType = SyncQueueItem['objectType'];
 export type UnifiedOperation = SyncQueueItem['operation'];
@@ -11,6 +12,17 @@ export interface EnqueueParams {
   data: any;
   priority?: number; // 1 عالي، 2 متوسط، 3 منخفض
 }
+
+// ✅ تحويل objectType إلى SyncEntityType لـ SyncTracker
+const toSyncEntityType = (objectType: UnifiedQueueType): 'pos_orders' | 'products' | 'customers' | 'addresses' | 'invoices' => {
+  // طلبات POS تُعامل كـ 'pos_orders' في SyncTracker
+  if (objectType === 'order' || objectType === 'pos_orders') return 'pos_orders';
+  if (objectType === 'product') return 'products';
+  if (objectType === 'customer') return 'customers';
+  if (objectType === 'address') return 'addresses';
+  if (objectType === 'invoice') return 'invoices';
+  return 'invoices'; // fallback
+};
 
 export const UnifiedQueue = {
   async enqueue(params: EnqueueParams): Promise<SyncQueueItem> {
@@ -28,7 +40,20 @@ export const UnifiedQueue = {
       updatedAt: now,
       priority: params.priority ?? 1
     };
+    
     await inventoryDB.syncQueue.put(item);
+    
+    // ✅ إشعار SyncTracker تلقائياً لتفعيل المزامنة الفورية
+    const syncType = toSyncEntityType(params.objectType);
+    syncTracker.addPending(params.objectId, syncType);
+    
+    console.log('[UnifiedQueue] ➕ Enqueued item:', {
+      objectType: params.objectType,
+      objectId: params.objectId,
+      operation: params.operation,
+      syncTrackerType: syncType
+    });
+    
     return item;
   },
 

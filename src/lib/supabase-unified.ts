@@ -5,6 +5,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { sqliteAuthStorage } from '@/lib/auth/sqliteStorage';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database.types';
 
@@ -178,12 +179,12 @@ class SupabaseProtector {
 
 // 🔒 نظام مراقبة متقدم
 class AdvancedSupabaseMonitor {
-  private static instances: Set<SupabaseClient> = new Set();
-  private static creationTimes: Map<SupabaseClient, number> = new Map();
+  private static instances: Set<any> = new Set();
+  private static creationTimes: Map<any, number> = new Map();
   private static storageKeys: Set<string> = new Set();
   private static warningShown = false;
 
-  static registerClient(client: SupabaseClient, name: string): void {
+  static registerClient(client: any, name: string): void {
     this.instances.add(client);
     this.creationTimes.set(client, Date.now());
 
@@ -201,7 +202,7 @@ class AdvancedSupabaseMonitor {
     this.detectGoTrueClients();
   }
 
-  static unregisterClient(client: SupabaseClient): void {
+  static unregisterClient(client: any): void {
     this.instances.delete(client);
     this.creationTimes.delete(client);
   }
@@ -210,7 +211,7 @@ class AdvancedSupabaseMonitor {
     return this.instances.size;
   }
 
-  static getAllInstances(): SupabaseClient[] {
+  static getAllInstances(): any[] {
     return Array.from(this.instances);
   }
 
@@ -280,12 +281,12 @@ const createOptimizedSupabaseClient = (): SupabaseClient<Database> => {
       detectSessionInUrl: false, // تعطيل لمنع مشاكل URL
       flowType: 'pkce',
       storageKey: 'bazaar-supabase-auth-unified-v3', // تحديث المفتاح
+      storage: sqliteAuthStorage as any,
       debug: false, // تعطيل debug في production
     },
     realtime: {
       // ✅ تحسين إعدادات WebSocket للشبكات البطيئة
       transport: typeof window !== 'undefined' ? window.WebSocket : undefined,
-      connect: initialOnline,
       timeout: 300000, // زيادة إلى 5 دقائق للشبكات البطيئة
       heartbeatIntervalMs: 120000, // زيادة إلى 2 دقيقة للشبكات البطيئة
       params: {
@@ -352,7 +353,7 @@ const createOptimizedSupabaseClient = (): SupabaseClient<Database> => {
 };
 
 // 🔒 إنشاء العميل الرئيسي مع حماية متقدمة
-let mainClient: SupabaseClient<Database>;
+let mainClient: any;
 
 try {
   // فحص العميل الموجود
@@ -405,7 +406,7 @@ try {
 }
 
 // 🔒 تصدير العميل الرئيسي
-export const supabase: SupabaseClient<Database> = mainClient;
+export const supabase: SupabaseClient<Database> = mainClient as SupabaseClient<Database>;
 
 // 🔒 دوال مساعدة محسنة
 export const getSupabaseClient = (): SupabaseClient<Database> => {

@@ -7,6 +7,7 @@
 
 import { supabase } from '@/lib/supabase';
 import { retrySupabaseOperation, handleError } from '@/lib/utils/errorHandler';
+import { inventoryDB } from '@/database/localDb';
 
 // ====================================================
 // أنواع البيانات (Types)
@@ -306,6 +307,35 @@ class UnifiedUserPermissions {
         }
       };
 
+      // مرآة إلى SQLite (user_permissions) لاستخدام الأوفلاين
+      try {
+        const key = `${userData.auth_user_id}:${userData.organization_id || 'global'}`;
+        const now = new Date().toISOString();
+        await inventoryDB.userPermissions.put({
+          id: key,
+          auth_user_id: userData.auth_user_id,
+          user_id: userData.user_id,
+          email: userData.email,
+          name: userData.name,
+          role: userData.role,
+          organization_id: userData.organization_id,
+          is_active: userData.is_active,
+          is_org_admin: userData.is_org_admin,
+          is_super_admin: userData.is_super_admin,
+          permissions: userData.permissions,
+          has_inventory_access: userData.has_inventory_access,
+          can_manage_products: userData.can_manage_products,
+          can_view_reports: userData.can_view_reports,
+          can_manage_users: userData.can_manage_users,
+          can_manage_orders: userData.can_manage_orders,
+          can_access_pos: userData.can_access_pos,
+          can_manage_settings: userData.can_manage_settings,
+          created_at: userData.created_at,
+          updated_at: now,
+          last_updated: now
+        } as any);
+      } catch {}
+
       // حفظ في الكاش
       if (useCache) {
         this.cachedUserData = userData;
@@ -315,8 +345,69 @@ class UnifiedUserPermissions {
       return userData;
     } catch (error) {
       handleError(error, 'UserPermissions_getUserData_general');
-      
-      // محاولة أخيرة: إرجاع بيانات افتراضية من localStorage إذا كانت متوفرة
+
+      // فallback أوفلاين من SQLite user_permissions
+      try {
+        const orgId = (typeof localStorage !== 'undefined' && (localStorage.getItem('currentOrganizationId') || localStorage.getItem('bazaar_organization_id'))) || null;
+        let row: any | undefined;
+        if (authUserId && orgId) {
+          const rows = await inventoryDB.userPermissions.where({ auth_user_id: authUserId, organization_id: orgId }).toArray();
+          row = rows?.[0];
+        }
+        if (!row && authUserId) {
+          const rowsAnyOrg = await inventoryDB.userPermissions.where({ auth_user_id: authUserId }).toArray();
+          row = rowsAnyOrg?.[0];
+        }
+        if (row) {
+          const perms = typeof row.permissions === 'string' ? (() => { try { return JSON.parse(row.permissions); } catch { return {}; } })() : (row.permissions || {});
+          const offline: UnifiedUserData = {
+            user_id: row.user_id || row.auth_user_id,
+            auth_user_id: row.auth_user_id,
+            email: row.email || '',
+            name: row.name || '',
+            role: row.role || 'employee',
+            organization_id: row.organization_id || null,
+            organization_name: '',
+            organization_status: 'unknown',
+            is_active: row.is_active !== false,
+            is_org_admin: !!row.is_org_admin,
+            is_super_admin: !!row.is_super_admin,
+            permissions: perms,
+            user_status: 'offline',
+            last_activity_at: null,
+            created_at: row.created_at || new Date().toISOString(),
+            has_inventory_access: !!row.has_inventory_access,
+            can_manage_products: !!row.can_manage_products,
+            can_view_reports: !!row.can_view_reports,
+            can_manage_users: !!row.can_manage_users,
+            can_manage_orders: !!row.can_manage_orders,
+            can_access_pos: !!row.can_access_pos,
+            can_manage_settings: !!row.can_manage_settings,
+            subscription_status: 'unknown',
+            subscription_tier: 'free',
+            trial_end_date: null,
+            subscription_active: false,
+            total_permissions_count: Object.keys(perms || {}).length,
+            active_permissions_count: Object.values(perms || {}).filter(Boolean).length,
+            two_factor_enabled: false,
+            account_locked: false,
+            last_login_at: null,
+            debug_info: {
+              query_method: 'sqlite_fallback',
+              execution_time_ms: 0,
+              user_found: true,
+              organization_found: !!row.organization_id,
+              cache_friendly: true,
+              function_version: '2.5.0-sqlite'
+            }
+          };
+          return offline;
+        }
+      } catch (sqliteErr) {
+        handleError(sqliteErr, 'UserPermissions_sqlite_fallback');
+      }
+
+      // محاولة أخيرة: إرجاع بيانات من localStorage إذا كانت متوفرة
       try {
         const savedData = localStorage.getItem('bazaar_user_data');
         if (savedData) {

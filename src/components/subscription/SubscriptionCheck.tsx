@@ -9,6 +9,8 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useTenant } from '@/context/TenantContext';
 import { useAuth } from '@/context/AuthContext';
 import { subscriptionCache, SubscriptionData } from '@/lib/subscription-cache';
+import { getSecureNow, getLocalSubscription, toSubscriptionDataFromLocal } from '@/lib/license/licenseService';
+import { useOfflineStatus } from '@/hooks/useOfflineStatus';
 import SubscriptionExpiredPage from './SubscriptionExpiredPage';
 
 interface SubscriptionCheckProps {
@@ -50,6 +52,7 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const { isOffline } = useOfflineStatus();
   const [isChecking, setIsChecking] = useState(false);
   const [subscriptionData, setSubscriptionData] = useState<SubscriptionData | null>(null);
   const checkTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -91,6 +94,44 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
     });
 
     try {
+      // 1) حاول القراءة من SQLite مع الساعة الآمنة
+      try {
+        const secure = await getSecureNow(orgId);
+        const localRow = await getLocalSubscription(orgId);
+        if (localRow) {
+          const subscription = toSubscriptionDataFromLocal(localRow, secure.secureNowMs) as SubscriptionData;
+          GLOBAL_SUBSCRIPTION_CACHE.set(cacheKey, {
+            data: subscription,
+            timestamp: now,
+            isChecking: false
+          });
+          return subscription;
+        }
+      } catch {}
+
+      if (isOffline) {
+        const offlineBlock: SubscriptionData = {
+          success: false,
+          status: 'error',
+          subscription_type: 'none',
+          subscription_id: null,
+          plan_name: 'غير محدد',
+          plan_code: 'none',
+          start_date: null,
+          end_date: null,
+          days_left: 0,
+          features: [],
+          limits: { max_pos: null, max_users: null, max_products: null },
+          message: 'يجب الاتصال للتحقق الأولي'
+        };
+        GLOBAL_SUBSCRIPTION_CACHE.set(cacheKey, {
+          data: offlineBlock,
+          timestamp: now,
+          isChecking: false
+        });
+        return offlineBlock;
+      }
+      // 2) سقوط احتياطي على الكاش/الخادم الحالي
       const subscription = await subscriptionCache.getSubscriptionStatus(orgId);
       
       // حفظ النتيجة في الكاش
@@ -147,9 +188,8 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
 
         // ✅ التحقق من صحة الاشتراك - لا نسمح بالوصول إذا لم تكن البيانات صالحة
         if (!subscription.success) {
-          // ⚠️ في حالة الخطأ، نعيد التوجيه إلى صفحة الاشتراك
           if (!isSubscriptionPage) {
-            navigate('/dashboard/subscription', { replace: true });
+            navigate('/dashboard/subscription', { replace: true, state: { reason: subscription.message || 'خطأ في التحقق من الاشتراك' } });
           }
           return;
         }

@@ -1,4 +1,4 @@
-import { syncQueueStore, SyncQueueItem } from '@/database/localDb';
+import { inventoryDB } from '@/database/localDb';
 
 /**
  * وظيفة مساعدة لحذف العناصر من قائمة المزامنة بشكل آمن
@@ -9,25 +9,22 @@ export const removeSyncQueueItemsSafely = async (
   objectType: 'product' | 'customer' | 'address' | 'order'
 ): Promise<void> => {
   try {
-    // أولاً، جمع المفاتيح التي نحتاج لحذفها
-    const keysToRemove: string[] = [];
-    
-    // قراءة القائمة واستخراج المفاتيح
-    await syncQueueStore.iterate<SyncQueueItem, void>((item, key) => {
-      if (item.objectId === objectId && item.objectType === objectType) {
-        keysToRemove.push(key);
-      }
-    });
-    
-    // ثم نقوم بحذف العناصر واحداً تلو الآخر في معاملات منفصلة
-    for (const key of keysToRemove) {
-      try {
-        await syncQueueStore.removeItem(key);
-      } catch (error) {
+    const items = await inventoryDB.syncQueue
+      .where('objectId' as any)
+      .equals(objectId as any)
+      .toArray();
+
+    const isOrderType = (t: any) => t === 'order' || t === 'pos_orders';
+
+    for (const it of items as any[]) {
+      const t = it.objectType ?? it.object_type;
+      if (
+        (objectType === 'order' ? isOrderType(t) : t === objectType)
+      ) {
+        try { await inventoryDB.syncQueue.delete(it.id); } catch {}
       }
     }
-  } catch (error) {
-  }
+  } catch {}
 };
 
 /**
@@ -37,17 +34,17 @@ export const hasSyncQueueItems = async (
   objectId: string,
   objectType: 'product' | 'customer' | 'address' | 'order'
 ): Promise<boolean> => {
-  let hasItems = false;
-  
   try {
-    await syncQueueStore.iterate<SyncQueueItem, void>((item) => {
-      if (item.objectId === objectId && item.objectType === objectType) {
-        hasItems = true;
-        return false; // إيقاف التكرار بمجرد العثور على عنصر
-      }
+    const items = await inventoryDB.syncQueue
+      .where('objectId' as any)
+      .equals(objectId as any)
+      .toArray();
+    const isOrderType = (t: any) => t === 'order' || t === 'pos_orders';
+    return (items as any[]).some((it) => {
+      const t = it.objectType ?? it.object_type;
+      return objectType === 'order' ? isOrderType(t) : t === objectType;
     });
-  } catch (error) {
+  } catch {
+    return false;
   }
-  
-  return hasItems;
 };

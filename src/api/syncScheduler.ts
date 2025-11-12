@@ -11,10 +11,18 @@ function backoffDelay(attempts: number): number {
 }
 
 async function processQueueBatch(limit = 20): Promise<SyncResult> {
-  const items = await inventoryDB.syncQueue
-    .orderBy('priority')
-    .limit(limit)
-    .toArray();
+  // SQLite-only: load and sort by priority, then slice
+  const all = await inventoryDB.syncQueue.toArray();
+  const items = all
+    .sort((a: any, b: any) => {
+      const pa = Number(a.priority ?? 0);
+      const pb = Number(b.priority ?? 0);
+      if (pa !== pb) return pa - pb;
+      const ta = new Date(a.created_at || a.createdAt || 0).getTime();
+      const tb = new Date(b.created_at || b.createdAt || 0).getTime();
+      return ta - tb;
+    })
+    .slice(0, limit);
 
   if (items.length === 0) return { processed: 0, failed: 0 };
 
@@ -73,9 +81,16 @@ export function startSyncScheduler(): void {
         timer = window.setTimeout(loop, 30_000);
         return;
       }
-      const snapshot = await inventoryDB.syncQueue
-        .orderBy('priority')
-        .first();
+      const all = await inventoryDB.syncQueue.toArray();
+      const snapshot = all
+        .sort((a: any, b: any) => {
+          const pa = Number(a.priority ?? 0);
+          const pb = Number(b.priority ?? 0);
+          if (pa !== pb) return pa - pb;
+          const ta = new Date(a.created_at || a.createdAt || 0).getTime();
+          const tb = new Date(b.created_at || b.createdAt || 0).getTime();
+          return ta - tb;
+        })[0];
       const delay = backoffDelay(snapshot?.attempts || 0);
       await runSyncSchedulerOnce();
       timer = window.setTimeout(loop, Math.max(3_000, delay));

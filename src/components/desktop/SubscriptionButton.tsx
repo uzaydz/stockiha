@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSubscriptionStatus } from '@/hooks/useSubscriptionStatus';
+import { useOfflineStatus } from '@/hooks/useOfflineStatus';
 
 export const SubscriptionButton: React.FC = () => {
   const navigate = useNavigate();
@@ -29,6 +30,7 @@ export const SubscriptionButton: React.FC = () => {
     remainingOrders,
     isLoading,
   } = useSubscriptionStatus();
+  const { isOffline } = useOfflineStatus();
 
   // إغلاق القائمة المنسدلة عند النقر خارجها
   useEffect(() => {
@@ -56,8 +58,9 @@ export const SubscriptionButton: React.FC = () => {
     return null;
   }
 
-  // تحديد اللون بناءً على الحالة
+  const needsInitialCheck = isOffline && (!subscriptionStatus || subscriptionStatus === null) && (daysRemaining <= 0);
   const getIconColor = () => {
+    if (needsInitialCheck) return 'text-red-400';
     if (subscriptionStatus === 'expired') return 'text-red-400';
     if (daysRemaining <= 7) return 'text-orange-400';
     if (subscriptionStatus === 'trial') return 'text-blue-400';
@@ -77,7 +80,7 @@ export const SubscriptionButton: React.FC = () => {
           showDetails && "bg-white/15"
         )}
         style={{ WebkitAppRegion: 'no-drag' } as any}
-        title={`${planName || 'لا يوجد اشتراك'} - ${daysRemaining} يوم`}
+        title={needsInitialCheck ? 'يتطلب اتصال للتحقق الأولي' : `${planName || 'لا يوجد اشتراك'} - ${daysRemaining} يوم`}
         aria-label="معلومات الاشتراك"
       >
         <Crown className={cn("h-4 w-4 shrink-0", getIconColor())} />
@@ -114,8 +117,12 @@ export const SubscriptionButton: React.FC = () => {
             </div>
           </div>
 
-          {/* المحتوى */}
           <div className="py-2">
+            {needsInitialCheck && (
+              <div className="px-4 py-2.5">
+                <div className="text-sm text-red-300 font-medium">يتطلب اتصال للتحقق الأولي</div>
+              </div>
+            )}
             {/* الأيام المتبقية */}
             <div className="px-4 py-2.5">
               <div className="flex items-center justify-between text-sm">

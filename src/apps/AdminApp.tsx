@@ -14,6 +14,7 @@ import { enableAuthInterception } from '@/lib/authInterceptorV2';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import { ConfirmationProvider } from '@/context/ConfirmationContext';
 import { SyncManagerWrapper } from '@/app-components/AppComponents';
+import { SuperUnifiedDataProvider } from '@/context/SuperUnifiedDataContext';
 
 const LocalStorageMonitor = lazy(() =>
   import('@/components/auth/LocalStorageMonitor').then(module => ({ default: module.LocalStorageMonitor }))
@@ -55,8 +56,9 @@ const AdminApp: React.FC = () => {
       <NetworkErrorHandler>
         <LayoutShiftPrevention>
           <AppCore>
-            <SyncManagerWrapper />
-            <Routes>
+            <SuperUnifiedDataProvider>
+              <SyncManagerWrapper />
+              <Routes>
                 <Route
                   path="/dashboard/*"
                   element={
@@ -241,13 +243,14 @@ const AdminApp: React.FC = () => {
                     </SuspenseRoute>
                   }
                 />
-            </Routes>
+              </Routes>
 
-            {import.meta.env.DEV && (
-              <Suspense fallback={null}>
-                <LocalStorageMonitor />
-              </Suspense>
-            )}
+              {import.meta.env.DEV && (
+                <Suspense fallback={null}>
+                  <LocalStorageMonitor />
+                </Suspense>
+              )}
+            </SuperUnifiedDataProvider>
           </AppCore>
         </LayoutShiftPrevention>
       </NetworkErrorHandler>

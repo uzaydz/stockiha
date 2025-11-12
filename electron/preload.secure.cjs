@@ -66,6 +66,10 @@ const ALLOWED_CHANNELS = {
   'db:restore': true,
   'db:close': true,
 
+  // License / Secure Clock
+  'license:set-anchor': true,
+  'license:get-secure-now': true,
+
   // Updater
   'updater:check-for-updates': true,
   'updater:download-update': true,
@@ -137,6 +141,24 @@ const electronAPI = {
     isMac: process.platform === 'darwin',
     isWindows: process.platform === 'win32',
     isLinux: process.platform === 'linux',
+  },
+
+  // ========================================================================
+  // License / Secure Clock
+  // ========================================================================
+  license: {
+    setAnchor: (organizationId, serverNowMs) => {
+      const org = organizationId && typeof organizationId === 'string' ? organizationId : null;
+      const ms = Number(serverNowMs);
+      if (!Number.isFinite(ms) || ms < 0) {
+        throw new Error('serverNowMs must be a non-negative number');
+      }
+      return ipcRenderer.invoke('license:set-anchor', org, ms);
+    },
+    getSecureNow: (organizationId) => {
+      const org = organizationId && typeof organizationId === 'string' ? organizationId : null;
+      return ipcRenderer.invoke('license:get-secure-now', org);
+    }
   },
 
   // ========================================================================
@@ -395,6 +417,13 @@ const electronAPI = {
         throw new Error('SQL query must be a non-empty string');
       }
       return ipcRenderer.invoke('db:query-one', sql, params || {});
+    },
+
+    execute: (sql, params) => {
+      if (!sql || typeof sql !== 'string') {
+        throw new Error('SQL query must be a non-empty string');
+      }
+      return ipcRenderer.invoke('db:execute', sql, params || {});
     },
 
     upsert: (tableName, data) => {

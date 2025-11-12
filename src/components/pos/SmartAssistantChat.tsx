@@ -338,7 +338,7 @@ export const SmartAssistantChat: React.FC<SmartAssistantChatProps> = ({ open, on
       });
       await addLocalRepairHistory({ orderId: order.id, status: 'قيد الانتظار', notes: 'تم إنشاء طلبية التصليح', createdBy: 'assistant' });
       try { void import('@/api/syncRepairs').then(m => m.syncPendingRepairs()); } catch {}
-      setMessages(prev => [...prev, { id: String(Date.now()+2), role: 'assistant', content: `✅ تم إنشاء طلب التصليح للعميل ${order.customer_name} • ${order.device_type || ''} • رقم: ${order.order_number || order.id}`, timestamp: Date.now() }]);
+      setMessages(prev => [...prev, { id: String(Date.now()+2), role: 'assistant', content: `✅ تم إنشاء طلبية التصليح للعميل ${order.customer_name} • ${order.device_type || ''} • رقم: ${(order as any).repair_number || order.id}`, timestamp: Date.now() }]);
     } catch {
       setMessages(prev => [...prev, { id: String(Date.now()+2), role: 'assistant', content: 'تعذر إنشاء طلبية التصليح.', timestamp: Date.now() }]);
     } finally {
@@ -356,7 +356,7 @@ export const SmartAssistantChat: React.FC<SmartAssistantChatProps> = ({ open, on
               <div className="relative">
                 <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-950/20 dark:to-red-950/20 flex items-center justify-center shadow-sm ring-1 ring-orange-200/30 dark:ring-orange-800/30">
                   <img 
-                    src="/images/selkia-logo.webp" 
+                    src="./images/selkia-logo.webp" 
                     alt="SIRA AI" 
                     className="h-8 w-8 object-contain"
                   />
@@ -388,7 +388,7 @@ export const SmartAssistantChat: React.FC<SmartAssistantChatProps> = ({ open, on
                   <div className="flex-shrink-0">
                     <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-950/20 dark:to-red-950/20 flex items-center justify-center shadow-sm ring-1 ring-orange-200/30 dark:ring-orange-800/30">
                       <img 
-                        src="/images/selkia-logo.webp" 
+                        src="./images/selkia-logo.webp" 
                         alt="SIRA AI" 
                         className="w-5 h-5 object-contain"
                       />
@@ -423,7 +423,7 @@ export const SmartAssistantChat: React.FC<SmartAssistantChatProps> = ({ open, on
                 <div className="flex-shrink-0">
                   <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-950/20 dark:to-red-950/20 flex items-center justify-center shadow-sm ring-1 ring-orange-200/30 dark:ring-orange-800/30">
                     <img 
-                      src="/images/selkia-logo.webp" 
+                      src="./images/selkia-logo.webp" 
                       alt="SIRA AI" 
                       className="w-5 h-5 object-contain animate-pulse"
                     />

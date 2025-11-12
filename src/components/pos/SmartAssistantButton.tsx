@@ -34,7 +34,7 @@ export const SmartAssistantButton: React.FC<SmartAssistantButtonProps> = ({ clas
               >
                 <div className="absolute inset-0 bg-gradient-to-br from-white/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                 <img 
-                  src="/images/selkia-logo.webp" 
+                  src="./images/selkia-logo.webp" 
                   alt="SIRA AI" 
                   className="w-8 h-8 object-contain relative z-10 group-hover:scale-110 transition-transform duration-300"
                 />
@@ -74,7 +74,7 @@ export const SmartAssistantButton: React.FC<SmartAssistantButtonProps> = ({ clas
             >
               <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
               <img 
-                src="/images/selkia-logo.webp" 
+                src="./images/selkia-logo.webp" 
                 alt="SIRA AI" 
                 className="w-5 h-5 object-contain relative z-10 group-hover:scale-110 transition-transform duration-300"
               />

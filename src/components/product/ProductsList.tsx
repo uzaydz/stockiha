@@ -490,8 +490,8 @@ const ProductsList = ({
                             )}
                           </div>
                           <div className="text-xs text-muted-foreground line-clamp-2 sm:line-clamp-1 sm:truncate sm:max-w-[250px]">
-                            {product.description.substring(0, 60)}
-                            {product.description.length > 60 ? '...' : ''}
+                            {product.description ? product.description.substring(0, 60) : ''}
+                            {product.description && product.description.length > 60 ? '...' : ''}
                           </div>
                           {/* Mobile info - show on small screens only */}
                           <div className="flex flex-wrap gap-2 mt-2 sm:hidden">
@@ -696,8 +696,8 @@ const ProductsList = ({
                   </div>
                   <CardTitle className="text-sm sm:text-base line-clamp-2 leading-tight">{product.name}</CardTitle>
                   <CardDescription className="text-xs sm:text-sm line-clamp-2 mt-1">
-                    {product.description.substring(0, 60)}
-                    {product.description.length > 60 ? '...' : ''}
+                    {product.description ? product.description.substring(0, 60) : ''}
+                    {product.description && product.description.length > 60 ? '...' : ''}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-3 sm:p-4 pt-0 pb-2 flex-shrink-0 product-card-content">

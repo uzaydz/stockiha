@@ -204,7 +204,7 @@ export const staffService = {
         .from('users')
         .select('organization_id')
         .eq('auth_user_id', currentAuthUser.id)
-        .single();
+        .maybeSingle();
 
       if (currentUserError || !currentUser?.organization_id) {
         console.error('❌ [staffService] فشل الحصول على organization_id:', currentUserError);

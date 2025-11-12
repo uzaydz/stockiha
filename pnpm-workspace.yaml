@@ -1,7 +1,9 @@
 ignoredBuiltDependencies:
   - '@heroui/shared-utils'
   - '@journeyapps/wa-sqlite'
+  - '@parcel/watcher'
   - '@swc/core'
+  - better-sqlite3
   - core-js
   - cwebp-bin
   - electron

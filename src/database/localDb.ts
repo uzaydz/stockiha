@@ -31,7 +31,7 @@ export interface LocalProduct extends Product {
 // نموذج عنصر قائمة المزامنة
 export interface SyncQueueItem {
   id: string;
-  objectType: 'product' | 'inventory' | 'customer' | 'address' | 'order';
+  objectType: 'product' | 'inventory' | 'customer' | 'address' | 'order' | 'pos_orders' | 'invoice';
   objectId: string;
   operation: 'create' | 'update' | 'delete';
   data: any;
@@ -172,28 +172,63 @@ export interface LocalPOSOrderItem {
 export interface LocalInvoice {
   id: string;
   invoice_number: string;
-  customer_id: string;
+  invoice_number_lower?: string;
+  remote_invoice_id?: string | null;
+  customer_name?: string | null;
+  customer_name_lower?: string | null;
+  customer_id?: string | null;
   total_amount: number;
-  paid_amount: number;
-  status: 'pending' | 'paid' | 'cancelled';
+  invoice_date: string;
+  due_date?: string | null;
+  status: string;
+  source_type: string;
+  payment_method: string;
+  payment_status: string;
+  notes?: string | null;
+  tax_amount: number;
+  discount_amount: number;
+  subtotal_amount: number;
+  shipping_amount?: number | null;
+  discount_type?: string | null;
+  discount_percentage?: number | null;
+  tva_rate?: number | null;
+  amount_ht?: number | null;
+  amount_tva?: number | null;
+  amount_ttc?: number | null;
   organization_id: string;
-  synced: boolean;
-  syncStatus?: string;
-  localCreatedAt: string;
   created_at: string;
   updated_at: string;
+  synced: boolean;
+  syncStatus?: 'pending' | 'syncing' | 'error';
+  pendingOperation?: 'create' | 'update' | 'delete';
 }
 
 // تعريف واجهة ديون العملاء
 export interface LocalCustomerDebt {
   id: string;
   customer_id: string;
-  amount: number;
-  description: string;
-  status: 'unpaid' | 'paid' | 'partial';
+  customer_name?: string;
+  // Order linkage
+  order_id?: string;
+  order_number?: string;
+  // Amounts
+  amount?: number; // legacy
+  subtotal?: number; // المبلغ قبل الخصم
+  discount?: number; // التخفيض
+  total_amount: number; // المبلغ النهائي (بعد الخصم)
+  paid_amount: number;
+  remaining_amount: number;
+  // Status & metadata
+  status: 'pending' | 'partial' | 'paid' | 'unpaid';
+  description?: string;
+  due_date?: string | null;
+  notes?: string | null;
   organization_id: string;
+  // Sync fields
   synced: boolean;
   syncStatus?: string;
+  pendingOperation?: 'create' | 'update' | 'delete';
+  // Timestamps
   created_at: string;
   updated_at: string;
 }
@@ -345,19 +380,21 @@ export interface LocalLossItem {
 export interface LocalInvoiceItem {
   id: string;
   invoice_id: string;
-  product_id: string;
-  product_name: string;
-  product_sku?: string | null;
+  name: string;
+  description?: string | null;
   quantity: number;
   unit_price: number;
-  subtotal: number;
-  discount_amount: number;
-  tax_amount: number;
-  total_amount: number;
-  color_id?: string | null;
-  color_name?: string | null;
-  size_id?: string | null;
-  size_name?: string | null;
+  total_price: number;
+  product_id?: string | null;
+  type: string;
+  sku?: string | null;
+  barcode?: string | null;
+  tva_rate?: number | null;
+  unit_price_ht?: number | null;
+  unit_price_ttc?: number | null;
+  total_ht?: number | null;
+  total_tva?: number | null;
+  total_ttc?: number | null;
   created_at: string;
   synced: boolean;
 }

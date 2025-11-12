@@ -5,6 +5,7 @@
  */
 
 import { supabase } from './supabase';
+import { sqliteDB, isSQLiteAvailable } from '@/lib/db/sqliteAPI';
 
 export interface SubscriptionData {
   success: boolean;
@@ -101,6 +102,38 @@ class SubscriptionCacheService {
       }
 
       const subscriptionData = data as SubscriptionData;
+
+      // حفظ نسخة في SQLite لاستخدامها أوفلاين
+      try {
+        if (isSQLiteAvailable()) {
+          await sqliteDB.initialize(organizationId);
+          const now = new Date().toISOString();
+          const id = subscriptionData.subscription_id || `org_${organizationId}_subscription`;
+          const trialEnd = (subscriptionData as any).trial_end_date ?? null;
+          const graceEnd = (subscriptionData as any).grace_end_date ?? null;
+          const row = {
+            id,
+            organization_id: organizationId,
+            plan_id: subscriptionData.plan_code || null,
+            status: subscriptionData.status,
+            start_date: subscriptionData.start_date,
+            end_date: subscriptionData.end_date,
+            trial_end_date: trialEnd,
+            grace_end_date: graceEnd,
+            currency: subscriptionData.currency || null,
+            amount: subscriptionData.amount_paid ?? null,
+            is_auto_renew: null,
+            updated_at: now,
+            source: 'supabase_rpc'
+          } as any;
+          await (window as any).electronAPI?.db?.upsert('organization_subscriptions', row);
+          try {
+            if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+              window.dispatchEvent(new CustomEvent('subscriptionActivated', { detail: { organizationId } }));
+            }
+          } catch {}
+        }
+      } catch {}
 
       // 6. حفظ في جميع أنواع الكاش
       this.saveToMemoryCache(organizationId, subscriptionData);
@@ -343,6 +376,37 @@ class SubscriptionCacheService {
       }
 
       const subscriptionData = data as SubscriptionData;
+
+      try {
+        if (isSQLiteAvailable()) {
+          await sqliteDB.initialize(organizationId);
+          const now = new Date().toISOString();
+          const id = subscriptionData.subscription_id || `org_${organizationId}_subscription`;
+          const trialEnd = (subscriptionData as any).trial_end_date ?? null;
+          const graceEnd = (subscriptionData as any).grace_end_date ?? null;
+          const row = {
+            id,
+            organization_id: organizationId,
+            plan_id: subscriptionData.plan_code || null,
+            status: subscriptionData.status,
+            start_date: subscriptionData.start_date,
+            end_date: subscriptionData.end_date,
+            trial_end_date: trialEnd,
+            grace_end_date: graceEnd,
+            currency: subscriptionData.currency || null,
+            amount: subscriptionData.amount_paid ?? null,
+            is_auto_renew: null,
+            updated_at: now,
+            source: 'supabase_rpc'
+          } as any;
+          await (window as any).electronAPI?.db?.upsert('organization_subscriptions', row);
+          try {
+            if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+              window.dispatchEvent(new CustomEvent('subscriptionActivated', { detail: { organizationId } }));
+            }
+          } catch {}
+        }
+      } catch {}
 
       // حفظ في جميع أنواع الكاش
       this.saveToMemoryCache(organizationId, subscriptionData);

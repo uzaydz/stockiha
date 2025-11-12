@@ -5,6 +5,7 @@
 
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './supabase-unified';
+import { saveSecureSession } from '@/context/auth/utils/secureSessionStorage';
 
 const isDevelopment = import.meta.env.DEV;
 const BASE_VALIDATION_INTERVAL = isDevelopment ? 5 * 60 * 1000 : 12 * 60 * 1000;
@@ -165,6 +166,7 @@ class SessionMonitor {
       } else if (data.session) {
         this.session = data.session;
         this.isValid = this.validateSession(data.session);
+        void saveSecureSession(data.session);
         
         if (process.env.NODE_ENV === 'development') {
         }
@@ -234,7 +236,7 @@ class SessionMonitor {
       isRefreshing: this.isRefreshing,
       lastRefresh: this.lastRefresh,
       listenersCount: this.listeners.size,
-      uptime: Date.now() - (this.session?.created_at ? this.session.created_at * 1000 : Date.now())
+      uptime: this.lastRefresh ? (Date.now() - this.lastRefresh) : 0
     };
   }
 

@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type { Database } from '@/types/database.types';
-import localforage from 'localforage';
+import { inventoryDB } from '@/database/localDb';
 
 export type Subcategory = Database['public']['Tables']['product_subcategories']['Row'];
 export type InsertSubcategory = Database['public']['Tables']['product_subcategories']['Insert'];
@@ -42,16 +42,7 @@ interface UpdateCategoryData {
   type?: 'product' | 'service'; // نوع الفئة: منتج أو خدمة
 }
 
-// إنشاء مخازن للفئات والفئات الفرعية
-const categoriesStore = localforage.createInstance({
-  name: 'bazaar-db',
-  storeName: 'categories'
-});
-
-const subcategoriesStore = localforage.createInstance({
-  name: 'bazaar-db',
-  storeName: 'subcategories'
-});
+// لا نستخدم localforage بعد الآن. التخزين المحلي يتم عبر SQLite.
 
 // التحقق من حالة الاتصال
 const isOnline = () => navigator.onLine;
@@ -59,14 +50,10 @@ const isOnline = () => navigator.onLine;
 // وظائف التخزين المحلي للفئات
 export const saveCategoriesToLocalStorage = async (categories: Category[]) => {
   try {
-    // حفظ الفئات كمفتاح "all" للوصول السريع إلى جميع الفئات
-    await categoriesStore.setItem('all', categories);
-    
-    // حفظ كل فئة بشكل فردي أيضًا للوصول السريع
+    // احفظ كل فئة في جدول SQLite
     for (const category of categories) {
-      await categoriesStore.setItem(category.id, category);
+      await inventoryDB.productCategories.put(category as any);
     }
-
     return true;
   } catch (error) {
     return false;
@@ -74,28 +61,11 @@ export const saveCategoriesToLocalStorage = async (categories: Category[]) => {
 };
 
 // وظائف التخزين المحلي للفئات الفرعية
-export const saveSubcategoriesToLocalStorage = async (subcategories: Subcategory[], categoryId?: string) => {
+export const saveSubcategoriesToLocalStorage = async (subcategories: Subcategory[], _categoryId?: string) => {
   try {
-    // إذا تم تحديد معرف فئة، احفظ الفئات الفرعية مرتبطة بهذه الفئة
-    if (categoryId) {
-      await subcategoriesStore.setItem(`category_${categoryId}`, subcategories);
-    }
-    
-    // حفظ جميع الفئات الفرعية أيضًا
-    const allSubcategories = categoryId 
-      ? subcategories 
-      : await getAllLocalSubcategories();
-      
-    // تحديث القائمة الكاملة إذا لم يكن هناك معرف فئة محدد
-    if (!categoryId) {
-      await subcategoriesStore.setItem('all', allSubcategories);
-    }
-    
-    // حفظ كل فئة فرعية بشكل فردي للوصول السريع
     for (const subcategory of subcategories) {
-      await subcategoriesStore.setItem(subcategory.id, subcategory);
+      await inventoryDB.productSubcategories.put(subcategory as any);
     }
-
     return true;
   } catch (error) {
     return false;
@@ -105,8 +75,7 @@ export const saveSubcategoriesToLocalStorage = async (subcategories: Subcategory
 // جلب جميع الفئات من التخزين المحلي
 export const getLocalCategories = async (): Promise<Category[]> => {
   try {
-    const categories = await categoriesStore.getItem<Category[]>('all');
-    return categories || [];
+    return await inventoryDB.productCategories.toArray() as any;
   } catch (error) {
     return [];
   }
@@ -115,8 +84,8 @@ export const getLocalCategories = async (): Promise<Category[]> => {
 // جلب فئة محددة من التخزين المحلي
 export const getLocalCategoryById = async (id: string): Promise<Category | null> => {
   try {
-    const category = await categoriesStore.getItem<Category>(id);
-    return category;
+    const category = await inventoryDB.productCategories.get(id);
+    return (category as any) ?? null;
   } catch (error) {
     return null;
   }
@@ -125,8 +94,7 @@ export const getLocalCategoryById = async (id: string): Promise<Category | null>
 // جلب جميع الفئات الفرعية من التخزين المحلي
 export const getAllLocalSubcategories = async (): Promise<Subcategory[]> => {
   try {
-    const subcategories = await subcategoriesStore.getItem<Subcategory[]>('all');
-    return subcategories || [];
+    return await inventoryDB.productSubcategories.toArray() as any;
   } catch (error) {
     return [];
   }
@@ -135,17 +103,8 @@ export const getAllLocalSubcategories = async (): Promise<Subcategory[]> => {
 // جلب الفئات الفرعية لفئة محددة من التخزين المحلي
 export const getLocalSubcategoriesByCategoryId = async (categoryId: string): Promise<Subcategory[]> => {
   try {
-    // أولا، حاول الحصول على الفئات الفرعية المخزنة لهذه الفئة تحديدًا
-    const subcategories = await subcategoriesStore.getItem<Subcategory[]>(`category_${categoryId}`);
-    
-    // إذا وجدت، قم بإرجاعها
-    if (subcategories) {
-      return subcategories;
-    }
-    
-    // إذا لم توجد، حاول تصفية جميع الفئات الفرعية المخزنة
-    const allSubcategories = await getAllLocalSubcategories();
-    return allSubcategories.filter(sub => sub.category_id === categoryId);
+    const subs = await inventoryDB.productSubcategories.where('category_id').equals(categoryId).toArray();
+    return subs as any;
   } catch (error) {
     return [];
   }
@@ -178,11 +137,7 @@ export const createCategory = async (categoryData: Partial<Category>, organizati
 
     // التحقق من حالة الاتصال
     if (!isOnline()) {
-
-      // إنشاء معرف مؤقت للفئة
       const tempId = `temp_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
-      
-      // إنشاء كائن الفئة الجديدة
       const newCategory: Category = {
         id: tempId,
         name: categoryData.name || 'فئة جديدة',
@@ -196,17 +151,20 @@ export const createCategory = async (categoryData: Partial<Category>, organizati
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
-
-      // تخزين الفئة الجديدة محليًا
-      await categoriesStore.setItem(newCategory.id, newCategory);
-      
-      // تحديث قائمة الفئات في التخزين المحلي
-      const categories = await getLocalCategories();
-      await saveCategoriesToLocalStorage([...categories, newCategory]);
-      
-      // إضافة الفئة إلى قائمة المزامنة للمزامنة لاحقًا
-      await addCategoryToSyncQueue(newCategory);
-
+      await inventoryDB.productCategories.put(newCategory as any);
+      try {
+        await inventoryDB.syncQueue.put({
+          id: `sync_${Date.now()}_${Math.floor(Math.random() * 100000)}`,
+          object_type: 'product_category',
+          object_id: newCategory.id,
+          operation: 'create',
+          data: newCategory,
+          priority: 2,
+          attempts: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        } as any);
+      } catch {}
       return newCategory;
     }
 
@@ -251,9 +209,7 @@ export const createCategory = async (categoryData: Partial<Category>, organizati
       updated_at: data.updated_at!
     } as Category;
 
-    await categoriesStore.setItem(resultCategory.id, resultCategory);
-    const categories = await getLocalCategories();
-    await saveCategoriesToLocalStorage([...categories, resultCategory]);
+    await inventoryDB.productCategories.put(resultCategory as any);
 
     // استخدام النظام الموحد - سطر واحد فقط! 🎉
     const { refreshAfterCategoryOperation } = await import('@/lib/data-refresh-helpers');
@@ -268,14 +224,17 @@ export const createCategory = async (categoryData: Partial<Category>, organizati
 // إضافة فئة إلى قائمة المزامنة
 export const addCategoryToSyncQueue = async (category: Category): Promise<void> => {
   try {
-    // الحصول على قائمة الفئات غير المتزامنة الحالية
-    const unsyncedCategories = await localforage.getItem<Category[]>('unsynced_categories') || [];
-    
-    // إضافة الفئة الجديدة إلى القائمة
-    unsyncedCategories.push(category);
-    
-    // حفظ القائمة المحدثة
-    await localforage.setItem('unsynced_categories', unsyncedCategories);
+    await inventoryDB.syncQueue.put({
+      id: `sync_${Date.now()}_${Math.floor(Math.random() * 100000)}`,
+      object_type: 'product_category',
+      object_id: category.id,
+      operation: 'create',
+      data: category,
+      priority: 2,
+      attempts: 0,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    } as any);
 
   } catch (error) {
   }
@@ -319,12 +278,7 @@ export const updateCategory = async (id: string, categoryData: UpdateCategoryDat
     } as Category;
 
     // تحديث بيانات الفئة محليًا
-    await categoriesStore.setItem(id, resultCategory);
-    
-    // تحديث قائمة الفئات المحلية
-    const categories = await getLocalCategories();
-    const updatedCategories = categories.map(cat => cat.id === id ? resultCategory : cat);
-    await saveCategoriesToLocalStorage(updatedCategories);
+    await inventoryDB.productCategories.put(resultCategory as any);
 
     // 🎯 استخدام النظام الموحد للتحديث التلقائي - مثل deleteCategory
     const { refreshAfterCategoryOperation } = await import('@/lib/data-refresh-helpers');
@@ -350,13 +304,8 @@ export const deleteCategory = async (id: string, organizationId?: string): Promi
       throw error;
     }
 
-    // حذف الفئة من التخزين المحلي
-    await categoriesStore.removeItem(id);
-    
-    // تحديث قائمة الفئات المحلية
-    const categories = await getLocalCategories();
-    const updatedCategories = categories.filter(cat => cat.id !== id);
-    await saveCategoriesToLocalStorage(updatedCategories);
+    // حذف الفئة من التخزين المحلي (SQLite)
+    await inventoryDB.productCategories.delete(id);
 
     // استخدام النظام الموحد - سطر واحد فقط! 🎉
     const { refreshAfterCategoryOperation } = await import('@/lib/data-refresh-helpers');
@@ -381,20 +330,25 @@ export async function getCategoriesWithSubcategories(organizationId: string): Pr
   categories: Category[];
   subcategories: Subcategory[];
 }> {
-  const cacheKey = `categories_with_subs_${organizationId}`;
-  
   try {
-    // محاولة جلب البيانات من الـ cache أولاً
-    const cachedData = await categoriesStore.getItem<{
-      categories: Category[];
-      subcategories: Subcategory[];
-    }>(cacheKey);
-    
-    if (cachedData) {
-      return cachedData;
+    // محاولة القراءة من قاعدة البيانات المحلية (SQLite)
+    const localCats = await inventoryDB.productCategories
+      .where({ organization_id: organizationId })
+      .toArray();
+    const activeLocalCats = (localCats as any[]).filter((c) => c.is_active !== false);
+    const localSubs = await inventoryDB.productSubcategories
+      .where({ organization_id: organizationId })
+      .toArray();
+    const activeLocalSubs = (localSubs as any[]).filter((s) => s.is_active !== false);
+
+    if (activeLocalCats.length || activeLocalSubs.length) {
+      return {
+        categories: activeLocalCats as any,
+        subcategories: activeLocalSubs as any
+      };
     }
 
-    // جلب الفئات والفئات الفرعية في طلبات متوازية
+    // جلب الفئات والفئات الفرعية من الخادم وحفظها محلياً
     const [categoriesData, subcategoriesData] = await Promise.all([
       supabase
         .from('product_categories')
@@ -402,7 +356,6 @@ export async function getCategoriesWithSubcategories(organizationId: string): Pr
         .eq('organization_id', organizationId)
         .eq('is_active', true)
         .order('name'),
-      
       supabase
         .from('product_subcategories')
         .select('*')
@@ -412,26 +365,23 @@ export async function getCategoriesWithSubcategories(organizationId: string): Pr
     ]);
 
     if (categoriesData.error) {
-      console.error('Error fetching categories:', categoriesData.error);
       throw categoriesData.error;
     }
-
     if (subcategoriesData.error) {
-      console.error('Error fetching subcategories:', subcategoriesData.error);
       throw subcategoriesData.error;
     }
 
-    const result = {
-      categories: categoriesData.data || [],
-      subcategories: subcategoriesData.data || []
-    };
+    const cats = (categoriesData.data || []).map((c: any) => ({
+      ...c,
+      type: c.type === 'service' ? 'service' : 'product'
+    })) as Category[];
+    const subs = (subcategoriesData.data || []) as Subcategory[];
 
-    // حفظ البيانات في الـ cache
-    await categoriesStore.setItem(cacheKey, result);
-    
-    return result;
+    await saveCategoriesToLocalStorage(cats);
+    await saveSubcategoriesToLocalStorage(subs as any);
+
+    return { categories: cats, subcategories: subs };
   } catch (error) {
-    console.error('Error in getCategoriesWithSubcategories:', error);
     throw error;
   }
 }
@@ -440,7 +390,7 @@ export const getSubcategoryById = async (id: string): Promise<Subcategory | null
   try {
     // التحقق من حالة الاتصال
     if (!isOnline()) {
-      return subcategoriesStore.getItem<Subcategory>(id);
+      return (await inventoryDB.productSubcategories.get(id)) as any;
     }
     
     const supabaseClient = supabase;
@@ -452,12 +402,12 @@ export const getSubcategoryById = async (id: string): Promise<Subcategory | null
       .single();
     
     if (error) {
-      return subcategoriesStore.getItem<Subcategory>(id);
+      return (await inventoryDB.productSubcategories.get(id)) as any;
     }
     
     return data;
   } catch (error) {
-    return subcategoriesStore.getItem<Subcategory>(id);
+    return (await inventoryDB.productSubcategories.get(id)) as any;
   }
 };
 
@@ -465,16 +415,10 @@ export const createSubcategory = async (subcategory: { category_id: string; name
   try {
     // التحقق من حالة الاتصال
     if (!isOnline()) {
-
-      // إنشاء معرف مؤقت للفئة الفرعية
       const tempId = `temp_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
-      
-      // Generate a unique slug by appending timestamp
       const timestamp = new Date().getTime();
       const baseSlug = subcategory.name.toLowerCase().replace(/\s+/g, '-');
       const uniqueSlug = `${baseSlug}-${timestamp}`;
-      
-      // إنشاء كائن الفئة الفرعية الجديدة
       const newSubcategory: Subcategory = {
         id: tempId,
         category_id: subcategory.category_id,
@@ -484,22 +428,21 @@ export const createSubcategory = async (subcategory: { category_id: string; name
         is_active: true,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
-      };
-      
-      // تخزين الفئة الفرعية الجديدة محليًا
-      await subcategoriesStore.setItem(newSubcategory.id, newSubcategory);
-      
-      // تحديث قائمة الفئات الفرعية في التخزين المحلي
-      const categorySubcategories = await getLocalSubcategoriesByCategoryId(subcategory.category_id);
-      await saveSubcategoriesToLocalStorage([...categorySubcategories, newSubcategory], subcategory.category_id);
-      
-      // تحديث القائمة الكاملة للفئات الفرعية
-      const allSubcategories = await getAllLocalSubcategories();
-      await saveSubcategoriesToLocalStorage([...allSubcategories, newSubcategory]);
-      
-      // إضافة الفئة الفرعية إلى قائمة المزامنة للمزامنة لاحقًا
-      await addSubcategoryToSyncQueue(newSubcategory);
-
+      } as any;
+      await inventoryDB.productSubcategories.put(newSubcategory as any);
+      try {
+        await inventoryDB.syncQueue.put({
+          id: `sync_${Date.now()}_${Math.floor(Math.random() * 100000)}`,
+          object_type: 'product_subcategory',
+          object_id: newSubcategory.id,
+          operation: 'create',
+          data: newSubcategory,
+          priority: 2,
+          attempts: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        } as any);
+      } catch {}
       return newSubcategory;
     }
     
@@ -540,16 +483,8 @@ export const createSubcategory = async (subcategory: { category_id: string; name
     }
 
     // تخزين الفئة الفرعية الجديدة محليًا
-    const newSubcategory = data;
-    await subcategoriesStore.setItem(newSubcategory.id, newSubcategory);
-    
-    // تحديث قائمة الفئات الفرعية في التخزين المحلي
-    const categorySubcategories = await getLocalSubcategoriesByCategoryId(subcategory.category_id);
-    await saveSubcategoriesToLocalStorage([...categorySubcategories, newSubcategory], subcategory.category_id);
-    
-    // تحديث القائمة الكاملة للفئات الفرعية
-    const allSubcategories = await getAllLocalSubcategories();
-    await saveSubcategoriesToLocalStorage([...allSubcategories, newSubcategory]);
+    const newSubcategory = data as any;
+    await inventoryDB.productSubcategories.put(newSubcategory);
 
     return data;
   } catch (error) {
@@ -560,14 +495,17 @@ export const createSubcategory = async (subcategory: { category_id: string; name
 // إضافة فئة فرعية إلى قائمة المزامنة
 export const addSubcategoryToSyncQueue = async (subcategory: Subcategory): Promise<void> => {
   try {
-    // الحصول على قائمة الفئات الفرعية غير المتزامنة الحالية
-    const unsyncedSubcategories = await localforage.getItem<Subcategory[]>('unsynced_subcategories') || [];
-    
-    // إضافة الفئة الفرعية الجديدة إلى القائمة
-    unsyncedSubcategories.push(subcategory);
-    
-    // حفظ القائمة المحدثة
-    await localforage.setItem('unsynced_subcategories', unsyncedSubcategories);
+    await inventoryDB.syncQueue.put({
+      id: `sync_${Date.now()}_${Math.floor(Math.random() * 100000)}`,
+      object_type: 'product_subcategory',
+      object_id: subcategory.id,
+      operation: 'create',
+      data: subcategory,
+      priority: 2,
+      attempts: 0,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    } as any);
 
   } catch (error) {
   }
@@ -587,20 +525,7 @@ export const updateSubcategory = async (id: string, updates: UpdateSubcategory):
       throw error;
     }
 
-    // تحديث الفئة الفرعية في التخزين المحلي
-    await subcategoriesStore.setItem(id, data);
-    
-    // تحديث القوائم المحلية
-    const allSubcategories = await getAllLocalSubcategories();
-    const updatedSubcategories = allSubcategories.map(sub => sub.id === id ? data : sub);
-    await saveSubcategoriesToLocalStorage(updatedSubcategories);
-    
-    // تحديث قائمة الفئة الأم
-    if (data.category_id) {
-      const categorySubcategories = await getLocalSubcategoriesByCategoryId(data.category_id);
-      const updatedCategorySubcategories = categorySubcategories.map(sub => sub.id === id ? data : sub);
-      await saveSubcategoriesToLocalStorage(updatedCategorySubcategories, data.category_id);
-    }
+    await inventoryDB.productSubcategories.put(data as any);
 
     return data;
   } catch (error) {
@@ -620,21 +545,7 @@ export const deleteSubcategory = async (id: string): Promise<void> => {
       throw error;
     }
 
-    // حذف الفئة الفرعية من التخزين المحلي
-    await subcategoriesStore.removeItem(id);
-    
-    // تحديث القوائم المحلية
-    const allSubcategories = await getAllLocalSubcategories();
-    const updatedSubcategories = allSubcategories.filter(sub => sub.id !== id);
-    await saveSubcategoriesToLocalStorage(updatedSubcategories);
-    
-    // تحديث القوائم حسب الفئة الأم (سيتم تنفيذه لجميع الفئات لتغطية جميع الحالات)
-    const categories = await getLocalCategories();
-    for (const category of categories) {
-      const categorySubcategories = await getLocalSubcategoriesByCategoryId(category.id);
-      const updatedCategorySubcategories = categorySubcategories.filter(sub => sub.id !== id);
-      await saveSubcategoriesToLocalStorage(updatedCategorySubcategories, category.id);
-    }
+    await inventoryDB.productSubcategories.delete(id);
   } catch (error) {
     throw error;
   }
@@ -648,7 +559,14 @@ export const syncCategoriesDataOnStartup = async (): Promise<{
   try {
     // تحقق مما إذا كان المستخدم متصلاً بالإنترنت
     if (!isOnline()) {
-      
+      // حاول قراءة البيانات المخزنة محلياً من SQLite
+      try {
+        const localCats = await getLocalCategories();
+        const localSubs = await getAllLocalSubcategories();
+        if (localCats.length || localSubs.length) {
+          return { categories: localCats, subcategories: localSubs };
+        }
+      } catch {}
       return null;
     }
     
@@ -665,7 +583,7 @@ export const syncCategoriesDataOnStartup = async (): Promise<{
       return null;
     }
     
-    // حفظ الفئات محلياً
+    // حفظ الفئات محلياً إلى SQLite
     await saveCategoriesToLocalStorage(categories as Category[]);
     
     // جلب جميع الفئات الفرعية
@@ -678,8 +596,8 @@ export const syncCategoriesDataOnStartup = async (): Promise<{
       return null;
     }
     
-    // حفظ الفئات الفرعية محلياً
-    await saveSubcategoriesToLocalStorage(subcategories);
+    // حفظ الفئات الفرعية محلياً إلى SQLite
+    await saveSubcategoriesToLocalStorage(subcategories as any);
     
     // تنظيم الفئات الفرعية حسب الفئة الأم
     const subcategoriesByCategory = subcategories.reduce<Record<string, Subcategory[]>>((acc, subcategory) => {
@@ -693,10 +611,7 @@ export const syncCategoriesDataOnStartup = async (): Promise<{
       return acc;
     }, {});
     
-    // حفظ الفئات الفرعية لكل فئة
-    for (const categoryId in subcategoriesByCategory) {
-      await saveSubcategoriesToLocalStorage(subcategoriesByCategory[categoryId], categoryId);
-    }
+    // لا حاجة لحفظ لكل فئة بشكل منفصل في SQLite
 
     return {
       categories: categories as Category[],

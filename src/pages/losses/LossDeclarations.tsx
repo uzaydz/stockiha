@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ShieldAlert } from 'lucide-react';
 import { useTenant } from '@/context/TenantContext';
 import POSPureLayout from '@/components/pos-layout/POSPureLayout';
 import { POSSharedLayoutControls } from '@/components/pos-layout/types';

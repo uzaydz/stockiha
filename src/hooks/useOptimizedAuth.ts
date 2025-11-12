@@ -114,15 +114,15 @@ class AuthManager {
         .from('users')
         .select('organization_id')
         .eq('auth_user_id', userId)
-        .single();
+        .maybeSingle();
 
       // إذا فشل، جرب البحث بـ id
       if (error || !data?.organization_id) {
         const { data: idData, error: idError } = await supabase
           .from('users')
           .select('organization_id')
-          .eq('id', userId)
-          .single();
+          .eq('auth_user_id', userId)
+          .maybeSingle();
           
         if (!idError && idData?.organization_id) {
           data = idData;

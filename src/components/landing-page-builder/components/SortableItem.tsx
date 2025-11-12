@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { useSortable } from '@dnd-kit/sortable';
@@ -80,18 +80,21 @@ const SortableItem = React.forwardRef<HTMLDivElement, SortableItemProps>(({
     
   };
 
+  // تثبيت ref callback لمنع infinite re-renders
+  const combinedRef = useCallback((node: HTMLDivElement | null) => {
+    // Combinar las dos refs: la interna de dnd-kit y la externa pasada al componente
+    setNodeRef(node);
+    if (typeof ref === 'function') {
+      ref(node);
+    } else if (ref) {
+      ref.current = node;
+    }
+  }, [setNodeRef, ref]);
+
   return (
     <>
       <motion.div 
-        ref={(node) => {
-          // Combinar las dos refs: la interna de dnd-kit y la externa pasada al componente
-          setNodeRef(node);
-          if (typeof ref === 'function') {
-            ref(node);
-          } else if (ref) {
-            ref.current = node;
-          }
-        }}
+        ref={combinedRef}
         style={style}
         layout="position"
         initial={{ opacity: 0, y: 20 }}

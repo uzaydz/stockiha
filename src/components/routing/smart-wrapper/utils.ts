@@ -55,6 +55,7 @@ export const CACHE_TRACKER: CacheInfo = {
  */
 export const extractDomainInfo = (): DomainInfo => {
   const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+  const protocol = typeof window !== 'undefined' ? window.location.protocol : '';
   
   // تحقق من الـ cache أولاً
   const cached = DOMAIN_INFO_CACHE.get(hostname);
@@ -69,7 +70,7 @@ export const extractDomainInfo = (): DomainInfo => {
     
     if (isEarlyDetected && earlyHostname === hostname) {
       
-      const isLocalhost = hostname.includes('localhost');
+      const isLocalhost = (protocol === 'file:') || hostname.includes('localhost');
       const isPlatformDomain = PLATFORM_DOMAINS.includes(hostname as any);
       
       earlyDomainInfo = {
@@ -87,7 +88,7 @@ export const extractDomainInfo = (): DomainInfo => {
   } catch (e) {
   }
 
-  const isLocalhost = hostname.includes('localhost');
+  const isLocalhost = (protocol === 'file:') || hostname.includes('localhost');
   const isPlatformDomain = PLATFORM_DOMAINS.includes(hostname as any);
   
   let subdomain: string | null = null;
@@ -143,7 +144,7 @@ export const determinePageType = (pathname: string): PageType => {
   cleanupCache();
   
   // التحقق من الـ cache
-  const cacheKey = pathname;
+  const cacheKey = (typeof window !== 'undefined' ? window.location.protocol : 'unknown:') + '|' + pathname;
   const cached = PAGE_TYPE_CACHE.get(cacheKey);
   
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
@@ -193,6 +194,11 @@ const determinePageTypeForPlatformDomain = (pathname: string): PageType => {
   // التحقق المباشر أولاً
   if (pathTypeMap.has(pathname)) {
     return pathTypeMap.get(pathname)!;
+  }
+
+  // دعم مسارات POS الإضافية
+  if (pathname.startsWith('/dashboard/pos-operations')) {
+    return 'pos';
   }
 
   // التحقق من الأنماط
@@ -271,6 +277,11 @@ const determinePageTypeForLocalhost = (pathname: string): PageType => {
   
   if (pathname === '/dashboard/pos-orders') {
     return 'pos-orders';
+  }
+
+  // دعم مسارات POS الإضافية
+  if (pathname.startsWith('/dashboard/pos-operations')) {
+    return 'pos';
   }
   
   if (PATH_PATTERNS.DASHBOARD.some(pattern => pathname.includes(pattern))) {
@@ -497,7 +508,7 @@ export const getPageTypeResult = (pathname: string): PageTypeResult => {
   const pageType = determinePageType(pathname);
   const config = PROVIDER_CONFIGS[pageType];
   const domainInfo = extractDomainInfo();
-  const cached = PAGE_TYPE_CACHE.has(pathname);
+  const cached = PAGE_TYPE_CACHE.has((typeof window !== 'undefined' ? window.location.protocol : 'unknown:') + '|' + pathname);
 
   return {
     pageType,

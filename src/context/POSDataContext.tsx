@@ -14,7 +14,7 @@ import {
   getProducts as getOfflineProducts,
   updateProductStock as updateOfflineProductStock
 } from '@/api/offlineProductService';
-import { inventoryDB, type LocalProduct, type LocalOrganizationSubscription, type LocalCustomer, type LocalPOSOrder } from '@/database/localDb';
+import { inventoryDB, type LocalProduct, type LocalCustomer, type LocalPOSOrder } from '@/database/localDb';
 import { getLocalCategories } from '@/lib/api/categories';
 import { isAppOnline, markNetworkOnline, markNetworkOffline } from '@/utils/networkStatus';
 import { markProductAsSynced, updateLocalProduct } from '@/api/localProductService';
@@ -379,7 +379,7 @@ export const mapLocalProductToPOSProduct = (
 };
 
 export const mapLocalSubscriptionToService = (
-  subscription: LocalOrganizationSubscription
+  subscription: any
 ): SubscriptionService => {
   const amount = Number((subscription as any).amount ?? 0);
   const derivedName = (subscription as any).name ?? (subscription as any).plan_name ?? 'خدمة اشتراك';
@@ -461,11 +461,10 @@ const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWi
     // تنفيذ مباشر بدون مراقبة أداء
     try {
       // استخدام RPC المحسنة لتقليل Egress بنسبة 40-50%
-      const { data: allProducts, error: allProductsError } = await supabase
-        .rpc('get_pos_products_optimized', {
-          p_organization_id: orgId,
-          p_limit: 50 // زيادة الحد لأن البيانات مضغوطة الآن
-        });
+      const { data: allProducts, error: allProductsError } = await (supabase.rpc as any)('get_pos_products_optimized', {
+        p_organization_id: orgId,
+        p_limit: 50 // زيادة الحد لأن البيانات مضغوطة الآن
+      });
 
       if (allProductsError) {
         logPOSContextStatus('FETCH_ERROR', { error: allProductsError });
@@ -482,11 +481,11 @@ const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWi
           for (const product of allProducts) {
             const localProduct: LocalProduct = {
               ...(product as any),
-              organization_id: product.organization_id || orgId,
+              organization_id: (product as any).organization_id || orgId,
               synced: true,
-              syncStatus: 'synced',
+              syncStatus: 'synced' as const,
               lastSyncAttempt: new Date().toISOString(),
-              localUpdatedAt: product.updated_at || product.created_at || new Date().toISOString(),
+              localUpdatedAt: (product as any).updated_at || (product as any).created_at || new Date().toISOString(),
               pendingOperation: undefined,
               conflictResolution: undefined
             };
@@ -685,7 +684,7 @@ const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWi
 const fetchPOSSubscriptionsEnhanced = async (orgId: string): Promise<SubscriptionService[]> => {
   return deduplicateRequest(`pos-subscriptions-enhanced-${orgId}`, async () => {
     // محاولة البيانات المحلية أولاً في جميع الحالات
-    let localSubscriptions: LocalOrganizationSubscription[] = [];
+    let localSubscriptions: any[] = [];
     try {
       localSubscriptions = await inventoryDB.organizationSubscriptions
         .where('organization_id')
@@ -1291,14 +1290,33 @@ const fetchPOSCustomers = async (orgId: string): Promise<any[]> => {
   if (isOfflineMode()) {
     let localCustomers: LocalCustomer[] = [];
     try {
-      localCustomers = await inventoryDB.customers
-        .where('organization_id')
-        .equals(orgId)
-        .toArray();
+      // ✅ استخدام SQL query مباشرة في Electron
+      if (window.electronAPI?.db) {
+        console.log('[POSDataContext] جلب العملاء من SQLite (offline)');
+        const result = await window.electronAPI.db.query(
+          'SELECT * FROM customers WHERE organization_id = ? ORDER BY name ASC',
+          [orgId]
+        );
+        
+        if (result.success && result.data) {
+          localCustomers = result.data.map((c: any) => ({
+            ...c,
+            synced: c.synced === 1
+          }));
+        }
+      } else {
+        // Fallback للمتصفح
+        localCustomers = await inventoryDB.customers
+          .where('organization_id')
+          .equals(orgId)
+          .toArray();
+      }
     } catch (error) {
+      console.warn('[POSDataContext] فشل جلب العملاء من SQLite:', error);
       localCustomers = [];
     }
 
+    console.log(`[POSDataContext] تم جلب ${localCustomers.length} عميل من القاعدة المحلية`);
     return localCustomers.map(customer => ({
       id: customer.id,
       name: customer.name,
@@ -1534,7 +1552,7 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
     refetchInterval: false,
   });
 
-  // العملاء - تحميل مؤجل (lazy loading)
+  // العملاء - تحميل عند الطلب
   const {
     data: customers = [],
     isLoading: isCustomersLoading,
@@ -1542,7 +1560,7 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
   } = useQuery({
     queryKey: ['pos-customers-light', orgId],
     queryFn: () => fetchPOSCustomers(orgId!),
-    enabled: false, // تعطيل التحميل التلقائي
+    enabled: !!orgId, // ✅ تفعيل التحميل عند توفر orgId
     staleTime: 15 * 60 * 1000, // 15 دقيقة
     gcTime: 30 * 60 * 1000, // 30 دقيقة
     retry: 1,
@@ -1618,40 +1636,85 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
   }, [queryClient]);
 
   // مستمع لتحديث العملاء عند إضافة عميل جديد
+  // استخدام useRef للاحتفاظ بالقيم الحالية لمنع Memory Leak
+  const orgIdRef = useRef(orgId);
+  const queryClientRef = useRef(queryClient);
+
+  // تحديث الـ refs عند تغيير القيم
   useEffect(() => {
+    orgIdRef.current = orgId;
+    queryClientRef.current = queryClient;
+  }, [orgId, queryClient]);
+
+  useEffect(() => {
+    // استخدام AbortController لإلغاء العمليات المعلقة
+    const abortController = new AbortController();
+    let pendingOperations: Promise<any>[] = [];
+
     const handleCustomersUpdate = async () => {
-      
+      // تحقق من الإلغاء
+      if (abortController.signal.aborted) {
+        return;
+      }
+
       try {
+        const currentOrgId = orgIdRef.current;
+        const currentQueryClient = queryClientRef.current;
+
         // إجبار إعادة تحميل البيانات مباشرة
-        await queryClient.invalidateQueries({ 
-          queryKey: ['pos-customers-light', orgId],
-          exact: true 
-        });
-        
-        // إعادة تحميل البيانات
-        const result = await queryClient.refetchQueries({ 
-          queryKey: ['pos-customers-light', orgId],
-          exact: true 
+        const invalidatePromise = currentQueryClient.invalidateQueries({
+          queryKey: ['pos-customers-light', currentOrgId],
+          exact: true
         });
 
+        // تتبع العملية
+        pendingOperations.push(invalidatePromise);
+        await invalidatePromise;
+
+        // تحقق مرة أخرى قبل refetch
+        if (abortController.signal.aborted) {
+          return;
+        }
+
+        // إعادة تحميل البيانات
+        const refetchPromise = currentQueryClient.refetchQueries({
+          queryKey: ['pos-customers-light', currentOrgId],
+          exact: true
+        });
+
+        pendingOperations.push(refetchPromise);
+        await refetchPromise;
+
       } catch (error) {
+        // تجاهل الأخطاء إذا تم الإلغاء
+        if (!abortController.signal.aborted) {
+          console.error('[POSDataContext] Error updating customers:', error);
+        }
       }
     };
 
     const unsubscribe = addAppEventListener<{ organizationId?: string }>(
       'customers-updated',
       async (detail) => {
-        if (detail?.organizationId && detail.organizationId !== orgId) {
+        const currentOrgId = orgIdRef.current;
+        if (detail?.organizationId && detail.organizationId !== currentOrgId) {
           return;
         }
         await handleCustomersUpdate();
       }
     );
-    
+
     return () => {
+      // إلغاء جميع العمليات المعلقة
+      abortController.abort();
+
+      // إلغاء الاشتراك
       unsubscribe();
+
+      // تنظيف قائمة العمليات
+      pendingOperations = [];
     };
-  }, [queryClient, orgId]);
+  }, []); // dependency array فارغ لأننا نستخدم refs
 
   // مراقبة حالة الاتصال
   useEffect(() => {
@@ -1868,12 +1931,11 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
       if (!productRecord) return;
       const variantSnapshot = buildUpdatedVariants();
       await updateLocalProduct(productId, {
-        colors: variantSnapshot.colors as any,
         stock_quantity: variantSnapshot.totalStock,
         updated_at: now,
         localUpdatedAt: now,
         synced: synced ? true : false
-      });
+      } as any);
     };
 
     try {

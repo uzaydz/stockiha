@@ -303,8 +303,8 @@ async function requireOrganizationId(): Promise<string> {
   const { data: fallback, error: fallbackError } = await supabase
     .from('users')
     .select('organization_id')
-    .eq('id', user.id)
-    .maybeSingle();
+    .eq('auth_user_id', user.id)
+    .single();
 
   if (fallbackError) {
     throw new InventoryServiceError('تعذر جلب معرف المؤسسة الاحتياطي', fallbackError);

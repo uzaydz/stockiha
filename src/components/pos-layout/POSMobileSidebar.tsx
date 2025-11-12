@@ -157,16 +157,18 @@ const POSMobileSidebar: React.FC<POSMobileSidebarProps> = memo(({ isOpen, onClos
               <div className="relative w-8 h-8 bg-gradient-to-br from-orange-500 via-orange-600 to-orange-700 rounded-lg flex items-center justify-center shadow-lg shadow-orange-500/25 border border-orange-400/40">
                 <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-white/15 to-transparent" />
                 <img
-                  src="/images/logo-new.webp"
+                  src="./images/logo-new.webp"
                   alt="سطوكيها"
                   className="w-5 h-5 object-contain relative z-10 drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]"
                   onError={(e) => {
-                    e.currentTarget.src = '/images/logo.webp';
-                    e.currentTarget.onerror = () => {
+                    // محاولة المسار البديل
+                    if (e.currentTarget.src.includes('./images/')) {
+                      e.currentTarget.src = './images/logo.webp';
+                    } else {
                       e.currentTarget.style.display = 'none';
                       const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
                       if (nextElement) nextElement.style.display = 'flex';
-                    };
+                    }
                   }}
                 />
                 <div className="w-5 h-5 hidden items-center justify-center relative z-10">

@@ -23,6 +23,12 @@ const checkInternetConnection = async (): Promise<boolean> => {
       return true;
     }
 
+    // إذا كان navigator.onLine يقول أننا أوفلاين، لا تقم بأي طلبات شبكة
+    const navigatorOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
+    if (navigatorOffline) {
+      return false;
+    }
+
     // Electron IPC path (فقط إذا كان navigator يقول أوفلاين)
     const electronAPI: any = (window as any).electronAPI;
     if (electronAPI?.makeRequest && supabaseUrl) {
@@ -43,7 +49,7 @@ const checkInternetConnection = async (): Promise<boolean> => {
       }
     }
 
-    // Browser fetch fallback
+    // Browser fetch fallback (لن يصل هنا غالباً إذا كان navigator أوفلاين)
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
     try {

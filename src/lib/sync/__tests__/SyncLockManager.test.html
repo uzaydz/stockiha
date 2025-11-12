@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔒 اختبار Sync Lock Manager</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            padding: 40px;
+            max-width: 800px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 32px;
+            text-align: center;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .info-box {
+            background: #f0f4ff;
+            border-right: 4px solid #667eea;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .info-box h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+
+        .info-box p {
+            color: #555;
+            line-height: 1.6;
+            margin-bottom: 5px;
+        }
+
+        .tab-info {
+            background: #fff3cd;
+            border: 2px dashed #ffc107;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .tab-id {
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            color: #ff6b6b;
+            font-size: 14px;
+        }
+
+        .buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        button {
+            padding: 15px 25px;
+            font-size: 16px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .btn-acquire {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-release {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+        }
+
+        .btn-check {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+        }
+
+        .btn-cleanup {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+            color: white;
+        }
+
+        .log-container {
+            background: #1e1e1e;
+            border-radius: 10px;
+            padding: 20px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+
+        .log-entry {
+            margin-bottom: 8px;
+            padding: 8px;
+            border-radius: 4px;
+            line-height: 1.4;
+        }
+
+        .log-info {
+            color: #4fc3f7;
+        }
+
+        .log-success {
+            color: #81c784;
+            background: rgba(129, 199, 132, 0.1);
+        }
+
+        .log-warning {
+            color: #ffb74d;
+            background: rgba(255, 183, 77, 0.1);
+        }
+
+        .log-error {
+            color: #e57373;
+            background: rgba(229, 115, 115, 0.1);
+        }
+
+        .log-lock {
+            color: #ba68c8;
+            background: rgba(186, 104, 200, 0.1);
+        }
+
+        .timestamp {
+            color: #757575;
+            font-size: 11px;
+        }
+
+        .lock-status {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .status-card {
+            flex: 1;
+            min-width: 200px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .status-card h4 {
+            font-size: 14px;
+            margin-bottom: 10px;
+            opacity: 0.9;
+        }
+
+        .status-card .value {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .heartbeat {
+            animation: pulse 1.5s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔒 اختبار Sync Lock Manager</h1>
+        <p class="subtitle">افتح هذه الصفحة في عدة تبويبات لاختبار التزامن بين النوافذ</p>
+
+        <div class="tab-info">
+            <strong>🏷️ معرف هذا التبويب:</strong><br>
+            <span class="tab-id" id="tabId">جاري التحميل...</span>
+        </div>
+
+        <div class="info-box">
+            <h3>📋 كيفية الاختبار:</h3>
+            <p><strong>1.</strong> افتح هذه الصفحة في تبويبين أو أكثر</p>
+            <p><strong>2.</strong> في التبويب الأول، اضغط "الحصول على القفل"</p>
+            <p><strong>3.</strong> في التبويب الثاني، اضغط "الحصول على القفل" أيضاً</p>
+            <p><strong>4.</strong> يجب أن يفشل التبويب الثاني ويعرض رسالة "القفل محجوز بواسطة تبويب آخر"</p>
+            <p><strong>5.</strong> في التبويب الأول، اضغط "إطلاق القفل"</p>
+            <p><strong>6.</strong> الآن يمكن للتبويب الثاني الحصول على القفل</p>
+        </div>
+
+        <div class="buttons">
+            <button class="btn-acquire" onclick="acquireLock()">
+                🔒 الحصول على القفل
+            </button>
+            <button class="btn-release" onclick="releaseLock()">
+                🔓 إطلاق القفل
+            </button>
+            <button class="btn-check" onclick="checkLockStatus()">
+                🔍 فحص حالة القفل
+            </button>
+            <button class="btn-cleanup" onclick="cleanupLocks()">
+                🧹 تنظيف كل الأقفال
+            </button>
+        </div>
+
+        <div class="lock-status">
+            <div class="status-card">
+                <h4>حالة القفل</h4>
+                <div class="value" id="lockStatus">-</div>
+            </div>
+            <div class="status-card">
+                <h4>معرف القفل</h4>
+                <div class="value" id="currentLockId" style="font-size: 12px;">-</div>
+            </div>
+            <div class="status-card">
+                <h4>التبويب المالك</h4>
+                <div class="value" id="lockOwner" style="font-size: 12px;">-</div>
+            </div>
+        </div>
+
+        <h3 style="margin: 30px 0 15px; color: #667eea;">📊 سجل الأحداث:</h3>
+        <div class="log-container" id="logContainer"></div>
+    </div>
+
+    <script type="module">
+        // محاكاة SyncLockManager للاختبار
+        const TAB_ID = `tab_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        let currentLockId = null;
+        let heartbeatInterval = null;
+
+        // عرض معرف التبويب
+        document.getElementById('tabId').textContent = TAB_ID;
+
+        // دوال السجل
+        function log(message, type = 'info') {
+            const container = document.getElementById('logContainer');
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+
+            const timestamp = new Date().toLocaleTimeString('ar-SA');
+            entry.innerHTML = `<span class="timestamp">[${timestamp}]</span> ${message}`;
+
+            container.insertBefore(entry, container.firstChild);
+
+            // الحد الأقصى 50 entry
+            while (container.children.length > 50) {
+                container.removeChild(container.lastChild);
+            }
+        }
+
+        // تحديث واجهة المستخدم
+        function updateUI() {
+            const lockData = getLockData();
+            const statusEl = document.getElementById('lockStatus');
+            const lockIdEl = document.getElementById('currentLockId');
+            const ownerEl = document.getElementById('lockOwner');
+
+            if (lockData) {
+                const isOurs = lockData.tabId === TAB_ID;
+                statusEl.textContent = isOurs ? '🟢 محجوز (أنت)' : '🔴 محجوز';
+                statusEl.className = isOurs ? 'value heartbeat' : 'value';
+                lockIdEl.textContent = lockData.lockId.substring(0, 20) + '...';
+                ownerEl.textContent = lockData.tabId === TAB_ID ? 'أنت' : lockData.tabId.substring(0, 15) + '...';
+            } else {
+                statusEl.textContent = '⚪ متاح';
+                statusEl.className = 'value';
+                lockIdEl.textContent = '-';
+                ownerEl.textContent = '-';
+            }
+        }
+
+        // جلب بيانات القفل
+        function getLockData() {
+            try {
+                const data = localStorage.getItem('sync_lock_products');
+                if (!data) return null;
+
+                const lockData = JSON.parse(data);
+                const now = Date.now();
+                const elapsed = now - lockData.lastHeartbeat;
+
+                // إذا مضى أكثر من 30 ثانية بدون heartbeat، القفل منتهي
+                if (elapsed > 30000) {
+                    log('⏱️ القفل منتهي (لا heartbeat منذ ${Math.floor(elapsed / 1000)} ثانية)', 'warning');
+                    return null;
+                }
+
+                return lockData;
+            } catch (error) {
+                return null;
+            }
+        }
+
+        // بدء heartbeat
+        function startHeartbeat(lockId) {
+            stopHeartbeat();
+
+            heartbeatInterval = setInterval(() => {
+                const lockData = getLockData();
+
+                if (lockData && lockData.lockId === lockId && lockData.tabId === TAB_ID) {
+                    lockData.lastHeartbeat = Date.now();
+                    localStorage.setItem('sync_lock_products', JSON.stringify(lockData));
+                    log('💓 Heartbeat', 'info');
+                    updateUI();
+                } else {
+                    stopHeartbeat();
+                    log('⚠️ تم إيقاف Heartbeat (القفل لم يعد ملكنا)', 'warning');
+                }
+            }, 5000);
+        }
+
+        // إيقاف heartbeat
+        function stopHeartbeat() {
+            if (heartbeatInterval) {
+                clearInterval(heartbeatInterval);
+                heartbeatInterval = null;
+            }
+        }
+
+        // الحصول على القفل
+        window.acquireLock = async function() {
+            log('🔐 محاولة الحصول على القفل...', 'info');
+
+            const existingLock = getLockData();
+
+            if (existingLock) {
+                if (existingLock.tabId === TAB_ID) {
+                    log('⚠️ لديك القفل بالفعل!', 'warning');
+                } else {
+                    const remaining = Math.ceil((30000 - (Date.now() - existingLock.lastHeartbeat)) / 1000);
+                    log(`❌ القفل محجوز بواسطة تبويب آخر (${remaining}ث متبقية)`, 'error');
+                }
+                updateUI();
+                return;
+            }
+
+            const lockId = `lock_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            const now = Date.now();
+
+            const lockData = {
+                lockId,
+                tabId: TAB_ID,
+                startTime: now,
+                lastHeartbeat: now,
+                timeout: 30000,
+                status: 'active'
+            };
+
+            localStorage.setItem('sync_lock_products', JSON.stringify(lockData));
+
+            // انتظر 100ms للتحقق من race condition
+            await new Promise(resolve => setTimeout(resolve, 100));
+
+            const verifyLock = getLockData();
+            if (verifyLock && verifyLock.lockId === lockId && verifyLock.tabId === TAB_ID) {
+                currentLockId = lockId;
+                startHeartbeat(lockId);
+                log('✅ تم الحصول على القفل بنجاح!', 'success');
+                log(`🔑 معرف القفل: ${lockId}`, 'lock');
+            } else {
+                log('❌ فشل الحصول على القفل (race condition)', 'error');
+            }
+
+            updateUI();
+        };
+
+        // إطلاق القفل
+        window.releaseLock = function() {
+            if (!currentLockId) {
+                log('⚠️ لا يوجد قفل لإطلاقه', 'warning');
+                return;
+            }
+
+            const lockData = getLockData();
+
+            if (!lockData || lockData.lockId !== currentLockId || lockData.tabId !== TAB_ID) {
+                log('⚠️ لا يمكن إطلاق القفل: القفل لا ينتمي لهذا التبويب', 'warning');
+                return;
+            }
+
+            stopHeartbeat();
+            localStorage.removeItem('sync_lock_products');
+            log(`🔓 تم إطلاق القفل: ${currentLockId}`, 'success');
+            currentLockId = null;
+            updateUI();
+        };
+
+        // فحص حالة القفل
+        window.checkLockStatus = function() {
+            const lockData = getLockData();
+
+            if (lockData) {
+                const isOurs = lockData.tabId === TAB_ID;
+                const elapsed = Math.floor((Date.now() - lockData.startTime) / 1000);
+                const sinceHeartbeat = Math.floor((Date.now() - lockData.lastHeartbeat) / 1000);
+
+                log(`🔍 القفل محجوز ${isOurs ? '(أنت)' : '(تبويب آخر)'}`, 'info');
+                log(`⏱️ مضى ${elapsed}ث منذ البداية، ${sinceHeartbeat}ث منذ آخر heartbeat`, 'info');
+                log(`🏷️ التبويب المالك: ${lockData.tabId}`, 'info');
+            } else {
+                log('✅ القفل متاح (غير محجوز)', 'success');
+            }
+
+            updateUI();
+        };
+
+        // تنظيف كل الأقفال
+        window.cleanupLocks = function() {
+            stopHeartbeat();
+            localStorage.removeItem('sync_lock_products');
+            currentLockId = null;
+            log('🧹 تم تنظيف كل الأقفال', 'success');
+            updateUI();
+        };
+
+        // الاستماع للتغييرات من تبويبات أخرى
+        window.addEventListener('storage', (event) => {
+            if (event.key === 'sync_lock_products') {
+                if (!event.newValue) {
+                    log('📢 تبويب آخر أطلق القفل', 'info');
+                    if (currentLockId) {
+                        currentLockId = null;
+                        stopHeartbeat();
+                    }
+                } else {
+                    const lockData = JSON.parse(event.newValue);
+                    if (lockData.tabId !== TAB_ID) {
+                        log('📢 تبويب آخر حصل على القفل', 'info');
+                    }
+                }
+                updateUI();
+            }
+        });
+
+        // تنظيف عند إغلاق النافذة
+        window.addEventListener('beforeunload', () => {
+            if (currentLockId) {
+                releaseLock();
+            }
+        });
+
+        // تحديث دوري للواجهة
+        setInterval(updateUI, 1000);
+
+        // تحديث أولي
+        updateUI();
+        log('🚀 تم تهيئة مدير الأقفال', 'success');
+        log(`🏷️ معرف التبويب: ${TAB_ID}`, 'info');
+    </script>
+</body>
+</html>

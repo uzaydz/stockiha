@@ -99,27 +99,41 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
     enabled: !!userProfile
   });
 
+  // استخدام useMemo لـ organization object لتجنب re-creation
+  const memoizedOrganization = useMemo(() => organization, [organization?.id]);
+
+  // استخدام useRef لتتبع ما إذا تم إرسال الحدث
+  const hasDispatchedEventRef = useRef(false);
+  const lastOrgIdRef = useRef<string | null>(null);
+
   // مراقبة تغيير المؤسسة وتحديث authReady - محسن لإرسال الحدث مرة واحدة فقط
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
+    // إعادة تعيين عند تغيير المؤسسة
+    if (memoizedOrganization?.id !== lastOrgIdRef.current) {
+      hasDispatchedEventRef.current = false;
+      lastOrgIdRef.current = memoizedOrganization?.id || null;
     }
 
-    // تحديث authReady عندما تكون البيانات جاهزة - إرسال الحدث مرة واحدة فقط
-    if (userProfile && organization && !profileLoading && !isLoadingProfile && !dataLoadingComplete && !authReady) {
-      if (process.env.NODE_ENV === 'development') {
-      }
-      try { console.log('✅ [Auth] data ready', { userId: user?.id, orgId: organization?.id }); } catch {}
+    // شروط أكثر صرامة وأقل عدداً
+    const isDataReady = userProfile && memoizedOrganization && !profileLoading && !isLoadingProfile;
+    const needsUpdate = !dataLoadingComplete && !authReady;
+
+    if (isDataReady && needsUpdate) {
+      try { console.log('✅ [Auth] data ready', { userId: user?.id, orgId: memoizedOrganization?.id }); } catch {}
       setDataLoadingComplete(true);
       setAuthReady(true);
 
-      // إرسال حدث لإعلام TenantContext بتحديث المؤسسة - مرة واحدة فقط
-      setTimeout(() => {
-        dispatchAppEvent('authOrganizationReady', { organization }, {
-          dedupeKey: `authOrganizationReady:${organization.id}`
-        });
-      }, 50); // تأخير بسيط لضمان اكتمال التحديث
+      // إرسال حدث مرة واحدة فقط
+      if (!hasDispatchedEventRef.current && memoizedOrganization) {
+        hasDispatchedEventRef.current = true;
+        setTimeout(() => {
+          dispatchAppEvent('authOrganizationReady', { organization: memoizedOrganization }, {
+            dedupeKey: `authOrganizationReady:${memoizedOrganization.id}`
+          });
+        }, 50);
+      }
     }
-  }, [organization, userProfile, isLoadingProfile, isLoadingOrganization, profileLoading, orgLoading, dataLoadingComplete, authReady]);
+  }, [memoizedOrganization, userProfile, profileLoading, isLoadingProfile, dataLoadingComplete, authReady, user?.id]);
 
   // مراقبة حالة تحميل البيانات وتحديث المتغيرات المناسبة
   useEffect(() => {
@@ -216,6 +230,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
   const sessionCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   // معرف لنسخ التحقق المؤجلة لإلغاء المجدول القديم عند تبدل الجلسة
   const validationRunIdRef = useRef(0);
+  const lastSessionWarnRef = useRef<number>(0);
 
   // دالة مساعدة للحصول على الجلسة من cache
   const getCachedSession = useCallback((userId: string): Session | null => {
@@ -468,13 +483,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
               if (!isValid) {
                 const refreshed = await refreshSession();
                 if (!refreshed) {
-                  console.warn('⚠️ [Auth] session invalid after secure validation');
-                  setUser(null);
-                  setSession(null);
-                  setIsLoading(false);
-                  setHasInitialSessionCheck(true);
-                  sessionCache.delete(restoredUser.id);
-                  userCache.delete(restoredUser.id);
+                  // ✅ لا نحذف الجلسة فوراً - نعطي المستخدم فرصة للعمل أوفلاين
+                  const nowWarn = Date.now();
+                  if (nowWarn - (lastSessionWarnRef.current || 0) > 60_000) {
+                    console.warn('⚠️ [Auth] session validation failed, but keeping offline session');
+                    lastSessionWarnRef.current = nowWarn;
+                  }
+                  // لا نمسح الجلسة هنا - سنتركها للمستخدم للعمل أوفلاين
                 }
               }
             }
@@ -832,6 +847,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
       }
     }
   }, [session?.access_token]); // ✅ تقليل التبعيات
+
+  useEffect(() => {
+    if (hookSession && hookSession.access_token !== session?.access_token) {
+      setSession(hookSession);
+      if (hookSession && user) {
+        saveAuthToStorage(hookSession, user);
+      }
+      void saveSecureSession(hookSession).catch(() => undefined);
+    }
+  }, [hookSession?.access_token, user?.id]);
 
   /**
    * تحديث معرف المؤسسة في المعترض - مع debouncing محسن

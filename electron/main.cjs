@@ -2,7 +2,6 @@ const { app, BrowserWindow, Menu, shell, ipcMain, dialog, nativeImage, Tray, glo
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
-8778
 const { SQLiteManager } = require('./sqliteManager.cjs');
 const { updaterManager } = require('./updater.cjs');
 
@@ -31,7 +30,11 @@ if (process.env.NODE_ENV === 'development' || process.argv.includes('--dev') || 
 
 const SECURE_SESSION_SERVICE = 'stockiha-pos-offline-session';
 const SECURE_SESSION_ACCOUNT = 'session-encryption-key';
-const FALLBACK_KEY_PATH = path.join(app.getPath('userData'), '.session-key');
+
+// دالة للحصول على مسار المفتاح (تُستدعى بعد جاهزية app)
+function getFallbackKeyPath() {
+  return path.join(app.getPath('userData'), '.session-key');
+}
 
 // Fallback: حفظ المفتاح في ملف محلي إذا فشل keytar
 async function getOrCreateSecureSessionKey() {
@@ -49,17 +52,19 @@ async function getOrCreateSecureSessionKey() {
       console.log('🔑 [Electron] Created and stored key in keytar');
       return randomKey;
     }
-    
+
     // Fallback: استخدام ملف محلي
     console.log('🔑 [Electron] Using fallback file storage');
-    if (fs.existsSync(FALLBACK_KEY_PATH)) {
-      const existingKey = fs.readFileSync(FALLBACK_KEY_PATH, 'utf8');
+    const fallbackKeyPath = getFallbackKeyPath();
+
+    if (fs.existsSync(fallbackKeyPath)) {
+      const existingKey = fs.readFileSync(fallbackKeyPath, 'utf8');
       console.log('🔑 [Electron] Retrieved key from fallback file');
       return existingKey;
     }
 
     const randomKey = crypto.randomBytes(32).toString('base64');
-    fs.writeFileSync(FALLBACK_KEY_PATH, randomKey, { mode: 0o600 });
+    fs.writeFileSync(fallbackKeyPath, randomKey, { mode: 0o600 });
     console.log('🔑 [Electron] Created and stored key in fallback file');
     return randomKey;
   } catch (error) {
@@ -71,17 +76,18 @@ async function getOrCreateSecureSessionKey() {
 async function clearSecureSessionKey() {
   try {
     let cleared = false;
-    
+
     // محاولة حذف من keytar
     if (keytar) {
       await keytar.deletePassword(SECURE_SESSION_SERVICE, SECURE_SESSION_ACCOUNT);
       console.log('🗑️ [Electron] Deleted key from keytar');
       cleared = true;
     }
-    
+
     // حذف من fallback file
-    if (fs.existsSync(FALLBACK_KEY_PATH)) {
-      fs.unlinkSync(FALLBACK_KEY_PATH);
+    const fallbackKeyPath = getFallbackKeyPath();
+    if (fs.existsSync(fallbackKeyPath)) {
+      fs.unlinkSync(fallbackKeyPath);
       console.log('🗑️ [Electron] Deleted key from fallback file');
       cleared = true;
     }
@@ -107,6 +113,8 @@ let isQuitting = false;
 
 // مدير قاعدة البيانات SQLite
 let sqliteManager = null;
+// مدير منفصل لقاعدة Global لتخزين الحالة الآمنة والترخيص بدون تبديل قاعدة المنظمة
+let sqliteManagerGlobal = null;
 
 // إنشاء النافذة الرئيسية
 function createMainWindow() {
@@ -218,10 +226,8 @@ function createMainWindow() {
     mainWindow.setMenuBarVisibility(false);
     mainWindow.setAutoHideMenuBar(true);
 
-    // لا نفتح DevTools تلقائياً في الإنتاج
-    if (isDev) {
-      mainWindow.webContents.openDevTools({ mode: 'detach' });
-    }
+    // فتح DevTools دائماً للتشخيص
+    mainWindow.webContents.openDevTools({ mode: 'detach' });
   });
 
   // ===== حماية أمنية: منع الوصول إلى صفحات السوبر أدمين =====
@@ -923,6 +929,19 @@ ipcMain.handle('db:query-one', async (event, sql, params) => {
   }
 });
 
+// تنفيذ عمليات UPDATE/INSERT/DELETE
+ipcMain.handle('db:execute', async (event, sql, params) => {
+  try {
+    if (!sqliteManager || !sqliteManager.isInitialized) {
+      return { success: false, error: 'Database not initialized', changes: 0 };
+    }
+    return sqliteManager.execute(sql, params);
+  } catch (error) {
+    console.error('[IPC] Execute failed:', error);
+    return { success: false, error: error.message, changes: 0 };
+  }
+});
+
 // إضافة أو تحديث بيانات عامة
 ipcMain.handle('db:upsert', async (event, table, data) => {
   try {
@@ -945,6 +964,170 @@ ipcMain.handle('db:delete', async (event, table, id) => {
     return sqliteManager.delete(table, id);
   } catch (error) {
     console.error('[IPC] Delete failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ======= IPC Handlers للساعة الآمنة والترخيص =======
+function ensureGlobalDB() {
+  if (!sqliteManagerGlobal) {
+    sqliteManagerGlobal = new SQLiteManager(app);
+  }
+  const res = sqliteManagerGlobal.initialize('global');
+  if (!res || res.success !== true) {
+    throw new Error(res?.error || 'Failed to initialize global DB');
+  }
+  return sqliteManagerGlobal;
+}
+
+// تثبيت المرساة من وقت السيرفر
+ipcMain.handle('license:set-anchor', async (event, organizationId, serverNowMs) => {
+  try {
+    const mgr = ensureGlobalDB();
+    const nowIso = new Date().toISOString();
+    const id = organizationId || 'global';
+    // قراءة سجل سابق
+    const existing = mgr.queryOne(`SELECT * FROM app_license_state WHERE id = ?`, [id]);
+    if (!existing.success) {
+      return { success: false, error: existing.error || 'query failed' };
+    }
+    const row = existing.data;
+    const secure_anchor_ms = Math.max(Number(row?.secure_anchor_ms || 0), Number(serverNowMs || 0));
+    const payload = {
+      id,
+      organization_id: organizationId || null,
+      secure_anchor_ms,
+      last_device_time_ms: Date.now(),
+      last_server_time_ms: Number(serverNowMs || 0),
+      last_observed_device_time_ms: row?.last_observed_device_time_ms || 0,
+      last_secure_ms: row?.last_secure_ms || 0,
+      tamper_count: row?.tamper_count || 0,
+      created_at: row?.created_at || nowIso,
+      updated_at: nowIso
+    };
+    const up = mgr.upsert('app_license_state', payload);
+    try {
+      console.log('[SECURE CLOCK] set-anchor', {
+        id,
+        serverNowMs: Number(serverNowMs || 0),
+        prevAnchor: Number(row?.secure_anchor_ms || 0),
+        nextAnchor: Number(payload.secure_anchor_ms || 0),
+        lastDevice: Number(payload.last_device_time_ms || 0),
+        lastServer: Number(payload.last_server_time_ms || 0)
+      });
+    } catch {}
+    if (!up.success) return { success: false, error: up.error || 'upsert failed' };
+    return { success: true };
+  } catch (error) {
+    console.error('[IPC] license:set-anchor failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// حساب الوقت الآمن المحلي (غير متناقص) مع كشف التلاعب
+ipcMain.handle('license:get-secure-now', async (event, organizationId) => {
+  try {
+    const mgr = ensureGlobalDB();
+    const id = organizationId || 'global';
+    const nowIso = new Date().toISOString();
+    const deviceNow = Date.now();
+    const existing = mgr.queryOne(`SELECT * FROM app_license_state WHERE id = ?`, [id]);
+    if (!existing.success) {
+      return { success: false, error: existing.error || 'query failed' };
+    }
+    let row = existing.data;
+    if (!row) {
+      // إنشاء سجل جديد بمرساة صفرية
+      const initPayload = {
+        id,
+        organization_id: organizationId || null,
+        secure_anchor_ms: 0,
+        last_device_time_ms: deviceNow,
+        last_server_time_ms: 0,
+        last_observed_device_time_ms: deviceNow,
+        last_secure_ms: 0,
+        tamper_count: 0,
+        created_at: nowIso,
+        updated_at: nowIso
+      };
+      const up = mgr.upsert('app_license_state', initPayload);
+      if (!up.success) return { success: false, error: up.error || 'init upsert failed' };
+      row = initPayload;
+    }
+
+    // تطبيع الوحدات: تأكد أن كل القيم بالـ milliseconds حتى لو كانت مخزنة قديماً بالثواني/الميكروثواني
+    const normalizeTs = (v) => {
+      let n = Number(v || 0);
+      if (!Number.isFinite(n) || n <= 0) return 0;
+      if (n > 1e16) return Math.floor(n / 1e6);   // nanoseconds -> ms
+      if (n > 1e13) return Math.floor(n / 1e3);   // microseconds -> ms
+      if (n < 1e12) return Math.floor(n * 1000);  // seconds -> ms (also handles very small values)
+      return Math.floor(n);                        // already ms
+    };
+
+    const anchorRaw = row.secure_anchor_ms;
+    const anchorDeviceRaw = row.last_device_time_ms;
+    const lastObservedRaw = row.last_observed_device_time_ms;
+    const lastSecureRaw = row.last_secure_ms;
+    const tamperCount = Number(row.tamper_count || 0);
+
+    const anchor = normalizeTs(anchorRaw);
+    const anchorDeviceNorm = normalizeTs(anchorDeviceRaw);
+    const lastObserved = normalizeTs(lastObservedRaw);
+    const lastSecure = normalizeTs(lastSecureRaw);
+
+    const tamperDetected = deviceNow < lastObserved;
+    // تجنب delta سالبة في حال كانت قيمة baseline أكبر من now (نتيجة وحدات خاطئة قديمة)
+    const baseDevice = Math.min(anchorDeviceNorm || deviceNow, deviceNow);
+    const delta = Math.max(0, deviceNow - baseDevice);
+    let secureNowMs;
+    if (anchor > 0) {
+      const candidate = anchor + delta;
+      secureNowMs = Math.max(lastSecure, candidate);
+    } else {
+      // لا توجد مرساة بعد: استخدم وقت الجهاز المطلق كخط أساس غير متناقص
+      const candidateAbs = Math.max(deviceNow, lastObserved);
+      secureNowMs = Math.max(lastSecure, candidateAbs);
+    }
+
+    const newRow = {
+      id,
+      organization_id: row.organization_id || organizationId || null,
+      secure_anchor_ms: anchor,
+      last_device_time_ms: baseDevice,
+      last_server_time_ms: Number(row.last_server_time_ms || 0),
+      last_observed_device_time_ms: Math.max(lastObserved, deviceNow),
+      last_secure_ms: secureNowMs,
+      tamper_count: tamperDetected ? (tamperCount + 1) : tamperCount,
+      created_at: row.created_at || nowIso,
+      updated_at: nowIso
+    };
+    const up = mgr.upsert('app_license_state', newRow);
+    try {
+      console.log('[SECURE CLOCK] get-secure-now', {
+        id,
+        deviceNow,
+        anchorRaw,
+        anchor,
+        anchorDeviceRaw,
+        anchorDeviceNorm,
+        lastObservedRaw,
+        lastObserved,
+        lastSecureRaw,
+        lastSecure,
+        delta,
+        usedFallback: anchor === 0,
+        secureNowMs,
+        tamperDetected,
+        tamperCountBefore: tamperCount,
+        tamperCountAfter: newRow.tamper_count
+      });
+    } catch {}
+    if (!up.success) return { success: false, error: up.error || 'update upsert failed' };
+
+    return { success: true, secureNowMs, tamperDetected, tamperCount: newRow.tamper_count };
+  } catch (error) {
+    console.error('[IPC] license:get-secure-now failed:', error);
     return { success: false, error: error.message };
   }
 });
@@ -1078,6 +1261,75 @@ ipcMain.handle('db:close', async () => {
   } catch (error) {
     console.error('[IPC] Close failed:', error);
     return { success: false, error: error.message };
+  }
+});
+
+// ========================================
+// 🔒 Conflict Resolution IPC Handlers
+// ========================================
+
+// تسجيل تضارب
+ipcMain.handle('db:log-conflict', async (event, conflictEntry) => {
+  try {
+    if (!sqliteManager || !sqliteManager.isInitialized) {
+      return { success: false, error: 'Database not initialized' };
+    }
+    return sqliteManager.logConflict(conflictEntry);
+  } catch (error) {
+    console.error('[IPC] Log conflict failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// جلب سجل التضاربات لكيان معين
+ipcMain.handle('db:get-conflict-history', async (event, entityType, entityId) => {
+  try {
+    if (!sqliteManager || !sqliteManager.isInitialized) {
+      return { success: false, error: 'Database not initialized', data: [] };
+    }
+    return sqliteManager.getConflictHistory(entityType, entityId);
+  } catch (error) {
+    console.error('[IPC] Get conflict history failed:', error);
+    return { success: false, error: error.message, data: [] };
+  }
+});
+
+// جلب التضاربات مع فلترة
+ipcMain.handle('db:get-conflicts', async (event, organizationId, options) => {
+  try {
+    if (!sqliteManager || !sqliteManager.isInitialized) {
+      return { success: false, error: 'Database not initialized', data: [] };
+    }
+    return sqliteManager.getConflicts(organizationId, options);
+  } catch (error) {
+    console.error('[IPC] Get conflicts failed:', error);
+    return { success: false, error: error.message, data: [] };
+  }
+});
+
+// إحصائيات التضاربات
+ipcMain.handle('db:get-conflict-statistics', async (event, organizationId, dateFrom, dateTo) => {
+  try {
+    if (!sqliteManager || !sqliteManager.isInitialized) {
+      return { success: false, error: 'Database not initialized', data: null };
+    }
+    return sqliteManager.getConflictStatistics(organizationId, dateFrom, dateTo);
+  } catch (error) {
+    console.error('[IPC] Get conflict statistics failed:', error);
+    return { success: false, error: error.message, data: null };
+  }
+});
+
+// حذف التضاربات القديمة
+ipcMain.handle('db:cleanup-old-conflicts', async (event, daysToKeep) => {
+  try {
+    if (!sqliteManager || !sqliteManager.isInitialized) {
+      return { success: false, error: 'Database not initialized', deleted: 0 };
+    }
+    return sqliteManager.cleanupOldConflicts(daysToKeep);
+  } catch (error) {
+    console.error('[IPC] Cleanup old conflicts failed:', error);
+    return { success: false, error: error.message, deleted: 0 };
   }
 });
 

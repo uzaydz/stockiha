@@ -48,7 +48,7 @@ export const createLocalInvoice = async (
 
   // إضافة إلى صف المزامنة
   await UnifiedQueue.enqueue({
-    objectType: 'order',
+    objectType: 'invoice',
     objectId: invoiceId,
     operation: 'create',
     data: { invoice: invoiceRecord, items: itemRecords },
@@ -116,7 +116,7 @@ export const updateLocalInvoice = async (
 
   // إضافة إلى صف المزامنة
   await UnifiedQueue.enqueue({
-    objectType: 'order',
+    objectType: 'invoice',
     objectId: invoiceId,
     operation: 'update',
     data: { invoice: updated, items: itemRecords },
@@ -144,7 +144,7 @@ export const deleteLocalInvoice = async (invoiceId: string): Promise<boolean> =>
 
   // إضافة إلى صف المزامنة
   await UnifiedQueue.enqueue({
-    objectType: 'order',
+    objectType: 'invoice',
     objectId: invoiceId,
     operation: 'delete',
     data: marked,
@@ -190,19 +190,45 @@ export const getLocalInvoiceByNumber = async (
 
 // جلب جميع الفواتير حسب المؤسسة
 export const getAllLocalInvoices = async (organizationId: string): Promise<LocalInvoice[]> => {
-  return await inventoryDB.invoices
-    .where('organization_id')
-    .equals(organizationId)
-    .and(invoice => invoice.pendingOperation !== 'delete')
-    .reverse()
-    .toArray();
+  if (window.electronAPI?.db) {
+    // استخدام SQLite في Electron
+    const sql = `
+      SELECT * FROM invoices 
+      WHERE organization_id = ? 
+      AND (pending_operation IS NULL OR pending_operation != 'delete')
+      ORDER BY created_at DESC
+    `;
+    const result = await window.electronAPI.db.query(sql, [organizationId]);
+    return (result.data || []).map((inv: any) => ({
+      ...inv,
+      synced: inv.synced === 1
+    }));
+  } else {
+    // استخدام Dexie في المتصفح
+    const all = await inventoryDB.invoices
+      .where('organization_id')
+      .equals(organizationId)
+      .toArray();
+    return all
+      .filter(invoice => invoice.pendingOperation !== 'delete')
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }
 };
 
 // جلب الفواتير غير المتزامنة
 export const getUnsyncedInvoices = async (): Promise<LocalInvoice[]> => {
-  return await inventoryDB.invoices
-    .filter(i => !i.synced)
-    .toArray();
+  if (window.electronAPI?.db) {
+    const sql = 'SELECT * FROM invoices WHERE synced = 0';
+    const result = await window.electronAPI.db.query(sql, []);
+    return (result.data || []).map((inv: any) => ({
+      ...inv,
+      synced: false
+    }));
+  } else {
+    return await inventoryDB.invoices
+      .filter(i => !i.synced)
+      .toArray();
+  }
 };
 
 // تحديث حالة المزامنة
@@ -241,25 +267,40 @@ export const updateInvoicePaymentStatus = async (
 
 // مسح الفواتير المتزامنة والمحذوفة
 export const cleanupSyncedInvoices = async (): Promise<number> => {
-  const toDelete = await inventoryDB.invoices
-    .filter(invoice => invoice.synced === true && invoice.pendingOperation === 'delete')
-    .toArray();
+  const db = window.electronAPI?.db as any;
+  if (db) {
+    const sql = 'SELECT * FROM invoices WHERE synced = 1 AND pending_operation = ?';
+    const result = await db.query(sql, ['delete']);
+    const toDelete = result.data || [];
 
-  for (const invoice of toDelete) {
-    // حذف العناصر المرتبطة
-    const items = await inventoryDB.invoiceItems
-      .where('invoice_id')
-      .equals(invoice.id)
-      .toArray();
-    
-    for (const item of items) {
-      await inventoryDB.invoiceItems.delete(item.id);
+    for (const invoice of toDelete) {
+      // حذف العناصر المرتبطة
+      await db.execute('DELETE FROM invoice_items WHERE invoice_id = ?', [invoice.id]);
+      await db.execute('DELETE FROM invoices WHERE id = ?', [invoice.id]);
     }
 
-    await inventoryDB.invoices.delete(invoice.id);
-  }
+    return toDelete.length;
+  } else {
+    const toDelete = await inventoryDB.invoices
+      .filter(invoice => invoice.synced === true && invoice.pendingOperation === 'delete')
+      .toArray();
 
-  return toDelete.length;
+    for (const invoice of toDelete) {
+      // حذف العناصر المرتبطة
+      const items = await inventoryDB.invoiceItems
+        .where('invoice_id')
+        .equals(invoice.id)
+        .toArray();
+      
+      for (const item of items) {
+        await inventoryDB.invoiceItems.delete(item.id);
+      }
+
+      await inventoryDB.invoices.delete(invoice.id);
+    }
+
+    return toDelete.length;
+  }
 };
 
 // ==================== بحث وتصفح محلي للفواتير ====================
@@ -269,17 +310,63 @@ export async function getLocalInvoicesPage(
   options: { offset?: number; limit?: number; status?: string | string[]; createdSort?: 'asc' | 'desc' } = {}
 ): Promise<{ invoices: LocalInvoice[]; total: number }> {
   const { offset = 0, limit = 50, status, createdSort = 'desc' } = options;
-  let coll = inventoryDB.invoices
-    .where('[organization_id+created_at]')
-    .between([organizationId, ''], [organizationId, '\\uffff']);
-  if (createdSort === 'desc') coll = coll.reverse();
-  if (status) {
-    const statuses = Array.isArray(status) ? status : [status];
-    coll = coll.and((i: any) => statuses.includes(i.status));
+  
+  if (window.electronAPI?.db) {
+    const statuses = status ? (Array.isArray(status) ? status : [status]) : null;
+    let sql = 'SELECT * FROM invoices WHERE organization_id = ?';
+    const params: any[] = [organizationId];
+    
+    if (statuses && statuses.length > 0) {
+      const placeholders = statuses.map(() => '?').join(',');
+      sql += ` AND status IN (${placeholders})`;
+      params.push(...statuses);
+    }
+    
+    sql += ` ORDER BY created_at ${createdSort === 'desc' ? 'DESC' : 'ASC'}`;
+    sql += ' LIMIT ? OFFSET ?';
+    params.push(limit, offset);
+    
+    const result = await window.electronAPI.db.query(sql, params);
+    const invoices = (result.data || []).map((inv: any) => ({ ...inv, synced: inv.synced === 1 }));
+    
+    // حساب العدد الإجمالي
+    let countSql = 'SELECT COUNT(*) as count FROM invoices WHERE organization_id = ?';
+    const countParams: any[] = [organizationId];
+    if (statuses && statuses.length > 0) {
+      const placeholders = statuses.map(() => '?').join(',');
+      countSql += ` AND status IN (${placeholders})`;
+      countParams.push(...statuses);
+    }
+    const countResult = await window.electronAPI.db.query(countSql, countParams);
+    const total = countResult.data?.[0]?.count || 0;
+    
+    return { invoices, total };
+  } else {
+    // جلب جميع الفواتير وفلترتها في الذاكرة
+    const all = await inventoryDB.invoices
+      .where('organization_id')
+      .equals(organizationId)
+      .toArray();
+    
+    let filtered = all;
+    if (status) {
+      const statuses = Array.isArray(status) ? status : [status];
+      filtered = all.filter((i: any) => statuses.includes(i.status));
+    }
+    
+    const total = filtered.length;
+    
+    // ترتيب
+    const sorted = filtered.sort((a, b) => {
+      const timeA = new Date(a.created_at).getTime();
+      const timeB = new Date(b.created_at).getTime();
+      return createdSort === 'desc' ? timeB - timeA : timeA - timeB;
+    });
+    
+    // تطبيق pagination
+    const page = sorted.slice(offset, offset + limit);
+    return { invoices: page as any, total };
   }
-  const total = await coll.count();
-  const page = await coll.offset(offset).limit(limit).toArray();
-  return { invoices: page as any, total };
 }
 
 export async function fastSearchLocalInvoices(
@@ -292,32 +379,56 @@ export async function fastSearchLocalInvoices(
   const limit = options.limit ?? 200;
   const statuses = options.status ? (Array.isArray(options.status) ? options.status : [options.status]) : null;
 
-  const results = new Map<string, LocalInvoice>();
+  if (window.electronAPI?.db) {
+    let sql = `
+      SELECT * FROM invoices 
+      WHERE organization_id = ? 
+      AND (
+        invoice_number_lower LIKE ? 
+        OR customer_name_lower LIKE ?
+      )
+    `;
+    const params: any[] = [organizationId, q + '%', q + '%'];
+    
+    if (statuses && statuses.length > 0) {
+      const placeholders = statuses.map(() => '?').join(',');
+      sql += ` AND status IN (${placeholders})`;
+      params.push(...statuses);
+    }
+    
+    sql += ' LIMIT ?';
+    params.push(limit);
+    
+    const result = await window.electronAPI.db.query(sql, params);
+    return (result.data || []).map((inv: any) => ({ ...inv, synced: inv.synced === 1 }));
+  } else {
+    const results = new Map<string, LocalInvoice>();
 
-  // حسب رقم الفاتورة
-  const invMatches = await inventoryDB.invoices
-    .where('[organization_id+invoice_number_lower]')
-    .between([organizationId, q], [organizationId, q + '\\uffff'])
-    .limit(limit)
-    .toArray();
-  invMatches.forEach((i: any) => {
-    if (!statuses || statuses.includes(i.status)) results.set(i.id, i);
-  });
-
-  // حسب اسم العميل
-  if (results.size < limit) {
-    const nameMatches = await inventoryDB.invoices
-      .where('[organization_id+customer_name_lower]') as any;
-    const byName = await nameMatches
+    // حسب رقم الفاتورة
+    const invMatches = await inventoryDB.invoices
+      .where('[organization_id+invoice_number_lower]')
       .between([organizationId, q], [organizationId, q + '\\uffff'])
-      .limit(limit - results.size)
+      .limit(limit)
       .toArray();
-    byName.forEach((i: any) => {
+    invMatches.forEach((i: any) => {
       if (!statuses || statuses.includes(i.status)) results.set(i.id, i);
     });
-  }
 
-  return Array.from(results.values()).slice(0, limit);
+    // حسب اسم العميل
+    if (results.size < limit) {
+      const nameMatches = await inventoryDB.invoices
+        .where('[organization_id+customer_name_lower]') as any;
+      const byName = await nameMatches
+        .between([organizationId, q], [organizationId, q + '\\uffff'])
+        .limit(limit - results.size)
+        .toArray();
+      byName.forEach((i: any) => {
+        if (!statuses || statuses.includes(i.status)) results.set(i.id, i);
+      });
+    }
+
+    return Array.from(results.values()).slice(0, limit);
+  }
 }
 
 export async function getLocalInvoiceStats(organizationId: string): Promise<{
@@ -326,13 +437,33 @@ export async function getLocalInvoiceStats(organizationId: string): Promise<{
   paid: number;
   draft: number;
 }> {
-  const base = inventoryDB.invoices.where('organization_id').equals(organizationId);
-  const all = await base.toArray();
-  const total = all.length;
-  const pending = all.filter((i: any) => i.payment_status === 'pending').length;
-  const paid = all.filter((i: any) => i.payment_status === 'paid').length;
-  const draft = all.filter((i: any) => i.status === 'draft').length;
-  return { total, pending, paid, draft };
+  if (window.electronAPI?.db) {
+    const sql = `
+      SELECT 
+        COUNT(*) as total,
+        SUM(CASE WHEN payment_status = 'pending' THEN 1 ELSE 0 END) as pending,
+        SUM(CASE WHEN payment_status = 'paid' THEN 1 ELSE 0 END) as paid,
+        SUM(CASE WHEN status = 'draft' THEN 1 ELSE 0 END) as draft
+      FROM invoices 
+      WHERE organization_id = ?
+    `;
+    const result = await window.electronAPI.db.query(sql, [organizationId]);
+    const row = result.data?.[0] || { total: 0, pending: 0, paid: 0, draft: 0 };
+    return {
+      total: row.total || 0,
+      pending: row.pending || 0,
+      paid: row.paid || 0,
+      draft: row.draft || 0
+    };
+  } else {
+    const base = inventoryDB.invoices.where('organization_id').equals(organizationId);
+    const all = await base.toArray();
+    const total = all.length;
+    const pending = all.filter((i: any) => i.payment_status === 'pending').length;
+    const paid = all.filter((i: any) => i.payment_status === 'paid').length;
+    const draft = all.filter((i: any) => i.status === 'draft').length;
+    return { total, pending, paid, draft };
+  }
 }
 
 // حساب إجماليات الفاتورة

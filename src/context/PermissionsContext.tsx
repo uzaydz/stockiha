@@ -82,68 +82,135 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const saveLocal = useCallback(async (perm: UnifiedPermissionsData) => {
     try {
+      if (!perm || !perm.auth_user_id) {
+        console.warn('[PermissionsContext] Cannot save: invalid perm data', perm);
+        return;
+      }
+      
       const id = `${perm.organization_id || 'global'}:${perm.auth_user_id}`;
       const now = new Date().toISOString();
-      const rec: any = {
-        id,
-        auth_user_id: perm.auth_user_id,
-        user_id: perm.user_id,
-        email: perm.email,
-        name: perm.name,
-        role: perm.role,
-        organization_id: perm.organization_id,
-        is_active: perm.is_active,
-        is_org_admin: perm.is_org_admin,
-        is_super_admin: perm.is_super_admin,
-        permissions: perm.permissions || {},
-        has_inventory_access: perm.has_inventory_access || false,
-        can_manage_products: perm.can_manage_products || false,
-        can_view_reports: perm.can_view_reports || false,
-        can_manage_users: perm.can_manage_users || false,
-        can_manage_orders: perm.can_manage_orders || false,
-        can_access_pos: perm.can_access_pos || false,
-        can_manage_settings: perm.can_manage_settings || false,
-        created_at: now,
-        updated_at: now,
-        last_updated: now
-      };
-      await inventoryDB.userPermissions.put(rec);
-    } catch {}
-  }, []);
-
-  const loadLocal = useCallback(async (authId?: string): Promise<UnifiedPermissionsData | null> => {
-    try {
-      if (!authId) return null;
-      const orgId = localStorage.getItem('currentOrganizationId') || localStorage.getItem('bazaar_organization_id') || undefined;
-      const rec = orgId
-        ? await (inventoryDB.userPermissions as any).where({ auth_user_id: authId, organization_id: orgId }).first()
-        : await inventoryDB.userPermissions.where('auth_user_id').equals(authId).first();
-      if (!rec) return null;
-      const perms = typeof rec.permissions === 'string' ? JSON.parse(rec.permissions) : rec.permissions || {};
-      const row = {
-        user_id: rec.user_id || authId,
-        auth_user_id: rec.auth_user_id || authId,
-        email: rec.email || '',
-        name: rec.name || '',
-        role: rec.role || 'authenticated',
-        organization_id: rec.organization_id || null,
-        is_active: rec.is_active === 1 || rec.is_active === true || rec.is_active === undefined,
-        is_org_admin: rec.is_org_admin === 1 || rec.is_org_admin === true,
-        is_super_admin: rec.is_super_admin === 1 || rec.is_super_admin === true,
-        permissions: perms,
-        has_inventory_access: rec.has_inventory_access === 1 || rec.has_inventory_access === true,
-        can_manage_products: rec.can_manage_products === 1 || rec.can_manage_products === true,
-        can_view_reports: rec.can_view_reports === 1 || rec.can_view_reports === true,
-        can_manage_users: rec.can_manage_users === 1 || rec.can_manage_users === true,
-        can_manage_orders: rec.can_manage_orders === 1 || rec.can_manage_orders === true,
-        can_access_pos: rec.can_access_pos === 1 || rec.can_access_pos === true,
-        can_manage_settings: rec.can_manage_settings === 1 || rec.can_manage_settings === true,
-      };
-      return parseUnifiedRow(row);
-    } catch {
-      return null;
+      
+      // استخدام upsert بدلاً من query للإدراج/التحديث
+      if (window.electronAPI?.db) {
+        const data = {
+          id,
+          auth_user_id: perm.auth_user_id,
+          user_id: perm.user_id,
+          email: perm.email,
+          name: perm.name,
+          role: perm.role,
+          organization_id: perm.organization_id || null,
+          is_active: perm.is_active ? 1 : 0,
+          is_org_admin: perm.is_org_admin ? 1 : 0,
+          is_super_admin: perm.is_super_admin ? 1 : 0,
+          permissions: JSON.stringify(perm.permissions || {}),
+          has_inventory_access: perm.has_inventory_access ? 1 : 0,
+          can_manage_products: perm.can_manage_products ? 1 : 0,
+          can_view_reports: perm.can_view_reports ? 1 : 0,
+          can_manage_users: perm.can_manage_users ? 1 : 0,
+          can_manage_orders: perm.can_manage_orders ? 1 : 0,
+          can_access_pos: perm.can_access_pos ? 1 : 0,
+          can_manage_settings: perm.can_manage_settings ? 1 : 0,
+          created_at: now,
+          updated_at: now,
+          last_updated: now
+        };
+        
+        const result = await window.electronAPI.db.upsert('user_permissions', data);
+        console.log('[PermissionsContext] Saved to SQLite', { 
+          success: result.success, 
+          changes: result.changes,
+          permCount: Object.keys(perm.permissions || {}).length 
+        });
+        
+        if (!result.success) {
+          console.error('[PermissionsContext] Failed to save:', result.error);
+        }
+      }
+    } catch (err) {
+      console.error('[PermissionsContext] Failed to save to SQLite:', err);
     }
   }, []);
+
+  // استخدام useRef للاحتفاظ بالقيم الديناميكية لمنع Stale Closure
+  const organizationIdRef = useRef<string | null>(null);
+
+  // تحديث ref عند تغيير المؤسسة
+  useEffect(() => {
+    const orgId = localStorage.getItem('currentOrganizationId') || localStorage.getItem('bazaar_organization_id');
+    organizationIdRef.current = orgId;
+  }, []);
+
+  // إضافة دالة مساعدة للحصول على orgId الحالي
+  const getCurrentOrgId = useCallback((): string | null => {
+    // محاولة الحصول من ref أولاً
+    if (organizationIdRef.current) {
+      return organizationIdRef.current;
+    }
+    // Fallback لـ localStorage
+    const orgId = localStorage.getItem('currentOrganizationId') || localStorage.getItem('bazaar_organization_id');
+    organizationIdRef.current = orgId;
+    return orgId;
+  }, []);
+
+  const loadLocal = useCallback(async (authId?: string, forceOrgId?: string | null): Promise<UnifiedPermissionsData | null> => {
+    try {
+      if (!authId) return null;
+
+      // استخدام SQLite API مباشرة
+      if (window.electronAPI?.db) {
+        // استخدام forceOrgId إذا تم تمريره، وإلا استخدام getCurrentOrgId
+        const orgId = forceOrgId !== undefined ? forceOrgId : getCurrentOrgId();
+
+        let sql = 'SELECT * FROM user_permissions WHERE auth_user_id = ?';
+        const params: any[] = [authId];
+
+        if (orgId) {
+          sql += ' AND organization_id = ?';
+          params.push(orgId);
+        }
+
+        sql += ' LIMIT 1';
+
+        const result = await window.electronAPI.db.queryOne(sql, params);
+        const rec = result.data;
+
+        if (!rec) {
+          console.log('[PermissionsContext] No permissions found in SQLite', { authId, orgId });
+          return null;
+        }
+
+        const perms = typeof rec.permissions === 'string' ? JSON.parse(rec.permissions) : rec.permissions || {};
+        const row = {
+          user_id: rec.user_id || authId,
+          auth_user_id: rec.auth_user_id || authId,
+          email: rec.email || '',
+          name: rec.name || '',
+          role: rec.role || 'authenticated',
+          organization_id: rec.organization_id || null,
+          is_active: rec.is_active === 1 || rec.is_active === true || rec.is_active === undefined,
+          is_org_admin: rec.is_org_admin === 1 || rec.is_org_admin === true,
+          is_super_admin: rec.is_super_admin === 1 || rec.is_super_admin === true,
+          permissions: perms,
+          has_inventory_access: rec.has_inventory_access === 1 || rec.has_inventory_access === true,
+          can_manage_products: rec.can_manage_products === 1 || rec.can_manage_products === true,
+          can_view_reports: rec.can_view_reports === 1 || rec.can_view_reports === true,
+          can_manage_users: rec.can_manage_users === 1 || rec.can_manage_users === true,
+          can_manage_orders: rec.can_manage_orders === 1 || rec.can_manage_orders === true,
+          can_access_pos: rec.can_access_pos === 1 || rec.can_access_pos === true,
+          can_manage_settings: rec.can_manage_settings === 1 || rec.can_manage_settings === true,
+        };
+
+        console.log('[PermissionsContext] Loaded from SQLite', { permCount: Object.keys(perms).length, role: row.role });
+        return parseUnifiedRow(row);
+      }
+
+      return null;
+    } catch (err) {
+      console.error('[PermissionsContext] Failed to load from SQLite:', err);
+      return null;
+    }
+  }, [getCurrentOrgId]);
 
   const fetchUnified = useCallback(async () => {
     if (fetchingRef.current) return;
@@ -196,11 +263,28 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
             role: saved.userProfile.role,
             organization_id: saved.userProfile.organization_id,
             is_active: true,
-            is_org_admin: saved.userProfile.role === 'org_admin',
+            is_org_admin: ['org_admin', 'admin', 'owner'].includes(saved.userProfile.role as any),
             is_super_admin: saved.userProfile.role === 'super_admin',
             permissions: saved.userProfile.permissions || {}
           });
           setData(fallback);
+          try {
+            // حفظ محلي لضمان توفره لاحقاً
+            if (fallback) {
+              await saveLocal(fallback);
+              const savedUserData = loadUserDataFromStorage();
+              if (savedUserData.userProfile) {
+                const updatedProfile = {
+                  ...savedUserData.userProfile,
+                  permissions: fallback.permissions,
+                  is_org_admin: fallback.is_org_admin,
+                  is_super_admin: fallback.is_super_admin,
+                  role: fallback.role || savedUserData.userProfile.role
+                } as any;
+                localStorage.setItem('userprofile', JSON.stringify(updatedProfile));
+              }
+            }
+          } catch {}
           setReady(true);
           setError(null);
           return;
@@ -221,6 +305,12 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const row = Array.isArray(rows) ? rows[0] : rows;
       const parsed = parseUnifiedRow(row);
 
+      // ✅ التحقق من صحة البيانات قبل المعالجة
+      if (!parsed || !parsed.auth_user_id) {
+        console.warn('[PermissionsContext] No valid data received from server', { row, parsed });
+        throw new Error('No valid permissions data received');
+      }
+
       if (parsed?.is_org_admin || parsed?.is_super_admin) {
         parsed.has_inventory_access = true;
         parsed.can_manage_products = true;
@@ -236,7 +326,26 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       }
 
       setData(parsed);
-      try { await saveLocal(parsed); } catch {}
+      try { 
+        await saveLocal(parsed); 
+        // حفظ الصلاحيات في localStorage أيضاً لضمان توفرها عند إعادة التحميل
+        const savedUserData = loadUserDataFromStorage();
+        if (savedUserData.userProfile && parsed) {
+          const updatedProfile = {
+            ...savedUserData.userProfile,
+            permissions: parsed.permissions,
+            is_org_admin: parsed.is_org_admin,
+            is_super_admin: parsed.is_super_admin,
+            role: parsed.role || savedUserData.userProfile.role
+          } as any;
+          localStorage.setItem('userprofile', JSON.stringify(updatedProfile));
+          console.log('[PermissionsContext] Saved permissions to localStorage', {
+            permissionsCount: Object.keys(parsed.permissions || {}).length,
+            isOrgAdmin: parsed.is_org_admin,
+            role: parsed.role
+          });
+        }
+      } catch {}
       cachedValue = { data: parsed, ts: Date.now() };
       setReady(true);
       setError(null);
@@ -271,7 +380,7 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
           role: fallbackProfile?.role || (user?.user_metadata as any)?.role || user?.role || 'authenticated',
           organization_id: fallbackProfile?.organization_id || (user?.user_metadata as any)?.organization_id || null,
           is_active: true,
-          is_org_admin: Boolean(fallbackProfile?.role === 'org_admin'),
+          is_org_admin: Boolean(['org_admin', 'admin', 'owner'].includes((fallbackProfile?.role as any) || '')),
           is_super_admin: Boolean(fallbackProfile?.role === 'super_admin'),
           has_inventory_access: permissions.viewInventory || false,
           can_manage_products: permissions.manageProducts || false,
@@ -283,6 +392,20 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
           permissions: permissions,
         };
         setData(fallback);
+        try {
+          await saveLocal(fallback);
+          const savedUserData = loadUserDataFromStorage();
+          if (savedUserData.userProfile) {
+            const updatedProfile = {
+              ...savedUserData.userProfile,
+              permissions: fallback.permissions,
+              is_org_admin: fallback.is_org_admin,
+              is_super_admin: fallback.is_super_admin,
+              role: fallback.role || savedUserData.userProfile.role
+            } as any;
+            localStorage.setItem('userprofile', JSON.stringify(updatedProfile));
+          }
+        } catch {}
         cachedValue = null;
         setReady(true);
         if (isNetworkError(e)) {
@@ -317,6 +440,11 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
     
     if (data.is_org_admin) {
+      return true;
+    }
+    
+    // دعم الدور الإداري/المالك كصلاحية كاملة للتوافق مع PermissionGuard
+    if (data.role === 'admin' || data.role === 'owner') {
       return true;
     }
     

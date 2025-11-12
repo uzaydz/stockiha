@@ -446,6 +446,69 @@ const electronAPI = {
       return ipcRenderer.invoke('db:restore', backupPath);
     },
 
+    // ====================================================================
+    // 🔒 Conflict Resolution API
+    // ====================================================================
+
+    /**
+     * تسجيل تضارب
+     * @param {Object} conflictEntry - بيانات التضارب
+     */
+    logConflict: (conflictEntry) => {
+      if (typeof conflictEntry !== 'object') {
+        throw new Error('Conflict entry must be an object');
+      }
+      return ipcRenderer.invoke('db:log-conflict', conflictEntry);
+    },
+
+    /**
+     * جلب سجل التضاربات لكيان معين
+     * @param {string} entityType - نوع الكيان
+     * @param {string} entityId - معرف الكيان
+     */
+    getConflictHistory: (entityType, entityId) => {
+      if (typeof entityType !== 'string' || typeof entityId !== 'string') {
+        throw new Error('Entity type and ID must be strings');
+      }
+      return ipcRenderer.invoke('db:get-conflict-history', entityType, entityId);
+    },
+
+    /**
+     * جلب التضاربات مع فلترة
+     * @param {string} organizationId - معرف المنظمة
+     * @param {Object} options - خيارات الفلترة
+     */
+    getConflicts: (organizationId, options = {}) => {
+      if (typeof organizationId !== 'string') {
+        throw new Error('Organization ID must be a string');
+      }
+      return ipcRenderer.invoke('db:get-conflicts', organizationId, options);
+    },
+
+    /**
+     * إحصائيات التضاربات
+     * @param {string} organizationId - معرف المنظمة
+     * @param {string} dateFrom - تاريخ البداية
+     * @param {string} dateTo - تاريخ النهاية
+     */
+    getConflictStatistics: (organizationId, dateFrom, dateTo) => {
+      if (typeof organizationId !== 'string' || typeof dateFrom !== 'string' || typeof dateTo !== 'string') {
+        throw new Error('Invalid parameters for conflict statistics');
+      }
+      return ipcRenderer.invoke('db:get-conflict-statistics', organizationId, dateFrom, dateTo);
+    },
+
+    /**
+     * حذف التضاربات القديمة
+     * @param {number} daysToKeep - عدد الأيام للاحتفاظ
+     */
+    cleanupOldConflicts: (daysToKeep = 90) => {
+      if (typeof daysToKeep !== 'number' || daysToKeep < 0) {
+        throw new Error('Days to keep must be a positive number');
+      }
+      return ipcRenderer.invoke('db:cleanup-old-conflicts', daysToKeep);
+    },
+
     // إغلاق قاعدة البيانات
     close: () => {
       return ipcRenderer.invoke('db:close');

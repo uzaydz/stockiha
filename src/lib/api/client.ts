@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { ConnectivityService } from '@/lib/connectivity/ConnectivityService';
 import { toast } from '@/components/ui/use-toast';
 
 // استخدام عنوان Supabase API كبديل إذا لم يتم توفير VITE_API_BASE_URL
@@ -25,6 +26,18 @@ export const apiClient = axios.create({
 // إضافة معترضات لمعالجة الأخطاء بشكل موحد
 apiClient.interceptors.request.use(
   (config) => {
+    // إيقاف الطلبات نهائياً أثناء الأوفلاين لتجنّب ضجيج الشبكة
+    try {
+      const isNavOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
+      const isConnOffline = (() => {
+        try { return ConnectivityService && !ConnectivityService.isOnline(); } catch { return false; }
+      })();
+      if (isNavOffline || isConnOffline) {
+        const err: any = new Error('offline');
+        err.__offline = true;
+        return Promise.reject(err);
+      }
+    } catch {}
 
     // إضافة التوكن المناسب استناداً إلى نوع الواجهة
     if (isSupabaseUrl) {
@@ -104,13 +117,14 @@ apiClient.interceptors.response.use(
           });
       }
     } else {
-      
-      // خطأ في الاتصال بالخادم
-      toast({
-        title: 'خطأ في الاتصال',
-        description: 'فشل الاتصال بالخادم. الرجاء التحقق من اتصالك بالإنترنت',
-        variant: 'destructive',
-      });
+      // أخطاء بدون استجابة (قد تكون بسبب الأوفلاين أو إلغاء)
+      if (!error?.__offline) {
+        toast({
+          title: 'خطأ في الاتصال',
+          description: 'فشل الاتصال بالخادم. الرجاء التحقق من اتصالك بالإنترنت',
+          variant: 'destructive',
+        });
+      }
     }
     
     return Promise.reject(error);

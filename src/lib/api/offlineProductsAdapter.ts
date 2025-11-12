@@ -60,7 +60,29 @@ export const saveProductLocally = async (product: Product, synced: boolean = tru
     barcode_digits: (product as any).barcode ? String((product as any).barcode).replace(/\D+/g, '') : '',
     category_id: (product as any).category_id || (product as any).category?.id || null
   };
+
+  // 🖼️ Log image data for debugging
+  if ((product as any).thumbnail_image || (product as any).images) {
+    console.log('🖼️ [saveProductLocally] Product INPUT has images:', {
+      id: product.id,
+      name: (product as any).name,
+      thumbnail_image: (product as any).thumbnail_image,
+      images: Array.isArray((product as any).images) ? (product as any).images.length : (product as any).images
+    });
+    console.log('🖼️ [saveProductLocally] localProduct BEFORE save:', {
+      id: localProduct.id,
+      has_thumbnail_image: !!(localProduct as any).thumbnail_image,
+      thumbnail_image: (localProduct as any).thumbnail_image,
+      has_images: !!(localProduct as any).images
+    });
+  }
+
   await inventoryDB.products.put(localProduct as any);
+
+  if ((product as any).thumbnail_image || (product as any).images) {
+    console.log('🖼️ [saveProductLocally] ✅ Product saved to DB with images');
+  }
+
   return localProduct;
 };
 
@@ -95,6 +117,20 @@ export const bulkSaveProductsLocally = async (products: Product[], synced: boole
     barcode_digits: (p as any).barcode ? String((p as any).barcode).replace(/\D+/g, '') : '',
     category_id: (p as any).category_id || (p as any).category?.id || null
   }));
+
+  // 🖼️ Log products with images
+  const productsWithImages = locals.filter(p => (p as any).thumbnail_image);
+  if (productsWithImages.length > 0) {
+    console.log(`🖼️ [bulkSaveProductsLocally] Saving ${productsWithImages.length}/${products.length} products with images`);
+    console.log('🖼️ [bulkSaveProductsLocally] First product with image:', {
+      id: productsWithImages[0].id,
+      name: (productsWithImages[0] as any).name,
+      thumbnail_image: (productsWithImages[0] as any).thumbnail_image
+    });
+  } else {
+    console.log(`⚠️ [bulkSaveProductsLocally] No products with images found in ${products.length} products`);
+  }
+
   await inventoryDB.transaction('rw', inventoryDB.products, async () => {
     await inventoryDB.products.bulkPut(locals as any[]);
   });
@@ -403,18 +439,44 @@ export async function getLocalProductsPage(
     sortOrder = 'ASC'
   } = options;
 
-  // الحالة الافتراضية: ترتيب بالاسم باستخدام فهرس [organization_id+name_lower]
+  // الحالة الافتراضية: ترتيب بالاسم
   if (!categoryId || categoryId === 'all') {
-    let coll = inventoryDB.products
-      .where('[organization_id+name_lower]')
-      .between([organizationId, ''], [organizationId, '\uffff']);
-    if (!includeInactive) {
-      coll = coll.and((p: any) => p.is_active !== false);
+    console.log('📦 [getLocalProductsPage] Querying products...', { organizationId, offset, limit, includeInactive });
+
+    try {
+      // استخدام فهرس organization_id فقط (أكثر موثوقية)
+      const baseQuery = inventoryDB.products
+        .where('organization_id')
+        .equals(organizationId);
+
+      // Get all products
+      let allProducts = await baseQuery.toArray();
+      console.log('📦 [getLocalProductsPage] All products fetched:', { count: allProducts.length, first: allProducts[0] });
+
+      // Filter inactive if needed
+      if (!includeInactive) {
+        allProducts = allProducts.filter((p: any) => p.is_active !== false);
+      }
+
+      const total = allProducts.length;
+      console.log('📦 [getLocalProductsPage] After filtering:', { count: total });
+
+      // Sort by name manually
+      const sorted = allProducts.sort((a: any, b: any) => {
+        const nameA = (a.name || '').toLowerCase();
+        const nameB = (b.name || '').toLowerCase();
+        return nameA.localeCompare(nameB);
+      });
+
+      // Apply offset and limit
+      const slice = sorted.slice(offset, offset + limit);
+      console.log('📦 [getLocalProductsPage] After slice:', { count: slice.length, offset, limit });
+
+      return { products: slice as any, total };
+    } catch (error) {
+      console.error('❌ [getLocalProductsPage] Error:', error);
+      return { products: [], total: 0 };
     }
-    const total = await coll.count();
-    const slice = await coll.offset(offset).limit(limit).toArray();
-    // لا نغير الترتيب كي نحافظ على ترتيب الفهرس
-    return { products: slice as any, total };
   }
 
   // عند تحديد فئة: استخدام فهرس مرتب بالاسم داخل الفئة عند فرز الاسم

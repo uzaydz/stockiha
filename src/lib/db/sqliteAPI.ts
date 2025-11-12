@@ -24,10 +24,11 @@ export const isElectron = (): boolean => {
  * فحص إذا كان SQLite DB API متاح
  */
 export const isSQLiteAvailable = (): boolean => {
+  const w: any = typeof window !== 'undefined' ? (window as any) : undefined;
   return isElectron() &&
-         typeof window !== 'undefined' &&
-         window.electronAPI?.db !== undefined &&
-         typeof window.electronAPI.db.initialize === 'function';
+         w &&
+         w.electronAPI?.db !== undefined &&
+         typeof w.electronAPI.db.initialize === 'function';
 };
 
 /**
@@ -36,6 +37,13 @@ export const isSQLiteAvailable = (): boolean => {
 class SQLiteDatabaseAPI {
   private isInitialized = false;
   private currentOrganizationId: string | null = null;
+  // منع التهيئة المتكررة والطلبات المتزامنة لنفس المؤسسة
+  private initPromises: Map<string, Promise<{ success: boolean; path?: string; error?: string }>> = new Map();
+  private lastInitResultByOrg: Map<string, { success: boolean; path?: string; error?: string }> = new Map();
+  // Use an any-typed accessor to avoid TS complaints about the preload-exposed API shape
+  private get db(): any {
+    return (window as any)?.electronAPI?.db;
+  }
 
   /**
    * تهيئة قاعدة البيانات
@@ -52,26 +60,44 @@ class SQLiteDatabaseAPI {
     if (!isSQLiteAvailable()) {
       const error = 'SQLite DB API not available. window.electronAPI.db is undefined. This usually means the Electron preload script has not exposed the db API yet.';
       console.error('[SQLite API]', error);
-      console.error('[SQLite API] window.electronAPI:', window.electronAPI);
+      console.error('[SQLite API] window.electronAPI:', (window as any).electronAPI);
       return { success: false, error };
     }
 
-    try {
-      const result = await window.electronAPI!.db.initialize(organizationId);
-
-      if (result.success) {
-        this.isInitialized = true;
-        this.currentOrganizationId = organizationId;
-        console.log(`[SQLite API] Database initialized for org: ${organizationId}`, result);
-      } else {
-        console.error('[SQLite API] Initialize returned success=false:', result.error);
-      }
-
-      return result;
-    } catch (error: any) {
-      console.error('[SQLite API] Initialize failed with exception:', error);
-      return { success: false, error: error.message || 'Unknown error' };
+    // إذا كانت القاعدة مهيئة بالفعل لنفس المؤسسة، أعد النتيجة المخزنة
+    if (this.isInitialized && this.currentOrganizationId === organizationId) {
+      const cached = this.lastInitResultByOrg.get(organizationId);
+      return cached || { success: true };
     }
+
+    // منع التهيئة المتزامنة لنفس المؤسسة
+    if (this.initPromises.has(organizationId)) {
+      return this.initPromises.get(organizationId)!;
+    }
+
+    const p = (async () => {
+      try {
+        const result = await this.db.initialize(organizationId);
+        if (result.success) {
+          this.isInitialized = true;
+          this.currentOrganizationId = organizationId;
+          this.lastInitResultByOrg.set(organizationId, result);
+          try { console.log(`[SQLite API] Database initialized for org: ${organizationId}`, result); } catch {}
+        } else {
+          try { console.error('[SQLite API] Initialize returned success=false:', result.error); } catch {}
+        }
+        return result;
+      } catch (error: any) {
+        try { console.error('[SQLite API] Initialize failed with exception:', error); } catch {}
+        return { success: false, error: error.message || 'Unknown error' };
+      } finally {
+        // إزالة الوعد من الخريطة بعد اكتماله
+        this.initPromises.delete(organizationId);
+      }
+    })();
+
+    this.initPromises.set(organizationId, p);
+    return p;
   }
 
   /**
@@ -91,7 +117,7 @@ class SQLiteDatabaseAPI {
    */
   async upsertProduct(product: any): Promise<{ success: boolean; changes?: number; error?: string }> {
     this.ensureInitialized();
-    return window.electronAPI!.db.upsertProduct(product);
+    return this.db.upsertProduct(product);
   }
 
   /**
@@ -103,7 +129,22 @@ class SQLiteDatabaseAPI {
     organizationId?: string;
   }): Promise<{ success: boolean; data: any[]; error?: string }> {
     this.ensureInitialized();
-    return window.electronAPI!.db.searchProducts(query, {
+    return this.db.searchProducts(query, {
+      ...options,
+      organizationId: options?.organizationId || this.currentOrganizationId
+    });
+  }
+
+  /**
+   * بحث عام باستخدام FTS (حسب ما هو مفعّل في sqliteManager)
+   */
+  async search(
+    table: string,
+    query: string,
+    options?: { limit?: number; offset?: number; organizationId?: string }
+  ): Promise<{ success: boolean; data: any[]; error?: string }> {
+    this.ensureInitialized();
+    return this.db.search(table, query, {
       ...options,
       organizationId: options?.organizationId || this.currentOrganizationId
     });
@@ -114,7 +155,7 @@ class SQLiteDatabaseAPI {
    */
   async query(sql: string, params: any = {}): Promise<{ success: boolean; data: any[]; error?: string }> {
     this.ensureInitialized();
-    return window.electronAPI!.db.query(sql, params);
+    return this.db.query(sql, params);
   }
 
   /**
@@ -122,7 +163,15 @@ class SQLiteDatabaseAPI {
    */
   async queryOne(sql: string, params: any = {}): Promise<{ success: boolean; data: any; error?: string }> {
     this.ensureInitialized();
-    return window.electronAPI!.db.queryOne(sql, params);
+    return this.db.queryOne(sql, params);
+  }
+
+  /**
+   * تنفيذ عمليات UPDATE/INSERT/DELETE
+   */
+  async execute(sql: string, params: any = {}): Promise<{ success: boolean; changes?: number; error?: string; lastInsertRowid?: number }> {
+    this.ensureInitialized();
+    return this.db.execute(sql, params);
   }
 
   /**
@@ -130,7 +179,7 @@ class SQLiteDatabaseAPI {
    */
   async upsert(table: string, data: any): Promise<{ success: boolean; changes?: number; error?: string }> {
     this.ensureInitialized();
-    return window.electronAPI!.db.upsert(table, data);
+    return this.db.upsert(table, data);
   }
 
   /**
@@ -138,7 +187,7 @@ class SQLiteDatabaseAPI {
    */
   async delete(table: string, id: string): Promise<{ success: boolean; changes?: number; error?: string }> {
     this.ensureInitialized();
-    return window.electronAPI!.db.delete(table, id);
+    return this.db.delete(table, id);
   }
 
   /**
@@ -146,7 +195,7 @@ class SQLiteDatabaseAPI {
    */
   async addPOSOrder(order: any, items: any[]): Promise<{ success: boolean; error?: string }> {
     this.ensureInitialized();
-    return window.electronAPI!.db.addPOSOrder(order, items);
+    return this.db.addPOSOrder(order, items);
   }
 
   /**
@@ -158,7 +207,7 @@ class SQLiteDatabaseAPI {
     organizationId?: string
   ): Promise<{ success: boolean; data?: any; error?: string }> {
     this.ensureInitialized();
-    return window.electronAPI!.db.getStatistics(
+    return this.db.getStatistics(
       organizationId || this.currentOrganizationId!,
       dateFrom,
       dateTo
@@ -175,7 +224,7 @@ class SQLiteDatabaseAPI {
     error?: string;
   }> {
     this.ensureInitialized();
-    return window.electronAPI!.db.cleanupOldData(daysToKeep);
+    return this.db.cleanupOldData(daysToKeep);
   }
 
   /**
@@ -189,7 +238,7 @@ class SQLiteDatabaseAPI {
     error?: string;
   }> {
     this.ensureInitialized();
-    return window.electronAPI!.db.vacuum();
+    return this.db.vacuum();
   }
 
   /**
@@ -197,7 +246,7 @@ class SQLiteDatabaseAPI {
    */
   async getSize(): Promise<{ success: boolean; size?: number; error?: string }> {
     this.ensureInitialized();
-    return window.electronAPI!.db.getSize();
+    return this.db.getSize();
   }
 
   /**
@@ -205,21 +254,198 @@ class SQLiteDatabaseAPI {
    */
   async backup(destinationPath: string): Promise<{ success: boolean; path?: string; error?: string }> {
     this.ensureInitialized();
-    return window.electronAPI!.db.backup(destinationPath);
+    return this.db.backup(destinationPath);
   }
 
   /**
    * استعادة من نسخة احتياطية
    */
   async restore(backupPath: string): Promise<{ success: boolean; error?: string }> {
-    return window.electronAPI!.db.restore(backupPath);
+    return this.db.restore(backupPath);
+  }
+
+  /**
+   * Cache helpers: app_init_cache
+   */
+  async setAppInitCache(params: {
+    id: string; // e.g. app-init:{userId}:{organizationId}
+    userId?: string | null;
+    organizationId?: string | null;
+    data: any;
+  }): Promise<{ success: boolean; changes?: number; error?: string }> {
+    this.ensureInitialized();
+    const now = new Date().toISOString();
+    return this.db.upsert('app_init_cache', {
+      id: params.id,
+      user_id: params.userId ?? null,
+      organization_id: params.organizationId ?? null,
+      data: params.data,
+      created_at: now,
+      updated_at: now
+    });
+  }
+
+  async getAppInitCacheById(id: string): Promise<{ success: boolean; data?: any | null; error?: string }> {
+    this.ensureInitialized();
+    const res = await this.db.queryOne('SELECT data FROM app_init_cache WHERE id = ?', [id]);
+    if (!res.success) return { success: false, error: res.error };
+    const raw = res.data?.data;
+    try {
+      // data may already be an object depending on serialization path
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      return { success: true, data: parsed ?? null };
+    } catch {
+      return { success: true, data: raw ?? null };
+    }
+  }
+
+  async getLatestAppInitCacheByUserOrg(
+    userId?: string | null,
+    organizationId?: string | null
+  ): Promise<{ success: boolean; data?: any | null; error?: string }> {
+    this.ensureInitialized();
+    const res = await this.db.queryOne(
+      `SELECT data FROM app_init_cache
+       WHERE (user_id IS ? OR user_id = ?) AND (organization_id IS ? OR organization_id = ?)
+       ORDER BY updated_at DESC LIMIT 1`,
+      [userId ?? null, userId ?? null, organizationId ?? null, organizationId ?? null]
+    );
+    if (!res.success) return { success: false, error: res.error };
+    const raw = res.data?.data;
+    try {
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      return { success: true, data: parsed ?? null };
+    } catch {
+      return { success: true, data: raw ?? null };
+    }
+  }
+
+  /**
+   * Cache helpers: pos_offline_cache
+   */
+  async setPOSOfflineCache(params: {
+    id: string; // cache key
+    organizationId: string;
+    page: number;
+    limit: number;
+    search?: string | null;
+    categoryId?: string | null;
+    data: any; // CompletePOSResponse
+  }): Promise<{ success: boolean; changes?: number; error?: string }> {
+    this.ensureInitialized();
+    const now = new Date().toISOString();
+    return this.db.upsert('pos_offline_cache', {
+      id: params.id,
+      organization_id: params.organizationId,
+      page: params.page,
+      page_limit: params.limit,
+      search: params.search ?? null,
+      category_id: params.categoryId ?? null,
+      data: params.data,
+      timestamp: now
+    });
+  }
+
+  async getPOSOfflineCacheById(id: string): Promise<{ success: boolean; data?: any | null; error?: string }> {
+    this.ensureInitialized();
+    const res = await this.db.queryOne('SELECT data FROM pos_offline_cache WHERE id = ?', [id]);
+    if (!res.success) return { success: false, error: res.error };
+    const raw = res.data?.data;
+    try {
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      return { success: true, data: parsed ?? null };
+    } catch {
+      return { success: true, data: raw ?? null };
+    }
+  }
+
+  // ========================================
+  // 🔒 Conflict Resolution API
+  // ========================================
+
+  /**
+   * تسجيل تضارب
+   */
+  async logConflict(conflictEntry: {
+    id: string;
+    entityType: 'product' | 'customer' | 'invoice' | 'order';
+    entityId: string;
+    localVersion: any;
+    serverVersion: any;
+    conflictFields: string[];
+    severity: number;
+    resolution: 'server_wins' | 'client_wins' | 'merge' | 'manual';
+    resolvedVersion: any;
+    resolvedBy?: string;
+    detectedAt: string;
+    resolvedAt: string;
+    userId: string;
+    organizationId: string;
+    localTimestamp: string;
+    serverTimestamp: string;
+    notes?: string;
+  }): Promise<{ success: boolean; changes?: number; error?: string }> {
+    this.ensureInitialized();
+    return this.db.logConflict(conflictEntry);
+  }
+
+  /**
+   * جلب سجل التضاربات لكيان معين
+   */
+  async getConflictHistory(
+    entityType: string,
+    entityId: string
+  ): Promise<{ success: boolean; data: any[]; error?: string }> {
+    this.ensureInitialized();
+    return this.db.getConflictHistory(entityType, entityId);
+  }
+
+  /**
+   * جلب التضاربات مع فلترة
+   */
+  async getConflicts(
+    organizationId: string,
+    options?: {
+      entityType?: string;
+      resolution?: string;
+      minSeverity?: number;
+      dateFrom?: string;
+      dateTo?: string;
+      limit?: number;
+      offset?: number;
+    }
+  ): Promise<{ success: boolean; data: any[]; count: number; error?: string }> {
+    this.ensureInitialized();
+    return this.db.getConflicts(organizationId, options);
+  }
+
+  /**
+   * إحصائيات التضاربات
+   */
+  async getConflictStatistics(
+    organizationId: string,
+    dateFrom: string,
+    dateTo: string
+  ): Promise<{ success: boolean; data?: any; error?: string }> {
+    this.ensureInitialized();
+    return this.db.getConflictStatistics(organizationId, dateFrom, dateTo);
+  }
+
+  /**
+   * حذف التضاربات القديمة
+   */
+  async cleanupOldConflicts(
+    daysToKeep: number = 90
+  ): Promise<{ success: boolean; deleted?: number; error?: string }> {
+    this.ensureInitialized();
+    return this.db.cleanupOldConflicts(daysToKeep);
   }
 
   /**
    * إغلاق قاعدة البيانات
    */
   async close(): Promise<{ success: boolean; error?: string }> {
-    const result = await window.electronAPI!.db.close();
+    const result = await this.db.close();
     if (result.success) {
       this.isInitialized = false;
       this.currentOrganizationId = null;

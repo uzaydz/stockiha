@@ -73,6 +73,24 @@ function fixRetryAllowedPlugin(): Plugin {
   };
 }
 
+// Plugin to redirect use-sync-external-store to React 19 built-in
+function useSyncExternalStorePlugin(): Plugin {
+  return {
+    name: 'use-sync-external-store-redirect',
+    enforce: 'pre',
+    resolveId(id: string) {
+      if (
+        id === 'use-sync-external-store' ||
+        id === 'use-sync-external-store/shim' ||
+        id === 'use-sync-external-store/shim/with-selector'
+      ) {
+        return path.resolve(__dirname, './src/polyfills/use-sync-external-store.ts');
+      }
+      return null;
+    }
+  };
+}
+
 
 // Plugin لخدمة critical.css في التطوير
 function devCriticalCSSPlugin(): Plugin {
@@ -350,9 +368,12 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
       }
     },
     plugins: [
-      // Fix retry-allowed module first
+      // Redirect use-sync-external-store to React 19 polyfill - MUST be first
+      useSyncExternalStorePlugin(),
+
+      // Fix retry-allowed module
       fixRetryAllowedPlugin(),
-      
+
       // Content Type Plugin - يجب أن يكون أولاً لإصلاح مشاكل MIME
       contentTypePlugin(),
       // تم إزالة devStoreRewritePlugin - البناء يركز على الموقع الرئيسي فقط
@@ -558,7 +579,12 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
         // 🎯 تحسين للويب فقط - إزالة Node.js polyfills الثقيلة
         'react': path.resolve(__dirname, './node_modules/react'),
         'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
-        
+
+        // React 19 built-in hooks - redirect external package to our polyfill
+        'use-sync-external-store/shim/with-selector': path.resolve(__dirname, './src/polyfills/use-sync-external-store.ts'),
+        'use-sync-external-store/shim': path.resolve(__dirname, './src/polyfills/use-sync-external-store.ts'),
+        'use-sync-external-store': path.resolve(__dirname, './src/polyfills/use-sync-external-store.ts'),
+
         // ✅ polyfills أساسية للويب فقط
         'util': 'util',
         'buffer': 'buffer',
@@ -571,6 +597,7 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
         'lodash': 'lodash-es',
         // Force dayjs to resolve to the ESM build to retain default export semantics
         'dayjs$': path.resolve(__dirname, './node_modules/dayjs/esm/index.js'),
+        'es-toolkit/compat': path.resolve(__dirname, './src/shims/es-toolkit/compat'),
         // تم إزالة store build aliases - البناء يركز على الموقع الرئيسي فقط
         
         // 🎯 Lazy Loading Aliases - تحويل تلقائي للاستيرادات الثقيلة
@@ -893,14 +920,15 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
 
         // CJS-only modules - prebundled for proper default interop
         'is-retry-allowed',
-
-        // Core Polyfills (ضروري للتوافق)
-        'use-sync-external-store',
-        'use-sync-external-store/shim',
       ],
       
       // 🚨 استبعاد جميع المكتبات الثقيلة من التحسين المسبق
       exclude: [
+        // React 19 built-ins (no longer needed as external packages)
+        'use-sync-external-store',
+        'use-sync-external-store/shim',
+        'use-sync-external-store/shim/with-selector',
+
         // lucide-react كبير في dev، نمنعه من prebundle ليُقسم عند الطلب
         'lucide-react',
         // Heavy Charts & Graphics (keep these for lazy loading)

@@ -6,7 +6,7 @@ import * as path from "path";
 
 export default defineConfig(({ command, mode }) => {
   const isDev = command === 'serve';
-  const isProd = mode === 'production';
+  const isProd = false; // إجبار وضع التطوير لرؤية جميع logs
   const env = loadEnv(mode, process.cwd(), '');
 
   return {
@@ -75,6 +75,20 @@ export default defineConfig(({ command, mode }) => {
         'react': path.resolve(__dirname, './node_modules/react'),
         'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
         'lodash': 'lodash-es',
+        'es-toolkit/compat': path.resolve(__dirname, './src/shims/es-toolkit/compat'),
+        // دعم eventemitter3 كـ default export عبر shim حتى لو تم استيراده مع مسار فرعي
+        'eventemitter3': path.resolve(__dirname, './src/shims/eventemitter3.ts'),
+        'eventemitter3/index': path.resolve(__dirname, './src/shims/eventemitter3.ts'),
+        'eventemitter3/index.js': path.resolve(__dirname, './src/shims/eventemitter3.ts'),
+        'eventemitter3/index.mjs': path.resolve(__dirname, './src/shims/eventemitter3.ts'),
+        // react-is: استخدم الحزمة الأصلية مباشرة لتفادي دوران alias
+        'use-sync-external-store/with-selector.js': path.resolve(__dirname, './src/polyfills/use-sync-external-store.ts'),
+        'use-sync-external-store/with-selector': path.resolve(__dirname, './src/polyfills/use-sync-external-store.ts'),
+        'use-sync-external-store/shim/with-selector.js': path.resolve(__dirname, './src/polyfills/use-sync-external-store.ts'),
+        'use-sync-external-store/shim/index.js': path.resolve(__dirname, './src/polyfills/use-sync-external-store.ts'),
+        'use-sync-external-store/shim/with-selector': path.resolve(__dirname, './src/polyfills/use-sync-external-store.ts'),
+        'use-sync-external-store/shim': path.resolve(__dirname, './src/polyfills/use-sync-external-store.ts'),
+        'use-sync-external-store': path.resolve(__dirname, './src/polyfills/use-sync-external-store.ts'),
         'dayjs$': path.resolve(__dirname, './node_modules/dayjs/esm/index.js')
       },
       dedupe: ['react', 'react-dom', 'react-router-dom'],
@@ -85,12 +99,12 @@ export default defineConfig(({ command, mode }) => {
     define: {
       __DESKTOP_APP__: true,
       __ELECTRON__: true,
-      'process.env.NODE_ENV': JSON.stringify(isDev ? 'development' : 'production'),
+      'process.env.NODE_ENV': JSON.stringify('development'), // دائماً development
       'process.env': JSON.stringify({
-        NODE_ENV: isDev ? 'development' : 'production'
+        NODE_ENV: 'development' // دائماً development
       }),
-      'import.meta.env.DEV': isDev,
-      'import.meta.env.PROD': isProd,
+      'import.meta.env.DEV': true, // دائماً true
+      'import.meta.env.PROD': false, // دائماً false
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL || 'https://wrnssatuvmumsczyldth.supabase.co'),
       'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndybnNzYXR1dm11bXNjenlsZHRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMyNTgxMTYsImV4cCI6MjA1ODgzNDExNn0.zBT3h3lXQgcFqzdpXARVfU9kwRLvNiQrSdAJwMdojYY'),
       'import.meta.env.VITE_API_URL': JSON.stringify(env.VITE_API_URL || '/api'),
@@ -99,25 +113,26 @@ export default defineConfig(({ command, mode }) => {
     
     build: {
       outDir: 'dist',
-      cssMinify: isProd,
+      cssMinify: false, // تعطيل CSS minify للتطبيق المكتبي
       assetsDir: 'assets',
       emptyOutDir: true,
-      sourcemap: isDev ? 'inline' : false,
+      sourcemap: true, // تفعيل sourcemap للتشخيص
       target: 'es2022',
-      minify: isProd ? 'terser' : false,
-      terserOptions: isProd ? {
-        compress: {
-          drop_console: true,
-          drop_debugger: true,
-          pure_funcs: ['console.log', 'console.info', 'console.debug']
-        },
-        mangle: {
-          safari10: true
-        },
-        format: {
-          comments: false
-        }
-      } : undefined,
+      minify: false, // تعطيل minify تماماً للتطبيق المكتبي لتجنب مشاكل initialization
+      // terserOptions تم تعطيلها لتجنب مشاكل في Electron
+      // terserOptions: isProd ? {
+      //   compress: {
+      //     drop_console: true,
+      //     drop_debugger: true,
+      //     pure_funcs: ['console.log', 'console.info', 'console.debug']
+      //   },
+      //   mangle: {
+      //     safari10: true
+      //   },
+      //   format: {
+      //     comments: false
+      //   }
+      // } : undefined,
       
       rollupOptions: {
         input: {
@@ -237,6 +252,8 @@ export default defineConfig(({ command, mode }) => {
         'react/jsx-runtime',
         'react-dom/client',
         'react-router-dom',
+        'react-is',
+        'react-redux',
         '@supabase/supabase-js',
         'clsx',
         'tailwind-merge',

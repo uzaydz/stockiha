@@ -6,7 +6,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { SubscriptionService } from '@/lib/subscription-service';
+import { getSecureNow, getLocalSubscription, toSubscriptionDataFromLocal } from '@/lib/license/licenseService';
+import { useOfflineStatus } from '@/hooks/useOfflineStatus';
 
 interface SubscriptionStatus {
   // معلومات الاشتراك
@@ -29,6 +30,7 @@ interface SubscriptionStatus {
 
 export const useSubscriptionStatus = () => {
   const { organization } = useAuth();
+  const { isOffline } = useOfflineStatus();
   const [status, setStatus] = useState<SubscriptionStatus>({
     hasActiveSubscription: false,
     planName: null,
@@ -51,6 +53,7 @@ export const useSubscriptionStatus = () => {
 
     try {
       setStatus(prev => ({ ...prev, isLoading: true, error: null }));
+      try { console.log('[TitlebarSubscription] fetch start', { orgId: organization.id }); } catch {}
 
       let subscriptionInfo = {
         hasActiveSubscription: false,
@@ -60,39 +63,65 @@ export const useSubscriptionStatus = () => {
         subscriptionStatus: null as 'active' | 'trial' | 'expired' | null,
       };
 
-      // 1. جلب معلومات الاشتراك باستخدام RPC
       try {
-        const { data: subData, error: subError } = await (supabase.rpc as any)('get_organization_subscription_details', {
-          org_id: organization.id
-        });
-
-        if (!subError && subData && subData.subscription_id) {
-          const endDate = new Date(subData.end_date);
-          const now = new Date();
-          const daysLeft = Math.max(0, Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
-
+        const secure = await getSecureNow(organization.id);
+        const localRow = await getLocalSubscription(organization.id);
+        if (localRow) {
+          const localData = toSubscriptionDataFromLocal(localRow, secure.secureNowMs) as any;
+          try {
+            console.log('[TitlebarSubscription] local', {
+              orgId: organization.id,
+              secureNowMs: secure.secureNowMs,
+              localRow: {
+                end_date: localRow.end_date,
+                trial_end_date: (localRow as any).trial_end_date,
+                grace_end_date: (localRow as any).grace_end_date,
+                status: localRow.status,
+                plan_id: localRow.plan_id
+              },
+              computed: {
+                status: localData.status,
+                plan: localData.plan_name,
+                days_left: localData.days_left,
+                end_iso: localData.end_date
+              }
+            });
+          } catch {}
           subscriptionInfo = {
-            hasActiveSubscription: true,
-            planName: subData.plan_name || 'غير محدد',
-            planCode: subData.plan_code || null,
-            daysRemaining: daysLeft,
-            subscriptionStatus: subData.status as 'active' | 'trial' | 'expired',
+            hasActiveSubscription: localData.status === 'active' || localData.status === 'trial',
+            planName: localData.plan_name || 'غير محدد',
+            planCode: localData.plan_code || null,
+            daysRemaining: Number(localData.days_left || 0),
+            subscriptionStatus: (localData.status === 'trial' ? 'trial' : (localData.status === 'active' ? 'active' : 'expired')) as 'active' | 'trial' | 'expired',
           };
-        } else {
-          // التحقق من الفترة التجريبية
-          const daysLeftInfo = await SubscriptionService.calculateTotalDaysLeft(organization);
-          if (daysLeftInfo.status === 'trial' && daysLeftInfo.trialDaysLeft > 0) {
+        } else if (!isOffline) {
+          const { data: subData, error: subError } = await (supabase.rpc as any)('get_organization_subscription_details', {
+            org_id: organization.id
+          });
+          if (!subError && subData && subData.subscription_id) {
+            const endDate = new Date(subData.end_date);
+            const now = new Date();
+            const daysLeft = Math.max(0, Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+            try {
+              console.log('[TitlebarSubscription] rpc', {
+                orgId: organization.id,
+                plan: subData.plan_name,
+                status: subData.status,
+                end_date: subData.end_date,
+                daysLeft
+              });
+            } catch {}
             subscriptionInfo = {
-              hasActiveSubscription: false,
-              planName: 'فترة تجريبية',
-              planCode: 'trial',
-              daysRemaining: daysLeftInfo.trialDaysLeft,
-              subscriptionStatus: 'trial',
+              hasActiveSubscription: true,
+              planName: subData.plan_name || 'غير محدد',
+              planCode: subData.plan_code || null,
+              daysRemaining: daysLeft,
+              subscriptionStatus: subData.status as 'active' | 'trial' | 'expired',
             };
           }
         }
       } catch (err) {
-        console.error('Error fetching subscription:', err);
+        console.error('Error building subscription from local/RPC:', err);
       }
 
       // 2. جلب معلومات حد الطلبات باستخدام RPC
@@ -103,30 +132,33 @@ export const useSubscriptionStatus = () => {
         remainingOrders: null as number | null,
       };
 
-      try {
-        const { data: limitData, error: limitError } = await (supabase.rpc as any)('check_online_orders_limit', {
-          p_organization_id: organization.id
-        });
-
-        if (!limitError && limitData && limitData.current_limit !== null) {
-          ordersInfo = {
-            hasOrdersLimit: true,
-            currentOrders: limitData.used_count || 0,
-            maxOrders: limitData.current_limit,
-            remainingOrders: limitData.remaining_count || 0,
-          };
+      if (!isOffline) {
+        try {
+          const { data: limitData, error: limitError } = await (supabase.rpc as any)('check_online_orders_limit', {
+            p_organization_id: organization.id
+          });
+          if (!limitError && limitData && limitData.current_limit !== null) {
+            ordersInfo = {
+              hasOrdersLimit: true,
+              currentOrders: limitData.used_count || 0,
+              maxOrders: limitData.current_limit,
+              remainingOrders: limitData.remaining_count || 0,
+            };
+          }
+        } catch (err) {
+          console.error('Error fetching orders limit:', err);
         }
-      } catch (err) {
-        console.error('Error fetching orders limit:', err);
       }
 
       // دمج المعلومات
-      setStatus({
+      const nextStatus = {
         ...subscriptionInfo,
         ...ordersInfo,
         isLoading: false,
         error: null,
-      });
+      };
+      try { console.log('[TitlebarSubscription] final', nextStatus); } catch {}
+      setStatus(nextStatus);
 
     } catch (err) {
       console.error('Error fetching subscription status:', err);
@@ -141,6 +173,16 @@ export const useSubscriptionStatus = () => {
   // تحديث البيانات عند تغيير المؤسسة
   useEffect(() => {
     fetchSubscriptionStatus();
+  }, [fetchSubscriptionStatus]);
+
+  useEffect(() => {
+    const handler = () => fetchSubscriptionStatus();
+    try {
+      window.addEventListener('subscriptionActivated', handler as EventListener);
+    } catch {}
+    return () => {
+      try { window.removeEventListener('subscriptionActivated', handler as EventListener); } catch {}
+    };
   }, [fetchSubscriptionStatus]);
 
   // تحديث دوري كل 5 دقائق

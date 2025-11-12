@@ -59,7 +59,7 @@ const getOrganizationIdFromMultipleSources = async (user: any, organization: any
         const { data: idData, error: idError } = await supabase
           .from('users')
           .select('organization_id')
-          .eq('id', user.id)
+          .eq('auth_user_id', user.id)
           .single();
 
         if (!idError && idData?.organization_id) {

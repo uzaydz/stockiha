@@ -194,7 +194,7 @@ const DesktopTitlebar: React.FC = () => {
                 title="SIRA – تتحدث لغة تجارتك"
               >
                 <img
-                  src="/images/selkia-logo.webp"
+                  src="./images/selkia-logo.webp"
                   alt="SIRA AI"
                   className="h-3.5 w-3.5 sm:h-4 sm:w-4 lg:h-5 lg:w-5 object-contain"
                 />

@@ -296,6 +296,8 @@ interface ProductCardProps {
 }
 
 function ProductCard({ item, onClick, isMobile = false }: ProductCardProps) {
+  const [imageError, setImageError] = React.useState(false);
+
   const statusColors = {
     'in-stock': 'bg-green-50 text-green-700 border-green-200',
     'low-stock': 'bg-amber-50 text-amber-700 border-amber-200',
@@ -310,6 +312,11 @@ function ProductCard({ item, onClick, isMobile = false }: ProductCardProps) {
 
   const stockStatus = (item.stock_status || 'in-stock') as 'in-stock' | 'low-stock' | 'out-of-stock';
 
+  // Reset error state when item changes
+  React.useEffect(() => {
+    setImageError(false);
+  }, [item.id]);
+
   return (
     <Card
       className="p-3 sm:p-4 transition-all hover:shadow-lg border"
@@ -318,11 +325,15 @@ function ProductCard({ item, onClick, isMobile = false }: ProductCardProps) {
       <div className="flex gap-3 sm:gap-4">
         {/* Product Image */}
         <div className="flex-shrink-0">
-          {item.thumbnail_image ? (
+          {item.thumbnail_image && !imageError ? (
             <img
               src={item.thumbnail_image}
               alt={item.name}
               className="h-20 w-20 sm:h-24 sm:w-24 rounded-lg object-cover border"
+              onError={() => {
+                console.log('🖼️ Image failed to load (offline?):', item.thumbnail_image);
+                setImageError(true);
+              }}
             />
           ) : (
             <div className="h-20 w-20 sm:h-24 sm:w-24 rounded-lg bg-primary/10 flex items-center justify-center border">

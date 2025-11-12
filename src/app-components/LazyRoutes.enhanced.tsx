@@ -114,6 +114,20 @@ export const Analytics = lazy(() =>
   })
 );
 
+// ============ ANALYTICS ENHANCED - NEW 100% PROFESSIONAL DASHBOARD ============
+export const AnalyticsEnhanced = lazy(() =>
+  import('../pages/dashboard/AnalyticsEnhanced').then(module => {
+    // Preload ALL dependencies for enhanced analytics
+    Promise.all([
+      import('recharts'),
+      import('@/lib/analytics/metrics'),
+      import('@/hooks/useAnalytics'),
+      import('@/components/analytics/enhanced')
+    ]).catch(() => {});
+    return module;
+  })
+);
+
 export const FinancialAnalytics = lazy(() =>
   import('../pages/FinancialAnalytics').then(module => {
     // Preload financial chart dependencies

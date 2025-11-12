@@ -51,6 +51,7 @@ export async function saveStaffPinOffline(args: {
 }): Promise<void> {
   const salt = randomSalt(16);
   const pin_hash = await hashPin(args.pin, salt);
+  const now = new Date().toISOString();
   const rec: LocalStaffPIN = {
     id: args.staffId,
     organization_id: args.organizationId,
@@ -58,10 +59,22 @@ export async function saveStaffPinOffline(args: {
     pin_hash,
     salt,
     permissions: args.permissions || null,
-    updated_at: new Date().toISOString()
+    is_active: true,
+    created_at: now,
+    updated_at: now
   };
-  // upsert
-  await inventoryDB.staffPins.put(rec);
+  
+  // استخدام SQLite في Electron أو Dexie في المتصفح
+  if (window.electronAPI?.db) {
+    const result = await window.electronAPI.db.upsert('staff_pins', rec);
+    console.log('[staffCredentials] Saved staff PIN to SQLite', { 
+      success: result.success, 
+      changes: result.changes,
+      staffId: args.staffId 
+    });
+  } else {
+    await inventoryDB.staffPins.put(rec);
+  }
 }
 
 export async function updateStaffPinOffline(args: {
@@ -71,15 +84,30 @@ export async function updateStaffPinOffline(args: {
 }): Promise<void> {
   const salt = randomSalt(16);
   const pin_hash = await hashPin(args.newPin, salt);
-  await inventoryDB.staffPins.put({
+  
+  let existingRec: any = null;
+  if (window.electronAPI?.db) {
+    const result = await window.electronAPI.db.queryOne('SELECT * FROM staff_pins WHERE id = ?', [args.staffId]);
+    existingRec = result.data;
+  } else {
+    existingRec = await inventoryDB.staffPins.get(args.staffId);
+  }
+  
+  const rec = {
     id: args.staffId,
     organization_id: args.organizationId,
-    staff_name: (await inventoryDB.staffPins.get(args.staffId))?.staff_name || '',
+    staff_name: existingRec?.staff_name || '',
     pin_hash,
     salt,
-    permissions: (await inventoryDB.staffPins.get(args.staffId))?.permissions || null,
+    permissions: existingRec?.permissions || null,
     updated_at: new Date().toISOString()
-  });
+  };
+  
+  if (window.electronAPI?.db) {
+    await window.electronAPI.db.upsert('staff_pins', rec);
+  } else {
+    await inventoryDB.staffPins.put(rec);
+  }
 }
 
 export async function verifyStaffPinOffline(args: {
@@ -87,7 +115,14 @@ export async function verifyStaffPinOffline(args: {
   pin: string;
 }): Promise<{ success: boolean; staff?: { id: string; staff_name: string; permissions?: any; organization_id: string } }>{
   try {
-    const matches = await inventoryDB.staffPins.where('organization_id').equals(args.organizationId).toArray();
+    let matches: any[] = [];
+    if (window.electronAPI?.db) {
+      const result = await window.electronAPI.db.query('SELECT * FROM staff_pins WHERE organization_id = ?', [args.organizationId]);
+      matches = result.data || [];
+    } else {
+      matches = await inventoryDB.staffPins.where('organization_id').equals(args.organizationId).toArray();
+    }
+    
     for (const rec of matches) {
       const computed = await hashPin(args.pin, rec.salt);
       if (computed === rec.pin_hash) {
@@ -95,7 +130,8 @@ export async function verifyStaffPinOffline(args: {
       }
     }
     return { success: false };
-  } catch {
+  } catch (err) {
+    console.error('[staffCredentials] verifyStaffPinOffline error:', err);
     return { success: false };
   }
 }
@@ -106,12 +142,26 @@ export async function updateStaffMetadataOffline(args: {
   staffName?: string;
   permissions?: any;
 }): Promise<void> {
-  const rec = await inventoryDB.staffPins.get(args.staffId);
+  let rec: any = null;
+  if (window.electronAPI?.db) {
+    const result = await window.electronAPI.db.queryOne('SELECT * FROM staff_pins WHERE id = ?', [args.staffId]);
+    rec = result.data;
+  } else {
+    rec = await inventoryDB.staffPins.get(args.staffId);
+  }
+  
   if (!rec || rec.organization_id !== args.organizationId) return;
-  await inventoryDB.staffPins.put({
+  
+  const updatedRec = {
     ...rec,
     staff_name: args.staffName ?? rec.staff_name,
     permissions: args.permissions ?? rec.permissions,
     updated_at: new Date().toISOString()
-  });
+  };
+  
+  if (window.electronAPI?.db) {
+    await window.electronAPI.db.upsert('staff_pins', updatedRec);
+  } else {
+    await inventoryDB.staffPins.put(updatedRec);
+  }
 }

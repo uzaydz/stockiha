@@ -58,6 +58,7 @@ export default function StockUpdateModern({
   const [note, setNote] = useState('');
   const [itemColors, setItemColors] = useState<ColorVariant[]>([]);
   const [loadingColors, setLoadingColors] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   // Load colors and sizes from item data (already fetched by RPC)
   useEffect(() => {
@@ -99,6 +100,7 @@ export default function StockUpdateModern({
       setOperation('set');
       setQuantity(item.stock_quantity || 0);
       setNote('');
+      setImageError(false);
     }
   }, [open, item]);
 
@@ -161,13 +163,17 @@ export default function StockUpdateModern({
         <div className="space-y-6">
           {/* Product Info */}
           <div className="flex gap-4 p-4 bg-slate-50 rounded-lg">
-            {item.thumbnail_image && (
+            {item.thumbnail_image && !imageError ? (
               <img
                 src={item.thumbnail_image}
                 alt={item.name}
                 className="h-16 w-16 rounded-lg object-cover"
+                onError={() => {
+                  console.log('🖼️ Image failed to load (offline?):', item.thumbnail_image);
+                  setImageError(true);
+                }}
               />
-            )}
+            ) : null}
             <div className="flex-1">
               <h3 className="font-semibold">{item.name}</h3>
               {item.sku && <p className="text-sm text-muted-foreground">{item.sku}</p>}

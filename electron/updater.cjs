@@ -1,59 +1,94 @@
-const { autoUpdater } = require('electron-updater');
-const { dialog, BrowserWindow } = require('electron');
-const log = require('electron-log');
+const { dialog } = require('electron');
+const path = require('path');
+const fs = require('fs');
 
-// إعداد logging
-log.transports.file.level = 'info';
-autoUpdater.logger = log;
-
-console.log('🚀 [UPDATER] تحميل نظام التحديثات...');
-console.log('📦 [UPDATER] app.getVersion():', require('electron').app.getVersion());
-
-// تكوين autoUpdater
-autoUpdater.autoDownload = false; // عدم التنزيل التلقائي
-autoUpdater.autoInstallOnAppQuit = true; // التثبيت التلقائي عند الإغلاق
-autoUpdater.allowPrerelease = false; // عدم السماح بالإصدارات التجريبية
-autoUpdater.allowDowngrade = false; // عدم السماح بالرجوع لإصدار أقدم
-
-console.log('⚙️ [UPDATER] إعدادات autoUpdater:');
-console.log('  - autoDownload:', autoUpdater.autoDownload);
-console.log('  - autoInstallOnAppQuit:', autoUpdater.autoInstallOnAppQuit);
-console.log('  - allowPrerelease:', autoUpdater.allowPrerelease);
-console.log('  - allowDowngrade:', autoUpdater.allowDowngrade);
-
-// تكوين إضافي لتحسين الاتصال
-autoUpdater.requestHeaders = {
-  'Cache-Control': 'no-cache'
-};
-
-console.log('🌐 [UPDATER] requestHeaders:', autoUpdater.requestHeaders);
-
-// طباعة إعدادات النشر
+// تحميل electron-log من المسار المحلي
+let log;
 try {
-  const app = require('electron').app;
-  const packageJson = require('../package.json');
-  
-  console.log('📊 [UPDATER] معلومات التطبيق:');
-  console.log('  - اسم التطبيق:', app.getName());
-  console.log('  - إصدار التطبيق:', app.getVersion());
-  console.log('  - package.json version:', packageJson.version);
-  
-  if (packageJson.build && packageJson.build.publish) {
-    console.log('📡 [UPDATER] إعدادات النشر من package.json:');
-    console.log('  - provider:', packageJson.build.publish.provider);
-    console.log('  - owner:', packageJson.build.publish.owner);
-    console.log('  - repo:', packageJson.build.publish.repo);
-    console.log('  - releaseType:', packageJson.build.publish.releaseType);
+  const localLogPath = path.join(__dirname, 'electron-log');
+  if (fs.existsSync(localLogPath)) {
+    log = require(localLogPath);
   } else {
-    console.warn('⚠️ [UPDATER] لا توجد إعدادات publish في package.json!');
+    log = require('electron-log');
   }
-  
-  // طباعة feed URL الذي سيستخدمه electron-updater
-  console.log('🔗 [UPDATER] Feed URL المتوقع:');
-  const feedUrl = `https://github.com/${packageJson.build?.publish?.owner}/${packageJson.build?.publish?.repo}/releases`;
-  console.log('  ', feedUrl);
-} catch (error) {
-  console.error('❌ [UPDATER] خطأ في قراءة معلومات التطبيق:', error);
+} catch (err) {
+  console.error('[UPDATER] Failed to load electron-log:', err);
+  // Fallback to console
+  log = {
+    info: console.log,
+    error: console.error,
+    warn: console.warn,
+    transports: { file: { level: 'info' } }
+  };
+}
+
+let autoUpdater;
+let app;
+let isInitialized = false;
+
+// دالة تهيئة تُستدعى بعد جاهزية app
+function initializeUpdater() {
+  if (isInitialized) return;
+
+  console.log('🚀 [UPDATER] تحميل نظام التحديثات...');
+
+  // تحميل app و autoUpdater بعد الاستدعاء
+  app = require('electron').app;
+  autoUpdater = require('electron-updater').autoUpdater;
+
+  console.log('📦 [UPDATER] app.getVersion():', app.getVersion());
+
+  // إعداد logging
+  log.transports.file.level = 'info';
+  autoUpdater.logger = log;
+
+  // تكوين autoUpdater
+  autoUpdater.autoDownload = false; // عدم التنزيل التلقائي
+  autoUpdater.autoInstallOnAppQuit = true; // التثبيت التلقائي عند الإغلاق
+  autoUpdater.allowPrerelease = false; // عدم السماح بالإصدارات التجريبية
+  autoUpdater.allowDowngrade = false; // عدم السماح بالرجوع لإصدار أقدم
+
+  console.log('⚙️ [UPDATER] إعدادات autoUpdater:');
+  console.log('  - autoDownload:', autoUpdater.autoDownload);
+  console.log('  - autoInstallOnAppQuit:', autoUpdater.autoInstallOnAppQuit);
+  console.log('  - allowPrerelease:', autoUpdater.allowPrerelease);
+  console.log('  - allowDowngrade:', autoUpdater.allowDowngrade);
+
+  // تكوين إضافي لتحسين الاتصال
+  autoUpdater.requestHeaders = {
+    'Cache-Control': 'no-cache'
+  };
+
+  console.log('🌐 [UPDATER] requestHeaders:', autoUpdater.requestHeaders);
+
+  // طباعة إعدادات النشر
+  try {
+    const packageJson = require('../package.json');
+
+    console.log('📊 [UPDATER] معلومات التطبيق:');
+    console.log('  - اسم التطبيق:', app.getName());
+    console.log('  - إصدار التطبيق:', app.getVersion());
+    console.log('  - package.json version:', packageJson.version);
+
+    if (packageJson.build && packageJson.build.publish) {
+      console.log('📡 [UPDATER] إعدادات النشر من package.json:');
+      console.log('  - provider:', packageJson.build.publish.provider);
+      console.log('  - owner:', packageJson.build.publish.owner);
+      console.log('  - repo:', packageJson.build.publish.repo);
+      console.log('  - releaseType:', packageJson.build.publish.releaseType);
+    } else {
+      console.warn('⚠️ [UPDATER] لا توجد إعدادات publish في package.json!');
+    }
+
+    // طباعة feed URL الذي سيستخدمه electron-updater
+    console.log('🔗 [UPDATER] Feed URL المتوقع:');
+    const feedUrl = `https://github.com/${packageJson.build?.publish?.owner}/${packageJson.build?.publish?.repo}/releases`;
+    console.log('  ', feedUrl);
+  } catch (error) {
+    console.error('❌ [UPDATER] خطأ في قراءة معلومات التطبيق:', error);
+  }
+
+  isInitialized = true;
 }
 
 class UpdaterManager {
@@ -69,9 +104,13 @@ class UpdaterManager {
    */
   initialize(mainWindow) {
     console.log('🎬 [UPDATER] initialize() - بدء تهيئة نظام التحديث');
+
+    // تهيئة autoUpdater أولاً
+    initializeUpdater();
+
     this.mainWindow = mainWindow;
     console.log('🪟 [UPDATER] mainWindow تم تعيينها');
-    
+
     this.setupEventListeners();
     console.log('👂 [UPDATER] Event listeners تم إعدادها');
     
@@ -367,5 +406,5 @@ const updaterManager = new UpdaterManager();
 
 module.exports = {
   updaterManager,
-  autoUpdater
+  getAutoUpdater: () => autoUpdater
 };

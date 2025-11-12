@@ -14,7 +14,7 @@ import { useAuth } from '@/context/AuthContext';
 import { hasPermissions } from '@/lib/api/userPermissionsUnified';
 import { checkUserPermissionsLocal } from '@/lib/utils/permissions-utils';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
-import { fastSearchLocalCustomers, getLocalCustomersPage } from '@/api/localCustomerService';
+import { fastSearchLocalCustomers, getLocalCustomersPage, getLocalCustomers } from '@/api/localCustomerService';
 
 // Import customer-specific components with lazy loading
 const CustomersList = React.lazy(() => import('@/components/customers/CustomersList'));
@@ -119,14 +119,23 @@ const Customers: React.FC<CustomersProps> = ({
     const loadLocal = async () => {
       try {
         const orgId = localStorage.getItem('bazaar_organization_id') || '';
-        if (!orgId) {
-          setLocalCustomers([]);
-          return;
-        }
         const q = (searchQuery || '').trim();
         if (q) {
-          const matches = await fastSearchLocalCustomers(orgId, q, { limit: 2000 });
-          const mapped = (matches as any[]).map((c) => ({
+          let matches: any[] = [];
+          if (orgId) {
+            matches = await fastSearchLocalCustomers(orgId, q, { limit: 2000 }) as any[];
+          } else {
+            // لا يوجد orgId في التخزين المحلي (أوفلاين/جلسة جديدة) → اجلب كل العملاء وصفِّ بحثاً في الذاكرة
+            const all = await getLocalCustomers();
+            const qLower = q.toLowerCase();
+            matches = (all as any[]).filter((c) => {
+              const name = (c.name || '').toLowerCase();
+              const email = (c.email || '').toLowerCase();
+              const phone = (c.phone || '').toString();
+              return name.includes(qLower) || email.includes(qLower) || (phone && phone.includes(q));
+            });
+          }
+          const mapped = (matches).map((c) => ({
             id: c.id,
             name: c.name,
             email: c.email || '',
@@ -142,8 +151,14 @@ const Customers: React.FC<CustomersProps> = ({
           } as Customer));
           setLocalCustomers(mapped);
         } else {
-          const res = await getLocalCustomersPage(orgId, { offset: 0, limit: 2000 });
-          const mapped = (res.customers as any[]).map((c) => ({
+          let list: any[] = [];
+          if (orgId) {
+            const res = await getLocalCustomersPage(orgId, { offset: 0, limit: 2000 });
+            list = res.customers as any[];
+          } else {
+            list = await getLocalCustomers();
+          }
+          const mapped = (list).map((c) => ({
             id: c.id,
             name: c.name,
             email: c.email || '',

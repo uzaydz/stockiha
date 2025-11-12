@@ -7,6 +7,7 @@ import { Store, BarChart3, Zap, Layers, Package, LogOut, Truck, GraduationCap, S
 import { ShoppingBag, Wrench, BarChart3 as ReportsIcon } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
+import { usePermissions } from '@/hooks/usePermissions';
 import { toast } from 'sonner';
 import './POSPureSidebar.css';
 
@@ -18,6 +19,8 @@ export interface POSSidebarItem {
   badge?: string | number;
   isOnlineOnly?: boolean; // خاص بالتجار الإلكترونيين فقط
   alwaysShow?: boolean; // يظهر في جميع الأوضاع
+  permission?: string; // الصلاحية المطلوبة للوصول
+  permissions?: string[]; // قائمة صلاحيات (يكفي واحدة منها)
 }
 
 // Component محسّن لعنصر القائمة الفردي
@@ -108,6 +111,7 @@ export const posSidebarItems: POSSidebarItem[] = [
     href: '/dashboard/pos-dashboard',
     isOnlineOnly: false,
     alwaysShow: true, // يظهر في جميع الأوضاع
+    permission: 'accessPOS', // الصلاحية المطلوبة
   },
   {
     id: 'pos-advanced',
@@ -115,6 +119,7 @@ export const posSidebarItems: POSSidebarItem[] = [
     icon: Zap,
     href: '/dashboard/pos-advanced',
     isOnlineOnly: false,
+    permission: 'accessPOS',
   },
   {
     id: 'pos-operations',
@@ -122,13 +127,22 @@ export const posSidebarItems: POSSidebarItem[] = [
     icon: Layers,
     href: '/dashboard/pos-operations/orders',
     isOnlineOnly: false,
+    permissions: ['accessPOS', 'managePOSOrders'],
+  },
+  {
+    id: 'analytics-enhanced',
+    title: 'التحليلات المحسّنة',
+    icon: BarChart3,
+    href: '/dashboard/analytics-enhanced',
+    badge: 'جديد',
+    isOnlineOnly: false,
+    permissions: ['viewSalesReports', 'viewReports'],
   },
   {
     id: 'etat104',
     title: 'كشف حساب 104',
     icon: FileSpreadsheet,
     href: '/dashboard/etat104',
-    badge: 'جديد',
     isOnlineOnly: false,
   },
   {
@@ -145,6 +159,7 @@ export const posSidebarItems: POSSidebarItem[] = [
     href: '/dashboard/staff-management',
     isOnlineOnly: false,
     alwaysShow: true, // يظهر في جميع الأوضاع
+    permissions: ['manageStaff', 'viewStaff', 'accessPOS'],
   },
   {
     id: 'product-operations',
@@ -152,6 +167,7 @@ export const posSidebarItems: POSSidebarItem[] = [
     icon: Package,
     href: '/dashboard/product-operations/products',
     isOnlineOnly: true, // خاص بالتجار الإلكترونيين
+    permissions: ['manageProducts', 'viewProducts'],
   },
   {
     id: 'sales-operations',
@@ -159,6 +175,7 @@ export const posSidebarItems: POSSidebarItem[] = [
     icon: ShoppingBag,
     href: '/dashboard/sales-operations/onlineOrders',
     isOnlineOnly: true, // خاص بالتجار الإلكترونيين
+    permissions: ['manageOrders', 'viewOrders'],
   },
   {
     id: 'services-operations',
@@ -166,6 +183,7 @@ export const posSidebarItems: POSSidebarItem[] = [
     icon: Wrench,
     href: '/dashboard/services-operations/repair',
     isOnlineOnly: false,
+    permissions: ['manageRepairs', 'viewRepairs'],
   },
   {
     id: 'supplier-operations',
@@ -173,6 +191,7 @@ export const posSidebarItems: POSSidebarItem[] = [
     icon: Truck,
     href: '/dashboard/supplier-operations/suppliers',
     isOnlineOnly: false,
+    permissions: ['manageSuppliers', 'viewSuppliers'],
   },
   {
     id: 'courses-operations',
@@ -187,6 +206,7 @@ export const posSidebarItems: POSSidebarItem[] = [
     icon: Store,
     href: '/dashboard/store-operations/store-settings',
     isOnlineOnly: true, // خاص بالتجار الإلكترونيين
+    permissions: ['manageSettings'],
   },
   {
     id: 'settings-operations',
@@ -194,6 +214,7 @@ export const posSidebarItems: POSSidebarItem[] = [
     icon: Settings,
     href: '/dashboard/settings-operations/settings',
     isOnlineOnly: true, // خاص بالتجار الإلكترونيين
+    permissions: ['manageSettings'],
   },
   {
     id: 'reports-operations',
@@ -201,6 +222,7 @@ export const posSidebarItems: POSSidebarItem[] = [
     icon: ReportsIcon,
     href: '/dashboard/reports-operations/financial',
     isOnlineOnly: true, // خاص بالتجار الإلكترونيين
+    permissions: ['viewReports', 'accessPOS'],
   },
   {
     id: 'database-admin',
@@ -222,8 +244,9 @@ interface POSPureSidebarProps {
 
 const POSPureSidebar: React.FC<POSPureSidebarProps> = memo(({ className, items, isExpanded = false, onToggleExpand }) => {
   const location = useLocation();
-  const { signOut } = useAuth();
+  const { signOut, userProfile } = useAuth();
   const { currentOrganization } = useTenant();
+  const perms = usePermissions();
 
   // حالة وضع التاجر الإلكتروني (محفوظة في localStorage)
   const [isOnlineMode, setIsOnlineMode] = useState<boolean>(() => {
@@ -248,15 +271,66 @@ const POSPureSidebar: React.FC<POSPureSidebarProps> = memo(({ className, items, 
   // مرموز البيانات الثابتة لتحسين الأداء
   const sidebarItems = useMemo(() => items ?? posSidebarItems, [items]);
 
-  // تصفية العناصر بناءً على الوضع
+  // تصفية العناصر بناءً على الوضع والصلاحيات
   const filteredItems = useMemo(() => {
+    // Admin/Owner لديهم صلاحية الوصول لكل شيء
+    const isAdmin = userProfile?.role === 'admin' || userProfile?.role === 'owner';
+    const isOrgAdmin = perms.isOrgAdmin || perms.isSuperAdmin;
+    
+    let filtered = sidebarItems;
+    
+    // تصفية حسب الوضع (online/offline)
     if (!isOnlineMode) {
-      // الوضع الكامل: إظهار جميع العناصر التي ليست خاصة بالتجار الإلكترونيين فقط
-      return sidebarItems.filter(item => item.isOnlineOnly !== true);
+      filtered = filtered.filter(item => item.isOnlineOnly !== true);
+    } else {
+      filtered = filtered.filter(item => item.isOnlineOnly === true || item.alwaysShow === true);
     }
-    // وضع التاجر الإلكتروني: إظهار العناصر الخاصة بالتجار + العناصر التي تظهر دائماً
-    return sidebarItems.filter(item => item.isOnlineOnly === true || item.alwaysShow === true);
-  }, [sidebarItems, isOnlineMode]);
+    
+    // تصفية حسب الصلاحيات (إلا إذا كان Admin)
+    // إذا لم تكن الصلاحيات جاهزة بعد، اعرض كل العناصر مؤقتاً
+    if (!isAdmin && !isOrgAdmin && perms.ready) {
+      console.log('[POSSidebar] Filtering by permissions', {
+        isAdmin,
+        isOrgAdmin,
+        permsReady: perms.ready,
+        userRole: userProfile?.role,
+        itemsBeforeFilter: filtered.length
+      });
+      
+      filtered = filtered.filter(item => {
+        // إذا لم يكن هناك صلاحيات محددة، اعرض العنصر
+        if (!item.permission && !item.permissions) {
+          return true;
+        }
+        
+        // فحص الصلاحية الواحدة
+        if (item.permission) {
+          const hasPermission = perms.has(item.permission);
+          if (!hasPermission) {
+            console.log(`[POSSidebar] Hiding item: ${item.title} (missing: ${item.permission})`);
+          }
+          return hasPermission;
+        }
+        
+        // فحص قائمة الصلاحيات (يكفي واحدة)
+        if (item.permissions) {
+          const hasAnyPermission = perms.anyOf(item.permissions);
+          if (!hasAnyPermission) {
+            console.log(`[POSSidebar] Hiding item: ${item.title} (missing any of: ${item.permissions.join(', ')})`);
+          }
+          return hasAnyPermission;
+        }
+        
+        return true;
+      });
+      
+      console.log('[POSSidebar] Items after filter:', filtered.length);
+    } else if (!perms.ready) {
+      console.log('[POSSidebar] Permissions not ready yet, showing all items temporarily');
+    }
+    
+    return filtered;
+  }, [sidebarItems, isOnlineMode, userProfile, perms]);
 
   // تحسين منطق تمييز الرابط النشط مع useCallback لتحسين الأداء
   const isPathActive = useCallback((href: string): boolean => {
@@ -311,16 +385,18 @@ const POSPureSidebar: React.FC<POSPureSidebarProps> = memo(({ className, items, 
             <div className="absolute inset-0 bg-gradient-to-tl from-orange-800/30 to-transparent" />
 
             <img
-              src="/images/logo-new.webp"
+              src="./images/logo-new.webp"
               alt="سطوكيها"
               className="w-8 h-8 object-contain relative z-10 drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]"
               onError={(e) => {
-                e.currentTarget.src = '/images/logo.webp';
-                e.currentTarget.onerror = () => {
+                // محاولة المسار البديل
+                if (e.currentTarget.src.includes('./images/')) {
+                  e.currentTarget.src = './images/logo.webp';
+                } else {
                   e.currentTarget.style.display = 'none';
                   const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
                   if (nextElement) nextElement.style.display = 'flex';
-                };
+                }
               }}
             />
             <div className="w-8 h-8 hidden items-center justify-center relative z-10">

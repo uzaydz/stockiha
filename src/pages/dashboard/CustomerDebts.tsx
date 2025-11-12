@@ -56,19 +56,6 @@ const CustomerDebts: React.FC<CustomerDebtsProps> = ({
     setRefreshTrigger(prev => prev + 1);
   }, []);
 
-  // منع الوصول عند عدم وجود صلاحية العرض بعد التحقق
-  if (permissionsChecked && !hasViewPermission) {
-    return renderWithLayout(
-      <div className="container mx-auto py-10">
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>غير مصرح</AlertTitle>
-          <AlertDescription>لا تملك صلاحية عرض مديونيات العملاء.</AlertDescription>
-        </Alert>
-      </div>
-    );
-  }
-
   useEffect(() => {
     if (!onRegisterRefresh) return;
     onRegisterRefresh(handleRefresh);
@@ -163,8 +150,18 @@ const CustomerDebts: React.FC<CustomerDebtsProps> = ({
         setIsLoading(true);
         setError(null);
 
+        console.log('[CustomerDebts] 🔍 Fetching debts data...', { 
+          organizationId: currentOrganization.id,
+          isOnline 
+        });
+
         // جلب الديون من المخزن المحلي
         const localDebts = await getAllLocalCustomerDebts(currentOrganization.id);
+        
+        console.log('[CustomerDebts] 📊 Local debts fetched:', { 
+          count: localDebts.length,
+          sample: localDebts[0]
+        });
         
         // تحويل LocalCustomerDebt إلى DebtsData
         const convertedData = convertLocalDebtsToDebtsData(localDebts);
@@ -172,10 +169,13 @@ const CustomerDebts: React.FC<CustomerDebtsProps> = ({
 
         // مزامنة مع السيرفر في الخلفية إذا كان متصل
         if (isOnline) {
+          console.log('[CustomerDebts] 🌐 Online - starting background sync...');
           syncInBackground();
+        } else {
+          console.log('[CustomerDebts] 📴 Offline - skipping sync');
         }
       } catch (err) {
-        console.error('خطأ في جلب الديون:', err);
+        console.error('[CustomerDebts] ❌ خطأ في جلب الديون:', err);
         setError('حدث خطأ أثناء تحميل بيانات الديون');
         
         // محاولة جلب من API كخطة احتياطية

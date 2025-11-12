@@ -10,7 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { initializePOSOfflineSync } from '@/context/shop/posOrderService';
-import { SyncEngine } from '@/sync/SyncEngine';
+import { smartSyncEngine } from '@/lib/sync/SmartSyncEngine';
+import { syncTracker } from '@/lib/sync/SyncTracker';
 import { inventoryDB } from '@/database/localDb';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { useOrganization } from '@/hooks/useOrganization';
@@ -150,22 +151,21 @@ export function NavbarSyncIndicator({
       initializePOSOfflineSync();
 
       try {
-        const res = await SyncEngine.run();
+        // 🚀 استخدام Smart Sync Engine
+        await smartSyncEngine.syncNow(true);
 
         const now = Date.now();
         setLastSyncAt(now);
-        setLastRun(res);
+        setLastRun(null); // لم نعد نحتاج res
 
         if (origin === 'manual') {
-          const processed = (res?.posOrders?.synced || 0) + (res?.posOrderUpdates?.synced || 0);
-          if (processed > 0) {
-            toast.success('تمت مزامنة الطلبات بنجاح', {
-              description: `تم تحديث ${processed} سجل${processed > 1 ? 'ات' : ''}.`
+          const pendingCount = syncTracker.getPendingCount();
+          if (pendingCount === 0) {
+            toast.success('تمت المزامنة بنجاح', {
+              description: 'جميع البيانات محدثة'
             });
-          } else if (res?.baseSynced) {
-            toast.success('تم تحديث البيانات المحلية');
           } else {
-            toast.message('لا توجد عناصر لمزامنتها الآن');
+            toast.message(`لا تزال هناك ${pendingCount} عناصر معلقة`);
           }
         }
       } catch (error) {
@@ -187,33 +187,80 @@ export function NavbarSyncIndicator({
     [organization?.id, isOnline, updateSnapshot]
   );
 
-  // Auto sync
+  // Auto sync - SmartSyncEngine يدير المزامنة تلقائياً
   useEffect(() => {
     if (!autoSync) return;
 
-    const interval = setInterval(() => {
-      void runSync('auto');
-    }, syncInterval);
+    // التأكد من أن SmartSyncEngine يعمل
+    if (!smartSyncEngine.getStatus().isRunning) {
+      smartSyncEngine.start();
+    }
 
-    return () => clearInterval(interval);
-  }, [autoSync, syncInterval, runSync]);
+    return () => {
+      // لا نوقف Engine - قد يُستخدم في أماكن أخرى
+    };
+  }, [autoSync]);
 
   // Initial snapshot
   useEffect(() => {
     void updateSnapshot();
   }, [updateSnapshot]);
 
-  // Subscribe to SyncEngine status events
+  // Subscribe to SyncTracker changes مع debouncing
   useEffect(() => {
-    const off = SyncEngine.onStatus((evt) => {
-      setEvents(prev => {
-        const next = [...prev, evt];
-        // احتفظ بآخر 20 حدثاً فقط
-        return next.slice(-20);
-      });
+    // إنشاء نسخة debounced من updateSnapshot
+    let debouncedUpdateTimeout: NodeJS.Timeout | null = null;
+    let throttleTimeout: NodeJS.Timeout | null = null;
+    let lastUpdateTime = 0;
+    const DEBOUNCE_MS = 300; // تأخير 300ms
+    const THROTTLE_MS = 500; // حد أقصى للتحديث كل 500ms
+
+    const debouncedUpdate = () => {
+      // مسح timeout السابق
+      if (debouncedUpdateTimeout) {
+        clearTimeout(debouncedUpdateTimeout);
+      }
+
+      // التحقق من throttling
+      const now = Date.now();
+      const timeSinceLastUpdate = now - lastUpdateTime;
+
+      if (timeSinceLastUpdate >= THROTTLE_MS) {
+        // تحديث فوري إذا مر الوقت الكافي
+        lastUpdateTime = now;
+        void updateSnapshot();
+      } else {
+        // تأخير التحديث
+        debouncedUpdateTimeout = setTimeout(() => {
+          lastUpdateTime = Date.now();
+          void updateSnapshot();
+          debouncedUpdateTimeout = null;
+        }, DEBOUNCE_MS);
+      }
+    };
+
+    const unsubscribe = syncTracker.onChange((hasPending) => {
+      // استخدام النسخة المحسّنة
+      debouncedUpdate();
+
+      // تحديث حالة المزامنة (بدون debounce لأنه خفيف)
+      const status = smartSyncEngine.getStatus();
+      if (status.isSyncing !== isSyncing) {
+        setIsSyncing(status.isSyncing);
+      }
     });
-    return () => off();
-  }, []);
+
+    return () => {
+      // تنظيف
+      if (debouncedUpdateTimeout) {
+        clearTimeout(debouncedUpdateTimeout);
+      }
+      if (throttleTimeout) {
+        clearTimeout(throttleTimeout);
+      }
+      unsubscribe();
+    };
+  }, [updateSnapshot, isSyncing]);
 
   // Sync on network reconnect
   useEffect(() => {

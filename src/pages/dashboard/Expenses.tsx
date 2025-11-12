@@ -58,7 +58,7 @@ export default function ExpensesPage({ useStandaloneLayout = true }: ExpensesPro
         const { data: userData, error: userError } = await supabase
           .from('users')
           .select('organization_id')
-          .eq('id', data.session.user.id)
+          .eq('auth_user_id', data.session.user.id)
           .single();
         
         if (userData && userData.organization_id) {

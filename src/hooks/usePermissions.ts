@@ -8,7 +8,7 @@ export const usePermissions = () => {
   if (!context) {
     return {
       loading: false,
-      ready: true,
+      ready: false,
       error: null,
       data: null,
       has: () => false,

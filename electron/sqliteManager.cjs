@@ -3,10 +3,32 @@
  * يحل محل IndexedDB بنظام أقوى وأسرع
  */
 
-const Database = require('better-sqlite3');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+
+// استيراد better-sqlite3 مع دعم التطبيق المُحزّم
+let Database;
+try {
+  // إضافة app/node_modules إلى مسارات البحث العامة
+  const appPath = path.join(__dirname, '..');
+  const appNodeModules = path.join(appPath, 'node_modules');
+  
+  if (fs.existsSync(appNodeModules)) {
+    // إضافة إلى Module.globalPaths لضمان أن جميع require تجده
+    const Module = require('module');
+    if (!Module.globalPaths.includes(appNodeModules)) {
+      Module.globalPaths.unshift(appNodeModules);
+      console.log('[SQLiteManager] Added to Module.globalPaths:', appNodeModules);
+    }
+  }
+  
+  Database = require('better-sqlite3');
+  console.log('[SQLiteManager] ✅ better-sqlite3 loaded successfully');
+} catch (err) {
+  console.error('[SQLiteManager] ❌ Failed to load better-sqlite3:', err);
+  throw new Error('Cannot load better-sqlite3: ' + err.message);
+}
 
 class SQLiteManager {
   constructor(app) {
@@ -17,6 +39,46 @@ class SQLiteManager {
     this.currentOrganizationId = null;
     // Cache table columns to avoid repeated PRAGMA calls
     this._tableColumnsCache = new Map();
+    this._cacheMaxSize = 50; // حد أقصى لعدد الجداول في الذاكرة
+    this._cacheAccessTimestamps = new Map(); // تتبع آخر وصول لكل جدول
+
+    // تنظيف دوري للذاكرة كل 5 دقائق
+    this._cleanupInterval = setInterval(() => {
+      this._cleanupStaleCache();
+    }, 5 * 60 * 1000);
+  }
+
+  /**
+   * تنظيف الـ cache القديم غير المستخدم
+   */
+  _cleanupStaleCache() {
+    try {
+      // إذا تجاوز الحد الأقصى، احذف الأقدم
+      if (this._tableColumnsCache.size > this._cacheMaxSize) {
+        const now = Date.now();
+        const entries = Array.from(this._cacheAccessTimestamps.entries())
+          .sort((a, b) => a[1] - b[1]); // ترتيب حسب الأقدم
+
+        // احذف النصف الأقدم
+        const toDelete = Math.floor(entries.length / 2);
+        for (let i = 0; i < toDelete; i++) {
+          const [table] = entries[i];
+          this._tableColumnsCache.delete(table);
+          this._cacheAccessTimestamps.delete(table);
+        }
+
+        console.log(`[SQLite] ♻️ Cleaned up ${toDelete} stale cache entries`);
+      }
+    } catch (error) {
+      console.warn('[SQLite] Cache cleanup warning:', error?.message || error);
+    }
+  }
+
+  /**
+   * تحديث timestamp الوصول للـ cache
+   */
+  _touchCache(table) {
+    this._cacheAccessTimestamps.set(table, Date.now());
   }
 
   /**
@@ -28,9 +90,13 @@ class SQLiteManager {
         console.log(`[SQLite] Database already initialized for org: ${organizationId}`);
         // تأكد من تشغيل الترقيات/إنشاء الجداول حتى في حال كانت القاعدة مفتوحة بالفعل
         try {
-          this.createTables();
-          this.createIndexes();
-          this.enableFullTextSearch();
+          if (organizationId === 'global') {
+            this.createGlobalTables();
+          } else {
+            this.createTables();
+            this.createIndexes();
+            this.enableFullTextSearch();
+          }
         } catch (e) {
           console.warn('[SQLite] Warning while ensuring schema on already-open DB:', e?.message || e);
         }
@@ -67,9 +133,19 @@ class SQLiteManager {
       this.db.pragma('page_size = 4096');
       this.db.pragma('foreign_keys = ON');
 
-      this.createTables();
-      this.createIndexes();
-      this.enableFullTextSearch();
+      // في قاعدة "global" نستخدم مخططاً مصغّراً خاصاً لتخزين الجلسة فقط
+      if (organizationId === 'global') {
+        try {
+          this.createGlobalTables();
+        } catch (e) {
+          console.warn('[SQLite] Warning while creating global schema:', e?.message || e);
+        }
+      } else {
+        this.createTables();
+        this.migrateSchema(); // إضافة الأعمدة الناقصة
+        this.createIndexes();
+        this.enableFullTextSearch();
+      }
 
       this.isInitialized = true;
       this.currentOrganizationId = organizationId;
@@ -100,7 +176,9 @@ class SQLiteManager {
         stock_quantity INTEGER DEFAULT 0,
         category_id TEXT,
         is_active INTEGER DEFAULT 1,
+        thumbnail_image TEXT,
         image_thumbnail TEXT,
+        images TEXT,
         description TEXT,
         organization_id TEXT NOT NULL,
         synced INTEGER DEFAULT 0,
@@ -197,6 +275,7 @@ class SQLiteManager {
         order_number TEXT NOT NULL,
         customer_id TEXT,
         customer_name TEXT,
+        customer_name_lower TEXT,
         total_amount REAL NOT NULL DEFAULT 0,
         paid_amount REAL NOT NULL DEFAULT 0,
         payment_method TEXT,
@@ -206,6 +285,11 @@ class SQLiteManager {
         work_session_id TEXT,
         synced INTEGER DEFAULT 0,
         sync_status TEXT,
+        pending_operation TEXT,
+        last_sync_attempt TEXT,
+        error TEXT,
+        remote_order_id TEXT,
+        remote_customer_order_number INTEGER,
         local_created_at TEXT NOT NULL,
         server_created_at TEXT,
         created_at TEXT NOT NULL,
@@ -224,6 +308,7 @@ class SQLiteManager {
         unit_price REAL NOT NULL,
         subtotal REAL NOT NULL,
         discount REAL DEFAULT 0,
+        synced INTEGER DEFAULT 0,
         created_at TEXT NOT NULL,
         FOREIGN KEY (order_id) REFERENCES pos_orders(id) ON DELETE CASCADE
       );
@@ -235,8 +320,11 @@ class SQLiteManager {
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         name_normalized TEXT,
+        name_lower TEXT,
         email TEXT,
+        email_lower TEXT,
         phone TEXT,
+        phone_digits TEXT,
         total_debt REAL DEFAULT 0,
         organization_id TEXT NOT NULL,
         synced INTEGER DEFAULT 0,
@@ -253,14 +341,34 @@ class SQLiteManager {
       CREATE TABLE IF NOT EXISTS invoices (
         id TEXT PRIMARY KEY,
         invoice_number TEXT NOT NULL,
+        invoice_number_lower TEXT,
+        remote_invoice_id TEXT,
+        customer_name TEXT,
+        customer_name_lower TEXT,
         customer_id TEXT,
         total_amount REAL NOT NULL,
-        paid_amount REAL DEFAULT 0,
+        invoice_date TEXT,
+        due_date TEXT,
         status TEXT DEFAULT 'pending',
+        source_type TEXT,
+        payment_method TEXT,
+        payment_status TEXT,
+        notes TEXT,
+        tax_amount REAL DEFAULT 0,
+        discount_amount REAL DEFAULT 0,
+        subtotal_amount REAL DEFAULT 0,
+        shipping_amount REAL,
+        discount_type TEXT,
+        discount_percentage REAL,
+        tva_rate REAL,
+        amount_ht REAL,
+        amount_tva REAL,
+        amount_ttc REAL,
         organization_id TEXT NOT NULL,
         synced INTEGER DEFAULT 0,
         sync_status TEXT,
-        local_created_at TEXT NOT NULL,
+        pending_operation TEXT,
+        local_created_at TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
@@ -271,12 +379,23 @@ class SQLiteManager {
       CREATE TABLE IF NOT EXISTS invoice_items (
         id TEXT PRIMARY KEY,
         invoice_id TEXT NOT NULL,
-        product_id TEXT NOT NULL,
-        product_name TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
         quantity INTEGER NOT NULL,
         unit_price REAL NOT NULL,
-        subtotal REAL NOT NULL,
+        total_price REAL NOT NULL,
+        product_id TEXT,
+        type TEXT DEFAULT 'product',
+        sku TEXT,
+        barcode TEXT,
+        tva_rate REAL,
+        unit_price_ht REAL,
+        unit_price_ttc REAL,
+        total_ht REAL,
+        total_tva REAL,
+        total_ttc REAL,
         created_at TEXT NOT NULL,
+        synced INTEGER DEFAULT 0,
         FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
       );
     `);
@@ -286,12 +405,21 @@ class SQLiteManager {
       CREATE TABLE IF NOT EXISTS customer_debts (
         id TEXT PRIMARY KEY,
         customer_id TEXT NOT NULL,
+        customer_name TEXT,
         amount REAL NOT NULL,
         description TEXT,
         status TEXT DEFAULT 'unpaid',
+        order_id TEXT,
+        order_number TEXT,
+        total_amount REAL,
+        paid_amount REAL,
+        remaining_amount REAL,
+        due_date TEXT,
+        notes TEXT,
         organization_id TEXT NOT NULL,
         synced INTEGER DEFAULT 0,
         sync_status TEXT,
+        pending_operation TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
@@ -384,6 +512,23 @@ class SQLiteManager {
       );
     `);
 
+    // حالة الترخيص والساعة الآمنة (org-level)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS app_license_state (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT,
+        secure_anchor_ms INTEGER DEFAULT 0,
+        last_device_time_ms INTEGER DEFAULT 0,
+        last_server_time_ms INTEGER,
+        last_observed_device_time_ms INTEGER DEFAULT 0,
+        last_secure_ms INTEGER DEFAULT 0,
+        tamper_count INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_app_license_state_org ON app_license_state(organization_id);
+    `);
+
     // جدول جلسات العمل
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS work_sessions (
@@ -454,6 +599,25 @@ class SQLiteManager {
       }
     };
     
+    // Migration للأعمدة الجديدة في customer_debts
+    if (this.db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='customer_debts'`).get()) {
+      addColumnIfNotExists('customer_debts', 'discount', 'REAL', 0);
+      addColumnIfNotExists('customer_debts', 'subtotal', 'REAL');
+    }
+
+    // Migration لجدول organization_subscriptions لإضافة trial/grace/source
+    if (this.db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='organization_subscriptions'`).get()) {
+      addColumnIfNotExists('organization_subscriptions', 'trial_end_date', 'TEXT');
+      addColumnIfNotExists('organization_subscriptions', 'grace_end_date', 'TEXT');
+      addColumnIfNotExists('organization_subscriptions', 'source', 'TEXT');
+    }
+
+    // Migration لجدول app_license_state لإضافة أعمدة المراقبة
+    if (this.db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='app_license_state'`).get()) {
+      addColumnIfNotExists('app_license_state', 'last_observed_device_time_ms', 'INTEGER', 0);
+      addColumnIfNotExists('app_license_state', 'last_secure_ms', 'INTEGER', 0);
+    }
+    
     // Migration للأعمدة الجديدة في work_sessions
     if (this.db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='work_sessions'`).get()) {
       addColumnIfNotExists('work_sessions', 'opening_cash', 'REAL', 0);
@@ -512,6 +676,14 @@ class SQLiteManager {
       addColumnIfNotExists('pos_orders', 'remote_order_id', 'TEXT');
       addColumnIfNotExists('pos_orders', 'remote_customer_order_number', 'INTEGER');
       addColumnIfNotExists('pos_orders', 'total', 'REAL');
+      addColumnIfNotExists('pos_orders', 'last_sync_attempt', 'TEXT');
+      addColumnIfNotExists('pos_orders', 'error', 'TEXT');
+      addColumnIfNotExists('pos_orders', 'customer_name_lower', 'TEXT');
+    }
+    
+    // Migration لجدول pos_order_items
+    if (this.db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='pos_order_items'`).get()) {
+      addColumnIfNotExists('pos_order_items', 'synced', 'INTEGER', 0);
     }
 
     // Migration لجدول products لضمان وجود أعمدة المزامنة
@@ -528,6 +700,107 @@ class SQLiteManager {
       addColumnIfNotExists('customers', 'sync_status', 'TEXT');
       addColumnIfNotExists('customers', 'pending_operation', 'TEXT');
       addColumnIfNotExists('customers', 'local_updated_at', 'TEXT');
+      addColumnIfNotExists('customers', 'name_lower', 'TEXT');
+      addColumnIfNotExists('customers', 'email_lower', 'TEXT');
+      addColumnIfNotExists('customers', 'phone_digits', 'TEXT');
+      // Backfill lowercased/search columns for existing rows
+      try {
+        this.db.exec(`
+          UPDATE customers 
+          SET 
+            name_lower = COALESCE(name_lower, LOWER(name)),
+            email_lower = COALESCE(email_lower, LOWER(email)),
+            phone_digits = COALESCE(
+              phone_digits,
+              REPLACE(REPLACE(REPLACE(REPLACE(IFNULL(phone, ''), ' ', ''), '-', ''), '(', ''), ')', '')
+            )
+          WHERE name IS NOT NULL AND (
+            name_lower IS NULL OR email_lower IS NULL OR phone_digits IS NULL
+          );
+        `);
+      } catch (e) {
+        console.warn('[SQLite] Backfill customers lower fields warning:', e?.message || e);
+      }
+    }
+
+    // Migration لجدول customer_debts لضمان وجود pending_operation
+    if (this.db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='customer_debts'`).get()) {
+      addColumnIfNotExists('customer_debts', 'pending_operation', 'TEXT');
+      addColumnIfNotExists('customer_debts', 'customer_name', 'TEXT');
+      addColumnIfNotExists('customer_debts', 'order_id', 'TEXT');
+      addColumnIfNotExists('customer_debts', 'order_number', 'TEXT');
+      addColumnIfNotExists('customer_debts', 'total_amount', 'REAL');
+      addColumnIfNotExists('customer_debts', 'paid_amount', 'REAL');
+      addColumnIfNotExists('customer_debts', 'remaining_amount', 'REAL');
+      addColumnIfNotExists('customer_debts', 'due_date', 'TEXT');
+      addColumnIfNotExists('customer_debts', 'notes', 'TEXT');
+    }
+
+    // Migration لجدول invoices لإضافة جميع الأعمدة الجديدة
+    if (this.db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='invoices'`).get()) {
+      addColumnIfNotExists('invoices', 'invoice_number_lower', 'TEXT');
+      addColumnIfNotExists('invoices', 'remote_invoice_id', 'TEXT');
+      addColumnIfNotExists('invoices', 'customer_name', 'TEXT');
+      addColumnIfNotExists('invoices', 'customer_name_lower', 'TEXT');
+      addColumnIfNotExists('invoices', 'invoice_date', 'TEXT');
+      addColumnIfNotExists('invoices', 'due_date', 'TEXT');
+      addColumnIfNotExists('invoices', 'source_type', 'TEXT');
+      addColumnIfNotExists('invoices', 'payment_method', 'TEXT');
+      addColumnIfNotExists('invoices', 'payment_status', 'TEXT');
+      addColumnIfNotExists('invoices', 'notes', 'TEXT');
+      addColumnIfNotExists('invoices', 'tax_amount', 'REAL', 0);
+      addColumnIfNotExists('invoices', 'discount_amount', 'REAL', 0);
+      addColumnIfNotExists('invoices', 'subtotal_amount', 'REAL', 0);
+      addColumnIfNotExists('invoices', 'shipping_amount', 'REAL');
+      addColumnIfNotExists('invoices', 'discount_type', 'TEXT');
+      addColumnIfNotExists('invoices', 'discount_percentage', 'REAL');
+      addColumnIfNotExists('invoices', 'tva_rate', 'REAL');
+      addColumnIfNotExists('invoices', 'amount_ht', 'REAL');
+      addColumnIfNotExists('invoices', 'amount_tva', 'REAL');
+      addColumnIfNotExists('invoices', 'amount_ttc', 'REAL');
+      addColumnIfNotExists('invoices', 'pending_operation', 'TEXT');
+      addColumnIfNotExists('invoices', 'local_created_at', 'TEXT');
+    }
+
+    // Migration لجدول invoice_items لإضافة جميع الأعمدة الجديدة
+    if (this.db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='invoice_items'`).get()) {
+      addColumnIfNotExists('invoice_items', 'name', 'TEXT');
+      addColumnIfNotExists('invoice_items', 'description', 'TEXT');
+      addColumnIfNotExists('invoice_items', 'total_price', 'REAL');
+      addColumnIfNotExists('invoice_items', 'type', 'TEXT', "'product'");
+      addColumnIfNotExists('invoice_items', 'sku', 'TEXT');
+      addColumnIfNotExists('invoice_items', 'barcode', 'TEXT');
+      addColumnIfNotExists('invoice_items', 'tva_rate', 'REAL');
+      addColumnIfNotExists('invoice_items', 'unit_price_ht', 'REAL');
+      addColumnIfNotExists('invoice_items', 'unit_price_ttc', 'REAL');
+      addColumnIfNotExists('invoice_items', 'total_ht', 'REAL');
+      addColumnIfNotExists('invoice_items', 'total_tva', 'REAL');
+      addColumnIfNotExists('invoice_items', 'total_ttc', 'REAL');
+      addColumnIfNotExists('invoice_items', 'synced', 'INTEGER', 0);
+      
+      // Backfill name from product_name if it exists
+      try {
+        this.db.exec(`
+          UPDATE invoice_items
+          SET name = COALESCE(name, product_name)
+          WHERE product_name IS NOT NULL AND name IS NULL;
+        `);
+      } catch (e) {
+        console.warn('[SQLite] Backfill invoice_items.name warning:', e?.message || e);
+      }
+    }
+
+    // Backfill pos_orders.customer_name_lower for existing rows
+    try {
+      if (this.db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='pos_orders'`).get()) {
+        this.db.exec(`
+          UPDATE pos_orders
+          SET customer_name_lower = COALESCE(customer_name_lower, LOWER(customer_name))
+          WHERE customer_name IS NOT NULL AND customer_name_lower IS NULL;
+        `);
+      }
+    } catch (e) {
+      console.warn('[SQLite] Backfill pos_orders.customer_name_lower warning:', e?.message || e);
     }
 
     // جداول إرجاعات المنتجات (product_returns, return_items)
@@ -639,6 +912,102 @@ class SQLiteManager {
       );
     `);
 
+    // جداول الفئات والفئات الفرعية
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS product_categories (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT,
+        slug TEXT,
+        icon TEXT,
+        image_url TEXT,
+        is_active INTEGER,
+        type TEXT,
+        organization_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `);
+
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS product_subcategories (
+        id TEXT PRIMARY KEY,
+        category_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        slug TEXT,
+        is_active INTEGER,
+        organization_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY (category_id) REFERENCES product_categories(id) ON DELETE CASCADE
+      );
+    `);
+
+    // جدول الموظفين/المستخدمين المحلي
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS employees (
+        id TEXT PRIMARY KEY,
+        auth_user_id TEXT,
+        name TEXT,
+        email TEXT,
+        phone TEXT,
+        role TEXT,
+        is_active INTEGER,
+        organization_id TEXT,
+        permissions TEXT,
+        created_at TEXT,
+        updated_at TEXT
+      );
+    `);
+
+    // جداول الكاش للأوفلاين (بدلاً من IndexedDB/localforage)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS app_init_cache (
+        id TEXT PRIMARY KEY, -- key: app-init:{userId}:{organizationId}
+        user_id TEXT,
+        organization_id TEXT,
+        data TEXT NOT NULL, -- JSON
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `);
+
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS pos_offline_cache (
+        id TEXT PRIMARY KEY, -- cache key
+        organization_id TEXT,
+        page INTEGER,
+        page_limit INTEGER,
+        search TEXT,
+        category_id TEXT,
+        data TEXT NOT NULL, -- JSON
+        timestamp TEXT NOT NULL
+      );
+    `);
+
+    // تخزين عام (Key-Value) للجلسة وغيرها: auth_storage
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS auth_storage (
+        id TEXT PRIMARY KEY, -- storage key
+        value TEXT NOT NULL, -- stringified JSON
+        updated_at TEXT NOT NULL
+      );
+    `);
+
+    // جدول المخزون (inventory)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS inventory (
+        id TEXT PRIMARY KEY,
+        product_id TEXT NOT NULL,
+        variant_id TEXT,
+        stock_quantity INTEGER NOT NULL DEFAULT 0,
+        last_updated TEXT NOT NULL,
+        synced INTEGER DEFAULT 0,
+        organization_id TEXT
+      );
+    `);
+
     // جدول المعاملات (transactions)
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS transactions (
@@ -656,7 +1025,145 @@ class SQLiteManager {
       );
     `);
 
+    // 🔒 جدول التضاربات (conflicts) - لتسجيل ومتابعة جميع التضاربات أثناء المزامنة
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS conflicts (
+        id TEXT PRIMARY KEY,
+        entity_type TEXT NOT NULL, -- 'product', 'customer', 'invoice', 'order'
+        entity_id TEXT NOT NULL,
+
+        -- النسخ المتضاربة
+        local_version TEXT NOT NULL,     -- JSON
+        server_version TEXT NOT NULL,    -- JSON
+
+        -- تفاصيل التضارب
+        conflict_fields TEXT NOT NULL,   -- JSON array of field names
+        severity INTEGER NOT NULL,       -- 0-100
+
+        -- الحل
+        resolution TEXT NOT NULL,        -- 'server_wins', 'client_wins', 'merge', 'manual'
+        resolved_version TEXT NOT NULL,  -- JSON
+        resolved_by TEXT,                -- user ID (for manual resolutions)
+
+        -- Timestamps
+        detected_at TEXT NOT NULL,
+        resolved_at TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        organization_id TEXT NOT NULL,
+
+        local_timestamp TEXT NOT NULL,
+        server_timestamp TEXT NOT NULL,
+
+        -- ملاحظات اختيارية
+        notes TEXT,
+
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     console.log('[SQLite] All tables created');
+  }
+
+  /**
+   * إنشاء جداول مبسطة خاصة بقاعدة "global" فقط
+   * تستخدم لتخزين جلسة Supabase وبعض الكاشات الخفيفة
+   */
+  createGlobalTables() {
+    // auth_storage فقط كافٍ لعملية تسجيل الدخول/الجلسة
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS auth_storage (
+        id TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_auth_storage_updated ON auth_storage(updated_at);
+    `);
+
+    // اختياري: app_init_cache للقراءة الاحتياطية إن لزم
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS app_init_cache (
+        id TEXT PRIMARY KEY,
+        user_id TEXT,
+        organization_id TEXT,
+        data TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+    `);
+
+    // حالة الترخيص والساعة الآمنة (Sticky Clock)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS app_license_state (
+        id TEXT PRIMARY KEY,              -- organization_id أو 'global'
+        organization_id TEXT,
+        secure_anchor_ms INTEGER DEFAULT 0,
+        last_device_time_ms INTEGER DEFAULT 0,
+        last_server_time_ms INTEGER,
+        tamper_count INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_app_license_state_org ON app_license_state(organization_id);
+    `);
+
+    // تخزين بيانات الاعتماد للأوفلاين (حسب البريد الإلكتروني)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS user_credentials (
+        id TEXT PRIMARY KEY,
+        email TEXT,
+        email_lower TEXT UNIQUE,
+        salt TEXT NOT NULL,
+        hash TEXT NOT NULL,
+        algo TEXT,
+        fallback_hash TEXT,
+        user_id TEXT,
+        organization_id TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        last_success_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_user_credentials_email_lower ON user_credentials(email_lower);
+    `);
+
+    console.log('[SQLite] Global tables created');
+  }
+
+  /**
+   * ترحيل schema - إضافة أعمدة جديدة للجداول الموجودة
+   */
+  migrateSchema() {
+    try {
+      // التحقق من وجود عمود thumbnail_image
+      const columnsResult = this.db.prepare("PRAGMA table_info(products)").all();
+      const hasThumbColumn = columnsResult.some(col => col.name === 'thumbnail_image');
+      const hasImagesColumn = columnsResult.some(col => col.name === 'images');
+
+      let columnsAdded = false;
+
+      // إضافة عمود thumbnail_image إذا لم يكن موجوداً
+      if (!hasThumbColumn) {
+        console.log('[SQLite] Adding thumbnail_image column to products table');
+        this.db.exec(`ALTER TABLE products ADD COLUMN thumbnail_image TEXT`);
+        columnsAdded = true;
+      }
+
+      // إضافة عمود images إذا لم يكن موجوداً
+      if (!hasImagesColumn) {
+        console.log('[SQLite] Adding images column to products table');
+        this.db.exec(`ALTER TABLE products ADD COLUMN images TEXT`);
+        columnsAdded = true;
+      }
+
+      // 🔥 CRITICAL FIX: Clear the column cache so upsert sees the new columns
+      if (columnsAdded) {
+        this._tableColumnsCache.delete('products');
+        console.log('[SQLite] ✅ Cleared products table column cache - new columns will be recognized');
+      }
+
+      console.log('[SQLite] Schema migration completed');
+    } catch (error) {
+      console.warn('[SQLite] Schema migration warning:', error?.message || error);
+    }
   }
 
   /**
@@ -670,12 +1177,18 @@ class SQLiteManager {
       CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id) WHERE category_id IS NOT NULL;
       CREATE INDEX IF NOT EXISTS idx_products_active ON products(is_active, organization_id);
       CREATE INDEX IF NOT EXISTS idx_products_sync ON products(synced, pending_operation);
+      -- ⚡ فهرس مركّب لفرز المنتجات حسب الاسم (تحسين 50-200%)
+      CREATE INDEX IF NOT EXISTS idx_products_org_name ON products(organization_id, name_normalized);
 
       CREATE INDEX IF NOT EXISTS idx_orders_org ON pos_orders(organization_id);
       CREATE INDEX IF NOT EXISTS idx_orders_customer ON pos_orders(customer_id) WHERE customer_id IS NOT NULL;
       CREATE INDEX IF NOT EXISTS idx_orders_date ON pos_orders(created_at);
       CREATE INDEX IF NOT EXISTS idx_orders_sync ON pos_orders(synced, sync_status);
       CREATE INDEX IF NOT EXISTS idx_orders_session ON pos_orders(work_session_id) WHERE work_session_id IS NOT NULL;
+      -- ⚡ فهرس مركّب لفلترة الطلبات حسب التاريخ والحالة
+      CREATE INDEX IF NOT EXISTS idx_orders_org_date_status ON pos_orders(organization_id, created_at, status);
+      -- ⚡ فهرس مركّب للبحث عن الطلبات باسم العميل
+      CREATE INDEX IF NOT EXISTS idx_orders_org_customer_name_lower ON pos_orders(organization_id, customer_name_lower);
 
       CREATE INDEX IF NOT EXISTS idx_order_items_order ON pos_order_items(order_id);
       CREATE INDEX IF NOT EXISTS idx_order_items_product ON pos_order_items(product_id);
@@ -683,12 +1196,18 @@ class SQLiteManager {
       CREATE INDEX IF NOT EXISTS idx_customers_org ON customers(organization_id);
       CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone) WHERE phone IS NOT NULL;
       CREATE INDEX IF NOT EXISTS idx_customers_debt ON customers(total_debt) WHERE total_debt > 0;
+      -- ⚡ فهارس بحث سريعة للعملاء
+      CREATE INDEX IF NOT EXISTS idx_customers_org_name_lower ON customers(organization_id, name_lower);
+      CREATE INDEX IF NOT EXISTS idx_customers_org_email_lower ON customers(organization_id, email_lower);
+      CREATE INDEX IF NOT EXISTS idx_customers_org_phone_digits ON customers(organization_id, phone_digits);
 
       CREATE INDEX IF NOT EXISTS idx_invoices_org ON invoices(organization_id);
       CREATE INDEX IF NOT EXISTS idx_invoices_customer ON invoices(customer_id) WHERE customer_id IS NOT NULL;
 
       CREATE INDEX IF NOT EXISTS idx_debts_customer ON customer_debts(customer_id);
       CREATE INDEX IF NOT EXISTS idx_debts_org ON customer_debts(organization_id);
+      CREATE INDEX IF NOT EXISTS idx_debts_order ON customer_debts(order_id);
+      CREATE INDEX IF NOT EXISTS idx_debts_status ON customer_debts(status);
 
       CREATE INDEX IF NOT EXISTS idx_repairs_org ON repair_orders(organization_id);
       CREATE INDEX IF NOT EXISTS idx_repairs_customer ON repair_orders(customer_id) WHERE customer_id IS NOT NULL;
@@ -711,6 +1230,36 @@ class SQLiteManager {
       CREATE INDEX IF NOT EXISTS idx_user_permissions_auth ON user_permissions(auth_user_id);
       CREATE INDEX IF NOT EXISTS idx_user_permissions_org ON user_permissions(organization_id);
       CREATE UNIQUE INDEX IF NOT EXISTS idx_user_permissions_auth_org ON user_permissions(auth_user_id, organization_id);
+
+      -- فهارس الفئات
+      CREATE INDEX IF NOT EXISTS idx_categories_org ON product_categories(organization_id);
+      CREATE INDEX IF NOT EXISTS idx_categories_slug ON product_categories(slug);
+      CREATE INDEX IF NOT EXISTS idx_subcategories_org ON product_subcategories(organization_id);
+      CREATE INDEX IF NOT EXISTS idx_subcategories_category ON product_subcategories(category_id);
+      CREATE INDEX IF NOT EXISTS idx_employees_org ON employees(organization_id);
+      CREATE INDEX IF NOT EXISTS idx_employees_role ON employees(role);
+      CREATE INDEX IF NOT EXISTS idx_employees_active ON employees(is_active);
+
+      -- فهارس جداول الكاش
+      CREATE INDEX IF NOT EXISTS idx_app_init_cache_user_org ON app_init_cache(user_id, organization_id);
+      CREATE INDEX IF NOT EXISTS idx_pos_offline_cache_org ON pos_offline_cache(organization_id);
+      CREATE INDEX IF NOT EXISTS idx_auth_storage_updated ON auth_storage(updated_at);
+
+      -- ⚡ فهارس المخزون والمعاملات (تحسينات جديدة)
+      CREATE INDEX IF NOT EXISTS idx_inventory_product_variant ON inventory(product_id, variant_id);
+      CREATE INDEX IF NOT EXISTS idx_transactions_sync ON transactions(product_id, synced);
+      CREATE INDEX IF NOT EXISTS idx_transactions_product_sync ON transactions(product_id, synced, timestamp);
+
+      -- 🔒 فهارس جدول التضاربات (conflicts)
+      CREATE INDEX IF NOT EXISTS idx_conflicts_entity ON conflicts(entity_type, entity_id);
+      CREATE INDEX IF NOT EXISTS idx_conflicts_org ON conflicts(organization_id);
+      CREATE INDEX IF NOT EXISTS idx_conflicts_detected ON conflicts(detected_at);
+      CREATE INDEX IF NOT EXISTS idx_conflicts_resolution ON conflicts(resolution);
+      CREATE INDEX IF NOT EXISTS idx_conflicts_severity ON conflicts(severity);
+
+      -- فهارس الاشتراكات
+      CREATE INDEX IF NOT EXISTS idx_org_subs_end ON organization_subscriptions(organization_id, end_date);
+      CREATE INDEX IF NOT EXISTS idx_org_subs_status ON organization_subscriptions(organization_id, status);
     `);
 
     console.log('[SQLite] All indexes created');
@@ -766,6 +1315,50 @@ class SQLiteManager {
   // INSERT or UPDATE
   upsert(table, data) {
     try {
+      // معالجة خاصة لجدول products - حفظ colors/sizes/images في metadata
+      if (table === 'products' && data) {
+        const extraFields = {};
+        if (data.colors) extraFields.colors = data.colors;
+        if (data.sizes) extraFields.sizes = data.sizes;
+        if (data.images) extraFields.images = data.images;
+        if (data.variants) extraFields.variants = data.variants;
+        if (data.product_colors) extraFields.product_colors = data.product_colors;
+        if (data.product_sizes) extraFields.product_sizes = data.product_sizes;
+        if (data.product_images) extraFields.product_images = data.product_images;
+
+        if (Object.keys(extraFields).length > 0) {
+          // دمج مع metadata الموجود
+          let metadata = {};
+          if (data.metadata && typeof data.metadata === 'object') {
+            metadata = { ...data.metadata };
+          } else if (data.metadata && typeof data.metadata === 'string') {
+            try {
+              metadata = JSON.parse(data.metadata);
+            } catch (e) {
+              metadata = {};
+            }
+          }
+
+          metadata = { ...metadata, ...extraFields };
+          data.metadata = JSON.stringify(metadata);
+
+          console.log(`[SQLite] حفظ منتج مع بيانات إضافية:`, {
+            productId: data.id,
+            productName: data.name,
+            extraFieldsKeys: Object.keys(extraFields),
+            hasColors: !!extraFields.colors,
+            hasSizes: !!extraFields.sizes,
+            hasImages: !!extraFields.images,
+            hasVariants: !!extraFields.variants
+          });
+        }
+
+        // تطبيع اسم المنتج للبحث العربي
+        if (data.name) {
+          data.name_normalized = this.normalizeArabicText(data.name);
+        }
+      }
+
       // helper: camelCase -> snake_case
       const toSnake = (s) => s.replace(/([A-Z])/g, '_$1').toLowerCase();
 
@@ -790,6 +1383,10 @@ class SQLiteManager {
       if (!this._tableColumnsCache.has(table)) {
         const cols = this.db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
         this._tableColumnsCache.set(table, cols);
+        this._touchCache(table);
+      } else {
+        // تحديث timestamp الوصول
+        this._touchCache(table);
       }
       const tableColumns = this._tableColumnsCache.get(table) || [];
       // Map camelCase keys to snake_case if needed, and include only known columns
@@ -803,6 +1400,21 @@ class SQLiteManager {
 
       // Auto-fill organization_id if required and not provided
       const safeObj = Object.fromEntries(mapped);
+
+      // 🖼️ Debug logging for image fields in products table
+      if (table === 'products' && (data.thumbnail_image || data.images)) {
+        console.log('🖼️ [SQLite upsert] Saving product with images:', {
+          productId: data.id,
+          productName: data.name,
+          thumbnail_image_input: data.thumbnail_image,
+          thumbnail_image_mapped: safeObj.thumbnail_image,
+          images_input: data.images,
+          images_mapped: safeObj.images,
+          tableColumns_includes_thumbnail: tableColumns.includes('thumbnail_image'),
+          tableColumns_includes_images: tableColumns.includes('images'),
+          totalColumns: tableColumns.length
+        });
+      }
       if (tableColumns.includes('organization_id') && safeObj.organization_id == null && this.currentOrganizationId) {
         safeObj.organization_id = this.currentOrganizationId;
       }
@@ -845,6 +1457,21 @@ class SQLiteManager {
         }
       }
 
+      // Special fallbacks for invoices table
+      if (table === 'invoices') {
+        const nowISO = new Date().toISOString();
+        // timestamps
+        if (tableColumns.includes('created_at') && !safeObj.created_at) {
+          safeObj.created_at = nowISO;
+        }
+        if (tableColumns.includes('updated_at') && !safeObj.updated_at) {
+          safeObj.updated_at = safeObj.created_at || nowISO;
+        }
+        if (tableColumns.includes('local_created_at') && !safeObj.local_created_at) {
+          safeObj.local_created_at = safeObj.created_at || nowISO;
+        }
+      }
+
       const safeData = Object.fromEntries(Object.entries(safeObj).map(([k, v]) => [k, normalizeValue(v)]));
 
       const keys = Object.keys(safeData);
@@ -869,6 +1496,72 @@ class SQLiteManager {
     }
   }
 
+  // دالة مساعدة لاستعادة البيانات من metadata
+  restoreMetadataFields(row) {
+    if (!row) return row;
+
+    // 🖼️ Debug: Log image data for first product in results
+    if (row.thumbnail_image || row.images) {
+      console.log('🖼️ [SQLite query] Product with images retrieved:', {
+        id: row.id,
+        name: row.name,
+        thumbnail_image: row.thumbnail_image,
+        has_images_column: !!row.images
+      });
+    }
+
+    // إذا كان الصف يحتوي على metadata
+    if (row.metadata && typeof row.metadata === 'string') {
+      try {
+        const metadata = JSON.parse(row.metadata);
+        const restoredFields = [];
+
+        // استعادة الحقول المحفوظة في metadata
+        if (metadata.colors) {
+          row.colors = metadata.colors;
+          restoredFields.push('colors');
+        }
+        if (metadata.sizes) {
+          row.sizes = metadata.sizes;
+          restoredFields.push('sizes');
+        }
+        if (metadata.images) {
+          row.images = metadata.images;
+          restoredFields.push('images');
+        }
+        if (metadata.variants) {
+          row.variants = metadata.variants;
+          restoredFields.push('variants');
+        }
+        if (metadata.product_colors) {
+          row.product_colors = metadata.product_colors;
+          restoredFields.push('product_colors');
+        }
+        if (metadata.product_sizes) {
+          row.product_sizes = metadata.product_sizes;
+          restoredFields.push('product_sizes');
+        }
+        if (metadata.product_images) {
+          row.product_images = metadata.product_images;
+          restoredFields.push('product_images');
+        }
+
+        // Log فقط إذا تم استعادة حقول
+        if (restoredFields.length > 0) {
+          console.log(`[SQLite] استعادة بيانات إضافية من metadata:`, {
+            productId: row.id,
+            productName: row.name,
+            restoredFields: restoredFields
+          });
+        }
+      } catch (e) {
+        console.error(`[SQLite] فشل parsing metadata للمنتج ${row.id}:`, e.message);
+      }
+    }
+
+    return row;
+  }
+
   // SELECT
   query(sql, params = {}) {
     try {
@@ -881,6 +1574,12 @@ class SQLiteManager {
         // Named parameters or no params
         result = stmt.all(params);
       }
+
+      // استعادة البيانات من metadata للمنتجات
+      if (sql.includes('FROM products') || sql.includes('from products')) {
+        result = result.map(row => this.restoreMetadataFields(row));
+      }
+
       return { success: true, data: result };
     } catch (error) {
       console.error('[SQLite] Query failed:', error);
@@ -898,6 +1597,12 @@ class SQLiteManager {
       } else {
         result = stmt.get(params);
       }
+
+      // استعادة البيانات من metadata للمنتجات
+      if (result && (sql.includes('FROM products') || sql.includes('from products'))) {
+        result = this.restoreMetadataFields(result);
+      }
+
       return { success: true, data: result || null };
     } catch (error) {
       console.error('[SQLite] QueryOne failed:', error);
@@ -914,6 +1619,25 @@ class SQLiteManager {
     } catch (error) {
       console.error(`[SQLite] Delete failed for ${table}:`, error);
       return { success: false, error: error.message };
+    }
+  }
+
+  // EXECUTE (for UPDATE/INSERT/DELETE statements)
+  execute(sql, params = {}) {
+    try {
+      const stmt = this.db.prepare(sql);
+      let result;
+      if (Array.isArray(params)) {
+        // Positional parameters
+        result = stmt.run(...params);
+      } else {
+        // Named parameters or no params
+        result = stmt.run(params);
+      }
+      return { success: true, changes: result.changes, lastInsertRowid: result.lastInsertRowid };
+    } catch (error) {
+      console.error('[SQLite] Execute failed:', error);
+      return { success: false, error: error.message, changes: 0 };
     }
   }
 
@@ -940,7 +1664,12 @@ class SQLiteManager {
       params.push(limit, offset);
 
       const stmt = this.db.prepare(sql);
-      const results = stmt.all(...params);
+      let results = stmt.all(...params);
+
+      // استعادة البيانات من metadata للمنتجات
+      if (table === 'products') {
+        results = results.map(row => this.restoreMetadataFields(row));
+      }
 
       return { success: true, data: results };
     } catch (error) {
@@ -952,9 +1681,52 @@ class SQLiteManager {
   // إضافة منتج
   addProduct(product) {
     product.name_normalized = this.normalizeArabicText(product.name);
+
+    // حفظ الحقول الإضافية (colors, sizes, images, variants) في metadata
+    const extraFields = {};
+    if (product.colors) extraFields.colors = product.colors;
+    if (product.sizes) extraFields.sizes = product.sizes;
+    if (product.images) extraFields.images = product.images;
+    if (product.variants) extraFields.variants = product.variants;
+    if (product.product_colors) extraFields.product_colors = product.product_colors;
+    if (product.product_sizes) extraFields.product_sizes = product.product_sizes;
+    if (product.product_images) extraFields.product_images = product.product_images;
+
+    // دمج extraFields مع metadata الموجود
+    let metadata = {};
     if (product.metadata && typeof product.metadata === 'object') {
-      product.metadata = JSON.stringify(product.metadata);
+      metadata = { ...product.metadata };
+    } else if (product.metadata && typeof product.metadata === 'string') {
+      try {
+        metadata = JSON.parse(product.metadata);
+      } catch (e) {
+        metadata = {};
+      }
     }
+
+    // إضافة extraFields إلى metadata
+    if (Object.keys(extraFields).length > 0) {
+      metadata = { ...metadata, ...extraFields };
+    }
+
+    // تحويل metadata إلى string
+    if (Object.keys(metadata).length > 0) {
+      product.metadata = JSON.stringify(metadata);
+
+      // Log للمنتجات التي تحتوي على بيانات إضافية
+      if (Object.keys(extraFields).length > 0) {
+        console.log(`[SQLite] حفظ منتج مع بيانات إضافية:`, {
+          productId: product.id,
+          productName: product.name,
+          extraFieldsKeys: Object.keys(extraFields),
+          hasColors: !!extraFields.colors,
+          hasSizes: !!extraFields.sizes,
+          hasImages: !!extraFields.images,
+          hasVariants: !!extraFields.variants
+        });
+      }
+    }
+
     return this.upsert('products', product);
   }
 
@@ -1120,6 +1892,249 @@ class SQLiteManager {
       return { success: true };
     } catch (error) {
       console.error('[SQLite] Restore failed:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  // ========================================
+  // 🔒 Conflict Resolution API
+  // ========================================
+
+  /**
+   * تسجيل تضارب
+   * @param {Object} conflictEntry - بيانات التضارب
+   */
+  logConflict(conflictEntry) {
+    try {
+      const {
+        id,
+        entityType,
+        entityId,
+        localVersion,
+        serverVersion,
+        conflictFields,
+        severity,
+        resolution,
+        resolvedVersion,
+        resolvedBy,
+        detectedAt,
+        resolvedAt,
+        userId,
+        organizationId,
+        localTimestamp,
+        serverTimestamp,
+        notes
+      } = conflictEntry;
+
+      const stmt = this.db.prepare(`
+        INSERT INTO conflicts (
+          id, entity_type, entity_id,
+          local_version, server_version,
+          conflict_fields, severity,
+          resolution, resolved_version, resolved_by,
+          detected_at, resolved_at,
+          user_id, organization_id,
+          local_timestamp, server_timestamp,
+          notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      const result = stmt.run(
+        id,
+        entityType,
+        entityId,
+        JSON.stringify(localVersion),
+        JSON.stringify(serverVersion),
+        JSON.stringify(conflictFields),
+        severity,
+        resolution,
+        JSON.stringify(resolvedVersion),
+        resolvedBy || null,
+        detectedAt,
+        resolvedAt,
+        userId,
+        organizationId,
+        localTimestamp,
+        serverTimestamp,
+        notes || null
+      );
+
+      console.log(`[SQLite] Conflict logged: ${entityType}/${entityId} - ${resolution}`);
+      return { success: true, changes: result.changes };
+    } catch (error) {
+      console.error('[SQLite] Log conflict failed:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * جلب سجل التضاربات لكيان معين
+   * @param {string} entityType - نوع الكيان
+   * @param {string} entityId - معرف الكيان
+   */
+  getConflictHistory(entityType, entityId) {
+    try {
+      const stmt = this.db.prepare(`
+        SELECT * FROM conflicts
+        WHERE entity_type = ? AND entity_id = ?
+        ORDER BY detected_at DESC
+      `);
+
+      const rows = stmt.all(entityType, entityId);
+
+      // تحويل JSON strings إلى objects
+      const conflicts = rows.map(row => ({
+        ...row,
+        localVersion: JSON.parse(row.local_version),
+        serverVersion: JSON.parse(row.server_version),
+        conflictFields: JSON.parse(row.conflict_fields),
+        resolvedVersion: JSON.parse(row.resolved_version)
+      }));
+
+      return { success: true, data: conflicts };
+    } catch (error) {
+      console.error('[SQLite] Get conflict history failed:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * جلب كل التضاربات لمنظمة معينة
+   * @param {string} organizationId - معرف المنظمة
+   * @param {Object} options - خيارات الفلترة
+   */
+  getConflicts(organizationId, options = {}) {
+    try {
+      const {
+        entityType,
+        resolution,
+        minSeverity,
+        dateFrom,
+        dateTo,
+        limit = 100,
+        offset = 0
+      } = options;
+
+      let query = `SELECT * FROM conflicts WHERE organization_id = ?`;
+      const params = [organizationId];
+
+      if (entityType) {
+        query += ` AND entity_type = ?`;
+        params.push(entityType);
+      }
+
+      if (resolution) {
+        query += ` AND resolution = ?`;
+        params.push(resolution);
+      }
+
+      if (minSeverity !== undefined) {
+        query += ` AND severity >= ?`;
+        params.push(minSeverity);
+      }
+
+      if (dateFrom) {
+        query += ` AND detected_at >= ?`;
+        params.push(dateFrom);
+      }
+
+      if (dateTo) {
+        query += ` AND detected_at <= ?`;
+        params.push(dateTo);
+      }
+
+      query += ` ORDER BY detected_at DESC LIMIT ? OFFSET ?`;
+      params.push(limit, offset);
+
+      const stmt = this.db.prepare(query);
+      const rows = stmt.all(...params);
+
+      // تحويل JSON strings إلى objects
+      const conflicts = rows.map(row => ({
+        ...row,
+        localVersion: JSON.parse(row.local_version),
+        serverVersion: JSON.parse(row.server_version),
+        conflictFields: JSON.parse(row.conflict_fields),
+        resolvedVersion: JSON.parse(row.resolved_version)
+      }));
+
+      return { success: true, data: conflicts, count: conflicts.length };
+    } catch (error) {
+      console.error('[SQLite] Get conflicts failed:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * إحصائيات التضاربات
+   * @param {string} organizationId - معرف المنظمة
+   * @param {string} dateFrom - تاريخ البداية
+   * @param {string} dateTo - تاريخ النهاية
+   */
+  getConflictStatistics(organizationId, dateFrom, dateTo) {
+    try {
+      const stmt = this.db.prepare(`
+        SELECT
+          COUNT(*) as total_conflicts,
+          entity_type,
+          resolution,
+          COUNT(*) as count,
+          AVG(severity) as avg_severity,
+          MAX(severity) as max_severity
+        FROM conflicts
+        WHERE organization_id = ?
+          AND detected_at BETWEEN ? AND ?
+        GROUP BY entity_type, resolution
+      `);
+
+      const stats = stmt.all(organizationId, dateFrom, dateTo);
+
+      // إحصائيات عامة
+      const totalStmt = this.db.prepare(`
+        SELECT
+          COUNT(*) as total,
+          AVG(severity) as avg_severity,
+          COUNT(DISTINCT entity_id) as affected_entities
+        FROM conflicts
+        WHERE organization_id = ?
+          AND detected_at BETWEEN ? AND ?
+      `);
+
+      const total = totalStmt.get(organizationId, dateFrom, dateTo);
+
+      return {
+        success: true,
+        data: {
+          summary: total,
+          byEntityAndResolution: stats
+        }
+      };
+    } catch (error) {
+      console.error('[SQLite] Get conflict statistics failed:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * حذف التضاربات القديمة
+   * @param {number} daysToKeep - عدد الأيام للاحتفاظ
+   */
+  cleanupOldConflicts(daysToKeep = 90) {
+    try {
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
+      const cutoffISO = cutoffDate.toISOString();
+
+      const stmt = this.db.prepare(`
+        DELETE FROM conflicts WHERE detected_at < ?
+      `);
+
+      const result = stmt.run(cutoffISO);
+
+      console.log(`[SQLite] Cleaned up ${result.changes} old conflicts`);
+      return { success: true, deleted: result.changes };
+    } catch (error) {
+      console.error('[SQLite] Cleanup old conflicts failed:', error);
       return { success: false, error: error.message };
     }
   }

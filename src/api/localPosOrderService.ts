@@ -1,8 +1,10 @@
 import { v4 as uuidv4 } from 'uuid';
-import { inventoryDB, syncQueueStore, type LocalPOSOrder, type LocalPOSOrderItem, type SyncQueueItem } from '@/database/localDb';
+import { inventoryDB, type LocalPOSOrder, type LocalPOSOrderItem, type SyncQueueItem } from '@/database/localDb';
 import type { POSOrderPayload } from '@/types/posOrder';
 import { updateProductStock } from './offlineProductService';
 import { UnifiedQueue } from '@/sync/UnifiedQueue';
+import { syncTracker } from '@/lib/sync/SyncTracker';
+import { createLocalCustomerDebt } from './localCustomerDebtService';
 
 export interface OfflinePOSOrderPayload extends POSOrderPayload {
   metadata?: Record<string, unknown>;
@@ -175,6 +177,44 @@ export const createLocalPOSOrder = async (
     }
   }
 
+  // 🚀 إضافة للـ sync tracker لتفعيل المزامنة الفورية
+  // ملاحظة: نستخدم 'order' لأن UnifiedQueue يضيفها بهذا النوع
+  // syncTracker.addPending(orderId, 'pos_orders'); // ← تم التعطيل لتجنب التضارب
+  
+  // ✅ إنشاء دين تلقائياً إذا كان هناك مبلغ متبقي
+  if (orderRecord.remaining_amount > 0 && orderRecord.customer_id) {
+    try {
+      console.log('[createLocalPOSOrder] 💰 Creating customer debt:', {
+        orderId,
+        customerId: orderRecord.customer_id,
+        remainingAmount: orderRecord.remaining_amount
+      });
+      
+      await createLocalCustomerDebt({
+        customer_id: orderRecord.customer_id,
+        customer_name: orderRecord.customer_name || 'عميل',
+        order_id: orderId,
+        order_number: orderRecord.order_number,
+        subtotal: orderRecord.subtotal, // المبلغ قبل الخصم
+        discount: orderRecord.discount || 0, // التخفيض
+        total_amount: orderRecord.total, // المبلغ النهائي (بعد الخصم)
+        paid_amount: orderRecord.amount_paid,
+        remaining_amount: orderRecord.remaining_amount,
+        amount: orderRecord.remaining_amount, // For legacy schema compatibility
+        status: orderRecord.payment_status === 'paid' ? 'paid' : 
+                orderRecord.payment_status === 'partial' ? 'partial' : 'pending',
+        due_date: null,
+        notes: orderRecord.notes || null,
+        organization_id: orderRecord.organization_id
+      });
+      
+      console.log('[createLocalPOSOrder] ✅ Customer debt created successfully');
+    } catch (error) {
+      console.error('[createLocalPOSOrder] ❌ Failed to create customer debt:', error);
+      // لا نوقف إنشاء الطلب إذا فشل إنشاء الدين
+    }
+  }
+  
   return orderRecord;
 };
 
@@ -203,6 +243,19 @@ export const getPendingPOSOrders = async (): Promise<LocalPOSOrder[]> => {
       bySynced: bySynced.length,
       merged: pendingOrders.length
     });
+
+    // تفاصيل الطلبات المعلقة
+    if (pendingOrders.length > 0) {
+      console.log('[getPendingPOSOrders] 📋 تفاصيل الطلبات المعلقة:', 
+        pendingOrders.map(o => ({
+          id: o.id,
+          status: o.status,
+          synced: o.synced,
+          syncStatus: o.syncStatus,
+          remote_order_id: o.remote_order_id
+        }))
+      );
+    }
 
     return pendingOrders;
   } catch (error) {
@@ -234,8 +287,10 @@ export const markLocalPOSOrderAsSynced = async (
 ): Promise<void> => {
   const now = new Date().toISOString();
 
+  console.log('[markLocalPOSOrderAsSynced] 🔄 تحديث الطلبية:', orderId);
+
   await inventoryDB.transaction('rw', inventoryDB.posOrders, inventoryDB.posOrderItems, async () => {
-    await inventoryDB.posOrders.update(orderId, {
+    const updateResult = await inventoryDB.posOrders.update(orderId, {
       status: 'synced',
       syncStatus: 'synced',
       synced: true,
@@ -246,14 +301,29 @@ export const markLocalPOSOrderAsSynced = async (
       remote_order_id: remoteOrderId,
       remote_customer_order_number: remoteCustomerNumber
     });
+    console.log('[markLocalPOSOrderAsSynced] ✅ تم تحديث الطلبية في DB:', { orderId, updateResult });
 
-    await inventoryDB.posOrderItems
+    const modifyResult = await inventoryDB.posOrderItems
       .where('order_id')
       .equals(orderId)
       .modify({ synced: true });
+    console.log('[markLocalPOSOrderAsSynced] ✅ تم تحديث العناصر:', { orderId, modifyResult });
   });
 
+  // ✅ حذف من sync queue (يُشعر SyncTracker تلقائياً)
   await removeOrderFromSyncQueue(orderId);
+
+  // التحقق من أن التحديث تم بنجاح
+  const verifyOrder = await inventoryDB.posOrders.get(orderId);
+  console.log('[markLocalPOSOrderAsSynced] 🔍 التحقق من الطلبية بعد التحديث:', {
+    orderId,
+    status: verifyOrder?.status,
+    synced: verifyOrder?.synced,
+    remote_order_id: verifyOrder?.remote_order_id,
+    remote_customer_number: verifyOrder?.remote_customer_order_number
+  });
+  
+  console.log('[markLocalPOSOrderAsSynced] ✅ اكتملت المزامنة بنجاح:', orderId);
 };
 
 export const markLocalPOSOrderAsFailed = async (orderId: string, error: string): Promise<void> => {
@@ -273,35 +343,33 @@ export const getLocalPOSOrderItems = async (orderId: string): Promise<LocalPOSOr
 };
 
 export const removeOrderFromSyncQueue = async (orderId: string): Promise<void> => {
-  const keys: string[] = [];
+  let removedCount = 0;
 
-  await syncQueueStore.iterate<SyncQueueItem, void>((item, key) => {
-    if (item.objectId === orderId && item.objectType === 'order') {
-      keys.push(key);
-    }
-  });
-
-  for (const key of keys) {
-    try {
-      await syncQueueStore.removeItem(key);
-    } catch {
-      // تجاهل أخطاء الحذف الفردية لضمان متابعة التنظيف لباقي العناصر
-    }
-  }
-
-  // حذف أيضاً من جدول Dexie الموحد
+  // حذف من جدول SQLite الموحد
   try {
     const items = await inventoryDB.syncQueue
       .where('objectId' as any)
       .equals(orderId as any)
       .toArray();
     for (const it of items) {
-      if (it.objectType === 'order') {
+      // ✅ دعم كلا النوعين
+      if (it.objectType === 'order' || it.objectType === 'pos_orders') {
         await inventoryDB.syncQueue.delete(it.id);
+        removedCount++;
       }
     }
   } catch {
     // تجاهل
+  }
+  
+  console.log('[removeOrderFromSyncQueue] ✅ تم حذف الطلب من قائمة المزامنة:', {
+    orderId,
+    removedCount
+  });
+  
+  // ✅ إشعار SyncTracker بالحذف الناجح
+  if (removedCount > 0) {
+    syncTracker.removePending(orderId, 'pos_orders');
   }
 };
 
@@ -589,50 +657,29 @@ export async function getLocalPOSOrdersPage(
   } = options;
 
   try {
-    // مسار SQLite: تجنب سلاسل Dexie (reverse/and/offset/limit) واستخدم معالجة يدوية
-    if ((inventoryDB as any).isSQLite && (inventoryDB as any).isSQLite()) {
-      let items = await inventoryDB.posOrders
-        .where('organization_id')
-        .equals(organizationId)
-        .toArray();
+    // SQLite-only: معالجة يدوية للبيانات
+    let items = await inventoryDB.posOrders
+      .where('organization_id')
+      .equals(organizationId)
+      .toArray();
 
-      if (status) {
-        const statuses = Array.isArray(status) ? status : [status];
-        items = items.filter((o: any) => statuses.includes(o.status as any));
-      }
-      if (payment_status) {
-        const pstats = Array.isArray(payment_status) ? payment_status : [payment_status];
-        items = items.filter((o: any) => pstats.includes(o.payment_status as any));
-      }
-
-      items.sort((a: any, b: any) => {
-        const ta = new Date(a.created_at || a.updated_at || 0).getTime();
-        const tb = new Date(b.created_at || b.updated_at || 0).getTime();
-        return createdSort === 'desc' ? tb - ta : ta - tb;
-      });
-
-      const total = items.length;
-      const page = items.slice(offset, offset + limit);
-      return { orders: page as any, total };
-    }
-
-    // مسار IndexedDB (Dexie)
-    let coll = inventoryDB.posOrders
-      .where('[organization_id+created_at]' as any)
-      .between([organizationId, ''], [organizationId, '\uffff']);
-
-    if (createdSort === 'desc') coll = (coll as any).reverse();
     if (status) {
       const statuses = Array.isArray(status) ? status : [status];
-      coll = (coll as any).and((o: any) => statuses.includes(o.status as any));
+      items = items.filter((o: any) => statuses.includes(o.status as any));
     }
     if (payment_status) {
       const pstats = Array.isArray(payment_status) ? payment_status : [payment_status];
-      coll = (coll as any).and((o: any) => pstats.includes(o.payment_status as any));
+      items = items.filter((o: any) => pstats.includes(o.payment_status as any));
     }
 
-    const total = await (coll as any).count();
-    const page = await (coll as any).offset(offset).limit(limit).toArray();
+    items.sort((a: any, b: any) => {
+      const ta = new Date(a.created_at || a.updated_at || 0).getTime();
+      const tb = new Date(b.created_at || b.updated_at || 0).getTime();
+      return createdSort === 'desc' ? tb - ta : ta - tb;
+    });
+
+    const total = items.length;
+    const page = items.slice(offset, offset + limit);
     return { orders: page as any, total };
   } catch (error) {
     // احتياطي: فلترة كاملة

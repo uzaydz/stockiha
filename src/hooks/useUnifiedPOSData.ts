@@ -1,5 +1,5 @@
-import { useEffect, useMemo } from 'react';
-import localforage from 'localforage';
+import { useEffect, useMemo, useRef } from 'react';
+import { sqliteDB, isSQLiteAvailable } from '@/lib/db/sqliteAPI';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/context/TenantContext';
@@ -76,11 +76,6 @@ interface CachedPOSResponse {
   data: CompletePOSResponse;
 }
 
-const posOfflineCache = localforage.createInstance({
-  name: 'bazaar-pos',
-  storeName: 'offline-cache'
-});
-
 const parseDateToISOString = (value: unknown, fallback: string): string => {
   if (!value) return fallback;
   if (typeof value === 'string') {
@@ -123,6 +118,13 @@ const hydrateDexieFromCachedResponse = async (
   const now = new Date().toISOString();
 
   try {
+    console.log('[hydrateDexieFromCachedResponse] بدء حفظ البيانات في SQLite', {
+      orgId,
+      productsCount: products?.length || 0,
+      customersCount: customers?.length || 0,
+      ordersCount: recent_orders?.length || 0
+    });
+
     await inventoryDB.transaction(
       'rw',
       inventoryDB.products,
@@ -130,6 +132,30 @@ const hydrateDexieFromCachedResponse = async (
       inventoryDB.posOrders,
       async () => {
         if (Array.isArray(products)) {
+          console.log(`[hydrateDexieFromCachedResponse] بدء حفظ ${products.length} منتج`);
+
+          // Log عينة من أول منتج لفحص البيانات
+          if (products.length > 0) {
+            const sampleProduct = products[0];
+            console.log('[hydrateDexieFromCachedResponse] عينة من بيانات المنتج الأول:', {
+              id: sampleProduct.id,
+              name: sampleProduct.name,
+              hasColors: !!sampleProduct.colors,
+              hasSizes: !!sampleProduct.sizes,
+              hasImages: !!sampleProduct.images,
+              hasVariants: !!sampleProduct.variants,
+              hasProductColors: !!sampleProduct.product_colors,
+              hasProductSizes: !!sampleProduct.product_sizes,
+              hasProductImages: !!sampleProduct.product_images,
+              colorsCount: Array.isArray(sampleProduct.colors) ? sampleProduct.colors.length : 0,
+              sizesCount: Array.isArray(sampleProduct.sizes) ? sampleProduct.sizes.length : 0,
+              imagesCount: Array.isArray(sampleProduct.images) ? sampleProduct.images.length : 0,
+              variantsCount: Array.isArray(sampleProduct.variants) ? sampleProduct.variants.length : 0
+            });
+          }
+
+          // ✅ تحويل المنتجات دفعة واحدة ثم حفظها bulk
+          const localProducts: LocalProduct[] = [];
           for (const product of products) {
             if (!product?.id) continue;
 
@@ -168,11 +194,17 @@ const hydrateDexieFromCachedResponse = async (
               (product as any).stockQuantity ??
               localProduct.stock_quantity;
 
-            await inventoryDB.products.put(localProduct);
+            localProducts.push(localProduct);
           }
+
+          // ✅ حفظ جميع المنتجات دفعة واحدة - أسرع وأكثر أماناً!
+          const savedCount = await inventoryDB.products.bulkPut(localProducts);
+          console.log(`[hydrateDexieFromCachedResponse] تم حفظ ${savedCount} منتج بنجاح (bulk operation)`);
         }
 
         if (Array.isArray(customers)) {
+          // ✅ تحويل العملاء دفعة واحدة
+          const localCustomers: LocalCustomer[] = [];
           for (const customer of customers) {
             if (!customer?.id) continue;
             const createdAt = parseDateToISOString(
@@ -199,11 +231,19 @@ const hydrateDexieFromCachedResponse = async (
               lastSyncAttempt: now
             };
 
-            await inventoryDB.customers.put(localCustomer);
+            localCustomers.push(localCustomer);
+          }
+          
+          // ✅ حفظ جميع العملاء دفعة واحدة
+          if (localCustomers.length > 0) {
+            const savedCount = await inventoryDB.customers.bulkPut(localCustomers);
+            console.log(`[hydrateDexieFromCachedResponse] تم حفظ ${savedCount} عميل بنجاح (bulk operation)`);
           }
         }
 
         if (Array.isArray(recent_orders)) {
+          // ✅ تحويل الطلبات دفعة واحدة
+          const localOrders: LocalPOSOrder[] = [];
           for (const order of recent_orders) {
             if (!order?.id) continue;
 
@@ -272,13 +312,23 @@ const hydrateDexieFromCachedResponse = async (
               String(order.id);
             (localOrder as any).order_number = computedOrderNumber;
 
-            await inventoryDB.posOrders.put(localOrder);
+            localOrders.push(localOrder);
+          }
+          
+          // ✅ حفظ جميع الطلبات دفعة واحدة
+          if (localOrders.length > 0) {
+            const savedCount = await inventoryDB.posOrders.bulkPut(localOrders);
+            console.log(`[hydrateDexieFromCachedResponse] تم حفظ ${savedCount} طلب بنجاح (bulk operation)`);
           }
         }
       }
     );
+    console.log('[hydrateDexieFromCachedResponse] اكتملت عملية الحفظ بنجاح');
   } catch (error) {
-    console.error('[UnifiedPOSData] فشل تهيئة قاعدة البيانات المحلية من الكاش', error);
+    console.error('[hydrateDexieFromCachedResponse] فشل حفظ البيانات في SQLite:', error);
+    if (error instanceof Error) {
+      console.error('[hydrateDexieFromCachedResponse] تفاصيل الخطأ:', error.message, error.stack);
+    }
   }
 };
 
@@ -329,14 +379,25 @@ const saveCompletePOSDataToCache = async (
       timestamp: new Date().toISOString(),
       data: response
     };
-    await posOfflineCache.setItem(cacheKey, payload);
-    console.info('[UnifiedPOSData][Cache] تم حفظ البيانات في التخزين المؤقت', {
-      orgId,
-      cacheKey,
-      productCount: response.data?.products?.length ?? 0
-    });
+    if (isSQLiteAvailable()) {
+      try { await sqliteDB.initialize(orgId); } catch {}
+      await sqliteDB.setPOSOfflineCache({
+        id: cacheKey,
+        organizationId: orgId,
+        page,
+        limit,
+        search: search ?? null,
+        categoryId: categoryId ?? null,
+        data: payload
+      });
+      console.info('[UnifiedPOSData][Cache] تم حفظ البيانات في SQLite', {
+        orgId,
+        cacheKey,
+        productCount: response.data?.products?.length ?? 0
+      });
+    }
   } catch (error) {
-    console.error('[UnifiedPOSData][Cache] فشل حفظ البيانات في التخزين المؤقت', error);
+    console.error('[UnifiedPOSData][Cache] فشل حفظ البيانات في SQLite', error);
   }
 };
 
@@ -349,33 +410,51 @@ const loadCachedCompletePOSData = async (
 ): Promise<CompletePOSResponse | null> => {
   try {
     const cacheKey = buildCacheKey(orgId, page, limit, search, categoryId);
-    const cached = await posOfflineCache.getItem<CachedPOSResponse>(cacheKey);
-    if (cached?.data) {
-      console.warn('[UnifiedPOSData][Cache] استخدام البيانات المخزنة مؤقتاً بسبب نقص البيانات المحلية', {
-        orgId,
-        cacheKey,
-        productCount: cached.data.data?.products?.length ?? 0,
-        cachedAt: cached.timestamp
-      });
-      return cached.data;
+    if (isSQLiteAvailable()) {
+      try { await sqliteDB.initialize(orgId); } catch {}
+      const res = await sqliteDB.getPOSOfflineCacheById(cacheKey);
+      const cached = res.success ? (res.data as CachedPOSResponse | null) : null;
+      if (cached?.data) {
+        console.warn('[UnifiedPOSData][Cache] استخدام البيانات المخزنة (SQLite) بسبب نقص البيانات المحلية', {
+          orgId,
+          cacheKey,
+          productCount: cached.data.data?.products?.length ?? 0,
+          cachedAt: cached.timestamp
+        });
+        return cached.data;
+      }
     }
   } catch (error) {
-    console.error('[UnifiedPOSData][Cache] فشل تحميل البيانات من التخزين المؤقت', error);
+    console.error('[UnifiedPOSData][Cache] فشل تحميل البيانات من SQLite', error);
   }
   return null;
 };
 
-// دالة لتحميل البيانات الأولية من IndexedDB
-const loadInitialDataFromIndexedDB = async (
+// دالة لتحميل البيانات الأولية من قاعدة البيانات المحلية (SQLite)
+const loadInitialDataFromLocalDB = async (
   orgId: string,
   page: number,
   limit: number,
   search?: string,
   categoryId?: string
 ) => {
+  const logPrefix = '[UnifiedPOSData][LocalDB]';
+  console.info(
+    `${logPrefix} ===== بدء loadInitialDataFromLocalDB =====`,
+    {
+      orgId,
+      page,
+      limit,
+      search: search ?? null,
+      categoryId: categoryId ?? null
+    }
+  );
+
   try {
+    console.info(`${logPrefix} تهيئة inventoryDB...`);
     await inventoryDB.initialize(orgId);
-    const logPrefix = '[UnifiedPOSData][IndexedDB]';
+    console.info(`${logPrefix} اكتملت تهيئة inventoryDB`);
+
     console.info(
       `${logPrefix} بدء تحميل البيانات المحلية`,
       {
@@ -416,7 +495,7 @@ const loadInitialDataFromIndexedDB = async (
     ]);
 
     console.info(
-      `${logPrefix} تم تحميل الكيانات الخام من IndexedDB`,
+      `${logPrefix} تم تحميل الكيانات الخام من SQLite`,
       {
         products: localProducts.length,
         categories: localCategories.length,
@@ -672,7 +751,7 @@ const loadInitialDataFromIndexedDB = async (
     };
   } catch (error) {
     console.error(
-      '[UnifiedPOSData][IndexedDB] فشل تحميل البيانات الأولية من IndexedDB',
+      '[UnifiedPOSData][LocalDB] فشل تحميل البيانات الأولية من قاعدة البيانات المحلية',
       { orgId, error }
     );
     return null;
@@ -693,6 +772,15 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
     staleTime = 15 * 60 * 1000, // 15 دقيقة افتراضياً
     gcTime = 30 * 60 * 1000 // 30 دقيقة افتراضياً
   } = options;
+
+  console.log('[useUnifiedPOSData] Hook initialized', {
+    orgId: currentOrganization?.id,
+    page,
+    limit,
+    search,
+    categoryId,
+    enabled
+  });
 
   const isSearchValid =
     search === undefined || search.length === 0 || search.length >= 2;
@@ -718,6 +806,14 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
   } = useQuery({
     queryKey,
     queryFn: async (): Promise<CompletePOSResponse> => {
+      console.log('[UnifiedPOSData] ===== بدء queryFn =====', {
+        orgId: currentOrganization?.id,
+        page,
+        limit,
+        search,
+        categoryId
+      });
+
       if (!currentOrganization?.id) {
         throw new Error('معرف المؤسسة مطلوب');
       }
@@ -725,6 +821,12 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
       // ✅ التحقق من الاتصال بشكل صحيح
       const navigatorOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
       const isOffline = !navigatorOnline || !isAppOnline();
+
+      console.log('[UnifiedPOSData] حالة الاتصال:', {
+        navigatorOnline,
+        isAppOnline: isAppOnline(),
+        isOffline
+      });
 
       if (isOffline) {
         console.warn(
@@ -737,7 +839,7 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
         // ✅ لا نجبر الأوفلاين - فقط نستخدم البيانات المحلية
         // markNetworkOffline({ force: true });
 
-        const offlineData = await loadInitialDataFromIndexedDB(
+        const offlineData = await loadInitialDataFromLocalDB(
           currentOrganization.id,
           page,
           limit,
@@ -746,7 +848,7 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
         );
 
         if (offlineData) {
-          console.info('[UnifiedPOSData] تم تحميل البيانات من IndexedDB بنجاح');
+          console.info('[UnifiedPOSData] تم تحميل البيانات من قاعدة البيانات المحلية (SQLite) بنجاح');
           return offlineData;
         }
 
@@ -792,12 +894,27 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
       }
 
       try {
+        console.log('[UnifiedPOSData] جلب البيانات من الخادم...', {
+          rpc: 'get_complete_pos_data_optimized',
+          p_organization_id: currentOrganization.id,
+          p_products_page: page,
+          p_products_limit: limit,
+          p_search: search || null,
+          p_category_id: categoryId || null
+        });
+
         const { data, error } = await supabase.rpc('get_complete_pos_data_optimized' as any, {
           p_organization_id: currentOrganization.id,
           p_products_page: page,
           p_products_limit: limit,
           p_search: search || null,
           p_category_id: categoryId || null
+        });
+
+        console.log('[UnifiedPOSData] نتيجة الطلب:', {
+          hasData: !!data,
+          hasError: !!error,
+          dataType: Array.isArray(data) ? 'array' : typeof data
         });
 
         if (error) {
@@ -809,6 +926,10 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
         }
 
         const responseData = Array.isArray(data) ? data[0] : data;
+        console.log('[UnifiedPOSData] معالجة البيانات...', {
+          hasSuccess: 'success' in responseData,
+          productsCount: responseData?.data?.products?.length || 0
+        });
 
         if (responseData && typeof responseData === 'object' && 'success' in responseData) {
           if (!responseData.success) {
@@ -847,7 +968,7 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
           categoryId,
           finalResponse
         );
-        // حفظ البيانات في IndexedDB
+        // حفظ البيانات محلياً
         await hydrateDexieFromCachedResponse(currentOrganization.id, finalResponse);
         return finalResponse;
       } catch (fetchError) {
@@ -857,7 +978,7 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
         );
         markNetworkOffline({ force: true });
 
-        const offlineData = await loadInitialDataFromIndexedDB(
+        const offlineData = await loadInitialDataFromLocalDB(
           currentOrganization.id,
           page,
           limit,
@@ -888,34 +1009,41 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
     }
   });
 
+  // استخدام useRef لتتبع حالة التهيئة لكل queryKey
+  const initializedQueriesRef = useRef<Set<string>>(new Set());
+  const queryKeyString = JSON.stringify(queryKey);
+
   useEffect(() => {
+    // إذا كنا قد هيّأنا هذا الـ query من قبل، نتخطاه
+    if (initializedQueriesRef.current.has(queryKeyString)) {
+      return;
+    }
+
     if (!enabled || !currentOrganization?.id || !isSearchValid) {
       return;
     }
 
     let isCancelled = false;
+    let hasInitialized = false;
 
     const ensureLocalInitialData = async () => {
+      // تحقق مزدوج لمنع race conditions
+      if (initializedQueriesRef.current.has(queryKeyString)) {
+        return;
+      }
+
       const existingData = queryClient.getQueryData(queryKey) as
         | CompletePOSResponse
         | undefined;
 
+      // إذا كانت هناك بيانات صالحة، نعتبر التهيئة مكتملة
       if (existingData?.success && existingData.data?.products?.length) {
+        initializedQueriesRef.current.add(queryKeyString);
+        hasInitialized = true;
         return;
       }
 
-      console.info(
-        '[UnifiedPOSData] لا توجد بيانات في الذاكرة المؤقتة، محاولة تحميل البيانات الأولية من IndexedDB',
-        {
-          orgId: currentOrganization.id,
-          page,
-          limit,
-          search,
-          categoryId
-        }
-      );
-
-      const localData = await loadInitialDataFromIndexedDB(
+      const localData = await loadInitialDataFromLocalDB(
         currentOrganization.id,
         page,
         limit,
@@ -924,39 +1052,44 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
       );
 
       if (isCancelled || !localData) {
-        if (!localData) {
-          console.warn('[UnifiedPOSData] لم يتم العثور على بيانات محلية لتعيينها كبيانات أولية');
-        }
         return;
       }
 
+      // تحقق نهائي قبل تعيين البيانات
       const latestData = queryClient.getQueryData(queryKey) as
         | CompletePOSResponse
         | undefined;
 
       if (!latestData || !latestData.success || !latestData.data?.products?.length) {
-        console.info('[UnifiedPOSData] تعيين البيانات المحلية كبيانات أولية للـ Query');
         queryClient.setQueryData(queryKey, localData);
+
+        // علّم هذا الـ query كمهيأ فوراً لمنع إعادة التهيئة
+        initializedQueriesRef.current.add(queryKeyString);
+        hasInitialized = true;
+
+        // ⚠️ إزالة invalidateQueries لمنع Infinite Loop
+        // React Query سيقوم بجلب البيانات تلقائياً إذا كان enabled=true
+      } else {
+        // البيانات موجودة الآن، نعتبر التهيئة مكتملة
+        initializedQueriesRef.current.add(queryKeyString);
+        hasInitialized = true;
       }
     };
 
     ensureLocalInitialData().catch((localError) => {
-      console.error('تعذر تعيين البيانات الأولية من IndexedDB:', localError);
+      console.error('تعذر تعيين البيانات الأولية من قاعدة البيانات المحلية (SQLite):', localError);
     });
 
     return () => {
       isCancelled = true;
+      // لا نزيل العلامة من initializedQueriesRef لأننا نريد الاحتفاظ بها
     };
   }, [
     enabled,
     currentOrganization?.id,
     isSearchValid,
-    limit,
-    page,
-    queryClient,
-    queryKey,
-    search,
-    categoryId
+    queryKeyString // استخدام string بدلاً من queryKey نفسه
+    // إزالة page, limit, search, categoryId لأنها موجودة في queryKeyString
   ]);
 
   // استخراج البيانات من الاستجابة
@@ -1170,6 +1303,37 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
       return product.actual_stock_quantity || product.stock_quantity || 0;
     }
   };
+
+  // Log detailed product info
+  if (posData?.products && posData.products.length > 0) {
+    const firstProduct = posData.products[0];
+    console.log('[useUnifiedPOSData] عينة من المنتجات:', {
+      totalProducts: posData.products.length,
+      firstProductId: firstProduct?.id,
+      firstProductName: firstProduct?.name,
+      firstProductKeys: Object.keys(firstProduct || {}),
+      hasVariants: !!firstProduct?.colors || !!firstProduct?.variants,
+      sample: firstProduct
+    });
+  } else {
+    console.warn('[useUnifiedPOSData] ⚠️ لا توجد منتجات في posData!', {
+      posData,
+      hasProducts: !!posData?.products,
+      productsType: typeof posData?.products,
+      productsLength: posData?.products?.length
+    });
+  }
+
+  console.log('[useUnifiedPOSData] Hook returning data', {
+    hasData: !!posData,
+    isLoading,
+    isRefetching,
+    hasError,
+    productsCount: posData?.products?.length || 0,
+    customersCount: posData?.customers?.length || 0,
+    ordersCount: posData?.recent_orders?.length || 0,
+    cacheTimestamp: typedResponse?.meta?.data_timestamp
+  });
 
   return {
     // البيانات الأساسية

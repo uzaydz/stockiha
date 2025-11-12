@@ -56,7 +56,7 @@ const ActivateWithCode: React.FC<ActivateWithCodeProps> = ({ onActivated }) => {
           const { data: userData, error } = await supabase
             .from('users')
             .select('organization_id')
-            .eq('id', user.id)
+            .eq('auth_user_id', user.id)
             .single();
 
           if (!error && userData?.organization_id) {

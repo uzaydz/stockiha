@@ -139,8 +139,14 @@ export class POSOrdersService {
     return true;
   }
 
-  private async mapLocalOrderToRemoteShape(order: LocalPOSOrder): Promise<POSOrderWithDetails> {
-    const items = await inventoryDB.posOrderItems.where('order_id').equals(order.id).toArray();
+  private async mapLocalOrderToRemoteShape(
+    order: LocalPOSOrder,
+    preloadedItems?: Map<string, LocalPOSOrderItem[]>
+  ): Promise<POSOrderWithDetails> {
+    const items = preloadedItems?.get(order.id) ?? await inventoryDB.posOrderItems
+      .where('order_id')
+      .equals(order.id)
+      .toArray();
 
     const mappedItems = (items || []).map((item: LocalPOSOrderItem) => ({
       id: item.id,
@@ -220,7 +226,10 @@ export class POSOrdersService {
     page: number = 1,
     limit: number = 20
   ): Promise<{ orders: POSOrderWithDetails[]; total: number; hasMore: boolean }> {
-    const allOrders = await inventoryDB.posOrders.where('organization_id').equals(organizationId).toArray();
+    const allOrders = await inventoryDB.posOrders
+      .where('organization_id')
+      .equals(organizationId)
+      .toArray();
     const filtered = allOrders.filter((order) => this.matchesFilters(order, filters));
 
     filtered.sort((a, b) => {
@@ -232,7 +241,26 @@ export class POSOrdersService {
     const total = filtered.length;
     const start = (page - 1) * limit;
     const sliced = filtered.slice(start, start + limit);
-    const mapped = await Promise.all(sliced.map((order) => this.mapLocalOrderToRemoteShape(order)));
+
+    // ⚡ Batch-load items for the current page to avoid N+1 queries
+    const orderIds = sliced.map((o) => o.id);
+    let itemsMap = new Map<string, LocalPOSOrderItem[]>();
+    if (orderIds.length > 0) {
+      const pageItems = await inventoryDB.posOrderItems
+        .where('order_id' as any)
+        .anyOf(orderIds as any)
+        .toArray();
+      itemsMap = pageItems.reduce((acc, it: any) => {
+        const arr = acc.get(it.order_id) || [];
+        arr.push(it);
+        acc.set(it.order_id, arr as any);
+        return acc;
+      }, new Map<string, LocalPOSOrderItem[]>());
+    }
+
+    const mapped = await Promise.all(
+      sliced.map((order) => this.mapLocalOrderToRemoteShape(order, itemsMap))
+    );
 
     return {
       orders: mapped,
