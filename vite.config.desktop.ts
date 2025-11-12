@@ -76,11 +76,7 @@ export default defineConfig(({ command, mode }) => {
         'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
         'lodash': 'lodash-es',
         'es-toolkit/compat': path.resolve(__dirname, './src/shims/es-toolkit/compat'),
-        // دعم eventemitter3 كـ default export عبر shim حتى لو تم استيراده مع مسار فرعي
-        'eventemitter3': path.resolve(__dirname, './src/shims/eventemitter3.ts'),
-        'eventemitter3/index': path.resolve(__dirname, './src/shims/eventemitter3.ts'),
-        'eventemitter3/index.js': path.resolve(__dirname, './src/shims/eventemitter3.ts'),
-        'eventemitter3/index.mjs': path.resolve(__dirname, './src/shims/eventemitter3.ts'),
+        // eventemitter3: استخدام الحزمة الأصلية مباشرة لتجنب دوران alias
         // react-is: استخدم الحزمة الأصلية مباشرة لتفادي دوران alias
         'use-sync-external-store/with-selector.js': path.resolve(__dirname, './src/polyfills/use-sync-external-store.ts'),
         'use-sync-external-store/with-selector': path.resolve(__dirname, './src/polyfills/use-sync-external-store.ts'),

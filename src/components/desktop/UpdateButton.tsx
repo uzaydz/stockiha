@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Download, CheckCircle2, AlertCircle, Loader2, RefreshCw, ArrowDownCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import toast from 'react-hot-toast';
@@ -38,48 +38,64 @@ const UpdateButton: React.FC = () => {
   const [showDropdown, setShowDropdown] = useState(false);
   const [lastCheckTime, setLastCheckTime] = useState<Date | null>(null);
   const [isDevMode, setIsDevMode] = useState(false);
+  const checkingTimeoutRef = useRef<number | null>(null);
 
   const isElectron = typeof window !== 'undefined' && (window as any).electronAPI?.updater;
 
   useEffect(() => {
     if (!isElectron) return;
 
+    console.log('[UpdateButton] Initializing updater UI.');
     (window as any).electronAPI.updater.getVersion().then((version: string) => {
+      console.log('[UpdateButton] Current app version:', version);
       setCurrentVersion(version);
     }).catch((error: any) => {
+      console.warn('[UpdateButton] getVersion failed, switching to dev mode:', error?.message || error);
       setCurrentVersion('dev');
       setIsDevMode(true);
     });
     
     const unsubscribeChecking = (window as any).electronAPI.updater.onCheckingForUpdate(() => {
+      console.log('[UpdateButton] Event: checking-for-update');
       setUpdateStatus('checking');
       setLastCheckTime(new Date());
     });
 
     const unsubscribeAvailable = (window as any).electronAPI.updater.onUpdateAvailable((info: UpdateInfo) => {
+      console.log('[UpdateButton] Event: update-available', info);
       setUpdateStatus('available');
       setUpdateInfo(info);
       toast.success(`تحديث جديد: ${info.version}`, { icon: '🎉' });
     });
 
     const unsubscribeNotAvailable = (window as any).electronAPI.updater.onUpdateNotAvailable(() => {
+      console.log('[UpdateButton] Event: update-not-available');
       setUpdateStatus('not-available');
       setLastCheckTime(new Date());
     });
 
     const unsubscribeProgress = (window as any).electronAPI.updater.onDownloadProgress((progress: DownloadProgress) => {
+      console.log('[UpdateButton] Event: download-progress', {
+        percent: Math.round(progress.percent),
+        transferredMB: (progress.transferred / 1024 / 1024).toFixed(2),
+        totalMB: (progress.total / 1024 / 1024).toFixed(2),
+        speedMBps: (progress.bytesPerSecond / 1024 / 1024).toFixed(2)
+      });
       setUpdateStatus('downloading');
       setDownloadProgress(progress);
     });
 
     const unsubscribeDownloaded = (window as any).electronAPI.updater.onUpdateDownloaded((info: UpdateInfo) => {
+      console.log('[UpdateButton] Event: update-downloaded', info);
       setUpdateStatus('downloaded');
       setUpdateInfo(info);
       toast.success('تم تنزيل التحديث!', { icon: '✅' });
     });
 
     const unsubscribeError = (window as any).electronAPI.updater.onUpdateError((error: any) => {
+      console.error('[UpdateButton] Event: update-error', error);
       setUpdateStatus('error');
+      setLastCheckTime(new Date());
     });
 
     return () => {
@@ -92,6 +108,32 @@ const UpdateButton: React.FC = () => {
     };
   }, [isElectron]);
 
+  // Watchdog: avoid staying in 'checking' forever if no events are received
+  useEffect(() => {
+    if (updateStatus === 'checking') {
+      console.log('[UpdateButton] Watchdog: start 12s timer for checking state');
+      if (checkingTimeoutRef.current) {
+        clearTimeout(checkingTimeoutRef.current);
+      }
+      checkingTimeoutRef.current = window.setTimeout(() => {
+        console.warn('[UpdateButton] Watchdog: no updater event within 12s → reset to not-available');
+        setUpdateStatus('not-available');
+        setLastCheckTime(new Date());
+      }, 12000);
+    } else {
+      if (checkingTimeoutRef.current) {
+        clearTimeout(checkingTimeoutRef.current);
+        checkingTimeoutRef.current = null;
+      }
+    }
+    return () => {
+      if (checkingTimeoutRef.current) {
+        clearTimeout(checkingTimeoutRef.current);
+        checkingTimeoutRef.current = null;
+      }
+    };
+  }, [updateStatus]);
+
   const handleCheckForUpdates = async () => {
     if (!isElectron) return;
     
@@ -101,17 +143,23 @@ const UpdateButton: React.FC = () => {
     }
     
     try {
+      console.log('[UpdateButton] Action: checkForUpdates clicked');
       setUpdateStatus('checking');
       const result = await (window as any).electronAPI.updater.checkForUpdates();
-      
+      console.log('[UpdateButton] checkForUpdates result:', result);
+
       if (!result || !result.success) {
         setUpdateStatus('not-available');
         setIsDevMode(true);
         toast('التحديثات متاحة في النسخة المبنية', { icon: '💡', duration: 3000 });
       }
     } catch (error: any) {
+      console.error('[UpdateButton] checkForUpdates threw:', error);
       setUpdateStatus('not-available');
       setIsDevMode(true);
+    } finally {
+      // حدّث "آخر تحقق" دائماً حتى في وضع التطوير أو عند الفشل
+      setLastCheckTime(new Date());
     }
   };
 

@@ -275,6 +275,12 @@ class UpdaterManager {
       return;
     }
 
+    // مراجع على مستوى الدالة لتسهيل التنظيف في finally
+    let watchdog = null;
+    let onAvailable = null;
+    let onNotAvailable = null;
+    let onError = null;
+
     try {
       this.isChecking = true;
       console.log('🔒 [UPDATER] تم قفل isChecking = true');
@@ -283,9 +289,52 @@ class UpdaterManager {
       this.sendToRenderer('checking-for-update');
       console.log('📤 [UPDATER] أرسلت checking-for-update إلى renderer');
       
+      // إعداد مراقب (watchdog) للتأكد من عدم بقاء الواجهة على "جاري التحقق"
+      let receivedTerminalEvent = false;
+      onAvailable = (info) => { receivedTerminalEvent = true; };
+      onNotAvailable = (info) => { receivedTerminalEvent = true; };
+      onError = (err) => { receivedTerminalEvent = true; };
+      autoUpdater.once('update-available', onAvailable);
+      autoUpdater.once('update-not-available', onNotAvailable);
+      autoUpdater.once('error', onError);
+
+      const watchdogMs = 10000;
+      watchdog = setTimeout(() => {
+        try {
+          if (!receivedTerminalEvent) {
+            console.warn('⏱️ [UPDATER] لم يصل أي حدث من autoUpdater خلال', watchdogMs, 'ms - إرسال update-not-available كـ fallback');
+            this.sendToRenderer('update-not-available', { currentVersion: app.getVersion(), reason: 'watchdog-timeout' });
+          }
+        } catch (e) {
+          console.warn('⏱️ [UPDATER] watchdog failed:', e);
+        }
+      }, watchdogMs);
+
       console.log('🌐 [UPDATER] استدعاء autoUpdater.checkForUpdates()...');
       const result = await autoUpdater.checkForUpdates();
       console.log('📋 [UPDATER] نتيجة checkForUpdates:', JSON.stringify(result, null, 2));
+      
+      // إذا لم يصل أي حدث من autoUpdater، حدّد النتيجة يدوياً وأرسلها للواجهة
+      if (!receivedTerminalEvent) {
+        try {
+          const info = result && result.updateInfo ? result.updateInfo : null;
+          const current = app.getVersion();
+          const nextVersion = info && info.version ? info.version : null;
+          console.log('🧮 [UPDATER] لا توجد أحداث، تحديد الحالة بناءً على النتيجة...', { current, nextVersion });
+          if (info && nextVersion && nextVersion !== current) {
+            this.sendToRenderer('update-available', {
+              version: info.version,
+              releaseDate: info.releaseDate,
+              releaseNotes: info.releaseNotes,
+              reason: 'result-fallback'
+            });
+          } else {
+            this.sendToRenderer('update-not-available', { currentVersion: current, reason: 'result-fallback' });
+          }
+        } catch (e) {
+          console.warn('🧮 [UPDATER] فشل تحديد الحالة بناءً على النتيجة:', e);
+        }
+      }
       
       if (!silent && !result?.updateInfo) {
         if (this.mainWindow && !this.mainWindow.isDestroyed()) {
@@ -315,6 +364,14 @@ class UpdaterManager {
         });
       }
     } finally {
+      try {
+        if (onAvailable) autoUpdater.removeListener('update-available', onAvailable);
+        if (onNotAvailable) autoUpdater.removeListener('update-not-available', onNotAvailable);
+        if (onError) autoUpdater.removeListener('error', onError);
+      } catch (e) {
+        console.warn('🧹 [UPDATER] فشل إزالة المستمعين المؤقتين:', e);
+      }
+      try { if (watchdog) clearTimeout(watchdog); } catch {}
       this.isChecking = false;
       console.log('🔓 [UPDATER] تم فتح isChecking = false');
       console.log('✅ [UPDATER] checkForUpdates() - انتهت الدالة');

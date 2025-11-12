@@ -1,8 +1,5 @@
-// Shim for eventemitter3 to provide default export
-import * as EventEmitterModule from 'eventemitter3';
-
-// eventemitter3 exports a class as default
-const EventEmitter = (EventEmitterModule as any).default || EventEmitterModule;
+// Shim for eventemitter3 to provide a stable default export shape
+import EventEmitter from 'eventemitter3';
 
 export default EventEmitter;
 export { EventEmitter };
