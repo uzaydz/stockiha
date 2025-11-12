@@ -1,7 +1,7 @@
 {
   "name": "stockiha-console-web",
   "private": true,
-  "version": "1.0.14",
+  "version": "1.0.15",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -332,19 +332,35 @@
     "files": [
       "dist/**/*",
       "electron/**/*",
+      "!electron/better-sqlite3/**",
+      "!electron/electron-log/**",
+      "!electron/electron-updater/**",
+      "!electron/file-uri-to-path/**",
       "assets/**/*",
-      "package.json"
+      "package.json",
+      "node_modules/**/*"
+    ],
+    "extraResources": [
+      { "from": "node_modules/better-sqlite3", "to": "app/node_modules/better-sqlite3" },
+      { "from": "node_modules/bindings", "to": "app/node_modules/bindings" },
+      { "from": "node_modules/file-uri-to-path", "to": "app/node_modules/file-uri-to-path" }
     ],
     "mac": {
       "category": "public.app-category.business",
       "target": [
         {
           "target": "dmg",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         },
         {
           "target": "zip",
-          "arch": ["x64", "arm64"]
+          "arch": [
+            "x64",
+            "arm64"
+          ]
         }
       ],
       "icon": "assets/icon.icns"

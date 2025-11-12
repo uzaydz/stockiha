@@ -13,17 +13,64 @@ try {
   // إضافة app/node_modules إلى مسارات البحث العامة
   const appPath = path.join(__dirname, '..');
   const appNodeModules = path.join(appPath, 'node_modules');
-  
-  if (fs.existsSync(appNodeModules)) {
-    // إضافة إلى Module.globalPaths لضمان أن جميع require تجده
-    const Module = require('module');
-    if (!Module.globalPaths.includes(appNodeModules)) {
-      Module.globalPaths.unshift(appNodeModules);
-      console.log('[SQLiteManager] Added to Module.globalPaths:', appNodeModules);
+  const Module = require('module');
+
+  if (fs.existsSync(appNodeModules) && !Module.globalPaths.includes(appNodeModules)) {
+    Module.globalPaths.unshift(appNodeModules);
+    console.log('[SQLiteManager] Added to Module.globalPaths:', appNodeModules);
+  }
+
+  // جرّب عدة مسارات محتملة داخل التطبيق المحزّم قبل السقوط للاسم فقط
+  const candidates = [
+    // حمّل الملف الثنائي مباشرة من app/node_modules إن وُجد (الأكثر وثوقية)
+    path.join(process.resourcesPath || '', 'app', 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node'),
+    // المسار القياسي عند التعطيل asar: false (سيتطلب 'bindings')
+    path.join(process.resourcesPath || '', 'app', 'node_modules', 'better-sqlite3'),
+    // في حال تم استخدام asarUnpack مستقبلاً
+    path.join(process.resourcesPath || '', 'app.asar.unpacked', 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node'),
+    path.join(process.resourcesPath || '', 'app.asar.unpacked', 'node_modules', 'better-sqlite3'),
+    // المسار النسبي من مجلد electron إلى app/node_modules
+    path.join(appPath, 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node'),
+    path.join(appPath, 'node_modules', 'better-sqlite3')
+  ];
+
+  let loaded = false;
+  for (const p of candidates) {
+    try {
+      if (p && fs.existsSync(p)) {
+        // تخطَّ تحميل الملف الثنائي المباشر .node لضمان استخدام مغلِّف JS الخاص بالحزمة
+        const ext = path.extname(p);
+        if (ext === '.node') {
+          console.log('[SQLiteManager] Skipping direct .node load, will use package wrapper instead:', p);
+          continue;
+        }
+        console.log('[SQLiteManager] Trying to load better-sqlite3 from:', p);
+        const candidateExport = require(p);
+        if (typeof candidateExport === 'function') {
+          Database = candidateExport;
+          loaded = true;
+          break;
+        } else {
+          console.warn('[SQLiteManager] Loaded non-constructor from candidate, skipping:', p);
+        }
+      }
+    } catch (e) {
+      console.warn('[SQLiteManager] Failed to load better-sqlite3 from candidate:', p, e?.message || e);
+      // إذا فشل require لمسار مجلد الحزمة، سنعتمد على المرشحين التاليين
     }
   }
-  
-  Database = require('better-sqlite3');
+
+  if (!loaded) {
+    console.log('[SQLiteManager] Falling back to require("better-sqlite3") by name');
+    const byName = require('better-sqlite3');
+    if (typeof byName === 'function') {
+      Database = byName;
+      loaded = true;
+    } else {
+      throw new Error('Loaded better-sqlite3 by name but export is not a constructor');
+    }
+  }
+
   console.log('[SQLiteManager] ✅ better-sqlite3 loaded successfully');
 } catch (err) {
   console.error('[SQLiteManager] ❌ Failed to load better-sqlite3:', err);
