@@ -66,7 +66,7 @@
     "desktop:dist-win": "npm run desktop:build && electron-builder --win",
     "desktop:dist-linux": "npm run desktop:build && electron-builder --linux",
     "desktop:install": "npm install electron electron-builder concurrently wait-on --save-dev",
-    "postinstall": "patch-package && electron-rebuild -f -w better-sqlite3"
+    "postinstall": "patch-package && electron-rebuild -f -w better-sqlite3 && electron-builder install-app-deps"
   },
   "dependencies": {
     "@date-io/date-fns": "^3.2.1",
@@ -339,11 +339,6 @@
       "assets/**/*",
       "package.json",
       "node_modules/**/*"
-    ],
-    "extraResources": [
-      { "from": "node_modules/better-sqlite3", "to": "app/node_modules/better-sqlite3" },
-      { "from": "node_modules/bindings", "to": "app/node_modules/bindings" },
-      { "from": "node_modules/file-uri-to-path", "to": "app/node_modules/file-uri-to-path" }
     ],
     "mac": {
       "category": "public.app-category.business",
