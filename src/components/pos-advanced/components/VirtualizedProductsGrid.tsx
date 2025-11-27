@@ -148,10 +148,9 @@ const VirtualizedProductsGrid: React.FC<ProductsGridProps> = React.memo(({
     if (viewMode === 'list') return 1;
     if (width < 640) return 2; // sm
     if (width < 768) return 3; // md
-    if (width < 1024) return 4; // lg
+    if (width < 1024) return 3; // lg
     if (width < 1280) return 4; // xl
-    if (width < 1536) return 5; // 2xl
-    return 6;
+    return 5; // 2xl and larger (Default to 5)
   }, [width, viewMode]);
 
   const gap = 12; // gap-3 equivalent

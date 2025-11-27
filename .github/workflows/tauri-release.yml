@@ -220,31 +220,39 @@ jobs:
           done
 
           # Generate the latest.json file with .app.tar.gz URLs for macOS (required by Tauri updater)
-          cat > latest.json << EOF
-{
-  "version": "${VERSION}",
-  "notes": "See release notes on GitHub",
-  "pub_date": "${DATE}",
-  "platforms": {
-    "darwin-aarch64": {
-      "signature": "${MACOS_ARM_SIG}",
-      "url": "https://github.com/uzaydz/stockiha/releases/download/v${VERSION}/Stockiha_aarch64.app.tar.gz"
-    },
-    "darwin-x86_64": {
-      "signature": "${MACOS_X64_SIG}",
-      "url": "https://github.com/uzaydz/stockiha/releases/download/v${VERSION}/Stockiha_x64.app.tar.gz"
-    },
-    "linux-x86_64": {
-      "signature": "${LINUX_SIG}",
-      "url": "https://github.com/uzaydz/stockiha/releases/download/v${VERSION}/Stockiha_${VERSION}_amd64.AppImage"
-    },
-    "windows-x86_64": {
-      "signature": "${WINDOWS_SIG}",
-      "url": "https://github.com/uzaydz/stockiha/releases/download/v${VERSION}/Stockiha_${VERSION}_x64-setup.exe"
-    }
-  }
-}
-EOF
+          cat > latest.json << 'ENDJSON'
+          {
+            "version": "PLACEHOLDER_VERSION",
+            "notes": "See release notes on GitHub",
+            "pub_date": "PLACEHOLDER_DATE",
+            "platforms": {
+              "darwin-aarch64": {
+                "signature": "PLACEHOLDER_MACOS_ARM_SIG",
+                "url": "https://github.com/uzaydz/stockiha/releases/download/vPLACEHOLDER_VERSION/Stockiha_aarch64.app.tar.gz"
+              },
+              "darwin-x86_64": {
+                "signature": "PLACEHOLDER_MACOS_X64_SIG",
+                "url": "https://github.com/uzaydz/stockiha/releases/download/vPLACEHOLDER_VERSION/Stockiha_x64.app.tar.gz"
+              },
+              "linux-x86_64": {
+                "signature": "PLACEHOLDER_LINUX_SIG",
+                "url": "https://github.com/uzaydz/stockiha/releases/download/vPLACEHOLDER_VERSION/Stockiha_PLACEHOLDER_VERSION_amd64.AppImage"
+              },
+              "windows-x86_64": {
+                "signature": "PLACEHOLDER_WINDOWS_SIG",
+                "url": "https://github.com/uzaydz/stockiha/releases/download/vPLACEHOLDER_VERSION/Stockiha_PLACEHOLDER_VERSION_x64-setup.exe"
+              }
+            }
+          }
+          ENDJSON
+
+          # Replace placeholders with actual values
+          sed -i "s/PLACEHOLDER_VERSION/${VERSION}/g" latest.json
+          sed -i "s/PLACEHOLDER_DATE/${DATE}/g" latest.json
+          sed -i "s|PLACEHOLDER_MACOS_ARM_SIG|${MACOS_ARM_SIG}|g" latest.json
+          sed -i "s|PLACEHOLDER_MACOS_X64_SIG|${MACOS_X64_SIG}|g" latest.json
+          sed -i "s|PLACEHOLDER_LINUX_SIG|${LINUX_SIG}|g" latest.json
+          sed -i "s|PLACEHOLDER_WINDOWS_SIG|${WINDOWS_SIG}|g" latest.json
 
           cat latest.json
 

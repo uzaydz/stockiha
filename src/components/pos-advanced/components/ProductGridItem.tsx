@@ -1,15 +1,13 @@
 import React, { useCallback } from 'react';
 import { cn } from '@/lib/utils';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import {
-  Package2,
-  RotateCcw,
   ShoppingCart,
   AlertCircle,
   CheckCircle,
   Heart,
-  Tag,
+  RotateCcw,
   Sparkles
 } from 'lucide-react';
 import { ProductItemProps } from '../types';
@@ -31,35 +29,21 @@ const ProductGridItem: React.FC<ProductItemProps> = React.memo(({
     onAddToCart(product);
   }, [product, onAddToCart]);
 
-  // معالجة محسّنة للصور مع دعم جميع الحالات + دعم Offline (Base64)
+  // معالجة الصور (نفس المنطق السابق لضمان العمل)
   const imageUrl = React.useMemo(() => {
-    // 🔍 DEBUG: عرض حالة الصور للمنتج
-    const hasBase64 = !!(product as any).thumbnail_base64;
-    const hasThumbnail = !!product.thumbnail_image;
-    const hasImages = !!(product.images && Array.isArray(product.images) && product.images.length > 0);
-
-    // Log only for products that should have images (just created or have any image field)
-    if (hasBase64 || hasThumbnail || hasImages) {
-      console.log(`[ProductGridItem] 🔍 ${product.name} (${product.id.substring(0, 8)}): base64=${hasBase64 ? `${Math.round(String((product as any).thumbnail_base64).length / 1024)}KB` : 'NO'}, thumbnail=${hasThumbnail ? 'YES' : 'NO'}, images=${hasImages ? product.images!.length : 0}`);
-    }
-
     // ⚡ أولاً: الصورة المحلية Base64 (للعمل Offline)
     if ((product as any).thumbnail_base64 && (product as any).thumbnail_base64.trim()) {
-      console.log(`[ProductGridItem] 🖼️ ✅ Using thumbnail_base64 for ${product.name} (${Math.round(String((product as any).thumbnail_base64).length / 1024)}KB)`);
       return (product as any).thumbnail_base64;
     }
 
-    // محاولة استخدام thumbnail_image
     if (product.thumbnail_image && product.thumbnail_image.trim()) {
       return product.thumbnail_image;
     }
 
-    // محاولة استخدام thumbnailImage (camelCase)
     if ((product as any).thumbnailImage && (product as any).thumbnailImage.trim()) {
       return (product as any).thumbnailImage;
     }
 
-    // محاولة استخدام أول صورة من مصفوفة images
     if (product.images && Array.isArray(product.images) && product.images.length > 0) {
       const firstImage = product.images[0];
       if (firstImage && typeof firstImage === 'string' && firstImage.trim()) {
@@ -67,7 +51,6 @@ const ProductGridItem: React.FC<ProductItemProps> = React.memo(({
       }
     }
 
-    // ⚡ التحقق من الصور المحلية الإضافية (Base64)
     if ((product as any).images_base64) {
       try {
         const localImages = JSON.parse((product as any).images_base64);
@@ -77,7 +60,6 @@ const ProductGridItem: React.FC<ProductItemProps> = React.memo(({
       } catch { }
     }
 
-    // محاولة استخدام صورة من أول لون متاح
     if (product.colors && Array.isArray(product.colors) && product.colors.length > 0) {
       for (const color of product.colors) {
         if (color.image_url && color.image_url.trim()) {
@@ -90,125 +72,96 @@ const ProductGridItem: React.FC<ProductItemProps> = React.memo(({
   }, [product]);
 
   return (
-    <Card className={cn(
-      "group relative cursor-pointer overflow-hidden h-full flex flex-col z-0",
-      "rounded-2xl border bg-gradient-to-b transition-all duration-300",
-      "hover:shadow-xl hover:shadow-primary/5 hover:z-[5]",
-      stock > 0
-        ? "from-card to-card/80 border-border/50 hover:border-primary/30 hover:-translate-y-1 hover:shadow-2xl"
-        : "from-muted/30 to-muted/20 border-muted opacity-75",
-      isReturnMode && "border-amber-500/40 hover:border-amber-500/60 ring-1 ring-amber-500/20"
-    )}>
-      {/* Gradient overlay on hover */}
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-[1]" />
+    <Card
+      onClick={handleClick}
+      className={cn(
+        "h-full flex flex-col cursor-pointer overflow-hidden border bg-card shadow-sm",
+        "rounded-xl transition-none", // No animation
+        isReturnMode
+          ? "border-amber-500/30 bg-amber-50/10"
+          : "border-border/60 hover:border-primary/40" // Subtle border change only
+      )}
+    >
+      {/* قسم الصورة - ثابت وأنيق */}
+      <div className="relative aspect-square w-full bg-muted/10 overflow-hidden border-b border-border/40">
+        <ProductImage
+          src={imageUrl || ''}
+          alt={product.name}
+          productName={product.name}
+          className="w-full h-full object-cover"
+          size="medium"
+        />
 
-      <div onClick={handleClick} className="h-full flex flex-col relative">
-        {/* صورة المنتج */}
-        <div className="relative aspect-square bg-gradient-to-br from-muted/40 to-muted/20 overflow-hidden rounded-t-2xl">
-          <ProductImage
-            src={imageUrl || ''}
-            alt={product.name}
-            productName={product.name}
-            className="w-full h-full object-cover transition-all duration-300 group-hover:scale-110"
-            size="large"
-          />
-
-          {/* طبقة تفاعلية محسّنة */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300" />
-
-          {/* شارات الحالة */}
-          <div className="absolute top-3 right-3 flex flex-col gap-2 z-[2]">
-            {isFavorite && (
-              <Badge className="bg-gradient-to-r from-yellow-500 to-amber-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-lg border-0 flex items-center gap-1">
-                <Heart className="h-3 w-3 fill-current" />
-                <span>مفضل</span>
-              </Badge>
-            )}
-            {isOutOfStock && (
-              <Badge className="bg-gradient-to-r from-red-500 to-rose-600 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-lg border-0 flex items-center gap-1">
-                <AlertCircle className="h-3 w-3" />
-                <span>نفد</span>
-              </Badge>
-            )}
-            {isLowStock && !isOutOfStock && (
-              <Badge className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white text-xs font-bold px-2 py-1 rounded-full shadow-lg border-0 flex items-center gap-1">
-                <AlertCircle className="h-3 w-3" />
-                <span>قليل</span>
-              </Badge>
-            )}
-          </div>
-
-          {/* مؤشر الإضافة المحسّن */}
-          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 z-[2]">
-            <div className={cn(
-              "p-4 rounded-2xl glass shadow-2xl transform scale-90 group-hover:scale-100 transition-transform duration-300",
-              isReturnMode
-                ? "bg-gradient-to-br from-amber-500/80 to-orange-600/80 text-white"
-                : "bg-gradient-to-br from-primary/80 to-primary/60 text-primary-foreground"
-            )}>
-              {isReturnMode ? (
-                <RotateCcw className="h-6 w-6" strokeWidth={2.5} />
-              ) : (
-                <ShoppingCart className="h-6 w-6" strokeWidth={2.5} />
-              )}
+        {/* شارات الحالة - تصميم بسيط وراقي */}
+        <div className="absolute top-2 right-2 flex flex-col gap-1.5 z-10">
+          {isFavorite && (
+            <div className="bg-white/90 dark:bg-black/90 p-1.5 rounded-full shadow-sm border border-border/50">
+              <Heart className="h-3.5 w-3.5 text-red-500 fill-current" />
             </div>
-          </div>
-
-          {/* شارة السعر المحسّنة */}
-          <div className="absolute bottom-3 left-3 z-[2]">
-            <div className={cn(
-              "px-3 py-1.5 rounded-xl font-bold text-sm glass shadow-xl transition-all duration-300",
-              isReturnMode
-                ? "bg-gradient-to-r from-amber-500/80 to-orange-500/80 text-white"
-                : "bg-card/80 text-foreground group-hover:bg-primary/80 group-hover:text-primary-foreground"
-            )}>
-              {product.price?.toLocaleString('ar-DZ')} دج
+          )}
+          {product.has_variants && (
+            <div className="bg-white/90 dark:bg-black/90 p-1.5 rounded-full shadow-sm border border-border/50">
+              <Sparkles className="h-3.5 w-3.5 text-primary" />
             </div>
-          </div>
+          )}
         </div>
 
-        {/* معلومات المنتج */}
-        <CardContent className="p-4 flex-1 flex flex-col justify-between bg-gradient-to-b from-card/50 to-transparent">
-          <div className="space-y-2.5">
-            <div>
-              <h3 className="font-bold text-sm leading-tight line-clamp-2 text-foreground group-hover:text-primary transition-colors duration-300">
-                {product.name}
-              </h3>
-              {((product.category as any)?.name || (product as any).category_name) && (
-                <div className="mt-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-lg bg-gradient-to-r from-muted/80 to-muted/60 border border-border/40 shadow-sm">
-                  <Tag className="h-3 w-3 text-muted-foreground" strokeWidth={2} />
-                  <span className="text-xs text-muted-foreground font-semibold">
-                    {(product.category as any)?.name || (product as any).category_name}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            <div className="flex items-center justify-between gap-2 pt-1">
-              <div className="flex items-center gap-1.5">
-                <div className={cn(
-                  "text-xs px-2.5 py-1 rounded-lg font-bold flex items-center gap-1.5 shadow-sm border transition-all duration-300",
-                  stock > lowStockThreshold
-                    ? "bg-gradient-to-r from-emerald-50 to-green-50 dark:from-emerald-950/40 dark:to-green-950/40 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
-                    : stock > 0
-                      ? "bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-950/40 dark:to-amber-950/40 text-yellow-700 dark:text-yellow-400 border-yellow-500/30"
-                      : "bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-950/40 dark:to-rose-950/40 text-red-700 dark:text-red-400 border-red-500/30"
-                )}>
-                  {stock > lowStockThreshold && <CheckCircle className="h-3.5 w-3.5" strokeWidth={2.5} />}
-                  {stock <= lowStockThreshold && stock > 0 && <AlertCircle className="h-3.5 w-3.5" strokeWidth={2.5} />}
-                  {stock === 0 && <AlertCircle className="h-3.5 w-3.5" strokeWidth={2.5} />}
-                  <span>{stock} متاح</span>
-                </div>
-              </div>
-
-              {product.has_variants && (
-                <div className="flex items-center justify-center w-6 h-6 rounded-lg bg-gradient-to-br from-primary/20 to-primary/10 border border-primary/30 shadow-sm">
-                  <Sparkles className="h-3.5 w-3.5 text-primary" strokeWidth={2.5} />
-                </div>
-              )}
-            </div>
+        {/* شارة المخزون - تظهر فقط عند الضرورة القصوى */}
+        {(isOutOfStock || isLowStock) && (
+          <div className="absolute top-2 left-2 z-10">
+            {isOutOfStock ? (
+              <Badge variant="destructive" className="h-6 px-2 text-[10px] font-medium shadow-sm">
+                نفد
+              </Badge>
+            ) : (
+              <Badge variant="secondary" className="h-6 px-2 text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border-amber-200 dark:border-amber-800 shadow-sm">
+                {stock} متاح
+              </Badge>
+            )}
           </div>
-        </CardContent>
+        )}
+
+        {/* زر الإضافة - يظهر دائماً بشكل أنيق في الزاوية */}
+        <div className={cn(
+          "absolute bottom-2 right-2 p-2 rounded-lg shadow-md flex items-center justify-center",
+          isReturnMode
+            ? "bg-amber-500 text-white"
+            : "bg-primary text-primary-foreground"
+        )}>
+          {isReturnMode ? (
+            <RotateCcw className="h-4 w-4" />
+          ) : (
+            <ShoppingCart className="h-4 w-4" />
+          )}
+        </div>
+      </div>
+
+      {/* تفاصيل المنتج - تصميم نظيف واحترافي */}
+      <div className="flex-1 p-3 flex flex-col gap-2">
+        <div className="flex-1">
+          <h3 className="font-semibold text-sm leading-snug text-foreground line-clamp-2 mb-1">
+            {product.name}
+          </h3>
+          {((product.category as any)?.name || (product as any).category_name) && (
+            <p className="text-xs text-muted-foreground font-medium">
+              {(product.category as any)?.name || (product as any).category_name}
+            </p>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between pt-2 border-t border-border/40 mt-1">
+          <div className="font-bold text-base text-foreground">
+            {product.price?.toLocaleString('ar-DZ')} <span className="text-xs font-normal text-muted-foreground">دج</span>
+          </div>
+
+          {/* مؤشر المخزون البسيط للمنتجات المتوفرة */}
+          {!isOutOfStock && !isLowStock && (
+            <div className="flex items-center gap-1 text-[10px] text-muted-foreground font-medium bg-muted/30 px-1.5 py-0.5 rounded-md">
+              <CheckCircle className="h-3 w-3 text-emerald-500" />
+              <span>{stock}</span>
+            </div>
+          )}
+        </div>
       </div>
     </Card>
   );
