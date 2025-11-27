@@ -82,7 +82,7 @@
     "updater": {
       "active": true,
       "dialog": false,
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDZCQzNDN0I2MkFCNDY1QUEKUldTcVpiUXF0c2ZEYXk1TzRFQk81eTRuYkNobXlnb3ZDUmR6VGpYSEExcTdra1VVdzBqWkg0VWkK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDg0MDFDRDc5QzkyNzM5MTEKUldRUk9TZkplYzBCaE0rSjVzZmFWYXlyZDF5TjkxMU4yejBBektPTG9KU2NBQjd6ZWdDV1o0L0IK",
       "endpoints": [
         "https://github.com/uzaydz/stockiha/releases/latest/download/latest.json"
       ],
