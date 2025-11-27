@@ -39,7 +39,7 @@ export class RealtimeReceiver {
 
   constructor() {
     this.deviceId = this.getDeviceId();
-    
+
     // ⚡ الاستماع لحدث عودة الاتصال لإعادة ضبط العداد وإعادة الاتصال تلقائياً
     if (typeof window !== 'undefined') {
       // حدث المتصفح الأصلي
@@ -47,7 +47,7 @@ export class RealtimeReceiver {
         console.log('%c[RealtimeReceiver] 📶 Browser online event detected', 'color: #4CAF50');
         this.handleNetworkOnline();
       });
-      
+
       // حدث connection-state-change المخصص
       window.addEventListener('connection-state-change', (e: any) => {
         if (e.detail?.isOnline) {
@@ -57,7 +57,7 @@ export class RealtimeReceiver {
       });
     }
   }
-  
+
   /**
    * ⚡ معالجة عودة الاتصال - إعادة ضبط العداد ومحاولة الاتصال
    */
@@ -65,13 +65,13 @@ export class RealtimeReceiver {
     // إعادة ضبط عداد المحاولات
     this.reconnectAttempts = 0;
     this.lastOfflineLogTime = 0;
-    
+
     // إلغاء أي timeout معلق
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
     }
-    
+
     // محاولة إعادة الاتصال إذا كان لدينا organizationId و callback
     if (this.organizationId && this.callback && !this.isSubscribed) {
       console.log('%c[RealtimeReceiver] 🔄 Attempting to reconnect after network recovery...', 'color: #2196F3');
@@ -115,6 +115,34 @@ export class RealtimeReceiver {
     }
 
     try {
+      // ⚡ التحقق من الجلسة قبل الاشتراك
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        console.warn('[RealtimeReceiver] ⚠️ No active session found before subscribing. This might cause RLS errors.');
+      } else {
+        console.log(`[RealtimeReceiver] 👤 Active session found for user: ${session.user.id}`);
+
+        // ⚡ التحقق من صلاحيات الوصول للجدول (RLS Check)
+        try {
+          // @ts-ignore
+          const { count, error: rlsError } = await supabase
+            .from('operations_log' as any)
+            .select('*', { count: 'exact', head: true })
+            .eq('organization_id', this.organizationId);
+
+          if (rlsError) {
+            console.error('[RealtimeReceiver] ❌ RLS Check Failed:', rlsError);
+            if (rlsError.code === '42P01') {
+              console.error('[RealtimeReceiver] ⚠️ Table operations_log definitely appears missing to this user.');
+            }
+          } else {
+            console.log(`[RealtimeReceiver] ✅ RLS Check Passed. User can see ${count} operations for org ${this.organizationId}`);
+          }
+        } catch (e) {
+          console.error('[RealtimeReceiver] ⚠️ Error during RLS check:', e);
+        }
+      }
+
       // إنشاء قناة جديدة
       const channelName = `operations_${this.organizationId}_${Date.now()}`;
 
@@ -142,7 +170,10 @@ export class RealtimeReceiver {
         .on('system', {}, (status) => {
           this.handleSystemStatus(status);
         })
-        .subscribe((status) => {
+        .subscribe((status, err) => {
+          if (err) {
+            console.error('[RealtimeReceiver] Subscription error detail:', err);
+          }
           this.handleSubscriptionStatus(status);
         });
 
@@ -189,7 +220,7 @@ export class RealtimeReceiver {
 
       case 'CLOSED':
         this.isSubscribed = false;
-        const closedDuration = this.lastSuccessfulConnection > 0 
+        const closedDuration = this.lastSuccessfulConnection > 0
           ? Math.round((Date.now() - this.lastSuccessfulConnection) / 1000) + 's'
           : 'N/A';
         console.warn(`%c[RealtimeReceiver] ⚠️ Channel CLOSED (was connected for ${closedDuration}), will reconnect`, 'color: #FF9800');
@@ -276,13 +307,13 @@ export class RealtimeReceiver {
 
     // ⚡ Exponential backoff: 2^n * base
     const exponentialDelay = Math.pow(2, this.reconnectAttempts) * this.RECONNECT_BASE_DELAY;
-    
+
     // ⚡ Jitter: ±30% لتجنب thundering herd
     const jitter = exponentialDelay * this.JITTER_FACTOR * (Math.random() * 2 - 1);
-    
+
     // ⚡ Cap at max delay
     const delay = Math.min(exponentialDelay + jitter, this.MAX_RECONNECT_DELAY);
-    
+
     this.reconnectAttempts++;
 
     // ⚡ طباعة log فقط للمحاولات الأولى أو كل 5 محاولات

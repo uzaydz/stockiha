@@ -15,18 +15,12 @@ env:
   TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
 
 jobs:
-  create-release:
+  # استخراج رقم الإصدار فقط
+  get-version:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     outputs:
-      release_id: ${{ steps.create_release.outputs.id }}
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
       version: ${{ steps.get_version.outputs.version }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
       - name: Get version
         id: get_version
         run: |
@@ -36,20 +30,9 @@ jobs:
             echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
           fi
 
-      - name: Create Release
-        id: create_release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: v${{ steps.get_version.outputs.version }}
-          name: Stockiha v${{ steps.get_version.outputs.version }}
-          draft: true
-          prerelease: false
-          generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
+  # بناء التطبيق لجميع المنصات
   build-tauri:
-    needs: create-release
+    needs: get-version
     permissions:
       contents: write
     strategy:
@@ -139,7 +122,6 @@ jobs:
       - name: Copy icons
         shell: bash
         run: |
-          # Copy existing icons
           if [ -f "assets/icon.ico" ]; then
             cp assets/icon.ico src-tauri/icons/icon.ico
           fi
@@ -153,6 +135,7 @@ jobs:
             cp assets/icon.icns src-tauri/icons/icon.icns
           fi
 
+      # tauri-action يُنشئ release تلقائياً (draft) ويرفع الملفات
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
@@ -160,15 +143,19 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # Skip Apple code signing (no certificate)
           APPLE_SIGNING_IDENTITY: '-'
         with:
-          releaseId: ${{ needs.create-release.outputs.release_id }}
+          tagName: v${{ needs.get-version.outputs.version }}
+          releaseName: 'Stockiha v${{ needs.get-version.outputs.version }}'
+          releaseBody: 'See the release notes for what changed in this version.'
+          releaseDraft: true
+          prerelease: false
           args: ${{ matrix.args }}
           tauriScript: pnpm tauri
 
+  # نشر الإصدار بعد اكتمال جميع البناءات
   publish-release:
-    needs: [create-release, build-tauri]
+    needs: [get-version, build-tauri]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -176,22 +163,39 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Generate latest.json
+      - name: Wait for release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION="${{ needs.create-release.outputs.version }}"
+          VERSION="${{ needs.get-version.outputs.version }}"
+          echo "Waiting for release v${VERSION} to have all assets..."
+
+          # انتظر حتى يصبح عدد الملفات >= 10 (4 منصات × ~3 ملفات لكل منصة)
+          for i in {1..30}; do
+            ASSET_COUNT=$(gh release view "v${VERSION}" --json assets --jq '.assets | length' 2>/dev/null || echo "0")
+            echo "Attempt $i: Found $ASSET_COUNT assets"
+            if [ "$ASSET_COUNT" -ge 10 ]; then
+              echo "Release has enough assets, proceeding..."
+              break
+            fi
+            sleep 10
+          done
+
+      - name: Generate and upload latest.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.get-version.outputs.version }}"
           DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-          # Download signature files from the release
+          echo "=== Downloading signatures for v${VERSION} ==="
           mkdir -p sigs
           gh release download "v${VERSION}" --pattern "*.sig" --dir sigs || true
 
-          # Debug: list downloaded files
-          echo "Downloaded signature files:"
+          echo "=== Downloaded signature files ==="
           ls -la sigs/ || echo "No signatures found"
 
-          # Read signatures
+          # قراءة التوقيعات
           MACOS_ARM_SIG=""
           MACOS_X64_SIG=""
           WINDOWS_SIG=""
@@ -219,49 +223,51 @@ jobs:
             fi
           done
 
-          # Generate the latest.json file with .app.tar.gz URLs for macOS (required by Tauri updater)
-          cat > latest.json << 'ENDJSON'
-          {
-            "version": "PLACEHOLDER_VERSION",
-            "notes": "See release notes on GitHub",
-            "pub_date": "PLACEHOLDER_DATE",
-            "platforms": {
-              "darwin-aarch64": {
-                "signature": "PLACEHOLDER_MACOS_ARM_SIG",
-                "url": "https://github.com/uzaydz/stockiha/releases/download/vPLACEHOLDER_VERSION/Stockiha_aarch64.app.tar.gz"
-              },
-              "darwin-x86_64": {
-                "signature": "PLACEHOLDER_MACOS_X64_SIG",
-                "url": "https://github.com/uzaydz/stockiha/releases/download/vPLACEHOLDER_VERSION/Stockiha_x64.app.tar.gz"
-              },
-              "linux-x86_64": {
-                "signature": "PLACEHOLDER_LINUX_SIG",
-                "url": "https://github.com/uzaydz/stockiha/releases/download/vPLACEHOLDER_VERSION/Stockiha_PLACEHOLDER_VERSION_amd64.AppImage"
-              },
-              "windows-x86_64": {
-                "signature": "PLACEHOLDER_WINDOWS_SIG",
-                "url": "https://github.com/uzaydz/stockiha/releases/download/vPLACEHOLDER_VERSION/Stockiha_PLACEHOLDER_VERSION_x64-setup.exe"
+          echo "=== Creating latest.json ==="
+
+          # إنشاء latest.json باستخدام jq لتجنب مشاكل YAML
+          jq -n \
+            --arg version "$VERSION" \
+            --arg date "$DATE" \
+            --arg mac_arm_sig "$MACOS_ARM_SIG" \
+            --arg mac_x64_sig "$MACOS_X64_SIG" \
+            --arg linux_sig "$LINUX_SIG" \
+            --arg win_sig "$WINDOWS_SIG" \
+            '{
+              version: $version,
+              notes: "See release notes on GitHub",
+              pub_date: $date,
+              platforms: {
+                "darwin-aarch64": {
+                  signature: $mac_arm_sig,
+                  url: "https://github.com/uzaydz/stockiha/releases/download/v\($version)/Stockiha_aarch64.app.tar.gz"
+                },
+                "darwin-x86_64": {
+                  signature: $mac_x64_sig,
+                  url: "https://github.com/uzaydz/stockiha/releases/download/v\($version)/Stockiha_x64.app.tar.gz"
+                },
+                "linux-x86_64": {
+                  signature: $linux_sig,
+                  url: "https://github.com/uzaydz/stockiha/releases/download/v\($version)/Stockiha_\($version)_amd64.AppImage"
+                },
+                "windows-x86_64": {
+                  signature: $win_sig,
+                  url: "https://github.com/uzaydz/stockiha/releases/download/v\($version)/Stockiha_\($version)_x64-setup.exe"
+                }
               }
-            }
-          }
-          ENDJSON
+            }' > latest.json
 
-          # Replace placeholders with actual values
-          sed -i "s/PLACEHOLDER_VERSION/${VERSION}/g" latest.json
-          sed -i "s/PLACEHOLDER_DATE/${DATE}/g" latest.json
-          sed -i "s|PLACEHOLDER_MACOS_ARM_SIG|${MACOS_ARM_SIG}|g" latest.json
-          sed -i "s|PLACEHOLDER_MACOS_X64_SIG|${MACOS_X64_SIG}|g" latest.json
-          sed -i "s|PLACEHOLDER_LINUX_SIG|${LINUX_SIG}|g" latest.json
-          sed -i "s|PLACEHOLDER_WINDOWS_SIG|${WINDOWS_SIG}|g" latest.json
-
+          echo "=== latest.json content ==="
           cat latest.json
 
-      - name: Upload latest.json and Publish Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: v${{ needs.create-release.outputs.version }}
-          files: latest.json
-          draft: false
-          make_latest: true
+          echo "=== Uploading latest.json ==="
+          gh release upload "v${VERSION}" latest.json --clobber
+
+      - name: Publish release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.get-version.outputs.version }}"
+          echo "Publishing release v${VERSION}..."
+          gh release edit "v${VERSION}" --draft=false --latest
+          echo "Release v${VERSION} published successfully!"

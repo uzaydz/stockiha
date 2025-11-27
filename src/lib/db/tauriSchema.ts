@@ -69,7 +69,7 @@ async function addColumnIfNotExists(orgId: string, table: string, column: string
   try {
     const exists = await columnExists(orgId, table, column);
     if (exists) return;
-  } catch {}
+  } catch { }
 
   try {
     await tauriExecute(orgId, `ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`, []);
@@ -80,7 +80,7 @@ async function addColumnIfNotExists(orgId: string, table: string, column: string
     }
     try {
       console.error('[TauriSQLite] addColumnIfNotExists failed:', { table, column, error });
-    } catch {}
+    } catch { }
   }
 }
 
@@ -133,7 +133,7 @@ async function rebuildTableIfNeeded(orgId: string, tableName: string, newTableDe
     // حذف الجدول المؤقت إذا كان موجوداً من محاولة سابقة فاشلة
     try {
       await exec(orgId, `DROP TABLE IF EXISTS ${tempTable};`);
-    } catch {}
+    } catch { }
 
     await exec(orgId, newTableDef.replace(tableName, tempTable));
 
@@ -1277,7 +1277,7 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
         updated_at TEXT NOT NULL
       );
     `);
-    
+
     // إضافة عمود staff_id للجداول الموجودة (migration)
     await addColumnIfNotExists(organizationId, 'staff_pins', 'staff_id', 'TEXT');
     await addColumnIfNotExists(organizationId, 'staff_pins', 'staffId', 'TEXT');
@@ -1457,6 +1457,26 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
+    `);
+
+    // ⚡ FIX: إنشاء view باسم categories للتوافق مع الاستعلامات القديمة
+    // الخطأ: no such table: categories
+    await exec(organizationId, `DROP VIEW IF EXISTS categories;`);
+    await exec(organizationId, `
+      CREATE VIEW categories AS 
+      SELECT 
+        id,
+        name,
+        description,
+        slug,
+        icon,
+        image_url,
+        is_active,
+        type,
+        organization_id,
+        created_at,
+        updated_at
+      FROM product_categories;
     `);
 
     await exec(organizationId, `
@@ -3294,7 +3314,7 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
     `);
     try {
       await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_expense_categories_org ON expense_categories(organization_id);`);
-    } catch {}
+    } catch { }
 
     // فهارس إضافية للبحث السريع
     try {

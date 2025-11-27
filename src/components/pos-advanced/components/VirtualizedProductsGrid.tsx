@@ -143,18 +143,18 @@ const VirtualizedProductsGrid: React.FC<ProductsGridProps> = React.memo(({
 
   const isEmpty = products.length === 0;
 
-  // حساب عدد الأعمدة بناءً على العرض
+  // حساب عدد الأعمدة بناءً على العرض - 5 أعمدة كافتراضي
   const columnCount = useMemo(() => {
     if (viewMode === 'list') return 1;
-    if (width < 640) return 2; // sm
-    if (width < 768) return 3; // md
-    if (width < 1024) return 3; // lg
-    if (width < 1280) return 4; // xl
-    return 5; // 2xl and larger (Default to 5)
+    if (width < 500) return 3;  // صغير جداً
+    if (width < 640) return 4;  // sm
+    if (width < 900) return 5;  // md - 5 منتجات
+    if (width < 1536) return 5; // lg/xl - 5 منتجات
+    return 6;                   // 2xl وأكبر
   }, [width, viewMode]);
 
   const gap = 12; // gap-3 equivalent
-  const rowHeight = viewMode === 'grid' ? 320 : 100; // ارتفاع تقريبي للبطاقة
+  const rowHeight = viewMode === 'grid' ? 200 : 100; // ارتفاع مضغوط للتصميم الجديد
   const rowCount = Math.ceil(products.length / columnCount);
 
   // عرض الحالة الفارغة
