@@ -598,6 +598,99 @@ export interface LocalSubscription {
   synced: boolean;
 }
 
+// تعريف واجهة إعدادات نقطة البيع المحلية
+export interface LocalPOSSettings {
+  id?: string;
+  organization_id: string;
+  store_name?: string | null;
+  store_address?: string | null;
+  store_phone?: string | null;
+  store_email?: string | null;
+  store_website?: string | null;
+  store_logo_url?: string | null;
+  // إعدادات الوصل
+  receipt_header_text?: string | null;
+  receipt_footer_text?: string | null;
+  welcome_message?: string | null;
+  show_qr_code?: boolean;
+  show_tracking_code?: boolean;
+  show_customer_info?: boolean;
+  show_store_logo?: boolean;
+  show_store_info?: boolean;
+  show_date_time?: boolean;
+  show_employee_name?: boolean;
+  // إعدادات الطباعة
+  paper_width?: number;
+  font_size?: number;
+  line_spacing?: number;
+  print_density?: 'light' | 'normal' | 'dark';
+  auto_cut?: boolean;
+  receipt_template?: 'classic' | 'modern' | 'minimal' | 'custom';
+  // الألوان
+  primary_color?: string;
+  secondary_color?: string;
+  text_color?: string;
+  background_color?: string;
+  // الصلاحيات
+  allow_price_edit?: boolean;
+  require_manager_approval?: boolean;
+  // المعلومات التجارية
+  business_license?: string | null;
+  tax_number?: string | null;
+  activity?: string | null;
+  rc?: string | null;
+  nif?: string | null;
+  nis?: string | null;
+  rib?: string | null;
+  // إعدادات العملة
+  currency_symbol?: string;
+  currency_position?: 'before' | 'after';
+  tax_label?: string;
+  // التواريخ
+  created_at?: string;
+  updated_at?: string;
+  // المزامنة
+  synced?: boolean;
+  pending_sync?: boolean;
+  pendingOperation?: 'create' | 'update' | 'delete';
+  [key: string]: any;
+}
+
+// تعريف واجهة إعدادات المتجر (المؤسسة) المحلية
+export interface LocalOrganizationSettings {
+  id?: string;
+  organization_id: string;
+  // المعلومات الأساسية
+  site_name?: string | null;
+  default_language?: string | null;
+  logo_url?: string | null;
+  favicon_url?: string | null;
+  display_text_with_logo?: boolean;
+  // الألوان والمظهر
+  theme_primary_color?: string | null;
+  theme_secondary_color?: string | null;
+  theme_mode?: 'light' | 'dark' | 'auto' | null;
+  custom_css?: string | null;
+  // الأكواد المخصصة
+  custom_js?: string | null;
+  custom_header?: string | null;
+  custom_footer?: string | null;
+  // إعدادات الوصول
+  enable_registration?: boolean;
+  enable_public_site?: boolean;
+  // SEO
+  meta_description?: string | null;
+  meta_keywords?: string | null;
+  // التواريخ
+  created_at?: string;
+  updated_at?: string;
+  // المزامنة
+  synced?: boolean;
+  pending_sync?: boolean;
+  pendingOperation?: 'create' | 'update' | 'delete';
+  [key: string]: any;
+}
+
 // تعريف واجهة الصور المخبأة محلياً
 export interface LocalImage {
   id: string;

@@ -1,15 +1,26 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogDescription, 
-  DialogFooter, 
-  DialogHeader, 
-  DialogTitle 
+import { useToast } from '@/components/ui/use-toast';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import {
   Form,
@@ -41,14 +52,46 @@ import {
   CommandItem,
 } from '@/components/ui/command';
 import { Calendar } from '@/components/ui/calendar';
-import { CalendarIcon, Loader2, Plus, Trash2, Search, Check, ChevronsUpDown } from 'lucide-react';
+import {
+  CalendarIcon,
+  Loader2,
+  Plus,
+  Trash2,
+  Search,
+  Check,
+  ChevronsUpDown,
+  FileText,
+  Users,
+  Calendar as CalendarIconSolid,
+  Clock,
+  FileCheck,
+  StickyNote,
+  ShoppingCart,
+  Sparkles,
+  Save,
+  X,
+  Package,
+} from 'lucide-react';
 import { Supplier, SupplierPurchase, SupplierPurchaseItem } from '@/api/supplierService';
 import { SupplierDialog } from './SupplierDialog';
 import { ProductVariantSelector } from './ProductVariantSelector';
+import { PurchaseItemCard } from './PurchaseItemCard';
+import { PurchaseSummaryCard } from './PurchaseSummaryCard';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { ar } from 'date-fns/locale';
 import { supabase } from '@/lib/supabase';
+import { calculatePurchaseTotal, PurchaseItem, VariantType } from '@/types/purchase';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 // مخطط التحقق للنموذج
 const formSchema = z.object({
@@ -77,9 +120,12 @@ interface Product {
   id: string;
   name: string;
   price: number;
-  purchase_price?: number; // سعر الشراء
+  purchase_price?: number;
   has_variants?: boolean;
   use_sizes?: boolean;
+  sku?: string;
+  thumbnail_image?: string;
+  stock_quantity?: number;
 }
 
 interface SupplierPurchaseDialogProps {
@@ -114,15 +160,28 @@ export function SupplierPurchaseDialog({
   onCreateSupplier,
   onSuppliersUpdate,
 }: SupplierPurchaseDialogProps) {
+  const { toast } = useToast();
   const isEditing = !!purchase;
   const [totalAmount, setTotalAmount] = useState(0);
   const [supplierDialogOpen, setSupplierDialogOpen] = useState(false);
   const [isCreatingSupplier, setIsCreatingSupplier] = useState(false);
-  const [itemVariants, setItemVariants] = useState<Record<number, any[]>>({});
+
+  // نوع بيانات المتغيرات
+  interface VariantData {
+    variant_id: string;
+    display_name: string;
+    quantity: number;
+    unit_price: number;
+    color_id?: string;
+    size_id?: string;
+  }
+
+  const [itemVariants, setItemVariants] = useState<Record<number, VariantData[]>>({});
   const [showVariantSelector, setShowVariantSelector] = useState<Record<number, boolean>>({});
   const [productSearchOpen, setProductSearchOpen] = useState<Record<number, boolean>>({});
   const [productSearchValue, setProductSearchValue] = useState<Record<number, string>>({});
   const [isGeneratingInvoiceNumber, setIsGeneratingInvoiceNumber] = useState(false);
+  const [showCloseConfirmation, setShowCloseConfirmation] = useState(false);
   
   // وظيفة لتوليد رقم الفاتورة التلقائي
   const generatePurchaseNumber = async () => {
@@ -211,23 +270,15 @@ export function SupplierPurchaseDialog({
     }
   }, [purchase, form, selectedSupplierId]);
   
-  // حساب المبلغ الإجمالي
+  // حساب المبلغ الإجمالي - استخدام الدالة الموحدة
   useEffect(() => {
     const calculateTotal = () => {
       const items = form.watch('items');
-      let sum = 0;
-      
-      items.forEach((item) => {
-        const subtotal = item.quantity * item.unit_price;
-        const tax = subtotal * (item.tax_rate / 100);
-        sum += subtotal + tax;
-      });
-      
-      setTotalAmount(sum);
+      setTotalAmount(calculatePurchaseTotal(items));
     };
-    
+
     calculateTotal();
-    
+
     const subscription = form.watch(() => calculateTotal());
     return () => subscription.unsubscribe();
   }, [form]);
@@ -272,7 +323,11 @@ export function SupplierPurchaseDialog({
       
       if (!hasValidProduct) {
         // عرض رسالة تحذير للمستخدم
-        alert("تحذير: لم يتم تحديد أي منتج. تأكد من اختيار منتج واحد على الأقل لتحديث المخزون.");
+        toast({
+          title: 'تحذير',
+          description: 'لم يتم تحديد أي منتج. تأكد من اختيار منتج واحد على الأقل لتحديث المخزون.',
+          variant: 'destructive',
+        });
         // استمر في المعالجة رغم التحذير
       }
     }
@@ -289,12 +344,31 @@ export function SupplierPurchaseDialog({
     }
   };
   
-  // الإغلاق مع استدعاء onClose إن وجد
-  const handleDialogClose = () => {
-    
+  // التحقق من وجود تغييرات غير محفوظة
+  const hasUnsavedChanges = useCallback(() => {
+    return form.formState.isDirty;
+  }, [form.formState.isDirty]);
+
+  // طلب تأكيد الإغلاق
+  const requestClose = useCallback(() => {
+    if (hasUnsavedChanges()) {
+      setShowCloseConfirmation(true);
+    } else {
+      performClose();
+    }
+  }, [hasUnsavedChanges]);
+
+  // تنفيذ الإغلاق الفعلي
+  const performClose = useCallback(() => {
+    setShowCloseConfirmation(false);
     if (onClose) {
       onClose();
     }
+  }, [onClose]);
+
+  // الإغلاق مع استدعاء onClose إن وجد (للتوافق مع الكود القديم)
+  const handleDialogClose = () => {
+    requestClose();
   };
   
   // استدعاء عند اختيار منتج
@@ -401,576 +475,549 @@ export function SupplierPurchaseDialog({
     }
   };
   
+  // حالة الحقول المحددة
+  const selectedSupplier = suppliers.find(s => s.id === form.watch('supplier_id'));
+  const itemsCount = fields.length;
+
+  // الحصول على ألوان الحالة
+  const getStatusConfig = (status: string) => {
+    const configs: Record<string, { color: string; bg: string; label: string }> = {
+      draft: { color: 'text-slate-600', bg: 'bg-slate-100', label: 'مسودة' },
+      confirmed: { color: 'text-blue-600', bg: 'bg-blue-100', label: 'مؤكدة' },
+      partially_paid: { color: 'text-amber-600', bg: 'bg-amber-100', label: 'مدفوعة جزئياً' },
+      paid: { color: 'text-emerald-600', bg: 'bg-emerald-100', label: 'مدفوعة' },
+      overdue: { color: 'text-red-600', bg: 'bg-red-100', label: 'متأخرة' },
+      cancelled: { color: 'text-gray-600', bg: 'bg-gray-100', label: 'ملغاة' },
+    };
+    return configs[status] || configs.draft;
+  };
+
   return (
+    <>
     <Dialog open={open} onOpenChange={(newOpen) => {
-      
-      if (!newOpen && onClose && open) {
-        // عند الإغلاق
-        handleDialogClose();
+      if (!newOpen && open) {
+        requestClose();
       } else {
         onOpenChange(newOpen);
       }
     }}>
-      <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{isEditing ? 'تعديل مشتريات' : 'إضافة مشتريات جديدة'}</DialogTitle>
-          <DialogDescription>
-            أدخل تفاصيل المشتريات من المورد. اضغط على حفظ عند الانتهاء.
-          </DialogDescription>
-        </DialogHeader>
-        
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* رقم الشراء */}
-              <FormField
-                control={form.control}
-                name="purchase_number"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>رقم الفاتورة*</FormLabel>
-                    <div className="flex gap-2">
-                      <FormControl>
-                        <Input placeholder="مثال: PUR-2412-0001" {...field} />
-                      </FormControl>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={generatePurchaseNumber}
-                        disabled={isGeneratingInvoiceNumber}
-                        title="توليد رقم فاتورة تلقائي"
-                      >
-                        {isGeneratingInvoiceNumber ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Plus className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              {/* المورد */}
-              <FormField
-                control={form.control}
-                name="supplier_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>المورّد*</FormLabel>
-                    <div className="flex gap-2">
-                      <Select 
-                        onValueChange={field.onChange} 
-                        defaultValue={field.value}
-                        value={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger className="flex-1">
-                            <SelectValue placeholder="اختر المورد" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {suppliers.map((supplier) => (
-                            <SelectItem key={supplier.id} value={supplier.id}>
-                              {supplier.name} {supplier.company_name ? `(${supplier.company_name})` : ''}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {onCreateSupplier && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          onClick={() => setSupplierDialogOpen(true)}
-                          title="إضافة مورد جديد"
-                          disabled={isLoading}
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              {/* تاريخ الشراء */}
-              <FormField
-                control={form.control}
-                name="purchase_date"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>تاريخ الشراء*</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant={"outline"}
-                            className={cn(
-                              "w-full pl-3 text-right font-normal",
-                              !field.value && "text-muted-foreground"
-                            )}
-                          >
-                            {field.value ? (
-                              format(field.value, "PPP", { locale: ar })
-                            ) : (
-                              <span>اختر تاريخ</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value}
-                          onSelect={field.onChange}
-                          disabled={(date) =>
-                            date > new Date() || date < new Date("1900-01-01")
-                          }
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              {/* تاريخ الاستحقاق */}
-              <FormField
-                control={form.control}
-                name="due_date"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>تاريخ الاستحقاق</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant={"outline"}
-                            className={cn(
-                              "w-full pl-3 text-right font-normal",
-                              !field.value && "text-muted-foreground"
-                            )}
-                          >
-                            {field.value ? (
-                              format(field.value, "PPP", { locale: ar })
-                            ) : (
-                              <span>اختر تاريخ</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value || undefined}
-                          onSelect={field.onChange}
-                          disabled={(date) =>
-                            date < new Date("1900-01-01")
-                          }
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              {/* شروط الدفع */}
-              <FormField
-                control={form.control}
-                name="payment_terms"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>شروط الدفع</FormLabel>
-                    <FormControl>
-                      <Input placeholder="مثال: خلال 30 يوم" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              
-              {/* حالة الفاتورة */}
-              <FormField
-                control={form.control}
-                name="status"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>الحالة*</FormLabel>
-                    <Select 
-                      onValueChange={field.onChange} 
-                      defaultValue={field.value}
-                      value={field.value}
-                    >
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="اختر الحالة" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="draft">مسودة</SelectItem>
-                        <SelectItem value="confirmed">مؤكدة</SelectItem>
-                        <SelectItem value="partially_paid">مدفوعة جزئياً</SelectItem>
-                        <SelectItem value="paid">مدفوعة</SelectItem>
-                        <SelectItem value="overdue">متأخرة</SelectItem>
-                        <SelectItem value="cancelled">ملغاة</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-            
-            {/* ملاحظات */}
-            <FormField
-              control={form.control}
-              name="notes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>ملاحظات</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="أي ملاحظات إضافية عن هذه المشتريات"
-                      className="resize-none"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
+      <DialogContent className="sm:max-w-[1000px] max-h-[95vh] p-0 gap-0 overflow-hidden">
+        {/* Header محسّن */}
+        <div className="relative bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border-b">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-primary to-primary/60" />
+          <div className="px-6 py-5">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-4">
+                <div className="p-3 bg-primary/10 rounded-xl">
+                  <ShoppingCart className="h-6 w-6 text-primary" />
+                </div>
+                <div>
+                  <DialogTitle className="text-xl font-bold text-slate-900 dark:text-white">
+                    {isEditing ? 'تعديل فاتورة المشتريات' : 'إنشاء فاتورة مشتريات جديدة'}
+                  </DialogTitle>
+                  <DialogDescription className="text-sm text-slate-500 mt-1">
+                    {isEditing
+                      ? `تعديل الفاتورة رقم ${form.watch('purchase_number')}`
+                      : 'أدخل تفاصيل المشتريات من المورد'}
+                  </DialogDescription>
+                </div>
+              </div>
+              {/* شارة الحالة */}
+              {form.watch('status') && (
+                <Badge
+                  className={cn(
+                    'px-3 py-1.5 font-medium',
+                    getStatusConfig(form.watch('status')).bg,
+                    getStatusConfig(form.watch('status')).color
+                  )}
+                >
+                  {getStatusConfig(form.watch('status')).label}
+                </Badge>
               )}
-            />
-            
-            {/* جدول العناصر */}
-            <div className="border rounded-md p-4">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-medium">عناصر المشتريات</h3>
-                <Button type="button" variant="outline" size="sm" onClick={handleAddItem}>
-                  <Plus className="h-4 w-4 ml-2" />
-                  إضافة عنصر
-                </Button>
-              </div>
-              
-              <div className="space-y-4">
-                {fields.map((field, index) => (
-                  <div key={field.id} className="space-y-4">
-                    <div className="grid grid-cols-12 gap-4 items-start border-b pb-4">
-                      {/* المنتج */}
-                      <div className="col-span-12 md:col-span-4">
-                        <FormField
-                          control={form.control}
-                          name={`items.${index}.product_id`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className={index !== 0 ? 'sr-only' : ''}>المنتج</FormLabel>
-                              <Popover 
-                                open={productSearchOpen[index]} 
-                                onOpenChange={(open) => 
-                                  setProductSearchOpen(prev => ({ ...prev, [index]: open }))
-                                }
-                              >
-                                <PopoverTrigger asChild>
-                                  <FormControl>
+            </div>
+          </div>
+        </div>
+
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col h-[calc(95vh-180px)]">
+            {/* المحتوى الرئيسي */}
+            <ScrollArea className="flex-1">
+              <div className="p-6 space-y-6">
+                {/* قسم المعلومات الأساسية */}
+                <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+                  <div className="px-5 py-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700">
+                    <h3 className="font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-primary" />
+                      المعلومات الأساسية
+                    </h3>
+                  </div>
+                  <div className="p-5 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {/* رقم الفاتورة */}
+                    <FormField
+                      control={form.control}
+                      name="purchase_number"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
+                            <FileText className="h-3.5 w-3.5" />
+                            رقم الفاتورة *
+                          </FormLabel>
+                          <div className="flex gap-2">
+                            <FormControl>
+                              <Input
+                                placeholder="PUR-2412-0001"
+                                className="h-10"
+                                {...field}
+                              />
+                            </FormControl>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-10 w-10 shrink-0"
+                                    onClick={generatePurchaseNumber}
+                                    disabled={isGeneratingInvoiceNumber}
+                                  >
+                                    {isGeneratingInvoiceNumber ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <Sparkles className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>توليد رقم تلقائي</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {/* المورد */}
+                    <FormField
+                      control={form.control}
+                      name="supplier_id"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
+                            <Users className="h-3.5 w-3.5" />
+                            المورّد *
+                          </FormLabel>
+                          <div className="flex gap-2">
+                            <Select
+                              onValueChange={field.onChange}
+                              value={field.value}
+                            >
+                              <FormControl>
+                                <SelectTrigger className="h-10 flex-1">
+                                  <SelectValue placeholder="اختر المورد" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {suppliers.map((supplier) => (
+                                  <SelectItem key={supplier.id} value={supplier.id}>
+                                    <div className="flex items-center gap-2">
+                                      <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium text-primary">
+                                        {supplier.name.charAt(0)}
+                                      </div>
+                                      <span>{supplier.name}</span>
+                                      {supplier.company_name && (
+                                        <span className="text-xs text-slate-400">
+                                          ({supplier.company_name})
+                                        </span>
+                                      )}
+                                    </div>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {onCreateSupplier && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
                                     <Button
+                                      type="button"
                                       variant="outline"
-                                      role="combobox"
-                                      aria-expanded={productSearchOpen[index]}
-                                      className="w-full justify-between"
+                                      size="icon"
+                                      className="h-10 w-10 shrink-0"
+                                      onClick={() => setSupplierDialogOpen(true)}
+                                      disabled={isLoading}
                                     >
-                                      {field.value && field.value !== 'none'
-                                        ? products.find((product) => product.id === field.value)?.name
-                                        : "اختر المنتج"}
-                                      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                      <Plus className="h-4 w-4" />
                                     </Button>
-                                  </FormControl>
-                                </PopoverTrigger>
-                                <PopoverContent className="w-full p-0">
-                                  <Command>
-                                    <CommandInput 
-                                      placeholder="بحث عن منتج..." 
-                                      value={productSearchValue[index] || ''}
-                                      onValueChange={(value) => 
-                                        setProductSearchValue(prev => ({ ...prev, [index]: value }))
-                                      }
-                                    />
-                                    <CommandEmpty>لا توجد منتجات مطابقة</CommandEmpty>
-                                    <CommandGroup className="max-h-60 overflow-y-auto">
-                                      <CommandItem
-                                        value="none"
-                                        onSelect={() => {
-                                          field.onChange('none');
-                                          handleProductSelect(index, 'none');
-                                          setProductSearchOpen(prev => ({ ...prev, [index]: false }));
-                                        }}
-                                      >
-                                        <Check
-                                          className={cn(
-                                            "mr-2 h-4 w-4",
-                                            field.value === 'none' ? "opacity-100" : "opacity-0"
-                                          )}
-                                        />
-                                        -- بدون منتج --
-                                      </CommandItem>
-                                      {products.map((product) => (
-                                        <CommandItem
-                                          key={product.id}
-                                          value={product.name}
-                                          onSelect={() => {
-                                            field.onChange(product.id);
-                                            handleProductSelect(index, product.id);
-                                            setProductSearchOpen(prev => ({ ...prev, [index]: false }));
-                                          }}
-                                        >
-                                          <Check
-                                            className={cn(
-                                              "mr-2 h-4 w-4",
-                                              field.value === product.id ? "opacity-100" : "opacity-0"
-                                            )}
-                                          />
-                                          {product.name}
-                                        </CommandItem>
-                                      ))}
-                                    </CommandGroup>
-                                  </Command>
-                                </PopoverContent>
-                              </Popover>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-                      
-                      {/* الوصف */}
-                      <div className="col-span-12 md:col-span-3">
-                        <FormField
-                          control={form.control}
-                          name={`items.${index}.description`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className={index !== 0 ? 'sr-only' : ''}>الوصف*</FormLabel>
+                                  </TooltipTrigger>
+                                  <TooltipContent>إضافة مورد جديد</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                          </div>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {/* الحالة */}
+                    <FormField
+                      control={form.control}
+                      name="status"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
+                            <FileCheck className="h-3.5 w-3.5" />
+                            الحالة *
+                          </FormLabel>
+                          <Select onValueChange={field.onChange} value={field.value}>
+                            <FormControl>
+                              <SelectTrigger className="h-10">
+                                <SelectValue placeholder="اختر الحالة" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="draft">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 rounded-full bg-slate-500" />
+                                  مسودة
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="confirmed">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 rounded-full bg-blue-500" />
+                                  مؤكدة
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="partially_paid">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 rounded-full bg-amber-500" />
+                                  مدفوعة جزئياً
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="paid">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                                  مدفوعة
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="overdue">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 rounded-full bg-red-500" />
+                                  متأخرة
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="cancelled">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-2 h-2 rounded-full bg-gray-500" />
+                                  ملغاة
+                                </div>
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {/* تاريخ الشراء */}
+                    <FormField
+                      control={form.control}
+                      name="purchase_date"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
+                            <CalendarIconSolid className="h-3.5 w-3.5" />
+                            تاريخ الشراء *
+                          </FormLabel>
+                          <Popover>
+                            <PopoverTrigger asChild>
                               <FormControl>
-                                <Input placeholder="وصف المنتج" {...field} />
+                                <Button
+                                  variant="outline"
+                                  className={cn(
+                                    'w-full h-10 justify-start text-right font-normal',
+                                    !field.value && 'text-muted-foreground'
+                                  )}
+                                >
+                                  <CalendarIcon className="ml-2 h-4 w-4 opacity-50" />
+                                  {field.value
+                                    ? format(field.value, 'PPP', { locale: ar })
+                                    : 'اختر التاريخ'}
+                                </Button>
                               </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-                      
-                      {/* الكمية */}
-                      <div className="col-span-4 md:col-span-1">
-                        <FormField
-                          control={form.control}
-                          name={`items.${index}.quantity`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className={index !== 0 ? 'sr-only' : ''}>الكمية*</FormLabel>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={field.value}
+                                onSelect={field.onChange}
+                                disabled={(date) =>
+                                  date > new Date() || date < new Date('1900-01-01')
+                                }
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {/* تاريخ الاستحقاق */}
+                    <FormField
+                      control={form.control}
+                      name="due_date"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
+                            <Clock className="h-3.5 w-3.5" />
+                            تاريخ الاستحقاق
+                          </FormLabel>
+                          <Popover>
+                            <PopoverTrigger asChild>
                               <FormControl>
-                                <Input
-                                  type="number"
-                                  min="0.01"
-                                  step="0.01"
-                                  onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                                  value={field.value}
-                                  disabled={showVariantSelector[index]}
-                                />
+                                <Button
+                                  variant="outline"
+                                  className={cn(
+                                    'w-full h-10 justify-start text-right font-normal',
+                                    !field.value && 'text-muted-foreground'
+                                  )}
+                                >
+                                  <CalendarIcon className="ml-2 h-4 w-4 opacity-50" />
+                                  {field.value
+                                    ? format(field.value, 'PPP', { locale: ar })
+                                    : 'اختر التاريخ'}
+                                </Button>
                               </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-                      
-                      {/* سعر الوحدة */}
-                      <div className="col-span-4 md:col-span-2">
-                        <FormField
-                          control={form.control}
-                          name={`items.${index}.unit_price`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className={index !== 0 ? 'sr-only' : ''}>السعر*</FormLabel>
-                              <FormControl>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                                  value={field.value}
-                                  disabled={showVariantSelector[index]}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-                      
-                      {/* نسبة الضريبة */}
-                      <div className="col-span-3 md:col-span-1">
-                        <FormField
-                          control={form.control}
-                          name={`items.${index}.tax_rate`}
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className={index !== 0 ? 'sr-only' : ''}>الضريبة %</FormLabel>
-                              <FormControl>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                                  value={field.value}
-                                />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-                      
-                      {/* زر حذف العنصر */}
-                      <div className="col-span-1 pt-8">
-                        {fields.length > 1 && (
-                          <Button 
-                            type="button" 
-                            variant="ghost" 
-                            size="icon"
-                            onClick={() => remove(index)}
-                          >
-                            <Trash2 className="h-4 w-4 text-red-500" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                    
-                    {/* محدد المتغيرات */}
-                    {showVariantSelector[index] && (
-                      <div className="mt-4 border rounded-lg p-4 bg-gray-50">
-                        <ProductVariantSelector
-                          productId={form.getValues(`items.${index}.product_id`)}
-                          productName={products.find(p => p.id === form.getValues(`items.${index}.product_id`))?.name || ''}
-                          productPrice={products.find(p => p.id === form.getValues(`items.${index}.product_id`))?.price || 0}
-                          productPurchasePrice={products.find(p => p.id === form.getValues(`items.${index}.product_id`))?.purchase_price}
-                          onVariantsChange={(variants) => handleVariantsChange(index, variants)}
-                          initialVariants={itemVariants[index] || []}
-                        />
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-              
-              {/* المجموع */}
-              <div className="flex justify-end mt-4">
-                <div className="w-1/3 space-y-2">
-                  <div className="flex justify-between">
-                    <span>المجموع:</span>
-                    <span>{totalAmount.toFixed(2)} دج</span>
-                  </div>
-                  
-                  {/* المبلغ المدفوع */}
-                  <FormField
-                    control={form.control}
-                    name="paid_amount"
-                    render={({ field }) => (
-                      <FormItem>
-                        <div className="flex justify-between">
-                          <FormLabel>المبلغ المدفوع:</FormLabel>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={field.value || undefined}
+                                onSelect={field.onChange}
+                                disabled={(date) => date < new Date('1900-01-01')}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {/* شروط الدفع */}
+                    <FormField
+                      control={form.control}
+                      name="payment_terms"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs font-medium text-slate-500">
+                            شروط الدفع
+                          </FormLabel>
                           <FormControl>
                             <Input
-                              type="number"
-                              min="0"
-                              step="0.01"
-                              className="w-28 text-left"
-                              onChange={(e) => field.onChange(parseFloat(e.target.value))}
-                              value={field.value}
+                              placeholder="مثال: خلال 30 يوم"
+                              className="h-10"
+                              {...field}
                             />
                           </FormControl>
-                        </div>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                  
-                  <div className="flex justify-between font-medium border-t pt-2">
-                    <span>المتبقي:</span>
-                    <span className={
-                      (totalAmount - form.watch('paid_amount')) > 0 
-                        ? 'text-red-600' 
-                        : 'text-green-600'
-                    }>
-                      {(totalAmount - form.watch('paid_amount')).toFixed(2)} دج
-                    </span>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
-                  
-                  {(totalAmount - form.watch('paid_amount')) > 0 && (
-                    <div className="flex gap-2 pt-2">
+
+                  {/* الملاحظات */}
+                  <div className="px-5 pb-5">
+                    <FormField
+                      control={form.control}
+                      name="notes"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
+                            <StickyNote className="h-3.5 w-3.5" />
+                            ملاحظات
+                          </FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="أي ملاحظات إضافية..."
+                              className="resize-none h-20"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                </div>
+            
+                {/* قسم عناصر المشتريات والملخص */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* عناصر المشتريات */}
+                  <div className="lg:col-span-2 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Package className="h-5 w-5 text-primary" />
+                        <h3 className="font-semibold text-slate-900 dark:text-white">
+                          عناصر المشتريات
+                        </h3>
+                        <Badge variant="secondary" className="text-xs">
+                          {itemsCount} عنصر
+                        </Badge>
+                      </div>
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        onClick={() => form.setValue('paid_amount', totalAmount)}
+                        onClick={handleAddItem}
+                        className="gap-2"
                       >
-                        دفع المبلغ كاملاً
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => form.setValue('paid_amount', totalAmount / 2)}
-                      >
-                        دفع نصف المبلغ
+                        <Plus className="h-4 w-4" />
+                        إضافة عنصر
                       </Button>
                     </div>
-                  )}
+
+                    {/* قائمة العناصر */}
+                    <div className="space-y-4">
+                      {fields.map((field, index) => (
+                        <div key={field.id}>
+                          <PurchaseItemCard
+                            index={index}
+                            form={form}
+                            products={products}
+                            onRemove={() => remove(index)}
+                            canRemove={fields.length > 1}
+                            onProductSelect={(productId) => handleProductSelect(index, productId)}
+                          />
+
+                          {/* محدد المتغيرات */}
+                          {showVariantSelector[index] && (
+                            <div className="mt-3 border rounded-xl p-4 bg-slate-50 dark:bg-slate-800/50">
+                              <ProductVariantSelector
+                                productId={form.getValues(`items.${index}.product_id`)}
+                                productName={
+                                  products.find(
+                                    p => p.id === form.getValues(`items.${index}.product_id`)
+                                  )?.name || ''
+                                }
+                                productPrice={
+                                  products.find(
+                                    p => p.id === form.getValues(`items.${index}.product_id`)
+                                  )?.price || 0
+                                }
+                                productPurchasePrice={
+                                  products.find(
+                                    p => p.id === form.getValues(`items.${index}.product_id`)
+                                  )?.purchase_price
+                                }
+                                onVariantsChange={variants =>
+                                  handleVariantsChange(index, variants)
+                                }
+                                initialVariants={itemVariants[index] || []}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* زر إضافة عنصر إضافي */}
+                    <Button
+                      type="button"
+                      variant="dashed"
+                      className="w-full h-12 border-dashed border-2 text-slate-500 hover:text-primary hover:border-primary transition-colors"
+                      onClick={handleAddItem}
+                    >
+                      <Plus className="h-5 w-5 ml-2" />
+                      إضافة عنصر جديد
+                    </Button>
+                  </div>
+
+                  {/* الملخص المالي */}
+                  <div className="lg:col-span-1">
+                    <div className="sticky top-0">
+                      <PurchaseSummaryCard form={form} totalAmount={totalAmount} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </ScrollArea>
+
+            {/* Footer محسّن */}
+            <div className="border-t bg-slate-50 dark:bg-slate-800/50 px-6 py-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4 text-sm text-slate-500">
+                  <div className="flex items-center gap-2">
+                    <Package className="h-4 w-4" />
+                    <span>{itemsCount} عنصر</span>
+                  </div>
+                  <Separator orientation="vertical" className="h-4" />
+                  <div className="font-medium text-slate-700 dark:text-slate-300">
+                    الإجمالي: <span className="text-primary">{totalAmount.toFixed(2)} دج</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleDialogClose}
+                    disabled={isLoading}
+                    className="gap-2"
+                  >
+                    <X className="h-4 w-4" />
+                    إلغاء
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={isLoading}
+                    className="gap-2 min-w-[140px] bg-primary hover:bg-primary/90"
+                  >
+                    {isLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="h-4 w-4" />
+                    )}
+                    {isEditing ? 'تحديث الفاتورة' : 'حفظ الفاتورة'}
+                  </Button>
                 </div>
               </div>
             </div>
-            
-            <DialogFooter>
-              <div className="flex justify-between items-center w-full">
-                <div className="text-sm text-muted-foreground">
-                  {form.watch('items')?.length > 0 && (
-                    <span>
-                      {form.watch('items').length} عنصر - المجموع: {totalAmount.toFixed(2)} دج
-                    </span>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    onClick={handleDialogClose}
-                    disabled={isLoading}
-                  >
-                    إلغاء
-                  </Button>
-                  <Button type="submit" disabled={isLoading} className="min-w-[120px]">
-                    {isLoading && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
-                    {isEditing ? 'تحديث المشتريات' : 'حفظ المشتريات'}
-                  </Button>
-                </div>
-              </div>
-            </DialogFooter>
           </form>
         </Form>
       </DialogContent>
       
-      {/* حوار إضافة مورد جديد */}
-      <SupplierDialog
-        open={supplierDialogOpen}
-        onOpenChange={setSupplierDialogOpen}
-        onSave={handleCreateSupplier}
-        isLoading={isCreatingSupplier}
-      />
     </Dialog>
+
+    {/* حوار إضافة مورد جديد - خارج Dialog الرئيسي */}
+    <SupplierDialog
+      open={supplierDialogOpen}
+      onOpenChange={setSupplierDialogOpen}
+      onSave={handleCreateSupplier}
+      isLoading={isCreatingSupplier}
+    />
+
+    {/* حوار تأكيد الإغلاق - خارج Dialog الرئيسي ليظهر فوقه */}
+    <AlertDialog open={showCloseConfirmation} onOpenChange={setShowCloseConfirmation}>
+      <AlertDialogContent className="z-[200]">
+        <AlertDialogHeader>
+          <AlertDialogTitle>تغييرات غير محفوظة</AlertDialogTitle>
+          <AlertDialogDescription>
+            لديك تغييرات غير محفوظة. هل أنت متأكد من أنك تريد إغلاق النموذج؟ ستفقد جميع التغييرات.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={() => setShowCloseConfirmation(false)}>
+            متابعة التعديل
+          </AlertDialogCancel>
+          <AlertDialogAction onClick={performClose} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            إغلاق بدون حفظ
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }

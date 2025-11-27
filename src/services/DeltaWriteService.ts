@@ -46,6 +46,7 @@ export type EntityType =
   | 'permissions'
   | 'expense_categories'
   | 'pos_settings'
+  | 'organization_settings'
   | 'organization_subscriptions'
   | 'subscription_plans'
   | 'suppliers'

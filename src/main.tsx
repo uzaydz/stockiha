@@ -60,11 +60,22 @@ const detectAppVariant = (): 'admin' => {
                      window.navigator.userAgent &&
                      window.navigator.userAgent.includes('Electron');
 
+  // كشف Tauri - يستخدم tauri:// protocol أو __TAURI__ متغير عام
+  const isTauri = typeof window !== 'undefined' && (
+    window.location.protocol === 'tauri:' ||
+    '__TAURI__' in window ||
+    '__TAURI_INTERNALS__' in window
+  );
+
+  const isDesktopApp = isElectron || isTauri;
+
   console.log('🖥️ [APP] كشف نوع التطبيق:');
   console.log('  - isElectron:', isElectron);
+  console.log('  - isTauri:', isTauri);
+  console.log('  - isDesktopApp:', isDesktopApp);
   console.log('  - userAgent:', window.navigator?.userAgent);
 
-  if (isElectron) {
+  if (isDesktopApp) {
     console.log('  - تم كشف تطبيق مكتبي - توجيه للإدارة');
     return 'admin';
   }
@@ -154,14 +165,20 @@ const bootstrap = async () => {
   const variant = detectAppVariant();
   console.log('📊 [MAIN] تم كشف نوع التطبيق:', variant, 'في', performance.now() - startTime, 'ms');
 
-  // كشف التطبيق المكتبي
+  // كشف التطبيق المكتبي (Electron أو Tauri)
   const isElectron = typeof window !== 'undefined' &&
                      window.navigator &&
                      window.navigator.userAgent &&
                      window.navigator.userAgent.includes('Electron');
 
-  if (isElectron) {
-    console.log('🖥️ [MAIN] تطبيق مكتبي مكتشف');
+  const isTauri = typeof window !== 'undefined' && (
+    window.location.protocol === 'tauri:' ||
+    '__TAURI__' in window ||
+    '__TAURI_INTERNALS__' in window
+  );
+
+  if (isElectron || isTauri) {
+    console.log('🖥️ [MAIN] تطبيق مكتبي مكتشف', isElectron ? '(Electron)' : '(Tauri)');
   }
 
   if (import.meta.env.DEV) {

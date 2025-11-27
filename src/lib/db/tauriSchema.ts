@@ -696,6 +696,58 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
     await addColumnIfNotExists(organizationId, 'pos_settings', 'nis', 'TEXT');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'rib', 'TEXT');
 
+    // إعدادات المتجر (Organization Settings)
+    await exec(organizationId, `
+      CREATE TABLE IF NOT EXISTS organization_settings (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        site_name TEXT,
+        default_language TEXT DEFAULT 'ar',
+        logo_url TEXT,
+        favicon_url TEXT,
+        display_text_with_logo INTEGER DEFAULT 0,
+        theme_primary_color TEXT DEFAULT '#3B82F6',
+        theme_secondary_color TEXT DEFAULT '#10B981',
+        theme_mode TEXT DEFAULT 'light',
+        custom_css TEXT,
+        custom_js TEXT,
+        custom_header TEXT,
+        custom_footer TEXT,
+        enable_registration INTEGER DEFAULT 1,
+        enable_public_site INTEGER DEFAULT 1,
+        meta_description TEXT,
+        meta_keywords TEXT,
+        created_at TEXT,
+        updated_at TEXT,
+        synced INTEGER DEFAULT 0,
+        pending_sync INTEGER DEFAULT 0,
+        pending_operation TEXT
+      );
+    `);
+
+    // أعمدة إضافية لإعدادات المتجر - دعم camelCase
+    await addColumnIfNotExists(organizationId, 'organization_settings', 'siteName', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'organization_settings', 'defaultLanguage', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'organization_settings', 'logoUrl', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'organization_settings', 'faviconUrl', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'organization_settings', 'displayTextWithLogo', 'INTEGER');
+    await addColumnIfNotExists(organizationId, 'organization_settings', 'themePrimaryColor', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'organization_settings', 'themeSecondaryColor', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'organization_settings', 'themeMode', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'organization_settings', 'customCss', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'organization_settings', 'customJs', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'organization_settings', 'customHeader', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'organization_settings', 'customFooter', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'organization_settings', 'enableRegistration', 'INTEGER');
+    await addColumnIfNotExists(organizationId, 'organization_settings', 'enablePublicSite', 'INTEGER');
+    await addColumnIfNotExists(organizationId, 'organization_settings', 'metaDescription', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'organization_settings', 'metaKeywords', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'organization_settings', 'organizationId', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'organization_settings', 'createdAt', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'organization_settings', 'updatedAt', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'organization_settings', 'pendingSync', 'INTEGER');
+    await addColumnIfNotExists(organizationId, 'organization_settings', 'pendingOperation', 'TEXT');
+
     // إعادة بناء جدول pos_orders إذا كان يحتوي على قيود NOT NULL قديمة
     const posOrdersTableDef = `
       CREATE TABLE IF NOT EXISTS pos_orders (

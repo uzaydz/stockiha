@@ -171,18 +171,28 @@ export const useAppInitialization = () => {
 // 🎨 مكون أساسي للتطبيق
 export const AppCore = ({ children }: { children: React.ReactNode }) => {
   useAppInitialization();
-  
-  // كشف ما إذا كان التطبيق يعمل في Electron
-  const isElectron = typeof window !== 'undefined' && 
-    window.navigator && 
-    window.navigator.userAgent && 
+
+  // كشف ما إذا كان التطبيق يعمل في Electron أو Tauri (تطبيق مكتبي)
+  const isElectron = typeof window !== 'undefined' &&
+    window.navigator &&
+    window.navigator.userAgent &&
     window.navigator.userAgent.includes('Electron');
-  
-  // في Electron استخدم HashRouter لتفادي أخطاء file:///login
+
+  // كشف Tauri - يستخدم tauri:// protocol أو __TAURI__ متغير عام
+  const isTauri = typeof window !== 'undefined' && (
+    window.location.protocol === 'tauri:' ||
+    '__TAURI__' in window ||
+    '__TAURI_INTERNALS__' in window
+  );
+
+  // التطبيق المكتبي يشمل Electron أو Tauri
+  const isDesktopApp = isElectron || isTauri;
+
+  // في التطبيق المكتبي استخدم HashRouter لتفادي أخطاء التوجيه
   // في المتصفح استخدم BrowserRouter كالعادة
-  const Router = isElectron ? HashRouter : BrowserRouter;
-  // في المتصفح، استخدم '/' كـ basename. في Electron (HashRouter) لا حاجة لbasename
-  const basename = isElectron ? undefined : '/';
+  const Router = isDesktopApp ? HashRouter : BrowserRouter;
+  // في المتصفح، استخدم '/' كـ basename. في التطبيق المكتبي (HashRouter) لا حاجة لbasename
+  const basename = isDesktopApp ? undefined : '/';
   
   return (
     <Router

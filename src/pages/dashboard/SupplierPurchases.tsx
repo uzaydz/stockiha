@@ -1,21 +1,21 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams, useSearchParams, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { 
-  SupplierPurchaseDialog 
+import {
+  SupplierPurchaseDialog
 } from '@/components/suppliers/SupplierPurchaseDialog';
-import { 
-  SupplierPurchasesList 
+import {
+  SupplierPurchasesList
 } from '@/components/suppliers/SupplierPurchasesList';
-import { 
-  getSuppliers, 
-  getSupplierById, 
-  getPurchaseById, 
-  createPurchase, 
+import {
+  getSuppliers,
+  getSupplierById,
+  getPurchaseById,
+  createPurchase,
   updatePurchase,
   createSupplier,
-  Supplier, 
-  SupplierPurchase, 
+  Supplier,
+  SupplierPurchase,
   SupplierPurchaseItem,
   updatePurchaseStatus
 } from '@/api/supplierService';
@@ -23,6 +23,7 @@ import { getProducts, Product } from '@/api/productService';
 import { useToast } from '@/components/ui/use-toast';
 import Layout from '@/components/Layout';
 import { POSSharedLayoutControls } from '@/components/pos-layout/types';
+import { calculatePurchaseTotal, UserWithOrganization, PurchaseFormData } from '@/types/purchase';
 
 interface SupplierPurchasesProps extends POSSharedLayoutControls {}
 
@@ -33,36 +34,35 @@ export default function SupplierPurchases({
 }: SupplierPurchasesProps = {}) {
   const { user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const { purchaseId } = useParams<{ purchaseId: string }>();
+  const [searchParams] = useSearchParams();
+
   // محاولة الحصول على organization_id بطرق متعددة
   const [organizationId, setOrganizationId] = useState<string | undefined>(undefined);
-  
+
   // تحديد organization_id عند تهيئة المكون
   useEffect(() => {
     // محاولة الحصول على organization_id من كائن المستخدم
-    if (user && 'organization_id' in user) {
-      
-      setOrganizationId((user as any).organization_id);
+    const userWithOrg = user as UserWithOrganization | null;
+    if (userWithOrg?.organization_id) {
+      setOrganizationId(userWithOrg.organization_id);
       return;
     }
-    
-    // محاولة الحصول من التخزين المحلي
-    const storedOrgId = localStorage.getItem('bazaar_organization_id');
+
+    // محاولة الحصول من التخزين المحلي (جرب كلا المفتاحين)
+    const storedOrgId = localStorage.getItem('currentOrganizationId') ||
+                        localStorage.getItem('bazaar_organization_id');
     if (storedOrgId) {
-      
       setOrganizationId(storedOrgId);
       return;
     }
-    
-    // القيمة الاحتياطية النهائية (يمكن تغييرها حسب احتياجك)
-    
-    setOrganizationId("10c02497-45d4-417a-857b-ad383816d7a0");
+
+    // إذا لم يتم العثور على organization_id، لا نعيد التوجيه فوراً
+    // قد يكون المستخدم في حالة تحميل
   }, [user]);
-  
-  const navigate = useNavigate();
-  const { purchaseId } = useParams<{ purchaseId: string }>();
-  const [searchParams] = useSearchParams();
-  const { toast } = useToast();
-  
+
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -95,11 +95,13 @@ export default function SupplierPurchases({
           setSelectedSupplier(supplierIdParam);
         }
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'خطأ غير معروف';
         toast({
-          title: 'خطأ',
-          description: 'حدث خطأ أثناء تحميل البيانات',
+          title: 'خطأ في تحميل البيانات',
+          description: `فشل في تحميل الموردين والمنتجات: ${errorMessage}`,
           variant: 'destructive',
         });
+        console.error('[SupplierPurchases] خطأ في تحميل البيانات:', error);
       } finally {
         setIsLoading(false);
       }
@@ -128,11 +130,13 @@ export default function SupplierPurchases({
           navigate('/dashboard/suppliers/purchases');
         }
       } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'خطأ غير معروف';
         toast({
-          title: 'خطأ',
-          description: 'حدث خطأ أثناء تحميل بيانات المشتريات',
+          title: 'خطأ في تحميل المشتريات',
+          description: `فشل في تحميل بيانات المشتريات رقم ${purchaseId}: ${errorMessage}`,
           variant: 'destructive',
         });
+        console.error('[SupplierPurchases] خطأ في تحميل المشتريات:', error);
         navigate('/dashboard/suppliers/purchases');
       }
     };
@@ -359,27 +363,18 @@ export default function SupplierPurchases({
         }
       }
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'خطأ غير معروف';
       toast({
-        title: 'خطأ',
-        description: 'حدث خطأ أثناء حفظ المشتريات',
+        title: 'خطأ في حفظ المشتريات',
+        description: `فشل في حفظ المشتريات: ${errorMessage}`,
         variant: 'destructive',
       });
+      console.error('[SupplierPurchases] خطأ في حفظ المشتريات:', error);
     }
   };
 
-  // حساب المبلغ الإجمالي للمشتريات
-  const calculateTotalAmount = (items: any[]) => {
-    return items.reduce((total, item) => {
-      const quantity = Number(item.quantity) || 0;
-      const unitPrice = Number(item.unit_price) || 0;
-      const taxRate = Number(item.tax_rate) || 0;
-      
-      const subtotal = quantity * unitPrice;
-      const taxAmount = subtotal * (taxRate / 100);
-      
-      return total + subtotal + taxAmount;
-    }, 0);
-  };
+  // حساب المبلغ الإجمالي للمشتريات - استخدام الدالة الموحدة
+  const calculateTotalAmount = calculatePurchaseTotal;
 
   // إنشاء مورد جديد
   const handleCreateSupplier = async (supplierData: any) => {
@@ -404,11 +399,13 @@ export default function SupplierPurchases({
         description: 'تم إنشاء المورد بنجاح',
       });
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'خطأ غير معروف';
       toast({
-        title: 'خطأ',
-        description: 'حدث خطأ أثناء إنشاء المورد',
+        title: 'خطأ في إنشاء المورد',
+        description: `فشل في إنشاء المورد: ${errorMessage}`,
         variant: 'destructive',
       });
+      console.error('[SupplierPurchases] خطأ في إنشاء المورد:', error);
       throw error;
     }
   };
@@ -467,12 +464,20 @@ export default function SupplierPurchases({
     }
   }, [isRefreshingData, isLoading, onLayoutStateChange]);
 
+  // فتح نافذة إضافة مشتريات جديدة
+  const handleAddNewPurchase = useCallback(() => {
+    setSelectedPurchase(null);
+    setSelectedPurchaseItems([]);
+    setDialogOpen(true);
+  }, []);
+
   const content = (
     <>
       {/* إظهار القائمة فقط عندما لا يكون الحوار مفتوحاً أو عند إغلاقه */}
-      <SupplierPurchasesList 
+      <SupplierPurchasesList
         refreshTrigger={refreshTrigger}
         onPurchaseCreate={handlePurchaseCreate}
+        onAddNewPurchase={handleAddNewPurchase}
       />
       
       {/* حوار إنشاء/تعديل المشتريات */}

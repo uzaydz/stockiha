@@ -297,6 +297,7 @@ export const ThankYouPageEditor = lazy(() => import('../pages/dashboard/ThankYou
 // ============ SETTINGS & CONFIGURATION ============
 export const SettingsPage = lazy(() => import('../pages/dashboard/settings'));
 export const DomainSettings = lazy(() => import('../pages/dashboard/DomainSettings'));
+export const UnifiedSettingsPage = lazy(() => import('../pages/UnifiedSettingsPage'));
 
 // ============ DATABASE ADMIN (Electron Only) ============
 export const DatabaseAdmin = lazy(() => import('../pages/DatabaseAdmin'));

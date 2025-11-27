@@ -342,27 +342,20 @@ export const DashboardRoutes = () => (
               </ConditionalRoute>
             } />
 
-            {/* إعدادات نقطة البيع */}
-            <Route path="pos-settings" element={
-              <ConditionalRoute appId="pos-system">
-                <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
-                  <Suspense fallback={<PageLoader message="جاري تحميل إعدادات نقطة البيع..." />}>
-                    <LazyRoutes.POSSettingsPage />
-                  </Suspense>
-                </PermissionGuard>
-              </ConditionalRoute>
+            {/* إعدادات نقطة البيع - توجيه للصفحة الموحدة */}
+            <Route path="pos-settings" element={<Navigate to="/dashboard/settings-unified" replace />} />
+            
+            {/* صفحة الإعدادات الموحدة */}
+            <Route path="settings-unified" element={
+              <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
+                <Suspense fallback={<PageLoader message="جاري تحميل الإعدادات..." />}>
+                  <LazyRoutes.UnifiedSettingsPage />
+                </Suspense>
+              </PermissionGuard>
             } />
 
-            {/* إعدادات المحل */}
-            <Route path="store-business-settings" element={
-              <ConditionalRoute appId="pos-system">
-                <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
-                  <Suspense fallback={<PageLoader message="جاري تحميل إعدادات المحل..." />}>
-                    <LazyRoutes.StoreBusinessSettings />
-                  </Suspense>
-                </PermissionGuard>
-              </ConditionalRoute>
-            } />
+            {/* إعدادات المحل - توجيه للصفحة الموحدة */}
+            <Route path="store-business-settings" element={<Navigate to="/dashboard/settings-unified" replace />} />
 
             {/* إدارة الموظفين والجلسات */}
             <Route path="staff-management" element={
@@ -463,8 +456,8 @@ export const DashboardRoutes = () => (
               </PermissionGuard>
             } />
 
-            {/* توجيه المسارات القديمة إلى المركز الجديد */}
-            <Route path="store-settings" element={<Navigate to="/dashboard/store-operations/store-settings" replace />} />
+            {/* توجيه المسارات القديمة إلى صفحة الإعدادات الموحدة */}
+            <Route path="store-settings" element={<Navigate to="/dashboard/settings-unified" replace />} />
             <Route path="store-editor" element={<Navigate to="/dashboard/store-operations/store-editor" replace />} />
             <Route path="organization-components-editor" element={<Navigate to="/dashboard/store-operations/components" replace />} />
             <Route path="store-themes" element={<Navigate to="/dashboard/store-operations/themes" replace />} />

@@ -29,6 +29,24 @@ export interface Product {
   organization_id: string;
 }
 
+// خيارات البحث والترقيم
+export interface ProductSearchOptions {
+  page?: number;
+  limit?: number;
+  search?: string;
+  categoryId?: string;
+  isActive?: boolean;
+}
+
+// نتيجة البحث مع معلومات الترقيم
+export interface ProductSearchResult {
+  products: Product[];
+  total: number;
+  page: number;
+  limit: number;
+  hasMore: boolean;
+}
+
 /**
  * جلب قائمة المنتجات حسب المؤسسة
  */
@@ -40,13 +58,106 @@ export const getProducts = async (organizationId: string): Promise<Product[]> =>
       .select('*')
       .eq('organization_id', organizationId)
       .order('created_at', { ascending: false });
-    
+
     if (error) {
       throw error;
     }
-    
+
     return data || [];
   } catch (error) {
+    return [];
+  }
+};
+
+/**
+ * جلب قائمة المنتجات مع دعم الترقيم والبحث
+ */
+export const getProductsPaginated = async (
+  organizationId: string,
+  options: ProductSearchOptions = {}
+): Promise<ProductSearchResult> => {
+  const { page = 1, limit = 20, search, categoryId, isActive } = options;
+  const offset = (page - 1) * limit;
+
+  try {
+    // بناء الاستعلام الأساسي
+    let query = supabase
+      .from('products')
+      .select('*', { count: 'exact' })
+      .eq('organization_id', organizationId);
+
+    // إضافة فلتر البحث
+    if (search && search.trim()) {
+      query = query.or(`name.ilike.%${search}%,sku.ilike.%${search}%,barcode.ilike.%${search}%`);
+    }
+
+    // إضافة فلتر الفئة
+    if (categoryId) {
+      query = query.eq('category_id', categoryId);
+    }
+
+    // إضافة فلتر الحالة
+    if (isActive !== undefined) {
+      query = query.eq('is_active', isActive);
+    }
+
+    // تطبيق الترقيم
+    const { data, error, count } = await query
+      .order('name', { ascending: true })
+      .range(offset, offset + limit - 1);
+
+    if (error) {
+      throw error;
+    }
+
+    const total = count || 0;
+
+    return {
+      products: data || [],
+      total,
+      page,
+      limit,
+      hasMore: offset + (data?.length || 0) < total,
+    };
+  } catch (error) {
+    console.error('[productService] خطأ في جلب المنتجات:', error);
+    return {
+      products: [],
+      total: 0,
+      page,
+      limit,
+      hasMore: false,
+    };
+  }
+};
+
+/**
+ * البحث السريع عن المنتجات (للقوائم المنسدلة)
+ */
+export const searchProducts = async (
+  organizationId: string,
+  searchTerm: string,
+  limit: number = 10
+): Promise<Product[]> => {
+  if (!searchTerm || searchTerm.trim().length < 2) {
+    return [];
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('products')
+      .select('id, name, price, purchase_price, sku, barcode, thumbnail_image, stock_quantity')
+      .eq('organization_id', organizationId)
+      .or(`name.ilike.%${searchTerm}%,sku.ilike.%${searchTerm}%,barcode.ilike.%${searchTerm}%`)
+      .limit(limit);
+
+    if (error) {
+      throw error;
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('[productService] خطأ في البحث عن المنتجات:', error);
     return [];
   }
 };

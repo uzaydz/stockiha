@@ -499,6 +499,35 @@ class SQLiteManager {
       );
     `);
 
+    // جدول إعدادات المتجر (Organization Settings)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS organization_settings (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        site_name TEXT,
+        default_language TEXT DEFAULT 'ar',
+        logo_url TEXT,
+        favicon_url TEXT,
+        display_text_with_logo INTEGER DEFAULT 0,
+        theme_primary_color TEXT DEFAULT '#3B82F6',
+        theme_secondary_color TEXT DEFAULT '#10B981',
+        theme_mode TEXT DEFAULT 'light',
+        custom_css TEXT,
+        custom_js TEXT,
+        custom_header TEXT,
+        custom_footer TEXT,
+        enable_registration INTEGER DEFAULT 1,
+        enable_public_site INTEGER DEFAULT 1,
+        meta_description TEXT,
+        meta_keywords TEXT,
+        created_at TEXT,
+        updated_at TEXT,
+        synced INTEGER DEFAULT 0,
+        pending_sync INTEGER DEFAULT 0,
+        pending_operation TEXT
+      );
+    `);
+
     // جدول طلبات POS - ⚡ محدث ليتوافق مع LocalPOSOrder interface
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS pos_orders (
