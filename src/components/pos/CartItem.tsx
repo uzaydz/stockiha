@@ -7,6 +7,7 @@ import { formatPrice } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { ensureArray } from '@/context/POSDataContext';
 
 export interface CartItemType {
   product: Product;
@@ -60,15 +61,19 @@ export default function CartItem({
     }
   };
   
+  // ✅ استخدام ensureArray للتعامل مع JSON strings من SQLite
+  const productColors = ensureArray(product.colors) as any[];
+
   // قم بتحديد ما إذا كان يمكن زيادة الكمية
   const canIncreaseQuantity = () => {
     // تحقق من المخزون المتاح
     if (item.colorId && item.sizeId) {
-      const color = product.colors?.find(c => c.id === item.colorId);
-      const size = color?.sizes?.find(s => s.id === item.sizeId);
+      const color = productColors.find(c => c.id === item.colorId);
+      const colorSizes = ensureArray(color?.sizes) as any[];
+      const size = colorSizes.find(s => s.id === item.sizeId);
       return size ? quantity < size.quantity : false;
     } else if (item.colorId) {
-      const color = product.colors?.find(c => c.id === item.colorId);
+      const color = productColors.find(c => c.id === item.colorId);
       return color ? quantity < color.quantity : false;
     } else {
       return quantity < product.stock_quantity;
@@ -78,11 +83,12 @@ export default function CartItem({
   // حساب حالة المخزون
   const availableStock = (() => {
     if (item.colorId && item.sizeId) {
-      const color = product.colors?.find(c => c.id === item.colorId);
-      const size = color?.sizes?.find(s => s.id === item.sizeId);
+      const color = productColors.find(c => c.id === item.colorId);
+      const colorSizes = ensureArray(color?.sizes) as any[];
+      const size = colorSizes.find(s => s.id === item.sizeId);
       return size ? size.quantity : 0;
     } else if (item.colorId) {
-      const color = product.colors?.find(c => c.id === item.colorId);
+      const color = productColors.find(c => c.id === item.colorId);
       return color ? color.quantity : 0;
     }
     return product.stock_quantity;

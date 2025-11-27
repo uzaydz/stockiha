@@ -7,41 +7,51 @@
   -webkit-font-smoothing: antialiased;
 }
 
+/* التأكد من أن الأزرار قابلة للنقر وتمنع السحب */
+.desktop-titlebar button,
+.desktop-titlebar [role="button"],
+.desktop-titlebar a,
+.desktop-titlebar input,
+.desktop-titlebar select {
+  pointer-events: auto !important;
+  position: relative;
+  z-index: 20;
+  -webkit-app-region: no-drag !important;
+  app-region: no-drag !important;
+}
+
+/* التأكد من أن القوائم المنسدلة تعمل */
+.desktop-titlebar [data-radix-popper-content-wrapper],
+[data-radix-popper-content-wrapper],
+[data-radix-menu-content],
+[data-radix-popover-content],
+[data-radix-dialog-overlay],
+[data-radix-dialog-content] {
+  pointer-events: auto !important;
+  z-index: 9999 !important;
+  -webkit-app-region: no-drag !important;
+  app-region: no-drag !important;
+}
+
+/* التأكد من أن القوائم المنسدلة المخصصة تعمل */
+.desktop-titlebar .absolute {
+  pointer-events: auto !important;
+  -webkit-app-region: no-drag !important;
+  app-region: no-drag !important;
+}
+
+/* منع السحب من العناصر التفاعلية */
+.desktop-titlebar [data-no-drag],
+.desktop-titlebar [data-no-drag] * {
+  -webkit-app-region: no-drag !important;
+  app-region: no-drag !important;
+}
+
 /* تحسين أداء نظام التبديل بين الأزرار */
 .desktop-titlebar [class*="transition-all"] {
-  will-change: transform, opacity;
+  /* إزالة will-change لمنع الرمشة */
   transform: translateZ(0);
   backface-visibility: hidden;
-}
-
-
-/* أزرار النافذة (Windows/Linux) */
-.titlebar-button {
-  display: inline-flex;
-  align-items: center;
-  justify-center: center;
-  height: 48px;
-  width: 48px;
-  color: rgba(255, 255, 255, 0.8);
-  transition: background-color 0.15s ease, color 0.15s ease;
-}
-
-.titlebar-button:hover {
-  background-color: rgba(255, 255, 255, 0.1);
-  color: rgba(255, 255, 255, 1);
-}
-
-.titlebar-button:active {
-  background-color: rgba(255, 255, 255, 0.15);
-}
-
-.titlebar-button--close:hover {
-  background-color: rgb(220, 38, 38);
-  color: white;
-}
-
-.titlebar-button--close:active {
-  background-color: rgb(185, 28, 28);
 }
 
 /* تحسين أداء الأزرار */
@@ -60,8 +70,7 @@
 /* تقليل الحركة للمستخدمين الذين يفضلون ذلك */
 @media (prefers-reduced-motion: reduce) {
   .desktop-titlebar button,
-  .desktop-titlebar a,
-  .titlebar-button {
+  .desktop-titlebar a {
     transition: none !important;
   }
 }

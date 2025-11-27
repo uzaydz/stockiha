@@ -2,14 +2,39 @@ import React, { memo, useMemo, useCallback, useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { Store, BarChart3, Zap, Layers, Package, LogOut, Truck, GraduationCap, Settings, Users, Building2, FileSpreadsheet, ChevronRight, ChevronLeft, ExternalLink, ShoppingCart, Database } from 'lucide-react';
+import * as TooltipPrimitive from "@radix-ui/react-tooltip";
+import { Store, BarChart3, Zap, Layers, Package, LogOut, Truck, GraduationCap, Settings, Users, Building2, FileSpreadsheet, ChevronRight, ChevronLeft, ExternalLink, ShoppingCart, Database, UserCircle, Shield, Clock, RefreshCw } from 'lucide-react';
 import { ShoppingBag, Wrench, BarChart3 as ReportsIcon } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
-import { usePermissions } from '@/hooks/usePermissions';
+import { useUnifiedPermissions } from '@/hooks/useUnifiedPermissions';
+import { useStaffSession } from '@/context/StaffSessionContext';
 import { toast } from 'sonner';
+import QuickStaffSwitchModern from '@/components/staff/QuickStaffSwitchModern';
 import './POSPureSidebar.css';
+
+// --- Local Tooltip Implementation (with Portal) ---
+const TooltipProvider = TooltipPrimitive.Provider;
+const Tooltip = TooltipPrimitive.Root;
+const TooltipTrigger = TooltipPrimitive.Trigger;
+
+const TooltipContent = React.forwardRef<
+  React.ElementRef<typeof TooltipPrimitive.Content>,
+  React.ComponentPropsWithoutRef<typeof TooltipPrimitive.Content>
+>(({ className, sideOffset = 4, ...props }, ref) => (
+  <TooltipPrimitive.Portal>
+    <TooltipPrimitive.Content
+      ref={ref}
+      sideOffset={sideOffset}
+      className={cn(
+        "z-[100] overflow-hidden rounded-md border bg-popover px-3 py-1.5 text-sm text-popover-foreground shadow-md animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+        className
+      )}
+      {...props}
+    />
+  </TooltipPrimitive.Portal>
+));
+TooltipContent.displayName = TooltipPrimitive.Content.displayName;
 
 export interface POSSidebarItem {
   id: string;
@@ -17,13 +42,13 @@ export interface POSSidebarItem {
   icon?: React.ComponentType<{ className?: string }>;
   href: string;
   badge?: string | number;
-  isOnlineOnly?: boolean; // خاص بالتجار الإلكترونيين فقط
-  alwaysShow?: boolean; // يظهر في جميع الأوضاع
-  permission?: string; // الصلاحية المطلوبة للوصول
-  permissions?: string[]; // قائمة صلاحيات (يكفي واحدة منها)
+  isOnlineOnly?: boolean;
+  alwaysShow?: boolean;
+  permission?: string;
+  permissions?: string[];
 }
 
-// Component محسّن لعنصر القائمة الفردي
+// --- Premium Sidebar Item Component ---
 const SidebarItem = memo<{
   item: POSSidebarItem;
   isActive: boolean;
@@ -35,42 +60,63 @@ const SidebarItem = memo<{
     <Link
       to={item.href}
       aria-current={isActive ? 'page' : undefined}
-      aria-label={item.title}
       className={cn(
-        'sidebar-item group relative flex items-center rounded-lg p-2.5',
-        'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-orange-400',
-        'transition-colors duration-150',
-        isExpanded ? 'justify-start gap-2.5' : 'justify-center',
+        'group relative flex items-center rounded-xl mb-2 transition-all duration-300 ease-out',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500/50',
+        isExpanded
+          ? 'px-3 py-2.5 justify-start gap-3 w-full'
+          : 'h-11 w-11 justify-center mx-auto', // Square shape in collapsed mode
         isActive
-          ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-md shadow-orange-500/20'
-          : 'text-slate-400 hover:text-white hover:bg-slate-800/70'
+          ? 'bg-gradient-to-r from-orange-500/90 to-orange-600/90 text-white shadow-lg shadow-orange-500/25'
+          : 'text-slate-400 hover:text-white hover:bg-white/5'
       )}
     >
-      {/* تأثير بسيط للحالة النشطة فقط */}
+      {/* Active State Glow & Highlight */}
       {isActive && (
-        <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
+        <>
+          <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/20 to-transparent opacity-50 pointer-events-none" />
+          {/* Left indicator only when expanded */}
+          {isExpanded && (
+            <div className="absolute -left-[2px] top-1/2 -translate-y-1/2 h-1/2 w-[3px] bg-white/40 rounded-full blur-[1px]" />
+          )}
+        </>
+      )}
+
+      {/* Hover Effect Background (for non-active) */}
+      {!isActive && (
+        <div className="absolute inset-0 rounded-xl bg-white/0 group-hover:bg-white/5 transition-colors duration-300 pointer-events-none" />
       )}
 
       {Icon && (
-        <Icon
-          className={cn(
-            'h-[18px] w-[18px] relative z-10 flex-shrink-0',
-            'transition-transform duration-150',
-            !isActive && 'group-hover:scale-105'
-          )}
-        />
+        <div className={cn(
+          "relative z-10 flex items-center justify-center transition-transform duration-300",
+          isActive ? "text-white scale-110" : "group-hover:scale-110 group-hover:text-orange-400"
+        )}>
+          <Icon className="h-5 w-5" />
+        </div>
       )}
 
       {isExpanded && (
-        <span className="text-[13px] font-semibold whitespace-nowrap relative z-10">
+        <span className={cn(
+          "text-[13px] font-medium whitespace-nowrap relative z-10 transition-all duration-300",
+          isActive ? "font-bold tracking-wide" : "group-hover:translate-x-1"
+        )}>
           {item.title}
         </span>
       )}
 
       {isExpanded && item.badge && (
-        <span className="mr-auto px-2 py-0.5 text-[10px] font-bold bg-orange-400 text-white rounded-full relative z-10">
+        <span className={cn(
+          "mr-auto px-2 py-0.5 text-[10px] font-bold rounded-full relative z-10 shadow-sm",
+          isActive ? "bg-white/20 text-white" : "bg-orange-500/20 text-orange-400 border border-orange-500/20"
+        )}>
           {item.badge}
         </span>
+      )}
+
+      {/* Badge dot in collapsed mode */}
+      {!isExpanded && item.badge && (
+        <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full border border-[#0f172a] z-20" />
       )}
     </Link>
   );
@@ -82,16 +128,18 @@ const SidebarItem = memo<{
           {linkContent}
         </TooltipTrigger>
         <TooltipContent
-          side="left"
-          className="bg-slate-900/95 text-white border border-slate-700/50 shadow-xl backdrop-blur-sm"
-          sideOffset={8}
+          side="right"
+          className="bg-[#0f172a] text-white border border-slate-700/50 shadow-2xl backdrop-blur-xl px-3 py-1.5 rounded-lg z-[100] ml-2"
+          sideOffset={5}
         >
-          <p className="text-xs font-medium">{item.title}</p>
-          {item.badge && (
-            <span className="inline-block mt-1 px-1.5 py-0.5 text-[9px] font-bold bg-orange-500 text-white rounded-full">
-              {item.badge}
-            </span>
-          )}
+          <div className="flex items-center gap-2">
+            <p className="text-xs font-medium">{item.title}</p>
+            {item.badge && (
+              <span className="px-1.5 py-0.5 text-[9px] font-bold bg-orange-500 text-white rounded-full">
+                {item.badge}
+              </span>
+            )}
+          </div>
         </TooltipContent>
       </Tooltip>
     );
@@ -102,7 +150,7 @@ const SidebarItem = memo<{
 
 SidebarItem.displayName = 'SidebarItem';
 
-// ترتيب العناصر بشكل منطقي لسهولة الوصول والتنقل
+// --- Sidebar Items Data ---
 export const posSidebarItems: POSSidebarItem[] = [
   {
     id: 'pos-dashboard',
@@ -110,8 +158,8 @@ export const posSidebarItems: POSSidebarItem[] = [
     icon: BarChart3,
     href: '/dashboard/pos-dashboard',
     isOnlineOnly: false,
-    alwaysShow: true, // يظهر في جميع الأوضاع
-    permission: 'accessPOS', // الصلاحية المطلوبة
+    alwaysShow: true,
+    permission: 'accessPOS',
   },
   {
     id: 'pos-advanced',
@@ -123,7 +171,7 @@ export const posSidebarItems: POSSidebarItem[] = [
   },
   {
     id: 'pos-operations',
-    title: 'إدارة نقطة البيع',
+    title: 'إدارة الطلبات',
     icon: Layers,
     href: '/dashboard/pos-operations/orders',
     isOnlineOnly: false,
@@ -131,10 +179,10 @@ export const posSidebarItems: POSSidebarItem[] = [
   },
   {
     id: 'analytics-enhanced',
-    title: 'التحليلات المحسّنة',
+    title: 'التحليلات',
     icon: BarChart3,
     href: '/dashboard/analytics-enhanced',
-    badge: 'جديد',
+    badge: 'PRO',
     isOnlineOnly: false,
     permissions: ['viewSalesReports', 'viewReports'],
   },
@@ -144,6 +192,7 @@ export const posSidebarItems: POSSidebarItem[] = [
     icon: FileSpreadsheet,
     href: '/dashboard/etat104',
     isOnlineOnly: false,
+    permission: 'accessPOS',
   },
   {
     id: 'store-business-settings',
@@ -151,35 +200,37 @@ export const posSidebarItems: POSSidebarItem[] = [
     icon: Building2,
     href: '/dashboard/store-business-settings',
     isOnlineOnly: false,
+    permissions: ['manageSettings', 'manageOrganizationSettings'],
   },
   {
     id: 'staff-management',
-    title: 'الموظفين والجلسات',
+    title: 'الموظفين',
     icon: Users,
     href: '/dashboard/staff-management',
     isOnlineOnly: false,
-    alwaysShow: true, // يظهر في جميع الأوضاع
+    alwaysShow: true,
     permissions: ['manageStaff', 'viewStaff', 'accessPOS'],
   },
   {
     id: 'product-operations',
-    title: 'مركز المنتجات',
+    title: 'المنتجات',
     icon: Package,
     href: '/dashboard/product-operations/products',
-    isOnlineOnly: true, // خاص بالتجار الإلكترونيين
+    isOnlineOnly: true,
+    alwaysShow: true,
     permissions: ['manageProducts', 'viewProducts'],
   },
   {
     id: 'sales-operations',
-    title: 'المبيعات والطلبات',
+    title: 'المبيعات',
     icon: ShoppingBag,
     href: '/dashboard/sales-operations/onlineOrders',
-    isOnlineOnly: true, // خاص بالتجار الإلكترونيين
+    isOnlineOnly: true,
     permissions: ['manageOrders', 'viewOrders'],
   },
   {
     id: 'services-operations',
-    title: 'مركز الخدمات',
+    title: 'الخدمات',
     icon: Wrench,
     href: '/dashboard/services-operations/repair',
     isOnlineOnly: false,
@@ -187,7 +238,7 @@ export const posSidebarItems: POSSidebarItem[] = [
   },
   {
     id: 'supplier-operations',
-    title: 'مركز الموردين',
+    title: 'الموردين',
     icon: Truck,
     href: '/dashboard/supplier-operations/suppliers',
     isOnlineOnly: false,
@@ -195,17 +246,19 @@ export const posSidebarItems: POSSidebarItem[] = [
   },
   {
     id: 'courses-operations',
-    title: 'دورات سطوكيها',
+    title: 'الأكاديمية',
     icon: GraduationCap,
     href: '/dashboard/courses-operations/all',
     isOnlineOnly: false,
+    alwaysShow: true,
+    permission: 'canAccessCoursesOperations',
   },
   {
     id: 'store-operations',
-    title: 'إدارة المتجر',
+    title: 'المتجر',
     icon: Store,
     href: '/dashboard/store-operations/store-settings',
-    isOnlineOnly: true, // خاص بالتجار الإلكترونيين
+    isOnlineOnly: true,
     permissions: ['manageSettings'],
   },
   {
@@ -213,15 +266,15 @@ export const posSidebarItems: POSSidebarItem[] = [
     title: 'الإعدادات',
     icon: Settings,
     href: '/dashboard/settings-operations/settings',
-    isOnlineOnly: true, // خاص بالتجار الإلكترونيين
+    isOnlineOnly: true,
     permissions: ['manageSettings'],
   },
   {
     id: 'reports-operations',
-    title: 'مركز التقارير',
+    title: 'التقارير',
     icon: ReportsIcon,
     href: '/dashboard/reports-operations/financial',
-    isOnlineOnly: true, // خاص بالتجار الإلكترونيين
+    isOnlineOnly: true,
     permissions: ['viewReports', 'accessPOS'],
   },
   {
@@ -229,9 +282,10 @@ export const posSidebarItems: POSSidebarItem[] = [
     title: 'قاعدة البيانات',
     icon: Database,
     href: '/dashboard/database-admin',
-    badge: 'جديد',
-    isOnlineOnly: false, // متاح للجميع
-    alwaysShow: false, // لا يظهر في جميع الأوضاع
+    badge: 'DEV',
+    isOnlineOnly: false,
+    alwaysShow: false,
+    permissions: ['manageSettings', 'isSuperAdmin'],
   },
 ];
 
@@ -246,93 +300,62 @@ const POSPureSidebar: React.FC<POSPureSidebarProps> = memo(({ className, items, 
   const location = useLocation();
   const { signOut, userProfile } = useAuth();
   const { currentOrganization } = useTenant();
-  const perms = usePermissions();
+  const { currentStaff, isAdminMode, clearSession } = useStaffSession();
+  const unifiedPerms = useUnifiedPermissions();
 
-  // حالة وضع التاجر الإلكتروني (محفوظة في localStorage)
   const [isOnlineMode, setIsOnlineMode] = useState<boolean>(() => {
     const saved = localStorage.getItem('sidebar-online-mode');
     return saved === 'true';
   });
 
-  // حفظ الوضع في localStorage عند تغييره
   useEffect(() => {
     localStorage.setItem('sidebar-online-mode', String(isOnlineMode));
   }, [isOnlineMode]);
 
-  // تبديل الوضع
   const toggleOnlineMode = useCallback(() => {
     setIsOnlineMode(prev => !prev);
     toast.success(
       isOnlineMode ? 'تم التبديل إلى الوضع الكامل' : 'تم التبديل إلى وضع التاجر الإلكتروني',
-      { duration: 2000 }
+      { duration: 2000, className: 'bg-slate-900 text-white border-slate-700' }
     );
   }, [isOnlineMode]);
 
-  // مرموز البيانات الثابتة لتحسين الأداء
   const sidebarItems = useMemo(() => items ?? posSidebarItems, [items]);
 
-  // تصفية العناصر بناءً على الوضع والصلاحيات
   const filteredItems = useMemo(() => {
-    // Admin/Owner لديهم صلاحية الوصول لكل شيء
-    const isAdmin = userProfile?.role === 'admin' || userProfile?.role === 'owner';
-    const isOrgAdmin = perms.isOrgAdmin || perms.isSuperAdmin;
-    
+    // استخدام الصلاحيات الموحدة
+    const { has, anyOf, isOrgAdmin, isSuperAdmin, isAdminMode: isAdmin, ready } = unifiedPerms;
+
     let filtered = sidebarItems;
-    
-    // تصفية حسب الوضع (online/offline)
+
+    // تصفية حسب الوضع (أونلاين/أوفلاين)
     if (!isOnlineMode) {
-      filtered = filtered.filter(item => item.isOnlineOnly !== true);
+      filtered = filtered.filter(item => item.alwaysShow === true || item.isOnlineOnly !== true);
     } else {
       filtered = filtered.filter(item => item.isOnlineOnly === true || item.alwaysShow === true);
     }
-    
-    // تصفية حسب الصلاحيات (إلا إذا كان Admin)
-    // إذا لم تكن الصلاحيات جاهزة بعد، اعرض كل العناصر مؤقتاً
-    if (!isAdmin && !isOrgAdmin && perms.ready) {
-      console.log('[POSSidebar] Filtering by permissions', {
-        isAdmin,
-        isOrgAdmin,
-        permsReady: perms.ready,
-        userRole: userProfile?.role,
-        itemsBeforeFilter: filtered.length
-      });
-      
+
+    // وضع المدير = صلاحيات كاملة
+    if (isAdmin || isOrgAdmin || isSuperAdmin) {
+      return filtered;
+    }
+
+    // تصفية حسب الصلاحيات (للموظفين)
+    if (ready) {
       filtered = filtered.filter(item => {
-        // إذا لم يكن هناك صلاحيات محددة، اعرض العنصر
-        if (!item.permission && !item.permissions) {
-          return true;
-        }
-        
-        // فحص الصلاحية الواحدة
-        if (item.permission) {
-          const hasPermission = perms.has(item.permission);
-          if (!hasPermission) {
-            console.log(`[POSSidebar] Hiding item: ${item.title} (missing: ${item.permission})`);
-          }
-          return hasPermission;
-        }
-        
-        // فحص قائمة الصلاحيات (يكفي واحدة)
-        if (item.permissions) {
-          const hasAnyPermission = perms.anyOf(item.permissions);
-          if (!hasAnyPermission) {
-            console.log(`[POSSidebar] Hiding item: ${item.title} (missing any of: ${item.permissions.join(', ')})`);
-          }
-          return hasAnyPermission;
-        }
-        
+        // العناصر بدون صلاحيات مطلوبة تظهر للجميع
+        if (!item.permission && !item.permissions) return true;
+        // فحص صلاحية واحدة
+        if (item.permission) return has(item.permission);
+        // فحص أي صلاحية من القائمة
+        if (item.permissions) return anyOf(item.permissions);
         return true;
       });
-      
-      console.log('[POSSidebar] Items after filter:', filtered.length);
-    } else if (!perms.ready) {
-      console.log('[POSSidebar] Permissions not ready yet, showing all items temporarily');
     }
-    
-    return filtered;
-  }, [sidebarItems, isOnlineMode, userProfile, perms]);
 
-  // تحسين منطق تمييز الرابط النشط مع useCallback لتحسين الأداء
+    return filtered;
+  }, [sidebarItems, isOnlineMode, unifiedPerms]);
+
   const isPathActive = useCallback((href: string): boolean => {
     if (href === '/dashboard') {
       return location.pathname === '/dashboard' || location.pathname === '/dashboard/';
@@ -342,7 +365,6 @@ const POSPureSidebar: React.FC<POSPureSidebarProps> = memo(({ className, items, 
     return currentBasePath === basePath;
   }, [location.pathname]);
 
-  // دالة للحصول على رابط المتجر - memoized
   const getStoreUrl = useCallback((): string => {
     const sub = currentOrganization?.subdomain;
     if (!sub) return '/';
@@ -354,91 +376,70 @@ const POSPureSidebar: React.FC<POSPureSidebarProps> = memo(({ className, items, 
     return '/';
   }, [currentOrganization?.subdomain]);
 
-  // دالة تسجيل الخروج - memoized
   const handleSignOut = useCallback(async () => {
     try {
       await signOut();
     } catch (error) {
-      toast.error('تعذر تسجيل الخروج، يرجى المحاولة مرة أخرى');
+      toast.error('تعذر تسجيل الخروج');
     }
   }, [signOut]);
 
   return (
-    <TooltipProvider delayDuration={300}>
+    <TooltipProvider delayDuration={200}>
       <div
         className={cn(
-          'flex flex-col h-full rounded-none transition-all duration-300',
+          'pos-sidebar-container flex flex-col h-full transition-all duration-500 ease-in-out',
           className
         )}
       >
-        {/* الشعار مع تصميم احترافي محسّن */}
+        {/* --- Header Section --- */}
         <div className={cn(
-          "px-3 py-5 flex items-center relative transition-all duration-300",
-          isExpanded ? "justify-start gap-3" : "justify-center"
+          "relative px-3 pt-6 pb-4 flex flex-col transition-all duration-300",
+          isExpanded ? "items-start" : "items-center"
         )}>
-          {/* خلفية متدرجة ناعمة */}
-          <div className="absolute inset-0 bg-gradient-to-b from-orange-500/8 via-orange-500/3 to-transparent pointer-events-none" />
-
-          <div className="sidebar-logo relative w-12 h-12 bg-gradient-to-br from-orange-500 via-orange-600 to-orange-700 rounded-xl flex items-center justify-center overflow-hidden border border-orange-400/40 shadow-xl shadow-orange-500/25 flex-shrink-0 transform transition-all duration-300 hover:scale-105 hover:shadow-2xl hover:shadow-orange-500/35 hover:border-orange-400/60">
-            {/* تأثير التوهج الداخلي المحسّن */}
-            <div className="absolute inset-0 bg-gradient-to-br from-white/25 via-white/10 to-transparent" />
-            <div className="absolute inset-0 bg-gradient-to-tl from-orange-800/30 to-transparent" />
-
-            <img
-              src="./images/logo-new.webp"
-              alt="سطوكيها"
-              className="w-8 h-8 object-contain relative z-10 drop-shadow-[0_2px_4px_rgba(0,0,0,0.3)]"
-              onError={(e) => {
-                // محاولة المسار البديل
-                if (e.currentTarget.src.includes('./images/')) {
-                  e.currentTarget.src = './images/logo.webp';
-                } else {
-                  e.currentTarget.style.display = 'none';
-                  const nextElement = e.currentTarget.nextElementSibling as HTMLElement;
-                  if (nextElement) nextElement.style.display = 'flex';
-                }
-              }}
-            />
-            <div className="w-8 h-8 hidden items-center justify-center relative z-10">
-              <Store className="h-5 w-5 text-white drop-shadow-lg" />
-            </div>
-          </div>
-
-          {isExpanded && (
-            <div className="flex flex-col gap-0.5 min-w-0">
-              <h2 className="text-lg font-bold bg-gradient-to-br from-orange-500 via-orange-600 to-orange-700 bg-clip-text text-transparent whitespace-nowrap drop-shadow-sm">
-                سطوكيها
-              </h2>
-              <p className={cn(
-                "text-[9px] font-medium tracking-wide truncate",
-                isOnlineMode ? "text-blue-400" : "text-slate-400"
-              )}>
-                {isOnlineMode ? "وضع التاجر الإلكتروني" : "نظام إدارة شامل"}
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* مؤشر وضع التاجر الإلكتروني */}
-        {isOnlineMode && (
-          <div className="mx-2 mb-2 px-3 py-2 bg-gradient-to-r from-blue-500/10 to-blue-600/10 border border-blue-500/30 rounded-lg">
-            <div className="flex items-center gap-2">
-              <ShoppingCart className="h-4 w-4 text-blue-400 flex-shrink-0" />
-              {isExpanded && (
-                <div className="flex flex-col gap-0.5 min-w-0">
-                  <p className="text-xs font-semibold text-blue-400">وضع التاجر الإلكتروني</p>
-                  <p className="text-[10px] text-blue-300/70 truncate">
-                    إظهار الصفحات الخاصة بالمتجر فقط
-                  </p>
+          {/* Logo Area */}
+          <div className={cn(
+            "flex items-center transition-all duration-300",
+            isExpanded ? "gap-3 w-full" : "justify-center"
+          )}>
+            <div className="relative group cursor-pointer">
+              <div className="absolute inset-0 bg-orange-500/20 rounded-xl blur-lg group-hover:bg-orange-500/30 transition-all duration-500" />
+              <div className="relative w-11 h-11 bg-gradient-to-br from-[#1e293b] to-[#0f172a] rounded-xl flex items-center justify-center border border-slate-700/50 shadow-xl overflow-hidden group-hover:scale-105 transition-transform duration-300">
+                <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent" />
+                <img
+                  src="./images/logo-new.webp"
+                  alt="Logo"
+                  className="w-7 h-7 object-contain relative z-10 drop-shadow-md"
+                  onError={(e) => {
+                    if (e.currentTarget.src.includes('./images/')) {
+                      e.currentTarget.src = './images/logo.webp';
+                    } else {
+                      e.currentTarget.style.display = 'none';
+                      e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                      e.currentTarget.nextElementSibling?.classList.add('flex');
+                    }
+                  }}
+                />
+                <div className="hidden w-full h-full items-center justify-center bg-orange-600 text-white">
+                  <Store className="w-5 h-5" />
                 </div>
-              )}
+              </div>
             </div>
+
+            {isExpanded && (
+              <div className="flex flex-col min-w-0 animate-in fade-in slide-in-from-right-4 duration-300">
+                <h2 className="text-lg font-bold text-white tracking-tight leading-tight">
+                  سطوكيها
+                </h2>
+                <p className="text-[10px] font-medium text-slate-400 tracking-wide uppercase">
+                  {isOnlineMode ? 'E-Commerce Mode' : 'Enterprise System'}
+                </p>
+              </div>
+            )}
           </div>
-        )}
-        
-        {/* زر واجهة المتجر المحسّن */}
-        <div className="px-2 pb-3">
-          {!isExpanded ? (
+
+          {/* Store Link Button */}
+          <div className={cn("mt-6 w-full transition-all duration-300")}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <a
@@ -446,53 +447,29 @@ const POSPureSidebar: React.FC<POSPureSidebarProps> = memo(({ className, items, 
                   target="_blank"
                   rel="noopener noreferrer"
                   className={cn(
-                    "group relative flex items-center rounded-lg p-2.5",
-                    "bg-gradient-to-r from-orange-500 to-orange-600 text-white",
-                    "shadow-md shadow-orange-500/25",
-                    "transition-colors duration-150",
-                    "hover:from-orange-600 hover:to-orange-700",
-                    "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-orange-400",
-                    "justify-center"
+                    "group relative flex items-center rounded-xl border border-slate-700/50 bg-slate-800/30 hover:bg-slate-800/80 transition-all duration-300",
+                    isExpanded ? "px-3 py-2.5 gap-3" : "h-11 w-11 justify-center mx-auto"
                   )}
-                  aria-label="فتح واجهة المتجر"
                 >
-                  <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
-                  <ExternalLink className="h-4 w-4 relative z-10" />
+                  <ExternalLink className="h-4 w-4 text-slate-400 group-hover:text-orange-400 transition-colors" />
+                  {isExpanded && (
+                    <span className="text-xs font-medium text-slate-300 group-hover:text-white transition-colors">
+                      زيارة المتجر
+                    </span>
+                  )}
                 </a>
               </TooltipTrigger>
-              <TooltipContent
-                side="left"
-                className="bg-slate-900/95 text-white border border-slate-700/50 shadow-xl backdrop-blur-sm"
-                sideOffset={8}
-              >
-                <p className="text-xs font-medium">واجهة المتجر</p>
-              </TooltipContent>
-            </Tooltip>
-          ) : (
-            <a
-              href={getStoreUrl()}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={cn(
-                "group relative flex items-center rounded-lg p-2.5 gap-2.5",
-                "bg-gradient-to-r from-orange-500 to-orange-600 text-white",
-                "shadow-md shadow-orange-500/25",
-                "transition-colors duration-150",
-                "hover:from-orange-600 hover:to-orange-700",
-                "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-orange-400"
+              {!isExpanded && (
+                <TooltipContent side="right" className="bg-slate-900 border-slate-700 text-white ml-2">
+                  زيارة المتجر
+                </TooltipContent>
               )}
-              aria-label="فتح واجهة المتجر"
-            >
-              <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-white/10 to-transparent pointer-events-none" />
-              <ExternalLink className="h-4 w-4 relative z-10 flex-shrink-0" />
-              <span className="text-sm font-semibold whitespace-nowrap relative z-10">
-                واجهة المتجر
-              </span>
-            </a>
-          )}
+            </Tooltip>
+          </div>
         </div>
-        
-        <nav className="sidebar-nav flex-1 px-2 pb-2 space-y-0.5 overflow-y-auto">
+
+        {/* --- Navigation Section --- */}
+        <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-2 space-y-1 sidebar-scroll-area">
           {filteredItems.map((item) => (
             <SidebarItem
               key={item.id}
@@ -501,112 +478,207 @@ const POSPureSidebar: React.FC<POSPureSidebarProps> = memo(({ className, items, 
               isExpanded={isExpanded}
             />
           ))}
-        </nav>
+        </div>
 
-      <div className="p-2 border-t border-slate-700/30 space-y-1.5">
-        {/* زر التبديل بين الوضع العادي ووضع التاجر الإلكتروني */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={toggleOnlineMode}
-              className={cn(
-                "sidebar-button group w-full h-10 rounded-lg flex items-center transition-colors duration-150 border",
-                isOnlineMode
-                  ? "bg-gradient-to-r from-blue-500 to-blue-600 text-white border-blue-400 hover:from-blue-600 hover:to-blue-700"
-                  : "bg-slate-800/60 text-slate-400 hover:bg-gradient-to-r hover:from-blue-500 hover:to-blue-600 hover:text-white border-transparent",
-                isExpanded ? "justify-start gap-2.5 px-2.5" : "justify-center"
-              )}
-            >
-              <ShoppingCart className={cn(
-                "h-[18px] w-[18px] transition-transform duration-150",
-                isOnlineMode ? "scale-105" : "group-hover:scale-105"
-              )} />
-              {isExpanded && (
-                <span className="text-[13px] font-semibold">
-                  {isOnlineMode ? "وضع التاجر الإلكتروني" : "الوضع الكامل"}
-                </span>
-              )}
-            </Button>
-          </TooltipTrigger>
-          {!isExpanded && (
-            <TooltipContent
-              side="left"
-              className="bg-slate-900/95 text-white border border-slate-700/50 shadow-xl backdrop-blur-sm"
-              sideOffset={8}
-            >
-              <p className="text-xs font-medium">
-                {isOnlineMode ? "التبديل إلى الوضع الكامل" : "وضع التاجر الإلكتروني"}
-              </p>
-            </TooltipContent>
+        {/* --- Footer Section --- */}
+        <div className="p-3 mt-auto space-y-2 border-t border-slate-800/50 bg-black/20 backdrop-blur-sm">
+
+          {/* عرض معلومات المستخدم/الموظف الحالي */}
+          {isExpanded && (
+            <div className="mb-2 px-2 py-2 rounded-lg bg-slate-800/40 border border-slate-700/30">
+              <div className="flex items-center gap-2">
+                {isAdminMode ? (
+                  <Shield className="h-4 w-4 text-orange-400" />
+                ) : currentStaff ? (
+                  <UserCircle className="h-4 w-4 text-blue-400" />
+                ) : (
+                  <UserCircle className="h-4 w-4 text-slate-400" />
+                )}
+                <div className="flex flex-col min-w-0 flex-1">
+                  <span className="text-xs font-medium text-white truncate">
+                    {unifiedPerms.displayName}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-slate-400">
+                      {isAdminMode ? 'وضع المدير' : currentStaff ? 'موظف' : userProfile?.role || 'مستخدم'}
+                    </span>
+                    {/* عرض مدة الجلسة */}
+                    {unifiedPerms.sessionDuration > 0 && (
+                      <span className="text-[9px] text-slate-500 flex items-center gap-0.5">
+                        <Clock className="h-2.5 w-2.5" />
+                        {unifiedPerms.sessionDuration < 60 
+                          ? `${unifiedPerms.sessionDuration}د` 
+                          : `${Math.floor(unifiedPerms.sessionDuration / 60)}س`
+                        }
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
-        </Tooltip>
 
-        {/* زر التوسيع/التصغير المحسّن */}
-        {onToggleExpand && (
+          {/* شارة الوضع المصغرة عند طي القائمة */}
+          {!isExpanded && (currentStaff || isAdminMode) && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className={cn(
+                  "mx-auto w-9 h-9 rounded-lg flex items-center justify-center",
+                  isAdminMode ? "bg-orange-500/20 text-orange-400" : "bg-blue-500/20 text-blue-400"
+                )}>
+                  {isAdminMode ? <Shield className="h-4 w-4" /> : <UserCircle className="h-4 w-4" />}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="bg-slate-900 border-slate-700 text-white ml-2">
+                <div className="text-right">
+                  <div className="font-medium">{unifiedPerms.displayName}</div>
+                  <div className="text-xs text-slate-400">
+                    {isAdminMode ? 'وضع المدير' : 'موظف'}
+                    {unifiedPerms.sessionDuration > 0 && ` • ${unifiedPerms.sessionDuration}د`}
+                  </div>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          )}
+
+          {/* Online Mode Toggle */}
           <Tooltip>
             <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onToggleExpand}
+              <button
+                onClick={toggleOnlineMode}
                 className={cn(
-                  "sidebar-button group w-full h-10 bg-slate-800/60 hover:bg-gradient-to-r hover:from-orange-500 hover:to-orange-600 text-slate-400 hover:text-white rounded-lg flex items-center transition-colors duration-150 border border-transparent",
-                  isExpanded ? "justify-start gap-2.5 px-2.5" : "justify-center"
+                  "w-full relative group overflow-hidden rounded-xl transition-all duration-300 border",
+                  isOnlineMode
+                    ? "bg-blue-500/10 border-blue-500/30 hover:border-blue-500/50"
+                    : "bg-slate-800/30 border-slate-700/30 hover:border-slate-600",
+                  isExpanded ? "h-12 px-3" : "h-11 w-11 flex items-center justify-center mx-auto"
                 )}
               >
-                {isExpanded ? (
-                  <ChevronRight className="h-[18px] w-[18px] transition-transform duration-150 group-hover:scale-105" />
-                ) : (
-                  <ChevronLeft className="h-[18px] w-[18px] transition-transform duration-150 group-hover:scale-105" />
-                )}
-                {isExpanded && (
-                  <span className="text-[13px] font-semibold">تصغير القائمة</span>
-                )}
-              </Button>
+                <div className={cn(
+                  "flex items-center transition-all duration-300",
+                  isExpanded ? "justify-between" : "justify-center"
+                )}>
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "p-1.5 rounded-lg transition-colors",
+                      isOnlineMode ? "bg-blue-500/20 text-blue-400" : "bg-slate-700/50 text-slate-400"
+                    )}>
+                      <ShoppingCart className="h-4 w-4" />
+                    </div>
+                    {isExpanded && (
+                      <div className="flex flex-col items-start">
+                        <span className={cn("text-xs font-bold", isOnlineMode ? "text-blue-400" : "text-slate-300")}>
+                          {isOnlineMode ? "المتجر الإلكتروني" : "الوضع الكامل"}
+                        </span>
+                        <span className="text-[9px] text-slate-500">
+                          {isOnlineMode ? "ON" : "OFF"}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {isExpanded && (
+                    <div className={cn(
+                      "w-8 h-4 rounded-full relative transition-colors duration-300",
+                      isOnlineMode ? "bg-blue-500/30" : "bg-slate-700"
+                    )}>
+                      <div className={cn(
+                        "absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-all duration-300",
+                        isOnlineMode ? "left-4 bg-blue-400" : "left-0.5 bg-slate-400"
+                      )} />
+                    </div>
+                  )}
+                </div>
+              </button>
             </TooltipTrigger>
             {!isExpanded && (
-              <TooltipContent
-                side="left"
-                className="bg-slate-900/95 text-white border border-slate-700/50 shadow-xl backdrop-blur-sm"
-                sideOffset={8}
-              >
-                <p className="text-xs font-medium">توسيع القائمة</p>
+              <TooltipContent side="right" className="bg-slate-900 border-slate-700 text-white ml-2">
+                {isOnlineMode ? "التبديل للوضع الكامل" : "التبديل لوضع المتجر"}
               </TooltipContent>
             )}
           </Tooltip>
-        )}
 
-        {/* زر تسجيل الخروج المحسّن */}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleSignOut}
-              className={cn(
-                "sidebar-button group w-full h-10 bg-slate-800/60 hover:bg-gradient-to-r hover:from-red-500 hover:to-red-600 text-slate-400 hover:text-white rounded-lg flex items-center transition-colors duration-150 border border-transparent",
-                isExpanded ? "justify-start gap-2.5 px-2.5" : "justify-center"
-              )}
-            >
-              <LogOut className="h-[18px] w-[18px] transition-transform duration-150 group-hover:scale-105" />
-              {isExpanded && (
-                <span className="text-[13px] font-semibold">تسجيل الخروج</span>
-              )}
-            </Button>
-          </TooltipTrigger>
-          {!isExpanded && (
-            <TooltipContent
-              side="left"
-              className="bg-slate-900/95 text-white border border-slate-700/50 shadow-xl backdrop-blur-sm"
-              sideOffset={8}
-            >
-              <p className="text-xs font-medium">تسجيل الخروج</p>
-            </TooltipContent>
-          )}
-        </Tooltip>
-      </div>
+          <div className={cn(
+            "flex items-center gap-2",
+            !isExpanded && "flex-col-reverse" // Stack buttons when collapsed, Expand at bottom
+          )}>
+            {/* Expand/Collapse Button */}
+            {onToggleExpand && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    onClick={onToggleExpand}
+                    className={cn(
+                      "rounded-xl flex items-center justify-center transition-all duration-300",
+                      "bg-slate-800/40 hover:bg-slate-700/50 text-slate-400 hover:text-white border border-slate-700/30",
+                      isExpanded ? "flex-1 h-10" : "h-11 w-11"
+                    )}
+                  >
+                    {isExpanded ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right" className="bg-slate-900 border-slate-700 text-white ml-2">
+                  {isExpanded ? "تصغير القائمة" : "توسيع القائمة"}
+                </TooltipContent>
+              </Tooltip>
+            )}
+
+            {/* تبديل الموظف السريع */}
+            {(currentStaff || isAdminMode) && (
+              <>
+                {isExpanded ? (
+                  <QuickStaffSwitchModern 
+                    iconOnly={false}
+                    variant="ghost"
+                    className={cn(
+                      "flex-1 h-10 rounded-xl",
+                      "bg-gradient-to-r from-blue-500/10 to-cyan-500/10 hover:from-blue-500/20 hover:to-cyan-500/20",
+                      "text-blue-400 hover:text-blue-300 border border-blue-500/20"
+                    )}
+                  />
+                ) : (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div>
+                        <QuickStaffSwitchModern 
+                          iconOnly={true}
+                          variant="ghost"
+                          size="default"
+                          className={cn(
+                            "h-11 w-11 rounded-xl",
+                            "bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 hover:text-blue-300 border border-blue-500/20"
+                          )}
+                        />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="bg-slate-900 border-slate-700 text-white ml-2">
+                      تبديل الموظف
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+              </>
+            )}
+
+            {/* Logout Button */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={handleSignOut}
+                  className={cn(
+                    "rounded-xl flex items-center justify-center transition-all duration-300",
+                    "bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/20",
+                    isExpanded ? "w-10 h-10" : "h-11 w-11"
+                  )}
+                >
+                  <LogOut className="h-5 w-5" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="bg-slate-900 border-slate-700 text-white ml-2">
+                تسجيل الخروج
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        </div>
       </div>
     </TooltipProvider>
   );

@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>سطوكيها</title>
+  <!-- خط تجوال العربي -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* خط تجوال محلي كنسخة احتياطية */
+    @font-face {
+      font-family: 'Tajawal';
+      font-style: normal;
+      font-weight: 400;
+      src: local('Tajawal'), local('Tajawal-Regular');
+    }
+    @font-face {
+      font-family: 'Tajawal';
+      font-style: normal;
+      font-weight: 700;
+      src: local('Tajawal Bold'), local('Tajawal-Bold');
+    }
+    @font-face {
+      font-family: 'Tajawal';
+      font-style: normal;
+      font-weight: 800;
+      src: local('Tajawal ExtraBold'), local('Tajawal-ExtraBold');
+    }
+  </style>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Tajawal', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    /* خلفية متحركة بالدوائر */
+    .background-animation {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      z-index: 1;
+    }
+
+    .circle {
+      position: absolute;
+      border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, rgba(249, 115, 22, 0.15), rgba(249, 115, 22, 0.05));
+      animation: float 8s infinite ease-in-out;
+    }
+
+    .circle:nth-child(1) {
+      width: 300px;
+      height: 300px;
+      top: -150px;
+      right: -150px;
+      animation-delay: 0s;
+      animation-duration: 10s;
+    }
+
+    .circle:nth-child(2) {
+      width: 200px;
+      height: 200px;
+      bottom: -100px;
+      left: -100px;
+      animation-delay: 2s;
+      animation-duration: 12s;
+    }
+
+    .circle:nth-child(3) {
+      width: 150px;
+      height: 150px;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      animation-delay: 4s;
+      animation-duration: 14s;
+    }
+
+    @keyframes float {
+      0%, 100% {
+        transform: translate(0, 0) scale(1);
+        opacity: 0.3;
+      }
+      50% {
+        transform: translate(30px, -30px) scale(1.1);
+        opacity: 0.5;
+      }
+    }
+
+    /* المحتوى الرئيسي */
+    .splash-container {
+      position: relative;
+      z-index: 10;
+      text-align: center;
+      padding: 40px;
+      animation: fadeIn 0.8s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* صندوق الشعار */
+    .logo-container {
+      position: relative;
+      margin: 0 auto 30px;
+      width: 180px;
+      height: 180px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: scaleIn 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    }
+
+    @keyframes scaleIn {
+      from {
+        transform: scale(0);
+        opacity: 0;
+      }
+      to {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+
+    /* حلقات الشعار المتوهجة */
+    .logo-ring {
+      position: absolute;
+      border-radius: 50%;
+      border: 2px solid rgba(249, 115, 22, 0.3);
+      animation: pulse 3s infinite ease-in-out;
+    }
+
+    .logo-ring:nth-child(1) {
+      width: 180px;
+      height: 180px;
+      animation-delay: 0s;
+    }
+
+    .logo-ring:nth-child(2) {
+      width: 160px;
+      height: 160px;
+      animation-delay: 0.3s;
+    }
+
+    .logo-ring:nth-child(3) {
+      width: 140px;
+      height: 140px;
+      animation-delay: 0.6s;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        transform: scale(1);
+        opacity: 0.3;
+        border-color: rgba(249, 115, 22, 0.3);
+      }
+      50% {
+        transform: scale(1.1);
+        opacity: 0.6;
+        border-color: rgba(249, 115, 22, 0.6);
+      }
+    }
+
+    /* صندوق الشعار الداخلي */
+    .logo-box {
+      position: relative;
+      z-index: 5;
+      width: 120px;
+      height: 120px;
+      background: linear-gradient(135deg, #f97316 0%, #ea580c 50%, #c2410c 100%);
+      border-radius: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow:
+        0 20px 60px rgba(249, 115, 22, 0.4),
+        0 10px 30px rgba(249, 115, 22, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.2);
+      animation: logoGlow 2s infinite alternate;
+    }
+
+    @keyframes logoGlow {
+      from {
+        box-shadow:
+          0 20px 60px rgba(249, 115, 22, 0.4),
+          0 10px 30px rgba(249, 115, 22, 0.3),
+          inset 0 1px 0 rgba(255, 255, 255, 0.2);
+      }
+      to {
+        box-shadow:
+          0 25px 80px rgba(249, 115, 22, 0.6),
+          0 15px 40px rgba(249, 115, 22, 0.5),
+          inset 0 1px 0 rgba(255, 255, 255, 0.3);
+      }
+    }
+
+    .logo-box::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, transparent 50%);
+      border-radius: 24px;
+    }
+
+    .logo-box::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      top: 50%;
+      background: linear-gradient(to bottom, transparent, rgba(0, 0, 0, 0.2));
+      border-radius: 24px;
+    }
+
+    .logo-box img {
+      position: relative;
+      z-index: 1;
+      width: 80px;
+      height: 80px;
+      object-fit: contain;
+      filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
+      animation: logoFloat 3s infinite ease-in-out;
+    }
+
+    @keyframes logoFloat {
+      0%, 100% {
+        transform: translateY(0);
+      }
+      50% {
+        transform: translateY(-8px);
+      }
+    }
+
+    /* النصوص */
+    .brand-name {
+      font-size: 48px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #f97316 0%, #fb923c 50%, #fdba74 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 12px;
+      letter-spacing: 2px;
+      animation: slideUp 0.8s ease-out 0.3s both;
+      text-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+    }
+
+    @keyframes slideUp {
+      from {
+        opacity: 0;
+        transform: translateY(30px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .tagline {
+      font-size: 18px;
+      color: #94a3b8;
+      margin-bottom: 40px;
+      font-weight: 500;
+      animation: slideUp 0.8s ease-out 0.5s both;
+      letter-spacing: 1px;
+    }
+
+    /* شريط التحميل */
+    .loading-container {
+      width: 280px;
+      margin: 0 auto;
+      animation: slideUp 0.8s ease-out 0.7s both;
+    }
+
+    .loading-bar {
+      height: 6px;
+      background: rgba(148, 163, 184, 0.2);
+      border-radius: 10px;
+      overflow: hidden;
+      position: relative;
+      backdrop-filter: blur(10px);
+      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+    }
+
+    .loading-bar::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg,
+        transparent,
+        rgba(249, 115, 22, 0.4),
+        rgba(249, 115, 22, 0.8),
+        rgba(251, 146, 60, 0.8),
+        rgba(249, 115, 22, 0.4),
+        transparent
+      );
+      animation: loading 2s infinite;
+    }
+
+    .loading-bar::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, #f97316, #fb923c, #fdba74);
+      animation: progressBar 2s ease-out forwards;
+      box-shadow: 0 0 10px rgba(249, 115, 22, 0.6);
+    }
+
+    @keyframes loading {
+      0% {
+        left: -100%;
+      }
+      100% {
+        left: 100%;
+      }
+    }
+
+    @keyframes progressBar {
+      0% {
+        width: 0%;
+      }
+      100% {
+        width: 100%;
+      }
+    }
+
+    .loading-text {
+      margin-top: 16px;
+      font-size: 14px;
+      color: #64748b;
+      font-weight: 500;
+      animation: blink 1.5s infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.5;
+      }
+    }
+
+    /* الكرات المتحركة */
+    .dots {
+      display: inline-flex;
+      gap: 6px;
+      margin-right: 8px;
+    }
+
+    .dot {
+      width: 6px;
+      height: 6px;
+      background: #f97316;
+      border-radius: 50%;
+      animation: dotPulse 1.4s infinite ease-in-out;
+    }
+
+    .dot:nth-child(1) {
+      animation-delay: 0s;
+    }
+
+    .dot:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+
+    .dot:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+
+    @keyframes dotPulse {
+      0%, 60%, 100% {
+        transform: scale(1);
+        opacity: 1;
+      }
+      30% {
+        transform: scale(1.5);
+        opacity: 0.7;
+      }
+    }
+
+    /* النسخة */
+    .version {
+      position: absolute;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 12px;
+      color: #475569;
+      z-index: 10;
+      animation: fadeIn 1s ease-out 1s both;
+    }
+  </style>
+</head>
+<body>
+  <!-- الخلفية المتحركة -->
+  <div class="background-animation">
+    <div class="circle"></div>
+    <div class="circle"></div>
+    <div class="circle"></div>
+  </div>
+
+  <!-- المحتوى الرئيسي -->
+  <div class="splash-container">
+    <!-- الشعار مع الحلقات المتوهجة -->
+    <div class="logo-container">
+      <div class="logo-ring"></div>
+      <div class="logo-ring"></div>
+      <div class="logo-ring"></div>
+      <div class="logo-box">
+        <img src="../dist/images/logo-new.webp" alt="سطوكيها" onerror="this.src='../public/images/logo-new.webp'; this.onerror=function(){this.src='../public/images/logo.webp'}">
+      </div>
+    </div>
+
+    <!-- اسم التطبيق -->
+    <h1 class="brand-name">سطوكيها</h1>
+
+    <!-- الشعار -->
+    <p class="tagline">منصة إدارة المتاجر الذكية</p>
+
+    <!-- شريط التحميل -->
+    <div class="loading-container">
+      <div class="loading-bar"></div>
+      <p class="loading-text">
+        <span class="dots">
+          <span class="dot"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+        </span>
+        جارٍ التحميل
+      </p>
+    </div>
+  </div>
+
+  <!-- النسخة -->
+  <div class="version">الإصدار 1.0.15</div>
+</body>
+</html>

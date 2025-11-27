@@ -16,13 +16,13 @@ import { NotificationsProvider, useNotifications } from '@/context/Notifications
 
 // Import app components
 import { AppCore, CategoryRedirect } from './app-components/AppComponents';
-import { 
-  PublicRoutes, 
-  AuthRoutes, 
-  SuperAdminRoutes, 
-  CallCenterRoutes, 
+import {
+  PublicRoutes,
+  AuthRoutes,
+  SuperAdminRoutes,
+  CallCenterRoutes,
   POSRoutes,
-  PageLoader 
+  PageLoader
 } from './app-components/RouteComponents';
 
 // Lazy load dashboard routes to reduce initial bundle
@@ -30,7 +30,7 @@ const DashboardRoutes = React.lazy(() => import('./app-components/DashboardRoute
 
 // 🎯 مكون تحميل خاص بالتطبيق
 const AppLoader = () => (
-  <div className="flex items-center justify-center min-h-screen bg-background">
+  <div className="flex items-center justify-center min-h-screen bg-[#0a0f1c]">
     <div className="flex flex-col items-center gap-4">
       <div className="relative">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -47,10 +47,10 @@ const AppLoader = () => (
 // مكون الإشعارات العامة
 const GlobalNotifications = () => {
   const { toasts, removeToast } = useNotifications();
-  
+
   return (
-    <ToastContainer 
-      notifications={toasts} 
+    <ToastContainer
+      notifications={toasts}
       onClose={removeToast}
       position="bottom-right"
     />
@@ -64,44 +64,44 @@ const App = () => {
       <NotificationsProvider>
         <AppCore>
           <Routes>
-          {/* المسارات العامة - تحمل فوراً */}
-          <PublicRoutes />
-          
-          {/* مسارات التوثيق - تحمل فوراً */}
-          <AuthRoutes />
-          
-          {/* مسارات Super Admin */}
-          <SuperAdminRoutes />
-          
-          {/* مسارات Call Center */}
-          <CallCenterRoutes />
-          
-          {/* مسار نقطة البيع */}
-          <POSRoutes />
-          
-          {/* مسار إعادة التوجيه للفئات */}
-          <Route path="/category/:categoryId" element={<CategoryRedirect />} />
-          
-          {/* مسارات لوحة التحكم - Lazy Loading */}
-          <Route path="/dashboard/*" element={
-            <Suspense fallback={<PageLoader message="جاري تحميل لوحة التحكم..." />}>
-              <DashboardRoutes />
-            </Suspense>
-          } />
-          
-          {/* مسار 404 */}
-          <Route path="*" element={
-            <Suspense fallback={<AppLoader />}>
-              {React.createElement(React.lazy(() => import('./pages/NotFound')))}
-            </Suspense>
-          } />
-        </Routes>
-        
-        {/* الإشعارات العامة */}
-        <GlobalNotifications />
-        
-        {/* مكونات التطوير */}
-        {import.meta.env.DEV && <LocalStorageMonitor />}
+            {/* المسارات العامة - تحمل فوراً */}
+            <PublicRoutes />
+
+            {/* مسارات التوثيق - تحمل فوراً */}
+            <AuthRoutes />
+
+            {/* مسارات Super Admin */}
+            <SuperAdminRoutes />
+
+            {/* مسارات Call Center */}
+            <CallCenterRoutes />
+
+            {/* مسار نقطة البيع */}
+            <POSRoutes />
+
+            {/* مسار إعادة التوجيه للفئات */}
+            <Route path="/category/:categoryId" element={<CategoryRedirect />} />
+
+            {/* مسارات لوحة التحكم - Lazy Loading */}
+            <Route path="/dashboard/*" element={
+              <Suspense fallback={<PageLoader message="جاري تحميل لوحة التحكم..." />}>
+                <DashboardRoutes />
+              </Suspense>
+            } />
+
+            {/* مسار 404 */}
+            <Route path="*" element={
+              <Suspense fallback={<AppLoader />}>
+                {React.createElement(React.lazy(() => import('./pages/NotFound')))}
+              </Suspense>
+            } />
+          </Routes>
+
+          {/* الإشعارات العامة */}
+          <GlobalNotifications />
+
+          {/* مكونات التطوير */}
+          {import.meta.env.DEV && <LocalStorageMonitor />}
 
         </AppCore>
       </NotificationsProvider>

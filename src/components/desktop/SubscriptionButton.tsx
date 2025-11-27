@@ -5,9 +5,9 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Crown, 
-  ShoppingCart, 
+import {
+  Crown,
+  ShoppingCart,
   ArrowRight,
   Calendar
 } from 'lucide-react';
@@ -19,7 +19,7 @@ export const SubscriptionButton: React.FC = () => {
   const navigate = useNavigate();
   const [showDetails, setShowDetails] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  
+
   const {
     planName,
     daysRemaining,
@@ -74,24 +74,24 @@ export const SubscriptionButton: React.FC = () => {
         type="button"
         onClick={() => setShowDetails(!showDetails)}
         className={cn(
-          "flex items-center gap-1.5 h-7 px-2 rounded-md",
+          "flex items-center gap-2 h-8 px-2.5 rounded-lg",
           "transition-all duration-200 active:scale-95",
-          "hover:bg-white/15",
-          showDetails && "bg-white/15"
+          "hover:bg-white/10 text-white/80 hover:text-white",
+          showDetails && "bg-white/15 text-white shadow-inner"
         )}
         style={{ WebkitAppRegion: 'no-drag' } as any}
         title={needsInitialCheck ? 'يتطلب اتصال للتحقق الأولي' : `${planName || 'لا يوجد اشتراك'} - ${daysRemaining} يوم`}
         aria-label="معلومات الاشتراك"
       >
         <Crown className={cn("h-4 w-4 shrink-0", getIconColor())} />
-        <span className="hidden lg:inline text-xs text-white/90 font-medium">
+        <span className="hidden lg:inline text-xs font-medium tracking-wide">
           {daysRemaining > 0 ? `${daysRemaining} يوم` : 'منتهي'}
         </span>
       </button>
 
       {/* القائمة المنسدلة - متناسقة مع باقي المكونات */}
       {showDetails && (
-        <div 
+        <div
           className="absolute left-0 mt-2 w-64 bg-slate-800/95 backdrop-blur-md rounded-lg shadow-2xl border border-white/10 overflow-hidden z-50"
           style={{ WebkitAppRegion: 'no-drag' } as any}
         >
@@ -107,12 +107,12 @@ export const SubscriptionButton: React.FC = () => {
               <span className={cn(
                 "text-xs px-2 py-0.5 rounded font-medium",
                 subscriptionStatus === 'expired' ? 'bg-red-500/20 text-red-300' :
-                daysRemaining <= 7 ? 'bg-orange-500/20 text-orange-300' :
-                subscriptionStatus === 'trial' ? 'bg-blue-500/20 text-blue-300' :
-                'bg-emerald-500/20 text-emerald-300'
+                  daysRemaining <= 7 ? 'bg-orange-500/20 text-orange-300' :
+                    subscriptionStatus === 'trial' ? 'bg-blue-500/20 text-blue-300' :
+                      'bg-emerald-500/20 text-emerald-300'
               )}>
                 {subscriptionStatus === 'active' ? 'نشط' :
-                 subscriptionStatus === 'trial' ? 'تجريبي' : 'منتهي'}
+                  subscriptionStatus === 'trial' ? 'تجريبي' : 'منتهي'}
               </span>
             </div>
           </div>
@@ -146,27 +146,27 @@ export const SubscriptionButton: React.FC = () => {
                   <ShoppingCart className="h-4 w-4 text-white/70" />
                   <span>الطلبات الإلكترونية</span>
                 </div>
-                
+
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-white/60">المستخدم</span>
                     <span className="text-white/90 font-medium">{currentOrders} / {maxOrders}</span>
                   </div>
-                  
+
                   {/* شريط التقدم */}
                   <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
-                    <div 
+                    <div
                       className={cn(
                         "h-full transition-all duration-300",
-                        (remainingOrders || 0) <= 10 ? 'bg-red-400' : 
-                        (remainingOrders || 0) <= 30 ? 'bg-orange-400' : 'bg-emerald-400'
+                        (remainingOrders || 0) <= 10 ? 'bg-red-400' :
+                          (remainingOrders || 0) <= 30 ? 'bg-orange-400' : 'bg-emerald-400'
                       )}
-                      style={{ 
-                        width: `${maxOrders > 0 ? (currentOrders / maxOrders) * 100 : 0}%` 
+                      style={{
+                        width: `${maxOrders > 0 ? (currentOrders / maxOrders) * 100 : 0}%`
                       }}
                     />
                   </div>
-                  
+
                   <div className="text-[10px] text-white/50">
                     {remainingOrders || 0} طلبية متبقية
                   </div>

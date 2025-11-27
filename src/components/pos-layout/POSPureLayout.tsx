@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, memo } from 'react';
+import React, { useEffect, useState, useCallback, memo, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useTitlebar } from '@/context/TitlebarContext';
 import { cn } from '@/lib/utils';
@@ -64,23 +64,33 @@ const POSPureLayout = memo(function POSPureLayout({
   }, []);
 
   // إضافة زر التحديث إلى titlebar actions
+  // ✅ استخدام ref لتتبع حالة الـ mount وتجنب infinite loop
+  const actionsSetRef = useRef(false);
+  const prevIsRefreshingRef = useRef(isRefreshing);
+  
   useEffect(() => {
-    if (onRefresh) {
-      setActions([
-        {
-          id: 'refresh',
-          label: 'تحديث البيانات',
-          icon: <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin text-orange-500")} />,
-          onClick: onRefresh,
-          disabled: isRefreshing
-        }
-      ]);
+    // فقط تحديث إذا تغيرت حالة isRefreshing فعلاً أو لم يتم الإعداد بعد
+    if (!onRefresh) return;
+    
+    if (actionsSetRef.current && prevIsRefreshingRef.current === isRefreshing) {
+      return; // لا تحديث إذا لم تتغير الحالة
     }
-
-    return () => {
-      clearActions();
-    };
-  }, [onRefresh, isRefreshing, setActions, clearActions]);
+    
+    prevIsRefreshingRef.current = isRefreshing;
+    actionsSetRef.current = true;
+    
+    setActions([
+      {
+        id: 'refresh',
+        label: 'تحديث البيانات',
+        icon: <RefreshCw className={cn("h-4 w-4", isRefreshing && "animate-spin text-orange-500")} />,
+        onClick: onRefresh,
+        disabled: isRefreshing
+      }
+    ]);
+    
+    // ✅ لا نستدعي clearActions في cleanup لتجنب infinite loop
+  }, [onRefresh, isRefreshing, setActions]);
 
   // معالج فتح/إغلاق السايدبار للجوال
   const toggleMobileSidebar = useCallback(() => {

@@ -15,6 +15,9 @@ interface SimpleProduct {
   is_active: boolean;
   created_at: string;
   thumbnail_image?: string;
+  // ⚡ دعم الصور المحلية للعمل Offline
+  thumbnail_base64?: string;
+  images_base64?: string;
   images?: string[];
   slug?: string;
   [key: string]: any; // للحقول الأخرى
@@ -74,6 +77,9 @@ export const loadProductsToCache = async (organizationId: string): Promise<void>
         is_active: p.is_active !== false,
         created_at: p.created_at || new Date().toISOString(),
         thumbnail_image: p.thumbnail_image,
+        // ⚡ دعم الصور المحلية للعمل Offline
+        thumbnail_base64: p.thumbnail_base64,
+        images_base64: p.images_base64,
         images: p.images,
         slug: p.slug
       })) as SimpleProduct[];
@@ -81,7 +87,34 @@ export const loadProductsToCache = async (organizationId: string): Promise<void>
       productsCache = mapped.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'));
       cacheTimestamp = now;
       cachedOrganizationId = organizationId;
-      console.log(`تم جلب ${productsCache.length} منتج محلياً (أوفلاين)`);
+
+      // ⚡ DEBUG: عرض المنتجات مع الصور المحلية
+      const productsWithLocalImages = mapped.filter(p => p.thumbnail_base64);
+      console.log(`[ProductsCache] ✅ تم جلب ${productsCache.length} منتج محلياً (أوفلاين)`);
+      console.log(`[ProductsCache] 🖼️ منتجات مع صور محلية: ${productsWithLocalImages.length}`);
+
+      // 🔍 DEBUG: عرض أحدث 5 منتجات (للتحقق من المنتجات الجديدة)
+      const sortedByDate = [...mapped].sort((a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      console.log(`[ProductsCache] 🆕 أحدث 5 منتجات:`);
+      sortedByDate.slice(0, 5).forEach((p, i) => {
+        console.log(`  ${i + 1}. ${p.name} (${p.id.substring(0, 8)}) - thumbnail_base64: ${p.thumbnail_base64 ? `${Math.round(String(p.thumbnail_base64).length/1024)}KB` : 'NO'} - created: ${p.created_at}`);
+      });
+
+      // ⚡ DEBUG: عرض كل المنتجات مع صورها
+      console.log(`[ProductsCache] 🖼️ قائمة المنتجات مع الصور:`);
+      productsWithLocalImages.forEach((p, i) => {
+        console.log(`  ${i + 1}. ${p.name} (${p.id.substring(0, 8)}) - ${Math.round(String(p.thumbnail_base64 || '').length/1024)}KB`);
+      });
+
+      // ⚡ DEBUG: المنتجات بدون صور
+      const productsWithoutImages = mapped.filter(p => !p.thumbnail_base64 && !p.thumbnail_image);
+      console.log(`[ProductsCache] ⚠️ منتجات بدون صور: ${productsWithoutImages.length}`);
+      productsWithoutImages.slice(0, 5).forEach((p, i) => {
+        console.log(`  ${i + 1}. ${p.name} (${p.id.substring(0, 8)})`);
+      });
+
       return;
     }
 
@@ -151,11 +184,76 @@ export const loadProductsToCache = async (organizationId: string): Promise<void>
       }
     }
     
+    // ⚡ دمج الصور المحلية (base64) من SQLite للمنتجات المُنشأة أوفلاين
+    try {
+      const localProducts = await inventoryDB.products
+        .where('organization_id')
+        .equals(organizationId)
+        .toArray();
+
+      // إنشاء خريطة للصور المحلية
+      const localImagesMap = new Map<string, { thumbnail_base64?: string; images_base64?: string }>();
+      for (const lp of localProducts as any[]) {
+        if (lp.thumbnail_base64 || lp.images_base64) {
+          localImagesMap.set(lp.id, {
+            thumbnail_base64: lp.thumbnail_base64,
+            images_base64: lp.images_base64
+          });
+        }
+      }
+
+      // دمج الصور المحلية مع المنتجات من السيرفر
+      if (localImagesMap.size > 0) {
+        console.log('[ProductsCache] 🖼️ Merging local images for', localImagesMap.size, 'products');
+        for (const product of allProducts) {
+          const localImages = localImagesMap.get(product.id);
+          if (localImages) {
+            if (localImages.thumbnail_base64 && !product.thumbnail_image) {
+              (product as any).thumbnail_base64 = localImages.thumbnail_base64;
+            }
+            if (localImages.images_base64) {
+              (product as any).images_base64 = localImages.images_base64;
+            }
+          }
+        }
+      }
+
+      // ⚡ إضافة المنتجات المحلية التي لم تتم مزامنتها بعد
+      const serverProductIds = new Set(allProducts.map(p => p.id));
+      const localOnlyProducts = (localProducts as any[])
+        .filter((lp: any) => !serverProductIds.has(lp.id))
+        .map((lp: any) => ({
+          id: lp.id,
+          name: lp.name,
+          sku: lp.sku,
+          barcode: lp.barcode,
+          description: lp.description,
+          price: Number(lp.price || 0),
+          stock_quantity: Number(lp.stock_quantity || 0),
+          category_id: lp.category_id,
+          subcategory_id: lp.subcategory_id,
+          is_active: lp.is_active !== false,
+          created_at: lp.created_at || new Date().toISOString(),
+          thumbnail_image: lp.thumbnail_image,
+          thumbnail_base64: lp.thumbnail_base64,
+          images_base64: lp.images_base64,
+          images: lp.images,
+          slug: lp.slug
+        }));
+
+      if (localOnlyProducts.length > 0) {
+        console.log('[ProductsCache] 📦 Adding', localOnlyProducts.length, 'local-only products');
+        allProducts = allProducts.concat(localOnlyProducts as SimpleProduct[]);
+      }
+    } catch (localMergeError) {
+      console.warn('[ProductsCache] ⚠️ Failed to merge local images:', localMergeError);
+    }
+
     // حفظ في الـ cache
     productsCache = allProducts;
     cacheTimestamp = now;
     cachedOrganizationId = organizationId;
-    
+
     console.log('[ProductsCache] ✅ Loading complete:', {
       fetched: allProducts.length,
       expected: totalProductsCount,

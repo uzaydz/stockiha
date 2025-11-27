@@ -84,7 +84,7 @@ const DropdownMenuSubContent = React.memo(React.forwardRef<
 >(({ className, ...props }, ref) => {
   const memoizedClassName = React.useMemo(() => 
     cn(
-      "z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-lg transform-gpu",
+      "z-[9999] min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-lg transform-gpu",
       className
     ),
     [className]
@@ -115,7 +115,7 @@ const DropdownMenuContent = React.memo(React.forwardRef<
 >(({ className, sideOffset = 4, ...props }, ref) => {
   const memoizedClassName = React.useMemo(() => 
     cn(
-      "z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md",
+      "z-[9999] min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md",
       className
     ),
     [className]

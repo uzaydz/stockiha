@@ -6,6 +6,7 @@ export interface OrganizationTemplate {
   name: string;
   template_type: string;
   is_default: boolean | null;
+  content?: string;
 }
 
 // دالة لجلب نماذج المؤسسة
@@ -136,23 +137,42 @@ export async function setSelectedStoreTheme(
       // نواصل لأن بعض القواعد قد لا تمنع التعيين الجديد
     }
 
-    // إدراج أو تحديث القالب المختار كمفضل
-    const { error: upsertError } = await supabase
+    // التحقق من وجود سجل للقالب المختار
+    const { data: existingTemplate } = await supabase
       .from('organization_templates')
-      .upsert(
-        {
-          id: templateId,
+      .select('id')
+      .eq('organization_id', organizationId)
+      .eq('template_type', 'STORE_THEME')
+      .eq('name', templateName)
+      .maybeSingle();
+
+    if (existingTemplate) {
+      // تحديث السجل الموجود
+      const { error: updateError } = await supabase
+        .from('organization_templates')
+        .update({ is_default: true })
+        .eq('id', existingTemplate.id);
+
+      if (updateError) {
+        toast.error('تعذر حفظ القالب المختار للمؤسسة.');
+        return false;
+      }
+    } else {
+      // إدراج سجل جديد - السماح لقاعدة البيانات بتوليد UUID
+      const { error: insertError } = await supabase
+        .from('organization_templates')
+        .insert({
           name: templateName,
           template_type: 'STORE_THEME',
           is_default: true,
-          organization_id: organizationId
-        },
-        { onConflict: 'id' }
-      );
+          organization_id: organizationId,
+          content: templateId // حفظ معرف القالب في حقل content
+        });
 
-    if (upsertError) {
-      toast.error('تعذر حفظ القالب المختار للمؤسسة.');
-      return false;
+      if (insertError) {
+        toast.error('تعذر حفظ القالب المختار للمؤسسة.');
+        return false;
+      }
     }
     return true;
   } catch (e) {
@@ -168,7 +188,7 @@ export async function getSelectedStoreTheme(
   try {
     const { data, error } = await supabase
       .from('organization_templates')
-      .select('id, name, template_type, is_default')
+      .select('id, name, template_type, is_default, content')
       .eq('organization_id', organizationId)
       .eq('template_type', 'STORE_THEME')
       .eq('is_default', true)
@@ -177,7 +197,14 @@ export async function getSelectedStoreTheme(
     if (error) {
       return null;
     }
-    return data ?? null;
+    // إرجاع content كـ id (معرف القالب الأصلي)
+    if (data) {
+      return {
+        ...data,
+        id: data.content || data.id // استخدام content إذا كان موجود، وإلا UUID
+      };
+    }
+    return null;
   } catch (e) {
     return null;
   }

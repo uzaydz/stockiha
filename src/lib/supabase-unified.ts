@@ -9,6 +9,14 @@ import { sqliteAuthStorage } from '@/lib/auth/sqliteStorage';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database.types';
 
+// ⚡ استيراد ConnectionState للاكتشاف الذكي
+let connectionStateRef: any = null;
+try {
+  import('./sync/delta/ConnectionState').then(m => {
+    connectionStateRef = m.connectionState;
+  }).catch(() => {});
+} catch {}
+
 // 🔍 تشخيص متقدم لمتغيرات البيئة مع حماية من undefined
 const getEnvSafely = (): Record<string, any> => {
   try {
@@ -59,14 +67,14 @@ try {
     ensureLink('preconnect');
     ensureLink('dns-prefetch');
   }
-} catch {}
+} catch { }
 
 // 🔒 نظام حماية مبسط ومنطقي
 class SupabaseProtector {
   private static instance: SupabaseProtector | null = null;
   private static isInitializing = false;
 
-  private constructor() {}
+  private constructor() { }
 
   static getInstance(): SupabaseProtector {
     if (!SupabaseProtector.instance) {
@@ -115,7 +123,7 @@ class SupabaseProtector {
     }
 
     // تجاوز createClient لمنع التكرار
-    (window as any).createClient = function(...args: any[]) {
+    (window as any).createClient = function (...args: any[]) {
       // السماح فقط للعميل الرئيسي
       if ((window as any).__BAZAAR_MAIN_SUPABASE_CLIENT__) {
         return (window as any).__BAZAAR_MAIN_SUPABASE_CLIENT__;
@@ -226,7 +234,7 @@ class AdvancedSupabaseMonitor {
     let goTrueCount = 0;
     const checkObject = (obj: any, path = 'window') => {
       if (!obj || typeof obj !== 'object') return;
-      
+
       for (const key in obj) {
         try {
           const value = obj[key];
@@ -240,7 +248,7 @@ class AdvancedSupabaseMonitor {
     };
 
     checkObject(window);
-    
+
     if (goTrueCount > 1) {
     }
   }
@@ -305,11 +313,13 @@ const createOptimizedSupabaseClient = (): SupabaseClient<Database> => {
         'x-application-name': 'bazaar-console',
         'X-Client-Version': '3.0.0'
       },
-      // 🚀 تحسين timeout للشبكات البطيئة
+      // 🚀 تحسين timeout للشبكات البطيئة + ⚡ تكامل مع ConnectionState
       fetch: (url: RequestInfo | URL, options: RequestInit = {}) => {
-        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-          return Promise.reject(new TypeError('network disconnected'));
+        // ⚡ استخدام ConnectionState بدلاً من navigator.onLine
+        if (connectionStateRef?.isOffline?.()) {
+          return Promise.reject(new TypeError('network disconnected (detected by ConnectionState)'));
         }
+        
         // زيادة timeout بشكل كبير للشبكات البطيئة
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 240000); // 4 دقائق
@@ -317,6 +327,18 @@ const createOptimizedSupabaseClient = (): SupabaseClient<Database> => {
         return fetch(url, {
           ...options,
           signal: controller.signal,
+        }).then(response => {
+          // ⚡ إبلاغ ConnectionState عن النجاح
+          if (connectionStateRef?.reportSuccess) {
+            connectionStateRef.reportSuccess();
+          }
+          return response;
+        }).catch(error => {
+          // ⚡ إبلاغ ConnectionState عن الفشل
+          if (connectionStateRef?.reportFailure) {
+            connectionStateRef.reportFailure(error);
+          }
+          throw error;
         }).finally(() => {
           clearTimeout(timeoutId);
         });
@@ -362,15 +384,15 @@ try {
   } else {
     // إنشاء عميل جديد
     mainClient = createOptimizedSupabaseClient();
-    
+
     if (typeof window !== 'undefined') {
       (window as any).__BAZAAR_MAIN_SUPABASE_CLIENT__ = mainClient;
       (window as any).__BAZAAR_SUPABASE_CLIENTS_COUNT__ = 1;
     }
-    
+
   }
 } catch (error) {
-  
+
   // إنشاء عميل fallback آمن مع جميع الطرق المطلوبة
   mainClient = {
     from: (table: string) => ({
@@ -400,7 +422,7 @@ try {
     rpc: () => Promise.resolve({ data: null, error: new Error('Supabase غير متاح') }),
     auth: {
       getSession: () => Promise.resolve({ data: { session: null }, error: null }),
-      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => {} } } })
+      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => { } } } })
     }
   } as any;
 }
@@ -426,11 +448,11 @@ export const cleanupSupabaseClients = (): void => {
   try {
     // تنظيف المراقب المتقدم
     AdvancedSupabaseMonitor.cleanup();
-    
+
     // تنظيف الحماية
     const protector = SupabaseProtector.getInstance();
     protector.cleanup();
-    
+
     // تنظيف العميل الرئيسي
     if (mainClient && (mainClient as any).__BAZAAR_PRIMARY_CLIENT__) {
       try {
@@ -443,7 +465,7 @@ export const cleanupSupabaseClients = (): void => {
         }
       }
     }
-    
+
     // إزالة المراجع العالمية
     if (typeof window !== 'undefined') {
       try {
@@ -454,7 +476,7 @@ export const cleanupSupabaseClients = (): void => {
         }
       }
     }
-    
+
     if (process.env.NODE_ENV === 'development') {
     }
   } catch (error) {
@@ -488,7 +510,7 @@ export { AdvancedSupabaseMonitor, SupabaseProtector };
 export const diagnoseSupabaseIssues = () => {
   const diagnostics = getSupabaseDiagnostics();
   const monitor = AdvancedSupabaseMonitor.getDiagnostics();
-  
+
   const report = {
     ...diagnostics,
     timestamp: new Date().toISOString(),
@@ -501,12 +523,12 @@ export const diagnoseSupabaseIssues = () => {
     report.issues.push('يوجد أكثر من عميل Supabase');
     report.recommendations.push('إعادة تشغيل التطبيق لحل مشكلة تعدد العملاء');
   }
-  
+
   if (monitor.storageKeys.length > 2) {
     report.issues.push('يوجد عدة storage keys - قد يسبب تضارب في المصادقة');
     report.recommendations.push('مسح localStorage وإعادة تسجيل الدخول');
   }
-  
+
   if (!diagnostics.isReady) {
     report.issues.push('Supabase غير جاهز');
     report.recommendations.push('التحقق من متغيرات البيئة');
@@ -527,21 +549,21 @@ if (typeof window !== 'undefined') {
   const handleOffline = () => {
     try {
       mainClient?.auth?.stopAutoRefresh?.();
-    } catch {}
+    } catch { }
     try {
       if (typeof (mainClient as any)?.removeAllChannels === 'function') {
         (mainClient as any).removeAllChannels();
       }
-    } catch {}
+    } catch { }
     try {
       mainClient?.realtime?.disconnect?.();
-    } catch {}
+    } catch { }
   };
 
   const handleOnline = () => {
     try {
       mainClient?.auth?.startAutoRefresh?.();
-    } catch {}
+    } catch { }
   };
 
   window.addEventListener('offline', handleOffline);

@@ -12,6 +12,9 @@ export interface Customer {
   nis?: string | null; // رقم التعريف الإحصائي
   rib?: string | null; // الهوية البنكية
   address?: string | null; // العنوان الكامل
+  _synced?: boolean;
+  _syncStatus?: string;
+  _pendingOperation?: string;
 }
 
 export interface CustomerWithStats extends Customer {
@@ -24,6 +27,9 @@ export interface CustomerFilter {
   query?: string;
   sortBy?: 'name' | 'created_at' | 'orders_count' | 'total_spent';
   sortOrder?: 'asc' | 'desc';
+  hasPhone?: boolean;
+  hasEmail?: boolean;
+  newOnly?: boolean;
 }
 
 export interface CustomerStats {

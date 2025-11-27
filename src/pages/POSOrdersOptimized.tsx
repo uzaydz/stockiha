@@ -192,13 +192,10 @@ const fetchFromIndexedDB = async (
       total = res.total;
     }
     
-    // جلب عناصر كل طلبية
+    // جلب عناصر كل طلبية - ⚡ استخدام SQLite بدلاً من IndexedDB
     const ordersWithItems = await Promise.all(
       orders.map(async (order) => {
-        const items = await inventoryDB.posOrderItems
-          .where('order_id')
-          .equals(order.id)
-          .toArray();
+        const items = await getLocalPOSOrderItems(order.id);
         
         return {
           ...order,

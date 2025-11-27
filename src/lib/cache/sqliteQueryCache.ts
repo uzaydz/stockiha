@@ -97,10 +97,12 @@ class SQLiteQueryCache {
     const cached = this.cache.get(key);
     if (cached && (now - cached.timestamp) < cached.ttl) {
       this.stats.hits++;
-      console.log(`[SQLiteCache] 🎯 HIT ${operation}:${tableName}`, {
-        age: Math.floor((now - cached.timestamp) / 1000) + 's',
-        hits: this.stats.hits
-      });
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[SQLiteCache] 🎯 HIT ${operation}:${tableName}`, {
+          age: Math.floor((now - cached.timestamp) / 1000) + 's',
+          hits: this.stats.hits
+        });
+      }
       return cached.data;
     }
 
@@ -108,20 +110,24 @@ class SQLiteQueryCache {
     const pending = this.pending.get(key);
     if (pending) {
       this.stats.deduped++;
-      console.log(`[SQLiteCache] ⏳ DEDUPED ${operation}:${tableName}`, {
-        deduped: this.stats.deduped
-      });
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[SQLiteCache] ⏳ DEDUPED ${operation}:${tableName}`, {
+          deduped: this.stats.deduped
+        });
+      }
       return pending.promise;
     }
 
     // 🔄 3. تنفيذ Query جديد
     this.stats.misses++;
     this.stats.queries++;
-    
-    console.log(`[SQLiteCache] 🔄 MISS ${operation}:${tableName}`, {
-      misses: this.stats.misses,
-      queries: this.stats.queries
-    });
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[SQLiteCache] 🔄 MISS ${operation}:${tableName}`, {
+        misses: this.stats.misses,
+        queries: this.stats.queries
+      });
+    }
 
     const promise = queryFn();
     
@@ -158,8 +164,8 @@ class SQLiteQueryCache {
         cleared++;
       }
     }
-    // عرض log فقط إذا تم مسح شيء بالفعل
-    if (cleared > 0) {
+    // عرض log فقط إذا تم مسح شيء بالفعل وفي development mode
+    if (cleared > 0 && process.env.NODE_ENV === 'development') {
       console.log(`[SQLiteCache] 🗑️ Cleared ${cleared} entries for table: ${tableName}`);
     }
   }
@@ -224,7 +230,7 @@ class SQLiteQueryCache {
       }
     }
 
-    if (cleaned > 0) {
+    if (cleaned > 0 && process.env.NODE_ENV === 'development') {
       console.log(`[SQLiteCache] 🧹 Cleaned ${cleaned} expired entries`);
     }
   }
@@ -233,8 +239,10 @@ class SQLiteQueryCache {
    * عرض الإحصائيات في Console
    */
   logStats() {
-    const stats = this.getStats();
-    console.log('[SQLiteCache] 📊 Performance Stats:', stats);
+    if (process.env.NODE_ENV === 'development') {
+      const stats = this.getStats();
+      console.log('[SQLiteCache] 📊 Performance Stats:', stats);
+    }
   }
 }
 

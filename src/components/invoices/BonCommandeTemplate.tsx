@@ -1,5 +1,5 @@
 import { forwardRef } from 'react';
-import { format } from 'date-fns';
+import { format, addDays } from 'date-fns';
 import { ar, fr, enUS } from 'date-fns/locale';
 import type { Invoice } from '@/lib/api/invoices';
 
@@ -24,415 +24,802 @@ interface BonCommandeTemplateProps {
 
 const translations = {
   ar: {
-    bonCommande: 'أمر شراء',
+    purchaseOrder: 'أمر شراء',
     orderNumber: 'رقم الأمر',
-    orderDate: 'التاريخ',
-    deliveryDate: 'تاريخ التسليم المتوقع',
-    supplier: 'المورد',
+    orderDate: 'تاريخ الأمر',
+    expectedDelivery: 'تاريخ التسليم المتوقع',
+    deliveryAddress: 'عنوان التسليم',
     buyer: 'المشتري',
-    description: 'البيان',
+    supplier: 'المورد',
+    description: 'الوصف',
+    designation: 'التسمية',
     reference: 'المرجع',
     quantity: 'الكمية',
-    unitPrice: 'السعر الوحدة',
+    unit: 'الوحدة',
+    unitPrice: 'سعر الوحدة',
     amount: 'المبلغ',
     subtotal: 'المجموع الفرعي',
     tax: 'الضريبة',
+    discount: 'الخصم',
+    shipping: 'الشحن',
     total: 'الإجمالي',
+    grandTotal: 'المبلغ الإجمالي',
     phone: 'الهاتف',
     email: 'البريد',
     website: 'الموقع',
     address: 'العنوان',
     activity: 'النشاط',
     rc: 'السجل التجاري',
-    nif: 'الرقم الضريبي',
-    nis: 'الرقم الإحصائي',
-    rib: 'الحساب البنكي',
+    nif: 'الرقم الجبائي',
+    nis: 'NIS',
+    rib: 'RIB',
     notes: 'ملاحظات',
+    specialInstructions: 'تعليمات خاصة',
     terms: 'الشروط والأحكام',
-    signature: 'التوقيع',
+    paymentTerms: 'شروط الدفع',
+    deliveryTerms: 'شروط التسليم',
+    orderConfirmation: 'تأكيد الطلب',
+    orderNotice: 'هذا أمر شراء رسمي يُلزم الطرفين',
+    bindingDocument: 'مستند ملزم قانونياً بعد التوقيع',
+    qualityNote: 'يجب أن تتوافق البضائع مع المواصفات المطلوبة',
     buyerSignature: 'توقيع المشتري',
     supplierSignature: 'توقيع المورد',
-    orderNote: 'هذا أمر شراء رسمي يلزم الطرفين بالشروط المذكورة',
-    deliveryNote: 'يجب التسليم في الموعد المحدد مع مراعاة الجودة المطلوبة',
+    signature: 'التوقيع والختم',
+    date: 'التاريخ',
+    approved: 'تمت الموافقة',
+    pending: 'قيد الانتظار',
+    thankYou: 'شكراً لتعاونكم',
+    contactUs: 'للاستفسارات، يرجى التواصل معنا',
   },
   fr: {
-    bonCommande: 'Bon de Commande',
+    purchaseOrder: 'Bon de Commande',
     orderNumber: 'N° Commande',
-    orderDate: 'Date',
-    deliveryDate: 'Date de Livraison Prévue',
-    supplier: 'Fournisseur',
+    orderDate: 'Date de Commande',
+    expectedDelivery: 'Date de Livraison Prévue',
+    deliveryAddress: 'Adresse de Livraison',
     buyer: 'Acheteur',
-    description: 'Désignation',
+    supplier: 'Fournisseur',
+    description: 'Description',
+    designation: 'Désignation',
     reference: 'Référence',
-    quantity: 'Quantité',
-    unitPrice: 'Prix Unitaire',
+    quantity: 'Qté',
+    unit: 'Unité',
+    unitPrice: 'Prix unitaire',
     amount: 'Montant',
     subtotal: 'Sous-total',
     tax: 'Taxe',
+    discount: 'Remise',
+    shipping: 'Livraison',
     total: 'Total',
+    grandTotal: 'Montant Total',
     phone: 'Téléphone',
     email: 'Email',
-    website: 'Site Web',
+    website: 'Site web',
     address: 'Adresse',
     activity: 'Activité',
-    rc: 'Registre Commercial',
-    nif: 'N° Fiscal',
-    nis: 'N° Statistique',
+    rc: 'RC',
+    nif: 'NIF',
+    nis: 'NIS',
     rib: 'RIB',
     notes: 'Remarques',
-    terms: 'Termes et Conditions',
-    signature: 'Signature',
+    specialInstructions: 'Instructions Spéciales',
+    terms: 'Conditions Générales',
+    paymentTerms: 'Conditions de Paiement',
+    deliveryTerms: 'Conditions de Livraison',
+    orderConfirmation: 'Confirmation de Commande',
+    orderNotice: 'Ceci est un bon de commande officiel engageant les deux parties',
+    bindingDocument: 'Document juridiquement contraignant après signature',
+    qualityNote: 'Les marchandises doivent être conformes aux spécifications requises',
     buyerSignature: 'Signature Acheteur',
     supplierSignature: 'Signature Fournisseur',
-    orderNote: 'Ceci est un bon de commande officiel qui engage les deux parties aux conditions mentionnées',
-    deliveryNote: 'La livraison doit être effectuée à la date prévue en respectant la qualité requise',
+    signature: 'Signature et Cachet',
+    date: 'Date',
+    approved: 'Approuvé',
+    pending: 'En attente',
+    thankYou: 'Merci de votre coopération',
+    contactUs: 'Pour toute question, contactez-nous',
   },
   en: {
-    bonCommande: 'Purchase Order',
+    purchaseOrder: 'Purchase Order',
     orderNumber: 'Order No.',
-    orderDate: 'Date',
-    deliveryDate: 'Expected Delivery Date',
-    supplier: 'Supplier',
+    orderDate: 'Order Date',
+    expectedDelivery: 'Expected Delivery',
+    deliveryAddress: 'Delivery Address',
     buyer: 'Buyer',
+    supplier: 'Supplier',
     description: 'Description',
+    designation: 'Designation',
     reference: 'Reference',
     quantity: 'Qty',
+    unit: 'Unit',
     unitPrice: 'Unit Price',
     amount: 'Amount',
     subtotal: 'Subtotal',
     tax: 'Tax',
+    discount: 'Discount',
+    shipping: 'Shipping',
     total: 'Total',
+    grandTotal: 'Grand Total',
     phone: 'Phone',
     email: 'Email',
     website: 'Website',
     address: 'Address',
     activity: 'Activity',
-    rc: 'Commercial Registration',
-    nif: 'Tax Number',
-    nis: 'Statistical Number',
+    rc: 'RC',
+    nif: 'Tax ID',
+    nis: 'NIS',
     rib: 'Bank Account',
     notes: 'Notes',
-    terms: 'Terms and Conditions',
-    signature: 'Signature',
+    specialInstructions: 'Special Instructions',
+    terms: 'Terms & Conditions',
+    paymentTerms: 'Payment Terms',
+    deliveryTerms: 'Delivery Terms',
+    orderConfirmation: 'Order Confirmation',
+    orderNotice: 'This is an official purchase order binding both parties',
+    bindingDocument: 'Legally binding document after signature',
+    qualityNote: 'Goods must conform to the required specifications',
     buyerSignature: 'Buyer Signature',
     supplierSignature: 'Supplier Signature',
-    orderNote: 'This is an official purchase order that binds both parties to the mentioned conditions',
-    deliveryNote: 'Delivery must be made on the scheduled date while respecting the required quality',
+    signature: 'Signature & Stamp',
+    date: 'Date',
+    approved: 'Approved',
+    pending: 'Pending',
+    thankYou: 'Thank you for your cooperation',
+    contactUs: 'For any questions, please contact us',
   },
+};
+
+// Minimal color palette - only shades of gray
+const colors = {
+  primary: '#111827',      // Near black
+  secondary: '#4b5563',    // Dark gray
+  muted: '#9ca3af',        // Medium gray
+  light: '#f3f4f6',        // Light gray
+  border: '#e5e7eb',       // Border gray
+  white: '#ffffff',
+  accent: '#374151',       // Accent (dark gray)
 };
 
 const getLocale = (language: 'ar' | 'fr' | 'en') => {
   switch (language) {
-    case 'ar':
-      return ar;
-    case 'fr':
-      return fr;
-    case 'en':
-      return enUS;
-    default:
-      return ar;
+    case 'ar': return ar;
+    case 'fr': return fr;
+    case 'en': return enUS;
+    default: return ar;
   }
 };
 
-const BonCommandeTemplate = forwardRef<
-  HTMLDivElement,
-  BonCommandeTemplateProps
->(({ invoice, language, organizationLogo, organizationSettings }, ref) => {
-  const t = translations[language];
-  const locale = getLocale(language);
-  const isRTL = language === 'ar';
+const BonCommandeTemplate = forwardRef<HTMLDivElement, BonCommandeTemplateProps>(
+  ({ invoice, language, organizationLogo, organizationSettings }, ref) => {
+    const t = translations[language];
+    const locale = getLocale(language);
+    const isRTL = language === 'ar';
 
-  const formatDate = (date: string | undefined) => {
-    if (!date) return '-';
-    try {
-      return format(new Date(date), 'dd/MM/yyyy', { locale });
-    } catch {
-      return '-';
-    }
-  };
+    const formatDate = (date: string | undefined) => {
+      if (!date) return '-';
+      try {
+        return format(new Date(date), 'dd/MM/yyyy', { locale });
+      } catch {
+        return '-';
+      }
+    };
 
-  // حساب تاريخ التسليم المتوقع (7 أيام من تاريخ الأمر)
-  const getDeliveryDate = () => {
-    if (!invoice.invoiceDate) return '-';
-    try {
-      const date = new Date(invoice.invoiceDate);
-      date.setDate(date.getDate() + 7);
-      return format(date, 'dd/MM/yyyy', { locale });
-    } catch {
-      return '-';
-    }
-  };
+    const formatCurrency = (amount: number | undefined) => {
+      if (amount === undefined || amount === null) return '-';
+      return new Intl.NumberFormat('fr-DZ', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(amount) + ' DA';
+    };
 
-  return (
-    <div
-      ref={ref}
-      className="bg-white min-h-screen"
-      style={{ direction: isRTL ? 'rtl' : 'ltr' }}
-    >
-      {/* رأس أمر الشراء */}
-      <div className="bg-gradient-to-r from-green-700 to-green-600 text-white p-8">
-        <div className="flex justify-between items-start gap-8 max-w-7xl mx-auto">
-          <div className="flex items-start gap-6">
-            {organizationLogo ? (
-              <img
-                src={organizationLogo}
-                alt="Logo"
-                className="h-20 w-20 object-contain bg-white rounded p-1"
-              />
-            ) : (
-              <div className="h-20 w-20 bg-white rounded flex items-center justify-center text-green-700 font-bold text-sm">
-                LOGO
-              </div>
-            )}
-            <div>
-              <h1 className="text-3xl font-bold mb-1">
-                {organizationSettings?.name || 'اسم المحل'}
-              </h1>
-              {organizationSettings?.activity && (
-                <p className="text-green-100 text-sm mb-2">
-                  {organizationSettings.activity}
-                </p>
+    const getExpectedDeliveryDate = () => {
+      if (!invoice.invoiceDate) return '-';
+      try {
+        const date = addDays(new Date(invoice.invoiceDate), 7);
+        return format(date, 'dd/MM/yyyy', { locale });
+      } catch {
+        return '-';
+      }
+    };
+
+    return (
+      <div
+        ref={ref}
+        style={{
+          direction: isRTL ? 'rtl' : 'ltr',
+          fontFamily: "'Inter', 'Segoe UI', 'Arial', sans-serif",
+          backgroundColor: colors.white,
+          minHeight: '100vh',
+          padding: '0',
+          margin: '0',
+          color: colors.primary,
+          fontSize: '13px',
+          lineHeight: '1.5',
+        }}
+      >
+        {/* Header - Clean Minimal Design */}
+        <div
+          style={{
+            backgroundColor: colors.primary,
+            padding: '32px 40px',
+            color: colors.white,
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '24px' }}>
+            {/* Logo & Company Info */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '20px' }}>
+              {organizationLogo ? (
+                <img
+                  src={organizationLogo}
+                  alt="Logo"
+                  style={{
+                    height: '80px',
+                    width: '80px',
+                    objectFit: 'contain',
+                    backgroundColor: colors.white,
+                    borderRadius: '8px',
+                    padding: '8px',
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    height: '80px',
+                    width: '80px',
+                    backgroundColor: 'rgba(255,255,255,0.1)',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    border: '2px dashed rgba(255,255,255,0.3)',
+                  }}
+                >
+                  LOGO
+                </div>
               )}
-              <div className="text-xs text-green-100 space-y-1">
-                {organizationSettings?.address && (
-                  <p>{organizationSettings.address}</p>
+              <div>
+                <h1 style={{ fontSize: '24px', fontWeight: '700', margin: '0 0 4px 0' }}>
+                  {organizationSettings?.name || 'Company Name'}
+                </h1>
+                {organizationSettings?.activity && (
+                  <p style={{ fontSize: '13px', margin: '0 0 10px 0', opacity: '0.8' }}>
+                    {organizationSettings.activity}
+                  </p>
                 )}
-                {organizationSettings?.phone && (
-                  <p>{organizationSettings.phone}</p>
-                )}
-                {organizationSettings?.email && (
-                  <p>{organizationSettings.email}</p>
-                )}
+                <div style={{ fontSize: '12px', opacity: '0.85', lineHeight: '1.6' }}>
+                  {organizationSettings?.address && <div>{organizationSettings.address}</div>}
+                  <div style={{ display: 'flex', gap: '16px', marginTop: '4px', flexWrap: 'wrap' }}>
+                    {organizationSettings?.phone && <span>{organizationSettings.phone}</span>}
+                    {organizationSettings?.email && <span>{organizationSettings.email}</span>}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Order Title & Number */}
+            <div style={{ textAlign: isRTL ? 'left' : 'right' }}>
+              <div
+                style={{
+                  fontSize: '32px',
+                  fontWeight: '700',
+                  marginBottom: '4px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '1px',
+                }}
+              >
+                {t.purchaseOrder}
+              </div>
+              <div
+                style={{
+                  backgroundColor: colors.white,
+                  color: colors.primary,
+                  padding: '10px 20px',
+                  borderRadius: '6px',
+                  fontSize: '16px',
+                  fontWeight: '700',
+                  display: 'inline-block',
+                }}
+              >
+                {invoice.invoiceNumber}
               </div>
             </div>
           </div>
+        </div>
 
-          <div className="text-right">
-            <div className="text-5xl font-bold mb-2">{t.bonCommande}</div>
-            <div className="bg-white text-green-700 px-4 py-2 rounded font-bold text-lg">
-              #{invoice.invoiceNumber}
-            </div>
+        {/* Order Notice Banner */}
+        <div
+          style={{
+            backgroundColor: colors.light,
+            padding: '14px 40px',
+            borderBottom: `1px solid ${colors.border}`,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: colors.secondary,
+              color: colors.white,
+              width: '28px',
+              height: '28px',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: '14px',
+              fontWeight: '700',
+              flexShrink: '0',
+            }}
+          >
+            ✓
+          </div>
+          <div>
+            <p style={{ margin: '0', fontWeight: '700', color: colors.primary, fontSize: '13px' }}>
+              {t.orderNotice}
+            </p>
+            <p style={{ margin: '2px 0 0 0', fontSize: '11px', color: colors.secondary }}>
+              {t.bindingDocument}
+            </p>
           </div>
         </div>
-      </div>
 
-      {/* تنبيه أمر الشراء */}
-      <div className="bg-green-50 border-l-4 border-green-600 px-8 py-4">
-        <div className="max-w-7xl mx-auto">
-          <p className="text-green-800 font-semibold text-sm">
-            📋 {t.orderNote}
-          </p>
-        </div>
-      </div>
-
-      {/* البيانات الرسمية */}
-      <div className="bg-gray-50 px-8 py-4 border-b-2 border-gray-200">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+        {/* Legal Info Bar */}
+        <div
+          style={{
+            backgroundColor: colors.light,
+            padding: '14px 40px',
+            borderBottom: `1px solid ${colors.border}`,
+          }}
+        >
+          <div style={{ display: 'flex', gap: '32px', flexWrap: 'wrap', fontSize: '12px' }}>
             {organizationSettings?.registrationNumber && (
-              <div className="flex justify-between">
-                <span className="font-bold text-gray-900">{t.rc}:</span>
-                <span className="text-gray-700">{organizationSettings.registrationNumber}</span>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <span style={{ fontWeight: '600', color: colors.secondary }}>{t.rc}:</span>
+                <span style={{ color: colors.primary }}>{organizationSettings.registrationNumber}</span>
               </div>
             )}
             {organizationSettings?.taxNumber && (
-              <div className="flex justify-between">
-                <span className="font-bold text-gray-900">{t.nif}:</span>
-                <span className="text-gray-700">{organizationSettings.taxNumber}</span>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <span style={{ fontWeight: '600', color: colors.secondary }}>{t.nif}:</span>
+                <span style={{ color: colors.primary }}>{organizationSettings.taxNumber}</span>
               </div>
             )}
             {organizationSettings?.nis && (
-              <div className="flex justify-between">
-                <span className="font-bold text-gray-900">{t.nis}:</span>
-                <span className="text-gray-700">{organizationSettings.nis}</span>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <span style={{ fontWeight: '600', color: colors.secondary }}>{t.nis}:</span>
+                <span style={{ color: colors.primary }}>{organizationSettings.nis}</span>
               </div>
             )}
             {organizationSettings?.rib && (
-              <div className="flex justify-between">
-                <span className="font-bold text-gray-900">{t.rib}:</span>
-                <span className="text-gray-700">{organizationSettings.rib}</span>
+              <div style={{ display: 'flex', gap: '6px' }}>
+                <span style={{ fontWeight: '600', color: colors.secondary }}>{t.rib}:</span>
+                <span style={{ color: colors.primary }}>{organizationSettings.rib}</span>
               </div>
             )}
           </div>
         </div>
-      </div>
 
-      {/* محتوى أمر الشراء */}
-      <div className="p-8 max-w-7xl mx-auto">
-        {/* معلومات المشتري والمورد */}
-        <div className="grid grid-cols-2 gap-8 mb-8">
-          <div>
-            <h3 className="font-bold text-green-700 mb-3 pb-2 border-b-2 border-green-200">
-              {t.buyer}
-            </h3>
-            <div className="text-sm space-y-1 text-gray-700">
-              <p className="font-semibold">{organizationSettings?.name}</p>
-              {organizationSettings?.address && <p>{organizationSettings.address}</p>}
-              {organizationSettings?.phone && <p>{organizationSettings.phone}</p>}
-              {organizationSettings?.email && <p>{organizationSettings.email}</p>}
+        {/* Main Content */}
+        <div style={{ padding: '32px 40px' }}>
+          {/* Buyer & Supplier Info */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px', marginBottom: '28px' }}>
+            {/* Buyer */}
+            <div
+              style={{
+                backgroundColor: colors.light,
+                borderRadius: '8px',
+                padding: '20px',
+                border: `1px solid ${colors.border}`,
+              }}
+            >
+              <h3
+                style={{
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  textTransform: 'uppercase',
+                  color: colors.secondary,
+                  marginBottom: '14px',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                {t.buyer}
+              </h3>
+              <div style={{ color: colors.primary }}>
+                <div style={{ fontSize: '16px', fontWeight: '700', marginBottom: '8px' }}>
+                  {organizationSettings?.name || '-'}
+                </div>
+                <div style={{ fontSize: '13px', lineHeight: '1.7', color: colors.secondary }}>
+                  {organizationSettings?.address && <div>{organizationSettings.address}</div>}
+                  {organizationSettings?.phone && <div>{t.phone}: {organizationSettings.phone}</div>}
+                  {organizationSettings?.email && <div>{t.email}: {organizationSettings.email}</div>}
+                </div>
+              </div>
+            </div>
+
+            {/* Supplier */}
+            <div
+              style={{
+                backgroundColor: colors.light,
+                borderRadius: '8px',
+                padding: '20px',
+                border: `1px solid ${colors.border}`,
+              }}
+            >
+              <h3
+                style={{
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  textTransform: 'uppercase',
+                  color: colors.secondary,
+                  marginBottom: '14px',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                {t.supplier}
+              </h3>
+              <div style={{ color: colors.primary }}>
+                <div style={{ fontSize: '16px', fontWeight: '700', marginBottom: '8px' }}>
+                  {invoice.customerName || '-'}
+                </div>
+                {invoice.customerInfo && typeof invoice.customerInfo === 'object' && (
+                  <div style={{ fontSize: '13px', lineHeight: '1.7', color: colors.secondary }}>
+                    {(invoice.customerInfo as any).address && <div>{(invoice.customerInfo as any).address}</div>}
+                    {(invoice.customerInfo as any).phone && <div>{t.phone}: {(invoice.customerInfo as any).phone}</div>}
+                    {(invoice.customerInfo as any).email && <div>{t.email}: {(invoice.customerInfo as any).email}</div>}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          <div>
-            <h3 className="font-bold text-green-700 mb-3 pb-2 border-b-2 border-green-200">
-              {t.supplier}
-            </h3>
-            <div className="text-sm space-y-1 text-gray-700">
-              <p className="font-semibold">{invoice.customerName}</p>
-              {invoice.customerInfo && typeof invoice.customerInfo === 'object' && (
-                <>
-                  {(invoice.customerInfo as any).address && (
-                    <p>{(invoice.customerInfo as any).address}</p>
-                  )}
-                  {(invoice.customerInfo as any).phone && (
-                    <p>{(invoice.customerInfo as any).phone}</p>
-                  )}
-                  {(invoice.customerInfo as any).email && (
-                    <p>{(invoice.customerInfo as any).email}</p>
-                  )}
-                </>
-              )}
+          {/* Order Details */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: '16px',
+              marginBottom: '28px',
+              backgroundColor: colors.light,
+              padding: '16px 20px',
+              borderRadius: '8px',
+              border: `1px solid ${colors.border}`,
+            }}
+          >
+            <div>
+              <span style={{ fontSize: '11px', color: colors.muted, textTransform: 'uppercase', fontWeight: '600' }}>{t.orderNumber}</span>
+              <div style={{ fontSize: '15px', fontWeight: '700', color: colors.primary, marginTop: '4px' }}>{invoice.invoiceNumber}</div>
+            </div>
+            <div>
+              <span style={{ fontSize: '11px', color: colors.muted, textTransform: 'uppercase', fontWeight: '600' }}>{t.orderDate}</span>
+              <div style={{ fontSize: '14px', fontWeight: '700', color: colors.primary, marginTop: '4px' }}>{formatDate(invoice.invoiceDate)}</div>
+            </div>
+            <div>
+              <span style={{ fontSize: '11px', color: colors.muted, textTransform: 'uppercase', fontWeight: '600' }}>{t.expectedDelivery}</span>
+              <div
+                style={{
+                  fontSize: '14px',
+                  fontWeight: '700',
+                  color: colors.primary,
+                  marginTop: '4px',
+                  backgroundColor: colors.border,
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  display: 'inline-block',
+                }}
+              >
+                {getExpectedDeliveryDate()}
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* معلومات التواريخ */}
-        <div className="grid grid-cols-2 gap-4 mb-8 bg-green-50 p-4 rounded border border-green-200">
-          <div>
-            <p className="text-xs font-bold text-gray-500 uppercase mb-1">{t.orderDate}</p>
-            <p className="text-lg font-semibold text-gray-900">
-              {formatDate(invoice.invoiceDate)}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs font-bold text-gray-500 uppercase mb-1">{t.deliveryDate}</p>
-            <p className="text-lg font-semibold text-green-700">
-              {getDeliveryDate()}
-            </p>
-          </div>
-        </div>
-
-        {/* جدول المنتجات */}
-        <div className="mb-8">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-green-700 text-white">
-                <th className={`py-3 px-4 font-bold ${isRTL ? 'text-right' : 'text-left'}`}>
-                  {t.description}
-                </th>
-                <th className="py-3 px-4 font-bold text-center">{t.quantity}</th>
-                <th className="py-3 px-4 font-bold text-center">{t.unitPrice}</th>
-                <th className={`py-3 px-4 font-bold ${isRTL ? 'text-left' : 'text-right'}`}>
-                  {t.amount}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {invoice.items?.map((item, index) => (
-                <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                  <td className={`py-3 px-4 text-gray-900 ${isRTL ? 'text-right' : 'text-left'}`}>
-                    <p className="font-medium">{item.name}</p>
-                    {item.description && (
-                      <p className="text-xs text-gray-500">{item.description}</p>
-                    )}
-                  </td>
-                  <td className="py-3 px-4 text-gray-900 text-center">{item.quantity}</td>
-                  <td className="py-3 px-4 text-gray-900 text-center">
-                    {item.unitPrice?.toFixed(2) || '-'} دج
-                  </td>
-                  <td className={`py-3 px-4 font-semibold text-gray-900 ${isRTL ? 'text-left' : 'text-right'}`}>
-                    {item.totalPrice?.toFixed(2) || '-'} دج
-                  </td>
+          {/* Items Table */}
+          <div
+            style={{
+              marginBottom: '28px',
+              borderRadius: '8px',
+              overflow: 'hidden',
+              border: `1px solid ${colors.border}`,
+            }}
+          >
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ backgroundColor: colors.primary }}>
+                  <th style={{ padding: '14px 16px', textAlign: 'center', color: colors.white, fontWeight: '600', fontSize: '12px', width: '50px' }}>
+                    #
+                  </th>
+                  <th
+                    style={{
+                      padding: '14px 16px',
+                      textAlign: isRTL ? 'right' : 'left',
+                      color: colors.white,
+                      fontWeight: '600',
+                      fontSize: '12px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.3px',
+                    }}
+                  >
+                    {t.designation}
+                  </th>
+                  <th style={{ padding: '14px 12px', textAlign: 'center', color: colors.white, fontWeight: '600', fontSize: '12px' }}>
+                    {t.reference}
+                  </th>
+                  <th style={{ padding: '14px 12px', textAlign: 'center', color: colors.white, fontWeight: '600', fontSize: '12px' }}>
+                    {t.quantity}
+                  </th>
+                  <th style={{ padding: '14px 12px', textAlign: 'center', color: colors.white, fontWeight: '600', fontSize: '12px' }}>
+                    {t.unitPrice}
+                  </th>
+                  <th
+                    style={{
+                      padding: '14px 16px',
+                      textAlign: isRTL ? 'left' : 'right',
+                      color: colors.white,
+                      fontWeight: '600',
+                      fontSize: '12px',
+                    }}
+                  >
+                    {t.amount}
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {invoice.items?.map((item, index) => (
+                  <tr
+                    key={index}
+                    style={{
+                      backgroundColor: index % 2 === 0 ? colors.white : colors.light,
+                      borderBottom: `1px solid ${colors.border}`,
+                    }}
+                  >
+                    <td style={{ padding: '14px 16px', textAlign: 'center', color: colors.muted, fontWeight: '600', fontSize: '12px' }}>
+                      {index + 1}
+                    </td>
+                    <td style={{ padding: '14px 16px', textAlign: isRTL ? 'right' : 'left' }}>
+                      <div style={{ fontWeight: '600', color: colors.primary, marginBottom: '2px' }}>{item.name}</div>
+                      {item.description && (
+                        <div style={{ fontSize: '11px', color: colors.secondary }}>{item.description}</div>
+                      )}
+                    </td>
+                    <td style={{ padding: '14px 12px', textAlign: 'center', color: colors.muted, fontSize: '12px' }}>
+                      {(item as any).sku || '-'}
+                    </td>
+                    <td style={{ padding: '14px 12px', textAlign: 'center', fontWeight: '700', color: colors.primary, fontSize: '14px' }}>
+                      {item.quantity}
+                    </td>
+                    <td style={{ padding: '14px 12px', textAlign: 'center', color: colors.secondary, fontSize: '12px' }}>
+                      {formatCurrency(item.unitPrice)}
+                    </td>
+                    <td
+                      style={{
+                        padding: '14px 16px',
+                        textAlign: isRTL ? 'left' : 'right',
+                        fontWeight: '700',
+                        color: colors.primary,
+                        fontSize: '13px',
+                      }}
+                    >
+                      {formatCurrency(item.totalPrice)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-        {/* الإجماليات */}
-        <div className="flex justify-end mb-8">
-          <div className="w-full max-w-sm">
-            <div className="space-y-2 border-t-2 border-green-200 pt-4">
-              <div className="flex justify-between text-gray-700">
-                <span>{t.subtotal}:</span>
-                <span className="font-semibold">{invoice.subtotalAmount?.toFixed(2) || '-'} دج</span>
-              </div>
-              {invoice.discountAmount && invoice.discountAmount > 0 && (
-                <div className="flex justify-between text-red-600">
-                  <span>الخصم:</span>
-                  <span className="font-semibold">- {invoice.discountAmount.toFixed(2)} دج</span>
+          {/* Totals Section */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '32px' }}>
+            <div style={{ width: '380px' }}>
+              <div
+                style={{
+                  backgroundColor: colors.light,
+                  borderRadius: '8px',
+                  padding: '20px',
+                  border: `1px solid ${colors.border}`,
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '13px' }}>
+                  <span style={{ color: colors.secondary }}>{t.subtotal}</span>
+                  <span style={{ fontWeight: '600', color: colors.primary }}>{formatCurrency(invoice.subtotalAmount)}</span>
                 </div>
-              )}
-              <div className="flex justify-between text-gray-700">
-                <span>{t.tax}:</span>
-                <span className="font-semibold">{invoice.taxAmount?.toFixed(2) || '-'} دج</span>
-              </div>
-              {invoice.shippingAmount && invoice.shippingAmount > 0 && (
-                <div className="flex justify-between text-green-600">
-                  <span>الشحن:</span>
-                  <span className="font-semibold">+ {invoice.shippingAmount.toFixed(2)} دج</span>
+                {invoice.discountAmount && invoice.discountAmount > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '13px', color: colors.secondary }}>
+                    <span>{t.discount}</span>
+                    <span style={{ fontWeight: '600' }}>- {formatCurrency(invoice.discountAmount)}</span>
+                  </div>
+                )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '13px' }}>
+                  <span style={{ color: colors.secondary }}>{t.tax}</span>
+                  <span style={{ fontWeight: '600', color: colors.primary }}>{formatCurrency(invoice.taxAmount)}</span>
                 </div>
-              )}
-              <div className="flex justify-between bg-green-700 text-white px-4 py-3 rounded mt-4">
-                <span className="font-bold text-lg">{t.total}:</span>
-                <span className="font-bold text-lg">{invoice.totalAmount?.toFixed(2) || '-'} دج</span>
+                {invoice.shippingAmount && invoice.shippingAmount > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '13px' }}>
+                    <span style={{ color: colors.secondary }}>{t.shipping}</span>
+                    <span style={{ fontWeight: '600', color: colors.primary }}>+ {formatCurrency(invoice.shippingAmount)}</span>
+                  </div>
+                )}
+                <div
+                  style={{
+                    borderTop: `2px solid ${colors.primary}`,
+                    paddingTop: '14px',
+                    marginTop: '14px',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '14px', fontWeight: '700', color: colors.primary }}>{t.grandTotal}</span>
+                    <span
+                      style={{
+                        fontSize: '22px',
+                        fontWeight: '800',
+                        color: colors.primary,
+                      }}
+                    >
+                      {formatCurrency(invoice.totalAmount)}
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* ملاحظة التسليم */}
-        <div className="mb-8 bg-blue-50 border-l-4 border-blue-400 p-4">
-          <p className="text-sm text-blue-800">
-            🚚 {t.deliveryNote}
-          </p>
-        </div>
-
-        {/* الملاحظات */}
-        {invoice.notes && (
-          <div className="mb-8 bg-yellow-50 border-l-4 border-yellow-400 p-4">
-            <h3 className="font-bold text-gray-900 mb-2">{t.notes}</h3>
-            <p className="text-sm text-gray-700 whitespace-pre-wrap">{invoice.notes}</p>
-          </div>
-        )}
-
-        {/* التوقيعات */}
-        <div className="grid grid-cols-2 gap-8 mb-8 pt-8 border-t-2 border-gray-200">
-          <div>
-            <h3 className="font-bold text-gray-900 mb-4">{t.buyerSignature}</h3>
-            <div className="border-2 border-dashed border-gray-300 h-32 rounded flex items-center justify-center text-gray-400">
-              {t.signature}
+          {/* Quality Note */}
+          <div
+            style={{
+              backgroundColor: colors.light,
+              borderRadius: '8px',
+              padding: '16px 20px',
+              marginBottom: '28px',
+              borderLeft: `4px solid ${colors.secondary}`,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+            }}
+          >
+            <div
+              style={{
+                backgroundColor: colors.secondary,
+                color: colors.white,
+                width: '24px',
+                height: '24px',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '14px',
+                fontWeight: '700',
+                flexShrink: '0',
+              }}
+            >
+              !
             </div>
-            <p className="text-xs text-gray-500 mt-2 text-center">
-              {organizationSettings?.name}
+            <p style={{ color: colors.primary, fontSize: '13px', margin: '0', lineHeight: '1.5' }}>
+              {t.qualityNote}
             </p>
           </div>
-          <div>
-            <h3 className="font-bold text-gray-900 mb-4">{t.supplierSignature}</h3>
-            <div className="border-2 border-dashed border-gray-300 h-32 rounded flex items-center justify-center text-gray-400">
-              {t.signature}
-            </div>
-            <p className="text-xs text-gray-500 mt-2 text-center">
-              {invoice.customerName}
-            </p>
-          </div>
-        </div>
 
-        {/* التذييل */}
-        <div className="border-t-2 border-green-200 pt-8 text-center text-xs text-gray-600 space-y-2">
-          <p className="font-semibold text-green-700">
-            أمر شراء رسمي ملزم للطرفين
-          </p>
-          <p>Bon de commande officiel engageant les deux parties</p>
-          <p>Official purchase order binding both parties</p>
-          {organizationSettings?.website && (
-            <p className="text-green-700 mt-4">{organizationSettings.website}</p>
+          {/* Notes */}
+          {invoice.notes && (
+            <div
+              style={{
+                backgroundColor: colors.light,
+                borderRadius: '8px',
+                padding: '18px 22px',
+                marginBottom: '28px',
+                borderLeft: `4px solid ${colors.secondary}`,
+              }}
+            >
+              <h4 style={{ fontSize: '13px', fontWeight: '700', color: colors.secondary, marginBottom: '8px' }}>
+                {t.specialInstructions}
+              </h4>
+              <p style={{ color: colors.primary, fontSize: '13px', margin: '0', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>
+                {invoice.notes}
+              </p>
+            </div>
           )}
+
+          {/* Signatures Section */}
+          <div
+            style={{
+              backgroundColor: colors.light,
+              borderRadius: '8px',
+              padding: '24px',
+              marginBottom: '32px',
+              border: `1px solid ${colors.border}`,
+            }}
+          >
+            <h4 style={{ fontSize: '14px', fontWeight: '700', color: colors.primary, marginBottom: '20px', textAlign: 'center', textTransform: 'uppercase' }}>
+              {t.orderConfirmation}
+            </h4>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '48px' }}>
+              {/* Buyer Signature */}
+              <div>
+                <h5 style={{ fontSize: '12px', fontWeight: '700', color: colors.secondary, marginBottom: '12px', textTransform: 'uppercase' }}>
+                  {t.buyerSignature}
+                </h5>
+                <div
+                  style={{
+                    height: '80px',
+                    border: `2px dashed ${colors.border}`,
+                    borderRadius: '8px',
+                    marginBottom: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: colors.muted,
+                    fontSize: '12px',
+                    backgroundColor: colors.white,
+                  }}
+                >
+                  {t.signature}
+                </div>
+                <div style={{ display: 'flex', gap: '16px' }}>
+                  <div style={{ flex: '1' }}>
+                    <p style={{ fontSize: '10px', color: colors.muted, marginBottom: '4px', textTransform: 'uppercase' }}>{t.date}:</p>
+                    <div style={{ borderBottom: `1px solid ${colors.border}`, height: '20px' }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Supplier Signature */}
+              <div>
+                <h5 style={{ fontSize: '12px', fontWeight: '700', color: colors.secondary, marginBottom: '12px', textTransform: 'uppercase' }}>
+                  {t.supplierSignature}
+                </h5>
+                <div
+                  style={{
+                    height: '80px',
+                    border: `2px dashed ${colors.border}`,
+                    borderRadius: '8px',
+                    marginBottom: '12px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: colors.muted,
+                    fontSize: '12px',
+                    backgroundColor: colors.white,
+                  }}
+                >
+                  {t.signature}
+                </div>
+                <div style={{ display: 'flex', gap: '16px' }}>
+                  <div style={{ flex: '1' }}>
+                    <p style={{ fontSize: '10px', color: colors.muted, marginBottom: '4px', textTransform: 'uppercase' }}>{t.date}:</p>
+                    <div style={{ borderBottom: `1px solid ${colors.border}`, height: '20px' }} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div
+          style={{
+            backgroundColor: colors.primary,
+            padding: '24px 40px',
+            color: colors.white,
+          }}
+        >
+          <div style={{ textAlign: 'center' }}>
+            <p style={{ fontSize: '16px', fontWeight: '600', marginBottom: '6px' }}>
+              {t.thankYou}
+            </p>
+            <p style={{ fontSize: '12px', opacity: '0.8', marginBottom: '12px' }}>
+              {t.contactUs}
+            </p>
+            <div style={{ fontSize: '12px', opacity: '0.85', display: 'flex', justifyContent: 'center', gap: '20px', flexWrap: 'wrap' }}>
+              {organizationSettings?.website && <span>{organizationSettings.website}</span>}
+              {organizationSettings?.phone && <span>{organizationSettings.phone}</span>}
+              {organizationSettings?.email && <span>{organizationSettings.email}</span>}
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  );
-});
+    );
+  }
+);
 
 BonCommandeTemplate.displayName = 'BonCommandeTemplate';
 

@@ -6,6 +6,7 @@ import { useTitle } from '@/hooks/useTitle';
 import { useTitlebar } from '@/context/TitlebarContext';
 import { POSLayoutState, RefreshHandler } from '@/components/pos-layout/types';
 import { GraduationCap, BookOpen, Loader2 } from 'lucide-react';
+import { useUnifiedPermissions } from '@/hooks/useUnifiedPermissions';
 
 const AllCoursesTab = React.lazy(() => import('./courses/CoursesIndex'));
 const DigitalMarketingTab = React.lazy(() => import('./courses/DigitalMarketingCourse'));
@@ -88,11 +89,25 @@ const CoursesOperationsPage: React.FC = () => {
   const navigate = useNavigate();
   const params = useParams<{ tab?: string }>();
   const { setTabs, setActiveTab: setTitlebarActiveTab, setShowTabs, clearTabs } = useTitlebar();
+  const perms = useUnifiedPermissions();
+
+  // الدورات متاحة لجميع المستخدمين مع صلاحية accessPOS أو المديرين
+  const allowedTabs = useMemo(() => {
+    // وضع المدير = صلاحيات كاملة
+    if (perms.isAdminMode || perms.isOrgAdmin || perms.isSuperAdmin) {
+      return TAB_CONFIG;
+    }
+
+    const canAccessCourses = perms.ready ? perms.anyOf(['accessPOS', 'canAccessCoursesOperations', 'canViewAllCourses']) : false;
+    // جميع الدورات متاحة لمن لديه صلاحية الوصول
+    return canAccessCourses ? TAB_CONFIG : [];
+  }, [perms.ready, perms.isAdminMode, perms.isOrgAdmin, perms.isSuperAdmin]);
 
   const resolvedTab = useMemo<TabKey>(() => {
     const incoming = params.tab as TabKey | undefined;
-    return TAB_CONFIG.some((tab) => tab.id === incoming) ? (incoming as TabKey) : TAB_CONFIG[0].id;
-  }, [params.tab]);
+    const isAllowedIncoming = allowedTabs.some((t) => t.id === incoming);
+    return isAllowedIncoming ? (incoming as TabKey) : (allowedTabs[0]?.id || 'all');
+  }, [params.tab, allowedTabs]);
 
   useEffect(() => {
     if (!params.tab || !TAB_CONFIG.some((tab) => tab.id === params.tab)) {
@@ -122,7 +137,7 @@ const CoursesOperationsPage: React.FC = () => {
   );
 
   useEffect(() => {
-    const titlebarTabs = TAB_CONFIG.map((tab) => {
+    const titlebarTabs = allowedTabs.map((tab) => {
       const Icon = tab.icon;
       return {
         id: tab.id,

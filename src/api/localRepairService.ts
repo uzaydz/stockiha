@@ -1,5 +1,18 @@
+/**
+ * localRepairService - خدمة إصلاحات الأجهزة المحلية
+ *
+ * ⚡ تم التحديث لاستخدام Delta Sync بالكامل
+ *
+ * - Local-First: الكتابة محلياً فوراً
+ * - Offline-First: يعمل بدون إنترنت
+ */
+
 import { v4 as uuidv4 } from 'uuid';
-import { inventoryDB, type LocalRepairOrder, type LocalRepairStatusHistory, type LocalRepairImage, type LocalRepairImageFile, type LocalRepairLocation } from '@/database/localDb';
+import type { LocalRepairOrder, LocalRepairStatusHistory, LocalRepairImage, LocalRepairLocation } from '@/database/localDb';
+import { deltaWriteService } from '@/services/DeltaWriteService';
+
+// Re-export types
+export type { LocalRepairOrder, LocalRepairStatusHistory, LocalRepairImage, LocalRepairLocation } from '@/database/localDb';
 
 const getOrgId = (): string => {
   try {
@@ -14,6 +27,7 @@ const getOrgId = (): string => {
 };
 
 const nowISO = () => new Date().toISOString();
+
 const normAr = (s?: string | null) => {
   try {
     let t = (s || '').toString().toLowerCase();
@@ -53,13 +67,17 @@ export type RepairOrderCreateInput = {
   received_by?: string;
   order_number?: string | null;
   repair_tracking_code?: string | null;
-  status?: string; // default: قيد الانتظار
+  status?: string;
 };
 
+/**
+ * إنشاء طلب إصلاح جديد
+ */
 export async function createLocalRepairOrder(input: RepairOrderCreateInput): Promise<LocalRepairOrder> {
   const id = uuidv4();
   const orgId = getOrgId();
   const now = nowISO();
+
   const rec: LocalRepairOrder = {
     id,
     organization_id: orgId,
@@ -79,20 +97,31 @@ export async function createLocalRepairOrder(input: RepairOrderCreateInput): Pro
     order_number: input.order_number || generateRepairIdentifiers(id).orderNumber,
     repair_tracking_code: input.repair_tracking_code || generateRepairIdentifiers(id).trackingCode,
     payment_method: input.payment_method || null,
-    repair_notes: null,
+    notes: null,
     created_at: now,
     updated_at: now,
     synced: false,
     pendingOperation: 'create',
   };
-  await inventoryDB.repairOrders.put(rec);
+
+  // ⚡ استخدام Delta Sync
+  const result = await deltaWriteService.create('repair_orders', rec, orgId);
+  if (!result.success) {
+    throw new Error(`Failed to create repair order: ${result.error}`);
+  }
+
+  console.log(`[LocalRepair] ⚡ Created repair ${id} via Delta Sync`);
   try { void import('@/api/syncRepairs').then(m => (m.syncPendingRepairs?.())); } catch {}
   return rec;
 }
 
+/**
+ * تحديث طلب إصلاح
+ */
 export async function updateLocalRepairOrder(id: string, patch: Partial<RepairOrderCreateInput>): Promise<LocalRepairOrder | null> {
-  const ex = await inventoryDB.repairOrders.get(id);
+  const ex = await deltaWriteService.get<LocalRepairOrder>('repair_orders', id);
   if (!ex) return null;
+
   const now = nowISO();
   const updated: LocalRepairOrder = {
     ...ex,
@@ -116,31 +145,59 @@ export async function updateLocalRepairOrder(id: string, patch: Partial<RepairOr
     synced: false,
     pendingOperation: ex.pendingOperation === 'create' ? 'create' : 'update',
   };
-  await inventoryDB.repairOrders.put(updated);
+
+  await deltaWriteService.update('repair_orders', id, updated);
+  console.log(`[LocalRepair] ⚡ Updated repair ${id} via Delta Sync`);
   try { void import('@/api/syncRepairs').then(m => (m.syncPendingRepairs?.())); } catch {}
   return updated;
 }
 
+/**
+ * قائمة طلبات الإصلاح
+ */
 export async function listLocalRepairOrders(organizationId?: string): Promise<LocalRepairOrder[]> {
   const orgId = organizationId || getOrgId();
-  const all = await inventoryDB.repairOrders.where('organization_id').equals(orgId).toArray();
-  all.sort((a,b)=> (b.created_at||'').localeCompare(a.created_at||''));
+
+  const all = await deltaWriteService.getAll<LocalRepairOrder>('repair_orders', orgId, {
+    where: "(pending_operation IS NULL OR pending_operation != 'delete')",
+    orderBy: 'created_at DESC'
+  });
+
   return all;
 }
 
+/**
+ * الحصول على طلب إصلاح بالمعرّف
+ */
 export async function getLocalRepairOrder(id: string): Promise<LocalRepairOrder | null> {
-  return (await inventoryDB.repairOrders.get(id)) || null;
+  return deltaWriteService.get<LocalRepairOrder>('repairs', id);
 }
 
+/**
+ * الحصول على تفاصيل طلب الإصلاح مع الصور والتاريخ
+ */
 export async function getLocalRepairOrderDetailed(id: string): Promise<any | null> {
-  const order = await inventoryDB.repairOrders.get(id);
+  const order = await deltaWriteService.get<LocalRepairOrder>('repairs', id);
   if (!order) return null;
+
+  const orgId = order.organization_id;
+
   const [images, history, location] = await Promise.all([
-    inventoryDB.repairImages.where('repair_order_id').equals(id).toArray(),
-    inventoryDB.repairStatusHistory.where('repair_order_id').equals(id).toArray(),
-    order.repair_location_id ? inventoryDB.repairLocations.get(order.repair_location_id) : Promise.resolve(null)
+    deltaWriteService.getAll<LocalRepairImage>('repair_images' as any, orgId, {
+      where: 'repair_order_id = ?',
+      params: [id]
+    }),
+    deltaWriteService.getAll<LocalRepairStatusHistory>('repair_status_history' as any, orgId, {
+      where: 'repair_order_id = ?',
+      params: [id]
+    }),
+    order.repair_location_id
+      ? deltaWriteService.get<LocalRepairLocation>('repair_locations' as any, order.repair_location_id)
+      : Promise.resolve(null)
   ]);
-  const sortedHistory = [...history].sort((a,b)=> (b.created_at||'').localeCompare(a.created_at||''));
+
+  const sortedHistory = [...history].sort((a, b) => (b.created_at || '').localeCompare(a.created_at || ''));
+
   return {
     ...order,
     images,
@@ -149,7 +206,45 @@ export async function getLocalRepairOrderDetailed(id: string): Promise<any | nul
   };
 }
 
+/**
+ * إضافة صورة لطلب الإصلاح
+ */
+export async function addLocalRepairImage(args: {
+  orderId: string;
+  imageUrl: string;
+  imageType?: 'before' | 'after' | 'during' | 'receipt';
+  notes?: string;
+}): Promise<LocalRepairImage> {
+  const orgId = getOrgId();
+  const now = nowISO();
+
+  const rec: LocalRepairImage = {
+    id: uuidv4(),
+    repair_id: args.orderId,
+    image_url: args.imageUrl,
+    image_data: '', // Fallback
+    image_type: args.imageType || 'before',
+    file_size: 0,
+    is_thumbnail: false,
+    uploaded_to_server: false,
+    notes: args.notes || null,
+    created_at: now,
+    synced: false,
+    pendingOperation: 'create',
+  };
+
+  await deltaWriteService.create('repair_images' as any, rec, orgId);
+  console.log(`[LocalRepair] ⚡ Added image for repair ${args.orderId}`);
+  try { void import('@/api/syncRepairs').then(m => (m.syncPendingRepairs?.())); } catch {}
+  return rec;
+}
+
+/**
+ * إضافة سجل تاريخ حالة
+ */
 export async function addLocalRepairHistory(args: { orderId: string; status: string; notes?: string; createdBy?: string | 'customer' }): Promise<LocalRepairStatusHistory> {
+  const orgId = getOrgId();
+
   const rec: LocalRepairStatusHistory = {
     id: uuidv4(),
     repair_order_id: args.orderId,
@@ -159,73 +254,71 @@ export async function addLocalRepairHistory(args: { orderId: string; status: str
     created_at: nowISO(),
     synced: false,
     pendingOperation: 'create',
-  };
-  await inventoryDB.repairStatusHistory.put(rec);
+  } as any;
+
+  await deltaWriteService.create('repair_status_history' as any, rec, orgId);
+  console.log(`[LocalRepair] ⚡ Added history for repair ${args.orderId}`);
   try { void import('@/api/syncRepairs').then(m => (m.syncPendingRepairs?.())); } catch {}
   return rec;
 }
 
+/**
+ * تغيير حالة طلب الإصلاح
+ */
 export async function changeLocalRepairStatus(orderId: string, newStatus: string, notes?: string, createdBy?: string) {
-  const ex = await inventoryDB.repairOrders.get(orderId);
+  const ex = await deltaWriteService.get<LocalRepairOrder>('repair_orders', orderId);
   if (!ex) throw new Error('Repair order not found');
   await updateLocalRepairOrder(orderId, { status: newStatus });
   await addLocalRepairHistory({ orderId, status: newStatus, notes, createdBy });
 }
 
+/**
+ * إضافة دفعة لطلب الإصلاح
+ */
 export async function addLocalRepairPayment(orderId: string, amount: number, createdBy?: string) {
-  const ex = await inventoryDB.repairOrders.get(orderId);
+  const ex = await deltaWriteService.get<LocalRepairOrder>('repairs', orderId);
   if (!ex) throw new Error('Repair order not found');
+
   const newPaid = Number(ex.paid_amount || 0) + Math.max(0, Number(amount) || 0);
   await updateLocalRepairOrder(orderId, { paid_amount: newPaid });
   await addLocalRepairHistory({ orderId, status: 'دفعة جديدة', notes: `تم استلام دفعة بمبلغ ${amount} دج. الإجمالي المدفوع: ${newPaid} دج`, createdBy });
 }
 
-export async function addLocalRepairImage(orderId: string, file: File, opts?: { image_type?: 'before' | 'after' | 'other'; description?: string }) {
-  const imageId = uuidv4();
-  const imageRec: LocalRepairImage = {
-    id: imageId,
-    repair_order_id: orderId,
-    image_type: opts?.image_type || 'before',
-    description: opts?.description || null,
-    created_at: nowISO(),
-    image_url: null,
-    storage_path: null,
-    synced: false,
-    pendingOperation: 'create',
-  };
-  await inventoryDB.repairImages.put(imageRec);
-  const blobRec: LocalRepairImageFile = {
-    id: uuidv4(),
-    repair_image_id: imageId,
-    mime: file.type,
-    size: file.size,
-    blob: file,
-    uploaded: false,
-  };
-  await inventoryDB.repairImageFiles.put(blobRec);
-  try { void import('@/api/syncRepairs').then(m => (m.syncPendingRepairImages?.())); } catch {}
-  return imageRec;
-}
-
-// Locations
+/**
+ * قائمة مواقع الإصلاح
+ */
 export async function listLocalRepairLocations(organizationId?: string): Promise<LocalRepairLocation[]> {
   const orgId = organizationId || getOrgId();
-  const list = await inventoryDB.repairLocations.where('organization_id').equals(orgId).and(l => l.is_active !== false).toArray();
-  list.sort((a,b)=> (Number(b.is_default) - Number(a.is_default)) || (b.created_at||'').localeCompare(a.created_at||''));
-  return list;
+
+  return deltaWriteService.getAll<LocalRepairLocation>('repair_locations' as any, orgId, {
+    where: 'is_active != 0',
+    orderBy: 'is_default DESC, created_at DESC'
+  });
 }
 
+/**
+ * إنشاء موقع إصلاح جديد
+ */
 export async function createLocalRepairLocation(data: { name: string; description?: string; address?: string; phone?: string; email?: string; is_default?: boolean; }): Promise<LocalRepairLocation> {
   const id = uuidv4();
   const orgId = getOrgId();
   const now = nowISO();
+
   if (data.is_default) {
-    // unset other defaults locally
-    const others = await inventoryDB.repairLocations.where('organization_id').equals(orgId).and(l => l.is_default === true).toArray();
+    // إلغاء الموقع الافتراضي للمواقع الأخرى
+    const others = await deltaWriteService.getAll<LocalRepairLocation>('repair_locations' as any, orgId, {
+      where: 'is_default = 1'
+    });
     for (const o of others) {
-      await inventoryDB.repairLocations.put({ ...o, is_default: false, updated_at: now, synced: false, pendingOperation: o.pendingOperation === 'create' ? 'create' : 'update' });
+      await deltaWriteService.update('repair_locations' as any, o.id, {
+        is_default: false,
+        updated_at: now,
+        synced: false,
+        pendingOperation: o.pendingOperation === 'create' ? 'create' : 'update'
+      });
     }
   }
+
   const rec: LocalRepairLocation = {
     id,
     organization_id: orgId,
@@ -241,21 +334,38 @@ export async function createLocalRepairLocation(data: { name: string; descriptio
     synced: false,
     pendingOperation: 'create',
   };
-  await inventoryDB.repairLocations.put(rec);
+
+  await deltaWriteService.create('repair_locations' as any, rec, orgId);
+  console.log(`[LocalRepair] ⚡ Created location ${id} via Delta Sync`);
   try { void import('@/api/syncRepairs').then(m => (m.syncPendingRepairLocations?.())); } catch {}
   return rec;
 }
 
+/**
+ * تحديث موقع إصلاح
+ */
 export async function updateLocalRepairLocation(id: string, patch: Partial<Omit<LocalRepairLocation, 'id' | 'organization_id' | 'created_at' | 'synced' | 'pendingOperation'>>): Promise<LocalRepairLocation | null> {
-  const ex = await inventoryDB.repairLocations.get(id);
+  const ex = await deltaWriteService.get<LocalRepairLocation>('repair_locations' as any, id);
   if (!ex) return null;
+
   const now = nowISO();
+  const orgId = ex.organization_id;
+
   if (patch.is_default) {
-    const others = await inventoryDB.repairLocations.where('organization_id').equals(ex.organization_id).and(l => l.id !== id && l.is_default === true).toArray();
+    const others = await deltaWriteService.getAll<LocalRepairLocation>('repair_locations' as any, orgId, {
+      where: 'id != ? AND is_default = 1',
+      params: [id]
+    });
     for (const o of others) {
-      await inventoryDB.repairLocations.put({ ...o, is_default: false, updated_at: now, synced: false, pendingOperation: o.pendingOperation === 'create' ? 'create' : 'update' });
+      await deltaWriteService.update('repair_locations' as any, o.id, {
+        is_default: false,
+        updated_at: now,
+        synced: false,
+        pendingOperation: o.pendingOperation === 'create' ? 'create' : 'update'
+      });
     }
   }
+
   const updated: LocalRepairLocation = {
     ...ex,
     name: patch.name ?? ex.name,
@@ -269,45 +379,112 @@ export async function updateLocalRepairLocation(id: string, patch: Partial<Omit<
     synced: false,
     pendingOperation: ex.pendingOperation === 'create' ? 'create' : 'update',
   };
-  await inventoryDB.repairLocations.put(updated);
+
+  await deltaWriteService.update('repair_locations' as any, id, updated);
+  console.log(`[LocalRepair] ⚡ Updated location ${id} via Delta Sync`);
   try { void import('@/api/syncRepairs').then(m => (m.syncPendingRepairLocations?.())); } catch {}
   return updated;
 }
 
+/**
+ * حذف موقع إصلاح (soft delete)
+ */
 export async function softDeleteLocalRepairLocation(id: string): Promise<boolean> {
-  const ex = await inventoryDB.repairLocations.get(id);
+  const ex = await deltaWriteService.get<LocalRepairLocation>('repair_locations' as any, id);
   if (!ex) return false;
+
   const now = nowISO();
-  await inventoryDB.repairLocations.put({ ...ex, is_active: false, is_default: false, updated_at: now, synced: false, pendingOperation: ex.pendingOperation === 'create' ? 'create' : 'update' });
+  await deltaWriteService.update('repair_locations' as any, id, {
+    is_active: false,
+    is_default: false,
+    updated_at: now,
+    synced: false,
+    pendingOperation: ex.pendingOperation === 'create' ? 'create' : 'update'
+  });
+
+  console.log(`[LocalRepair] ⚡ Soft deleted location ${id} via Delta Sync`);
   try { void import('@/api/syncRepairs').then(m => (m.syncPendingRepairLocations?.())); } catch {}
   return true;
 }
 
+/**
+ * حساب ترتيب الطابور
+ */
 export async function computeLocalQueueInfo(orderId: string): Promise<{ queue_position: number; total_in_queue: number } | null> {
-  const cur = await inventoryDB.repairOrders.get(orderId);
+  const cur = await deltaWriteService.get<LocalRepairOrder>('repairs', orderId);
   if (!cur || !cur.repair_location_id) return null;
+
   const activeStatuses = ['قيد الانتظار', 'جاري التصليح'];
-  const all = await inventoryDB.repairOrders
-    .where('organization_id').equals(cur.organization_id)
-    .and(o => o.repair_location_id === cur.repair_location_id && activeStatuses.includes(o.status))
-    .toArray();
-  all.sort((a,b)=> (a.created_at||'').localeCompare(b.created_at||''));
+
+  const all = await deltaWriteService.getAll<LocalRepairOrder>('repair_orders', cur.organization_id, {
+    where: `repair_location_id = ? AND status IN ('${activeStatuses.join("','")}')`,
+    params: [cur.repair_location_id]
+  });
+
+  all.sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
   const total = all.length;
   const idx = all.findIndex(o => o.id === orderId);
   const pos = idx >= 0 ? (idx + 1) : total;
   return { queue_position: pos, total_in_queue: total };
 }
 
+/**
+ * حذف طلب إصلاح
+ */
 export async function deleteLocalRepairOrder(id: string): Promise<boolean> {
-  const ex = await inventoryDB.repairOrders.get(id);
+  const ex = await deltaWriteService.get<LocalRepairOrder>('repair_orders', id);
   if (!ex) return false;
+
   const now = nowISO();
-  await inventoryDB.repairOrders.put({ ...ex, updated_at: now, synced: false, pendingOperation: 'delete' });
-  // Mark related objects as needing deletion (best-effort)
-  try {
-    const imgs = await inventoryDB.repairImages.where('repair_order_id').equals(id).toArray();
-    for (const im of imgs) await inventoryDB.repairImages.put({ ...im, synced: false, pendingOperation: 'delete' });
-  } catch {}
+  await deltaWriteService.update('repair_orders', id, {
+    updated_at: now,
+    synced: false,
+    pendingOperation: 'delete'
+  });
+
+  console.log(`[LocalRepair] ⚡ Marked repair ${id} for deletion via Delta Sync`);
   try { void import('@/api/syncRepairs').then(m => (m.syncPendingRepairs?.())); } catch {}
   return true;
 }
+
+// =====================
+// حفظ البيانات من السيرفر
+// =====================
+
+export const saveRemoteRepairOrders = async (orders: any[]): Promise<void> => {
+  if (!orders || orders.length === 0) return;
+
+  const now = nowISO();
+
+  for (const order of orders) {
+    const mappedOrder: LocalRepairOrder = {
+      id: order.id,
+      organization_id: order.organization_id,
+      order_number: order.order_number,
+      customer_name: order.customer_name,
+      customer_phone: order.customer_phone,
+      customer_name_lower: normAr(order.customer_name),
+      device_type: order.device_type,
+      device_type_lower: normAr(order.device_type),
+      repair_location_id: order.repair_location_id,
+      custom_location: order.custom_location,
+      issue_description: order.issue_description,
+      status: order.status || 'قيد الانتظار',
+      total_price: order.total_price,
+      paid_amount: order.paid_amount || 0,
+      price_to_be_determined_later: order.price_to_be_determined_later || false,
+      received_by: order.received_by,
+      repair_tracking_code: order.repair_tracking_code,
+      payment_method: order.payment_method,
+      notes: order.notes,
+      created_at: order.created_at || now,
+      updated_at: order.updated_at || now,
+      synced: true,
+      pendingOperation: undefined,
+    };
+
+    await deltaWriteService.saveFromServer('repair_orders', mappedOrder);
+  }
+
+  console.log(`[LocalRepair] ⚡ Saved ${orders.length} remote repair orders`);
+};

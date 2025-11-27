@@ -6,9 +6,8 @@
   /* تحسين الأداء */
   will-change: transform;
   contain: layout style paint;
-  /* تأثير الزجاج البسيط */
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  /* إزالة تأثير الزجاج لمنع الرمشة */
+  background: hsl(var(--background));
 }
 
 /* Simple Glass Effect */

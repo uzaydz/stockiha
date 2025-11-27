@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useStaffSession } from '@/context/StaffSessionContext';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { invoke } from '@tauri-apps/api/core';
 
 const ProfileMenu: React.FC = () => {
   const { user, userProfile, signOut } = useAuth();
@@ -79,34 +80,34 @@ const ProfileMenu: React.FC = () => {
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "flex items-center gap-2 h-8 px-2 rounded-lg transition-colors duration-150",
+          "flex items-center gap-2 h-8 pl-1 pr-2 rounded-lg transition-all duration-200 active:scale-95",
           "hover:bg-white/10 active:bg-white/15",
-          isOpen && "bg-white/15"
+          isOpen && "bg-white/15 text-white"
         )}
         aria-label="قائمة البروفايل"
       >
         {/* صورة البروفايل أو الحرف الأول */}
-        <div className="flex items-center justify-center h-6 w-6 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 text-white text-xs font-bold shadow-md">
+        <div className="flex items-center justify-center h-6 w-6 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 text-white text-xs font-bold shadow-sm ring-1 ring-white/10">
           {getInitial()}
         </div>
-        
+
         {/* اسم المستخدم (مخفي في الشاشات الصغيرة) */}
         <span className="hidden lg:block text-xs font-medium text-white/90 max-w-[100px] truncate">
           {displayName.split(' ')[0]}
         </span>
-        
+
         {/* سهم للأسفل */}
         <ChevronDown className={cn(
-          "h-3.5 w-3.5 text-white/70 transition-transform duration-150",
-          isOpen && "rotate-180"
+          "h-3 w-3 text-white/50 transition-transform duration-200",
+          isOpen && "rotate-180 text-white"
         )} />
       </button>
 
       {/* القائمة المنسدلة */}
       {isOpen && (
-        <div 
-          className="absolute left-0 mt-2 w-64 bg-slate-800/95 backdrop-blur-md rounded-lg shadow-2xl border border-white/10 overflow-hidden z-50"
-          style={{ WebkitAppRegion: 'no-drag' } as any}
+        <div
+          className="absolute left-0 mt-2 w-64 bg-slate-800/95 backdrop-blur-md rounded-lg shadow-2xl border border-white/10 overflow-hidden z-[9999]"
+          style={{ WebkitAppRegion: 'no-drag', pointerEvents: 'auto' } as any}
         >
           {/* معلومات المستخدم */}
           <div className="px-4 py-3 border-b border-white/10">

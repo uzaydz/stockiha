@@ -1,8 +1,13 @@
 import * as React from "react"
-import { Slot } from "@radix-ui/react-slot"
+// تم تعطيل Slot لتجنب مشاكل compose-refs مع React 19
+// import { Slot } from "@radix-ui/react-slot"
 import { cva, type VariantProps } from "class-variance-authority"
 
 import { cn } from "@/lib/utils"
+
+// عداد renders للتتبع
+let buttonRenderCount = 0;
+const MAX_BUTTON_RENDERS = 100;
 
 const buttonVariants = cva(
   "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
@@ -39,19 +44,29 @@ export interface ButtonProps
   asChild?: boolean
 }
 
-const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
-    const Comp = asChild ? Slot : "button"
+// Button بدون Slot لتجنب مشاكل compose-refs مع React 19
+const Button = React.memo<ButtonProps>(
+  ({ className, variant, size, asChild = false, children, ...props }) => {
+    // عند asChild نقوم بتمرير children مع الـ classes فقط بدون Slot
+    if (asChild && React.isValidElement(children)) {
+      return React.cloneElement(children as React.ReactElement<any>, {
+        className: cn(buttonVariants({ variant, size, className }), "transform-gpu", (children as React.ReactElement<any>).props.className),
+        style: { contain: 'layout', ...(children as React.ReactElement<any>).props.style },
+        ...props,
+      });
+    }
     return (
-      <Comp
+      <button
         className={cn(buttonVariants({ variant, size, className }), "transform-gpu")}
-        ref={ref}
         style={{ contain: 'layout' }}
         {...props}
-      />
+      >
+        {children}
+      </button>
     )
   }
-)
+);
+
 Button.displayName = "Button"
 
 export { Button, buttonVariants }

@@ -1,4 +1,11 @@
-import { inventoryDB, type LocalOrganizationSubscription, type LocalSubscriptionPlan } from '@/database/localDb';
+/**
+ * localSubscriptionService - خدمة الاشتراكات المحلية
+ *
+ * ⚡ تم التحديث لاستخدام Delta Sync بالكامل
+ */
+
+import type { LocalOrganizationSubscription, LocalSubscriptionPlan } from '@/database/localDb';
+import { deltaWriteService } from '@/services/DeltaWriteService';
 
 const NORMALIZE_STATUS = (status?: string | null): string => {
   if (!status) return 'unknown';
@@ -14,29 +21,44 @@ export const localSubscriptionService = {
       status: NORMALIZE_STATUS(subscription.status),
     };
 
-    await inventoryDB.organizationSubscriptions.put(normalized);
+    // ⚡ استخدام Delta Sync
+    await deltaWriteService.saveFromServer('organization_subscriptions' as any, normalized);
   },
 
   async saveOrganizationSubscriptions(subscriptions: LocalOrganizationSubscription[]): Promise<void> {
     if (!subscriptions?.length) return;
-    const bulk = subscriptions.map((sub) => ({
-      ...sub,
-      status: NORMALIZE_STATUS(sub.status),
-    }));
-    await inventoryDB.organizationSubscriptions.bulkPut(bulk);
+
+    // ⚡ استخدام Delta Sync
+    for (const sub of subscriptions) {
+      const normalized = {
+        ...sub,
+        status: NORMALIZE_STATUS(sub.status),
+      };
+      await deltaWriteService.saveFromServer('organization_subscriptions' as any, normalized);
+    }
   },
 
   async clearOrganizationSubscriptions(organizationId: string): Promise<void> {
     if (!organizationId) return;
-    await inventoryDB.organizationSubscriptions.where('organization_id').equals(organizationId).delete();
+
+    // ⚡ استخدام Delta Sync - جلب الكل ثم حذفها
+    const subs = await deltaWriteService.getAll<LocalOrganizationSubscription>(
+      'organization_subscriptions' as any,
+      organizationId
+    );
+    for (const sub of subs) {
+      await deltaWriteService.delete('organization_subscriptions' as any, sub.id);
+    }
   },
 
   async getLatestSubscription(organizationId: string): Promise<LocalOrganizationSubscription | null> {
     if (!organizationId) return null;
-    const results = await inventoryDB.organizationSubscriptions
-      .where('organization_id')
-      .equals(organizationId)
-      .toArray();
+
+    // ⚡ استخدام Delta Sync
+    const results = await deltaWriteService.getAll<LocalOrganizationSubscription>(
+      'organization_subscriptions' as any,
+      organizationId
+    );
 
     if (!results || results.length === 0) {
       return null;
@@ -53,16 +75,21 @@ export const localSubscriptionService = {
 
   async saveSubscriptionPlan(plan: LocalSubscriptionPlan): Promise<void> {
     if (!plan?.id) return;
-    await inventoryDB.subscriptionPlans.put(plan);
+    // ⚡ استخدام Delta Sync
+    await deltaWriteService.saveFromServer('subscription_plans' as any, plan);
   },
 
   async saveSubscriptionPlans(plans: LocalSubscriptionPlan[]): Promise<void> {
     if (!plans?.length) return;
-    await inventoryDB.subscriptionPlans.bulkPut(plans);
+    // ⚡ استخدام Delta Sync
+    for (const plan of plans) {
+      await deltaWriteService.saveFromServer('subscription_plans' as any, plan);
+    }
   },
 
   async getSubscriptionPlan(planId: string): Promise<LocalSubscriptionPlan | null> {
     if (!planId) return null;
-    return inventoryDB.subscriptionPlans.get(planId);
+    // ⚡ استخدام Delta Sync
+    return deltaWriteService.get<LocalSubscriptionPlan>('subscription_plans' as any, planId);
   },
 };

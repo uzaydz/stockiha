@@ -95,6 +95,27 @@ export const useProductsCache = (options: UseProductsCacheOptions = {}): UseProd
     }
   }, [autoLoad, currentOrganization?.id, loadCache]);
 
+  // ⚡ الاستماع لحدث تحديث الصور وإعادة تحميل الـ cache
+  useEffect(() => {
+    const handleImagesUpdated = () => {
+      console.log('[useProductsCache] 📡 Received products-images-updated event, refreshing cache...');
+      loadCache();
+    };
+
+    const handleProductOperationCompleted = () => {
+      console.log('[useProductsCache] 📡 Received product-operation-completed event, refreshing cache...');
+      loadCache();
+    };
+
+    window.addEventListener('products-images-updated', handleImagesUpdated);
+    window.addEventListener('product-operation-completed', handleProductOperationCompleted);
+
+    return () => {
+      window.removeEventListener('products-images-updated', handleImagesUpdated);
+      window.removeEventListener('product-operation-completed', handleProductOperationCompleted);
+    };
+  }, [loadCache]);
+
   // البحث في الـ cache
   const searchResults = searchProductsInCache(searchQuery, {
     categoryFilter,

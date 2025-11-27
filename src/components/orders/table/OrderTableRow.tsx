@@ -3,6 +3,7 @@ import { TableCell, TableRow } from "@/components/ui/table";
 import { OrdersTableRowProps } from "./OrderTableTypes";
 import OrderExpandedDetails from "./OrderExpandedDetails";
 import ShippingProviderColumn from "./ShippingProviderColumn";
+import TrackingStatusColumn from "./TrackingStatusColumn";
 
 // المكونات الفرعية المحسّنة
 import OrderRowCheckbox from "./row/OrderRowCheckbox";
@@ -205,6 +206,18 @@ const OrdersTableRow = ({
               onSendToProvider={onSendToProvider}
               hasUpdatePermission={hasUpdatePermission}
               enabledProviders={shippingProviders}
+            />
+          </TableCell>
+        )}
+
+        {/* عمود التتبع */}
+        {visibleColumns.includes("tracking") && (
+          <TableCell className="w-[160px] min-w-[160px] py-3 px-4 align-middle">
+            <TrackingStatusColumn
+              orderId={id}
+              trackingNumber={order.yalidine_tracking_id || null}
+              provider="yalidine"
+              size="sm"
             />
           </TableCell>
         )}

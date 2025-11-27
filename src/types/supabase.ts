@@ -15592,6 +15592,108 @@ export type Database = {
         }
         Relationships: []
       }
+      yalidine_delivery_history: {
+        Row: {
+          id: string
+          organization_id: string
+          order_id: string
+          tracking_number: string
+          date_status: string
+          status: string
+          status_ar: string | null
+          status_normalized: string | null
+          reason: string | null
+          center_id: number | null
+          center_name: string | null
+          wilaya_id: number | null
+          wilaya_name: string | null
+          commune_id: number | null
+          commune_name: string | null
+          raw_data: Json | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          order_id: string
+          tracking_number: string
+          date_status: string
+          status: string
+          status_ar?: string | null
+          status_normalized?: string | null
+          reason?: string | null
+          center_id?: number | null
+          center_name?: string | null
+          wilaya_id?: number | null
+          wilaya_name?: string | null
+          commune_id?: number | null
+          commune_name?: string | null
+          raw_data?: Json | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          order_id?: string
+          tracking_number?: string
+          date_status?: string
+          status?: string
+          status_ar?: string | null
+          status_normalized?: string | null
+          reason?: string | null
+          center_id?: number | null
+          center_name?: string | null
+          wilaya_id?: number | null
+          wilaya_name?: string | null
+          commune_id?: number | null
+          commune_name?: string | null
+          raw_data?: Json | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "yalidine_delivery_history_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "online_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "yalidine_delivery_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      yalidine_tracking_cache: {
+        Row: {
+          id: string
+          tracking_number: string
+          last_status: string | null
+          last_fetched_at: string
+          should_refresh: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          tracking_number: string
+          last_status?: string | null
+          last_fetched_at?: string
+          should_refresh?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          tracking_number?: string
+          last_status?: string | null
+          last_fetched_at?: string
+          should_refresh?: boolean
+          created_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       abandoned_carts_view: {

@@ -30,7 +30,7 @@ const STORE_PERFORMANCE_METRICS = {
 
 const logStorePerformanceIssue = (type: string, data: any) => {
   if (!STORE_PAGE_DEBUG) return;
-  
+
   STORE_PERFORMANCE_METRICS.warnings.push(`${type}: ${JSON.stringify(data)}`);
 };
 
@@ -48,8 +48,8 @@ const StoreServices = React.lazy(() => import('./StoreServices'));
 // =================================================================
 // 🎯 Legacy Support Component
 // =================================================================
-const LegacyFastStorePage: React.FC<FastStorePageProps> = ({ 
-  storeData: initialStoreData = {} 
+const LegacyFastStorePage: React.FC<FastStorePageProps> = ({
+  storeData: initialStoreData = {}
 }) => {
   const { currentSubdomain } = useAuth();
   const { currentOrganization } = useTenant();
@@ -66,10 +66,10 @@ const LegacyFastStorePage: React.FC<FastStorePageProps> = ({
       STORE_PERFORMANCE_METRICS.loadDataCalls++;
 
       loadStoreData(currentSubdomain);
-      
+
       const loadEndTime = performance.now();
       const loadDuration = loadEndTime - loadStartTime;
-      
+
       if (loadDuration > 100) {
         logStorePerformanceIssue('SLOW_LOAD_DATA_CALL', {
           duration: loadDuration,
@@ -81,7 +81,7 @@ const LegacyFastStorePage: React.FC<FastStorePageProps> = ({
       if (!currentSubdomain) reasons.push('لا يوجد subdomain');
       if (state.organizationData) reasons.push('البيانات موجودة بالفعل');
       if (state.isLoading) reasons.push('التحميل جاري');
-      
+
     }
   }, [currentSubdomain, state.organizationData, state.isLoading, loadStoreData]);
 
@@ -98,10 +98,10 @@ const LegacyFastStorePage: React.FC<FastStorePageProps> = ({
         theme_mode: state.storeSettings.theme_mode,
         custom_css: state.storeSettings.custom_css
       });
-      
+
       const themeEndTime = performance.now();
       const themeDuration = themeEndTime - themeStartTime;
-      
+
       if (themeDuration > 50) {
         logStorePerformanceIssue('SLOW_THEME_APPLICATION', {
           duration: themeDuration,
@@ -163,60 +163,60 @@ const LegacyStorePageRenderer: React.FC<LegacyStorePageRendererProps> = ({ store
   }, [storeData?.categories]);
 
   const defaultStoreComponents = useMemo(() => [
-    { 
-      id: 'banner-default', 
-      type: 'hero', 
-      settings: { 
-        title: storeName, 
-        subtitle: storeData?.organization_details?.description || 'أفضل المنتجات بأفضل الأسعار' 
-      }, 
-      isActive: true, 
-      orderIndex: 0 
+    {
+      id: 'banner-default',
+      type: 'hero',
+      settings: {
+        title: storeName,
+        subtitle: storeData?.organization_details?.description || 'أفضل المنتجات بأفضل الأسعار'
+      },
+      isActive: true,
+      orderIndex: 0
     },
-    { 
-      id: 'categories-default', 
-      type: 'product_categories', 
-      settings: { title: 'تسوق حسب الفئة' }, 
-      isActive: true, 
-      orderIndex: 1 
+    {
+      id: 'categories-default',
+      type: 'product_categories',
+      settings: { title: 'تسوق حسب الفئة' },
+      isActive: true,
+      orderIndex: 1
     },
-    { 
-      id: 'featured-default', 
-      type: 'featured_products', 
-      settings: { title: 'منتجات مميزة' }, 
-      isActive: true, 
-      orderIndex: 2 
+    {
+      id: 'featured-default',
+      type: 'featured_products',
+      settings: { title: 'منتجات مميزة' },
+      isActive: true,
+      orderIndex: 2
     },
-    { 
-      id: 'services-default', 
-      type: 'services', 
-      settings: {}, 
-      isActive: true, 
-      orderIndex: 3 
+    {
+      id: 'services-default',
+      type: 'services',
+      settings: {},
+      isActive: true,
+      orderIndex: 3
     },
-    { 
-      id: 'testimonials-default', 
-      type: 'testimonials', 
-      settings: {}, 
-      isActive: true, 
-      orderIndex: 4 
+    {
+      id: 'testimonials-default',
+      type: 'testimonials',
+      settings: {},
+      isActive: true,
+      orderIndex: 4
     },
-    { 
-      id: 'about-default', 
-      type: 'about', 
-      settings: { 
-        title: `عن ${storeName}`, 
-        content: storeData?.organization_details?.description || 'مرحباً بك في متجرنا.' 
-      }, 
-      isActive: true, 
-      orderIndex: 5 
+    {
+      id: 'about-default',
+      type: 'about',
+      settings: {
+        title: `عن ${storeName}`,
+        content: storeData?.organization_details?.description || 'مرحباً بك في متجرنا.'
+      },
+      isActive: true,
+      orderIndex: 5
     },
-    { 
-      id: 'contact-default', 
-      type: 'contact', 
-      settings: { email: storeData?.organization_details?.contact_email }, 
-      isActive: true, 
-      orderIndex: 6 
+    {
+      id: 'contact-default',
+      type: 'contact',
+      settings: { email: storeData?.organization_details?.contact_email },
+      isActive: true,
+      orderIndex: 6
     },
   ], [storeName, storeData?.organization_details]);
 
@@ -249,22 +249,22 @@ const LegacyStorePageRenderer: React.FC<LegacyStorePageRendererProps> = ({ store
           <meta name="description" content={storeSettings.seo_meta_description} />
         )}
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        {/* <link rel="preconnect" href="https://fonts.googleapis.com/css2" /> */}
+        {/* <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" /> */}
       </Helmet>
-      
+
       {storeSettings?.custom_css && (
         <style dangerouslySetInnerHTML={{ __html: storeSettings.custom_css }} />
       )}
-      
+
       <div className="flex flex-col min-h-screen bg-background relative">
-        <Navbar 
+        <Navbar
           categories={storeData?.categories?.map((cat: any) => ({
             ...cat,
             product_count: cat.product_count || 0
-          }))} 
+          }))}
         />
-        
+
         <main className="flex-1 pt-16">
           {storeData?.organization_details && (
             <>
@@ -282,13 +282,13 @@ const LegacyStorePageRenderer: React.FC<LegacyStorePageRendererProps> = ({ store
                       <StoreTracking />
                     </Suspense>
                   )}
-                  
+
                   {componentsToRender.map((component: any, index: number) => {
                     const isFirstComponent = index === 0;
                     const fallbackHeight = isFirstComponent ? "min-h-[60vh]" : "min-h-[40vh]";
-                    
+
                     return (
-                      <Suspense 
+                      <Suspense
                         key={component.id || `component-${index}`}
                         fallback={
                           <div className={`${fallbackHeight} animate-pulse bg-gray-100 rounded-lg mx-4 mb-4`} />
@@ -297,9 +297,9 @@ const LegacyStorePageRenderer: React.FC<LegacyStorePageRendererProps> = ({ store
                         {component.type === 'hero' && (
                           <LazyStoreBanner heroData={component.settings} />
                         )}
-                        
+
                         {component.type === 'product_categories' && (
-                          <LazyProductCategories 
+                          <LazyProductCategories
                             title={component.settings?.title}
                             description={component.settings?.description}
                             useRealCategories={component.settings?.useRealCategories ?? true}
@@ -307,46 +307,46 @@ const LegacyStorePageRenderer: React.FC<LegacyStorePageRendererProps> = ({ store
                             settings={component.settings}
                           />
                         )}
-                        
+
                         {(component.type === 'featured_products' || component.type === 'featuredproducts') && (
-                          <LazyFeaturedProducts 
-                            {...(component.settings || {})} 
-                            organizationId={storeData.organization_details?.id} 
+                          <LazyFeaturedProducts
+                            {...(component.settings || {})}
+                            organizationId={storeData.organization_details?.id}
                           />
                         )}
-                        
+
                         {component.type === 'testimonials' && (
-                          <LazyCustomerTestimonials 
-                            {...(component.settings || {})} 
+                          <LazyCustomerTestimonials
+                            {...(component.settings || {})}
                             organizationId={storeData?.organization_details?.id}
                           />
                         )}
-                        
+
                         {component.type === 'about' && (
-                          <LazyStoreAbout 
-                            {...(component.settings || {})} 
-                            storeName={storeName} 
+                          <LazyStoreAbout
+                            {...(component.settings || {})}
+                            storeName={storeName}
                           />
                         )}
-                        
+
                         {component.type === 'contact' && (
-                          <LazyStoreContact 
-                            {...(component.settings || {})} 
+                          <LazyStoreContact
+                            {...(component.settings || {})}
                             organizationData={storeData?.organization_details}
                           />
                         )}
-                        
+
                         {component.type === 'services' && (
-                          <StoreServices 
-                            {...(component.settings || {})} 
+                          <StoreServices
+                            {...(component.settings || {})}
                           />
                         )}
                       </Suspense>
                     );
                   })}
-                  
+
                   <Suspense fallback={<div className="h-20 bg-gray-100 animate-pulse" />}>
-                    <LazyStoreFooter 
+                    <LazyStoreFooter
                       organizationData={storeData?.organization_details}
                       storeSettings={storeSettings}
                     />

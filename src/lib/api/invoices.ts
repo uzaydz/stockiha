@@ -1,7 +1,8 @@
 import { supabase } from '@/lib/supabase';
 import { getOrderById, getOrderItems } from './orders';
 // removed unused imports
-import { inventoryDB } from '@/database/localDb';
+import { deltaWriteService } from '@/services/DeltaWriteService';
+import type { LocalInvoice, LocalInvoiceItem, LocalCustomer } from '@/database/localDb';
 
 // Extender tipo Customer para incluir address
 interface CustomerWithAddress extends Record<string, any> {
@@ -89,7 +90,7 @@ export const getServiceBooking = async (bookingId: string) => {
     throw error;
   }
 
-  return data as OrderWithOrg;
+  return data as unknown as OrderWithOrg;
 };
 
 // Sobrescribir getCustomerById para incluir address
@@ -104,9 +105,9 @@ export const getCustomerByIdWithAddress = async (customerId: string): Promise<Cu
     if (error) throw error;
     return data as CustomerWithAddress;
   } catch (error) {
-    // Offline fallback from SQLite
+    // ⚡ Offline fallback - Delta Sync
     try {
-      const c: any = await inventoryDB.customers.get(customerId);
+      const c = await deltaWriteService.get<LocalCustomer>('customers', customerId);
       if (!c) return null;
       return {
         id: c.id,
@@ -161,6 +162,9 @@ export type Invoice = {
   };
   createdAt: string;
   updatedAt: string;
+  _synced?: boolean;
+  _syncStatus?: string;
+  _pendingOperation?: string;
 }
 
 export type InvoiceItem = {
@@ -183,7 +187,7 @@ export const generateInvoiceNumber = async (organizationId: string, type: 'pos' 
     .select('site_name')
     .eq('organization_id', organizationId)
     .single();
-    
+
   // Get latest invoice to determine next number
   const { data: latestInvoices } = await supabase
     .from('invoices')
@@ -191,9 +195,9 @@ export const generateInvoiceNumber = async (organizationId: string, type: 'pos' 
     .eq('organization_id', organizationId)
     .order('created_at', { ascending: false })
     .limit(1);
-    
+
   let nextNumber = 1;
-  
+
   if (latestInvoices && latestInvoices.length > 0) {
     const lastInvoiceNumber = latestInvoices[0].invoice_number;
     const numberPart = parseInt(lastInvoiceNumber.split('-').pop() || '0', 10);
@@ -201,19 +205,19 @@ export const generateInvoiceNumber = async (organizationId: string, type: 'pos' 
       nextNumber = numberPart + 1;
     }
   }
-  
-  const prefix = settings?.site_name 
-    ? settings.site_name.substring(0, 3).toUpperCase() 
+
+  const prefix = settings?.site_name
+    ? settings.site_name.substring(0, 3).toUpperCase()
     : 'INV';
-    
-  const typeCode = type === 'pos' ? 'POS' : 
-                  type === 'online' ? 'ONL' : 
-                  type === 'service' ? 'SRV' : 'CMB';
-                  
+
+  const typeCode = type === 'pos' ? 'POS' :
+    type === 'online' ? 'ONL' :
+      type === 'service' ? 'SRV' : 'CMB';
+
   const date = new Date();
   const year = date.getFullYear().toString().substring(2); // Last 2 digits of year
   const month = (date.getMonth() + 1).toString().padStart(2, '0');
-  
+
   return `${prefix}-${typeCode}-${year}${month}-${nextNumber.toString().padStart(4, '0')}`;
 };
 
@@ -224,10 +228,10 @@ export const createInvoiceFromPosOrder = async (orderId: string): Promise<Invoic
     if (!order) {
       return null;
     }
-    
+
     // Get order items
     const orderItems = await getOrderItems(orderId) as unknown as OrderItemWithName[];
-    
+
     // Get customer info if available
     let customerInfo = {
       id: null,
@@ -236,7 +240,7 @@ export const createInvoiceFromPosOrder = async (orderId: string): Promise<Invoic
       phone: null,
       address: null
     };
-    
+
     if (order.customer_id) {
       const customer = await getCustomerByIdWithAddress(order.customer_id);
       if (customer) {
@@ -249,29 +253,29 @@ export const createInvoiceFromPosOrder = async (orderId: string): Promise<Invoic
         };
       }
     }
-    
+
     // Get organization info
     const { data: org } = await supabase
       .from('organizations')
       .select('*, organization_settings(*)')
       .eq('id', order.organization_id)
       .single();
-      
+
     const organizationInfo = {
-      name: org?.name || 'المؤسسة',
-      logo: org?.organization_settings?.logo_url || null,
-      address: org?.address || null,
-      phone: org?.phone || null,
-      email: org?.email || null,
-      website: org?.website || null,
-      taxNumber: org?.tax_number || null,
-      registrationNumber: org?.registration_number || null,
+      name: (org as any)?.name || 'المؤسسة',
+      logo: (org as any)?.organization_settings?.logo_url || null,
+      address: (org as any)?.address || null,
+      phone: (org as any)?.phone || null,
+      email: (org as any)?.email || null,
+      website: (org as any)?.website || null,
+      taxNumber: (org as any)?.tax_number || null,
+      registrationNumber: (org as any)?.registration_number || null,
       additionalInfo: null
     };
-    
+
     // Generate invoice number
     const invoiceNumber = await generateInvoiceNumber(order.organization_id, 'pos');
-    
+
     // Create invoice items from order items
     const invoiceItems: InvoiceItem[] = orderItems.map(item => ({
       id: item.id,
@@ -284,7 +288,7 @@ export const createInvoiceFromPosOrder = async (orderId: string): Promise<Invoic
       productId: item.product_id,
       type: 'product'
     }));
-    
+
     // Create invoice
     const invoiceData = {
       invoice_number: invoiceNumber,
@@ -310,18 +314,18 @@ export const createInvoiceFromPosOrder = async (orderId: string): Promise<Invoic
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
-    
+
     // Insert invoice into database
     const { data: invoice, error } = await supabase
       .from('invoices')
       .insert(invoiceData)
       .select()
       .single();
-      
+
     if (error) {
       throw error;
     }
-    
+
     // Update invoice items with invoice ID and insert them (DB column names)
     const insertItems = invoiceItems.map(item => ({
       id: item.id,
@@ -335,18 +339,18 @@ export const createInvoiceFromPosOrder = async (orderId: string): Promise<Invoic
       service_id: item.serviceId || null,
       type: item.type
     }));
-    
+
     const { error: itemsError } = await supabase
       .from('invoice_items')
       .insert(insertItems as any);
-      
+
     if (itemsError) {
       throw itemsError;
     }
 
-    // Mirror to SQLite
+    // ⚡ Mirror to SQLite via Delta Sync
     try {
-      await inventoryDB.invoices.put({
+      await deltaWriteService.saveFromServer('invoices', {
         id: invoice.id,
         invoice_number: invoice.invoice_number,
         customer_id: invoice.customer_id || null,
@@ -360,7 +364,7 @@ export const createInvoiceFromPosOrder = async (orderId: string): Promise<Invoic
         updated_at: invoice.updated_at
       } as any);
       for (const it of insertItems) {
-        await inventoryDB.invoiceItems.put({
+        await deltaWriteService.saveFromServer('invoice_items', {
           id: it.id,
           invoice_id: invoice.id,
           product_id: it.product_id || null,
@@ -371,8 +375,8 @@ export const createInvoiceFromPosOrder = async (orderId: string): Promise<Invoic
           created_at: new Date().toISOString()
         } as any);
       }
-    } catch {}
-    
+    } catch { }
+
     // Return complete invoice with items
     return {
       id: invoice.id,
@@ -405,16 +409,17 @@ export const createInvoiceFromPosOrder = async (orderId: string): Promise<Invoic
       updatedAt: invoice.updated_at
     };
   } catch (error) {
-    // Offline create: persist invoice and items in SQLite and queue for sync
+    // ⚡ Offline create: persist invoice and items via Delta Sync
     try {
       const order = await getOrderById(orderId) as any;
       const items = await getOrderItems(orderId) as any[];
       if (!order) return null;
       const id = (globalThis.crypto && globalThis.crypto.randomUUID) ? globalThis.crypto.randomUUID() : `${Date.now()}_${Math.random().toString(16).slice(2)}`;
       const now = new Date().toISOString();
-      const invoice_number = `INV-OFF-${now.slice(0,7).replace('-', '')}-${id.slice(-4)}`;
+      const invoice_number = `INV-OFF-${now.slice(0, 7).replace('-', '')}-${id.slice(-4)}`;
       const status: Invoice['status'] = (order?.payment_status === 'paid' ? 'paid' : 'pending');
-      await inventoryDB.invoices.put({
+      // ⚡ Delta Sync - create invoice
+      await deltaWriteService.create('invoices', {
         id,
         invoice_number,
         customer_id: order?.customer_id || null,
@@ -427,11 +432,11 @@ export const createInvoiceFromPosOrder = async (orderId: string): Promise<Invoic
         localCreatedAt: now,
         created_at: now,
         updated_at: now,
-        pendingOperation: 'create'
-      } as any);
+      } as any, order?.organization_id);
       for (const it of (items || [])) {
         const itemId = it.id || `${id}:${Math.random().toString(16).slice(2)}`;
-        await inventoryDB.invoiceItems.put({
+        // ⚡ Delta Sync - create invoice items
+        await deltaWriteService.create('invoice_items', {
           id: itemId,
           invoice_id: id,
           product_id: it.product_id || null,
@@ -440,19 +445,8 @@ export const createInvoiceFromPosOrder = async (orderId: string): Promise<Invoic
           unit_price: Number(it.unit_price) || 0,
           subtotal: Number(it.total_price) || 0,
           created_at: now
-        } as any);
+        } as any, order?.organization_id);
       }
-      await inventoryDB.syncQueue.put({
-        id: id + ':invoice:create',
-        objectType: 'invoice',
-        objectId: id,
-        operation: 'create',
-        data: { orderId },
-        attempts: 0,
-        createdAt: now,
-        updatedAt: now,
-        priority: 2
-      } as any);
       return {
         id,
         invoiceNumber: invoice_number,
@@ -502,13 +496,13 @@ export const createInvoiceFromOnlineOrder = async (orderId: string): Promise<Inv
     if (!order) {
       return null;
     }
-    
+
     // Get order items
     const orderItems = await getOnlineOrderItems(orderId);
-    
+
     // Rest of implementation similar to POS order...
     // This would be implemented fully in the actual code
-    
+
     // For brevity, returning null in this example
     return null;
   } catch (error) {
@@ -524,10 +518,10 @@ export const createInvoiceFromServiceBooking = async (bookingId: string): Promis
     if (!booking) {
       return null;
     }
-    
+
     // Rest of implementation...
     // This would be implemented fully in the actual code
-    
+
     // For brevity, returning null in this example
     return null;
   } catch (error) {
@@ -577,9 +571,9 @@ export const getInvoices = async (organizationId: string): Promise<Invoice[]> =>
         type: item.type as InvoiceItem['type']
       }));
 
-      // Mirror to SQLite
+      // ⚡ Mirror to SQLite via Delta Sync
       try {
-        await inventoryDB.invoices.put({
+        await deltaWriteService.saveFromServer('invoices', {
           id: invoice.id,
           invoice_number: invoice.invoice_number,
           customer_id: invoice.customer_id || null,
@@ -593,7 +587,7 @@ export const getInvoices = async (organizationId: string): Promise<Invoice[]> =>
           updated_at: invoice.updated_at
         } as any);
         for (const it of processedItems) {
-          await inventoryDB.invoiceItems.put({
+          await deltaWriteService.saveFromServer('invoice_items', {
             id: it.id,
             invoice_id: invoice.id,
             product_id: it.productId || null,
@@ -604,7 +598,7 @@ export const getInvoices = async (organizationId: string): Promise<Invoice[]> =>
             created_at: invoice.created_at
           } as any);
         }
-      } catch {}
+      } catch { }
 
       return {
         id: invoice.id,
@@ -635,12 +629,13 @@ export const getInvoices = async (organizationId: string): Promise<Invoice[]> =>
 
     return invoicesWithItems;
   } catch (err) {
-    // Offline: Read from SQLite
+    // ⚡ Offline: Read from SQLite via Delta Sync
     try {
-      const rows = await inventoryDB.invoices.where({ organization_id: organizationId }).toArray();
+      const rows = await deltaWriteService.getAll<LocalInvoice>('invoices', organizationId);
       const result: Invoice[] = [];
       for (const inv of (rows || [])) {
-        const items = await inventoryDB.invoiceItems.where({ invoice_id: inv.id }).toArray();
+        const allItems = await deltaWriteService.getAll<LocalInvoiceItem>('invoice_items', organizationId);
+        const items = allItems.filter(it => it.invoice_id === inv.id);
         result.push({
           id: inv.id,
           invoiceNumber: inv.invoice_number,
@@ -712,9 +707,9 @@ export const getInvoiceById = async (invoiceId: string): Promise<Invoice | null>
       type: item.type as InvoiceItem['type']
     }));
 
-    // Mirror to SQLite
+    // ⚡ Mirror to SQLite via Delta Sync
     try {
-      await inventoryDB.invoices.put({
+      await deltaWriteService.saveFromServer('invoices', {
         id: invoice.id,
         invoice_number: invoice.invoice_number,
         customer_id: invoice.customer_id || null,
@@ -728,7 +723,7 @@ export const getInvoiceById = async (invoiceId: string): Promise<Invoice | null>
         updated_at: invoice.updated_at
       } as any);
       for (const it of processedItems) {
-        await inventoryDB.invoiceItems.put({
+        await deltaWriteService.saveFromServer('invoice_items', {
           id: it.id,
           invoice_id: invoice.id,
           product_id: it.productId || null,
@@ -739,7 +734,7 @@ export const getInvoiceById = async (invoiceId: string): Promise<Invoice | null>
           created_at: invoice.created_at
         } as any);
       }
-    } catch {}
+    } catch { }
 
     return {
       id: invoice.id,
@@ -767,11 +762,12 @@ export const getInvoiceById = async (invoiceId: string): Promise<Invoice | null>
       updatedAt: invoice.updated_at
     };
   } catch (err) {
-    // Offline from SQLite
+    // ⚡ Offline from SQLite via Delta Sync
     try {
-      const inv: any = await inventoryDB.invoices.get(invoiceId);
+      const inv = await deltaWriteService.get<LocalInvoice>('invoices', invoiceId);
       if (!inv) return null;
-      const items = await inventoryDB.invoiceItems.where({ invoice_id: invoiceId }).toArray();
+      const allItems = await deltaWriteService.getAll<LocalInvoiceItem>('invoice_items', inv.organization_id);
+      const items = allItems.filter(it => it.invoice_id === invoiceId);
       return {
         id: inv.id,
         invoiceNumber: inv.invoice_number,
@@ -826,26 +822,16 @@ export const updateInvoice = async (invoiceId: string, data: Partial<Invoice>): 
       .select()
       .single();
     if (error) throw error;
-    // Mirror
+    // ⚡ Mirror via Delta Sync
     try {
-      await inventoryDB.invoices.update(invoiceId, { updated_at: invoice.updated_at, status: (invoice as any).status } as any);
-    } catch {}
+      await deltaWriteService.update('invoices', invoiceId, { updated_at: invoice.updated_at, status: (invoice as any).status });
+    } catch { }
     return getInvoiceById(invoiceId);
   } catch (err: any) {
     const now = new Date().toISOString();
     try {
-      await inventoryDB.invoices.update(invoiceId, { ...data, updated_at: now } as any);
-      await inventoryDB.syncQueue.put({
-        id: invoiceId + ':invoice:update:' + now,
-        objectType: 'invoice',
-        objectId: invoiceId,
-        operation: 'update',
-        data: data as any,
-        attempts: 0,
-        createdAt: now,
-        updatedAt: now,
-        priority: 2
-      } as any);
+      // ⚡ Delta Sync - update with pending operation
+      await deltaWriteService.update('invoices', invoiceId, { ...data, updated_at: now, synced: false, pendingOperation: 'update' });
       return await getInvoiceById(invoiceId);
     } catch {
       return null;
@@ -866,30 +852,23 @@ export const deleteInvoice = async (invoiceId: string): Promise<void> => {
       .delete()
       .eq('id', invoiceId);
     if (error) throw error;
+    // ⚡ cleanup local mirror via Delta Sync
     try {
-      // cleanup local mirror
-      const items = await inventoryDB.invoiceItems.where({ invoice_id: invoiceId }).toArray();
-      for (const it of (items || [])) {
-        await inventoryDB.invoiceItems.delete(it.id);
+      const inv = await deltaWriteService.get<LocalInvoice>('invoices', invoiceId);
+      if (inv) {
+        const allItems = await deltaWriteService.getAll<LocalInvoiceItem>('invoice_items', inv.organization_id);
+        const items = allItems.filter(it => it.invoice_id === invoiceId);
+        for (const it of (items || [])) {
+          await deltaWriteService.delete('invoice_items', it.id);
+        }
       }
-      await inventoryDB.invoices.delete(invoiceId);
-    } catch {}
+      await deltaWriteService.delete('invoices', invoiceId);
+    } catch { }
   } catch (err) {
-    // Offline queue delete
+    // ⚡ Offline queue delete via Delta Sync
     const now = new Date().toISOString();
     try {
-      await inventoryDB.invoices.update(invoiceId, { pendingOperation: 'delete', updated_at: now } as any);
-      await inventoryDB.syncQueue.put({
-        id: invoiceId + ':invoice:delete',
-        objectType: 'invoice',
-        objectId: invoiceId,
-        operation: 'delete',
-        data: {},
-        attempts: 0,
-        createdAt: now,
-        updatedAt: now,
-        priority: 2
-      } as any);
-    } catch {}
+      await deltaWriteService.update('invoices', invoiceId, { pendingOperation: 'delete', updated_at: now, synced: false });
+    } catch { }
   }
 };

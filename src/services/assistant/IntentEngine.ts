@@ -116,6 +116,22 @@ export const IntentEngine = {
       }
     }
 
+    // إضافة دين جديد (استلفى/أخذ كريدي/استدان)
+    if (/(استلف|اخذ|اخد|خذ|سلف|استدان)/.test(text) && /(كريدي|دين|مني|credit)/.test(text)) {
+      const amountMatch = digits.match(/(\d{1,10})\s*(?:دج|dzd|da|dinars|دينار)?/i);
+      const amount = amountMatch ? parseInt(amountMatch[1], 10) : NaN;
+      // استخراج اسم العميل (حذف الكلمات الشائعة)
+      const customerQuery = raw
+        .replace(/(استلف|اخذ|اخد|خذ|سلف|استدان|مني|مبلغ|كريدي|دين|credit|دج|dzd|da|dinars|دينار|لقد)/gi, '')
+        .replace(/\d+/g, '')
+        .trim();
+      return {
+        type: 'add_customer_debt',
+        customerQuery,
+        amount: Number.isFinite(amount) ? amount : 0
+      } as ParsedIntent;
+    }
+
     // كريدي العميل
     if (/(كريدي|دين|مديون)/.test(text) && /(عميل|العميل)/.test(text) && /(كم|ماهو|قداش|قديش|رصيد|متبقي)/.test(text)) {
       const q = raw.replace(/(كم|ماهو|قداش|قديش|رصيد|متبقي|الكريدي|كريدي|دين|مديون|العميل|عميل|لدى|عند)/gi, '').trim();

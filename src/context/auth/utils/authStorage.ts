@@ -21,6 +21,25 @@ import {
   getSecureSessionMeta
 } from './secureSessionStorage';
 
+// استيراد دوال المزامنة لـ Tauri (lazy import لتجنب circular dependencies)
+const syncAuthToTauriSQLite = async (
+  organizationId: string,
+  authUserId: string,
+  userData: { email?: string; name?: string; role?: string; user_metadata?: any; app_metadata?: any }
+) => {
+  try {
+    const { syncAuthDataToSQLite, isTauriEnvironment } = await import('@/lib/sync/TauriSyncService');
+    if (isTauriEnvironment()) {
+      await syncAuthDataToSQLite(organizationId, authUserId, userData);
+    }
+  } catch (error) {
+    // تجاهل الأخطاء - المزامنة اختيارية
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('[AuthStorage] Tauri SQLite sync skipped:', error);
+    }
+  }
+};
+
 const OFFLINE_SNAPSHOT_KEY = 'bazaar_offline_auth_snapshot_v1';
 
 export interface OfflineAuthSnapshot {
@@ -40,22 +59,22 @@ export const saveOfflineAuthSnapshot = (session: Session | null, user: SupabaseU
     const snapshot: OfflineAuthSnapshot = {
       user: user
         ? {
-            id: user.id,
-            email: user.email,
-            user_metadata: user.user_metadata,
-            app_metadata: user.app_metadata,
-            role: user.role,
-            aud: user.aud,
-            phone: (user as any).phone ?? null,
-            created_at: user.created_at,
-            updated_at: user.updated_at
-          }
+          id: user.id,
+          email: user.email,
+          user_metadata: user.user_metadata,
+          app_metadata: user.app_metadata,
+          role: user.role,
+          aud: user.aud,
+          phone: (user as any).phone ?? null,
+          created_at: user.created_at,
+          updated_at: user.updated_at
+        }
         : null,
       sessionMeta: session
         ? {
-            expiresAt: session.expires_at ?? null,
-            storedAt: Date.now()
-          }
+          expiresAt: session.expires_at ?? null,
+          storedAt: Date.now()
+        }
         : null,
       organizationId: localStorage.getItem('bazaar_organization_id'),
       lastUpdatedAt: Date.now()
@@ -63,13 +82,18 @@ export const saveOfflineAuthSnapshot = (session: Session | null, user: SupabaseU
 
     localStorage.setItem(OFFLINE_SNAPSHOT_KEY, JSON.stringify(snapshot));
 
+    // Also save a secure marker for offline login validation
+    if (user.email) {
+      localStorage.setItem('bazaar_offline_login_email', user.email);
+    }
+
     if (process.env.NODE_ENV === 'development') {
       try {
         console.log('[AuthStorage] saved offline snapshot', {
           hasUser: Boolean(snapshot.user),
           organizationId: snapshot.organizationId
         });
-      } catch {}
+      } catch { }
     }
   } catch (error) {
     if (process.env.NODE_ENV === 'development') {
@@ -93,7 +117,7 @@ export const loadOfflineAuthSnapshot = (): OfflineAuthSnapshot | null => {
           hasSessionMeta: Boolean(parsed?.sessionMeta),
           organizationId: parsed?.organizationId
         });
-      } catch {}
+      } catch { }
     }
 
     return parsed;
@@ -135,12 +159,37 @@ export const saveAuthToStorage = (session: Session | null, user: SupabaseUser | 
     }
 
     if (session && user) {
+      // 🔒 مسح علامة explicit logout عند حفظ session ناجح
+      try {
+        localStorage.removeItem('bazaar_explicit_logout');
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[AuthStorage] ✅ تم مسح علامة explicit logout');
+        }
+      } catch (error) {
+        // تجاهل الأخطاء
+      }
+
       void saveSecureSession(session).catch((error) => {
         if (process.env.NODE_ENV === 'development') {
           console.error('[AuthStorage] فشل حفظ جلسة الأوفلاين الآمنة:', error);
         }
       });
       saveOfflineAuthSnapshot(session, user);
+
+      // 🔄 مزامنة بيانات المصادقة إلى SQLite في Tauri
+      const orgId = localStorage.getItem('bazaar_organization_id') || localStorage.getItem('currentOrganizationId') || '';
+      if (orgId && user.id) {
+        // حفظ user_id لاستخدامه لاحقاً في المزامنة
+        localStorage.setItem('auth_user_id', user.id);
+
+        void syncAuthToTauriSQLite(orgId, user.id, {
+          email: user.email,
+          name: (user.user_metadata as any)?.name || user.email,
+          role: (user.user_metadata as any)?.role || 'authenticated',
+          user_metadata: user.user_metadata,
+          app_metadata: user.app_metadata
+        }).catch(() => undefined);
+      }
     } else {
       void clearSecureSession().catch(() => undefined);
     }
@@ -151,15 +200,15 @@ export const saveAuthToStorage = (session: Session | null, user: SupabaseUser | 
       hasSecureSession: Boolean(session && user),
       sessionMeta: session && user
         ? {
-            userId: session.user?.id ?? user.id ?? null,
-            expiresAt: session.expires_at ?? null,
-            storedAt: Date.now()
-          }
+          userId: session.user?.id ?? user.id ?? null,
+          expiresAt: session.expires_at ?? null,
+          storedAt: Date.now()
+        }
         : null
     };
 
     const serialized = JSON.stringify(authData);
-    
+
     // حفظ متزامن لضمان توفر البيانات حتى مع إعادة التحميل الفوري
     localStorage.setItem(STORAGE_KEYS.AUTH_STATE, serialized);
 
@@ -196,7 +245,7 @@ export const loadAuthFromStorage = (): StoredAuthData => {
             hasSecureFlag: parsed?.hasSecureSession,
             sessionMeta: parsed?.sessionMeta
           });
-        } catch {}
+        } catch { }
       }
 
       if (parsed?.session && !hasStoredSecureSession()) {
@@ -215,7 +264,7 @@ export const loadAuthFromStorage = (): StoredAuthData => {
       console.error('[AuthStorage] loadAuthFromStorage error', error);
     }
   }
-  
+
   return {
     session: null,
     user: null,
@@ -233,15 +282,15 @@ export const clearAuthStorage = (): void => {
     localStorage.removeItem(STORAGE_KEYS.AUTH_STATE);
     localStorage.removeItem(STORAGE_KEYS.AUTH_USER);
     localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
-    
+
     // مسح بيانات الجلسة
     sessionStorage.removeItem(STORAGE_KEYS.SESSION_CACHE);
     sessionStorage.removeItem(STORAGE_KEYS.LAST_LOGIN_REDIRECT);
     sessionStorage.removeItem(STORAGE_KEYS.LOGIN_REDIRECT_COUNT);
-    
+
     // مسح بيانات الأوفلاين السابقة
     localStorage.removeItem(OFFLINE_SNAPSHOT_KEY);
-    
+
     if (process.env.NODE_ENV === 'development') {
     }
   } catch (error) {
@@ -261,30 +310,30 @@ export const clearAuthStorageKeepOfflineCredentials = (): void => {
     localStorage.removeItem(STORAGE_KEYS.AUTH_STATE);
     localStorage.removeItem(STORAGE_KEYS.AUTH_USER);
     localStorage.removeItem(STORAGE_KEYS.AUTH_SESSION);
-    
+
     // مسح بيانات الجلسة
     sessionStorage.removeItem(STORAGE_KEYS.SESSION_CACHE);
     sessionStorage.removeItem(STORAGE_KEYS.LAST_LOGIN_REDIRECT);
     sessionStorage.removeItem(STORAGE_KEYS.LOGIN_REDIRECT_COUNT);
-    
+
     // الاحتفاظ ببيانات الأوفلاين السابقة - لا نمسحها!
     // localStorage.removeItem(OFFLINE_SNAPSHOT_KEY); // تعليق هذا السطر
     // تأكد من عدم مسح بيانات الأوفلاين السابقة
-    
+
     // الاحتفاظ ببيانات تسجيل الدخول الأوفلاين (OFFLINE_CREDENTIALS_KEY)
     // هذه البيانات تُحفظ في LoginForm.tsx ولا نمسحها هنا
-    
+
     // 🚨 إصلاح مهم: الاحتفاظ بجميع بيانات الأوفلاين
     // لا نمسح أي من البيانات التالية:
     // - OFFLINE_SNAPSHOT_KEY (بيانات المستخدم المحفوظة للأوفلاين)
     // - OFFLINE_CREDENTIALS_KEY (بيانات تسجيل الدخول المحفوظة)
     // - secure_offline_session_v1 (الجلسة الآمنة للأوفلاين)
     // - secure_offline_session_meta_v1 (معلومات الجلسة الآمنة)
-    
+
     if (process.env.NODE_ENV === 'development') {
       try {
         console.log('[AuthStorage] cleared auth data but kept offline credentials and snapshot');
-      } catch {}
+      } catch { }
     }
   } catch (error) {
     if (process.env.NODE_ENV === 'development') {
@@ -300,14 +349,14 @@ export const clearAuthStorageKeepOfflineCredentials = (): void => {
  * حفظ بيانات المستخدم
  */
 export const saveUserDataToStorage = (
-  userProfile: UserProfile | null, 
+  userProfile: UserProfile | null,
   organization: Organization | null,
   organizationId?: string | null
 ): void => {
   try {
     if (userProfile) {
       localStorage.setItem(STORAGE_KEYS.USER_PROFILE_PREFIX.replace('_', ''), JSON.stringify(userProfile));
-      
+
       // حفظ في cache مع timestamp
       const cacheKey = `${STORAGE_KEYS.USER_DATA_CACHE}${userProfile.id}`;
       const cacheData = {
@@ -316,10 +365,10 @@ export const saveUserDataToStorage = (
       };
       localStorage.setItem(cacheKey, JSON.stringify(cacheData));
     }
-    
+
     if (organization) {
       localStorage.setItem(STORAGE_KEYS.ORGANIZATION_PREFIX.replace('_', ''), JSON.stringify(organization));
-      
+
       // حفظ في cache مع timestamp
       const orgCacheKey = `${STORAGE_KEYS.ORGANIZATION_CACHE}${organization.id}`;
       const orgCacheData = {
@@ -328,11 +377,11 @@ export const saveUserDataToStorage = (
       };
       localStorage.setItem(orgCacheKey, JSON.stringify(orgCacheData));
     }
-    
+
     if (organizationId) {
       localStorage.setItem('bazaar_organization_id', organizationId);
     }
-    
+
     if (process.env.NODE_ENV === 'development') {
     }
   } catch (error) {
@@ -348,10 +397,10 @@ export const loadUserDataFromStorage = (): StoredUserData => {
   try {
     const userProfileStored = localStorage.getItem(STORAGE_KEYS.USER_PROFILE_PREFIX.replace('_', ''));
     const organizationStored = localStorage.getItem(STORAGE_KEYS.ORGANIZATION_PREFIX.replace('_', ''));
-    
+
     const userProfile = userProfileStored ? JSON.parse(userProfileStored) : null;
     const organization = organizationStored ? JSON.parse(organizationStored) : null;
-    
+
     return { userProfile, organization };
   } catch (error) {
     if (process.env.NODE_ENV === 'development') {
@@ -384,7 +433,7 @@ export const loadSessionCache = (): SupabaseUser | null => {
     if (cached) {
       const parsed: SessionCacheItem = JSON.parse(cached);
       const now = Date.now();
-      
+
       if ((now - parsed.timestamp) < AUTH_TIMEOUTS.SESSION_CACHE_DURATION) {
         return parsed.user;
       }
@@ -392,7 +441,7 @@ export const loadSessionCache = (): SupabaseUser | null => {
   } catch (error) {
     // تجاهل أخطاء sessionStorage
   }
-  
+
   return null;
 };
 
@@ -404,10 +453,10 @@ export const saveUserCache = (user: SupabaseUser | null): UserCacheItem => {
     user,
     timestamp: Date.now()
   };
-  
+
   // حفظ في sessionStorage أيضاً
   saveSessionCache(user);
-  
+
   return cacheData;
 };
 
@@ -416,7 +465,7 @@ export const saveUserCache = (user: SupabaseUser | null): UserCacheItem => {
  */
 export const isValidUserCache = (cache: UserCacheItem | null): boolean => {
   if (!cache) return false;
-  
+
   const now = Date.now();
   return (now - cache.timestamp) < AUTH_TIMEOUTS.USER_CACHE_DURATION;
 };
@@ -426,16 +475,16 @@ export const isValidUserCache = (cache: UserCacheItem | null): boolean => {
  */
 export const validateStoredData = (data: any): boolean => {
   if (!data || typeof data !== 'object') return false;
-  
+
   // التحقق من وجود الحقول الأساسية
   if (data.session && (!data.session.access_token || !data.session.user)) {
     return false;
   }
-  
+
   if (data.user && !data.user.id) {
     return false;
   }
-  
+
   return true;
 };
 
@@ -446,7 +495,7 @@ export const cleanExpiredCache = (): void => {
   try {
     const now = Date.now();
     const keysToRemove: string[] = [];
-    
+
     // فحص localStorage
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
@@ -468,10 +517,10 @@ export const cleanExpiredCache = (): void => {
         }
       }
     }
-    
+
     // حذف المفاتيح منتهية الصلاحية
     keysToRemove.forEach(key => localStorage.removeItem(key));
-    
+
     if (process.env.NODE_ENV === 'development' && keysToRemove.length > 0) {
     }
   } catch (error) {
@@ -488,13 +537,13 @@ export const getStorageStats = () => {
     let authDataSize = 0;
     let userDataSize = 0;
     let cacheSize = 0;
-    
+
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
       if (key) {
         const value = localStorage.getItem(key) || '';
         const size = value.length;
-        
+
         if (key.startsWith('bazaar_auth') || key.startsWith('auth_')) {
           authDataSize += size;
         } else if (key.startsWith('user_') || key.startsWith('current_user')) {
@@ -504,7 +553,7 @@ export const getStorageStats = () => {
         }
       }
     }
-    
+
     return {
       authDataSize,
       userDataSize,

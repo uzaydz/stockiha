@@ -15,6 +15,10 @@
 // مدة القفل الافتراضية (30 ثانية)
 const DEFAULT_LOCK_TIMEOUT = 30000;
 
+// مدة انتهاء صلاحية الـ Heartbeat (15 ثانية)
+// إذا لم يتم تحديث القفل لمدة 15 ثانية، نعتبره ميتاً ونقوم بإزالته
+const HEARTBEAT_EXPIRATION = 15000;
+
 // معدل Heartbeat (كل 5 ثوان)
 const HEARTBEAT_INTERVAL = 5000;
 
@@ -107,12 +111,16 @@ class SyncLockManager {
       const now = Date.now();
       const elapsed = now - lockData.lastHeartbeat;
 
-      // إذا مضى أكثر من timeout بدون heartbeat، القفل منتهي
-      if (elapsed > lockData.timeout) {
+      // إذا مضى أكثر من HEARTBEAT_EXPIRATION بدون heartbeat، القفل منتهي
+      // نستخدم الثابت بدلاً من lockData.timeout لأن timeout قد يكون طويلاً جداً للعملية
+      if (elapsed > HEARTBEAT_EXPIRATION) {
         console.log(`[SyncLock] ⏱️ Lock expired for ${resource} (${elapsed}ms since last heartbeat)`);
         this.forceReleaseLock(resource);
         return null;
       }
+
+      // التحقق من المدة الكلية للقفل (اختياري - لمنع المهام الطويلة جداً)
+      // if (now - lockData.startTime > lockData.timeout) { ... }
 
       return lockData;
     } catch (error) {
@@ -270,12 +278,12 @@ class SyncLockManager {
         console.log(`[SyncLock] ⚠️ Race condition detected for ${resource}, retrying...`);
       } else {
         // القفل موجود، انتظر وحاول مرة أخرى
-        const elapsed = Date.now() - existingLock.startTime;
-        const remaining = timeout - elapsed;
-
+        const heldDuration = Date.now() - existingLock.startTime;
+        const timeSinceHeartbeat = Date.now() - existingLock.lastHeartbeat;
+        
         console.log(
-          `[SyncLock] ⏳ Lock held by tab ${existingLock.tabId} for ${resource} ` +
-          `(${attempt}/${maxAttempts}, ${Math.ceil(remaining / 1000)}s remaining)`
+          `[SyncLock] ⏳ Lock held by ${existingLock.tabId} for ${resource} ` +
+          `(${attempt}/${maxAttempts}, held: ${Math.floor(heldDuration/1000)}s, heartbeat: ${Math.floor(timeSinceHeartbeat/1000)}s ago)`
         );
       }
 

@@ -29,6 +29,7 @@ const ALLOWED_CHANNELS = {
   'window-hide': true,
   'window-show': true,
   'window-fullscreen': true,
+  'window-toggle-devtools': true,
 
   // Dialog
   'show-message-box': true,
@@ -65,6 +66,8 @@ const ALLOWED_CHANNELS = {
   'db:backup': true,
   'db:restore': true,
   'db:close': true,
+  'db:log-conflict': true,
+  'db:get-conflict-history': true,
 
   // License / Secure Clock
   'license:set-anchor': true,
@@ -171,6 +174,7 @@ const electronAPI = {
     hide: () => ipcRenderer.invoke('window-hide'),
     show: () => ipcRenderer.invoke('window-show'),
     fullscreen: (enable) => ipcRenderer.invoke('window-fullscreen', Boolean(enable)),
+    toggleDevTools: () => ipcRenderer.invoke('window-toggle-devtools'),
   },
 
   // ========================================================================
@@ -468,6 +472,23 @@ const electronAPI = {
         throw new Error('Table name must be a non-empty string');
       }
       return ipcRenderer.invoke('db:get-table-data', tableName, options || {});
+    },
+
+    logConflict: (conflictEntry) => {
+      if (!conflictEntry || typeof conflictEntry !== 'object') {
+        throw new Error('Conflict entry must be an object');
+      }
+      return ipcRenderer.invoke('db:log-conflict', conflictEntry);
+    },
+
+    getConflictHistory: (entityType, entityId) => {
+      if (!entityType || typeof entityType !== 'string') {
+        throw new Error('Entity type must be a non-empty string');
+      }
+      if (!entityId || typeof entityId !== 'string') {
+        throw new Error('Entity ID must be a non-empty string');
+      }
+      return ipcRenderer.invoke('db:get-conflict-history', entityType, entityId);
     },
   },
 

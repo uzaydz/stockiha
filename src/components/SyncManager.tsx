@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-// استخدام SmartSyncEngine الجديد - Event-Driven Sync
+// ⚡ استخدام DeltaSyncEngine الموحد - المحرك الرئيسي للمزامنة
 import { initializePOSOfflineSync } from '@/context/shop/posOrderService';
-import { smartSyncEngine } from '@/lib/sync/SmartSyncEngine';
+import { deltaSyncEngine, outboxManager } from '@/lib/sync/delta';
 import { syncTracker } from '@/lib/sync/SyncTracker';
-import { inventoryDB } from '@/database/localDb';
+import { deltaWriteService } from '@/services/DeltaWriteService';
+import { syncWorkSessionsFromServer } from '@/api/comprehensiveSyncService';
+import type { LocalProduct, LocalPOSOrder, LocalCustomer } from '@/database/localDb';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { useOrganization } from '@/hooks/useOrganization';
 import { toast } from 'sonner';
@@ -75,32 +77,32 @@ const SyncManager: React.FC<SyncManagerProps> = ({
     }
 
     try {
+      // ⚡ استخدام Delta Sync
       const [
-        queueCount,
-        totalProducts,
-        totalOrders,
-        totalCustomers,
-        unsyncedProducts,
-        unsyncedOrders,
-        unsyncedCustomers
+        allProducts,
+        allOrders,
+        allCustomers
       ] = await Promise.all([
-        inventoryDB.syncQueue.count(),
-        inventoryDB.products.count(),
-        inventoryDB.posOrders.count(),
-        inventoryDB.customers.count(),
-        inventoryDB.products.filter((product) => product.synced === false).count(),
-        // الطلبيات تستخدم status بدلاً من synced
-        inventoryDB.posOrders.filter((order) => 
-          order.status === 'pending_sync' || 
-          order.status === 'syncing' || 
-          order.status === 'failed' ||
-          order.synced === false
-        ).count(),
-        inventoryDB.customers.filter((customer) => customer.synced === false).count()
+        deltaWriteService.getAll<LocalProduct>('products', organization.id),
+        deltaWriteService.getAll<LocalPOSOrder>('pos_orders', organization.id),
+        deltaWriteService.getAll<LocalCustomer>('customers', organization.id)
       ]);
 
+      const totalProducts = allProducts.length;
+      const totalOrders = allOrders.length;
+      const totalCustomers = allCustomers.length;
+      const unsyncedProducts = allProducts.filter((product: any) => product.synced === false).length;
+      // الطلبيات تستخدم status بدلاً من synced
+      const unsyncedOrders = allOrders.filter((order: any) =>
+        order.status === 'pending_sync' ||
+        order.status === 'syncing' ||
+        order.status === 'failed' ||
+        order.synced === false
+      ).length;
+      const unsyncedCustomers = allCustomers.filter((customer: any) => customer.synced === false).length;
+
       return {
-        queueItems: queueCount,
+        queueItems: 0, // ⚡ Delta Sync لا يستخدم queue
         products: { unsynced: unsyncedProducts, total: totalProducts },
         orders: { unsynced: unsyncedOrders, total: totalOrders },
         customers: { unsynced: unsyncedCustomers, total: totalCustomers }
@@ -151,13 +153,26 @@ const SyncManager: React.FC<SyncManagerProps> = ({
       initializePOSOfflineSync();
 
       try {
-        // 🚀 استخدام Smart Sync Engine الجديد
-        await smartSyncEngine.syncNow(true);
+        // ⚡ مزامنة جلسات العمل من السيرفر أولاً
+        console.log('[SyncManager] 🔄 بدء مزامنة جلسات العمل...');
+        try {
+          await syncWorkSessionsFromServer(organization.id);
+        } catch (error) {
+          console.error('[SyncManager] ⚠️ فشل مزامنة جلسات العمل:', error);
+        }
+
+        // 🚀 استخدام DeltaSyncEngine الموحد
+        const status = await deltaSyncEngine.getStatus();
+        if (status.isInitialized) {
+          await deltaSyncEngine.fullSync();
+        } else {
+          console.warn('[SyncManager] DeltaSyncEngine not initialized yet');
+        }
 
         const now = Date.now();
         setLastSyncAt(now);
 
-        const pendingCount = syncTracker.getPendingCount();
+        const pendingCount = status.pendingOutboxCount || syncTracker.getPendingCount();
 
         if (origin === 'manual' || origin === 'network') {
           if (pendingCount === 0) {
@@ -196,17 +211,12 @@ const SyncManager: React.FC<SyncManagerProps> = ({
       return;
     }
 
-    // ✅ SmartSyncEngine يدير المزامنة تلقائياً (Event-Driven + Fallback)
-    // لم نعد بحاجة لـ periodic sync هنا
-    
-    // التأكد من أن SmartSyncEngine يعمل
-    if (!smartSyncEngine.getStatus().isRunning) {
-      smartSyncEngine.start();
-    }
+    // ✅ DeltaSyncEngine يدير المزامنة تلقائياً
+    // التهيئة تتم في AuthContext عند تسجيل الدخول
+    // لا نحتاج لبدء شيء هنا - المحرك يعمل بالفعل
 
     return () => {
-      // لا نوقف Engine عند unmount - قد يُستخدم في أماكن أخرى
-      // smartSyncEngine.stop();
+      // لا نوقف Engine عند unmount - يديره AuthContext
     };
   }, [autoSync, forceDisable]);
 
@@ -216,20 +226,21 @@ const SyncManager: React.FC<SyncManagerProps> = ({
 
   // 📢 الاستماع لتغييرات SyncTracker
   useEffect(() => {
-    const unsubscribe = syncTracker.onChange((hasPending) => {
+    const unsubscribe = syncTracker.onChange(async (hasPending) => {
       // تحديث snapshot عند تغيير حالة العناصر المعلقة
       void updateSnapshot();
-      
-      // تحديث حالة المزامنة
-      const status = smartSyncEngine.getStatus();
-      if (status.isSyncing !== isSyncing) {
-        setIsSyncing(status.isSyncing);
-        notifySyncState(status.isSyncing);
+
+      // تحديث حالة المزامنة من DeltaSyncEngine
+      try {
+        const status = await deltaSyncEngine.getStatus();
+        // لا نحتاج لتتبع isSyncing من DeltaSyncEngine لأنه يعمل في الخلفية
+      } catch {
+        // تجاهل الأخطاء
       }
     });
 
     return unsubscribe;
-  }, [updateSnapshot, isSyncing, notifySyncState]);
+  }, [updateSnapshot]);
 
   useEffect(() => {
     if (forceDisable) {

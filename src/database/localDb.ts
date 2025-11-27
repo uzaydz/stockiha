@@ -11,21 +11,81 @@ import type { POSOrderSyncStatus } from '@/types/posOrder';
 // التعريفات والأنواع (بدون تغيير)
 // ========================================
 
-// نموذج المنتج الموسع بإضافة حالة المزامنة
+// نموذج المنتج الموسع بإضافة حالة المزامنة - شامل جميع الأعمدة
 export interface LocalProduct extends Product {
+  // ⚡ حقول المزامنة
   synced: boolean;
   syncStatus?: 'pending' | 'error';
   lastSyncAttempt?: string;
   localUpdatedAt: string;
   pendingOperation?: 'create' | 'update' | 'delete';
   conflictResolution?: 'local' | 'remote' | 'merge';
+  
+  // ⚡ حقول البحث المحلية
   name_lower?: string;
-  sku_lower?: string;
-  barcode_lower?: string;
   name_search?: string;
+  name_normalized?: string;
+  sku_lower?: string;
   sku_search?: string;
+  barcode_lower?: string;
   barcode_digits?: string;
+  
+  // ⚡ الفئات
   category_id?: string | null;
+  subcategory_id?: string | null;
+  brand?: string | null;
+  
+  // ⚡ الأسعار (قد تكون موجودة في Product أيضاً)
+  purchase_price?: number | null;
+  compare_at_price?: number | null;
+  wholesale_price?: number | null;
+  partial_wholesale_price?: number | null;
+  unit_purchase_price?: number | null;
+  unit_sale_price?: number | null;
+  
+  // ⚡ المخزون
+  min_stock_level?: number | null;
+  min_wholesale_quantity?: number | null;
+  min_partial_wholesale_quantity?: number | null;
+  reorder_level?: number | null;
+  reorder_quantity?: number | null;
+  
+  // ⚡ الحالات
+  is_digital?: boolean;
+  is_featured?: boolean;
+  is_new?: boolean;
+  is_sold_by_unit?: boolean;
+  has_variants?: boolean;
+  show_price_on_landing?: boolean;
+  use_sizes?: boolean;
+  use_variant_prices?: boolean;
+  use_shipping_clone?: boolean;
+  
+  // ⚡ إعدادات البيع
+  allow_retail?: boolean;
+  allow_wholesale?: boolean;
+  allow_partial_wholesale?: boolean;
+  unit_type?: string | null;
+  
+  // ⚡ الصور المحلية
+  thumbnail_base64?: string | null;
+  images_base64?: string | null;
+  
+  // ⚡ الشحن والضمانات
+  has_fast_shipping?: boolean;
+  has_money_back?: boolean;
+  has_quality_guarantee?: boolean;
+  fast_shipping_text?: string | null;
+  money_back_text?: string | null;
+  quality_guarantee_text?: string | null;
+  shipping_clone_id?: number | null;
+  shipping_method_type?: string | null;
+  shipping_provider_id?: number | null;
+  
+  // ⚡ إعدادات متقدمة
+  purchase_page_config?: any | null;
+  form_template_id?: string | null;
+  last_inventory_update?: string | null;
 }
 
 // نموذج عنصر قائمة المزامنة
@@ -233,22 +293,77 @@ export interface LocalCustomerDebt {
   updated_at: string;
 }
 
+// تعريف واجهة سجل مدفوعات ديون العملاء
+export interface LocalCustomerDebtPayment {
+  id: string;
+  organization_id: string;
+  customer_id: string;
+  amount: number;
+  method?: string | null;
+  note?: string | null;
+  created_at: string;
+  applied_by?: string | null;
+  // حالة المزامنة
+  synced: boolean;
+  pendingOperation?: 'create' | 'update' | 'delete';
+}
+
 // تعريف واجهة طلبات الإصلاح
 export interface LocalRepairOrder {
   id: string;
-  repair_number: string;
+  order_number: string;
   customer_id?: string;
   customer_name?: string;
-  device_type?: string;
-  issue_description?: string;
-  status: 'pending' | 'in_progress' | 'completed' | 'cancelled';
-  total_cost: number;
+  customer_phone?: string;
+  customer_name_lower?: string; // حقل محلي للبحث فقط
+  device_type?: string | null;
+  device_type_lower?: string; // حقل محلي للبحث فقط
+  repair_location_id?: string | null;
+  custom_location?: string | null;
+  issue_description?: string | null;
+  status: string;
+  total_price?: number | null;
+  paid_amount?: number;
+  price_to_be_determined_later?: boolean;
+  payment_method?: string | null;
+  notes?: string | null;
+  received_by?: string | null;
+  repair_tracking_code?: string | null;
   organization_id: string;
   synced: boolean;
   syncStatus?: string;
-  localCreatedAt: string;
+  pendingOperation?: 'create' | 'update' | 'delete';
+  localCreatedAt?: string;
   created_at: string;
   updated_at: string;
+}
+
+// تعريف واجهة سجل حالة الإصلاح
+export interface LocalRepairStatusHistory {
+  id: string;
+  repair_order_id: string;
+  status: string;
+  created_by: string;
+  created_at: string;
+  notes?: string | null;
+  synced: boolean;
+  pendingOperation?: 'create' | 'update' | 'delete';
+}
+
+// تعريف واجهة موقع الإصلاح (الورشة)
+export interface LocalRepairLocation {
+  id: string;
+  name: string;
+  description?: string | null;
+  address?: string | null;
+  phone?: string | null;
+  is_default: boolean;
+  organization_id: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  synced: boolean;
+  pendingOperation?: 'create' | 'update' | 'delete';
 }
 
 // تعريف واجهة صور الإصلاح
@@ -256,6 +371,7 @@ export interface LocalRepairImage {
   id: string;
   repair_id: string;
   image_data: string;
+  image_url?: string;
   image_type: string;
   file_size: number;
   is_thumbnail: boolean;
@@ -263,6 +379,8 @@ export interface LocalRepairImage {
   uploaded_to_server: boolean;
   server_url?: string;
   created_at: string;
+  notes?: string | null;
+  pendingOperation?: 'create' | 'update' | 'delete';
 }
 
 // تعريف واجهة PINs الموظفين
@@ -284,44 +402,44 @@ export interface LocalWorkSession {
   staff_id: string;
   staff_name?: string;
   organization_id: string;
-  
+
   // معلومات النقد
   opening_cash: number;
   closing_cash?: number;
   expected_cash?: number;
   cash_difference?: number;
-  
+
   // إحصائيات المبيعات
   total_sales: number;
   total_orders: number;
   cash_sales: number;
   card_sales: number;
-  
+
   // التواريخ والأوقات
   started_at: string;
   ended_at?: string;
   paused_at?: string;
   resumed_at?: string;
-  
+
   // معلومات الإيقاف المؤقت
   pause_count?: number;
   total_pause_duration?: number; // بالثواني
-  
+
   // الحالة
   status: 'active' | 'paused' | 'closed';
-  
+
   // ملاحظات
   opening_notes?: string;
   closing_notes?: string;
-  
+
   // حقول المزامنة
   synced: boolean;
   syncStatus?: 'pending' | 'syncing' | 'error';
   pendingOperation?: 'create' | 'update' | 'delete';
-  
+
   created_at: string;
   updated_at: string;
-  
+
   // Legacy fields for backward compatibility
   opening_balance?: number;
   closing_balance?: number;
@@ -405,17 +523,34 @@ export interface LocalProductReturn {
   return_number: string;
   return_number_lower?: string;
   remote_return_id?: string | null;
+  original_order_id?: string | null;
+  original_order_number?: string | null;
   customer_name?: string | null;
   customer_name_lower?: string | null;
   customer_id?: string | null;
-  return_type: 'refund' | 'exchange' | 'store_credit';
+  customer_phone?: string | null;
+  customer_email?: string | null;
+  return_type: string; // 'refund' | 'exchange' | 'store_credit' | etc.
   return_reason: string;
-  total_amount: number;
-  refund_amount: number;
-  status: 'pending' | 'approved' | 'rejected' | 'processed';
+  return_reason_description?: string | null;
+  original_total?: number;
+  return_amount: number; // This seems to be the total value of returned items
+  refund_amount: number; // This is the amount to be refunded
+  restocking_fee?: number;
+  status: 'pending' | 'approved' | 'rejected' | 'processed' | 'syncing' | 'error';
+  refund_method?: string | null;
+  requires_manager_approval?: boolean;
+  created_by?: string | null;
+  approved_by?: string | null;
+  approved_at?: string | null;
+  approval_notes?: string | null;
+  rejection_reason?: string | null;
+  rejected_by?: string | null;
+  rejected_at?: string | null;
   processed_by?: string | null;
   processed_at?: string | null;
   notes?: string | null;
+  internal_notes?: string | null;
   organization_id: string;
   created_at: string;
   updated_at: string;
@@ -430,11 +565,17 @@ export interface LocalReturnItem {
   product_id: string;
   product_name: string;
   product_sku?: string | null;
-  quantity: number;
-  unit_price: number;
-  refund_amount: number;
-  condition: string;
-  restocked: boolean;
+  quantity: number; // This maps to return_quantity
+  return_quantity?: number; // Alias for quantity
+  unit_price: number; // This maps to return_unit_price
+  return_unit_price?: number; // Alias for unit_price
+  refund_amount: number; // This maps to total_return_amount
+  total_return_amount?: number; // Alias for refund_amount
+  condition: string; // This maps to condition_status
+  condition_status?: string; // Alias for condition
+  restocked: boolean; // This maps to resellable
+  resellable?: boolean; // Alias for restocked
+  inventory_returned?: boolean;
   color_id?: string | null;
   color_name?: string | null;
   size_id?: string | null;
@@ -443,12 +584,136 @@ export interface LocalReturnItem {
   synced: boolean;
 }
 
+// تعريف واجهة الاشتراك المحلي
+export interface LocalSubscription {
+  id: string;
+  organization_id: string;
+  plan_id: string;
+  status: 'active' | 'expired' | 'cancelled' | 'trial';
+  start_date: string;
+  end_date: string;
+  trial_end_date?: string;
+  features: string[]; // JSON array of enabled features
+  last_check: string;
+  synced: boolean;
+}
+
+// تعريف واجهة الصور المخبأة محلياً
+export interface LocalImage {
+  id: string;
+  url: string; // Remote URL
+  local_path: string; // Local file path
+  entity_type: 'product' | 'category' | 'user' | 'organization';
+  entity_id: string;
+  file_size: number;
+  mime_type: string;
+  created_at: string;
+  last_accessed: string;
+}
+
+// ========================================
+// تعريفات تحميلات الألعاب (Game Downloads)
+// ========================================
+
+// تعريف واجهة تصنيف الألعاب المحلي
+export interface LocalGameCategory {
+  id: string;
+  organization_id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  icon?: string;
+  parent_id?: string;
+  display_order: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  synced: boolean;
+  syncStatus?: 'pending' | 'syncing' | 'error';
+  pendingOperation?: 'create' | 'update' | 'delete';
+}
+
+// تعريف واجهة اللعبة المحلية
+export interface LocalGame {
+  id: string;
+  organization_id: string;
+  name: string;
+  slug: string;
+  description?: string;
+  category_id?: string;
+  platform: string;
+  size_gb?: number;
+  requirements?: Record<string, any>; // Stored as JSON string in SQLite
+  images?: string[]; // Stored as JSON string in SQLite
+  price: number;
+  is_featured: boolean;
+  is_active: boolean;
+  download_count: number;
+  created_at: string;
+  updated_at: string;
+  synced: boolean;
+  syncStatus?: 'pending' | 'syncing' | 'error';
+  pendingOperation?: 'create' | 'update' | 'delete';
+}
+
+// تعريف واجهة طلب تحميل اللعبة المحلي
+export interface LocalGameOrder {
+  id: string;
+  organization_id: string;
+  tracking_number: string;
+  customer_name: string;
+  customer_phone: string;
+  customer_email?: string;
+  game_id: string;
+  device_type?: string;
+  device_specs?: string;
+  notes?: string;
+  status: string;
+  status_history: any[]; // Stored as JSON string
+  assigned_to?: string;
+  processing_started_at?: string;
+  completed_at?: string;
+  cancelled_at?: string;
+  cancellation_reason?: string;
+  price: number;
+  payment_status: string;
+  payment_method?: string;
+  amount_paid: number;
+  created_at: string;
+  updated_at: string;
+  synced: boolean;
+  syncStatus?: 'pending' | 'syncing' | 'error';
+  pendingOperation?: 'create' | 'update' | 'delete';
+}
+
+// تعريف واجهة إعدادات تحميل الألعاب المحلية
+export interface LocalGameDownloadsSettings {
+  id: string;
+  organization_id: string;
+  business_name?: string;
+  business_logo?: string;
+  welcome_message?: string;
+  terms_conditions?: string;
+  contact_info?: Record<string, any>; // JSON
+  social_links?: Record<string, any>; // JSON
+  order_prefix?: string;
+  auto_assign_orders?: boolean;
+  notification_settings?: Record<string, any>; // JSON
+  working_hours?: Record<string, any>; // JSON
+  is_active?: boolean;
+  created_at: string;
+  updated_at: string;
+  synced: boolean;
+  syncStatus?: 'pending' | 'syncing' | 'error';
+  pendingOperation?: 'create' | 'update' | 'delete';
+}
+
 // ========================================
 // تصدير قاعدة البيانات
 // ========================================
 
 /**
- * قاعدة البيانات المحلية - تستخدم الآن SQLite في Electron و IndexedDB في المتصفح
+ * قاعدة البيانات المحلية - تستخدم SQLite فقط (Tauri/Electron)
  */
 export const inventoryDB = dbAdapter;
 

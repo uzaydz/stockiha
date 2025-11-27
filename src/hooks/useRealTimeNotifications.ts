@@ -10,6 +10,7 @@ import { playNotificationForType, enableNotificationSounds, setNotificationVolum
 import { useToastNotifications } from '@/hooks/useToastNotifications';
 import { localCache } from '@/lib/cacheManager';
 import { isAppOnline, markNetworkOffline, markNetworkOnline } from '@/utils/networkStatus';
+import { offlineSyncBridge } from '@/lib/notifications/offlineSyncBridge';
 
 // Define the notification interface based on the migration schema
 export interface NotificationItem {
@@ -123,28 +124,95 @@ export function useRealTimeNotifications() {
     };
   }, [settings.soundEnabled]);
 
-  // تحميل الإشعارات مع الكاش
+  // تحميل الإشعارات مع الكاش و SQLite
   const loadNotifications = useCallback(async () => {
-    if (!currentOrganization?.id || !settings.enabled) return;
-    if (!isAppOnline()) {
-      markNetworkOffline({ force: true });
-      const cacheKey = `notifications_${currentOrganization.id}`;
-      const cached = localCache.get<NotificationItem[]>(cacheKey);
-      if (cached) {
-        setNotifications(cached);
+    if (!currentOrganization?.id || !settings.enabled) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[Notifications] ⏸️ تخطي تحميل الإشعارات:', {
+          hasOrg: !!currentOrganization?.id,
+          enabled: settings.enabled
+        });
       }
       return;
     }
-    if (hasInitialFetchRef.current) return; // منع التكرار المبكر
+
+    // ⚡ التحقق من وجود جلسة صالحة قبل طلب الإشعارات
+    // هذا يمنع طلب الإشعارات قبل اكتمال تسجيل الدخول
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData?.session) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[Notifications] ⏳ انتظار الجلسة... لا توجد جلسة صالحة بعد');
+        }
+        return; // سيتم إعادة المحاولة عند تغيير حالة المصادقة
+      }
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[Notifications] ✅ الجلسة صالحة، متابعة جلب الإشعارات');
+      }
+    } catch (sessionError) {
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[Notifications] ⚠️ خطأ في التحقق من الجلسة:', sessionError);
+      }
+      // متابعة المحاولة في حالة الخطأ
+    }
+
+    // تهيئة جسر SQLite
+    await offlineSyncBridge.initialize();
+
+    if (!isAppOnline()) {
+      markNetworkOffline({ force: true });
+
+      // محاولة التحميل من SQLite أولاً (أكثر موثوقية من الكاش)
+      const sqliteNotifications = await offlineSyncBridge.getStoredNotifications(currentOrganization.id);
+      if (sqliteNotifications.length > 0) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[Notifications] 💾 تحميل من SQLite (offline):', sqliteNotifications.length);
+        }
+        setNotifications(sqliteNotifications);
+        return;
+      }
+
+      // fallback للكاش القديم
+      const cacheKey = `notifications_${currentOrganization.id}`;
+      const cached = localCache.get<NotificationItem[]>(cacheKey);
+      if (cached) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[Notifications] 📦 تحميل من الكاش (offline):', cached.length);
+        }
+        setNotifications(cached);
+      } else {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[Notifications] ⚠️ لا يوجد كاش (offline)');
+        }
+      }
+      return;
+    }
+
+    if (hasInitialFetchRef.current && notifications.length > 0) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[Notifications] ⏸️ تم التحميل مسبقاً ولدينا إشعارات');
+      }
+      return; // منع التكرار فقط إذا كان لدينا إشعارات
+    }
     hasInitialFetchRef.current = true;
 
     const cacheKey = `notifications_${currentOrganization.id}`;
 
-    // التحقق من الكاش أولاً
+    // التحقق من الكاش أولاً - لكن فقط إذا كان يحتوي على بيانات
     const cachedNotifications = localCache.get<NotificationItem[]>(cacheKey);
-    if (cachedNotifications) {
+    if (cachedNotifications && cachedNotifications.length > 0) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[Notifications] 📦 تحميل من الكاش:', cachedNotifications.length);
+      }
       setNotifications(cachedNotifications);
       return;
+    }
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Notifications] 🌐 جلب من الخادم...', {
+        hasCachedButEmpty: cachedNotifications && cachedNotifications.length === 0,
+        noCache: !cachedNotifications
+      });
     }
 
     try {
@@ -157,16 +225,53 @@ export function useRealTimeNotifications() {
         .limit(50);
 
       if (error) {
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('[Notifications] ⚠️ خطأ في جلب الإشعارات:', error.message);
+        }
+        // في حالة الخطأ، نحاول تحميل من الكاش القديم إن وجد
+        const oldCache = localCache.get<NotificationItem[]>(cacheKey);
+        if (oldCache && oldCache.length > 0) {
+          setNotifications(oldCache);
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[Notifications] 📦 استخدام الكاش القديم بعد الخطأ:', oldCache.length);
+          }
+        } else {
+          // إذا لم يكن هناك كاش، نضع array فارغ بدلاً من عدم عمل شيء
+          setNotifications([]);
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[Notifications] 📭 تعيين إشعارات فارغة بسبب الخطأ');
+          }
+        }
         return;
       }
 
       if (data) {
         const notificationsData = data as unknown as NotificationItem[];
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[Notifications] ✅ تم جلب الإشعارات:', notificationsData.length);
+        }
         setNotifications(notificationsData);
         // حفظ في الكاش لمدة 2 دقيقة
         localCache.set(cacheKey, notificationsData, 2 * 60 * 1000);
+        // حفظ في SQLite للأوفلاين الدائم
+        offlineSyncBridge.saveNotifications(notificationsData);
+        // مزامنة العمليات المعلقة
+        offlineSyncBridge.syncPendingActions(supabase);
+      } else {
+        // إذا كان data = null، نضع array فارغ
+        setNotifications([]);
       }
     } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[Notifications] ❌ خطأ في تحميل الإشعارات:', error);
+      }
+      // في حالة exception، نحاول الكاش القديم
+      const oldCache = localCache.get<NotificationItem[]>(cacheKey);
+      if (oldCache && oldCache.length > 0) {
+        setNotifications(oldCache);
+      } else {
+        setNotifications([]);
+      }
     }
   }, [currentOrganization?.id, settings.enabled, supabase]);
 
@@ -360,6 +465,27 @@ export function useRealTimeNotifications() {
     loadNotifications();
   }, [currentOrganization?.id, loadNotifications]);
 
+  // ⚡ الاستماع لتغيير حالة المصادقة لإعادة جلب الإشعارات
+  // هذا يضمن إعادة جلب الإشعارات بعد اكتمال تسجيل الدخول
+  useEffect(() => {
+    if (!currentOrganization?.id) return;
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[Notifications] 🔐 تم تسجيل الدخول، إعادة جلب الإشعارات...');
+        }
+        // إعادة ضبط hasInitialFetchRef للسماح بجلب جديد
+        hasInitialFetchRef.current = false;
+        loadNotifications();
+      }
+    });
+
+    return () => {
+      authListener?.subscription?.unsubscribe();
+    };
+  }, [currentOrganization?.id, loadNotifications, supabase]);
+
   // حساب الإحصائيات
   const stats = useMemo(() => ({
     total: notifications.length,
@@ -375,22 +501,30 @@ export function useRealTimeNotifications() {
 
   // تحديث حالة القراءة
   const markAsRead = useCallback(async (notificationId: string) => {
-    try {
-      const { error } = await supabase
-        .from('notifications' as any)
-        .update({ is_read: true })
-        .eq('id', notificationId);
+    // تحديث محلي فوري
+    setNotifications(prev =>
+      prev.map(n =>
+        n.id === notificationId ? { ...n, is_read: true } : n
+      )
+    );
 
-      if (error) {
-        return;
+    // حفظ في SQLite (يعمل أوفلاين)
+    await offlineSyncBridge.markAsReadLocally(notificationId);
+
+    // محاولة المزامنة مع الخادم
+    if (isAppOnline()) {
+      try {
+        const { error } = await supabase
+          .from('notifications' as any)
+          .update({ is_read: true })
+          .eq('id', notificationId);
+
+        if (error) {
+          console.warn('[Notifications] خطأ في مزامنة القراءة:', error.message);
+        }
+      } catch (error) {
+        // سيتم المزامنة لاحقاً من قائمة الانتظار
       }
-
-      setNotifications(prev => 
-        prev.map(n => 
-          n.id === notificationId ? { ...n, is_read: true } : n
-        )
-      );
-    } catch (error) {
     }
   }, [supabase]);
 
@@ -416,20 +550,28 @@ export function useRealTimeNotifications() {
 
   // حذف الإشعار
   const deleteNotification = useCallback(async (notificationId: string) => {
-    try {
-      const { error } = await supabase
-        .from('notifications' as any)
-        .delete()
-        .eq('id', notificationId);
+    // حذف محلي فوري
+    setNotifications(prev =>
+      prev.filter(n => n.id !== notificationId)
+    );
 
-      if (error) {
-        return;
+    // حذف من SQLite (يعمل أوفلاين)
+    await offlineSyncBridge.deleteLocally(notificationId);
+
+    // محاولة الحذف من الخادم
+    if (isAppOnline()) {
+      try {
+        const { error } = await supabase
+          .from('notifications' as any)
+          .delete()
+          .eq('id', notificationId);
+
+        if (error) {
+          console.warn('[Notifications] خطأ في مزامنة الحذف:', error.message);
+        }
+      } catch (error) {
+        // سيتم المزامنة لاحقاً من قائمة الانتظار
       }
-
-      setNotifications(prev => 
-        prev.filter(n => n.id !== notificationId)
-      );
-    } catch (error) {
     }
   }, [supabase]);
 

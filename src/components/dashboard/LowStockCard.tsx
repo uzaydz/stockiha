@@ -117,11 +117,12 @@ const ProductItem = React.memo(({
           {/* المتبقي في المخزون */}
           <div className={cn(
             "text-base font-bold",
+            stockLevel === 'out-of-stock' ? 'text-gray-900 dark:text-gray-100' :
             stockLevel === 'critical' ? 'text-red-600 dark:text-red-400' :
             stockLevel === 'low' ? 'text-orange-600 dark:text-orange-400' :
             'text-yellow-600 dark:text-yellow-400'
           )}>
-            {quantity} قطعة
+            {quantity === 0 ? 'نفاد المخزون' : `${quantity} قطعة`}
           </div>
           
           {/* القيمة */}
@@ -217,12 +218,13 @@ const LowStockCard = ({ products, organizationId, limit = 5 }: LowStockCardProps
   const [isLoading] = useState(false);
   const [error] = useState<string | null>(null);
 
-  // تصفية المنتجات منخفضة المخزون
+  // تصفية المنتجات منخفضة المخزون (بما في ذلك نفاد المخزون quantity === 0)
   const lowStockProducts = (products || [])
     .filter(product => {
-      const quantity = product.stock_quantity || 0;
-      const minLevel = product.min_stock_level || 5;
-      return quantity > 0 && quantity <= minLevel;
+      const quantity = product.stock_quantity ?? 0;
+      const minLevel = product.min_stock_level ?? 5;
+      // ✅ تضمين المنتجات التي مخزونها أقل من أو يساوي الحد الأدنى (بما في ذلك 0)
+      return quantity <= minLevel;
     })
     .sort((a, b) => {
       const quantityA = a.stock_quantity || 0;
@@ -252,6 +254,8 @@ const LowStockCard = ({ products, organizationId, limit = 5 }: LowStockCardProps
   // الحصول على لون حالة المخزون
   const getStockLevelColor = (level: string) => {
     switch (level) {
+      case 'out-of-stock':
+        return 'from-gray-900 to-gray-800 dark:from-gray-200 dark:to-gray-100 text-white dark:text-gray-900 border-gray-700 dark:border-gray-300';
       case 'critical':
         return 'from-red-100 to-red-50 dark:from-red-900/20 dark:to-red-800/10 text-red-600 dark:text-red-400 border-red-200/50 dark:border-red-700/30';
       case 'low':
@@ -266,6 +270,8 @@ const LowStockCard = ({ products, organizationId, limit = 5 }: LowStockCardProps
   // الحصول على نص حالة المخزون
   const getStockLevelText = (level: string) => {
     switch (level) {
+      case 'out-of-stock':
+        return 'نفاد';
       case 'critical':
         return 'حرج جداً';
       case 'low':
@@ -280,6 +286,8 @@ const LowStockCard = ({ products, organizationId, limit = 5 }: LowStockCardProps
   // الحصول على أيقونة حالة المخزون
   const getStockLevelIcon = (level: string) => {
     switch (level) {
+      case 'out-of-stock':
+        return <PackageOpen className="h-3 w-3" />;
       case 'critical':
         return <AlertCircle className="h-3 w-3" />;
       case 'low':
@@ -298,7 +306,8 @@ const LowStockCard = ({ products, organizationId, limit = 5 }: LowStockCardProps
     return sum + (quantity * price);
   }, 0);
 
-  // حساب عدد المنتجات الحرجة
+  // حساب عدد المنتجات الحرجة ونفاد المخزون
+  const outOfStockProducts = lowStockProducts.filter(product => getStockLevel(product) === 'out-of-stock').length;
   const criticalProducts = lowStockProducts.filter(product => getStockLevel(product) === 'critical').length;
 
   // حالة التحميل
@@ -397,6 +406,26 @@ const LowStockCard = ({ products, organizationId, limit = 5 }: LowStockCardProps
             })}
           </div>
           
+          {/* تحذير نفاد المخزون */}
+          {outOfStockProducts > 0 && (
+            <div className={cn(
+              "p-3 rounded-xl border-l-4 border-gray-800 dark:border-gray-200",
+              "bg-gradient-to-r from-gray-100 to-gray-50 dark:from-gray-800 dark:to-gray-900"
+            )}>
+              <div className="flex items-center gap-2">
+                <PackageOpen className="h-4 w-4 text-gray-800 dark:text-gray-200" />
+                <div>
+                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                    تنبيه: {outOfStockProducts} منتج نفد مخزونه
+                  </p>
+                  <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                    هذه المنتجات غير متوفرة للبيع حالياً
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* تحذير إضافي للمنتجات الحرجة */}
           {criticalProducts > 0 && (
             <div className={cn(

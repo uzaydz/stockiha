@@ -13,12 +13,13 @@ import {
   Sparkles
 } from 'lucide-react';
 import { ProductItemProps } from '../types';
+import ProductImage from '@/components/store/ProductImage';
 
-const ProductGridItem: React.FC<ProductItemProps> = React.memo(({ 
-  product, 
-  favoriteProducts, 
-  isReturnMode, 
-  onAddToCart 
+const ProductGridItem: React.FC<ProductItemProps> = React.memo(({
+  product,
+  favoriteProducts,
+  isReturnMode,
+  onAddToCart
 }) => {
   const stock = product.stock_quantity || 0;
   const lowStockThreshold = 10;
@@ -30,18 +31,34 @@ const ProductGridItem: React.FC<ProductItemProps> = React.memo(({
     onAddToCart(product);
   }, [product, onAddToCart]);
 
-  // معالجة محسّنة للصور مع دعم جميع الحالات
+  // معالجة محسّنة للصور مع دعم جميع الحالات + دعم Offline (Base64)
   const imageUrl = React.useMemo(() => {
-    // محاولة استخدام thumbnail_image أولاً
+    // 🔍 DEBUG: عرض حالة الصور للمنتج
+    const hasBase64 = !!(product as any).thumbnail_base64;
+    const hasThumbnail = !!product.thumbnail_image;
+    const hasImages = !!(product.images && Array.isArray(product.images) && product.images.length > 0);
+
+    // Log only for products that should have images (just created or have any image field)
+    if (hasBase64 || hasThumbnail || hasImages) {
+      console.log(`[ProductGridItem] 🔍 ${product.name} (${product.id.substring(0, 8)}): base64=${hasBase64 ? `${Math.round(String((product as any).thumbnail_base64).length/1024)}KB` : 'NO'}, thumbnail=${hasThumbnail ? 'YES' : 'NO'}, images=${hasImages ? product.images!.length : 0}`);
+    }
+
+    // ⚡ أولاً: الصورة المحلية Base64 (للعمل Offline)
+    if ((product as any).thumbnail_base64 && (product as any).thumbnail_base64.trim()) {
+      console.log(`[ProductGridItem] 🖼️ ✅ Using thumbnail_base64 for ${product.name} (${Math.round(String((product as any).thumbnail_base64).length/1024)}KB)`);
+      return (product as any).thumbnail_base64;
+    }
+
+    // محاولة استخدام thumbnail_image
     if (product.thumbnail_image && product.thumbnail_image.trim()) {
       return product.thumbnail_image;
     }
-    
+
     // محاولة استخدام thumbnailImage (camelCase)
     if ((product as any).thumbnailImage && (product as any).thumbnailImage.trim()) {
       return (product as any).thumbnailImage;
     }
-    
+
     // محاولة استخدام أول صورة من مصفوفة images
     if (product.images && Array.isArray(product.images) && product.images.length > 0) {
       const firstImage = product.images[0];
@@ -49,7 +66,17 @@ const ProductGridItem: React.FC<ProductItemProps> = React.memo(({
         return firstImage;
       }
     }
-    
+
+    // ⚡ التحقق من الصور المحلية الإضافية (Base64)
+    if ((product as any).images_base64) {
+      try {
+        const localImages = JSON.parse((product as any).images_base64);
+        if (Array.isArray(localImages) && localImages.length > 0) {
+          return localImages[0];
+        }
+      } catch {}
+    }
+
     // محاولة استخدام صورة من أول لون متاح
     if (product.colors && Array.isArray(product.colors) && product.colors.length > 0) {
       for (const color of product.colors) {
@@ -58,7 +85,7 @@ const ProductGridItem: React.FC<ProductItemProps> = React.memo(({
         }
       }
     }
-    
+
     return null;
   }, [product]);
 
@@ -78,27 +105,13 @@ const ProductGridItem: React.FC<ProductItemProps> = React.memo(({
       <div onClick={handleClick} className="h-full flex flex-col relative">
         {/* صورة المنتج */}
         <div className="relative aspect-square bg-gradient-to-br from-muted/40 to-muted/20 overflow-hidden rounded-t-2xl">
-          {imageUrl ? (
-            <img
-              src={imageUrl}
-              alt={product.name}
-              className="w-full h-full object-cover transition-all duration-300 group-hover:scale-110"
-              loading="lazy"
-              onError={(e) => {
-                e.currentTarget.style.display = 'none';
-                e.currentTarget.nextElementSibling?.classList.remove('hidden');
-              }}
-            />
-          ) : null}
-          <div className={cn(
-            "w-full h-full flex items-center justify-center bg-gradient-to-br from-muted/50 via-muted/30 to-muted/50",
-            imageUrl ? 'hidden' : ''
-          )}>
-            <div className="flex flex-col items-center gap-2">
-              <Package2 className="h-12 w-12 text-muted-foreground/60" strokeWidth={1.5} />
-              <p className="text-xs text-muted-foreground/80 font-medium">بدون صورة</p>
-            </div>
-          </div>
+          <ProductImage
+            src={imageUrl || ''}
+            alt={product.name}
+            productName={product.name}
+            className="w-full h-full object-cover transition-all duration-300 group-hover:scale-110"
+            size="large"
+          />
 
           {/* طبقة تفاعلية محسّنة */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300" />
@@ -201,9 +214,9 @@ const ProductGridItem: React.FC<ProductItemProps> = React.memo(({
   );
 }, (prevProps, nextProps) => {
   return prevProps.product.id === nextProps.product.id &&
-         prevProps.product.stock_quantity === nextProps.product.stock_quantity &&
-         prevProps.product.name === nextProps.product.name &&
-         prevProps.product.price === nextProps.product.price;
+    prevProps.product.stock_quantity === nextProps.product.stock_quantity &&
+    prevProps.product.name === nextProps.product.name &&
+    prevProps.product.price === nextProps.product.price;
 });
 
 ProductGridItem.displayName = 'ProductGridItem';

@@ -1,3 +1,6 @@
+// 🔧 إصلاح مشكلة compose-refs مع React 19 - يجب أن يكون أول استيراد
+import '@/lib/patchComposeRefs';
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import AdminApp from './apps/AdminApp';

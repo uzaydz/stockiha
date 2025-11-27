@@ -4,11 +4,12 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import POSPureLayout from '@/components/pos-layout/POSPureLayout';
 import { useTitle } from '@/hooks/useTitle';
 import { useTitlebar } from '@/context/TitlebarContext';
-import { POSLayoutState, RefreshHandler } from '@/components/pos-layout/types';
+import { POSLayoutState } from '@/components/pos-layout/types';
 import { Users, ShoppingBag, Receipt, FileBarChart, Loader2 } from 'lucide-react';
-import { usePermissions } from '@/hooks/usePermissions';
+import { useUnifiedPermissions } from '@/hooks/useUnifiedPermissions';
+import { SuppliersList } from '@/components/suppliers/SuppliersList';
 
-const SuppliersTab = React.lazy(() => import('./dashboard/SuppliersManagement'));
+// Lazy load للصفحات الأخرى
 const PurchasesTab = React.lazy(() => import('./dashboard/SupplierPurchases'));
 const PaymentsTab = React.lazy(() => import('./dashboard/SupplierPayments'));
 const ReportsTab = React.lazy(() => import('./dashboard/SupplierReports'));
@@ -18,61 +19,38 @@ type TabKey = 'suppliers' | 'purchases' | 'payments' | 'reports';
 interface TabDefinition {
   id: TabKey;
   title: string;
-  description: string;
   icon: React.ComponentType<{ className?: string }>;
-  loaderMessage: string;
 }
 
 const TAB_CONFIG: TabDefinition[] = [
-  {
-    id: 'suppliers',
-    title: 'الموردين',
-    description: 'إدارة الموردين، إضافة موردين جدد، تحديث معلومات الموردين.',
-    icon: Users,
-    loaderMessage: 'جاري تحميل الموردين...'
-  },
-  {
-    id: 'purchases',
-    title: 'المشتريات',
-    description: 'إدارة مشتريات الموردين، إنشاء طلبات شراء جديدة وتتبع حالتها.',
-    icon: ShoppingBag,
-    loaderMessage: 'جاري تحميل المشتريات...'
-  },
-  {
-    id: 'payments',
-    title: 'المدفوعات',
-    description: 'تسجيل مدفوعات الموردين، تتبع المستحقات والمبالغ المدفوعة.',
-    icon: Receipt,
-    loaderMessage: 'جاري تحميل المدفوعات...'
-  },
-  {
-    id: 'reports',
-    title: 'التقارير',
-    description: 'تقارير شاملة عن الموردين، المشتريات، والمدفوعات.',
-    icon: FileBarChart,
-    loaderMessage: 'جاري تحميل التقارير...'
-  }
+  { id: 'suppliers', title: 'الموردين', icon: Users },
+  { id: 'purchases', title: 'المشتريات', icon: ShoppingBag },
+  { id: 'payments', title: 'المدفوعات', icon: Receipt },
+  { id: 'reports', title: 'التقارير', icon: FileBarChart },
 ];
 
-const LoadingView: React.FC<{ message: string }> = ({ message }) => (
+const LoadingView: React.FC = () => (
   <div className="flex min-h-[220px] flex-col items-center justify-center gap-3 text-muted-foreground">
     <Loader2 className="h-6 w-6 animate-spin" />
-    <span className="text-sm">{message}</span>
+    <span className="text-sm">جاري التحميل...</span>
   </div>
 );
 
 const SupplierOperationsPage: React.FC = () => {
   const navigate = useNavigate();
   const params = useParams<{ tab?: string }>();
-  const { setTabs, setActiveTab: setTitlebarActiveTab, setShowTabs, clearTabs } = useTitlebar();
+  const { clearTabs, setShowTabs } = useTitlebar();
+  const perms = useUnifiedPermissions();
 
-  const perms = usePermissions();
-
+  // تحديد التبويبات المسموح بها
   const allowedTabs = useMemo(() => {
-    const canSuppliers = perms.ready ? perms.anyOf(['viewSuppliers','manageSuppliers']) : false;
-    const canPurchases = perms.ready ? perms.anyOf(['viewPurchases','managePurchases','manageSuppliers']) : false;
-    const canPayments = perms.ready ? perms.anyOf(['viewSupplierPayments','manageSupplierPayments']) : false;
-    const canReports = perms.ready ? perms.anyOf(['viewSupplierReports']) : false;
+    if (perms.isAdminMode || perms.isOrgAdmin || perms.isSuperAdmin) {
+      return TAB_CONFIG;
+    }
+    const canSuppliers = perms.ready ? perms.anyOf(['viewSuppliers', 'manageSuppliers']) : false;
+    const canPurchases = perms.ready ? perms.anyOf(['viewPurchases', 'managePurchases']) : false;
+    const canPayments = perms.ready ? perms.anyOf(['viewSupplierPayments', 'manageSupplierPayments']) : false;
+    const canReports = perms.ready ? perms.anyOf(['viewSupplierReports', 'viewReports']) : false;
 
     return TAB_CONFIG.filter(t =>
       (t.id === 'suppliers' && canSuppliers) ||
@@ -80,157 +58,94 @@ const SupplierOperationsPage: React.FC = () => {
       (t.id === 'payments' && canPayments) ||
       (t.id === 'reports' && canReports)
     );
-  }, [perms.ready, perms.role, perms.isOrgAdmin, perms.isSuperAdmin]);
+  }, [perms]);
 
-  const resolvedTab = useMemo<TabKey>(() => {
+  // تحديد التبويب النشط
+  const activeTab = useMemo<TabKey>(() => {
     const incoming = params.tab as TabKey | undefined;
-    const isAllowedIncoming = allowedTabs.some((t) => t.id === incoming);
-    return isAllowedIncoming ? (incoming as TabKey) : (allowedTabs[0]?.id || 'suppliers');
+    const isAllowed = allowedTabs.some(t => t.id === incoming);
+    return isAllowed ? (incoming as TabKey) : (allowedTabs[0]?.id || 'suppliers');
   }, [params.tab, allowedTabs]);
 
+  // إعادة التوجيه إذا كان المسار غير صحيح
   useEffect(() => {
-    if (!params.tab || !TAB_CONFIG.some((tab) => tab.id === params.tab)) {
-      navigate(`/dashboard/supplier-operations/${resolvedTab}`, { replace: true });
+    if (!params.tab || !TAB_CONFIG.some(tab => tab.id === params.tab)) {
+      navigate(`/dashboard/supplier-operations/${activeTab}`, { replace: true });
     }
-  }, [params.tab, resolvedTab, navigate]);
+  }, [params.tab, activeTab, navigate]);
+
+  useTitle(`${TAB_CONFIG.find(t => t.id === activeTab)?.title || 'الموردين'} - إدارة الموردين`);
 
   const [layoutState, setLayoutState] = useState<POSLayoutState>({
     connectionStatus: 'connected',
     isRefreshing: false,
   });
-  const [refreshHandler, setRefreshHandler] = useState<RefreshHandler>(null);
 
-  const activeTab = resolvedTab;
-  const activeTabMeta = TAB_CONFIG.find((tab) => tab.id === activeTab) ?? TAB_CONFIG[0];
-
-  useTitle(`${activeTabMeta.title} - إدارة الموردين`);
-
-  const handleTabChange = useCallback(
-    (value: string) => {
-      const target = TAB_CONFIG.find((tab) => tab.id === (value as TabKey)) ?? TAB_CONFIG[0];
-      if (target.id !== activeTab) {
-        navigate(`/dashboard/supplier-operations/${target.id}`);
-      }
-    },
-    [activeTab, navigate]
-  );
-
+  // إخفاء التبويبات في الشريط العلوي
   useEffect(() => {
-    const titlebarTabs = allowedTabs.map((tab) => {
-      const Icon = tab.icon;
-      return {
-        id: tab.id,
-        title: tab.title,
-        icon: <Icon className="h-3 w-3" />,
-        onSelect: () => handleTabChange(tab.id),
-      };
-    });
+    setShowTabs(false);
+    return () => clearTabs();
+  }, [setShowTabs, clearTabs]);
 
-    setTabs(titlebarTabs);
-    setShowTabs(true);
-
-    return () => {
-      clearTabs();
-    };
-  }, [handleTabChange, setTabs, setShowTabs, clearTabs]);
-
-  useEffect(() => {
-    setTitlebarActiveTab(activeTab);
-  }, [activeTab, setTitlebarActiveTab]);
-
-  useEffect(() => {
-    setRefreshHandler(null);
-    setLayoutState({
-      connectionStatus: 'connected',
-      isRefreshing: false,
-      executionTime: undefined,
-    });
-  }, [activeTab]);
-
-  const handleRegisterRefresh = useCallback((handler: RefreshHandler) => {
-    setRefreshHandler(handler);
-  }, []);
-
-  const handleChildLayoutStateChange = useCallback((state: POSLayoutState) => {
-    setLayoutState((prev) => ({
-      ...prev,
-      ...state,
-    }));
-  }, []);
-
-  const handleLayoutRefresh = useCallback(() => {
-    if (!refreshHandler) return;
-    const result = refreshHandler();
-    if (result && typeof (result as Promise<unknown>).then === 'function') {
-      void result;
+  const handleTabChange = useCallback((value: string) => {
+    if (value !== activeTab) {
+      navigate(`/dashboard/supplier-operations/${value}`);
     }
-  }, [refreshHandler]);
+  }, [activeTab, navigate]);
 
-  const renderActiveContent = useMemo(() => {
+  const handleLayoutRefresh = useCallback(async () => {
+    setLayoutState(prev => ({ ...prev, isRefreshing: true }));
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setLayoutState(prev => ({ ...prev, isRefreshing: false }));
+  }, []);
+
+  // عرض المحتوى حسب التبويب النشط
+  const renderContent = useMemo(() => {
     switch (activeTab) {
       case 'suppliers':
-        return (
-          <Suspense key="suppliers" fallback={<LoadingView message={TAB_CONFIG[0].loaderMessage} />}>
-            <SuppliersTab
-              useStandaloneLayout={false}
-              onRegisterRefresh={handleRegisterRefresh}
-              onLayoutStateChange={handleChildLayoutStateChange}
-            />
-          </Suspense>
-        );
+        return <SuppliersList />;
       case 'purchases':
         return (
-          <Suspense key="purchases" fallback={<LoadingView message={TAB_CONFIG[1].loaderMessage} />}>
-            <PurchasesTab
-              useStandaloneLayout={false}
-              onRegisterRefresh={handleRegisterRefresh}
-              onLayoutStateChange={handleChildLayoutStateChange}
-            />
+          <Suspense fallback={<LoadingView />}>
+            <PurchasesTab useStandaloneLayout={false} />
           </Suspense>
         );
       case 'payments':
         return (
-          <Suspense key="payments" fallback={<LoadingView message={TAB_CONFIG[2].loaderMessage} />}>
-            <PaymentsTab
-              useStandaloneLayout={false}
-              onRegisterRefresh={handleRegisterRefresh}
-              onLayoutStateChange={handleChildLayoutStateChange}
-            />
+          <Suspense fallback={<LoadingView />}>
+            <PaymentsTab useStandaloneLayout={false} />
           </Suspense>
         );
       case 'reports':
         return (
-          <Suspense key="reports" fallback={<LoadingView message={TAB_CONFIG[3].loaderMessage} />}>
-            <ReportsTab
-              useStandaloneLayout={false}
-              onRegisterRefresh={handleRegisterRefresh}
-              onLayoutStateChange={handleChildLayoutStateChange}
-            />
+          <Suspense fallback={<LoadingView />}>
+            <ReportsTab useStandaloneLayout={false} />
           </Suspense>
         );
       default:
-        return null;
+        return <SuppliersList />;
     }
-  }, [activeTab, handleRegisterRefresh, handleChildLayoutStateChange]);
+  }, [activeTab]);
 
   const layoutContent = (
     <div className="space-y-6 p-6" dir="rtl">
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-bold text-foreground">إدارة الموردين والمشتريات</h1>
         <p className="text-sm text-muted-foreground">
-          إدارة موحدة للموردين، المشتريات، المدفوعات والتقارير من واجهة واحدة.
+          إدارة الموردين، المشتريات، المدفوعات والتقارير.
         </p>
       </div>
 
+      {/* شريط التنقل */}
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 gap-2 rounded-xl bg-slate-900/5 p-1 dark:bg-slate-800/30">
+        <TabsList className="grid w-full grid-cols-4 gap-2 rounded-xl bg-slate-100 p-1 dark:bg-slate-800/50">
           {allowedTabs.map((tab) => {
             const Icon = tab.icon;
             return (
               <TabsTrigger
                 key={tab.id}
                 value={tab.id}
-                className="flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-all data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow"
+                className="flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-primary data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-900"
               >
                 <Icon className="h-4 w-4" />
                 <span>{tab.title}</span>
@@ -240,11 +155,9 @@ const SupplierOperationsPage: React.FC = () => {
         </TabsList>
       </Tabs>
 
-      <div className="rounded-2xl border border-border/50 bg-card shadow-sm">
-        <div className="border-b border-border/40 px-6 py-4">
-          <p className="text-sm text-muted-foreground">{activeTabMeta.description}</p>
-        </div>
-        <div className="px-2 py-4 sm:px-6">{renderActiveContent}</div>
+      {/* المحتوى */}
+      <div className="rounded-xl border border-border/50 bg-card p-4 shadow-sm">
+        {renderContent}
       </div>
     </div>
   );

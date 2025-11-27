@@ -2,7 +2,7 @@ import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'reac
 import { useNavigate, useParams } from 'react-router-dom';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import POSPureLayout from '@/components/pos-layout/POSPureLayout';
-import { usePermissions } from '@/hooks/usePermissions';
+import { useUnifiedPermissions } from '@/hooks/useUnifiedPermissions';
 import { useTitle } from '@/hooks/useTitle';
 import { useTitlebar } from '@/context/TitlebarContext';
 import { POSLayoutState, RefreshHandler } from '@/components/pos-layout/types';
@@ -67,20 +67,25 @@ const ProductOperationsPage: React.FC = () => {
   const params = useParams<{ tab?: string }>();
   const { setTabs, setActiveTab: setTitlebarActiveTab, setShowTabs, clearTabs } = useTitlebar();
 
-  const perms = usePermissions();
+  const perms = useUnifiedPermissions();
 
   const allowedTabs = useMemo(() => {
-    const canProducts = perms.ready ? perms.anyOf(['viewProducts', 'manageProducts']) : false;
-    const canCategories = perms.ready ? perms.anyOf(['manageProductCategories', 'viewProducts', 'manageProducts']) : false;
-    const canInventory = perms.ready ? perms.anyOf(['viewInventory']) : false;
-    const canTracking = perms.ready ? perms.anyOf(['viewInventory']) : false;
+    // وضع المدير = صلاحيات كاملة
+    if (perms.isAdminMode || perms.isOrgAdmin || perms.isSuperAdmin) {
+      return TAB_CONFIG;
+    }
+
+    const canProducts = perms.ready ? perms.anyOf(['viewProducts', 'manageProducts', 'canViewProducts', 'canManageProducts']) : false;
+    const canCategories = perms.ready ? perms.anyOf(['manageProductCategories', 'viewProducts', 'manageProducts', 'canViewCategories']) : false;
+    const canInventory = perms.ready ? perms.anyOf(['viewInventory', 'canViewInventory']) : false;
+    const canTracking = perms.ready ? perms.anyOf(['viewInventory', 'canViewInventoryTracking']) : false;
     return TAB_CONFIG.filter(t =>
       (t.id === 'products' && canProducts) ||
       (t.id === 'categories' && canCategories) ||
       (t.id === 'inventory' && canInventory) ||
       (t.id === 'inventoryTracking' && canTracking)
     );
-  }, [perms.ready, perms.role, perms.isOrgAdmin, perms.isSuperAdmin]);
+  }, [perms.ready, perms.isAdminMode, perms.isOrgAdmin, perms.isSuperAdmin]);
 
   const resolvedTab = useMemo<TabKey>(() => {
     const incoming = params.tab as TabKey | undefined;

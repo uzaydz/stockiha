@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useStaffSession } from '@/context/StaffSessionContext';
 import { useAuth } from '@/context/AuthContext';
+import { useUnifiedPermissions } from '@/hooks/useUnifiedPermissions';
 
 /**
  * مكون لتوجيه المستخدمين بعد تسجيل الدخول
@@ -13,12 +14,42 @@ const StaffLoginRedirect: React.FC<{ children: React.ReactNode }> = ({ children 
   const { currentStaff, isAdminMode } = useStaffSession();
   const location = useLocation();
   const { user, userProfile } = useAuth();
+  const unifiedPerms = useUnifiedPermissions();
+
+  // ✅ منع التنقلات المتعددة باستخدام sessionStorage
+  const [isInitialized, setIsInitialized] = useState(false);
+  const redirectKeyRef = useRef(`staff_redirect_${Date.now()}`);
 
   useEffect(() => {
+    // ✅ انتظار صغير للسماح بتحميل القيم من localStorage
+    const timer = setTimeout(() => {
+      setIsInitialized(true);
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    // ✅ عدم التنفيذ قبل الانتهاء من التهيئة
+    if (!isInitialized) {
+      return;
+    }
+
     const currentPath = location.pathname;
 
     // تجنب التوجيه المستمر - إذا كان المستخدم في /staff-login، لا نفعل شيء
     if (currentPath === '/staff-login') {
+      return;
+    }
+
+    // ✅ التحقق من أننا لم نوجه مسبقاً في هذه الجلسة
+    const lastRedirectTime = sessionStorage.getItem('staff_last_redirect_time');
+    const now = Date.now();
+    if (lastRedirectTime && (now - parseInt(lastRedirectTime)) < 5000) {
+      // تم التوجيه خلال آخر 5 ثوان، لا نكرر
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[StaffLoginRedirect] ⏸️ تخطي التوجيه - تم التوجيه مؤخراً');
+      }
       return;
     }
 
@@ -42,15 +73,34 @@ const StaffLoginRedirect: React.FC<{ children: React.ReactNode }> = ({ children 
       // فقط المديرين (admin/owner) يحتاجون لاختيار وضع العمل
       const isAdminOrOwner = userRole === 'admin' || userRole === 'owner';
 
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[StaffLoginRedirect] 🔍 فحص حالة الموظف:', {
+          isAdminOrOwner,
+          userRole,
+          hasCurrentStaff: !!currentStaff,
+          isAdminMode: unifiedPerms.isAdminMode,
+          isStaffMode: unifiedPerms.isStaffMode,
+          hasStoredStaff: !!storedStaff,
+          storedAdminMode,
+          displayName: unifiedPerms.displayName,
+          shouldRedirect: isAdminOrOwner && !currentStaff && !isAdminMode && !storedStaff && !storedAdminMode
+        });
+      }
+
       if (isAdminOrOwner) {
         // إذا لم يكن لديه جلسة موظف ولا في وضع أدمن، يوجه لصفحة اختيار الوضع
         if (!currentStaff && !isAdminMode && !storedStaff && !storedAdminMode) {
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[StaffLoginRedirect] 🔀 توجيه المدير إلى staff-login');
+          }
+          // ✅ حفظ وقت التوجيه
+          sessionStorage.setItem('staff_last_redirect_time', now.toString());
           navigate('/staff-login', { replace: true });
         }
       }
       // الموظفين العاديين (employee) لا يحتاجون staff-login
     }
-  }, [user, userProfile, currentStaff, isAdminMode, navigate, location.pathname]);
+  }, [user, userProfile, currentStaff, isAdminMode, navigate, location.pathname, isInitialized, unifiedPerms.isAdminMode, unifiedPerms.isStaffMode]);
 
   return <>{children}</>;
 };

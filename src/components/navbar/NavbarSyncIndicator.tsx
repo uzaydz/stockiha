@@ -1,5 +1,16 @@
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { RefreshCw, CheckCircle, AlertCircle, Cloud, CloudOff } from 'lucide-react';
+/**
+ * ⚡ NavbarSyncIndicator - مؤشر المزامنة في شريط العنوان
+ * 
+ * النسخة المحسنة:
+ * - استعلام SQL واحد بدلاً من 12+ استعلام
+ * - Polling ذكي (سريع عند وجود عناصر معلقة، بطيء عند التزامن)
+ * - فحص مزدوج للاتصال (ConnectionState + navigator.onLine)
+ * - مكونات منفصلة لتحسين الأداء
+ * - حفظ lastSyncAt في localStorage
+ */
+
+import React, { useState, useEffect, useMemo } from 'react';
+import { RefreshCw, CheckCircle, AlertCircle, Cloud, CloudOff, RotateCcw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   Popover,
@@ -7,322 +18,148 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { initializePOSOfflineSync } from '@/context/shop/posOrderService';
-import { smartSyncEngine } from '@/lib/sync/SmartSyncEngine';
-import { syncTracker } from '@/lib/sync/SyncTracker';
-import { inventoryDB } from '@/database/localDb';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { useOrganization } from '@/hooks/useOrganization';
-import { toast } from 'sonner';
 
-type EntitySyncStats = {
-  unsynced: number;
-  total: number;
-};
-
-type QueueSnapshot = {
-  queueItems: number;
-  products: EntitySyncStats;
-  orders: EntitySyncStats;
-  customers: EntitySyncStats;
-};
+// ⚡ مكونات منفصلة
+import { 
+  useSyncStats, 
+  useSyncActions, 
+  SyncStatsGrid,
+  SyncStatsGridExpanded,
+  OutboxDetailsPanel 
+} from './sync';
 
 interface NavbarSyncIndicatorProps {
   className?: string;
-  autoSync?: boolean;
-  syncInterval?: number;
 }
 
-export function NavbarSyncIndicator({
-  className,
-  autoSync = true,
-  syncInterval = 60000
-}: NavbarSyncIndicatorProps) {
-  // التحقق من أن التطبيق مكتبي (Electron)
-  const isElectron = useMemo(
-    () => typeof window !== 'undefined' && Boolean((window as any).electronAPI),
-    []
-  );
+// ⚡ فحص بيئة Tauri
+function isTauriApp(): boolean {
+  if (typeof window === 'undefined') return false;
+  const w = window as any;
+  return Boolean(w.__TAURI_IPC__ || w.__TAURI__ || w.__TAURI_INTERNALS__);
+}
 
-  const { isOnline } = useNetworkStatus();
+export function NavbarSyncIndicator({ className }: NavbarSyncIndicatorProps) {
+  // ⚡ فحص البيئة مرة واحدة
+  const isDesktopApp = useMemo(() => isTauriApp(), []);
+  
+  const { isOnline, connectionStatus } = useNetworkStatus();
   const { organization } = useOrganization();
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [lastSyncError, setLastSyncError] = useState<string | null>(null);
-  const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
-  const [queueSnapshot, setQueueSnapshot] = useState<QueueSnapshot>({
-    queueItems: 0,
-    products: { unsynced: 0, total: 0 },
-    orders: { unsynced: 0, total: 0 },
-    customers: { unsynced: 0, total: 0 }
-  });
   const [isOpen, setIsOpen] = useState(false);
-  const syncingRef = React.useRef(false);
-  const [events, setEvents] = useState<Array<{ phase: string; timestamp: number; data?: any }>>([]);
-  const [lastRun, setLastRun] = useState<any>(null);
-
-  const getQueueSnapshot = useCallback(async (): Promise<QueueSnapshot> => {
-    // تحقق من وجود organization_id
-    if (!organization?.id) {
-      return {
-        queueItems: 0,
-        products: { unsynced: 0, total: 0 },
-        orders: { unsynced: 0, total: 0 },
-        customers: { unsynced: 0, total: 0 }
-      };
-    }
-
-    try {
-      const [
-        queueCount,
-        totalProducts,
-        totalOrders,
-        totalCustomers,
-        unsyncedProducts,
-        unsyncedOrders,
-        unsyncedCustomers
-      ] = await Promise.all([
-        inventoryDB.syncQueue.count(),
-        inventoryDB.products.count(),
-        inventoryDB.posOrders.count(),
-        inventoryDB.customers.count(),
-        inventoryDB.products.filter((product) => product.synced === false).count(),
-        inventoryDB.posOrders.filter((order) => 
-          order.status === 'pending_sync' || 
-          order.status === 'syncing' || 
-          order.status === 'failed' ||
-          order.synced === false
-        ).count(),
-        inventoryDB.customers.filter((customer) => customer.synced === false).count()
-      ]);
-
-      console.log('[NavbarSync] إحصائيات القاعدة المحلية:', {
-        products: totalProducts,
-        orders: totalOrders,
-        customers: totalCustomers,
-        unsyncedProducts,
-        unsyncedOrders,
-        unsyncedCustomers
-      });
-
-      return {
-        queueItems: queueCount,
-        products: { unsynced: unsyncedProducts, total: totalProducts },
-        orders: { unsynced: unsyncedOrders, total: totalOrders },
-        customers: { unsynced: unsyncedCustomers, total: totalCustomers }
-      };
-    } catch (error) {
-      console.error('[NavbarSync] فشل في قراءة بيانات المزامنة', error);
-      return {
-        queueItems: 0,
-        products: { unsynced: 0, total: 0 },
-        orders: { unsynced: 0, total: 0 },
-        customers: { unsynced: 0, total: 0 }
-      };
-    }
-  }, [organization?.id]);
-
-  const updateSnapshot = useCallback(async () => {
-    const snapshot = await getQueueSnapshot();
-    setQueueSnapshot(snapshot);
-  }, [getQueueSnapshot]);
-
-  const runSync = useCallback(
-    async (origin: 'auto' | 'manual' = 'auto') => {
-      // لا تحاول المزامنة إذا لم يتم تحميل المنظمة بعد
-      if (!organization?.id) {
-        return;
-      }
-
-      if (!isOnline && origin !== 'manual') {
-        await updateSnapshot();
-        return;
-      }
-
-      if (syncingRef.current) {
-        return;
-      }
-
-      syncingRef.current = true;
-      setIsSyncing(true);
-      setLastSyncError(null);
-
-      initializePOSOfflineSync();
-
-      try {
-        // 🚀 استخدام Smart Sync Engine
-        await smartSyncEngine.syncNow(true);
-
-        const now = Date.now();
-        setLastSyncAt(now);
-        setLastRun(null); // لم نعد نحتاج res
-
-        if (origin === 'manual') {
-          const pendingCount = syncTracker.getPendingCount();
-          if (pendingCount === 0) {
-            toast.success('تمت المزامنة بنجاح', {
-              description: 'جميع البيانات محدثة'
-            });
-          } else {
-            toast.message(`لا تزال هناك ${pendingCount} عناصر معلقة`);
-          }
-        }
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'فشل في مزامنة البيانات';
-        setLastSyncError(message);
-
-        if (origin === 'manual') {
-          toast.error('تعذر إكمال المزامنة', {
-            description: message
-          });
-        }
-      } finally {
-        syncingRef.current = false;
-        setIsSyncing(false);
-        await updateSnapshot();
-      }
-    },
-    [organization?.id, isOnline, updateSnapshot]
+  const [showDetails, setShowDetails] = useState(false); // ⚡ حالة عرض التفاصيل
+  
+  // ⚡ حالة navigator.onLine للفحص المزدوج
+  const [navigatorOnline, setNavigatorOnline] = useState(() => 
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
+  
+  // ⚡ الحالة الفعلية للاتصال
+  const isActuallyOnline = useMemo(() => 
+    isOnline && navigatorOnline, 
+    [isOnline, navigatorOnline]
   );
 
-  // Auto sync - SmartSyncEngine يدير المزامنة تلقائياً
+  // ⚡ تتبع حالة navigator.onLine
   useEffect(() => {
-    if (!autoSync) return;
-
-    // التأكد من أن SmartSyncEngine يعمل
-    if (!smartSyncEngine.getStatus().isRunning) {
-      smartSyncEngine.start();
-    }
-
-    return () => {
-      // لا نوقف Engine - قد يُستخدم في أماكن أخرى
-    };
-  }, [autoSync]);
-
-  // Initial snapshot
-  useEffect(() => {
-    void updateSnapshot();
-  }, [updateSnapshot]);
-
-  // Subscribe to SyncTracker changes مع debouncing
-  useEffect(() => {
-    // إنشاء نسخة debounced من updateSnapshot
-    let debouncedUpdateTimeout: NodeJS.Timeout | null = null;
-    let throttleTimeout: NodeJS.Timeout | null = null;
-    let lastUpdateTime = 0;
-    const DEBOUNCE_MS = 300; // تأخير 300ms
-    const THROTTLE_MS = 500; // حد أقصى للتحديث كل 500ms
-
-    const debouncedUpdate = () => {
-      // مسح timeout السابق
-      if (debouncedUpdateTimeout) {
-        clearTimeout(debouncedUpdateTimeout);
-      }
-
-      // التحقق من throttling
-      const now = Date.now();
-      const timeSinceLastUpdate = now - lastUpdateTime;
-
-      if (timeSinceLastUpdate >= THROTTLE_MS) {
-        // تحديث فوري إذا مر الوقت الكافي
-        lastUpdateTime = now;
-        void updateSnapshot();
-      } else {
-        // تأخير التحديث
-        debouncedUpdateTimeout = setTimeout(() => {
-          lastUpdateTime = Date.now();
-          void updateSnapshot();
-          debouncedUpdateTimeout = null;
-        }, DEBOUNCE_MS);
-      }
-    };
-
-    const unsubscribe = syncTracker.onChange((hasPending) => {
-      // استخدام النسخة المحسّنة
-      debouncedUpdate();
-
-      // تحديث حالة المزامنة (بدون debounce لأنه خفيف)
-      const status = smartSyncEngine.getStatus();
-      if (status.isSyncing !== isSyncing) {
-        setIsSyncing(status.isSyncing);
-      }
-    });
-
-    return () => {
-      // تنظيف
-      if (debouncedUpdateTimeout) {
-        clearTimeout(debouncedUpdateTimeout);
-      }
-      if (throttleTimeout) {
-        clearTimeout(throttleTimeout);
-      }
-      unsubscribe();
-    };
-  }, [updateSnapshot, isSyncing]);
-
-  // Sync on network reconnect
-  useEffect(() => {
-    const handleOnline = () => {
-      void runSync('auto');
+    const handleOnline = () => setNavigatorOnline(true);
+    const handleOffline = () => {
+      setNavigatorOnline(false);
+      console.log('[NavbarSync] 📴 navigator.onLine = false');
     };
 
     window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
     return () => {
       window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
     };
-  }, [runSync]);
+  }, []);
 
-  const pendingCount = useMemo(() => 
-    queueSnapshot.queueItems +
-    queueSnapshot.products.unsynced +
-    queueSnapshot.orders.unsynced +
-    queueSnapshot.customers.unsynced,
-    [queueSnapshot]
+  // ⚡ Hook للإحصائيات
+  const { 
+    snapshot, 
+    outboxDetails, 
+    pendingOutbox, 
+    refresh: refreshStats 
+  } = useSyncStats({
+    organizationId: organization?.id,
+    isOnline: isActuallyOnline
+  });
+
+  // ⚡ Hook للإجراءات
+  const {
+    isSyncing,
+    isFullSyncing,
+    isForceSending,
+    lastSyncAt,
+    lastSyncError,
+    runSync,
+    runFullSync,
+    forceSendPending,
+    clearPendingOutbox
+  } = useSyncActions({
+    organizationId: organization?.id,
+    isOnline: isActuallyOnline,
+    onSyncComplete: refreshStats
+  });
+
+  // ⚡ مزامنة تلقائية عند عودة الاتصال
+  useEffect(() => {
+    if (isActuallyOnline && navigatorOnline) {
+      void runSync('auto');
+    }
+  }, [isActuallyOnline, navigatorOnline, runSync]);
+
+  // ⚡ حساب العناصر المعلقة
+  const pendingCount = useMemo(() =>
+    snapshot.products.unsynced +
+    snapshot.orders.unsynced +
+    snapshot.customers.unsynced +
+    snapshot.invoices.unsynced +
+    pendingOutbox,
+    [snapshot, pendingOutbox]
   );
 
+  // ⚡ تحديد حالة المزامنة
   const statusLabel = useMemo(() => {
-    if (!isOnline) return 'غير متصل';
-    if (isSyncing) return 'جارٍ المزامنة...';
-    if (pendingCount > 0) return 'بانتظار المزامنة';
+    if (!isActuallyOnline) return 'غير متصل';
+    if (connectionStatus === 'unstable') return 'اتصال غير مستقر';
+    if (isSyncing || isFullSyncing) return 'جارٍ المزامنة...';
+    if (pendingCount > 0) return `${pendingCount} بانتظار المزامنة`;
     return 'متزامن';
-  }, [isOnline, isSyncing, pendingCount]);
+  }, [isActuallyOnline, connectionStatus, isSyncing, isFullSyncing, pendingCount]);
 
   const getStatusIcon = () => {
-    if (!isOnline) return <CloudOff className="h-4 w-4" />;
-    if (isSyncing) return <RefreshCw className="h-4 w-4 animate-spin" />;
+    if (!isActuallyOnline) return <CloudOff className="h-4 w-4" />;
+    if (isSyncing || isFullSyncing) return <RefreshCw className="h-4 w-4 animate-spin" />;
     if (lastSyncError) return <AlertCircle className="h-4 w-4" />;
     if (pendingCount > 0) return <Cloud className="h-4 w-4" />;
     return <CheckCircle className="h-4 w-4" />;
   };
 
   const getStatusColor = () => {
-    if (!isOnline) return 'text-white/40';
-    if (isSyncing) return 'text-blue-400';
+    if (!isActuallyOnline) return 'text-white/40';
+    if (isSyncing || isFullSyncing) return 'text-blue-400';
     if (lastSyncError) return 'text-red-400';
     if (pendingCount > 0) return 'text-amber-400';
     return 'text-green-400';
   };
 
-  // إخفاء المكون في المتصفح - يظهر فقط في تطبيق سطح المكتب
-  if (!isElectron) {
-    return null;
-  }
-
-  // لا تعرض المكون حتى يتم تحميل المنظمة
-  if (!organization?.id) {
-    return null;
-  }
+  // ⚡ إخفاء المكون في المتصفح
+  if (!isDesktopApp) return null;
+  if (!organization?.id) return null;
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
         <button
           className={cn(
-            "relative flex items-center justify-center h-7 w-7",
-            "rounded-md transition-all duration-200",
-            "hover:bg-white/15 active:scale-95",
+            "relative flex items-center justify-center h-8 w-8",
+            "rounded-lg transition-all duration-200",
+            "hover:bg-white/10 active:scale-95 active:bg-white/15",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20",
             getStatusColor(),
             className
@@ -330,18 +167,13 @@ export function NavbarSyncIndicator({
           aria-label="حالة المزامنة"
           title={statusLabel}
         >
-          {/* أيقونة الحالة */}
           <div className="relative z-10 transition-colors duration-200">
             {getStatusIcon()}
           </div>
 
           {/* Badge للعناصر المعلقة */}
-          {pendingCount > 0 && !isSyncing && (
-            <span 
-              className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 flex items-center justify-center text-[9px] font-semibold rounded-full bg-red-500 text-white border border-slate-900"
-            >
-              {pendingCount > 9 ? '9+' : pendingCount}
-            </span>
+          {pendingCount > 0 && !isSyncing && !isFullSyncing && (
+            <span className="absolute top-1 right-1 h-2.5 w-2.5 flex items-center justify-center rounded-full bg-red-500 border border-slate-900 shadow-sm animate-pulse" />
           )}
         </button>
       </PopoverTrigger>
@@ -354,87 +186,67 @@ export function NavbarSyncIndicator({
               <h4 className="font-semibold text-sm">حالة المزامنة</h4>
               <p className="text-xs text-muted-foreground">{statusLabel}</p>
             </div>
-            <Button
-              size="sm"
-              onClick={() => runSync('manual')}
-              disabled={isSyncing || !isOnline}
-              className="h-8"
-            >
-              {isSyncing ? (
-                <>
-                  <RefreshCw className="h-3 w-3 ml-1 animate-spin" />
-                  جارٍ المزامنة
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="h-3 w-3 ml-1" />
-                  مزامنة الآن
-                </>
-              )}
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={() => runSync('manual')}
+                disabled={isSyncing || isFullSyncing || !isActuallyOnline}
+                className="h-8"
+              >
+                {isSyncing ? (
+                  <>
+                    <RefreshCw className="h-3 w-3 ml-1 animate-spin" />
+                    جارٍ...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="h-3 w-3 ml-1" />
+                    مزامنة
+                  </>
+                )}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={runFullSync}
+                disabled={isSyncing || isFullSyncing || !isActuallyOnline}
+                className="h-8"
+                title="إصلاح البيانات المحلية"
+              >
+                {isFullSyncing ? (
+                  <>
+                    <RotateCcw className="h-3 w-3 ml-1 animate-spin" />
+                    جارٍ...
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw className="h-3 w-3 ml-1" />
+                    إصلاح
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
 
           <Separator />
 
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="p-2 rounded-lg bg-muted/50">
-              <p className="text-lg font-bold text-foreground">
-                {queueSnapshot.products.unsynced}
-                <span className="text-xs text-muted-foreground">
-                  /{queueSnapshot.products.total}
-                </span>
-              </p>
-              <p className="text-[10px] text-muted-foreground">منتجات</p>
-            </div>
-            <div className="p-2 rounded-lg bg-muted/50">
-              <p className="text-lg font-bold text-foreground">
-                {queueSnapshot.orders.unsynced}
-                <span className="text-xs text-muted-foreground">
-                  /{queueSnapshot.orders.total}
-                </span>
-              </p>
-              <p className="text-[10px] text-muted-foreground">طلبات</p>
-            </div>
-            <div className="p-2 rounded-lg bg-muted/50">
-              <p className="text-lg font-bold text-foreground">
-                {queueSnapshot.customers.unsynced}
-                <span className="text-xs text-muted-foreground">
-                  /{queueSnapshot.customers.total}
-                </span>
-              </p>
-              <p className="text-[10px] text-muted-foreground">عملاء</p>
-            </div>
-          </div>
-
-          {/* Last run timings/attempts */}
-          {lastRun?.timings && (
-            <div className="rounded-lg bg-muted/40 p-2 text-[11px] text-muted-foreground">
-              <div className="font-semibold mb-1 text-foreground text-xs">تفاصيل آخر مزامنة</div>
-              <div className="grid grid-cols-2 gap-1">
-                <div>الأساس: {lastRun.timings.base}ms (محاولات {lastRun.attempts?.base})</div>
-                <div>الطلبات: {lastRun.timings.orders}ms (محاولات {lastRun.attempts?.orders})</div>
-                <div>تحديثات: {lastRun.timings.orderUpdates}ms (محاولات {lastRun.attempts?.orderUpdates})</div>
-                <div>الجلسات: {lastRun.timings.workSessions}ms (محاولات {lastRun.attempts?.workSessions})</div>
-                <div>المخزون: {lastRun.timings.inventory}ms (محاولات {lastRun.attempts?.inventory})</div>
-              </div>
-            </div>
+          {/* Stats Grid */}
+          {showDetails ? (
+            <SyncStatsGridExpanded snapshot={snapshot} />
+          ) : (
+            <SyncStatsGrid snapshot={snapshot} />
           )}
+          
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="w-full text-xs h-6 text-muted-foreground hover:text-foreground"
+            onClick={() => setShowDetails(!showDetails)}
+          >
+            {showDetails ? 'إخفاء التفاصيل' : 'عرض كل الإحصائيات'}
+          </Button>
 
-          {/* Recent events */}
-          {events.length > 0 && (
-            <div className="rounded-lg bg-muted/40 p-2 text-[11px] text-muted-foreground max-h-40 overflow-auto">
-              <div className="font-semibold mb-1 text-foreground text-xs">سجل المزامنة (الأحدث)</div>
-              <ul className="space-y-1">
-                {[...events].reverse().map((e, idx) => (
-                  <li key={idx} className="flex items-center justify-between">
-                    <span className="truncate mr-2">{e.phase}</span>
-                    <span className="opacity-70">{new Date(e.timestamp).toLocaleTimeString('ar-DZ')}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+          <Separator />
 
           {/* Last Sync Info */}
           {lastSyncAt && (
@@ -450,10 +262,15 @@ export function NavbarSyncIndicator({
             </div>
           )}
 
-          {/* Queue Info */}
-          <div className="text-xs text-muted-foreground text-center">
-            عناصر قائمة الانتظار: {queueSnapshot.queueItems}
-          </div>
+          {/* Delta Sync / Outbox Status */}
+          <OutboxDetailsPanel
+            pendingOutbox={pendingOutbox}
+            outboxDetails={outboxDetails}
+            isOnline={isActuallyOnline}
+            isForceSending={isForceSending}
+            onForceSend={forceSendPending}
+            onClear={clearPendingOutbox}
+          />
         </div>
       </PopoverContent>
     </Popover>

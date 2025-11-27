@@ -6,7 +6,7 @@ import { useTitle } from '@/hooks/useTitle';
 import { useTitlebar } from '@/context/TitlebarContext';
 import { POSLayoutState, RefreshHandler } from '@/components/pos-layout/types';
 import { ShoppingBag, Ban, Activity, Loader2, Users } from 'lucide-react';
-import { usePermissions } from '@/hooks/usePermissions';
+import { useUnifiedPermissions } from '@/hooks/useUnifiedPermissions';
 
 const OrdersV2Tab = React.lazy(() => import('./dashboard/OrdersV2')); // استخدام OrdersV2 الأصلي المحدث بالـ hook الجديد
 const BlockedCustomersTab = React.lazy(() => import('./dashboard/BlockedCustomers'));
@@ -66,12 +66,17 @@ const SalesOperationsPage: React.FC = () => {
   const params = useParams<{ tab?: string }>();
   const { setTabs, setActiveTab: setTitlebarActiveTab, setShowTabs, clearTabs } = useTitlebar();
 
-  const perms = usePermissions();
+  const perms = useUnifiedPermissions();
 
   const allowedTabs = useMemo(() => {
-    const canOnline = perms.ready ? perms.anyOf(['viewOrders', 'canViewOnlineOrders']) : false;
-    const canBlocked = perms.ready ? perms.anyOf(['viewOrders', 'canViewBlockedCustomers']) : false;
-    const canAbandoned = perms.ready ? perms.anyOf(['viewOrders', 'canViewAbandonedOrders']) : false;
+    // وضع المدير = صلاحيات كاملة
+    if (perms.isAdminMode || perms.isOrgAdmin || perms.isSuperAdmin) {
+      return TAB_CONFIG;
+    }
+
+    const canOnline = perms.ready ? perms.anyOf(['viewOrders', 'canViewOnlineOrders', 'canManageOnlineOrders']) : false;
+    const canBlocked = perms.ready ? perms.anyOf(['viewOrders', 'canViewBlockedCustomers', 'canManageBlockedCustomers']) : false;
+    const canAbandoned = perms.ready ? perms.anyOf(['viewOrders', 'canViewAbandonedOrders', 'canManageAbandonedOrders']) : false;
     const canGroups = perms.ready ? perms.anyOf(['canManageOnlineOrderGroups']) : false;
     return TAB_CONFIG.filter(t =>
       (t.id === 'onlineOrders' && canOnline) ||
@@ -79,7 +84,7 @@ const SalesOperationsPage: React.FC = () => {
       (t.id === 'abandoned' && canAbandoned) ||
       (t.id === 'groups' && canGroups)
     );
-  }, [perms.ready, perms.role, perms.isOrgAdmin, perms.isSuperAdmin]);
+  }, [perms.ready, perms.isAdminMode, perms.isOrgAdmin, perms.isSuperAdmin]);
 
   const resolvedTab = useMemo<TabKey>(() => {
     const incoming = params.tab as TabKey | undefined;

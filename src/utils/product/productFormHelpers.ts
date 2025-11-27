@@ -133,6 +133,10 @@ export const prepareFormSubmissionData = (
     ? data.slug.trim() 
     : `${data.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`;
 
+  // 🔍 DEBUG: فحص البيانات قبل التحضير النهائي
+  console.log('[prepareFormSubmissionData] 🔍 DEBUG - Input data.thumbnail_image:', data.thumbnail_image ? `exists (${Math.round(String(data.thumbnail_image).length/1024)}KB, starts with: ${String(data.thumbnail_image).substring(0,50)}...)` : 'NOT EXISTS or empty');
+  console.log('[prepareFormSubmissionData] 🔍 DEBUG - additionalImages count:', additionalImages?.length || 0);
+
   // Debug: فحص البيانات النهائية
   console.log('🔍 تحضير بيانات المنتج:', {
     colorsCount: colorsToSubmit.length,
@@ -195,6 +199,9 @@ export const prepareFormSubmissionData = (
       publish_at: data.publish_at || null,
     } : {}),
   };
+
+  // 🔍 DEBUG: فحص البيانات النهائية
+  console.log('[prepareFormSubmissionData] 🔍 DEBUG - finalData.thumbnail_image:', finalData.thumbnail_image ? `exists (${Math.round(String(finalData.thumbnail_image).length/1024)}KB)` : 'NOT EXISTS or empty');
 
   return finalData;
 };

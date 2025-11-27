@@ -75,48 +75,111 @@ export async function getYalidineCredentials(organizationId: string): Promise<Ya
  */
 export function createYalidineApiClient(credentials: YalidineCredentials, useProxy: boolean = false): AxiosInstance {
 
-  // استخدام الوسيط المحلي إذا تم طلبه - تأكد من استخدام الوسيط دائمًا لتجنب مشاكل CORS
-  const baseURL = useProxy ? '/yalidine-api/' : YALIDINE_BASE_URL;
-  
-  const axiosInstance = axios.create({
-    baseURL,
-    headers: {
+  // التحقق من بيئة Electron
+  const isElectron = typeof window !== 'undefined' && (window as any).electronAPI;
+
+  // تحديد baseURL و headers حسب البيئة
+  let baseURL: string;
+  let headers: Record<string, string>;
+  let isSupabaseProxy = false;
+
+  if (isElectron) {
+    // Electron: استخدام Supabase Edge Function proxy
+    const supabaseUrl = (import.meta as any).env?.VITE_SUPABASE_URL || '';
+    const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '';
+    baseURL = `${supabaseUrl}/functions/v1/shipping-proxy`;
+    headers = {
+      'Authorization': `Bearer ${supabaseAnonKey}`,
+      'x-api-id': credentials.api_id,
+      'x-api-token': credentials.api_token,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    };
+    isSupabaseProxy = true;
+  } else if (useProxy) {
+    // Development: استخدام proxy المحلي
+    baseURL = '/yalidine-api/';
+    headers = {
       'X-API-ID': credentials.api_id,
       'X-API-TOKEN': credentials.api_token,
       'Content-Type': 'application/json',
-      // إضافة رأس لمعالجة مشاكل CORS
       'Accept': 'application/json, text/plain, */*',
-    },
-    timeout: 15000, // زيادة مهلة الانتظار إلى 15 ثانية
-    // السماح بإرسال ملفات تعريف الارتباط عبر النطاقات
+    };
+  } else {
+    // Production: استخدام API مباشرة
+    baseURL = YALIDINE_BASE_URL;
+    headers = {
+      'X-API-ID': credentials.api_id,
+      'X-API-TOKEN': credentials.api_token,
+      'Content-Type': 'application/json',
+      'Accept': 'application/json, text/plain, */*',
+    };
+  }
+
+  const axiosInstance = axios.create({
+    baseURL,
+    headers,
+    timeout: 15000,
     withCredentials: false
   });
 
-  // تطبيق نظام تحديد معدل الطلبات على جميع الطلبات
-  const originalGet = axiosInstance.get;
-  const originalPost = axiosInstance.post;
-  const originalPut = axiosInstance.put;
-  const originalDelete = axiosInstance.delete;
+  // إذا كان Supabase proxy، نحتاج تعديل الطلبات لإضافة query parameters
+  if (isSupabaseProxy) {
+    const originalGet = axiosInstance.get;
+    const originalPost = axiosInstance.post;
 
-  // استبدال طريقة GET بنسخة تستخدم محدد المعدل
-  axiosInstance.get = function(...args) {
-    return yalidineRateLimiter.schedule(() => originalGet.apply(this, args));
-  };
+    // تعديل GET لإضافة query parameters
+    axiosInstance.get = function(url: string, config?: any) {
+      const endpoint = url.startsWith('/') ? url.substring(1) : url;
+      return yalidineRateLimiter.schedule(() =>
+        originalGet.call(this, '', {
+          ...config,
+          params: {
+            provider: 'yalidine',
+            endpoint: endpoint,
+            ...(config?.params || {})
+          }
+        })
+      );
+    };
 
-  // استبدال طريقة POST بنسخة تستخدم محدد المعدل
-  axiosInstance.post = function(...args) {
-    return yalidineRateLimiter.schedule(() => originalPost.apply(this, args));
-  };
+    // تعديل POST لإضافة query parameters
+    axiosInstance.post = function(url: string, data?: any, config?: any) {
+      const endpoint = url.startsWith('/') ? url.substring(1) : url;
+      return yalidineRateLimiter.schedule(() =>
+        originalPost.call(this, '', data, {
+          ...config,
+          params: {
+            provider: 'yalidine',
+            endpoint: endpoint,
+            ...(config?.params || {})
+          }
+        })
+      );
+    };
+  } else {
+    // للبيئات الأخرى، فقط أضف rate limiter
+    const originalGet = axiosInstance.get;
+    const originalPost = axiosInstance.post;
+    const originalPut = axiosInstance.put;
+    const originalDelete = axiosInstance.delete;
 
-  // استبدال طريقة PUT بنسخة تستخدم محدد المعدل
-  axiosInstance.put = function(...args) {
-    return yalidineRateLimiter.schedule(() => originalPut.apply(this, args));
-  };
+    axiosInstance.get = function(...args: any[]) {
+      return yalidineRateLimiter.schedule(() => originalGet.apply(this, args));
+    };
 
-  // استبدال طريقة DELETE بنسخة تستخدم محدد المعدل
-  axiosInstance.delete = function(...args) {
-    return yalidineRateLimiter.schedule(() => originalDelete.apply(this, args));
-  };
+    axiosInstance.post = function(...args: any[]) {
+      return yalidineRateLimiter.schedule(() => originalPost.apply(this, args));
+    };
+
+    axiosInstance.put = function(...args: any[]) {
+      return yalidineRateLimiter.schedule(() => originalPut.apply(this, args));
+    };
+
+    axiosInstance.delete = function(...args: any[]) {
+      return yalidineRateLimiter.schedule(() => originalDelete.apply(this, args));
+    };
+  }
 
   return axiosInstance;
 }

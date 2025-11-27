@@ -1,7 +1,7 @@
-import { inventoryDB, type LocalCustomerDebt, type LocalCustomerDebtPayment } from '@/database/localDb';
+import type { LocalCustomerDebt, LocalCustomerDebtPayment } from '@/database/localDb';
+import { deltaWriteService } from '@/services/DeltaWriteService';
 import { updateLocalProduct, markProductAsSynced } from '@/api/localProductService';
 import { replaceProductInPOSCache, patchProductInAllPOSCaches } from '@/lib/cache/posCacheUpdater';
-import { syncProduct } from '@/api/syncService';
 import { supabase } from '@/lib/supabase';
 import { updateCustomerDebtSyncStatus } from '@/api/localCustomerDebtService';
 import { createLocalExpense } from '@/api/localExpenseService';
@@ -124,9 +124,9 @@ export const UnifiedMutationService = {
           return updated;
         }
       } catch {}
+      // ⚡ Delta Sync: المزامنة تحدث تلقائياً عبر BatchSender
       try {
-        // 3) fallback على syncProduct (قد ينجح إن تم تعديل المنطق لاحقاً)
-        await syncProduct(updated);
+        void import('@/api/syncService').then(m => (m.syncUnsyncedProducts?.()));
       } catch {}
     }
     return updated;
@@ -147,12 +147,13 @@ export const UnifiedMutationService = {
       return { totalBefore: 0, totalAfter: 0, applied: 0, debtsAffected: [] };
     }
 
-    // اجلب ديون العميل المفتوحة
-    const debts = await inventoryDB.customerDebts
-      .where('customer_id')
-      .equals(customerId)
-      .and(d => (d.status === 'pending' || d.status === 'partial') && d.pendingOperation !== 'delete')
-      .toArray();
+    // ⚡ اجلب ديون العميل المفتوحة عبر Delta Sync
+    const allDebts = await deltaWriteService.getAll<LocalCustomerDebt>('customer_debts' as any, organizationId);
+    const debts = allDebts.filter(d =>
+      d.customer_id === customerId &&
+      (d.status === 'pending' || d.status === 'partial') &&
+      d.pendingOperation !== 'delete'
+    );
 
     // ترتيب بالأقدم
     debts.sort((a, b) => (a.created_at || '').localeCompare(b.created_at || ''));
@@ -162,48 +163,51 @@ export const UnifiedMutationService = {
     const affected: Array<{ id: string; paid: number; remaining: number; status: LocalCustomerDebt['status'] }> = [];
 
     const affectedWithOrder: Array<{ id: string; orderId: string; paid: number; remaining: number; status: LocalCustomerDebt['status'] }> = [];
-    await inventoryDB.transaction('rw', inventoryDB.customerDebts, inventoryDB.customerDebtPayments, async () => {
-      // سجل دفعة عامة للعميل
-      const payment: LocalCustomerDebtPayment = {
-        id: crypto.randomUUID(),
-        organization_id: organizationId,
-        customer_id: customerId,
-        amount,
-        method: args.method || null,
-        note: args.note || null,
-        created_at: new Date().toISOString(),
-        applied_by: args.appliedBy || null,
+
+    // ⚡ استخدام Delta Sync بدلاً من IndexedDB transaction
+    // سجل دفعة عامة للعميل
+    const payment: LocalCustomerDebtPayment = {
+      id: crypto.randomUUID(),
+      organization_id: organizationId,
+      customer_id: customerId,
+      amount,
+      method: args.method || null,
+      note: args.note || null,
+      created_at: new Date().toISOString(),
+      applied_by: args.appliedBy || null,
+      synced: false,
+      pendingOperation: 'create'
+    };
+    await deltaWriteService.create('customer_debt_payments' as any, payment, organizationId);
+
+    for (const d of debts) {
+      if (remaining <= 0) break;
+      const rest = Math.max(0, d.remaining_amount || 0);
+      if (rest <= 0) continue;
+      const pay = Math.min(remaining, rest);
+      const newPaid = (d.paid_amount || 0) + pay;
+      const newRemaining = Math.max(0, (d.total_amount || 0) - newPaid);
+      const status: LocalCustomerDebt['status'] = newRemaining <= 0 ? 'paid' : 'partial';
+      await deltaWriteService.update('customer_debts' as any, d.id, {
+        paid_amount: newPaid,
+        remaining_amount: newRemaining,
+        status,
+        updated_at: new Date().toISOString(),
         synced: false,
-        pendingOperation: 'create'
-      };
-      await inventoryDB.customerDebtPayments.add(payment);
+        pendingOperation: 'update'
+      });
+      remaining -= pay;
+      affected.push({ id: d.id, paid: pay, remaining: newRemaining, status });
+      affectedWithOrder.push({ id: d.id, orderId: d.order_id, paid: pay, remaining: newRemaining, status });
+    }
 
-      for (const d of debts) {
-        if (remaining <= 0) break;
-        const rest = Math.max(0, d.remaining_amount || 0);
-        if (rest <= 0) continue;
-        const pay = Math.min(remaining, rest);
-        const newPaid = (d.paid_amount || 0) + pay;
-        const newRemaining = Math.max(0, (d.total_amount || 0) - newPaid);
-        const status: LocalCustomerDebt['status'] = newRemaining <= 0 ? 'paid' : 'partial';
-        await inventoryDB.customerDebts.update(d.id, {
-          paid_amount: newPaid,
-          remaining_amount: newRemaining,
-          status,
-          updated_at: new Date().toISOString(),
-          synced: false,
-          pendingOperation: 'update'
-        } as any);
-        remaining -= pay;
-        affected.push({ id: d.id, paid: pay, remaining: newRemaining, status });
-        affectedWithOrder.push({ id: d.id, orderId: d.order_id, paid: pay, remaining: newRemaining, status });
-      }
-    });
-
-    const openDebts = await inventoryDB.customerDebts
-      .where('customer_id').equals(customerId)
-      .and(d => (d.status === 'pending' || d.status === 'partial') && d.pendingOperation !== 'delete')
-      .toArray();
+    // ⚡ جلب الديون المفتوحة بعد التحديث
+    const allDebtsAfter = await deltaWriteService.getAll<LocalCustomerDebt>('customer_debts' as any, organizationId);
+    const openDebts = allDebtsAfter.filter(d =>
+      d.customer_id === customerId &&
+      (d.status === 'pending' || d.status === 'partial') &&
+      d.pendingOperation !== 'delete'
+    );
     const totalAfter = openDebts.reduce((s, d) => s + Math.max(0, d.remaining_amount || 0), 0);
     const applied = amount - remaining;
     // 4) محاولة تحديث قاعدة البيانات (orders) فوراً لكل دين متأثر
@@ -228,6 +232,70 @@ export const UnifiedMutationService = {
     }
 
     return { totalBefore, totalAfter, applied, debtsAffected: affected };
+  },
+
+  async createCustomerDebt(args: {
+    organizationId: string;
+    customerId: string;
+    customerName: string;
+    amount: number;
+    description?: string;
+  }): Promise<{ debtId: string; amount: number }> {
+    const { organizationId, customerId, customerName, amount, description } = args;
+
+    if (!customerId || !amount || amount <= 0) {
+      throw new Error('معلومات غير صحيحة لإنشاء الدين');
+    }
+
+    const debtId = `debt_${crypto.randomUUID()}`;
+    const now = new Date().toISOString();
+
+    const newDebt: LocalCustomerDebt = {
+      id: debtId,
+      customer_id: customerId,
+      customer_name: customerName,
+      organization_id: organizationId,
+      amount, // legacy field for backward compatibility with schema
+      total_amount: amount,
+      paid_amount: 0,
+      remaining_amount: amount,
+      status: 'pending',
+      description: description || `دين بمبلغ ${amount} دج`,
+      created_at: now,
+      updated_at: now,
+      synced: false,
+      pendingOperation: 'create'
+    };
+
+    // Use proper DB adapter (SQLite or IndexedDB)
+    const { isSQLiteAvailable, sqliteDB } = await import('@/lib/db/sqliteAPI');
+
+    if (isSQLiteAvailable()) {
+      // Use SQLite with proper field mapping
+      const result = await sqliteDB.upsert('customer_debts', {
+        ...newDebt,
+        synced: 0, // SQLite uses 0/1 for boolean
+        pending_operation: 'create' // Ensure snake_case for SQLite
+      });
+
+      if (!result.success) {
+        console.error('[createCustomerDebt] Failed to save to SQLite:', result.error);
+        throw new Error(`Failed to create customer debt: ${result.error}`);
+      }
+    } else {
+      // ⚡ Fallback to Delta Sync
+      await deltaWriteService.create('customer_debts' as any, newDebt, organizationId);
+    }
+
+    // محاولة المزامنة مع السيرفر
+    try {
+      const { syncPendingCustomerDebts } = await import('@/api/syncCustomerDebts');
+      void syncPendingCustomerDebts();
+    } catch (error) {
+      console.error('[createCustomerDebt] خطأ في المزامنة:', error);
+    }
+
+    return { debtId, amount };
   }
 };
 

@@ -1,11 +1,19 @@
-import { inventoryDB, type LocalPOSOrder, type LocalProduct } from '@/database/localDb';
+import type { LocalPOSOrder, LocalProduct, LocalCustomer, LocalCustomerDebt, LocalProductReturn, LocalLossDeclaration, LocalOrganizationSubscription, LocalWorkSession, LocalStaffPin, LocalPOSOrderItem } from '@/database/localDb';
 import { computeAvailableStock } from '@/lib/stock';
 import { sqliteDB, isSQLiteAvailable } from '@/lib/db/sqliteAPI';
+import { deltaWriteService } from '@/services/DeltaWriteService';
 
 /**
- * خدمة تحليل البيانات المحلية من IndexedDB
+ * خدمة تحليل البيانات المحلية من SQLite عبر Delta Sync
  * تستخرج البيانات والإحصائيات دون الحاجة للاتصال بالإنترنت
  */
+
+// Helper to get organization ID
+const getOrgId = (): string => {
+  return localStorage.getItem('currentOrganizationId') ||
+         localStorage.getItem('bazaar_organization_id') ||
+         '';
+};
 export class LocalAnalyticsService {
   
   /**
@@ -24,17 +32,30 @@ export class LocalAnalyticsService {
       const endOfDay = new Date(date);
       endOfDay.setHours(23, 59, 59, 999);
       
-      // ⚡ استخدام استعلام محسّن بدلاً من Full Table Scan
-      // تحسين: 10x أسرع، استهلاك ذاكرة أقل بكثير
-      const startISO = startOfDay.toISOString();
-      const endISO = endOfDay.toISOString();
+      // ⚡ استخدام Delta Sync للقراءة
+      const orgId = getOrgId();
+      const startTs = startOfDay.getTime();
+      const endTs = endOfDay.getTime();
 
-      // استخدام between مع index للأداء الأمثل
-      const dayOrders = await inventoryDB.posOrders
-        .where('created_at')
-        .between(startISO, endISO, true, true)
-        .toArray();
-      
+      // جلب كل الطلبات عبر Delta Sync
+      const allOrders = await deltaWriteService.getAll<LocalPOSOrder>('pos_orders', orgId);
+
+      // تصفية حسب التاريخ
+      const dayOrders = allOrders.filter(order => {
+        // جرب created_at_ts أولاً
+        if (order.created_at_ts) {
+          return order.created_at_ts >= startTs && order.created_at_ts <= endTs;
+        }
+        // وإلا جرب تحويل created_at
+        if (order.created_at) {
+          const orderTs = Date.parse(order.created_at);
+          if (!isNaN(orderTs)) {
+            return orderTs >= startTs && orderTs <= endTs;
+          }
+        }
+        return false;
+      });
+
       const totalSales = dayOrders.reduce((sum, order) => sum + (order.total || 0), 0);
       // حساب تقريبي للأرباح (30% من المبيعات كمثال)
       const profit = totalSales * 0.3;
@@ -77,32 +98,26 @@ export class LocalAnalyticsService {
     totalRevenue: number;
   }>> {
     try {
-      // ⚡ تحسين: استخدام استعلامات محسّنة بدلاً من Full Table Scans
+      // ⚡ استخدام Delta Sync للقراءة
+      const orgId = getOrgId();
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
       startDate.setHours(0, 0, 0, 0);
-      const startISO = startDate.toISOString();
+      const startTs = startDate.getTime();
 
-      // استعلام مُحسّن باستخدام index على created_at
-      const relevantOrders = await inventoryDB.posOrders
-        .where('created_at')
-        .aboveOrEqual(startISO)
-        .toArray();
+      // جلب كل الطلبات عبر Delta Sync
+      const allOrders = await deltaWriteService.getAll<LocalPOSOrder>('pos_orders', orgId);
+      const relevantOrders = allOrders.filter(order => {
+        const orderTs = order.created_at_ts || Date.parse(order.created_at);
+        return orderTs >= startTs;
+      });
 
-      // جلب عناصر الطلبات في استعلام واحد محسّن
+      // جلب عناصر الطلبات
       const relevantOrderIds = new Set(relevantOrders.map(o => o.id));
-
-      // إذا كانت القاعدة تدعم anyOf (Dexie)، استخدمها، وإلا استخدم filter
-      let relevantItems;
-      if (relevantOrderIds.size > 0) {
-        // تحميل العناصر فقط للطلبات ذات الصلة
-        const allOrderItems = await inventoryDB.posOrderItems.toArray();
-        relevantItems = allOrderItems.filter(item =>
-          relevantOrderIds.has(item.order_id)
-        );
-      } else {
-        relevantItems = [];
-      }
+      const allOrderItems = await deltaWriteService.getAll<LocalPOSOrderItem>('pos_order_items', orgId);
+      const relevantItems = allOrderItems.filter(item =>
+        relevantOrderIds.has(item.order_id)
+      );
       
       // تجميع المنتجات
       const productMap = new Map<string, {
@@ -148,13 +163,15 @@ export class LocalAnalyticsService {
     bestDay: { date: string; sales: number } | null;
   }> {
     try {
+      const orgId = getOrgId();
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
       startDate.setHours(0, 0, 0, 0);
-      
+
       const startTimestamp = startDate.getTime();
-      
-      const allOrders = await inventoryDB.posOrders.toArray();
+
+      // ⚡ استخدام Delta Sync
+      const allOrders = await deltaWriteService.getAll<LocalPOSOrder>('pos_orders', orgId);
       const relevantOrders = allOrders.filter(order => {
         const orderTimestamp = order.created_at_ts || Date.parse(order.created_at);
         return orderTimestamp >= startTimestamp;
@@ -211,7 +228,9 @@ export class LocalAnalyticsService {
     totalStockValue: number;
   }> {
     try {
-      const allProducts = await inventoryDB.products.toArray();
+      const orgId = getOrgId();
+      // ⚡ استخدام Delta Sync
+      const allProducts = await deltaWriteService.getAll<LocalProduct>('products', orgId);
       
       const totalProducts = allProducts.length;
       
@@ -257,7 +276,9 @@ export class LocalAnalyticsService {
    */
   static async getLowStockProducts(limit: number = 20): Promise<Array<LocalProduct & { available_stock: number }>> {
     try {
-      const all = await inventoryDB.products.toArray();
+      const orgId = getOrgId();
+      // ⚡ استخدام Delta Sync
+      const all = await deltaWriteService.getAll<LocalProduct>('products', orgId);
       const enriched = all.map((p) => ({
         ...(p as any),
         available_stock: computeAvailableStock(p as any),
@@ -278,7 +299,9 @@ export class LocalAnalyticsService {
    */
   static async getOutOfStockProducts(limit: number = 50): Promise<Array<LocalProduct & { available_stock: number }>> {
     try {
-      const all = await inventoryDB.products.toArray();
+      const orgId = getOrgId();
+      // ⚡ استخدام Delta Sync
+      const all = await deltaWriteService.getAll<LocalProduct>('products', orgId);
       const enriched = all.map((p) => ({
         ...(p as any),
         available_stock: computeAvailableStock(p as any),
@@ -299,77 +322,48 @@ export class LocalAnalyticsService {
    */
   static async searchProduct(query: string): Promise<LocalProduct[]> {
     try {
-      const allProducts = await inventoryDB.products.toArray();
+      const orgId = getOrgId();
+      // ⚡ استخدام Delta Sync
+      const allProducts = await deltaWriteService.getAll<LocalProduct>('products', orgId);
 
-      const normalizeArabic = (s: string) => {
-        try {
-          let t = (s || '').toString().toLowerCase();
-          t = t.replace(/[\u064B-\u0652\u0670\u0640]/g, '');
-          t = t.replace(/[\u0622\u0623\u0625\u0671]/g, '\u0627');
-          t = t.replace(/\u0624/g, '\u0648');
-          t = t.replace(/\u0626/g, '\u064a');
-          t = t.replace(/\u0629/g, '\u0647');
-          t = t.replace(/\u0649/g, '\u064a');
-          t = t.replace(/[^\u0600-\u06FFa-z0-9\s]/g, ' ');
-          t = t.replace(/\s+/g, ' ').trim();
-          return t;
-        } catch {
-          return (s || '').toString().toLowerCase();
-        }
-      };
+      // استيراد نظام البحث المحسّن
+      const { multiFieldSearch } = await import('@/lib/fuzzyMatch');
 
-      const digits = (s: string) => (s || '').toString().replace(/\D+/g, '');
-      const stopwords = new Set(['ال','في','من','الى','إلى','عن','على','قم','من','و','ثم','او','أو','مع']);
-
-      const qNorm = normalizeArabic(query);
-      const tokens = qNorm.split(' ').filter(w => w && w.length >= 2 && !stopwords.has(w));
-
-      const scoreProduct = (p: any): number => {
-        let score = 0;
-        const name = (p.name || '').toString().toLowerCase();
-        const sku = (p.sku || '').toString().toLowerCase();
-        const barcode = (p.barcode || '').toString().toLowerCase();
-        const nameSearch = (p.name_search || normalizeArabic(name));
-        const skuLower = (p.sku_lower || sku);
-        const barcodeLower = (p.barcode_lower || barcode);
-        const barcodeDigits = (p.barcode_digits || digits(barcode));
-
-        for (const t of tokens) {
-          if (name.includes(t)) score += 3;
-          if (nameSearch.includes(t)) score += 3;
-          if (skuLower.includes(t)) score += 2;
-          if (barcodeLower.includes(t)) score += 2;
-          if (t === digits(t) && barcodeDigits.includes(t)) score += 2;
-        }
-
-        // البحث في الألوان والمقاسات
-        const colors = (p.colors || p.product_colors || []) as any[];
-        for (const c of colors) {
-          const cname = (c?.name || c?.color_name || '').toString().toLowerCase();
-          const cnameNorm = normalizeArabic(cname);
-          for (const t of tokens) {
-            if (cname.includes(t) || cnameNorm.includes(t)) score += 2;
+      // البحث متعدد الحقول مع أوزان مخصصة
+      const results = multiFieldSearch(
+        query,
+        allProducts,
+        [
+          { accessor: (p) => p.name || '', weight: 3.0 },           // الاسم (أعلى وزن)
+          { accessor: (p) => p.sku || '', weight: 2.0 },            // SKU
+          { accessor: (p) => p.barcode || '', weight: 2.0 },        // Barcode
+          // البحث في الألوان
+          {
+            accessor: (p) => {
+              const colors = (p.colors || p.product_colors || []) as any[];
+              return colors.map((c: any) => c?.name || c?.color_name || '').join(' ');
+            },
+            weight: 1.5
+          },
+          // البحث في المقاسات
+          {
+            accessor: (p) => {
+              const colors = (p.colors || p.product_colors || []) as any[];
+              const sizes = colors.flatMap((c: any) =>
+                (c?.sizes || c?.product_sizes || []).map((s: any) => s?.size_name || s?.name || '')
+              );
+              return sizes.join(' ');
+            },
+            weight: 1.0
           }
-          const sizes = (c?.sizes || c?.product_sizes || []) as any[];
-          for (const s of sizes) {
-            const sname = (s?.size_name || s?.name || '').toString().toLowerCase();
-            const snameNorm = normalizeArabic(sname);
-            for (const t of tokens) {
-              if (sname.includes(t) || snameNorm.includes(t)) score += 1;
-            }
-          }
+        ],
+        {
+          threshold: 0.3,  // عتبة منخفضة لضمان إيجاد المنتجات
+          limit: 10
         }
-        return score;
-      };
+      );
 
-      const ranked = allProducts
-        .map(p => ({ p, s: scoreProduct(p) }))
-        .filter(x => x.s > 0)
-        .sort((a, b) => b.s - a.s)
-        .slice(0, 10)
-        .map(x => x.p as LocalProduct);
-
-      return ranked;
+      return results as LocalProduct[];
 
     } catch (error) {
       console.error('Error searching products:', error);
@@ -386,13 +380,15 @@ export class LocalAnalyticsService {
     totalAmount: number;
   }>> {
     try {
+      const orgId = getOrgId();
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
       startDate.setHours(0, 0, 0, 0);
-      
+
       const startTimestamp = startDate.getTime();
-      
-      const allOrders = await inventoryDB.posOrders.toArray();
+
+      // ⚡ استخدام Delta Sync
+      const allOrders = await deltaWriteService.getAll<LocalPOSOrder>('pos_orders', orgId);
       const relevantOrders = allOrders.filter(order => {
         const orderTimestamp = order.created_at_ts || Date.parse(order.created_at);
         return orderTimestamp >= startTimestamp;
@@ -435,15 +431,17 @@ export class LocalAnalyticsService {
     dailyBreakdown: Array<{ date: string; sales: number; orders: number }>;
   }> {
     try {
+      const orgId = getOrgId();
       const today = new Date();
       const dayOfWeek = today.getDay(); // 0 = Sunday
       const startOfWeek = new Date(today);
       startOfWeek.setDate(today.getDate() - dayOfWeek);
       startOfWeek.setHours(0, 0, 0, 0);
-      
+
       const startTimestamp = startOfWeek.getTime();
-      
-      const allOrders = await inventoryDB.posOrders.toArray();
+
+      // ⚡ استخدام Delta Sync
+      const allOrders = await deltaWriteService.getAll<LocalPOSOrder>('pos_orders', orgId);
       const weekOrders = allOrders.filter(order => {
         const orderTimestamp = order.created_at_ts || Date.parse(order.created_at);
         return orderTimestamp >= startTimestamp;
@@ -503,12 +501,14 @@ export class LocalAnalyticsService {
     byPaymentMethod: Record<string, number>;
   }> {
     try {
+      const orgId = getOrgId();
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
       startDate.setHours(0, 0, 0, 0);
       const startTs = startDate.getTime();
 
-      const orders = await inventoryDB.posOrders.toArray();
+      // ⚡ استخدام Delta Sync
+      const orders = await deltaWriteService.getAll<LocalPOSOrder>('pos_orders', orgId);
       const filtered = orders.filter(o => (o.created_at_ts || Date.parse(o.created_at)) >= startTs);
 
       const byStatus: Record<string, number> = {};
@@ -545,12 +545,14 @@ export class LocalAnalyticsService {
     total: number;
   }>> {
     try {
+      const orgId = getOrgId();
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
       startDate.setHours(0, 0, 0, 0);
       const startTs = startDate.getTime();
 
-      const orders = await inventoryDB.posOrders.toArray();
+      // ⚡ استخدام Delta Sync
+      const orders = await deltaWriteService.getAll<LocalPOSOrder>('pos_orders', orgId);
       const filtered = orders.filter(o => (o.created_at_ts || Date.parse(o.created_at)) >= startTs);
 
       const map = new Map<string, { customer_id: string | null; customer_name: string; orders: number; total: number }>();
@@ -583,8 +585,10 @@ export class LocalAnalyticsService {
     lastOrderAt: string | null;
   }> {
     try {
+      const orgId = getOrgId();
       const q = (query || '').toLowerCase().trim();
-      const customers = await inventoryDB.customers.toArray();
+      // ⚡ استخدام Delta Sync
+      const customers = await deltaWriteService.getAll<LocalCustomer>('customers', orgId);
       const found = customers.find(c =>
         (c.name || '').toLowerCase().includes(q) ||
         (c.email || '').toLowerCase().includes(q) ||
@@ -595,7 +599,9 @@ export class LocalAnalyticsService {
         return { customer: null, totalOrders: 0, totalSpent: 0, lastOrderAt: null };
       }
 
-      const orders = await inventoryDB.posOrders.where('customer_id').equals(found.id).toArray();
+      // ⚡ استخدام Delta Sync
+      const allOrders = await deltaWriteService.getAll<LocalPOSOrder>('pos_orders', orgId);
+      const orders = allOrders.filter(o => o.customer_id === found.id);
       const totalOrders = orders.length;
       const totalSpent = orders.reduce((s, o) => s + (o.total || 0), 0);
       const lastOrderAt = orders.length ? (orders.sort((a,b) => (Date.parse(b.created_at) - Date.parse(a.created_at)))[0].created_at) : null;
@@ -616,12 +622,14 @@ export class LocalAnalyticsService {
     total: number;
   }>> {
     try {
+      const orgId = getOrgId();
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
       startDate.setHours(0, 0, 0, 0);
       const startTs = startDate.getTime();
 
-      const orders = await inventoryDB.posOrders.toArray();
+      // ⚡ استخدام Delta Sync
+      const orders = await deltaWriteService.getAll<LocalPOSOrder>('pos_orders', orgId);
       const filtered = orders.filter(o => (o.created_at_ts || Date.parse(o.created_at)) >= startTs);
 
       const map = new Map<string, { employee_id: string | null; employee_name: string; orders: number; total: number }>();
@@ -647,12 +655,14 @@ export class LocalAnalyticsService {
    */
   static async getHourlySales(days: number = 7): Promise<Array<{ hour: number; orders: number; total: number }>> {
     try {
+      const orgId = getOrgId();
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
       startDate.setHours(0, 0, 0, 0);
       const startTs = startDate.getTime();
 
-      const orders = await inventoryDB.posOrders.toArray();
+      // ⚡ استخدام Delta Sync
+      const orders = await deltaWriteService.getAll<LocalPOSOrder>('pos_orders', orgId);
       const filtered = orders.filter(o => (o.created_at_ts || Date.parse(o.created_at)) >= startTs);
       const buckets = Array.from({ length: 24 }, (_, hour) => ({ hour, orders: 0, total: 0 }));
       for (const o of filtered) {
@@ -677,7 +687,9 @@ export class LocalAnalyticsService {
     totalRemaining: number;
   }> {
     try {
-      const debts = await inventoryDB.customerDebts.toArray();
+      const orgId = getOrgId();
+      // ⚡ استخدام Delta Sync
+      const debts = await deltaWriteService.getAll<LocalCustomerDebt>('customer_debts' as any, orgId);
       let pending = 0, partial = 0, paid = 0, totalRemaining = 0;
       for (const d of debts) {
         if (d.status === 'pending') pending++;
@@ -692,6 +704,94 @@ export class LocalAnalyticsService {
     }
   }
 
+  /**
+   * قائمة العملاء الذين لديهم ديون (غير مدفوعة بالكامل)
+   */
+  static async getCustomersWithDebts(limit: number = 20): Promise<Array<{
+    customer_id: string;
+    customer_name: string;
+    total_debt: number;
+    remaining_amount: number;
+    debts_count: number;
+    status: string;
+  }>> {
+    try {
+      const orgId = getOrgId();
+      // ⚡ استخدام Delta Sync
+      let debts = await deltaWriteService.getAll<LocalCustomerDebt>('customer_debts' as any, orgId);
+
+      // إذا لم نجد ديون محلياً، جرب المزامنة من السيرفر
+      if (debts.length === 0) {
+        try {
+          const { fetchCustomerDebtsFromServer } = await import('@/api/syncCustomerDebts');
+
+          if (orgId) {
+            const syncedCount = await fetchCustomerDebtsFromServer(orgId);
+
+            // إعادة جلب البيانات بعد المزامنة
+            if (syncedCount > 0) {
+              debts = await deltaWriteService.getAll<LocalCustomerDebt>('customer_debts' as any, orgId);
+            }
+          }
+        } catch (syncError) {
+          console.error('[getCustomersWithDebts] خطأ في المزامنة:', syncError);
+        }
+      }
+
+      // فلترة الديون غير المدفوعة بالكامل
+      // نقبل أي دين له مبلغ متبقي > 0، بغض النظر عن status
+      const unpaidDebts = debts.filter(d => {
+        const remaining = Number(d.remaining_amount || 0);
+        return remaining > 0;
+      });
+
+      // تجميع حسب العميل
+      const customerMap = new Map<string, {
+        customer_id: string;
+        customer_name: string;
+        total_debt: number;
+        remaining_amount: number;
+        debts_count: number;
+        status: string;
+      }>();
+
+      for (const debt of unpaidDebts) {
+        const customerId = debt.customer_id || 'unknown';
+        const customerName = debt.customer_name || 'عميل غير معروف';
+
+        const existing = customerMap.get(customerId);
+        if (existing) {
+          existing.total_debt += Number(debt.total_amount || 0);
+          existing.remaining_amount += Number(debt.remaining_amount || 0);
+          existing.debts_count++;
+          // إذا كان أي دين pending، العميل pending
+          if (debt.status === 'pending') {
+            existing.status = 'pending';
+          }
+        } else {
+          customerMap.set(customerId, {
+            customer_id: customerId,
+            customer_name: customerName,
+            total_debt: Number(debt.total_amount || 0),
+            remaining_amount: Number(debt.remaining_amount || 0),
+            debts_count: 1,
+            status: debt.status || 'unknown'
+          });
+        }
+      }
+
+      // تحويل إلى مصفوفة وترتيب حسب المبلغ المتبقي
+      const result = Array.from(customerMap.values())
+        .sort((a, b) => b.remaining_amount - a.remaining_amount)
+        .slice(0, limit);
+
+      return result;
+    } catch (error) {
+      console.error('Error getting customers with debts:', error);
+      return [];
+    }
+  }
+
   /** الإرجاعات */
   static async getReturnsSummary(days: number = 30): Promise<{
     totalReturns: number;
@@ -699,11 +799,13 @@ export class LocalAnalyticsService {
     totalRefundAmount: number;
   }> {
     try {
+      const orgId = getOrgId();
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
       startDate.setHours(0, 0, 0, 0);
       const startTs = startDate.getTime();
-      const returns = await inventoryDB.productReturns.toArray();
+      // ⚡ استخدام Delta Sync
+      const returns = await deltaWriteService.getAll<LocalProductReturn>('product_returns' as any, orgId);
       const filtered = returns.filter(r => Date.parse(r.created_at) >= startTs);
       const totalReturnAmount = filtered.reduce((s, r) => s + Number(r.return_amount || 0), 0);
       const totalRefundAmount = filtered.reduce((s, r) => s + Number(r.refund_amount || 0), 0);
@@ -720,11 +822,13 @@ export class LocalAnalyticsService {
     totalCostValue: number;
   }> {
     try {
+      const orgId = getOrgId();
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
       startDate.setHours(0, 0, 0, 0);
       const startTs = startDate.getTime();
-      const losses = await inventoryDB.lossDeclarations.toArray();
+      // ⚡ استخدام Delta Sync
+      const losses = await deltaWriteService.getAll<LocalLossDeclaration>('loss_declarations' as any, orgId);
       const filtered = losses.filter(l => Date.parse(l.created_at) >= startTs);
       const totalCostValue = filtered.reduce((s, l) => s + Number(l.total_cost_value || 0), 0);
       return { totalLossDeclarations: filtered.length, totalCostValue };
@@ -741,7 +845,9 @@ export class LocalAnalyticsService {
     expiringSoon: number;
   }> {
     try {
-      const subs = await inventoryDB.organizationSubscriptions.toArray();
+      const orgId = getOrgId();
+      // ⚡ استخدام Delta Sync
+      const subs = await deltaWriteService.getAll<LocalOrganizationSubscription>('organization_subscriptions' as any, orgId);
       const now = Date.now();
       let total = subs.length, active = 0, expiringSoon = 0;
       for (const s of subs) {
@@ -762,11 +868,12 @@ export class LocalAnalyticsService {
    */
   static async getKnownStaff(): Promise<Array<{ staff_id: string | null; staff_name: string; sources: string[] }>> {
     try {
+      const orgId = getOrgId();
       const byKey = new Map<string, { staff_id: string | null; staff_name: string; sources: Set<string> }>();
 
-      // من جلسات العمل
+      // من جلسات العمل - ⚡ استخدام Delta Sync
       try {
-        const sessions = await inventoryDB.workSessions.toArray();
+        const sessions = await deltaWriteService.getAll<LocalWorkSession>('work_sessions', orgId);
         for (const s of sessions) {
           const id = s.staff_id || null;
           const name = s.staff_name || 'موظف';
@@ -777,9 +884,9 @@ export class LocalAnalyticsService {
         }
       } catch {}
 
-      // من PINs المخزنة محلياً
+      // من PINs المخزنة محلياً - ⚡ استخدام Delta Sync
       try {
-        const pins = await inventoryDB.staffPins.toArray();
+        const pins = await deltaWriteService.getAll<LocalStaffPin>('staff_pins' as any, orgId);
         for (const p of pins) {
           const id = p.id || null;
           const name = p.staff_name || 'موظف';
@@ -790,9 +897,9 @@ export class LocalAnalyticsService {
         }
       } catch {}
 
-      // من الطلبات (employee_id واسم المنشئ إذا توفّر)
+      // من الطلبات (employee_id واسم المنشئ إذا توفّر) - ⚡ استخدام Delta Sync
       try {
-        const orders = await inventoryDB.posOrders.toArray();
+        const orders = await deltaWriteService.getAll<LocalPOSOrder>('pos_orders', orgId);
         for (const o of orders) {
           const id = o.employee_id || (o as any).created_by_staff_id || null;
           const name = (o as any).created_by_staff_name || 'موظف';

@@ -160,9 +160,14 @@ export const usePOSOrderOperations = () => {
   const queryClient = useQueryClient();
   const { currentOrganization } = useTenant();
 
+  // 🚀 تحسين الأداء: توحيد invalidation في استدعاء واحد
   const invalidateOrderQueries = () => {
-    queryClient.invalidateQueries({ queryKey: ['pos-orders'] });
-    queryClient.invalidateQueries({ queryKey: ['pos-order-stats'] });
+    queryClient.invalidateQueries({
+      predicate: (query) => {
+        const key = query.queryKey[0] as string;
+        return key?.startsWith('pos-order') || key === 'pos-orders';
+      }
+    });
   };
 
   const updateOrderStatusMutation = async (
@@ -216,9 +221,14 @@ export const usePOSOrderOperations = () => {
     );
   };
 
+  // 🚀 تحسين الأداء: توحيد invalidation
   const refreshProductsCache = () => {
-    queryClient.invalidateQueries({ queryKey: ['products'] });
-    queryClient.invalidateQueries({ queryKey: ['pos-products'] });
+    queryClient.invalidateQueries({
+      predicate: (query) => {
+        const key = query.queryKey[0] as string;
+        return key === 'products' || key?.startsWith('pos-product');
+      }
+    });
   };
 
   return {

@@ -2,7 +2,6 @@ import React, { memo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -158,13 +157,13 @@ const ProductFormTabsList = memo<ProductFormTabsListProps>(({
             const colorClasses = getTabColorClasses(tab.color);
 
             return (
-              <Tooltip key={tab.value}>
-                <TooltipTrigger asChild>
-                  <TabsTrigger 
-                    value={tab.value}
-                    onClick={() => onTabChange(tab.value)}
-                    disabled={isTransitioning}
-                    className={`
+              <TabsTrigger 
+                key={tab.value}
+                value={tab.value}
+                onClick={() => onTabChange(tab.value)}
+                disabled={isTransitioning}
+                title={tab.tooltip}
+                className={`
                       flex flex-col items-center gap-1.5 sm:gap-2 p-2 sm:p-3 h-auto rounded-lg sm:rounded-xl border transition-all duration-300 
                       relative overflow-hidden group min-h-[70px] sm:min-h-[85px] lg:min-h-[100px]
                       ${isActive 
@@ -173,7 +172,7 @@ const ProductFormTabsList = memo<ProductFormTabsListProps>(({
                       }
                       ${isTransitioning ? 'pointer-events-none opacity-70' : ''}
                     `}
-                  >
+              >
                     {/* Tab Number Badge */}
                     <div className={`
                       absolute -top-0.5 sm:-top-1 -right-0.5 sm:-right-1 w-4 h-4 sm:w-5 sm:h-5 rounded-full border-2 text-[10px] sm:text-xs flex items-center justify-center 
@@ -227,27 +226,6 @@ const ProductFormTabsList = memo<ProductFormTabsListProps>(({
                       <div className="absolute inset-0 rounded-lg sm:rounded-xl bg-gradient-to-r from-primary/20 via-transparent to-primary/20 animate-pulse" />
                     )}
                   </TabsTrigger>
-                </TooltipTrigger>
-                <TooltipContent 
-                  className="bg-background/95 dark:bg-background/90 backdrop-blur-md border-border/60 shadow-xl max-w-xs"
-                  side="bottom"
-                >
-                  <div className="space-y-1">
-                    <p className="font-medium text-foreground text-sm">{tab.label}</p>
-                    <p className="text-xs text-muted-foreground">{tab.tooltip}</p>
-                    {status !== 'optional' && (
-                      <div className={`text-xs flex items-center gap-1 ${
-                        status === 'complete' ? 'text-green-600' :
-                        status === 'partial' ? 'text-amber-600' : 'text-red-600'
-                      }`}>
-                        <StatusIcon status={status} />
-                        {status === 'complete' ? 'مكتمل' :
-                         status === 'partial' ? 'يحتاج إكمال' : 'مطلوب'}
-                      </div>
-                    )}
-                  </div>
-                </TooltipContent>
-              </Tooltip>
             );
           })}
         </TabsList>

@@ -52,23 +52,11 @@
     <link rel="icon" type="image/png" sizes="192x192" href="./icon-192x192.png">
     <link rel="icon" type="image/png" sizes="512x512" href="./icon-512x512.png">
     
-    <!-- 🚀 تحميل الخطوط المحلية محسن للأداء - استخدام preload مع font-display -->
-    <link rel="preload" href="./fonts/tajawal-regular.woff2" as="font" type="font/woff2" crossorigin="anonymous">
-    <script nonce="{{CSP_NONCE}}">
-      // Adjust font preload credentials for file:// protocol to avoid mismatch warnings
-      (function(){
-        try {
-          if (location.protocol === 'file:') {
-            document.querySelectorAll('link[rel="preload"][as="font"]').forEach(function(l){
-              l.removeAttribute('crossorigin');
-            });
-          }
-        } catch (e) { console.warn('[FontPreload] adjust failed', e); }
-      })();
-    </script>
-    <!-- تحميل الخطوط الإضافية عند الحاجة فقط -->
-    <link rel="prefetch" href="./fonts/tajawal-medium.woff2" as="font" type="font/woff2" crossorigin="anonymous">
-    <link rel="prefetch" href="./fonts/tajawal-bold.woff2" as="font" type="font/woff2" crossorigin="anonymous">
+    <!-- 🚀 تحميل الخطوط المحلية محسن للأداء -->
+    <!-- استخدام prefetch بدلاً من preload لتجنب التحذيرات عند عدم الاستخدام الفوري -->
+    <link rel="prefetch" href="/fonts/tajawal-regular.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="prefetch" href="/fonts/tajawal-medium.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="prefetch" href="/fonts/tajawal-bold.woff2" as="font" type="font/woff2" crossorigin>
     
     <!-- تحميل CSS الرئيسي - ضروري للتطبيق -->
     <link rel="stylesheet" href="./src/index.css">
@@ -104,7 +92,7 @@
             link.rel = 'prefetch';
             link.as = 'font';
             link.type = 'font/woff2';
-            link.crossOrigin = 'anonymous';
+            // لا نحتاج crossOrigin للخطوط المحلية
             link.href = fontUrl;
             document.head.appendChild(link);
           });

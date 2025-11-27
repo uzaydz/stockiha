@@ -12,7 +12,11 @@
     "assets/**/*",
     "node_modules/**/*"
   ],
-  "npmRebuild": false,
+  "asar": true,
+  "asarUnpack": [
+    "node_modules/better-sqlite3/**/*"
+  ],
+  "npmRebuild": true,
   "buildDependenciesFromSource": false,
   "nodeGypRebuild": false,
   "extraResources": [
@@ -22,6 +26,7 @@
       "filter": ["**/*"]
     }
   ],
+  "afterPack": "./scripts/after-pack.cjs",
   "compression": "maximum",
   "removePackageScripts": true,
   "mac": {

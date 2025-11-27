@@ -66,3 +66,13 @@ export {
   IGNORED_FIELDS,
   DEFAULT_STRATEGIES
 } from './conflictTypes';
+
+// Sync Validator - أدوات التحقق والإصلاح
+export {
+  performSyncHealthCheck,
+  autoRepairSyncIssues,
+  printHealthReport,
+  quickSyncCheckAndRepair
+} from './SyncValidator';
+
+export type { SyncHealthReport } from './SyncValidator';

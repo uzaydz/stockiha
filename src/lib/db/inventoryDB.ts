@@ -1,6 +1,7 @@
 import { fetchProductInventoryDetails, updateVariantInventory } from '@/services/InventoryService';
 import type { InventoryVariantSize, ProductInventoryDetails } from '@/services/InventoryService';
 import type { InventoryItem as LocalInventoryItem, InventoryTransaction as LocalInventoryTransaction } from '@/database/localDb';
+import { sqliteDB } from './sqliteAPI';
 
 // إعادة تصدير الأنواع من المصدر الموحد
 export type InventoryItem = LocalInventoryItem;
@@ -11,7 +12,7 @@ function createInventoryItemId(productId: string, variantId: string | null): str
   return `${productId}:${variantId || 'null'}`;
 }
 
-// تمت إزالة أي اعتماد على Dexie/IndexedDB. هذا الملف يستخدم SQLite فقط عبر window.electronAPI.db
+// هذا الملف يستخدم SQLite فقط عبر sqliteDB (يدعم Tauri و Electron)
 
 /**
  * استرجاع مخزون منتج معين (أو متغير منتج)
@@ -25,25 +26,22 @@ export async function getProductStock(productId: string, variantId?: string): Pr
     if (!productId) {
       throw new Error('معرف المنتج غير صالح');
     }
-    
+
     const normalizedVariantId = variantId ?? null;
     const itemId = createInventoryItemId(productId, normalizedVariantId);
 
-    // البحث في SQLite فقط
-    if (!window.electronAPI?.db) return 0;
-    const result = await window.electronAPI.db.queryOne(
+    // البحث في SQLite
+    const result = await sqliteDB.queryOne(
       'SELECT stock_quantity FROM inventory WHERE id = ?',
       [itemId]
     );
     if (result.data) return result.data.stock_quantity || 0;
 
-    const result2 = await window.electronAPI.db.queryOne(
+    const result2 = await sqliteDB.queryOne(
       'SELECT stock_quantity FROM inventory WHERE product_id = ? AND (variant_id = ? OR (variant_id IS NULL AND ? IS NULL))',
       [productId, normalizedVariantId, normalizedVariantId]
     );
     return result2.data?.stock_quantity || 0;
-    
-    return 0;
   } catch (error) {
     return 0;
   }
@@ -67,11 +65,11 @@ export async function updateProductStock(data: {
   if (!data.product_id) {
     throw new Error('معرف المنتج غير صالح');
   }
-  
+
   // ضمان أن معرف المتغير دائمًا null إذا كان غير محدد
   const variantId = data.variant_id ?? null;
   const itemId = createInventoryItemId(data.product_id, variantId);
-  
+
   // إنشاء عملية جديدة
   const transaction: InventoryTransaction = {
     id: `local-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
@@ -80,16 +78,15 @@ export async function updateProductStock(data: {
     timestamp: new Date(),
     synced: false
   };
-  
+
   // بدء معاملة قاعدة البيانات
-  if (!window.electronAPI?.db) throw new Error('SQLite DB API not available');
-  const result = await window.electronAPI.db.queryOne(
+  const result = await sqliteDB.queryOne(
     'SELECT * FROM inventory WHERE id = ?',
     [itemId]
   );
   let item = result.data;
   if (!item) {
-    const result2 = await window.electronAPI.db.queryOne(
+    const result2 = await sqliteDB.queryOne(
       'SELECT * FROM inventory WHERE product_id = ? AND (variant_id = ? OR (variant_id IS NULL AND ? IS NULL))',
       [data.product_id, variantId, variantId]
     );
@@ -98,7 +95,7 @@ export async function updateProductStock(data: {
   const now = new Date().toISOString();
   if (item) {
     const newQuantity = Math.max(0, item.stock_quantity + data.quantity);
-    await window.electronAPI.db.upsert('inventory', {
+    await sqliteDB.upsert('inventory', {
       id: itemId,
       product_id: data.product_id,
       variant_id: variantId,
@@ -107,7 +104,7 @@ export async function updateProductStock(data: {
       synced: 0
     });
   } else {
-    await window.electronAPI.db.upsert('inventory', {
+    await sqliteDB.upsert('inventory', {
       id: itemId,
       product_id: data.product_id,
       variant_id: variantId,
@@ -116,9 +113,9 @@ export async function updateProductStock(data: {
       synced: 0
     });
   }
-  
+
   // حفظ المعاملة في SQLite (بعد حفظ المخزون)
-  const saveTx = await window.electronAPI.db.upsert('transactions', {
+  const saveTx = await sqliteDB.upsert('transactions', {
     ...transaction,
     timestamp: transaction.timestamp.toISOString(),
     synced: transaction.synced ? 1 : 0,
@@ -139,10 +136,9 @@ export async function syncInventoryData(): Promise<number> {
     if (!navigator.onLine) {
       return 0;
     }
-    
+
     // الحصول على العمليات غير المتزامنة
-    if (!window.electronAPI?.db) return 0;
-    const result = await window.electronAPI.db.query(
+    const result = await sqliteDB.query(
       'SELECT * FROM transactions WHERE synced = 0 ORDER BY timestamp ASC',
       []
     );
@@ -151,12 +147,12 @@ export async function syncInventoryData(): Promise<number> {
       timestamp: new Date(t.timestamp),
       synced: t.synced === 1
     }));
-    
+
     if (unsyncedTransactions.length === 0) {
-      
+
       return 0;
     }
-    
+
     // تنفيذ المزامنة مع الخادم
     let syncedCount = 0;
     const now = new Date();
@@ -203,13 +199,13 @@ export async function syncInventoryData(): Promise<number> {
           notes: transaction.notes,
         });
 
-        await window.electronAPI.db.upsert('transactions', {
+        await sqliteDB.upsert('transactions', {
           ...transaction,
           synced: 1,
           timestamp: now.toISOString(),
         });
 
-        await window.electronAPI.db.upsert('inventory', {
+        await sqliteDB.upsert('inventory', {
           id: createInventoryItemId(transaction.product_id, transaction.variant_id ?? null),
           product_id: transaction.product_id,
           variant_id: transaction.variant_id ?? null,
@@ -223,9 +219,9 @@ export async function syncInventoryData(): Promise<number> {
         // ترك المعاملة في حالة غير متزامنة للمحاولة لاحقًا
       }
     }
-    
+
     // تحديث حالة المزامنة لعناصر المخزون
-    await window.electronAPI.db.query(
+    await sqliteDB.execute(
       'UPDATE inventory SET synced = 1 WHERE synced = 0',
       []
     );
@@ -242,8 +238,7 @@ export async function syncInventoryData(): Promise<number> {
  */
 export async function getUnsyncedTransactionsCount(): Promise<number> {
   try {
-    if (!window.electronAPI?.db) return 0;
-    const result = await window.electronAPI.db.query(
+    const result = await sqliteDB.query(
       'SELECT COUNT(*) as count FROM transactions WHERE synced = 0',
       []
     );
@@ -264,7 +259,6 @@ export async function getProductTransactions(productId: string, variantId?: stri
     if (!productId) {
       return [];
     }
-    if (!window.electronAPI?.db) return [];
     let sql = 'SELECT * FROM transactions WHERE product_id = ?';
     const params: any[] = [productId];
     if (variantId) {
@@ -272,7 +266,7 @@ export async function getProductTransactions(productId: string, variantId?: stri
       params.push(variantId);
     }
     sql += ' ORDER BY timestamp ASC';
-    const result = await window.electronAPI.db.query(sql, params);
+    const result = await sqliteDB.query(sql, params);
     return (result.data || []).map((t: any) => ({
       ...t,
       timestamp: new Date(t.timestamp),
@@ -293,31 +287,30 @@ export async function loadInventoryDataFromServer(): Promise<number> {
     if (!navigator.onLine) {
       return 0;
     }
-    
+
     // طلب بيانات المخزون من الخادم
     const response = await fetch('/api/inventory/products');
-    
+
     if (!response.ok) {
       throw new Error('فشل في تحميل بيانات المخزون من الخادم');
     }
-    
+
     const inventoryData = await response.json();
-    
-    if (!window.electronAPI?.db) return 0;
-    // حفظ في SQLite فقط
-    await window.electronAPI.db.query(
+
+    // حفظ في SQLite
+    await sqliteDB.execute(
       'DELETE FROM inventory WHERE synced = 1',
       []
     );
     for (const item of inventoryData) {
       const variantId = item.variant_id ?? null;
       const itemId = createInventoryItemId(item.product_id, variantId);
-      const existingResult = await window.electronAPI.db.queryOne(
+      const existingResult = await sqliteDB.queryOne(
         'SELECT synced FROM inventory WHERE id = ?',
         [itemId]
       );
       if (existingResult.data && existingResult.data.synced === 0) continue;
-      await window.electronAPI.db.upsert('inventory', {
+      await sqliteDB.upsert('inventory', {
         id: itemId,
         product_id: item.product_id,
         variant_id: variantId,

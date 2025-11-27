@@ -1,6 +1,19 @@
+/**
+ * localExpenseService - خدمة المصروفات المحلية
+ *
+ * ⚡ تم التحديث لاستخدام Delta Sync بالكامل
+ *
+ * - Local-First: الكتابة محلياً فوراً
+ * - Offline-First: يعمل بدون إنترنت
+ */
+
 import { v4 as uuidv4 } from 'uuid';
-import { inventoryDB, type LocalExpense, type LocalRecurringExpense, type LocalExpenseCategory } from '@/database/localDb';
+import type { LocalExpense, LocalRecurringExpense } from '@/database/localDb';
 import type { ExpenseFormData } from '@/types/expenses';
+import { deltaWriteService } from '@/services/DeltaWriteService';
+
+// Re-export types
+export type { LocalExpense, LocalRecurringExpense, LocalExpenseCategory } from '@/database/localDb';
 
 const getOrgId = (): string => {
   return (
@@ -10,11 +23,15 @@ const getOrgId = (): string => {
   );
 };
 
+/**
+ * إنشاء مصروف جديد
+ */
 export const createLocalExpense = async (data: ExpenseFormData): Promise<LocalExpense> => {
   const id = uuidv4();
   const now = new Date().toISOString();
   const orgId = getOrgId();
-  const rec = {
+
+  const rec: LocalExpense = {
     id,
     organization_id: orgId,
     title: data.title,
@@ -33,9 +50,15 @@ export const createLocalExpense = async (data: ExpenseFormData): Promise<LocalEx
     updated_at: now,
     synced: false,
     pendingOperation: 'create' as const,
-  } satisfies LocalExpense;
+  };
 
-  await inventoryDB.expenses.put(rec);
+  // ⚡ استخدام Delta Sync
+  const result = await deltaWriteService.create('expenses', rec, orgId);
+  if (!result.success) {
+    throw new Error(`Failed to create expense: ${result.error}`);
+  }
+
+  console.log(`[LocalExpense] ⚡ Created expense ${id} via Delta Sync`);
 
   if (data.is_recurring && data.recurring) {
     const r: LocalRecurringExpense = {
@@ -53,16 +76,24 @@ export const createLocalExpense = async (data: ExpenseFormData): Promise<LocalEx
       synced: false,
       pendingOperation: 'create',
     };
-    await inventoryDB.recurringExpenses.put(r);
+
+    await deltaWriteService.create('recurring_expenses', r, orgId);
+    console.log(`[LocalExpense] ⚡ Created recurring expense ${r.id} via Delta Sync`);
   }
 
   return rec;
 };
 
+/**
+ * تحديث مصروف
+ */
 export const updateLocalExpense = async (id: string, data: ExpenseFormData): Promise<LocalExpense | null> => {
-  const ex = await inventoryDB.expenses.get(id);
+  const ex = await deltaWriteService.get<LocalExpense>('expenses', id);
   if (!ex) return null;
+
   const now = new Date().toISOString();
+  const orgId = ex.organization_id || getOrgId();
+
   const updated: LocalExpense = {
     ...ex,
     title: data.title ?? ex.title,
@@ -81,23 +112,32 @@ export const updateLocalExpense = async (id: string, data: ExpenseFormData): Pro
     synced: false,
     pendingOperation: ex.pendingOperation === 'create' ? 'create' : 'update',
   };
-  await inventoryDB.expenses.put(updated);
 
-  // recurring handling
-  const existingRecurring = await inventoryDB.recurringExpenses.where('expense_id').equals(id).first();
+  await deltaWriteService.update('expenses', id, updated);
+  console.log(`[LocalExpense] ⚡ Updated expense ${id} via Delta Sync`);
+
+  // معالجة المصروفات المتكررة
+  const existingRecurring = await deltaWriteService.getAll<LocalRecurringExpense>('recurring_expenses', orgId, {
+    where: 'expense_id = ?',
+    params: [id],
+    limit: 1
+  });
+
+  const existingRec = existingRecurring[0];
+
   if (data.is_recurring && data.recurring) {
-    const r: LocalRecurringExpense = existingRecurring ? {
-      ...existingRecurring,
+    const r: LocalRecurringExpense = existingRec ? {
+      ...existingRec,
       frequency: data.recurring.frequency,
-      start_date: (data.recurring.start_date instanceof Date ? data.recurring.start_date.toISOString() : (data.recurring.start_date as any)) ?? existingRecurring.start_date,
-      end_date: data.recurring.end_date ? (data.recurring.end_date instanceof Date ? data.recurring.end_date.toISOString() : (data.recurring.end_date as any)) : existingRecurring.end_date ?? null,
-      day_of_month: data.recurring.day_of_month ?? existingRecurring.day_of_month ?? null,
-      day_of_week: data.recurring.day_of_week ?? existingRecurring.day_of_week ?? null,
-      next_due: existingRecurring.next_due ?? null,
+      start_date: (data.recurring.start_date instanceof Date ? data.recurring.start_date.toISOString() : (data.recurring.start_date as any)) ?? existingRec.start_date,
+      end_date: data.recurring.end_date ? (data.recurring.end_date instanceof Date ? data.recurring.end_date.toISOString() : (data.recurring.end_date as any)) : existingRec.end_date ?? null,
+      day_of_month: data.recurring.day_of_month ?? existingRec.day_of_month ?? null,
+      day_of_week: data.recurring.day_of_week ?? existingRec.day_of_week ?? null,
+      next_due: existingRec.next_due ?? null,
       status: 'active',
       updated_at: now,
       synced: false,
-      pendingOperation: existingRecurring.pendingOperation === 'create' ? 'create' : 'update',
+      pendingOperation: existingRec.pendingOperation === 'create' ? 'create' : 'update',
     } : {
       id: uuidv4(),
       expense_id: id,
@@ -113,37 +153,107 @@ export const updateLocalExpense = async (id: string, data: ExpenseFormData): Pro
       synced: false,
       pendingOperation: 'create',
     };
-    await inventoryDB.recurringExpenses.put(r);
-  } else if (existingRecurring) {
-    // remove recurring if exists
-    await inventoryDB.recurringExpenses.delete(existingRecurring.id);
+
+    if (existingRec) {
+      await deltaWriteService.update('recurring_expenses', existingRec.id, r);
+    } else {
+      await deltaWriteService.create('recurring_expenses', r, orgId);
+    }
+  } else if (existingRec) {
+    // حذف المصروف المتكرر إذا لم يعد متكرراً
+    await deltaWriteService.delete('recurring_expenses', existingRec.id);
   }
 
   return updated;
 };
 
+/**
+ * حذف مصروف
+ */
 export const deleteLocalExpense = async (id: string): Promise<boolean> => {
-  const ex = await inventoryDB.expenses.get(id);
+  const ex = await deltaWriteService.get<LocalExpense>('expenses', id);
   if (!ex) return false;
-  await inventoryDB.expenses.put({ ...ex, synced: false, pendingOperation: 'delete', updated_at: new Date().toISOString() });
+
+  await deltaWriteService.update('expenses', id, {
+    synced: false,
+    pendingOperation: 'delete',
+    updated_at: new Date().toISOString()
+  });
+
+  console.log(`[LocalExpense] ⚡ Marked expense ${id} for deletion via Delta Sync`);
   return true;
 };
 
+/**
+ * الحصول على مصروف بالمعرّف
+ */
 export const getLocalExpense = async (id: string): Promise<LocalExpense | null> => {
-  return (await inventoryDB.expenses.get(id)) || null;
+  return deltaWriteService.get<LocalExpense>('expenses', id);
 };
 
+/**
+ * قائمة المصروفات
+ */
 export const listLocalExpenses = async (orgId: string): Promise<LocalExpense[]> => {
-  return await inventoryDB.expenses.where('organization_id').equals(orgId).toArray();
+  return deltaWriteService.getAll<LocalExpense>('expenses', orgId, {
+    where: "(pending_operation IS NULL OR pending_operation != 'delete')",
+    orderBy: 'expense_date DESC'
+  });
 };
 
+/**
+ * الحصول على المصروفات غير المتزامنة
+ */
 export const getUnsyncedExpenses = async (): Promise<LocalExpense[]> => {
-  return await inventoryDB.expenses.filter(e => e.synced === false).toArray();
+  const orgId = getOrgId();
+  return deltaWriteService.getAll<LocalExpense>('expenses', orgId, {
+    where: 'synced = 0'
+  });
 };
 
+/**
+ * تحديث حالة المزامنة
+ */
 export const updateExpenseSyncStatus = async (id: string, synced: boolean, pendingOperation?: LocalExpense['pendingOperation']) => {
-  const ex = await inventoryDB.expenses.get(id);
-  if (!ex) return;
-  await inventoryDB.expenses.put({ ...ex, synced, pendingOperation: pendingOperation ?? (synced ? undefined : ex.pendingOperation) });
+  await deltaWriteService.update('expenses', id, {
+    synced,
+    pendingOperation: pendingOperation ?? (synced ? undefined : undefined)
+  });
 };
 
+// =====================
+// حفظ البيانات من السيرفر
+// =====================
+
+export const saveRemoteExpenses = async (expenses: any[]): Promise<void> => {
+  if (!expenses || expenses.length === 0) return;
+
+  const now = new Date().toISOString();
+
+  for (const expense of expenses) {
+    const mappedExpense: LocalExpense = {
+      id: expense.id,
+      organization_id: expense.organization_id,
+      title: expense.title,
+      amount: expense.amount || 0,
+      category: expense.category,
+      expense_date: expense.expense_date || now,
+      notes: expense.notes,
+      status: expense.status || 'completed',
+      is_recurring: expense.is_recurring || false,
+      payment_method: expense.payment_method,
+      payment_ref: expense.payment_ref,
+      vendor_name: expense.vendor_name,
+      cost_center_id: expense.cost_center_id,
+      receipt_url: expense.receipt_url,
+      created_at: expense.created_at || now,
+      updated_at: expense.updated_at || now,
+      synced: true,
+      pendingOperation: undefined,
+    };
+
+    await deltaWriteService.saveFromServer('expenses', mappedExpense);
+  }
+
+  console.log(`[LocalExpense] ⚡ Saved ${expenses.length} remote expenses`);
+};

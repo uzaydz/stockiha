@@ -12,7 +12,8 @@ import { useTenant } from '@/context/TenantContext';
 import { useQueryClient } from '@tanstack/react-query';
 import { POSSharedLayoutControls } from '@/components/pos-layout/types';
 import { cn } from '@/lib/utils';
-// import { forceDataRefresh } from '@/lib/ultimateRequestController'; // تعطيل مؤقت
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import { getAllLocalCategories, fetchCategoriesFromServer, type LocalCategory } from '@/api/localCategoryService';
 
 interface CategoriesProps extends POSSharedLayoutControls {}
 
@@ -32,6 +33,8 @@ const CategoriesComponent = ({
   const { currentOrganization } = useTenant();
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const { isOnline } = useNetworkStatus();
+  const [isSyncing, setIsSyncing] = useState(false);
   const renderWithLayout = (node: React.ReactElement) => (
     useStandaloneLayout ? <Layout>{node}</Layout> : node
   );
@@ -71,7 +74,7 @@ const CategoriesComponent = ({
     }
   };
 
-  // جلب بيانات الفئات
+  // جلب بيانات الفئات - ⚡ Offline-First
   const fetchCategories = useCallback(async () => {
     if (!currentOrganization?.id) {
       setTimeout(() => setIsLoading(false), 0);
@@ -83,28 +86,55 @@ const CategoriesComponent = ({
       setError(null);
     }, 0);
     
-    // Timeout للحماية من التعليق
-    const timeoutId = setTimeout(() => {
-      setIsLoading(false);
-    }, 30000); // 30 ثانية
-    
     try {
+      // ⚡ محاولة جلب من السيرفر أولاً إذا كان متصلاً
+      if (isOnline) {
+        try {
+          await fetchCategoriesFromServer(currentOrganization.id);
+        } catch (err) {
+          console.warn('[Categories] Failed to fetch from server, using local data:', err);
+        }
+      }
+
+      // ⚡ جلب من قاعدة البيانات المحلية (دائماً)
+      const localCategories = await getAllLocalCategories(currentOrganization.id);
       
-      // استخدام getCategories مع النظام المحسن
-      const categoriesData = await getCategories(currentOrganization.id);
-      
-      // إلغاء timeout إذا نجح الطلب
-      clearTimeout(timeoutId);
+      // تحويل LocalCategory إلى Category
+      const convertedCategories: Category[] = localCategories.map(local => {
+        // تحويل type للتوافق مع Category interface
+        const mappedType: 'product' | 'service' = 
+          local.type === 'service' ? 'service' : 'product';
+
+        return {
+          id: local.id,
+          name: local.name,
+          slug: local.slug,
+          description: local.description || null,
+          icon: null,
+          image_url: local.image_url || null,
+          is_active: local.is_active,
+          type: mappedType,
+          organization_id: local.organization_id,
+          created_at: local.created_at,
+          updated_at: local.updated_at,
+          // حقول إضافية للتصفية والعرض
+          parent_id: local.parent_id,
+          display_order: local.display_order,
+          // حقول المزامنة
+          _synced: local.synced,
+          _syncStatus: local.syncStatus,
+          _pendingOperation: local.pendingOperation
+        } as Category & { parent_id?: string; display_order?: number; _synced?: boolean; _syncStatus?: string; _pendingOperation?: string };
+      });
       
       setTimeout(() => {
-        setCategoriesWithTracking(categoriesData || []);
-        setFilteredCategoriesWithTracking(categoriesData || []);
+        setCategoriesWithTracking(convertedCategories || []);
+        setFilteredCategoriesWithTracking(convertedCategories || []);
       }, 0);
+
+      console.log(`[Categories] ⚡ Loaded ${convertedCategories.length} categories (${isOnline ? 'online' : 'offline'})`);
     } catch (error) {
-      
-      // إلغاء timeout في حالة الخطأ
-      clearTimeout(timeoutId);
-      
+      console.error('[Categories] ❌ Error fetching categories:', error);
       setTimeout(() => {
         setError(error instanceof Error ? error.message : 'حدث خطأ في جلب الفئات');
       }, 0);
@@ -113,7 +143,7 @@ const CategoriesComponent = ({
         setIsLoading(false);
       }, 0);
     }
-  }, [currentOrganization?.id]);
+  }, [currentOrganization?.id, isOnline]);
 
   useEffect(() => {
     fetchCategories();

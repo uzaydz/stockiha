@@ -72,15 +72,17 @@ const POSTitleBarActions: React.FC = () => {
 
   return (
     <>
-      <div className="flex items-center gap-1.5 px-2 border-r border-white/10">
+      <div className="flex items-center gap-2 px-2 border-r border-white/10 h-full">
         {hasActiveSession && activeSession ? (
           // عرض معلومات الجلسة النشطة مع أزرار التحكم
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-2">
             <div className={cn(
-              "flex items-center gap-2 rounded-md px-2 py-1",
-              activeSession.status === 'active' ? 'bg-green-500/20' : 'bg-amber-500/20'
+              "flex items-center gap-2 rounded-lg px-2.5 py-1 h-8 transition-colors",
+              activeSession.status === 'active'
+                ? 'bg-green-500/10 border border-green-500/20'
+                : 'bg-amber-500/10 border border-amber-500/20'
             )}>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
                 {activeSession.status === 'active' ? (
                   <Clock className="h-3.5 w-3.5 text-green-400 animate-pulse" />
                 ) : (
@@ -88,60 +90,60 @@ const POSTitleBarActions: React.FC = () => {
                 )}
                 <span className={cn(
                   "text-xs font-medium whitespace-nowrap",
-                  activeSession.status === 'active' ? 'text-green-100' : 'text-amber-100'
+                  activeSession.status === 'active' ? 'text-green-200' : 'text-amber-200'
                 )}>
                   {activeSession.status === 'active' ? 'نشط' : 'متوقف'}
                 </span>
               </div>
-              <div className="h-3 w-px bg-white/20" />
-              <div className="flex items-center gap-0.5">
-                <DollarSign className="h-3 w-3 text-white/70" />
-                <span className="text-xs text-white/90 whitespace-nowrap">
+              <div className="h-3 w-px bg-white/10" />
+              <div className="flex items-center gap-1">
+                <DollarSign className="h-3.5 w-3.5 text-white/60" />
+                <span className="text-xs font-semibold text-white/90 whitespace-nowrap tabular-nums">
                   {activeSession.opening_cash.toFixed(0)}
                 </span>
               </div>
               <Badge variant="secondary" className={cn(
-                "text-xs px-1.5 py-0 h-5",
-                activeSession.status === 'active' ? 'bg-green-600 hover:bg-green-700' : 'bg-amber-600 hover:bg-amber-700'
+                "text-[10px] px-1.5 h-5 min-w-[20px] justify-center",
+                activeSession.status === 'active' ? 'bg-green-500/20 text-green-300 hover:bg-green-500/30' : 'bg-amber-500/20 text-amber-300 hover:bg-amber-500/30'
               )}>
                 {activeSession.total_orders}
               </Badge>
             </div>
-            
+
             {/* أزرار التحكم */}
-            <div className="flex items-center gap-0.5">
+            <div className="flex items-center gap-1">
               {activeSession.status === 'active' ? (
                 <Button
                   onClick={handlePause}
                   disabled={isLoading}
                   size="sm"
-                  variant="outline"
-                  className="h-7 w-7 p-0 bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/30"
+                  variant="ghost"
+                  className="h-8 w-8 p-0 rounded-lg hover:bg-amber-500/20 text-amber-400 hover:text-amber-300"
                   title="إيقاف مؤقت"
                 >
-                  <Pause className="h-3 w-3" />
+                  <Pause className="h-4 w-4" />
                 </Button>
               ) : (
                 <Button
                   onClick={handleResume}
                   disabled={isLoading}
                   size="sm"
-                  variant="outline"
-                  className="h-7 w-7 p-0 bg-green-500/10 hover:bg-green-500/20 border-green-500/30"
+                  variant="ghost"
+                  className="h-8 w-8 p-0 rounded-lg hover:bg-green-500/20 text-green-400 hover:text-green-300"
                   title="استئناف"
                 >
-                  <Play className="h-3 w-3" />
+                  <Play className="h-4 w-4" />
                 </Button>
               )}
               <Button
                 onClick={() => setShowCloseDialog(true)}
                 disabled={isLoading}
                 size="sm"
-                variant="destructive"
-                className="h-7 w-7 p-0"
-                title="إغلاق"
+                variant="ghost"
+                className="h-8 w-8 p-0 rounded-lg hover:bg-red-500/20 text-red-400 hover:text-red-300"
+                title="إغلاق الجلسة"
               >
-                <StopCircle className="h-3 w-3" />
+                <StopCircle className="h-4 w-4" />
               </Button>
             </div>
           </div>
@@ -151,14 +153,13 @@ const POSTitleBarActions: React.FC = () => {
             onClick={() => setShowStartDialog(true)}
             size="sm"
             className={cn(
-              'gap-1.5 px-2.5 py-1 h-7 bg-green-600 hover:bg-green-700 text-white text-xs',
-              'animate-pulse'
+              'gap-2 px-4 h-8 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white text-xs font-medium rounded-lg shadow-lg shadow-green-900/20 border border-green-400/20',
+              'animate-in fade-in zoom-in duration-300'
             )}
             title="بدء جلسة عمل"
           >
-            <PlayCircle className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">بدء جلسة</span>
-            <span className="sm:hidden">جديد</span>
+            <PlayCircle className="h-4 w-4" />
+            <span>بدء جلسة</span>
           </Button>
         )}
       </div>

@@ -39,12 +39,12 @@ import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { useTenant } from '@/context/TenantContext';
-import { getCustomers } from '@/lib/api/customers';
 import { getProducts } from '@/lib/api/products';
 import type { Customer } from '@/types/customer';
 import type { Product } from '@/lib/api/products';
 import type { Invoice } from '@/lib/api/invoices';
 import { supabase } from '@/lib/supabase';
+import { getLocalCustomers } from '@/api/localCustomerService';
 import ProductSelectorDialog from './ProductSelectorDialog';
 import InvoiceItemsTable, { type InvoiceItemData } from './InvoiceItemsTable';
 
@@ -95,11 +95,11 @@ const CreateInvoiceDialogAdvanced = ({
 
       try {
         const [customersData, productsData] = await Promise.all([
-          getCustomers(),
+          getLocalCustomers({ organizationId: currentOrganization.id }),
           getProducts(currentOrganization.id),
         ]);
         
-        setCustomers(customersData);
+        setCustomers(customersData as unknown as Customer[]);
         setProducts(productsData);
       } catch (error) {
         toast.error('حدث خطأ أثناء جلب البيانات');

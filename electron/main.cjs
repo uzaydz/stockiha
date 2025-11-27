@@ -1,7 +1,8 @@
 const { app, BrowserWindow, Menu, shell, ipcMain, dialog, nativeImage, Tray, globalShortcut, protocol } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const crypto = require('crypto');
+const https = require('https');
+const http = require('http');
 const { SQLiteManager } = require('./sqliteManager.cjs');
 const { updaterManager } = require('./updater.cjs');
 
@@ -16,9 +17,9 @@ try {
 
 // كشف وضع التطوير بطرق متعددة
 const isDev = process.env.NODE_ENV === 'development' ||
-              process.argv.includes('--dev') ||
-              !fs.existsSync(path.join(__dirname, '../dist/index.html')) ||
-              process.env.ELECTRON_IS_DEV === 'true';
+  process.argv.includes('--dev') ||
+  !fs.existsSync(path.join(__dirname, '../dist/index.html')) ||
+  process.env.ELECTRON_IS_DEV === 'true';
 
 const isMac = process.platform === 'darwin';
 const isWindows = process.platform === 'win32';
@@ -91,7 +92,7 @@ async function clearSecureSessionKey() {
       console.log('🗑️ [Electron] Deleted key from fallback file');
       cleared = true;
     }
-    
+
     return cleared;
   } catch (error) {
     console.error('❌ [Electron] فشل حذف مفتاح الجلسة الآمن:', error);
@@ -108,6 +109,7 @@ console.log('  - isDev result:', isDev);
 
 // إعدادات التطبيق
 let mainWindow;
+let splashWindow;
 let tray;
 let isQuitting = false;
 
@@ -116,10 +118,40 @@ let sqliteManager = null;
 // مدير منفصل لقاعدة Global لتخزين الحالة الآمنة والترخيص بدون تبديل قاعدة المنظمة
 let sqliteManagerGlobal = null;
 
+// إنشاء نافذة Splash Screen
+function createSplashWindow() {
+  const splashPath = path.join(__dirname, 'splash.html');
+
+  splashWindow = new BrowserWindow({
+    width: 500,
+    height: 600,
+    transparent: true,
+    frame: false,
+    alwaysOnTop: true,
+    resizable: false,
+    movable: false,
+    center: true,
+    skipTaskbar: true,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true
+    }
+  });
+
+  splashWindow.loadFile(splashPath);
+  splashWindow.setIgnoreMouseEvents(false);
+
+  // إخفاء شريط القوائم في splash
+  splashWindow.setMenuBarVisibility(false);
+
+  return splashWindow;
+}
+
 // إنشاء النافذة الرئيسية
 function createMainWindow() {
   const iconPath = path.join(__dirname, '../assets/icon.png');
-  
+
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -188,14 +220,14 @@ function createMainWindow() {
     const distPath = path.resolve(__dirname, '../dist');
     const indexPath = path.join(distPath, 'index.html');
     const indexUrl = `file://${indexPath}`;
-    
+
     console.log('[Electron] مسار dist:', distPath);
     console.log('[Electron] مسار index:', indexPath);
     console.log('[Electron] URL:', indexUrl);
-    
+
     // تحميل index.html - RoleBasedRedirect سيوجه المستخدم غير المسجل إلى /login تلقائياً
     mainWindow.loadURL(indexUrl);
-    
+
     // إضافة fallback لأي مسار غير موجود - تحميل index.html (SPA fallback)
     mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription, validatedURL) => {
       console.log('[Electron] فشل التحميل:', errorCode, errorDescription, validatedURL);
@@ -220,14 +252,53 @@ function createMainWindow() {
   // إظهار النافذة عند تحميل المحتوى
   mainWindow.once('ready-to-show', () => {
     console.log('[Electron] النافذة جاهزة للعرض');
-    mainWindow.show();
-    
-    // التأكد من ظهور شريط العنوان على Windows
-    mainWindow.setMenuBarVisibility(false);
-    mainWindow.setAutoHideMenuBar(true);
 
-    // فتح DevTools دائماً للتشخيص
-    mainWindow.webContents.openDevTools({ mode: 'detach' });
+    // الانتظار لمدة ثانيتين على الأقل لعرض splash screen (حتى لو تم التحميل بسرعة)
+    // ثم إغلاق splash window وإظهار النافذة الرئيسية بشكل سلس
+    const minSplashTime = 2000; // ثانيتان
+    const startTime = Date.now();
+    const elapsedTime = startTime - (global.appStartTime || startTime);
+    const remainingTime = Math.max(0, minSplashTime - elapsedTime);
+
+    setTimeout(() => {
+      // إغلاق splash window بشكل سلس
+      if (splashWindow && !splashWindow.isDestroyed()) {
+        // تأثير fade out للـ splash
+        let opacity = 1.0;
+        const fadeInterval = setInterval(() => {
+          opacity -= 0.1;
+          if (opacity <= 0) {
+            clearInterval(fadeInterval);
+            splashWindow.close();
+            splashWindow = null;
+
+            // إظهار النافذة الرئيسية بتأثير fade in
+            mainWindow.setOpacity(0);
+            mainWindow.show();
+            let mainOpacity = 0;
+            const fadeInInterval = setInterval(() => {
+              mainOpacity += 0.1;
+              mainWindow.setOpacity(mainOpacity);
+              if (mainOpacity >= 1) {
+                clearInterval(fadeInInterval);
+                mainWindow.setOpacity(1);
+              }
+            }, 30);
+          } else {
+            splashWindow.setOpacity(opacity);
+          }
+        }, 30);
+      } else {
+        mainWindow.show();
+      }
+
+      // التأكد من ظهور شريط العنوان على Windows
+      mainWindow.setMenuBarVisibility(false);
+      mainWindow.setAutoHideMenuBar(true);
+
+      // فتح DevTools دائماً للتشخيص
+      mainWindow.webContents.openDevTools({ mode: 'detach' });
+    }, remainingTime);
   });
 
   // ===== حماية أمنية: منع الوصول إلى صفحات السوبر أدمين =====
@@ -366,7 +437,7 @@ function createMainWindow() {
     if (!isQuitting) {
       event.preventDefault();
       mainWindow.hide();
-      
+
       // إظهار إشعار على macOS
       if (isMac) {
         app.dock.hide();
@@ -385,16 +456,14 @@ function createMainWindow() {
 
 // إنشاء التطبيق
 function createApp() {
-  // إنشاء النافذة الرئيسية
+  // عرض splash screen والبدء فوراً بتحميل التطبيق في نفس الوقت
+  createSplashWindow();
+
+  // البدء فوراً بتحميل النافذة الرئيسية بشكل متوازي (بدون انتظار)
+  // التحميل يحدث في الخلفية بينما splash يعرض في المقدمة
   createMainWindow();
-  
-  // إنشاء القائمة
   createMenu();
-  
-  // إنشاء التراى (للإشعارات)
   createTray();
-  
-  // تسجيل الاختصارات العامة
   registerGlobalShortcuts();
 }
 
@@ -422,7 +491,7 @@ function createMenu() {
                 { name: 'جميع الملفات', extensions: ['*'] }
               ]
             });
-            
+
             if (!result.canceled) {
               mainWindow.webContents.send('menu-open-file', result.filePaths[0]);
             }
@@ -594,6 +663,14 @@ function createMenu() {
           click: () => {
             shell.openExternal('https://stockiha.com/support');
           }
+        },
+        { type: 'separator' },
+        {
+          label: 'أدوات المطور',
+          accelerator: 'CmdOrCtrl+Shift+I',
+          click: () => {
+            mainWindow.webContents.toggleDevTools();
+          }
         }
       ]
     }
@@ -647,9 +724,9 @@ function createMenu() {
 function createTray() {
   const iconPath = path.join(__dirname, '../assets/tray-icon.png');
   const icon = nativeImage.createFromPath(iconPath);
-  
+
   tray = new Tray(icon);
-  
+
   const contextMenu = Menu.buildFromTemplate([
     {
       label: 'إظهار سطوكيها',
@@ -678,10 +755,10 @@ function createTray() {
       }
     }
   ]);
-  
+
   tray.setContextMenu(contextMenu);
   tray.setToolTip('سطوكيها - منصة إدارة المتاجر');
-  
+
   // إظهار النافذة عند النقر على التراى
   tray.on('click', () => {
     if (mainWindow.isVisible()) {
@@ -741,8 +818,11 @@ function registerGlobalShortcuts() {
 
 // إدارة الأحداث
 app.whenReady().then(() => {
+  // تسجيل وقت بدء التطبيق
+  global.appStartTime = Date.now();
+
   createApp();
-  
+
   // تهيئة نظام التحديث التلقائي (فقط في الإنتاج)
   if (!isDev) {
     updaterManager.initialize(mainWindow);
@@ -750,7 +830,7 @@ app.whenReady().then(() => {
   } else {
     console.log('[Electron] نظام التحديث معطل في وضع التطوير');
   }
-  
+
   // إظهار النافذة عند النقر على أيقونة التطبيق على macOS
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -968,6 +1048,8 @@ ipcMain.handle('db:delete', async (event, table, id) => {
   }
 });
 
+
+
 // ======= IPC Handlers للساعة الآمنة والترخيص =======
 function ensureGlobalDB() {
   if (!sqliteManagerGlobal) {
@@ -1015,7 +1097,7 @@ ipcMain.handle('license:set-anchor', async (event, organizationId, serverNowMs) 
         lastDevice: Number(payload.last_device_time_ms || 0),
         lastServer: Number(payload.last_server_time_ms || 0)
       });
-    } catch {}
+    } catch { }
     if (!up.success) return { success: false, error: up.error || 'upsert failed' };
     return { success: true };
   } catch (error) {
@@ -1122,7 +1204,7 @@ ipcMain.handle('license:get-secure-now', async (event, organizationId) => {
         tamperCountBefore: tamperCount,
         tamperCountAfter: newRow.tamper_count
       });
-    } catch {}
+    } catch { }
     if (!up.success) return { success: false, error: up.error || 'update upsert failed' };
 
     return { success: true, secureNowMs, tamperDetected, tamperCount: newRow.tamper_count };
@@ -1264,9 +1346,76 @@ ipcMain.handle('db:close', async () => {
   }
 });
 
-// ========================================
-// 🔒 Conflict Resolution IPC Handlers
-// ========================================
+// ============================================================================
+// Image Download Handler
+// ============================================================================
+ipcMain.handle('download-image', async (event, url, entityType, entityId) => {
+  try {
+    if (!url || !entityType || !entityId) {
+      return { success: false, error: 'Missing parameters' };
+    }
+
+    const imagesDir = path.join(app.getPath('userData'), 'images', entityType);
+    if (!fs.existsSync(imagesDir)) {
+      fs.mkdirSync(imagesDir, { recursive: true });
+    }
+
+    // Generate filename from URL hash to avoid duplicates and weird chars
+    const ext = path.extname(url).split('?')[0] || '.jpg';
+    const hash = crypto.createHash('md5').update(url).digest('hex');
+    const filename = `${entityId}_${hash}${ext}`;
+    const localPath = path.join(imagesDir, filename);
+
+    // Check if exists
+    if (fs.existsSync(localPath)) {
+      const stats = fs.statSync(localPath);
+      return {
+        success: true,
+        localPath,
+        size: stats.size,
+        mimeType: 'image/' + ext.replace('.', '')
+      };
+    }
+
+    return new Promise((resolve) => {
+      const protocol = url.startsWith('https') ? https : http;
+      protocol.get(url, (response) => {
+        if (response.statusCode !== 200) {
+          resolve({ success: false, error: `Failed to download: ${response.statusCode}` });
+          return;
+        }
+
+        const fileStream = fs.createWriteStream(localPath);
+        response.pipe(fileStream);
+
+        fileStream.on('finish', () => {
+          fileStream.close();
+          const stats = fs.statSync(localPath);
+          resolve({
+            success: true,
+            localPath,
+            size: stats.size,
+            mimeType: response.headers['content-type']
+          });
+        });
+
+        fileStream.on('error', (err) => {
+          fs.unlink(localPath, () => { });
+          resolve({ success: false, error: err.message });
+        });
+      }).on('error', (err) => {
+        resolve({ success: false, error: err.message });
+      });
+    });
+  } catch (error) {
+    console.error('Image download error:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// ============================================================================
+// App Lifecycle
+// ============================================================================
 
 // تسجيل تضارب
 ipcMain.handle('db:log-conflict', async (event, conflictEntry) => {
@@ -1488,6 +1637,12 @@ ipcMain.handle('window-is-full-screen', () => {
   return mainWindow.isFullScreen();
 });
 
+ipcMain.handle('window-toggle-devtools', () => {
+  if (mainWindow) {
+    mainWindow.webContents.toggleDevTools();
+  }
+});
+
 ipcMain.handle('window-set-full-screen', (event, fullscreen) => {
   mainWindow.setFullScreen(fullscreen);
 });
@@ -1519,12 +1674,12 @@ ipcMain.handle('make-request', async (event, options) => {
   const https = require('https');
   const http = require('http');
   const url = require('url');
-  
+
   return new Promise((resolve) => {
     const parsedUrl = url.parse(options.url);
     const isHttps = parsedUrl.protocol === 'https:';
     const client = isHttps ? https : http;
-    
+
     const req = client.request(options, (res) => {
       let data = '';
       res.on('data', (chunk) => {
@@ -1539,18 +1694,18 @@ ipcMain.handle('make-request', async (event, options) => {
         });
       });
     });
-    
+
     req.on('error', (error) => {
       resolve({
         success: false,
         error: error.message
       });
     });
-    
+
     if (options.data) {
       req.write(options.data);
     }
-    
+
     req.end();
   });
 });

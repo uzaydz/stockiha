@@ -21,6 +21,9 @@ export interface DebtOrder {
   amountPaid: number;
   remainingAmount: number;
   employee: string;
+  _synced?: boolean;
+  _syncStatus?: string;
+  _pendingOperation?: string;
 }
 
 /**
@@ -68,15 +71,15 @@ export const getDebtsData = async (organizationId: string): Promise<DebtsData> =
     }
 
     // معالجة بيانات الملخص - تحويل من numeric/bigint إلى number
-    const summary = Array.isArray(summaryData) && summaryData.length > 0 
+    const summary = Array.isArray(summaryData) && summaryData.length > 0
       ? {
-          total_debts: typeof summaryData[0].total_debts === 'string' 
-            ? parseFloat(summaryData[0].total_debts) 
-            : Number(summaryData[0].total_debts || 0),
-          total_partial_payments: typeof summaryData[0].total_partial_payments === 'string' 
-            ? parseInt(summaryData[0].total_partial_payments) 
-            : Number(summaryData[0].total_partial_payments || 0)
-        }
+        total_debts: typeof summaryData[0].total_debts === 'string'
+          ? parseFloat(summaryData[0].total_debts)
+          : Number(summaryData[0].total_debts || 0),
+        total_partial_payments: typeof summaryData[0].total_partial_payments === 'string'
+          ? parseInt(summaryData[0].total_partial_payments)
+          : Number(summaryData[0].total_partial_payments || 0)
+      }
       : { total_debts: 0, total_partial_payments: 0 };
 
     // استعلام للديون حسب العميل (نستخدم الوظيفة الجديدة get_debts_by_customer)
@@ -92,17 +95,17 @@ export const getDebtsData = async (organizationId: string): Promise<DebtsData> =
     }
 
     // معالجة بيانات الديون حسب العميل
-    const debtsByCustomer: CustomerDebtsInfo[] = Array.isArray(customerDebtsData) 
+    const debtsByCustomer: CustomerDebtsInfo[] = Array.isArray(customerDebtsData)
       ? customerDebtsData.map(item => ({
-          customerId: item.customer_id,
-          customerName: item.customer_name,
-          totalDebts: typeof item.total_debts === 'string' 
-            ? parseFloat(item.total_debts) 
-            : Number(item.total_debts || 0),
-          ordersCount: typeof item.orders_count === 'string' 
-            ? parseInt(item.orders_count) 
-            : Number(item.orders_count || 0)
-        }))
+        customerId: item.customer_id,
+        customerName: item.customer_name,
+        totalDebts: typeof item.total_debts === 'string'
+          ? parseFloat(item.total_debts)
+          : Number(item.total_debts || 0),
+        ordersCount: typeof item.orders_count === 'string'
+          ? parseInt(item.orders_count)
+          : Number(item.orders_count || 0)
+      }))
       : [];
 
     // استعلام لديون العملاء
@@ -118,25 +121,25 @@ export const getDebtsData = async (organizationId: string): Promise<DebtsData> =
     }
 
     // استخلاص معرفات العملاء الفريدة
-    const customers = Array.isArray(customerData) 
+    const customers = Array.isArray(customerData)
       ? Array.from(new Set(customerData.map(item => item.customer_id)))
       : [];
-    
+
     // تنظيم بيانات ديون العملاء
     const customerDebts: CustomerDebt[] = [];
-    
+
     for (const customerId of customers) {
       const customerOrders = customerData.filter(item => item.customer_id === customerId);
-      
+
       if (customerOrders.length > 0) {
         const customerName = customerOrders[0].customer_name;
         const totalDebt = customerOrders.reduce((sum, order) => {
-          const amount = typeof order.remaining_amount === 'string' 
-            ? parseFloat(order.remaining_amount) 
+          const amount = typeof order.remaining_amount === 'string'
+            ? parseFloat(order.remaining_amount)
             : Number(order.remaining_amount || 0);
           return sum + amount;
         }, 0);
-        
+
         const orders: DebtOrder[] = customerOrders.map(order => ({
           orderId: order.order_id,
           orderNumber: order.order_number || `طلب #${order.order_id.substring(0, 8)}`,
@@ -145,18 +148,18 @@ export const getDebtsData = async (organizationId: string): Promise<DebtsData> =
             month: '2-digit',
             day: '2-digit'
           }).replace(/\//g, '-'),
-          total: typeof order.total === 'string' 
-            ? parseFloat(order.total) 
+          total: typeof order.total === 'string'
+            ? parseFloat(order.total)
             : Number(order.total || 0),
-          amountPaid: typeof order.amount_paid === 'string' 
-            ? parseFloat(order.amount_paid) 
+          amountPaid: typeof order.amount_paid === 'string'
+            ? parseFloat(order.amount_paid)
             : Number(order.amount_paid || 0),
-          remainingAmount: typeof order.remaining_amount === 'string' 
-            ? parseFloat(order.remaining_amount) 
+          remainingAmount: typeof order.remaining_amount === 'string'
+            ? parseFloat(order.remaining_amount)
             : Number(order.remaining_amount || 0),
           employee: order.employee_name
         }));
-        
+
         customerDebts.push({
           customerId,
           customerName,
@@ -191,8 +194,8 @@ export const getDebtsData = async (organizationId: string): Promise<DebtsData> =
  * @param isFullPayment هل هو دفع كامل للدين
  */
 export const recordDebtPayment = async (
-  orderId: string, 
-  amountPaid: number, 
+  orderId: string,
+  amountPaid: number,
   isFullPayment: boolean
 ): Promise<any> => {
   try {
@@ -221,13 +224,13 @@ export const recordDebtPayment = async (
       ? parseFloat(orderData.amount_paid)
       : Number(orderData.amount_paid || 0);
     const totalAmountPaid = previousAmountPaid + amountPaid;
-    
+
     // حساب المبلغ المتبقي
     const total = typeof orderData.total === 'string'
       ? parseFloat(orderData.total)
       : Number(orderData.total || 0);
     const newRemainingAmount = total - totalAmountPaid;
-    
+
     // تحديد حالة الدفع
     const paymentStatus = isFullPayment || newRemainingAmount <= 0 ? 'paid' : 'pending';
 

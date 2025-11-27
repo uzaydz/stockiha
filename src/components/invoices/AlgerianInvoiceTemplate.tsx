@@ -25,388 +25,808 @@ interface AlgerianInvoiceTemplateProps {
 const translations = {
   ar: {
     invoice: 'فاتورة',
+    taxInvoice: 'فاتورة ضريبية',
     invoiceNumber: 'رقم الفاتورة',
-    invoiceDate: 'التاريخ',
+    invoiceDate: 'تاريخ الإصدار',
     dueDate: 'تاريخ الاستحقاق',
     from: 'المورد',
-    to: 'العميل',
+    to: 'الزبون',
     description: 'البيان',
+    designation: 'التسمية',
+    reference: 'المرجع',
     quantity: 'الكمية',
-    unitPrice: 'السعر الوحدة',
-    amount: 'المبلغ',
-    subtotal: 'المجموع الفرعي',
-    tax: 'الضريبة',
-    total: 'الإجمالي',
-    status: 'الحالة',
-    paymentMethod: 'طريقة الدفع',
-    notes: 'ملاحظات',
-    paid: 'مدفوع',
-    pending: 'معلق',
-    overdue: 'متأخر',
-    canceled: 'ملغى',
-    cash: 'نقدي',
-    card: 'بطاقة ائتمان',
-    bankTransfer: 'تحويل بنكي',
-    other: 'أخرى',
+    unitPriceHT: 'س.و HT',
+    unitPriceTTC: 'س.و TTC',
+    tvaRate: 'TVA %',
+    totalHT: 'المجموع HT',
+    totalTVA: 'مبلغ TVA',
+    totalTTC: 'المجموع TTC',
+    subtotal: 'المجموع الجزئي',
+    discount: 'الخصم',
+    shipping: 'الشحن',
+    grandTotal: 'المبلغ الإجمالي',
+    amountInWords: 'المبلغ بالحروف',
     phone: 'الهاتف',
     email: 'البريد',
     website: 'الموقع',
     address: 'العنوان',
-    activity: 'النشاط',
+    activity: 'النشاط التجاري',
     rc: 'السجل التجاري',
-    nif: 'الرقم الضريبي',
-    nis: 'الرقم الإحصائي',
+    nif: 'الرقم الجبائي',
+    nis: 'رقم التعريف الإحصائي',
+    ai: 'رقم المادة',
     rib: 'الحساب البنكي',
-    totalHT: 'الإجمالي HT',
-    totalTVA: 'الضريبة TVA',
-    totalTTC: 'الإجمالي TTC',
+    bankName: 'البنك',
+    notes: 'ملاحظات',
+    status: 'الحالة',
+    paid: 'مدفوعة',
+    pending: 'معلقة',
+    overdue: 'متأخرة',
+    canceled: 'ملغاة',
+    paymentMethod: 'طريقة الدفع',
+    cash: 'نقداً',
+    card: 'بطاقة',
+    bankTransfer: 'تحويل بنكي',
+    check: 'شيك',
+    other: 'أخرى',
+    legalMention: 'مستند رسمي خاضع للتشريعات الجزائرية',
+    thankYou: 'شكراً لثقتكم',
+    signature: 'التوقيع والختم',
+    clientSignature: 'توقيع الزبون',
+    sellerSignature: 'توقيع البائع',
+    page: 'صفحة',
+    of: 'من',
   },
   fr: {
     invoice: 'Facture',
+    taxInvoice: 'Facture Fiscale',
     invoiceNumber: 'N° Facture',
-    invoiceDate: 'Date',
+    invoiceDate: 'Date d\'émission',
     dueDate: 'Date d\'échéance',
     from: 'Fournisseur',
     to: 'Client',
-    description: 'Désignation',
-    quantity: 'Quantité',
-    unitPrice: 'Prix Unitaire',
-    amount: 'Montant',
+    description: 'Description',
+    designation: 'Désignation',
+    reference: 'Référence',
+    quantity: 'Qté',
+    unitPriceHT: 'P.U HT',
+    unitPriceTTC: 'P.U TTC',
+    tvaRate: 'TVA %',
+    totalHT: 'Total HT',
+    totalTVA: 'Montant TVA',
+    totalTTC: 'Total TTC',
     subtotal: 'Sous-total',
-    tax: 'Taxe',
-    total: 'Total',
-    status: 'Statut',
-    paymentMethod: 'Mode de paiement',
-    notes: 'Remarques',
-    paid: 'Payé',
-    pending: 'En attente',
-    overdue: 'En retard',
-    canceled: 'Annulé',
-    cash: 'Espèces',
-    card: 'Carte de crédit',
-    bankTransfer: 'Virement bancaire',
-    other: 'Autre',
+    discount: 'Remise',
+    shipping: 'Livraison',
+    grandTotal: 'Montant Total',
+    amountInWords: 'Montant en lettres',
     phone: 'Téléphone',
     email: 'Email',
-    website: 'Site Web',
+    website: 'Site web',
     address: 'Adresse',
-    activity: 'Activité',
-    rc: 'Registre Commercial',
-    nif: 'N° Fiscal',
-    nis: 'N° Statistique',
+    activity: 'Activité commerciale',
+    rc: 'Registre de Commerce',
+    nif: 'Numéro d\'Identification Fiscale',
+    nis: 'Numéro d\'Identification Statistique',
+    ai: 'Article d\'Imposition',
     rib: 'RIB',
-    totalHT: 'Total HT',
-    totalTVA: 'TVA',
-    totalTTC: 'Total TTC',
+    bankName: 'Banque',
+    notes: 'Remarques',
+    status: 'Statut',
+    paid: 'Payée',
+    pending: 'En attente',
+    overdue: 'En retard',
+    canceled: 'Annulée',
+    paymentMethod: 'Mode de paiement',
+    cash: 'Espèces',
+    card: 'Carte',
+    bankTransfer: 'Virement',
+    check: 'Chèque',
+    other: 'Autre',
+    legalMention: 'Document officiel soumis à la législation algérienne',
+    thankYou: 'Merci de votre confiance',
+    signature: 'Signature et cachet',
+    clientSignature: 'Signature Client',
+    sellerSignature: 'Signature Vendeur',
+    page: 'Page',
+    of: 'sur',
   },
   en: {
     invoice: 'Invoice',
+    taxInvoice: 'Tax Invoice',
     invoiceNumber: 'Invoice No.',
-    invoiceDate: 'Date',
+    invoiceDate: 'Issue Date',
     dueDate: 'Due Date',
     from: 'Supplier',
     to: 'Customer',
     description: 'Description',
+    designation: 'Designation',
+    reference: 'Reference',
     quantity: 'Qty',
-    unitPrice: 'Unit Price',
-    amount: 'Amount',
+    unitPriceHT: 'U.P excl.',
+    unitPriceTTC: 'U.P incl.',
+    tvaRate: 'VAT %',
+    totalHT: 'Total excl.',
+    totalTVA: 'VAT Amount',
+    totalTTC: 'Total incl.',
     subtotal: 'Subtotal',
-    tax: 'Tax',
-    total: 'Total',
-    status: 'Status',
-    paymentMethod: 'Payment Method',
-    notes: 'Notes',
-    paid: 'Paid',
-    pending: 'Pending',
-    overdue: 'Overdue',
-    canceled: 'Canceled',
-    cash: 'Cash',
-    card: 'Credit Card',
-    bankTransfer: 'Bank Transfer',
-    other: 'Other',
+    discount: 'Discount',
+    shipping: 'Shipping',
+    grandTotal: 'Grand Total',
+    amountInWords: 'Amount in words',
     phone: 'Phone',
     email: 'Email',
     website: 'Website',
     address: 'Address',
-    activity: 'Activity',
-    rc: 'Commercial Registration',
-    nif: 'Tax Number',
-    nis: 'Statistical Number',
+    activity: 'Business Activity',
+    rc: 'Commercial Register',
+    nif: 'Tax ID Number',
+    nis: 'Statistical ID Number',
+    ai: 'Tax Article',
     rib: 'Bank Account',
-    totalHT: 'Total HT',
-    totalTVA: 'VAT',
-    totalTTC: 'Total TTC',
+    bankName: 'Bank',
+    notes: 'Notes',
+    status: 'Status',
+    paid: 'Paid',
+    pending: 'Pending',
+    overdue: 'Overdue',
+    canceled: 'Canceled',
+    paymentMethod: 'Payment Method',
+    cash: 'Cash',
+    card: 'Card',
+    bankTransfer: 'Bank Transfer',
+    check: 'Check',
+    other: 'Other',
+    legalMention: 'Official document subject to Algerian legislation',
+    thankYou: 'Thank you for your business',
+    signature: 'Signature & Stamp',
+    clientSignature: 'Client Signature',
+    sellerSignature: 'Seller Signature',
+    page: 'Page',
+    of: 'of',
   },
+};
+
+// Minimal color palette - only shades of gray
+const colors = {
+  primary: '#111827',      // Near black
+  secondary: '#4b5563',    // Dark gray
+  muted: '#9ca3af',        // Medium gray
+  light: '#f3f4f6',        // Light gray
+  border: '#e5e7eb',       // Border gray
+  white: '#ffffff',
+  accent: '#374151',       // Accent (dark gray)
 };
 
 const getLocale = (language: 'ar' | 'fr' | 'en') => {
   switch (language) {
-    case 'ar':
-      return ar;
-    case 'fr':
-      return fr;
-    case 'en':
-      return enUS;
-    default:
-      return ar;
+    case 'ar': return ar;
+    case 'fr': return fr;
+    case 'en': return enUS;
+    default: return ar;
   }
 };
 
-const AlgerianInvoiceTemplate = forwardRef<
-  HTMLDivElement,
-  AlgerianInvoiceTemplateProps
->(({ invoice, language, organizationLogo, organizationSettings }, ref) => {
-  const t = translations[language];
-  const locale = getLocale(language);
-  const isRTL = language === 'ar';
+const getStatusStyle = (status: string) => {
+  switch (status) {
+    case 'paid':
+      return { bg: colors.primary, color: colors.white };
+    case 'pending':
+      return { bg: colors.secondary, color: colors.white };
+    case 'overdue':
+      return { bg: colors.accent, color: colors.white };
+    case 'canceled':
+      return { bg: colors.muted, color: colors.white };
+    default:
+      return { bg: colors.muted, color: colors.white };
+  }
+};
 
-  const formatDate = (date: string | undefined) => {
-    if (!date) return '-';
-    try {
-      return format(new Date(date), 'dd/MM/yyyy', { locale });
-    } catch {
-      return '-';
-    }
-  };
+const AlgerianInvoiceTemplate = forwardRef<HTMLDivElement, AlgerianInvoiceTemplateProps>(
+  ({ invoice, language, organizationLogo, organizationSettings }, ref) => {
+    const t = translations[language];
+    const locale = getLocale(language);
+    const isRTL = language === 'ar';
+    const statusStyle = getStatusStyle(invoice.status);
 
-  return (
-    <div
-      ref={ref}
-      className="bg-white min-h-screen"
-      style={{ direction: isRTL ? 'rtl' : 'ltr' }}
-    >
-      {/* رأس الفاتورة - تصميم احترافي */}
-      <div className="bg-gradient-to-r from-blue-900 to-blue-700 text-white p-8">
-        <div className="flex justify-between items-start gap-8 max-w-7xl mx-auto">
-          {/* الشعار والمعلومات */}
-          <div className="flex items-start gap-6">
-            {organizationLogo ? (
-              <img
-                src={organizationLogo}
-                alt="Logo"
-                className="h-20 w-20 object-contain bg-white rounded p-1"
-              />
-            ) : (
-              <div className="h-20 w-20 bg-white rounded flex items-center justify-center text-blue-900 font-bold text-sm">
-                LOGO
-              </div>
-            )}
-            <div>
-              <h1 className="text-3xl font-bold mb-1">
-                {organizationSettings?.name || 'اسم المحل'}
-              </h1>
-              {organizationSettings?.activity && (
-                <p className="text-blue-100 text-sm mb-2">
-                  {organizationSettings.activity}
-                </p>
+    const formatDate = (date: string | undefined) => {
+      if (!date) return '-';
+      try {
+        return format(new Date(date), 'dd/MM/yyyy', { locale });
+      } catch {
+        return '-';
+      }
+    };
+
+    const formatCurrency = (amount: number | undefined) => {
+      if (amount === undefined || amount === null) return '-';
+      return new Intl.NumberFormat('fr-DZ', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(amount) + ' DA';
+    };
+
+    const getStatusLabel = (status: string) => {
+      const statusMap: Record<string, keyof typeof t> = {
+        paid: 'paid',
+        pending: 'pending',
+        overdue: 'overdue',
+        canceled: 'canceled',
+      };
+      return t[statusMap[status] || 'pending'];
+    };
+
+    const getPaymentMethodLabel = (method: string) => {
+      const methodMap: Record<string, keyof typeof t> = {
+        cash: 'cash',
+        card: 'card',
+        bank_transfer: 'bankTransfer',
+        check: 'check',
+        other: 'other',
+      };
+      return t[methodMap[method] || 'other'];
+    };
+
+    // Calculate TVA totals
+    const calculateTotals = () => {
+      let totalHT = 0;
+      let totalTVA = 0;
+      let totalTTC = 0;
+
+      invoice.items?.forEach((item: any) => {
+        const itemTotalHT = item.total_ht || item.totalPrice / 1.19;
+        const itemTVA = item.total_tva || itemTotalHT * 0.19;
+        const itemTTC = item.total_ttc || item.totalPrice;
+
+        totalHT += itemTotalHT;
+        totalTVA += itemTVA;
+        totalTTC += itemTTC;
+      });
+
+      return { totalHT, totalTVA, totalTTC };
+    };
+
+    const totals = calculateTotals();
+
+    return (
+      <div
+        ref={ref}
+        style={{
+          direction: isRTL ? 'rtl' : 'ltr',
+          fontFamily: "'Inter', 'Segoe UI', 'Arial', sans-serif",
+          backgroundColor: colors.white,
+          minHeight: '100vh',
+          padding: '0',
+          margin: '0',
+          color: colors.primary,
+          fontSize: '13px',
+          lineHeight: '1.5',
+        }}
+      >
+        {/* Header - Clean Minimal Design */}
+        <div
+          style={{
+            backgroundColor: colors.primary,
+            padding: '32px 40px',
+            color: colors.white,
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '24px' }}>
+            {/* Logo & Company Info */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '20px' }}>
+              {organizationLogo ? (
+                <img
+                  src={organizationLogo}
+                  alt="Logo"
+                  style={{
+                    height: '80px',
+                    width: '80px',
+                    objectFit: 'contain',
+                    backgroundColor: colors.white,
+                    borderRadius: '8px',
+                    padding: '8px',
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    height: '80px',
+                    width: '80px',
+                    backgroundColor: 'rgba(255,255,255,0.1)',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '11px',
+                    fontWeight: '700',
+                    border: '2px dashed rgba(255,255,255,0.3)',
+                  }}
+                >
+                  LOGO
+                </div>
               )}
-              <div className="text-xs text-blue-100 space-y-1">
-                {organizationSettings?.address && (
-                  <p>{organizationSettings.address}</p>
+              <div>
+                <h1 style={{ fontSize: '24px', fontWeight: '700', margin: '0 0 4px 0' }}>
+                  {organizationSettings?.name || 'Company Name'}
+                </h1>
+                {organizationSettings?.activity && (
+                  <p style={{ fontSize: '13px', margin: '0 0 10px 0', opacity: '0.8' }}>
+                    {organizationSettings.activity}
+                  </p>
                 )}
-                {organizationSettings?.phone && (
-                  <p>{organizationSettings.phone}</p>
-                )}
-                {organizationSettings?.email && (
-                  <p>{organizationSettings.email}</p>
-                )}
+                <div style={{ fontSize: '12px', opacity: '0.85', lineHeight: '1.6' }}>
+                  {organizationSettings?.address && <div>{organizationSettings.address}</div>}
+                  <div style={{ display: 'flex', gap: '16px', marginTop: '4px', flexWrap: 'wrap' }}>
+                    {organizationSettings?.phone && <span>{organizationSettings.phone}</span>}
+                    {organizationSettings?.email && <span>{organizationSettings.email}</span>}
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* عنوان الفاتورة */}
-          <div className="text-right">
-            <div className="text-5xl font-bold mb-2">{t.invoice}</div>
-            <div className="bg-white text-blue-900 px-4 py-2 rounded font-bold text-lg">
-              #{invoice.invoiceNumber}
+            {/* Invoice Title & Number */}
+            <div style={{ textAlign: isRTL ? 'left' : 'right' }}>
+              <div
+                style={{
+                  fontSize: '32px',
+                  fontWeight: '700',
+                  marginBottom: '4px',
+                  textTransform: 'uppercase',
+                  letterSpacing: '1px',
+                }}
+              >
+                {t.taxInvoice}
+              </div>
+              <div
+                style={{
+                  backgroundColor: colors.white,
+                  color: colors.primary,
+                  padding: '10px 20px',
+                  borderRadius: '6px',
+                  fontSize: '16px',
+                  fontWeight: '700',
+                  display: 'inline-block',
+                }}
+              >
+                {invoice.invoiceNumber}
+              </div>
+              <div
+                style={{
+                  marginTop: '8px',
+                  backgroundColor: statusStyle.bg,
+                  color: statusStyle.color,
+                  padding: '4px 12px',
+                  borderRadius: '4px',
+                  fontSize: '11px',
+                  fontWeight: '600',
+                  display: 'inline-block',
+                  textTransform: 'uppercase',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                }}
+              >
+                {getStatusLabel(invoice.status)}
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* البيانات الرسمية الجزائرية */}
-      <div className="bg-blue-50 px-8 py-4 border-b-2 border-blue-200">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+        {/* Legal Information Bar - Algerian Requirements */}
+        <div
+          style={{
+            backgroundColor: colors.light,
+            padding: '14px 40px',
+            borderBottom: `1px solid ${colors.border}`,
+          }}
+        >
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', fontSize: '12px' }}>
             {organizationSettings?.registrationNumber && (
-              <div className="flex justify-between">
-                <span className="font-bold text-blue-900">{t.rc}:</span>
-                <span className="text-gray-700">{organizationSettings.registrationNumber}</span>
+              <div>
+                <span style={{ fontWeight: '600', color: colors.secondary, display: 'block', marginBottom: '2px' }}>{t.rc}</span>
+                <span style={{ color: colors.primary }}>{organizationSettings.registrationNumber}</span>
               </div>
             )}
             {organizationSettings?.taxNumber && (
-              <div className="flex justify-between">
-                <span className="font-bold text-blue-900">{t.nif}:</span>
-                <span className="text-gray-700">{organizationSettings.taxNumber}</span>
+              <div>
+                <span style={{ fontWeight: '600', color: colors.secondary, display: 'block', marginBottom: '2px' }}>{t.nif}</span>
+                <span style={{ color: colors.primary }}>{organizationSettings.taxNumber}</span>
               </div>
             )}
             {organizationSettings?.nis && (
-              <div className="flex justify-between">
-                <span className="font-bold text-blue-900">{t.nis}:</span>
-                <span className="text-gray-700">{organizationSettings.nis}</span>
+              <div>
+                <span style={{ fontWeight: '600', color: colors.secondary, display: 'block', marginBottom: '2px' }}>{t.nis}</span>
+                <span style={{ color: colors.primary }}>{organizationSettings.nis}</span>
               </div>
             )}
             {organizationSettings?.rib && (
-              <div className="flex justify-between">
-                <span className="font-bold text-blue-900">{t.rib}:</span>
-                <span className="text-gray-700">{organizationSettings.rib}</span>
+              <div>
+                <span style={{ fontWeight: '600', color: colors.secondary, display: 'block', marginBottom: '2px' }}>{t.rib}</span>
+                <span style={{ color: colors.primary }}>{organizationSettings.rib}</span>
               </div>
             )}
           </div>
         </div>
-      </div>
 
-      {/* محتوى الفاتورة */}
-      <div className="p-8 max-w-7xl mx-auto">
-        {/* معلومات المورد والعميل */}
-        <div className="grid grid-cols-2 gap-8 mb-8">
-          <div>
-            <h3 className="font-bold text-blue-900 mb-3 pb-2 border-b-2 border-blue-200">
-              {t.from}
-            </h3>
-            <div className="text-sm space-y-1 text-gray-700">
-              <p className="font-semibold">{organizationSettings?.name}</p>
-              {organizationSettings?.address && <p>{organizationSettings.address}</p>}
-              {organizationSettings?.phone && <p>{organizationSettings.phone}</p>}
-              {organizationSettings?.email && <p>{organizationSettings.email}</p>}
+        {/* Main Content */}
+        <div style={{ padding: '32px 40px' }}>
+          {/* Supplier & Customer Info */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px', marginBottom: '32px' }}>
+            {/* Supplier */}
+            <div
+              style={{
+                backgroundColor: colors.light,
+                borderRadius: '8px',
+                padding: '20px',
+                border: `1px solid ${colors.border}`,
+              }}
+            >
+              <h3
+                style={{
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  textTransform: 'uppercase',
+                  color: colors.secondary,
+                  marginBottom: '12px',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                {t.from}
+              </h3>
+              <div style={{ color: colors.primary }}>
+                <div style={{ fontSize: '16px', fontWeight: '700', marginBottom: '8px' }}>
+                  {organizationSettings?.name || '-'}
+                </div>
+                <div style={{ fontSize: '13px', lineHeight: '1.7', color: colors.secondary }}>
+                  {organizationSettings?.address && <div>{organizationSettings.address}</div>}
+                  {organizationSettings?.phone && <div>{t.phone}: {organizationSettings.phone}</div>}
+                  {organizationSettings?.email && <div>{t.email}: {organizationSettings.email}</div>}
+                </div>
+              </div>
+            </div>
+
+            {/* Customer */}
+            <div
+              style={{
+                backgroundColor: colors.light,
+                borderRadius: '8px',
+                padding: '20px',
+                border: `1px solid ${colors.border}`,
+              }}
+            >
+              <h3
+                style={{
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  textTransform: 'uppercase',
+                  color: colors.secondary,
+                  marginBottom: '12px',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                {t.to}
+              </h3>
+              <div style={{ color: colors.primary }}>
+                <div style={{ fontSize: '16px', fontWeight: '700', marginBottom: '8px' }}>
+                  {invoice.customerName || '-'}
+                </div>
+                {invoice.customerInfo && typeof invoice.customerInfo === 'object' && (
+                  <div style={{ fontSize: '13px', lineHeight: '1.7', color: colors.secondary }}>
+                    {(invoice.customerInfo as any).address && <div>{(invoice.customerInfo as any).address}</div>}
+                    {(invoice.customerInfo as any).phone && <div>{t.phone}: {(invoice.customerInfo as any).phone}</div>}
+                    {(invoice.customerInfo as any).email && <div>{t.email}: {(invoice.customerInfo as any).email}</div>}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          <div>
-            <h3 className="font-bold text-blue-900 mb-3 pb-2 border-b-2 border-blue-200">
-              {t.to}
-            </h3>
-            <div className="text-sm space-y-1 text-gray-700">
-              <p className="font-semibold">{invoice.customerName}</p>
-              {invoice.customerInfo && typeof invoice.customerInfo === 'object' && (
-                <>
-                  {(invoice.customerInfo as any).address && (
-                    <p>{(invoice.customerInfo as any).address}</p>
-                  )}
-                  {(invoice.customerInfo as any).phone && (
-                    <p>{(invoice.customerInfo as any).phone}</p>
-                  )}
-                  {(invoice.customerInfo as any).email && (
-                    <p>{(invoice.customerInfo as any).email}</p>
-                  )}
-                </>
-              )}
+          {/* Invoice Meta Info */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, 1fr)',
+              gap: '16px',
+              marginBottom: '28px',
+              backgroundColor: colors.light,
+              padding: '16px 20px',
+              borderRadius: '8px',
+              border: `1px solid ${colors.border}`,
+            }}
+          >
+            <div>
+              <span style={{ fontSize: '11px', color: colors.muted, textTransform: 'uppercase', fontWeight: '600' }}>{t.invoiceDate}</span>
+              <div style={{ fontSize: '14px', fontWeight: '600', color: colors.primary, marginTop: '4px' }}>{formatDate(invoice.invoiceDate)}</div>
+            </div>
+            <div>
+              <span style={{ fontSize: '11px', color: colors.muted, textTransform: 'uppercase', fontWeight: '600' }}>{t.dueDate}</span>
+              <div style={{ fontSize: '14px', fontWeight: '600', color: colors.primary, marginTop: '4px' }}>{formatDate(invoice.dueDate)}</div>
+            </div>
+            <div>
+              <span style={{ fontSize: '11px', color: colors.muted, textTransform: 'uppercase', fontWeight: '600' }}>{t.paymentMethod}</span>
+              <div style={{ fontSize: '14px', fontWeight: '600', color: colors.primary, marginTop: '4px' }}>{getPaymentMethodLabel(invoice.paymentMethod)}</div>
+            </div>
+            <div>
+              <span style={{ fontSize: '11px', color: colors.muted, textTransform: 'uppercase', fontWeight: '600' }}>{t.status}</span>
+              <div style={{ marginTop: '4px' }}>
+                <span
+                  style={{
+                    backgroundColor: statusStyle.bg,
+                    color: statusStyle.color,
+                    padding: '3px 10px',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                  }}
+                >
+                  {getStatusLabel(invoice.status)}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* معلومات الفاتورة */}
-        <div className="grid grid-cols-3 gap-4 mb-8 bg-gray-50 p-4 rounded">
-          <div>
-            <p className="text-xs font-bold text-gray-500 uppercase mb-1">{t.invoiceDate}</p>
-            <p className="text-lg font-semibold text-gray-900">
-              {formatDate(invoice.invoiceDate)}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs font-bold text-gray-500 uppercase mb-1">{t.dueDate}</p>
-            <p className="text-lg font-semibold text-gray-900">
-              {formatDate(invoice.dueDate)}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs font-bold text-gray-500 uppercase mb-1">{t.status}</p>
-            <p className="text-lg font-semibold text-blue-600">
-              {invoice.status === 'paid' ? t.paid : invoice.status === 'pending' ? t.pending : t.overdue}
-            </p>
-          </div>
-        </div>
-
-        {/* جدول المنتجات */}
-        <div className="mb-8">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-blue-900 text-white">
-                <th className={`py-3 px-4 font-bold ${isRTL ? 'text-right' : 'text-left'}`}>
-                  {t.description}
-                </th>
-                <th className="py-3 px-4 font-bold text-center">{t.quantity}</th>
-                <th className="py-3 px-4 font-bold text-center">{t.unitPrice}</th>
-                <th className={`py-3 px-4 font-bold ${isRTL ? 'text-left' : 'text-right'}`}>
-                  {t.amount}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {invoice.items?.map((item, index) => (
-                <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                  <td className={`py-3 px-4 text-gray-900 ${isRTL ? 'text-right' : 'text-left'}`}>
-                    <p className="font-medium">{item.name}</p>
-                    {item.description && (
-                      <p className="text-xs text-gray-500">{item.description}</p>
-                    )}
-                  </td>
-                  <td className="py-3 px-4 text-gray-900 text-center">{item.quantity}</td>
-                  <td className="py-3 px-4 text-gray-900 text-center">
-                    {item.unitPrice?.toFixed(2) || '-'} دج
-                  </td>
-                  <td className={`py-3 px-4 font-semibold text-gray-900 ${isRTL ? 'text-left' : 'text-right'}`}>
-                    {item.totalPrice?.toFixed(2) || '-'} دج
-                  </td>
+          {/* Items Table - Algerian Format with TVA */}
+          <div
+            style={{
+              marginBottom: '28px',
+              borderRadius: '8px',
+              overflow: 'hidden',
+              border: `1px solid ${colors.border}`,
+            }}
+          >
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ backgroundColor: colors.primary }}>
+                  <th
+                    style={{
+                      padding: '14px 16px',
+                      textAlign: isRTL ? 'right' : 'left',
+                      color: colors.white,
+                      fontWeight: '600',
+                      fontSize: '12px',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.3px',
+                    }}
+                  >
+                    {t.designation}
+                  </th>
+                  <th style={{ padding: '14px 12px', textAlign: 'center', color: colors.white, fontWeight: '600', fontSize: '12px' }}>
+                    {t.quantity}
+                  </th>
+                  <th style={{ padding: '14px 12px', textAlign: 'center', color: colors.white, fontWeight: '600', fontSize: '12px' }}>
+                    {t.unitPriceHT}
+                  </th>
+                  <th style={{ padding: '14px 12px', textAlign: 'center', color: colors.white, fontWeight: '600', fontSize: '12px' }}>
+                    {t.tvaRate}
+                  </th>
+                  <th style={{ padding: '14px 12px', textAlign: 'center', color: colors.white, fontWeight: '600', fontSize: '12px' }}>
+                    {t.totalHT}
+                  </th>
+                  <th style={{ padding: '14px 12px', textAlign: 'center', color: colors.white, fontWeight: '600', fontSize: '12px' }}>
+                    {t.totalTVA}
+                  </th>
+                  <th
+                    style={{
+                      padding: '14px 16px',
+                      textAlign: isRTL ? 'left' : 'right',
+                      color: colors.white,
+                      fontWeight: '600',
+                      fontSize: '12px',
+                    }}
+                  >
+                    {t.totalTTC}
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {invoice.items?.map((item: any, index) => {
+                  const tvaRate = item.tva_rate || 19;
+                  const unitPriceHT = item.unit_price_ht || item.unitPrice / 1.19;
+                  const totalHT = item.total_ht || item.totalPrice / 1.19;
+                  const totalTVA = item.total_tva || totalHT * 0.19;
+                  const totalTTC = item.total_ttc || item.totalPrice;
 
-        {/* الإجماليات */}
-        <div className="flex justify-end mb-8">
-          <div className="w-full max-w-sm">
-            <div className="space-y-2 border-t-2 border-blue-200 pt-4">
-              <div className="flex justify-between text-gray-700">
-                <span>{t.subtotal}:</span>
-                <span className="font-semibold">{invoice.subtotalAmount?.toFixed(2) || '-'} دج</span>
-              </div>
-              {invoice.discountAmount && invoice.discountAmount > 0 && (
-                <div className="flex justify-between text-red-600">
-                  <span>{t.total}:</span>
-                  <span className="font-semibold">- {invoice.discountAmount.toFixed(2)} دج</span>
+                  return (
+                    <tr
+                      key={index}
+                      style={{
+                        backgroundColor: index % 2 === 0 ? colors.white : colors.light,
+                        borderBottom: `1px solid ${colors.border}`,
+                      }}
+                    >
+                      <td style={{ padding: '14px 16px', textAlign: isRTL ? 'right' : 'left' }}>
+                        <div style={{ fontWeight: '600', color: colors.primary, marginBottom: '2px' }}>{item.name}</div>
+                        {item.description && (
+                          <div style={{ fontSize: '11px', color: colors.secondary }}>{item.description}</div>
+                        )}
+                        {(item as any).sku && (
+                          <div style={{ fontSize: '10px', color: colors.muted, marginTop: '2px' }}>Réf: {(item as any).sku}</div>
+                        )}
+                      </td>
+                      <td style={{ padding: '14px 12px', textAlign: 'center', fontWeight: '600', color: colors.primary }}>
+                        {item.quantity}
+                      </td>
+                      <td style={{ padding: '14px 12px', textAlign: 'center', color: colors.secondary, fontSize: '12px' }}>
+                        {formatCurrency(unitPriceHT)}
+                      </td>
+                      <td style={{ padding: '14px 12px', textAlign: 'center', color: colors.secondary, fontSize: '12px' }}>
+                        {tvaRate}%
+                      </td>
+                      <td style={{ padding: '14px 12px', textAlign: 'center', color: colors.secondary, fontSize: '12px' }}>
+                        {formatCurrency(totalHT)}
+                      </td>
+                      <td style={{ padding: '14px 12px', textAlign: 'center', color: colors.secondary, fontSize: '12px', fontWeight: '500' }}>
+                        {formatCurrency(totalTVA)}
+                      </td>
+                      <td
+                        style={{
+                          padding: '14px 16px',
+                          textAlign: isRTL ? 'left' : 'right',
+                          fontWeight: '700',
+                          color: colors.primary,
+                          fontSize: '13px',
+                        }}
+                      >
+                        {formatCurrency(totalTTC)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Totals Section - Algerian Format */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '32px' }}>
+            <div style={{ width: '380px' }}>
+              <div
+                style={{
+                  backgroundColor: colors.light,
+                  borderRadius: '8px',
+                  padding: '20px',
+                  border: `1px solid ${colors.border}`,
+                }}
+              >
+                {/* Total HT */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '13px' }}>
+                  <span style={{ color: colors.secondary }}>{t.totalHT}</span>
+                  <span style={{ fontWeight: '600', color: colors.primary }}>{formatCurrency(totals.totalHT)}</span>
                 </div>
-              )}
-              <div className="flex justify-between text-gray-700">
-                <span>{t.tax}:</span>
-                <span className="font-semibold">{invoice.taxAmount?.toFixed(2) || '-'} دج</span>
-              </div>
-              {invoice.shippingAmount && invoice.shippingAmount > 0 && (
-                <div className="flex justify-between text-green-600">
-                  <span>الشحن:</span>
-                  <span className="font-semibold">+ {invoice.shippingAmount.toFixed(2)} دج</span>
+
+                {/* Discount */}
+                {invoice.discountAmount && invoice.discountAmount > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '13px', color: colors.secondary }}>
+                    <span>{t.discount}</span>
+                    <span style={{ fontWeight: '600' }}>- {formatCurrency(invoice.discountAmount)}</span>
+                  </div>
+                )}
+
+                {/* TVA */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '13px' }}>
+                  <span style={{ color: colors.secondary }}>{t.totalTVA} (19%)</span>
+                  <span style={{ fontWeight: '600', color: colors.secondary }}>{formatCurrency(totals.totalTVA)}</span>
                 </div>
-              )}
-              <div className="flex justify-between bg-blue-900 text-white px-4 py-3 rounded mt-4">
-                <span className="font-bold text-lg">{t.total}:</span>
-                <span className="font-bold text-lg">{invoice.totalAmount?.toFixed(2) || '-'} دج</span>
+
+                {/* Shipping */}
+                {invoice.shippingAmount && invoice.shippingAmount > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '13px' }}>
+                    <span style={{ color: colors.secondary }}>{t.shipping}</span>
+                    <span style={{ fontWeight: '600', color: colors.primary }}>+ {formatCurrency(invoice.shippingAmount)}</span>
+                  </div>
+                )}
+
+                {/* Grand Total TTC */}
+                <div
+                  style={{
+                    borderTop: `2px solid ${colors.primary}`,
+                    paddingTop: '14px',
+                    marginTop: '14px',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '14px', fontWeight: '700', color: colors.primary }}>{t.grandTotal} TTC</span>
+                    <span
+                      style={{
+                        fontSize: '22px',
+                        fontWeight: '800',
+                        color: colors.primary,
+                      }}
+                    >
+                      {formatCurrency(invoice.totalAmount)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Notes */}
+          {invoice.notes && (
+            <div
+              style={{
+                backgroundColor: colors.light,
+                borderRadius: '8px',
+                padding: '18px 22px',
+                marginBottom: '28px',
+                borderLeft: `4px solid ${colors.secondary}`,
+              }}
+            >
+              <h4 style={{ fontSize: '13px', fontWeight: '700', color: colors.secondary, marginBottom: '8px' }}>
+                {t.notes}
+              </h4>
+              <p style={{ color: colors.primary, fontSize: '13px', margin: '0', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>
+                {invoice.notes}
+              </p>
+            </div>
+          )}
+
+          {/* Signatures Section */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', marginBottom: '32px' }}>
+            <div style={{ textAlign: 'center' }}>
+              <h4 style={{ fontSize: '12px', fontWeight: '700', color: colors.secondary, marginBottom: '12px', textTransform: 'uppercase' }}>
+                {t.sellerSignature}
+              </h4>
+              <div
+                style={{
+                  height: '80px',
+                  border: `2px dashed ${colors.border}`,
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: colors.muted,
+                  fontSize: '12px',
+                }}
+              >
+                {t.signature}
+              </div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <h4 style={{ fontSize: '12px', fontWeight: '700', color: colors.secondary, marginBottom: '12px', textTransform: 'uppercase' }}>
+                {t.clientSignature}
+              </h4>
+              <div
+                style={{
+                  height: '80px',
+                  border: `2px dashed ${colors.border}`,
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: colors.muted,
+                  fontSize: '12px',
+                }}
+              >
+                {t.signature}
               </div>
             </div>
           </div>
         </div>
 
-        {/* الملاحظات */}
-        {invoice.notes && (
-          <div className="mb-8 bg-yellow-50 border-l-4 border-yellow-400 p-4">
-            <h3 className="font-bold text-gray-900 mb-2">{t.notes}</h3>
-            <p className="text-sm text-gray-700 whitespace-pre-wrap">{invoice.notes}</p>
+        {/* Footer */}
+        <div
+          style={{
+            backgroundColor: colors.primary,
+            padding: '24px 40px',
+            color: colors.white,
+          }}
+        >
+          <div style={{ textAlign: 'center' }}>
+            <p style={{ fontSize: '16px', fontWeight: '600', marginBottom: '8px' }}>
+              {t.thankYou}
+            </p>
+            <p style={{ fontSize: '11px', opacity: '0.8', marginBottom: '12px' }}>
+              {t.legalMention}
+            </p>
+            <div style={{ fontSize: '12px', opacity: '0.85', display: 'flex', justifyContent: 'center', gap: '20px', flexWrap: 'wrap' }}>
+              {organizationSettings?.website && <span>{organizationSettings.website}</span>}
+              {organizationSettings?.phone && <span>{organizationSettings.phone}</span>}
+              {organizationSettings?.email && <span>{organizationSettings.email}</span>}
+            </div>
           </div>
-        )}
-
-        {/* التذييل */}
-        <div className="border-t-2 border-blue-200 pt-8 text-center text-xs text-gray-600 space-y-2">
-          <p className="font-semibold">شكراً لتعاملكم معنا</p>
-          <p>Merci de votre confiance</p>
-          <p>Thank you for your business</p>
-          {organizationSettings?.website && (
-            <p className="text-blue-600">{organizationSettings.website}</p>
-          )}
         </div>
       </div>
-    </div>
-  );
-});
+    );
+  }
+);
 
 AlgerianInvoiceTemplate.displayName = 'AlgerianInvoiceTemplate';
 

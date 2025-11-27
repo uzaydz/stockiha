@@ -1,15 +1,31 @@
-/* تصميم Sidebar محسّن للموبايل */
+/* Premium Mobile Sidebar Styles */
 
 .mobile-sidebar {
   /* Smooth animations */
   animation: slideInRight 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  /* تحت titlebar مباشرة */
+  /* Below titlebar */
   top: var(--titlebar-height, 48px) !important;
   height: calc(100vh - var(--titlebar-height, 48px)) !important;
   max-height: calc(100vh - var(--titlebar-height, 48px)) !important;
   border-top-right-radius: 0 !important;
-  /* فوق MobileBottomNavigation (z-40) */
   z-index: 60 !important;
+  
+  /* Glassmorphism */
+  background: rgba(15, 23, 42, 0.95) !important;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-left: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Subtle noise texture overlay */
+.mobile-sidebar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0.4;
 }
 
 @keyframes slideInRight {
@@ -23,79 +39,26 @@
   }
 }
 
-/* تحسين أداء العناصر */
-.mobile-sidebar-item {
-  transform: translateZ(0);
-  backface-visibility: hidden;
-  -webkit-font-smoothing: antialiased;
-  position: relative;
-  overflow: hidden;
-}
-
-/* تأثير ripple عند الضغط */
-.mobile-sidebar-item::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at center, rgba(251, 146, 60, 0.2) 0%, transparent 70%);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-  pointer-events: none;
-}
-
-.mobile-sidebar-item:active::before {
-  opacity: 1;
-}
-
-/* Custom Scrollbar للموبايل - أجمل وأكثر احترافية */
+/* Custom Scrollbar */
 .custom-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgba(251, 146, 60, 0.3) transparent;
+  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
 }
 
 .custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
   background: transparent;
-  border-radius: 10px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: linear-gradient(
-    180deg,
-    rgba(251, 146, 60, 0.4) 0%,
-    rgba(251, 146, 60, 0.2) 100%
-  );
-  border-radius: 10px;
-  border: 1px solid rgba(251, 146, 60, 0.2);
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(
-    180deg,
-    rgba(251, 146, 60, 0.6) 0%,
-    rgba(251, 146, 60, 0.4) 100%
-  );
-}
-
-/* تأثير الضغط على الموبايل - محسّن */
-.mobile-sidebar-item:active {
-  transform: scale(0.97) translateZ(0);
-  transition: transform 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* تحسين الأداء للأجهزة المحمولة */
-@media (max-width: 768px) {
-  .mobile-sidebar-item {
-    -webkit-tap-highlight-color: transparent;
-    touch-action: manipulation;
-    user-select: none;
-  }
-}
-
-/* تأثير fade in للعناصر */
+/* Staggered Animation for Items */
 @keyframes fadeInUp {
   from {
     opacity: 0;
@@ -122,32 +85,7 @@
 .mobile-sidebar nav > *:nth-child(9) { animation-delay: 0.29s; }
 .mobile-sidebar nav > *:nth-child(10) { animation-delay: 0.32s; }
 
-/* Reduce motion للمستخدمين الذين يفضلون ذلك */
-@media (prefers-reduced-motion: reduce) {
-  .mobile-sidebar {
-    animation: none !important;
-  }
-
-  .mobile-sidebar-item,
-  .mobile-sidebar nav > * {
-    animation: none !important;
-    transition: none !important;
-  }
-
-  .mobile-sidebar-item::before {
-    display: none;
-  }
-}
-
-/* تأثير overlay backdrop blur */
-@supports (backdrop-filter: blur(10px)) or (-webkit-backdrop-filter: blur(10px)) {
-  .mobile-sidebar {
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-  }
-}
-
-/* ضمان أن Sheet overlay وcontent فوق MobileBottomNavigation */
+/* Z-Index Fixes */
 [data-radix-popper-content-wrapper],
 [data-state="open"] > [data-radix-portal],
 [data-radix-presence],
@@ -155,13 +93,6 @@
   z-index: 60 !important;
 }
 
-/* Overlay الخاص بـ Sheet */
 [data-radix-dialog-overlay] {
   z-index: 55 !important;
-}
-
-/* Sheet content محدد */
-.mobile-sidebar[data-state="open"],
-.mobile-sidebar[data-radix-dialog-content] {
-  z-index: 60 !important;
 }

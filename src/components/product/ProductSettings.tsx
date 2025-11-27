@@ -3,7 +3,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { UseFormReturn } from "react-hook-form";
 import { Star, Gift, Eye, HelpCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 
 interface ProductSettingsProps {
   form: UseFormReturn<any>;
@@ -11,7 +10,6 @@ interface ProductSettingsProps {
 
 export default function ProductSettings({ form }: ProductSettingsProps) {
   return (
-    <TooltipProvider>
       <Card className="border-border/50 shadow-md sm:shadow-lg dark:shadow-xl sm:dark:shadow-2xl dark:shadow-black/20 bg-card/50 backdrop-blur-sm">
         <CardHeader className="pb-3 sm:pb-4 p-3 sm:p-4 lg:p-5 bg-gradient-to-r from-amber-50/50 via-orange-50/30 to-transparent dark:from-amber-950/30 dark:via-orange-950/20 dark:to-transparent rounded-t-lg border-b border-border/30">
           <CardTitle className="text-sm sm:text-base font-semibold flex items-center gap-2 sm:gap-3">
@@ -44,24 +42,12 @@ export default function ProductSettings({ form }: ProductSettingsProps) {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1">
                             <span className="text-xs sm:text-sm font-medium text-foreground">منتج مميز</span>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <button
-                                  type="button"
-                                  className="inline-flex items-center justify-center min-h-[44px] sm:min-h-auto p-2 sm:p-0 -m-2 sm:m-0"
-                                  onClick={(e) => e.preventDefault()}
-                                >
-                                  <HelpCircle className="w-3 h-3 text-muted-foreground hover:text-amber-600 transition-colors cursor-help" />
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent 
-                                className="max-w-[280px] sm:max-w-xs z-50 bg-popover border border-border shadow-lg"
-                                side="top"
-                                sideOffset={5}
-                              >
-                                <p className="text-xs">سيظهر المنتج في قسم المنتجات المميزة في الصفحة الرئيسية للمتجر.</p>
-                              </TooltipContent>
-                            </Tooltip>
+                            <span
+                              className="inline-flex items-center justify-center p-1 rounded-md transition-colors shrink-0"
+                              title="سيظهر المنتج في قسم المنتجات المميزة في الصفحة الرئيسية للمتجر."
+                            >
+                              <HelpCircle className="w-3 h-3 text-muted-foreground hover:text-amber-600 transition-colors cursor-help" />
+                            </span>
                           </div>
                           <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 truncate">يظهر في المنتجات المميزة</p>
                         </div>
@@ -94,24 +80,12 @@ export default function ProductSettings({ form }: ProductSettingsProps) {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1">
                             <span className="text-xs sm:text-sm font-medium text-foreground">منتج جديد</span>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <button
-                                  type="button"
-                                  className="inline-flex items-center justify-center min-h-[44px] sm:min-h-auto p-2 sm:p-0 -m-2 sm:m-0"
-                                  onClick={(e) => e.preventDefault()}
-                                >
-                                  <HelpCircle className="w-3 h-3 text-muted-foreground hover:text-green-600 transition-colors cursor-help" />
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent 
-                                className="max-w-[280px] sm:max-w-xs z-50 bg-popover border border-border shadow-lg"
-                                side="top"
-                                sideOffset={5}
-                              >
-                                <p className="text-xs">سيتم وضع علامة "جديد" على المنتج وقد يظهر في قسم المنتجات الجديدة.</p>
-                              </TooltipContent>
-                            </Tooltip>
+                            <span
+                              className="inline-flex items-center justify-center p-1 rounded-md transition-colors shrink-0"
+                              title='سيتم وضع علامة "جديد" على المنتج وقد يظهر في قسم المنتجات الجديدة.'
+                            >
+                              <HelpCircle className="w-3 h-3 text-muted-foreground hover:text-green-600 transition-colors cursor-help" />
+                            </span>
                           </div>
                           <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 truncate">يحمل علامة جديد</p>
                         </div>
@@ -144,24 +118,12 @@ export default function ProductSettings({ form }: ProductSettingsProps) {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1">
                             <span className="text-xs sm:text-sm font-medium text-foreground">إظهار السعر</span>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <button
-                                  type="button"
-                                  className="inline-flex items-center justify-center min-h-[44px] sm:min-h-auto p-2 sm:p-0 -m-2 sm:m-0"
-                                  onClick={(e) => e.preventDefault()}
-                                >
-                                  <HelpCircle className="w-3 h-3 text-muted-foreground hover:text-blue-600 transition-colors cursor-help" />
-                                </button>
-                              </TooltipTrigger>
-                              <TooltipContent 
-                                className="max-w-[280px] sm:max-w-xs z-50 bg-popover border border-border shadow-lg"
-                                side="top"
-                                sideOffset={5}
-                              >
-                                <p className="text-xs">تحديد ما إذا كان سعر المنتج سيظهر في صفحة المتجر أم سيتم إخفاؤه (مفيد للمنتجات التي تتطلب استفسار).</p>
-                              </TooltipContent>
-                            </Tooltip>
+                            <span
+                              className="inline-flex items-center justify-center p-1 rounded-md transition-colors shrink-0"
+                              title="تحديد ما إذا كان سعر المنتج سيظهر في صفحة المتجر أم سيتم إخفاؤه (مفيد للمنتجات التي تتطلب استفسار)."
+                            >
+                              <HelpCircle className="w-3 h-3 text-muted-foreground hover:text-blue-600 transition-colors cursor-help" />
+                            </span>
                           </div>
                           <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 truncate">يظهر السعر في المتجر</p>
                         </div>
@@ -175,6 +137,5 @@ export default function ProductSettings({ form }: ProductSettingsProps) {
           </div>
         </CardContent>
       </Card>
-    </TooltipProvider>
   );
 }

@@ -8,9 +8,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { PlusCircle, UserPlus } from 'lucide-react';
 import { Customer } from '@/types/customer';
-import { getCustomers, createCustomer } from '@/lib/api/customers';
+import { createCustomer } from '@/lib/api/customers';
 import { createDebt, CreateDebtData } from '@/lib/api/debts';
 import { useTenant } from '@/context/TenantContext';
+import { getLocalCustomers } from '@/api/localCustomerService';
 
 interface AddDebtModalProps {
   isOpen: boolean;
@@ -64,8 +65,8 @@ const AddDebtModal: React.FC<AddDebtModalProps> = ({
   const loadCustomers = async () => {
     setLoadingCustomers(true);
     try {
-      const customersData = await getCustomers();
-      setCustomers(customersData);
+      const customersData = await getLocalCustomers({ organizationId: currentOrganization?.id });
+      setCustomers(customersData as unknown as Customer[]);
     } catch (error) {
       toast.error('فشل في تحميل العملاء');
     } finally {

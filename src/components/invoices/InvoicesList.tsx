@@ -69,8 +69,8 @@ const InvoicesList = ({
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       result = result.filter(
-        invoice => 
-          invoice.invoiceNumber.toLowerCase().includes(query) || 
+        invoice =>
+          invoice.invoiceNumber.toLowerCase().includes(query) ||
           (invoice.customerName && invoice.customerName.toLowerCase().includes(query))
       );
     }
@@ -206,7 +206,7 @@ const InvoicesList = ({
               <SelectItem value="canceled">ملغاة</SelectItem>
             </SelectContent>
           </Select>
-          
+
           <Select value={documentTypeFilter} onValueChange={setDocumentTypeFilter}>
             <SelectTrigger className="w-[150px]">
               <SelectValue placeholder="نوع المستند" />
@@ -218,7 +218,7 @@ const InvoicesList = ({
               <SelectItem value="bon_commande">أمر شراء</SelectItem>
             </SelectContent>
           </Select>
-          
+
           <Select value={typeFilter} onValueChange={setTypeFilter}>
             <SelectTrigger className="w-[150px]">
               <SelectValue placeholder="المصدر" />
@@ -231,7 +231,7 @@ const InvoicesList = ({
               <SelectItem value="combined">مدمجة</SelectItem>
             </SelectContent>
           </Select>
-          
+
           <Select value={sortBy} onValueChange={setSortBy}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="ترتيب حسب" />
@@ -273,8 +273,8 @@ const InvoicesList = ({
                         <AlertCircle className="h-8 w-8 mb-2" />
                         <p>لم يتم العثور على فواتير</p>
                         <p className="text-sm">
-                          {(searchQuery || statusFilter !== 'all' || typeFilter !== 'all' || documentTypeFilter !== 'all') 
-                            ? 'جرب تغيير معايير البحث' 
+                          {(searchQuery || statusFilter !== 'all' || typeFilter !== 'all' || documentTypeFilter !== 'all')
+                            ? 'جرب تغيير معايير البحث'
                             : 'قم بإنشاء مستند جديد للبدء'}
                         </p>
                       </div>
@@ -283,7 +283,7 @@ const InvoicesList = ({
                 ) : (
                   paginatedInvoices.map((invoice) => (
                     <TableRow key={invoice.id} className="cursor-pointer hover:bg-muted/30">
-                      <TableCell 
+                      <TableCell
                         className="font-medium whitespace-nowrap"
                         onClick={() => onViewInvoice(invoice)}
                       >
@@ -291,13 +291,13 @@ const InvoicesList = ({
                           <FileText className="h-4 w-4 text-muted-foreground" />
                           <span>{invoice.invoiceNumber}</span>
                           {/* مؤشر حالة المزامنة */}
-                          {(invoice as any)._synced === false && (
+                          {invoice._synced === false && (
                             <Badge variant="outline" className="bg-orange-50 text-orange-600 border-orange-200 text-xs">
                               <Clock className="h-3 w-3 mr-1" />
                               غير متزامن
                             </Badge>
                           )}
-                          {(invoice as any)._syncStatus === 'error' && (
+                          {invoice._syncStatus === 'error' && (
                             <Badge variant="destructive" className="text-xs">
                               <WifiOff className="h-3 w-3 mr-1" />
                               خطأ
@@ -306,8 +306,8 @@ const InvoicesList = ({
                         </div>
                       </TableCell>
                       <TableCell onClick={() => onViewInvoice(invoice)}>
-                        <Badge 
-                          variant="outline" 
+                        <Badge
+                          variant="outline"
                           className={`${getDocumentType(invoice.invoiceNumber).color}`}
                         >
                           {getDocumentType(invoice.invoiceNumber).text}
@@ -326,8 +326,8 @@ const InvoicesList = ({
                         <span className="font-medium">{invoice.totalAmount.toFixed(2)}</span> دج
                       </TableCell>
                       <TableCell onClick={() => onViewInvoice(invoice)}>
-                        <Badge 
-                          variant="outline" 
+                        <Badge
+                          variant="outline"
                           className={`${getStatusColor(invoice.status)}`}
                         >
                           {getStatusText(invoice.status)}
@@ -335,9 +335,9 @@ const InvoicesList = ({
                       </TableCell>
                       <TableCell>
                         <div className="flex justify-center gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="icon" 
+                          <Button
+                            variant="outline"
+                            size="icon"
                             className="h-8 w-8"
                             onClick={() => onViewInvoice(invoice)}
                             title="عرض الفاتورة"
@@ -345,9 +345,9 @@ const InvoicesList = ({
                             <FileText className="h-4 w-4" />
                           </Button>
                           {canManage && (
-                            <Button 
-                              variant="outline" 
-                              size="icon" 
+                            <Button
+                              variant="outline"
+                              size="icon"
                               className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                               onClick={() => onEditInvoice(invoice)}
                               title="تعديل الفاتورة"
@@ -355,18 +355,18 @@ const InvoicesList = ({
                               <Edit className="h-4 w-4" />
                             </Button>
                           )}
-                          <Button 
-                            variant="outline" 
-                            size="icon" 
+                          <Button
+                            variant="outline"
+                            size="icon"
                             className="h-8 w-8"
                             onClick={() => onPrintInvoice(invoice)}
                             title="طباعة الفاتورة"
                           >
                             <Printer className="h-4 w-4" />
                           </Button>
-                          <Button 
-                            variant="outline" 
-                            size="icon" 
+                          <Button
+                            variant="outline"
+                            size="icon"
                             className="h-8 w-8"
                             onClick={() => onDownloadInvoice(invoice)}
                             title="تنزيل الفاتورة PDF"

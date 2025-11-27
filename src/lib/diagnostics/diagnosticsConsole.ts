@@ -53,26 +53,14 @@
   window.addEventListener('online', onOnline);
   window.addEventListener('offline', onOffline);
 
-  // Hook SyncEngine status if available
+  // Hook SmartSyncEngine if available
   try {
-    // Dynamic import avoids early bundling issues
-    import('@/sync/SyncEngine').then(({ SyncEngine }) => {
+    import('@/lib/sync/SmartSyncEngine').then(({ smartSyncEngine }) => {
       try {
         const env = (import.meta as any)?.env || {};
-        const verbose = String(env?.VITE_SYNC_VERBOSE ?? '').toLowerCase() === 'true';
-        const unsubscribe = SyncEngine.onStatus((s: { phase: string; timestamp: number; data?: any }) => {
-          try {
-            if (verbose) {
-              console.log(`🔁 [SyncEngine] ${s.phase}`, { t: s.timestamp, data: s.data });
-            } else {
-              // وضع مختصر: سجل البداية والنهاية فقط لتقليل الضجيج
-              if (s.phase === 'start' || s.phase === 'done') {
-                console.log(`🔁 [SyncEngine] ${s.phase}`, { t: s.timestamp });
-              }
-            }
-          } catch {}
-        });
-        (window as any).__diag_unsub_sync = unsubscribe;
+        // يمكننا إضافة مستمعين للأحداث إذا أضفناهم لاحقاً لـ SmartSyncEngine
+        // حالياً، SmartSyncEngine يقوم بالـ log بنفسه
+        console.log('🩺 [Diagnostics] SmartSyncEngine hooked');
       } catch {}
     }).catch(() => {});
   } catch {}
@@ -83,6 +71,12 @@
     try { snapshot.navigatorOnLine = navigator.onLine; } catch { snapshot.navigatorOnLine = 'unknown'; }
     snapshot.env = envMode;
     snapshot.electron = isElectron;
+    
+    try {
+      const { smartSyncEngine } = await import('@/lib/sync/SmartSyncEngine');
+      snapshot.smartSync = smartSyncEngine.getStatus();
+    } catch {}
+
     try {
       const mod = await import('@/lib/supabase-unified');
       if (mod?.getSupabaseDiagnostics) {
@@ -95,12 +89,18 @@
 
   const startSync = async () => {
     try {
-      const { SyncEngine } = await import('@/sync/SyncEngine');
-      const res = await SyncEngine.run();
-      console.log('🔁 [Diagnostics] SyncEngine.run result', res);
-      return res;
+      // ⚡ استخدام DeltaSyncEngine الموحد بدلاً من SmartSyncEngine
+      const { deltaSyncEngine } = await import('@/lib/sync/delta');
+      const status = await deltaSyncEngine.getStatus();
+      if (status.isInitialized) {
+        await deltaSyncEngine.fullSync();
+        console.log('🔁 [Diagnostics] DeltaSyncEngine.fullSync triggered');
+      } else {
+        console.warn('🔁 [Diagnostics] DeltaSyncEngine not initialized');
+      }
+      return { triggered: true, status };
     } catch (e) {
-      console.error('🔁 [Diagnostics] SyncEngine.run error', e);
+      console.error('🔁 [Diagnostics] DeltaSyncEngine error', e);
       throw e;
     }
   };

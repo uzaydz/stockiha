@@ -5,6 +5,7 @@ import {
   getCategories as fetchCategoriesAPI,
   getSubcategories as fetchSubcategoriesAPI,
 } from '@/lib/api/categories';
+import { trackRender } from '@/utils/debugRenderLoop';
 
 interface UseCategoryDataProps {
   organizationId: string;
@@ -12,6 +13,9 @@ interface UseCategoryDataProps {
 }
 
 export const useCategoryData = ({ organizationId, watchCategoryId }: UseCategoryDataProps) => {
+  // 🔍 تتبع renders للتصحيح - معطل مؤقتًا
+  // trackRender('useCategoryData', { organizationId, watchCategoryId });
+  
   const [categories, setCategories] = useState<Category[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(false);
@@ -66,22 +70,28 @@ export const useCategoryData = ({ organizationId, watchCategoryId }: UseCategory
 
     const run = async () => {
       if (!watchCategoryId) {
-        setSubcategories([]);
+        // ✅ فقط أعد التعيين إذا كان هناك subcategories فعلاً
+        setSubcategories(prev => prev.length > 0 ? [] : prev);
         return;
       }
 
       // تعبئة محلية أولية
       try {
         const localSubs = await getLocalSubcategoriesByCategoryId(watchCategoryId);
-        if (!cancelled && Array.isArray(localSubs)) setSubcategories(localSubs as Subcategory[]);
+        if (!cancelled && Array.isArray(localSubs) && localSubs.length > 0) {
+          setSubcategories(localSubs as Subcategory[]);
+        }
       } catch {}
 
-      if (!isOnline) return; // لا نحاول البعيد عند عدم الاتصال
+      if (!isOnline) {
+        setIsLoadingSubcategories(false);
+        return; // لا نحاول البعيد عند عدم الاتصال
+      }
 
       setIsLoadingSubcategories(true);
       try {
         const subs = await fetchSubcategoriesAPI(watchCategoryId, organizationId);
-        if (!cancelled) setSubcategories(subs);
+        if (!cancelled) setSubcategories(subs || []);
       } catch (error) {
         if (!cancelled) toast.error('حدث خطأ أثناء تحميل الفئات الفرعية');
       } finally {
@@ -90,6 +100,7 @@ export const useCategoryData = ({ organizationId, watchCategoryId }: UseCategory
     };
 
     void run();
+    
     return () => { cancelled = true; };
   }, [watchCategoryId, organizationId]);
 

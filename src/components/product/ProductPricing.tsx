@@ -24,7 +24,6 @@ import { useFieldArray } from "react-hook-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { cn } from '@/lib/utils';
 
@@ -80,7 +79,6 @@ export default function ProductPricing({ form }: ProductPricingProps) {
   const analysisStatus = getAnalysisStatus();
 
   return (
-    <TooltipProvider>
       <div className="space-y-4 sm:space-y-5 lg:space-y-6">
         {/* Basic Pricing Section */}
         <Card className="border-border/50 shadow-md sm:shadow-lg dark:shadow-xl sm:dark:shadow-2xl dark:shadow-black/20 bg-card/50 backdrop-blur-sm">
@@ -102,28 +100,18 @@ export default function ProductPricing({ form }: ProductPricingProps) {
                 name="price"
                 render={({ field }) => (
                   <FormItem className="space-y-2">
-                    <FormLabel className="text-sm font-medium text-foreground flex items-center gap-2">
-                      سعر البيع
-                      <span className="text-destructive">*</span>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            className="inline-flex items-center justify-center"
-                            onClick={(e) => e.preventDefault()}
-                          >
-                            <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent 
-                          className="max-w-xs z-50 bg-popover border border-border shadow-lg"
-                          side="top"
-                          sideOffset={5}
-                        >
-                          <p className="text-xs">السعر الذي سيدفعه العميل لشراء المنتج. هذا هو السعر الظاهر في المتجر.</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </FormLabel>
+                    <div className="flex items-center gap-2">
+                      <FormLabel className="text-sm font-medium text-foreground">
+                        سعر البيع
+                        <span className="text-destructive ml-1">*</span>
+                      </FormLabel>
+                      <span
+                        className="inline-flex items-center justify-center p-1 rounded-md hover:bg-muted/50 transition-colors"
+                        title="السعر الذي سيدفعه العميل لشراء المنتج. هذا هو السعر الظاهر في المتجر."
+                      >
+                        <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
+                      </span>
+                    </div>
                     <FormControl>
                       <div className="relative group">
                         <Input
@@ -151,27 +139,17 @@ export default function ProductPricing({ form }: ProductPricingProps) {
                 name="purchase_price"
                 render={({ field }) => (
                   <FormItem className="space-y-2">
-                    <FormLabel className="text-sm font-medium text-foreground flex items-center gap-2">
-                      سعر الشراء
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            className="inline-flex items-center justify-center"
-                            onClick={(e) => e.preventDefault()}
-                          >
-                            <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent 
-                          className="max-w-xs z-50 bg-popover border border-border shadow-lg"
-                          side="top"
-                          sideOffset={5}
-                        >
-                          <p className="text-xs">التكلفة التي دفعتها لشراء المنتج. يساعد في حساب الربح وإدارة المخزون.</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </FormLabel>
+                    <div className="flex items-center gap-2">
+                      <FormLabel className="text-sm font-medium text-foreground">
+                        سعر الشراء
+                      </FormLabel>
+                      <span
+                        className="inline-flex items-center justify-center p-1 rounded-md hover:bg-muted/50 transition-colors"
+                        title="التكلفة التي دفعتها لشراء المنتج. يساعد في حساب الربح وإدارة المخزون."
+                      >
+                        <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
+                      </span>
+                    </div>
                     <FormControl>
                       <div className="relative group">
                         <Input
@@ -199,27 +177,17 @@ export default function ProductPricing({ form }: ProductPricingProps) {
                 name="compare_at_price"
                 render={({ field }) => (
                   <FormItem className="space-y-2">
-                    <FormLabel className="text-sm font-medium text-foreground flex items-center gap-2">
-                      السعر الأصلي (قبل التخفيض)
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <button
-                            type="button"
-                            className="inline-flex items-center justify-center"
-                            onClick={(e) => e.preventDefault()}
-                          >
-                            <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent 
-                          className="max-w-xs z-50 bg-popover border border-border shadow-lg"
-                          side="top"
-                          sideOffset={5}
-                        >
-                          <p className="text-xs">السعر الأصلي قبل التخفيض. يظهر مشطوباً بجانب السعر الحالي لإظهار قيمة التوفير.</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </FormLabel>
+                    <div className="flex items-center gap-2">
+                      <FormLabel className="text-sm font-medium text-foreground">
+                        السعر الأصلي (قبل التخفيض)
+                      </FormLabel>
+                      <span
+                        className="inline-flex items-center justify-center p-1 rounded-md hover:bg-muted/50 transition-colors"
+                        title="السعر الأصلي قبل التخفيض. يظهر مشطوباً بجانب السعر الحالي لإظهار قيمة التوفير."
+                      >
+                        <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
+                      </span>
+                    </div>
                     <FormControl>
                       <div className="relative group">
                         <Input
@@ -459,6 +427,5 @@ export default function ProductPricing({ form }: ProductPricingProps) {
           </CardContent>
         </Card>
       </div>
-    </TooltipProvider>
   );
 }

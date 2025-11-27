@@ -1,126 +1,60 @@
-// خريطة لتصحيح أسماء الصلاحيات - محدثة ومحسنة
-export const permissionMapping: Record<string, string[]> = {
-  // الصلاحيات الأساسية
-  'viewServices': ['viewServices', 'manageServices', 'canAccessServicesOperations', 'canViewRepairServices', 'canViewSubscriptionServices'],
-  'viewProducts': ['viewProducts', 'manageProducts', 'editProducts', 'canAccessProductOperations', 'canViewProducts'],
-  'viewOrders': ['viewOrders', 'manageOrders', 'canAccessSalesOperations', 'canViewOnlineOrders'],
-  'viewPOSOrders': ['viewPOSOrders', 'accessPOS', 'manageOrders', 'canViewPosOrders'],
-  'viewSalesReports': ['viewSalesReports', 'viewReports', 'canAccessReportsOperations', 'canViewSalesReports'],
-  'viewFinancialReports': ['viewFinancialReports', 'viewReports', 'canAccessReportsOperations', 'canViewFinancialReports'],
-  'viewCustomers': ['viewCustomers', 'manageCustomers'],
-  'viewDebts': ['viewDebts', 'manageCustomers', 'viewCustomers', 'canViewDebts'],
-  'viewEmployees': ['viewEmployees', 'manageEmployees'],
-  'manageOrganizationSettings': ['manageOrganizationSettings', 'manageSettings', 'canManageStoreSettings', 'canManageSettings'],
-  'viewSettings': ['viewSettings', 'manageSettings', 'canAccessSettingsOperations', 'canViewSettings'],
-  'viewInventory': ['viewInventory', 'manageInventory', 'canViewInventory'],
-  'accessPOS': ['accessPOS'],
-  // أوامر إدارة: ربط القديم بالجديد
-  'manageOrders': ['manageOrders', 'canManagePosOrders', 'canManageOnlineOrders'],
-  'processPayments': ['processPayments', 'canProcessOrderPayments', 'canRecordSupplierPayment'],
-  
-  // صلاحيات الخدمات
-  'trackServices': ['trackServices', 'manageServices', 'canAccessServicesOperations'],
-  'addServices': ['addServices', 'manageServices', 'canManageRepairServices', 'canCreateRepairOrder', 'canCreateSubscriptionService'],
-  'editServices': ['editServices', 'manageServices', 'canManageRepairServices', 'canUpdateRepairStatus', 'canEditSubscriptionService'],
-  'deleteServices': ['deleteServices', 'manageServices', 'canManageRepairServices', 'canDeleteRepairOrder', 'canDeleteSubscriptionService'],
-  
-  // صلاحيات المنتجات
-  'addProducts': ['addProducts', 'manageProducts', 'canManageProducts', 'canAddProducts'],
-  'editProducts': ['editProducts', 'manageProducts', 'canManageProducts', 'canEditProducts'],
-  'deleteProducts': ['deleteProducts', 'manageProducts', 'canManageProducts', 'canDeleteProducts'],
-  'manageProductCategories': ['manageProductCategories', 'manageProducts', 'editProducts', 'canManageCategories'],
-  
-  // صلاحيات الطلبات
-  'updateOrderStatus': ['updateOrderStatus', 'manageOrders', 'canUpdateOrderStatus'],
-  'cancelOrders': ['cancelOrders', 'manageOrders', 'canCancelOrders'],
-  
-  // صلاحيات الموردين
-  'viewSuppliers': ['viewSuppliers', 'manageSuppliers', 'canAccessSupplierOperations', 'canViewSuppliers'],
-  'viewPurchases': ['viewPurchases', 'canViewPurchases'],
-  'managePurchases': ['managePurchases', 'manageSuppliers', 'canManagePurchases'],
-  'viewSupplierPayments': ['viewSupplierPayments', 'canViewSupplierPayments'],
-  'viewSupplierReports': ['viewSupplierReports', 'canViewSupplierReports'],
-  
-  // صلاحيات التقارير
-  'viewReports': ['viewReports', 'canAccessReportsOperations'],
-  
-  // صلاحيات فليكسي والعملات الرقمية
-  'manageFlexiAndDigitalCurrency': ['manageFlexi', 'manageFlexiAndDigitalCurrency'],
-  'sellFlexiAndDigitalCurrency': ['manageFlexi', 'processPayments', 'sellFlexiAndDigitalCurrency'],
-  'viewFlexiAndDigitalCurrencySales': ['manageFlexi', 'viewReports', 'viewFlexiAndDigitalCurrencySales'],
-  
-  // صلاحيات العملاء
-  'manageCustomers': ['manageCustomers'],
-  'recordDebtPayments': ['recordDebtPayments'],
-  'viewCustomerDebtHistory': ['viewCustomerDebtHistory'],
-  
-  // صلاحيات الإعدادات
-  'manageNotificationSettings': ['manageNotificationSettings', 'viewSettings', 'manageSettings'],
-  'manageSettings': ['manageSettings', 'viewSettings'],
-  'manageDatabase': ['manageDatabase', 'manageSettings'],
-  'manageProfileSettings': ['manageProfileSettings'],
-  'manageSecuritySettings': ['manageSecuritySettings'],
-  'manageAppearanceSettings': ['manageAppearanceSettings'],
-  'manageAdvancedSettings': ['manageAdvancedSettings'],
-  'manageBillingSettings': ['manageBillingSettings'],
-  'manageIntegrations': ['manageIntegrations'],
-  
-  // صلاحيات مركز الاتصال
-  'manageCallCenter': ['manageCallCenter', 'manageOrganizationSettings'],
-  'viewCallCenterReports': ['viewCallCenterReports', 'viewReports', 'manageOrganizationSettings'],
-  'manageCallCenterAgents': ['manageCallCenterAgents', 'manageOrganizationSettings'],
-  'viewCallCenterMonitoring': ['viewCallCenterMonitoring', 'manageOrganizationSettings'],
-  
-  // صلاحيات إضافية
-  'manageGameDownloads': ['manageGameDownloads'],
-  'viewFlexiCrypto': ['viewFlexiCrypto', 'manageFlexi'],
-  'manageFlexiBalance': ['manageFlexiBalance', 'manageFlexi'],
-  'sellFlexiCrypto': ['sellFlexiCrypto', 'sellFlexiAndDigitalCurrency'],
-  'viewFlexiAnalytics': ['viewFlexiAnalytics', 'viewFlexiAndDigitalCurrencySales']
-};
+/**
+ * Sidebar Permission Utils
+ * 
+ * ⚡ تم توحيد هذا الملف مع permission-normalizer.ts
+ * جميع دوال التحقق من الصلاحيات الآن تستخدم المصدر الموحد
+ */
 
-// دالة للتحقق من صلاحية باستخدام خريطة التصحيح - محسنة
+import {
+  PERMISSION_ALIASES,
+  checkPermissionWithAliases,
+  checkAnyPermission,
+  checkAllPermissions,
+  getPermissionAliases,
+  normalizePermissionName,
+  toStaffPermissionName,
+} from '@/lib/utils/permission-normalizer';
+
+// تصدير خريطة الصلاحيات للتوافق مع الكود القديم
+export const permissionMapping = PERMISSION_ALIASES;
+
+/**
+ * دالة للتحقق من صلاحية - تستخدم الآن المصدر الموحد
+ */
 export const checkPermission = (
   permissionName: string | null,
   permissions: any
 ): boolean => {
   if (!permissionName) return true; // لا تتطلب صلاحية
+  if (!permissions) return false;
   
-  // إذا كان المستخدم لديه الصلاحية مباشرة
-  if (permissions[permissionName] === true) {
-    return true;
-  }
-  
-  // البحث عن صلاحيات بديلة في خريطة التصحيح
-  const mappedPermissions = permissionMapping[permissionName] || [permissionName];
-  
-  // التحقق من أي من الصلاحيات البديلة
-  const hasPermission = mappedPermissions.some(mappedPerm => {
-    const permValue = permissions[mappedPerm];
-    return permValue === true || permValue === 'true';
-  });
-  
-  return hasPermission;
+  return checkPermissionWithAliases(permissionName, permissions);
 };
 
-// دالة جديدة للتحقق من عدة صلاحيات
+/**
+ * دالة للتحقق من عدة صلاحيات
+ */
 export const checkMultiplePermissions = (
   permissionNames: (string | null)[],
   permissions: any,
   requireAll: boolean = false
 ): boolean => {
   if (!permissionNames.length) return true;
+  if (!permissions) return false;
   
-  const results = permissionNames.map(perm => checkPermission(perm, permissions));
+  // تصفية القيم الفارغة
+  const validPermissions = permissionNames.filter((p): p is string => p !== null);
   
   if (requireAll) {
-    return results.every(result => result === true);
+    return checkAllPermissions(validPermissions, permissions);
   } else {
-    return results.some(result => result === true);
+    return checkAnyPermission(validPermissions, permissions);
   }
 };
 
-// دالة للتحقق من صلاحيات المستخدم مع طباعة معلومات تشخيصية
+/**
+ * دالة للتحقق من صلاحيات المستخدم مع طباعة معلومات تشخيصية
+ */
 export const debugPermissions = (
   permissionName: string | null,
   permissions: any,
@@ -130,15 +64,23 @@ export const debugPermissions = (
     return { hasPermission: true, debugInfo: { reason: 'No permission required' } };
   }
   
+  const aliases = getPermissionAliases(permissionName);
+  const normalizedName = normalizePermissionName(permissionName);
+  const staffName = toStaffPermissionName(permissionName);
+  
   const debugInfo = {
     permissionName,
+    normalizedName,
+    staffFormatName: staffName,
     userRole,
     permissions,
-    directCheck: permissions[permissionName],
-    mappedPermissions: permissionMapping[permissionName] || [permissionName],
-    mappedResults: (permissionMapping[permissionName] || [permissionName]).map(perm => ({
-      permission: perm,
-      value: permissions[perm]
+    directCheck: permissions?.[permissionName],
+    normalizedCheck: permissions?.[normalizedName],
+    staffFormatCheck: permissions?.[staffName],
+    aliases,
+    aliasResults: aliases.map(alias => ({
+      permission: alias,
+      value: permissions?.[alias]
     }))
   };
   

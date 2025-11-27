@@ -1,45 +1,41 @@
-import { inventoryDB, type LocalStaffPIN } from '@/database/localDb';
+/**
+ * staffCredentials - خدمة تخزين بيانات الموظفين Offline
+ *
+ * ⚡ تم التحديث لاستخدام Tauri SQL مباشرة + Delta Sync كـ fallback
+ * ✅ يستخدم pinHasher.ts للخوارزمية الموحدة
+ */
 
-const te = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
+import type { LocalStaffPIN } from '@/database/localDb';
+import { deltaWriteService } from '@/services/DeltaWriteService';
+import { tauriQuery, tauriUpsert } from '@/lib/db/tauriSqlClient';
+import { 
+  hashPin as unifiedHashPin, 
+  generateSalt, 
+  verifyPin as unifiedVerifyPin,
+  toBase64,
+  fromBase64 
+} from '@/lib/utils/pinHasher';
 
-const toBase64 = (bytes: Uint8Array): string => {
-  let bin = '';
-  for (let i = 0; i < bytes.byteLength; i++) bin += String.fromCharCode(bytes[i]);
-  return typeof btoa === 'function' ? btoa(bin) : Buffer.from(bin, 'binary').toString('base64');
-};
-
-const fromBase64 = (b64: string): Uint8Array => {
-  const bin = typeof atob === 'function' ? atob(b64) : Buffer.from(b64, 'base64').toString('binary');
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
-};
-
-const randomSalt = (len = 16): string => {
-  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
-    const arr = new Uint8Array(len);
-    crypto.getRandomValues(arr);
-    return toBase64(arr);
-  }
-  // fallback
-  const arr = new Uint8Array(len);
-  for (let i = 0; i < len; i++) arr[i] = Math.floor(Math.random() * 256);
-  return toBase64(arr);
-};
-
-export async function hashPin(pin: string, salt: string): Promise<string> {
+// فحص بيئة Tauri
+const isTauriEnv = (): boolean => {
   try {
-    if (typeof crypto !== 'undefined' && crypto.subtle && te) {
-      const data = te.encode(`${salt}:${pin}`);
-      const digest = await crypto.subtle.digest('SHA-256', data);
-      return toBase64(new Uint8Array(digest));
-    }
+    // @ts-ignore
+    if ((import.meta as any).env?.TAURI) return true;
   } catch {}
-  // weak fallback
-  let h = 0;
-  const str = `${salt}:${pin}`;
-  for (let i = 0; i < str.length; i++) h = (h << 5) - h + str.charCodeAt(i);
-  return String(h >>> 0);
+  if (typeof window === 'undefined') return false;
+  const w: any = window as any;
+  if (typeof w.__TAURI_IPC__ === 'function') return true;
+  if (!!w.__TAURI__) return true;
+  if (typeof w.isTauri === 'boolean' && w.isTauri) return true;
+  return false;
+};
+
+/**
+ * @deprecated استخدم unifiedHashPin من pinHasher.ts بدلاً من هذه الدالة
+ * محتفظ بها للتوافق مع الكود القديم
+ */
+export async function hashPin(pin: string, salt: string): Promise<string> {
+  return unifiedHashPin(pin, salt);
 }
 
 export async function saveStaffPinOffline(args: {
@@ -49,7 +45,7 @@ export async function saveStaffPinOffline(args: {
   pin: string;
   permissions?: any;
 }): Promise<void> {
-  const salt = randomSalt(16);
+  const salt = generateSalt(16);
   const pin_hash = await hashPin(args.pin, salt);
   const now = new Date().toISOString();
   const rec: LocalStaffPIN = {
@@ -63,17 +59,36 @@ export async function saveStaffPinOffline(args: {
     created_at: now,
     updated_at: now
   };
-  
-  // استخدام SQLite في Electron أو Dexie في المتصفح
+
+  // 🔍 تسجيل تشخيصي للحفظ
+  console.log('%c[StaffAuth] 💾 ═══ حفظ PIN الموظف ═══', 'color: #4CAF50; font-weight: bold');
+  console.log('[StaffAuth] 👤 الموظف:', args.staffName);
+  console.log('[StaffAuth] 🆔 Staff ID:', args.staffId);
+  console.log('[StaffAuth] 🏢 Organization:', args.organizationId);
+  console.log('[StaffAuth] 🧂 Salt:', salt.slice(0, 15) + '... (طول: ' + salt.length + ')');
+  console.log('[StaffAuth] 🔑 Hash:', pin_hash.slice(0, 20) + '... (طول: ' + pin_hash.length + ')');
+  console.log('[StaffAuth] 🔐 crypto.subtle متاح:', Boolean(typeof crypto !== 'undefined' && crypto.subtle));
+
+  // استخدام SQLite في Electron أو Tauri أو Delta Sync كـ fallback
   if (window.electronAPI?.db) {
     const result = await window.electronAPI.db.upsert('staff_pins', rec);
-    console.log('[staffCredentials] Saved staff PIN to SQLite', { 
-      success: result.success, 
+    console.log('[StaffAuth] ✅ تم الحفظ في SQLite (Electron):', {
+      success: result.success,
+      changes: result.changes
+    });
+  } else if (isTauriEnv()) {
+    // ⚡ استخدام Tauri SQL مباشرة
+    console.log('[StaffAuth] 🔄 جاري الحفظ في Tauri SQLite...');
+    const result = await tauriUpsert(args.organizationId, 'staff_pins', rec);
+    console.log('[StaffAuth] ✅ تم الحفظ في SQLite (Tauri):', {
+      success: result.success,
       changes: result.changes,
-      staffId: args.staffId 
+      error: result.error
     });
   } else {
-    await inventoryDB.staffPins.put(rec);
+    // ⚡ استخدام Delta Sync كـ fallback
+    await deltaWriteService.saveFromServer('staff_pins' as any, rec);
+    console.log('[StaffAuth] ✅ تم الحفظ عبر Delta Sync');
   }
 }
 
@@ -82,17 +97,22 @@ export async function updateStaffPinOffline(args: {
   organizationId: string;
   newPin: string;
 }): Promise<void> {
-  const salt = randomSalt(16);
+  const salt = generateSalt(16);
   const pin_hash = await hashPin(args.newPin, salt);
-  
+
   let existingRec: any = null;
   if (window.electronAPI?.db) {
     const result = await window.electronAPI.db.queryOne('SELECT * FROM staff_pins WHERE id = ?', [args.staffId]);
     existingRec = result.data;
+  } else if (isTauriEnv()) {
+    // ⚡ استخدام Tauri SQL مباشرة
+    const result = await tauriQuery(args.organizationId, 'SELECT * FROM staff_pins WHERE id = ?', [args.staffId]);
+    existingRec = result.data?.[0] || null;
   } else {
-    existingRec = await inventoryDB.staffPins.get(args.staffId);
+    // ⚡ استخدام Delta Sync كـ fallback
+    existingRec = await deltaWriteService.get<LocalStaffPIN>('staff_pins' as any, args.staffId);
   }
-  
+
   const rec = {
     id: args.staffId,
     organization_id: args.organizationId,
@@ -102,11 +122,15 @@ export async function updateStaffPinOffline(args: {
     permissions: existingRec?.permissions || null,
     updated_at: new Date().toISOString()
   };
-  
+
   if (window.electronAPI?.db) {
     await window.electronAPI.db.upsert('staff_pins', rec);
+  } else if (isTauriEnv()) {
+    // ⚡ استخدام Tauri SQL مباشرة
+    await tauriUpsert(args.organizationId, 'staff_pins', rec);
   } else {
-    await inventoryDB.staffPins.put(rec);
+    // ⚡ استخدام Delta Sync كـ fallback
+    await deltaWriteService.saveFromServer('staff_pins' as any, rec);
   }
 }
 
@@ -115,20 +139,65 @@ export async function verifyStaffPinOffline(args: {
   pin: string;
 }): Promise<{ success: boolean; staff?: { id: string; staff_name: string; permissions?: any; organization_id: string } }>{
   try {
+    console.log('%c[StaffAuth] 🔐 ═══ التحقق من PIN الموظف ═══', 'color: #9C27B0; font-weight: bold');
+    console.log('[StaffAuth] 🏢 Organization:', args.organizationId);
+    console.log('[StaffAuth] 🔍 البيئة: Electron=', Boolean(window.electronAPI?.db), ', Tauri=', isTauriEnv());
+
     let matches: any[] = [];
     if (window.electronAPI?.db) {
       const result = await window.electronAPI.db.query('SELECT * FROM staff_pins WHERE organization_id = ?', [args.organizationId]);
       matches = result.data || [];
+      console.log('[StaffAuth] 📊 القراءة من Electron SQLite');
+    } else if (isTauriEnv()) {
+      // ⚡ استخدام Tauri SQL مباشرة
+      console.log('[StaffAuth] 🔄 جاري القراءة من Tauri SQLite...');
+      const result = await tauriQuery(args.organizationId, 'SELECT * FROM staff_pins WHERE organization_id = ?', [args.organizationId]);
+      console.log('[StaffAuth] 📊 نتيجة الاستعلام من Tauri:', { success: result.success, count: result.data?.length, error: result.error });
+      matches = result.data || [];
     } else {
-      matches = await inventoryDB.staffPins.where('organization_id').equals(args.organizationId).toArray();
+      // ⚡ استخدام Delta Sync كـ fallback
+      console.log('[StaffAuth] 📊 القراءة من Delta Sync');
+      matches = await deltaWriteService.getAll<LocalStaffPIN>('staff_pins' as any, args.organizationId);
     }
-    
+
+    console.log('[StaffAuth] 👥 عدد الموظفين المخزنين:', matches.length);
+
     for (const rec of matches) {
-      const computed = await hashPin(args.pin, rec.salt);
-      if (computed === rec.pin_hash) {
-        return { success: true, staff: { id: rec.id, staff_name: rec.staff_name, permissions: rec.permissions, organization_id: rec.organization_id } };
+      // استخدام الدالة الموحدة للتحقق
+      const isMatch = await unifiedVerifyPin(args.pin, rec.pin_hash, rec.salt);
+
+      // 🔍 تشخيص مفصل
+      console.log('[StaffAuth] 🔍 فحص الموظف:', rec.staff_name);
+      console.log('[StaffAuth]   - Salt:', rec.salt?.slice(0, 15) + '...');
+      console.log('[StaffAuth]   - Hash المخزن:', rec.pin_hash?.slice(0, 20) + '...');
+      console.log('[StaffAuth]   - متطابق:', isMatch);
+
+      if (isMatch) {
+        console.log('%c[StaffAuth] ✅ تم التحقق بنجاح للموظف:', 'color: #4CAF50; font-weight: bold', rec.staff_name);
+        // Parse permissions if it's a JSON string
+        let parsedPermissions = rec.permissions;
+        if (typeof parsedPermissions === 'string') {
+          try {
+            parsedPermissions = JSON.parse(parsedPermissions);
+          } catch (e) {
+            console.warn('[staffCredentials] Failed to parse permissions JSON:', e);
+            parsedPermissions = {};
+          }
+        }
+
+        return {
+          success: true,
+          staff: {
+            id: rec.id,
+            staff_name: rec.staff_name,
+            permissions: parsedPermissions,
+            organization_id: rec.organization_id
+          }
+        };
       }
     }
+    console.warn('%c[StaffAuth] ❌ لم يتم العثور على PIN متطابق', 'color: #f44336; font-weight: bold');
+    console.warn('[StaffAuth] عدد السجلات التي تم فحصها:', matches.length);
     return { success: false };
   } catch (err) {
     console.error('[staffCredentials] verifyStaffPinOffline error:', err);
@@ -146,22 +215,31 @@ export async function updateStaffMetadataOffline(args: {
   if (window.electronAPI?.db) {
     const result = await window.electronAPI.db.queryOne('SELECT * FROM staff_pins WHERE id = ?', [args.staffId]);
     rec = result.data;
+  } else if (isTauriEnv()) {
+    // ⚡ استخدام Tauri SQL مباشرة
+    const result = await tauriQuery(args.organizationId, 'SELECT * FROM staff_pins WHERE id = ?', [args.staffId]);
+    rec = result.data?.[0] || null;
   } else {
-    rec = await inventoryDB.staffPins.get(args.staffId);
+    // ⚡ استخدام Delta Sync كـ fallback
+    rec = await deltaWriteService.get<LocalStaffPIN>('staff_pins' as any, args.staffId);
   }
-  
+
   if (!rec || rec.organization_id !== args.organizationId) return;
-  
+
   const updatedRec = {
     ...rec,
     staff_name: args.staffName ?? rec.staff_name,
     permissions: args.permissions ?? rec.permissions,
     updated_at: new Date().toISOString()
   };
-  
+
   if (window.electronAPI?.db) {
     await window.electronAPI.db.upsert('staff_pins', updatedRec);
+  } else if (isTauriEnv()) {
+    // ⚡ استخدام Tauri SQL مباشرة
+    await tauriUpsert(args.organizationId, 'staff_pins', updatedRec);
   } else {
-    await inventoryDB.staffPins.put(updatedRec);
+    // ⚡ استخدام Delta Sync كـ fallback
+    await deltaWriteService.saveFromServer('staff_pins' as any, updatedRec);
   }
 }

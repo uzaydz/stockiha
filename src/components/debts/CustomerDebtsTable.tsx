@@ -50,7 +50,7 @@ const CustomerDebtsTable: React.FC<CustomerDebtsTableProps> = ({
   // تصفية العملاء حسب البحث
   const filteredCustomers = useMemo(() => {
     if (!searchQuery.trim()) return customers;
-    
+
     const query = searchQuery.toLowerCase();
     return customers.filter(customer =>
       customer.customerName.toLowerCase().includes(query) ||
@@ -96,7 +96,7 @@ const CustomerDebtsTable: React.FC<CustomerDebtsTableProps> = ({
             className="pr-10"
           />
         </div>
-        
+
         <div className="flex gap-4 items-center">
           <div className="flex items-center gap-2 text-sm">
             <User className="h-4 w-4 text-muted-foreground" />
@@ -243,7 +243,19 @@ const CustomerDebtsTable: React.FC<CustomerDebtsTableProps> = ({
                                 {customer.orders.map((order) => (
                                   <TableRow key={order.orderId} className="hover:bg-muted/20">
                                     <TableCell className="text-sm font-medium">
-                                      {order.orderNumber}
+                                      <div className="flex flex-col items-start gap-1">
+                                        {order.orderNumber}
+                                        {order._synced === false && (
+                                          <Badge variant="outline" className="text-[10px] bg-orange-50 text-orange-600 border-orange-200">
+                                            غير متزامن
+                                          </Badge>
+                                        )}
+                                        {order._syncStatus === 'error' && (
+                                          <Badge variant="destructive" className="text-[10px]">
+                                            خطأ
+                                          </Badge>
+                                        )}
+                                      </div>
                                     </TableCell>
                                     <TableCell className="text-sm text-muted-foreground">
                                       {new Date(order.date).toLocaleDateString('ar-DZ')}

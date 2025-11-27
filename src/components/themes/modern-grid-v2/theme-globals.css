@@ -1,0 +1,51 @@
+/* Global Reset for Custom Cursor */
+body, a, button, input, select, textarea {
+  cursor: none; 
+}
+
+/* Hide scrollbar */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Performance: GPU Acceleration for animations */
+.animate-fade-in-up, .transition-transform, .transition-opacity {
+  will-change: transform, opacity;
+  transform: translateZ(0); /* Force hardware acceleration */
+  backface-visibility: hidden;
+}
+
+/* LUXURY THEME TRANSITION - Optimized */
+body, div, section, nav, header, footer, p, h1, h2, h3, span, button {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 300ms;
+}
+
+/* --- ARABIC TYPOGRAPHY SYSTEM OVERHAUL --- */
+
+/* 1. Force correct font families for Arabic */
+:lang(ar) {
+  font-family: 'Alexandria', sans-serif;
+}
+
+:lang(ar) .font-serif {
+  font-family: 'Amiri', serif;
+}
+
+/* 2. CRITICAL: Disable Letter Spacing for Arabic */
+:lang(ar) .tracking-widest,
+:lang(ar) .tracking-wider,
+:lang(ar) .tracking-wide,
+:lang(ar) .tracking-normal {
+  letter-spacing: 0 !important;
+}
+
+/* 3. CRITICAL: Disable Artificial Italics */
+:lang(ar) .italic {
+  font-style: normal !important; 
+}
+
+/* 4. Optical Sizing Adjustment - Relaxed */
+:lang(ar) {
+  font-size: 100%; /* Reset to 100% to match English sizing better */
+}

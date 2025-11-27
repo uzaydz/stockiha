@@ -197,13 +197,13 @@ const LandingPage = memo(() => {
           className="absolute bottom-16 right-16 w-8 h-8 border border-purple-500/20 rounded-full"
         />
       </div>
-      
+
       <Helmet>
         <title>سطوكيها | منصة إدارة المتاجر الذكية</title>
         <meta name="description" content="منصة شاملة لإدارة المتاجر تجمع بين نقطة البيع والمتجر الإلكتروني وإدارة المخزون. ابدأ مجاناً اليوم!" />
         <meta name="keywords" content="إدارة متجر، نقطة بيع، متجر إلكتروني، POS، إدارة مخزون، سطوكيها" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-        <link rel="dns-prefetch" href="//fonts.googleapis.com" />
+        {/* <link rel="dns-prefetch" href="//fonts.googleapis.com" /> */}
         {/* Canonical */}
         <link rel="canonical" href={(typeof window !== 'undefined' ? (new URL(window.location.href)).origin : 'https://stockiha.com') + '/'} />
         {/* Open Graph */}
@@ -242,22 +242,22 @@ const LandingPage = memo(() => {
           })}
         </script>
       </Helmet>
-      
+
       <div className="landing-section-content">
         <Navbar />
-        
+
         <main className="flex-1 transform-gpu pt-16">
           {/* المحتوى الأساسي - يحمل فوراً */}
           <HeroSection />
           <FeaturesSection />
-          
+
           {/* 🚀 المكونات الثانوية - تحميل مباشر بدون Suspense */}
           <AllInOneSection />
           <CoursesSection />
           <TestimonialsSection />
           <CTASection />
         </main>
-        
+
         <Footer />
       </div>
     </div>

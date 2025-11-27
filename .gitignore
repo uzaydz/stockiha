@@ -67,3 +67,10 @@ dist-electron/*.blockmap
 dist-electron/mac/
 dist-electron/mac-arm64/
 dist-electron/
+
+# Tauri
+src-tauri/target/
+tauri-keys.key
+tauri-private.key
+*.key
+!*.key.pub

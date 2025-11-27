@@ -103,6 +103,7 @@ interface ElectronAPI {
   // إدارة الملفات
   readFile: (filePath: string) => Promise<{ success: boolean; data?: string; error?: string }>;
   writeFile: (filePath: string, data: string) => Promise<{ success: boolean; error?: string }>;
+  downloadImage: (url: string, entityType: string, entityId: string) => Promise<{ success: boolean; localPath?: string; size?: number; mimeType?: string; error?: string }>;
 
   // إدارة الحوارات
   showMessageBox: (options: any) => Promise<any>;
@@ -259,4 +260,4 @@ declare global {
   }
 }
 
-export {};
+export { };

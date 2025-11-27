@@ -357,14 +357,19 @@ const POSAdvancedHoldOrders: React.FC<POSAdvancedHoldOrdersProps> = ({
                         المنتجات ({selectedOrder.items.length})
                       </h4>
                       <div className="space-y-2">
-                        {selectedOrder.items.map((item, index) => (
+                        {selectedOrder.items.map((item, index) => {
+                          // ⚡ دعم thumbnail_base64 للعمل Offline
+                          const imageSrc = item.variantImage || 
+                            (item.product as any).thumbnail_base64 || 
+                            item.product.thumbnail_image;
+                          return (
                           <div
                             key={index}
                             className="flex items-center gap-3 p-3 rounded-lg border"
                           >
-                            {item.variantImage || item.product.thumbnail_image ? (
+                            {imageSrc ? (
                               <img
-                                src={item.variantImage || item.product.thumbnail_image}
+                                src={imageSrc}
                                 alt={item.product.name}
                                 className="w-12 h-12 rounded object-cover"
                               />
@@ -392,7 +397,7 @@ const POSAdvancedHoldOrders: React.FC<POSAdvancedHoldOrdersProps> = ({
                               </p>
                             </div>
                           </div>
-                        ))}
+                        );})}
                       </div>
                     </div>
 

@@ -1,6 +1,7 @@
 import React, { useState, useRef, memo, useCallback } from 'react';
 import { Package } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 
 interface ProductImageProps {
   src: string;
@@ -15,9 +16,9 @@ interface ProductImageProps {
 // Cache للصور المحملة لتجنب إعادة التحميل
 const imageCache = new Map<string, boolean>();
 
-const ProductImage = memo(({ 
-  src, 
-  alt, 
+const ProductImage = memo(({
+  src,
+  alt,
   className,
   containerClassName,
   productName,
@@ -28,10 +29,17 @@ const ProductImage = memo(({
   const [imageError, setImageError] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
 
-  // تحسين بسيط للصور - تقليل الجودة للصور الكبيرة فقط
+  const { isOnline } = useNetworkStatus();
+
+  // تحسين بسيط للصور - تقليل الجودة للصور الكبيرة فقط + دعم Base64 للـ Offline
   const optimizedSrc = React.useMemo(() => {
     if (!src) return '';
-    
+
+    // ⚡ إذا كانت الصورة Base64 (للعمل Offline)، استخدمها مباشرة
+    if (src.startsWith('data:')) {
+      return src;
+    }
+
     // إذا كانت الصورة من Supabase، أضف معاملات تحسين بسيطة
     if (src.includes('supabase.co') || src.includes('supabase.in')) {
       try {
@@ -45,7 +53,7 @@ const ProductImage = memo(({
         return src;
       }
     }
-    
+
     return src;
   }, [src]);
 
@@ -102,11 +110,11 @@ const ProductImage = memo(({
           </div>
         </div>
       )}
-      
+
       {/* الصورة الفعلية */}
-      <img 
+      <img
         ref={imgRef}
-        src={optimizedSrc} 
+        src={optimizedSrc}
         alt={alt}
         className={cn(
           "w-full h-full object-contain p-4 transition-all duration-300",

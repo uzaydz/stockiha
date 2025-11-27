@@ -98,7 +98,6 @@ import RepairServiceDialog from '@/components/repair/RepairServiceDialog';
 import { ShareRepairDialog } from '@/components/repair/ShareRepairDialog';
 import RepairOrderPrint from '@/components/repair/RepairOrderPrint';
 import { buildTrackingUrl } from '@/lib/utils/store-url';
-import { useOptimizedClickHandler } from "@/lib/performance-utils";
 
 // تعريف واجهات البيانات
 interface RepairLocation {
@@ -433,8 +432,8 @@ const RepairServicesContent: React.FC<RepairServicesContentProps> = ({
   // مشاركة رابط التتبع
   const shareTrackingLink = () => {
     if (!trackingInfo) return;
-    
-    const trackingUrl = buildTrackingUrl(trackingInfo.trackingCode, currentOrganization);
+
+    const trackingUrl = buildTrackingUrl(trackingInfo.trackingCode, currentOrganization?.id || organizationId || '');
     
     // نسخ الرابط إلى الحافظة
     navigator.clipboard.writeText(trackingUrl)

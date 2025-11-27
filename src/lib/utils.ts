@@ -151,10 +151,11 @@ export function formatCurrency(amount: number): string {
 }
 
 /**
- * التحقق مما إذا كانت التطبيق يعمل في بيئة Electron - معطل لضمان عمل الموقع كموقع ويب فقط
+ * التحقق مما إذا كانت التطبيق يعمل في بيئة Electron
  */
 export const isElectron = (): boolean => {
-  return false; // دائماً false لضمان عدم تشغيل أي كود خاص بـ Electron
+  if (typeof navigator === 'undefined') return false;
+  return /electron/i.test(navigator.userAgent);
 };
 
 /**

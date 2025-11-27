@@ -10,10 +10,16 @@ const crypto = require('crypto');
 // استيراد better-sqlite3 مع دعم التطبيق المُحزّم
 let Database;
 try {
-  // إضافة app/node_modules إلى مسارات البحث العامة
+  // إضافة مسارات البحث العامة
   const appPath = path.join(__dirname, '..');
   const appNodeModules = path.join(appPath, 'node_modules');
   const Module = require('module');
+
+  // إضافة Resources directory (حيث يتم نسخ better-sqlite3 و bindings)
+  if (process.resourcesPath && !Module.globalPaths.includes(process.resourcesPath)) {
+    Module.globalPaths.unshift(process.resourcesPath);
+    console.log('[SQLiteManager] Added Resources to Module.globalPaths:', process.resourcesPath);
+  }
 
   if (fs.existsSync(appNodeModules) && !Module.globalPaths.includes(appNodeModules)) {
     Module.globalPaths.unshift(appNodeModules);
@@ -22,15 +28,13 @@ try {
 
   // جرّب عدة مسارات محتملة داخل التطبيق المحزّم قبل السقوط للاسم فقط
   const candidates = [
-    // حمّل الملف الثنائي مباشرة من app/node_modules إن وُجد (الأكثر وثوقية)
-    path.join(process.resourcesPath || '', 'app', 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node'),
-    // المسار القياسي عند التعطيل asar: false (سيتطلب 'bindings')
-    path.join(process.resourcesPath || '', 'app', 'node_modules', 'better-sqlite3'),
-    // في حال تم استخدام asarUnpack مستقبلاً
-    path.join(process.resourcesPath || '', 'app.asar.unpacked', 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node'),
+    // ✅ الأولوية الأولى: extraResources (في Resources/better-sqlite3)
+    path.join(process.resourcesPath || '', 'better-sqlite3'),
+    // asarUnpack (مع تفعيل asar: true)
     path.join(process.resourcesPath || '', 'app.asar.unpacked', 'node_modules', 'better-sqlite3'),
+    // المسار القياسي عند التعطيل asar: false (fallback)
+    path.join(process.resourcesPath || '', 'app', 'node_modules', 'better-sqlite3'),
     // المسار النسبي من مجلد electron إلى app/node_modules
-    path.join(appPath, 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node'),
     path.join(appPath, 'node_modules', 'better-sqlite3')
   ];
 
@@ -188,16 +192,20 @@ class SQLiteManager {
           console.warn('[SQLite] Warning while creating global schema:', e?.message || e);
         }
       } else {
+        console.log('[SQLite] 📋 Creating tables for organization:', organizationId);
         this.createTables();
+        console.log('[SQLite] 🔧 Running schema migrations...');
         this.migrateSchema(); // إضافة الأعمدة الناقصة
+        console.log('[SQLite] 📊 Creating indexes...');
         this.createIndexes();
+        console.log('[SQLite] 🔍 Enabling full-text search...');
         this.enableFullTextSearch();
       }
 
       this.isInitialized = true;
       this.currentOrganizationId = organizationId;
 
-      console.log(`[SQLite] Database initialized successfully`);
+      console.log(`[SQLite] ✅ Database initialized successfully for org: ${organizationId}`);
 
       return { success: true, path: this.dbPath, size: this.getDatabaseSize() };
     } catch (error) {
@@ -210,34 +218,210 @@ class SQLiteManager {
    * إنشاء جميع الجداول
    */
   createTables() {
-    // جدول المنتجات
+    // جدول المنتجات - شامل جميع الأعمدة من Supabase
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS products (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         name_normalized TEXT,
+        name_lower TEXT,
+        name_search TEXT,
+        name_for_shipping TEXT,
         sku TEXT,
+        sku_lower TEXT,
+        sku_search TEXT,
         barcode TEXT,
+        barcode_lower TEXT,
+        barcode_digits TEXT,
+        slug TEXT,
+        
+        -- الأسعار
         price REAL NOT NULL DEFAULT 0,
         cost REAL DEFAULT 0,
+        purchase_price REAL DEFAULT 0,
+        compare_at_price REAL,
+        wholesale_price REAL,
+        partial_wholesale_price REAL,
+        unit_purchase_price REAL,
+        unit_sale_price REAL,
+        
+        -- الكميات والمخزون
         stock_quantity INTEGER DEFAULT 0,
+        min_stock_level INTEGER,
+        min_wholesale_quantity INTEGER,
+        min_partial_wholesale_quantity INTEGER,
+        reorder_level INTEGER,
+        reorder_quantity INTEGER,
+        
+        -- الفئات
+        category TEXT,
         category_id TEXT,
+        subcategory TEXT,
+        subcategory_id TEXT,
+        brand TEXT,
+        
+        -- الحالات والإعدادات
         is_active INTEGER DEFAULT 1,
+        is_digital INTEGER DEFAULT 0,
+        is_featured INTEGER DEFAULT 0,
+        is_new INTEGER DEFAULT 0,
+        is_sold_by_unit INTEGER DEFAULT 0,
+        has_variants INTEGER DEFAULT 0,
+        show_price_on_landing INTEGER DEFAULT 1,
+        use_sizes INTEGER DEFAULT 0,
+        use_variant_prices INTEGER DEFAULT 0,
+        use_shipping_clone INTEGER DEFAULT 0,
+        
+        -- إعدادات البيع
+        allow_retail INTEGER DEFAULT 1,
+        allow_wholesale INTEGER DEFAULT 0,
+        allow_partial_wholesale INTEGER DEFAULT 0,
+        unit_type TEXT,
+        
+        -- الوصف والمميزات
+        description TEXT,
+        features TEXT,
+        specifications TEXT,
+        
+        -- الصور
         thumbnail_image TEXT,
         image_thumbnail TEXT,
         images TEXT,
-        description TEXT,
+        thumbnail_base64 TEXT,
+        images_base64 TEXT,
+        
+        -- الشحن والضمانات
+        has_fast_shipping INTEGER DEFAULT 0,
+        has_money_back INTEGER DEFAULT 0,
+        has_quality_guarantee INTEGER DEFAULT 0,
+        fast_shipping_text TEXT,
+        money_back_text TEXT,
+        quality_guarantee_text TEXT,
+        shipping_clone_id INTEGER,
+        shipping_method_type TEXT,
+        shipping_provider_id INTEGER,
+        
+        -- إعدادات متقدمة
+        purchase_page_config TEXT,
+        form_template_id TEXT,
+        last_inventory_update TEXT,
+        
+        -- التتبع
+        created_by_user_id TEXT,
+        updated_by_user_id TEXT,
         organization_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        
+        -- المزامنة
         synced INTEGER DEFAULT 0,
         sync_status TEXT,
         pending_operation TEXT,
-        local_updated_at TEXT NOT NULL,
+        local_updated_at TEXT,
         server_updated_at TEXT,
-        metadata TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        metadata TEXT
       );
     `);
+
+    // 🔄 ترحيل: إضافة الأعمدة الجديدة إذا لم تكن موجودة
+    try {
+      const columns = this.db.prepare("PRAGMA table_info(products)").all();
+      const columnNames = columns.map(c => c.name);
+      
+      // قائمة الأعمدة المطلوبة مع أنواعها وقيمها الافتراضية
+      const requiredColumns = [
+        // البحث
+        { name: 'name_lower', type: 'TEXT' },
+        { name: 'name_search', type: 'TEXT' },
+        { name: 'name_for_shipping', type: 'TEXT' },
+        { name: 'sku_lower', type: 'TEXT' },
+        { name: 'sku_search', type: 'TEXT' },
+        { name: 'barcode_lower', type: 'TEXT' },
+        { name: 'barcode_digits', type: 'TEXT' },
+        { name: 'slug', type: 'TEXT' },
+        
+        // الأسعار
+        { name: 'purchase_price', type: 'REAL', default: '0' },
+        { name: 'compare_at_price', type: 'REAL' },
+        { name: 'wholesale_price', type: 'REAL' },
+        { name: 'partial_wholesale_price', type: 'REAL' },
+        { name: 'unit_purchase_price', type: 'REAL' },
+        { name: 'unit_sale_price', type: 'REAL' },
+        
+        // الكميات
+        { name: 'min_stock_level', type: 'INTEGER' },
+        { name: 'min_wholesale_quantity', type: 'INTEGER' },
+        { name: 'min_partial_wholesale_quantity', type: 'INTEGER' },
+        { name: 'reorder_level', type: 'INTEGER' },
+        { name: 'reorder_quantity', type: 'INTEGER' },
+        
+        // الفئات
+        { name: 'category', type: 'TEXT' },
+        { name: 'subcategory', type: 'TEXT' },
+        { name: 'subcategory_id', type: 'TEXT' },
+        { name: 'brand', type: 'TEXT' },
+        
+        // الحالات
+        { name: 'is_digital', type: 'INTEGER', default: '0' },
+        { name: 'is_featured', type: 'INTEGER', default: '0' },
+        { name: 'is_new', type: 'INTEGER', default: '0' },
+        { name: 'is_sold_by_unit', type: 'INTEGER', default: '0' },
+        { name: 'has_variants', type: 'INTEGER', default: '0' },
+        { name: 'show_price_on_landing', type: 'INTEGER', default: '1' },
+        { name: 'use_sizes', type: 'INTEGER', default: '0' },
+        { name: 'use_variant_prices', type: 'INTEGER', default: '0' },
+        { name: 'use_shipping_clone', type: 'INTEGER', default: '0' },
+        
+        // البيع
+        { name: 'allow_retail', type: 'INTEGER', default: '1' },
+        { name: 'allow_wholesale', type: 'INTEGER', default: '0' },
+        { name: 'allow_partial_wholesale', type: 'INTEGER', default: '0' },
+        { name: 'unit_type', type: 'TEXT' },
+        
+        // الوصف
+        { name: 'features', type: 'TEXT' },
+        { name: 'specifications', type: 'TEXT' },
+        
+        // الصور
+        { name: 'thumbnail_base64', type: 'TEXT' },
+        { name: 'images_base64', type: 'TEXT' },
+        
+        // الشحن والضمانات
+        { name: 'has_fast_shipping', type: 'INTEGER', default: '0' },
+        { name: 'has_money_back', type: 'INTEGER', default: '0' },
+        { name: 'has_quality_guarantee', type: 'INTEGER', default: '0' },
+        { name: 'fast_shipping_text', type: 'TEXT' },
+        { name: 'money_back_text', type: 'TEXT' },
+        { name: 'quality_guarantee_text', type: 'TEXT' },
+        { name: 'shipping_clone_id', type: 'INTEGER' },
+        { name: 'shipping_method_type', type: 'TEXT' },
+        { name: 'shipping_provider_id', type: 'INTEGER' },
+        
+        // إعدادات متقدمة
+        { name: 'purchase_page_config', type: 'TEXT' },
+        { name: 'form_template_id', type: 'TEXT' },
+        { name: 'last_inventory_update', type: 'TEXT' },
+        
+        // التتبع
+        { name: 'created_by_user_id', type: 'TEXT' },
+        { name: 'updated_by_user_id', type: 'TEXT' },
+      ];
+      
+      let addedColumns = 0;
+      for (const col of requiredColumns) {
+        if (!columnNames.includes(col.name)) {
+          const defaultClause = col.default ? ` DEFAULT ${col.default}` : '';
+          this.db.exec(`ALTER TABLE products ADD COLUMN ${col.name} ${col.type}${defaultClause}`);
+          addedColumns++;
+        }
+      }
+      
+      if (addedColumns > 0) {
+        console.log(`[SQLite] ✅ Added ${addedColumns} new columns to products table`);
+      }
+    } catch (error) {
+      console.error('[SQLite] Error migrating products table:', error);
+    }
 
     // جدول العناوين (addresses)
     this.db.exec(`
@@ -315,36 +499,58 @@ class SQLiteManager {
       );
     `);
 
-    // جدول طلبات POS
+    // جدول طلبات POS - ⚡ محدث ليتوافق مع LocalPOSOrder interface
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS pos_orders (
         id TEXT PRIMARY KEY,
         order_number TEXT NOT NULL,
+        organization_id TEXT NOT NULL,
+        employee_id TEXT,
         customer_id TEXT,
         customer_name TEXT,
         customer_name_lower TEXT,
-        total_amount REAL NOT NULL DEFAULT 0,
-        paid_amount REAL NOT NULL DEFAULT 0,
-        payment_method TEXT,
-        status TEXT DEFAULT 'completed',
-        organization_id TEXT NOT NULL,
-        staff_id TEXT,
+        -- المبالغ
+        subtotal REAL DEFAULT 0,
+        total REAL NOT NULL DEFAULT 0,
+        discount REAL DEFAULT 0,
+        amount_paid REAL DEFAULT 0,
+        remaining_amount REAL DEFAULT 0,
+        -- معلومات الدفع
+        payment_method TEXT DEFAULT 'cash',
+        payment_status TEXT DEFAULT 'pending',
+        consider_remaining_as_partial INTEGER DEFAULT 0,
+        -- الحالة والملاحظات
+        status TEXT DEFAULT 'pending_sync',
+        notes TEXT,
+        -- معرفات أخرى
         work_session_id TEXT,
+        staff_id TEXT,
+        local_order_number INTEGER,
+        local_order_number_str TEXT,
+        -- المزامنة
         synced INTEGER DEFAULT 0,
-        sync_status TEXT,
-        pending_operation TEXT,
+        sync_status TEXT DEFAULT 'pending',
+        pending_operation TEXT DEFAULT 'create',
         last_sync_attempt TEXT,
         error TEXT,
         remote_order_id TEXT,
-        remote_customer_order_number INTEGER,
-        local_created_at TEXT NOT NULL,
+        remote_customer_order_number TEXT,
+        -- البيانات الإضافية
+        metadata TEXT,
+        message TEXT,
+        payload TEXT,
+        pending_updates TEXT,
+        extra_fields TEXT,
+        -- التواريخ
+        local_created_at TEXT,
         server_created_at TEXT,
         created_at TEXT NOT NULL,
+        created_at_ts INTEGER,
         updated_at TEXT NOT NULL
       );
     `);
 
-    // جدول عناصر الطلب
+    // جدول عناصر الطلب - ⚡ محدث ليتوافق مع LocalPOSOrderItem interface
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS pos_order_items (
         id TEXT PRIMARY KEY,
@@ -353,13 +559,35 @@ class SQLiteManager {
         product_name TEXT NOT NULL,
         quantity INTEGER NOT NULL,
         unit_price REAL NOT NULL,
-        subtotal REAL NOT NULL,
+        total_price REAL NOT NULL DEFAULT 0,
+        subtotal REAL NOT NULL DEFAULT 0,
         discount REAL DEFAULT 0,
+        -- دعم المتغيرات
+        color_id TEXT,
+        color_name TEXT,
+        size_id TEXT,
+        size_name TEXT,
+        variant_info TEXT,
+        -- معلومات إضافية
+        is_wholesale INTEGER DEFAULT 0,
+        original_price REAL,
+        -- المزامنة
         synced INTEGER DEFAULT 0,
         created_at TEXT NOT NULL,
         FOREIGN KEY (order_id) REFERENCES pos_orders(id) ON DELETE CASCADE
       );
     `);
+
+    // 🔄 Migration: ترحيل جدول pos_orders لإضافة الأعمدة الجديدة
+    this.migratePosOrdersTable();
+    // 🔄 Migration: ترحيل جدول pos_order_items لإضافة الأعمدة الجديدة
+    this.migratePosOrderItemsTable();
+    // 🔄 Migration: ترحيل جدول customer_debts لإضافة الأعمدة الجديدة
+    this.migrateCustomerDebtsTable();
+    // 🔄 Migration: ترحيل جدول return_items لإضافة الأعمدة الجديدة
+    this.migrateReturnItemsTable();
+    // 🔄 Migration: ترحيل جدول loss_items لإضافة الأعمدة الجديدة
+    this.migrateLossItemsTable();
 
     // جدول العملاء
     this.db.exec(`
@@ -378,44 +606,6 @@ class SQLiteManager {
         sync_status TEXT,
         pending_operation TEXT,
         local_updated_at TEXT NOT NULL,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-    `);
-
-    // جدول الفواتير
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS invoices (
-        id TEXT PRIMARY KEY,
-        invoice_number TEXT NOT NULL,
-        invoice_number_lower TEXT,
-        remote_invoice_id TEXT,
-        customer_name TEXT,
-        customer_name_lower TEXT,
-        customer_id TEXT,
-        total_amount REAL NOT NULL,
-        invoice_date TEXT,
-        due_date TEXT,
-        status TEXT DEFAULT 'pending',
-        source_type TEXT,
-        payment_method TEXT,
-        payment_status TEXT,
-        notes TEXT,
-        tax_amount REAL DEFAULT 0,
-        discount_amount REAL DEFAULT 0,
-        subtotal_amount REAL DEFAULT 0,
-        shipping_amount REAL,
-        discount_type TEXT,
-        discount_percentage REAL,
-        tva_rate REAL,
-        amount_ht REAL,
-        amount_tva REAL,
-        amount_ttc REAL,
-        organization_id TEXT NOT NULL,
-        synced INTEGER DEFAULT 0,
-        sync_status TEXT,
-        pending_operation TEXT,
-        local_created_at TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
@@ -447,28 +637,51 @@ class SQLiteManager {
       );
     `);
 
-    // جدول ديون العملاء
+    // جدول ديون العملاء - ⚡ محدث ليتوافق مع LocalCustomerDebt interface
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS customer_debts (
         id TEXT PRIMARY KEY,
         customer_id TEXT NOT NULL,
         customer_name TEXT,
-        amount REAL NOT NULL,
-        description TEXT,
-        status TEXT DEFAULT 'unpaid',
+        -- المبالغ
+        amount REAL,
+        subtotal REAL,
+        discount REAL DEFAULT 0,
+        total_amount REAL NOT NULL DEFAULT 0,
+        paid_amount REAL NOT NULL DEFAULT 0,
+        remaining_amount REAL NOT NULL DEFAULT 0,
+        -- معلومات الطلب
         order_id TEXT,
         order_number TEXT,
-        total_amount REAL,
-        paid_amount REAL,
-        remaining_amount REAL,
+        -- الحالة والملاحظات
+        status TEXT DEFAULT 'unpaid',
+        description TEXT,
         due_date TEXT,
         notes TEXT,
+        -- المزامنة
         organization_id TEXT NOT NULL,
         synced INTEGER DEFAULT 0,
         sync_status TEXT,
         pending_operation TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
+        FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+      );
+    `);
+
+    // جدول سجل مدفوعات ديون العملاء
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS customer_debt_payments (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        customer_id TEXT NOT NULL,
+        amount REAL NOT NULL,
+        method TEXT,
+        note TEXT,
+        created_at TEXT NOT NULL,
+        applied_by TEXT,
+        synced INTEGER DEFAULT 0,
+        pending_operation TEXT,
         FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
       );
     `);
@@ -539,6 +752,270 @@ class SQLiteManager {
         error TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
+      );
+    `);
+
+    // ⚡ جدول المصاريف (expenses)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS expenses (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        amount REAL NOT NULL DEFAULT 0,
+        category TEXT,
+        category_id TEXT,
+        expense_date TEXT NOT NULL,
+        notes TEXT,
+        status TEXT DEFAULT 'completed',
+        is_recurring INTEGER DEFAULT 0,
+        payment_method TEXT,
+        payment_ref TEXT,
+        vendor_name TEXT,
+        cost_center_id TEXT,
+        receipt_url TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        synced INTEGER DEFAULT 0,
+        sync_status TEXT,
+        pending_operation TEXT
+      );
+    `);
+
+    // ⚡ جدول المصاريف المتكررة (recurring_expenses)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS recurring_expenses (
+        id TEXT PRIMARY KEY,
+        expense_id TEXT NOT NULL,
+        organization_id TEXT,
+        frequency TEXT NOT NULL,
+        start_date TEXT NOT NULL,
+        end_date TEXT,
+        next_due TEXT,
+        day_of_month INTEGER,
+        day_of_week INTEGER,
+        status TEXT DEFAULT 'active',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        synced INTEGER DEFAULT 0,
+        sync_status TEXT,
+        pending_operation TEXT,
+        FOREIGN KEY (expense_id) REFERENCES expenses(id) ON DELETE CASCADE
+      );
+    `);
+
+    // ⚡ جدول فئات المصاريف (expense_categories)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS expense_categories (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        name_lower TEXT,
+        description TEXT,
+        color TEXT,
+        icon TEXT,
+        is_default INTEGER DEFAULT 0,
+        is_active INTEGER DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        synced INTEGER DEFAULT 0,
+        sync_status TEXT,
+        pending_operation TEXT
+      );
+    `);
+
+    // ⚡ جدول الموردين (suppliers)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS suppliers (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        name_lower TEXT,
+        company_name TEXT,
+        email TEXT,
+        email_lower TEXT,
+        phone TEXT,
+        phone_digits TEXT,
+        address TEXT,
+        website TEXT,
+        tax_number TEXT,
+        business_type TEXT,
+        notes TEXT,
+        rating REAL DEFAULT 0,
+        supplier_type TEXT DEFAULT 'local',
+        supplier_category TEXT DEFAULT 'wholesale',
+        is_active INTEGER DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        synced INTEGER DEFAULT 0,
+        sync_status TEXT,
+        pending_operation TEXT,
+        local_updated_at TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_suppliers_org ON suppliers(organization_id);
+      CREATE INDEX IF NOT EXISTS idx_suppliers_name ON suppliers(name_lower);
+      CREATE INDEX IF NOT EXISTS idx_suppliers_phone ON suppliers(phone_digits);
+      CREATE INDEX IF NOT EXISTS idx_suppliers_synced ON suppliers(synced);
+    `);
+
+    // ⚡ جدول جهات اتصال الموردين (supplier_contacts)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS supplier_contacts (
+        id TEXT PRIMARY KEY,
+        supplier_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        position TEXT,
+        email TEXT,
+        phone TEXT,
+        is_primary INTEGER DEFAULT 0,
+        created_at TEXT,
+        updated_at TEXT,
+        synced INTEGER DEFAULT 0,
+        sync_status TEXT,
+        pending_operation TEXT,
+        FOREIGN KEY (supplier_id) REFERENCES suppliers(id) ON DELETE CASCADE
+      );
+    `);
+
+    // ⚡ جدول مشتريات الموردين (supplier_purchases)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS supplier_purchases (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        supplier_id TEXT NOT NULL,
+        purchase_number TEXT NOT NULL,
+        purchase_date TEXT NOT NULL,
+        due_date TEXT,
+        total_amount REAL DEFAULT 0,
+        paid_amount REAL DEFAULT 0,
+        balance_due REAL DEFAULT 0,
+        status TEXT DEFAULT 'draft',
+        payment_status TEXT DEFAULT 'unpaid',
+        payment_terms TEXT,
+        notes TEXT,
+        created_by TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        synced INTEGER DEFAULT 0,
+        sync_status TEXT,
+        pending_operation TEXT,
+        local_updated_at TEXT,
+        FOREIGN KEY (supplier_id) REFERENCES suppliers(id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_supplier_purchases_org ON supplier_purchases(organization_id);
+      CREATE INDEX IF NOT EXISTS idx_supplier_purchases_supplier ON supplier_purchases(supplier_id);
+      CREATE INDEX IF NOT EXISTS idx_supplier_purchases_synced ON supplier_purchases(synced);
+    `);
+
+    // ⚡ جدول عناصر مشتريات الموردين (supplier_purchase_items)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS supplier_purchase_items (
+        id TEXT PRIMARY KEY,
+        purchase_id TEXT NOT NULL,
+        product_id TEXT,
+        description TEXT NOT NULL,
+        quantity INTEGER DEFAULT 1,
+        unit_price REAL DEFAULT 0,
+        total_price REAL DEFAULT 0,
+        tax_rate REAL DEFAULT 0,
+        tax_amount REAL DEFAULT 0,
+        batch_id TEXT,
+        color_id TEXT,
+        size_id TEXT,
+        variant_type TEXT DEFAULT 'simple',
+        variant_display_name TEXT,
+        synced INTEGER DEFAULT 0,
+        sync_status TEXT,
+        pending_operation TEXT,
+        FOREIGN KEY (purchase_id) REFERENCES supplier_purchases(id) ON DELETE CASCADE
+      );
+    `);
+
+    // ⚡ جدول مدفوعات الموردين (supplier_payments)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS supplier_payments (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        supplier_id TEXT NOT NULL,
+        purchase_id TEXT,
+        payment_date TEXT NOT NULL,
+        amount REAL NOT NULL,
+        payment_method TEXT DEFAULT 'cash',
+        reference_number TEXT,
+        notes TEXT,
+        created_at TEXT NOT NULL,
+        synced INTEGER DEFAULT 0,
+        sync_status TEXT,
+        pending_operation TEXT,
+        local_updated_at TEXT,
+        FOREIGN KEY (supplier_id) REFERENCES suppliers(id),
+        FOREIGN KEY (purchase_id) REFERENCES supplier_purchases(id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_supplier_payments_org ON supplier_payments(organization_id);
+      CREATE INDEX IF NOT EXISTS idx_supplier_payments_supplier ON supplier_payments(supplier_id);
+      CREATE INDEX IF NOT EXISTS idx_supplier_payments_synced ON supplier_payments(synced);
+    `);
+
+    // ⚡ جدول ألوان المنتجات (product_colors)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS product_colors (
+        id TEXT PRIMARY KEY,
+        product_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        color_code TEXT,
+        color_hex TEXT,
+        quantity INTEGER DEFAULT 0,
+        price_adjustment REAL DEFAULT 0,
+        image_url TEXT,
+        display_order INTEGER DEFAULT 0,
+        is_active INTEGER DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT,
+        synced INTEGER DEFAULT 0,
+        sync_status TEXT,
+        pending_operation TEXT,
+        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
+      );
+    `);
+
+    // ⚡ جدول مقاسات المنتجات (product_sizes)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS product_sizes (
+        id TEXT PRIMARY KEY,
+        product_id TEXT NOT NULL,
+        color_id TEXT,
+        name TEXT NOT NULL,
+        size_code TEXT,
+        quantity INTEGER DEFAULT 0,
+        price_adjustment REAL DEFAULT 0,
+        display_order INTEGER DEFAULT 0,
+        is_active INTEGER DEFAULT 1,
+        created_at TEXT NOT NULL,
+        updated_at TEXT,
+        synced INTEGER DEFAULT 0,
+        sync_status TEXT,
+        pending_operation TEXT,
+        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+        FOREIGN KEY (color_id) REFERENCES product_colors(id) ON DELETE CASCADE
+      );
+    `);
+
+    // ⚡ جدول صور المنتجات (product_images)
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS product_images (
+        id TEXT PRIMARY KEY,
+        product_id TEXT NOT NULL,
+        url TEXT NOT NULL,
+        alt_text TEXT,
+        display_order INTEGER DEFAULT 0,
+        is_primary INTEGER DEFAULT 0,
+        local_path TEXT,
+        base64_data TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT,
+        synced INTEGER DEFAULT 0,
+        sync_status TEXT,
+        pending_operation TEXT,
+        FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
       );
     `);
 
@@ -628,7 +1105,7 @@ class SQLiteManager {
         closed_at TEXT
       );
     `);
-    
+
     // إضافة الأعمدة الجديدة للجداول الموجودة (migration)
     const addColumnIfNotExists = (table, column, type, defaultValue = null) => {
       try {
@@ -639,13 +1116,13 @@ class SQLiteManager {
           this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}${defaultClause}`);
           console.log(`✅ [SQLite] أضيف عمود ${column} إلى جدول ${table}`);
           // Invalidate cached columns for this table so upsert sees the new column
-          try { this._tableColumnsCache.delete(table); } catch {}
+          try { this._tableColumnsCache.delete(table); } catch { }
         }
       } catch (err) {
         console.warn(`⚠️ [SQLite] تحذير عند إضافة عمود ${column}:`, err.message);
       }
     };
-    
+
     // Migration للأعمدة الجديدة في customer_debts
     if (this.db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='customer_debts'`).get()) {
       addColumnIfNotExists('customer_debts', 'discount', 'REAL', 0);
@@ -664,7 +1141,7 @@ class SQLiteManager {
       addColumnIfNotExists('app_license_state', 'last_observed_device_time_ms', 'INTEGER', 0);
       addColumnIfNotExists('app_license_state', 'last_secure_ms', 'INTEGER', 0);
     }
-    
+
     // Migration للأعمدة الجديدة في work_sessions
     if (this.db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='work_sessions'`).get()) {
       addColumnIfNotExists('work_sessions', 'opening_cash', 'REAL', 0);
@@ -688,7 +1165,7 @@ class SQLiteManager {
       // Compatibility snake_case columns used by some query paths
       addColumnIfNotExists('work_sessions', 'sync_status', 'TEXT');
       addColumnIfNotExists('work_sessions', 'pending_operation', 'TEXT');
-      
+
       // نسخ البيانات من الأعمدة القديمة إلى الجديدة إذا لزم الأمر
       try {
         this.db.exec(`
@@ -727,7 +1204,7 @@ class SQLiteManager {
       addColumnIfNotExists('pos_orders', 'error', 'TEXT');
       addColumnIfNotExists('pos_orders', 'customer_name_lower', 'TEXT');
     }
-    
+
     // Migration لجدول pos_order_items
     if (this.db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='pos_order_items'`).get()) {
       addColumnIfNotExists('pos_order_items', 'synced', 'INTEGER', 0);
@@ -824,7 +1301,7 @@ class SQLiteManager {
       addColumnIfNotExists('invoice_items', 'total_tva', 'REAL');
       addColumnIfNotExists('invoice_items', 'total_ttc', 'REAL');
       addColumnIfNotExists('invoice_items', 'synced', 'INTEGER', 0);
-      
+
       // Backfill name from product_name if it exists
       try {
         this.db.exec(`
@@ -886,6 +1363,7 @@ class SQLiteManager {
       );
     `);
 
+    // جدول عناصر الإرجاع - ⚡ محدث لدعم كلا الاسمين (الجديد والقديم)
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS return_items (
         id TEXT PRIMARY KEY,
@@ -893,16 +1371,32 @@ class SQLiteManager {
         product_id TEXT,
         product_name TEXT,
         product_sku TEXT,
+        -- الكمية (الاسم الجديد + القديم)
+        quantity INTEGER,
         return_quantity INTEGER,
+        -- السعر (الاسم الجديد + القديم)
+        unit_price REAL,
         return_unit_price REAL,
+        -- مبلغ الاسترداد (الاسم الجديد + القديم)
+        refund_amount REAL,
         total_return_amount REAL,
+        -- الحالة (الاسم الجديد + القديم)
+        condition TEXT,
         condition_status TEXT,
+        -- قابل للبيع (الاسم الجديد + القديم)
+        restocked INTEGER,
         resellable INTEGER,
         inventory_returned INTEGER,
+        -- المتغيرات
         color_id TEXT,
         color_name TEXT,
         size_id TEXT,
         size_name TEXT,
+        -- Original order item reference
+        original_order_item_id TEXT,
+        original_quantity INTEGER,
+        original_unit_price REAL,
+        -- المزامنة
         created_at TEXT NOT NULL,
         synced INTEGER DEFAULT 0
       );
@@ -936,6 +1430,7 @@ class SQLiteManager {
       );
     `);
 
+    // جدول عناصر الخسائر - ⚡ محدث لدعم كلا الاسمين
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS loss_items (
         id TEXT PRIMARY KEY,
@@ -943,17 +1438,28 @@ class SQLiteManager {
         product_id TEXT,
         product_name TEXT,
         product_sku TEXT,
+        -- الكمية (الاسم الجديد + القديم)
+        quantity_lost INTEGER,
         lost_quantity INTEGER,
+        -- التكلفة (الاسم الجديد + القديم)
+        unit_cost REAL,
         unit_cost_price REAL,
         unit_selling_price REAL,
         total_cost_value REAL,
         total_selling_value REAL,
+        -- معلومات إضافية
         loss_condition TEXT,
+        loss_percentage REAL,
+        stock_before_loss INTEGER,
+        stock_after_loss INTEGER,
         inventory_adjusted INTEGER,
+        -- المتغيرات
         color_id TEXT,
         color_name TEXT,
         size_id TEXT,
         size_name TEXT,
+        variant_info TEXT,
+        -- المزامنة
         created_at TEXT NOT NULL,
         synced INTEGER DEFAULT 0
       );
@@ -1172,6 +1678,35 @@ class SQLiteManager {
       CREATE INDEX IF NOT EXISTS idx_user_credentials_email_lower ON user_credentials(email_lower);
     `);
 
+    // تخزين صلاحيات المستخدم للأوفلاين
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS user_permissions (
+        id TEXT PRIMARY KEY,
+        auth_user_id TEXT NOT NULL,
+        user_id TEXT,
+        email TEXT,
+        name TEXT,
+        role TEXT,
+        organization_id TEXT,
+        is_active INTEGER,
+        is_org_admin INTEGER,
+        is_super_admin INTEGER,
+        permissions TEXT,
+        has_inventory_access INTEGER,
+        can_manage_products INTEGER,
+        can_view_reports INTEGER,
+        can_manage_users INTEGER,
+        can_manage_orders INTEGER,
+        can_access_pos INTEGER,
+        can_manage_settings INTEGER,
+        created_at TEXT,
+        updated_at TEXT,
+        last_updated TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_user_permissions_auth_user ON user_permissions(auth_user_id);
+      CREATE INDEX IF NOT EXISTS idx_user_permissions_org ON user_permissions(organization_id);
+    `);
+
     console.log('[SQLite] Global tables created');
   }
 
@@ -1179,13 +1714,16 @@ class SQLiteManager {
    * ترحيل schema - إضافة أعمدة جديدة للجداول الموجودة
    */
   migrateSchema() {
+    console.log('[SQLite] 🔍 Starting schema migration check...');
     try {
-      // التحقق من وجود عمود thumbnail_image
-      const columnsResult = this.db.prepare("PRAGMA table_info(products)").all();
-      const hasThumbColumn = columnsResult.some(col => col.name === 'thumbnail_image');
-      const hasImagesColumn = columnsResult.some(col => col.name === 'images');
-
       let columnsAdded = false;
+
+      // ========================================
+      // Migration للمنتجات (Products)
+      // ========================================
+      const productsColumns = this.db.prepare("PRAGMA table_info(products)").all();
+      const hasThumbColumn = productsColumns.some(col => col.name === 'thumbnail_image');
+      const hasImagesColumn = productsColumns.some(col => col.name === 'images');
 
       // إضافة عمود thumbnail_image إذا لم يكن موجوداً
       if (!hasThumbColumn) {
@@ -1205,6 +1743,68 @@ class SQLiteManager {
       if (columnsAdded) {
         this._tableColumnsCache.delete('products');
         console.log('[SQLite] ✅ Cleared products table column cache - new columns will be recognized');
+      }
+
+      // ========================================
+      // Migration للعملاء (Customers)
+      // ========================================
+      const customersColumns = this.db.prepare("PRAGMA table_info(customers)").all();
+      const hasNif = customersColumns.some(col => col.name === 'nif');
+      const hasRc = customersColumns.some(col => col.name === 'rc');
+      const hasNis = customersColumns.some(col => col.name === 'nis');
+      const hasRib = customersColumns.some(col => col.name === 'rib');
+      const hasAddress = customersColumns.some(col => col.name === 'address');
+
+      let customersColumnsAdded = false;
+
+      // إضافة الحقول الضريبية الجزائرية
+      if (!hasNif) {
+        console.log('[SQLite] Adding nif column to customers table (رقم التعريف الجبائي)');
+        this.db.exec(`ALTER TABLE customers ADD COLUMN nif TEXT`);
+        customersColumnsAdded = true;
+      }
+
+      if (!hasRc) {
+        console.log('[SQLite] Adding rc column to customers table (رقم السجل التجاري)');
+        this.db.exec(`ALTER TABLE customers ADD COLUMN rc TEXT`);
+        customersColumnsAdded = true;
+      }
+
+      if (!hasNis) {
+        console.log('[SQLite] Adding nis column to customers table (رقم التعريف الإحصائي)');
+        this.db.exec(`ALTER TABLE customers ADD COLUMN nis TEXT`);
+        customersColumnsAdded = true;
+      }
+
+      if (!hasRib) {
+        console.log('[SQLite] Adding rib column to customers table (الهوية البنكية)');
+        this.db.exec(`ALTER TABLE customers ADD COLUMN rib TEXT`);
+        customersColumnsAdded = true;
+      }
+
+      if (!hasAddress) {
+        console.log('[SQLite] Adding address column to customers table');
+        this.db.exec(`ALTER TABLE customers ADD COLUMN address TEXT`);
+        customersColumnsAdded = true;
+      }
+
+      // 🔥 CRITICAL FIX: Clear the column cache so upsert sees the new columns
+      if (customersColumnsAdded) {
+        this._tableColumnsCache.delete('customers');
+        console.log('[SQLite] ✅ Cleared customers table column cache - new columns will be recognized');
+      }
+
+      // ========================================
+      // Migration لقائمة المزامنة (sync_queue)
+      // ========================================
+      const syncQueueColumns = this.db.prepare("PRAGMA table_info(sync_queue)").all();
+      const hasOrgIdInSyncQueue = syncQueueColumns.some(col => col.name === 'organization_id');
+
+      if (!hasOrgIdInSyncQueue) {
+        console.log('[SQLite] Adding organization_id column to sync_queue table');
+        this.db.exec(`ALTER TABLE sync_queue ADD COLUMN organization_id TEXT`);
+        this._tableColumnsCache.delete('sync_queue');
+        console.log('[SQLite] ✅ Added organization_id to sync_queue and cleared cache');
       }
 
       console.log('[SQLite] Schema migration completed');
@@ -1362,19 +1962,51 @@ class SQLiteManager {
   // INSERT or UPDATE
   upsert(table, data) {
     try {
-      // معالجة خاصة لجدول products - حفظ colors/sizes/images في metadata
+      // 🔍 للمنتجات: نحفظ الحقول الإضافية (colors, sizes, etc.) في metadata
       if (table === 'products' && data) {
         const extraFields = {};
-        if (data.colors) extraFields.colors = data.colors;
+
+        // حفظ الألوان مع دعم كلا المفتاحين
+        const colors = data.colors || data.product_colors;
+        if (colors && Array.isArray(colors)) {
+          // التأكد من حفظ المخزون لكل لون ومقاس
+          extraFields.colors = colors.map(color => {
+            const sizes = color.sizes || color.product_sizes;
+            return {
+              ...color,
+              // حفظ المخزون للون
+              quantity: color.quantity ?? color.stock_quantity ?? 0,
+              stock_quantity: color.quantity ?? color.stock_quantity ?? 0,
+              // حفظ المقاسات مع المخزون
+              sizes: sizes && Array.isArray(sizes) ? sizes.map(size => ({
+                ...size,
+                quantity: size.quantity ?? size.stock_quantity ?? 0,
+                stock_quantity: size.quantity ?? size.stock_quantity ?? 0,
+                price: size.price ?? 0,
+                purchase_price: size.purchase_price ?? size.purchasePrice ?? 0
+              })) : [],
+              product_sizes: sizes && Array.isArray(sizes) ? sizes.map(size => ({
+                ...size,
+                quantity: size.quantity ?? size.stock_quantity ?? 0,
+                stock_quantity: size.quantity ?? size.stock_quantity ?? 0,
+                price: size.price ?? 0,
+                purchase_price: size.purchase_price ?? size.purchasePrice ?? 0
+              })) : []
+            };
+          });
+          extraFields.product_colors = extraFields.colors;
+        }
+
         if (data.sizes) extraFields.sizes = data.sizes;
         if (data.images) extraFields.images = data.images;
         if (data.variants) extraFields.variants = data.variants;
-        if (data.product_colors) extraFields.product_colors = data.product_colors;
-        if (data.product_sizes) extraFields.product_sizes = data.product_sizes;
         if (data.product_images) extraFields.product_images = data.product_images;
 
+        // حفظ معلومات المتغيرات
+        if (data.has_variants !== undefined) extraFields.has_variants = data.has_variants;
+        if (data.total_variants_stock !== undefined) extraFields.total_variants_stock = data.total_variants_stock;
+
         if (Object.keys(extraFields).length > 0) {
-          // دمج مع metadata الموجود
           let metadata = {};
           if (data.metadata && typeof data.metadata === 'object') {
             metadata = { ...data.metadata };
@@ -1386,8 +2018,9 @@ class SQLiteManager {
             }
           }
 
+          // دمج البيانات الإضافية في metadata
           metadata = { ...metadata, ...extraFields };
-          data.metadata = JSON.stringify(metadata);
+          data.metadata = JSON.stringify(metadata); // Update data.metadata directly
 
           console.log(`[SQLite] حفظ منتج مع بيانات إضافية:`, {
             productId: data.id,
@@ -1543,6 +2176,165 @@ class SQLiteManager {
     }
   }
 
+  /**
+   * إضافة أو تحديث مجموعة من السجلات (Bulk Upsert)
+   * يستخدم transaction لتحسين الأداء
+   */
+  bulkUpsert(table, items) {
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return { success: true, changes: 0 };
+    }
+
+    try {
+      // 1. التأكد من وجود الكاش للأعمدة
+      if (!this._tableColumnsCache.has(table)) {
+        const cols = this.db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
+        this._tableColumnsCache.set(table, cols);
+        this._touchCache(table);
+      } else {
+        this._touchCache(table);
+      }
+      const tableColumns = this._tableColumnsCache.get(table) || [];
+
+      // helper: camelCase -> snake_case
+      const toSnake = (s) => s.replace(/([A-Z])/g, '_$1').toLowerCase();
+
+      // Normalize values helper
+      const normalizeValue = (v) => {
+        if (v === undefined) return null;
+        if (v instanceof Date) return v.toISOString();
+        if (typeof v === 'boolean') return v ? 1 : 0;
+        if (typeof v === 'object' && v !== null && !Buffer.isBuffer(v)) {
+          try { return JSON.stringify(v); } catch { return String(v); }
+        }
+        return v;
+      };
+
+      // 2. تجهيز البيانات وتحديد كل المفاتيح المستخدمة
+      const preparedItems = [];
+      const allKeys = new Set();
+
+      for (const item of items) {
+        const data = { ...item }; // Copy
+
+        // معالجة خاصة لجدول products (نفس منطق upsert)
+        if (table === 'products') {
+          const extraFields = {};
+          if (data.colors) extraFields.colors = data.colors;
+          if (data.sizes) extraFields.sizes = data.sizes;
+          if (data.images) extraFields.images = data.images;
+          if (data.variants) extraFields.variants = data.variants;
+          if (data.product_colors) extraFields.product_colors = data.product_colors;
+          if (data.product_sizes) extraFields.product_sizes = data.product_sizes;
+          if (data.product_images) extraFields.product_images = data.product_images;
+
+          if (Object.keys(extraFields).length > 0) {
+            let metadata = {};
+            if (data.metadata && typeof data.metadata === 'object') {
+              metadata = { ...data.metadata };
+            } else if (data.metadata && typeof data.metadata === 'string') {
+              try { metadata = JSON.parse(data.metadata); } catch (e) { metadata = {}; }
+            }
+            metadata = { ...metadata, ...extraFields };
+            data.metadata = JSON.stringify(metadata);
+          }
+          if (data.name) {
+            data.name_normalized = this.normalizeArabicText(data.name);
+          }
+        }
+
+        // Special-case: ensure id exists for pos_settings
+        if (table === 'pos_settings' && data.id == null && data.organization_id) {
+          data.id = data.organization_id;
+        }
+
+        // Map keys and filter to existing columns
+        const safeObj = {};
+        for (const [k, v] of Object.entries(data)) {
+          if (tableColumns.includes(k)) {
+            safeObj[k] = v;
+          } else {
+            const sk = toSnake(k);
+            if (tableColumns.includes(sk)) {
+              safeObj[sk] = v;
+            }
+          }
+        }
+
+        // Auto-fill organization_id
+        if (tableColumns.includes('organization_id') && safeObj.organization_id == null && this.currentOrganizationId) {
+          safeObj.organization_id = this.currentOrganizationId;
+        }
+
+        // Fallbacks for pos_orders
+        if (table === 'pos_orders') {
+          const nowISO = new Date().toISOString();
+          const raw = data;
+          if (tableColumns.includes('order_number') && !safeObj.order_number) {
+            const ln = raw.local_order_number_str || raw.localOrderNumberStr || (raw.local_order_number != null ? String(raw.local_order_number) : null) || (safeObj.local_order_number != null ? String(safeObj.local_order_number) : null);
+            const rn = raw.remote_customer_order_number != null ? String(raw.remote_customer_order_number) : (raw.remoteCustomerOrderNumber != null ? String(raw.remoteCustomerOrderNumber) : null) || (safeObj.remote_customer_order_number != null ? String(safeObj.remote_customer_order_number) : null);
+            const cn = raw.customer_order_number != null ? String(raw.customer_order_number) : (raw.customerOrderNumber != null ? String(raw.customerOrderNumber) : null);
+            const on = raw.order_number || raw.orderNumber || null;
+            const idStr = raw.id || safeObj.id ? String(raw.id || safeObj.id) : null;
+            safeObj.order_number = on || ln || rn || cn || idStr || nowISO.replace(/\D/g, '').slice(-12);
+          }
+          // ... other pos_orders fallbacks (simplified for bulk)
+          if (tableColumns.includes('created_at') && !safeObj.created_at) safeObj.created_at = nowISO;
+          if (tableColumns.includes('updated_at') && !safeObj.updated_at) safeObj.updated_at = safeObj.created_at || nowISO;
+          if (tableColumns.includes('local_created_at') && !safeObj.local_created_at) safeObj.local_created_at = safeObj.created_at || nowISO;
+        }
+
+        // Fallbacks for invoices
+        if (table === 'invoices') {
+          const nowISO = new Date().toISOString();
+          if (tableColumns.includes('created_at') && !safeObj.created_at) safeObj.created_at = nowISO;
+          if (tableColumns.includes('updated_at') && !safeObj.updated_at) safeObj.updated_at = safeObj.created_at || nowISO;
+          if (tableColumns.includes('local_created_at') && !safeObj.local_created_at) safeObj.local_created_at = safeObj.created_at || nowISO;
+        }
+
+        // Collect keys
+        Object.keys(safeObj).forEach(k => allKeys.add(k));
+        preparedItems.push(safeObj);
+      }
+
+      const keys = Array.from(allKeys);
+      if (keys.length === 0) {
+        return { success: true, changes: 0 };
+      }
+
+      // 3. تحضير الاستعلام
+      const placeholders = keys.map(k => `@${k}`).join(', ');
+      const updates = keys.map(k => `${k} = @${k}`).join(', ');
+
+      const stmt = this.db.prepare(`
+        INSERT INTO ${table} (${keys.join(', ')})
+        VALUES (${placeholders})
+        ON CONFLICT(id) DO UPDATE SET ${updates}
+      `);
+
+      // 4. تنفيذ Transaction
+      const transaction = this.db.transaction((items) => {
+        let changes = 0;
+        for (const item of items) {
+          // تطبيع القيم والتأكد من وجود جميع المفاتيح
+          const itemParams = {};
+          keys.forEach(k => {
+            itemParams[k] = normalizeValue(item[k]);
+          });
+          changes += stmt.run(itemParams).changes;
+        }
+        return changes;
+      });
+
+      const totalChanges = transaction(preparedItems);
+      return { success: true, changes: totalChanges };
+
+    } catch (error) {
+      console.error(`[SQLite] Bulk upsert failed for ${table}:`, error);
+      return { success: false, error: error.message };
+    }
+  }
+
   // دالة مساعدة لاستعادة البيانات من metadata
   restoreMetadataFields(row) {
     if (!row) return row;
@@ -1580,8 +2372,12 @@ class SQLiteManager {
           row.variants = metadata.variants;
           restoredFields.push('variants');
         }
-        if (metadata.product_colors) {
-          row.product_colors = metadata.product_colors;
+        if (metadata.colors || metadata.product_colors) {
+          const colors = metadata.colors || metadata.product_colors;
+          row.colors = colors;
+          row.product_colors = colors;
+          row.has_variants = colors && colors.length > 0;
+          restoredFields.push('colors');
           restoredFields.push('product_colors');
         }
         if (metadata.product_sizes) {
@@ -1629,7 +2425,12 @@ class SQLiteManager {
 
       return { success: true, data: result };
     } catch (error) {
-      console.error('[SQLite] Query failed:', error);
+      // Log the exact SQL that caused the error
+      const sqlPreview = sql.length > 200 ? sql.substring(0, 200) + '...' : sql;
+      const paramsPreview = JSON.stringify(params).substring(0, 100);
+      console.error(`[SQLite] Query failed for SQL: "${sqlPreview}"`, error.message);
+      console.error(`[SQLite] Params:`, paramsPreview);
+      console.error(`[SQLite] Full error:`, error);
       return { success: false, error: error.message, data: [] };
     }
   }
@@ -2183,6 +2984,316 @@ class SQLiteManager {
     } catch (error) {
       console.error('[SQLite] Cleanup old conflicts failed:', error);
       return { success: false, error: error.message };
+    }
+  }
+
+  // =====================================================
+  // 🔄 دوال Migration للجداول القديمة
+  // =====================================================
+
+  /**
+   * دالة مساعدة لإضافة عمود إذا لم يكن موجوداً
+   */
+  addColumnIfNotExists(tableName, columnName, columnType, defaultValue = null) {
+    try {
+      const columns = this.db.prepare(`PRAGMA table_info(${tableName})`).all();
+      const hasColumn = columns.some(c => c.name === columnName);
+      
+      if (!hasColumn) {
+        let sql = `ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnType}`;
+        if (defaultValue !== null) {
+          sql += ` DEFAULT ${typeof defaultValue === 'string' ? `'${defaultValue}'` : defaultValue}`;
+        }
+        this.db.exec(sql);
+        console.log(`[SQLite Migration] ✅ Added column ${columnName} to ${tableName}`);
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error(`[SQLite Migration] ❌ Failed to add column ${columnName} to ${tableName}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * ترحيل جدول pos_orders لإضافة الأعمدة الجديدة
+   */
+  migratePosOrdersTable() {
+    try {
+      const tableExists = this.db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='pos_orders'`).get();
+      if (!tableExists) return;
+
+      console.log('[SQLite Migration] 🔄 Migrating pos_orders table...');
+
+      // الأعمدة الجديدة التي يجب إضافتها
+      const newColumns = [
+        ['employee_id', 'TEXT', null],
+        ['subtotal', 'REAL', 0],
+        ['total', 'REAL', 0],
+        ['discount', 'REAL', 0],
+        ['amount_paid', 'REAL', 0],
+        ['remaining_amount', 'REAL', 0],
+        ['payment_status', 'TEXT', "'pending'"],
+        ['consider_remaining_as_partial', 'INTEGER', 0],
+        ['notes', 'TEXT', null],
+        ['local_order_number', 'INTEGER', null],
+        ['local_order_number_str', 'TEXT', null],
+        ['metadata', 'TEXT', null],
+        ['message', 'TEXT', null],
+        ['payload', 'TEXT', null],
+        ['pending_updates', 'TEXT', null],
+        ['extra_fields', 'TEXT', null],
+        ['created_at_ts', 'INTEGER', null],
+      ];
+
+      let addedCount = 0;
+      for (const [name, type, defaultVal] of newColumns) {
+        if (this.addColumnIfNotExists('pos_orders', name, type, defaultVal)) {
+          addedCount++;
+        }
+      }
+
+      // نسخ البيانات من الأعمدة القديمة إلى الجديدة (إذا وجدت)
+      const columns = this.db.prepare('PRAGMA table_info(pos_orders)').all();
+      const columnNames = columns.map(c => c.name);
+
+      // total_amount → total
+      if (columnNames.includes('total_amount') && columnNames.includes('total')) {
+        this.db.exec(`UPDATE pos_orders SET total = total_amount WHERE total IS NULL OR total = 0`);
+        console.log('[SQLite Migration] ✅ Copied total_amount → total');
+      }
+
+      // paid_amount → amount_paid
+      if (columnNames.includes('paid_amount') && columnNames.includes('amount_paid')) {
+        this.db.exec(`UPDATE pos_orders SET amount_paid = paid_amount WHERE amount_paid IS NULL OR amount_paid = 0`);
+        console.log('[SQLite Migration] ✅ Copied paid_amount → amount_paid');
+      }
+
+      // staff_id → employee_id
+      if (columnNames.includes('staff_id') && columnNames.includes('employee_id')) {
+        this.db.exec(`UPDATE pos_orders SET employee_id = staff_id WHERE employee_id IS NULL`);
+        console.log('[SQLite Migration] ✅ Copied staff_id → employee_id');
+      }
+
+      // local_created_at → created_at
+      if (columnNames.includes('local_created_at') && columnNames.includes('created_at')) {
+        this.db.exec(`UPDATE pos_orders SET local_created_at = created_at WHERE local_created_at IS NULL`);
+      }
+
+      if (addedCount > 0) {
+        console.log(`[SQLite Migration] ✅ pos_orders: Added ${addedCount} new columns`);
+      } else {
+        console.log('[SQLite Migration] ℹ️ pos_orders: No migration needed');
+      }
+    } catch (error) {
+      console.error('[SQLite Migration] ❌ Failed to migrate pos_orders:', error);
+    }
+  }
+
+  /**
+   * ترحيل جدول pos_order_items لإضافة الأعمدة الجديدة
+   */
+  migratePosOrderItemsTable() {
+    try {
+      const tableExists = this.db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='pos_order_items'`).get();
+      if (!tableExists) return;
+
+      console.log('[SQLite Migration] 🔄 Migrating pos_order_items table...');
+
+      // الأعمدة الجديدة التي يجب إضافتها
+      const newColumns = [
+        ['total_price', 'REAL', 0],
+        ['color_id', 'TEXT', null],
+        ['color_name', 'TEXT', null],
+        ['size_id', 'TEXT', null],
+        ['size_name', 'TEXT', null],
+        ['variant_info', 'TEXT', null],
+        ['is_wholesale', 'INTEGER', 0],
+        ['original_price', 'REAL', null],
+        ['synced', 'INTEGER', 0],
+      ];
+
+      let addedCount = 0;
+      for (const [name, type, defaultVal] of newColumns) {
+        if (this.addColumnIfNotExists('pos_order_items', name, type, defaultVal)) {
+          addedCount++;
+        }
+      }
+
+      // حساب total_price من unit_price * quantity إذا لم يكن موجوداً
+      this.db.exec(`UPDATE pos_order_items SET total_price = unit_price * quantity WHERE total_price IS NULL OR total_price = 0`);
+
+      if (addedCount > 0) {
+        console.log(`[SQLite Migration] ✅ pos_order_items: Added ${addedCount} new columns`);
+      } else {
+        console.log('[SQLite Migration] ℹ️ pos_order_items: No migration needed');
+      }
+    } catch (error) {
+      console.error('[SQLite Migration] ❌ Failed to migrate pos_order_items:', error);
+    }
+  }
+
+  /**
+   * ترحيل جدول customer_debts لإضافة الأعمدة الجديدة
+   */
+  migrateCustomerDebtsTable() {
+    try {
+      const tableExists = this.db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='customer_debts'`).get();
+      if (!tableExists) return;
+
+      console.log('[SQLite Migration] 🔄 Migrating customer_debts table...');
+
+      // الأعمدة الجديدة التي يجب إضافتها
+      const newColumns = [
+        ['subtotal', 'REAL', null],
+        ['discount', 'REAL', 0],
+        ['total_amount', 'REAL', 0],
+        ['paid_amount', 'REAL', 0],
+        ['remaining_amount', 'REAL', 0],
+      ];
+
+      let addedCount = 0;
+      for (const [name, type, defaultVal] of newColumns) {
+        if (this.addColumnIfNotExists('customer_debts', name, type, defaultVal)) {
+          addedCount++;
+        }
+      }
+
+      // نسخ amount إلى total_amount إذا لم يكن موجوداً
+      const columns = this.db.prepare('PRAGMA table_info(customer_debts)').all();
+      const columnNames = columns.map(c => c.name);
+
+      if (columnNames.includes('amount') && columnNames.includes('total_amount')) {
+        this.db.exec(`UPDATE customer_debts SET total_amount = amount WHERE total_amount IS NULL OR total_amount = 0`);
+        console.log('[SQLite Migration] ✅ Copied amount → total_amount');
+      }
+
+      // حساب remaining_amount
+      if (columnNames.includes('total_amount') && columnNames.includes('paid_amount') && columnNames.includes('remaining_amount')) {
+        this.db.exec(`UPDATE customer_debts SET remaining_amount = total_amount - COALESCE(paid_amount, 0) WHERE remaining_amount IS NULL OR remaining_amount = 0`);
+      }
+
+      if (addedCount > 0) {
+        console.log(`[SQLite Migration] ✅ customer_debts: Added ${addedCount} new columns`);
+      } else {
+        console.log('[SQLite Migration] ℹ️ customer_debts: No migration needed');
+      }
+    } catch (error) {
+      console.error('[SQLite Migration] ❌ Failed to migrate customer_debts:', error);
+    }
+  }
+
+  /**
+   * ترحيل جدول return_items لإضافة الأعمدة الجديدة
+   */
+  migrateReturnItemsTable() {
+    try {
+      const tableExists = this.db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='return_items'`).get();
+      if (!tableExists) return;
+
+      console.log('[SQLite Migration] 🔄 Migrating return_items table...');
+
+      // الأعمدة الجديدة التي يجب إضافتها (أسماء بديلة)
+      const newColumns = [
+        ['quantity', 'INTEGER', null],
+        ['unit_price', 'REAL', null],
+        ['refund_amount', 'REAL', null],
+        ['condition', 'TEXT', null],
+        ['restocked', 'INTEGER', null],
+        ['original_order_item_id', 'TEXT', null],
+        ['original_quantity', 'INTEGER', null],
+        ['original_unit_price', 'REAL', null],
+      ];
+
+      let addedCount = 0;
+      for (const [name, type, defaultVal] of newColumns) {
+        if (this.addColumnIfNotExists('return_items', name, type, defaultVal)) {
+          addedCount++;
+        }
+      }
+
+      // نسخ البيانات من الأعمدة القديمة إلى الجديدة
+      const columns = this.db.prepare('PRAGMA table_info(return_items)').all();
+      const columnNames = columns.map(c => c.name);
+
+      // return_quantity → quantity
+      if (columnNames.includes('return_quantity') && columnNames.includes('quantity')) {
+        this.db.exec(`UPDATE return_items SET quantity = return_quantity WHERE quantity IS NULL`);
+      }
+      // return_unit_price → unit_price
+      if (columnNames.includes('return_unit_price') && columnNames.includes('unit_price')) {
+        this.db.exec(`UPDATE return_items SET unit_price = return_unit_price WHERE unit_price IS NULL`);
+      }
+      // total_return_amount → refund_amount
+      if (columnNames.includes('total_return_amount') && columnNames.includes('refund_amount')) {
+        this.db.exec(`UPDATE return_items SET refund_amount = total_return_amount WHERE refund_amount IS NULL`);
+      }
+      // condition_status → condition
+      if (columnNames.includes('condition_status') && columnNames.includes('condition')) {
+        this.db.exec(`UPDATE return_items SET condition = condition_status WHERE condition IS NULL`);
+      }
+      // resellable → restocked
+      if (columnNames.includes('resellable') && columnNames.includes('restocked')) {
+        this.db.exec(`UPDATE return_items SET restocked = resellable WHERE restocked IS NULL`);
+      }
+
+      if (addedCount > 0) {
+        console.log(`[SQLite Migration] ✅ return_items: Added ${addedCount} new columns`);
+      } else {
+        console.log('[SQLite Migration] ℹ️ return_items: No migration needed');
+      }
+    } catch (error) {
+      console.error('[SQLite Migration] ❌ Failed to migrate return_items:', error);
+    }
+  }
+
+  /**
+   * ترحيل جدول loss_items لإضافة الأعمدة الجديدة
+   */
+  migrateLossItemsTable() {
+    try {
+      const tableExists = this.db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='loss_items'`).get();
+      if (!tableExists) return;
+
+      console.log('[SQLite Migration] 🔄 Migrating loss_items table...');
+
+      // الأعمدة الجديدة التي يجب إضافتها
+      const newColumns = [
+        ['quantity_lost', 'INTEGER', null],  // Alias for lost_quantity
+        ['unit_cost', 'REAL', null],         // Alias for unit_cost_price
+        ['loss_percentage', 'REAL', null],
+        ['stock_before_loss', 'INTEGER', null],
+        ['stock_after_loss', 'INTEGER', null],
+        ['variant_info', 'TEXT', null],
+      ];
+
+      let addedCount = 0;
+      for (const [name, type, defaultVal] of newColumns) {
+        if (this.addColumnIfNotExists('loss_items', name, type, defaultVal)) {
+          addedCount++;
+        }
+      }
+
+      // نسخ البيانات من الأعمدة القديمة إلى الجديدة
+      const columns = this.db.prepare('PRAGMA table_info(loss_items)').all();
+      const columnNames = columns.map(c => c.name);
+
+      // lost_quantity → quantity_lost
+      if (columnNames.includes('lost_quantity') && columnNames.includes('quantity_lost')) {
+        this.db.exec(`UPDATE loss_items SET quantity_lost = lost_quantity WHERE quantity_lost IS NULL`);
+      }
+      // unit_cost_price → unit_cost
+      if (columnNames.includes('unit_cost_price') && columnNames.includes('unit_cost')) {
+        this.db.exec(`UPDATE loss_items SET unit_cost = unit_cost_price WHERE unit_cost IS NULL`);
+      }
+
+      if (addedCount > 0) {
+        console.log(`[SQLite Migration] ✅ loss_items: Added ${addedCount} new columns`);
+      } else {
+        console.log('[SQLite Migration] ℹ️ loss_items: No migration needed');
+      }
+    } catch (error) {
+      console.error('[SQLite Migration] ❌ Failed to migrate loss_items:', error);
     }
   }
 

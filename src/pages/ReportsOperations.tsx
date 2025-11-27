@@ -6,7 +6,7 @@ import { useTitle } from '@/hooks/useTitle';
 import { useTitlebar } from '@/context/TitlebarContext';
 import { POSLayoutState, RefreshHandler } from '@/components/pos-layout/types';
 import { Activity, BarChart3, DollarSign, FileBarChart, Loader2 } from 'lucide-react';
-import { usePermissions } from '@/hooks/usePermissions';
+import { useUnifiedPermissions } from '@/hooks/useUnifiedPermissions';
 
 const FinancialAnalyticsTab = React.lazy(() => import('../pages/FinancialAnalyticsOptimized'));
 const SalesAnalyticsTab = React.lazy(() => import('../pages/dashboard/Analytics'));
@@ -44,14 +44,19 @@ const ReportsOperationsPage: React.FC = () => {
   const params = useParams<{ tab?: string }>();
   const { setTabs, setActiveTab: setTitlebarActiveTab, setShowTabs, clearTabs } = useTitlebar();
 
-  const perms = usePermissions();
+  const perms = useUnifiedPermissions();
 
   const allowedTabs = useMemo(() => {
-    const canFinancial = perms.ready ? perms.anyOf(['viewFinancialReports']) : false;
-    const canSales = perms.ready ? perms.anyOf(['viewSalesReports','viewReports']) : false;
-    const canExpenses = perms.ready ? perms.anyOf(['viewFinancialReports']) : false;
-    const canZakat = perms.ready ? perms.anyOf(['viewFinancialReports']) : false;
-    const canSuppliers = perms.ready ? perms.anyOf(['viewReports','viewSuppliers','viewSupplierReportsInReports']) : false;
+    // وضع المدير = صلاحيات كاملة
+    if (perms.isAdminMode || perms.isOrgAdmin || perms.isSuperAdmin) {
+      return TAB_CONFIG;
+    }
+
+    const canFinancial = perms.ready ? perms.anyOf(['viewFinancialReports', 'canViewFinancialReports']) : false;
+    const canSales = perms.ready ? perms.anyOf(['viewSalesReports', 'viewReports', 'canViewSalesReports']) : false;
+    const canExpenses = perms.ready ? perms.anyOf(['viewFinancialReports', 'canViewExpenses', 'canManageExpenses']) : false;
+    const canZakat = perms.ready ? perms.anyOf(['viewFinancialReports', 'canViewZakat', 'canManageZakat']) : false;
+    const canSuppliers = perms.ready ? perms.anyOf(['viewReports', 'viewSuppliers', 'viewSupplierReportsInReports', 'canViewSupplierReportsInReports']) : false;
 
     return TAB_CONFIG.filter(t =>
       (t.id === 'financial' && canFinancial) ||
@@ -60,7 +65,7 @@ const ReportsOperationsPage: React.FC = () => {
       (t.id === 'zakat' && canZakat) ||
       (t.id === 'suppliers' && canSuppliers)
     );
-  }, [perms.ready, perms.role, perms.isOrgAdmin, perms.isSuperAdmin]);
+  }, [perms.ready, perms.isAdminMode, perms.isOrgAdmin, perms.isSuperAdmin]);
 
   const resolvedTab = useMemo<TabKey>(() => {
     const incoming = params.tab as TabKey | undefined;

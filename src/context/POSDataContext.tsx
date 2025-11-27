@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useCallback, useMemo, ReactNode, useEffect, useState } from 'react';
+import React, { createContext, useContext, useCallback, useMemo, ReactNode, useEffect, useState, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTenant } from './TenantContext';
 import { useAuth } from './AuthContext';
@@ -14,10 +14,12 @@ import {
   getProducts as getOfflineProducts,
   updateProductStock as updateOfflineProductStock
 } from '@/api/offlineProductService';
-import { inventoryDB, type LocalProduct, type LocalCustomer, type LocalPOSOrder } from '@/database/localDb';
+import type { LocalProduct, LocalCustomer, LocalPOSOrder, LocalOrganizationSubscription } from '@/database/localDb';
+import { deltaWriteService } from '@/services/DeltaWriteService';
 import { getLocalCategories } from '@/lib/api/categories';
 import { isAppOnline, markNetworkOnline, markNetworkOffline } from '@/utils/networkStatus';
 import { markProductAsSynced, updateLocalProduct } from '@/api/localProductService';
+import { imageOfflineService } from '@/services/ImageOfflineService';
 
 // =================================================================
 // 🎯 POSDataContext V2 - الحل الشامل مع تحليل قاعدة البيانات المعمق
@@ -138,7 +140,7 @@ interface POSProductWithVariants {
   updatedAt: Date;
   has_variants?: boolean;
   use_sizes?: boolean;
-  
+
   // خصائص إضافية من قاعدة البيانات
   compare_at_price?: number;
   purchase_price?: number;
@@ -150,7 +152,7 @@ interface POSProductWithVariants {
   show_price_on_landing: boolean;
   last_inventory_update?: string;
   is_active: boolean;
-  
+
   // خصائص الجملة
   wholesale_price?: number;
   partial_wholesale_price?: number;
@@ -159,15 +161,20 @@ interface POSProductWithVariants {
   allow_retail: boolean;
   allow_wholesale: boolean;
   allow_partial_wholesale: boolean;
-  
+
   // خصائص المتغيرات والألوان
   colors?: ProductColor[];
-  
+  product_colors?: ProductColor[]; // ✅ إضافة هذا الحقل لضمان التوافق
+
+  // ⚡ الصور المحلية (للعمل Offline)
+  thumbnail_base64?: string | null;
+  images_base64?: string | null;
+
   // حساب المخزون الفعلي
   actual_stock_quantity: number;
   total_variants_stock: number;
   low_stock_warning: boolean;
-  
+
   // معلومات إضافية
   has_fast_shipping: boolean;
   has_money_back: boolean;
@@ -175,24 +182,24 @@ interface POSProductWithVariants {
   fast_shipping_text?: string;
   money_back_text?: string;
   quality_guarantee_text?: string;
-  
+
   // معلومات الوحدة
   is_sold_by_unit: boolean;
   unit_type?: string;
   use_variant_prices: boolean;
   unit_purchase_price?: number;
   unit_sale_price?: number;
-  
+
   // إعدادات الشحن
   shipping_clone_id?: number;
   name_for_shipping?: string;
   use_shipping_clone: boolean;
   shipping_method_type: string;
-  
+
   // تتبع المستخدم
   created_by_user_id?: string;
   updated_by_user_id?: string;
-  
+
   // معلومات مساعدة للباركود
   has_valid_barcodes: boolean;
 }
@@ -206,7 +213,7 @@ interface POSData {
   posSettings: any;
   organizationApps: OrganizationApp[];
   customers: any[];
-  
+
   // إحصائيات المخزون
   inventoryStats: {
     totalProducts: number;
@@ -215,7 +222,7 @@ interface POSData {
     totalVariants: number;
     totalStock: number;
   };
-  
+
   // حالات التحميل
   isLoading: boolean;
   isProductsLoading: boolean;
@@ -224,7 +231,7 @@ interface POSData {
   isPOSSettingsLoading: boolean;
   isAppsLoading: boolean;
   isCustomersLoading: boolean;
-  
+
   // الأخطاء
   errors: {
     products?: string;
@@ -234,7 +241,7 @@ interface POSData {
     apps?: string;
     customers?: string;
   };
-  
+
   // دوال التحديث
   refreshAll: () => Promise<void>;
   refreshProducts: () => Promise<void>;
@@ -242,7 +249,7 @@ interface POSData {
   refreshPOSSettings: () => Promise<void>;
   refreshApps: () => Promise<void>;
   refreshCustomers: () => Promise<void>;
-  
+
   // دوال مساعدة للمخزون
   getProductStock: (productId: string, colorId?: string, sizeId?: string) => number;
   updateProductStock: (productId: string, colorId: string | null, sizeId: string | null, newQuantity: number) => Promise<boolean>;
@@ -258,12 +265,79 @@ const isOfflineMode = () => !isAppOnline();
 export const arrayOrEmpty = <T,>(value: T[] | null | undefined): T[] =>
   Array.isArray(value) ? value : [];
 
+// ✅ دالة مساعدة لتحويل JSON string إلى array أو إرجاع array كما هو
+// مهم جداً: البيانات من SQLite تأتي كـ JSON strings وليس arrays
+// ✅ تم إصلاح المشكلة: الآن يتم تسجيل أخطاء التحليل للتشخيص
+export const ensureArray = (value: unknown, fieldName?: string): unknown[] => {
+  if (Array.isArray(value)) return value;
+  if (value === null || value === undefined) return [];
+  if (typeof value === 'string' && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) return parsed;
+      // تم تحليل JSON ولكنه ليس array
+      console.warn(`[ensureArray] Parsed JSON is not an array${fieldName ? ` for field: ${fieldName}` : ''}:`, typeof parsed);
+      return [];
+    } catch (error) {
+      // ✅ تسجيل خطأ التحليل للتشخيص بدلاً من إخفائه
+      console.warn(`[ensureArray] JSON parse error${fieldName ? ` for field: ${fieldName}` : ''}:`, value.slice(0, 100), error);
+      return [];
+    }
+  }
+  // نوع غير متوقع
+  if (value !== '') {
+    console.warn(`[ensureArray] Unexpected value type${fieldName ? ` for field: ${fieldName}` : ''}:`, typeof value);
+  }
+  return [];
+};
+
 export const mapLocalProductToPOSProduct = (
   product: LocalProduct
 ): POSProductWithVariants => {
-  const rawColors = Array.isArray((product as any).product_colors) ? (product as any).product_colors : [];
+  // محاولة استخراج البيانات من metadata إذا كانت موجودة
+  let metadata: any = {};
+  try {
+    if (typeof (product as any).metadata === 'string') {
+      metadata = JSON.parse((product as any).metadata);
+    } else if (typeof (product as any).metadata === 'object') {
+      metadata = (product as any).metadata || {};
+    }
+  } catch (e) {
+    console.warn('Failed to parse product metadata:', e);
+  }
+
+  // ✅ البحث في جميع المصادر المحتملة للألوان:
+  // 1. variants - من RPC get_pos_products_optimized
+  // 2. product_colors - من Supabase مباشرة
+  // 3. colors - من البيانات المحلية القديمة
+  // 4. metadata - من البيانات المخزنة في حقل metadata
+  // ✅ استخدام ensureArray لتحويل JSON strings من SQLite إلى arrays
+  const parsedVariants = ensureArray((product as any).variants, 'variants');
+  const parsedProductColors = ensureArray((product as any).product_colors, 'product_colors');
+  const parsedColors = ensureArray((product as any).colors, 'colors');
+  const metaVariants = ensureArray(metadata.variants, 'metadata.variants');
+  const metaProductColors = ensureArray(metadata.product_colors, 'metadata.product_colors');
+  const metaColors = ensureArray(metadata.colors, 'metadata.colors');
+
+  const rawColors = parsedVariants.length > 0
+    ? parsedVariants
+    : parsedProductColors.length > 0
+      ? parsedProductColors
+      : parsedColors.length > 0
+        ? parsedColors
+        : metaVariants.length > 0
+          ? metaVariants
+          : metaProductColors.length > 0
+            ? metaProductColors
+            : metaColors;
+
   const processedColors: ProductColor[] = rawColors.map((color: any) => {
-    const rawSizes = Array.isArray(color?.product_sizes) ? color.product_sizes : [];
+    const rawSizes = Array.isArray(color?.product_sizes)
+      ? color.product_sizes
+      : Array.isArray(color?.sizes)
+        ? color.sizes
+        : [];
+
     const processedSizes: ProductSize[] = rawSizes.map((size: any) => ({
       id: size?.id ?? `${product.id}-${color?.id ?? 'variant'}-${size?.size_name ?? 'size'}`,
       color_id: color?.id ?? color?.color_id ?? product.id,
@@ -302,7 +376,18 @@ export const mapLocalProductToPOSProduct = (
   const stockQuantity = Number(product.stock_quantity ?? 0);
   const resolvedStock = variantsStock > 0 ? variantsStock : stockQuantity;
   const images = arrayOrEmpty((product as any).images) as string[];
-  const thumbnail = (product.thumbnail_image || images[0] || '') as string;
+
+  // استخدام الصورة المحلية إذا كانت متوفرة (للعمل Offline)
+  // ⚡ إصلاح: البحث في جميع حقول الصور المحتملة (SQLite يستخدم image_url)
+  const localThumbnail = (product as any).thumbnail_base64;
+  const thumbnail = (
+    localThumbnail ||
+    product.thumbnail_image ||
+    (product as any).image_url ||
+    (product as any).image_thumbnail ||
+    images[0] ||
+    ''
+  ) as string;
 
   return {
     id: product.id,
@@ -320,6 +405,9 @@ export const mapLocalProductToPOSProduct = (
     images,
     thumbnail_image: thumbnail,
     thumbnailImage: thumbnail,
+    // ⚡ إضافة الحقول المحلية للصور (للعمل Offline)
+    thumbnail_base64: localThumbnail || null,
+    images_base64: (product as any).images_base64 || null,
     stockQuantity: resolvedStock,
     stock_quantity: resolvedStock,
     features: arrayOrEmpty((product as any).features),
@@ -350,6 +438,7 @@ export const mapLocalProductToPOSProduct = (
     allow_wholesale: product.allow_wholesale !== false,
     allow_partial_wholesale: product.allow_partial_wholesale !== false,
     colors: processedColors,
+    product_colors: processedColors, // ✅ إضافة هذا الحقل لضمان التوافق
     actual_stock_quantity: resolvedStock,
     total_variants_stock: variantsStock,
     low_stock_warning: resolvedStock <= (product.min_stock_level ?? 5),
@@ -457,7 +546,7 @@ const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWi
       // إذا لم تكن هناك بيانات محلية، أرجع مصفوفة فارغة
       return [];
     }
-    
+
     // تنفيذ مباشر بدون مراقبة أداء
     try {
       // استخدام RPC المحسنة لتقليل Egress بنسبة 40-50%
@@ -477,22 +566,29 @@ const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWi
       }
 
       try {
-        await inventoryDB.transaction('rw', inventoryDB.products, async () => {
-          for (const product of allProducts) {
-            const localProduct: LocalProduct = {
-              ...(product as any),
-              organization_id: (product as any).organization_id || orgId,
-              synced: true,
-              syncStatus: 'synced' as const,
-              lastSyncAttempt: new Date().toISOString(),
-              localUpdatedAt: (product as any).updated_at || (product as any).created_at || new Date().toISOString(),
-              pendingOperation: undefined,
-              conflictResolution: undefined
-            };
+        // ⚡ استخدام Delta Sync لحفظ المنتجات
+        for (const product of allProducts) {
+          const localProduct: LocalProduct = {
+            ...(product as any),
+            organization_id: (product as any).organization_id || orgId,
+            synced: true,
+            syncStatus: 'synced' as const,
+            lastSyncAttempt: new Date().toISOString(),
+            localUpdatedAt: (product as any).updated_at || (product as any).created_at || new Date().toISOString(),
+            pendingOperation: undefined,
+            conflictResolution: undefined
+          };
 
-            await inventoryDB.products.put(localProduct);
-          }
-        });
+          await deltaWriteService.saveFromServer('products', localProduct);
+        }
+        
+        // ⚡ تخزين صور المنتجات محلياً للعمل Offline
+        // يتم في الخلفية لعدم تأخير تحميل الصفحة
+        if (navigator.onLine) {
+          imageOfflineService.processProductsImages(allProducts).catch(err => {
+            console.warn('[POSDataContext] ⚠️ خطأ في تخزين صور المنتجات:', err);
+          });
+        }
       } catch (cacheError) {
         logPOSContextStatus('OFFLINE_PRODUCTS_CACHE_SAVE_ERROR', { error: cacheError });
       }
@@ -505,150 +601,150 @@ const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWi
 
       // معالجة المنتجات مباشرة
       for (const product of allProducts) {
-          // معالجة المنتج الواحد
-          const stockQuantity = product.stock_quantity || 0;
-          let actualStockQuantity = stockQuantity;
+        // معالجة المنتج الواحد
+        const stockQuantity = product.stock_quantity || 0;
+        let actualStockQuantity = stockQuantity;
 
-          // معالجة الألوان والمقاسات من variants JSON
-          const variantsArray = Array.isArray(product.variants) ? product.variants : [];
-          const processedColors = variantsArray.map((color: any) => {
-            const processedSizes = (color.sizes || []).map((size: any) => ({
-              id: size.id,
-              size_name: size.size_name,
-              quantity: size.quantity || 0,
-              price: size.price,
-              barcode: size.barcode?.trim() || undefined,
-              is_default: size.is_default,
-              purchase_price: size.purchase_price
-            }));
+        // معالجة الألوان والمقاسات من variants JSON
+        const variantsArray = Array.isArray(product.variants) ? product.variants : [];
+        const processedColors = variantsArray.map((color: any) => {
+          const processedSizes = (color.sizes || []).map((size: any) => ({
+            id: size.id,
+            size_name: size.size_name,
+            quantity: size.quantity || 0,
+            price: size.price,
+            barcode: size.barcode?.trim() || undefined,
+            is_default: size.is_default,
+            purchase_price: size.purchase_price
+          }));
 
-            // تحديث إحصائيات المخزون والباركود
-            const colorStock = color.quantity || 0;
-            const totalVariantsStock = colorStock + processedSizes.reduce((sum: number, size: any) => sum + (size.quantity || 0), 0);
-            let hasValidBarcodes = false;
+          // تحديث إحصائيات المخزون والباركود
+          const colorStock = color.quantity || 0;
+          const totalVariantsStock = colorStock + processedSizes.reduce((sum: number, size: any) => sum + (size.quantity || 0), 0);
+          let hasValidBarcodes = false;
 
-            if (color.barcode?.trim()) hasValidBarcodes = true;
-            if (processedSizes.some((size: any) => size.barcode)) hasValidBarcodes = true;
+          if (color.barcode?.trim()) hasValidBarcodes = true;
+          if (processedSizes.some((size: any) => size.barcode)) hasValidBarcodes = true;
 
-            return {
-              id: color.id,
-              product_id: product.id,
-              name: color.name,
-              color_code: color.color_code,
-              image_url: color.image_url,
-              quantity: colorStock,
-              price: color.price,
-              barcode: color.barcode?.trim() || undefined,
-              is_default: color.is_default,
-              has_sizes: color.has_sizes,
-              variant_number: color.variant_number,
-              purchase_price: color.purchase_price,
-              sizes: processedSizes
-            };
-          });
-
-          // حساب المخزون النهائي مع اعتبار المتغيرات
-          if (product.has_variants && processedColors.length > 0) {
-            const totalVariantsStock = processedColors.reduce((total, color) => {
-              return total + (color.quantity || 0) + 
-                     (color.sizes?.reduce((sizeTotal, size) => sizeTotal + (size.quantity || 0), 0) || 0);
-            }, 0);
-            actualStockQuantity = totalVariantsStock;
-          }
-
-          const processedProduct = {
-            // خصائص Product الأساسية
-            id: product.id,
-            name: product.name,
-            description: product.description || '',
-            price: product.price,
-            compareAtPrice: product.compare_at_price,
-            sku: product.sku,
-            barcode: product.barcode?.trim() || undefined,
-            category: product.category_name || 'أخرى',
-            category_id: product.category_id,
-            subcategory: product.subcategory,
-            subcategory_id: product.subcategory_id,
-            brand: product.brand,
-            images: Array.isArray(product.images) ? product.images : [],
-            thumbnailImage: product.thumbnail_image || '',
-            stockQuantity: actualStockQuantity,
-            stock_quantity: actualStockQuantity,
-            features: Array.isArray(product.features) ? product.features : [],
-            specifications: typeof product.specifications === 'object' && product.specifications !== null ? product.specifications : {},
-            isDigital: product.is_digital || false,
-            isNew: product.is_new,
-            isFeatured: product.is_featured,
-            createdAt: new Date(product.created_at),
-            updatedAt: new Date(product.updated_at || product.created_at),
-            has_variants: product.has_variants,
-            use_sizes: product.use_sizes,
-            
-            // خصائص إضافية من قاعدة البيانات
-            compare_at_price: product.compare_at_price,
-            purchase_price: product.purchase_price,
-            min_stock_level: product.min_stock_level,
-            reorder_level: product.reorder_level,
-            reorder_quantity: product.reorder_quantity,
-            slug: product.slug,
-            show_price_on_landing: product.show_price_on_landing !== false,
-            last_inventory_update: product.last_inventory_update,
-            is_active: product.is_active,
-            
-            // خصائص الجملة
-            wholesale_price: product.wholesale_price,
-            partial_wholesale_price: product.partial_wholesale_price,
-            min_wholesale_quantity: product.min_wholesale_quantity,
-            min_partial_wholesale_quantity: product.min_partial_wholesale_quantity,
-            allow_retail: product.allow_retail !== false,
-            allow_wholesale: product.allow_wholesale !== false,
-            allow_partial_wholesale: product.allow_partial_wholesale !== false,
-            
-            // خصائص المتغيرات والألوان المحسنة
-            colors: processedColors,
-            
-            // حساب المخزون الفعلي مع تحسينات
-            actual_stock_quantity: actualStockQuantity,
-            total_variants_stock: processedColors.reduce((total, color) => {
-              return total + (color.quantity || 0) + 
-                     (color.sizes?.reduce((sizeTotal, size) => sizeTotal + (size.quantity || 0), 0) || 0);
-            }, 0),
-            low_stock_warning: actualStockQuantity <= (product.min_stock_level || 5),
-            
-            // معلومات إضافية
-            has_fast_shipping: product.has_fast_shipping || false,
-            has_money_back: product.has_money_back || false,
-            has_quality_guarantee: product.has_quality_guarantee || false,
-            fast_shipping_text: product.fast_shipping_text,
-            money_back_text: product.money_back_text,
-            quality_guarantee_text: product.quality_guarantee_text,
-            
-            // معلومات الوحدة
-            is_sold_by_unit: product.is_sold_by_unit || false,
-            unit_type: product.unit_type,
-            use_variant_prices: product.use_variant_prices || false,
-            unit_purchase_price: product.unit_purchase_price,
-            unit_sale_price: product.unit_sale_price,
-            
-            // إعدادات الشحن
-            shipping_clone_id: product.shipping_clone_id,
-            name_for_shipping: product.name_for_shipping,
-            use_shipping_clone: product.use_shipping_clone || false,
-            shipping_method_type: product.shipping_method_type || 'normal',
-            
-            // تتبع المستخدم
-            created_by_user_id: product.created_by_user_id,
-            updated_by_user_id: product.updated_by_user_id,
-            
-            // معلومات مساعدة للباركود
-            has_valid_barcodes: (processedColors.some(c => c.barcode || c.sizes?.some(s => s.barcode))) || !!product.barcode?.trim(),
-            thumbnail_image: product.images?.[0] || null // إضافة الحقل المطلوب
+          return {
+            id: color.id,
+            product_id: product.id,
+            name: color.name,
+            color_code: color.color_code,
+            image_url: color.image_url,
+            quantity: colorStock,
+            price: color.price,
+            barcode: color.barcode?.trim() || undefined,
+            is_default: color.is_default,
+            has_sizes: color.has_sizes,
+            variant_number: color.variant_number,
+            purchase_price: color.purchase_price,
+            sizes: processedSizes
           };
-          
-          processedProducts.push(processedProduct as any);
+        });
+
+        // حساب المخزون النهائي مع اعتبار المتغيرات
+        if (product.has_variants && processedColors.length > 0) {
+          const totalVariantsStock = processedColors.reduce((total, color) => {
+            return total + (color.quantity || 0) +
+              (color.sizes?.reduce((sizeTotal, size) => sizeTotal + (size.quantity || 0), 0) || 0);
+          }, 0);
+          actualStockQuantity = totalVariantsStock;
         }
 
-      logPOSContextStatus('PRODUCTS_PROCESSED', { 
+        const processedProduct = {
+          // خصائص Product الأساسية
+          id: product.id,
+          name: product.name,
+          description: product.description || '',
+          price: product.price,
+          compareAtPrice: product.compare_at_price,
+          sku: product.sku,
+          barcode: product.barcode?.trim() || undefined,
+          category: product.category_name || 'أخرى',
+          category_id: product.category_id,
+          subcategory: product.subcategory,
+          subcategory_id: product.subcategory_id,
+          brand: product.brand,
+          images: Array.isArray(product.images) ? product.images : [],
+          thumbnailImage: product.thumbnail_image || '',
+          stockQuantity: actualStockQuantity,
+          stock_quantity: actualStockQuantity,
+          features: Array.isArray(product.features) ? product.features : [],
+          specifications: typeof product.specifications === 'object' && product.specifications !== null ? product.specifications : {},
+          isDigital: product.is_digital || false,
+          isNew: product.is_new,
+          isFeatured: product.is_featured,
+          createdAt: new Date(product.created_at),
+          updatedAt: new Date(product.updated_at || product.created_at),
+          has_variants: product.has_variants,
+          use_sizes: product.use_sizes,
+
+          // خصائص إضافية من قاعدة البيانات
+          compare_at_price: product.compare_at_price,
+          purchase_price: product.purchase_price,
+          min_stock_level: product.min_stock_level,
+          reorder_level: product.reorder_level,
+          reorder_quantity: product.reorder_quantity,
+          slug: product.slug,
+          show_price_on_landing: product.show_price_on_landing !== false,
+          last_inventory_update: product.last_inventory_update,
+          is_active: product.is_active,
+
+          // خصائص الجملة
+          wholesale_price: product.wholesale_price,
+          partial_wholesale_price: product.partial_wholesale_price,
+          min_wholesale_quantity: product.min_wholesale_quantity,
+          min_partial_wholesale_quantity: product.min_partial_wholesale_quantity,
+          allow_retail: product.allow_retail !== false,
+          allow_wholesale: product.allow_wholesale !== false,
+          allow_partial_wholesale: product.allow_partial_wholesale !== false,
+
+          // خصائص المتغيرات والألوان المحسنة
+          colors: processedColors,
+
+          // حساب المخزون الفعلي مع تحسينات
+          actual_stock_quantity: actualStockQuantity,
+          total_variants_stock: processedColors.reduce((total, color) => {
+            return total + (color.quantity || 0) +
+              (color.sizes?.reduce((sizeTotal, size) => sizeTotal + (size.quantity || 0), 0) || 0);
+          }, 0),
+          low_stock_warning: actualStockQuantity <= (product.min_stock_level || 5),
+
+          // معلومات إضافية
+          has_fast_shipping: product.has_fast_shipping || false,
+          has_money_back: product.has_money_back || false,
+          has_quality_guarantee: product.has_quality_guarantee || false,
+          fast_shipping_text: product.fast_shipping_text,
+          money_back_text: product.money_back_text,
+          quality_guarantee_text: product.quality_guarantee_text,
+
+          // معلومات الوحدة
+          is_sold_by_unit: product.is_sold_by_unit || false,
+          unit_type: product.unit_type,
+          use_variant_prices: product.use_variant_prices || false,
+          unit_purchase_price: product.unit_purchase_price,
+          unit_sale_price: product.unit_sale_price,
+
+          // إعدادات الشحن
+          shipping_clone_id: product.shipping_clone_id,
+          name_for_shipping: product.name_for_shipping,
+          use_shipping_clone: product.use_shipping_clone || false,
+          shipping_method_type: product.shipping_method_type || 'normal',
+
+          // تتبع المستخدم
+          created_by_user_id: product.created_by_user_id,
+          updated_by_user_id: product.updated_by_user_id,
+
+          // معلومات مساعدة للباركود
+          has_valid_barcodes: (processedColors.some(c => c.barcode || c.sizes?.some(s => s.barcode))) || !!product.barcode?.trim(),
+          thumbnail_image: product.images?.[0] || null // إضافة الحقل المطلوب
+        };
+
+        processedProducts.push(processedProduct as any);
+      }
+
+      logPOSContextStatus('PRODUCTS_PROCESSED', {
         count: processedProducts.length,
         withVariants: processedProducts.filter(p => p.colors?.length > 0).length
       });
@@ -660,7 +756,7 @@ const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWi
       logPOSContextStatus('FETCH_ERROR_FALLBACK_TO_LOCAL', { error });
       console.error('[POSDataContext] فشل جلب المنتجات من Supabase - استخدام البيانات المحلية إذا كانت متاحة', error);
       markNetworkOffline({ force: true });
-      
+
       // محاولة جلب البيانات المحلية مرة أخرى
       try {
         const fallbackProducts = await getOfflineProducts(orgId);
@@ -674,7 +770,7 @@ const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWi
       } catch (fallbackError) {
         console.warn('فشل جلب البيانات المحلية كـ fallback:', fallbackError);
       }
-      
+
       // إذا لم تكن هناك بيانات محلية، أعد رمي الخطأ
       throw error;
     }
@@ -683,14 +779,14 @@ const fetchPOSProductsWithVariants = async (orgId: string): Promise<POSProductWi
 
 const fetchPOSSubscriptionsEnhanced = async (orgId: string): Promise<SubscriptionService[]> => {
   return deduplicateRequest(`pos-subscriptions-enhanced-${orgId}`, async () => {
-    // محاولة البيانات المحلية أولاً في جميع الحالات
+    // ⚡ محاولة البيانات المحلية أولاً عبر Delta Sync
     let localSubscriptions: any[] = [];
     try {
-      localSubscriptions = await inventoryDB.organizationSubscriptions
-        .where('organization_id')
-        .equals(orgId)
-        .toArray();
-      console.info('[POSDataContext] تم تحميل الاشتراكات المحلية من IndexedDB', {
+      localSubscriptions = await deltaWriteService.getAll<LocalOrganizationSubscription>(
+        'organization_subscriptions' as any,
+        orgId
+      );
+      console.info('[POSDataContext] تم تحميل الاشتراكات المحلية من Delta Sync', {
         orgId,
         count: localSubscriptions.length
       });
@@ -710,7 +806,7 @@ const fetchPOSSubscriptionsEnhanced = async (orgId: string): Promise<Subscriptio
       }
       return [];
     }
-    
+
     try {
       // جلب الخدمات مع الأسعار
       const { data: servicesData, error: servicesError } = await supabase
@@ -756,13 +852,13 @@ const fetchPOSSubscriptionsEnhanced = async (orgId: string): Promise<Subscriptio
       logPOSContextStatus('FETCH_SUBSCRIPTIONS_ERROR_FALLBACK_TO_LOCAL', { error });
       console.error('[POSDataContext] فشل جلب الاشتراكات من Supabase - استخدام البيانات المحلية إذا كانت متاحة', error);
       markNetworkOffline({ force: true });
-      
-      // محاولة جلب البيانات المحلية مرة أخرى
+
+      // ⚡ محاولة جلب البيانات المحلية عبر Delta Sync
       try {
-        const fallbackSubscriptions = await inventoryDB.organizationSubscriptions
-          .where('organization_id')
-          .equals(orgId)
-          .toArray();
+        const fallbackSubscriptions = await deltaWriteService.getAll<LocalOrganizationSubscription>(
+          'organization_subscriptions' as any,
+          orgId
+        );
         console.info('[POSDataContext] تم استرجاع الاشتراكات المحلية من fallback', {
           orgId,
           count: fallbackSubscriptions.length
@@ -773,7 +869,7 @@ const fetchPOSSubscriptionsEnhanced = async (orgId: string): Promise<Subscriptio
       } catch (fallbackError) {
         console.warn('فشل جلب الاشتراكات المحلية كـ fallback:', fallbackError);
       }
-      
+
       // إذا لم تكن هناك بيانات محلية، أعد رمي الخطأ
       throw error;
     }
@@ -810,7 +906,7 @@ const fetchPOSCategoriesEnhanced = async (orgId: string): Promise<SubscriptionCa
       }
       return [];
     }
-    
+
     try {
       // استخدام جدول product_categories كبديل
       const { data, error } = await supabase
@@ -842,7 +938,7 @@ const fetchPOSCategoriesEnhanced = async (orgId: string): Promise<SubscriptionCa
       logPOSContextStatus('FETCH_CATEGORIES_ERROR_FALLBACK_TO_LOCAL', { error });
       console.error('[POSDataContext] فشل جلب الفئات من Supabase - استخدام البيانات المحلية إذا كانت متاحة', error);
       markNetworkOffline({ force: true });
-      
+
       // محاولة جلب البيانات المحلية مرة أخرى
       try {
         const fallbackCategories = await getLocalCategories();
@@ -860,7 +956,7 @@ const fetchPOSCategoriesEnhanced = async (orgId: string): Promise<SubscriptionCa
       } catch (fallbackError) {
         console.warn('فشل جلب الفئات المحلية كـ fallback:', fallbackError);
       }
-      
+
       // إذا لم تكن هناك بيانات محلية، أعد رمي الخطأ
       throw error;
     }
@@ -909,7 +1005,7 @@ const fetchProductCategories = async (orgId: string): Promise<ProductCategory[]>
     try {
       // استخدام UnifiedRequestManager للحد من الطلبات المكررة
       const data = await UnifiedRequestManager.getProductCategories(orgId);
-      
+
       // تحويل البيانات إلى ProductCategory format
       const remoteCategories = (data || []).map(cat => ({
         id: cat.id,
@@ -927,7 +1023,7 @@ const fetchProductCategories = async (orgId: string): Promise<ProductCategory[]>
       logPOSContextStatus('FETCH_PRODUCT_CATEGORIES_ERROR_FALLBACK_TO_LOCAL', { error });
       console.error('[POSDataContext] فشل جلب فئات المنتجات من Supabase - استخدام البيانات المحلية إذا كانت متاحة', error);
       markNetworkOffline({ force: true });
-      
+
       // محاولة جلب البيانات المحلية مرة أخرى
       try {
         const fallbackCategories = await getLocalCategories();
@@ -953,7 +1049,7 @@ const fetchProductCategories = async (orgId: string): Promise<ProductCategory[]>
       } catch (fallbackError) {
         console.warn('فشل جلب فئات المنتجات المحلية كـ fallback:', fallbackError);
       }
-      
+
       // إذا لم تكن هناك بيانات محلية، أعد رمي الخطأ
       throw error;
     }
@@ -1008,21 +1104,21 @@ const fetchPOSSettingsEnhanced = async (orgId: string): Promise<any> => {
         .maybeSingle();
 
       if (directError) {
-        
-              // إنشاء إعدادات افتراضية إذا لم توجد
-      try {
-        const { data: newSettings, error: createError } = await supabase
-          .rpc('initialize_pos_settings', { p_organization_id: orgId });
-        
-        if (!createError && newSettings && typeof newSettings === 'object') {
-          return newSettings as POSSettings;
+
+        // إنشاء إعدادات افتراضية إذا لم توجد
+        try {
+          const { data: newSettings, error: createError } = await supabase
+            .rpc('initialize_pos_settings', { p_organization_id: orgId });
+
+          if (!createError && newSettings && typeof newSettings === 'object') {
+            return newSettings as POSSettings;
+          }
+        } catch (createRpcError) {
         }
-      } catch (createRpcError) {
-      }
-        
+
         throw directError;
       }
-      
+
       if (directData) {
         await localPosSettingsService.save({ ...directData, updated_at: directData.updated_at || new Date().toISOString() });
         markNetworkOnline();
@@ -1033,7 +1129,7 @@ const fetchPOSSettingsEnhanced = async (orgId: string): Promise<any> => {
       try {
         const { data: newSettings, error: createError } = await supabase
           .rpc('initialize_pos_settings', { p_organization_id: orgId });
-        
+
         if (!createError && newSettings && typeof newSettings === 'object') {
           await localPosSettingsService.save({ ...(newSettings as any), updated_at: new Date().toISOString() });
           markNetworkOnline();
@@ -1041,14 +1137,14 @@ const fetchPOSSettingsEnhanced = async (orgId: string): Promise<any> => {
         }
       } catch (createRpcError) {
       }
-      
+
       return null;
     } catch (error) {
       // عند فشل الاتصال بالخادم، استخدم البيانات المحلية كـ fallback
       logPOSContextStatus('FETCH_POS_SETTINGS_ERROR_FALLBACK_TO_LOCAL', { error });
       console.error('[POSDataContext] فشل جلب إعدادات POS من Supabase - استخدام البيانات المحلية إذا كانت متاحة', error);
       markNetworkOffline({ force: true });
-      
+
       // محاولة جلب البيانات المحلية مرة أخرى
       try {
         const fallbackSettings = await localPosSettingsService.get(orgId);
@@ -1062,7 +1158,7 @@ const fetchPOSSettingsEnhanced = async (orgId: string): Promise<any> => {
       } catch (fallbackError) {
         console.warn('فشل جلب إعدادات POS المحلية كـ fallback:', fallbackError);
       }
-      
+
       // إذا لم تكن هناك بيانات محلية، أعد رمي الخطأ
       throw error;
     }
@@ -1091,11 +1187,11 @@ const fetchOrganizationAppsEnhanced = async (orgId: string): Promise<Organizatio
         }
       ];
     }
-    
+
     try {
       // ✅ تم تعطيل الاستدعاء المباشر - البيانات متوفرة من AppInitializationContext
       console.log('⚠️ [POSDataContext] fetchOrganizationApps - استخدام بيانات وهمية (البيانات من AppInitializationContext)');
-      
+
       // البيانات متوفرة من AppInitializationContext، لا حاجة لاستدعاء منفصل
       // const { data, error } = await supabase
       //   .from('organizations')
@@ -1150,7 +1246,7 @@ const fetchPOSCompleteData = async (orgId: string): Promise<{
   // منع الاستدعاءات المتكررة للمنظمة نفسها
   const cacheKey = `pos-complete-data-${orgId}`;
   const existingRequest = (window as any)[`fetching_${cacheKey}`];
-  
+
   if (existingRequest) {
     return await existingRequest;
   }
@@ -1184,7 +1280,7 @@ const fetchPOSCompleteData = async (orgId: string): Promise<{
 
       // معالجة النتائج مع تسجيل الأخطاء
       const errors: Record<string, string> = {};
-      
+
       const products = productsResult.status === 'fulfilled' ? productsResult.value : [];
       if (productsResult.status === 'rejected') {
         errors.products = 'فشل في جلب المنتجات';
@@ -1267,7 +1363,7 @@ const fetchPOSUsers = async (orgId: string): Promise<any[]> => {
   try {
     // ✅ تم تعطيل الاستدعاء المباشر - البيانات متوفرة من AppInitializationContext
     console.log('⚠️ [POSDataContext] fetchPOSUsers - البيانات متوفرة من AppInitializationContext');
-    
+
     // البيانات متوفرة من AppInitializationContext.employees
     // const { data, error } = await supabase
     //   .from('users')
@@ -1279,7 +1375,7 @@ const fetchPOSUsers = async (orgId: string): Promise<any[]> => {
 
     // if (error) throw error;
     // return data || [];
-    
+
     return []; // سيتم استخدام البيانات من AppInitializationContext
   } catch (error) {
     return [];
@@ -1297,7 +1393,7 @@ const fetchPOSCustomers = async (orgId: string): Promise<any[]> => {
           'SELECT * FROM customers WHERE organization_id = ? ORDER BY name ASC',
           [orgId]
         );
-        
+
         if (result.success && result.data) {
           localCustomers = result.data.map((c: any) => ({
             ...c,
@@ -1305,11 +1401,8 @@ const fetchPOSCustomers = async (orgId: string): Promise<any[]> => {
           }));
         }
       } else {
-        // Fallback للمتصفح
-        localCustomers = await inventoryDB.customers
-          .where('organization_id')
-          .equals(orgId)
-          .toArray();
+        // ⚡ Fallback للمتصفح عبر Delta Sync
+        localCustomers = await deltaWriteService.getAll<LocalCustomer>('customers', orgId);
       }
     } catch (error) {
       console.warn('[POSDataContext] فشل جلب العملاء من SQLite:', error);
@@ -1346,10 +1439,8 @@ const fetchPOSOrderStats = async (orgId: string): Promise<any> => {
   if (isOfflineMode()) {
     let localOrders: LocalPOSOrder[] = [];
     try {
-      localOrders = await inventoryDB.posOrders
-        .where('organization_id')
-        .equals(orgId)
-        .toArray();
+      // ⚡ استخدام Delta Sync
+      localOrders = await deltaWriteService.getAll<LocalPOSOrder>('pos_orders', orgId);
     } catch (error) {
       localOrders = [];
     }
@@ -1441,7 +1532,7 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const orgId = currentOrganization?.id;
-  
+
   logPOSContextStatus('PROVIDER_INIT', { orgId, hasOrg: !!currentOrganization, hasUser: !!user });
 
   // React Query للمنتجات المحسنة مع المتغيرات والمخزون
@@ -1576,8 +1667,8 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
     const lowStockProducts = products.filter(p => p.low_stock_warning).length;
     const outOfStockProducts = products.filter(p => p.actual_stock_quantity <= 0).length;
     const totalVariants = products.reduce((total, p) => {
-      return total + (p.colors?.length || 0) + 
-             (p.colors?.reduce((colorTotal, c) => colorTotal + (c.sizes?.length || 0), 0) || 0);
+      return total + (p.colors?.length || 0) +
+        (p.colors?.reduce((colorTotal, c) => colorTotal + (c.sizes?.length || 0), 0) || 0);
     }, 0);
     const totalStock = products.reduce((total, p) => total + p.actual_stock_quantity, 0);
 
@@ -1744,46 +1835,51 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
     sizeId: string | null,
     quantityChange: number // تغيير الاسم لتوضيح أنه تغيير وليس دائماً تقليل
   ) => {
-    
+
     // استخدام invalidateQueries + setQueryData للتأكد من re-render
     queryClient.setQueryData(['pos-products-enhanced', orgId], (oldData: POSProductWithVariants[] | undefined) => {
       if (!oldData) {
         return oldData;
       }
-      
+
       const updatedData = oldData.map(product => {
         if (product.id !== productId) return product;
-        
+
         const updatedProduct = { ...product };
-        
+
         if (sizeId && colorId) {
+          // ✅ استخدام ensureArray للتعامل مع JSON strings من SQLite
+          const productColors = ensureArray(product.colors) as any[];
           // تحديث مقاس محدد
-          updatedProduct.colors = product.colors?.map(color => {
+          updatedProduct.colors = productColors.map(color => {
             if (color.id === colorId) {
+              const colorSizes = ensureArray(color.sizes) as any[];
               return {
                 ...color,
-                sizes: color.sizes?.map(size => {
+                sizes: colorSizes.map(size => {
                   if (size.id === sizeId) {
                     // quantityChange موجبة = إضافة للمخزون، سالبة = إنقاص من المخزون
                     const newQuantity = Math.max(0, size.quantity + quantityChange);
                     return { ...size, quantity: newQuantity };
                   }
                   return size;
-                }) || []
+                })
               };
             }
             return color;
-          }) || [];
+          });
         } else if (colorId) {
+          // ✅ استخدام ensureArray للتعامل مع JSON strings من SQLite
+          const productColors = ensureArray(product.colors) as any[];
           // تحديث لون محدد
-          updatedProduct.colors = product.colors?.map(color => {
+          updatedProduct.colors = productColors.map(color => {
             if (color.id === colorId) {
               // quantityChange موجبة = إضافة للمخزون، سالبة = إنقاص من المخزون
               const newQuantity = Math.max(0, color.quantity + quantityChange);
               return { ...color, quantity: newQuantity };
             }
             return color;
-          }) || [];
+          });
         } else {
           // تحديث المنتج الأساسي
           // quantityChange موجبة = إضافة للمخزون، سالبة = إنقاص من المخزون
@@ -1792,15 +1888,15 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
           updatedProduct.stockQuantity = newQuantity;
           updatedProduct.actual_stock_quantity = newQuantity;
         }
-        
+
         return updatedProduct;
       });
-      
+
       return updatedData;
     });
-    
+
     // إجبار React Query على إعادة التقييم والـ re-render فوراً
-    queryClient.invalidateQueries({ 
+    queryClient.invalidateQueries({
       queryKey: ['pos-products-enhanced', orgId],
       exact: true,
       refetchType: 'none' // لا نريد refetch من الخادم، فقط re-render
@@ -1808,13 +1904,13 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
 
     // إجبار re-render إضافي للتأكد من تحديث الواجهة مع تأخير قصير
     setTimeout(() => {
-      queryClient.invalidateQueries({ 
+      queryClient.invalidateQueries({
         queryKey: ['pos-products-enhanced', orgId],
         exact: true,
         refetchType: 'none'
       });
     }, 100);
-    
+
   }, [queryClient, orgId]);
 
   // دوال مساعدة للمخزون
@@ -1831,14 +1927,18 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
       return stock;
     }
 
+    // ✅ استخدام ensureArray للتعامل مع JSON strings من SQLite
+    const productColors = ensureArray(product.colors) as any[];
+
     if (colorId) {
-      const color = product.colors?.find(c => c.id === colorId);
+      const color = productColors.find(c => c.id === colorId);
       if (!color) {
         return 0;
       }
 
       if (sizeId && color.has_sizes) {
-        const size = color.sizes?.find(s => s.id === sizeId);
+        const colorSizes = ensureArray(color.sizes) as any[];
+        const size = colorSizes.find(s => s.id === sizeId);
         if (!size) {
           return 0;
         }
@@ -1846,7 +1946,7 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
         const stockQuantity = size.quantity || 0;
         return stockQuantity;
       }
-      
+
       return color.quantity || 0;
     }
 
@@ -1890,9 +1990,9 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
           const updatedSizes = (color.sizes || []).map((size) =>
             size.id === sizeId
               ? {
-                  ...size,
-                  quantity: newQuantity
-                }
+                ...size,
+                quantity: newQuantity
+              }
               : size
           );
 
@@ -2010,35 +2110,38 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
   }, [products]);
 
   const getProductPrice = useCallback((
-    productId: string, 
-    quantity: number, 
-    colorId?: string, 
+    productId: string,
+    quantity: number,
+    colorId?: string,
     sizeId?: string
   ): number => {
     const product = products.find(p => p.id === productId);
     if (!product) return 0;
 
     // فحص أسعار الجملة
-    if (product.allow_wholesale && 
-        product.wholesale_price && 
-        product.min_wholesale_quantity && 
-        quantity >= product.min_wholesale_quantity) {
+    if (product.allow_wholesale &&
+      product.wholesale_price &&
+      product.min_wholesale_quantity &&
+      quantity >= product.min_wholesale_quantity) {
       return product.wholesale_price;
     }
 
-    if (product.allow_partial_wholesale && 
-        product.partial_wholesale_price && 
-        product.min_partial_wholesale_quantity && 
-        quantity >= product.min_partial_wholesale_quantity) {
+    if (product.allow_partial_wholesale &&
+      product.partial_wholesale_price &&
+      product.min_partial_wholesale_quantity &&
+      quantity >= product.min_partial_wholesale_quantity) {
       return product.partial_wholesale_price;
     }
 
     // فحص أسعار المتغيرات
     if (product.use_variant_prices && colorId) {
-      const color = product.colors?.find(c => c.id === colorId);
+      // ✅ استخدام ensureArray للتعامل مع JSON strings من SQLite
+      const productColors = ensureArray(product.colors) as any[];
+      const color = productColors.find(c => c.id === colorId);
       if (color) {
         if (sizeId && color.has_sizes) {
-          const size = color.sizes?.find(s => s.id === sizeId);
+          const colorSizes = ensureArray(color.sizes) as any[];
+          const size = colorSizes.find(s => s.id === sizeId);
           if (size?.price) return size.price;
         }
         if (color.price) return color.price;
@@ -2050,8 +2153,8 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
   }, [products]);
 
   // حساب حالة التحميل الإجمالية
-  const isLoading = isProductsLoading || isSubscriptionsLoading || isCategoriesLoading || 
-                   isPOSSettingsLoading || isAppsLoading || isProductCategoriesLoading;
+  const isLoading = isProductsLoading || isSubscriptionsLoading || isCategoriesLoading ||
+    isPOSSettingsLoading || isAppsLoading || isProductCategoriesLoading;
 
   // تجميع الأخطاء
   const errors = useMemo(() => ({
@@ -2074,10 +2177,10 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
     posSettings,
     organizationApps,
     customers,
-    
+
     // إحصائيات المخزون
     inventoryStats,
-    
+
     // حالات التحميل
     isLoading,
     isProductsLoading,
@@ -2086,10 +2189,10 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
     isPOSSettingsLoading,
     isAppsLoading,
     isCustomersLoading,
-    
+
     // الأخطاء
     errors,
-    
+
     // الوظائف
     refreshAll,
     refreshProducts,
@@ -2097,7 +2200,7 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
     refreshPOSSettings,
     refreshApps,
     refreshCustomers,
-    
+
     // دوال المخزون
     getProductStock,
     updateProductStock,
@@ -2106,7 +2209,7 @@ export const POSDataProvider: React.FC<POSDataProviderProps> = ({ children }) =>
     getProductPrice,
   }), [
     products, subscriptions, categories, productCategories, posSettings, organizationApps,
-    inventoryStats, isLoading, isProductsLoading, isSubscriptionsLoading, 
+    inventoryStats, isLoading, isProductsLoading, isSubscriptionsLoading,
     isCategoriesLoading, isProductCategoriesLoading, isPOSSettingsLoading, isAppsLoading, errors,
     refreshAll, refreshProducts, refreshSubscriptions, refreshPOSSettings, refreshApps,
     getProductStock, updateProductStock, updateProductStockInCache, checkLowStock, getProductPrice

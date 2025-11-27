@@ -48,10 +48,10 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
   queuePosition
 }) => {
   const { currentOrganization } = useTenant();
-  
+
   // بناء رابط المتجر الصحيح
   const storeUrl = buildStoreUrl(currentOrganization);
-  
+
   // دالة لضمان ظهور QR codes عند الطباعة وإصلاح مشكلة العرض
   const ensureQRCodesVisible = () => {
     // إضافة أنماط إضافية لضمان ظهور QR codes وإصلاح العرض
@@ -149,31 +149,31 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
       }
     `;
     document.head.appendChild(style);
-    
+
     // إزالة الأنماط بعد الطباعة
     setTimeout(() => {
       document.head.removeChild(style);
     }, 1000);
   };
-  
+
   // تطبيق الدالة عند تحميل المكون
   React.useEffect(() => {
     // تحقق من صحة الروابط
-    
+
     ensureQRCodesVisible();
-    
+
     // إضافة مستمع لحدث الطباعة
     const handleBeforePrint = () => {
       ensureQRCodesVisible();
     };
-    
+
     window.addEventListener('beforeprint', handleBeforePrint);
-    
+
     return () => {
       window.removeEventListener('beforeprint', handleBeforePrint);
     };
   }, [storeUrl, order.tracking_number, order.id]);
-  
+
   // تنسيق التاريخ
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -223,7 +223,7 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
       const platform = line.match(/\(([^)]+)\)/)?.[1] || 'غير محدد';
       const quantity = parseInt(line.match(/الكمية: (\d+)/)?.[1] || '1');
       const price = parseInt(line.match(/السعر: ([\d,]+)/)?.[1]?.replace(/,/g, '') || '0');
-      
+
       return { name: gameName, platform, quantity, price };
     });
   };
@@ -233,14 +233,14 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
 
   return (
     <>
-      {/* تحميل خط Tajawal من Google Fonts */}
-      <link
+      {/* تحميل خط Tajawal من Google Fonts - معطل للعمل بدون انترنت */}
+      {/* <link
         href="https://fonts.googleapis.com/css2?family=Tajawal:wght@200;300;400;500;600;700;800;900&display=swap"
         rel="stylesheet"
-      />
-      
-      <div 
-        className="game-receipt" 
+      /> */}
+
+      <div
+        className="game-receipt"
         dir="rtl"
         style={{
           fontFamily: "'Tajawal', Arial, sans-serif",
@@ -262,7 +262,7 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
         {/* تطبيق خط Tajawal بقوة */}
         <style dangerouslySetInnerHTML={{
           __html: `
-            @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@200;300;400;500;600;700;800;900&display=swap');
+            /* @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@200;300;400;500;600;700;800;900&display=swap'); */
             
             *, *::before, *::after {
               font-family: 'Tajawal', Arial, sans-serif !important;
@@ -383,34 +383,34 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
 
         {/* ====================== الجزء الأول: إيصال العميل ====================== */}
         <div className="center-item">
-          
+
           {/* رأس الوصل */}
-          <div className="center-flex" style={{ 
-            borderBottom: '3px solid black', 
-            paddingBottom: '4mm', 
-            marginBottom: '5mm' 
+          <div className="center-flex" style={{
+            borderBottom: '3px solid black',
+            paddingBottom: '4mm',
+            marginBottom: '5mm'
           }}>
             {storeLogo && (
               <div className="center-item" style={{ marginBottom: '3mm' }}>
-                <img 
-                  src={storeLogo} 
-                  alt={storeName} 
+                <img
+                  src={storeLogo}
+                  alt={storeName}
                   className="center-item"
-                  style={{ 
-                    height: '25mm', 
-                    width: '25mm', 
+                  style={{
+                    height: '25mm',
+                    width: '25mm',
                     objectFit: 'contain',
                     display: 'block',
                     margin: '0 auto'
-                  }} 
+                  }}
                 />
               </div>
             )}
-            
+
             <div className="center-item">
-              <h1 className="center-item" style={{ 
-                fontSize: '18px', 
-                fontWeight: '900', 
+              <h1 className="center-item" style={{
+                fontSize: '18px',
+                fontWeight: '900',
                 margin: '0 0 2mm 0',
                 textAlign: 'center',
                 fontFamily: "'Tajawal', Arial, sans-serif"
@@ -418,11 +418,11 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
                 {truncateText(storeName, 25)}
               </h1>
             </div>
-            
+
             {storePhone && (
               <div className="center-item" style={{ marginTop: '2mm' }}>
-                <p className="center-item" style={{ 
-                  fontSize: '12px', 
+                <p className="center-item" style={{
+                  fontSize: '12px',
                   fontWeight: '600',
                   margin: '0',
                   textAlign: 'center'
@@ -431,11 +431,11 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
                 </p>
               </div>
             )}
-            
+
             {storeAddress && (
               <div className="center-item" style={{ marginTop: '1mm' }}>
-                <p className="center-item" style={{ 
-                  fontSize: '11px', 
+                <p className="center-item" style={{
+                  fontSize: '11px',
                   margin: '0',
                   opacity: '0.8',
                   textAlign: 'center'
@@ -462,16 +462,16 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
               borderRadius: '4mm',
               border: '3px solid black'
             }}>
-              <div className="center-item" style={{ 
-                fontSize: '12px', 
+              <div className="center-item" style={{
+                fontSize: '12px',
                 fontWeight: '500',
                 marginBottom: '1mm',
                 color: 'white'
               }}>
                 رقم التتبع
               </div>
-              <div className="center-item" style={{ 
-                fontSize: '20px', 
+              <div className="center-item" style={{
+                fontSize: '20px',
                 fontWeight: '900',
                 color: 'white',
                 fontFamily: "'Tajawal', Arial, sans-serif",
@@ -485,7 +485,7 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
           {/* التاريخ */}
           <div className="info-row center-item">
             <div className="info-label center-item">📅 التاريخ والوقت</div>
-            <div className="info-value center-item" style={{ 
+            <div className="info-value center-item" style={{
               fontSize: '12px',
               fontFamily: "'Tajawal', Arial, sans-serif",
               direction: 'ltr',
@@ -504,16 +504,16 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
                 padding: '4mm',
                 borderRadius: '4mm'
               }}>
-                <div className="center-item" style={{ 
-                  fontSize: '12px', 
+                <div className="center-item" style={{
+                  fontSize: '12px',
                   fontWeight: '500',
                   marginBottom: '1mm',
                   color: '#7f1d1d'
                 }}>
                   رقم الترتيب في الطابور
                 </div>
-                <div className="center-item" style={{ 
-                  fontSize: '24px', 
+                <div className="center-item" style={{
+                  fontSize: '24px',
                   fontWeight: '900',
                   color: '#dc2626',
                   fontFamily: "'Tajawal', Arial, sans-serif"
@@ -528,24 +528,24 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
 
           {/* بيانات العميل */}
           <div className="center-item" style={{ marginBottom: '5mm' }}>
-            <div className="section-title center-item" style={{ 
+            <div className="section-title center-item" style={{
               background: '#ecfdf5',
               borderColor: '#059669',
               color: '#059669'
             }}>
               👤 بيانات العميل
             </div>
-            
+
             <div className="info-row center-item">
               <div className="info-label center-item">الاسم الكامل</div>
               <div className="info-value center-item">
                 {truncateText(order.customer_name, 20)}
               </div>
             </div>
-            
+
             <div className="info-row center-item">
               <div className="info-label center-item">رقم الهاتف</div>
-              <div className="info-value center-item" style={{ 
+              <div className="info-value center-item" style={{
                 fontFamily: "'Tajawal', Arial, sans-serif",
                 direction: 'ltr',
                 display: 'inline-block'
@@ -557,7 +557,7 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
             {order.customer_email && (
               <div className="info-row center-item">
                 <div className="info-label center-item">البريد الإلكتروني</div>
-                <div className="info-value center-item" style={{ 
+                <div className="info-value center-item" style={{
                   fontFamily: "'Tajawal', Arial, sans-serif",
                   direction: 'ltr',
                   display: 'inline-block',
@@ -574,18 +574,18 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
             <>
               <div className="line-separator"></div>
               <div className="center-item" style={{ marginBottom: '5mm' }}>
-                <div className="section-title center-item" style={{ 
+                <div className="section-title center-item" style={{
                   background: '#f3e8ff',
                   borderColor: '#7c3aed',
                   color: '#7c3aed'
                 }}>
                   📱 معلومات الجهاز
                 </div>
-                
+
                 {order.device_type && (
                   <div className="info-row center-item">
                     <div className="info-label center-item">نوع الجهاز</div>
-                    <div className="info-value center-item" style={{ 
+                    <div className="info-value center-item" style={{
                       color: '#7c3aed',
                       fontSize: '16px',
                       fontWeight: '700'
@@ -604,8 +604,8 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
                     marginTop: '3mm'
                   }}>
                     <div className="info-label center-item">المواصفات</div>
-                    <p className="center-item" style={{ 
-                      fontSize: '11px', 
+                    <p className="center-item" style={{
+                      fontSize: '11px',
                       lineHeight: '1.4',
                       margin: '0',
                       fontWeight: '500',
@@ -623,14 +623,14 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
           {/* قائمة الألعاب */}
           <div className="line-separator"></div>
           <div className="center-item" style={{ marginBottom: '5mm' }}>
-            <div className="section-title center-item" style={{ 
+            <div className="section-title center-item" style={{
               background: '#fef3c7',
               borderColor: '#f59e0b',
               color: '#92400e'
             }}>
               🎮 الألعاب المطلوبة ({totalItems} لعبة)
             </div>
-            
+
             <div className="center-item" style={{ marginTop: '3mm' }}>
               {gamesList.map((game, index) => (
                 <div key={index} className="center-item" style={{
@@ -640,21 +640,21 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
                   marginBottom: '2mm',
                   background: '#f9fafb'
                 }}>
-                  <div className="info-value center-item" style={{ 
+                  <div className="info-value center-item" style={{
                     fontSize: '13px',
                     fontWeight: '700',
                     marginBottom: '1mm'
                   }}>
                     {game.name}
                   </div>
-                  <div className="center-item" style={{ 
+                  <div className="center-item" style={{
                     fontSize: '10px',
                     color: '#666',
                     marginBottom: '1mm'
                   }}>
                     المنصة: {game.platform} | الكمية: {game.quantity}
                   </div>
-                  <div className="center-item" style={{ 
+                  <div className="center-item" style={{
                     fontSize: '12px',
                     fontWeight: '600',
                     color: '#059669'
@@ -669,14 +669,14 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
           {/* تفاصيل الدفع */}
           <div className="line-separator"></div>
           <div className="center-item" style={{ marginBottom: '5mm' }}>
-            <div className="section-title center-item" style={{ 
+            <div className="section-title center-item" style={{
               background: '#f0f9ff',
               borderColor: '#2563eb',
               color: '#2563eb'
             }}>
               💰 تفاصيل الدفع والتكلفة
             </div>
-            
+
             <div className="center-item" style={{ marginTop: '3mm' }}>
               <div className="center-flex" style={{
                 border: '2px solid #e5e7eb',
@@ -686,7 +686,7 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
               }}>
                 <div className="info-row center-item">
                   <div className="info-label center-item">السعر الإجمالي</div>
-                  <div className="info-value center-item" style={{ 
+                  <div className="info-value center-item" style={{
                     color: '#059669',
                     fontSize: '16px',
                     fontFamily: "'Tajawal', Arial, sans-serif",
@@ -696,10 +696,10 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
                     {convertToEnglishNumbers((order.price || 0).toLocaleString())} دج
                   </div>
                 </div>
-                
+
                 <div className="info-row center-item">
                   <div className="info-label center-item">المبلغ المدفوع</div>
-                  <div className="info-value center-item" style={{ 
+                  <div className="info-value center-item" style={{
                     color: '#2563eb',
                     fontSize: '16px',
                     fontFamily: "'Tajawal', Arial, sans-serif",
@@ -709,7 +709,7 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
                     {convertToEnglishNumbers((order.amount_paid || 0).toLocaleString())} دج
                   </div>
                 </div>
-                
+
                 {remainingAmount > 0 && (
                   <div className="center-item" style={{ marginTop: '3mm' }}>
                     <div className="center-flex" style={{
@@ -721,7 +721,7 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
                       <div className="info-label center-item" style={{ color: '#7f1d1d' }}>
                         المبلغ المتبقي المطلوب دفعه
                       </div>
-                      <div className="info-value center-item" style={{ 
+                      <div className="info-value center-item" style={{
                         color: '#dc2626',
                         fontSize: '18px',
                         fontWeight: '900',
@@ -741,14 +741,14 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
           {/* QR Code للتتبع - العميل */}
           <div className="line-separator"></div>
           <div className="center-item" style={{ marginBottom: '5mm' }}>
-            <div className="section-title center-item" style={{ 
+            <div className="section-title center-item" style={{
               background: '#ecfdf5',
               borderColor: '#059669',
               color: '#059669'
             }}>
               🔗 تتبع حالة الطلب
             </div>
-            
+
             <div className="center-item" style={{ marginTop: '3mm' }}>
               <div className="center-flex" style={{
                 border: '3px solid #059669',
@@ -757,16 +757,16 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
                 background: '#ecfdf5'
               }}>
                 <div className="center-item qr-section" style={{ marginBottom: '3mm' }}>
-                  <QRCodeSVG 
-                    value={`${storeUrl}/game-tracking/${order.tracking_number}`} 
+                  <QRCodeSVG
+                    value={`${storeUrl}/game-tracking/${order.tracking_number}`}
                     size={100}
                     data-testid="customer-qr-code"
                   />
                 </div>
-                
+
                 <div className="center-item" style={{ marginTop: '3mm' }}>
                   <div className="info-label center-item">رقم التتبع</div>
-                  <div className="info-value center-item" style={{ 
+                  <div className="info-value center-item" style={{
                     color: '#059669',
                     fontSize: '16px',
                     fontWeight: '900',
@@ -777,10 +777,10 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
                     {convertToEnglishNumbers(order.tracking_number)}
                   </div>
                 </div>
-                
+
                 <div className="center-item" style={{ marginTop: '2mm' }}>
-                  <p className="center-item" style={{ 
-                    fontSize: '10px', 
+                  <p className="center-item" style={{
+                    fontSize: '10px',
                     margin: '0',
                     opacity: '0.8',
                     textAlign: 'center'
@@ -801,14 +801,14 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
               borderRadius: '3mm',
               background: '#f9fafb'
             }}>
-              <div className="center-item" style={{ 
-                fontSize: '12px', 
+              <div className="center-item" style={{
+                fontSize: '12px',
                 fontWeight: '700',
                 marginBottom: '3mm'
               }}>
                 📋 شروط الخدمة
               </div>
-              
+
               <div className="center-item" style={{ fontSize: '9px', lineHeight: '1.4' }}>
                 <p className="center-item" style={{ margin: '1mm 0' }}>
                   • يجب تقديم هذا الإيصال عند استلام الألعاب
@@ -829,10 +829,10 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
 
         {/* ====================== الجزء الثاني: إيصال المسؤول ====================== */}
         <div className="center-item" style={{ marginTop: '8mm' }}>
-          
+
           {/* عنوان الجزء الإداري */}
           <div className="center-item" style={{ marginBottom: '5mm' }}>
-            <div className="section-title center-item" style={{ 
+            <div className="section-title center-item" style={{
               background: '#fef2f2',
               borderColor: '#dc2626',
               color: '#dc2626'
@@ -851,7 +851,7 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
             }}>
               <div className="info-row center-item">
                 <div className="info-label center-item">رقم التتبع</div>
-                <div className="info-value center-item" style={{ 
+                <div className="info-value center-item" style={{
                   fontSize: '16px',
                   fontWeight: '900',
                   color: '#dc2626'
@@ -859,7 +859,7 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
                   {convertToEnglishNumbers(order.tracking_number)}
                 </div>
               </div>
-              
+
               <div className="info-row center-item">
                 <div className="info-label center-item">العميل</div>
                 <div className="info-value center-item">
@@ -871,39 +871,39 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
 
           {/* QR Code للمسؤول - تحميل الألعاب */}
           <div className="center-item" style={{ marginBottom: '5mm' }}>
-            <div className="center-item" style={{ 
-              fontSize: '14px', 
+            <div className="center-item" style={{
+              fontSize: '14px',
               fontWeight: '800',
               marginBottom: '4mm',
               color: '#dc2626'
             }}>
               🔧 أكواد سريعة للمسؤول
             </div>
-            
+
             {/* QR لبدء التحميل */}
             <div className="center-item" style={{ marginBottom: '4mm' }}>
-              <div className="center-item start-qr qr-section" style={{ 
-                border: '3px solid #059669', 
-                padding: '4mm', 
+              <div className="center-item start-qr qr-section" style={{
+                border: '3px solid #059669',
+                padding: '4mm',
                 borderRadius: '4mm',
                 background: '#ecfdf5',
                 width: '100%'
               }}>
-                <div className="center-item" style={{ 
-                  fontSize: '12px', 
+                <div className="center-item" style={{
+                  fontSize: '12px',
                   marginBottom: '3mm',
                   fontWeight: '800',
                   color: '#059669'
                 }}>
                   🚀 بدء التحميل
                 </div>
-                <QRCodeSVG 
-                  value={`${storeUrl}/game-download-start/${order.id}`} 
+                <QRCodeSVG
+                  value={`${storeUrl}/game-download-start/${order.id}`}
                   size={80}
                   data-testid="start-qr-code"
                 />
-                <div className="center-item" style={{ 
-                  fontSize: '10px', 
+                <div className="center-item" style={{
+                  fontSize: '10px',
                   marginTop: '2mm',
                   fontWeight: '600',
                   color: '#059669',
@@ -916,28 +916,28 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
 
             {/* QR لإنهاء الطلب */}
             <div className="center-item" style={{ marginBottom: '4mm' }}>
-              <div className="center-item complete-qr qr-section" style={{ 
-                border: '3px solid #dc2626', 
-                padding: '4mm', 
+              <div className="center-item complete-qr qr-section" style={{
+                border: '3px solid #dc2626',
+                padding: '4mm',
                 borderRadius: '4mm',
                 background: '#fef2f2',
                 width: '100%'
               }}>
-                <div className="center-item" style={{ 
-                  fontSize: '12px', 
+                <div className="center-item" style={{
+                  fontSize: '12px',
                   marginBottom: '3mm',
                   fontWeight: '800',
                   color: '#dc2626'
                 }}>
                   ✅ إنهاء الطلب
                 </div>
-                <QRCodeSVG 
-                  value={`${storeUrl}/game-complete/${order.id}`} 
+                <QRCodeSVG
+                  value={`${storeUrl}/game-complete/${order.id}`}
                   size={80}
                   data-testid="complete-qr-code"
                 />
-                <div className="center-item" style={{ 
-                  fontSize: '10px', 
+                <div className="center-item" style={{
+                  fontSize: '10px',
                   marginTop: '2mm',
                   fontWeight: '600',
                   color: '#dc2626',
@@ -951,14 +951,14 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
 
           {/* قائمة الألعاب للمسؤول */}
           <div className="center-item" style={{ marginBottom: '4mm' }}>
-            <div className="center-item" style={{ 
-              fontSize: '12px', 
+            <div className="center-item" style={{
+              fontSize: '12px',
               fontWeight: '700',
               marginBottom: '3mm'
             }}>
               📝 قائمة الألعاب للتحميل
             </div>
-            
+
             <div className="center-item" style={{
               border: '2px solid #e5e7eb',
               borderRadius: '3mm',
@@ -971,13 +971,13 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
                   paddingBottom: '2mm',
                   marginBottom: index < gamesList.length - 1 ? '2mm' : '0'
                 }}>
-                  <div className="center-item" style={{ 
+                  <div className="center-item" style={{
                     fontSize: '11px',
                     fontWeight: '700'
                   }}>
                     {index + 1}. {game.name}
                   </div>
-                  <div className="center-item" style={{ 
+                  <div className="center-item" style={{
                     fontSize: '9px',
                     color: '#666'
                   }}>
@@ -990,14 +990,14 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
 
           {/* مساحة للملاحظات */}
           <div className="center-item" style={{ marginBottom: '4mm' }}>
-            <div className="center-item" style={{ 
-              fontSize: '12px', 
+            <div className="center-item" style={{
+              fontSize: '12px',
               fontWeight: '700',
               marginBottom: '3mm'
             }}>
               📝 ملاحظات المسؤول
             </div>
-            
+
             <div className="center-item" style={{
               border: '2px dashed #ccc',
               borderRadius: '3mm',
@@ -1005,7 +1005,7 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
               background: 'white',
               minHeight: '15mm'
             }}>
-              <div className="center-item" style={{ 
+              <div className="center-item" style={{
                 fontSize: '9px',
                 color: '#999',
                 fontStyle: 'italic'
@@ -1023,7 +1023,7 @@ const GameOrderReceiptPrint: React.FC<GameOrderReceiptPrintProps> = ({
               padding: '3mm',
               background: '#f9fafb'
             }}>
-              <div className="center-item" style={{ 
+              <div className="center-item" style={{
                 fontSize: '9px',
                 color: '#666',
                 lineHeight: '1.4'

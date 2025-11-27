@@ -97,8 +97,8 @@ const PublicRoute = ({ children, redirectTo = '/dashboard' }: PublicRouteProps) 
   }
 
   // حالة خاصة: المستخدم موجود لكن لم يكتمل تحميل الملف الشخصي بعد
-  // لتجنب بقاء المستخدم في /login، أعد التوجيه لمسار مركزي يقوم بإعادة التوجيه حسب الدور لاحقاً
-  if (user && !userProfile && !allowAnonymousEvenIfLoggedIn) {
+  // ✅ انتظار قليلاً قبل التوجيه لتجنب التنقلات المتعددة
+  if (user && !userProfile && !allowAnonymousEvenIfLoggedIn && !isLoading) {
     if (import.meta.env.DEV) {
       try { console.log('[PublicRoute] user present without profile -> redirecting to /dashboard'); } catch {}
     }

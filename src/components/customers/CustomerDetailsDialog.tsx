@@ -12,6 +12,7 @@ import {
 import { getCustomerOrdersCount, getCustomerOrdersTotal } from '@/lib/api/customers';
 import { formatDate } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { 
   User, 
   Mail, 
@@ -78,13 +79,32 @@ const CustomerDetailsDialog = ({ customer, open, onClose }: CustomerDetailsDialo
                   عميل منذ {formatDate(customer.created_at)}
                 </p>
               </div>
+
+              <div className="grid grid-cols-2 gap-2 mt-2">
+                <div className="flex items-center justify-center rounded-md bg-muted/40 py-2 text-sm">
+                  <ShoppingBag className="h-4 w-4 ml-1" />
+                  {isLoading ? (
+                    <Skeleton className="h-4 w-10" />
+                  ) : (
+                    <span>{ordersCount}</span>
+                  )}
+                </div>
+                <div className="flex items-center justify-center rounded-md bg-muted/40 py-2 text-sm">
+                  <DollarSign className="h-4 w-4 ml-1" />
+                  {isLoading ? (
+                    <Skeleton className="h-4 w-16" />
+                  ) : (
+                    <span>{`${totalSpent.toLocaleString()} دج`}</span>
+                  )}
+                </div>
+              </div>
               
               <div className="space-y-4 mt-6">
                 <div className="flex items-start">
                   <Mail className="h-5 w-5 ml-2 mt-0.5 text-muted-foreground" />
                   <div>
                     <p className="font-medium">البريد الإلكتروني</p>
-                    <p className="text-muted-foreground">{customer.email}</p>
+                    <p className="text-muted-foreground" dir="ltr">{customer.email}</p>
                   </div>
                 </div>
                 
@@ -92,7 +112,7 @@ const CustomerDetailsDialog = ({ customer, open, onClose }: CustomerDetailsDialo
                   <Phone className="h-5 w-5 ml-2 mt-0.5 text-muted-foreground" />
                   <div>
                     <p className="font-medium">رقم الهاتف</p>
-                    <p className="text-muted-foreground">{customer.phone || 'غير متوفر'}</p>
+                    <p className="text-muted-foreground" dir="ltr">{customer.phone || 'غير متوفر'}</p>
                   </div>
                 </div>
                 
@@ -109,7 +129,7 @@ const CustomerDetailsDialog = ({ customer, open, onClose }: CustomerDetailsDialo
                   <div>
                     <p className="font-medium">عدد الطلبات</p>
                     <p className="text-muted-foreground">
-                      {isLoading ? 'جارٍ التحميل...' : ordersCount}
+                      {isLoading ? <Skeleton className="h-4 w-10" /> : ordersCount}
                     </p>
                   </div>
                 </div>
@@ -119,8 +139,7 @@ const CustomerDetailsDialog = ({ customer, open, onClose }: CustomerDetailsDialo
                   <div>
                     <p className="font-medium">إجمالي المشتريات</p>
                     <p className="text-muted-foreground">
-                      {isLoading ? 'جارٍ التحميل...' : 
-                        `${totalSpent.toLocaleString()} دج`}
+                      {isLoading ? <Skeleton className="h-4 w-16" /> : `${totalSpent.toLocaleString()} دج`}
                     </p>
                   </div>
                 </div>

@@ -2,7 +2,7 @@ import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'reac
 import { useNavigate, useParams } from 'react-router-dom';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import POSPureLayout from '@/components/pos-layout/POSPureLayout';
-import { usePermissions } from '@/hooks/usePermissions';
+import { useUnifiedPermissions } from '@/hooks/useUnifiedPermissions';
 import { useTitle } from '@/hooks/useTitle';
 import { useTitlebar } from '@/context/TitlebarContext';
 import { POSLayoutState, RefreshHandler } from '@/components/pos-layout/types';
@@ -66,20 +66,25 @@ const SettingsOperationsPage: React.FC = () => {
   const params = useParams<{ tab?: string }>();
   const { setTabs, setActiveTab: setTitlebarActiveTab, setShowTabs, clearTabs } = useTitlebar();
 
-  const perms = usePermissions();
+  const perms = useUnifiedPermissions();
 
   const allowedTabs = useMemo(() => {
-    const canSettings = perms.ready ? perms.anyOf(['viewSettings','manageSettings']) : false;
-    const canSubscription = perms.ready ? perms.anyOf(['viewSettings','manageSettings','manageOrganizationSettings']) || perms.anyOf(['viewFinancialReports']) : false;
-    const canCustomDomains = perms.ready ? perms.anyOf(['viewSettings','manageSettings','manageOrganizationSettings']) : false;
-    const canDomainsDocs = perms.ready ? perms.anyOf(['viewSettings','manageSettings']) || true : true; // الدليل عام افتراضياً
+    // وضع المدير = صلاحيات كاملة
+    if (perms.isAdminMode || perms.isOrgAdmin || perms.isSuperAdmin) {
+      return TAB_CONFIG;
+    }
+
+    const canSettings = perms.ready ? perms.anyOf(['viewSettings', 'manageSettings', 'canViewSettings', 'canManageSettings']) : false;
+    const canSubscription = perms.ready ? perms.anyOf(['viewSettings', 'manageSettings', 'manageOrganizationSettings', 'canViewSubscription']) || perms.anyOf(['viewFinancialReports']) : false;
+    const canCustomDomains = perms.ready ? perms.anyOf(['viewSettings', 'manageSettings', 'manageOrganizationSettings', 'canViewCustomDomains']) : false;
+    const canDomainsDocs = true; // الدليل عام افتراضياً
     return TAB_CONFIG.filter(t =>
       (t.id === 'settings' && canSettings) ||
       (t.id === 'subscription' && canSubscription) ||
       (t.id === 'custom-domains' && canCustomDomains) ||
       (t.id === 'domains-docs' && canDomainsDocs)
     );
-  }, [perms.ready, perms.role, perms.isOrgAdmin, perms.isSuperAdmin]);
+  }, [perms.ready, perms.isAdminMode, perms.isOrgAdmin, perms.isSuperAdmin]);
 
   const resolvedTab = useMemo<TabKey>(() => {
     const incoming = params.tab as TabKey | undefined;

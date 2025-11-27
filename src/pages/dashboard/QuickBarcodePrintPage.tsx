@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import Layout from '@/components/Layout';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import POSPureLayout from '@/components/pos-layout/POSPureLayout';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -13,30 +13,29 @@ import {
 } from "@/components/ui/select"
 import { Label } from "@/components/ui/label"
 import { toast } from 'sonner';
-import { supabase } from '@/lib/supabase';
-import { Loader2, Search, Filter, SortAsc, SortDesc, Calendar, Hash, Package } from 'lucide-react';
+import { Loader2, Search, Filter, SortAsc, SortDesc, Calendar, Hash, Package, Wifi, WifiOff, Printer, Eye } from 'lucide-react';
+// ⚡ استيراد المكونات الجديدة
+import BarcodePreview from '@/components/barcode/BarcodePreview';
+import PrintHistory from '@/components/barcode/PrintHistory';
+import KeyboardShortcutsHelp from '@/components/barcode/KeyboardShortcutsHelp';
+import { usePrintShortcuts } from '@/hooks/usePrintShortcuts';
+import { printHistoryService } from '@/services/PrintHistoryService';
 import JsBarcode from 'jsbarcode';
-// ملاحظة: بعض بيئات Vite تُصدّر qr-code-styling بدون default export
-// لذلك نستخدم استيرادًا ديناميكيًا مع معالجة كل الاحتمالات (default أو named)
 // Import barcode templates
 import { barcodeTemplates, BarcodeTemplate } from '@/config/barcode-templates';
 // استيراد دالة تحضير قيم الباركود
-import { prepareBarcodeValue } from '@/lib/barcode-utils';
+import { prepareBarcodeValue, generateBarcodeLocal, generateQRCodeLocal } from '@/lib/barcode-utils';
 import { useTenant } from '@/context/TenantContext';
+import { supabase } from '@/lib/supabase';
+// ⚡ استيراد الخدمات الجديدة
+import { useProductsForPrinting, type ProductForBarcode } from '@/hooks/useProductsForPrinting';
+import { tauriPrintService } from '@/services/TauriPrintService';
+import { localBarcodeGenerator } from '@/services/LocalBarcodeGenerator';
+import { isTauriApp, isDesktopApp } from '@/lib/platform';
+import { printSettingsService, type PrintSettings } from '@/services/PrintSettingsService';
 
-// Define the product data structure based on the SQL query
-interface ProductForBarcode {
-  product_id: string;
-  product_name: string;
-  product_price: string | number;
-  product_sku: string;
-  product_barcode: string | null;
-  stock_quantity: number;
-  organization_name: string;
-  product_slug: string | null; // Added from RPC
-  organization_domain: string | null; // Added from RPC
-  organization_subdomain: string | null; // Added from RPC
-}
+// استخدام ProductForBarcode من useProductsForPrinting
+// interface ProductForBarcode معرف في useProductsForPrinting.ts
 
 interface SelectedProduct extends ProductForBarcode {
   selected: boolean;
@@ -56,21 +55,7 @@ interface SearchAndFilter {
   };
 }
 
-interface PrintSettings {
-  label_width: number; // in mm
-  label_height: number; // in mm
-  barcode_type: string;
-  display_store_name: boolean;
-  display_product_name: boolean;
-  display_price: boolean;
-  display_sku: boolean;
-  display_barcode_value: boolean;
-  custom_width: string; // for input field
-  custom_height: string; // for input field
-  selected_label_size: string;
-  selected_template_id: string; // New setting for template
-  font_family_css: string; // New setting for font family
-}
+// interface PrintSettings تم استبداله بالنوع المستورد من PrintSettingsService
 
 // Define the expected RPC function structure for Supabase client
 // This helps TypeScript understand the RPC call better.
@@ -105,6 +90,7 @@ export interface FontOption {
   url?: string; // For @import url in print window if it's a web font
 }
 
+// ⚡ خيارات الخطوط - جميعها محلية أو نظام (لا URLs خارجية)
 export const fontOptions: FontOption[] = [
   {
     id: "system-ui",
@@ -113,39 +99,48 @@ export const fontOptions: FontOption[] = [
   },
   {
     id: "tajawal",
-    name: "تجوال (Tajawal) - عربي",
+    name: "تجوال (Tajawal) - عربي ⭐",
     cssValue: "'Tajawal', sans-serif",
     isRTL: true,
-    url: "https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700&display=swap",
-  },
-  {
-    id: "roboto",
-    name: "روبوتو (Roboto) - إنجليزي",
-    cssValue: "'Roboto', sans-serif",
-    url: "https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap",
+    // ⚡ خط محلي - يعمل أوفلاين
   },
   {
     id: "arial",
     name: "آريال (Arial)",
     cssValue: "Arial, sans-serif",
   },
-  // Add more fonts here, e.g., Cairo for Arabic, Lato/Open Sans for English
+  {
+    id: "helvetica",
+    name: "هيلفيتيكا (Helvetica)",
+    cssValue: "Helvetica, Arial, sans-serif",
+  },
+  {
+    id: "times",
+    name: "تايمز (Times New Roman)",
+    cssValue: "'Times New Roman', Times, serif",
+  },
+  {
+    id: "courier",
+    name: "كوريير (Courier) - للباركود",
+    cssValue: "'Courier New', Courier, monospace",
+  },
 ];
 
-// تحميل ديناميكي آمن لمكتبة qr-code-styling لدعم كلٍ من default/named export
-let QRCodeStylingCtor: any = null;
-async function loadQRCodeStyling() {
-  if (QRCodeStylingCtor) return QRCodeStylingCtor;
+// ⚡ توليد QR Code محلياً بدلاً من qr-code-styling
+const generateQRCodeForPrint = async (value: string, size: number = 80): Promise<string> => {
   try {
-    const mod: any = await import('qr-code-styling');
-    const ctor = mod?.default ?? mod?.QRCodeStyling ?? mod;
-    QRCodeStylingCtor = ctor;
-    return ctor;
-  } catch (e) {
-    console.error('[QR Import Error] Failed to import qr-code-styling:', e);
-    throw e;
+    return await localBarcodeGenerator.generateQRCode(value, {
+      width: size,
+      height: size,
+      margin: 4,
+      errorCorrectionLevel: 'L'
+    });
+  } catch (error) {
+    console.warn('[QR] فشل التوليد المحلي، استخدام API خارجي:', error);
+    // Fallback للـ API الخارجي
+    return `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(value)}&size=${size}x${size}&margin=4&ecc=L`;
   }
-}
+};
 
 const QuickBarcodePrintPage = () => {
   const { currentOrganization } = useTenant();
@@ -154,7 +149,7 @@ const QuickBarcodePrintPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectAll, setSelectAll] = useState(false);
-  
+
   // إضافة state للبحث والفلترة
   const [searchAndFilter, setSearchAndFilter] = useState<SearchAndFilter>({
     search_query: '',
@@ -179,8 +174,65 @@ const QuickBarcodePrintPage = () => {
     custom_width: "50",
     custom_height: "30",
     selected_label_size: "50x30",
-    selected_template_id: barcodeTemplates[0]?.id || "default", // Default to the first template
-    font_family_css: fontOptions[0]?.cssValue || "sans-serif", // Default to system font
+    selected_template_id: barcodeTemplates[0]?.id || "default",
+    font_family_css: fontOptions[0]?.cssValue || "sans-serif",
+  });
+
+  // تحميل الإعدادات عند البدء
+  useEffect(() => {
+    const loadSettings = async () => {
+      if (currentOrganization?.id) {
+        const settings = await printSettingsService.getSettings(currentOrganization.id);
+        setPrintSettings(settings);
+        // تهيئة جدول سجل الطباعة
+        await printHistoryService.initTable();
+      }
+    };
+    loadSettings();
+  }, [currentOrganization?.id]);
+
+  // حفظ الإعدادات عند التغيير
+  useEffect(() => {
+    const saveSettings = async () => {
+      if (currentOrganization?.id) {
+        // debounce الحفظ لتجنب الكتابة المتكررة
+        const timeoutId = setTimeout(() => {
+          printSettingsService.saveSettings(printSettings, currentOrganization.id);
+        }, 1000);
+        return () => clearTimeout(timeoutId);
+      }
+    };
+    saveSettings();
+  }, [printSettings, currentOrganization?.id]);
+
+  // ⚡ state للمعاينة
+  const [showPreview, setShowPreview] = useState(false);
+
+  // ⚡ المنتج المحدد للمعاينة (أول منتج محدد)
+  const previewProduct = useMemo(() => {
+    return products.find(p => p.selected) || products[0];
+  }, [products]);
+
+  // ⚡ دالة إعادة الطباعة من السجل (يجب أن تكون قبل أي return)
+  const handleReprint = useCallback((productIds: string[]) => {
+    setProducts(prev => prev.map(p => ({
+      ...p,
+      selected: productIds.includes(p.product_id)
+    })));
+    toast.info(`تم تحديد ${productIds.length} منتج للطباعة`);
+  }, []);
+
+  // ⚡ اختصارات لوحة المفاتيح (يجب أن تكون قبل أي return)
+  const { shortcuts } = usePrintShortcuts({
+    onPrint: () => {}, // سيتم تحديثه لاحقاً
+    onSelectAll: () => {
+      if (!selectAll) handleSelectAll();
+    },
+    onDeselectAll: () => {
+      if (selectAll) handleSelectAll();
+    },
+    onPreview: () => setShowPreview(!showPreview),
+    enabled: !isLoading && !error
   });
 
   // دالة الفلترة والبحث
@@ -190,7 +242,7 @@ const QuickBarcodePrintPage = () => {
     // تطبيق البحث
     if (filters.search_query.trim()) {
       const searchTerm = filters.search_query.toLowerCase().trim();
-      filtered = filtered.filter(product => 
+      filtered = filtered.filter(product =>
         product.product_name.toLowerCase().includes(searchTerm) ||
         product.product_sku.toLowerCase().includes(searchTerm) ||
         (product.product_barcode && product.product_barcode.toLowerCase().includes(searchTerm))
@@ -216,8 +268,8 @@ const QuickBarcodePrintPage = () => {
       const minPrice = parseFloat(filters.price_range.min);
       if (!isNaN(minPrice)) {
         filtered = filtered.filter(product => {
-          const price = typeof product.product_price === 'string' 
-            ? parseFloat(product.product_price) 
+          const price = typeof product.product_price === 'string'
+            ? parseFloat(product.product_price)
             : product.product_price;
           return price >= minPrice;
         });
@@ -228,8 +280,8 @@ const QuickBarcodePrintPage = () => {
       const maxPrice = parseFloat(filters.price_range.max);
       if (!isNaN(maxPrice)) {
         filtered = filtered.filter(product => {
-          const price = typeof product.product_price === 'string' 
-            ? parseFloat(product.product_price) 
+          const price = typeof product.product_price === 'string'
+            ? parseFloat(product.product_price)
             : product.product_price;
           return price <= maxPrice;
         });
@@ -239,7 +291,7 @@ const QuickBarcodePrintPage = () => {
     // تطبيق الترتيب
     filtered.sort((a, b) => {
       let aValue: any, bValue: any;
-      
+
       switch (filters.sort_by) {
         case 'name':
           aValue = a.product_name.toLowerCase();
@@ -292,7 +344,7 @@ const QuickBarcodePrintPage = () => {
 
       // المحاولة الأولى: استخدام الدالة المحسنة مع pagination
       while (true) {
-        const { data: pageData, error: pageError } = await supabase.rpc<any, ProductForBarcode[]>(
+        const { data: pageData, error: pageError } = await (supabase.rpc as any)(
           'get_products_for_barcode_printing_enhanced',
           {
             p_organization_id: currentOrganization.id,
@@ -309,7 +361,7 @@ const QuickBarcodePrintPage = () => {
 
         if (pageError) {
           // في حال عدم توفر الدالة المحسنة، ارجع إلى الدالة المبسطة القديمة (قد تُرجع 1000 فقط)
-          const { data: legacyData, error: legacyError } = await supabase.rpc<any, ProductForBarcode[]>(
+          const { data: legacyData, error: legacyError } = await (supabase.rpc as any)(
             'get_products_for_barcode_printing',
             { p_organization_id: currentOrganization.id }
           );
@@ -418,7 +470,7 @@ const QuickBarcodePrintPage = () => {
       prevProducts.map((p) => ({ ...p, selected: newSelectAll }))
     );
   };
-  
+
   const handlePrintQuantityChange = (
     productId: string,
     quantity: string
@@ -428,11 +480,11 @@ const QuickBarcodePrintPage = () => {
       prevProducts.map((p) =>
         p.product_id === productId
           ? {
-              ...p,
-              print_quantity:
-                isNaN(numQuantity) || numQuantity < 1 ? 1 : numQuantity,
-              use_stock_quantity: false,
-            }
+            ...p,
+            print_quantity:
+              isNaN(numQuantity) || numQuantity < 1 ? 1 : numQuantity,
+            use_stock_quantity: false,
+          }
           : p
       )
     );
@@ -502,31 +554,119 @@ const QuickBarcodePrintPage = () => {
 
   if (isLoading) {
     return (
-      <Layout>
-        <div className="container mx-auto py-6 flex justify-center items-center min-h-[300px]">
+      <POSPureLayout>
+        <div className="flex justify-center items-center min-h-[300px]">
           <div className="flex flex-col items-center gap-2">
             <Loader2 className="h-12 w-12 animate-spin text-primary" />
             <p className="text-lg text-muted-foreground">جاري تحميل المنتجات...</p>
           </div>
         </div>
-      </Layout>
+      </POSPureLayout>
     );
   }
 
   if (error) {
     return (
-      <Layout>
-        <div className="container mx-auto py-6 text-center">
+      <POSPureLayout>
+        <div className="p-6 text-center">
           <p className="text-red-500 mb-4">{error}</p>
           <Button onClick={fetchProductsForBarcode} className="mt-4">
             إعادة المحاولة
           </Button>
         </div>
-      </Layout>
+      </POSPureLayout>
     );
   }
 
-  const generateAndPrintBarcodes = () => {
+  // ⚡ دالة الطباعة باستخدام Tauri API
+  const printViaIframe = async (htmlContent: string): Promise<boolean> => {
+    const printContainerId = 'barcode-print-container';
+    console.log('[Print] بدء عملية الطباعة...');
+
+    // إزالة container قديم إذا وجد
+    const existingContainer = document.getElementById(printContainerId);
+    if (existingContainer) {
+      existingContainer.remove();
+    }
+    const existingStyles = document.getElementById('print-styles-temp');
+    if (existingStyles) {
+      existingStyles.remove();
+    }
+
+    // إنشاء container للطباعة
+    const printContainer = document.createElement('div');
+    printContainer.id = printContainerId;
+    printContainer.innerHTML = htmlContent;
+    printContainer.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 99999; background: white; overflow: auto;';
+
+    // إضافة styles للطباعة
+    const printStyles = document.createElement('style');
+    printStyles.id = 'print-styles-temp';
+    printStyles.textContent = `
+      @media print {
+        body > *:not(#${printContainerId}) { display: none !important; }
+        #${printContainerId} {
+          position: static !important;
+          width: 100% !important;
+          height: auto !important;
+          overflow: visible !important;
+        }
+      }
+    `;
+    document.head.appendChild(printStyles);
+    document.body.appendChild(printContainer);
+    console.log('[Print] تم إنشاء container للطباعة');
+
+    // انتظار تحميل المحتوى
+    await new Promise(r => setTimeout(r, 1000));
+
+    // ⚡ محاولة استخدام Tauri API للطباعة
+    if (isTauriApp()) {
+      console.log('[Print] محاولة استخدام Tauri API...');
+      try {
+        const { getCurrentWebview } = await import('@tauri-apps/api/webview');
+        const webview = getCurrentWebview();
+        await webview.print();
+        console.log('[Print] تم استدعاء Tauri print()');
+        toast.success('تم فتح نافذة الطباعة');
+
+        // إزالة العناصر بعد الطباعة
+        setTimeout(() => {
+          printContainer.remove();
+          printStyles.remove();
+        }, 2000);
+
+        return true;
+      } catch (tauriError: any) {
+        console.warn('[Print] Tauri API فشل:', tauriError.message, '- محاولة window.print');
+      }
+    }
+
+    // ⚡ الطريقة البديلة: window.print
+    console.log('[Print] استخدام window.print...');
+    try {
+      window.focus();
+      window.print();
+      console.log('[Print] تم استدعاء window.print()');
+      toast.success('تم فتح نافذة الطباعة');
+
+      // إزالة العناصر بعد الطباعة
+      setTimeout(() => {
+        printContainer.remove();
+        printStyles.remove();
+      }, 2000);
+
+      return true;
+    } catch (error: any) {
+      console.error('[Print Error]', error);
+      printContainer.remove();
+      printStyles.remove();
+      toast.error(`خطأ في الطباعة: ${error.message}`);
+      return false;
+    }
+  };
+
+  const generateAndPrintBarcodes = async () => {
     const selectedProducts = products.filter(p => p.selected);
     if (selectedProducts.length === 0) {
       toast.error("يرجى اختيار منتج واحد على الأقل للطباعة.");
@@ -536,12 +676,73 @@ const QuickBarcodePrintPage = () => {
     const selectedTemplate = barcodeTemplates.find(t => t.id === printSettings.selected_template_id) || barcodeTemplates[0];
     const selectedFont = fontOptions.find(f => f.cssValue === printSettings.font_family_css) || fontOptions[0];
 
-    let printHtmlContent = '<html><head><title>طباعة الباركود</title>';
-    
+    // ⚡ توليد الباركودات مسبقاً كـ Data URLs
+    const generateBarcodeDataUrl = (value: string, format: string): string => {
+      try {
+        const canvas = document.createElement('canvas');
+        JsBarcode(canvas, value, {
+          format: format,
+          lineColor: "#000",
+          width: 2,
+          height: 50,
+          displayValue: printSettings.display_barcode_value,
+          fontSize: 10,
+          margin: 5,
+          ...(selectedTemplate.jsBarcodeOptions || {})
+        });
+        return canvas.toDataURL('image/png');
+      } catch (error) {
+        console.warn('[Barcode] فشل توليد الباركود:', value, error);
+        // محاولة CODE128 كـ fallback
+        try {
+          const canvas = document.createElement('canvas');
+          JsBarcode(canvas, value, {
+            format: 'CODE128',
+            lineColor: "#000",
+            width: 2,
+            height: 50,
+            displayValue: printSettings.display_barcode_value,
+            fontSize: 10,
+            margin: 5
+          });
+          return canvas.toDataURL('image/png');
+        } catch (e2) {
+          return '';
+        }
+      }
+    };
+
+    let printHtmlContent = '<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="UTF-8"><title>طباعة الباركود</title>';
+
+    // ⚡ تضمين الخطوط المحلية - يعمل أوفلاين
     let fontImportStyle = '';
-    if (selectedFont && selectedFont.url) {
-      fontImportStyle = `@import url(\'${selectedFont.url}\');\n`;
+    if (selectedFont && selectedFont.id === 'tajawal') {
+      // خط Tajawal محلي - للعربية
+      fontImportStyle = `
+        @font-face {
+          font-family: 'Tajawal';
+          src: url('/fonts/tajawal-regular.woff2') format('woff2');
+          font-weight: 400;
+          font-style: normal;
+          font-display: swap;
+        }
+        @font-face {
+          font-family: 'Tajawal';
+          src: url('/fonts/tajawal-medium.woff2') format('woff2');
+          font-weight: 500;
+          font-style: normal;
+          font-display: swap;
+        }
+        @font-face {
+          font-family: 'Tajawal';
+          src: url('/fonts/tajawal-bold.woff2') format('woff2');
+          font-weight: 700;
+          font-style: normal;
+          font-display: swap;
+        }
+      `;
     }
+    // ⚠️ لا نستخدم URLs خارجية للخطوط - جميع الخطوط الأخرى هي خطوط نظام
 
     printHtmlContent += `<style>
       ${fontImportStyle}
@@ -613,39 +814,62 @@ const QuickBarcodePrintPage = () => {
       return 'fallback-base-url.com'; // Fallback if neither is present
     };
 
-    selectedProducts.forEach(product => {
+    // ⚡ توليد الباركودات كصور Data URL مسبقاً (لا يحتاج DOM خارجي)
+    for (const product of selectedProducts) {
       const itemsToPrintCount = product.use_stock_quantity ? (product.stock_quantity > 0 ? product.stock_quantity : 1) : product.print_quantity;
+
       for (let i = 0; i < itemsToPrintCount; i++) {
-        const uniqueSuffix = `${product.product_id}-print-${i}`;
-        const barcodeSvgId = `barcode-${uniqueSuffix}`;
-        const qrCodeContainerId = `qrcode-${uniqueSuffix}`;
-        
         const baseUrl = productUrlBase(product.organization_domain, product.organization_subdomain);
         const slugPart = product.product_slug ? encodeURIComponent(product.product_slug) : product.product_id;
         const productPageUrl = `${baseUrl}/products/${slugPart}`;
         const isFallbackUrl = baseUrl === 'fallback-base-url.com';
+
+        // تحضير قيمة الباركود
+        const valueToEncodeForBarcode = product.product_barcode || product.product_sku || product.product_id || 'NO_DATA';
+        let barcodeFormatForTemplate = printSettings.barcode_type;
+        if (selectedTemplate.id === 'qr-plus-barcode') {
+          barcodeFormatForTemplate = 'CODE128';
+        }
+        const valueToUse = prepareBarcodeValue(valueToEncodeForBarcode, barcodeFormatForTemplate);
+
+        // توليد صورة الباركود
+        const barcodeDataUrl = generateBarcodeDataUrl(valueToUse, barcodeFormatForTemplate);
+
+        // توليد QR Code إذا لزم الأمر
+        let qrCodeHtml = '';
+        if (selectedTemplate.id === 'qr-plus-barcode' && !isFallbackUrl) {
+          try {
+            const qrDataUrl = await generateQRCodeForPrint(productPageUrl, 80);
+            if (qrDataUrl) {
+              qrCodeHtml = `<img src="${qrDataUrl}" alt="QR Code" style="width: 80px; height: 80px; image-rendering: crisp-edges;" />`;
+            }
+          } catch (e) {
+            console.warn('[QR] فشل توليد QR Code');
+            qrCodeHtml = `<div style="width: 80px; height: 80px; border: 1px dashed #ccc; display: flex; align-items: center; justify-content: center; font-size: 8px;">QR</div>`;
+          }
+        }
 
         if (selectedTemplate.id === 'qr-plus-barcode') {
           printHtmlContent += `
             <div class="barcode-label template-${selectedTemplate.id}">
               ${printSettings.display_store_name ? `<div class="store-name-header-new">${product.organization_name}</div>` : ''}
               <div class="main-content-wrapper-new">
-                <div id="${qrCodeContainerId}" class="qr-code-container-new">
-                  鬓
+                <div class="qr-code-container-new">
+                  ${qrCodeHtml}
                 </div>
                 <div class="product-details-area-new">
                   <div class="info-table-new">
-                    ${printSettings.display_product_name ? 
-                      `<div class="info-table-row-new product-name-row-new">
+                    ${printSettings.display_product_name ?
+              `<div class="info-table-row-new product-name-row-new">
                         <span class="info-value-new product-name-value-new">${product.product_name}</span>
                       </div>` : ''}
                     <div class="info-table-row-new barcode-row-new">
                       <div class="barcode-svg-container-new">
-                        <svg id="${barcodeSvgId}"></svg>
+                        ${barcodeDataUrl ? `<img src="${barcodeDataUrl}" alt="Barcode" style="max-width: 100%; height: auto;" />` : '<span style="color: red;">خطأ باركود</span>'}
                       </div>
                     </div>
-                    ${printSettings.display_price ? 
-                      `<div class="info-table-row-new price-row-new">
+                    ${printSettings.display_price ?
+              `<div class="info-table-row-new price-row-new">
                         <span class="info-value-new price-value-new">${product.product_price} DA</span>
                       </div>` : ''}
                   </div>
@@ -654,13 +878,13 @@ const QuickBarcodePrintPage = () => {
               <div class="site-url-footer-new">${baseUrl}</div>
             </div>`;
         } else {
-          // Existing template structure
+          // القالب العادي
           printHtmlContent += `<div class="barcode-label template-${selectedTemplate.id}">
             ${printSettings.display_store_name ? `<p class="org-name">${product.organization_name}</p>` : ''}
             ${printSettings.display_product_name ? `<p class="product-name">${product.product_name}</p>` : ''}
             ${selectedTemplate.id === 'ideal' && (printSettings.display_product_name || printSettings.display_store_name) ? '<div class="divider"></div>' : ''}
-            <svg id="${barcodeSvgId}"></svg>
-            ${printSettings.display_price || printSettings.display_sku ? 
+            ${barcodeDataUrl ? `<img src="${barcodeDataUrl}" alt="Barcode" style="max-width: 95%; height: auto; max-height: 50%; margin: 0.5mm auto; display: block;" />` : '<span style="color: red;">خطأ باركود</span>'}
+            ${printSettings.display_price || printSettings.display_sku ?
               `<div class="price-sku-container">
                 ${printSettings.display_price ? `<p class="price">${product.product_price} DA</p>` : ''}
                 ${printSettings.display_sku ? `<p class="sku">SKU: ${product.product_sku}</p>` : ''}
@@ -668,329 +892,107 @@ const QuickBarcodePrintPage = () => {
           </div>`;
         }
       }
-    });
+    }
     printHtmlContent += '</body></html>';
 
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(printHtmlContent);
-      printWindow.document.close();
+    // ⚡ استخدام iframe للطباعة (يعمل في Tauri)
+    toast.info('جاري تحضير الطباعة...');
+    const success = await printViaIframe(printHtmlContent);
 
-      // تأخير أطول للسماح للـ DOM والـ CSS والمكتبات بالتحميل
-      const renderDelay = selectedTemplate.id === 'qr-plus-barcode' ? 500 : 
-                         (selectedFont && selectedFont.url) ? 300 : 100;
-
-      setTimeout(() => {
-        selectedProducts.forEach(product => {
-          const itemsToPrintCount = product.use_stock_quantity ? (product.stock_quantity > 0 ? product.stock_quantity : 1) : product.print_quantity;
-          for (let i = 0; i < itemsToPrintCount; i++) {
-            const uniqueSuffix = `${product.product_id}-print-${i}`;
-            const barcodeSvgId = `barcode-${uniqueSuffix}`;
-            const qrCodeContainerId = `qrcode-${uniqueSuffix}`;
-
-            const valueToEncodeForBarcode = product.product_barcode || product.product_sku || product.product_id || 'NO_DATA';
-            const targetBarcodeSvgElement = printWindow.document.getElementById(barcodeSvgId) as HTMLElement | null;
-
-            // Define these once before the if/else block for QR code generation
-            const baseUrl = productUrlBase(product.organization_domain, product.organization_subdomain);
-            const slugPart = product.product_slug ? encodeURIComponent(product.product_slug) : product.product_id;
-            const productPageUrl = `${baseUrl}/products/${slugPart}`;
-            const isFallbackUrl = baseUrl === 'fallback-base-url.com';
-
-            // تحضير وتنظيف قيمة الباركود
-            let barcodeFormatForTemplate = printSettings.barcode_type;
-            
-            // استخدام code128 كنوع افتراضي في حال كان النوع المحدد سيسبب خطأ
-            if (selectedTemplate.id === 'qr-plus-barcode') {
-              barcodeFormatForTemplate = 'CODE128'; // استخدام نوع أكثر مرونة لقبول قيم متنوعة
-            }
-            
-            // استخدام الدالة الجديدة لتحضير قيمة الباركود
-            const valueToUse = prepareBarcodeValue(valueToEncodeForBarcode, barcodeFormatForTemplate);
-
-            const barcodeOptions: JsBarcode.Options = {
-                format: barcodeFormatForTemplate,
-                lineColor: "#000",
-                width: 1.5, // Default, will be overridden by template options if specified
-                height: 30, // Default, will be overridden by template options if specified
-                displayValue: printSettings.display_barcode_value,
-                font: selectedFont?.cssValue || "sans-serif", // Use the full CSS value string for font
-                fontOptions: selectedFont?.isRTL ? "rtl" : "", // Keep RTL if applicable, remove forced bold for now
-                fontSize: 8, // This is a default, will be overridden by template specific
-                textMargin: 0, // This is a default, will be overridden by template specific
-                margin: 2, // Default margin for JsBarcode SVG, will be overridden by template specific
-                ...(selectedTemplate.jsBarcodeOptions || {}), // Spread template options
-                // إضافة خيارات لتجنب الأخطاء
-                valid: function(valid) {
-                  if (!valid) {
-                    if (targetBarcodeSvgElement) {
-                      // إذا كان هناك خطأ، استخدم CODE128 كآخر محاولة
-                      try {
-                        JsBarcode(targetBarcodeSvgElement, valueToUse, {
-                          ...barcodeOptions,
-                          format: 'CODE128',
-                        });
-                      } catch (finalError) {
-                        // عرض رسالة خطأ أكثر تفصيلاً
-                        targetBarcodeSvgElement.innerHTML = `
-                          <text x="10" y="15" fill="red" font-size="8" font-weight="bold">خطأ في الباركود</text>
-                          <text x="10" y="25" fill="red" font-size="6">${valueToUse.substring(0, 10)}${valueToUse.length > 10 ? '...' : ''}</text>
-                        `;
-                      }
-                    }
-                  }
-                }
-            };
-
-            if (targetBarcodeSvgElement) {
-              try {
-                JsBarcode(targetBarcodeSvgElement, valueToUse, barcodeOptions);
-              } catch (e: any) {
-                // في حالة الخطأ، حاول مرة أخرى باستخدام CODE128 الأكثر مرونة
-                try {
-                  // تجربة استخدام نوع باركود أكثر مرونة
-                  const fallbackValue = prepareBarcodeValue(valueToUse, 'CODE128');
-                  JsBarcode(targetBarcodeSvgElement, fallbackValue, {
-                    ...barcodeOptions,
-                    format: 'CODE128',
-                  });
-                } catch (e2: any) {
-                  // إذا فشلت كل المحاولات، اعرض رسالة خطأ
-                  targetBarcodeSvgElement.innerHTML = `
-                    <text x="10" y="15" fill="red" font-size="8" font-weight="bold">خطأ في الباركود</text>
-                    <text x="10" y="25" fill="red" font-size="6">${valueToUse.substring(0, 10)}${valueToUse.length > 10 ? '...' : ''}</text>
-                  `;
-                  // سجل الخطأ في وحدة التحكم للتصحيح
-                  (printWindow as any).console.error(`[Barcode Error] Failed to generate barcode for value: ${valueToUse}`, e, e2);
-                }
-              }
-            }
-
-            // Generate QR Code if the template is qr-plus-barcode
-            if (selectedTemplate.id === 'qr-plus-barcode') {
-              const qrCodeElement = printWindow.document.getElementById(qrCodeContainerId);
-              
-              // إضافة تحقق أفضل من وجود العنصر والبيانات
-              if (qrCodeElement && productPageUrl && !isFallbackUrl) {
-                (async () => { try {
-                  // إعداد العنصر للحصول على قياسات صحيحة
-                  (qrCodeElement as HTMLElement).style.display = 'flex';
-                  (qrCodeElement as HTMLElement).style.justifyContent = 'center';
-                  (qrCodeElement as HTMLElement).style.alignItems = 'center';
-                  (qrCodeElement as HTMLElement).style.minWidth = '20mm';
-                  (qrCodeElement as HTMLElement).style.minHeight = '20mm';
-
-                  // قياس الحجم بدون Forced Reflow: انتظر إطار الرسم ثم اقرأ القياسات
-                  const raf = (printWindow.requestAnimationFrame || window.requestAnimationFrame || ((cb: FrameRequestCallback) => setTimeout(cb, 0))).bind(printWindow);
-                  const { containerWidth, containerHeight, qrActualSize } = await new Promise<{ containerWidth: number; containerHeight: number; qrActualSize: number }>((resolve) => {
-                    raf(() => {
-                      const rect = (qrCodeElement as HTMLElement).getBoundingClientRect();
-                      const cw = Math.max(rect.width || 80, 60);
-                      const ch = Math.max(rect.height || 80, 60);
-                      const cs = Math.min(cw, ch);
-                      const size = Math.max(cs, 60);
-                      resolve({ containerWidth: cw, containerHeight: ch, qrActualSize: size });
-                    });
-                  });
-
-                  // إنشاء QR Code مع إعدادات محسّنة
-                  const QR = await loadQRCodeStyling();
-                  const qrCodeInstance = new QR({
-                    width: qrActualSize,
-                    height: qrActualSize,
-                    type: 'svg',
-                    data: productPageUrl,
-                    margin: 4, // تقليل الهامش لمساحة أكبر
-                    dotsOptions: {
-                      type: "square",
-                      color: "#000000",
-                    },
-                    backgroundOptions: {
-                      color: "#ffffff"
-                    },
-                    cornersSquareOptions: {
-                      type: "square",
-                      color: "#000000"
-                    },
-                    cornersDotOptions: {
-                      type: "square",
-                      color: "#000000"
-                    },
-                    qrOptions: {
-                      errorCorrectionLevel: 'L', // أقل كثافة للطباعة الأوضح
-                      typeNumber: 0 // دع المكتبة تختار الحجم المناسب
-                    }
-                  });
-
-                  // محاولة متعددة للحصول على SVG
-                  const generateQRWithFallback = async () => {
-                    try {
-                      // المحاولة الأولى: استخدام getRawData
-                      const svgData = await qrCodeInstance.getRawData("svg");
-                      
-                      if (svgData) {
-                        let svgString = '';
-                        
-                        if (typeof svgData === 'string') {
-                          svgString = svgData;
-                        } else if (svgData instanceof Blob) {
-                          svgString = await svgData.text();
-                        } else {
-                          svgString = svgData.toString();
-                        }
-                        
-                        if (svgString && svgString.includes('<svg')) {
-                          (qrCodeElement as HTMLElement).innerHTML = svgString;
-                          return true;
-                        }
-                      }
-                    } catch (qrError) {
-                      (printWindow as any).console.warn(`[QR Warning ${uniqueSuffix}] getRawData failed:`, qrError);
-                    }
-                    
-                    // المحاولة الثانية: استخدام append
-                    try {
-                      (qrCodeElement as HTMLElement).innerHTML = '';
-                      await qrCodeInstance.append(qrCodeElement as HTMLElement);
-                      
-                      // التحقق من وجود SVG
-                      const svgElement = (qrCodeElement as HTMLElement).querySelector('svg');
-                      if (svgElement) {
-                        return true;
-                      }
-                                         } catch (appendError) {
-                       (printWindow as any).console.warn(`[QR Warning ${uniqueSuffix}] append failed:`, appendError);
-                     }
-                    
-                    // المحاولة الثالثة: استخدام خدمة خارجية كـ fallback
-                    try {
-                      const fallbackUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(productPageUrl)}&size=${qrActualSize}x${qrActualSize}&margin=4&ecc=L&format=svg`;
-                      
-                      const response = await fetch(fallbackUrl);
-                      if (response.ok) {
-                        const svgContent = await response.text();
-                        if (svgContent && svgContent.includes('<svg')) {
-                          (qrCodeElement as HTMLElement).innerHTML = svgContent;
-                          return true;
-                        }
-                      }
-                                         } catch (fallbackError) {
-                       (printWindow as any).console.warn(`[QR Warning ${uniqueSuffix}] Fallback failed:`, fallbackError);
-                     }
-                    
-                    return false;
-                  };
-                  
-                  // تنفيذ التوليد مع معالجة الأخطاء
-                  generateQRWithFallback().then(success => {
-                    if (!success) {
-                      // إذا فشلت كل المحاولات، عرض رسالة أو باركود احتياطي
-                      (qrCodeElement as HTMLElement).innerHTML = `
-                        <div style="width: ${qrActualSize}px; height: ${qrActualSize}px; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 8px; text-align: center; color: #666;">
-                          <div>لم يتم تحميل<br/>رمز QR<br/><small>${productPageUrl.substring(0, 20)}...</small></div>
-                        </div>
-                      `;
-                      (printWindow as any).console.error(`[QR Error ${uniqueSuffix}] All QR generation methods failed`);
-                    }
-                                     }).catch(promiseError => {
-                     (printWindow as any).console.error(`[QR Error ${uniqueSuffix}] QR generation promise failed:`, promiseError);
-                    (qrCodeElement as HTMLElement).innerHTML = `
-                      <div style="width: ${qrActualSize}px; height: ${qrActualSize}px; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 8px; text-align: center; color: #666;">
-                        <div>خطأ في تحميل<br/>رمز QR</div>
-                      </div>
-                    `;
-                  });
-                  
-                } catch (qrError: any) {
-                  (printWindow as any).console.error(`[QR Error ${uniqueSuffix}] QR Code generation failed:`, qrError);
-                  if (qrCodeElement) {
-                    (qrCodeElement as HTMLElement).innerHTML = `
-                      <div style="width: 60px; height: 60px; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 8px; text-align: center; color: #666;">
-                        <div>خطأ QR</div>
-                      </div>
-                    `;
-                  }
-                } })();
-              } else {
-                // عرض رسالة توضيحية عند عدم توفر البيانات
-                let reason = "بيانات غير متوفرة";
-                if (!qrCodeElement) reason = "عنصر QR غير موجود";
-                else if (isFallbackUrl) reason = "نطاق المتجر غير محدد";
-                else if (!productPageUrl) reason = "رابط المنتج فارغ";
-                
-                (printWindow as any).console.warn(`[QR Warning ${uniqueSuffix}] Cannot generate QR: ${reason}`);
-                if (qrCodeElement) {
-                  (qrCodeElement as HTMLElement).innerHTML = `
-                    <div style="width: 60px; height: 60px; border: 1px dashed #ccc; display: flex; align-items: center; justify-content: center; font-size: 7px; text-align: center; color: #999;">
-                      <div>${reason}</div>
-                    </div>
-                  `;
-                }
-              }
-            }
-          }
-        });
-
-        printWindow.focus();
-        
-        // التأكد من تحميل كافة العناصر قبل الطباعة
-        const initiateActualPrint = () => {
-          if (printWindow && printWindow.document) {
-            const pWindow = printWindow as Window & { document: Document & { fonts: FontFaceSet } };
-            
-            // تأخير إضافي للـ QR codes لضمان التحميل الكامل
-            const finalDelay = selectedTemplate.id === 'qr-plus-barcode' ? 2000 : 1000;
-            
-            setTimeout(() => {
-              if (pWindow.document.fonts && typeof pWindow.document.fonts.ready === 'function') {
-                (pWindow.document.fonts.ready as Promise<FontFaceSet>).then(() => {
-                  pWindow.print();
-                }).catch(printError => {
-                  pWindow.print(); 
-                });
-              } else {
-                pWindow.print();
-              }
-            }, finalDelay);
-          } else {
-            toast.error("فشل تهيئة نافذة الطباعة بشكل كامل.");
-          }
-        };
-        
-        // بدء عملية الطباعة
-        initiateActualPrint();
-      }, renderDelay);
-
-    } else {
-      toast.error("فشل فتح نافذة الطباعة. يرجى التأكد من السماح بالنوافذ المنبثقة.");
+    // ⚡ حفظ سجل الطباعة
+    if (currentOrganization?.id) {
+      const productsForHistory = selectedProducts.map(p => ({
+        id: p.product_id,
+        name: p.product_name,
+        quantity: p.use_stock_quantity ? (p.stock_quantity > 0 ? p.stock_quantity : 1) : p.print_quantity
+      }));
+      
+      await printHistoryService.addPrintRecord(
+        currentOrganization.id,
+        productsForHistory,
+        {
+          templateId: printSettings.selected_template_id,
+          labelSize: `${printSettings.label_width}x${printSettings.label_height}`,
+          barcodeType: printSettings.barcode_type
+        },
+        success ? 'success' : 'failed'
+      );
     }
   };
 
+
   return (
-    <Layout>
-      <div className="container mx-auto py-6">
-        <div className="flex justify-between items-center mb-6">
+    <POSPureLayout onRefresh={fetchProductsForBarcode} isRefreshing={isLoading}>
+      <div className="p-4 md:p-6 overflow-y-auto h-full">
+        {/* ⚡ العنوان مع الأزرار */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
           <h1 className="text-2xl font-bold">طباعة سريعة للباركود</h1>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowPreview(!showPreview)}
+              className="h-8"
+            >
+              <Eye className="h-4 w-4 ml-1" />
+              {showPreview ? 'إخفاء المعاينة' : 'معاينة'}
+            </Button>
+            <KeyboardShortcutsHelp shortcuts={shortcuts} />
+          </div>
         </div>
+
+        {/* ⚡ قسم المعاينة والسجل */}
+        {showPreview && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
+            {/* معاينة الباركود */}
+            {previewProduct && (
+              <BarcodePreview
+                productName={previewProduct.product_name}
+                productPrice={previewProduct.product_price}
+                productSku={previewProduct.product_sku}
+                productBarcode={previewProduct.product_barcode || ''}
+                storeName={previewProduct.organization_name}
+                barcodeType={printSettings.barcode_type}
+                templateId={printSettings.selected_template_id}
+                showStoreName={printSettings.display_store_name}
+                showProductName={printSettings.display_product_name}
+                showPrice={printSettings.display_price}
+                showSku={printSettings.display_sku}
+                showBarcodeValue={printSettings.display_barcode_value}
+                labelWidth={printSettings.label_width}
+                labelHeight={printSettings.label_height}
+                fontFamily={printSettings.font_family_css}
+              />
+            )}
+            
+            {/* سجل الطباعة */}
+            {currentOrganization?.id && (
+              <PrintHistory
+                organizationId={currentOrganization.id}
+                onReprint={handleReprint}
+              />
+            )}
+          </div>
+        )}
 
         {/* قسم اختيار المنتجات */}
         <div className="mb-8 p-6 bg-background rounded-lg border shadow-sm">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold">1. اختيار المنتجات</h2>
             {products.length > 0 && (
-                <div className="flex items-center space-x-2 rtl:space-x-reverse">
+              <div className="flex items-center space-x-2 rtl:space-x-reverse">
                 <Checkbox
-                    id="selectAllProducts"
-                    checked={selectAll}
-                    onCheckedChange={handleSelectAll}
+                  id="selectAllProducts"
+                  checked={selectAll}
+                  onCheckedChange={handleSelectAll}
                 />
                 <label
-                    htmlFor="selectAllProducts"
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  htmlFor="selectAllProducts"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                 >
-                    تحديد الكل ({products.filter(p => p.selected).length} / {filteredProducts.length})
+                  تحديد الكل ({products.filter(p => p.selected).length} / {filteredProducts.length})
                 </label>
-                </div>
+              </div>
             )}
           </div>
 
@@ -1007,8 +1009,8 @@ const QuickBarcodePrintPage = () => {
                   className="pr-10"
                 />
               </div>
-              <Button 
-                variant="outline" 
+              <Button
+                variant="outline"
                 onClick={clearFilters}
                 className="whitespace-nowrap"
               >
@@ -1025,8 +1027,8 @@ const QuickBarcodePrintPage = () => {
                   <Package className="h-4 w-4" />
                   ترتيب حسب
                 </Label>
-                <Select 
-                  value={`${searchAndFilter.sort_by}-${searchAndFilter.sort_order}`} 
+                <Select
+                  value={`${searchAndFilter.sort_by}-${searchAndFilter.sort_order}`}
                   onValueChange={(value) => {
                     const [field, order] = value.split('-') as [SearchAndFilter['sort_by'], 'asc' | 'desc'];
                     setSearchAndFilter(prev => ({ ...prev, sort_by: field, sort_order: order }));
@@ -1051,9 +1053,9 @@ const QuickBarcodePrintPage = () => {
               {/* فلتر المخزون */}
               <div className="space-y-2">
                 <Label className="text-sm font-medium">حالة المخزون</Label>
-                <Select 
-                  value={searchAndFilter.stock_filter} 
-                  onValueChange={(value: SearchAndFilter['stock_filter']) => 
+                <Select
+                  value={searchAndFilter.stock_filter}
+                  onValueChange={(value: SearchAndFilter['stock_filter']) =>
                     handleFilterChange('stock_filter', value)
                   }
                 >
@@ -1131,7 +1133,7 @@ const QuickBarcodePrintPage = () => {
                 <TableHeader className="sticky top-0 bg-background z-10">
                   <TableRow>
                     <TableHead className="w-[50px]">
-                       <Checkbox
+                      <Checkbox
                         id="headerSelectAll"
                         checked={selectAll}
                         onCheckedChange={handleSelectAll}
@@ -1194,20 +1196,19 @@ const QuickBarcodePrintPage = () => {
                         <code className="text-xs">{product.product_sku}</code>
                       </TableCell>
                       <TableCell className="text-center">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                          product.stock_quantity === 0 
-                            ? 'bg-red-100 text-red-800' 
-                            : product.stock_quantity <= 5 
-                            ? 'bg-yellow-100 text-yellow-800' 
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${product.stock_quantity === 0
+                          ? 'bg-red-100 text-red-800'
+                          : product.stock_quantity <= 5
+                            ? 'bg-yellow-100 text-yellow-800'
                             : 'bg-green-100 text-green-800'
-                        }`}>
+                          }`}>
                           {product.stock_quantity}
                         </span>
                       </TableCell>
                       <TableCell className="text-center">
                         <span className="font-medium">
-                          {typeof product.product_price === 'number' 
-                            ? product.product_price.toFixed(2) 
+                          {typeof product.product_price === 'number'
+                            ? product.product_price.toFixed(2)
                             : parseFloat(product.product_price).toFixed(2)
                           } د.ج
                         </span>
@@ -1224,10 +1225,10 @@ const QuickBarcodePrintPage = () => {
                       </TableCell>
                       <TableCell className="text-center">
                         <Checkbox
-                           id={`useStock-${product.product_id}`}
-                           checked={product.use_stock_quantity}
-                           onCheckedChange={() => handleUseStockQuantityChange(product.product_id)}
-                           aria-label={`Use stock quantity for ${product.product_name}`}
+                          id={`useStock-${product.product_id}`}
+                          checked={product.use_stock_quantity}
+                          onCheckedChange={() => handleUseStockQuantityChange(product.product_id)}
+                          aria-label={`Use stock quantity for ${product.product_name}`}
                         />
                       </TableCell>
                     </TableRow>
@@ -1282,63 +1283,63 @@ const QuickBarcodePrintPage = () => {
 
             {/* Column 2: Template Selection */}
             <div className="space-y-6">
-                <div className="space-y-2">
-                    <Label htmlFor="templateSelect">اختر قالب التصميم</Label>
-                    <Select 
-                        value={printSettings.selected_template_id} 
-                        onValueChange={(value) => handlePrintSettingChange("selected_template_id", value)}
-                    >
-                        <SelectTrigger id="templateSelect">
-                        <SelectValue placeholder="اختر قالبًا" />
-                        </SelectTrigger>
-                        <SelectContent>
-                        {barcodeTemplates.map((template) => (
-                            <SelectItem key={template.id} value={template.id}>
-                            {template.name}
-                            {template.description && <span className="text-xs text-muted-foreground ml-2 rtl:mr-2 rtl:ml-0">- {template.description}</span>}
-                            </SelectItem>
-                        ))}
-                        </SelectContent>
-                    </Select>
-                </div>
-            
-                {/* Font Selection Dropdown */}
-                <div className="space-y-2">
-                  <Label htmlFor="fontFamilySelect">اختر نوع الخط</Label>
-                  <Select 
-                    value={printSettings.font_family_css} 
-                    onValueChange={(value) => handlePrintSettingChange("font_family_css", value)}
-                  >
-                    <SelectTrigger id="fontFamilySelect">
-                      <SelectValue placeholder="اختر خطًا" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {fontOptions.map((font) => (
-                        <SelectItem key={font.id} value={font.cssValue} style={{ fontFamily: font.cssValue }}>
-                          {font.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="templateSelect">اختر قالب التصميم</Label>
+                <Select
+                  value={printSettings.selected_template_id}
+                  onValueChange={(value) => handlePrintSettingChange("selected_template_id", value)}
+                >
+                  <SelectTrigger id="templateSelect">
+                    <SelectValue placeholder="اختر قالبًا" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {barcodeTemplates.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>
+                        {template.name}
+                        {template.description && <span className="text-xs text-muted-foreground ml-2 rtl:mr-2 rtl:ml-0">- {template.description}</span>}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Font Selection Dropdown */}
+              <div className="space-y-2">
+                <Label htmlFor="fontFamilySelect">اختر نوع الخط</Label>
+                <Select
+                  value={printSettings.font_family_css}
+                  onValueChange={(value) => handlePrintSettingChange("font_family_css", value)}
+                >
+                  <SelectTrigger id="fontFamilySelect">
+                    <SelectValue placeholder="اختر خطًا" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {fontOptions.map((font) => (
+                      <SelectItem key={font.id} value={font.cssValue} style={{ fontFamily: font.cssValue }}>
+                        {font.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             {/* Column 3 & 4: Display Options (spread over two columns if needed or keep in one) */}
             <div className="space-y-3 md:col-span-2 lg:col-span-2">
               <Label>المعلومات المعروضة على الملصق:</Label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-3 gap-x-4">
-                {[ 
-                  {key: "display_store_name", label: "عرض اسم المتجر"},
-                  {key: "display_product_name", label: "عرض اسم المنتج"},
-                  {key: "display_price", label: "عرض السعر"},
-                  {key: "display_sku", label: "عرض SKU"},
-                  {key: "display_barcode_value", label: "عرض قيمة الباركود (نص)"}
+                {[
+                  { key: "display_store_name", label: "عرض اسم المتجر" },
+                  { key: "display_product_name", label: "عرض اسم المنتج" },
+                  { key: "display_price", label: "عرض السعر" },
+                  { key: "display_sku", label: "عرض SKU" },
+                  { key: "display_barcode_value", label: "عرض قيمة الباركود (نص)" }
                 ].map(item => (
                   <div key={item.key} className="flex items-center space-x-2 rtl:space-x-reverse">
-                    <Checkbox 
-                      id={item.key} 
+                    <Checkbox
+                      id={item.key}
                       checked={printSettings[item.key as keyof PrintSettings] as boolean}
-                      onCheckedChange={(checked) => handlePrintSettingChange(item.key as keyof PrintSettings, Boolean(checked))} 
+                      onCheckedChange={(checked) => handlePrintSettingChange(item.key as keyof PrintSettings, Boolean(checked))}
                     />
                     <Label htmlFor={item.key} className="text-sm whitespace-nowrap">{item.label}</Label>
                   </div>
@@ -1365,7 +1366,7 @@ const QuickBarcodePrintPage = () => {
           </Button>
         </div>
       </div>
-    </Layout>
+    </POSPureLayout>
   );
 };
 

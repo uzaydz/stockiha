@@ -1,5 +1,11 @@
-import { inventoryDB } from '@/database/localDb';
+/**
+ * orderGroupsService - خدمة مجموعات الطلبات
+ *
+ * ⚡ تم التحديث لاستخدام Delta Sync بالكامل
+ */
+
 import { v4 as uuidv4 } from 'uuid';
+import { deltaWriteService } from '@/services/DeltaWriteService';
 
 export type OrderGroupStrategy = 'round_robin' | 'least_busy' | 'weighted' | 'claim_only' | 'manual';
 
@@ -43,11 +49,13 @@ export interface LocalOrderAssignment {
 
 export const orderGroupsService = {
   async ensureDefaultGroup(orgId: string) {
-    const existing = await inventoryDB.orderGroups.where('organization_id').equals(orgId).toArray();
+    // ⚡ استخدام Delta Sync
+    const existing = await deltaWriteService.getAll<LocalOrderGroup>('order_groups' as any, orgId);
     if (existing.length === 0) {
       const id = uuidv4();
       const now = new Date().toISOString();
-      await inventoryDB.orderGroups.put({
+      // ⚡ إنشاء المجموعة الافتراضية
+      await deltaWriteService.create('order_groups' as any, {
         id,
         organization_id: orgId,
         name: 'المجموعة الافتراضية (كل المنتجات)',
@@ -56,32 +64,48 @@ export const orderGroupsService = {
         priority: 1,
         created_at: now,
         updated_at: now,
-      } as LocalOrderGroup);
-      await inventoryDB.orderGroupRules.put({
+      } as LocalOrderGroup, orgId);
+      // ⚡ إنشاء القاعدة الافتراضية
+      await deltaWriteService.create('order_group_rules' as any, {
         id: uuidv4(),
         group_id: id,
         type: 'all',
         include: true,
         values: [],
-      } as LocalOrderGroupRule);
+      } as LocalOrderGroupRule, orgId);
     }
   },
 
   async list(orgId: string): Promise<LocalOrderGroup[]> {
-    return await inventoryDB.orderGroups.where('organization_id').equals(orgId).toArray();
+    // ⚡ استخدام Delta Sync
+    return await deltaWriteService.getAll<LocalOrderGroup>('order_groups' as any, orgId);
   },
 
   async get(groupId: string): Promise<LocalOrderGroup | undefined> {
-    return await inventoryDB.orderGroups.get(groupId);
+    // ⚡ استخدام Delta Sync
+    return await deltaWriteService.get<LocalOrderGroup>('order_groups' as any, groupId) || undefined;
   },
 
   async getRules(groupId: string): Promise<LocalOrderGroupRule[]> {
-    return await inventoryDB.orderGroupRules.where('group_id').equals(groupId).toArray();
+    // ⚡ استخدام Delta Sync - نحتاج orgId فارغ لجلب كل القواعد ثم التصفية
+    const orgId = localStorage.getItem('currentOrganizationId') || localStorage.getItem('bazaar_organization_id') || '';
+    const allRules = await deltaWriteService.getAll<LocalOrderGroupRule>('order_group_rules' as any, orgId);
+    return allRules.filter(r => r.group_id === groupId);
   },
 
   async save(group: Partial<LocalOrderGroup> & { organization_id: string; name: string; strategy?: OrderGroupStrategy; enabled?: boolean; priority?: number; id?: string }, rules: LocalOrderGroupRule[]) {
     const id = group.id || uuidv4();
     const now = new Date().toISOString();
+
+    // ⚡ جلب المجموعة الحالية إن وجدت
+    let existingCreatedAt = now;
+    if (group.id) {
+      const existing = await deltaWriteService.get<LocalOrderGroup>('order_groups' as any, group.id);
+      if (existing) {
+        existingCreatedAt = existing.created_at || now;
+      }
+    }
+
     const record: LocalOrderGroup = {
       id,
       organization_id: group.organization_id,
@@ -89,36 +113,76 @@ export const orderGroupsService = {
       enabled: group.enabled ?? true,
       strategy: group.strategy ?? 'claim_only',
       priority: group.priority ?? 1,
-      created_at: group.id ? (await inventoryDB.orderGroups.get(group.id))?.created_at || now : now,
+      created_at: existingCreatedAt,
       updated_at: now,
     };
-    await inventoryDB.orderGroups.put(record);
-    // Replace rules
-    const existing = await inventoryDB.orderGroupRules.where('group_id').equals(id).toArray();
-    await inventoryDB.orderGroupRules.bulkDelete(existing.map(r => r.id));
-    await inventoryDB.orderGroupRules.bulkPut(rules.map(r => ({ ...r, id: r.id || uuidv4(), group_id: id })));
+
+    // ⚡ حفظ المجموعة
+    if (group.id) {
+      await deltaWriteService.update('order_groups' as any, id, record);
+    } else {
+      await deltaWriteService.create('order_groups' as any, record, group.organization_id);
+    }
+
+    // ⚡ حذف القواعد القديمة
+    const existingRules = await this.getRules(id);
+    for (const r of existingRules) {
+      await deltaWriteService.delete('order_group_rules' as any, r.id);
+    }
+
+    // ⚡ إضافة القواعد الجديدة
+    for (const r of rules) {
+      await deltaWriteService.create('order_group_rules' as any, {
+        ...r,
+        id: r.id || uuidv4(),
+        group_id: id,
+      }, group.organization_id);
+    }
+
     return record;
   },
 
   async remove(groupId: string) {
-    await inventoryDB.orderGroupRules.where('group_id').equals(groupId).delete();
-    await inventoryDB.orderGroups.delete(groupId);
+    // ⚡ حذف القواعد أولاً
+    const rules = await this.getRules(groupId);
+    for (const r of rules) {
+      await deltaWriteService.delete('order_group_rules' as any, r.id);
+    }
+    // ⚡ حذف المجموعة
+    await deltaWriteService.delete('order_groups' as any, groupId);
   },
 
   async listMembers(groupId: string): Promise<LocalOrderGroupMember[]> {
-    return await inventoryDB.orderGroupMembers.where('group_id').equals(groupId).toArray();
+    // ⚡ استخدام Delta Sync
+    const orgId = localStorage.getItem('currentOrganizationId') || localStorage.getItem('bazaar_organization_id') || '';
+    const allMembers = await deltaWriteService.getAll<LocalOrderGroupMember>('order_group_members' as any, orgId);
+    return allMembers.filter(m => m.group_id === groupId);
   },
+
   async addMember(groupId: string, staffId: string, weight: number = 1, maxOpen: number = 20): Promise<LocalOrderGroupMember> {
-    const rec: LocalOrderGroupMember = { id: uuidv4(), group_id: groupId, staff_id: staffId, weight, max_open: maxOpen, active: true };
-    await inventoryDB.orderGroupMembers.put(rec);
+    const orgId = localStorage.getItem('currentOrganizationId') || localStorage.getItem('bazaar_organization_id') || '';
+    const rec: LocalOrderGroupMember = {
+      id: uuidv4(),
+      group_id: groupId,
+      staff_id: staffId,
+      weight,
+      max_open: maxOpen,
+      active: true,
+    };
+    // ⚡ استخدام Delta Sync
+    await deltaWriteService.create('order_group_members' as any, rec, orgId);
     return rec;
   },
+
   async updateMember(member: LocalOrderGroupMember) {
-    await inventoryDB.orderGroupMembers.put(member);
+    // ⚡ استخدام Delta Sync
+    await deltaWriteService.update('order_group_members' as any, member.id, member);
     return member;
   },
+
   async removeMember(memberId: string) {
-    await inventoryDB.orderGroupMembers.delete(memberId);
+    // ⚡ استخدام Delta Sync
+    await deltaWriteService.delete('order_group_members' as any, memberId);
   },
 
   isOrderEligible(order: any, rules: LocalOrderGroupRule[]): boolean {
@@ -149,19 +213,22 @@ export const orderGroupsService = {
       status: 'assigned',
       assigned_at: new Date().toISOString(),
     };
-    await inventoryDB.orderAssignments.put(rec);
+    // ⚡ استخدام Delta Sync
+    await deltaWriteService.create('order_assignments' as any, rec, orgId);
     return rec;
   },
 
   async getAssignment(orgId: string, orderId: string): Promise<LocalOrderAssignment | undefined> {
-    return await inventoryDB.orderAssignments.where('[organization_id+order_id]').equals([orgId, orderId]).first();
+    // ⚡ استخدام Delta Sync
+    const all = await deltaWriteService.getAll<LocalOrderAssignment>('order_assignments' as any, orgId);
+    return all.find(a => a.order_id === orderId);
   },
+
   async listAssignmentsForOrders(orgId: string, orderIds: string[]): Promise<Record<string, LocalOrderAssignment>> {
     if (!orderIds.length) return {};
-    // Fetch in batches using compound index
+    // ⚡ استخدام Delta Sync
+    const all = await deltaWriteService.getAll<LocalOrderAssignment>('order_assignments' as any, orgId);
     const results: Record<string, LocalOrderAssignment> = {};
-    // Dexie doesn't support anyOf on compound in older patterns; fallback to filter
-    const all = await inventoryDB.orderAssignments.where('organization_id').equals(orgId).toArray();
     for (const a of all) {
       if (orderIds.includes(a.order_id)) results[a.order_id] = a;
     }

@@ -58,16 +58,7 @@ interface QueryLog {
   rowCount?: number;
 }
 
-declare global {
-  interface Window {
-    electronAPI?: {
-      db: {
-        query: (sql: string, params?: any) => Promise<{ success: boolean; data: any[]; error?: string }>;
-        queryOne: (sql: string, params?: any) => Promise<{ success: boolean; data: any; error?: string }>;
-      };
-    };
-  }
-}
+
 
 const DatabaseAdmin: React.FC = () => {
   const [tables, setTables] = useState<string[]>([]);
@@ -752,11 +743,10 @@ const DatabaseAdmin: React.FC = () => {
                   <Button
                     key={table}
                     variant={selectedTable === table ? 'default' : 'ghost'}
-                    className={`w-full justify-start gap-2 ${
-                      selectedTable === table
+                    className={`w-full justify-start gap-2 ${selectedTable === table
                         ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg'
                         : 'hover:bg-gray-100 dark:hover:bg-gray-800'
-                    }`}
+                      }`}
                     onClick={() => {
                       setSelectedTable(table);
                       setCurrentPage(1);

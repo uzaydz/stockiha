@@ -1,9 +1,30 @@
 /**
  * NetworkStatusManager ensures we only attach global online/offline listeners once
  * and share status updates through subscribers and the central event manager.
+ * 
+ * ⚡ محسّن لـ Tauri: يستخدم ConnectionState بدلاً من navigator.onLine
  */
 
 import { dispatchAppEvent } from './eventManager';
+
+// ⚡ استيراد ConnectionState للاكتشاف الذكي
+let connectionStateModule: any = null;
+try {
+  // Dynamic import to avoid circular dependencies
+  import('../sync/delta/ConnectionState').then(m => {
+    connectionStateModule = m;
+    // الاشتراك في تغييرات ConnectionState
+    if (m.connectionState) {
+      m.connectionState.subscribe((state: any) => {
+        networkStatusManager.setStatus(state.isOnline);
+      });
+    }
+  }).catch(() => {
+    // Fallback to navigator.onLine if ConnectionState not available
+  });
+} catch {
+  // Ignore
+}
 
 export interface NetworkStatus {
   isOnline: boolean;
@@ -16,8 +37,8 @@ class NetworkStatusManager {
   private listeners = new Set<NetworkStatusListener>();
   private isInitialized = false;
   private status: NetworkStatus = {
-    isOnline:
-      typeof navigator !== 'undefined' ? navigator.onLine : true,
+    // ⚡ البدء بـ true وانتظار ConnectionState للتحديث
+    isOnline: true,
     timestamp: Date.now()
   };
 
@@ -34,8 +55,15 @@ class NetworkStatusManager {
   }
 
   private handleStatusChange = () => {
-    const isOnline =
-      typeof navigator !== 'undefined' ? navigator.onLine : true;
+    // ⚡ استخدام ConnectionState إذا كان متاحاً
+    let isOnline = true;
+    if (connectionStateModule?.connectionState) {
+      isOnline = connectionStateModule.connectionState.isOnline();
+    } else if (typeof navigator !== 'undefined') {
+      // Fallback لـ navigator.onLine
+      isOnline = navigator.onLine;
+    }
+    
     this.status = {
       isOnline,
       timestamp: Date.now()
@@ -55,6 +83,14 @@ class NetworkStatusManager {
       return;
     }
 
+    // ⚡ الاستماع لـ connection-state-change بدلاً من online/offline
+    window.addEventListener('connection-state-change', (e: any) => {
+      if (e.detail) {
+        this.setStatus(e.detail.isOnline);
+      }
+    });
+    
+    // Fallback: الاستماع لـ online/offline أيضاً
     window.addEventListener('online', this.handleStatusChange);
     window.addEventListener('offline', this.handleStatusChange);
     this.isInitialized = true;

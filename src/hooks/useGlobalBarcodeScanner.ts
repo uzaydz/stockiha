@@ -24,85 +24,105 @@ export const useGlobalBarcodeScanner = ({
   const lastKeypressTimeRef = useRef<number>(0);
   const isProcessingRef = useRef<boolean>(false);
   const onBarcodeScannedRef = useRef(onBarcodeScanned);
-  
+
   // استخدام البيانات المحملة محلياً
-  const { searchByBarcode, isReady, stats } = useAllProductsForScanner();
+  const { searchByBarcode, isReady } = useAllProductsForScanner();
+
+  // استخدام ref للوصول لأحدث نسخة من دالة البحث دون إعادة إنشاء الـ listeners
+  const searchByBarcodeRef = useRef(searchByBarcode);
+
+  useEffect(() => {
+    searchByBarcodeRef.current = searchByBarcode;
+  }, [searchByBarcode]);
 
   // تحديث المرجع عند تغيير الدالة
   useEffect(() => {
     onBarcodeScannedRef.current = onBarcodeScanned;
   }, [onBarcodeScanned]);
 
-  // معالجة الباركود المكتمل
-  const processBarcodeIfComplete = useCallback(() => {
+  // معالجة الباركود المكتمل - الآن async
+  const processBarcodeIfComplete = useCallback(async () => {
     const buffer = barcodeBufferRef.current;
-    
+
     if (buffer.length >= minBarcodeLength && buffer.length <= maxBarcodeLength) {
-      
+
       if (onBarcodeScannedRef.current && !isProcessingRef.current) {
         isProcessingRef.current = true;
-        
-        // البحث في البيانات المحملة محلياً
-        const foundProduct = searchByBarcode(buffer);
-        
-        if (foundProduct) {
-          toast.success(`✅ تم العثور على: ${foundProduct.name}`, {
-            duration: 2000,
-            position: "top-center"
-          });
-          
-          try {
-            onBarcodeScannedRef.current(buffer, foundProduct);
-          } catch (error) {
+
+        try {
+          // ⚡ البحث في SQLite مباشرة (async)
+          const foundProduct = await searchByBarcodeRef.current(buffer);
+
+          if (foundProduct) {
+            toast.success(`✅ تم العثور على: ${foundProduct.name}`, {
+              duration: 2000,
+              position: "top-center"
+            });
+
+            try {
+              onBarcodeScannedRef.current(buffer, foundProduct);
+            } catch (error) {
+              console.error('[GlobalScanner] خطأ في callback:', error);
+            }
+          } else {
+            toast.warning(`⚠️ لم يتم العثور على منتج للباركود: ${buffer}`, {
+              duration: 3000,
+              position: "top-center"
+            });
+
+            // إرسال الباركود حتى لو لم يتم العثور على منتج (للمعالجة اليدوية)
+            try {
+              onBarcodeScannedRef.current(buffer, null);
+            } catch (error) {
+              console.error('[GlobalScanner] خطأ في callback:', error);
+            }
           }
-        } else {
-          toast.warning(`⚠️ لم يتم العثور على منتج للباركود: ${buffer}`, {
-            duration: 3000,
-            position: "top-center"
-          });
-          
-          // إرسال الباركود حتى لو لم يتم العثور على منتج (للمعالجة اليدوية)
+        } catch (error) {
+          console.error('[GlobalScanner] خطأ في البحث:', error);
+          // إرسال الباركود للمعالجة اليدوية
           try {
             onBarcodeScannedRef.current(buffer, null);
-          } catch (error) {
+          } catch (e) {
+            console.error('[GlobalScanner] خطأ في callback:', e);
           }
         }
-        
+
         // إعادة تعيين المعالجة بعد فترة قصيرة
         setTimeout(() => {
           isProcessingRef.current = false;
         }, 500);
       }
     } else if (buffer.length > maxBarcodeLength) {
+      console.warn(`[GlobalScanner] الباركود طويل جداً: ${buffer.length} أحرف`);
     }
-    
+
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
     }
     barcodeBufferRef.current = '';
-  }, [minBarcodeLength, maxBarcodeLength, searchByBarcode]);
+  }, [minBarcodeLength, maxBarcodeLength]); // إزالة searchByBarcode من التبعيات لأننا نستخدم ref
 
   // معالجة أحداث لوحة المفاتيح
   const handleKeyPress = useCallback((event: KeyboardEvent) => {
-    
+
     if (!enableGlobalScanning) {
       return;
     }
-    
+
     if (isProcessingRef.current) {
       return;
     }
 
     const currentTime = Date.now();
     const timeDifference = currentTime - lastKeypressTimeRef.current;
-    
+
     // تجاهل الأحداث إذا كان المستخدم يكتب في حقل input
     const target = event.target as HTMLElement;
-    
+
     if (target && (
-      target.tagName === 'INPUT' || 
-      target.tagName === 'TEXTAREA' || 
+      target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
       target.contentEditable === 'true' ||
       target.getAttribute('role') === 'textbox'
     )) {
@@ -177,7 +197,7 @@ export const useGlobalBarcodeScanner = ({
 
     // إضافة event listener
     document.addEventListener('keydown', handleKeyPress, true);
-    
+
     // تنظيف عند إلغاء المكون
     return () => {
       document.removeEventListener('keydown', handleKeyPress, true);

@@ -72,6 +72,8 @@ export default defineConfig(({ command, mode }) => {
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
+        // 🔧 إصلاح مشكلة compose-refs مع React 19
+        '@radix-ui/react-compose-refs': path.resolve(__dirname, './src/lib/radix-compose-refs-patched.ts'),
         'react': path.resolve(__dirname, './node_modules/react'),
         'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
         'lodash': 'lodash-es',
@@ -257,7 +259,10 @@ export default defineConfig(({ command, mode }) => {
         'zustand',
         'axios-retry',
         'is-retry-allowed',
-        'dayjs/esm/index.js'
+        'dayjs/esm/index.js',
+        // ✅ Prebundle deps causing Outdated Optimize Dep in Electron dev
+        'react-day-picker',
+        'cmdk'
       ],
       exclude: [
         // استثناء جميع المكتبات الثقيلة
@@ -284,8 +289,8 @@ export default defineConfig(({ command, mode }) => {
         '@sentry/tracing',
         '@sentry/replay'
       ],
-      // تسريع عملية الكشف
-      holdUntilCrawlEnd: false,
+      // انتظر اكتمال الزحف قبل التقديم لتجنب 504 Outdated Optimize Dep
+      holdUntilCrawlEnd: true,
       esbuildOptions: {
         target: 'es2020',
         supported: {

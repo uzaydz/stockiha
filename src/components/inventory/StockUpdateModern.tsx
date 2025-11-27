@@ -161,19 +161,22 @@ export default function StockUpdateModern({
         </DialogHeader>
 
         <div className="space-y-6">
-          {/* Product Info */}
+          {/* Product Info - ⚡ دعم thumbnail_base64 للعمل Offline */}
           <div className="flex gap-4 p-4 bg-slate-50 rounded-lg">
-            {item.thumbnail_image && !imageError ? (
-              <img
-                src={item.thumbnail_image}
-                alt={item.name}
-                className="h-16 w-16 rounded-lg object-cover"
-                onError={() => {
-                  console.log('🖼️ Image failed to load (offline?):', item.thumbnail_image);
-                  setImageError(true);
-                }}
-              />
-            ) : null}
+            {(() => {
+              const imageSrc = (item as any).thumbnail_base64 || item.thumbnail_image;
+              return imageSrc && !imageError ? (
+                <img
+                  src={imageSrc}
+                  alt={item.name}
+                  className="h-16 w-16 rounded-lg object-cover"
+                  onError={() => {
+                    console.log('🖼️ Image failed to load (offline?):', imageSrc?.slice(0, 50));
+                    setImageError(true);
+                  }}
+                />
+              ) : null;
+            })()}
             <div className="flex-1">
               <h3 className="font-semibold">{item.name}</h3>
               {item.sku && <p className="text-sm text-muted-foreground">{item.sku}</p>}

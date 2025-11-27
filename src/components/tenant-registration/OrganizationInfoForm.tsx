@@ -1,188 +1,139 @@
-import { motion } from 'framer-motion';
-import { 
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-  FormDescription
+import {
+    FormControl,
+    FormField,
+    FormItem,
+    FormLabel,
+    FormMessage,
+    FormDescription
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { UseFormReturn } from 'react-hook-form';
-import { ArrowRight, Globe, CheckCircle2 } from 'lucide-react';
+import { ArrowRight, Check, Loader2, Building2, Globe } from 'lucide-react';
 
 interface OrganizationInfoFormProps {
-  form: UseFormReturn<any>;
-  onPrevious: () => void;
-  onSubmit: () => void;
-  isLoading?: boolean;
+    form: UseFormReturn<any>;
+    onPrevious: () => void;
+    onSubmit: () => void;
+    isLoading?: boolean;
 }
 
-export const OrganizationInfoForm = ({ 
-  form, 
-  onPrevious,
-  onSubmit,
-  isLoading = false
+export const OrganizationInfoForm = ({
+    form,
+    onPrevious,
+    onSubmit,
+    isLoading = false
 }: OrganizationInfoFormProps) => {
-  return (
-    <motion.div
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -20 }}
-      transition={{ duration: 0.3 }}
-      className="space-y-6"
-      dir="rtl"
-    >
-      <div className="bg-[#fc5d41]/5 p-4 rounded-lg border border-[#fc5d41]/10 mb-6">
-        <h3 className="text-lg font-medium mb-2 flex items-center gap-2">
-          <span className="w-6 h-6 rounded-full bg-[#fc5d41] text-white flex items-center justify-center text-sm">2</span>
-          معلومات المؤسسة والنطاق
-        </h3>
-        <p className="text-gray-600 dark:text-gray-300 text-sm">هذه المعلومات خاصة بمؤسستك والنطاق الفرعي الخاص بمتجرك الإلكتروني</p>
-      </div>
-
-      <div className="space-y-6">
-        <FormField
-          control={form.control}
-          name="organizationName"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>اسم المؤسسة</FormLabel>
-              <FormControl>
-                <Input 
-                  {...field} 
-                  placeholder="أدخل اسم المؤسسة" 
-                  className="text-right" 
-                  dir="rtl"
+    return (
+        <div className="space-y-6" dir="rtl">
+            <div className="space-y-5">
+                <FormField
+                    control={form.control}
+                    name="organizationName"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel className="text-base text-slate-900 dark:text-slate-200 font-semibold mb-1.5 block">اسم المؤسسة</FormLabel>
+                            <div className="relative">
+                                <FormControl>
+                                    <Input
+                                        {...field}
+                                        placeholder="مثال: متجر الأناقة"
+                                        className="h-14 px-4 pl-12 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 rounded-xl transition-all duration-300 text-base"
+                                        dir="rtl"
+                                    />
+                                </FormControl>
+                                <Building2 className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                            </div>
+                            <FormMessage />
+                        </FormItem>
+                    )}
                 />
-              </FormControl>
-              <FormDescription>
-                سيظهر هذا الاسم للعملاء عند زيارة متجرك الإلكتروني
-              </FormDescription>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        
-        <div className="pt-4">
-          <div className="flex items-center justify-between mb-2">
-            <FormLabel htmlFor="subdomain">النطاق الفرعي الخاص بك</FormLabel>
-            <div className="text-xs text-gray-600 dark:text-gray-300">
-              سيكون هذا عنوان متجرك الإلكتروني
-            </div>
-          </div>
-          
-          <FormField
-            control={form.control}
-            name="subdomain"
-            render={({ field }) => (
-              <FormItem>
-                <FormControl>
-                  <div className="flex flex-col sm:flex-row items-stretch">
-                    <div className="bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 border-l-0 sm:border-l sm:border-r-0 px-3 py-2 flex items-center text-sm text-gray-600 dark:text-gray-300 rounded-l-md sm:rounded-l-none sm:rounded-r-md">
-                      <span className="whitespace-nowrap">.stockiha.com</span>
-                    </div>
-                    <div className="flex-1 relative">
-                      <div className="absolute left-3 top-0 bottom-0 flex items-center pointer-events-none">
-                        <Globe className="h-4 w-4 text-gray-500 dark:text-gray-400" />
-                      </div>
-                      <Input 
-                        {...field}
-                        id="subdomain"
-                        placeholder="mystore"
-                        className="rounded-r-none sm:rounded-r-md sm:rounded-l-none pl-9 font-mono text-left lowercase"
-                        dir="ltr"
-                        onChange={(e) => {
-                          // تحويل إلى أحرف صغيرة وإزالة الأحرف غير المسموحة والمسافات
-                          const value = e.target.value
-                            .toLowerCase()
-                            .trim()
-                            .replace(/[^a-z0-9-]/g, '')
-                            .replace(/^-+|-+$/g, ''); // إزالة الشرطات من البداية والنهاية
-                          field.onChange(value);
-                        }}
-                        onBlur={(e) => {
-                          // تنظيف إضافي عند فقدان التركيز
-                          const value = e.target.value
-                            .toLowerCase()
-                            .trim()
-                            .replace(/[^a-z0-9-]/g, '')
-                            .replace(/^-+|-+$/g, ''); // إزالة الشرطات من البداية والنهاية
-                          field.onChange(value);
-                        }}
-                        onInput={(e) => {
-                          // تنظيف فوري عند الكتابة
-                          const value = e.currentTarget.value
-                            .toLowerCase()
-                            .trim()
-                            .replace(/[^a-z0-9-]/g, '')
-                            .replace(/^-+|-+$/g, ''); // إزالة الشرطات من البداية والنهاية
-                          field.onChange(value);
-                        }}
-                      />
-                    </div>
-                  </div>
-                </FormControl>
-                <FormMessage />
-                <FormDescription>
-                  مثال: mystore.stockiha.com - استخدم الأحرف الإنجليزية الصغيرة والأرقام والشرطات فقط
-                </FormDescription>
-              </FormItem>
-            )}
-          />
-        </div>
 
-        <div className="bg-[#fc5d41]/10 border border-[#fc5d41]/20 rounded-lg p-4 mt-6">
-          <h4 className="font-medium flex items-center gap-2 mb-2">
-            <CheckCircle2 className="h-5 w-5 text-green-500" />
-            ماذا ستحصل بعد التسجيل؟
-          </h4>
-          <ul className="space-y-2 text-sm">
-            <li className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#fc5d41]"></span>
-              <span>متجر إلكتروني جاهز على النطاق الفرعي الخاص بك</span>
-            </li>
-            <li className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#fc5d41]"></span>
-              <span>لوحة تحكم لإدارة المنتجات والطلبات والعملاء</span>
-            </li>
-            <li className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#fc5d41]"></span>
-              <span>تجربة مجانية لمدة 5 أيام تشمل جميع المزايا</span>
-            </li>
-            <li className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#fc5d41]"></span>
-              <span>دعم فني على مدار الساعة</span>
-            </li>
-          </ul>
+                <div className="space-y-2">
+                    <FormLabel htmlFor="subdomain" className="text-base text-slate-900 dark:text-slate-200 font-semibold mb-1.5 block">رابط المتجر</FormLabel>
+                    <FormField
+                        control={form.control}
+                        name="subdomain"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormControl>
+                                    <div className="flex flex-col sm:flex-row items-stretch shadow-sm rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 focus-within:border-orange-500 focus-within:ring-4 focus-within:ring-orange-500/10 transition-all duration-300 bg-white dark:bg-slate-900/50 h-auto sm:h-14">
+                                        <div className="bg-slate-50 dark:bg-slate-800 border-b sm:border-b-0 sm:border-l border-slate-200 dark:border-slate-700 px-5 py-3 flex items-center justify-center sm:justify-start text-sm font-bold text-slate-600 dark:text-slate-300 font-mono tracking-wide shrink-0 min-w-[140px]" dir="ltr">
+                                            <Globe className="w-4 h-4 mr-2 opacity-50" />
+                                            .stockiha.com
+                                        </div>
+                                        <div className="flex-1 relative">
+                                            <Input
+                                                {...field}
+                                                id="subdomain"
+                                                placeholder="your-store"
+                                                className="h-14 border-0 focus-visible:ring-0 rounded-none bg-transparent pl-4 font-mono text-left lowercase placeholder:text-slate-300 text-base"
+                                                dir="ltr"
+                                                onChange={(e) => {
+                                                    const value = e.target.value.toLowerCase().trim().replace(/[^a-z0-9-]/g, '').replace(/^-+|-+$/g, '');
+                                                    field.onChange(value);
+                                                }}
+                                            />
+                                        </div>
+                                    </div>
+                                </FormControl>
+                                <FormDescription className="text-xs text-slate-500 mt-2 mr-1">
+                                    يمكنك استخدام الأحرف الإنجليزية والأرقام والشرطات (-) فقط
+                                </FormDescription>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </div>
+
+                {/* Features Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4">
+                    {[
+                        'متجر إلكتروني متكامل مجاناً',
+                        'لوحة تحكم شاملة للمبيعات',
+                        'نظام إدارة مخزون ذكي',
+                        'دعم فني مباشر 24/7'
+                    ].map((feature, idx) => (
+                        <div key={idx} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800">
+                            <div className="w-6 h-6 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center shrink-0">
+                                <Check className="w-3.5 h-3.5 text-green-600 dark:text-green-400" />
+                            </div>
+                            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{feature}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            <div className="pt-8 flex gap-4">
+                <Button
+                    type="button"
+                    variant="outline"
+                    onClick={onPrevious}
+                    className="h-14 px-8 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-2xl font-bold text-base transition-all hover:-translate-y-0.5"
+                    disabled={isLoading}
+                >
+                    <ArrowRight className="h-5 w-5 ml-2" />
+                    <span>السابق</span>
+                </Button>
+
+                <Button
+                    type="button"
+                    onClick={onSubmit}
+                    className="flex-1 h-14 bg-gradient-to-r from-orange-500 to-rose-600 hover:from-orange-600 hover:to-rose-700 text-white font-bold rounded-2xl shadow-xl shadow-orange-500/20 hover:shadow-2xl hover:shadow-orange-500/30 transition-all duration-300 hover:-translate-y-0.5 text-lg"
+                    disabled={isLoading}
+                >
+                    {isLoading ? (
+                        <>
+                            <Loader2 className="w-5 h-5 animate-spin ml-2" />
+                            <span>جاري تهيئة المتجر...</span>
+                        </>
+                    ) : (
+                        <span>إطلاق متجري الآن 🚀</span>
+                    )}
+                </Button>
+            </div>
         </div>
-      </div>
-      
-      <div className="pt-4 flex justify-between">
-        <Button 
-          type="button" 
-          variant="outline"
-          onClick={onPrevious}
-          className="gap-1 group"
-          disabled={isLoading}
-        >
-          <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-          <span>السابق</span>
-        </Button>
-        
-        <Button 
-          type="button" 
-          onClick={onSubmit}
-          className="min-w-[140px] bg-[#fc5d41] hover:bg-[#fc5d41]/90 text-white"
-          disabled={isLoading}
-        >
-          {isLoading ? 'جاري إنشاء الحساب...' : 'إنشاء حساب المسؤول والنطاق'}
-        </Button>
-      </div>
-    </motion.div>
-  );
+    );
 };
 
 export default OrganizationInfoForm;

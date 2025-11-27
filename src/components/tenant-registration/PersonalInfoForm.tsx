@@ -1,165 +1,163 @@
-import { motion } from 'framer-motion';
-import { 
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage
+import {
+    FormControl,
+    FormField,
+    FormItem,
+    FormLabel,
+    FormMessage
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { UseFormReturn } from 'react-hook-form';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, User, Mail, Phone, Lock, Loader2 } from 'lucide-react';
 
 interface PersonalInfoFormProps {
-  form: UseFormReturn<any>;
-  onNext: () => void;
-  isLoading?: boolean;
+    form: UseFormReturn<any>;
+    onNext: () => void;
+    isLoading?: boolean;
 }
 
-export const PersonalInfoForm = ({ 
-  form, 
-  onNext,
-  isLoading = false
+export const PersonalInfoForm = ({
+    form,
+    onNext,
+    isLoading = false
 }: PersonalInfoFormProps) => {
-  return (
-    <motion.div
-      initial={{ opacity: 0, x: -20 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: 20 }}
-      transition={{ duration: 0.3 }}
-      className="space-y-6"
-    >
-      <div className="bg-[#fc5d41]/5 p-4 rounded-lg border border-[#fc5d41]/10 mb-6">
-        <h3 className="text-lg font-medium mb-2 flex items-center gap-2">
-          <span className="w-6 h-6 rounded-full bg-[#fc5d41] text-white flex items-center justify-center text-sm">1</span>
-          المعلومات الشخصية للمسؤول
-        </h3>
-        <p className="text-gray-600 dark:text-gray-300 text-sm">هذه المعلومات خاصة بحساب مسؤول المؤسسة الذي سيتمكن من إدارة النظام</p>
-      </div>
+    return (
+        <div className="space-y-6">
+            <div className="space-y-5">
+                <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel className="text-base text-slate-900 dark:text-slate-200 font-semibold mb-1.5 block">الاسم الكامل</FormLabel>
+                            <div className="relative">
+                                <FormControl>
+                                    <Input
+                                        {...field}
+                                        placeholder="أدخل اسمك الكامل"
+                                        className="h-14 px-4 pl-12 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 rounded-xl transition-all duration-300 text-base"
+                                        dir="rtl"
+                                    />
+                                </FormControl>
+                                <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                            </div>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <FormField
-          control={form.control}
-          name="name"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>الاسم الكامل</FormLabel>
-              <FormControl>
-                <Input 
-                  {...field} 
-                  placeholder="أدخل اسمك الكامل" 
-                  className="text-right" 
-                  dir="rtl"
-                  autoComplete="name"
+                <FormField
+                    control={form.control}
+                    name="email"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel className="text-base text-slate-900 dark:text-slate-200 font-semibold mb-1.5 block">البريد الإلكتروني</FormLabel>
+                            <div className="relative">
+                                <FormControl>
+                                    <Input
+                                        {...field}
+                                        type="email"
+                                        placeholder="name@company.com"
+                                        className="h-14 px-4 pl-12 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 rounded-xl transition-all duration-300 text-base"
+                                        dir="rtl"
+                                    />
+                                </FormControl>
+                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                            </div>
+                            <FormMessage />
+                        </FormItem>
+                    )}
                 />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        
-        <FormField
-          control={form.control}
-          name="email"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>البريد الإلكتروني</FormLabel>
-              <FormControl>
-                <Input 
-                  {...field} 
-                  type="email" 
-                  placeholder="أدخل بريدك الإلكتروني" 
-                  className="text-right" 
-                  dir="rtl"
-                  autoComplete="email"
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
 
-        <FormField
-          control={form.control}
-          name="phone"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>رقم الهاتف</FormLabel>
-              <FormControl>
-                <Input 
-                  {...field} 
-                  type="tel" 
-                  placeholder="أدخل رقم هاتفك" 
-                  className="text-right" 
-                  dir="rtl"
-                  autoComplete="tel"
+                <FormField
+                    control={form.control}
+                    name="phone"
+                    render={({ field }) => (
+                        <FormItem>
+                            <FormLabel className="text-base text-slate-900 dark:text-slate-200 font-semibold mb-1.5 block">رقم الهاتف</FormLabel>
+                            <div className="relative">
+                                <FormControl>
+                                    <Input
+                                        {...field}
+                                        type="tel"
+                                        placeholder="05xxxxxxxx"
+                                        className="h-14 px-4 pl-12 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 rounded-xl transition-all duration-300 text-base"
+                                        dir="rtl"
+                                    />
+                                </FormControl>
+                                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                            </div>
+                            <FormMessage />
+                        </FormItem>
+                    )}
                 />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
 
-        <div className="md:col-span-2 h-px bg-gray-200 dark:bg-gray-700 my-2"></div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <FormField
+                        control={form.control}
+                        name="password"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-base text-slate-900 dark:text-slate-200 font-semibold mb-1.5 block">كلمة المرور</FormLabel>
+                                <div className="relative">
+                                    <FormControl>
+                                        <Input
+                                            {...field}
+                                            type="password"
+                                            placeholder="••••••••"
+                                            className="h-14 px-4 pl-12 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 rounded-xl transition-all duration-300 text-base"
+                                            dir="rtl"
+                                        />
+                                    </FormControl>
+                                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                                </div>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
 
-        <FormField
-          control={form.control}
-          name="password"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>كلمة المرور</FormLabel>
-              <FormControl>
-                <Input 
-                  {...field} 
-                  type="password" 
-                  placeholder="أدخل كلمة المرور" 
-                  className="text-right" 
-                  dir="rtl"
-                  autoComplete="new-password"
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-        
-        <FormField
-          control={form.control}
-          name="confirmPassword"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>تأكيد كلمة المرور</FormLabel>
-              <FormControl>
-                <Input 
-                  {...field} 
-                  type="password" 
-                  placeholder="أعد إدخال كلمة المرور" 
-                  className="text-right" 
-                  dir="rtl"
-                  autoComplete="new-password"
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      </div>
-      
-      <div className="pt-4 flex justify-end">
-        <Button 
-          type="button" 
-          onClick={onNext}
-          className="min-w-[140px] gap-1 group bg-[#fc5d41] hover:bg-[#fc5d41]/90 text-white"
-          disabled={isLoading}
-        >
-          <span>التالي</span>
-          <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" />
-        </Button>
-      </div>
-    </motion.div>
-  );
+                    <FormField
+                        control={form.control}
+                        name="confirmPassword"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel className="text-base text-slate-900 dark:text-slate-200 font-semibold mb-1.5 block">تأكيد كلمة المرور</FormLabel>
+                                <div className="relative">
+                                    <FormControl>
+                                        <Input
+                                            {...field}
+                                            type="password"
+                                            placeholder="••••••••"
+                                            className="h-14 px-4 pl-12 bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 rounded-xl transition-all duration-300 text-base"
+                                            dir="rtl"
+                                        />
+                                    </FormControl>
+                                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5" />
+                                </div>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </div>
+            </div>
+
+            <div className="pt-8">
+                <Button
+                    type="button"
+                    onClick={onNext}
+                    className="w-full h-14 text-lg bg-gradient-to-r from-slate-900 to-slate-800 hover:from-slate-800 hover:to-slate-700 dark:from-white dark:to-slate-100 dark:text-slate-900 dark:hover:from-slate-100 dark:hover:to-slate-200 text-white font-bold rounded-2xl shadow-xl shadow-slate-900/10 dark:shadow-white/5 hover:shadow-2xl hover:-translate-y-0.5 transition-all duration-300 flex items-center justify-center gap-3"
+                    disabled={isLoading}
+                >
+                    {isLoading ? <Loader2 className="animate-spin" /> : (
+                        <>
+                            <span>متابعة الخطوات</span>
+                            <ArrowLeft className="h-5 w-5" />
+                        </>
+                    )}
+                </Button>
+            </div>
+        </div>
+    );
 };
 
 export default PersonalInfoForm;

@@ -1,7 +1,7 @@
 {
   "name": "stockiha-console-web",
   "private": true,
-  "version": "1.0.15",
+  "version": "1.0.16",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {
@@ -66,7 +66,10 @@
     "desktop:dist-win": "npm run desktop:build && electron-builder --win",
     "desktop:dist-linux": "npm run desktop:build && electron-builder --linux",
     "desktop:install": "npm install electron electron-builder concurrently wait-on --save-dev",
-    "postinstall": "patch-package && electron-rebuild -f -w better-sqlite3 && electron-builder install-app-deps"
+    "postinstall": "patch-package && electron-rebuild -f -w better-sqlite3",
+    "rebuild": "electron-rebuild -f -w better-sqlite3",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
   },
   "dependencies": {
     "@date-io/date-fns": "^3.2.1",
@@ -132,6 +135,10 @@
     "@tanstack/react-query-persist-client": "^5.85.9",
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/react-virtual": "^3.13.12",
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/plugin-process": "^2.3.1",
+    "@tauri-apps/plugin-sql": "^2.0.0",
+    "@tauri-apps/plugin-updater": "^2.9.0",
     "@tinymce/tinymce-react": "^6.3.0",
     "@types/lodash": "^4.17.20",
     "@types/papaparse": "^5.5.0",
@@ -212,6 +219,7 @@
     "swr": "^2.3.6",
     "tailwind-merge": "^3.3.1",
     "tailwindcss-animate": "^1.0.7",
+    "tauri-plugin-printer-v2": "^0.2.4",
     "use-sync-external-store": "^1.5.0",
     "usehooks-ts": "^3.1.1",
     "uuid": "^11.1.0",
@@ -233,6 +241,7 @@
     "@rollup/plugin-commonjs": "^28.0.6",
     "@supabase/mcp-server-supabase": "^0.5.1",
     "@tailwindcss/typography": "^0.5.16",
+    "@tauri-apps/cli": "^2.0.0",
     "@types/file-saver": "^2.0.7",
     "@types/minimatch": "^6.0.0",
     "@types/next": "^9.0.0",
@@ -324,7 +333,10 @@
   "build": {
     "appId": "com.stockiha.desktop",
     "productName": "Stockiha",
-    "asar": false,
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**/*"
+    ],
     "directories": {
       "output": "dist-electron",
       "buildResources": "assets"
@@ -340,6 +352,7 @@
       "package.json",
       "node_modules/**/*"
     ],
+    "afterPack": "./scripts/after-pack.cjs",
     "mac": {
       "category": "public.app-category.business",
       "target": [

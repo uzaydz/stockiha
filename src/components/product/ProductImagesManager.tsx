@@ -3,7 +3,6 @@ import { X, Plus, ArrowUp, ArrowDown, ImageIcon, Image, ImagePlus, Info, HelpCir
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardContent, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import ImageUploader, { ImageUploaderRef } from '@/components/ui/ImageUploader';
 import MultiImageUploader from '@/components/ui/MultiImageUploader';
 
@@ -113,7 +112,6 @@ export default function ProductImagesManager({
   };
 
   return (
-    <TooltipProvider>
       <div className="space-y-4 sm:space-y-5 lg:space-y-6">
         {/* Main Images Management Card */}
         <Card className="border-border/50 shadow-md sm:shadow-lg dark:shadow-xl sm:dark:shadow-2xl dark:shadow-black/20 bg-card/50 backdrop-blur-sm">
@@ -158,22 +156,12 @@ export default function ProductImagesManager({
                   <span className="text-xs sm:text-sm font-medium text-foreground">الصورة الرئيسية</span>
                   <span className="text-destructive">*</span>
                   <Badge variant="destructive" className="text-[10px] sm:text-xs shadow-sm">مطلوب</Badge>
-                  <Tooltip>
-                    <TooltipTrigger
-                      type="button"
-                      className="inline-flex items-center justify-center min-h-[44px] sm:min-h-auto p-2 sm:p-0 -m-2 sm:m-0"
-                      onClick={(e) => e.preventDefault()}
-                    >
-                      <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent 
-                      className="max-w-[280px] sm:max-w-xs z-50 bg-popover border border-border shadow-lg"
-                      side="top"
-                      sideOffset={5}
-                    >
-                      <p className="text-xs">الصورة الرئيسية التي ستظهر في قائمة المنتجات وصفحة المنتج. يجب أن تكون عالية الجودة ومربعة الشكل.</p>
-                    </TooltipContent>
-                  </Tooltip>
+                  <span
+                    className="inline-flex items-center justify-center p-1 rounded-md hover:bg-muted/50 transition-colors cursor-help"
+                    title="الصورة الرئيسية التي ستظهر في قائمة المنتجات وصفحة المنتج. يجب أن تكون عالية الجودة ومربعة الشكل."
+                  >
+                    <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors" />
+                  </span>
                 </div>
               </div>
               
@@ -204,22 +192,12 @@ export default function ProductImagesManager({
                 <div className="flex items-center gap-1.5 sm:gap-2">
                   <span className="text-xs sm:text-sm font-medium text-foreground">الصور الإضافية</span>
                   <Badge variant="secondary" className="text-[10px] sm:text-xs shadow-sm">اختياري</Badge>
-                  <Tooltip>
-                    <TooltipTrigger
-                      type="button"
-                      className="inline-flex items-center justify-center min-h-[44px] sm:min-h-auto p-2 sm:p-0 -m-2 sm:m-0"
-                      onClick={(e) => e.preventDefault()}
-                    >
-                      <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
-                    </TooltipTrigger>
-                    <TooltipContent 
-                      className="max-w-[280px] sm:max-w-xs z-50 bg-popover border border-border shadow-lg"
-                      side="top"
-                      sideOffset={5}
-                    >
-                      <p className="text-xs">صور إضافية للمنتج تظهر في معرض الصور. يمكنك إضافة حتى 8 صور وإعادة ترتيبها.</p>
-                    </TooltipContent>
-                  </Tooltip>
+                  <span
+                    className="inline-flex items-center justify-center p-1 rounded-md hover:bg-muted/50 transition-colors cursor-help"
+                    title="صور إضافية للمنتج تظهر في معرض الصور. يمكنك إضافة حتى 8 صور وإعادة ترتيبها."
+                  >
+                    <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors" />
+                  </span>
                 </div>
               </div>
               
@@ -251,6 +229,5 @@ export default function ProductImagesManager({
           </CardContent>
         </Card>
       </div>
-    </TooltipProvider>
   );
 }

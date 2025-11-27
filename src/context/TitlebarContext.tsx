@@ -50,6 +50,9 @@ export const TitlebarProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   const setTabs = useCallback((nextTabs: TitlebarTabConfig[]) => {
+    // ✅ استخدام ref للتحقق من التغيير قبل استدعاء setActiveTab
+    let tabsChanged = false;
+    
     setTabsState((prevTabs) => {
       if (prevTabs.length === nextTabs.length) {
         const same = prevTabs.every((tab, index) => {
@@ -60,8 +63,12 @@ export const TitlebarProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           return prevTabs;
         }
       }
+      tabsChanged = true;
       return nextTabs;
     });
+
+    // ✅ فقط تحديث activeTab إذا تغيرت التابات فعلاً
+    if (!tabsChanged) return;
 
     const currentActive = activeTabRef.current;
 
@@ -87,7 +94,19 @@ export const TitlebarProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [setActiveTab]);
 
   const setActions = useCallback((next: TitlebarAction[]) => {
-    setActionsState(next);
+    // ✅ تجنب التحديث إذا لم تتغير الـ actions فعلاً (مقارنة بـ id و label و disabled)
+    setActionsState((prev) => {
+      if (prev.length !== next.length) return next;
+      const same = prev.every((action, index) => {
+        const candidate = next[index];
+        return (
+          action.id === candidate.id &&
+          action.label === candidate.label &&
+          action.disabled === candidate.disabled
+        );
+      });
+      return same ? prev : next;
+    });
   }, []);
 
   const clearActions = useCallback(() => {

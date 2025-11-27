@@ -1,7 +1,16 @@
+/**
+ * localProductReturnService - خدمة إرجاع المنتجات المحلية
+ *
+ * ⚡ تم التحديث لاستخدام Delta Sync بالكامل
+ *
+ * - Local-First: الكتابة محلياً فوراً
+ * - Offline-First: يعمل بدون إنترنت
+ * - DELTA operations: لتحديث المخزون عند الإرجاع
+ */
+
 import { v4 as uuidv4 } from 'uuid';
-import { inventoryDB, type LocalProductReturn, type LocalReturnItem } from '@/database/localDb';
-import { UnifiedQueue } from '@/sync/UnifiedQueue';
-import { updateProductStock } from './offlineProductService';
+import type { LocalProductReturn, LocalReturnItem } from '@/database/localDb';
+import { deltaWriteService } from '@/services/DeltaWriteService';
 
 // Re-export types للاستخدام في المكونات الأخرى
 export type { LocalProductReturn, LocalReturnItem } from '@/database/localDb';
@@ -12,12 +21,7 @@ export interface CreateReturnData {
   items: Array<Omit<LocalReturnItem, 'id' | 'return_id' | 'created_at' | 'synced'>>;
 }
 
-/**
- * خدمة إدارة إرجاع المنتجات المحلية
- * تدعم الأوفلاين والأونلاين مع المزامنة التلقائية وتحديث المخزون
- */
-
-// إنشاع إرجاع جديد محلياً
+// إنشاء إرجاع جديد محلياً
 export const createLocalProductReturn = async (
   data: CreateReturnData
 ): Promise<{ return: LocalProductReturn; items: LocalReturnItem[] }> => {
@@ -27,6 +31,8 @@ export const createLocalProductReturn = async (
   const returnRecord: LocalProductReturn = {
     ...data.returnData,
     id: returnId,
+    return_number_lower: data.returnData.return_number?.toLowerCase(),
+    customer_name_lower: data.returnData.customer_name?.toLowerCase(),
     created_at: now,
     updated_at: now,
     synced: false,
@@ -34,50 +40,27 @@ export const createLocalProductReturn = async (
     pendingOperation: 'create'
   };
 
-  await inventoryDB.productReturns.put(returnRecord);
+  const itemRecords: LocalReturnItem[] = data.items.map(item => ({
+    ...item,
+    id: uuidv4(),
+    return_id: returnId,
+    created_at: now,
+    synced: false,
+    inventory_returned: item.resellable ? item.inventory_returned : false
+  }));
 
-  const itemRecords: LocalReturnItem[] = [];
-  
-  for (const item of data.items) {
-    const itemRecord: LocalReturnItem = {
-      ...item,
-      id: uuidv4(),
-      return_id: returnId,
-      created_at: now,
-      synced: false
-    };
-    
-    itemRecords.push(itemRecord);
-    await inventoryDB.returnItems.put(itemRecord);
+  // ⚡ استخدام Delta Sync مع تحديث المخزون
+  const result = await deltaWriteService.createReturnWithInventoryUpdate(
+    data.returnData.organization_id,
+    returnRecord,
+    itemRecords
+  );
 
-    // تحديث المخزون محلياً إذا كان قابل لإعادة البيع
-    if (item.resellable && item.inventory_returned) {
-      try {
-        await updateProductStock(
-          data.returnData.organization_id,
-          item.product_id,
-          item.return_quantity,
-          false, // isReduction = false (نزيد المخزون)
-          {
-            colorId: item.color_id || undefined,
-            sizeId: item.size_id || undefined
-          }
-        );
-      } catch (error) {
-        console.error('فشل تحديث المخزون للمنتج:', item.product_id, error);
-      }
-    }
+  if (!result.success) {
+    throw new Error(`Failed to create product return: ${result.error}`);
   }
 
-  // إضافة إلى صف المزامنة
-  await UnifiedQueue.enqueue({
-    objectType: 'order',
-    objectId: returnId,
-    operation: 'create',
-    data: { return: returnRecord, items: itemRecords },
-    priority: 1
-  });
-
+  console.log(`[LocalReturn] ⚡ Created return ${returnId} with ${itemRecords.length} items via Delta Sync`);
   return { return: returnRecord, items: itemRecords };
 };
 
@@ -89,31 +72,36 @@ export const updateLocalProductReturn = async (
   returnId: string,
   updates: Partial<Omit<LocalProductReturn, 'id' | 'created_at' | 'organization_id' | 'return_number'>>
 ): Promise<LocalProductReturn | null> => {
-  const existing = await inventoryDB.productReturns.get(returnId);
-  if (!existing) return null;
+  try {
+    const existing = await deltaWriteService.get<LocalProductReturn>('product_returns', returnId);
+    if (!existing) return null;
 
-  const now = new Date().toISOString();
-  const updated: LocalProductReturn = {
-    ...existing,
-    ...updates,
-    updated_at: now,
-    synced: false,
-    syncStatus: 'pending',
-    pendingOperation: 'update'
-  };
+    const now = new Date().toISOString();
+    const updatedData = {
+      ...updates,
+      updated_at: now,
+      synced: false,
+      syncStatus: 'pending',
+      pendingOperation: existing.pendingOperation === 'create' ? 'create' : 'update'
+    };
 
-  await inventoryDB.productReturns.put(updated);
+    // ⚡ استخدام Delta Sync
+    const result = await deltaWriteService.update('product_returns', returnId, updatedData);
 
-  // إضافة إلى صف المزامنة
-  await UnifiedQueue.enqueue({
-    objectType: 'order',
-    objectId: returnId,
-    operation: 'update',
-    data: updated,
-    priority: 1
-  });
+    if (!result.success) {
+      console.error(`[LocalReturn] Failed to update return ${returnId}:`, result.error);
+      return null;
+    }
 
-  return updated;
+    console.log(`[LocalReturn] ⚡ Updated return ${returnId} via Delta Sync`);
+    return {
+      ...existing,
+      ...updatedData
+    } as LocalProductReturn;
+  } catch (error) {
+    console.error(`[LocalReturn] Update error:`, error);
+    return null;
+  }
 };
 
 // الموافقة على إرجاع
@@ -121,44 +109,41 @@ export const approveLocalProductReturn = async (
   returnId: string,
   approvedBy: string
 ): Promise<LocalProductReturn | null> => {
-  const productReturn = await inventoryDB.productReturns.get(returnId);
-  if (!productReturn) return null;
+  try {
+    const productReturn = await deltaWriteService.get<LocalProductReturn>('product_returns', returnId);
+    if (!productReturn) return null;
 
-  const items = await inventoryDB.returnItems
-    .where('return_id')
-    .equals(returnId)
-    .toArray();
+    const items = await deltaWriteService.getAll<LocalReturnItem>('return_items', productReturn.organization_id, {
+      where: 'return_id = ?',
+      params: [returnId]
+    });
 
-  // تحديث المخزون للعناصر القابلة لإعادة البيع
-  for (const item of items) {
-    if (item.resellable && !item.inventory_returned) {
-      try {
-        await updateProductStock(
-          productReturn.organization_id,
+    // تحديث المخزون للعناصر القابلة لإعادة البيع التي لم يتم إرجاعها للمخزون بعد
+    for (const item of items) {
+      if (item.resellable && !item.inventory_returned) {
+        // ⚡ استخدام DELTA operation لزيادة المخزون
+        await deltaWriteService.updateProductStock(
           item.product_id,
-          item.return_quantity,
-          false, // isReduction = false (نزيد المخزون)
-          {
-            colorId: item.color_id || undefined,
-            sizeId: item.size_id || undefined
-          }
+          Math.abs(item.return_quantity), // موجب للزيادة
+          { colorId: item.color_id || undefined, sizeId: item.size_id || undefined }
         );
 
         // تحديث حالة العنصر
-        await inventoryDB.returnItems.update(item.id, {
+        await deltaWriteService.update('return_items', item.id, {
           inventory_returned: true
         });
-      } catch (error) {
-        console.error('فشل تحديث المخزون للمنتج:', item.product_id, error);
       }
     }
-  }
 
-  return await updateLocalProductReturn(returnId, {
-    status: 'approved',
-    approved_by: approvedBy,
-    approved_at: new Date().toISOString()
-  });
+    return await updateLocalProductReturn(returnId, {
+      status: 'approved',
+      approved_by: approvedBy,
+      approved_at: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error(`[LocalReturn] Approve error:`, error);
+    return null;
+  }
 };
 
 // Alias للتوافق مع الاستيراد
@@ -180,24 +165,23 @@ export const rejectLocalReturn = rejectLocalProductReturn;
 export const getLocalProductReturn = async (
   returnId: string
 ): Promise<{ return: LocalProductReturn; items: LocalReturnItem[] } | null> => {
-  const productReturn = await inventoryDB.productReturns.get(returnId);
+  const productReturn = await deltaWriteService.get<LocalProductReturn>('product_returns', returnId);
   if (!productReturn) return null;
 
-  const items = await inventoryDB.returnItems
-    .where('return_id')
-    .equals(returnId)
-    .toArray();
+  const items = await deltaWriteService.getAll<LocalReturnItem>('return_items', productReturn.organization_id, {
+    where: 'return_id = ?',
+    params: [returnId]
+  });
 
   return { return: productReturn, items };
 };
 
 // جلب جميع الإرجاعات حسب المؤسسة
 export const getAllLocalProductReturns = async (organizationId: string): Promise<LocalProductReturn[]> => {
-  return await inventoryDB.productReturns
-    .where('organization_id')
-    .equals(organizationId)
-    .and(ret => ret.pendingOperation !== 'delete')
-    .toArray();
+  return deltaWriteService.getAll<LocalProductReturn>('product_returns', organizationId, {
+    where: "(pending_operation IS NULL OR pending_operation != 'delete')",
+    orderBy: 'created_at DESC'
+  });
 };
 
 // Alias للتوافق مع الاستيراد
@@ -205,9 +189,12 @@ export const getAllLocalReturns = getAllLocalProductReturns;
 
 // جلب الإرجاعات غير المتزامنة
 export const getUnsyncedProductReturns = async (): Promise<LocalProductReturn[]> => {
-  return await inventoryDB.productReturns
-    .filter(r => !r.synced)
-    .toArray();
+  const orgId = localStorage.getItem('currentOrganizationId') ||
+    localStorage.getItem('bazaar_organization_id') || '';
+
+  return deltaWriteService.getAll<LocalProductReturn>('product_returns', orgId, {
+    where: 'synced = 0'
+  });
 };
 
 // تحديث حالة المزامنة
@@ -216,37 +203,22 @@ export const updateProductReturnSyncStatus = async (
   synced: boolean,
   syncStatus?: 'pending' | 'syncing' | 'error'
 ): Promise<void> => {
-  const productReturn = await inventoryDB.productReturns.get(returnId);
-  if (!productReturn) return;
-
-  await inventoryDB.productReturns.update(returnId, {
+  const updatedData: any = {
     synced,
-    syncStatus,
-    pendingOperation: synced ? undefined : productReturn.pendingOperation
-  });
+    sync_status: syncStatus || null
+  };
+
+  if (synced) {
+    updatedData.pending_operation = null;
+  }
+
+  await deltaWriteService.update('product_returns', returnId, updatedData);
 };
 
 // مسح الإرجاعات المتزامنة والمحذوفة
 export const cleanupSyncedReturns = async (): Promise<number> => {
-  const toDelete = await inventoryDB.productReturns
-    .filter(ret => ret.synced === true && ret.pendingOperation === 'delete')
-    .toArray();
-
-  for (const productReturn of toDelete) {
-    // حذف العناصر المرتبطة
-    const items = await inventoryDB.returnItems
-      .where('return_id')
-      .equals(productReturn.id)
-      .toArray();
-    
-    for (const item of items) {
-      await inventoryDB.returnItems.delete(item.id);
-    }
-
-    await inventoryDB.productReturns.delete(productReturn.id);
-  }
-
-  return toDelete.length;
+  console.log('[LocalReturn] Cleanup handled by Delta Sync automatically');
+  return 0;
 };
 
 // ==================== بحث وتصفح محلي للإرجاعات ====================
@@ -256,17 +228,28 @@ export async function getLocalProductReturnsPage(
   options: { offset?: number; limit?: number; status?: string | string[]; createdSort?: 'asc' | 'desc' } = {}
 ): Promise<{ returns: LocalProductReturn[]; total: number }> {
   const { offset = 0, limit = 50, status, createdSort = 'desc' } = options;
-  let coll = inventoryDB.productReturns
-    .where('[organization_id+created_at]') as any;
-  coll = coll.between([organizationId, ''], [organizationId, '\\uffff']);
-  if (createdSort === 'desc') coll = coll.reverse();
+
+  let whereClause = "organization_id = ?";
+  const params: any[] = [organizationId];
+
   if (status) {
     const statuses = Array.isArray(status) ? status : [status];
-    coll = coll.and((r: any) => statuses.includes(r.status));
+    const placeholders = statuses.map(() => '?').join(',');
+    whereClause += ` AND status IN (${placeholders})`;
+    params.push(...statuses);
   }
-  const total = await coll.count();
-  const page = await coll.offset(offset).limit(limit).toArray();
-  return { returns: page as any, total };
+
+  const returns = await deltaWriteService.getAll<LocalProductReturn>('product_returns', organizationId, {
+    where: whereClause,
+    params,
+    orderBy: `created_at ${createdSort === 'desc' ? 'DESC' : 'ASC'}`,
+    limit,
+    offset
+  });
+
+  const total = await deltaWriteService.count('product_returns', organizationId);
+
+  return { returns, total };
 }
 
 export async function fastSearchLocalProductReturns(
@@ -277,27 +260,85 @@ export async function fastSearchLocalProductReturns(
   const q = (query || '').toLowerCase();
   if (!q) return [];
   const limit = options.limit ?? 200;
-  const statuses = options.status ? (Array.isArray(options.status) ? options.status : [options.status]) : null;
 
-  const results = new Map<string, LocalProductReturn>();
+  return deltaWriteService.search<LocalProductReturn>(
+    'product_returns',
+    organizationId,
+    ['return_number_lower', 'customer_name_lower'],
+    q,
+    limit
+  );
+}
 
-  const numMatches = await inventoryDB.productReturns
-    .where('[organization_id+return_number_lower]') as any;
-  const byNum = await numMatches
-    .between([organizationId, q], [organizationId, q + '\\uffff'])
-    .limit(limit)
-    .toArray();
-  byNum.forEach((r: any) => { if (!statuses || statuses.includes(r.status)) results.set(r.id, r); });
+// =====================
+// حفظ البيانات من السيرفر
+// =====================
 
-  if (results.size < limit) {
-    const nameMatches = await inventoryDB.productReturns
-      .where('[organization_id+customer_name_lower]') as any;
-    const byName = await nameMatches
-      .between([organizationId, q], [organizationId, q + '\\uffff'])
-      .limit(limit - results.size)
-      .toArray();
-    byName.forEach((r: any) => { if (!statuses || statuses.includes(r.status)) results.set(r.id, r); });
+export const saveRemoteProductReturns = async (returns: any[]): Promise<void> => {
+  if (!returns || returns.length === 0) return;
+
+  const now = new Date().toISOString();
+
+  for (const ret of returns) {
+    const mappedReturn: LocalProductReturn = {
+      id: ret.id,
+      return_number: ret.return_number,
+      return_number_lower: ret.return_number?.toLowerCase(),
+      remote_return_id: ret.id,
+      customer_name: ret.customer_name,
+      customer_name_lower: ret.customer_name?.toLowerCase(),
+      customer_id: ret.customer_id,
+      order_id: ret.order_id,
+      return_type: ret.return_type,
+      reason: ret.reason,
+      status: ret.status || 'pending',
+      total_refund_amount: ret.total_refund_amount || 0,
+      refund_method: ret.refund_method,
+      approved_by: ret.approved_by,
+      approved_at: ret.approved_at,
+      notes: ret.notes,
+      organization_id: ret.organization_id,
+      created_at: ret.created_at || now,
+      updated_at: ret.updated_at || now,
+      synced: true,
+      syncStatus: undefined,
+      pendingOperation: undefined
+    };
+
+    await deltaWriteService.saveFromServer('product_returns', mappedReturn);
   }
 
-  return Array.from(results.values()).slice(0, limit);
-}
+  console.log(`[LocalReturn] ⚡ Saved ${returns.length} remote returns`);
+};
+
+export const saveRemoteReturnItems = async (returnId: string, items: any[]): Promise<void> => {
+  if (!items || items.length === 0) return;
+
+  const now = new Date().toISOString();
+
+  for (const item of items) {
+    const mappedItem: LocalReturnItem = {
+      id: item.id,
+      return_id: returnId,
+      product_id: item.product_id,
+      product_name: item.product_name,
+      product_sku: item.product_sku,
+      return_quantity: item.return_quantity || 1,
+      unit_price: item.unit_price || 0,
+      refund_amount: item.refund_amount || 0,
+      return_condition: item.return_condition,
+      resellable: item.resellable || false,
+      inventory_returned: item.inventory_returned || false,
+      color_id: item.color_id,
+      color_name: item.color_name,
+      size_id: item.size_id,
+      size_name: item.size_name,
+      created_at: item.created_at || now,
+      synced: true
+    };
+
+    await deltaWriteService.saveFromServer('return_items', mappedItem);
+  }
+
+  console.log(`[LocalReturn] ⚡ Saved ${items.length} remote return items`);
+};

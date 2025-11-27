@@ -82,3 +82,112 @@ export interface SubscriptionAnalytics {
     amount: number;
   }[];
 }
+
+// ============ أنواع التحقق من الاشتراك ============
+
+export type SubscriptionStatus = 'active' | 'trial' | 'expired' | 'canceled' | 'error' | 'not_found' | 'pending';
+export type SubscriptionType = 'paid' | 'trial_subscription' | 'organization_trial' | 'none';
+
+export interface SubscriptionCheckResult {
+  success: boolean;
+  status: SubscriptionStatus;
+  subscription_type: SubscriptionType;
+  subscription_id: string | null;
+  plan_name: string;
+  plan_code: string;
+  start_date: string | null;
+  end_date: string | null;
+  days_left: number;
+  features: string[];
+  limits: SubscriptionLimits;
+  billing_cycle?: string;
+  amount_paid?: number;
+  currency?: string;
+  trial_period_days?: number;
+  message: string;
+  error?: string;
+}
+
+export interface SubscriptionLimits {
+  max_pos: string | number | null;
+  max_users: string | number | null;
+  max_products: string | number | null;
+}
+
+export interface SubscriptionValidationResult {
+  isValid: boolean;
+  reason?: SubscriptionValidationReason;
+  expiryDate?: string;
+  tamperDetected?: boolean;
+  isLocked?: boolean;
+}
+
+export type SubscriptionValidationReason =
+  | 'no_subscription_found'
+  | 'subscription_expired'
+  | 'trial_expired'
+  | 'tamper_detected_locked'
+  | 'check_error';
+
+// ============ أنواع التدقيق ============
+
+export type SubscriptionAuditEventType =
+  | 'ACTIVATION_ATTEMPT'
+  | 'ACTIVATION_SUCCESS'
+  | 'ACTIVATION_FAILED'
+  | 'VALIDATION_SUCCESS'
+  | 'VALIDATION_FAILED'
+  | 'SUBSCRIPTION_EXPIRED'
+  | 'TAMPER_DETECTED'
+  | 'CLOCK_TAMPER'
+  | 'CACHE_CLEARED'
+  | 'SYNC_SUCCESS'
+  | 'SYNC_FAILED'
+  | 'OFFLINE_ACCESS'
+  | 'ERROR';
+
+export interface SubscriptionAuditLog {
+  id: string;
+  timestamp: string;
+  event_type: SubscriptionAuditEventType;
+  organization_id: string;
+  user_id?: string;
+  details: Record<string, unknown>;
+  ip_address?: string;
+  user_agent?: string;
+  device_info?: string;
+  severity: 'info' | 'warning' | 'error' | 'critical';
+  synced: boolean;
+}
+
+// ============ أنواع التشفير ============
+
+export interface EncryptedSubscriptionData {
+  iv: string;
+  data: string;
+  signature: string;
+  timestamp: number;
+  version: string;
+}
+
+export interface DecryptionResult {
+  valid: boolean;
+  data: SubscriptionCheckResult | null;
+  error?: string;
+  tamperDetected?: boolean;
+}
+
+// ============ أنواع SecureClock ============
+
+export interface SecureClockResult {
+  secureNowMs: number;
+  tamperDetected: boolean;
+  tamperCount: number;
+  isLocked: boolean;
+}
+
+export interface TamperTrackerEntry {
+  count: number;
+  lastAttempt: number;
+  lockedUntil?: number;
+}

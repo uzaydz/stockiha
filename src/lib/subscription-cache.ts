@@ -2,10 +2,14 @@
  * خدمة التخزين المؤقت الذكي للاشتراكات
  * تتكامل مع دالة قاعدة البيانات المثالية
  * تحدث البيانات مرة واحدة يومياً فقط
+ *
+ * ⚡ محدث: يستخدم التشفير والتوقيع الرقمي لحماية البيانات
  */
 
 import { supabase } from './supabase';
 import { sqliteDB, isSQLiteAvailable } from '@/lib/db/sqliteAPI';
+import { encryptSubscriptionData, decryptSubscriptionData } from '@/lib/security/subscriptionCrypto';
+import { subscriptionAudit } from '@/lib/security/subscriptionAudit';
 
 export interface SubscriptionData {
   success: boolean;
@@ -78,8 +82,8 @@ class SubscriptionCacheService {
         return memoryCached;
       }
 
-      // 4. فحص localStorage
-      const localStorageCached = this.getFromLocalStorage(organizationId);
+      // 4. فحص localStorage (مع فك التشفير)
+      const localStorageCached = await this.getFromLocalStorage(organizationId);
       if (localStorageCached) {
         // حفظ في كاش الذاكرة والجلسة والـ sessionStorage
         this.saveToMemoryCache(organizationId, localStorageCached);
@@ -135,15 +139,27 @@ class SubscriptionCacheService {
         }
       } catch {}
 
-      // 6. حفظ في جميع أنواع الكاش
+      // 6. حفظ في جميع أنواع الكاش (مع التشفير)
       this.saveToMemoryCache(organizationId, subscriptionData);
-      this.saveToLocalStorage(organizationId, subscriptionData);
+      await this.saveToLocalStorage(organizationId, subscriptionData);
       this.saveToSessionCache(organizationId, subscriptionData);
       this.saveToSessionStorage(organizationId, subscriptionData);
+
+      // تسجيل التحقق الناجح
+      await subscriptionAudit.log('VALIDATION_SUCCESS', organizationId, {
+        plan: subscriptionData.plan_name,
+        status: subscriptionData.status,
+        days_left: subscriptionData.days_left
+      });
 
       return subscriptionData;
 
     } catch (error) {
+      // تسجيل الخطأ
+      await subscriptionAudit.log('ERROR', organizationId, {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        source: 'getSubscriptionStatus'
+      }, { severity: 'error' });
       return this.getErrorResponse('خطأ غير متوقع في فحص الاشتراك');
     }
   }
@@ -213,46 +229,93 @@ class SubscriptionCacheService {
   }
 
   /**
-   * حفظ في localStorage
+   * حفظ في localStorage (مع التشفير)
    */
-  private saveToLocalStorage(organizationId: string, data: SubscriptionData): void {
+  private async saveToLocalStorage(organizationId: string, data: SubscriptionData): Promise<void> {
     try {
       const cacheData = {
         data,
         expires: Date.now() + this.CACHE_DURATION,
-        version: '1.0' // لضمان توافق الإصدارات المستقبلية
+        version: '2.0' // إصدار جديد مع التشفير
       };
-      
-      localStorage.setItem(
-        `subscription_cache_${organizationId}`, 
-        JSON.stringify(cacheData)
-      );
+
+      // تشفير البيانات قبل الحفظ
+      const encrypted = await encryptSubscriptionData(organizationId, cacheData);
+
+      if (encrypted) {
+        localStorage.setItem(
+          `subscription_cache_${organizationId}`,
+          encrypted
+        );
+      } else {
+        // في حالة فشل التشفير، نحفظ بدون تشفير (للتوافقية)
+        localStorage.setItem(
+          `subscription_cache_${organizationId}`,
+          JSON.stringify(cacheData)
+        );
+      }
     } catch (error) {
       // تجاهل أخطاء localStorage (مثل امتلاء التخزين)
+      console.warn('[SubscriptionCache] Failed to save to localStorage:', error);
     }
   }
 
   /**
-   * محاولة الحصول من localStorage
+   * محاولة الحصول من localStorage (مع فك التشفير)
    */
-  private getFromLocalStorage(organizationId: string): SubscriptionData | null {
+  private async getFromLocalStorage(organizationId: string): Promise<SubscriptionData | null> {
     try {
       const cached = localStorage.getItem(`subscription_cache_${organizationId}`);
       if (!cached) return null;
 
+      // التحقق مما إذا كانت البيانات مشفرة (تبدأ بـ BZR_SUB_V2_)
+      if (cached.startsWith('BZR_SUB_V2_')) {
+        const result = await decryptSubscriptionData(organizationId, cached);
+
+        if (result.tamperDetected) {
+          // تسجيل محاولة التلاعب
+          await subscriptionAudit.logTamperDetected(organizationId, 'data', {
+            source: 'localStorage',
+            error: result.error
+          });
+          localStorage.removeItem(`subscription_cache_${organizationId}`);
+          return null;
+        }
+
+        if (!result.valid || !result.data) {
+          localStorage.removeItem(`subscription_cache_${organizationId}`);
+          return null;
+        }
+
+        const parsedCache = result.data;
+
+        // التحقق من انتهاء الصلاحية
+        if (parsedCache.expires > Date.now() && parsedCache.data) {
+          return parsedCache.data as SubscriptionData;
+        }
+
+        localStorage.removeItem(`subscription_cache_${organizationId}`);
+        return null;
+      }
+
+      // التوافقية مع البيانات القديمة غير المشفرة
       const parsedCache = JSON.parse(cached);
-      
+
       // التحقق من صحة البيانات وانتهاء الصلاحية
-      if (parsedCache.expires > Date.now() && parsedCache.data && parsedCache.version === '1.0') {
+      if (parsedCache.expires > Date.now() && parsedCache.data &&
+          (parsedCache.version === '1.0' || parsedCache.version === '2.0')) {
+        // ترقية البيانات القديمة إلى التشفير الجديد
+        await this.saveToLocalStorage(organizationId, parsedCache.data);
         return parsedCache.data as SubscriptionData;
       }
-      
+
       // حذف البيانات المنتهية الصلاحية
       localStorage.removeItem(`subscription_cache_${organizationId}`);
       return null;
-      
+
     } catch (error) {
       // حذف البيانات المتضررة
+      console.warn('[SubscriptionCache] Failed to read from localStorage:', error);
       localStorage.removeItem(`subscription_cache_${organizationId}`);
       return null;
     }
@@ -408,14 +471,24 @@ class SubscriptionCacheService {
         }
       } catch {}
 
-      // حفظ في جميع أنواع الكاش
+      // حفظ في جميع أنواع الكاش (مع التشفير)
       this.saveToMemoryCache(organizationId, subscriptionData);
-      this.saveToLocalStorage(organizationId, subscriptionData);
+      await this.saveToLocalStorage(organizationId, subscriptionData);
       this.saveToSessionCache(organizationId, subscriptionData);
       this.saveToSessionStorage(organizationId, subscriptionData);
 
+      // تسجيل التحديث الناجح
+      await subscriptionAudit.log('SYNC_SUCCESS', organizationId, {
+        plan: subscriptionData.plan_name,
+        status: subscriptionData.status,
+        source: 'forceRefresh'
+      });
+
       return subscriptionData;
     } catch (error) {
+      await subscriptionAudit.log('SYNC_FAILED', organizationId, {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }, { severity: 'error' });
       return this.getErrorResponse('خطأ في تحديث البيانات');
     }
   }

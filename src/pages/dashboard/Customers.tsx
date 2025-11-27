@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useCallback, useMemo, Suspense } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, Suspense, useRef } from 'react';
 import Layout from '@/components/Layout';
 import { POSLayoutState, RefreshHandler } from '@/components/pos-layout/types';
-import { useSuperUnifiedData, useCustomersData } from '@/context/SuperUnifiedDataContext';
+import { useSuperUnifiedData } from '@/context/SuperUnifiedDataContext';
 import { Customer, CustomerFilter, CustomerStats } from '@/types/customer';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -11,15 +11,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ShieldAlert, Loader2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useAuth } from '@/context/AuthContext';
-import { hasPermissions } from '@/lib/api/userPermissionsUnified';
-import { checkUserPermissionsLocal } from '@/lib/utils/permissions-utils';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
-import { fastSearchLocalCustomers, getLocalCustomersPage, getLocalCustomers } from '@/api/localCustomerService';
+import { useCustomerPermissions } from '@/hooks/useCustomerPermissions';
+import { useCustomerDataSource } from '@/hooks/useCustomerDataSource';
+import { useCustomerFiltering } from '@/hooks/useCustomerFiltering';
+import UnifiedCustomersList from '@/components/customers/UnifiedCustomersList';
 
 // Import customer-specific components with lazy loading
-const CustomersList = React.lazy(() => import('@/components/customers/CustomersList'));
-const CustomersTableMobile = React.lazy(() => import('@/components/customers/CustomersTableMobile'));
-const VirtualizedCustomersList = React.lazy(() => import('@/components/customers/VirtualizedCustomersList'));
 const CustomerMetrics = React.lazy(() => import('@/components/customers/CustomerMetrics'));
 const CustomerFilters = React.lazy(() => import('@/components/customers/CustomerFilters'));
 const AddCustomerDialog = React.lazy(() => import('@/components/customers/AddCustomerDialog'));
@@ -39,192 +37,57 @@ const Customers: React.FC<CustomersProps> = ({
   const { toast } = useToast();
   const { user, userProfile } = useAuth();
   const { isLoading: unifiedLoading } = useSuperUnifiedData();
-  const { customers } = useCustomersData();
   const { isOnline } = useNetworkStatus();
-  const [localCustomers, setLocalCustomers] = useState<Customer[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filter, setFilter] = useState<CustomerFilter>({
-    sortBy: 'created_at',
-    sortOrder: 'desc'
+  const searchRef = useRef<HTMLInputElement>(null);
+  const [searchQuery, setSearchQuery] = useState<string>(() => {
+    try { return localStorage.getItem('customers_search') || ''; } catch { return ''; }
+  });
+  const [filter, setFilter] = useState<CustomerFilter>(() => {
+    try {
+      const saved = localStorage.getItem('customers_filter');
+      return { sortBy: 'created_at', sortOrder: 'desc', ...(saved ? JSON.parse(saved) : {}) };
+    } catch {
+      return { sortBy: 'created_at', sortOrder: 'desc' };
+    }
   });
   const [activeTab, setActiveTab] = useState('all');
 
-  const dataSource: Customer[] = useMemo(() => {
-    return (!isOnline || customers.length === 0) ? localCustomers : customers;
-  }, [isOnline, customers, localCustomers]);
+  // Permissions via hook
+  const { hasViewPermission, hasAddPermission, hasEditPermission, hasDeletePermission, permissionLoading } = useCustomerPermissions(user, userProfile);
 
-  const stats = useMemo((): CustomerStats => {
-    // حساب الإحصائيات من بيانات العملاء المتاحة
-    const now = new Date();
-    const thirtyDaysAgo = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000));
-    
-    const newLast30Days = dataSource.filter(customer => {
-      const createdAt = new Date(customer.created_at);
-      return createdAt >= thirtyDaysAgo;
-    }).length;
+  // Data source with debounce + offline pagination (offline-first)
+  const { dataSource, hasMore, loadMore, isLocalLoading } = useCustomerDataSource(searchQuery);
 
-    return {
-      total: dataSource.length,
-      newLast30Days,
-      activeLast30Days: newLast30Days // يمكن تحسينها لاحقاً
-    };
-  }, [dataSource]);
+  // Filtering + stats
+  const { filtered, stats } = useCustomerFiltering(dataSource, searchQuery, filter, activeTab);
   
-  // حالات الصلاحيات
-  const [hasViewPermission, setHasViewPermission] = useState(false);
-  const [hasAddPermission, setHasAddPermission] = useState(false);
-  const [hasEditPermission, setHasEditPermission] = useState(false);
-  const [hasDeletePermission, setHasDeletePermission] = useState(false);
-  const [permissionLoading, setPermissionLoading] = useState(true);
-
-  // التحقق من صلاحيات المستخدم
+  // حفظ الفلاتر والبحث
   useEffect(() => {
-    const checkPermissions = async () => {
-      if (!user) return;
-      setPermissionLoading(true);
-      
-      try {
-        // التحقق من صلاحية مشاهدة العملاء
-        const canViewCustomers = checkUserPermissionsLocal(user, 'viewCustomers' as any, userProfile);
-        setHasViewPermission(canViewCustomers);
-        
-        // التحقق من صلاحية إضافة العملاء
-        const canAddCustomers = checkUserPermissionsLocal(user, 'manageCustomers' as any, userProfile);
-        setHasAddPermission(canAddCustomers);
-        
-        // التحقق من صلاحية تعديل العملاء - نستخدم نفس الصلاحية manageCustomers
-        setHasEditPermission(canAddCustomers);
-        
-        // التحقق من صلاحية حذف العملاء - نستخدم نفس الصلاحية manageCustomers
-        setHasDeletePermission(canAddCustomers);
-      } catch (error) {
-        toast({
-          variant: "destructive",
-          title: "خطأ في التحقق من الصلاحيات",
-          description: "حدث خطأ أثناء التحقق من صلاحياتك للوصول إلى هذه الصفحة"
-        });
-      } finally {
-        setPermissionLoading(false);
+    try { localStorage.setItem('customers_filter', JSON.stringify(filter)); } catch {}
+  }, [filter]);
+  useEffect(() => {
+    try { localStorage.setItem('customers_search', searchQuery); } catch {}
+  }, [searchQuery]);
+
+    // البيانات تأتي من المصدر المحلي أولاً (offline-first) ثم من SuperUnifiedDataContext
+  // isLocalLoading يحدد إذا كنا لا زلنا نحمل من SQLite
+  const isLoading = (unifiedLoading && isLocalLoading) || permissionLoading;
+
+  // اختصار لوحة المفاتيح للبحث Ctrl/Cmd + K
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const isCmd = navigator.platform.toLowerCase().includes('mac') ? e.metaKey : e.ctrlKey;
+      if (isCmd && (e.key.toLowerCase() === 'k')) {
+        e.preventDefault();
+        searchRef.current?.focus();
       }
     };
-    
-    checkPermissions();
-  }, [user, userProfile, toast]);
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
-    // البيانات تأتي من SuperUnifiedDataContext، لا حاجة لجلب منفصل
-  const isLoading = unifiedLoading || permissionLoading;
-
-  // تحميل العملاء محلياً عند الأوفلاين أو عند غياب بيانات الخادم
-  useEffect(() => {
-    const loadLocal = async () => {
-      try {
-        const orgId = localStorage.getItem('bazaar_organization_id') || '';
-        const q = (searchQuery || '').trim();
-        if (q) {
-          let matches: any[] = [];
-          if (orgId) {
-            matches = await fastSearchLocalCustomers(orgId, q, { limit: 2000 }) as any[];
-          } else {
-            // لا يوجد orgId في التخزين المحلي (أوفلاين/جلسة جديدة) → اجلب كل العملاء وصفِّ بحثاً في الذاكرة
-            const all = await getLocalCustomers();
-            const qLower = q.toLowerCase();
-            matches = (all as any[]).filter((c) => {
-              const name = (c.name || '').toLowerCase();
-              const email = (c.email || '').toLowerCase();
-              const phone = (c.phone || '').toString();
-              return name.includes(qLower) || email.includes(qLower) || (phone && phone.includes(q));
-            });
-          }
-          const mapped = (matches).map((c) => ({
-            id: c.id,
-            name: c.name,
-            email: c.email || '',
-            phone: c.phone || null,
-            organization_id: c.organization_id,
-            created_at: c.created_at,
-            updated_at: c.updated_at,
-            nif: (c as any).nif ?? null,
-            rc: (c as any).rc ?? null,
-            nis: (c as any).nis ?? null,
-            rib: (c as any).rib ?? null,
-            address: (c as any).address ?? null,
-          } as Customer));
-          setLocalCustomers(mapped);
-        } else {
-          let list: any[] = [];
-          if (orgId) {
-            const res = await getLocalCustomersPage(orgId, { offset: 0, limit: 2000 });
-            list = res.customers as any[];
-          } else {
-            list = await getLocalCustomers();
-          }
-          const mapped = (list).map((c) => ({
-            id: c.id,
-            name: c.name,
-            email: c.email || '',
-            phone: c.phone || null,
-            organization_id: c.organization_id,
-            created_at: c.created_at,
-            updated_at: c.updated_at,
-            nif: (c as any).nif ?? null,
-            rc: (c as any).rc ?? null,
-            nis: (c as any).nis ?? null,
-            rib: (c as any).rib ?? null,
-            address: (c as any).address ?? null,
-          } as Customer));
-          setLocalCustomers(mapped);
-        }
-      } catch {
-        setLocalCustomers([]);
-      }
-    };
-    if (!isOnline || customers.length === 0) {
-      void loadLocal();
-    } else {
-      setLocalCustomers([]);
-    }
-  }, [isOnline, customers.length, searchQuery]);
-
-  // Memoized filtered and sorted customers
-  const filteredCustomers = useMemo(() => {
-    let result = [...dataSource];
-    
-    // Apply search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(customer => 
-        customer.name.toLowerCase().includes(query) || 
-        customer.email.toLowerCase().includes(query) ||
-        (customer.phone && customer.phone.includes(searchQuery))
-      );
-    }
-    
-    // Apply tab filters
-    if (activeTab === 'new') {
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      result = result.filter(
-        customer => new Date(customer.created_at) >= thirtyDaysAgo
-      );
-    }
-    
-    // Apply sorting
-    if (filter.sortBy && filter.sortOrder) {
-      result.sort((a, b) => {
-        let comparison = 0;
-        
-        if (filter.sortBy === 'name') {
-          comparison = a.name.localeCompare(b.name);
-        } else if (filter.sortBy === 'created_at') {
-          comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-        }
-        
-        return filter.sortOrder === 'asc' ? comparison : -comparison;
-      });
-    }
-    
-    return result;
-  }, [dataSource, searchQuery, filter, activeTab]);
+  // القائمة بعد التصفية
+  const filteredCustomers = filtered;
 
   const handleSearch = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
@@ -349,6 +212,8 @@ const Customers: React.FC<CustomersProps> = ({
                     value={searchQuery}
                     onChange={handleSearch}
                     className="w-full text-sm sm:text-base"
+                    ref={searchRef}
+                    aria-label="بحث العملاء"
                   />
                 </div>
                 <div className="w-full sm:w-auto">
@@ -374,71 +239,33 @@ const Customers: React.FC<CustomersProps> = ({
                 </TabsList>
                 
                 <TabsContent value="all" className="mt-0">
-                  <Suspense fallback={<div className="h-64 bg-gray-200 animate-pulse rounded"></div>}>
-                    {filteredCustomers.length > 50 ? (
-                      // قائمة كبيرة: استخدم نسخة مُفترَضة فقط
-                      <VirtualizedCustomersList 
-                        customers={filteredCustomers} 
-                        isLoading={isLoading}
-                        hasEditPermission={hasEditPermission}
-                        hasDeletePermission={hasDeletePermission}
-                        containerHeight={600}
-                      />
-                    ) : (
-                      // قائمة صغيرة: اعرض نسخة الموبايل على الشاشات الصغيرة والنسخة العادية على الشاشات الأكبر
-                      <>
-                        <div className="md:hidden">
-                          <CustomersTableMobile 
-                            customers={filteredCustomers} 
-                            isLoading={isLoading}
-                            hasEditPermission={hasEditPermission}
-                            hasDeletePermission={hasDeletePermission}
-                          />
-                        </div>
-                        <div className="hidden md:block">
-                          <CustomersList 
-                            customers={filteredCustomers} 
-                            isLoading={isLoading}
-                            hasEditPermission={hasEditPermission}
-                            hasDeletePermission={hasDeletePermission}
-                          />
-                        </div>
-                      </>
-                    )}
-                  </Suspense>
+                  <UnifiedCustomersList 
+                    customers={filteredCustomers}
+                    isLoading={isLoading}
+                    hasEditPermission={hasEditPermission}
+                    hasDeletePermission={hasDeletePermission}
+                    containerHeight={600}
+                  />
+                  {!isOnline && hasMore && !searchQuery && (
+                    <div className="flex justify-center pt-3">
+                      <Button variant="outline" size="sm" onClick={loadMore}>تحميل المزيد</Button>
+                    </div>
+                  )}
                 </TabsContent>
                 
                 <TabsContent value="new" className="mt-0">
-                  <Suspense fallback={<div className="h-64 bg-gray-200 animate-pulse rounded"></div>}>
-                    {filteredCustomers.length > 50 ? (
-                      <VirtualizedCustomersList 
-                        customers={filteredCustomers}
-                        isLoading={isLoading}
-                        hasEditPermission={hasEditPermission}
-                        hasDeletePermission={hasDeletePermission}
-                        containerHeight={600}
-                      />
-                    ) : (
-                      <>
-                        <div className="md:hidden">
-                          <CustomersTableMobile 
-                            customers={filteredCustomers}
-                            isLoading={isLoading}
-                            hasEditPermission={hasEditPermission}
-                            hasDeletePermission={hasDeletePermission}
-                          />
-                        </div>
-                        <div className="hidden md:block">
-                          <CustomersList 
-                            customers={filteredCustomers}
-                            isLoading={isLoading}
-                            hasEditPermission={hasEditPermission}
-                            hasDeletePermission={hasDeletePermission}
-                          />
-                        </div>
-                      </>
-                    )}
-                  </Suspense>
+                  <UnifiedCustomersList 
+                    customers={filteredCustomers}
+                    isLoading={isLoading}
+                    hasEditPermission={hasEditPermission}
+                    hasDeletePermission={hasDeletePermission}
+                    containerHeight={600}
+                  />
+                  {!isOnline && hasMore && !searchQuery && (
+                    <div className="flex justify-center pt-3">
+                      <Button variant="outline" size="sm" onClick={loadMore}>تحميل المزيد</Button>
+                    </div>
+                  )}
                 </TabsContent>
               </Tabs>
             </CardContent>

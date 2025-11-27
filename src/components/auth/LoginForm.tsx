@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { motion } from 'framer-motion';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -13,30 +14,31 @@ import { checkUserRequires2FA } from '@/lib/api/authHelpers';
 import { ensureUserOrganizationLink } from '@/lib/api/auth-helpers';
 import { loadSecureSession, saveSecureSession } from '@/context/auth/utils/secureSessionStorage';
 import { loadAuthFromStorage, loadOfflineAuthSnapshot, saveOfflineAuthSnapshot } from '@/context/auth/utils/authStorage';
+import { offlineSubscriptionService } from '@/api/offlineSubscriptionService';
 import TwoFactorLoginForm from './TwoFactorLoginForm';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, Check, Loader2 } from 'lucide-react';
 
-// إضافة دالة console مخصصة لـ LoginForm
+// Debug logging removed for production
 const loginFormDebugLog = (message: string, data?: any) => {
-  if (process.env.NODE_ENV === 'development') {
-    try {
-      if (data !== undefined) {
-        console.log(`[LoginForm] ${message}`, data);
-      } else {
-        console.log(`[LoginForm] ${message}`);
-      }
-    } catch {
-      // ignore console errors
-    }
-  }
+  // No-op
 };
 
 const ensureGlobalDB = async (): Promise<boolean> => {
+  console.log('[OfflineAuth] 🗄️ ensureGlobalDB - بدء التهيئة...');
   try {
-    if (isSQLiteAvailable()) {
+    const sqliteAvailable = isSQLiteAvailable();
+    console.log('[OfflineAuth] 🗄️ isSQLiteAvailable:', sqliteAvailable);
+
+    if (sqliteAvailable) {
+      console.log('[OfflineAuth] 🗄️ جاري استدعاء sqliteDB.initialize("global")...');
       const res = await sqliteDB.initialize('global');
+      console.log('[OfflineAuth] 🗄️ نتيجة التهيئة:', { success: res?.success, error: res?.error });
       return Boolean(res?.success);
+    } else {
+      console.log('[OfflineAuth] ❌ SQLite غير متاح!');
     }
   } catch (e) {
+    console.error('[OfflineAuth] ❌ خطأ في تهيئة قاعدة البيانات:', e);
     loginFormDebugLog('⚠️ فشل تهيئة قاعدة بيانات global للأوفلاين:', e);
   }
   return false;
@@ -135,10 +137,10 @@ const computeHashes = async (password: string, salt: string): Promise<{ sha?: st
     let sha: string | undefined;
     try {
       if (typeof window !== 'undefined' && window.crypto?.subtle) {
-        const digest = await window.crypto.subtle.digest('SHA-256', data);
+        const digest = await window.crypto.subtle.digest('SHA-256', data as BufferSource);
         sha = bufferToHex(digest);
       }
-    } catch {}
+    } catch { }
     const raw = bufferToHex(data);
     return { sha, raw };
   } catch {
@@ -151,14 +153,14 @@ const readOfflineCredentialStore = (): Record<string, OfflineCredentialRecord> =
   try {
     const raw = localStorage.getItem(OFFLINE_CREDENTIALS_KEY);
     const store = raw ? JSON.parse(raw) as Record<string, OfflineCredentialRecord> : {};
-    
+
     loginFormDebugLog('📖 قراءة بيانات تسجيل الدخول الأوفلاين:', {
       hasRawData: Boolean(raw),
       rawDataLength: raw?.length || 0,
       storeKeys: Object.keys(store),
       storeSize: Object.keys(store).length
     });
-    
+
     return store;
   } catch (error) {
     loginFormDebugLog('⚠️ فشل قراءة بيانات تسجيل الدخول الأوفلاين:', error);
@@ -214,7 +216,7 @@ const saveOfflineCredentials = async (email: string, password: string): Promise<
   if (typeof window === 'undefined') return;
 
   const normalizedEmail = email.toLowerCase().trim();
-  
+
   try {
     const initialized = await ensureGlobalDB();
     if (!initialized) {
@@ -226,9 +228,20 @@ const saveOfflineCredentials = async (email: string, password: string): Promise<
     const { sha, raw } = await computeHashes(password, salt);
     const hash = sha ?? raw;
     if (!hash) {
-      loginFormDebugLog('⚠️ فشل في إنشاء hash لكلمة المرور الأوفلاين');
+      console.error('[OfflineAuth] ⚠️ فشل في إنشاء hash لكلمة المرور الأوفلاين');
       return;
     }
+
+    const algo = sha ? 'sha256' : 'raw';
+
+    // 🔍 تسجيل تشخيصي للحفظ
+    console.log('%c[OfflineAuth] 💾 ═══ حفظ بيانات الاعتماد للأوفلاين ═══', 'color: #4CAF50; font-weight: bold');
+    console.log('[OfflineAuth] 📧 البريد:', normalizedEmail);
+    console.log('[OfflineAuth] 🧂 Salt:', salt.slice(0, 20) + '... (طول: ' + salt.length + ')');
+    console.log('[OfflineAuth] 📝 الخوارزمية:', algo);
+    console.log('[OfflineAuth] 🔑 Hash الرئيسي:', hash.slice(0, 20) + '... (طول: ' + hash.length + ')');
+    console.log('[OfflineAuth] 🔑 Fallback Hash:', raw?.slice(0, 20) + '... (طول: ' + raw?.length + ')');
+    console.log('[OfflineAuth] 🔐 crypto.subtle متاح:', Boolean(window.crypto?.subtle));
 
     const now = new Date().toISOString();
     const rec = {
@@ -237,7 +250,7 @@ const saveOfflineCredentials = async (email: string, password: string): Promise<
       email_lower: normalizedEmail,
       salt,
       hash,
-      algo: sha ? 'sha256' : 'raw',
+      algo,
       fallback_hash: raw,
       user_id: null,
       organization_id: localStorage.getItem('bazaar_organization_id') || null,
@@ -246,6 +259,7 @@ const saveOfflineCredentials = async (email: string, password: string): Promise<
     } as any;
 
     const result = await sqliteDB.upsert('user_credentials', rec);
+    console.log('[OfflineAuth] ✅ نتيجة الحفظ:', result.success ? 'نجاح' : 'فشل', { changes: result.changes });
     loginFormDebugLog('💾 تم حفظ بيانات تسجيل الدخول للأوفلاين في SQLite:', {
       email: normalizedEmail,
       success: result.success,
@@ -257,18 +271,39 @@ const saveOfflineCredentials = async (email: string, password: string): Promise<
 };
 
 const verifyOfflineCredentials = async (email: string, password: string): Promise<boolean> => {
-  if (!email || !password) return false;
-  if (typeof window === 'undefined') return false;
+  // 🔍 تشخيص مبكر جداً - بداية الدالة
+  console.log('%c[OfflineAuth] 🚀 ═══ بدء verifyOfflineCredentials ═══', 'color: #FF5722; font-weight: bold');
+  console.log('[OfflineAuth] 📧 البريد المدخل:', email);
+  console.log('[OfflineAuth] 🔑 كلمة المرور موجودة:', Boolean(password));
+
+  if (!email || !password) {
+    console.log('[OfflineAuth] ❌ البريد أو كلمة المرور فارغة!');
+    return false;
+  }
+  if (typeof window === 'undefined') {
+    console.log('[OfflineAuth] ❌ window غير معرف!');
+    return false;
+  }
 
   const normalizedEmail = email.toLowerCase().trim();
+  console.log('[OfflineAuth] 📧 البريد بعد التطبيع:', normalizedEmail);
+
+  // 🔍 تشخيص ensureGlobalDB
+  console.log('[OfflineAuth] ⏳ جاري تهيئة SQLite...');
   const initialized = await ensureGlobalDB();
+  console.log('[OfflineAuth] 🗄️ نتيجة تهيئة SQLite:', initialized);
+
   if (!initialized) {
+    console.log('%c[OfflineAuth] ❌ فشل تهيئة SQLite!', 'color: #f44336; font-weight: bold');
     loginFormDebugLog('❌ فشل تهيئة SQLite للتحقق من بيانات الاعتماد');
     return false;
   }
 
   // قراءة السجل من SQLite
+  console.log('[OfflineAuth] ⏳ جاري البحث عن السجل في user_credentials...');
   let res = await sqliteDB.queryOne('SELECT * FROM user_credentials WHERE email_lower = ?', [normalizedEmail]);
+  console.log('[OfflineAuth] 📋 نتيجة الاستعلام:', { success: res?.success, hasData: Boolean(res?.data), error: res?.error });
+
   if (!res.success || !res.data) {
     // محاولة ترحيل بيانات الاعتماد القديمة من localStorage إلى SQLite لمرة واحدة
     const legacyStore = readOfflineCredentialStore();
@@ -305,16 +340,77 @@ const verifyOfflineCredentials = async (email: string, password: string): Promis
 
   const record: any = res.data;
   const { sha, raw } = await computeHashes(password, record.salt);
+
+  // 🔍 تشخيص مفصل للمقارنة
+  console.log('%c[OfflineAuth] 🔐 ═══ تشخيص التحقق من كلمة المرور ═══', 'color: #9C27B0; font-weight: bold');
+  console.log('[OfflineAuth] 📧 البريد:', normalizedEmail);
+  console.log('[OfflineAuth] 🧂 Salt المخزن:', record.salt?.slice(0, 20) + '...');
+  console.log('[OfflineAuth] 📝 الخوارزمية المخزنة:', record.algo || 'غير محدد');
+  console.log('[OfflineAuth] 🔑 Hash المخزن:', record.hash?.slice(0, 20) + '... (طول: ' + record.hash?.length + ')');
+  console.log('[OfflineAuth] 🔑 Hash المحسوب SHA:', sha ? sha.slice(0, 20) + '... (طول: ' + sha?.length + ')' : 'فشل الحساب');
+  console.log('[OfflineAuth] 🔑 Hash المحسوب Raw:', raw?.slice(0, 20) + '... (طول: ' + raw?.length + ')');
+  console.log('[OfflineAuth] 🔑 Fallback Hash المخزن:', record.fallback_hash ? record.fallback_hash.slice(0, 20) + '... (طول: ' + record.fallback_hash?.length + ')' : 'لا يوجد');
+
   let isValid = false;
-  if (sha && record.hash === sha) isValid = true;
-  if (!isValid && record.hash === raw) isValid = true;
+  let matchReason = '';
+
+  // 1. مقارنة SHA المحسوب مع Hash المخزن
+  if (sha && record.hash === sha) {
+    isValid = true;
+    matchReason = 'SHA مع Hash الرئيسي';
+  }
+
+  // 2. مقارنة Raw المحسوب مع Hash المخزن (للتوافق مع التخزين القديم)
+  if (!isValid && record.hash === raw) {
+    isValid = true;
+    matchReason = 'Raw مع Hash الرئيسي';
+  }
+
+  // 3. مقارنة مع fallback_hash
   if (!isValid && record.fallback_hash) {
-    if (record.fallback_hash === raw) isValid = true;
-    if (!isValid && sha && record.fallback_hash === sha) isValid = true;
+    if (record.fallback_hash === raw) {
+      isValid = true;
+      matchReason = 'Raw مع Fallback Hash';
+    }
+    if (!isValid && sha && record.fallback_hash === sha) {
+      isValid = true;
+      matchReason = 'SHA مع Fallback Hash';
+    }
+  }
+
+  // 4. ⚡ إصلاح: إذا الخوارزمية المخزنة هي 'raw' لكن نحن نقارن بـ SHA
+  if (!isValid && record.algo === 'raw' && raw) {
+    // الخوارزمية المخزنة هي raw، لذلك نقارن raw فقط
+    if (record.hash === raw) {
+      isValid = true;
+      matchReason = 'Raw مع Raw (algo=raw)';
+    }
+  }
+
+  // 5. ⚡ إصلاح: إذا الخوارزمية المخزنة هي 'sha256' لكن crypto.subtle غير متاح
+  if (!isValid && record.algo === 'sha256' && !sha && record.fallback_hash) {
+    // SHA غير متاح الآن، لكن لدينا fallback_hash من وقت التخزين
+    // نحسب raw ونقارنه مع fallback_hash
+    if (record.fallback_hash === raw) {
+      isValid = true;
+      matchReason = 'Raw مع Fallback (crypto.subtle غير متاح)';
+    }
+  }
+
+  console.log('[OfflineAuth] ✅ النتيجة:', isValid ? `صحيح (${matchReason})` : '❌ غير صحيح');
+  if (!isValid) {
+    console.log('%c[OfflineAuth] ⚠️ تفاصيل الفشل:', 'color: #f44336; font-weight: bold');
+    console.log('  - Hash المخزن ≠ SHA المحسوب:', record.hash !== sha);
+    console.log('  - Hash المخزن ≠ Raw المحسوب:', record.hash !== raw);
+    if (record.fallback_hash) {
+      console.log('  - Fallback ≠ SHA:', record.fallback_hash !== sha);
+      console.log('  - Fallback ≠ Raw:', record.fallback_hash !== raw);
+    }
   }
 
   loginFormDebugLog('🔐 نتيجة التحقق من كلمة المرور (SQLite):', {
     isValid,
+    matchReason,
     hasStoredHash: Boolean(record.hash),
     hasComputedSHA: Boolean(sha),
     hasComputedRaw: Boolean(raw)
@@ -324,7 +420,7 @@ const verifyOfflineCredentials = async (email: string, password: string): Promis
     try {
       // تحديث last_success_at
       await sqliteDB.execute('UPDATE user_credentials SET last_success_at = ?, updated_at = ? WHERE id = ?', [new Date().toISOString(), new Date().toISOString(), record.id]);
-    } catch {}
+    } catch { }
   }
 
   return isValid;
@@ -334,12 +430,14 @@ const LoginForm = () => {
   const { signIn, currentSubdomain, updateAuthState, forceUpdateAuthState, user, userProfile, organization, isLoading: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const isMounted = useRef(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState('جاري تسجيل الدخول...');
   const [redirectPath, setRedirectPath] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   // حالات المصادقة الثنائية
   const [show2FA, setShow2FA] = useState(false);
   const [twoFactorData, setTwoFactorData] = useState<{
@@ -377,10 +475,19 @@ const LoginForm = () => {
   };
 
   const attemptOfflineLogin = async (normalizedEmail: string, loginPassword: string): Promise<boolean> => {
-    loginFormDebugLog('🔁 محاولة تسجيل الدخول في وضع عدم الاتصال', {
-      email: normalizedEmail
-    });
-    setLoadingMessage('محاولة استخدام البيانات المحفوظة بدون إنترنت...');
+    loginFormDebugLog('🔄 محاولة تسجيل الدخول الأوفلاين', { email: normalizedEmail });
+
+    // 🔒 مسح علامة explicit logout عند محاولة تسجيل الدخول الأوفلاين
+    try {
+      localStorage.removeItem('bazaar_explicit_logout');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[LoginForm] ✅ تم مسح علامة explicit logout');
+      }
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[LoginForm] فشل في مسح علامة explicit logout:', error);
+      }
+    }
 
     try {
       const storedAuth = loadAuthFromStorage();
@@ -443,7 +550,7 @@ const LoginForm = () => {
             userEmail: secureSession.user.email
           });
         }
-        
+
         // محاولة إعادة بناء المستخدم من البيانات المحفوظة في storedAuth
         if (!offlineUser && storedAuth.user) {
           offlineUser = storedAuth.user;
@@ -538,10 +645,20 @@ const LoginForm = () => {
 
       await forceUpdateAuthState(offlineSession, offlineUser);
       loginFormDebugLog('📁 حالة التخزين بعد تفعيل جلسة الأوفلاين', getOfflineStorageSnapshot());
-      
+
       // إضافة رسالة نجاح خاصة بالأوفلاين
       toast.success('تم تسجيل الدخول بنجاح باستخدام البيانات المحفوظة (وضع الأوفلاين)');
-      
+
+      // التحقق من صلاحية الاشتراك أوفلاين
+      if (offlineUser.app_metadata?.organization_id) {
+        const subStatus = await offlineSubscriptionService.checkSubscriptionStatus(offlineUser.app_metadata.organization_id as string);
+        if (!subStatus.isValid) {
+          toast.error(`عذراً، اشتراكك منتهي الصلاحية (${subStatus.reason}). يرجى الاتصال بالإنترنت لتجديد الاشتراك.`);
+          loginFormDebugLog('🚫 تم منع الدخول بسبب انتهاء الاشتراك (أوفلاين)', subStatus);
+          return false;
+        }
+      }
+
       await handleSuccessfulLogin();
       return true;
     } catch (offlineError) {
@@ -571,6 +688,16 @@ const LoginForm = () => {
     if (savedRedirectPath) {
       setRedirectPath(savedRedirectPath);
     }
+
+    // استعادة البريد الإلكتروني المحفوظ إذا كان المستخدم قد فعّل خيار "تذكرني"
+    const savedEmail = localStorage.getItem('bazaar_remember_email');
+    const isRemembered = localStorage.getItem('bazaar_remember_me') === 'true';
+
+    if (savedEmail && isRemembered) {
+      setEmail(savedEmail);
+      setRememberMe(true);
+      loginFormDebugLog('📧 تم استعادة البريد الإلكتروني المحفوظ:', savedEmail);
+    }
   }, []);
 
   // 🎉 عرض رسالة الترحيب من التسجيل
@@ -584,9 +711,16 @@ const LoginForm = () => {
     }
   }, [location, navigate]);
 
+  // تنظيف isMounted عند unmount
+  useEffect(() => {
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     loginFormDebugLog('=== بدء عملية تسجيل الدخول من النموذج ===', {
       email,
       timestamp: new Date().toISOString(),
@@ -594,16 +728,16 @@ const LoginForm = () => {
       currentPath: window.location.pathname,
       hostname: window.location.hostname
     });
-    
+
     loginFormDebugLog('🔐 حالة التخزين الحالية قبل تسجيل الدخول', getOfflineStorageSnapshot());
-    
+
     setIsLoading(true);
     const normalizedEmail = email.toLowerCase().trim();
 
     // Clear any previous error states or redirect counts
     sessionStorage.removeItem('lastLoginRedirect');
     sessionStorage.setItem('loginRedirectCount', '0');
-    
+
     loginFormDebugLog('تم مسح بيانات إعادة التوجيه السابقة');
 
     try {
@@ -627,7 +761,7 @@ const LoginForm = () => {
 
       // إذا فشل التسجيل المباشر، استخدم الطريقة التقليدية
       loginFormDebugLog('محاولة تسجيل الدخول بالطريقة التقليدية');
-      
+
       const hostname = window.location.hostname;
       let domain: string | undefined;
       let subdomain: string | undefined;
@@ -635,9 +769,9 @@ const LoginForm = () => {
 
       // التعامل مع localhost ونطاقات الـ IP المحلية كنطاقات عامة
       const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.match(/^localhost:\d+$/) || hostname.match(/^127\.0\.0\.1:\d+$/);
-      
+
       loginFormDebugLog('تحليل النطاق:', { hostname, isLocalhost });
-      
+
       if (isLocalhost) {
         domain = 'localhost';
         if (currentSubdomain) {
@@ -646,7 +780,7 @@ const LoginForm = () => {
       } else {
         const publicDomains = ['ktobi.online', 'stockiha.com', 'stockiha.pages.dev'];
         const isPublicDomain = publicDomains.some(pd => hostname === pd || hostname === `www.${pd}`);
-        
+
         if (!isPublicDomain) {
           const parts = hostname.split('.');
           if (parts.length > 2 && parts[0] !== 'www') {
@@ -663,7 +797,7 @@ const LoginForm = () => {
 
       // الحصول على معرف المؤسسة من التخزين المحلي إذا كان متوفراً
       organizationId = localStorage.getItem('bazaar_organization_id') || undefined;
-      
+
       loginFormDebugLog('معلومات النطاق المحللة:', {
         domain,
         subdomain,
@@ -679,7 +813,7 @@ const LoginForm = () => {
         if (organizationId) {
           localStorage.removeItem('bazaar_organization_id');
           twoFactorCheck = await checkUserRequires2FA(email, undefined, domain, subdomain);
-          
+
           if (!twoFactorCheck.exists) {
             // محاولة 3: كنطاق عام
             twoFactorCheck = await checkUserRequires2FA(email, undefined, undefined, undefined);
@@ -750,11 +884,11 @@ const LoginForm = () => {
       timestamp: new Date().toISOString()
     });
     const normalizedEmail = loginEmail.toLowerCase().trim();
-    
+
     try {
       // استخدام Supabase مباشرة بدون فحوصات معقدة
       loginFormDebugLog('محاولة المصادقة مع Supabase');
-      
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email: normalizedEmail,
         password: loginPassword
@@ -765,7 +899,7 @@ const LoginForm = () => {
           message: error.message,
           status: error.status
         });
-        
+
         // معالجة أخطاء محددة مع رسائل واضحة
         if (error.message?.includes('Invalid login credentials')) {
           throw new Error('بيانات تسجيل الدخول غير صحيحة');
@@ -776,68 +910,84 @@ const LoginForm = () => {
         } else if (error.message?.includes('captcha')) {
           // معالجة خاصة لخطأ CAPTCHA - محاولة إعادة تسجيل الدخول
           loginFormDebugLog('🔄 خطأ CAPTCHA مكتشف، محاولة إعادة تسجيل الدخول');
-          
+
           try {
             // محاولة إعادة تسجيل الدخول مع تأخير قصير
             await new Promise(resolve => setTimeout(resolve, 1000));
-            
+
             const { data: retryData, error: retryError } = await supabase.auth.signInWithPassword({
               email: normalizedEmail,
               password: loginPassword
             });
-            
+
             if (retryError) {
               throw new Error('فشل في التحقق من الأمان، يرجى المحاولة مرة أخرى');
             }
-            
-                          if (retryData.session && retryData.user) {
-                loginFormDebugLog('✅ نجح إعادة تسجيل الدخول بعد خطأ CAPTCHA');
-                
-                // ⚡ تحديث AuthContext + تعيين الجلسة مباشرة على Supabase
-                loginFormDebugLog('⚡ تحديث AuthContext وتعيين الجلسة بعد إعادة المحاولة...');
-                updateAuthState(retryData.session, retryData.user);
-                try {
-                  await supabase.auth.setSession(retryData.session);
-                } catch {}
-                // انتظار بسيط بعد التعيين
-                await new Promise(resolve => setTimeout(resolve, 150));
-                try {
-                  await saveSecureSession(retryData.session);
-                } catch (secureError) {
-                  loginFormDebugLog('⚠️ فشل حفظ الجلسة الآمنة بعد إعادة المحاولة:', secureError);
-                }
-                saveOfflineAuthSnapshot(retryData.session, retryData.user as SupabaseUser);
 
-                // تحديث معرف المؤسسة إذا كان متاحاً
-                try {
-                  const { data: userData } = await supabase
-                    .from('users')
-                    .select('organization_id')
-                    .eq('id', retryData.user.id)
-                    .single();
-                    
-                  if (userData?.organization_id) {
-                    localStorage.setItem('bazaar_organization_id', userData.organization_id);
-                  }
-                } catch (orgError) {
-                  loginFormDebugLog('❌ خطأ في جلب معرف المؤسسة:', orgError);
-                }
-                
-                await saveOfflineCredentials(normalizedEmail, loginPassword);
-                await handleSuccessfulLogin();
-                return;
+            if (retryData.session && retryData.user) {
+              loginFormDebugLog('✅ نجح إعادة تسجيل الدخول بعد خطأ CAPTCHA');
+
+              // ⚡ تحديث AuthContext + تعيين الجلسة مباشرة على Supabase
+              loginFormDebugLog('⚡ تحديث AuthContext وتعيين الجلسة بعد إعادة المحاولة...');
+              updateAuthState(retryData.session, retryData.user);
+              try {
+                await supabase.auth.setSession(retryData.session);
+              } catch { }
+              // انتظار بسيط بعد التعيين
+              await new Promise(resolve => setTimeout(resolve, 150));
+              try {
+                await saveSecureSession(retryData.session);
+              } catch (secureError) {
+                loginFormDebugLog('⚠️ فشل حفظ الجلسة الآمنة بعد إعادة المحاولة:', secureError);
               }
+              saveOfflineAuthSnapshot(retryData.session, retryData.user as SupabaseUser);
+
+              // تحديث معرف المؤسسة إذا كان متاحاً
+              try {
+                const { data: userData } = await supabase
+                  .from('users')
+                  .select('organization_id')
+                  .eq('id', retryData.user.id)
+                  .single();
+
+                if (userData?.organization_id) {
+                  localStorage.setItem('bazaar_organization_id', userData.organization_id);
+                }
+              } catch (orgError) {
+                loginFormDebugLog('❌ خطأ في جلب معرف المؤسسة:', orgError);
+              }
+
+              await saveOfflineCredentials(normalizedEmail, loginPassword);
+
+              // ✅ حفظ أو حذف البريد الإلكتروني حسب اختيار "تذكرني" (CAPTCHA retry)
+              try {
+                if (rememberMe) {
+                  localStorage.setItem('bazaar_remember_email', normalizedEmail);
+                  localStorage.setItem('bazaar_remember_me', 'true');
+                  loginFormDebugLog('📧 تم حفظ البريد الإلكتروني (تذكرني مفعّل - CAPTCHA retry)');
+                } else {
+                  localStorage.removeItem('bazaar_remember_email');
+                  localStorage.removeItem('bazaar_remember_me');
+                  loginFormDebugLog('🗑️ تم حذف البريد الإلكتروني المحفوظ (تذكرني غير مفعّل - CAPTCHA retry)');
+                }
+              } catch (rememberErr) {
+                loginFormDebugLog('⚠️ فشل في حفظ/حذف خيار تذكرني (CAPTCHA retry):', rememberErr);
+              }
+
+              await handleSuccessfulLogin();
+              return;
+            }
           } catch (retryError) {
             loginFormDebugLog('❌ فشل إعادة تسجيل الدخول بعد خطأ CAPTCHA:', retryError);
             throw new Error('فشل في التحقق من الأمان، يرجى المحاولة مرة أخرى');
           }
-          
+
           throw new Error('فشل في التحقق من الأمان، يرجى المحاولة مرة أخرى');
         } else if (error.status === 500) {
           // معالجة خطأ الخادم الداخلي
           throw new Error('مشكلة في الخادم، يرجى المحاولة لاحقاً');
         }
-        
+
         // رسالة خطأ عامة لجميع الأخطاء الأخرى
         throw new Error('فشل في تسجيل الدخول، يرجى التحقق من البيانات والمحاولة مرة أخرى');
       }
@@ -858,7 +1008,7 @@ const LoginForm = () => {
       forceUpdateAuthState(data.session, data.user);
       try {
         await supabase.auth.setSession(data.session);
-      } catch {}
+      } catch { }
       try {
         await saveSecureSession(data.session);
       } catch (secureError) {
@@ -872,12 +1022,28 @@ const LoginForm = () => {
       } catch (credErr) {
         loginFormDebugLog('⚠️ فشل حفظ بيانات الاعتماد للأوفلاين بعد التسجيل المباشر:', credErr);
       }
+
+      // ✅ حفظ أو حذف البريد الإلكتروني حسب اختيار "تذكرني"
+      try {
+        if (rememberMe) {
+          localStorage.setItem('bazaar_remember_email', normalizedEmail);
+          localStorage.setItem('bazaar_remember_me', 'true');
+          loginFormDebugLog('📧 تم حفظ البريد الإلكتروني (تذكرني مفعّل)');
+        } else {
+          localStorage.removeItem('bazaar_remember_email');
+          localStorage.removeItem('bazaar_remember_me');
+          loginFormDebugLog('🗑️ تم حذف البريد الإلكتروني المحفوظ (تذكرني غير مفعّل)');
+        }
+      } catch (rememberErr) {
+        loginFormDebugLog('⚠️ فشل في حفظ/حذف خيار تذكرني:', rememberErr);
+      }
+
       loginFormDebugLog('📁 حالة التخزين بعد حفظ الجلسة', getOfflineStorageSnapshot());
 
       // انتظار تحديث AuthContext وتحميل البيانات
       setLoadingMessage('جاري تحديث حالة المصادقة...');
       await new Promise(resolve => setTimeout(resolve, 300)); // انتظار محسن
-      
+
       // انتظار إضافي لضمان تحميل userProfile
       setLoadingMessage('جاري تحميل بيانات المستخدم...');
       await new Promise(resolve => setTimeout(resolve, 500)); // انتظار محسن لتحميل البيانات
@@ -897,7 +1063,7 @@ const LoginForm = () => {
           loginFormDebugLog('⚠️ لم يكتمل ربط المؤسسة أو فشل/انتهت المهلة:', linkResult?.error);
           // حالة خاصة: المستخدم غير مرتبط بأي مؤسسة -> وجّهه للإعداد
           if (linkResult?.error?.includes?.('غير مرتبط بأي مؤسسة')) {
-            try { await supabase.auth.signOut(); } catch {}
+            try { await supabase.auth.signOut(); } catch { }
             toast.error('حسابك غير مرتبط بأي مؤسسة. سيتم توجيهك لإعداد المؤسسة.');
             setIsLoading(false);
             navigate('/setup-organization');
@@ -912,50 +1078,62 @@ const LoginForm = () => {
         // لا نمنع التوجيه بسبب مشاكل ثانوية
         loginFormDebugLog('⚠️ تخطي خطأ ربط المؤسسة والمتابعة:', orgError);
       }
+
+      // انتظار مختصر لضمان حفظ البيانات في Supabase
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      if (!isMounted.current) {
+        loginFormDebugLog('🛑 تم إلغاء التوجيه المباشر لأن المكون غير مثبت');
+        return;
+      }
+
+      // إيقاف حالة التحميل قبل التوجيه
+      try {
+        console.log('[LoginForm] pre-navigate state', {
+          isLoading,
+          authLoading,
+          userId: user?.id,
+          orgId: organization?.id,
+          currentHref: window.location.href,
+          currentHash: window.location.hash
+        });
+      } catch { }
       
-// انتظار مختصر لضمان حفظ البيانات في Supabase
-await new Promise(resolve => setTimeout(resolve, 100));
+      setIsLoading(false);
 
-// إيقاف حالة التحميل قبل التوجيه
-try {
-  console.log('[LoginForm] pre-navigate state', {
-    isLoading,
-    authLoading,
-    userId: user?.id,
-    orgId: organization?.id,
-    currentHref: window.location.href,
-    currentHash: window.location.hash
-  });
-} catch {}
-setIsLoading(false);
+      // سجل بعد تغيير حالة التحميل
+      try {
+        console.log('[LoginForm] setIsLoading(false) applied');
+      } catch { }
 
-// سجل بعد تغيير حالة التحميل
-try {
-console.log('[LoginForm] setIsLoading(false) applied');
-} catch {}
+      // التحقق مرة أخرى قبل التوجيه النهائي
+      if (window.location.pathname.includes('/staff-login')) {
+        loginFormDebugLog('🚫 تم إلغاء التوجيه لأننا بالفعل في staff-login');
+        return;
+      }
 
-// استخدام React Router للتنقل بدلاً من window.location
-// هذا يضمن التنقل السلس بدون إعادة تحميل كاملة
-navigate('/dashboard');
-try {
-console.log('[LoginForm] navigate("/dashboard") called');
-setTimeout(() => {
-try { console.log('[LoginForm] post-navigate location', { href: window.location.href, hash: window.location.hash }); } catch {}
-}, 200);
-} catch {}
-return;
-} catch (error) {
-loginFormDebugLog('❌ خطأ في تسجيل الدخول المباشر:', error);
-const offlineStatus = await attemptOfflineFallback(error, normalizedEmail, loginPassword);
-if (offlineStatus !== 'skipped') {
-return;
-}
-// عرض رسالة خطأ واضحة للمستخدم
-const errorMessage = error instanceof Error ? error.message : 'حدث خطأ غير متوقع';
-toast.error(errorMessage);
-throw error;
-}
-};
+      // استخدام React Router للتنقل بدلاً من window.location
+      // هذا يضمن التنقل السلس بدون إعادة تحميل كاملة
+      navigate('/dashboard');
+      try {
+        console.log('[LoginForm] navigate("/dashboard") called');
+        setTimeout(() => {
+          try { console.log('[LoginForm] post-navigate location', { href: window.location.href, hash: window.location.hash }); } catch { }
+        }, 200);
+      } catch { }
+      return;
+    } catch (error) {
+      loginFormDebugLog('❌ خطأ في تسجيل الدخول المباشر:', error);
+      const offlineStatus = await attemptOfflineFallback(error, normalizedEmail, loginPassword);
+      if (offlineStatus !== 'skipped') {
+        return;
+      }
+      // عرض رسالة خطأ واضحة للمستخدم
+      const errorMessage = error instanceof Error ? error.message : 'حدث خطأ غير متوقع';
+      toast.error(errorMessage);
+      throw error;
+    }
+  };
 
   const proceedWithLogin = async (loginEmail: string, loginPassword: string) => {
     try {
@@ -967,10 +1145,10 @@ throw error;
 
       // حفظ بيانات تسجيل الدخول للأوفلاين حتى لو فشل تسجيل الدخول
       await saveOfflineCredentials(normalizedEmail, loginPassword);
-      
+
       if (result.success) {
         loginFormDebugLog('✅ تم حفظ بيانات تسجيل الدخول للأوفلاين (تسجيل دخول محسن)');
-        
+
         if (result.session) {
           try {
             await saveSecureSession(result.session as Session);
@@ -981,30 +1159,30 @@ throw error;
         loginFormDebugLog('📁 حالة التخزين بعد تسجيل الدخول المحسن', getOfflineStorageSnapshot());
 
         // 🎯 تبسيط التحقق من الجلسة - إزالة التحقق المعقد
-        
+
         // التوجيه المباشر بدون تعقيدات النطاق الفرعي
         await handleSuccessfulLogin();
       } else {
         // معالجة رسائل الخطأ بشكل أفضل
         let errorMessage = result.error?.message || 'فشل تسجيل الدخول';
-        
+
         // تنظيف رسائل الخطأ من أي إشارات إلى captcha
         if (errorMessage.toLowerCase().includes('captcha')) {
           errorMessage = 'فشل في التحقق من الأمان، يرجى المحاولة مرة أخرى';
         } else if (errorMessage.includes('500') || errorMessage.includes('Internal Server Error')) {
           errorMessage = 'مشكلة في الخادم، يرجى المحاولة لاحقاً';
         }
-        
+
         toast.error(errorMessage);
         setIsLoading(false);
       }
     } catch (error) {
       // معالجة الأخطاء العامة
       let errorMessage = 'حدث خطأ أثناء تسجيل الدخول';
-      
+
       if (error instanceof Error) {
         errorMessage = error.message;
-        
+
         // تنظيف رسائل الخطأ
         if (errorMessage.toLowerCase().includes('captcha')) {
           errorMessage = 'فشل في التحقق من الأمان، يرجى المحاولة مرة أخرى';
@@ -1012,7 +1190,7 @@ throw error;
           errorMessage = 'مشكلة في الخادم، يرجى المحاولة لاحقاً';
         }
       }
-      
+
       toast.error(errorMessage);
       setIsLoading(false);
     }
@@ -1020,36 +1198,41 @@ throw error;
 
   const handleSuccessfulLogin = async () => {
     loginFormDebugLog('=== بدء معالجة نجاح تسجيل الدخول ===');
-    
+
     try {
-      toast.success('تم تسجيل الدخول بنجاح');
-      
+      if (isMounted.current) {
+        toast.success('تم تسجيل الدخول بنجاح');
+      }
+
       // تنظيف البيانات المحفوظة
       sessionStorage.removeItem('redirectAfterLogin');
       localStorage.removeItem('loginRedirectCount');
-      
+
       loginFormDebugLog('تم تنظيف البيانات المحفوظة');
-      
+
+      if (!isMounted.current) return; // الخروج إذا تم إلغاء التركيب
+
       // 🎯 تحسين: انتظار قصير ومحسن لـ AuthContext
       loginFormDebugLog('انتظار اكتمال عمليات AuthContext...');
       setLoadingMessage('جاري تحميل بيانات المستخدم والمؤسسة...');
-      
+
       // انتظار محسن لـ AuthContext مع فحص دوري
       const maxWaitTime = 8000; // 8 ثوانٍ حد أقصى (مخفض من 15)
       const checkInterval = 100; // فحص كل 100ms (محسن من 200ms)
       let waitTime = 0;
-      
+
+      if (!isMounted.current) return;
       while (authLoading && waitTime < maxWaitTime) {
         await new Promise(resolve => setTimeout(resolve, checkInterval));
         waitTime += checkInterval;
-        
+
         if (waitTime % 500 === 0) { // كل نصف ثانية
-          const secondsWaited = Math.floor(waitTime/1000);
+          const secondsWaited = Math.floor(waitTime / 1000);
           setLoadingMessage(`جاري تحميل البيانات... (${secondsWaited}s)`);
           loginFormDebugLog(`⏳ انتظار AuthContext... ${secondsWaited}s`);
         }
       }
-      
+
       if (authLoading) {
         loginFormDebugLog('⚠️ انتهت مهلة انتظار AuthContext، المتابعة...');
       } else {
@@ -1061,12 +1244,27 @@ throw error;
           userEmail: user?.email
         });
       }
-      
+
       setLoadingMessage('جاري الانتقال إلى لوحة التحكم...');
-      
+
       // 🎯 التوجيه بعد اكتمال العمليات
       let posPath = '/dashboard';
-      
+
+      // ✅ FIX: Check if StaffLoginRedirect intercepted us
+      const lastStaffRedirect = sessionStorage.getItem('staff_last_redirect_time');
+      const isStaffRedirectRecent = lastStaffRedirect && (Date.now() - parseInt(lastStaffRedirect)) < 5000;
+      const isStaffLoginPage = window.location.pathname.includes('/staff-login');
+
+      if (isStaffRedirectRecent || isStaffLoginPage) {
+        loginFormDebugLog('🚫 تم إيقاف التوجيه إلى لوحة التحكم لأن المستخدم موجه إلى staff-login');
+        if (isMounted.current) {
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      if (!isMounted.current) return;
+
       if (redirectPath && redirectPath.startsWith('/dashboard')) {
         posPath = redirectPath;
       }
@@ -1076,10 +1274,10 @@ throw error;
       setIsLoading(false);
       navigate(posPath);
       loginFormDebugLog('✅ تم التوجيه بنجاح');
-      
+
     } catch (error) {
       loginFormDebugLog('❌ خطأ في معالجة نجاح تسجيل الدخول:', error);
-      
+
       // رغم الخطأ، نكمل التوجيه
       toast.success('تم تسجيل الدخول بنجاح');
       setIsLoading(false);
@@ -1091,13 +1289,13 @@ throw error;
   // دوال التعامل مع المصادقة الثنائية
   const handle2FASuccess = async () => {
     if (!pendingCredentials) return;
-    
+
     setShow2FA(false);
     setIsLoading(true);
-    
+
     // متابعة تسجيل الدخول بعد نجاح المصادقة الثنائية
     await proceedWithLogin(pendingCredentials.email, pendingCredentials.password);
-    
+
     // تنظيف البيانات المؤقتة
     setPendingCredentials(null);
     setTwoFactorData(null);
@@ -1123,161 +1321,258 @@ throw error;
     );
   }
 
+  // Animation variants
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.1,
+        delayChildren: 0.2
+      }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { y: 20, opacity: 0 },
+    visible: {
+      y: 0,
+      opacity: 1,
+      transition: { type: "spring", stiffness: 300, damping: 24 }
+    }
+  };
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 px-4 py-8">
-      <div className="w-full max-w-md mx-auto">
-        {/* شعار أو أيقونة */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-r from-[#fc5d41] to-[#fc5d41]/80 rounded-full mb-4 shadow-lg">
-            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
-          </div>
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-[#fc5d41] to-[#fc5d41]/80 bg-clip-text text-transparent">
-            مرحباً بعودتك
-          </h1>
-          <p className="text-gray-600 dark:text-gray-300 mt-2">
-            قم بتسجيل الدخول للوصول إلى لوحة التحكم
-          </p>
+    <div className="min-h-screen w-full flex bg-white dark:bg-slate-950 font-tajawal selection:bg-orange-500/20">
+      {/* Left Side - Visual & Brand (Desktop Only) */}
+      <div className="hidden lg:flex w-1/2 relative bg-slate-900 flex-col justify-between p-12 overflow-hidden">
+        {/* Background Effects */}
+        <div className="absolute inset-0">
+          <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-soft-light"></div>
+          <div className="absolute top-[-20%] left-[-20%] w-[80%] h-[80%] bg-blue-600/20 rounded-full blur-[100px] animate-pulse" style={{ animationDuration: '15s' }} />
+          <div className="absolute bottom-[-20%] right-[-20%] w-[80%] h-[80%] bg-orange-600/10 rounded-full blur-[100px] animate-pulse" style={{ animationDuration: '20s', animationDelay: '2s' }} />
         </div>
 
-        <Card className="shadow-xl border-0 bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm">
-          <CardHeader className="space-y-1 pb-4">
-            <CardTitle className="text-2xl font-semibold text-center">تسجيل الدخول</CardTitle>
-            {currentSubdomain && (
-              <div className="text-center">
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-[#fc5d41]/10 text-[#fc5d41] dark:bg-[#fc5d41]/20 dark:text-[#fc5d41]">
-                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9" />
-                  </svg>
-                  مستخدم النطاق {currentSubdomain}
-                </span>
+        {/* Brand Logo */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="relative z-10 flex items-center gap-3"
+        >
+          <div className="w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl flex items-center justify-center shadow-lg shadow-orange-500/20">
+            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </div>
+          <span className="text-2xl font-bold text-white tracking-tight">سطوكيها</span>
+        </motion.div>
+
+        {/* Hero Content */}
+        <motion.div
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="relative z-10 max-w-lg"
+        >
+          <h1 className="text-5xl font-bold text-white leading-tight mb-6">
+            أدر تجارتك <br />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-orange-200">
+              بذكاء واحترافية
+            </span>
+          </h1>
+          <p className="text-lg text-slate-300 leading-relaxed mb-8">
+            المنصة المتكاملة لإدارة المخزون، المبيعات، والعملاء. صممت لتنمو مع طموحك وتسهل عليك اتخاذ القرارات الصحيحة.
+          </p>
+
+          {/* Feature Pills */}
+          <div className="flex flex-wrap gap-3">
+            {['إدارة مخزون ذكية', 'تقارير فورية', 'دعم فني متواصل'].map((feature, idx) => (
+              <div key={idx} className="px-4 py-2 bg-white/10 backdrop-blur-sm border border-white/10 rounded-full text-sm text-white/90">
+                {feature}
               </div>
-            )}
-          </CardHeader>
-          
-          <CardContent className="space-y-4">
-            <form onSubmit={handleSubmit} className="space-y-5">
-              <div className="space-y-2">
-                <Label htmlFor="email" className="text-sm font-medium text-gray-700 dark:text-gray-300">البريد الإلكتروني</Label>
-                <div className="relative">
-                  <Input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="أدخل بريدك الإلكتروني"
-                    required
-                    autoComplete="username"
-                    className="text-right pl-10 h-12 border-2 border-gray-200 focus:border-[#fc5d41] focus:ring-2 focus:ring-[#fc5d41]/20 transition-all duration-200 rounded-lg bg-white/80 backdrop-blur-sm"
-                    dir="rtl"
-                  />
-                  <svg className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 transition-colors group-focus-within:text-[#fc5d41]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
-                  </svg>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* Footer/Testimonial */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.4 }}
+          className="relative z-10"
+        >
+          <div className="flex items-center gap-4 p-4 bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl max-w-md">
+            <div className="flex -space-x-3 space-x-reverse shrink-0">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="w-10 h-10 rounded-full border-2 border-slate-900 bg-slate-700 overflow-hidden">
+                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${i * 123}`} alt="User" className="w-full h-full" />
                 </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="password" className="text-sm font-medium text-gray-700 dark:text-gray-300">كلمة المرور</Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="أدخل كلمة المرور"
-                    required
-                    autoComplete="current-password"
-                    className="text-right pl-20 pr-10 h-12 border-2 border-gray-200 focus:border-[#fc5d41] focus:ring-2 focus:ring-[#fc5d41]/20 transition-all duration-200 rounded-lg bg-white/80 backdrop-blur-sm"
-                    dir="rtl"
-                  />
-                  {/* أيقونة القفل */}
-                  <svg className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 transition-colors group-focus-within:text-[#fc5d41]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              ))}
+            </div>
+            <div>
+              <div className="flex items-center gap-1 mb-1">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <svg key={star} className="w-3 h-3 text-orange-400 fill-current" viewBox="0 0 24 24">
+                    <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
                   </svg>
-                  
-                  {/* زر إظهار/إخفاء كلمة المرور */}
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 hover:text-gray-600 transition-colors focus:outline-none focus:text-[#fc5d41]"
-                    title={showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
-                  >
-                    {showPassword ? (
-                      // أيقونة إخفاء كلمة المرور (عين مع خط)
-                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L3 3m6.878 6.878L21 21" />
-                      </svg>
-                    ) : (
-                      // أيقونة إظهار كلمة المرور (عين)
-                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                    )}
-                  </button>
-                </div>
+                ))}
               </div>
-              
-              <Button 
-                type="submit" 
-                className="w-full h-12 bg-gradient-to-r from-[#fc5d41] to-[#fc5d41]/80 hover:from-[#fc5d41]/90 hover:to-[#fc5d41] text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none rounded-lg" 
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <div className="flex items-center">
-                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    {loadingMessage}
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center">
-                    <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
-                    </svg>
-                    تسجيل الدخول
-                  </div>
-                )}
-              </Button>
-              
-              {/* رابط نسيت كلمة المرور */}
-              <div className="text-center">
-                <a 
-                  href="/forgot-password" 
-                  className="text-sm font-medium text-[#fc5d41] hover:text-[#fc5d41]/80 dark:text-[#fc5d41] dark:hover:text-[#fc5d41]/80 transition-colors"
-                >
+              <p className="text-sm text-slate-300">انضم إلى أكثر من <span className="text-white font-bold">2,000+</span> شركة تثق بنا</p>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+
+      {/* Right Side - Login Form */}
+      <div className="w-full lg:w-1/2 flex flex-col justify-center items-center p-6 sm:p-12 lg:p-24 relative">
+        {/* Mobile Header */}
+        <div className="lg:hidden absolute top-6 left-6 right-6 flex justify-between items-center">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg flex items-center justify-center shadow-md">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <span className="text-xl font-bold text-slate-900 dark:text-white">سطوكيها</span>
+          </div>
+        </div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="w-full max-w-md space-y-8"
+        >
+          <div className="text-center lg:text-right space-y-2">
+            <h2 className="text-3xl font-bold text-slate-900 dark:text-white tracking-tight">تسجيل الدخول</h2>
+            <p className="text-slate-500 dark:text-slate-400">
+              مرحباً بعودتك! الرجاء إدخال بياناتك للمتابعة
+            </p>
+          </div>
+
+          {currentSubdomain && (
+            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-xl flex items-start gap-3">
+              <div className="mt-0.5 w-8 h-8 bg-blue-100 dark:bg-blue-800/40 rounded-lg flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-blue-600 dark:text-blue-400 mb-0.5">أنت تسجل الدخول إلى</p>
+                <p className="text-sm font-bold text-blue-800 dark:text-blue-300">{currentSubdomain}</p>
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="space-y-2">
+              <Label htmlFor="email" className="text-slate-700 dark:text-slate-300 font-medium">البريد الإلكتروني</Label>
+              <div className="relative">
+                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                  <Mail className="h-5 w-5 text-slate-400" />
+                </div>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@company.com"
+                  required
+                  autoComplete="username"
+                  className="h-12 pr-10 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl transition-all"
+                  dir="rtl"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password" className="text-slate-700 dark:text-slate-300 font-medium">كلمة المرور</Label>
+                <a href="/forgot-password" className="text-sm font-medium text-orange-600 hover:text-orange-700 dark:text-orange-400 transition-colors">
                   نسيت كلمة المرور؟
                 </a>
               </div>
-            </form>
-          </CardContent>
-          
-          {!currentSubdomain && (
-            <CardFooter className="border-t bg-gray-50/50 dark:bg-gray-800/50 rounded-b-lg">
-              <div className="w-full text-center">
-                <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
-                  هل تريد إنشاء نظام خاص بمؤسستك؟
-                </p>
-                <a 
-                  href="/tenant/signup" 
-                  className="inline-flex items-center text-sm font-medium text-[#fc5d41] hover:text-[#fc5d41]/80 dark:text-[#fc5d41] dark:hover:text-[#fc5d41]/80 transition-colors group"
+              <div className="relative">
+                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                  <Lock className="h-5 w-5 text-slate-400" />
+                </div>
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                  autoComplete="current-password"
+                  className="h-12 pr-10 pl-10 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 focus:border-orange-500 focus:ring-orange-500/20 rounded-xl transition-all"
+                  dir="rtl"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
                 >
-                  <svg className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
-                  إنشاء حساب مسؤول مع نطاق فرعي
-                </a>
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
               </div>
-            </CardFooter>
+            </div>
+
+            <div className="flex items-center">
+              <label className="flex items-center cursor-pointer group select-none">
+                <div className="relative">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="sr-only"
+                  />
+                  <div className={`w-5 h-5 border-2 rounded transition-all duration-200 flex items-center justify-center ${rememberMe ? 'bg-orange-500 border-orange-500' : 'border-slate-300 dark:border-slate-600 bg-transparent group-hover:border-orange-400'}`}>
+                    {rememberMe && <Check className="w-3.5 h-3.5 text-white" />}
+                  </div>
+                </div>
+                <span className="mr-2 text-sm text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-200 transition-colors">تذكرني على هذا الجهاز</span>
+              </label>
+            </div>
+
+            <Button
+              type="submit"
+              className="w-full h-12 text-base bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl shadow-lg shadow-orange-500/20 hover:shadow-orange-500/30 transition-all duration-300"
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin ml-2" />
+                  <span>{loadingMessage}</span>
+                </>
+              ) : (
+                <>
+                  <span>تسجيل الدخول</span>
+                  <ArrowRight className="w-5 h-5 mr-2" />
+                </>
+              )}
+            </Button>
+          </form>
+
+          {!currentSubdomain && (
+            <div className="pt-6 text-center border-t border-slate-100 dark:border-slate-800">
+              <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">
+                ليس لديك حساب مؤسسة بعد؟
+              </p>
+              <a
+                href="/tenant/signup"
+                className="inline-flex items-center justify-center w-full px-6 py-3 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-200 font-semibold hover:border-orange-500 hover:text-orange-500 dark:hover:border-orange-500 dark:hover:text-orange-500 transition-all duration-300 bg-slate-50 dark:bg-slate-800/50 hover:bg-white dark:hover:bg-slate-800"
+              >
+                <span>إنشاء حساب جديد</span>
+              </a>
+            </div>
           )}
-        </Card>
-        
-        {/* معلومات إضافية في أسفل الصفحة */}
-        <div className="text-center mt-8 text-sm text-gray-500 dark:text-gray-400">
-          <p>© 2025 سطوكيها - منصة التجارة الإلكترونية. جميع الحقوق محفوظة.</p>
+        </motion.div>
+
+        <div className="absolute bottom-6 text-center">
+          <p className="text-xs text-slate-400 dark:text-slate-600">
+            © 2025 Stockiha. جميع الحقوق محفوظة.
+          </p>
         </div>
       </div>
     </div>

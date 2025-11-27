@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import type { Database } from '../types/database.types';
-import { inventoryDB, type LocalPOSOrder, type LocalPOSOrderItem } from '../database/localDb';
+import type { LocalPOSOrder, LocalPOSOrderItem } from '../database/localDb';
+import { deltaWriteService } from '@/services/DeltaWriteService';
 import { isAppOnline } from '@/utils/networkStatus';
 import { parseISO } from 'date-fns';
 
@@ -143,10 +144,12 @@ export class POSOrdersService {
     order: LocalPOSOrder,
     preloadedItems?: Map<string, LocalPOSOrderItem[]>
   ): Promise<POSOrderWithDetails> {
-    const items = preloadedItems?.get(order.id) ?? await inventoryDB.posOrderItems
-      .where('order_id')
-      .equals(order.id)
-      .toArray();
+    // ⚡ استخدام Delta Sync بدلاً من inventoryDB
+    const items = preloadedItems?.get(order.id) ?? await deltaWriteService.getAll<LocalPOSOrderItem>(
+      'pos_order_items',
+      order.organization_id,
+      { where: 'order_id = ?', params: [order.id] }
+    );
 
     const mappedItems = (items || []).map((item: LocalPOSOrderItem) => ({
       id: item.id,
@@ -226,10 +229,8 @@ export class POSOrdersService {
     page: number = 1,
     limit: number = 20
   ): Promise<{ orders: POSOrderWithDetails[]; total: number; hasMore: boolean }> {
-    const allOrders = await inventoryDB.posOrders
-      .where('organization_id')
-      .equals(organizationId)
-      .toArray();
+    // ⚡ استخدام Delta Sync بدلاً من inventoryDB
+    const allOrders = await deltaWriteService.getAll<LocalPOSOrder>('pos_orders', organizationId);
     const filtered = allOrders.filter((order) => this.matchesFilters(order, filters));
 
     filtered.sort((a, b) => {
@@ -246,10 +247,9 @@ export class POSOrdersService {
     const orderIds = sliced.map((o) => o.id);
     let itemsMap = new Map<string, LocalPOSOrderItem[]>();
     if (orderIds.length > 0) {
-      const pageItems = await inventoryDB.posOrderItems
-        .where('order_id' as any)
-        .anyOf(orderIds as any)
-        .toArray();
+      // استخدام Delta Sync للحصول على جميع العناصر
+      const allItems = await deltaWriteService.getAll<LocalPOSOrderItem>('pos_order_items', organizationId);
+      const pageItems = allItems.filter(item => orderIds.includes(item.order_id));
       itemsMap = pageItems.reduce((acc, it: any) => {
         const arr = acc.get(it.order_id) || [];
         arr.push(it);
@@ -270,7 +270,8 @@ export class POSOrdersService {
   }
 
   private async getLocalPOSOrderStats(organizationId: string): Promise<POSOrderStats> {
-    const orders = await inventoryDB.posOrders.where('organization_id').equals(organizationId).toArray();
+    // ⚡ استخدام Delta Sync بدلاً من inventoryDB
+    const orders = await deltaWriteService.getAll<LocalPOSOrder>('pos_orders', organizationId);
 
     if (!orders.length) {
       return {
@@ -764,8 +765,14 @@ export class POSOrdersService {
     // if (cached) return cached;
 
     if (!this.isOnline()) {
-      const localOrder = await inventoryDB.posOrders.get(orderId) ??
-        (await inventoryDB.posOrders.where('remote_order_id').equals(orderId).first());
+      // ⚡ استخدام Delta Sync بدلاً من inventoryDB
+      let localOrder = await deltaWriteService.get<LocalPOSOrder>('pos_orders', orderId);
+      if (!localOrder) {
+        // البحث بواسطة remote_order_id
+        const orgId = localStorage.getItem('currentOrganizationId') || localStorage.getItem('bazaar_organization_id') || '';
+        const allOrders = await deltaWriteService.getAll<LocalPOSOrder>('pos_orders', orgId);
+        localOrder = allOrders.find(o => o.remote_order_id === orderId) || null;
+      }
       if (!localOrder) {
         return null;
       }
@@ -1079,7 +1086,8 @@ export class POSOrdersService {
     if (cached) return cached;
 
     if (!this.isOnline()) {
-      const orders = await inventoryDB.posOrders.where('organization_id').equals(organizationId).toArray();
+      // ⚡ استخدام Delta Sync بدلاً من inventoryDB
+      const orders = await deltaWriteService.getAll<LocalPOSOrder>('pos_orders', organizationId);
       const unique = new Map<string, { id: string; name: string; email: string }>();
       orders.forEach((order) => {
         if (order.employee_id && !unique.has(order.employee_id)) {

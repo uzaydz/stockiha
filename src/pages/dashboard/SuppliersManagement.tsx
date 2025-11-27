@@ -26,6 +26,7 @@ export default function SuppliersManagement({
   const perms = usePermissions();
   const [activeTab, setActiveTab] = useState('suppliers');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [openAddSupplierDialog, setOpenAddSupplierDialog] = useState(false);
   
   // تحديد التبويب النشط بناءً على المسار
   useEffect(() => {
@@ -131,7 +132,7 @@ export default function SuppliersManagement({
               </Button>
             )}
             {perms.anyOf(['canCreateSupplier','manageSuppliers']) && (
-              <Button onClick={() => navigate('/dashboard/suppliers/new')}>
+              <Button onClick={() => setOpenAddSupplierDialog(true)}>
                 <Package className="ml-2 h-4 w-4" />
                 مورد جديد
               </Button>
@@ -164,7 +165,10 @@ export default function SuppliersManagement({
               <Outlet />
             ) : (
               <TabsContent value="suppliers" className="m-0">
-                <SuppliersList />
+                <SuppliersList 
+                  openAddDialog={openAddSupplierDialog}
+                  onDialogOpenChange={setOpenAddSupplierDialog}
+                />
               </TabsContent>
             )}
           </div>

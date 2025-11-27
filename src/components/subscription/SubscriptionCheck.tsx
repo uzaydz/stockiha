@@ -70,7 +70,7 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
   const getSubscriptionData = async (orgId: string): Promise<SubscriptionData | null> => {
     const cacheKey = `subscription_${orgId}`;
     const now = Date.now();
-    
+
     // التحقق من الكاش المركزي أولاً
     const cached = GLOBAL_SUBSCRIPTION_CACHE.get(cacheKey);
     if (cached && (now - cached.timestamp) < CACHE_DURATION) {
@@ -107,9 +107,45 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
           });
           return subscription;
         }
-      } catch {}
+      } catch { }
 
       if (isOffline) {
+        // محاولة استرجاع البيانات من الكاش المحلي (localStorage) كخيار أخير
+        try {
+          const cachedStatus = localStorage.getItem('cached_subscription_status');
+          if (cachedStatus) {
+            const parsed = JSON.parse(cachedStatus);
+            // التحقق من صلاحية الكاش (7 أيام)
+            if (Date.now() - parsed.timestamp < 7 * 24 * 60 * 60 * 1000) {
+              if (parsed.hasActiveSubscription) {
+                const cachedSubscription: SubscriptionData = {
+                  success: true,
+                  status: parsed.subscriptionStatus || 'active',
+                  subscription_type: parsed.subscriptionStatus === 'trial' ? 'trial_subscription' : 'paid',
+                  subscription_id: 'offline_cached',
+                  plan_name: parsed.planName || 'غير محدد',
+                  plan_code: parsed.planCode || 'none',
+                  start_date: null,
+                  end_date: null,
+                  days_left: parsed.daysRemaining || 0,
+                  features: [],
+                  limits: { max_pos: null, max_users: null, max_products: null },
+                  message: 'تم التحقق من النسخة المخبأة'
+                };
+
+                GLOBAL_SUBSCRIPTION_CACHE.set(cacheKey, {
+                  data: cachedSubscription,
+                  timestamp: now,
+                  isChecking: false
+                });
+                return cachedSubscription;
+              }
+            }
+          }
+        } catch (e) {
+          console.error('Error reading cached subscription status:', e);
+        }
+
         const offlineBlock: SubscriptionData = {
           success: false,
           status: 'error',
@@ -133,14 +169,14 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
       }
       // 2) سقوط احتياطي على الكاش/الخادم الحالي
       const subscription = await subscriptionCache.getSubscriptionStatus(orgId);
-      
+
       // حفظ النتيجة في الكاش
       GLOBAL_SUBSCRIPTION_CACHE.set(cacheKey, {
         data: subscription,
         timestamp: now,
         isChecking: false
       });
-      
+
       return subscription;
     } catch (error) {
       // في حالة الخطأ، نزيل علامة الفحص الجاري
@@ -165,7 +201,7 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
 
     const now = Date.now();
     const timeSinceLastCheck = now - lastCheckTimeRef.current;
-    
+
     // منع التحقق المفرط - لا نتحقق أكثر من مرة كل دقيقة
     if (timeSinceLastCheck < CHECK_DEBOUNCE_TIME && hasCheckedRef.current) {
       return;
@@ -178,12 +214,12 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
         lastCheckTimeRef.current = now;
 
         const subscription = await getSubscriptionData(organization.id);
-        
+
         if (!subscription) {
           // لا توجد بيانات أو جاري الفحص، لا نفعل شيئاً
           return;
         }
-        
+
         setSubscriptionData(subscription);
 
         // ✅ التحقق من صحة الاشتراك - لا نسمح بالوصول إذا لم تكن البيانات صالحة
@@ -211,7 +247,7 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
 
         // إذا كان الاشتراك صالح
         if (subscription.status === 'active' || subscription.status === 'trial') {
-          
+
           // إظهار تنبيه إذا كان الاشتراك سينتهي قريباً (أقل من 7 أيام)
           if (subscription.days_left <= 7 && subscription.status !== 'trial') {
             // يمكن إضافة تنبيه هنا إذا لزم الأمر
@@ -285,14 +321,14 @@ const SubscriptionCheck: React.FC<SubscriptionCheckProps> = ({ children }) => {
 
   // ✅ إذا تم فحص الاشتراك وكان صالح، اعرض المحتوى
   if (subscriptionData && subscriptionData.success &&
-      (subscriptionData.status === 'active' || subscriptionData.status === 'trial' || subscriptionData.status === 'pending') &&
-      subscriptionData.days_left > 0) {
+    (subscriptionData.status === 'active' || subscriptionData.status === 'trial' || subscriptionData.status === 'pending') &&
+    subscriptionData.days_left > 0) {
     return <>{children}</>;
   }
 
   // ✅ إذا تم فحص الاشتراك وكان منتهي أو ملغي - منع الوصول
   if (subscriptionData &&
-      (subscriptionData.status === 'expired' || subscriptionData.status === 'canceled' || subscriptionData.days_left <= 0)) {
+    (subscriptionData.status === 'expired' || subscriptionData.status === 'canceled' || subscriptionData.days_left <= 0)) {
     // ✅ عرض رسالة للمستخدم أن الاشتراك منتهي
     if (!isSubscriptionPage) {
       return <SubscriptionExpiredPage onNavigateToSubscription={() => navigate('/dashboard/subscription', { replace: true })} />;

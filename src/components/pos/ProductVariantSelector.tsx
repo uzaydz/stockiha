@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Loader2, ShoppingCart, AlertCircle, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { ensureArray } from '@/context/POSDataContext';
 
 // التعريف الصحيح للواجهة ProductSize بناءً على ما ترجعه getProductSizes
 interface ProductSize {
@@ -36,14 +37,17 @@ export default function ProductVariantSelector({
   const [sizes, setSizes] = useState<ProductSize[]>([]);
   const [loadingSizes, setLoadingSizes] = useState(false);
 
+  // ✅ استخدام ensureArray للتعامل مع JSON strings من SQLite
+  const productColors = ensureArray(product.colors) as any[];
+
   // الحصول على اللون المحدد
-  const selectedColor = product.colors?.find(c => c.id === selectedColorId);
+  const selectedColor = productColors.find(c => c.id === selectedColorId);
   const selectedSize = sizes.find(s => s.id === selectedSizeId);
 
   // تحديد اللون الافتراضي عند التحميل
   useEffect(() => {
-    if (product.colors && product.colors.length > 0) {
-      const defaultColor = product.colors.find(c => c.is_default) || product.colors[0];
+    if (productColors && productColors.length > 0) {
+      const defaultColor = productColors.find(c => c.is_default) || productColors[0];
       if (defaultColor && defaultColor.quantity > 0) {
         setSelectedColorId(defaultColor.id);
       }

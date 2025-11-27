@@ -364,9 +364,29 @@ export class YalidineShippingService extends BaseShippingService {
     try {
       // قد يحتاج API ياليدين البيانات في مصفوفة أو كائن مخصص
       const requestBody = [params]; // جرب إرسال البيانات كمصفوفة
-      const response = await this.apiClient.post('parcels', requestBody);
-      return response.data;
+
+      // استخدام الكلاينت المناسب حسب البيئة
+      // في Electron، نستخدم Supabase proxy لتجنب CORS
+      const isElectron = typeof window !== 'undefined' && (window as any).electronAPI;
+
+      if (isElectron) {
+        // في Electron، نستخدم Supabase proxy مع query parameters
+        console.log('[ShippingService] Using supabaseProxyClient (Electron)');
+        const response = await this.supabaseProxyClient.post('', requestBody, {
+          params: {
+            provider: 'yalidine',
+            endpoint: 'parcels'
+          }
+        });
+        return response.data;
+      } else {
+        // في بيئة التطوير، نستخدم proxy المحلي
+        console.log('[ShippingService] Using apiClient (localhost)');
+        const response = await this.apiClient.post('parcels', requestBody);
+        return response.data;
+      }
     } catch (error: any) {
+      console.error('[ShippingService] createShippingOrder error:', error);
       throw error;
     }
   }
@@ -376,13 +396,29 @@ export class YalidineShippingService extends BaseShippingService {
    */
   async getTrackingInfo(trackingNumber: string): Promise<YalidineTrackingInfo[]> {
     try {
-      const response = await this.apiClient.get(`tracking/${trackingNumber}`);
-      
+      // استخدام الكلاينت المناسب حسب البيئة
+      const isElectron = typeof window !== 'undefined' && (window as any).electronAPI;
+
+      let response;
+      if (isElectron) {
+        // في Electron، نستخدم Supabase proxy مع query parameters
+        response = await this.supabaseProxyClient.get('', {
+          params: {
+            provider: 'yalidine',
+            endpoint: `tracking/${trackingNumber}`
+          }
+        });
+      } else {
+        // في بيئة التطوير، نستخدم proxy المحلي
+        response = await this.apiClient.get(`tracking/${trackingNumber}`);
+      }
+
       // معالجة بنية البيانات الصحيحة
-      return Array.isArray(response.data) 
-        ? response.data 
+      return Array.isArray(response.data)
+        ? response.data
         : (response.data?.data || []);
     } catch (error) {
+      console.error('[ShippingService] getTrackingInfo error:', error);
       throw error;
     }
   }

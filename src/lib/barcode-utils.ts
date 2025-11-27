@@ -1,4 +1,98 @@
 import type { BarcodeSettings } from '@/components/product/barcode/BarcodeSettings';
+import { localBarcodeGenerator } from '@/services/LocalBarcodeGenerator';
+
+// =====================================================
+// ⚡ دوال التوليد المحلي (بدون APIs خارجية)
+// =====================================================
+
+/**
+ * ⚡ توليد باركود محلياً (يعمل أوفلاين)
+ * يستخدم JsBarcode محلياً بدلاً من API خارجي
+ */
+export const generateBarcodeLocal = (
+  value: string,
+  type: string = 'code128',
+  options?: {
+    width?: number;
+    height?: number;
+    displayValue?: boolean;
+    fontSize?: number;
+  }
+): string => {
+  return localBarcodeGenerator.generateBarcode(
+    value,
+    type as any,
+    options
+  );
+};
+
+/**
+ * ⚡ توليد QR Code محلياً (يعمل أوفلاين)
+ */
+export const generateQRCodeLocal = async (
+  value: string,
+  options?: {
+    width?: number;
+    height?: number;
+    margin?: number;
+  }
+): Promise<string> => {
+  return localBarcodeGenerator.generateQRCode(value, options);
+};
+
+/**
+ * ⚡ الحصول على صورة باركود (محلي أولاً، ثم API كـ fallback)
+ */
+export const getBarcodeImageUrlSmart = (
+  value: string,
+  type: string = 'code128',
+  options?: {
+    scale?: number;
+    height?: number;
+    includeText?: boolean;
+    textSize?: number;
+    preferLocal?: boolean;
+  }
+): string => {
+  const { preferLocal = true, scale = 3, height = 70, includeText = true, textSize = 14 } = options || {};
+  
+  // إذا كان التفضيل للمحلي أو كنا أوفلاين
+  if (preferLocal || !navigator.onLine) {
+    return localBarcodeGenerator.generateBarcode(value, type as any, {
+      width: scale,
+      height: height,
+      displayValue: includeText,
+      fontSize: textSize
+    });
+  }
+  
+  // Fallback للـ API الخارجي
+  return getBarcodeImageUrl(value, type, scale, height, includeText, textSize);
+};
+
+/**
+ * ⚡ الحصول على صورة QR Code (محلي أولاً، ثم API كـ fallback)
+ */
+export const getQRCodeUrlSmart = async (
+  value: string,
+  size: number = 150,
+  preferLocal: boolean = true
+): Promise<string> => {
+  // إذا كان التفضيل للمحلي أو كنا أوفلاين
+  if (preferLocal || !navigator.onLine) {
+    return localBarcodeGenerator.generateQRCode(value, {
+      width: size,
+      height: size
+    });
+  }
+  
+  // Fallback للـ API الخارجي
+  return getQRCodeUrl(value, size);
+};
+
+// =====================================================
+// دوال CSS والتنسيق
+// =====================================================
 
 /**
  * توليد أوراق أنماط CSS للطباعة بناءً على إعدادات الباركود
@@ -224,6 +318,8 @@ export const isValidBarcode = (value: string, type: string): boolean => {
 
 /**
  * توليد رمز QR بناءً على القيمة المعطاة
+ * ⚠️ ملاحظة: هذه الدالة تستخدم API خارجي ولا تعمل أوفلاين
+ * استخدم getQRCodeUrlSmart() أو generateQRCodeLocal() للعمل أوفلاين
  */
 export const getQRCodeUrl = (value: string, size: number = 150): string => {
   // تقليل الحجم الافتراضي من 200 إلى 150 والهامش من 10 إلى 8 لتناسب المساحة الجديدة
@@ -232,6 +328,8 @@ export const getQRCodeUrl = (value: string, size: number = 150): string => {
 
 /**
  * الحصول على URL لصورة الباركود
+ * ⚠️ ملاحظة: هذه الدالة تستخدم API خارجي ولا تعمل أوفلاين
+ * استخدم getBarcodeImageUrlSmart() أو generateBarcodeLocal() للعمل أوفلاين
  */
 export const getBarcodeImageUrl = (
   value: string, 

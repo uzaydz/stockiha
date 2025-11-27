@@ -46,33 +46,30 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
-export function SuppliersList() {
-  const { user } = useAuth();
+interface SuppliersListProps {
+  /** فتح نافذة إضافة مورد جديد من الخارج */
+  openAddDialog?: boolean;
+  /** إعادة تعيين حالة فتح النافذة */
+  onDialogOpenChange?: (open: boolean) => void;
+}
+
+export function SuppliersList({ openAddDialog, onDialogOpenChange }: SuppliersListProps = {}) {
+  const { user, organization } = useAuth();
   const perms = usePermissions();
-  // محاولة الحصول على organization_id بطرق متعددة
-  const [organizationId, setOrganizationId] = useState<string | undefined>(undefined);
   
-  // تحديد organization_id عند تهيئة المكون
-  useEffect(() => {
-    // محاولة الحصول على organization_id من كائن المستخدم
-    if (user && 'organization_id' in user) {
-      
-      setOrganizationId((user as any).organization_id);
-      return;
-    }
-    
-    // محاولة الحصول من التخزين المحلي
-    const storedOrgId = localStorage.getItem('bazaar_organization_id');
-    if (storedOrgId) {
-      
-      setOrganizationId(storedOrgId);
-      return;
-    }
-    
-    // القيمة الاحتياطية النهائية (يمكن تغييرها حسب احتياجك)
-    
-    setOrganizationId("10c02497-45d4-417a-857b-ad383816d7a0");
-  }, [user]);
+  // الحصول على organization_id من مصادر متعددة
+  const organizationId = organization?.id || 
+    (user as any)?.organization_id || 
+    localStorage.getItem('bazaar_organization_id') || 
+    undefined;
+  
+  // 🔍 Debug logging عند كل render
+  console.log('[SuppliersList] 🔄 Render:', { 
+    organizationId, 
+    hasOrganization: !!organization,
+    hasUser: !!user,
+    openAddDialog 
+  });
   
   const { toast } = useToast();
   
@@ -93,14 +90,21 @@ export function SuppliersList() {
   
   // جلب قائمة الموردين
   const loadSuppliers = async () => {
-    if (!organizationId) return;
+    if (!organizationId) {
+      console.warn('[SuppliersList] لا يوجد organizationId، لن يتم تحميل الموردين');
+      setIsLoading(false);
+      return;
+    }
     
+    console.log('[SuppliersList] جاري تحميل الموردين...', { organizationId });
     setIsLoading(true);
     try {
       const data = await getSuppliers(organizationId);
+      console.log('[SuppliersList] تم تحميل الموردين:', { count: data.length });
       setSuppliers(data);
       setFilteredSuppliers(data);
     } catch (error) {
+      console.error('[SuppliersList] خطأ في تحميل الموردين:', error);
       toast({
         title: 'خطأ',
         description: 'حدث خطأ أثناء تحميل قائمة الموردين',
@@ -111,9 +115,26 @@ export function SuppliersList() {
     }
   };
   
-  // تحميل البيانات عند التهيئة
+  // فتح نافذة الإضافة من الخارج
   useEffect(() => {
-    loadSuppliers();
+    if (openAddDialog && !dialogOpen) {
+      setSelectedSupplier(null);
+      setDialogOpen(true);
+    }
+  }, [openAddDialog]);
+  
+  // إبلاغ الـ parent عند تغيير حالة النافذة
+  useEffect(() => {
+    if (onDialogOpenChange) {
+      onDialogOpenChange(dialogOpen);
+    }
+  }, [dialogOpen, onDialogOpenChange]);
+  
+  // تحميل البيانات عند التهيئة أو تغيير organization
+  useEffect(() => {
+    if (organizationId) {
+      loadSuppliers();
+    }
   }, [organizationId]);
   
   // تطبيق البحث والفلترة

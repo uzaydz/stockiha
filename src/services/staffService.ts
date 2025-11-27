@@ -8,43 +8,71 @@ import type {
   VerifyStaffLoginResponse,
   CreateStaffWithAuthInput,
 } from '@/types/staff';
+import { localStaffService } from '@/api/localStaffService';
 
 // Re-export types for convenience
 export type { POSStaffSession, SaveStaffSessionInput, SaveStaffSessionResponse, UpdatePinResponse, DeleteStaffResponse };
 
 /**
  * خدمات إدارة موظفي نقطة البيع
+ * ⚡ تدعم الآن العمل الأوفلاين مع Delta Sync
  */
 export const staffService = {
   /**
    * جلب جميع الموظفين
+   * ⚡ يدعم الأوفلاين: يجلب من SQLite إذا فشل الاتصال
    */
   async getAll(organizationId?: string): Promise<POSStaffSession[]> {
     try {
+      // محاولة الجلب من السيرفر أولاً
       const { data, error } = await (supabase as any).rpc('get_pos_staff_sessions', {
         p_organization_id: organizationId || null,
       });
 
       if (error) {
-        console.error('Error fetching staff sessions:', error);
+        console.warn('[staffService] ⚠️ خطأ في جلب الموظفين من السيرفر، محاولة الجلب محلياً:', error);
+
+        // Fallback: الجلب من SQLite
+        if (organizationId) {
+          console.log('[staffService] 📱 استخدام البيانات المحلية (Offline Mode)');
+          const localStaff = await localStaffService.getAll(organizationId);
+          return localStaff;
+        }
+
         throw new Error(error.message);
       }
 
       return (data || []) as POSStaffSession[];
     } catch (error) {
-      console.error('Error in getAll staff sessions:', error);
+      console.error('[staffService] ❌ خطأ في getAll:', error);
+
+      // Last fallback: محاولة الجلب محلياً
+      if (organizationId) {
+        try {
+          console.log('[staffService] 🔄 محاولة أخيرة: الجلب من SQLite');
+          const localStaff = await localStaffService.getAll(organizationId);
+          if (localStaff.length > 0) {
+            console.log(`[staffService] ✅ تم جلب ${localStaff.length} موظف من SQLite`);
+            return localStaff;
+          }
+        } catch (localError) {
+          console.error('[staffService] ❌ فشل الجلب من SQLite:', localError);
+        }
+      }
+
       throw error;
     }
   },
 
   /**
    * حفظ أو تعديل موظف
+   * ⚡ يدعم الأوفلاين: يحفظ محلياً ويضيف للـ Outbox
    */
-  async save(input: SaveStaffSessionInput): Promise<SaveStaffSessionResponse> {
+  async save(input: SaveStaffSessionInput, organizationId?: string): Promise<SaveStaffSessionResponse> {
     try {
       // التحقق من البيانات قبل الإرسال
       const pinCode = input.pin_code && input.pin_code.toString().trim() !== '' ? input.pin_code.toString() : null;
-      
+
       console.log('🔍 [staffService] إرسال البيانات:', {
         p_id: input.id || null,
         p_staff_name: input.staff_name,
@@ -53,6 +81,7 @@ export const staffService = {
         p_is_active: input.is_active,
       });
 
+      // محاولة الحفظ على السيرفر أولاً
       const { data, error } = await (supabase as any).rpc('save_pos_staff_session', {
         p_id: input.id || null,
         p_staff_name: input.staff_name,
@@ -62,13 +91,90 @@ export const staffService = {
       });
 
       if (error) {
-        console.error('Error saving staff session:', error);
+        console.warn('[staffService] ⚠️ خطأ في حفظ الموظف على السيرفر، الحفظ محلياً:', error);
+
+        // Fallback: الحفظ محلياً
+        if (organizationId) {
+          console.log('[staffService] 📱 حفظ محلي (Offline Mode)');
+
+          // تحويل SaveStaffSessionInput إلى POSStaffSession
+          const staffData: POSStaffSession = {
+            id: input.id || crypto.randomUUID(),
+            staff_name: input.staff_name,
+            permissions: input.permissions,
+            is_active: input.is_active,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            has_pin: !!pinCode,
+          };
+
+          // حفظ محلياً
+          const localResult = await localStaffService.upsert(staffData, organizationId);
+
+          // حفظ PIN إذا وُجد
+          if (pinCode && localResult.success) {
+            await localStaffService.savePin(staffData.id, pinCode, organizationId);
+          }
+
+          if (localResult.success) {
+            return {
+              success: true,
+              action: input.id ? 'updated' : 'created',
+              staff_id: staffData.id,
+              message: 'تم الحفظ محلياً - سيتم المزامنة لاحقاً',
+            };
+          } else {
+            return {
+              success: false,
+              error: localResult.error || 'فشل الحفظ المحلي',
+            };
+          }
+        }
+
         throw new Error(error.message);
       }
 
       return data as SaveStaffSessionResponse;
     } catch (error) {
-      console.error('Error in save staff session:', error);
+      console.error('[staffService] ❌ خطأ في save:', error);
+
+      // Last fallback: محاولة الحفظ محلياً
+      if (organizationId) {
+        try {
+          console.log('[staffService] 🔄 محاولة أخيرة: الحفظ محلياً');
+
+          const pinCode = input.pin_code && input.pin_code.toString().trim() !== '' ? input.pin_code.toString() : null;
+
+          const staffData: POSStaffSession = {
+            id: input.id || crypto.randomUUID(),
+            staff_name: input.staff_name,
+            permissions: input.permissions,
+            is_active: input.is_active,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            has_pin: !!pinCode,
+          };
+
+          const localResult = await localStaffService.upsert(staffData, organizationId);
+
+          if (pinCode && localResult.success) {
+            await localStaffService.savePin(staffData.id, pinCode, organizationId);
+          }
+
+          if (localResult.success) {
+            console.log('[staffService] ✅ تم الحفظ محلياً بنجاح');
+            return {
+              success: true,
+              action: input.id ? 'updated' : 'created',
+              staff_id: staffData.id,
+              message: 'تم الحفظ محلياً - سيتم المزامنة لاحقاً',
+            };
+          }
+        } catch (localError) {
+          console.error('[staffService] ❌ فشل الحفظ المحلي:', localError);
+        }
+      }
+
       throw error;
     }
   },
@@ -117,21 +223,61 @@ export const staffService = {
 
   /**
    * حذف موظف
+   * ⚡ يدعم الأوفلاين: يحذف محلياً ويضيف للـ Outbox
    */
-  async delete(staffId: string): Promise<DeleteStaffResponse> {
+  async delete(staffId: string, organizationId?: string): Promise<DeleteStaffResponse> {
     try {
+      // محاولة الحذف من السيرفر أولاً
       const { data, error } = await (supabase as any).rpc('delete_pos_staff_session', {
         p_staff_id: staffId,
       });
 
       if (error) {
-        console.error('Error deleting staff session:', error);
+        console.warn('[staffService] ⚠️ خطأ في حذف الموظف من السيرفر، الحذف محلياً:', error);
+
+        // Fallback: الحذف محلياً
+        if (organizationId) {
+          console.log('[staffService] 📱 حذف محلي (Offline Mode)');
+          const result = await localStaffService.delete(staffId, organizationId);
+
+          if (result.success) {
+            return {
+              success: true,
+              message: 'تم الحذف محلياً - سيتم المزامنة لاحقاً',
+            };
+          } else {
+            return {
+              success: false,
+              error: result.error || 'فشل الحذف المحلي',
+            };
+          }
+        }
+
         throw new Error(error.message);
       }
 
       return data as DeleteStaffResponse;
     } catch (error) {
-      console.error('Error in delete staff session:', error);
+      console.error('[staffService] ❌ خطأ في delete:', error);
+
+      // Last fallback: محاولة الحذف محلياً
+      if (organizationId) {
+        try {
+          console.log('[staffService] 🔄 محاولة أخيرة: الحذف محلياً');
+          const result = await localStaffService.delete(staffId, organizationId);
+
+          if (result.success) {
+            console.log('[staffService] ✅ تم الحذف محلياً بنجاح');
+            return {
+              success: true,
+              message: 'تم الحذف محلياً - سيتم المزامنة لاحقاً',
+            };
+          }
+        } catch (localError) {
+          console.error('[staffService] ❌ فشل الحذف المحلي:', localError);
+        }
+      }
+
       throw error;
     }
   },
@@ -163,21 +309,66 @@ export const staffService = {
 
   /**
    * التحقق من كود PIN وتسجيل دخول الموظف (قديم - للموظفين بدون إيميل)
+   * ⚡ يدعم الأوفلاين: يتحقق من PIN محلياً
    */
-  async verifyPin(pinCode: string): Promise<{ success: boolean; staff?: POSStaffSession; error?: string }> {
+  async verifyPin(pinCode: string, organizationId?: string): Promise<{ success: boolean; staff?: POSStaffSession; error?: string }> {
     try {
+      // محاولة التحقق من السيرفر أولاً
       const { data, error } = await (supabase as any).rpc('verify_staff_pin', {
         p_pin_code: pinCode.toString(),
       });
 
       if (error) {
-        console.error('Error verifying staff PIN:', error);
+        console.warn('[staffService] ⚠️ خطأ في التحقق من PIN من السيرفر، التحقق محلياً:', error);
+
+        // Fallback: التحقق محلياً
+        if (organizationId) {
+          console.log('[staffService] 📱 التحقق من PIN محلياً (Offline Mode)');
+          const result = await localStaffService.verifyPin(pinCode, organizationId);
+
+          if (result.success && result.staff) {
+            return {
+              success: true,
+              staff: result.staff,
+            };
+          } else {
+            return {
+              success: false,
+              error: result.error || 'كود PIN غير صحيح',
+            };
+          }
+        }
+
         throw new Error(error.message);
       }
 
       return data as { success: boolean; staff?: POSStaffSession; error?: string };
     } catch (error) {
-      console.error('Error in verifyPin:', error);
+      console.error('[staffService] ❌ خطأ في verifyPin:', error);
+
+      // Last fallback: محاولة التحقق محلياً
+      if (organizationId) {
+        try {
+          console.log('[staffService] 🔄 محاولة أخيرة: التحقق من PIN محلياً');
+          const result = await localStaffService.verifyPin(pinCode, organizationId);
+
+          if (result.success && result.staff) {
+            console.log('[staffService] ✅ تم التحقق من PIN محلياً بنجاح');
+            return {
+              success: true,
+              staff: result.staff,
+            };
+          } else {
+            return {
+              success: false,
+              error: result.error || 'كود PIN غير صحيح',
+            };
+          }
+        } catch (localError) {
+          console.error('[staffService] ❌ فشل التحقق المحلي:', localError);
+        }
+      }
+
       throw error;
     }
   },

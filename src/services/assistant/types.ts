@@ -12,6 +12,7 @@ export type IntentType =
   | 'update_stock'
   | 'rename_product'
   | 'customer_credit'
+  | 'add_customer_debt'
   | 'customer_payment'
   | 'expense_create'
   | 'expense_update'
@@ -118,6 +119,12 @@ export interface ParsedIntentCustomerCredit extends ParsedIntentBase {
   customerQuery: string;
 }
 
+export interface ParsedIntentAddCustomerDebt extends ParsedIntentBase {
+  type: 'add_customer_debt';
+  customerQuery: string;
+  amount: number;
+}
+
 export interface ParsedIntentCustomerPayment extends ParsedIntentBase {
   type: 'customer_payment';
   customerQuery: string;
@@ -131,6 +138,7 @@ export type ParsedIntent =
   | ParsedIntentUpdateStock
   | ParsedIntentRenameProduct
   | ParsedIntentCustomerCredit
+  | ParsedIntentAddCustomerDebt
   | ParsedIntentCustomerPayment
   | ParsedIntentExpenseCreate
   | ParsedIntentExpenseUpdate
@@ -138,11 +146,12 @@ export type ParsedIntent =
   | ParsedIntentRepairStatus
   | ParsedIntentRepairUpdateStatus
   | ParsedIntentRepairAddPayment
-  | { type: Exclude<IntentType, 'sales_on_date' | 'top_products' | 'update_stock' | 'rename_product' | 'customer_credit' | 'customer_payment' | 'expense_create' | 'expense_update'> };
+  | { type: Exclude<IntentType, 'sales_on_date' | 'top_products' | 'update_stock' | 'rename_product' | 'customer_credit' | 'add_customer_debt' | 'customer_payment' | 'expense_create' | 'expense_update'> };
 
 export interface AssistantResult {
   answer: string;
   action_required?: 'select_variant' | 'none';
   ui_schema?: any;
   data?: any;
+  error?: boolean;
 }

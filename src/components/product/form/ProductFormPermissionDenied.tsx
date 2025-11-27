@@ -1,8 +1,8 @@
-import React, { memo } from 'react';
+import React, { memo, useCallback } from 'react';
 import { AlertCircle, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import Layout from '@/components/Layout';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 interface ProductFormPermissionDeniedProps {
   message?: string;
@@ -12,6 +12,25 @@ const ProductFormPermissionDenied: React.FC<ProductFormPermissionDeniedProps> = 
   message = 'ليس لديك الصلاحية لإنشاء أو تعديل المنتجات',
 }) => {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  // ⚡ تحديد مسار العودة الذكي بناءً على المصدر
+  const getReturnPath = useCallback(() => {
+    const currentPath = location.pathname;
+    const referrer = (location.state as any)?.from || '';
+
+    if (
+      currentPath.includes('/pos-') ||
+      currentPath.includes('/pos-advanced') ||
+      currentPath.includes('/product-operations') ||
+      referrer.includes('/pos-') ||
+      referrer.includes('/product-operations')
+    ) {
+      return '/dashboard/product-operations/products';
+    }
+
+    return '/dashboard/products';
+  }, [location]);
 
   return (
     <Layout>
@@ -24,7 +43,7 @@ const ProductFormPermissionDenied: React.FC<ProductFormPermissionDeniedProps> = 
             يرجى التواصل مع مدير النظام للحصول على صلاحية manageProducts أو addProducts
           </p>
         </div>
-        <Button onClick={() => navigate('/dashboard/products')}>
+        <Button onClick={() => navigate(getReturnPath())}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           العودة إلى المنتجات
         </Button>

@@ -37,12 +37,15 @@ import { useUserProfile } from './auth/hooks/useUserProfile';
 import { useUserOrganization } from './auth/hooks/useUserOrganization';
 
 // استيراد المساعدات
-import { 
-  loadAuthFromStorage, 
+import {
+  loadAuthFromStorage,
   loadUserDataFromStorage,
   saveAuthToStorage,
-  cleanExpiredCache 
+  cleanExpiredCache
 } from './auth/utils/authStorage';
+
+// استيراد محرك المزامنة Delta-Based
+import { deltaSyncEngine } from '@/lib/sync/delta';
 import { loadSecureSession, hasStoredSecureSession, saveSecureSession } from './auth/utils/secureSessionStorage';
 import { 
   compareAuthData, 
@@ -53,6 +56,8 @@ import { throttledLog } from '@/lib/utils/duplicateLogger';
 import { sessionMonitor, getCurrentSession } from '@/lib/session-monitor';
 import { trackPerformance } from '@/lib/performance';
 import { dispatchAppEvent, addAppEventListener } from '@/lib/events/eventManager';
+
+import { isAppOnline } from '@/utils/networkStatus';
 
 // Cache محسن للجلسة
 const sessionCache = new Map<string, { session: Session; timestamp: number }>();
@@ -231,6 +236,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
   // معرف لنسخ التحقق المؤجلة لإلغاء المجدول القديم عند تبدل الجلسة
   const validationRunIdRef = useRef(0);
   const lastSessionWarnRef = useRef<number>(0);
+  // مرجع لتتبع تهيئة Delta Sync Engine
+  const deltaSyncInitializedRef = useRef(false);
 
   // دالة مساعدة للحصول على الجلسة من cache
   const getCachedSession = useCallback((userId: string): Session | null => {
@@ -432,6 +439,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
       initializedRef.current = true; // تعيين مبكر لمنع التكرار
       initializationInProgressRef.current = true;
       
+      // 🔒 التحقق من علامة explicit logout
+      const hasExplicitLogout = localStorage.getItem('bazaar_explicit_logout') === 'true';
+      if (hasExplicitLogout) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[AuthContext] 🚫 تم اكتشاف explicit logout - تخطي استعادة الجلسة');
+        }
+        setUser(null);
+        setSession(null);
+        setIsLoading(false);
+        setHasInitialSessionCheck(true);
+        setAuthReady(true);
+        initializationInProgressRef.current = false;
+        return;
+      }
+      
       // تحميل البيانات المحفوظة أولاً (سريع)
       const savedAuth = loadAuthFromStorage();
 
@@ -485,8 +507,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
                 if (!refreshed) {
                   // ✅ لا نحذف الجلسة فوراً - نعطي المستخدم فرصة للعمل أوفلاين
                   const nowWarn = Date.now();
-                  if (nowWarn - (lastSessionWarnRef.current || 0) > 60_000) {
-                    console.warn('⚠️ [Auth] session validation failed, but keeping offline session');
+                  // زيادة الفترة إلى 5 دقائق لتقليل التحذيرات المتكررة
+                  if (nowWarn - (lastSessionWarnRef.current || 0) > 5 * 60_000) {
+                    if (isAppOnline()) {
+                      console.warn('⚠️ [Auth] Session expired on server and refresh failed. Keeping local session for offline access.');
+                    } else {
+                      console.log('ℹ️ [Auth] Offline mode: Session validation skipped, keeping local session.');
+                    }
                     lastSessionWarnRef.current = nowWarn;
                   }
                   // لا نمسح الجلسة هنا - سنتركها للمستخدم للعمل أوفلاين
@@ -538,13 +565,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
               if (!isValid) {
                 const refreshed = await refreshSession();
                 if (!refreshed) {
-                  console.warn('⚠️ [Auth] session invalid after validation (legacy)');
-                  setUser(null);
-                  setSession(null);
-                  setIsLoading(false);
-                  setHasInitialSessionCheck(true);
-                  sessionCache.delete(savedAuth.user.id);
-                  userCache.delete(savedAuth.user.id);
+                  // ✅ استخدام نفس آلية throttling لتقليل التحذيرات
+                  const nowWarn = Date.now();
+                  if (nowWarn - (lastSessionWarnRef.current || 0) > 5 * 60_000) {
+                    if (isAppOnline()) {
+                      console.warn('⚠️ [Auth] Legacy session expired and refresh failed. Keeping local session for offline access.');
+                    } else {
+                      console.log('ℹ️ [Auth] Offline mode: Legacy session validation skipped, keeping local session.');
+                    }
+                    lastSessionWarnRef.current = nowWarn;
+                  }
+                  // لا نمسح الجلسة - نتركها للعمل أوفلاين
+                  // فقط نسجل أن التحقق فشل لكن المستخدم يمكنه الاستمرار
                 }
               }
             }
@@ -658,6 +690,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
    * دوال المصادقة المحسنة
    */
   const signIn = useCallback(async (email: string, password: string): Promise<AuthResult> => {
+
+    try {
+      localStorage.removeItem('bazaar_explicit_logout');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[AuthContext] ✅ تم مسح علامة explicit logout');
+      }
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[AuthContext] فشل في مسح علامة explicit logout:', error);
+      }
+    }
+
     const result = await authService.signIn(email, password);
 
     if (result.success) {
@@ -741,6 +785,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
   }, [currentSubdomain]);
 
   const signOut = useCallback(async (): Promise<void> => {
+    // إيقاف محرك المزامنة قبل تسجيل الخروج
+    if (deltaSyncInitializedRef.current) {
+      try {
+        console.log('🛑 [DeltaSync] إيقاف محرك المزامنة قبل تسجيل الخروج');
+        await deltaSyncEngine.stop();
+        deltaSyncInitializedRef.current = false;
+      } catch (error) {
+        console.error('[DeltaSync] خطأ في إيقاف المحرك:', error);
+      }
+    }
 
     await authService.signOut();
 
@@ -758,6 +812,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
     setProfileLoaded(false);
     setOrganizationLoaded(false);
     setDataLoadingComplete(false);
+
+    // 🔒 وضع علامة explicit logout لمنع إعادة تسجيل الدخول التلقائي
+    try {
+      localStorage.setItem('bazaar_explicit_logout', 'true');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[AuthContext] ✅ تم وضع علامة explicit logout');
+      }
+    } catch (error) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[AuthContext] فشل في وضع علامة explicit logout:', error);
+      }
+    }
 
     // تنظيف البيانات مع الاحتفاظ ببيانات تسجيل الدخول الأوفلاين
     try {
@@ -878,6 +944,80 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
       return () => clearTimeout(timeoutId);
     }
   }, [organization?.id]);
+
+  /**
+   * تهيئة وإيقاف Delta Sync Engine
+   * يتم تهيئة المحرك عندما تكون المؤسسة جاهزة وإيقافه عند تسجيل الخروج
+   */
+  useEffect(() => {
+    const initializeDeltaSync = async () => {
+      // التحقق من أن المؤسسة جاهزة ولم يتم التهيئة مسبقاً
+      if (organization?.id && authReady && !deltaSyncInitializedRef.current) {
+        try {
+          // ⚡ انتظار جاهزية قاعدة البيانات أولاً (في Tauri)
+          const isTauri = typeof window !== 'undefined' && Boolean(
+            (window as any).__TAURI_IPC__ ||
+            (window as any).__TAURI__ ||
+            (window as any).__TAURI_INTERNALS__
+          );
+
+          if (isTauri) {
+            console.log('🔄 [DeltaSync] تهيئة قاعدة البيانات...');
+            // ⚡ تهيئة قاعدة البيانات أولاً (مطلوب في Tauri)
+            const maxAttempts = 30;
+            let dbReady = false;
+
+            for (let attempt = 0; attempt < maxAttempts && !dbReady; attempt++) {
+              try {
+                const { sqliteDB } = await import('@/lib/db/sqliteAPI');
+                // ⚡ استدعاء initialize أولاً - هذا يُنشئ/يفتح قاعدة البيانات
+                const initResult = await sqliteDB.initialize(organization.id);
+                if (initResult.success) {
+                  // الآن نختبر بـ query
+                  const result = await sqliteDB.query('SELECT 1');
+                  if (result) {
+                    console.log('✅ [DeltaSync] قاعدة البيانات جاهزة');
+                    dbReady = true;
+                    break;
+                  }
+                }
+              } catch (err) {
+                if (attempt % 5 === 0) {
+                  console.log(`🔄 [DeltaSync] محاولة تهيئة DB ${attempt + 1}/${maxAttempts}...`);
+                }
+              }
+              await new Promise(resolve => setTimeout(resolve, 500));
+            }
+
+            if (!dbReady) {
+              console.warn('⚠️ [DeltaSync] لم تتم تهيئة DB بالكامل، سنستمر على أي حال');
+            }
+          }
+
+          console.log('🔄 [DeltaSync] بدء تهيئة محرك المزامنة للمؤسسة:', organization.id);
+          await deltaSyncEngine.initialize(organization.id);
+          deltaSyncInitializedRef.current = true;
+          console.log('✅ [DeltaSync] تم تهيئة محرك المزامنة بنجاح');
+        } catch (error) {
+          console.error('❌ [DeltaSync] فشل في تهيئة محرك المزامنة:', error);
+        }
+      }
+    };
+
+    // تهيئة المزامنة
+    initializeDeltaSync();
+
+    // تنظيف عند إلغاء mount أو تغيير المؤسسة
+    return () => {
+      if (deltaSyncInitializedRef.current) {
+        console.log('🛑 [DeltaSync] إيقاف محرك المزامنة');
+        deltaSyncEngine.stop().catch(err => {
+          console.error('[DeltaSync] خطأ في إيقاف المحرك:', err);
+        });
+        deltaSyncInitializedRef.current = false;
+      }
+    };
+  }, [organization?.id, authReady]);
 
   /**
    * تنظيف cache منتهي الصلاحية دورياً - محسن مع cleanup

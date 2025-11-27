@@ -7,7 +7,7 @@ import { useTitle } from '@/hooks/useTitle';
 import { useTitlebar } from '@/context/TitlebarContext';
 import { POSLayoutState, RefreshHandler } from '@/components/pos-layout/types';
 import { ShoppingCart, Wallet, RotateCcw, ShieldAlert, Loader2, Users, FileText } from 'lucide-react';
-import { usePermissions } from '@/hooks/usePermissions';
+import { useUnifiedPermissions } from '@/hooks/useUnifiedPermissions';
 
 const POSOrdersTab = React.lazy(() => import('./POSOrdersOptimized'));
 const CustomersTab = React.lazy(() => import('./dashboard/Customers'));
@@ -83,16 +83,21 @@ const POSOperationsPage: React.FC = () => {
   const params = useParams<{ tab?: string }>();
   const { setTabs, setActiveTab: setTitlebarActiveTab, setShowTabs, clearTabs } = useTitlebar();
 
-  const perms = usePermissions();
+  const perms = useUnifiedPermissions();
 
   const allowedTabs = useMemo(() => {
     // تحديد تبويبات مسموح بها بناءً على صلاحيات StaffPermissions الجديدة
-    const canOrders = perms.ready ? perms.anyOf(['accessPOS', 'canViewPosOrders']) : false;
-    const canCustomers = perms.ready ? perms.anyOf(['viewCustomers','manageCustomers']) : false; // تعتمد على نظام العملاء الحالي
-    const canDebts = perms.ready ? perms.anyOf(['canViewDebts']) : false;
-    const canReturns = perms.ready ? perms.anyOf(['canViewReturns']) : false;
-    const canLosses = perms.ready ? perms.anyOf(['canViewLosses']) : false;
-    const canInvoices = perms.ready ? perms.anyOf(['canViewInvoices']) : false;
+    // وضع المدير = صلاحيات كاملة
+    if (perms.isAdminMode || perms.isOrgAdmin || perms.isSuperAdmin) {
+      return TAB_CONFIG;
+    }
+
+    const canOrders = perms.ready ? perms.anyOf(['accessPOS', 'canViewPosOrders', 'canManagePosOrders']) : false;
+    const canCustomers = perms.ready ? perms.anyOf(['viewCustomers', 'manageCustomers', 'accessPOS']) : false;
+    const canDebts = perms.ready ? perms.anyOf(['canViewDebts', 'canManageDebts', 'accessPOS']) : false;
+    const canReturns = perms.ready ? perms.anyOf(['canViewReturns', 'canManageReturns']) : false;
+    const canLosses = perms.ready ? perms.anyOf(['canViewLosses', 'canManageLosses']) : false;
+    const canInvoices = perms.ready ? perms.anyOf(['canViewInvoices', 'canManageInvoices']) : false;
 
     return TAB_CONFIG.filter(t =>
       (t.id === 'orders' && canOrders) ||
@@ -102,7 +107,7 @@ const POSOperationsPage: React.FC = () => {
       (t.id === 'losses' && canLosses) ||
       (t.id === 'invoices' && canInvoices)
     );
-  }, [perms.ready, perms.role, perms.isOrgAdmin, perms.isSuperAdmin]);
+  }, [perms.ready, perms.isAdminMode, perms.isOrgAdmin, perms.isSuperAdmin]);
 
   const resolvedTab = useMemo<TabKey>(() => {
     const incoming = params.tab as TabKey | undefined;

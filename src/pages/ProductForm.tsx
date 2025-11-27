@@ -1,8 +1,10 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+// تتبع حلقات التحديث - للتصحيح
+import { trackRender } from '@/utils/debugRenderLoop';
 //
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { Helmet } from 'react-helmet-async';
 
 // Performance CSS
@@ -52,10 +54,33 @@ const ProductForm: React.FC<ProductFormProps> = ({
   onRegisterRefresh,
   onLayoutStateChange
 }) => {
+  // 🔍 تتبع renders للتصحيح - معطل مؤقتًا
+  // trackRender('ProductForm', { productId: useParams<{ id: string }>().id });
+  
   const { id: productId } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { currentOrganization } = useTenant();
   const organizationIdFromTenant = currentOrganization?.id;
+
+  // ⚡ تحديد مسار العودة الذكي بناءً على المصدر
+  const getReturnPath = useCallback(() => {
+    const currentPath = location.pathname;
+    const referrer = (location.state as any)?.from || '';
+
+    // إذا كان المستخدم في POS layout أو جاء منه
+    if (
+      currentPath.includes('/pos-') ||
+      currentPath.includes('/pos-advanced') ||
+      currentPath.includes('/product-operations') ||
+      referrer.includes('/pos-') ||
+      referrer.includes('/product-operations')
+    ) {
+      return '/dashboard/product-operations/products';
+    }
+
+    return '/dashboard/products';
+  }, [location]);
 
   // حالة نافذة جدولة النشر
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
@@ -174,7 +199,8 @@ const ProductForm: React.FC<ProductFormProps> = ({
   // Titlebar integration
   const { setTabs, setActiveTab: setTitlebarActiveTab, setShowTabs, clearTabs, setActions, clearActions } = useTitlebar();
 
-  const watchCategoryId = form.watch('category_id');
+  // ✅ استخدام useWatch بدلاً من form.watch لتجنب re-renders غير ضرورية
+  const watchCategoryId = useWatch({ control: form.control, name: 'category_id' }) || '';
   const { 
     categories, 
     subcategories, 
@@ -267,12 +293,12 @@ const ProductForm: React.FC<ProductFormProps> = ({
     setHasVariantsState,
   });
 
-  // Watched values for real-time updates
-  const watchHasVariants = form.watch('has_variants', hasVariantsState);
-  const watchPrice = form.watch('price');
-  const watchPurchasePrice = form.watch('purchase_price');
-  const watchThumbnailImage = form.watch('thumbnail_image');
-  const watchName = form.watch('name');
+  // ✅ Watched values for real-time updates - استخدام useWatch لتجنب re-renders
+  const watchHasVariants = useWatch({ control: form.control, name: 'has_variants', defaultValue: hasVariantsState });
+  const watchPrice = useWatch({ control: form.control, name: 'price' });
+  const watchPurchasePrice = useWatch({ control: form.control, name: 'purchase_price' });
+  const watchThumbnailImage = useWatch({ control: form.control, name: 'thumbnail_image' });
+  const watchName = useWatch({ control: form.control, name: 'name' });
 
   // Debounce title updates to avoid frequent Helmet updates while typing
   const [debouncedName, setDebouncedName] = useState<string>('');
@@ -282,7 +308,11 @@ const ProductForm: React.FC<ProductFormProps> = ({
   }, [watchName]);
 
   // Titlebar: hide tabs entirely for this page (no tab UI)
+  // ✅ استخدام useRef لضمان تشغيل مرة واحدة فقط
+  const titlebarInitRef = useRef(false);
   useEffect(() => {
+    if (titlebarInitRef.current) return;
+    titlebarInitRef.current = true;
     setShowTabs(false);
     clearTabs();
   }, [setShowTabs, clearTabs]);
@@ -599,7 +629,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
             permissionWarning={permissionWarning}
             isEditMode={isEditMode}
             onSubmit={triggerFormSubmit}
-            onCancel={() => navigate('/dashboard/products')}
+            onCancel={() => navigate(getReturnPath())}
             disabled={!form.getValues('organization_id') && !organizationIdFromTenant}
             onPublishNow={handlePublishNow}
             onSaveDraft={handleSaveDraft}
@@ -615,7 +645,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
         disabled={!form.getValues('organization_id') && !organizationIdFromTenant}
         permissionWarning={permissionWarning}
         onSubmit={triggerFormSubmit}
-        onCancel={() => navigate('/dashboard/products')}
+        onCancel={() => navigate(getReturnPath())}
         onPublishNow={handlePublishNow}
         onSaveDraft={handleSaveDraft}
         onSchedule={handleScheduleDialog}
@@ -625,7 +655,7 @@ const ProductForm: React.FC<ProductFormProps> = ({
       <SchedulePublishDialog
         open={showScheduleDialog}
         onOpenChange={setShowScheduleDialog}
-        productTitle={form.watch('name') || 'المنتج الجديد'}
+        productTitle={watchName || 'المنتج الجديد'}
         onSchedule={handleScheduleSubmit}
       />
     </>

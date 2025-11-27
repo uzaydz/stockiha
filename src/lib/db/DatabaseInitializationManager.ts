@@ -3,7 +3,7 @@
  * يحل مشكلة Race Conditions ويضمن تهيئة آمنة ومنسقة
  */
 
-import { sqliteDB, isSQLiteAvailable } from './sqliteAPI';
+import { sqliteDB, isSQLiteAvailable, isElectron } from './sqliteAPI';
 
 /**
  * حالة التهيئة لكل مؤسسة
@@ -22,8 +22,8 @@ class DatabaseInitializationManager {
   // Set للمؤسسات المهيئة بنجاح
   private initializedOrgs = new Set<string>();
 
-  // Timeout افتراضي (10 ثوان)
-  private readonly DEFAULT_TIMEOUT = 10000;
+  // Timeout افتراضي (60 ثانية) - زيادة لتغطية عمليات ترقية schema
+  private readonly DEFAULT_TIMEOUT = 60000;
 
   // فترة الانتظار بين محاولات التحقق (100ms)
   private readonly POLL_INTERVAL = 100;
@@ -115,10 +115,14 @@ class DatabaseInitializationManager {
     const startTime = Date.now();
 
     // الخطوة 1: التحقق من توفر SQLite API
-    const isAvailable = await this.waitForSQLiteAPI(timeout);
-    if (!isAvailable) {
-      console.error(`[DBInitManager] SQLite API not available after ${timeout}ms`);
-      return false;
+    // في Electron: ننتظر حتى تتوفر window.electronAPI.db من الـ preload
+    // في Tauri أو المتصفح: نتجاوز الانتظار وندع sqliteDB.initialize يتعامل مع البيئة
+    if (isElectron()) {
+      const isAvailable = await this.waitForSQLiteAPI(timeout);
+      if (!isAvailable) {
+        console.error(`[DBInitManager] SQLite API not available after ${timeout}ms`);
+        return false;
+      }
     }
 
     // الخطوة 2: تهيئة قاعدة البيانات

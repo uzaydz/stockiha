@@ -53,11 +53,11 @@ export const Dashboard = lazy(() => import('../pages/Dashboard').catch(() => {
 export const ProgramLandingPage = lazy(() => import('../pages/ProgramLandingPage'));
 
 // ============ ENHANCED PRODUCT MANAGEMENT with Preloading ============
-export const Products = lazy(() => 
+export const Products = lazy(() =>
   import('../pages/dashboard/ProductsCached').then(module => {
     // Preload related dependencies when this component loads
-    import('@tanstack/react-table').catch(() => {});
-    import('lucide-react').catch(() => {});
+    import('@tanstack/react-table').catch(() => { });
+    import('lucide-react').catch(() => { });
     return module;
   })
 );
@@ -72,11 +72,11 @@ export const QuickBarcodePrintPage = lazy(() => import('../pages/dashboard/Quick
 
 // ============ ENHANCED SALES & ORDERS with Analytics Preloading ============
 
-export const Orders = lazy(() => 
+export const Orders = lazy(() =>
   import('../pages/dashboard/Orders').then(module => {
     // Preload table dependencies
-    import('@tanstack/react-table').catch(() => {});
-    import('date-fns').catch(() => {});
+    import('@tanstack/react-table').catch(() => { });
+    import('date-fns').catch(() => { });
     return module;
   })
 );
@@ -88,8 +88,39 @@ export const AbandonedOrders = lazy(() => import('../pages/dashboard/AbandonedOr
 export const BlockedCustomers = lazy(() => import('../pages/dashboard/BlockedCustomers'));
 
 // ============ CUSTOMER MANAGEMENT ============
-export const Customers = lazy(() => import('../pages/dashboard/Customers'));
-export const CustomerDebts = lazy(() => import('../pages/dashboard/CustomerDebts'));
+export const Customers = lazy(() =>
+  import('../pages/dashboard/Customers').then(module => {
+    return module;
+  }).catch((error) => {
+    // تجاهل أخطاء CSS في وضع offline
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    const isCSSError = error?.message?.includes('preload CSS') || error?.message?.includes('Unable to preload');
+
+    if (isOffline && isCSSError) {
+      console.warn('⚠️ [Customers] تجاهل خطأ CSS في وضع offline، محاولة تحميل المكون');
+      return import('../pages/dashboard/Customers');
+    }
+
+    console.error('❌ فشل تحميل صفحة العملاء:', error);
+    return { default: () => <div className="flex items-center justify-center min-h-screen"><div className="text-center"><div className="text-xl mb-2">⚠️ فشل تحميل صفحة العملاء</div><div className="text-sm text-gray-600">يرجى تحديث الصفحة</div></div></div> };
+  })
+);
+export const CustomerDebts = lazy(() =>
+  import('../pages/dashboard/CustomerDebts').then(module => {
+    return module;
+  }).catch((error) => {
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    const isCSSError = error?.message?.includes('preload CSS') || error?.message?.includes('Unable to preload');
+
+    if (isOffline && isCSSError) {
+      console.warn('⚠️ [CustomerDebts] تجاهل خطأ CSS في وضع offline');
+      return import('../pages/dashboard/CustomerDebts');
+    }
+
+    console.error('❌ فشل تحميل صفحة ديون العملاء:', error);
+    return { default: () => <div className="flex items-center justify-center min-h-screen"><div className="text-center"><div className="text-xl mb-2">⚠️ فشل تحميل الصفحة</div><div className="text-sm text-gray-600">يرجى تحديث الصفحة</div></div></div> };
+  })
+);
 export const CustomerDebtDetails = lazy(() => import('../pages/dashboard/CustomerDebtDetails'));
 export const PaymentHistory = lazy(() => import('../pages/dashboard/PaymentHistory'));
 
@@ -109,7 +140,7 @@ export const Analytics = lazy(() =>
       import('recharts'),
       import('chart.js'),
       import('react-chartjs-2')
-    ]).catch(() => {});
+    ]).catch(() => { });
     return module;
   })
 );
@@ -123,7 +154,7 @@ export const AnalyticsEnhanced = lazy(() =>
       import('@/lib/analytics/metrics'),
       import('@/hooks/useAnalytics'),
       import('@/components/analytics/enhanced')
-    ]).catch(() => {});
+    ]).catch(() => { });
     return module;
   })
 );
@@ -135,39 +166,49 @@ export const FinancialAnalytics = lazy(() =>
       import('recharts'),
       import('chart.js'),
       import('react-chartjs-2')
-    ]).catch(() => {});
+    ]).catch(() => { });
     return module;
   })
 );
 
 export const Expenses = lazy(() => import('../pages/dashboard/Expenses'));
-export const Invoices = lazy(() => 
+export const Invoices = lazy(() =>
   import('../pages/dashboard/Invoices').then(module => {
     // Preload PDF generation dependencies
-    import('jspdf').catch(() => {});
-    import('jspdf-autotable').catch(() => {});
-    import('html2canvas').catch(() => {});
+    import('jspdf').catch(() => { });
+    import('jspdf-autotable').catch(() => { });
+    import('html2canvas').catch(() => { });
     return module;
   })
 );
 
 // ============ ENHANCED POS SYSTEM ============
-export const POSOptimized = lazy(() => 
+export const POSOptimized = lazy(() =>
   import('../pages/POSOptimized').then(module => {
     // Preload barcode dependencies
-    import('react-barcode').catch(() => {});
-    import('qrcode.react').catch(() => {});
+    import('react-barcode').catch(() => { });
+    import('qrcode.react').catch(() => { });
     return module;
   })
 );
 
-export const POSAdvanced = lazy(() => 
+export const POSAdvanced = lazy(() =>
   import('../pages/POSAdvanced').then(module => {
     // Preload POS dependencies
-    import('react-barcode').catch(() => {});
-    import('qrcode.react').catch(() => {});
+    import('react-barcode').catch(() => { });
+    import('qrcode.react').catch(() => { });
     return module;
   }).catch((error) => {
+    // تجاهل أخطاء CSS في وضع offline (مثل فشل تحميل Google Fonts)
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+    const isCSSError = error?.message?.includes('preload CSS') || error?.message?.includes('Unable to preload');
+
+    if (isOffline && isCSSError) {
+      console.warn('⚠️ [POSAdvanced] تجاهل خطأ CSS في وضع offline، محاولة تحميل المكون بدون CSS الخارجي');
+      // محاولة تحميل المكون مرة أخرى بتجاهل خطأ CSS
+      return import('../pages/POSAdvanced');
+    }
+
     console.error('❌ فشل تحميل POSAdvanced:', error);
     // fallback في حالة فشل التحميل
     return { default: () => <div className="flex items-center justify-center min-h-screen"><div className="text-center"><div className="text-xl mb-2">⚠️ فشل تحميل نقطة البيع</div><div className="text-sm text-gray-600">يرجى تحديث الصفحة</div></div></div> };
@@ -205,20 +246,20 @@ export const SupplierPayments = lazy(() => import('../pages/dashboard/SupplierPa
 export const RepairServices = lazy(() => import('../pages/RepairServices'));
 
 // ============ ENHANCED STORE CUSTOMIZATION ============
-export const StoreEditor = lazy(() => 
+export const StoreEditor = lazy(() =>
   import('../pages/admin/StoreEditor').then(module => {
     // Preload editor dependencies
-    import('@monaco-editor/react').catch(() => {});
-    import('@dnd-kit/core').catch(() => {});
+    import('@monaco-editor/react').catch(() => { });
+    import('@dnd-kit/core').catch(() => { });
     return module;
   })
 );
 
-export const StoreEditorV2 = lazy(() => 
+export const StoreEditorV2 = lazy(() =>
   import('../pages/dashboard/StoreEditorV2').then(module => {
     // Preload visual editor dependencies
-    import('@tinymce/tinymce-react').catch(() => {});
-    import('@dnd-kit/core').catch(() => {});
+    import('@tinymce/tinymce-react').catch(() => { });
+    import('@dnd-kit/core').catch(() => { });
     return module;
   })
 );
@@ -227,11 +268,11 @@ export const StoreSettingsPage = lazy(() => import('../pages/StoreSettingsPage')
 
 // ============ PAGE BUILDERS with DnD Preloading ============
 export const LandingPagesManager = lazy(() => import('../pages/LandingPagesManager'));
-export const LandingPageBuilder = lazy(() => 
+export const LandingPageBuilder = lazy(() =>
   import('../pages/LandingPageBuilder').then(module => {
     // Preload drag & drop dependencies
-    import('@dnd-kit/core').catch(() => {});
-    import('@dnd-kit/sortable').catch(() => {});
+    import('@dnd-kit/core').catch(() => { });
+    import('@dnd-kit/sortable').catch(() => { });
     return module;
   })
 );
@@ -242,11 +283,11 @@ export const CustomPageView = lazy(() => import('../pages/CustomPageView'));
 
 // ============ FORMS & CONTENT ============
 export const FormSettings = lazy(() => import('../pages/FormSettings'));
-export const FormBuilder = lazy(() => 
+export const FormBuilder = lazy(() =>
   import('../pages/FormBuilder').then(module => {
     // Preload form building dependencies
-    import('react-hook-form').catch(() => {});
-    import('zod').catch(() => {});
+    import('react-hook-form').catch(() => { });
+    import('zod').catch(() => { });
     return module;
   })
 );
@@ -259,6 +300,7 @@ export const DomainSettings = lazy(() => import('../pages/dashboard/DomainSettin
 
 // ============ DATABASE ADMIN (Electron Only) ============
 export const DatabaseAdmin = lazy(() => import('../pages/DatabaseAdmin'));
+export const SyncPanel = lazy(() => import('@/pages/debug/SyncPanel'));
 
 // ============ BUSINESS FEATURES ============
 export const GameDownloadsPage = lazy(() => import('../pages/GameDownloadsPage'));
@@ -365,7 +407,7 @@ export const preloadHeavyDependencies = () => {
   if ('requestIdleCallback' in window) {
     heavyDeps.forEach(importFn => {
       window.requestIdleCallback(() => {
-        importFn().catch(() => {});
+        importFn().catch(() => { });
       });
     });
   }

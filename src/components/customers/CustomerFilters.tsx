@@ -6,6 +6,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 interface CustomerFiltersProps {
   filter: CustomerFilter;
@@ -28,7 +30,7 @@ const CustomerFilters = ({ filter, onFilterChange }: CustomerFiltersProps) => {
   };
 
   return (
-    <div className="flex gap-2">
+    <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
       <Select
         value={filter.sortBy}
         onValueChange={handleSortByChange}
@@ -54,6 +56,35 @@ const CustomerFilters = ({ filter, onFilterChange }: CustomerFiltersProps) => {
           <SelectItem value="desc">تنازلي</SelectItem>
         </SelectContent>
       </Select>
+
+      <div className="flex gap-4 flex-wrap items-center">
+        <div className="flex items-center gap-2">
+          <Switch
+            id="filter-has-phone"
+            checked={!!filter.hasPhone}
+            onCheckedChange={(v) => onFilterChange({ ...filter, hasPhone: !!v })}
+          />
+          <Label htmlFor="filter-has-phone" className="text-xs sm:text-sm">لديه هاتف</Label>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Switch
+            id="filter-has-email"
+            checked={!!filter.hasEmail}
+            onCheckedChange={(v) => onFilterChange({ ...filter, hasEmail: !!v })}
+          />
+          <Label htmlFor="filter-has-email" className="text-xs sm:text-sm">لديه بريد</Label>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Switch
+            id="filter-new-only"
+            checked={!!filter.newOnly}
+            onCheckedChange={(v) => onFilterChange({ ...filter, newOnly: !!v })}
+          />
+          <Label htmlFor="filter-new-only" className="text-xs sm:text-sm">جدد (30 يوم)</Label>
+        </div>
+      </div>
     </div>
   );
 };

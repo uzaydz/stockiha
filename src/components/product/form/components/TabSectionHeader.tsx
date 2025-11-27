@@ -1,7 +1,6 @@
 import React, { memo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { HelpCircle, LucideIcon } from 'lucide-react';
 
 interface TabSectionHeaderProps {
@@ -99,24 +98,12 @@ const TabSectionHeader = memo<TabSectionHeaderProps>(({
         </div>
         
         {tooltip && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                className="inline-flex items-center justify-center p-2 sm:p-1.5 rounded-md transition-colors shrink-0 min-h-[44px] sm:min-h-auto -mr-1 sm:mr-0"
-                onClick={(e) => e.preventDefault()}
-              >
-                <HelpCircle className={`w-4 h-4 sm:w-3.5 sm:h-3.5 text-muted-foreground ${colorClasses.hoverColor} transition-colors cursor-help`} />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent 
-              className="bg-background/95 dark:bg-background/90 backdrop-blur-md border-border/60 shadow-xl z-50 max-w-[280px] sm:max-w-xs"
-              side="top"
-              sideOffset={5}
-            >
-              <p className="text-xs sm:text-sm leading-relaxed">{tooltip}</p>
-            </TooltipContent>
-          </Tooltip>
+          <span
+            className="inline-flex items-center justify-center p-1.5 sm:p-1 rounded-md transition-colors shrink-0 -mr-1 sm:mr-0"
+            title={tooltip}
+          >
+            <HelpCircle className={`w-4 h-4 sm:w-3.5 sm:h-3.5 text-muted-foreground ${colorClasses.hoverColor} transition-colors cursor-help`} />
+          </span>
         )}
       </div>
       

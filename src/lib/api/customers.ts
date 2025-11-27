@@ -1,16 +1,17 @@
 import { supabase } from '@/lib/supabase';
 import { Customer } from '@/types/customer';
-import { inventoryDB } from '@/database/localDb';
+import type { LocalCustomer } from '@/database/localDb';
 import { getCurrentUserProfile } from './users';
+import { deltaWriteService } from '@/services/DeltaWriteService';
 
 // Fetch all customers
 export const getCustomers = async (): Promise<Customer[]> => {
   // Get current user to filter by created_by
   const currentUser = await getCurrentUserProfile();
-  
+
   // Get the organization ID for filtering
   let organizationId = null;
-  
+
   // Try to get organization ID from current user
   if (currentUser && 'organization_id' in currentUser) {
     organizationId = currentUser.organization_id;
@@ -18,91 +19,131 @@ export const getCustomers = async (): Promise<Customer[]> => {
     // Try to get from localStorage as fallback
     organizationId = localStorage.getItem('bazaar_organization_id');
   }
-  
+
   if (!organizationId) {
     return [];
   }
 
-  try {
-    // استخدام RPC المحسنة لجلب العملاء مع الإحصائيات
-    const { data: orgCustomers, error } = await supabase
-      .rpc('get_customers_optimized' as any, {
-        p_organization_id: organizationId,
-        p_page: 1,
-        p_limit: 1000,
-        p_search: null
-      });
-
-    if (error) {
-      throw error;
+  // ⚡ Check offline status first - استخدام Delta Sync
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    try {
+      const rows = await deltaWriteService.getAll<LocalCustomer>('customers', organizationId);
+      return (rows || []).map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        email: r.email,
+        phone: r.phone,
+        organization_id: r.organization_id,
+        created_at: r.created_at,
+        updated_at: r.updated_at
+      })) as Customer[];
+    } catch {
+      return [];
     }
-  
-  // Get customers from users table with role 'customer' - محاولة أولى بـ auth_user_id
+  }
+
+  try {
+    // محاولة استخدام RPC المحسنة أولاً (قد لا تكون متاحة في جميع البيئات)
+    let orgCustomers: any[] = [];
+    try {
+      const { data, error: rpcError } = await supabase
+        .rpc('get_customers_optimized' as any, {
+          p_organization_id: organizationId,
+          p_page: 1,
+          p_limit: 1000,
+          p_search: null
+        });
+
+      if (!rpcError && data) {
+        orgCustomers = data;
+      } else if (rpcError && process.env.NODE_ENV === 'development') {
+        console.warn('[getCustomers] RPC function not available, falling back to direct query:', rpcError.message);
+      }
+    } catch (rpcErr) {
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[getCustomers] RPC call failed, using fallback:', rpcErr);
+      }
+    }
+
+    // Fallback: جلب من جدول customers مباشرة
+    if (orgCustomers.length === 0) {
+      const { data: directCustomers, error: directError } = await supabase
+        .from('customers')
+        .select('*')
+        .eq('organization_id', organizationId)
+        .order('created_at', { ascending: false });
+
+      if (!directError && directCustomers) {
+        orgCustomers = directCustomers;
+      }
+    }
+
+    // Get customers from users table with role 'customer' - محاولة أولى بـ auth_user_id
     let { data: userCustomers, error: userError } = await supabase
       .from('users')
       .select('*')
       .eq('role', 'customer')
       .eq('organization_id', organizationId)
       .order('created_at', { ascending: false });
-  
-  // إذا فشل، جرب البحث بـ id
-  if (userError) {
-    const { data: idData, error: idError } = await supabase
-      .from('users')
-      .select('*')
-      .eq('role', 'customer')
-      .eq('organization_id', organizationId)
-      .order('created_at', { ascending: false });
-      
-    if (!idError && idData) {
-      userCustomers = idData;
-      userError = null;
+
+    // إذا فشل، جرب البحث بـ id
+    if (userError) {
+      const { data: idData, error: idError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('role', 'customer')
+        .eq('organization_id', organizationId)
+        .order('created_at', { ascending: false });
+
+      if (!idError && idData) {
+        userCustomers = idData;
+        userError = null;
+      }
     }
-  }
-  
-  // Filter out any entries with the problematic ID '00000000-0000-0000-0000-000000000000'
-  const orgArr = Array.isArray(orgCustomers) ? orgCustomers : [];
-  const filteredOrgCustomers = orgArr.filter((customer: any) => 
-    customer && customer.id !== '00000000-0000-0000-0000-000000000000'
-  );
-  
-  const filteredUserCustomers = userCustomers?.filter(user => 
-    user.id !== '00000000-0000-0000-0000-000000000000'
-  ) || [];
-  
-  // Map user customers to customer format and combine with org customers
-  const mappedUserCustomers = filteredUserCustomers.map(user => ({
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    phone: user.phone,
-    organization_id: user.organization_id,
-    created_at: user.created_at,
-    updated_at: user.updated_at
-  }));
-  
-  // Create a map to track IDs we've already included
-  const includedIds = new Map();
-  const allCustomers = [];
-  
-  // Add org customers first
-  for (const customer of filteredOrgCustomers) {
-    includedIds.set(customer.id, true);
-    allCustomers.push(customer);
-  }
-  
-  // Then add user customers, but only if we haven't already included this ID
-  for (const customer of mappedUserCustomers) {
-    if (!includedIds.has(customer.id)) {
+
+    // Filter out any entries with the problematic ID '00000000-0000-0000-0000-000000000000'
+    const orgArr = Array.isArray(orgCustomers) ? orgCustomers : [];
+    const filteredOrgCustomers = orgArr.filter((customer: any) =>
+      customer && customer.id !== '00000000-0000-0000-0000-000000000000'
+    );
+
+    const filteredUserCustomers = userCustomers?.filter(user =>
+      user.id !== '00000000-0000-0000-0000-000000000000'
+    ) || [];
+
+    // Map user customers to customer format and combine with org customers
+    const mappedUserCustomers = filteredUserCustomers.map(user => ({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      organization_id: user.organization_id,
+      created_at: user.created_at,
+      updated_at: user.updated_at
+    }));
+
+    // Create a map to track IDs we've already included
+    const includedIds = new Map();
+    const allCustomers = [];
+
+    // Add org customers first
+    for (const customer of filteredOrgCustomers) {
       includedIds.set(customer.id, true);
       allCustomers.push(customer);
     }
-  }
-  
-    // مرآة إلى SQLite لاستخدام الأوفلاين
+
+    // Then add user customers, but only if we haven't already included this ID
+    for (const customer of mappedUserCustomers) {
+      if (!includedIds.has(customer.id)) {
+        includedIds.set(customer.id, true);
+        allCustomers.push(customer);
+      }
+    }
+
+    // ⚡ مرآة إلى SQLite لاستخدام الأوفلاين باستخدام Delta Sync
     try {
       for (const c of allCustomers) {
-        await inventoryDB.customers.put({
+        await deltaWriteService.saveFromServer('customers', {
           id: c.id,
           name: c.name,
           email: c.email,
@@ -119,13 +160,31 @@ export const getCustomers = async (): Promise<Customer[]> => {
           phone_digits: (c as any).phone ? String((c as any).phone).replace(/\D/g, '') : null
         } as any);
       }
-    } catch {}
+    } catch { }
+
+    // ⚡ If we found no customers online, try local DB as fallback باستخدام Delta Sync
+    if (allCustomers.length === 0) {
+      try {
+        const rows = await deltaWriteService.getAll<LocalCustomer>('customers', organizationId);
+        if (rows && rows.length > 0) {
+          return (rows || []).map((r: any) => ({
+            id: r.id,
+            name: r.name,
+            email: r.email,
+            phone: r.phone,
+            organization_id: r.organization_id,
+            created_at: r.created_at,
+            updated_at: r.updated_at
+          })) as Customer[];
+        }
+      } catch { }
+    }
 
     return allCustomers;
   } catch (onlineErr) {
-    // أوفلاين: قراءة من SQLite
+    // ⚡ أوفلاين: قراءة من SQLite باستخدام Delta Sync
     try {
-      const rows = await inventoryDB.customers.where({ organization_id: organizationId }).toArray();
+      const rows = await deltaWriteService.getAll<LocalCustomer>('customers', organizationId);
       return (rows || []).map((r: any) => ({
         id: r.id,
         name: r.name,
@@ -150,8 +209,9 @@ export const getCustomerById = async (id: string): Promise<Customer | null> => {
       .eq('id', id)
       .single();
     if (error) throw error;
+    // ⚡ حفظ في SQLite باستخدام Delta Sync
     try {
-      await inventoryDB.customers.put({
+      await deltaWriteService.saveFromServer('customers', {
         id: data.id,
         name: data.name,
         email: data.email,
@@ -165,12 +225,13 @@ export const getCustomerById = async (id: string): Promise<Customer | null> => {
         email_lower: data.email ? String(data.email).toLowerCase() : null,
         phone_digits: data.phone ? String(data.phone).replace(/\D/g, '') : null
       } as any);
-    } catch {}
+    } catch { }
     return data;
   } catch (onlineErr) {
+    // ⚡ قراءة من SQLite باستخدام Delta Sync
     try {
-      const r: any = await inventoryDB.customers.get(id);
-      return r || null;
+      const r = await deltaWriteService.get<LocalCustomer>('customers', id);
+      return r as Customer | null;
     } catch {
       return null;
     }
@@ -185,29 +246,29 @@ export const getCustomerOrdersCount = async (customerId: string): Promise<number
       .from('orders')
       .select('*', { count: 'exact', head: true })
       .eq('customer_id', customerId);
-      
+
     if (errorById) {
     }
-    
+
     // فحص طريقة 2: البحث من خلال الملاحظات التي تحتوي على معرف العميل
     const { count: countByNotes, error: errorByNotes } = await supabase
       .from('orders')
       .select('*', { count: 'exact', head: true })
       .ilike('notes', `%${customerId}%`);
-      
+
     if (errorByNotes) {
     }
-    
+
     // الحصول على العميل للبحث عن اسمه في الملاحظات
     const { data: customer, error: customerError } = await supabase
       .from('customers')
       .select('name')
       .eq('id', customerId)
       .single();
-      
+
     if (customerError) {
     }
-    
+
     let countByName = 0;
     if (customer?.name) {
       // فحص طريقة 3: البحث من خلال الملاحظات التي تحتوي على اسم العميل
@@ -215,13 +276,13 @@ export const getCustomerOrdersCount = async (customerId: string): Promise<number
         .from('orders')
         .select('*', { count: 'exact', head: true })
         .ilike('notes', `%${customer.name}%`);
-        
+
       if (nameError) {
       } else {
         countByName = nameCount || 0;
       }
     }
-    
+
     // إجمالي العدد من جميع الطرق (استبعاد التكرارات غير ممكن هنا بسهولة،
     // لذلك نختار القيمة الأكبر منهما للتقريب)
     const maxCount = Math.max(
@@ -229,7 +290,7 @@ export const getCustomerOrdersCount = async (customerId: string): Promise<number
       countByNotes || 0,
       countByName || 0
     );
-    
+
     return maxCount;
   } catch (error) {
     return 0; // نعيد 0 في حالة حدوث خطأ
@@ -244,29 +305,29 @@ export const getCustomerOrdersTotal = async (customerId: string): Promise<number
       .from('orders')
       .select('total')
       .eq('customer_id', customerId);
-      
+
     if (errorById) {
     }
-    
+
     // فحص طريقة 2: البحث من خلال الملاحظات التي تحتوي على معرف العميل
     const { data: ordersByNotes, error: errorByNotes } = await supabase
       .from('orders')
       .select('total')
       .ilike('notes', `%${customerId}%`);
-      
+
     if (errorByNotes) {
     }
-    
+
     // الحصول على العميل للبحث عن اسمه في الملاحظات
     const { data: customer, error: customerError } = await supabase
       .from('customers')
       .select('name')
       .eq('id', customerId)
       .single();
-      
+
     if (customerError) {
     }
-    
+
     let ordersByName: any[] = [];
     if (customer?.name) {
       // فحص طريقة 3: البحث من خلال الملاحظات التي تحتوي على اسم العميل
@@ -274,25 +335,25 @@ export const getCustomerOrdersTotal = async (customerId: string): Promise<number
         .from('orders')
         .select('total')
         .ilike('notes', `%${customer.name}%`);
-        
+
       if (nameError) {
       } else {
         ordersByName = nameOrders || [];
       }
     }
-    
+
     // جمع كل الطلبات في مصفوفة واحدة
     const allOrders = [
       ...(ordersById || []),
       ...(ordersByNotes || []),
       ...(ordersByName || [])
     ];
-    
+
     // حساب المجموع (مع احتمالية وجود تكرارات)
     const total = allOrders.reduce((sum, order) => {
       return sum + (parseFloat(order.total) || 0);
     }, 0);
-    
+
     return total;
   } catch (error) {
     return 0; // نعيد 0 في حالة حدوث خطأ
@@ -309,7 +370,7 @@ export const createCustomer = async (customer: Omit<Customer, 'id' | 'created_at
       .eq('phone', customer.phone)
       .eq('organization_id', customer.organization_id)
       .single();
-      
+
     if (!searchError && existingCustomer) {
       // تحديث العميل الموجود بالبيانات الجديدة
       const { data: updatedCustomer, error: updateError } = await supabase
@@ -322,18 +383,18 @@ export const createCustomer = async (customer: Omit<Customer, 'id' | 'created_at
         .eq('id', existingCustomer.id)
         .select()
         .single();
-        
+
       if (!updateError && updatedCustomer) {
         return updatedCustomer;
       }
     }
   }
-  
+
   // ثانياً: محاولة إنشاء عميل جديد
   try {
     const { data, error } = await supabase
       .from('customers')
-      .insert({ 
+      .insert({
         ...customer,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -341,9 +402,9 @@ export const createCustomer = async (customer: Omit<Customer, 'id' | 'created_at
       .select()
       .single();
     if (error) throw error;
-    // مرآة إلى SQLite
+    // ⚡ مرآة إلى SQLite باستخدام Delta Sync
     try {
-      await inventoryDB.customers.put({
+      await deltaWriteService.saveFromServer('customers', {
         id: data.id,
         name: data.name,
         email: data.email,
@@ -357,7 +418,7 @@ export const createCustomer = async (customer: Omit<Customer, 'id' | 'created_at
         email_lower: data.email ? String(data.email).toLowerCase() : null,
         phone_digits: data.phone ? String(data.phone).replace(/\D/g, '') : null
       } as any);
-    } catch {}
+    } catch { }
     return data;
   } catch (error) {
     // إذا كان الخطأ بسبب تكرار (409 Conflict) رغم الفحص المسبق
@@ -370,7 +431,7 @@ export const createCustomer = async (customer: Omit<Customer, 'id' | 'created_at
           .eq('phone', customer.phone)
           .eq('organization_id', customer.organization_id)
           .single();
-          
+
         if (!lastSearchError && lastResortCustomer) {
           const { data: finalUpdatedCustomer, error: finalUpdateError } = await supabase
             .from('customers')
@@ -382,19 +443,20 @@ export const createCustomer = async (customer: Omit<Customer, 'id' | 'created_at
             .eq('id', lastResortCustomer.id)
             .select()
             .single();
-            
+
           if (!finalUpdateError && finalUpdatedCustomer) {
             return finalUpdatedCustomer;
           }
         }
       }
     }
-    
-    // أوفلاين: إنشاء محلياً في SQLite وإضافته لصف المزامنة
+
+    // ⚡ أوفلاين: إنشاء محلياً في SQLite باستخدام Delta Sync
     try {
       const id = (globalThis.crypto && globalThis.crypto.randomUUID) ? globalThis.crypto.randomUUID() : `${Date.now()}_${Math.random().toString(16).slice(2)}`;
       const now = new Date().toISOString();
-      await inventoryDB.customers.put({
+      // ⚡ استخدام Delta Sync للإنشاء أوفلاين
+      await deltaWriteService.create('customers', {
         id,
         name: customer.name,
         email: customer.email || null,
@@ -409,24 +471,13 @@ export const createCustomer = async (customer: Omit<Customer, 'id' | 'created_at
         name_lower: customer.name ? String(customer.name).toLowerCase() : null,
         email_lower: customer.email ? String(customer.email).toLowerCase() : null,
         phone_digits: customer.phone ? String(customer.phone).replace(/\D/g, '') : null
-      } as any);
-      await inventoryDB.syncQueue.put({
-        id: id + ':customer:create',
-        objectType: 'customer',
-        objectId: id,
-        operation: 'create',
-        data: customer as any,
-        attempts: 0,
-        createdAt: now,
-        updatedAt: now,
-        priority: 2
-      } as any);
+      } as any, customer.organization_id);
       return { id, ...customer, created_at: now, updated_at: now } as Customer;
     } catch (e) {
       throw new Error(`فشل في إنشاء العميل: ${error.message}`);
     }
   }
-  
+
 };
 
 // Update an existing customer
@@ -434,7 +485,7 @@ export const updateCustomer = async (id: string, updates: Partial<Omit<Customer,
   try {
     const { data, error } = await supabase
       .from('customers')
-      .update({ 
+      .update({
         ...updates,
         updated_at: new Date().toISOString()
       })
@@ -442,27 +493,17 @@ export const updateCustomer = async (id: string, updates: Partial<Omit<Customer,
       .select()
       .single();
     if (error) throw error;
+    // ⚡ حفظ في SQLite باستخدام Delta Sync
     try {
-      await inventoryDB.customers.put({ ...data } as any);
-    } catch {}
+      await deltaWriteService.saveFromServer('customers', { ...data } as any);
+    } catch { }
     return data;
   } catch (err: any) {
-    // أوفلاين: تحديث محلياً وإضافة إلى صف المزامنة
+    // ⚡ أوفلاين: تحديث محلياً باستخدام Delta Sync
     const now = new Date().toISOString();
     try {
-      await inventoryDB.customers.update(id, { ...updates, updated_at: now } as any);
-      await inventoryDB.syncQueue.put({
-        id: id + ':customer:update:' + now,
-        objectType: 'customer',
-        objectId: id,
-        operation: 'update',
-        data: updates as any,
-        attempts: 0,
-        createdAt: now,
-        updatedAt: now,
-        priority: 2
-      } as any);
-      const local = await inventoryDB.customers.get(id) as any;
+      await deltaWriteService.update('customers', id, { ...updates, updated_at: now, synced: false, pendingOperation: 'update' });
+      const local = await deltaWriteService.get<LocalCustomer>('customers', id);
       return local as Customer;
     } catch {
       throw new Error(err?.message || 'فشل تحديث العميل');
@@ -478,24 +519,14 @@ export const deleteCustomer = async (id: string): Promise<void> => {
       .delete()
       .eq('id', id);
     if (error) throw error;
-    try { await inventoryDB.customers.delete(id); } catch {}
+    // ⚡ حذف من SQLite باستخدام Delta Sync
+    try { await deltaWriteService.delete('customers', id); } catch { }
   } catch (err) {
-    // أوفلاين: علّم السجل للحذف وأضفه إلى صف المزامنة
+    // ⚡ أوفلاين: علّم السجل للحذف باستخدام Delta Sync
     const now = new Date().toISOString();
     try {
-      await inventoryDB.customers.update(id, { pendingOperation: 'delete', updated_at: now } as any);
-      await inventoryDB.syncQueue.put({
-        id: id + ':customer:delete',
-        objectType: 'customer',
-        objectId: id,
-        operation: 'delete',
-        data: {},
-        attempts: 0,
-        createdAt: now,
-        updatedAt: now,
-        priority: 2
-      } as any);
-    } catch {}
+      await deltaWriteService.update('customers', id, { pendingOperation: 'delete', updated_at: now, synced: false });
+    } catch { }
   }
 };
 
@@ -503,10 +534,10 @@ export const deleteCustomer = async (id: string): Promise<void> => {
 export const searchCustomers = async (query: string): Promise<Customer[]> => {
   // Get current user to filter by created_by
   const currentUser = await getCurrentUserProfile();
-  
+
   // Get the organization ID for filtering
   let organizationId = null;
-  
+
   // Try to get organization ID from current user
   if (currentUser && 'organization_id' in currentUser) {
     organizationId = currentUser.organization_id;
@@ -514,11 +545,11 @@ export const searchCustomers = async (query: string): Promise<Customer[]> => {
     // Try to get from localStorage as fallback
     organizationId = localStorage.getItem('bazaar_organization_id');
   }
-  
+
   if (!organizationId) {
     return [];
   }
-  
+
   try {
     const { data, error } = await supabase
       .from('customers')
@@ -527,17 +558,17 @@ export const searchCustomers = async (query: string): Promise<Customer[]> => {
       .or(`name.ilike.%${query}%,email.ilike.%${query}%,phone.ilike.%${query}%`)
       .order('created_at', { ascending: false });
     if (error) throw error;
-    // مرآة نتائج البحث إلى SQLite (تحديثات فقط)
+    // ⚡ مرآة نتائج البحث إلى SQLite باستخدام Delta Sync
     try {
       for (const c of data || []) {
-        await inventoryDB.customers.put({ ...c } as any);
+        await deltaWriteService.saveFromServer('customers', { ...c } as any);
       }
-    } catch {}
+    } catch { }
     return data || [];
   } catch (err) {
-    // أوفلاين: بحث محلي في SQLite
+    // ⚡ أوفلاين: بحث محلي باستخدام Delta Sync
     try {
-      const rows = await inventoryDB.customers.where({ organization_id: organizationId }).toArray();
+      const rows = await deltaWriteService.getAll<LocalCustomer>('customers', organizationId);
       const q = (query || '').toLowerCase();
       return (rows || []).filter((r: any) =>
         (r.name && String(r.name).toLowerCase().includes(q)) ||
@@ -551,18 +582,18 @@ export const searchCustomers = async (query: string): Promise<Customer[]> => {
 };
 
 // Get customer statistics
-export const getCustomerStats = async (): Promise<{ 
-  total: number; 
+export const getCustomerStats = async (): Promise<{
+  total: number;
   newLast30Days: number;
   activeLast30Days: number;
 }> => {
   try {
     // Get current user to filter by created_by
     const currentUser = await getCurrentUserProfile();
-    
+
     // Get the organization ID for filtering
     let organizationId = null;
-    
+
     // Try to get organization ID from current user
     if (currentUser && 'organization_id' in currentUser) {
       organizationId = currentUser.organization_id;
@@ -570,7 +601,7 @@ export const getCustomerStats = async (): Promise<{
       // Try to get from localStorage as fallback
       organizationId = localStorage.getItem('bazaar_organization_id');
     }
-    
+
     if (!organizationId) {
       return {
         total: 0,
@@ -578,7 +609,7 @@ export const getCustomerStats = async (): Promise<{
         activeLast30Days: 0
       };
     }
-    
+
     // Total customers from customers table
     const { count: customersCount, error: customersError } = await supabase
       .from('customers')
@@ -607,7 +638,7 @@ export const getCustomerStats = async (): Promise<{
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const thirtyDaysAgoString = thirtyDaysAgo.toISOString();
-    
+
     const { count: newCustomersCount, error: newCustomersError } = await supabase
       .from('customers')
       .select('*', { count: 'exact', head: true })
@@ -646,11 +677,11 @@ export const getCustomerStats = async (): Promise<{
 
     // Luego, verificar cuáles de estos ID corresponden a clientes reales en users o customers
     let validActiveCustomers = 0;
-    
+
     if (activeCustomerIds && activeCustomerIds.length > 0) {
       // Extraer los IDs únicos
       const uniqueCustomerIds = [...new Set(activeCustomerIds.map(order => order.customer_id))];
-      
+
       // Verificar cuántos de estos existen en users con role='customer'
       for (const customerId of uniqueCustomerIds) {
         const { count, error } = await supabase
@@ -659,19 +690,19 @@ export const getCustomerStats = async (): Promise<{
           .eq('id', customerId)
           .eq('role', 'customer')
           .eq('organization_id', organizationId);
-        
+
         if (!error && count && count > 0) {
           validActiveCustomers++;
           continue; // Si ya lo encontramos en users, no necesitamos buscar en customers
         }
-        
+
         // Verificar en la tabla customers si no se encontró en users
         const { count: customerCount, error: customerError } = await supabase
           .from('customers')
           .select('*', { count: 'exact', head: true })
           .eq('id', customerId)
           .eq('organization_id', organizationId);
-        
+
         if (!customerError && customerCount && customerCount > 0) {
           validActiveCustomers++;
         }

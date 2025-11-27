@@ -1,4 +1,5 @@
 import { sqliteDB, isSQLiteAvailable } from '@/lib/db/sqliteAPI';
+import { subscriptionAudit } from '@/lib/security/subscriptionAudit';
 
 export type LocalSubscriptionRow = {
   id: string;
@@ -25,26 +26,89 @@ const toMs = (iso?: string | null): number | null => {
   return Number.isFinite(t) ? t : null;
 };
 
-export async function getSecureNow(organizationId?: string): Promise<{ secureNowMs: number; tamperDetected: boolean; tamperCount: number }> {
+// حد أقصى لعدد محاولات التلاعب قبل الحظر
+const MAX_TAMPER_ATTEMPTS = 5;
+const TAMPER_LOCKOUT_DURATION = 24 * 60 * 60 * 1000; // 24 ساعة
+
+// كاش لتتبع محاولات التلاعب
+const tamperTracker: Map<string, { count: number; lastAttempt: number; lockedUntil?: number }> = new Map();
+
+export async function getSecureNow(organizationId?: string): Promise<{
+  secureNowMs: number;
+  tamperDetected: boolean;
+  tamperCount: number;
+  isLocked: boolean;
+}> {
+  const orgId = organizationId || 'default';
+
   try {
+    // التحقق من حالة الحظر
+    const tracker = tamperTracker.get(orgId);
+    if (tracker?.lockedUntil && Date.now() < tracker.lockedUntil) {
+      console.warn('[SecureClock] Organization is locked due to tamper attempts');
+      return {
+        secureNowMs: Date.now(),
+        tamperDetected: true,
+        tamperCount: tracker.count,
+        isLocked: true
+      };
+    }
+
     const api: any = typeof window !== 'undefined' ? (window as any).electronAPI : undefined;
     if (!api?.license) {
-      return { secureNowMs: Date.now(), tamperDetected: false, tamperCount: 0 };
+      return { secureNowMs: Date.now(), tamperDetected: false, tamperCount: 0, isLocked: false };
     }
+
     const res = await api.license.getSecureNow(organizationId || null);
-    try { console.log('[SecureClock] IPC get-secure-now result', res); } catch {}
+    console.log('[SecureClock] IPC get-secure-now result', res);
+
     if (res?.success) {
       let ms = Number(res.secureNowMs || 0);
       const minMs = 946684800000; // 2000-01-01
-      if (!Number.isFinite(ms) || ms < minMs) {
+      const maxMs = Date.now() + 365 * 24 * 60 * 60 * 1000; // سنة من الآن كحد أقصى
+
+      // التحقق من صلاحية الوقت
+      if (!Number.isFinite(ms) || ms < minMs || ms > maxMs) {
         const fallback = Date.now();
-        try { console.warn('[SecureClock] secureNowMs implausible, clamping to deviceNow', { ms, fallback }); } catch {}
+        console.warn('[SecureClock] secureNowMs implausible, clamping to deviceNow', { ms, fallback, minMs, maxMs });
         ms = fallback;
       }
-      return { secureNowMs: ms, tamperDetected: !!res.tamperDetected, tamperCount: Number(res.tamperCount || 0) };
+
+      // معالجة اكتشاف التلاعب
+      if (res.tamperDetected) {
+        const currentTracker = tamperTracker.get(orgId) || { count: 0, lastAttempt: 0 };
+        currentTracker.count = Number(res.tamperCount || currentTracker.count + 1);
+        currentTracker.lastAttempt = Date.now();
+
+        // حظر إذا تجاوز الحد
+        if (currentTracker.count >= MAX_TAMPER_ATTEMPTS) {
+          currentTracker.lockedUntil = Date.now() + TAMPER_LOCKOUT_DURATION;
+          console.error('[SecureClock] Organization locked due to excessive tamper attempts');
+
+          // تسجيل في سجلات التدقيق
+          if (organizationId) {
+            await subscriptionAudit.logTamperDetected(organizationId, 'clock', {
+              tamperCount: currentTracker.count,
+              lockedUntil: new Date(currentTracker.lockedUntil).toISOString()
+            });
+          }
+        }
+
+        tamperTracker.set(orgId, currentTracker);
+      }
+
+      return {
+        secureNowMs: ms,
+        tamperDetected: !!res.tamperDetected,
+        tamperCount: Number(res.tamperCount || 0),
+        isLocked: false
+      };
     }
-  } catch {}
-  return { secureNowMs: Date.now(), tamperDetected: false, tamperCount: 0 };
+  } catch (error) {
+    console.error('[SecureClock] Error getting secure time:', error);
+  }
+
+  return { secureNowMs: Date.now(), tamperDetected: false, tamperCount: 0, isLocked: false };
 }
 
 export async function setAnchorFromServer(organizationId: string | null | undefined, serverNowMs: number): Promise<void> {
@@ -52,14 +116,14 @@ export async function setAnchorFromServer(organizationId: string | null | undefi
     const api: any = typeof window !== 'undefined' ? (window as any).electronAPI : undefined;
     if (!api?.license) return;
     await api.license.setAnchor(organizationId || null, Number(serverNowMs));
-  } catch {}
+  } catch { }
 }
 
 async function ensureOrgDB(orgId: string): Promise<void> {
   if (!isSQLiteAvailable()) return;
   try {
     await sqliteDB.initialize(orgId);
-  } catch {}
+  } catch { }
 }
 
 export async function getLocalSubscription(orgId: string): Promise<LocalSubscriptionRow | null> {
@@ -121,8 +185,64 @@ export function toSubscriptionDataFromLocal(row: LocalSubscriptionRow, secureNow
     start_date: row.start_date || null,
     end_date: endIso,
     days_left: daysLeft,
-    features: [],
-    limits: { max_pos: null, max_users: null, max_products: null },
     message: expired ? `الاشتراك منتهي (${reason})` : 'الاشتراك صالح'
   };
+}
+
+export async function saveLocalSubscription(orgId: string, subscriptionData: any): Promise<void> {
+  try {
+    if (typeof window === 'undefined' || !window.electronAPI?.db) return;
+    await ensureOrgDB(orgId);
+
+    // Prepare the record for SQLite
+    const record: LocalSubscriptionRow = {
+      id: subscriptionData.subscription_id || `sub_${orgId}_${Date.now()}`,
+      organization_id: orgId,
+      plan_id: subscriptionData.plan_code || subscriptionData.plan_name,
+      status: subscriptionData.status,
+      start_date: subscriptionData.start_date,
+      end_date: subscriptionData.end_date,
+      trial_end_date: subscriptionData.subscription_type === 'trial' ? subscriptionData.end_date : null,
+      grace_end_date: null, // You might want to calculate this if available
+      updated_at: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      source: 'sync'
+    };
+
+    // Use the adapter via window.electronAPI.db directly or via dbAdapter if available
+    // Since we are in licenseService, we use direct DB call similar to getLocalSubscription
+
+    // First, check if a record exists to update it or insert new
+    const existing = await getLocalSubscription(orgId);
+
+    if (existing) {
+      await window.electronAPI.db.execute(
+        `UPDATE organization_subscriptions SET 
+          plan_id = ?, status = ?, start_date = ?, end_date = ?, 
+          trial_end_date = ?, updated_at = ?, source = ?
+         WHERE organization_id = ?`,
+        [
+          record.plan_id, record.status, record.start_date, record.end_date,
+          record.trial_end_date, record.updated_at, record.source,
+          orgId
+        ]
+      );
+    } else {
+      await window.electronAPI.db.execute(
+        `INSERT INTO organization_subscriptions (
+          id, organization_id, plan_id, status, start_date, end_date, 
+          trial_end_date, updated_at, created_at, source
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          record.id, record.organization_id, record.plan_id, record.status,
+          record.start_date, record.end_date, record.trial_end_date,
+          record.updated_at, record.created_at, record.source
+        ]
+      );
+    }
+
+    console.log('[LicenseService] Saved local subscription for offline use:', record);
+  } catch (error) {
+    console.error('[LicenseService] Failed to save local subscription:', error);
+  }
 }

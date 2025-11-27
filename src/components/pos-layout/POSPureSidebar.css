@@ -1,96 +1,44 @@
-/* تحسينات أداء POSPureSidebar - محسّن للسرعة والانسيابية */
+/* Premium POS Sidebar Styles */
 
-/* خلفية القائمة الجانبية المدمجة - تصميم أسود احترافي */
+/* Main Container - Transparent */
 .pos-sidebar-container {
-  background: #000000;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border-left: 2px solid rgba(255, 255, 255, 0.1);
-  box-shadow:
-    /* إضاءة داخلية خفيفة */
-    inset 2px 0 8px rgba(0, 0, 0, 0.5),
-    /* ظل خارجي ناعم */
-    -4px 0 16px rgba(0, 0, 0, 0.3);
-  position: relative;
+  background: transparent;
+  border-left: none;
+  box-shadow: none;
 }
 
-/* تأثير التوهج الداخلي الناعم */
-.pos-sidebar-container::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 1px;
-  background: linear-gradient(90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.05) 50%,
-    transparent 100%
-  );
-  pointer-events: none;
-}
-
-/* Scrollbar بسيط وسريع */
-.sidebar-nav {
+/* Custom Scrollbar */
+.sidebar-scroll-area {
   scrollbar-width: thin;
-  scrollbar-color: rgba(71, 85, 105, 0.4) transparent;
+  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
 }
 
-.sidebar-nav::-webkit-scrollbar {
+.sidebar-scroll-area::-webkit-scrollbar {
   width: 4px;
 }
 
-.sidebar-nav::-webkit-scrollbar-track {
+.sidebar-scroll-area::-webkit-scrollbar-track {
   background: transparent;
 }
 
-.sidebar-nav::-webkit-scrollbar-thumb {
-  background-color: rgba(71, 85, 105, 0.4);
-  border-radius: 2px;
+.sidebar-scroll-area::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
 }
 
-.sidebar-nav:hover::-webkit-scrollbar-thumb {
-  background-color: rgba(100, 116, 139, 0.6);
+.sidebar-scroll-area:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.2);
 }
 
-/* GPU acceleration فقط عند الحاجة */
-.sidebar-item,
-.sidebar-button,
-.sidebar-logo {
-  transform: translateZ(0);
+/* Smooth transitions for all interactive elements */
+.sidebar-item, 
+button, 
+a {
+  transform: translateZ(0); /* Hardware acceleration */
   backface-visibility: hidden;
-  -webkit-font-smoothing: antialiased;
 }
 
-/* إزالة will-change لتحسين الأداء - يتم تطبيقه تلقائياً عند الحاجة */
-.sidebar-item:hover,
-.sidebar-button:hover {
-  will-change: transform;
-}
-
-/* تحسين الانتقالات - أسرع وأكثر سلاسة */
-.sidebar-item {
-  transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
-}
-
-.sidebar-item:hover {
-  transition: background-color 0.1s ease, color 0.1s ease, transform 0.1s ease;
-}
-
-/* Reduce motion للأداء الأفضل */
-@media (prefers-reduced-motion: reduce) {
-  .sidebar-item,
-  .sidebar-button,
-  .sidebar-logo {
-    transition: none !important;
-    animation: none !important;
-  }
-}
-
-/* تحسين الأداء على الشاشات الصغيرة */
-@media (max-width: 768px) {
-  .sidebar-item,
-  .sidebar-button {
-    transition-duration: 0.1s;
-  }
+/* Tooltip Animation overrides if needed */
+[data-radix-popper-content-wrapper] {
+  z-index: 50 !important;
 }

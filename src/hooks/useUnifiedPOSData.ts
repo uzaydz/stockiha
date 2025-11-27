@@ -1,17 +1,30 @@
+/**
+ * useUnifiedPOSData - Hook موحد لبيانات POS
+ *
+ * ⚡ تم التحديث لاستخدام Delta Sync بالكامل
+ *
+ * - يمنع التكرار ويحسن الأداء
+ * - يستخدم deltaWriteService بدلاً من inventoryDB
+ */
+
 import { useEffect, useMemo, useRef } from 'react';
 import { sqliteDB, isSQLiteAvailable } from '@/lib/db/sqliteAPI';
+import { dbInitManager } from '@/lib/db/DatabaseInitializationManager';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/context/TenantContext';
-import { inventoryDB, type LocalProduct, type LocalCustomer, type LocalPOSOrder } from '@/database/localDb';
+import type { LocalProduct, LocalCustomer, LocalPOSOrder, LocalOrganizationSubscription } from '@/database/localDb';
+import { deltaWriteService } from '@/services/DeltaWriteService';
 import { getLocalCategories } from '@/lib/api/categories';
 import { localPosSettingsService } from '@/api/localPosSettingsService';
 import {
   mapLocalProductToPOSProduct,
   mapLocalSubscriptionToService,
-  mapLocalCategoryToSubscriptionCategory
+  mapLocalCategoryToSubscriptionCategory,
+  ensureArray
 } from '@/context/POSDataContext';
 import { isAppOnline, markNetworkOnline, markNetworkOffline } from '@/utils/networkStatus';
+import { imageOfflineService } from '@/services/ImageOfflineService';
 
 // =====================================================
 // 🚀 Hook موحد لبيانات POS - يمنع التكرار ويحسن الأداء
@@ -19,7 +32,6 @@ import { isAppOnline, markNetworkOnline, markNetworkOffline } from '@/utils/netw
 
 interface CompletePOSData {
   products: any[];
-  // pagination from RPC: current_page, total_pages, total_count, per_page, etc.
   pagination?: {
     current_page: number;
     total_pages: number;
@@ -78,31 +90,22 @@ interface CachedPOSResponse {
 
 const parseDateToISOString = (value: unknown, fallback: string): string => {
   if (!value) return fallback;
-  if (typeof value === 'string') {
-    return value;
-  }
-  if (value instanceof Date) {
-    return value.toISOString();
-  }
+  if (typeof value === 'string') return value;
+  if (value instanceof Date) return value.toISOString();
   const timestamp = Number.isFinite(Number(value)) ? Number(value) : NaN;
   if (!Number.isNaN(timestamp)) {
     const date = new Date(timestamp);
-    if (!Number.isNaN(date.getTime())) {
-      return date.toISOString();
-    }
+    if (!Number.isNaN(date.getTime())) return date.toISOString();
   }
   try {
     const date = new Date(value as any);
-    if (!Number.isNaN(date.getTime())) {
-      return date.toISOString();
-    }
-  } catch {
-    // ignore
-  }
+    if (!Number.isNaN(date.getTime())) return date.toISOString();
+  } catch {}
   return fallback;
 };
 
-const hydrateDexieFromCachedResponse = async (
+// ⚡ دالة لحفظ البيانات في قاعدة البيانات المحلية باستخدام Delta Sync
+const hydrateLocalDBFromResponse = async (
   orgId: string,
   response: CompletePOSResponse
 ) => {
@@ -110,225 +113,161 @@ const hydrateDexieFromCachedResponse = async (
 
   const { products, customers, recent_orders } = response.data;
   if ((!products || products.length === 0) &&
-      (!customers || customers.length === 0) &&
-      (!recent_orders || recent_orders.length === 0)) {
+    (!customers || customers.length === 0) &&
+    (!recent_orders || recent_orders.length === 0)) {
     return;
+  }
+
+  // بدء تحميل الصور في الخلفية
+  if (products && products.length > 0) {
+    imageOfflineService.processProductsImages(products).catch(err => {
+      console.error('[UnifiedPOSData] Error processing offline images:', err);
+    });
   }
 
   const now = new Date().toISOString();
 
   try {
-    console.log('[hydrateDexieFromCachedResponse] بدء حفظ البيانات في SQLite', {
+    console.log('[hydrateLocalDB] ⚡ بدء حفظ البيانات باستخدام Delta Sync', {
       orgId,
       productsCount: products?.length || 0,
       customersCount: customers?.length || 0,
       ordersCount: recent_orders?.length || 0
     });
 
-    await inventoryDB.transaction(
-      'rw',
-      inventoryDB.products,
-      inventoryDB.customers,
-      inventoryDB.posOrders,
-      async () => {
-        if (Array.isArray(products)) {
-          console.log(`[hydrateDexieFromCachedResponse] بدء حفظ ${products.length} منتج`);
+    // ⚡ حفظ المنتجات باستخدام Delta Sync
+    if (Array.isArray(products)) {
+      for (const product of products) {
+        if (!product?.id) continue;
 
-          // Log عينة من أول منتج لفحص البيانات
-          if (products.length > 0) {
-            const sampleProduct = products[0];
-            console.log('[hydrateDexieFromCachedResponse] عينة من بيانات المنتج الأول:', {
-              id: sampleProduct.id,
-              name: sampleProduct.name,
-              hasColors: !!sampleProduct.colors,
-              hasSizes: !!sampleProduct.sizes,
-              hasImages: !!sampleProduct.images,
-              hasVariants: !!sampleProduct.variants,
-              hasProductColors: !!sampleProduct.product_colors,
-              hasProductSizes: !!sampleProduct.product_sizes,
-              hasProductImages: !!sampleProduct.product_images,
-              colorsCount: Array.isArray(sampleProduct.colors) ? sampleProduct.colors.length : 0,
-              sizesCount: Array.isArray(sampleProduct.sizes) ? sampleProduct.sizes.length : 0,
-              imagesCount: Array.isArray(sampleProduct.images) ? sampleProduct.images.length : 0,
-              variantsCount: Array.isArray(sampleProduct.variants) ? sampleProduct.variants.length : 0
-            });
-          }
+        const createdAt = parseDateToISOString(
+          (product as any).created_at ?? product.createdAt,
+          now
+        );
+        const updatedAt = parseDateToISOString(
+          (product as any).updated_at ?? product.updatedAt ?? createdAt,
+          createdAt
+        );
+        const stock =
+          (product as any).stock_quantity ??
+          (product as any).stockQuantity ??
+          (product as any).actual_stock_quantity ??
+          0;
 
-          // ✅ تحويل المنتجات دفعة واحدة ثم حفظها bulk
-          const localProducts: LocalProduct[] = [];
-          for (const product of products) {
-            if (!product?.id) continue;
+        const localProduct: LocalProduct = {
+          ...(product as any),
+          id: product.id,
+          organization_id: (product as any).organization_id ?? orgId,
+          created_at: createdAt,
+          updated_at: updatedAt,
+          localUpdatedAt: now,
+          synced: true,
+          syncStatus: undefined,
+          pendingOperation: undefined,
+          lastSyncAttempt: now,
+          stock_quantity: Number.isFinite(Number(stock)) ? Number(stock) : 0,
+          stockQuantity: Number.isFinite(Number(stock)) ? Number(stock) : 0,
+          actual_stock_quantity:
+            (product as any).actual_stock_quantity ??
+            (product as any).stock_quantity ??
+            (product as any).stockQuantity ??
+            stock
+        };
 
-            const createdAt = parseDateToISOString(
-              (product as any).created_at ?? product.createdAt,
-              now
-            );
-            const updatedAt = parseDateToISOString(
-              (product as any).updated_at ?? product.updatedAt ?? createdAt,
-              createdAt
-            );
-            const stock =
-              (product as any).stock_quantity ??
-              (product as any).stockQuantity ??
-              (product as any).actual_stock_quantity ??
-              0;
-
-            const localProduct: LocalProduct = {
-              ...(product as any),
-              id: product.id,
-              organization_id: (product as any).organization_id ?? orgId,
-              created_at: createdAt,
-              updated_at: updatedAt,
-              localUpdatedAt: now,
-              synced: true,
-              syncStatus: undefined,
-              pendingOperation: undefined,
-              lastSyncAttempt: now,
-              stock_quantity: Number.isFinite(Number(stock)) ? Number(stock) : 0
-            };
-
-            (localProduct as any).stockQuantity = localProduct.stock_quantity;
-            (localProduct as any).actual_stock_quantity =
-              (product as any).actual_stock_quantity ??
-              (product as any).stock_quantity ??
-              (product as any).stockQuantity ??
-              localProduct.stock_quantity;
-
-            localProducts.push(localProduct);
-          }
-
-          // ✅ حفظ جميع المنتجات دفعة واحدة - أسرع وأكثر أماناً!
-          const savedCount = await inventoryDB.products.bulkPut(localProducts);
-          console.log(`[hydrateDexieFromCachedResponse] تم حفظ ${savedCount} منتج بنجاح (bulk operation)`);
-        }
-
-        if (Array.isArray(customers)) {
-          // ✅ تحويل العملاء دفعة واحدة
-          const localCustomers: LocalCustomer[] = [];
-          for (const customer of customers) {
-            if (!customer?.id) continue;
-            const createdAt = parseDateToISOString(
-              (customer as any).created_at,
-              now
-            );
-            const updatedAt = parseDateToISOString(
-              (customer as any).updated_at ?? createdAt,
-              createdAt
-            );
-
-            const localCustomer: LocalCustomer = {
-              id: customer.id,
-              name: customer.name ?? 'عميل',
-              email: customer.email ?? '',
-              phone: customer.phone ?? '',
-              organization_id: (customer as any).organization_id ?? orgId,
-              created_at: createdAt,
-              updated_at: updatedAt,
-              synced: true,
-              syncStatus: 'synced',
-              localUpdatedAt: now,
-              pendingOperation: undefined,
-              lastSyncAttempt: now
-            };
-
-            localCustomers.push(localCustomer);
-          }
-          
-          // ✅ حفظ جميع العملاء دفعة واحدة
-          if (localCustomers.length > 0) {
-            const savedCount = await inventoryDB.customers.bulkPut(localCustomers);
-            console.log(`[hydrateDexieFromCachedResponse] تم حفظ ${savedCount} عميل بنجاح (bulk operation)`);
-          }
-        }
-
-        if (Array.isArray(recent_orders)) {
-          // ✅ تحويل الطلبات دفعة واحدة
-          const localOrders: LocalPOSOrder[] = [];
-          for (const order of recent_orders) {
-            if (!order?.id) continue;
-
-            const createdAt = parseDateToISOString(
-              (order as any).created_at,
-              now
-            );
-            const updatedAt = parseDateToISOString(
-              (order as any).updated_at ?? createdAt,
-              createdAt
-            );
-
-            const localOrder: LocalPOSOrder = {
-              id: order.id,
-              organization_id: (order as any).organization_id ?? orgId,
-              employee_id: (order as any).employee_id ?? null,
-              customer_id: (order as any).customer_id ?? null,
-              customer_name: (order as any).customer_name ?? 'عميل نقاط البيع',
-              subtotal: Number((order as any).subtotal ?? (order as any).total ?? 0),
-              total: Number((order as any).total ?? 0),
-              discount: Number((order as any).discount ?? 0),
-              amount_paid: Number((order as any).amount_paid ?? (order as any).total ?? 0),
-              payment_method: (order as any).payment_method ?? 'cash',
-              payment_status: (order as any).payment_status ?? 'pending',
-              notes: (order as any).notes ?? '',
-              remaining_amount: Number((order as any).remaining_amount ?? 0),
-              consider_remaining_as_partial:
-                Boolean((order as any).consider_remaining_as_partial ?? false),
-              status: 'synced',
-              synced: true,
-              syncStatus: 'synced',
-              pendingOperation: undefined,
-              created_at: createdAt,
-              updated_at: updatedAt,
-              lastSyncAttempt: now,
-              error: undefined,
-              order_number: '',
-              localCreatedAt: createdAt,
-              local_order_number:
-                Number((order as any).customer_order_number ?? 0) || 0,
-              remote_order_id: (order as any).remote_order_id ?? order.id,
-              remote_customer_order_number:
-                (order as any).customer_order_number ?? null,
-              payload: undefined,
-              metadata: (order as any).metadata ?? null,
-              message: undefined,
-              pending_updates: null,
-              extra_fields: (order as any).extra_fields ?? {
-                remote_status: (order as any).status ?? 'unknown'
-              }
-            };
-
-            // ضمان وجود order_number (NOT NULL في SQLite)
-            const computedOrderNumber =
-              (order as any).order_number ||
-              (order as any).orderNumber ||
-              ((order as any).customer_order_number != null
-                ? String((order as any).customer_order_number)
-                : null) ||
-              (localOrder.local_order_number
-                ? String(localOrder.local_order_number)
-                : null) ||
-              (localOrder.remote_customer_order_number != null
-                ? String(localOrder.remote_customer_order_number)
-                : null) ||
-              String(order.id);
-            (localOrder as any).order_number = computedOrderNumber;
-
-            localOrders.push(localOrder);
-          }
-          
-          // ✅ حفظ جميع الطلبات دفعة واحدة
-          if (localOrders.length > 0) {
-            const savedCount = await inventoryDB.posOrders.bulkPut(localOrders);
-            console.log(`[hydrateDexieFromCachedResponse] تم حفظ ${savedCount} طلب بنجاح (bulk operation)`);
-          }
-        }
+        await deltaWriteService.saveFromServer('products', localProduct);
       }
-    );
-    console.log('[hydrateDexieFromCachedResponse] اكتملت عملية الحفظ بنجاح');
-  } catch (error) {
-    console.error('[hydrateDexieFromCachedResponse] فشل حفظ البيانات في SQLite:', error);
-    if (error instanceof Error) {
-      console.error('[hydrateDexieFromCachedResponse] تفاصيل الخطأ:', error.message, error.stack);
+      console.log(`[hydrateLocalDB] ⚡ تم حفظ ${products.length} منتج`);
     }
+
+    // ⚡ حفظ العملاء باستخدام Delta Sync
+    if (Array.isArray(customers)) {
+      for (const customer of customers) {
+        if (!customer?.id) continue;
+
+        const createdAt = parseDateToISOString((customer as any).created_at, now);
+        const updatedAt = parseDateToISOString(
+          (customer as any).updated_at ?? createdAt,
+          createdAt
+        );
+
+        const localCustomer: LocalCustomer = {
+          id: customer.id,
+          name: customer.name ?? 'عميل',
+          email: customer.email ?? '',
+          phone: customer.phone ?? '',
+          organization_id: (customer as any).organization_id ?? orgId,
+          created_at: createdAt,
+          updated_at: updatedAt,
+          synced: true,
+          syncStatus: 'synced',
+          localUpdatedAt: now,
+          pendingOperation: undefined,
+          lastSyncAttempt: now
+        };
+
+        await deltaWriteService.saveFromServer('customers', localCustomer);
+      }
+      console.log(`[hydrateLocalDB] ⚡ تم حفظ ${customers.length} عميل`);
+    }
+
+    // ⚡ حفظ الطلبات باستخدام Delta Sync
+    if (Array.isArray(recent_orders)) {
+      for (const order of recent_orders) {
+        if (!order?.id) continue;
+
+        const createdAt = parseDateToISOString((order as any).created_at, now);
+        const updatedAt = parseDateToISOString(
+          (order as any).updated_at ?? createdAt,
+          createdAt
+        );
+
+        const localOrder: LocalPOSOrder = {
+          id: order.id,
+          organization_id: (order as any).organization_id ?? orgId,
+          employee_id: (order as any).employee_id ?? null,
+          customer_id: (order as any).customer_id ?? null,
+          customer_name: (order as any).customer_name ?? 'عميل نقاط البيع',
+          subtotal: Number((order as any).subtotal ?? (order as any).total ?? 0),
+          total: Number((order as any).total ?? 0),
+          discount: Number((order as any).discount ?? 0),
+          amount_paid: Number((order as any).amount_paid ?? (order as any).total ?? 0),
+          payment_method: (order as any).payment_method ?? 'cash',
+          payment_status: (order as any).payment_status ?? 'pending',
+          notes: (order as any).notes ?? '',
+          remaining_amount: Number((order as any).remaining_amount ?? 0),
+          consider_remaining_as_partial: Boolean((order as any).consider_remaining_as_partial ?? false),
+          status: 'synced',
+          synced: true,
+          syncStatus: 'synced',
+          pendingOperation: undefined,
+          created_at: createdAt,
+          updated_at: updatedAt,
+          lastSyncAttempt: now,
+          error: undefined,
+          order_number: (order as any).order_number ||
+            (order as any).orderNumber ||
+            String((order as any).customer_order_number ?? order.id),
+          localCreatedAt: createdAt,
+          local_order_number: Number((order as any).customer_order_number ?? 0) || 0,
+          remote_order_id: (order as any).remote_order_id ?? order.id,
+          remote_customer_order_number: (order as any).customer_order_number ?? null,
+          payload: undefined,
+          metadata: (order as any).metadata ?? null,
+          message: undefined,
+          pending_updates: null,
+          extra_fields: (order as any).extra_fields ?? {
+            remote_status: (order as any).status ?? 'unknown'
+          }
+        };
+
+        await deltaWriteService.saveFromServer('pos_orders', localOrder);
+      }
+      console.log(`[hydrateLocalDB] ⚡ تم حفظ ${recent_orders.length} طلب`);
+    }
+
+    console.log('[hydrateLocalDB] ⚡ اكتملت عملية الحفظ بنجاح');
+  } catch (error) {
+    console.error('[hydrateLocalDB] فشل حفظ البيانات:', error);
   }
 };
 
@@ -351,56 +290,6 @@ const shouldCacheQuery = (
   return page === 1 && !hasSearch && !hasCategory;
 };
 
-const saveCompletePOSDataToCache = async (
-  orgId: string,
-  page: number,
-  limit: number,
-  search: string | undefined,
-  categoryId: string | undefined,
-  response: CompletePOSResponse
-) => {
-  if (!response?.success) {
-    return;
-  }
-
-  if (!shouldCacheQuery(page, search, categoryId)) {
-    console.info('[UnifiedPOSData][Cache] تخطي التخزين المؤقت لهذا الاستعلام', {
-      orgId,
-      page,
-      search,
-      categoryId
-    });
-    return;
-  }
-
-  try {
-    const cacheKey = buildCacheKey(orgId, page, limit, search, categoryId);
-    const payload: CachedPOSResponse = {
-      timestamp: new Date().toISOString(),
-      data: response
-    };
-    if (isSQLiteAvailable()) {
-      try { await sqliteDB.initialize(orgId); } catch {}
-      await sqliteDB.setPOSOfflineCache({
-        id: cacheKey,
-        organizationId: orgId,
-        page,
-        limit,
-        search: search ?? null,
-        categoryId: categoryId ?? null,
-        data: payload
-      });
-      console.info('[UnifiedPOSData][Cache] تم حفظ البيانات في SQLite', {
-        orgId,
-        cacheKey,
-        productCount: response.data?.products?.length ?? 0
-      });
-    }
-  } catch (error) {
-    console.error('[UnifiedPOSData][Cache] فشل حفظ البيانات في SQLite', error);
-  }
-};
-
 const loadCachedCompletePOSData = async (
   orgId: string,
   page: number,
@@ -411,11 +300,11 @@ const loadCachedCompletePOSData = async (
   try {
     const cacheKey = buildCacheKey(orgId, page, limit, search, categoryId);
     if (isSQLiteAvailable()) {
-      try { await sqliteDB.initialize(orgId); } catch {}
+      try { await dbInitManager.initialize(orgId); } catch { }
       const res = await sqliteDB.getPOSOfflineCacheById(cacheKey);
       const cached = res.success ? (res.data as CachedPOSResponse | null) : null;
       if (cached?.data) {
-        console.warn('[UnifiedPOSData][Cache] استخدام البيانات المخزنة (SQLite) بسبب نقص البيانات المحلية', {
+        console.warn('[UnifiedPOSData][Cache] استخدام البيانات المخزنة (SQLite)', {
           orgId,
           cacheKey,
           productCount: cached.data.data?.products?.length ?? 0,
@@ -430,7 +319,7 @@ const loadCachedCompletePOSData = async (
   return null;
 };
 
-// دالة لتحميل البيانات الأولية من قاعدة البيانات المحلية (SQLite)
+// ⚡ دالة لتحميل البيانات الأولية من قاعدة البيانات المحلية باستخدام Delta Sync
 const loadInitialDataFromLocalDB = async (
   orgId: string,
   page: number,
@@ -439,33 +328,16 @@ const loadInitialDataFromLocalDB = async (
   categoryId?: string
 ) => {
   const logPrefix = '[UnifiedPOSData][LocalDB]';
-  console.info(
-    `${logPrefix} ===== بدء loadInitialDataFromLocalDB =====`,
-    {
-      orgId,
-      page,
-      limit,
-      search: search ?? null,
-      categoryId: categoryId ?? null
-    }
-  );
+  console.info(`${logPrefix} ===== بدء loadInitialDataFromLocalDB (Delta Sync) =====`, {
+    orgId,
+    page,
+    limit,
+    search: search ?? null,
+    categoryId: categoryId ?? null
+  });
 
   try {
-    console.info(`${logPrefix} تهيئة inventoryDB...`);
-    await inventoryDB.initialize(orgId);
-    console.info(`${logPrefix} اكتملت تهيئة inventoryDB`);
-
-    console.info(
-      `${logPrefix} بدء تحميل البيانات المحلية`,
-      {
-        orgId,
-        page,
-        limit,
-        search: search ?? null,
-        categoryId: categoryId ?? null
-      }
-    );
-
+    // ⚡ استخدام Delta Sync بدلاً من inventoryDB
     const [
       localProducts,
       localCategories,
@@ -474,77 +346,113 @@ const loadInitialDataFromLocalDB = async (
       localCustomers,
       localOrders
     ] = await Promise.all([
-      inventoryDB.products.where('organization_id').equals(orgId).toArray(),
+      deltaWriteService.getAll<LocalProduct>('products', orgId),
       getLocalCategories(),
       localPosSettingsService.get(orgId),
-      inventoryDB.organizationSubscriptions
-        .where('organization_id')
-        .equals(orgId)
-        .toArray()
-        .catch(() => []),
-      inventoryDB.customers
-        .where('organization_id')
-        .equals(orgId)
-        .toArray()
-        .catch(() => []),
-      inventoryDB.posOrders
-        .where('organization_id')
-        .equals(orgId)
-        .toArray()
-        .catch(() => [])
+      deltaWriteService.getAll<LocalOrganizationSubscription>('organization_subscriptions' as any, orgId).catch(() => []),
+      deltaWriteService.getAll<LocalCustomer>('customers', orgId).catch(() => []),
+      deltaWriteService.getAll<LocalPOSOrder>('pos_orders', orgId).catch(() => [])
     ]);
 
-    console.info(
-      `${logPrefix} تم تحميل الكيانات الخام من SQLite`,
-      {
-        products: localProducts.length,
-        categories: localCategories.length,
-        subscriptions: localSubscriptions.length,
-        customers: localCustomers.length,
-        orders: localOrders.length,
-        hasSettings: Boolean(localSettings)
-      }
-    );
+    // ⚡ جلب الألوان والمقاسات من جداولها المنفصلة
+    const productIds = localProducts.map(p => p.id);
+    let colorsMap: Map<string, any[]> = new Map();
+    let sizesMap: Map<string, any[]> = new Map();
 
-    const mappedProducts = localProducts.map(mapLocalProductToPOSProduct);
+    if (productIds.length > 0) {
+      try {
+        const allColors = await deltaWriteService.query<any>(
+          'product_colors',
+          `SELECT * FROM product_colors WHERE product_id IN (${productIds.map(() => '?').join(',')})`,
+          productIds
+        );
+
+        const allSizes = await deltaWriteService.query<any>(
+          'product_sizes',
+          `SELECT * FROM product_sizes WHERE product_id IN (${productIds.map(() => '?').join(',')})`,
+          productIds
+        );
+
+        // تجميع الألوان حسب product_id
+        for (const color of allColors || []) {
+          if (!colorsMap.has(color.product_id)) {
+            colorsMap.set(color.product_id, []);
+          }
+          colorsMap.get(color.product_id)!.push(color);
+        }
+
+        // تجميع المقاسات حسب color_id
+        for (const size of allSizes || []) {
+          if (!sizesMap.has(size.color_id)) {
+            sizesMap.set(size.color_id, []);
+          }
+          sizesMap.get(size.color_id)!.push(size);
+        }
+
+        // ربط المقاسات بالألوان
+        for (const [, colors] of colorsMap) {
+          for (const color of colors) {
+            color.sizes = sizesMap.get(color.id) || [];
+            color.product_sizes = color.sizes;
+          }
+        }
+
+        console.info(`${logPrefix} 🎨 تم تحميل الألوان والمقاسات:`, {
+          colors: allColors?.length || 0,
+          sizes: allSizes?.length || 0
+        });
+      } catch (variantError) {
+        console.warn(`${logPrefix} ⚠️ Error loading variants:`, variantError);
+      }
+    }
+
+    // إضافة الألوان للمنتجات
+    const productsWithColors = localProducts.map(product => {
+      const colors = colorsMap.get(product.id) || [];
+      return {
+        ...product,
+        colors: colors.length > 0 ? colors : (product as any).colors || [],
+        product_colors: colors.length > 0 ? colors : (product as any).product_colors || [],
+        variants: colors.length > 0 ? colors : (product as any).variants || []
+      };
+    });
+
+    console.info(`${logPrefix} ⚡ تم تحميل الكيانات من Delta Sync`, {
+      products: productsWithColors.length,
+      categories: localCategories.length,
+      subscriptions: localSubscriptions.length,
+      customers: localCustomers.length,
+      orders: localOrders.length,
+      hasSettings: Boolean(localSettings),
+      colorsLoaded: Array.from(colorsMap.values()).flat().length,
+      sizesLoaded: Array.from(sizesMap.values()).flat().length
+    });
+
+    const mappedProducts = productsWithColors.map(mapLocalProductToPOSProduct);
     const normalizedSearch = search?.trim().toLowerCase() || '';
 
     const filteredProducts = mappedProducts.filter((product) => {
       const matchesCategory =
         !categoryId || categoryId === '' || product.category_id === categoryId;
 
-      if (!normalizedSearch) {
-        return matchesCategory;
-      }
+      if (!normalizedSearch) return matchesCategory;
 
       const name = (product.name || '').toLowerCase();
       const barcode = (product.barcode || '').toLowerCase();
-      const matchesVariant =
-        product.colors?.some((color: any) => {
-          const colorName = (color?.name || '').toLowerCase();
-          const colorBarcode = (color?.barcode || '').toLowerCase();
-          const sizeMatch = color?.sizes?.some((size: any) => {
-            const sizeName = (size?.size_name || '').toLowerCase();
-            const sizeBarcode = (size?.barcode || '').toLowerCase();
-            return (
-              sizeName.includes(normalizedSearch) ||
-              sizeBarcode.includes(normalizedSearch)
-            );
-          });
+      const productColors = ensureArray(product.colors) as any[];
+      const matchesVariant = productColors.some((color: any) => {
+        const colorName = (color?.name || '').toLowerCase();
+        const colorBarcode = (color?.barcode || '').toLowerCase();
+        const colorSizes = ensureArray(color?.sizes) as any[];
+        const sizeMatch = colorSizes.some((size: any) => {
+          const sizeName = (size?.size_name || '').toLowerCase();
+          const sizeBarcode = (size?.barcode || '').toLowerCase();
+          return sizeName.includes(normalizedSearch) || sizeBarcode.includes(normalizedSearch);
+        });
+        return colorName.includes(normalizedSearch) || colorBarcode.includes(normalizedSearch) || Boolean(sizeMatch);
+      });
 
-          return (
-            colorName.includes(normalizedSearch) ||
-            colorBarcode.includes(normalizedSearch) ||
-            Boolean(sizeMatch)
-          );
-        }) ?? false;
-
-      return (
-          matchesCategory &&
-          (name.includes(normalizedSearch) ||
-            barcode.includes(normalizedSearch) ||
-            matchesVariant)
-      );
+      return matchesCategory && (name.includes(normalizedSearch) || barcode.includes(normalizedSearch) || matchesVariant);
     });
 
     const safeLimit = limit > 0 ? limit : filteredProducts.length || 1;
@@ -552,45 +460,25 @@ const loadInitialDataFromLocalDB = async (
     const endIndex = startIndex + safeLimit;
     const paginatedProducts = filteredProducts.slice(startIndex, endIndex);
 
-    console.info(
-      `${logPrefix} تمت معالجة المنتجات المحلية`,
-      {
-        mappedProducts: mappedProducts.length,
-        filteredProducts: filteredProducts.length,
-        paginatedProducts: paginatedProducts.length
-      }
-    );
-
     const productCategories = localCategories
-      .filter(
-        (category) =>
-          category.organization_id === orgId &&
-          (!category.type || category.type === 'product')
-      )
-      .map((category) => ({
+      .filter(category => category.organization_id === orgId && (!category.type || category.type === 'product'))
+      .map(category => ({
         id: category.id,
         name: category.name,
         description: category.description ?? '',
         organization_id: category.organization_id,
         is_active: category.is_active !== false,
         created_at: category.created_at ?? new Date().toISOString(),
-        updated_at:
-          category.updated_at ?? category.created_at ?? new Date().toISOString()
+        updated_at: category.updated_at ?? category.created_at ?? new Date().toISOString()
       }));
 
     const subscriptionCategories = localCategories
-      .filter(
-        (category) =>
-          category.organization_id === orgId &&
-          (!category.type || category.type === 'service')
-      )
+      .filter(category => category.organization_id === orgId && (!category.type || category.type === 'service'))
       .map(mapLocalCategoryToSubscriptionCategory);
 
-    const mappedSubscriptions = (localSubscriptions || []).map(
-      mapLocalSubscriptionToService
-    );
+    const mappedSubscriptions = (localSubscriptions || []).map(mapLocalSubscriptionToService);
 
-    const customers = (localCustomers || []).map((customer) => ({
+    const customers = (localCustomers || []).map(customer => ({
       id: customer.id,
       name: customer.name,
       email: customer.email ?? '',
@@ -601,12 +489,10 @@ const loadInitialDataFromLocalDB = async (
     }));
 
     const sortedOrders = [...(localOrders || [])].sort(
-      (a, b) =>
-        new Date(b.created_at ?? b.updated_at ?? 0).getTime() -
-        new Date(a.created_at ?? a.updated_at ?? 0).getTime()
+      (a, b) => new Date(b.created_at ?? b.updated_at ?? 0).getTime() - new Date(a.created_at ?? a.updated_at ?? 0).getTime()
     );
 
-    const recentOrders = sortedOrders.slice(0, 10).map((order) => ({
+    const recentOrders = sortedOrders.slice(0, 10).map(order => ({
       id: order.id,
       organization_id: order.organization_id,
       customer_id: order.customer_id ?? null,
@@ -623,36 +509,24 @@ const loadInitialDataFromLocalDB = async (
 
     const totalProductsCount = mappedProducts.length;
     const outOfStockProducts = mappedProducts.filter(
-      (product) =>
-        (product.actual_stock_quantity ?? product.stock_quantity ?? 0) <= 0
+      product => (product.actual_stock_quantity ?? product.stock_quantity ?? 0) <= 0
     ).length;
     const totalStock = mappedProducts.reduce(
-      (sum, product) =>
-        sum + (product.actual_stock_quantity ?? product.stock_quantity ?? 0),
+      (sum, product) => sum + (product.actual_stock_quantity ?? product.stock_quantity ?? 0),
       0
     );
 
     const now = new Date();
-    const startOfDay = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate()
-    ).getTime();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
 
     const totalPosOrders = sortedOrders.length;
-    const todayOrders = sortedOrders.filter((order) => {
+    const todayOrders = sortedOrders.filter(order => {
       const createdAt = new Date(order.created_at ?? order.updated_at ?? 0).getTime();
       return createdAt >= startOfDay;
     });
 
-    const totalSales = sortedOrders.reduce(
-      (sum, order) => sum + (order.total ?? 0),
-      0
-    );
-    const todaySales = todayOrders.reduce(
-      (sum, order) => sum + (order.total ?? 0),
-      0
-    );
+    const totalSales = sortedOrders.reduce((sum, order) => sum + (order.total ?? 0), 0);
+    const todaySales = todayOrders.reduce((sum, order) => sum + (order.total ?? 0), 0);
 
     const organizationApps = [
       {
@@ -673,40 +547,14 @@ const loadInitialDataFromLocalDB = async (
       }
     ];
 
-    const sqliteOnly = (inventoryDB as any).isSQLite && (inventoryDB as any).isSQLite();
-    if (!mappedProducts.length && shouldCacheQuery(page, search, categoryId) && !sqliteOnly) {
-      const cachedResponse = await loadCachedCompletePOSData(
-        orgId,
-        page,
-        limit,
-        search,
-        categoryId
-      );
+    // إذا لم تكن هناك منتجات، حاول تحميل من الكاش
+    if (!mappedProducts.length && shouldCacheQuery(page, search, categoryId)) {
+      const cachedResponse = await loadCachedCompletePOSData(orgId, page, limit, search, categoryId);
       if (cachedResponse) {
-        await hydrateDexieFromCachedResponse(orgId, cachedResponse);
+        await hydrateLocalDBFromResponse(orgId, cachedResponse);
         return cachedResponse;
       }
     }
-
-    console.info(
-      `${logPrefix} تجهيز الرد النهائي`,
-      {
-        pagination: {
-          current_page: page,
-          total_pages:
-            safeLimit > 0
-              ? Math.max(1, Math.ceil(filteredProducts.length / safeLimit))
-              : 1,
-          total_count: filteredProducts.length,
-          per_page: safeLimit
-        },
-        productCategories: productCategories.length,
-        subscriptionCategories: subscriptionCategories.length,
-        subscriptions: mappedSubscriptions.length,
-        customers: customers.length,
-        recentOrders: recentOrders.length
-      }
-    );
 
     return {
       success: true,
@@ -714,10 +562,7 @@ const loadInitialDataFromLocalDB = async (
         products: paginatedProducts,
         pagination: {
           current_page: page,
-          total_pages:
-            safeLimit > 0
-              ? Math.max(1, Math.ceil(filteredProducts.length / safeLimit))
-              : 1,
+          total_pages: safeLimit > 0 ? Math.max(1, Math.ceil(filteredProducts.length / safeLimit)) : 1,
           total_count: filteredProducts.length,
           per_page: safeLimit,
           has_next_page: endIndex < filteredProducts.length,
@@ -750,15 +595,12 @@ const loadInitialDataFromLocalDB = async (
       }
     };
   } catch (error) {
-    console.error(
-      '[UnifiedPOSData][LocalDB] فشل تحميل البيانات الأولية من قاعدة البيانات المحلية',
-      { orgId, error }
-    );
+    console.error('[UnifiedPOSData][LocalDB] فشل تحميل البيانات الأولية', { orgId, error });
     return null;
   }
 };
 
-// Hook موحد لبيانات POS - يستخدم cache مشترك
+// Hook موحد لبيانات POS
 export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
   const { currentOrganization } = useTenant();
   const queryClient = useQueryClient();
@@ -769,31 +611,13 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
     search,
     categoryId,
     enabled = true,
-    staleTime = 15 * 60 * 1000, // 15 دقيقة افتراضياً
-    gcTime = 30 * 60 * 1000 // 30 دقيقة افتراضياً
+    staleTime = 15 * 60 * 1000,
+    gcTime = 30 * 60 * 1000
   } = options;
 
-  console.log('[useUnifiedPOSData] Hook initialized', {
-    orgId: currentOrganization?.id,
-    page,
-    limit,
-    search,
-    categoryId,
-    enabled
-  });
-
-  const isSearchValid =
-    search === undefined || search.length === 0 || search.length >= 2;
+  const isSearchValid = search === undefined || search.length === 0 || search.length >= 2;
   const queryKey = useMemo(
-    () =>
-      [
-        'unified-pos-data',
-        currentOrganization?.id,
-        page,
-        limit,
-        search,
-        categoryId
-      ] as const,
+    () => ['unified-pos-data', currentOrganization?.id, page, limit, search, categoryId] as const,
     [currentOrganization?.id, page, limit, search, categoryId]
   );
 
@@ -818,26 +642,11 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
         throw new Error('معرف المؤسسة مطلوب');
       }
 
-      // ✅ التحقق من الاتصال بشكل صحيح
       const navigatorOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
       const isOffline = !navigatorOnline || !isAppOnline();
 
-      console.log('[UnifiedPOSData] حالة الاتصال:', {
-        navigatorOnline,
-        isAppOnline: isAppOnline(),
-        isOffline
-      });
-
       if (isOffline) {
-        console.warn(
-          '[UnifiedPOSData] تم اكتشاف وضع عدم الاتصال - سيتم استخدام البيانات المحلية',
-          {
-            navigatorOnLine: navigatorOnline,
-            isAppOnline: isAppOnline()
-          }
-        );
-        // ✅ لا نجبر الأوفلاين - فقط نستخدم البيانات المحلية
-        // markNetworkOffline({ force: true });
+        console.warn('[UnifiedPOSData] وضع عدم الاتصال - استخدام البيانات المحلية');
 
         const offlineData = await loadInitialDataFromLocalDB(
           currentOrganization.id,
@@ -848,11 +657,10 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
         );
 
         if (offlineData) {
-          console.info('[UnifiedPOSData] تم تحميل البيانات من قاعدة البيانات المحلية (SQLite) بنجاح');
+          console.info('[UnifiedPOSData] ⚡ تم تحميل البيانات من Delta Sync بنجاح');
           return offlineData;
         }
 
-        console.warn('[UnifiedPOSData] لم يتم العثور على بيانات محلية، سيتم إرجاع استجابة فارغة احتياطية');
         return {
           success: true,
           data: {
@@ -865,17 +673,8 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
             users: [],
             customers: [],
             recent_orders: [],
-            inventory_stats: {
-              totalProducts: 0,
-              outOfStockProducts: 0,
-              totalStock: 0
-            },
-            order_stats: {
-              totalPosOrders: 0,
-              todayOrders: 0,
-              totalSales: 0,
-              todaySales: 0
-            },
+            inventory_stats: { totalProducts: 0, outOfStockProducts: 0, totalStock: 0 },
+            order_stats: { totalPosOrders: 0, todayOrders: 0, totalSales: 0, todaySales: 0 },
             pagination: {
               current_page: page,
               total_pages: 1,
@@ -894,15 +693,6 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
       }
 
       try {
-        console.log('[UnifiedPOSData] جلب البيانات من الخادم...', {
-          rpc: 'get_complete_pos_data_optimized',
-          p_organization_id: currentOrganization.id,
-          p_products_page: page,
-          p_products_limit: limit,
-          p_search: search || null,
-          p_category_id: categoryId || null
-        });
-
         const { data, error } = await supabase.rpc('get_complete_pos_data_optimized' as any, {
           p_organization_id: currentOrganization.id,
           p_products_page: page,
@@ -911,25 +701,10 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
           p_category_id: categoryId || null
         });
 
-        console.log('[UnifiedPOSData] نتيجة الطلب:', {
-          hasData: !!data,
-          hasError: !!error,
-          dataType: Array.isArray(data) ? 'array' : typeof data
-        });
-
-        if (error) {
-          throw new Error(`خطأ في جلب بيانات POS: ${error.message}`);
-        }
-
-        if (!data) {
-          throw new Error('لم يتم إرجاع أي بيانات من الخادم');
-        }
+        if (error) throw new Error(`خطأ في جلب بيانات POS: ${error.message}`);
+        if (!data) throw new Error('لم يتم إرجاع أي بيانات من الخادم');
 
         const responseData = Array.isArray(data) ? data[0] : data;
-        console.log('[UnifiedPOSData] معالجة البيانات...', {
-          hasSuccess: 'success' in responseData,
-          productsCount: responseData?.data?.products?.length || 0
-        });
 
         if (responseData && typeof responseData === 'object' && 'success' in responseData) {
           if (!responseData.success) {
@@ -937,16 +712,7 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
           }
           const finalResponse = responseData as CompletePOSResponse;
           markNetworkOnline();
-          await saveCompletePOSDataToCache(
-            currentOrganization.id,
-            page,
-            limit,
-            search,
-            categoryId,
-            finalResponse
-          );
-          // حفظ البيانات في IndexedDB
-          await hydrateDexieFromCachedResponse(currentOrganization.id, finalResponse);
+          await hydrateLocalDBFromResponse(currentOrganization.id, finalResponse);
           return finalResponse;
         }
 
@@ -960,22 +726,10 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
           }
         };
         markNetworkOnline();
-        await saveCompletePOSDataToCache(
-          currentOrganization.id,
-          page,
-          limit,
-          search,
-          categoryId,
-          finalResponse
-        );
-        // حفظ البيانات محلياً
-        await hydrateDexieFromCachedResponse(currentOrganization.id, finalResponse);
+        await hydrateLocalDBFromResponse(currentOrganization.id, finalResponse);
         return finalResponse;
       } catch (fetchError) {
-        console.error(
-          '[UnifiedPOSData] فشل جلب البيانات من Supabase - سيتم استخدام البيانات المحلية إذا توفرت',
-          fetchError
-        );
+        console.error('[UnifiedPOSData] فشل جلب البيانات - استخدام البيانات المحلية', fetchError);
         markNetworkOffline({ force: true });
 
         const offlineData = await loadInitialDataFromLocalDB(
@@ -987,7 +741,7 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
         );
 
         if (offlineData) {
-          console.info('[UnifiedPOSData] تم استخدام البيانات المحلية بعد فشل الجلب');
+          console.info('[UnifiedPOSData] ⚡ تم استخدام البيانات المحلية بعد فشل الجلب');
           return offlineData;
         }
 
@@ -1004,42 +758,45 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
     refetchOnReconnect: true,
     placeholderData: (previousData) => previousData,
     networkMode: 'offlineFirst',
-    meta: {
-      persist: false
-    }
+    meta: { persist: false }
   });
 
-  // استخدام useRef لتتبع حالة التهيئة لكل queryKey
   const initializedQueriesRef = useRef<Set<string>>(new Set());
   const queryKeyString = JSON.stringify(queryKey);
 
+  // ⚡ الاستماع لحدث تحديث الصور وإعادة تحميل البيانات
   useEffect(() => {
-    // إذا كنا قد هيّأنا هذا الـ query من قبل، نتخطاه
-    if (initializedQueriesRef.current.has(queryKeyString)) {
-      return;
-    }
+    const handleImagesUpdated = () => {
+      console.log('[useUnifiedPOSData] 📡 Received products-images-updated event, refreshing...');
+      refetch();
+    };
 
-    if (!enabled || !currentOrganization?.id || !isSearchValid) {
-      return;
-    }
+    const handleProductOperationCompleted = () => {
+      console.log('[useUnifiedPOSData] 📡 Received product-operation-completed event, refreshing...');
+      refetch();
+    };
+
+    window.addEventListener('products-images-updated', handleImagesUpdated);
+    window.addEventListener('product-operation-completed', handleProductOperationCompleted);
+
+    return () => {
+      window.removeEventListener('products-images-updated', handleImagesUpdated);
+      window.removeEventListener('product-operation-completed', handleProductOperationCompleted);
+    };
+  }, [refetch]);
+
+  useEffect(() => {
+    if (initializedQueriesRef.current.has(queryKeyString)) return;
+    if (!enabled || !currentOrganization?.id || !isSearchValid) return;
 
     let isCancelled = false;
-    let hasInitialized = false;
 
     const ensureLocalInitialData = async () => {
-      // تحقق مزدوج لمنع race conditions
-      if (initializedQueriesRef.current.has(queryKeyString)) {
-        return;
-      }
+      if (initializedQueriesRef.current.has(queryKeyString)) return;
 
-      const existingData = queryClient.getQueryData(queryKey) as
-        | CompletePOSResponse
-        | undefined;
-
-      // إذا كانت هناك بيانات صالحة، نعتبر التهيئة مكتملة
+      const existingData = queryClient.getQueryData(queryKey) as CompletePOSResponse | undefined;
       if (existingData?.success && existingData.data?.products?.length) {
         initializedQueriesRef.current.add(queryKeyString);
-        hasInitialized = true;
         return;
       }
 
@@ -1051,55 +808,30 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
         categoryId
       );
 
-      if (isCancelled || !localData) {
-        return;
-      }
+      if (isCancelled || !localData) return;
 
-      // تحقق نهائي قبل تعيين البيانات
-      const latestData = queryClient.getQueryData(queryKey) as
-        | CompletePOSResponse
-        | undefined;
-
+      const latestData = queryClient.getQueryData(queryKey) as CompletePOSResponse | undefined;
       if (!latestData || !latestData.success || !latestData.data?.products?.length) {
         queryClient.setQueryData(queryKey, localData);
-
-        // علّم هذا الـ query كمهيأ فوراً لمنع إعادة التهيئة
         initializedQueriesRef.current.add(queryKeyString);
-        hasInitialized = true;
-
-        // ⚠️ إزالة invalidateQueries لمنع Infinite Loop
-        // React Query سيقوم بجلب البيانات تلقائياً إذا كان enabled=true
       } else {
-        // البيانات موجودة الآن، نعتبر التهيئة مكتملة
         initializedQueriesRef.current.add(queryKeyString);
-        hasInitialized = true;
       }
     };
 
-    ensureLocalInitialData().catch((localError) => {
-      console.error('تعذر تعيين البيانات الأولية من قاعدة البيانات المحلية (SQLite):', localError);
+    ensureLocalInitialData().catch(localError => {
+      console.error('تعذر تعيين البيانات الأولية من قاعدة البيانات المحلية:', localError);
     });
 
-    return () => {
-      isCancelled = true;
-      // لا نزيل العلامة من initializedQueriesRef لأننا نريد الاحتفاظ بها
-    };
-  }, [
-    enabled,
-    currentOrganization?.id,
-    isSearchValid,
-    queryKeyString // استخدام string بدلاً من queryKey نفسه
-    // إزالة page, limit, search, categoryId لأنها موجودة في queryKeyString
-  ]);
+    return () => { isCancelled = true; };
+  }, [enabled, currentOrganization?.id, isSearchValid, queryKeyString]);
 
-  // استخراج البيانات من الاستجابة
   const typedResponse = response as CompletePOSResponse | undefined;
   const posData = typedResponse?.success ? typedResponse.data : null;
   const executionStats = typedResponse?.meta;
   const hasError = !typedResponse?.success || !!error;
   const errorMessage = typedResponse?.error || error?.message;
 
-  // دوال مساعدة للتحديث السريع
   const invalidateCache = () => {
     queryClient.invalidateQueries({ queryKey: ['unified-pos-data'] });
   };
@@ -1109,13 +841,9 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
   };
 
   const applyUpdateToPOSQueries = (
-    updater: (
-      data: CompletePOSResponse | undefined
-    ) => CompletePOSResponse | undefined
+    updater: (data: CompletePOSResponse | undefined) => CompletePOSResponse | undefined
   ) => {
-    if (!currentOrganization?.id) {
-      return;
-    }
+    if (!currentOrganization?.id) return;
 
     const relatedQueries = queryClient.getQueriesData<CompletePOSResponse>({
       queryKey: ['unified-pos-data', currentOrganization.id],
@@ -1130,28 +858,19 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
     }
   };
 
-  // تحديث جزئي للبيانات في الـ cache
   const updateProductInCache = (productId: string, updatedProduct: any) => {
     applyUpdateToPOSQueries((oldData) => {
       if (!oldData?.success || !oldData.data) return oldData;
 
       const updatedProducts = oldData.data.products.map((product) => {
-        if (product.id !== productId) {
-          return product;
-        }
+        if (product.id !== productId) return product;
 
         const nextStockQuantity =
-          updatedProduct.stockQuantity ??
-          updatedProduct.stock_quantity ??
-          product.stockQuantity ??
-          product.stock_quantity ??
-          0;
+          updatedProduct.stockQuantity ?? updatedProduct.stock_quantity ??
+          product.stockQuantity ?? product.stock_quantity ?? 0;
         const nextActualStock =
-          updatedProduct.actual_stock_quantity ??
-          updatedProduct.stock_quantity ??
-          product.actual_stock_quantity ??
-          product.stock_quantity ??
-          nextStockQuantity;
+          updatedProduct.actual_stock_quantity ?? updatedProduct.stock_quantity ??
+          product.actual_stock_quantity ?? product.stock_quantity ?? nextStockQuantity;
 
         return {
           ...product,
@@ -1159,26 +878,18 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
           stock_quantity: nextStockQuantity,
           stockQuantity: nextStockQuantity,
           actual_stock_quantity: nextActualStock,
-          total_variants_stock:
-            updatedProduct.total_variants_stock ?? nextStockQuantity
+          total_variants_stock: updatedProduct.total_variants_stock ?? nextStockQuantity
         };
       });
 
-      return {
-        ...oldData,
-        data: {
-          ...oldData.data,
-          products: updatedProducts
-        }
-      };
+      return { ...oldData, data: { ...oldData.data, products: updatedProducts } };
     });
   };
 
-  // تحديث مخزون المنتج في الـ cache
   const updateProductStockInCache = (
-    productId: string, 
-    colorId: string | null, 
-    sizeId: string | null, 
+    productId: string,
+    colorId: string | null,
+    sizeId: string | null,
     quantityChange: number
   ) => {
     applyUpdateToPOSQueries((oldData) => {
@@ -1187,20 +898,12 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
       const updatedProducts = oldData.data.products.map((product) => {
         if (product.id !== productId) return product;
 
-        const baseStock =
-          product.actual_stock_quantity ??
-          product.stockQuantity ??
-          product.stock_quantity ??
-          0;
-
+        const baseStock = product.actual_stock_quantity ?? product.stockQuantity ?? product.stock_quantity ?? 0;
         const clamp = (value: number) => Math.max(0, value);
 
         const recalculateTotalFromColors = (colors: any[] | undefined) => {
           if (!Array.isArray(colors)) return 0;
-          return colors.reduce((sum, color) => {
-            const colorQuantity = Number(color?.quantity ?? 0);
-            return sum + clamp(colorQuantity);
-          }, 0);
+          return colors.reduce((sum, color) => sum + clamp(Number(color?.quantity ?? 0)), 0);
         };
 
         const applyTotalStock = (nextProduct: any, total: number) => ({
@@ -1212,131 +915,68 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
         });
 
         if (colorId && sizeId) {
-          const updatedColors = product.colors?.map((color: any) => {
+          const productColors = ensureArray(product.colors) as any[];
+          const updatedColors = productColors.map((color: any) => {
             if (color.id !== colorId) return color;
 
-            const updatedSizes = color.sizes?.map((size: any) => {
+            const colorSizes = ensureArray(color.sizes) as any[];
+            const updatedSizes = colorSizes.map((size: any) => {
               if (size.id !== sizeId) return size;
-              const currentQty = Number(size?.quantity ?? 0);
-              return {
-                ...size,
-                quantity: clamp(currentQty + quantityChange)
-              };
+              return { ...size, quantity: clamp(Number(size?.quantity ?? 0) + quantityChange) };
             });
 
-            const totalColorQuantity =
-              updatedSizes?.reduce(
-                (sum: number, size: any) => sum + clamp(Number(size?.quantity ?? 0)),
-                0
-              ) || 0;
+            const totalColorQuantity = updatedSizes?.reduce(
+              (sum: number, size: any) => sum + clamp(Number(size?.quantity ?? 0)), 0
+            ) || 0;
 
-            return {
-              ...color,
-              sizes: updatedSizes,
-              quantity: totalColorQuantity
-            };
+            return { ...color, sizes: updatedSizes, quantity: totalColorQuantity };
           });
 
           const totalStock = recalculateTotalFromColors(updatedColors);
-          return applyTotalStock(
-            {
-              ...product,
-              colors: updatedColors
-            },
-            totalStock
-          );
+          return applyTotalStock({ ...product, colors: updatedColors }, totalStock);
         }
 
         if (colorId) {
-          const updatedColors = product.colors?.map((color: any) => {
+          const productColors = ensureArray(product.colors) as any[];
+          const updatedColors = productColors.map((color: any) => {
             if (color.id !== colorId) return color;
-            const currentQty = Number(color?.quantity ?? 0);
-            return {
-              ...color,
-              quantity: clamp(currentQty + quantityChange)
-            };
+            return { ...color, quantity: clamp(Number(color?.quantity ?? 0) + quantityChange) };
           });
 
           const totalStock = recalculateTotalFromColors(updatedColors);
-          return applyTotalStock(
-            {
-              ...product,
-              colors: updatedColors
-            },
-            totalStock
-          );
+          return applyTotalStock({ ...product, colors: updatedColors }, totalStock);
         }
 
         const totalStock = clamp(baseStock + quantityChange);
         return applyTotalStock(product, totalStock);
       });
 
-      return {
-        ...oldData,
-        data: {
-          ...oldData.data,
-          products: updatedProducts
-        }
-      };
+      return { ...oldData, data: { ...oldData.data, products: updatedProducts } };
     });
   };
 
-  // دالة للحصول على مخزون منتج معين
-  const getProductStock = (
-    productId: string, 
-    colorId?: string, 
-    sizeId?: string
-  ): number => {
+  const getProductStock = (productId: string, colorId?: string, sizeId?: string): number => {
     if (!posData?.products) return 0;
 
     const product = posData.products.find(p => p.id === productId);
     if (!product) return 0;
 
+    const productColors = ensureArray(product.colors) as any[];
+
     if (colorId && sizeId) {
-      const color = product.colors?.find((c: any) => c.id === colorId);
-      const size = color?.sizes?.find((s: any) => s.id === sizeId);
+      const color = productColors.find((c: any) => c.id === colorId);
+      const colorSizes = ensureArray(color?.sizes) as any[];
+      const size = colorSizes.find((s: any) => s.id === sizeId);
       return size?.quantity || 0;
     } else if (colorId) {
-      const color = product.colors?.find((c: any) => c.id === colorId);
+      const color = productColors.find((c: any) => c.id === colorId);
       return color?.quantity || 0;
     } else {
       return product.actual_stock_quantity || product.stock_quantity || 0;
     }
   };
 
-  // Log detailed product info
-  if (posData?.products && posData.products.length > 0) {
-    const firstProduct = posData.products[0];
-    console.log('[useUnifiedPOSData] عينة من المنتجات:', {
-      totalProducts: posData.products.length,
-      firstProductId: firstProduct?.id,
-      firstProductName: firstProduct?.name,
-      firstProductKeys: Object.keys(firstProduct || {}),
-      hasVariants: !!firstProduct?.colors || !!firstProduct?.variants,
-      sample: firstProduct
-    });
-  } else {
-    console.warn('[useUnifiedPOSData] ⚠️ لا توجد منتجات في posData!', {
-      posData,
-      hasProducts: !!posData?.products,
-      productsType: typeof posData?.products,
-      productsLength: posData?.products?.length
-    });
-  }
-
-  console.log('[useUnifiedPOSData] Hook returning data', {
-    hasData: !!posData,
-    isLoading,
-    isRefetching,
-    hasError,
-    productsCount: posData?.products?.length || 0,
-    customersCount: posData?.customers?.length || 0,
-    ordersCount: posData?.recent_orders?.length || 0,
-    cacheTimestamp: typedResponse?.meta?.data_timestamp
-  });
-
   return {
-    // البيانات الأساسية
     posData,
     isLoading,
     isRefetching,
@@ -1344,7 +984,6 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
     errorMessage,
     executionStats,
 
-    // البيانات المنفصلة للسهولة
     products: posData?.products || [],
     pagination: (posData as any)?.pagination || undefined,
     subscriptions: posData?.subscriptions || [],
@@ -1358,14 +997,12 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
     inventoryStats: posData?.inventory_stats,
     orderStats: posData?.order_stats,
 
-    // دوال التحديث
     invalidateCache,
     refreshData,
     updateProductInCache,
     updateProductStockInCache,
     getProductStock,
 
-    // معلومات الأداء
     executionTime: executionStats?.execution_time_ms,
     dataTimestamp: executionStats?.data_timestamp,
   };

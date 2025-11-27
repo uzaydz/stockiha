@@ -26,8 +26,12 @@ const ProductListItem: React.FC<ProductItemProps> = ({
     onAddToCart(product);
   }, [product, onAddToCart]);
 
-  // معالجة محسّنة للصور
+  // معالجة محسّنة للصور - ⚡ دعم thumbnail_base64 للعمل Offline
   const imageUrl = React.useMemo(() => {
+    // ⚡ أولاً: الصورة المحلية Base64 (للعمل Offline)
+    if ((product as any).thumbnail_base64 && (product as any).thumbnail_base64.trim()) {
+      return (product as any).thumbnail_base64;
+    }
     if (product.thumbnail_image && product.thumbnail_image.trim()) return product.thumbnail_image;
     if ((product as any).thumbnailImage && (product as any).thumbnailImage.trim()) return (product as any).thumbnailImage;
     if (product.images && Array.isArray(product.images) && product.images.length > 0) {

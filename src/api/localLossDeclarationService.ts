@@ -1,12 +1,16 @@
-import { v4 as uuidv4 } from 'uuid';
-import { inventoryDB, type LocalLossDeclaration, type LocalLossItem } from '@/database/localDb';
-import { UnifiedQueue } from '@/sync/UnifiedQueue';
-import { updateProductStock } from './offlineProductService';
-
 /**
- * خدمة إدارة التصريح بالخسائر المحلية
- * تدعم الأوفلاين والأونلاين مع المزامنة التلقائية وتحديث المخزون
+ * localLossDeclarationService - خدمة التصريح بالخسائر المحلية
+ *
+ * ⚡ تم التحديث لاستخدام Delta Sync بالكامل
+ *
+ * - Local-First: الكتابة محلياً فوراً
+ * - Offline-First: يعمل بدون إنترنت
+ * - DELTA operations: لتحديث المخزون عند الخسائر
  */
+
+import { v4 as uuidv4 } from 'uuid';
+import type { LocalLossDeclaration, LocalLossItem } from '@/database/localDb';
+import { deltaWriteService } from '@/services/DeltaWriteService';
 
 // إعادة تصدير الأنواع لتكون متاحة للاستخدام الخارجي
 export type { LocalLossDeclaration, LocalLossItem } from '@/database/localDb';
@@ -26,6 +30,7 @@ export const createLocalLossDeclaration = async (
   const lossRecord: LocalLossDeclaration = {
     ...data.lossData,
     id: lossId,
+    loss_number_lower: data.lossData.loss_number?.toLowerCase(),
     created_at: now,
     updated_at: now,
     synced: false,
@@ -33,32 +38,27 @@ export const createLocalLossDeclaration = async (
     pendingOperation: 'create'
   };
 
-  await inventoryDB.lossDeclarations.put(lossRecord);
+  const itemRecords: LocalLossItem[] = data.items.map(item => ({
+    ...item,
+    id: uuidv4(),
+    loss_id: lossId,
+    created_at: now,
+    synced: false,
+    inventory_adjusted: false
+  }));
 
-  const itemRecords: LocalLossItem[] = [];
-  
-  for (const item of data.items) {
-    const itemRecord: LocalLossItem = {
-      ...item,
-      id: uuidv4(),
-      loss_id: lossId,
-      created_at: now,
-      synced: false
-    };
-    
-    itemRecords.push(itemRecord);
-    await inventoryDB.lossItems.put(itemRecord);
+  // ⚡ استخدام Delta Sync (بدون تحديث المخزون - يتم عند الموافقة)
+  const result = await deltaWriteService.createLossWithItems(
+    data.lossData.organization_id,
+    lossRecord,
+    itemRecords
+  );
+
+  if (!result.success) {
+    throw new Error(`Failed to create loss declaration: ${result.error}`);
   }
 
-  // إضافة إلى صف المزامنة
-  await UnifiedQueue.enqueue({
-    objectType: 'inventory',
-    objectId: lossId,
-    operation: 'create',
-    data: { loss: lossRecord, items: itemRecords },
-    priority: 2
-  });
-
+  console.log(`[LocalLoss] ⚡ Created loss ${lossId} with ${itemRecords.length} items via Delta Sync`);
   return { loss: lossRecord, items: itemRecords };
 };
 
@@ -67,31 +67,36 @@ export const updateLocalLossDeclaration = async (
   lossId: string,
   updates: Partial<Omit<LocalLossDeclaration, 'id' | 'created_at' | 'organization_id' | 'loss_number'>>
 ): Promise<LocalLossDeclaration | null> => {
-  const existing = await inventoryDB.lossDeclarations.get(lossId);
-  if (!existing) return null;
+  try {
+    const existing = await deltaWriteService.get<LocalLossDeclaration>('loss_declarations', lossId);
+    if (!existing) return null;
 
-  const now = new Date().toISOString();
-  const updated: LocalLossDeclaration = {
-    ...existing,
-    ...updates,
-    updated_at: now,
-    synced: false,
-    syncStatus: 'pending',
-    pendingOperation: 'update'
-  };
+    const now = new Date().toISOString();
+    const updatedData = {
+      ...updates,
+      updated_at: now,
+      synced: false,
+      syncStatus: 'pending',
+      pendingOperation: existing.pendingOperation === 'create' ? 'create' : 'update'
+    };
 
-  await inventoryDB.lossDeclarations.put(updated);
+    // ⚡ استخدام Delta Sync
+    const result = await deltaWriteService.update('loss_declarations', lossId, updatedData);
 
-  // إضافة إلى صف المزامنة
-  await UnifiedQueue.enqueue({
-    objectType: 'inventory',
-    objectId: lossId,
-    operation: 'update',
-    data: updated,
-    priority: 2
-  });
+    if (!result.success) {
+      console.error(`[LocalLoss] Failed to update loss ${lossId}:`, result.error);
+      return null;
+    }
 
-  return updated;
+    console.log(`[LocalLoss] ⚡ Updated loss ${lossId} via Delta Sync`);
+    return {
+      ...existing,
+      ...updatedData
+    } as LocalLossDeclaration;
+  } catch (error) {
+    console.error(`[LocalLoss] Update error:`, error);
+    return null;
+  }
 };
 
 // الموافقة على تصريح خسارة وتحديث المخزون
@@ -99,45 +104,41 @@ export const approveLocalLossDeclaration = async (
   lossId: string,
   approvedBy: string
 ): Promise<LocalLossDeclaration | null> => {
-  const loss = await inventoryDB.lossDeclarations.get(lossId);
-  if (!loss) return null;
+  try {
+    const loss = await deltaWriteService.get<LocalLossDeclaration>('loss_declarations', lossId);
+    if (!loss) return null;
 
-  const items = await inventoryDB.lossItems
-    .where('loss_id')
-    .equals(lossId)
-    .toArray();
+    const items = await deltaWriteService.getAll<LocalLossItem>('loss_items', loss.organization_id, {
+      where: 'loss_id = ?',
+      params: [lossId]
+    });
 
-  // تحديث المخزون لجميع العناصر
-  for (const item of items) {
-    if (!item.inventory_adjusted) {
-      try {
-        // تحديث المخزون حسب التوقيع الصحيح للدالة
-        await updateProductStock(
-          loss.organization_id,  // organizationId
-          item.product_id,       // productId
-          item.lost_quantity,    // quantity
-          true,                  // isReduction = true (نقص في المخزون)
-          {
-            colorId: item.color_id || undefined,
-            sizeId: item.size_id || undefined
-          }
+    // تحديث المخزون لجميع العناصر التي لم يتم تعديل مخزونها بعد
+    for (const item of items) {
+      if (!item.inventory_adjusted) {
+        // ⚡ استخدام DELTA operation لتقليل المخزون
+        await deltaWriteService.updateProductStock(
+          item.product_id,
+          -Math.abs(item.lost_quantity), // سالب للتقليل
+          { colorId: item.color_id || undefined, sizeId: item.size_id || undefined }
         );
 
         // تحديث حالة العنصر
-        await inventoryDB.lossItems.update(item.id, {
+        await deltaWriteService.update('loss_items', item.id, {
           inventory_adjusted: true
         });
-      } catch (error) {
-        console.error('فشل تحديث المخزون للمنتج:', item.product_id, error);
       }
     }
-  }
 
-  return await updateLocalLossDeclaration(lossId, {
-    status: 'approved',
-    approved_by: approvedBy,
-    approved_at: new Date().toISOString()
-  });
+    return await updateLocalLossDeclaration(lossId, {
+      status: 'approved',
+      approved_by: approvedBy,
+      approved_at: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error(`[LocalLoss] Approve error:`, error);
+    return null;
+  }
 };
 
 // رفض تصريح خسارة
@@ -153,7 +154,7 @@ export const rejectLocalLossDeclaration = async (
 export const processLocalLossDeclaration = async (
   lossId: string
 ): Promise<LocalLossDeclaration | null> => {
-  const loss = await inventoryDB.lossDeclarations.get(lossId);
+  const loss = await deltaWriteService.get<LocalLossDeclaration>('loss_declarations', lossId);
   if (!loss || loss.status !== 'approved') return null;
 
   return await updateLocalLossDeclaration(lossId, {
@@ -165,37 +166,33 @@ export const processLocalLossDeclaration = async (
 export const getLocalLossDeclaration = async (
   lossId: string
 ): Promise<{ loss: LocalLossDeclaration; items: LocalLossItem[] } | null> => {
-  const loss = await inventoryDB.lossDeclarations.get(lossId);
+  const loss = await deltaWriteService.get<LocalLossDeclaration>('loss_declarations', lossId);
   if (!loss) return null;
 
-  const items = await inventoryDB.lossItems
-    .where('loss_id')
-    .equals(lossId)
-    .toArray();
+  const items = await deltaWriteService.getAll<LocalLossItem>('loss_items', loss.organization_id, {
+    where: 'loss_id = ?',
+    params: [lossId]
+  });
 
   return { loss, items };
 };
 
 // جلب جميع تصاريح الخسائر حسب المؤسسة
 export const getAllLocalLossDeclarations = async (organizationId: string): Promise<LocalLossDeclaration[]> => {
-  return await inventoryDB.lossDeclarations
-    .where('organization_id')
-    .equals(organizationId)
-    .and(loss => loss.pendingOperation !== 'delete')
-    .toArray();
+  return deltaWriteService.getAll<LocalLossDeclaration>('loss_declarations', organizationId, {
+    where: "(pending_operation IS NULL OR pending_operation != 'delete')",
+    orderBy: 'created_at DESC'
+  });
 };
 
 // جلب التصاريح غير المتزامنة
 export const getUnsyncedLossDeclarations = async (): Promise<LocalLossDeclaration[]> => {
-  // التحقق من وجود الجدول قبل الوصول إليه
-  if (!inventoryDB.lossDeclarations) {
-    console.warn('[getUnsyncedLossDeclarations] lossDeclarations table not available');
-    return [];
-  }
-  
-  return await inventoryDB.lossDeclarations
-    .filter(loss => loss.synced === false)
-    .toArray();
+  const orgId = localStorage.getItem('currentOrganizationId') ||
+    localStorage.getItem('bazaar_organization_id') || '';
+
+  return deltaWriteService.getAll<LocalLossDeclaration>('loss_declarations', orgId, {
+    where: 'synced = 0'
+  });
 };
 
 // تحديث حالة المزامنة
@@ -204,37 +201,22 @@ export const updateLossDeclarationSyncStatus = async (
   synced: boolean,
   syncStatus?: 'pending' | 'syncing' | 'error'
 ): Promise<void> => {
-  const loss = await inventoryDB.lossDeclarations.get(lossId);
-  if (!loss) return;
-
-  await inventoryDB.lossDeclarations.update(lossId, {
+  const updatedData: any = {
     synced,
-    syncStatus,
-    pendingOperation: synced ? undefined : loss.pendingOperation
-  });
+    sync_status: syncStatus || null
+  };
+
+  if (synced) {
+    updatedData.pending_operation = null;
+  }
+
+  await deltaWriteService.update('loss_declarations', lossId, updatedData);
 };
 
 // مسح التصاريح المتزامنة والمحذوفة
 export const cleanupSyncedLossDeclarations = async (): Promise<number> => {
-  const toDelete = await inventoryDB.lossDeclarations
-    .filter(loss => loss.synced === true && loss.pendingOperation === 'delete')
-    .toArray();
-
-  for (const loss of toDelete) {
-    // حذف العناصر المرتبطة
-    const items = await inventoryDB.lossItems
-      .where('loss_id')
-      .equals(loss.id)
-      .toArray();
-    
-    for (const item of items) {
-      await inventoryDB.lossItems.delete(item.id);
-    }
-
-    await inventoryDB.lossDeclarations.delete(loss.id);
-  }
-
-  return toDelete.length;
+  console.log('[LocalLoss] Cleanup handled by Delta Sync automatically');
+  return 0;
 };
 
 // حساب إجماليات الخسائر
@@ -260,17 +242,28 @@ export async function getLocalLossDeclarationsPage(
   options: { offset?: number; limit?: number; status?: string | string[]; createdSort?: 'asc' | 'desc' } = {}
 ): Promise<{ losses: LocalLossDeclaration[]; total: number }> {
   const { offset = 0, limit = 50, status, createdSort = 'desc' } = options;
-  let coll = inventoryDB.lossDeclarations
-    .where('[organization_id+created_at]') as any;
-  coll = coll.between([organizationId, ''], [organizationId, '\\uffff']);
-  if (createdSort === 'desc') coll = coll.reverse();
+
+  let whereClause = "organization_id = ?";
+  const params: any[] = [organizationId];
+
   if (status) {
     const statuses = Array.isArray(status) ? status : [status];
-    coll = coll.and((l: any) => statuses.includes(l.status));
+    const placeholders = statuses.map(() => '?').join(',');
+    whereClause += ` AND status IN (${placeholders})`;
+    params.push(...statuses);
   }
-  const total = await coll.count();
-  const page = await coll.offset(offset).limit(limit).toArray();
-  return { losses: page as any, total };
+
+  const losses = await deltaWriteService.getAll<LocalLossDeclaration>('loss_declarations', organizationId, {
+    where: whereClause,
+    params,
+    orderBy: `created_at ${createdSort === 'desc' ? 'DESC' : 'ASC'}`,
+    limit,
+    offset
+  });
+
+  const total = await deltaWriteService.count('loss_declarations', organizationId);
+
+  return { losses, total };
 }
 
 export async function fastSearchLocalLossDeclarations(
@@ -281,16 +274,86 @@ export async function fastSearchLocalLossDeclarations(
   const q = (query || '').toLowerCase();
   if (!q) return [];
   const limit = options.limit ?? 200;
-  const statuses = options.status ? (Array.isArray(options.status) ? options.status : [options.status]) : null;
 
-  const results = new Map<string, LocalLossDeclaration>();
-
-  const byNum = await (inventoryDB.lossDeclarations
-    .where('[organization_id+loss_number_lower]') as any)
-    .between([organizationId, q], [organizationId, q + '\\uffff'])
-    .limit(limit)
-    .toArray();
-  byNum.forEach((l: any) => { if (!statuses || statuses.includes(l.status)) results.set(l.id, l); });
-
-  return Array.from(results.values()).slice(0, limit);
+  return deltaWriteService.search<LocalLossDeclaration>(
+    'loss_declarations',
+    organizationId,
+    ['loss_number_lower'],
+    q,
+    limit
+  );
 }
+
+// =====================
+// حفظ البيانات من السيرفر
+// =====================
+
+export const saveRemoteLossDeclarations = async (losses: any[]): Promise<void> => {
+  if (!losses || losses.length === 0) return;
+
+  const now = new Date().toISOString();
+
+  for (const loss of losses) {
+    const mappedLoss: LocalLossDeclaration = {
+      id: loss.id,
+      loss_number: loss.loss_number,
+      loss_number_lower: loss.loss_number?.toLowerCase(),
+      remote_loss_id: loss.id,
+      loss_type: loss.loss_type,
+      loss_category: loss.loss_category,
+      loss_description: loss.loss_description,
+      incident_date: loss.incident_date,
+      reported_by: loss.reported_by,
+      status: loss.status || 'pending',
+      approved_by: loss.approved_by,
+      approved_at: loss.approved_at,
+      total_cost_value: loss.total_cost_value || 0,
+      total_selling_value: loss.total_selling_value || 0,
+      total_items_count: loss.total_items_count || 0,
+      notes: loss.notes,
+      organization_id: loss.organization_id,
+      created_at: loss.created_at || now,
+      updated_at: loss.updated_at || now,
+      synced: true,
+      syncStatus: undefined,
+      pendingOperation: undefined
+    };
+
+    await deltaWriteService.saveFromServer('loss_declarations', mappedLoss);
+  }
+
+  console.log(`[LocalLoss] ⚡ Saved ${losses.length} remote loss declarations`);
+};
+
+export const saveRemoteLossItems = async (lossId: string, items: any[]): Promise<void> => {
+  if (!items || items.length === 0) return;
+
+  const now = new Date().toISOString();
+
+  for (const item of items) {
+    const mappedItem: LocalLossItem = {
+      id: item.id,
+      loss_id: lossId,
+      product_id: item.product_id,
+      product_name: item.product_name,
+      product_sku: item.product_sku,
+      lost_quantity: item.lost_quantity || 1,
+      unit_cost_price: item.unit_cost_price || 0,
+      unit_selling_price: item.unit_selling_price || 0,
+      total_cost_value: item.total_cost_value || 0,
+      total_selling_value: item.total_selling_value || 0,
+      loss_condition: item.loss_condition,
+      inventory_adjusted: item.inventory_adjusted || false,
+      color_id: item.color_id,
+      color_name: item.color_name,
+      size_id: item.size_id,
+      size_name: item.size_name,
+      created_at: item.created_at || now,
+      synced: true
+    };
+
+    await deltaWriteService.saveFromServer('loss_items', mappedItem);
+  }
+
+  console.log(`[LocalLoss] ⚡ Saved ${items.length} remote loss items`);
+};

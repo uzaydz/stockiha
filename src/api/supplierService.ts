@@ -1,4 +1,25 @@
 import { supabase } from '@/lib/supabase';
+import {
+  createLocalSupplier,
+  updateLocalSupplier,
+  deleteLocalSupplier,
+  getLocalSuppliers,
+  getLocalSupplierById,
+  saveServerSuppliersToLocal,
+  type LocalSupplier
+} from './localSupplierService';
+import { isSQLiteAvailable } from '@/lib/db/sqliteAPI';
+
+// التحقق من توفر SQLite (Electron أو Tauri)
+const isDesktopApp = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  // فحص Electron
+  if ((window as any).electronAPI?.db) return true;
+  // فحص Tauri
+  const w = window as any;
+  if (w.__TAURI_IPC__ || w.__TAURI__ || w.isTauri) return true;
+  return isSQLiteAvailable();
+};
 
 // Interfaces that match the database schema
 export interface Supplier {
@@ -107,19 +128,60 @@ export interface SupplierPaymentSummary {
 
 // API Functions
 
-// Get all suppliers
+// Get all suppliers - دعم offline-first
 export async function getSuppliers(organizationId: string): Promise<Supplier[]> {
   try {
+    console.log('[supplierService] جلب الموردين للمؤسسة:', organizationId);
+    
+    // ⚡ محاولة جلب البيانات من السيرفر أولاً
     const { data, error } = await supabase
       .from('suppliers')
       .select('*')
       .eq('organization_id', organizationId)
       .order('name');
     
-    if (error) throw error;
+    if (error) {
+      console.warn('[supplierService] ⚠️ خطأ في جلب الموردين من السيرفر:', error.message);
+      
+      // 🔄 Fallback للقاعدة المحلية في حالة عدم الاتصال
+      if (isDesktopApp()) {
+        console.log('[supplierService] 📦 جلب الموردين من القاعدة المحلية...');
+        const localSuppliers = await getLocalSuppliers(organizationId);
+        console.log('[supplierService] ✅ تم جلب الموردين من المحلي:', { count: localSuppliers.length });
+        return localSuppliers as unknown as Supplier[];
+      }
+      
+      throw error;
+    }
     
+    // ⚡ حفظ البيانات محلياً للاستخدام offline
+    if (isDesktopApp() && data && data.length > 0) {
+      try {
+        await saveServerSuppliersToLocal(data as unknown as LocalSupplier[], organizationId);
+        console.log('[supplierService] 💾 تم حفظ الموردين محلياً');
+      } catch (saveError) {
+        console.warn('[supplierService] ⚠️ فشل حفظ الموردين محلياً:', saveError);
+      }
+    }
+    
+    console.log('[supplierService] ✅ تم جلب الموردين من السيرفر:', { count: data?.length || 0 });
     return data || [];
   } catch (error) {
+    console.error('[supplierService] ❌ خطأ غير متوقع:', error);
+    
+    // 🔄 محاولة أخيرة من القاعدة المحلية
+    if (isDesktopApp()) {
+      try {
+        const localSuppliers = await getLocalSuppliers(organizationId);
+        if (localSuppliers.length > 0) {
+          console.log('[supplierService] 📦 تم جلب الموردين من القاعدة المحلية (fallback)');
+          return localSuppliers as unknown as Supplier[];
+        }
+      } catch (localError) {
+        console.warn('[supplierService] ⚠️ فشل جلب الموردين محلياً:', localError);
+      }
+    }
+    
     return [];
   }
 }
@@ -142,10 +204,49 @@ export async function getSupplierById(organizationId: string, supplierId: string
   }
 }
 
-// Create a new supplier
+// Create a new supplier - دعم offline-first
 export async function createSupplier(organizationId: string, supplier: Omit<Supplier, 'id' | 'created_at' | 'updated_at'>): Promise<Supplier | null> {
   try {
+    // ⚡ في Electron: حفظ محلياً أولاً
+    if (isDesktopApp()) {
+      console.log('[supplierService] 📝 إنشاء مورد محلياً...');
+      const localSupplier = await createLocalSupplier({
+        ...supplier,
+        organization_id: organizationId
+      });
+      console.log('[supplierService] ✅ تم إنشاء المورد محلياً:', localSupplier.id);
+      
+      // محاولة الإرسال للسيرفر في الخلفية
+      (async () => {
+        try {
+          const { data, error } = await supabase
+            .from('suppliers')
+            .insert({
+              ...localSupplier,
+              synced: undefined,
+              sync_status: undefined,
+              pending_operation: undefined,
+              local_updated_at: undefined,
+              name_lower: undefined,
+              email_lower: undefined,
+              phone_digits: undefined
+            })
+            .select()
+            .single();
+          
+          if (!error && data) {
+            await updateLocalSupplier(localSupplier.id, { synced: true, sync_status: 'synced' } as any);
+            console.log('[supplierService] ☁️ تم مزامنة المورد مع السيرفر');
+          }
+        } catch (err: any) {
+          console.warn('[supplierService] ⚠️ فشل المزامنة مع السيرفر:', err?.message);
+        }
+      })();
+      
+      return localSupplier as unknown as Supplier;
+    }
 
+    // 🌐 بدون Electron: إرسال للسيرفر مباشرة
     const { data, error } = await supabase
       .from('suppliers')
       .insert({
@@ -161,15 +262,51 @@ export async function createSupplier(organizationId: string, supplier: Omit<Supp
 
     return data;
   } catch (error) {
-    if (error instanceof Error) {
-    }
+    console.error('[supplierService] ❌ خطأ في إنشاء المورد:', error);
     return null;
   }
 }
 
-// Update an existing supplier
+// Update an existing supplier - دعم offline-first
 export async function updateSupplier(organizationId: string, supplierId: string, updates: Partial<Supplier>): Promise<Supplier | null> {
   try {
+    // ⚡ في Electron: تحديث محلياً أولاً
+    if (isDesktopApp()) {
+      console.log('[supplierService] 📝 تحديث مورد محلياً...');
+      const updatedSupplier = await updateLocalSupplier(supplierId, updates);
+      
+      if (!updatedSupplier) {
+        console.warn('[supplierService] ⚠️ المورد غير موجود محلياً');
+        return null;
+      }
+      
+      console.log('[supplierService] ✅ تم تحديث المورد محلياً');
+      
+      // محاولة التحديث في السيرفر في الخلفية
+      (async () => {
+        try {
+          const { error } = await supabase
+            .from('suppliers')
+            .update({
+              ...updates,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('organization_id', organizationId)
+            .eq('id', supplierId);
+          
+          if (!error) {
+            await updateLocalSupplier(supplierId, { synced: true, sync_status: 'synced' } as any);
+            console.log('[supplierService] ☁️ تم مزامنة تحديث المورد مع السيرفر');
+          }
+        } catch (err: any) {
+          console.warn('[supplierService] ⚠️ فشل مزامنة التحديث:', err?.message);
+        }
+      })();
+      
+      return updatedSupplier as unknown as Supplier;
+    }
+
+    // 🌐 بدون Electron: تحديث في السيرفر مباشرة
     const { data, error } = await supabase
       .from('suppliers')
       .update({
@@ -185,13 +322,45 @@ export async function updateSupplier(organizationId: string, supplierId: string,
     
     return data;
   } catch (error) {
+    console.error('[supplierService] ❌ خطأ في تحديث المورد:', error);
     return null;
   }
 }
 
-// Delete a supplier
+// Delete a supplier - دعم offline-first
 export async function deleteSupplier(organizationId: string, supplierId: string): Promise<boolean> {
   try {
+    // ⚡ في Electron: حذف محلياً أولاً
+    if (isDesktopApp()) {
+      console.log('[supplierService] 🗑️ حذف مورد محلياً...');
+      const deleted = await deleteLocalSupplier(supplierId);
+      
+      if (deleted) {
+        console.log('[supplierService] ✅ تم حذف المورد محلياً');
+        
+        // محاولة الحذف من السيرفر في الخلفية
+        (async () => {
+          try {
+            const { error } = await supabase
+              .from('suppliers')
+              .delete()
+              .eq('organization_id', organizationId)
+              .eq('id', supplierId);
+            
+            if (!error) {
+              console.log('[supplierService] ☁️ تم حذف المورد من السيرفر');
+            }
+          } catch (err: any) {
+            console.warn('[supplierService] ⚠️ فشل حذف المورد من السيرفر:', err?.message);
+          }
+        })();
+        
+        return true;
+      }
+      return false;
+    }
+
+    // 🌐 بدون Electron: حذف من السيرفر مباشرة
     const { error } = await supabase
       .from('suppliers')
       .delete()
@@ -202,6 +371,7 @@ export async function deleteSupplier(organizationId: string, supplierId: string)
     
     return true;
   } catch (error) {
+    console.error('[supplierService] ❌ خطأ في حذف المورد:', error);
     return false;
   }
 }

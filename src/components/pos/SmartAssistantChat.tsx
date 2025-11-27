@@ -1,11 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Send, Loader2, User, RotateCcw, Zap, X } from 'lucide-react';
+import { Send, Loader2, User, RotateCcw, Zap, X, RefreshCw, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AssistantOrchestrator } from '@/services/assistant/AssistantOrchestrator';
 import { UnifiedMutationService, ExpenseAssistantService } from '@/services/assistant/UnifiedMutationService';
@@ -15,12 +13,16 @@ import { ExpenseQuickForm } from './ExpenseQuickForm';
 import { RepairQuickForm } from './RepairQuickForm';
 import { useToast } from '@/hooks/use-toast';
 import { useOptimizedAuth } from '@/hooks/useOptimizedAuth';
+import { QueryHistory } from '@/services/assistant/QueryHistory';
 
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: number;
+  error?: boolean;
+  retryable?: boolean;
+  originalQuery?: string;
 }
 
 interface SmartAssistantChatProps {
@@ -58,7 +60,7 @@ export const SmartAssistantChat: React.FC<SmartAssistantChatProps> = ({ open, on
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) return JSON.parse(raw);
-    } catch {}
+    } catch { }
     return [
       {
         id: 'welcome',
@@ -82,14 +84,19 @@ export const SmartAssistantChat: React.FC<SmartAssistantChatProps> = ({ open, on
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
-    } catch {}
+    } catch { }
   }, [messages]);
 
   // auto scroll
   useEffect(() => {
     if (!open) return;
-    const v = viewportRef.current?.querySelector('[data-radix-scroll-area-viewport]') as HTMLDivElement | null;
-    if (v) v.scrollTop = v.scrollHeight;
+    // Use requestAnimationFrame to avoid forced reflow violations during render
+    requestAnimationFrame(() => {
+      const v = viewportRef.current?.querySelector('[data-radix-scroll-area-viewport]') as HTMLDivElement | null;
+      if (v) {
+        v.scrollTop = v.scrollHeight;
+      }
+    });
   }, [messages, open]);
 
   // rotate loading messages
@@ -115,6 +122,11 @@ export const SmartAssistantChat: React.FC<SmartAssistantChatProps> = ({ open, on
     // لا نضيف أي رسالة - إيقاف تام
   };
 
+  const retryMessage = (originalQuery: string) => {
+    if (loading) return;
+    sendMessage(originalQuery);
+  };
+
   const sendMessage = async (text?: string) => {
     const q = (text ?? input).trim();
     if (!q || loading) return;
@@ -122,10 +134,10 @@ export const SmartAssistantChat: React.FC<SmartAssistantChatProps> = ({ open, on
     setMessages(prev => [...prev, userMsg]);
     setInput('');
     setLoading(true);
-    
+
     // إنشاء AbortController جديد
     abortControllerRef.current = new AbortController();
-    
+
     try {
       const res = await AssistantOrchestrator.process(q, {
         organizationId: organizationId || undefined,
@@ -140,23 +152,23 @@ export const SmartAssistantChat: React.FC<SmartAssistantChatProps> = ({ open, on
         if (parsed?.type === 'product_with_variants' && parsed.product) {
           lastProductRef.current = parsed.product;
           setVariantState({ open: true, product: parsed.product });
-          const botMsg: Message = { id: String(Date.now()+1), role: 'assistant', content: 'يرجى تحديد المتغيرات والكمية المطلوبة.', timestamp: Date.now() };
+          const botMsg: Message = { id: String(Date.now() + 1), role: 'assistant', content: 'يرجى تحديد المتغيرات والكمية المطلوبة.', timestamp: Date.now() };
           setMessages(prev => [...prev, botMsg]);
           return;
         }
         if (parsed?.type === 'expense_form') {
           setExpenseState({ open: true, form: parsed });
-          const botMsg: Message = { id: String(Date.now()+1), role: 'assistant', content: 'أكمل حقول المصروف ثم اضغط تسجيل.', timestamp: Date.now() };
+          const botMsg: Message = { id: String(Date.now() + 1), role: 'assistant', content: 'أكمل حقول المصروف ثم اضغط تسجيل.', timestamp: Date.now() };
           setMessages(prev => [...prev, botMsg]);
           return;
         }
         if (parsed?.type === 'repair_form') {
           setRepairState({ open: true, form: parsed });
-          const botMsg: Message = { id: String(Date.now()+1), role: 'assistant', content: 'أكمل حقول طلبية التصليح ثم اضغط تسجيل.', timestamp: Date.now() };
+          const botMsg: Message = { id: String(Date.now() + 1), role: 'assistant', content: 'أكمل حقول طلبية التصليح ثم اضغط تسجيل.', timestamp: Date.now() };
           setMessages(prev => [...prev, botMsg]);
           return;
         }
-      } catch {}
+      } catch { }
 
       // حفظ آخر منتج إن وُجد في data
       if ((res as any).data?.product) {
@@ -169,29 +181,55 @@ export const SmartAssistantChat: React.FC<SmartAssistantChatProps> = ({ open, on
           const parsed2 = JSON.parse(res.answer);
           if (parsed2?.type === 'expense_form') {
             setExpenseState({ open: true, form: parsed2 });
-            const botMsg2: Message = { id: String(Date.now()+1), role: 'assistant', content: 'أكمل حقول المصروف ثم اضغط تسجيل.', timestamp: Date.now() };
+            const botMsg2: Message = { id: String(Date.now() + 1), role: 'assistant', content: 'أكمل حقول المصروف ثم اضغط تسجيل.', timestamp: Date.now() };
             setMessages(prev => [...prev, botMsg2]);
             setLoading(false);
             return;
           }
           if (parsed2?.type === 'repair_form') {
             setRepairState({ open: true, form: parsed2 });
-            const botMsg3: Message = { id: String(Date.now()+1), role: 'assistant', content: 'أكمل حقول طلبية التصليح ثم اضغط تسجيل.', timestamp: Date.now() };
+            const botMsg3: Message = { id: String(Date.now() + 1), role: 'assistant', content: 'أكمل حقول طلبية التصليح ثم اضغط تسجيل.', timestamp: Date.now() };
             setMessages(prev => [...prev, botMsg3]);
             setLoading(false);
             return;
           }
         }
-      } catch {}
+      } catch { }
 
-      const botMsg: Message = { id: String(Date.now()+1), role: 'assistant', content: res.answer, timestamp: Date.now() };
+      // تحقق من وجود خطأ في الاستجابة
+      const isError = (res as any).error === true;
+      const botMsg: Message = {
+        id: String(Date.now() + 1),
+        role: 'assistant',
+        content: res.answer,
+        timestamp: Date.now(),
+        error: isError,
+        retryable: isError && !res.answer.includes('غير صالح') && !res.answer.includes('لا توجد لديك صلاحية'),
+        originalQuery: isError ? q : undefined
+      };
       setMessages(prev => [...prev, botMsg]);
+
+      // تسجيل الاستعلام في التاريخ
+      QueryHistory.add({
+        query: q,
+        response: res.answer,
+        success: !isError,
+        intent: (res as any).intent
+      });
     } catch (e: any) {
       // تجاهل الأخطاء إذا تم الإلغاء
       if (e?.name === 'AbortError' || abortControllerRef.current?.signal.aborted) {
         return;
       }
-      const botMsg: Message = { id: String(Date.now()+1), role: 'assistant', content: 'عذراً، حدث خطأ أثناء معالجة طلبك. يرجى المحاولة مرة أخرى.', timestamp: Date.now() };
+      const botMsg: Message = {
+        id: String(Date.now() + 1),
+        role: 'assistant',
+        content: 'عذراً، حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.',
+        timestamp: Date.now(),
+        error: true,
+        retryable: true,
+        originalQuery: q
+      };
       setMessages(prev => [...prev, botMsg]);
     } finally {
       abortControllerRef.current = null;
@@ -220,7 +258,7 @@ export const SmartAssistantChat: React.FC<SmartAssistantChatProps> = ({ open, on
       })();
 
       if (!fallbackOrgId) {
-        const botMsg: Message = { id: String(Date.now()+1), role: 'assistant', content: 'لم يتم تحديد المؤسسة. يرجى التحقق من إعدادات حسابك.', timestamp: Date.now() };
+        const botMsg: Message = { id: String(Date.now() + 1), role: 'assistant', content: 'لم يتم تحديد المؤسسة. يرجى التحقق من إعدادات حسابك.', timestamp: Date.now() };
         setMessages(prev => [...prev, botMsg]);
         return;
       }
@@ -239,7 +277,7 @@ export const SmartAssistantChat: React.FC<SmartAssistantChatProps> = ({ open, on
       const sizeName = size ? (size.name || size.size_name) : '';
       const available = computeAvailableStock(updated || p);
       const botMsg: Message = {
-        id: String(Date.now()+1),
+        id: String(Date.now() + 1),
         role: 'assistant',
         content: `تم التحديث: ${p.name}${colorName ? ` • اللون ${colorName}` : ''}${sizeName ? ` • المقاس ${sizeName}` : ''} — المتاح الآن: ${available}`,
         timestamp: Date.now(),
@@ -278,9 +316,9 @@ export const SmartAssistantChat: React.FC<SmartAssistantChatProps> = ({ open, on
         if (!categoryId && data.category) {
           const newCat = await createLocalExpenseCategory(data.category);
           categoryId = newCat.id;
-          try { void import('@/api/syncExpenseCategories').then(m => m.syncPendingExpenseCategories()); } catch {}
+          try { void import('@/api/syncExpenseCategories').then(m => m.syncPendingExpenseCategories()); } catch { }
         }
-      } catch {}
+      } catch { }
 
       const created = await ExpenseAssistantService.createExpense({
         title: data.title,
@@ -291,9 +329,9 @@ export const SmartAssistantChat: React.FC<SmartAssistantChatProps> = ({ open, on
         vendor_name: data.vendor_name,
         notes: data.notes,
       });
-      setMessages(prev => [...prev, { id: String(Date.now()+2), role: 'assistant', content: `✅ تم تسجيل المصروف "${data.title}" بقيمة ${Number(data.amount).toFixed(2)} دج`, timestamp: Date.now() }]);
+      setMessages(prev => [...prev, { id: String(Date.now() + 2), role: 'assistant', content: `✅ تم تسجيل المصروف "${data.title}" بقيمة ${Number(data.amount).toFixed(2)} دج`, timestamp: Date.now() }]);
     } catch {
-      setMessages(prev => [...prev, { id: String(Date.now()+2), role: 'assistant', content: 'تعذر تسجيل المصروف.', timestamp: Date.now() }]);
+      setMessages(prev => [...prev, { id: String(Date.now() + 2), role: 'assistant', content: 'تعذر تسجيل المصروف.', timestamp: Date.now() }]);
     } finally {
       setLoading(false);
       setExpenseState({ open: false, form: null });
@@ -317,11 +355,11 @@ export const SmartAssistantChat: React.FC<SmartAssistantChatProps> = ({ open, on
       try {
         const { listLocalRepairLocations } = await import('@/api/localRepairService');
         const locs = await listLocalRepairLocations(organizationId || undefined);
-        const norm = (s:string)=> s.toString().trim().toLowerCase();
+        const norm = (s: string) => s.toString().trim().toLowerCase();
         const target = norm(data.repair_location || '');
-        const exact = (locs||[]).find((l:any)=> norm(l.name)===target) || (locs||[]).find((l:any)=> norm(l.name).includes(target)||target.includes(norm(l.name)));
+        const exact = (locs || []).find((l: any) => norm(l.name) === target) || (locs || []).find((l: any) => norm(l.name).includes(target) || target.includes(norm(l.name)));
         if (exact) locationId = exact.id;
-      } catch {}
+      } catch { }
       const { createLocalRepairOrder, addLocalRepairHistory } = await import('@/api/localRepairService');
       const order = await createLocalRepairOrder({
         customer_name: data.customer_name,
@@ -337,10 +375,10 @@ export const SmartAssistantChat: React.FC<SmartAssistantChatProps> = ({ open, on
         status: 'قيد الانتظار'
       });
       await addLocalRepairHistory({ orderId: order.id, status: 'قيد الانتظار', notes: 'تم إنشاء طلبية التصليح', createdBy: 'assistant' });
-      try { void import('@/api/syncRepairs').then(m => m.syncPendingRepairs()); } catch {}
-      setMessages(prev => [...prev, { id: String(Date.now()+2), role: 'assistant', content: `✅ تم إنشاء طلبية التصليح للعميل ${order.customer_name} • ${order.device_type || ''} • رقم: ${(order as any).repair_number || order.id}`, timestamp: Date.now() }]);
+      try { void import('@/api/syncRepairs').then(m => m.syncPendingRepairs()); } catch { }
+      setMessages(prev => [...prev, { id: String(Date.now() + 2), role: 'assistant', content: `✅ تم إنشاء طلبية التصليح للعميل ${order.customer_name} • ${order.device_type || ''} • رقم: ${(order as any).repair_number || order.id}`, timestamp: Date.now() }]);
     } catch {
-      setMessages(prev => [...prev, { id: String(Date.now()+2), role: 'assistant', content: 'تعذر إنشاء طلبية التصليح.', timestamp: Date.now() }]);
+      setMessages(prev => [...prev, { id: String(Date.now() + 2), role: 'assistant', content: 'تعذر إنشاء طلبية التصليح.', timestamp: Date.now() }]);
     } finally {
       setLoading(false);
       setRepairState({ open: false, form: null });
@@ -351,13 +389,14 @@ export const SmartAssistantChat: React.FC<SmartAssistantChatProps> = ({ open, on
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-3xl h-[90vh] flex flex-col p-0 gap-0 overflow-hidden">
         <DialogHeader className="px-6 py-4 border-b bg-gradient-to-r from-primary/5 via-background to-background backdrop-blur-sm">
+          <DialogDescription className="sr-only">مساعد ذكي للاستعلام عن المبيعات والمخزون</DialogDescription>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3.5">
               <div className="relative">
                 <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-950/20 dark:to-red-950/20 flex items-center justify-center shadow-sm ring-1 ring-orange-200/30 dark:ring-orange-800/30">
-                  <img 
-                    src="./images/selkia-logo.webp" 
-                    alt="SIRA AI" 
+                  <img
+                    src="./images/selkia-logo.webp"
+                    alt="SIRA AI"
                     className="h-8 w-8 object-contain"
                   />
                 </div>
@@ -368,15 +407,17 @@ export const SmartAssistantChat: React.FC<SmartAssistantChatProps> = ({ open, on
                 <p className="text-xs text-muted-foreground mt-0.5 font-medium">تتحدث لغة تجارتك</p>
               </div>
             </div>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              onClick={clearConversation} 
-              className="gap-2 text-muted-foreground hover:text-foreground hover:bg-primary/5 rounded-lg transition-all duration-200"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline text-xs font-medium">محادثة جديدة</span>
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clearConversation}
+                className="gap-2 text-muted-foreground hover:text-foreground hover:bg-primary/5 rounded-lg transition-all duration-200"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline text-xs font-medium">محادثة جديدة</span>
+              </Button>
+            </div>
           </div>
         </DialogHeader>
 
@@ -387,9 +428,9 @@ export const SmartAssistantChat: React.FC<SmartAssistantChatProps> = ({ open, on
                 {m.role === 'assistant' && (
                   <div className="flex-shrink-0">
                     <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-950/20 dark:to-red-950/20 flex items-center justify-center shadow-sm ring-1 ring-orange-200/30 dark:ring-orange-800/30">
-                      <img 
-                        src="./images/selkia-logo.webp" 
-                        alt="SIRA AI" 
+                      <img
+                        src="./images/selkia-logo.webp"
+                        alt="SIRA AI"
                         className="w-5 h-5 object-contain"
                       />
                     </div>
@@ -398,12 +439,35 @@ export const SmartAssistantChat: React.FC<SmartAssistantChatProps> = ({ open, on
                 <div className={cn('max-w-[82%] space-y-1.5 group', m.role === 'user' && 'flex flex-col items-end')}>
                   <div className={cn(
                     'rounded-2xl px-4 py-3.5 transition-all duration-200',
-                    m.role === 'user' 
-                      ? 'bg-gradient-to-br from-primary to-primary/90 text-primary-foreground shadow-md shadow-primary/20' 
-                      : 'bg-card/80 backdrop-blur-sm border border-border/50 shadow-sm hover:shadow-md hover:border-border transition-all'
+                    m.role === 'user'
+                      ? 'bg-gradient-to-br from-primary to-primary/90 text-primary-foreground shadow-md shadow-primary/20'
+                      : m.error
+                        ? 'bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800/30 shadow-sm'
+                        : 'bg-card/80 backdrop-blur-sm border border-border/50 shadow-sm hover:shadow-md hover:border-border transition-all'
                   )}>
-                    <p className="text-sm whitespace-pre-wrap leading-relaxed">{m.content}</p>
+                    {m.error && m.role === 'assistant' && (
+                      <div className="flex items-start gap-2 mb-2">
+                        <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                        <span className="text-xs font-semibold text-red-700 dark:text-red-400">خطأ في العملية</span>
+                      </div>
+                    )}
+                    <p className={cn(
+                      'text-sm whitespace-pre-wrap leading-relaxed',
+                      m.error && 'text-red-900 dark:text-red-100'
+                    )}>{m.content}</p>
                   </div>
+                  {m.error && m.retryable && m.originalQuery && m.role === 'assistant' && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => retryMessage(m.originalQuery!)}
+                      disabled={loading}
+                      className="gap-2 text-xs h-7 mt-1 border-red-200 dark:border-red-800/30 text-red-700 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      إعادة المحاولة
+                    </Button>
+                  )}
                   <span className="text-[11px] text-muted-foreground/70 px-2 opacity-0 group-hover:opacity-100 transition-opacity">
                     {new Date(m.timestamp).toLocaleTimeString('ar-DZ', { hour: '2-digit', minute: '2-digit' })}
                   </span>
@@ -422,9 +486,9 @@ export const SmartAssistantChat: React.FC<SmartAssistantChatProps> = ({ open, on
               <div className="flex gap-3 justify-start animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="flex-shrink-0">
                   <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-950/20 dark:to-red-950/20 flex items-center justify-center shadow-sm ring-1 ring-orange-200/30 dark:ring-orange-800/30">
-                    <img 
-                      src="./images/selkia-logo.webp" 
-                      alt="SIRA AI" 
+                    <img
+                      src="./images/selkia-logo.webp"
+                      alt="SIRA AI"
                       className="w-5 h-5 object-contain animate-pulse"
                     />
                   </div>
@@ -439,6 +503,7 @@ export const SmartAssistantChat: React.FC<SmartAssistantChatProps> = ({ open, on
                 </div>
               </div>
             )}
+
           </div>
         </ScrollArea>
 
@@ -449,25 +514,26 @@ export const SmartAssistantChat: React.FC<SmartAssistantChatProps> = ({ open, on
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-                placeholder="اكتب استفسارك هنا..."
+                placeholder="اكتب استفسارك..."
                 disabled={loading}
                 className="pr-4 h-12 rounded-xl border-border/50 bg-background/50 backdrop-blur-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-200 shadow-sm hover:shadow-md"
               />
             </div>
+
             {loading ? (
-              <Button 
-                onClick={stopProcessing} 
-                size="icon" 
+              <Button
+                onClick={stopProcessing}
+                size="icon"
                 variant="destructive"
                 className="h-12 w-12 rounded-xl flex-shrink-0 bg-gradient-to-br from-red-600 to-red-500 hover:from-red-500 hover:to-red-600 shadow-md hover:shadow-lg transition-all duration-200 hover:scale-105"
               >
                 <X className="w-5 h-5" />
               </Button>
             ) : (
-              <Button 
-                onClick={() => sendMessage()} 
-                disabled={!input.trim()} 
-                size="icon" 
+              <Button
+                onClick={() => sendMessage()}
+                disabled={!input.trim()}
+                size="icon"
                 className="h-12 w-12 rounded-xl flex-shrink-0 bg-gradient-to-br from-primary to-primary/90 hover:from-primary/90 hover:to-primary shadow-md hover:shadow-lg transition-all duration-200 hover:scale-105"
               >
                 <Send className="w-4 h-4" />
@@ -484,6 +550,7 @@ export const SmartAssistantChat: React.FC<SmartAssistantChatProps> = ({ open, on
           <DialogContent>
             <DialogHeader>
               <DialogTitle>اختر اللون/المقاس والكمية</DialogTitle>
+              <DialogDescription>حدد المتغيرات المطلوبة للمنتج</DialogDescription>
             </DialogHeader>
             {variantState.product && (
               <VariantPicker product={variantState.product} onConfirm={handleVariantConfirm} />
@@ -495,6 +562,7 @@ export const SmartAssistantChat: React.FC<SmartAssistantChatProps> = ({ open, on
           <DialogContent>
             <DialogHeader>
               <DialogTitle>تسجيل مصروف</DialogTitle>
+              <DialogDescription>أكمل بيانات المصروف</DialogDescription>
             </DialogHeader>
             {expenseState.form && (
               <ExpenseQuickForm
@@ -510,6 +578,7 @@ export const SmartAssistantChat: React.FC<SmartAssistantChatProps> = ({ open, on
           <DialogContent>
             <DialogHeader>
               <DialogTitle>تسجيل طلبية تصليح</DialogTitle>
+              <DialogDescription>أدخل تفاصيل طلبية التصليح</DialogDescription>
             </DialogHeader>
             {repairState.form && (
               <RepairQuickForm

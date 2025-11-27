@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type { Database } from '@/types/database.types';
-import { inventoryDB } from '@/database/localDb';
+import { deltaWriteService } from '@/services/DeltaWriteService';
 
 export type Subcategory = Database['public']['Tables']['product_subcategories']['Row'];
 export type InsertSubcategory = Database['public']['Tables']['product_subcategories']['Insert'];
@@ -50,9 +50,9 @@ const isOnline = () => navigator.onLine;
 // وظائف التخزين المحلي للفئات
 export const saveCategoriesToLocalStorage = async (categories: Category[]) => {
   try {
-    // احفظ كل فئة في جدول SQLite
+    // ⚡ استخدام Delta Sync
     for (const category of categories) {
-      await inventoryDB.productCategories.put(category as any);
+      await deltaWriteService.saveFromServer('product_categories' as any, category);
     }
     return true;
   } catch (error) {
@@ -63,8 +63,9 @@ export const saveCategoriesToLocalStorage = async (categories: Category[]) => {
 // وظائف التخزين المحلي للفئات الفرعية
 export const saveSubcategoriesToLocalStorage = async (subcategories: Subcategory[], _categoryId?: string) => {
   try {
+    // ⚡ استخدام Delta Sync
     for (const subcategory of subcategories) {
-      await inventoryDB.productSubcategories.put(subcategory as any);
+      await deltaWriteService.saveFromServer('product_subcategories' as any, subcategory);
     }
     return true;
   } catch (error) {
@@ -75,7 +76,9 @@ export const saveSubcategoriesToLocalStorage = async (subcategories: Subcategory
 // جلب جميع الفئات من التخزين المحلي
 export const getLocalCategories = async (): Promise<Category[]> => {
   try {
-    return await inventoryDB.productCategories.toArray() as any;
+    const orgId = localStorage.getItem('currentOrganizationId') || localStorage.getItem('bazaar_organization_id') || '';
+    // ⚡ استخدام Delta Sync
+    return await deltaWriteService.getAll<Category>('product_categories' as any, orgId);
   } catch (error) {
     return [];
   }
@@ -84,8 +87,9 @@ export const getLocalCategories = async (): Promise<Category[]> => {
 // جلب فئة محددة من التخزين المحلي
 export const getLocalCategoryById = async (id: string): Promise<Category | null> => {
   try {
-    const category = await inventoryDB.productCategories.get(id);
-    return (category as any) ?? null;
+    // ⚡ استخدام Delta Sync
+    const category = await deltaWriteService.get<Category>('product_categories' as any, id);
+    return category ?? null;
   } catch (error) {
     return null;
   }
@@ -94,7 +98,9 @@ export const getLocalCategoryById = async (id: string): Promise<Category | null>
 // جلب جميع الفئات الفرعية من التخزين المحلي
 export const getAllLocalSubcategories = async (): Promise<Subcategory[]> => {
   try {
-    return await inventoryDB.productSubcategories.toArray() as any;
+    const orgId = localStorage.getItem('currentOrganizationId') || localStorage.getItem('bazaar_organization_id') || '';
+    // ⚡ استخدام Delta Sync
+    return await deltaWriteService.getAll<Subcategory>('product_subcategories' as any, orgId);
   } catch (error) {
     return [];
   }
@@ -103,8 +109,10 @@ export const getAllLocalSubcategories = async (): Promise<Subcategory[]> => {
 // جلب الفئات الفرعية لفئة محددة من التخزين المحلي
 export const getLocalSubcategoriesByCategoryId = async (categoryId: string): Promise<Subcategory[]> => {
   try {
-    const subs = await inventoryDB.productSubcategories.where('category_id').equals(categoryId).toArray();
-    return subs as any;
+    const orgId = localStorage.getItem('currentOrganizationId') || localStorage.getItem('bazaar_organization_id') || '';
+    // ⚡ استخدام Delta Sync
+    const allSubs = await deltaWriteService.getAll<Subcategory>('product_subcategories' as any, orgId);
+    return allSubs.filter(s => (s as any).category_id === categoryId);
   } catch (error) {
     return [];
   }
@@ -151,20 +159,8 @@ export const createCategory = async (categoryData: Partial<Category>, organizati
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
-      await inventoryDB.productCategories.put(newCategory as any);
-      try {
-        await inventoryDB.syncQueue.put({
-          id: `sync_${Date.now()}_${Math.floor(Math.random() * 100000)}`,
-          object_type: 'product_category',
-          object_id: newCategory.id,
-          operation: 'create',
-          data: newCategory,
-          priority: 2,
-          attempts: 0,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        } as any);
-      } catch {}
+      // ⚡ استخدام Delta Sync
+      await deltaWriteService.create('product_categories' as any, newCategory, organizationId);
       return newCategory;
     }
 
@@ -209,7 +205,8 @@ export const createCategory = async (categoryData: Partial<Category>, organizati
       updated_at: data.updated_at!
     } as Category;
 
-    await inventoryDB.productCategories.put(resultCategory as any);
+    // ⚡ استخدام Delta Sync
+    await deltaWriteService.saveFromServer('product_categories' as any, resultCategory);
 
     // استخدام النظام الموحد - سطر واحد فقط! 🎉
     const { refreshAfterCategoryOperation } = await import('@/lib/data-refresh-helpers');
@@ -224,18 +221,8 @@ export const createCategory = async (categoryData: Partial<Category>, organizati
 // إضافة فئة إلى قائمة المزامنة
 export const addCategoryToSyncQueue = async (category: Category): Promise<void> => {
   try {
-    await inventoryDB.syncQueue.put({
-      id: `sync_${Date.now()}_${Math.floor(Math.random() * 100000)}`,
-      object_type: 'product_category',
-      object_id: category.id,
-      operation: 'create',
-      data: category,
-      priority: 2,
-      attempts: 0,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    } as any);
-
+    // ⚡ استخدام Delta Sync - create سيضيف للـ sync queue تلقائياً
+    await deltaWriteService.create('product_categories' as any, category, category.organization_id);
   } catch (error) {
   }
 };
@@ -277,8 +264,8 @@ export const updateCategory = async (id: string, categoryData: UpdateCategoryDat
       updated_at: data.updated_at!
     } as Category;
 
-    // تحديث بيانات الفئة محليًا
-    await inventoryDB.productCategories.put(resultCategory as any);
+    // ⚡ استخدام Delta Sync
+    await deltaWriteService.saveFromServer('product_categories' as any, resultCategory);
 
     // 🎯 استخدام النظام الموحد للتحديث التلقائي - مثل deleteCategory
     const { refreshAfterCategoryOperation } = await import('@/lib/data-refresh-helpers');
@@ -304,8 +291,8 @@ export const deleteCategory = async (id: string, organizationId?: string): Promi
       throw error;
     }
 
-    // حذف الفئة من التخزين المحلي (SQLite)
-    await inventoryDB.productCategories.delete(id);
+    // ⚡ استخدام Delta Sync - حذف الفئة محلياً
+    await deltaWriteService.delete('product_categories' as any, id);
 
     // استخدام النظام الموحد - سطر واحد فقط! 🎉
     const { refreshAfterCategoryOperation } = await import('@/lib/data-refresh-helpers');
@@ -331,15 +318,11 @@ export async function getCategoriesWithSubcategories(organizationId: string): Pr
   subcategories: Subcategory[];
 }> {
   try {
-    // محاولة القراءة من قاعدة البيانات المحلية (SQLite)
-    const localCats = await inventoryDB.productCategories
-      .where({ organization_id: organizationId })
-      .toArray();
-    const activeLocalCats = (localCats as any[]).filter((c) => c.is_active !== false);
-    const localSubs = await inventoryDB.productSubcategories
-      .where({ organization_id: organizationId })
-      .toArray();
-    const activeLocalSubs = (localSubs as any[]).filter((s) => s.is_active !== false);
+    // ⚡ استخدام Delta Sync - محاولة القراءة من قاعدة البيانات المحلية
+    const localCats = await deltaWriteService.getAll<Category>('product_categories' as any, organizationId);
+    const activeLocalCats = localCats.filter((c) => c.is_active !== false);
+    const localSubs = await deltaWriteService.getAll<Subcategory>('product_subcategories' as any, organizationId);
+    const activeLocalSubs = localSubs.filter((s: any) => s.is_active !== false);
 
     if (activeLocalCats.length || activeLocalSubs.length) {
       return {
@@ -390,24 +373,27 @@ export const getSubcategoryById = async (id: string): Promise<Subcategory | null
   try {
     // التحقق من حالة الاتصال
     if (!isOnline()) {
-      return (await inventoryDB.productSubcategories.get(id)) as any;
+      // ⚡ استخدام Delta Sync
+      return await deltaWriteService.get<Subcategory>('product_subcategories' as any, id) || null;
     }
-    
+
     const supabaseClient = supabase;
-    
+
     const { data, error } = await supabaseClient
       .from('product_subcategories')
       .select('*')
       .eq('id', id)
       .single();
-    
+
     if (error) {
-      return (await inventoryDB.productSubcategories.get(id)) as any;
+      // ⚡ استخدام Delta Sync
+      return await deltaWriteService.get<Subcategory>('product_subcategories' as any, id) || null;
     }
-    
+
     return data;
   } catch (error) {
-    return (await inventoryDB.productSubcategories.get(id)) as any;
+    // ⚡ استخدام Delta Sync
+    return await deltaWriteService.get<Subcategory>('product_subcategories' as any, id) || null;
   }
 };
 
@@ -429,20 +415,8 @@ export const createSubcategory = async (subcategory: { category_id: string; name
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       } as any;
-      await inventoryDB.productSubcategories.put(newSubcategory as any);
-      try {
-        await inventoryDB.syncQueue.put({
-          id: `sync_${Date.now()}_${Math.floor(Math.random() * 100000)}`,
-          object_type: 'product_subcategory',
-          object_id: newSubcategory.id,
-          operation: 'create',
-          data: newSubcategory,
-          priority: 2,
-          attempts: 0,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        } as any);
-      } catch {}
+      // ⚡ استخدام Delta Sync
+      await deltaWriteService.create('product_subcategories' as any, newSubcategory, subcategory.organization_id || '');
       return newSubcategory;
     }
     
@@ -482,9 +456,8 @@ export const createSubcategory = async (subcategory: { category_id: string; name
       throw error;
     }
 
-    // تخزين الفئة الفرعية الجديدة محليًا
-    const newSubcategory = data as any;
-    await inventoryDB.productSubcategories.put(newSubcategory);
+    // ⚡ استخدام Delta Sync - تخزين الفئة الفرعية الجديدة محليًا
+    await deltaWriteService.saveFromServer('product_subcategories' as any, data);
 
     return data;
   } catch (error) {
@@ -495,18 +468,8 @@ export const createSubcategory = async (subcategory: { category_id: string; name
 // إضافة فئة فرعية إلى قائمة المزامنة
 export const addSubcategoryToSyncQueue = async (subcategory: Subcategory): Promise<void> => {
   try {
-    await inventoryDB.syncQueue.put({
-      id: `sync_${Date.now()}_${Math.floor(Math.random() * 100000)}`,
-      object_type: 'product_subcategory',
-      object_id: subcategory.id,
-      operation: 'create',
-      data: subcategory,
-      priority: 2,
-      attempts: 0,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    } as any);
-
+    // ⚡ استخدام Delta Sync - create سيضيف للـ sync queue تلقائياً
+    await deltaWriteService.create('product_subcategories' as any, subcategory, (subcategory as any).organization_id || '');
   } catch (error) {
   }
 };
@@ -525,7 +488,8 @@ export const updateSubcategory = async (id: string, updates: UpdateSubcategory):
       throw error;
     }
 
-    await inventoryDB.productSubcategories.put(data as any);
+    // ⚡ استخدام Delta Sync
+    await deltaWriteService.saveFromServer('product_subcategories' as any, data);
 
     return data;
   } catch (error) {
@@ -545,7 +509,8 @@ export const deleteSubcategory = async (id: string): Promise<void> => {
       throw error;
     }
 
-    await inventoryDB.productSubcategories.delete(id);
+    // ⚡ استخدام Delta Sync
+    await deltaWriteService.delete('product_subcategories' as any, id);
   } catch (error) {
     throw error;
   }

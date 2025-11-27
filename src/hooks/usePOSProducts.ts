@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/context/TenantContext';
+import { ensureArray } from '@/context/POSDataContext';
 
 // =====================================================
 // 🚀 Hook مخصص لمنتجات POS فقط - يمنع التكرار
@@ -164,11 +165,14 @@ export const usePOSProducts = (options: POSProductsOptions = {}) => {
 
           // تحديث المخزون حسب نوع المتغير
           if (colorId && sizeId) {
+            // ✅ استخدام ensureArray للتعامل مع JSON strings من SQLite
+            const productColors = ensureArray(product.colors) as any[];
             // تحديث مقاس معين في لون معين
-            const updatedColors = product.colors?.map((color: any) => {
+            const updatedColors = productColors.map((color: any) => {
               if (color.id !== colorId) return color;
-              
-              const updatedSizes = color.sizes?.map((size: any) => {
+
+              const colorSizes = ensureArray(color.sizes) as any[];
+              const updatedSizes = colorSizes.map((size: any) => {
                 if (size.id !== sizeId) return size;
                 return {
                   ...size,
@@ -196,8 +200,10 @@ export const usePOSProducts = (options: POSProductsOptions = {}) => {
               actual_stock_quantity: totalStock
             };
           } else if (colorId) {
+            // ✅ استخدام ensureArray للتعامل مع JSON strings من SQLite
+            const productColors = ensureArray(product.colors) as any[];
             // تحديث لون معين
-            const updatedColors = product.colors?.map((color: any) => {
+            const updatedColors = productColors.map((color: any) => {
               if (color.id !== colorId) return color;
               return {
                 ...color,
@@ -236,19 +242,23 @@ export const usePOSProducts = (options: POSProductsOptions = {}) => {
 
   // دالة للحصول على مخزون منتج معين
   const getProductStock = (
-    productId: string, 
-    colorId?: string, 
+    productId: string,
+    colorId?: string,
     sizeId?: string
   ): number => {
     const product = products.find(p => p.id === productId);
     if (!product) return 0;
 
+    // ✅ استخدام ensureArray للتعامل مع JSON strings من SQLite
+    const productColors = ensureArray(product.colors) as any[];
+
     if (colorId && sizeId) {
-      const color = product.colors?.find((c: any) => c.id === colorId);
-      const size = color?.sizes?.find((s: any) => s.id === sizeId);
+      const color = productColors.find((c: any) => c.id === colorId);
+      const colorSizes = ensureArray(color?.sizes) as any[];
+      const size = colorSizes.find((s: any) => s.id === sizeId);
       return size?.quantity || 0;
     } else if (colorId) {
-      const color = product.colors?.find((c: any) => c.id === colorId);
+      const color = productColors.find((c: any) => c.id === colorId);
       return color?.quantity || 0;
     } else {
       return product.actual_stock_quantity || product.stock_quantity || 0;

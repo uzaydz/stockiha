@@ -3,20 +3,21 @@ import { Customer } from '@/types/customer';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { DropdownMenu,
+import {
+  DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger
- } from "@/components/ui/dropdown-menu";
-import { 
-  MoreHorizontal, 
-  Edit, 
-  Trash, 
-  UserX, 
-  Mail, 
-  Phone, 
+} from "@/components/ui/dropdown-menu";
+import {
+  MoreHorizontal,
+  Edit,
+  Trash,
+  UserX,
+  Mail,
+  Phone,
   Calendar,
   User
 } from 'lucide-react';
@@ -27,7 +28,7 @@ import CustomerDetailsDialog from './CustomerDetailsDialog';
 import EditCustomerDialog from './EditCustomerDialog';
 import ConfirmDialog from '@/components/ui/confirm-dialog';
 import { deleteCustomer } from '@/lib/api/customers';
-import { useOptimizedClickHandler } from "@/lib/performance-utils";
+
 
 interface VirtualizedCustomersListProps {
   customers: Customer[];
@@ -40,10 +41,10 @@ interface VirtualizedCustomersListProps {
 const ITEM_HEIGHT = 180; // Height of each customer card
 const DEFAULT_CONTAINER_HEIGHT = 600;
 
-const CustomerItem = memo(({ 
-  customer, 
-  style, 
-  hasEditPermission, 
+const CustomerItem = memo(({
+  customer,
+  style,
+  hasEditPermission,
   hasDeletePermission,
   onViewDetails,
   onEdit,
@@ -77,10 +78,20 @@ const CustomerItem = memo(({
                 <Badge variant="outline" className="text-xs">
                   عميل
                 </Badge>
+                {customer._synced === false && (
+                  <Badge variant="outline" className="text-[10px] bg-orange-50 text-orange-600 border-orange-200 mr-2">
+                    غير متزامن
+                  </Badge>
+                )}
+                {customer._syncStatus === 'error' && (
+                  <Badge variant="destructive" className="text-[10px] mr-2">
+                    خطأ
+                  </Badge>
+                )}
               </div>
             </div>
           </div>
-          
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -94,16 +105,16 @@ const CustomerItem = memo(({
                 <User className="h-4 w-4 ml-2" />
                 عرض التفاصيل
               </DropdownMenuItem>
-              
+
               {hasEditPermission && (
                 <DropdownMenuItem onClick={() => onEdit(customer)}>
                   <Edit className="h-4 w-4 ml-2" />
                   تعديل
                 </DropdownMenuItem>
               )}
-              
+
               {hasDeletePermission && (
-                <DropdownMenuItem 
+                <DropdownMenuItem
                   onClick={() => onDelete(customer)}
                   className="text-red-600 focus:text-red-600"
                 >
@@ -114,26 +125,26 @@ const CustomerItem = memo(({
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-        
+
         <div className="space-y-2">
           <div className="flex items-center text-sm text-muted-foreground">
             <Mail className="h-4 w-4 ml-2 flex-shrink-0" />
             <span className="truncate" dir="ltr">{customer.email}</span>
           </div>
-          
+
           {customer.phone && (
             <div className="flex items-center text-sm text-muted-foreground">
               <Phone className="h-4 w-4 ml-2 flex-shrink-0" />
               <span dir="ltr">{customer.phone}</span>
             </div>
           )}
-          
+
           <div className="flex items-center text-sm text-muted-foreground">
             <Calendar className="h-4 w-4 ml-2 flex-shrink-0" />
             <span>انضم في {formatDate(customer.created_at)}</span>
           </div>
         </div>
-        
+
         <div className="flex items-center justify-between mt-4 pt-3 border-t">
           <div className="flex space-x-2 space-x-reverse">
             <Button
@@ -145,7 +156,7 @@ const CustomerItem = memo(({
               <Mail className="h-3 w-3" />
               <span className="text-xs">بريد</span>
             </Button>
-            
+
             {customer.phone && (
               <Button
                 variant="outline"
@@ -158,7 +169,7 @@ const CustomerItem = memo(({
               </Button>
             )}
           </div>
-          
+
           <Button
             variant="ghost"
             size="sm"
@@ -175,8 +186,8 @@ const CustomerItem = memo(({
 
 CustomerItem.displayName = 'CustomerItem';
 
-const VirtualizedCustomersList = memo(({ 
-  customers, 
+const VirtualizedCustomersList = memo(({
+  customers,
   isLoading,
   hasEditPermission = false,
   hasDeletePermission = false,
@@ -188,11 +199,11 @@ const VirtualizedCustomersList = memo(({
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
-  const { 
-    virtualItems, 
-    totalHeight, 
-    containerProps, 
-    viewportProps 
+  const {
+    virtualItems,
+    totalHeight,
+    containerProps,
+    viewportProps
   } = useVirtualization(customers, {
     itemHeight: ITEM_HEIGHT,
     containerHeight,
@@ -203,7 +214,7 @@ const VirtualizedCustomersList = memo(({
     setSelectedCustomer(customer);
     setIsDetailsOpen(true);
   }, []);
-  
+
   const handleEditCustomer = useCallback((customer: Customer) => {
     if (!hasEditPermission) {
       toast({
@@ -213,11 +224,11 @@ const VirtualizedCustomersList = memo(({
       });
       return;
     }
-    
+
     setSelectedCustomer(customer);
     setIsEditOpen(true);
   }, [hasEditPermission, toast]);
-  
+
   const handleDeleteCustomer = useCallback((customer: Customer) => {
     if (!hasDeletePermission) {
       toast({
@@ -227,14 +238,14 @@ const VirtualizedCustomersList = memo(({
       });
       return;
     }
-    
+
     setSelectedCustomer(customer);
     setIsDeleteDialogOpen(true);
   }, [hasDeletePermission, toast]);
-  
+
   const confirmDeleteCustomer = useCallback(async () => {
     if (!selectedCustomer) return;
-    
+
     try {
       await deleteCustomer(selectedCustomer.id);
       toast({
@@ -251,7 +262,7 @@ const VirtualizedCustomersList = memo(({
       setIsDeleteDialogOpen(false);
     }
   }, [selectedCustomer, toast]);
-  
+
   const sendEmail = useCallback((email: string) => {
     window.location.href = `mailto:${email}`;
   }, []);
@@ -280,7 +291,7 @@ const VirtualizedCustomersList = memo(({
       </div>
     );
   }
-  
+
   if (customers.length === 0) {
     return (
       <Card className="border-dashed border-2">
@@ -316,7 +327,7 @@ const VirtualizedCustomersList = memo(({
           ))}
         </div>
       </div>
-      
+
       {selectedCustomer && (
         <CustomerDetailsDialog
           customer={selectedCustomer}
@@ -324,7 +335,7 @@ const VirtualizedCustomersList = memo(({
           onClose={() => setIsDetailsOpen(false)}
         />
       )}
-      
+
       {selectedCustomer && hasEditPermission && (
         <EditCustomerDialog
           customer={selectedCustomer}
@@ -332,7 +343,7 @@ const VirtualizedCustomersList = memo(({
           onClose={() => setIsEditOpen(false)}
         />
       )}
-      
+
       {hasDeletePermission && (
         <ConfirmDialog
           open={isDeleteDialogOpen}

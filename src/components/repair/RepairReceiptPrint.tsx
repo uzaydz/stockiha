@@ -26,7 +26,7 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
   queuePosition
 }) => {
   const { currentOrganization } = useTenant();
-  
+
   // الحصول على رمز التتبع
   const trackingCode = order.repair_tracking_code || order.order_number || order.id;
 
@@ -161,7 +161,7 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
       }
     `;
     document.head.appendChild(style);
-    
+
     // إزالة الأنماط بعد الطباعة
     setTimeout(() => {
       if (document.head.contains(style)) {
@@ -169,20 +169,20 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
       }
     }, 1000);
   };
-  
+
   // تطبيق الدالة عند تحميل المكون
   React.useEffect(() => {
     // تحقق من صحة الروابط
-    
+
     ensureQRCodesVisible();
-    
+
     // إضافة مستمع لحدث الطباعة
     const handleBeforePrint = () => {
       ensureQRCodesVisible();
     };
-    
+
     window.addEventListener('beforeprint', handleBeforePrint);
-    
+
     return () => {
       window.removeEventListener('beforeprint', handleBeforePrint);
     };
@@ -219,14 +219,14 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
 
   return (
     <>
-      {/* تحميل خط Tajawal من Google Fonts */}
-      <link
+      {/* تحميل خط Tajawal من Google Fonts - معطل للعمل بدون انترنت */}
+      {/* <link
         href="https://fonts.googleapis.com/css2?family=Tajawal:wght@200;300;400;500;600;700;800;900&display=swap"
         rel="stylesheet"
-      />
-      
-      <div 
-        className="repair-receipt" 
+      /> */}
+
+      <div
+        className="repair-receipt"
         dir="rtl"
         style={{
           fontFamily: "'Tajawal', Arial, sans-serif",
@@ -248,7 +248,7 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
         {/* تطبيق خط Tajawal بقوة مع نفس الطريقة المتقدمة الموجودة في وصل الألعاب */}
         <style dangerouslySetInnerHTML={{
           __html: `
-            @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@200;300;400;500;600;700;800;900&display=swap');
+            /* @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@200;300;400;500;600;700;800;900&display=swap'); */
             
             *, *::before, *::after {
               font-family: 'Tajawal', Arial, sans-serif !important;
@@ -369,34 +369,34 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
 
         {/* ====================== الجزء الأول: إيصال العميل ====================== */}
         <div className="center-item">
-          
+
           {/* رأس الوصل */}
-          <div className="center-flex" style={{ 
-            borderBottom: '3px solid black', 
-            paddingBottom: '4mm', 
-            marginBottom: '5mm' 
+          <div className="center-flex" style={{
+            borderBottom: '3px solid black',
+            paddingBottom: '4mm',
+            marginBottom: '5mm'
           }}>
             {storeLogo && (
               <div className="center-item" style={{ marginBottom: '3mm' }}>
-                <img 
-                  src={storeLogo} 
-                  alt={storeName} 
+                <img
+                  src={storeLogo}
+                  alt={storeName}
                   className="center-item"
-                  style={{ 
-                    height: '25mm', 
-                    width: '25mm', 
+                  style={{
+                    height: '25mm',
+                    width: '25mm',
                     objectFit: 'contain',
                     display: 'block',
                     margin: '0 auto'
-                  }} 
+                  }}
                 />
               </div>
             )}
-            
+
             <div className="center-item">
-              <h1 className="center-item" style={{ 
-                fontSize: '18px', 
-                fontWeight: '900', 
+              <h1 className="center-item" style={{
+                fontSize: '18px',
+                fontWeight: '900',
                 margin: '0 0 2mm 0',
                 textAlign: 'center',
                 fontFamily: "'Tajawal', Arial, sans-serif"
@@ -404,11 +404,11 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
                 {truncateText(storeName, 25)}
               </h1>
             </div>
-            
+
             {storePhone && (
               <div className="center-item" style={{ marginTop: '2mm' }}>
-                <p className="center-item" style={{ 
-                  fontSize: '12px', 
+                <p className="center-item" style={{
+                  fontSize: '12px',
                   fontWeight: '600',
                   margin: '0',
                   textAlign: 'center'
@@ -417,11 +417,11 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
                 </p>
               </div>
             )}
-            
+
             {storeAddress && (
               <div className="center-item" style={{ marginTop: '1mm' }}>
-                <p className="center-item" style={{ 
-                  fontSize: '11px', 
+                <p className="center-item" style={{
+                  fontSize: '11px',
                   margin: '0',
                   opacity: '0.8',
                   textAlign: 'center'
@@ -448,16 +448,16 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
               borderRadius: '4mm',
               border: '3px solid black'
             }}>
-              <div className="center-item" style={{ 
-                fontSize: '12px', 
+              <div className="center-item" style={{
+                fontSize: '12px',
                 fontWeight: '500',
                 marginBottom: '1mm',
                 color: 'white'
               }}>
                 رقم الطلبية
               </div>
-              <div className="center-item" style={{ 
-                fontSize: '20px', 
+              <div className="center-item" style={{
+                fontSize: '20px',
                 fontWeight: '900',
                 color: 'white',
                 fontFamily: "'Tajawal', Arial, sans-serif",
@@ -471,7 +471,7 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
           {/* التاريخ */}
           <div className="info-row center-item">
             <div className="info-label center-item">📅 التاريخ والوقت</div>
-            <div className="info-value center-item" style={{ 
+            <div className="info-value center-item" style={{
               fontSize: '12px',
               fontFamily: "'Tajawal', Arial, sans-serif",
               direction: 'ltr',
@@ -490,16 +490,16 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
                 padding: '4mm',
                 borderRadius: '4mm'
               }}>
-                <div className="center-item" style={{ 
-                  fontSize: '12px', 
+                <div className="center-item" style={{
+                  fontSize: '12px',
                   fontWeight: '500',
                   marginBottom: '1mm',
                   color: '#7f1d1d'
                 }}>
                   رقم الترتيب في الطابور
                 </div>
-                <div className="center-item" style={{ 
-                  fontSize: '24px', 
+                <div className="center-item" style={{
+                  fontSize: '24px',
                   fontWeight: '900',
                   color: '#dc2626',
                   fontFamily: "'Tajawal', Arial, sans-serif"
@@ -514,24 +514,24 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
 
           {/* بيانات العميل */}
           <div className="center-item" style={{ marginBottom: '5mm' }}>
-            <div className="section-title center-item" style={{ 
+            <div className="section-title center-item" style={{
               background: '#ecfdf5',
               borderColor: '#059669',
               color: '#059669'
             }}>
               👤 بيانات العميل
             </div>
-            
+
             <div className="info-row center-item">
               <div className="info-label center-item">الاسم الكامل</div>
               <div className="info-value center-item">
                 {truncateText(order.customer_name, 20)}
               </div>
             </div>
-            
+
             <div className="info-row center-item">
               <div className="info-label center-item">رقم الهاتف</div>
-              <div className="info-value center-item" style={{ 
+              <div className="info-value center-item" style={{
                 fontFamily: "'Tajawal', Arial, sans-serif",
                 direction: 'ltr',
                 display: 'inline-block'
@@ -546,17 +546,17 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
             <>
               <div className="line-separator"></div>
               <div className="center-item" style={{ marginBottom: '5mm' }}>
-                <div className="section-title center-item" style={{ 
+                <div className="section-title center-item" style={{
                   background: '#f3e8ff',
                   borderColor: '#7c3aed',
                   color: '#7c3aed'
                 }}>
                   📱 معلومات الجهاز
                 </div>
-                
+
                 <div className="info-row center-item">
                   <div className="info-label center-item">نوع الجهاز</div>
-                  <div className="info-value center-item" style={{ 
+                  <div className="info-value center-item" style={{
                     color: '#7c3aed',
                     fontSize: '16px',
                     fontWeight: '700'
@@ -573,14 +573,14 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
             <>
               <div className="line-separator"></div>
               <div className="center-item" style={{ marginBottom: '5mm' }}>
-                <div className="section-title center-item" style={{ 
+                <div className="section-title center-item" style={{
                   background: '#fef2f2',
                   borderColor: '#dc2626',
                   color: '#dc2626'
                 }}>
                   🔍 وصف العطل المطلوب إصلاحه
                 </div>
-                
+
                 <div className="center-item" style={{
                   border: '2px dashed #999',
                   padding: '4mm',
@@ -588,8 +588,8 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
                   background: '#f9fafb',
                   marginTop: '3mm'
                 }}>
-                  <p className="center-item" style={{ 
-                    fontSize: '13px', 
+                  <p className="center-item" style={{
+                    fontSize: '13px',
                     lineHeight: '1.4',
                     margin: '0',
                     fontWeight: '500',
@@ -608,14 +608,14 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
           {/* تفاصيل الدفع */}
           <div className="line-separator"></div>
           <div className="center-item" style={{ marginBottom: '5mm' }}>
-            <div className="section-title center-item" style={{ 
+            <div className="section-title center-item" style={{
               background: '#f0f9ff',
               borderColor: '#2563eb',
               color: '#2563eb'
             }}>
               💰 تفاصيل الدفع والتكلفة
             </div>
-            
+
             {order.price_to_be_determined_later ? (
               <div className="center-item" style={{ marginTop: '3mm' }}>
                 <div className="center-flex" style={{
@@ -624,8 +624,8 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
                   padding: '4mm',
                   borderRadius: '4mm'
                 }}>
-                  <div className="center-item" style={{ 
-                    fontSize: '14px', 
+                  <div className="center-item" style={{
+                    fontSize: '14px',
                     fontWeight: '800',
                     color: '#92400e'
                   }}>
@@ -643,7 +643,7 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
                 }}>
                   <div className="info-row center-item">
                     <div className="info-label center-item">السعر الإجمالي</div>
-                    <div className="info-value center-item" style={{ 
+                    <div className="info-value center-item" style={{
                       color: '#059669',
                       fontSize: '16px',
                       fontFamily: "'Tajawal', Arial, sans-serif",
@@ -653,10 +653,10 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
                       {convertToEnglishNumbers((order.total_price || 0).toLocaleString())} دج
                     </div>
                   </div>
-                  
+
                   <div className="info-row center-item">
                     <div className="info-label center-item">المبلغ المدفوع</div>
-                    <div className="info-value center-item" style={{ 
+                    <div className="info-value center-item" style={{
                       color: '#2563eb',
                       fontSize: '16px',
                       fontFamily: "'Tajawal', Arial, sans-serif",
@@ -666,7 +666,7 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
                       {convertToEnglishNumbers((order.paid_amount || 0).toLocaleString())} دج
                     </div>
                   </div>
-                  
+
                   {remainingAmount > 0 && (
                     <div className="center-item" style={{ marginTop: '3mm' }}>
                       <div className="center-flex" style={{
@@ -678,7 +678,7 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
                         <div className="info-label center-item" style={{ color: '#7f1d1d' }}>
                           المبلغ المتبقي المطلوب دفعه
                         </div>
-                        <div className="info-value center-item" style={{ 
+                        <div className="info-value center-item" style={{
                           color: '#dc2626',
                           fontSize: '18px',
                           fontWeight: '900',
@@ -699,14 +699,14 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
           {/* QR Code للتتبع - العميل */}
           <div className="line-separator"></div>
           <div className="center-item" style={{ marginBottom: '5mm' }}>
-            <div className="section-title center-item" style={{ 
+            <div className="section-title center-item" style={{
               background: '#ecfdf5',
               borderColor: '#059669',
               color: '#059669'
             }}>
               🔗 تتبع حالة التصليح
             </div>
-            
+
             <div className="center-item" style={{ marginTop: '3mm' }}>
               <div className="center-flex" style={{
                 border: '3px solid #059669',
@@ -715,16 +715,16 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
                 background: '#ecfdf5'
               }}>
                 <div className="center-item qr-section" style={{ marginBottom: '3mm' }}>
-                  <QRCodeSVG 
-                    value={`${storeUrl}/repair-tracking/${trackingCode}`} 
+                  <QRCodeSVG
+                    value={`${storeUrl}/repair-tracking/${trackingCode}`}
                     size={100}
                     data-testid="customer-qr-code"
                   />
                 </div>
-                
+
                 <div className="center-item" style={{ marginTop: '3mm' }}>
                   <div className="info-label center-item">كود التتبع</div>
-                  <div className="info-value center-item" style={{ 
+                  <div className="info-value center-item" style={{
                     color: '#059669',
                     fontSize: '16px',
                     fontWeight: '900',
@@ -735,10 +735,10 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
                     {convertToEnglishNumbers(trackingCode)}
                   </div>
                 </div>
-                
+
                 <div className="center-item" style={{ marginTop: '2mm' }}>
-                  <p className="center-item" style={{ 
-                    fontSize: '10px', 
+                  <p className="center-item" style={{
+                    fontSize: '10px',
                     margin: '0',
                     opacity: '0.8',
                     textAlign: 'center'
@@ -753,14 +753,14 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
           {/* ضمان التصليحات */}
           <div className="line-separator"></div>
           <div className="center-item" style={{ marginBottom: '5mm' }}>
-            <div className="section-title center-item" style={{ 
+            <div className="section-title center-item" style={{
               background: '#fef3c7',
               borderColor: '#f59e0b',
               color: '#92400e'
             }}>
               🔧 ضمان التصليحات
             </div>
-            
+
             <div className="center-item" style={{ marginTop: '3mm' }}>
               <div className="center-flex" style={{
                 border: '2px solid #f59e0b',
@@ -768,8 +768,8 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
                 padding: '4mm',
                 background: '#fffbeb'
               }}>
-                <p className="center-item" style={{ 
-                  fontSize: '11px', 
+                <p className="center-item" style={{
+                  fontSize: '11px',
                   lineHeight: '1.5',
                   margin: '0',
                   fontWeight: '500',
@@ -793,14 +793,14 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
               borderRadius: '3mm',
               background: '#f9fafb'
             }}>
-              <div className="center-item" style={{ 
-                fontSize: '12px', 
+              <div className="center-item" style={{
+                fontSize: '12px',
                 fontWeight: '700',
                 marginBottom: '3mm'
               }}>
                 📋 شروط الخدمة
               </div>
-              
+
               <div className="center-item" style={{ fontSize: '9px', lineHeight: '1.4' }}>
                 <p className="center-item" style={{ margin: '1mm 0' }}>
                   • يجب تقديم هذا الإيصال عند الاستلام
@@ -821,10 +821,10 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
 
         {/* ====================== الجزء الثاني: إيصال المسؤول ====================== */}
         <div className="center-item" style={{ marginTop: '8mm' }}>
-          
+
           {/* عنوان الجزء الإداري */}
           <div className="center-item" style={{ marginBottom: '5mm' }}>
-            <div className="section-title center-item" style={{ 
+            <div className="section-title center-item" style={{
               background: '#fef2f2',
               borderColor: '#dc2626',
               color: '#dc2626'
@@ -843,7 +843,7 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
             }}>
               <div className="info-row center-item">
                 <div className="info-label center-item">رقم الطلبية</div>
-                <div className="info-value center-item" style={{ 
+                <div className="info-value center-item" style={{
                   fontSize: '16px',
                   fontWeight: '900',
                   color: '#dc2626'
@@ -851,7 +851,7 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
                   #{convertToEnglishNumbers(order.order_number || order.id.slice(0, 8))}
                 </div>
               </div>
-              
+
               <div className="info-row center-item">
                 <div className="info-label center-item">العميل</div>
                 <div className="info-value center-item">
@@ -863,39 +863,39 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
 
           {/* QR Code للمسؤول - إدارة التصليح */}
           <div className="center-item" style={{ marginBottom: '5mm' }}>
-            <div className="center-item" style={{ 
-              fontSize: '14px', 
+            <div className="center-item" style={{
+              fontSize: '14px',
               fontWeight: '800',
               marginBottom: '4mm',
               color: '#dc2626'
             }}>
               🔧 أكواد سريعة للمسؤول
             </div>
-            
+
             {/* QR لإنهاء التصليح */}
             <div className="center-item" style={{ marginBottom: '4mm' }}>
-              <div className="center-item complete-qr qr-section" style={{ 
-                border: '3px solid #dc2626', 
-                padding: '4mm', 
+              <div className="center-item complete-qr qr-section" style={{
+                border: '3px solid #dc2626',
+                padding: '4mm',
                 borderRadius: '4mm',
                 background: '#fef2f2',
                 width: '100%'
               }}>
-                <div className="center-item" style={{ 
-                  fontSize: '12px', 
+                <div className="center-item" style={{
+                  fontSize: '12px',
                   marginBottom: '3mm',
                   fontWeight: '800',
                   color: '#dc2626'
                 }}>
                   ✅ إنهاء التصليح
                 </div>
-                <QRCodeSVG 
-                  value={`${storeUrl}/repair-complete/${order.id}`} 
+                <QRCodeSVG
+                  value={`${storeUrl}/repair-complete/${order.id}`}
                   size={80}
                   data-testid="complete-qr-code"
                 />
-                <div className="center-item" style={{ 
-                  fontSize: '10px', 
+                <div className="center-item" style={{
+                  fontSize: '10px',
                   marginTop: '2mm',
                   fontWeight: '600',
                   color: '#dc2626',
@@ -909,30 +909,30 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
 
           {/* تفاصيل التصليح للمسؤول */}
           <div className="center-item" style={{ marginBottom: '4mm' }}>
-            <div className="center-item" style={{ 
-              fontSize: '12px', 
+            <div className="center-item" style={{
+              fontSize: '12px',
               fontWeight: '700',
               marginBottom: '3mm'
             }}>
               📝 تفاصيل التصليح
             </div>
-            
+
             <div className="center-item" style={{
               border: '2px solid #e5e7eb',
               borderRadius: '3mm',
               padding: '3mm',
               background: '#f9fafb'
             }}>
-              <div className="center-item" style={{ 
+              <div className="center-item" style={{
                 fontSize: '11px',
                 fontWeight: '700',
                 marginBottom: '2mm'
               }}>
                 📱 {order.device_type || 'جهاز غير محدد'}
               </div>
-              
+
               {order.issue_description && (
-                <div className="center-item" style={{ 
+                <div className="center-item" style={{
                   fontSize: '10px',
                   color: '#666',
                   lineHeight: '1.4',
@@ -948,14 +948,14 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
 
           {/* مساحة للملاحظات */}
           <div className="center-item" style={{ marginBottom: '4mm' }}>
-            <div className="center-item" style={{ 
-              fontSize: '12px', 
+            <div className="center-item" style={{
+              fontSize: '12px',
               fontWeight: '700',
               marginBottom: '3mm'
             }}>
               📝 ملاحظات المسؤول
             </div>
-            
+
             <div className="center-item" style={{
               border: '2px dashed #ccc',
               borderRadius: '3mm',
@@ -963,7 +963,7 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
               background: 'white',
               minHeight: '15mm'
             }}>
-              <div className="center-item" style={{ 
+              <div className="center-item" style={{
                 fontSize: '9px',
                 color: '#999',
                 fontStyle: 'italic'
@@ -981,7 +981,7 @@ const RepairReceiptPrint: React.FC<RepairReceiptPrintProps> = ({
               padding: '3mm',
               background: '#f9fafb'
             }}>
-              <div className="center-item" style={{ 
+              <div className="center-item" style={{
                 fontSize: '9px',
                 color: '#666',
                 lineHeight: '1.4'

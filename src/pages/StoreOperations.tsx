@@ -6,6 +6,7 @@ import { useTitle } from '@/hooks/useTitle';
 import { useTitlebar } from '@/context/TitlebarContext';
 import { POSLayoutState, RefreshHandler } from '@/components/pos-layout/types';
 import { Store, Settings, Layout, FileText, Truck, Loader2 } from 'lucide-react';
+import { useUnifiedPermissions } from '@/hooks/useUnifiedPermissions';
 
 const StoreSettingsTab = React.lazy(() => import('./StoreSettingsPage'));
 const StoreEditorTab = React.lazy(() => import('./admin/StoreEditor'));
@@ -88,11 +89,39 @@ const StoreOperationsPage: React.FC = () => {
   const navigate = useNavigate();
   const params = useParams<{ tab?: string }>();
   const { setTabs, setActiveTab: setTitlebarActiveTab, setShowTabs, clearTabs } = useTitlebar();
+  const perms = useUnifiedPermissions();
+
+  // فحص الصلاحيات لكل تبويب
+  const allowedTabs = useMemo(() => {
+    // وضع المدير = صلاحيات كاملة
+    if (perms.isAdminMode || perms.isOrgAdmin || perms.isSuperAdmin) {
+      return TAB_CONFIG;
+    }
+
+    const canStoreSettings = perms.ready ? perms.anyOf(['manageSettings', 'canViewStoreSettings', 'canManageStoreSettings']) : false;
+    const canStoreEditor = perms.ready ? perms.anyOf(['manageSettings', 'canManageStoreEditor', 'canViewStoreEditor']) : false;
+    const canComponents = perms.ready ? perms.anyOf(['manageSettings', 'canManageComponents', 'canViewComponents']) : false;
+    const canThemes = perms.ready ? perms.anyOf(['manageSettings', 'canManageThemes', 'canViewThemes']) : false;
+    const canLandingPages = perms.ready ? perms.anyOf(['manageSettings', 'canManageLandingPages', 'canViewLandingPages']) : false;
+    const canThankYou = perms.ready ? perms.anyOf(['manageSettings', 'canManageThankYouPage', 'canViewThankYouPage']) : false;
+    const canDelivery = perms.ready ? perms.anyOf(['manageSettings', 'canManageDelivery', 'canViewDelivery']) : false;
+
+    return TAB_CONFIG.filter(t =>
+      (t.id === 'store-settings' && canStoreSettings) ||
+      (t.id === 'store-editor' && canStoreEditor) ||
+      (t.id === 'components' && canComponents) ||
+      (t.id === 'themes' && canThemes) ||
+      (t.id === 'landing-pages' && canLandingPages) ||
+      (t.id === 'thank-you' && canThankYou) ||
+      (t.id === 'delivery' && canDelivery)
+    );
+  }, [perms.ready, perms.isAdminMode, perms.isOrgAdmin, perms.isSuperAdmin]);
 
   const resolvedTab = useMemo<TabKey>(() => {
     const incoming = params.tab as TabKey | undefined;
-    return TAB_CONFIG.some((tab) => tab.id === incoming) ? (incoming as TabKey) : TAB_CONFIG[0].id;
-  }, [params.tab]);
+    const isAllowedIncoming = allowedTabs.some((t) => t.id === incoming);
+    return isAllowedIncoming ? (incoming as TabKey) : (allowedTabs[0]?.id || 'store-settings');
+  }, [params.tab, allowedTabs]);
 
   useEffect(() => {
     if (!params.tab || !TAB_CONFIG.some((tab) => tab.id === params.tab)) {
@@ -122,7 +151,7 @@ const StoreOperationsPage: React.FC = () => {
   );
 
   useEffect(() => {
-    const titlebarTabs = TAB_CONFIG.map((tab) => {
+    const titlebarTabs = allowedTabs.map((tab) => {
       const Icon = tab.icon;
       return {
         id: tab.id,

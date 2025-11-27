@@ -183,11 +183,12 @@ export const posDashboardQueryKey = (organizationId: string) => [
 
 /**
  * خيارات React Query للوحة التحكم
+ * 🚀 تحسين الأداء: زيادة staleTime لتقليل الاستدعاءات المتكررة
  */
 export const posDashboardQueryOptions = {
-  staleTime: 30000, // 30 ثانية
-  cacheTime: 300000, // 5 دقائق
-  refetchOnWindowFocus: true,
-  refetchOnMount: true,
-  retry: 2
+  staleTime: 5 * 60 * 1000, // 5 دقائق - زيادة كبيرة لتقليل الحمل على Supabase
+  gcTime: 15 * 60 * 1000, // 15 دقيقة
+  refetchOnWindowFocus: false, // منع إعادة الجلب عند العودة للنافذة
+  refetchOnMount: false, // منع إعادة الجلب إذا كانت البيانات حديثة
+  retry: 1
 };

@@ -1,115 +1,58 @@
-import { inventoryDB, SyncQueueItem } from '@/database/localDb';
-import { syncInventoryData } from '@/lib/db/inventoryDB';
+/**
+ * ⚡ Delta Sync Scheduler
+ * النظام الجديد يعتمد على Event-Driven Sync بدلاً من الفترات الزمنية
+ */
+import { deltaSyncEngine } from '@/lib/sync';
 
 type SyncResult = { processed: number; failed: number };
 
-const JITTER = () => Math.floor(Math.random() * 500);
-
-function backoffDelay(attempts: number): number {
-  const base = Math.min(60_000, 2 ** Math.min(attempts, 6) * 1000); // capped exponential backoff
-  return base + JITTER();
-}
-
-async function processQueueBatch(limit = 20): Promise<SyncResult> {
-  // SQLite-only: load and sort by priority, then slice
-  const all = await inventoryDB.syncQueue.toArray();
-  const items = all
-    .sort((a: any, b: any) => {
-      const pa = Number(a.priority ?? 0);
-      const pb = Number(b.priority ?? 0);
-      if (pa !== pb) return pa - pb;
-      const ta = new Date(a.created_at || a.createdAt || 0).getTime();
-      const tb = new Date(b.created_at || b.createdAt || 0).getTime();
-      return ta - tb;
-    })
-    .slice(0, limit);
-
-  if (items.length === 0) return { processed: 0, failed: 0 };
-
-  let processed = 0;
-  let failed = 0;
-
-  for (const item of items) {
-    try {
-      // Route per objectType
-      if (item.objectType === 'inventory') {
-        await syncInventoryData();
-      }
-      // TODO: hook product/customer/order handlers here (POS RPC, etc.)
-
-      await inventoryDB.syncQueue.delete(item.id);
-      processed++;
-    } catch (error) {
-      const attempts = (item.attempts || 0) + 1;
-      const now = new Date().toISOString();
-      const updated: SyncQueueItem = {
-        ...item,
-        attempts,
-        lastAttempt: now,
-        updatedAt: now,
-        error: error instanceof Error ? error.message : String(error)
-      };
-      await inventoryDB.syncQueue.put(updated);
-      failed++;
-    }
-  }
-
-  return { processed, failed };
-}
-
 let running = false;
-let timer: number | null = null as unknown as number;
 
+/**
+ * تشغيل المزامنة مرة واحدة
+ */
 export async function runSyncSchedulerOnce(): Promise<SyncResult> {
   if (running) return { processed: 0, failed: 0 };
   running = true;
   try {
-    // Prefer inventory batching first
-    const result = await processQueueBatch(25);
-    return result;
+    // ⚡ استخدام Delta Sync Engine
+    const result = await deltaSyncEngine.fullSync();
+    return {
+      processed: result.success ? 1 : 0,
+      failed: result.success ? 0 : 1
+    };
+  } catch (error) {
+    console.error('[syncScheduler] Error:', error);
+    return { processed: 0, failed: 1 };
   } finally {
     running = false;
   }
 }
 
+/**
+ * بدء جدولة المزامنة
+ * ⚡ في Delta Sync: المزامنة تعتمد على الأحداث وليس الفترات الزمنية
+ */
 export function startSyncScheduler(): void {
-  if (timer) return;
-  const loop = async () => {
-    try {
-      const pending = await inventoryDB.syncQueue.count();
-      if (pending === 0) {
-        timer = window.setTimeout(loop, 30_000);
-        return;
-      }
-      const all = await inventoryDB.syncQueue.toArray();
-      const snapshot = all
-        .sort((a: any, b: any) => {
-          const pa = Number(a.priority ?? 0);
-          const pb = Number(b.priority ?? 0);
-          if (pa !== pb) return pa - pb;
-          const ta = new Date(a.created_at || a.createdAt || 0).getTime();
-          const tb = new Date(b.created_at || b.createdAt || 0).getTime();
-          return ta - tb;
-        })[0];
-      const delay = backoffDelay(snapshot?.attempts || 0);
-      await runSyncSchedulerOnce();
-      timer = window.setTimeout(loop, Math.max(3_000, delay));
-    } catch {
-      timer = window.setTimeout(loop, 10_000);
-    }
-  };
-  timer = window.setTimeout(loop, 3_000);
+  // ⚡ Delta Sync لا يحتاج لـ scheduler دوري
+  // المزامنة تحدث عند:
+  // 1. إنشاء/تحديث/حذف سجل محلي
+  // 2. استعادة الاتصال بالشبكة
+  // 3. طلب المستخدم يدوياً
+  console.log('[syncScheduler] ⚡ Delta Sync mode - event-driven sync enabled');
 }
 
+/**
+ * إيقاف جدولة المزامنة
+ */
 export function stopSyncScheduler(): void {
-  if (timer) {
-    clearTimeout(timer);
-    timer = null as unknown as number;
-  }
+  // ⚡ لا شيء للإيقاف في Delta Sync
+  console.log('[syncScheduler] ⚡ Delta Sync mode - no scheduler to stop');
 }
 
+/**
+ * تشغيل المزامنة فوراً
+ */
 export async function triggerImmediateSync(): Promise<void> {
   await runSyncSchedulerOnce();
 }
-
-

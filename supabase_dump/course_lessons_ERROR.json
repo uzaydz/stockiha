@@ -1,0 +1,8 @@
+{
+  "error": {
+    "message": "FetchError: request to https://wrnssatuvmumsczyldth.supabase.co/rest/v1/course_lessons?select=*&offset=0&limit=1000 failed, reason: getaddrinfo ENOTFOUND wrnssatuvmumsczyldth.supabase.co",
+    "details": "FetchError: request to https://wrnssatuvmumsczyldth.supabase.co/rest/v1/course_lessons?select=*&offset=0&limit=1000 failed, reason: getaddrinfo ENOTFOUND wrnssatuvmumsczyldth.supabase.co\n    at ClientRequest.<anonymous> (file:///Users/gherbitravel/Downloads/bazaar-console-connect-main%20copy%202/node_modules/node-fetch/src/index.js:108:11)\n    at ClientRequest.emit (node:events:507:28)\n    at emitErrorEvent (node:_http_client:104:11)\n    at TLSSocket.socketErrorListener (node:_http_client:518:5)\n    at TLSSocket.emit (node:events:507:28)\n    at emitErrorNT (node:internal/streams/destroy:170:8)\n    at emitErrorCloseNT (node:internal/streams/destroy:129:3)\n    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)",
+    "hint": "",
+    "code": "ENOTFOUND"
+  }
+}

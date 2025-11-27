@@ -1,6 +1,8 @@
 import { supabase } from './supabase';
 import { generateActivationCode, generateMultipleActivationCodes, isValidActivationCodeFormat } from './code-generator';
 import { subscriptionCache } from './subscription-cache';
+import { rateLimiter } from './security/rateLimiter';
+import { subscriptionAudit } from './security/subscriptionAudit';
 import {
   ActivationCode,
   ActivationCodeBatch,
@@ -112,15 +114,31 @@ export const ActivationService = {
 
   /**
    * تفعيل اشتراك باستخدام كود التفعيل
+   * 🔒 محدث: مع Rate Limiting وسجلات التدقيق
    * @param data بيانات التفعيل
    * @returns نتيجة عملية التفعيل
    */
   async activateSubscription(data: ActivateSubscriptionDto): Promise<ActivateSubscriptionResult> {
-    try {
-      // التحقق من وجود المؤسسة - دعم كلا التنسيقين للتوافق
-      const organizationId = data.organizationId || data.organization_id;
-      const activationCode = data.activationCode || data.activation_code;
+    // التحقق من وجود المؤسسة - دعم كلا التنسيقين للتوافق
+    const organizationId = data.organizationId || data.organization_id;
+    const activationCode = data.activationCode || data.activation_code;
 
+    // 🔒 التحقق من Rate Limiting قبل أي عملية
+    const rateLimitCheck = rateLimiter.check(organizationId || 'unknown', 'activation');
+    if (!rateLimitCheck.allowed) {
+      await subscriptionAudit.log('ACTIVATION_FAILED', organizationId || 'unknown', {
+        reason: 'rate_limited',
+        retryAfter: rateLimitCheck.retryAfter
+      }, { severity: 'warning' });
+
+      return {
+        success: false,
+        message: rateLimitCheck.message || 'تم تجاوز الحد الأقصى للمحاولات. يرجى المحاولة لاحقاً.',
+        courses_access_granted: false
+      };
+    }
+
+    try {
       if (!organizationId) {
         return {
           success: false,
@@ -130,6 +148,7 @@ export const ActivationService = {
       }
 
       if (!activationCode) {
+        rateLimiter.record(organizationId, 'activation', false);
         return {
           success: false,
           message: "كود التفعيل مطلوب",
@@ -137,8 +156,13 @@ export const ActivationService = {
         };
       }
 
+      // 📝 تسجيل محاولة التفعيل
+      await subscriptionAudit.logActivationAttempt(organizationId, activationCode);
+
       // التحقق من تنسيق الكود
       if (!isValidActivationCodeFormat(activationCode)) {
+        rateLimiter.record(organizationId, 'activation', false);
+        await subscriptionAudit.logActivationFailed(organizationId, 'invalid_format', activationCode);
         return {
           success: false,
           message: 'كود التفعيل غير صالح',
@@ -154,8 +178,10 @@ export const ActivationService = {
           p_organization_id: organizationId
         }
       );
-      
+
       if (error) {
+        rateLimiter.record(organizationId, 'activation', false);
+        await subscriptionAudit.logActivationFailed(organizationId, error.message, activationCode);
         return {
           success: false,
           message: error.message || 'حدث خطأ أثناء تفعيل الاشتراك',
@@ -164,8 +190,16 @@ export const ActivationService = {
       }
 
       const activationResult = result[0];
-      
+
       if (activationResult?.success) {
+        // ✅ تسجيل نجاح التفعيل
+        rateLimiter.recordSuccess(organizationId, 'activation');
+        await subscriptionAudit.logActivationSuccess(
+          organizationId,
+          activationResult.plan_name || 'غير محدد',
+          activationResult.days_granted || 365
+        );
+
         // إذا نجح التفعيل، قم بتحديث البيانات في الواجهة
         try {
           // حذف جميع أنواع التخزين المؤقت للاشتراك
@@ -198,6 +232,14 @@ export const ActivationService = {
             }, 1000);
           }
         }
+      } else {
+        // ❌ فشل التفعيل
+        rateLimiter.record(organizationId, 'activation', false);
+        await subscriptionAudit.logActivationFailed(
+          organizationId,
+          activationResult?.message || 'unknown_error',
+          activationCode
+        );
       }
 
       return {
@@ -208,6 +250,12 @@ export const ActivationService = {
         courses_access_granted: activationResult.courses_access_granted || false
       };
     } catch (error: any) {
+      rateLimiter.record(organizationId || 'unknown', 'activation', false);
+      await subscriptionAudit.log('ERROR', organizationId || 'unknown', {
+        error: error.message,
+        source: 'activateSubscription'
+      }, { severity: 'error' });
+
       return {
         success: false,
         message: error.message || 'حدث خطأ أثناء تفعيل الاشتراك',

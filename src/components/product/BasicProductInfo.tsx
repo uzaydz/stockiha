@@ -162,12 +162,7 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
                     <FormLabel className="text-xs sm:text-sm font-medium text-foreground flex items-center gap-1.5 sm:gap-2">
                       اسم المنتج
                       <span className="text-destructive">*</span>
-                      <span
-                        role="img"
-                        aria-label="أدخل اسم المنتج كما سيظهر للعملاء في المتجر. يجب أن يكون واضحاً ووصفياً."
-                        title="أدخل اسم المنتج كما سيظهر للعملاء في المتجر. يجب أن يكون واضحاً ووصفياً."
-                        className="inline-flex items-center justify-center min-h-[44px] sm:min-h-auto p-2 sm:p-0 -m-2 sm:m-0"
-                      >
+                      <span title="أدخل اسم المنتج كما سيظهر للعملاء في المتجر. يجب أن يكون واضحاً ووصفياً.">
                         <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
                       </span>
                     </FormLabel>
@@ -200,12 +195,7 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
                   <FormItem className="space-y-1.5 sm:space-y-2">
                     <FormLabel className="text-xs sm:text-sm font-medium text-foreground flex items-center gap-1.5 sm:gap-2">
                       اسم المنتج للشحن
-                      <span
-                        role="img"
-                        aria-label="اسم مختصر للمنتج يظهر في وثائق الشحن والفواتير. اتركه فارغاً لاستخدام الاسم الأساسي."
-                        title="اسم مختصر للمنتج يظهر في وثائق الشحن والفواتير. اتركه فارغاً لاستخدام الاسم الأساسي."
-                        className="inline-flex items-center justify-center min-h-[44px] sm:min-h-auto p-2 sm:p-0 -m-2 sm:m-0"
-                      >
+                      <span title="اسم مختصر للمنتج يظهر في وثائق الشحن والفواتير. اتركه فارغاً لاستخدام الاسم الأساسي.">
                         <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
                       </span>
                     </FormLabel>
@@ -232,12 +222,7 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
                     <FormLabel className="text-xs sm:text-sm font-medium text-foreground flex flex-wrap items-center gap-1.5 sm:gap-2">
                       <span>رابط المنتج (Slug)</span>
                       <Badge variant="outline" className="text-[10px] sm:text-xs shadow-sm">SEO</Badge>
-                      <span
-                        role="img"
-                        aria-label="رابط المنتج الذي سيظهر في شريط العنوان ومحركات البحث. يتم إنشاؤه تلقائياً من اسم المنتج أو يمكنك تخصيصه يدوياً لتحسين SEO."
-                        title="رابط المنتج الذي سيظهر في شريط العنوان ومحركات البحث. يتم إنشاؤه تلقائياً من اسم المنتج أو يمكنك تخصيصه يدوياً لتحسين SEO."
-                        className="inline-flex items-center justify-center min-h-[44px] sm:min-h-auto p-2 sm:p-0 -m-2 sm:m-0"
-                      >
+                      <span title="رابط المنتج الذي سيظهر في شريط العنوان ومحركات البحث. يتم إنشاؤه تلقائياً من اسم المنتج أو يمكنك تخصيصه يدوياً لتحسين SEO.">
                         <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
                       </span>
                     </FormLabel>
@@ -312,12 +297,7 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
                 <FormItem className="space-y-1.5 sm:space-y-2">
                   <FormLabel className="text-xs sm:text-sm font-medium text-foreground flex items-center gap-1.5 sm:gap-2">
                     العلامة التجارية
-                    <span
-                      role="img"
-                      aria-label="اسم الشركة المصنعة أو العلامة التجارية للمنتج. يساعد العملاء في التعرف على المنتج."
-                      title="اسم الشركة المصنعة أو العلامة التجارية للمنتج. يساعد العملاء في التعرف على المنتج."
-                      className="inline-flex items-center justify-center min-h-[44px] sm:min-h-auto p-2 sm:p-0 -m-2 sm:m-0"
-                    >
+                    <span title="اسم الشركة المصنعة أو العلامة التجارية للمنتج. يساعد العملاء في التعرف على المنتج.">
                       <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
                     </span>
                   </FormLabel>
@@ -343,12 +323,7 @@ export default function BasicProductInfo({ form }: BasicProductInfoProps) {
                     <span>وصف المنتج</span>
                     <span className="text-destructive">*</span>
                     <Badge variant="destructive" className="text-[10px] sm:text-xs shadow-sm">مطلوب</Badge>
-                    <span
-                      role="img"
-                      aria-label="وصف تفصيلي للمنتج يشمل المميزات والفوائد. هذا الحقل مطلوب ويساعد العملاء في اتخاذ قرار الشراء."
-                      title="وصف تفصيلي للمنتج يشمل المميزات والفوائد. هذا الحقل مطلوب ويساعد العملاء في اتخاذ قرار الشراء."
-                      className="inline-flex items-center justify-center min-h-[44px] sm:min-h-auto p-2 sm:p-0 -m-2 sm:m-0"
-                    >
+                    <span title="وصف تفصيلي للمنتج يشمل المميزات والفوائد. هذا الحقل مطلوب ويساعد العملاء في اتخاذ قرار الشراء.">
                       <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
                     </span>
                   </FormLabel>

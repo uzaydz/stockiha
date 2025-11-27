@@ -5,7 +5,7 @@ import { isCallCenterAgent } from '@/lib/api/permissions';
 
 // Define a simple loading spinner component
 const LoadingSpinner = () => (
-  <div className="min-h-screen flex items-center justify-center bg-background">
+  <div className="min-h-screen flex items-center justify-center bg-[#0a0f1c]">
     <div className="text-center">
       <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
       <p className="text-lg text-foreground">جارٍ تحميل البيانات...</p>
@@ -22,17 +22,17 @@ type ProtectedRouteProps = {
   redirectBasedOnRole?: boolean; // إعادة التوجيه حسب الدور
 };
 
-const ProtectedRoute = ({ 
-  children, 
-  allowedRoles, 
-  redirectBasedOnRole = false 
+const ProtectedRoute = ({
+  children,
+  allowedRoles,
+  redirectBasedOnRole = false
 }: ProtectedRouteProps) => {
   const { user, userProfile, isLoading, authReady } = useAuth();
   const location = useLocation();
   const [hasWaited, setHasWaited] = useState(false);
   const [profileWaitTime, setProfileWaitTime] = useState(0);
   const [noUserWaitTime, setNoUserWaitTime] = useState(0);
-  
+
   // معرفة ما إذا كانت هذه زيارة مباشرة (refresh أو URL مباشر)
   const isDirectVisit = !location.state || performance.navigation.type === 1;
 
@@ -98,9 +98,10 @@ const ProtectedRoute = ({
 
   // إذا كان AuthContext جاهزاً ولا يوجد مستخدم: انتظر قليلاً قبل إعادة التوجيه لتجنب حلقات التبديل بعد تسجيل الدخول
   if (authReady && !user) {
-    if (noUserWaitTime < 8000) {
+    // ✅ تقليل وقت الانتظار من 8 ثوان إلى 3 ثوان لتحسين تجربة المستخدم
+    if (noUserWaitTime < 3000) {
       if (import.meta.env.DEV) {
-        try { console.log('[ProtectedRoute] waiting for user...', { noUserWaitTime }); } catch {}
+        try { console.log('[ProtectedRoute] waiting for user...', { noUserWaitTime }); } catch { }
       }
       return <LoadingSpinner />;
     }
@@ -112,22 +113,22 @@ const ProtectedRoute = ({
     // تحقق من وجود بيانات محفوظة أولاً
     const savedUserData = localStorage.getItem('user_data_cache');
     const savedOrgData = localStorage.getItem('current_organization');
-    
+
     if (savedUserData && savedOrgData) {
       try {
         const userData = JSON.parse(savedUserData);
         const orgData = JSON.parse(savedOrgData);
-        
+
         // إذا كانت البيانات متاحة ومحدثة، لا تنتظر كثيراً
         const now = Date.now();
         const userDataAge = now - (userData.timestamp || 0);
-        
+
         if (userDataAge < 60000 && userData.data?.id && orgData?.id) {
           // البيانات متاحة، انتظار أقل
           if (profileWaitTime < 3000) {
             if (import.meta.env.DEV) {
             }
-            return <div className="min-h-screen flex items-center justify-center">
+            return <div className="min-h-screen flex items-center justify-center bg-[#0a0f1c]">
               <div className="text-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
                 <p className="text-gray-600 text-lg font-medium">جاري تحميل البيانات...</p>
@@ -140,16 +141,16 @@ const ProtectedRoute = ({
         // خطأ في قراءة البيانات المحفوظة
       }
     }
-    
+
     // انتظار عادي إذا لم تكن البيانات محفوظة
     if (import.meta.env.DEV && profileWaitTime >= 12000) {
-      try { console.warn('[ProtectedRoute] profile still loading after 12s, keeping user on current route to avoid loop'); } catch {}
+      try { console.warn('[ProtectedRoute] profile still loading after 12s, keeping user on current route to avoid loop'); } catch { }
     }
-    return <div className="min-h-screen flex items-center justify-center">
+    return <div className="min-h-screen flex items-center justify-center bg-[#0a0f1c]">
       <div className="text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
         <p className="text-gray-600 text-lg font-medium">جاري تحميل بيانات المستخدم...</p>
-        <p className="text-gray-500 text-sm mt-2">({Math.floor(profileWaitTime/1000)}s)</p>
+        <p className="text-gray-500 text-sm mt-2">({Math.floor(profileWaitTime / 1000)}s)</p>
         {profileWaitTime > 5000 && (
           <p className="text-orange-500 text-sm mt-2">
             يرجى الانتظار، جاري تحميل البيانات...
@@ -170,7 +171,7 @@ const ProtectedRoute = ({
     if (!allowedRoles.includes(userRole)) {
       if (import.meta.env.DEV) {
       }
-      
+
       // إعادة توجيه حسب دور المستخدم
       switch (userRole) {
         case 'call_center_agent':
@@ -194,7 +195,7 @@ const ProtectedRoute = ({
   if (redirectBasedOnRole && userProfile) {
   } else if (import.meta.env.DEV) {
   }
-  
+
   if (redirectBasedOnRole && userProfile) {
     const userRole = userProfile.role;
     const currentPath = location.pathname;
@@ -202,7 +203,7 @@ const ProtectedRoute = ({
     // تجنب إعادة التوجيه اللانهائي - فقط من الصفحة الرئيسية أو صفحة تسجيل الدخول
     // ولا نعيد التوجيه إذا كان المستخدم في مسار صالح بالفعل
     const isRootOrLoginPath = currentPath === '/login' || currentPath === '/' || currentPath === '';
-    const isAlreadyInCorrectPath = 
+    const isAlreadyInCorrectPath =
       (userRole === 'call_center_agent' && currentPath.startsWith('/call-center')) ||
       (userRole === 'confirmation_agent' && currentPath.startsWith('/confirmation')) ||
       ((userRole === 'admin' || userRole === 'owner') && currentPath.startsWith('/dashboard')) ||
@@ -218,7 +219,7 @@ const ProtectedRoute = ({
     if (isRootOrLoginPath && !isAlreadyInCorrectPath && !shouldNotRedirectOnRefresh) {
       if (import.meta.env.DEV) {
       }
-      
+
       switch (userRole) {
         case 'call_center_agent':
           return <Navigate to="/call-center/dashboard" replace />;
@@ -243,15 +244,15 @@ const ProtectedRoute = ({
     const currentPath = location.pathname;
     const isCallCenterAgent = Boolean(userProfile.call_center_agent_id) || userRole === 'call_center_agent';
     const isConfirmationAgent = Boolean(userProfile.confirmation_agent_id) || userRole === 'confirmation_agent';
-    
+
     if (import.meta.env.DEV) {
     }
-    
+
     if (isCallCenterAgent) {
       // إذا كان وكيل مركز اتصال يحاول الوصول لصفحات الأدمين أو POS
       // لكن استثناء: إذا كان موظف عادي في نقطة البيع، لا تعيد التوجيه
       const isEmployeeInPOS = userRole === 'employee' && currentPath.startsWith('/pos');
-      
+
       if ((currentPath.startsWith('/dashboard') || currentPath.startsWith('/pos')) && !isEmployeeInPOS) {
         if (import.meta.env.DEV) {
         }

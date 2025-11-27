@@ -219,6 +219,7 @@ const ProductFormTabContent = memo<ProductFormTabContentProps>(({
     <Card className={`min-h-[350px] sm:min-h-[400px] lg:min-h-[500px] overflow-hidden shadow-sm sm:shadow-md bg-card border border-border/50 transition-opacity duration-200 ${isTransitioning ? 'opacity-80' : 'opacity-100'}`}>
       <SafeSuspense fallback={<SectionLoader />}>
         {/* Basic Information Tab */}
+        {activeTab === 'basic' && (
         <TabsContent value="basic" className="p-3 sm:p-4 lg:p-6 space-y-3 sm:space-y-4 lg:space-y-6 m-0">
           <TabSectionHeader
             icon={Info}
@@ -263,8 +264,10 @@ const ProductFormTabContent = memo<ProductFormTabContentProps>(({
             </div>
           </div>
         </TabsContent>
+        )}
         
         {/* Media Tab */}
+        {activeTab === 'media' && (
         <TabsContent value="media" className="p-3 sm:p-4 lg:p-6 space-y-3 sm:space-y-4 lg:space-y-6 m-0">
           <TabSectionHeader
             icon={Images}
@@ -287,8 +290,10 @@ const ProductFormTabContent = memo<ProductFormTabContentProps>(({
             </div>
           </SafeSuspense>
         </TabsContent>
+        )}
         
         {/* Pricing & Inventory Tab */}
+        {activeTab === 'pricing_inventory' && (
         <TabsContent value="pricing_inventory" className="p-3 sm:p-4 lg:p-6 space-y-3 sm:space-y-4 lg:space-y-6 m-0">
           <TabSectionHeader
             icon={DollarSign}
@@ -321,9 +326,11 @@ const ProductFormTabContent = memo<ProductFormTabContentProps>(({
             </SafeSuspense>
           </div>
         </TabsContent>
+        )}
         
         {/* Variants Tab */}
         {/* Variants Tab: always visible; shows enable UI if disabled */}
+        {activeTab === 'variants' && (
         <TabsContent value="variants" className="p-3 sm:p-4 lg:p-6 space-y-3 sm:space-y-4 lg:space-y-6 m-0">
             <TabSectionHeader
               icon={Palette}
@@ -378,10 +385,12 @@ const ProductFormTabContent = memo<ProductFormTabContentProps>(({
             </SafeSuspense>
           )}
         </TabsContent>
+        )}
         
         {/* Special Offers moved into Advanced tab below */}
         
         {/* Shipping & Templates Tab */}
+        {activeTab === 'shipping_templates' && (
         <TabsContent value="shipping_templates" className="p-3 sm:p-4 lg:p-6 space-y-3 sm:space-y-4 lg:space-y-6 m-0">
           <TabSectionHeader
             icon={Truck}
@@ -401,8 +410,10 @@ const ProductFormTabContent = memo<ProductFormTabContentProps>(({
             </div>
           </SafeSuspense>
         </TabsContent>
+        )}
         
         {/* Conversion Tracking Tab */}
+        {activeTab === 'conversion_tracking' && (
         <TabsContent value="conversion_tracking" className="p-3 sm:p-4 lg:p-6 space-y-3 sm:space-y-4 lg:space-y-6 m-0">
           <TabSectionHeader
             icon={BarChart2}
@@ -423,8 +434,10 @@ const ProductFormTabContent = memo<ProductFormTabContentProps>(({
             </div>
           </SafeSuspense>
         </TabsContent>
+        )}
         
         {/* Advanced Settings Tab (now includes Special Offers and Conversion Tracking) */}
+        {activeTab === 'advanced' && (
         <TabsContent value="advanced" className="p-3 sm:p-4 lg:p-6 space-y-3 sm:space-y-4 lg:space-y-6 m-0">
           <TabSectionHeader
             icon={Settings}
@@ -539,6 +552,7 @@ const ProductFormTabContent = memo<ProductFormTabContentProps>(({
             </div>
           </div>
         </TabsContent>
+        )}
       </SafeSuspense>
     </Card>
   );

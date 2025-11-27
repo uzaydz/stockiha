@@ -6,7 +6,7 @@ import { useTitle } from '@/hooks/useTitle';
 import { useTitlebar } from '@/context/TitlebarContext';
 import { POSLayoutState, RefreshHandler } from '@/components/pos-layout/types';
 import { Wrench, Tv, Loader2, Download } from 'lucide-react';
-import { usePermissions } from '@/hooks/usePermissions';
+import { useUnifiedPermissions } from '@/hooks/useUnifiedPermissions';
 
 const RepairServicesTab = React.lazy(() => import('../pages/RepairServices'));
 const SubscriptionServicesTab = React.lazy(() => import('../pages/dashboard/SubscriptionServices'));
@@ -58,12 +58,24 @@ const ServicesOperationsPage: React.FC = () => {
   const params = useParams<{ tab?: string }>();
   const { setTabs, setActiveTab: setTitlebarActiveTab, setShowTabs, clearTabs } = useTitlebar();
 
-  const perms = usePermissions();
+  const perms = useUnifiedPermissions();
 
   const allowedTabs = useMemo(() => {
-    const canServices = perms.ready ? perms.anyOf(['viewServices','manageServices']) : false;
-    return TAB_CONFIG.filter(t => canServices);
-  }, [perms.ready, perms.role, perms.isOrgAdmin, perms.isSuperAdmin]);
+    // وضع المدير = صلاحيات كاملة
+    if (perms.isAdminMode || perms.isOrgAdmin || perms.isSuperAdmin) {
+      return TAB_CONFIG;
+    }
+
+    const canRepair = perms.ready ? perms.anyOf(['viewServices', 'manageServices', 'canViewRepairServices', 'canManageRepairServices']) : false;
+    const canSubscription = perms.ready ? perms.anyOf(['viewServices', 'manageServices', 'canViewSubscriptionServices', 'canManageSubscriptionServices']) : false;
+    const canGameDownloads = perms.ready ? perms.anyOf(['viewServices', 'manageServices', 'accessPOS']) : false;
+
+    return TAB_CONFIG.filter(t =>
+      (t.id === 'repair' && canRepair) ||
+      (t.id === 'subscription' && canSubscription) ||
+      (t.id === 'gameDownloads' && canGameDownloads)
+    );
+  }, [perms.ready, perms.isAdminMode, perms.isOrgAdmin, perms.isSuperAdmin]);
 
   const resolvedTab = useMemo<TabKey>(() => {
     const incoming = params.tab as TabKey | undefined;

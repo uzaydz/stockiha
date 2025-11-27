@@ -4,7 +4,6 @@ import { checkPermission } from '@/components/sidebar/utils';
 import { useAuth } from '@/context/AuthContext';
 import { loadUserDataFromStorage } from '@/context/auth/utils/authStorage';
 import { isAppOnline, markNetworkOffline, markNetworkOnline } from '@/utils/networkStatus';
-import { inventoryDB } from '@/lib/db/dbAdapter';
 
 type PermissionMap = Record<string, boolean>;
 
@@ -56,6 +55,8 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<UnifiedPermissionsData | null>(null);
   const fetchingRef = useRef(false);
+  const retryCountRef = useRef(0); // ⚡ عداد لمنع infinite loop
+  const maxRetries = 3; // ⚡ الحد الأقصى لعدد المحاولات
 
   const parseUnifiedRow = (row: any): UnifiedPermissionsData | null => {
     if (!row) return null;
@@ -90,41 +91,62 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       const id = `${perm.organization_id || 'global'}:${perm.auth_user_id}`;
       const now = new Date().toISOString();
       
-      // استخدام upsert بدلاً من query للإدراج/التحديث
+      // استخدام INSERT OR REPLACE للإدراج/التحديث في SQLite
       if (window.electronAPI?.db) {
-        const data = {
+        const permissionsJson = JSON.stringify(perm.permissions || {});
+
+        // استخدام INSERT OR REPLACE بدلاً من upsert (غير موجودة في API)
+        const sql = `
+          INSERT OR REPLACE INTO user_permissions (
+            id, auth_user_id, user_id, email, name, role, organization_id,
+            is_active, is_org_admin, is_super_admin, permissions,
+            has_inventory_access, can_manage_products, can_view_reports,
+            can_manage_users, can_manage_orders, can_access_pos, can_manage_settings,
+            created_at, updated_at, last_updated
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `;
+
+        const params = [
           id,
-          auth_user_id: perm.auth_user_id,
-          user_id: perm.user_id,
-          email: perm.email,
-          name: perm.name,
-          role: perm.role,
-          organization_id: perm.organization_id || null,
-          is_active: perm.is_active ? 1 : 0,
-          is_org_admin: perm.is_org_admin ? 1 : 0,
-          is_super_admin: perm.is_super_admin ? 1 : 0,
-          permissions: JSON.stringify(perm.permissions || {}),
-          has_inventory_access: perm.has_inventory_access ? 1 : 0,
-          can_manage_products: perm.can_manage_products ? 1 : 0,
-          can_view_reports: perm.can_view_reports ? 1 : 0,
-          can_manage_users: perm.can_manage_users ? 1 : 0,
-          can_manage_orders: perm.can_manage_orders ? 1 : 0,
-          can_access_pos: perm.can_access_pos ? 1 : 0,
-          can_manage_settings: perm.can_manage_settings ? 1 : 0,
-          created_at: now,
-          updated_at: now,
-          last_updated: now
-        };
-        
-        const result = await window.electronAPI.db.upsert('user_permissions', data);
-        console.log('[PermissionsContext] Saved to SQLite', { 
-          success: result.success, 
-          changes: result.changes,
-          permCount: Object.keys(perm.permissions || {}).length 
-        });
-        
+          perm.auth_user_id,
+          perm.user_id,
+          perm.email,
+          perm.name,
+          perm.role,
+          perm.organization_id || null,
+          perm.is_active ? 1 : 0,
+          perm.is_org_admin ? 1 : 0,
+          perm.is_super_admin ? 1 : 0,
+          permissionsJson,
+          perm.has_inventory_access ? 1 : 0,
+          perm.can_manage_products ? 1 : 0,
+          perm.can_view_reports ? 1 : 0,
+          perm.can_manage_users ? 1 : 0,
+          perm.can_manage_orders ? 1 : 0,
+          perm.can_access_pos ? 1 : 0,
+          perm.can_manage_settings ? 1 : 0,
+          now,
+          now,
+          now
+        ];
+
+        // استخدام execute بدلاً من query لأن INSERT لا يرجع بيانات
+        // @ts-ignore - execute exists in runtime but TypeScript may not recognize it
+        const result = await window.electronAPI.db.execute(sql, params);
+
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[PermissionsContext] ✅ Saved to SQLite', {
+            success: result.success,
+            changes: result.changes,
+            permCount: Object.keys(perm.permissions || {}).length,
+            role: perm.role,
+            isOrgAdmin: perm.is_org_admin,
+            organizationId: perm.organization_id
+          });
+        }
+
         if (!result.success) {
-          console.error('[PermissionsContext] Failed to save:', result.error);
+          console.error('[PermissionsContext] ❌ Failed to save to SQLite:', result.error);
         }
       }
     } catch (err) {
@@ -176,7 +198,54 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         const rec = result.data;
 
         if (!rec) {
-          console.log('[PermissionsContext] No permissions found in SQLite', { authId, orgId });
+          // تقليل التحذير: فقط في الوضع غير المتصل أو بعد محاولات متعددة
+          // لأن عدم وجود صلاحيات في SQLite في المرة الأولى هو سلوك متوقع
+
+          // عندما نكون في وضع غير متصل ولا توجد أذونات في SQLite،
+          // نوفر مجموعة أذونات افتراضية للسماح بالوصول الأساسي
+          if (!navigator.onLine || !window.navigator.onLine) {
+            if (process.env.NODE_ENV === 'development') {
+              console.log('[PermissionsContext] No permissions in SQLite (offline mode)', { authId, orgId });
+            }
+            if (process.env.NODE_ENV === 'development') {
+              console.log('[PermissionsContext] Offline with no SQLite permissions, providing default offline permissions');
+            }
+
+            // توفير أذونات افتراضية للوضع غير المتصل
+            const defaultOfflinePermissions = {
+              // أذونات العرض الأساسية
+              viewDashboard: true,
+              viewProducts: true,
+              viewOrders: true,
+              viewCustomers: true,
+              viewDebts: true,
+              viewFinancialReports: true,
+              canViewInvoices: true,
+              canViewReturns: true,
+              canViewLosses: true,
+              // أذونات الإدارة الأساسية
+              manageProducts: true,
+              manageOrders: true,
+              manageCustomers: true,
+              recordDebtPayments: true,
+              canManageInvoices: true,
+              processPayments: true,
+            };
+
+            return {
+              user_id: authId,
+              auth_user_id: authId,
+              email: '',
+              name: '',
+              organization_id: orgId || '',
+              role: 'employee',
+              is_active: true,
+              is_org_admin: false,
+              is_super_admin: false,
+              permissions: defaultOfflinePermissions,
+            };
+          }
+
           return null;
         }
 
@@ -213,12 +282,25 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, [getCurrentOrgId]);
 
   const fetchUnified = useCallback(async () => {
-    if (fetchingRef.current) return;
+    if (fetchingRef.current) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[PermissionsContext] ⏸️ Already fetching, skipping...');
+      }
+      return;
+    }
     fetchingRef.current = true;
     setLoading(true);
     setError(null);
 
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[PermissionsContext] 🔍 fetchUnified started');
+    }
+
     const isOnline = isAppOnline();
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[PermissionsContext] 🌐 Network status:', { isOnline });
+    }
 
     const isNetworkError = (err: any) => {
       if (!err) return false;
@@ -237,18 +319,31 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       // Use cache if recent
       const now = Date.now();
       if (cachedValue && now - cachedValue.ts < CACHE_TTL_MS) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[PermissionsContext] ✅ Using cached permissions');
+        }
         setData(cachedValue.data);
         setReady(true);
         markNetworkOnline();
         return;
       }
 
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[PermissionsContext] 💾 No valid cache, checking online status...', { isOnline });
+      }
+
       if (!isOnline) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[PermissionsContext] 📴 Offline mode detected, loading from SQLite...');
+        }
         markNetworkOffline({ force: true });
         const saved = loadUserDataFromStorage();
         const fallbackAuthId = user?.id || saved?.userProfile?.id || null;
         const local = await loadLocal(fallbackAuthId || undefined);
         if (local) {
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[PermissionsContext] ✅ Loaded permissions from SQLite (offline)');
+          }
           setData(local);
           setReady(true);
           setError(null);
@@ -292,13 +387,157 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         throw new Error('network_offline');
       }
 
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[PermissionsContext] ✅ Online mode confirmed, proceeding to session check...');
+      }
+
+      {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[PermissionsContext] 🔐 Checking session readiness...');
+        }
+        let sessionReady = false;
+
+        // ⚡ في Tauri: إذا كان user موجود في AuthContext، نعتبر Session جاهزة
+        if (user && user.id) {
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[PermissionsContext] ✅ User found in AuthContext, skipping session check');
+          }
+          sessionReady = true;
+        } else {
+          // محاولة جلب session من Supabase (للحالات الأخرى)
+          for (let i = 0; i < 5; i++) {
+            try {
+              const { data: { session } } = await supabase.auth.getSession();
+              if (process.env.NODE_ENV === 'development') {
+                console.log(`[PermissionsContext] 🔐 Session check attempt ${i + 1}/5:`, {
+                  hasSession: !!session,
+                  hasAccessToken: !!(session as any)?.access_token
+                });
+              }
+              if (session && (session as any).access_token) {
+                sessionReady = true;
+                if (process.env.NODE_ENV === 'development') {
+                  console.log('[PermissionsContext] ✅ Session found on attempt', i + 1);
+                }
+                break;
+              }
+            } catch (err) {
+              if (process.env.NODE_ENV === 'development') {
+                console.warn(`[PermissionsContext] ⚠️ Session check error (attempt ${i + 1}):`, err);
+              }
+            }
+            // زيادة الانتظار تدريجياً: 500ms, 700ms, 1000ms, 1500ms, 2000ms
+            if (i < 4) {
+              await new Promise(r => setTimeout(r, 500 + (i * 300)));
+            }
+          }
+        }
+
+        if (!sessionReady) {
+          if (process.env.NODE_ENV === 'development') {
+            console.warn('[PermissionsContext] ⚠️ Session not ready after 5 attempts, using fallback');
+          }
+
+          // ⚡ زيادة عداد المحاولات
+          retryCountRef.current += 1;
+
+          const saved = loadUserDataFromStorage();
+          const fallbackAuthId = user?.id || saved?.userProfile?.id || '';
+          const local = await loadLocal(fallbackAuthId);
+
+          if (local) {
+            if (process.env.NODE_ENV === 'development') {
+              console.log('[PermissionsContext] ✅ Loaded from local storage (session not ready)');
+            }
+            setData(local);
+            setReady(true);
+            setError(null);
+            retryCountRef.current = 0; // إعادة تعيين العداد عند النجاح
+          } else {
+            // ⚡ محاولة إنشاء fallback من user metadata
+            if (user && user.id) {
+              if (process.env.NODE_ENV === 'development') {
+                console.log('[PermissionsContext] 🔧 Creating fallback from user metadata');
+              }
+              const userMetadata = (user.user_metadata as any) || {};
+              const fallback: UnifiedPermissionsData = {
+                user_id: user.id,
+                auth_user_id: user.id,
+                email: user.email || '',
+                name: userMetadata.name || user.email || '',
+                role: userMetadata.role || saved?.userProfile?.role || 'authenticated',
+                organization_id: userMetadata.organization_id || saved?.userProfile?.organization_id || null,
+                is_active: true,
+                is_org_admin: false,
+                is_super_admin: false,
+                permissions: {},
+              };
+              setData(fallback);
+              setReady(true);
+              setError(null);
+
+              // حفظ في SQLite للمحاولات القادمة
+              try {
+                await saveLocal(fallback);
+              } catch {}
+
+              retryCountRef.current = 0; // إعادة تعيين العداد
+            } else {
+              // ⚡ التحقق من عدد المحاولات لمنع infinite loop
+              if (retryCountRef.current < maxRetries) {
+                if (process.env.NODE_ENV === 'development') {
+                  console.warn(`[PermissionsContext] ⚠️ No local data found, retry ${retryCountRef.current + 1}/${maxRetries} in 3s`);
+                }
+                setTimeout(() => {
+                  if (!fetchingRef.current) { void fetchUnified(); }
+                }, 3000);
+              } else {
+                if (process.env.NODE_ENV === 'development') {
+                  console.error('[PermissionsContext] ❌ Max retries reached, stopping');
+                }
+                setError('Failed to load permissions after multiple attempts');
+                setReady(false);
+                retryCountRef.current = 0; // إعادة تعيين للمحاولة القادمة
+              }
+            }
+          }
+          return;
+        }
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[PermissionsContext] ✅ Session is ready, proceeding to RPC call');
+        }
+      }
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[PermissionsContext] 📡 Calling RPC: get_user_with_permissions_unified', { userId: user?.id });
+      }
+
       const { data: rows, error: rpcError } = await supabase.rpc('get_user_with_permissions_unified', {
-        p_auth_user_id: null,
+        p_auth_user_id: user?.id || null, // ⚡ تمرير ID المستخدم صراحةً لضمان العمل
         p_include_subscription_data: false,
         p_calculate_permissions: true
       });
 
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[PermissionsContext] 📡 RPC response:', { hasRows: !!rows, rowCount: Array.isArray(rows) ? rows.length : 0, error: rpcError?.message });
+      }
+
       if (rpcError) {
+        // محاولة التحميل من SQLite كـ Fallback
+        if (process.env.NODE_ENV === 'development') {
+          console.warn('[PermissionsContext] RPC error, trying SQLite fallback:', rpcError.message);
+        }
+        const saved = loadUserDataFromStorage();
+        const fallbackAuthId = user?.id || saved?.userProfile?.id || '';
+        const local = await loadLocal(fallbackAuthId);
+        if (local) {
+          setData(local);
+          setReady(true);
+          setError(null);
+          fetchingRef.current = false;
+          setLoading(false);
+          return;
+        }
         throw new Error(rpcError.message);
       }
 
@@ -307,7 +546,64 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
       // ✅ التحقق من صحة البيانات قبل المعالجة
       if (!parsed || !parsed.auth_user_id) {
-        console.warn('[PermissionsContext] No valid data received from server', { row, parsed });
+        // تقليل logs في حالة عدم وجود user - هذا سلوك متوقع في بعض الحالات
+        if (process.env.NODE_ENV === 'development' && user?.id) {
+          console.warn('[PermissionsContext] No valid data received from RPC for user', user.id);
+        }
+        
+        // ⚡ محاولة التحميل من SQLite كـ Fallback فوراً
+        const saved = loadUserDataFromStorage();
+        const fallbackAuthId = user?.id || saved?.userProfile?.id || '';
+        const local = await loadLocal(fallbackAuthId);
+        
+        if (local) {
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[PermissionsContext] ✅ Loaded local permissions (RPC returned empty)');
+          }
+          setData(local);
+          setReady(true);
+          setError(null);
+          retryCountRef.current = 0;
+          fetchingRef.current = false;
+          setLoading(false);
+          return;
+        }
+
+        // ⚡ إنشاء fallback من user metadata إذا لم توجد بيانات محلية
+        if (user && user.id) {
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[PermissionsContext] 🔧 Creating fallback from user metadata (RPC empty & no local)');
+          }
+          const userMetadata = (user.user_metadata as any) || {};
+          const fallback: UnifiedPermissionsData = {
+            user_id: user.id,
+            auth_user_id: user.id,
+            email: user.email || '',
+            name: userMetadata.name || saved?.userProfile?.name || user.email || '',
+            role: userMetadata.role || saved?.userProfile?.role || 'authenticated',
+            organization_id: userMetadata.organization_id || saved?.userProfile?.organization_id || null,
+            is_active: true,
+            is_org_admin: Boolean(['org_admin', 'admin', 'owner'].includes(saved?.userProfile?.role as any)),
+            is_super_admin: Boolean(saved?.userProfile?.role === 'super_admin'),
+            permissions: (saved?.userProfile?.permissions || {}) as PermissionMap,
+          };
+          
+          setData(fallback);
+          setReady(true);
+          setError(null);
+          retryCountRef.current = 0;
+
+          // حفظ في SQLite للمحاولات القادمة
+          try {
+            await saveLocal(fallback);
+          } catch {}
+
+          fetchingRef.current = false;
+          setLoading(false);
+          return;
+        }
+
+        // ⚡ آخر حل: throw error فقط إذا لم يكن هناك user
         throw new Error('No valid permissions data received');
       }
 
@@ -349,8 +645,16 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
       cachedValue = { data: parsed, ts: Date.now() };
       setReady(true);
       setError(null);
+      retryCountRef.current = 0; // ⚡ إعادة تعيين العداد عند النجاح
       markNetworkOnline();
     } catch (e: any) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[PermissionsContext] ❌ Error in fetchUnified:', {
+          message: e?.message,
+          isNetworkError: isNetworkError(e),
+          stack: e?.stack?.substring(0, 200)
+        });
+      }
       if (isNetworkError(e)) {
         markNetworkOffline({ force: true });
       }
@@ -365,6 +669,7 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
           setData(local);
           cachedValue = null;
           setReady(true);
+          retryCountRef.current = 0; // ⚡ إعادة تعيين العداد
           if (isNetworkError(e)) {
             setError('network_offline');
           }
@@ -408,10 +713,15 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
         } catch {}
         cachedValue = null;
         setReady(true);
+        retryCountRef.current = 0; // ⚡ إعادة تعيين العداد
         if (isNetworkError(e)) {
           setError('network_offline');
         }
       } catch (metaError) {
+        // ⚡ في حالة فشل كل شيء، لا نفعل شيء (setReady سيبقى false)
+        if (process.env.NODE_ENV === 'development') {
+          console.error('[PermissionsContext] ⚠️ All fallback methods failed:', metaError);
+        }
       }
     } finally {
       setLoading(false);
@@ -426,7 +736,14 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
     setReady(false);
     setError(null);
     if (user) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[PermissionsContext] 🚀 Starting to fetch permissions for user:', user.id);
+      }
       fetchUnified();
+    } else {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[PermissionsContext] ⏸️ No user, skipping permissions fetch');
+      }
     }
   }, [user?.id, fetchUnified]);
 

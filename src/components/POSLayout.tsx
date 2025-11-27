@@ -15,7 +15,7 @@ export default function POSLayout({ children }: POSLayoutProps) {
   const { user, userProfile, isLoading } = useAuth();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  
+
   const userRole = userProfile?.role || null;
   const userPermissions = (userProfile?.permissions || {}) as unknown as Record<string, boolean>;
   const isStaff = userProfile?.role === 'admin' || userProfile?.role === 'employee';
@@ -27,9 +27,9 @@ export default function POSLayout({ children }: POSLayoutProps) {
     const checkScreenSize = () => {
       setIsMobile(window.innerWidth < 768);
     };
-    
+
     checkScreenSize();
-    
+
     window.addEventListener('resize', checkScreenSize);
     return () => {
       window.removeEventListener('resize', checkScreenSize);
@@ -39,45 +39,38 @@ export default function POSLayout({ children }: POSLayoutProps) {
   // ضمان أن القائمة الجانبية مطوية دائماً في POS
   useEffect(() => {
     localStorage.setItem('sidebarCollapsed', 'true');
-    
+
     // إرسال حدث لإشعار المكونات الأخرى
     const event = new Event('localStorageChange');
     (event as any).key = 'sidebarCollapsed';
     (event as any).newValue = 'true';
     window.dispatchEvent(event);
   }, []);
-  
+
   const toggleSidebar = () => {
     if (isMobile) {
       setIsMobileSidebarOpen(!isMobileSidebarOpen);
     }
     // لا نسمح بتوسيع القائمة في صفحة POS على الشاشات الكبيرة
   };
-  
+
   const handleOverlayClick = () => {
     if (isMobile) {
       setIsMobileSidebarOpen(false);
     }
   };
 
-  if (user && isLoading) {
-    return (
-      <div dir="rtl" className="bg-background/95 min-h-screen flex items-center justify-center">
-        <Loader2 className="h-10 w-10 animate-spin text-primary" />
-        <p className="ml-3 text-lg">جاري تحميل ملف المستخدم...</p>
-      </div>
-    );
-  }
+
 
   return (
     <div dir="rtl" className="bg-background/95 min-h-screen">
-      <Navbar 
-        className="fixed top-0 left-0 right-0 z-50 shadow-sm h-16" 
-        toggleSidebar={toggleSidebar} 
+      <Navbar
+        className="fixed top-0 left-0 right-0 z-50 shadow-sm h-16"
+        toggleSidebar={toggleSidebar}
         isSidebarOpen={isSidebarOpen}
         isMobile={isMobile}
       />
-      
+
       {/* القائمة الجانبية الثابتة - مطوية دائماً في POS */}
       {isStaff && !isLoading && !isMobile && (
         <aside
@@ -89,9 +82,9 @@ export default function POSLayout({ children }: POSLayoutProps) {
           <SideMenu userRole={userRole} userPermissions={userPermissions} />
         </aside>
       )}
-      
+
       {/* المحتوى الرئيسي - مع مسافة أقل للقائمة المطوية */}
-      <main 
+      <main
         className={cn(
           "pt-16 min-h-screen transition-all duration-300", // عودة إلى pt-16 لتقليل المساحة
           !isMobile ? "mr-16" : isMobileSidebarOpen ? "mr-72" : "mr-0" // تقليل المسافة من mr-20 إلى mr-16
@@ -99,17 +92,17 @@ export default function POSLayout({ children }: POSLayoutProps) {
       >
         {children}
       </main>
-      
+
       {/* القائمة الجانبية للجوال */}
       {isStaff && !isLoading && isMobile && (
         <>
           {isMobileSidebarOpen && (
-            <div 
+            <div
               className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40"
               onClick={handleOverlayClick}
             />
           )}
-          <aside 
+          <aside
             className={cn(
               "fixed right-0 top-0 h-screen z-50 border-l border-border/30 transition-all duration-300 shadow-xl w-72 bg-background",
               isMobileSidebarOpen ? "translate-x-0" : "translate-x-[100%]"
@@ -120,9 +113,9 @@ export default function POSLayout({ children }: POSLayoutProps) {
                 <Store className="w-5 h-5" />
                 {userProfile?.store_name || 'متجر سطوكيها'}
               </h2>
-              <Button 
-                variant="ghost" 
-                size="icon" 
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={toggleSidebar}
                 className="text-muted-foreground hover:text-foreground"
               >
@@ -143,9 +136,9 @@ export default function POSLayout({ children }: POSLayoutProps) {
           )}
         </>
       )}
-      
+
       {/* القائمة الثابتة في الأسفل للهاتف */}
-      <MobileBottomNavigation 
+      <MobileBottomNavigation
         onMenuToggle={toggleSidebar}
         isMenuOpen={isMobileSidebarOpen}
       />

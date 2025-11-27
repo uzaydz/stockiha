@@ -4,17 +4,24 @@
  */
 
 import { syncProductsFromServer } from './syncService';
-import { inventoryDB } from '@/database/localDb';
+import { sqliteDB, isSQLiteAvailable } from '@/lib/db/sqliteAPI';
 
 /**
  * فحص عدد المنتجات المحلية في SQLite
  */
 export const getLocalProductsCount = async (organizationId: string): Promise<number> => {
   try {
-    const count = await inventoryDB.products
-      .where('organization_id')
-      .equals(organizationId)
-      .count();
+    if (!isSQLiteAvailable()) {
+      console.log('[ProductSyncUtils] SQLite not available');
+      return 0;
+    }
+    
+    const result = await sqliteDB.query(
+      'SELECT COUNT(*) as count FROM products WHERE organization_id = ?',
+      [organizationId]
+    );
+    
+    const count = result.data?.[0]?.count || 0;
     console.log('[ProductSyncUtils] Local products count:', count);
     return count;
   } catch (error) {
@@ -53,13 +60,12 @@ export const ensureProductsInSQLite = async (organizationId: string): Promise<{
     }
 
     console.log('[ProductSyncUtils] 📥 SQLite is empty - downloading products...');
-    const result = await syncProductsFromServer(organizationId);
+    const savedCount = await syncProductsFromServer(organizationId);
     
     return {
       needed: true,
-      success: result.success,
-      count: result.count,
-      error: result.error
+      success: savedCount > 0,
+      count: savedCount
     };
   } catch (error: any) {
     console.error('[ProductSyncUtils] ❌ Error ensuring products:', error);
@@ -82,5 +88,9 @@ export const forceReloadProducts = async (organizationId: string): Promise<{
   error?: string;
 }> => {
   console.log('[ProductSyncUtils] 🔄 Force reloading products from server...');
-  return await syncProductsFromServer(organizationId);
+  const savedCount = await syncProductsFromServer(organizationId);
+  return {
+    success: savedCount > 0,
+    count: savedCount
+  };
 };

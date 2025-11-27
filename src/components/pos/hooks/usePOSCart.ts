@@ -2,6 +2,7 @@ import { useCallback, useMemo } from 'react';
 import { toast } from 'sonner';
 import { Product } from '@/types';
 import { useCartTabs } from '@/hooks/useCartTabs';
+import { ensureArray } from '@/context/POSDataContext';
 
 interface CartItem {
   product: Product;
@@ -123,11 +124,14 @@ export const usePOSCart = ({
     let availableQuantity = product.stock_quantity;
     let variantName = "";
     
+    // ✅ استخدام ensureArray للتعامل مع JSON strings من SQLite
+    const productColors = ensureArray(product.colors) as any[];
     // المتغير هو لون ومقاس
     if (colorId && sizeId) {
-      const color = product.colors?.find(c => c.id === colorId);
-      const size = color?.sizes?.find(s => s.id === sizeId);
-      
+      const color = productColors.find(c => c.id === colorId);
+      const colorSizes = ensureArray(color?.sizes) as any[];
+      const size = colorSizes.find(s => s.id === sizeId);
+
       if (size) {
         availableQuantity = size.quantity;
         variantName = `${product.name} - ${colorName || 'لون'} - ${sizeName || 'مقاس'}`;
@@ -135,7 +139,7 @@ export const usePOSCart = ({
     }
     // المتغير هو لون فقط
     else if (colorId) {
-      const color = product.colors?.find(c => c.id === colorId);
+      const color = productColors.find(c => c.id === colorId);
       if (color) {
         availableQuantity = color.quantity;
         variantName = `${product.name} - ${colorName || 'لون'}`;
@@ -207,10 +211,13 @@ export const usePOSCart = ({
       } else {
         // للمنتجات مع متغيرات
         if (item.colorId) {
-          const color = item.product.colors?.find(c => c.id === item.colorId);
+          // ✅ استخدام ensureArray للتعامل مع JSON strings من SQLite
+          const itemProductColors = ensureArray(item.product.colors) as any[];
+          const color = itemProductColors.find(c => c.id === item.colorId);
           if (color) {
-            if (item.sizeId && color.sizes) {
-              const size = color.sizes.find(s => s.id === item.sizeId);
+            if (item.sizeId) {
+              const colorSizes = ensureArray(color.sizes) as any[];
+              const size = colorSizes.find(s => s.id === item.sizeId);
               availableQuantity = size?.quantity || 0;
             } else {
               availableQuantity = color.quantity || 0;

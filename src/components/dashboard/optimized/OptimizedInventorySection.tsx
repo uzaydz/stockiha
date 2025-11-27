@@ -1,9 +1,12 @@
-import React, { Suspense } from 'react';
+import React, { Suspense, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, WifiOff } from 'lucide-react';
 import { useSuperUnifiedData } from '../../../context/SuperUnifiedDataContext';
 import LowStockCard from '@/components/dashboard/LowStockCard';
 import { Button } from '@/components/ui/button';
+import { deltaWriteService } from '@/services/DeltaWriteService';
+import { useAuth } from '@/context/AuthContext';
+import { useTenant } from '@/context/TenantContext';
 
 // مكون التحميل للمخزون
 const InventoryLoader = () => (
@@ -50,12 +53,55 @@ const InventoryError = ({ error, onRetry }: { error: string; onRetry: () => void
 
 const OptimizedInventorySection: React.FC = () => {
   const { products, isLoading, error } = useSuperUnifiedData();
+  const { currentOrganization } = useTenant();
+  const [localProducts, setLocalProducts] = useState<any[]>([]);
+  const [isLoadingLocal, setIsLoadingLocal] = useState(false);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
 
-  if (isLoading) {
+  // جلب المنتجات من SQLite عند عدم الاتصال أو وجود خطأ
+  useEffect(() => {
+    const loadLocalProducts = async () => {
+      if ((error || !navigator.onLine) && currentOrganization?.id) {
+        setIsLoadingLocal(true);
+        try {
+          const localData = await deltaWriteService.getAll<any>(
+            'products',
+            currentOrganization.id
+          );
+          setLocalProducts(localData || []);
+          console.log('[OptimizedInventorySection] ✅ تم جلب المنتجات من SQLite:', localData.length);
+        } catch (err) {
+          console.error('[OptimizedInventorySection] ❌ فشل جلب المنتجات من SQLite:', err);
+        } finally {
+          setIsLoadingLocal(false);
+        }
+      }
+    };
+
+    loadLocalProducts();
+
+    // مراقبة حالة الاتصال
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [error, currentOrganization?.id]);
+
+  // استخدام المنتجات المحلية إذا كان هناك خطأ أو أوفلاين
+  const displayProducts = (error || isOffline) && localProducts.length > 0
+    ? localProducts
+    : products;
+
+  if (isLoading || isLoadingLocal) {
     return <InventoryLoader />;
   }
 
-  if (error) {
+  // إظهار رسالة خطأ فقط إذا لم تكن هناك بيانات محلية
+  if (error && localProducts.length === 0) {
     return <InventoryError error={error} onRetry={() => window.location.reload()} />;
   }
 
@@ -65,12 +111,18 @@ const OptimizedInventorySection: React.FC = () => {
         <h2 className="text-base font-bold flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-amber-500" />
           المنتجات منخفضة المخزون
+          {isOffline && (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground font-normal">
+              <WifiOff className="h-3 w-3" />
+              (أوفلاين)
+            </span>
+          )}
         </h2>
         <Link to="/dashboard/inventory" className="text-xs text-primary hover:underline">
           إدارة المخزون
         </Link>
       </div>
-      <LowStockCard products={products} />
+      <LowStockCard products={displayProducts} />
     </div>
   );
 };

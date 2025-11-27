@@ -57,13 +57,13 @@ export const markNetworkOffline = (options: { force?: boolean } = {}) => {
       (window as any).__lastKnownOnline = 0;
     }
   }
- 
-   // بث حالة الانقطاع الموحدة
-   try {
-     networkStatusManager.setStatus(false);
-   } catch {
-     // ignore
-   }
+
+  // بث حالة الانقطاع الموحدة
+  try {
+    networkStatusManager.setStatus(false);
+  } catch {
+    // ignore
+  }
 };
 
 export const isAppOnline = (): boolean => {
@@ -71,8 +71,6 @@ export const isAppOnline = (): boolean => {
   if (typeof navigator !== 'undefined') {
     // إذا كان navigator.onLine = true، نحن أونلاين بدون شك
     if (navigator.onLine === true) {
-      // تحديث lastKnownOnline تلقائياً
-      markNetworkOnline();
       return true;
     }
     // إذا كان navigator.onLine = false، نحن أوفلاين بدون شك

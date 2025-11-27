@@ -49,7 +49,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { toast } from "sonner";
 import { useTenant } from "@/context/TenantContext";
-import { getCustomers } from "@/lib/api/customers";
 import { getOrders } from "@/lib/api/orders";
 import { getProducts } from '@/lib/api/products';
 import { getServices } from '@/lib/api/services';
@@ -59,6 +58,7 @@ import type { Product } from '@/lib/api/products';
 import type { Service } from '@/lib/api/services';
 import type { Invoice } from "@/lib/api/invoices";
 import { supabase } from "@/lib/supabase";
+import { getLocalCustomers } from "@/api/localCustomerService";
 
 interface CreateInvoiceDialogProps {
   open: boolean;
@@ -120,8 +120,8 @@ const CreateInvoiceDialog = ({
 
       try {
         // جلب العملاء
-        const customersData = await getCustomers();
-        setCustomers(customersData);
+        const customersData = await getLocalCustomers({ organizationId: currentOrganization.id });
+        setCustomers(customersData as unknown as Customer[]);
 
         // جلب المنتجات
         const productsData = await getProducts(currentOrganization.id);
@@ -351,8 +351,8 @@ const CreateInvoiceDialog = ({
         discountAmount: Number(invoice.discount_amount) || 0,
         subtotalAmount: Number(invoice.subtotal_amount) || 0,
         shippingAmount: Number(invoice.shipping_amount) || 0,
-        customerInfo: invoice.customer_info,
-        organizationInfo: invoice.organization_info,
+        customerInfo: (invoice.customer_info as unknown as Invoice['customerInfo']),
+        organizationInfo: (invoice.organization_info as unknown as Invoice['organizationInfo']),
         createdAt: invoice.created_at,
         updatedAt: invoice.updated_at
       };
@@ -581,26 +581,18 @@ const CreateInvoiceDialog = ({
                                     setOrderSearchOpen(false);
                                     
                                     // Populate invoice items from the selected order
-                                    if (type === "order" || type === "online") {
+                                    if (type === "order" || type === "combined") {
                                       // Get order items
                                       const fetchOrderItems = async () => {
                                         try {
                                           toast.loading("جاري جلب عناصر الطلب...");
                                           
                                           let orderItems;
-                                          if (type === "order") {
-                                            const { data: items } = await supabase
-                                              .from('order_items')
-                                              .select('*')
-                                              .eq('order_id', order.id);
-                                            orderItems = items;
-                                          } else if (type === "online") {
-                                            const { data: items } = await supabase
-                                              .from('online_order_items')
-                                              .select('*')
-                                              .eq('order_id', order.id);
-                                            orderItems = items;
-                                          }
+                                          const { data: items } = await supabase
+                                            .from('order_items')
+                                            .select('*')
+                                            .eq('order_id', order.id);
+                                          orderItems = items;
                                           
                                           toast.dismiss();
                                           

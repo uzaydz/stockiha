@@ -1,7 +1,11 @@
 /**
  * SyncTracker - تتبع ذكي للعناصر المعلقة للمزامنة
  * يسمح بـ Event-Driven Sync بدلاً من Periodic Sync
+ *
+ * ⚡ تم التحديث للتكامل مع Delta Sync Engine
  */
+
+import { deltaSyncEngine } from './delta';
 
 type SyncEntityType = 'pos_orders' | 'products' | 'customers' | 'addresses' | 'invoices';
 
@@ -91,9 +95,36 @@ class SyncTracker {
 
   /**
    * عدد العناصر المعلقة
+   * ⚡ يشمل أيضاً العمليات المعلقة في Delta Sync outbox
    */
   getPendingCount(): number {
-    return this.pendingItems.size;
+    return this.pendingItems.size + this.getDeltaPendingCount();
+  }
+
+  /**
+   * ⚡ عدد العمليات المعلقة في Delta Sync
+   */
+  private getDeltaPendingCount(): number {
+    try {
+      // استخدام الحالة المخزنة مؤقتاً (لأن getStatus هي async)
+      return this._deltaPendingCount || 0;
+    } catch {
+      return 0;
+    }
+  }
+
+  private _deltaPendingCount = 0;
+
+  /**
+   * ⚡ تحديث عدد العمليات المعلقة من Delta Sync
+   */
+  async updateDeltaPendingCount(): Promise<void> {
+    try {
+      const status = await deltaSyncEngine.getStatus();
+      this._deltaPendingCount = status.pendingOutboxCount || 0;
+    } catch {
+      this._deltaPendingCount = 0;
+    }
   }
 
   /**
@@ -109,6 +140,7 @@ class SyncTracker {
 
   /**
    * الحصول على إحصائيات العناصر المعلقة
+   * ⚡ يشمل إحصائيات Delta Sync
    */
   getStats() {
     const byType: Record<SyncEntityType, number> = {
@@ -129,7 +161,10 @@ class SyncTracker {
       oldestItem: this.getOldestItem(),
       lastSyncTime: this.lastSyncTime,
       lastSuccessfulSyncTime: this.lastSuccessfulSyncTime,
-      timeSinceLastSync: this.timeSinceLastSync()
+      timeSinceLastSync: this.timeSinceLastSync(),
+      // ⚡ Delta Sync stats
+      deltaPending: this._deltaPendingCount,
+      totalWithDelta: this.pendingItems.size + this._deltaPendingCount
     };
   }
 

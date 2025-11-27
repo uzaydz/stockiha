@@ -1,11 +1,11 @@
 import React, { useState, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  ChevronDown, 
-  ChevronUp, 
-  Phone, 
-  MapPin, 
-  Package, 
+import {
+  ChevronDown,
+  ChevronUp,
+  Phone,
+  MapPin,
+  Package,
   Truck,
   MoreVertical,
   Edit,
@@ -31,6 +31,7 @@ import { Order } from './table/OrderTableTypes';
 import OrderStatusDropdown from './OrderStatusDropdown';
 import CallConfirmationDropdown from './CallConfirmationDropdown';
 import ShippingProviderColumn from './table/ShippingProviderColumn';
+import TrackingStatusColumn from './table/TrackingStatusColumn';
 import OrderStatusBadge from './table/OrderStatusBadge';
 import CallConfirmationBadge from './CallConfirmationBadge';
 import { 
@@ -570,6 +571,21 @@ const OrderCard = memo(({
                               hasUpdatePermission={hasUpdatePermission}
                               enabledProviders={shippingProviders}
                             />
+                          </div>
+                        )}
+
+                        {/* عمود التتبع - فقط للطلبات التي لديها yalidine_tracking_id */}
+                        {order.yalidine_tracking_id && (
+                          <div className="border-t pt-3 mt-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs text-muted-foreground">التتبع</span>
+                              <TrackingStatusColumn
+                                orderId={order.id}
+                                trackingNumber={order.yalidine_tracking_id}
+                                provider="yalidine"
+                                size="sm"
+                              />
+                            </div>
                           </div>
                         )}
                       </div>

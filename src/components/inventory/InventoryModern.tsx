@@ -323,23 +323,26 @@ function ProductCard({ item, onClick, isMobile = false }: ProductCardProps) {
     >
       {/* Mobile Layout */}
       <div className="flex gap-3 sm:gap-4">
-        {/* Product Image */}
+        {/* Product Image - ⚡ دعم thumbnail_base64 للعمل Offline */}
         <div className="flex-shrink-0">
-          {item.thumbnail_image && !imageError ? (
-            <img
-              src={item.thumbnail_image}
-              alt={item.name}
-              className="h-20 w-20 sm:h-24 sm:w-24 rounded-lg object-cover border"
-              onError={() => {
-                console.log('🖼️ Image failed to load (offline?):', item.thumbnail_image);
-                setImageError(true);
-              }}
-            />
-          ) : (
-            <div className="h-20 w-20 sm:h-24 sm:w-24 rounded-lg bg-primary/10 flex items-center justify-center border">
-              <Package className="h-8 w-8 sm:h-10 sm:w-10 text-primary" />
-            </div>
-          )}
+          {(() => {
+            const imageSrc = (item as any).thumbnail_base64 || item.thumbnail_image;
+            return imageSrc && !imageError ? (
+              <img
+                src={imageSrc}
+                alt={item.name}
+                className="h-20 w-20 sm:h-24 sm:w-24 rounded-lg object-cover border"
+                onError={() => {
+                  console.log('🖼️ Image failed to load (offline?):', imageSrc?.slice(0, 50));
+                  setImageError(true);
+                }}
+              />
+            ) : (
+              <div className="h-20 w-20 sm:h-24 sm:w-24 rounded-lg bg-primary/10 flex items-center justify-center border">
+                <Package className="h-8 w-8 sm:h-10 sm:w-10 text-primary" />
+              </div>
+            );
+          })()}
         </div>
 
         {/* Product Info */}

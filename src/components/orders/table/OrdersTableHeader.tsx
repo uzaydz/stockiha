@@ -12,7 +12,8 @@ import {
   Truck,
   MapPin,
   Wallet,
-  MoreHorizontal
+  MoreHorizontal,
+  MapPinned
 } from "lucide-react";
 
 interface OrdersTableHeaderProps {
@@ -115,6 +116,15 @@ const OrdersTableHeader = memo(({
             <div className="flex items-center gap-2">
               <Truck className="h-4 w-4 text-muted-foreground" />
               <span>الشحن</span>
+            </div>
+          </TableHead>
+        )}
+
+        {visibleColumns.includes("tracking") && (
+          <TableHead className="w-[160px] min-w-[160px] font-semibold text-foreground/90 py-3.5 px-4 text-sm">
+            <div className="flex items-center gap-2">
+              <MapPinned className="h-4 w-4 text-muted-foreground" />
+              <span>التتبع</span>
             </div>
           </TableHead>
         )}

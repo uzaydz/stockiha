@@ -60,7 +60,7 @@ const useTenantSafe = () => {
 // Throttle function for scroll events
 const throttle = (func: Function, limit: number) => {
   let inThrottle: boolean;
-  return function(this: any, ...args: any[]) {
+  return function (this: any, ...args: any[]) {
     if (!inThrottle) {
       func.apply(this, args);
       inThrottle = true;
@@ -89,35 +89,35 @@ export function StoreNavbar({
   const lastTitleRef = useRef<string>('');
   const lastFaviconRef = useRef<string>('');
   const lastLogoRef = useRef<string>('');
-  
+
   // استخدام useStoreInfo مع البنية الصحيحة + قراءة من البيانات المشتركة القادمة من RPC
   const storeInfo = useStoreInfo();
   const { organizationSettings: sharedOrgSettings, organization: sharedOrg } = useSharedStoreDataContext();
-  
+
   // 🚀 إضافة fallback من window object إذا لم تكن البيانات متوفرة
   const windowStoreData = (window as any).__CURRENT_STORE_DATA__;
   const windowEarlyData = (window as any).__EARLY_STORE_DATA__ || (window as any).__PREFETCHED_STORE_DATA__;
-  
+
   const storeInfoLoading = !storeInfo;
-  
+
   let storeName: string | null = null;
   let logoUrl: string | null = null;
 
   // البحث عن اسم المتجر من مصادر متعددة
   storeName = storeInfo?.name ||
-              sharedOrg?.name ||
-              windowStoreData?.organization?.name ||
-              windowEarlyData?.data?.organization_details?.name ||
-              (window as any).__STORE_ORGANIZATION__?.name ||
-              null;
+    sharedOrg?.name ||
+    windowStoreData?.organization?.name ||
+    windowEarlyData?.data?.organization_details?.name ||
+    (window as any).__STORE_ORGANIZATION__?.name ||
+    null;
 
   // البحث عن رابط الشعار من مصادر متعددة
   logoUrl = storeInfo?.logo_url ||
-            sharedOrgSettings?.logo_url ||
-            windowStoreData?.organizationSettings?.logo_url ||
-            windowEarlyData?.data?.organization_settings?.logo_url ||
-            (window as any).__STORE_SETTINGS__?.logo_url ||
-            null;
+    sharedOrgSettings?.logo_url ||
+    windowStoreData?.organizationSettings?.logo_url ||
+    windowEarlyData?.data?.organization_settings?.logo_url ||
+    (window as any).__STORE_SETTINGS__?.logo_url ||
+    null;
 
   // إضافة logs لتتبع البيانات في Navbar - تقليل اللوجات
   if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) { // 10% فقط من المرات
@@ -155,11 +155,11 @@ export function StoreNavbar({
       timestamp: new Date().toISOString()
     });
   }
-  
+
   // 🔧 نظام احتياطي لجلب بيانات الشعار
   const [fallbackLogo, setFallbackLogo] = useState<string | null>(null);
   const [fallbackSiteName, setFallbackSiteName] = useState<string | null>(null);
-  
+
   // محاولة جلب بيانات احتياطية من localStorage فقط بدون أي نداءات شبكة
   useEffect(() => {
     const fallbackStartTime = performance.now();
@@ -184,26 +184,26 @@ export function StoreNavbar({
 
     const timeoutId = setTimeout(() => {
       if (!logoUrl && !storeName) {
-        
+
         applyLocalFallback();
       } else {
-        
+
       }
     }, 500);
 
     return () => clearTimeout(timeoutId);
   }, [logoUrl, storeName]);
-  
+
   // إصلاح مشكلة destructuring عندما يكون useOrganizationSettings يرجع null
   const organizationSettingsResult = useOrganizationSettings();
-  const { settings: organizationSettings, isLoading: settingsLoading } = organizationSettingsResult || { 
-    settings: null, 
-    isLoading: false 
+  const { settings: organizationSettings, isLoading: settingsLoading } = organizationSettingsResult || {
+    settings: null,
+    isLoading: false
   };
-  
+
   // 🔥 إصلاح: استخدام إعدادات المؤسسة المحسنة مع أولوية لإعدادات RPC
   const finalOrganizationSettings = sharedOrgSettings || organizationSettings;
-  
+
   // استخراج البيانات من إعدادات المؤسسة مع النظام الاحتياطي
   const orgLogo = sharedOrgSettings?.logo_url || logoUrl || fallbackLogo || finalOrganizationSettings?.logo_url || '';
   const siteName = sharedOrgSettings?.site_name || storeName || sharedOrg?.name || fallbackSiteName || finalOrganizationSettings?.site_name || currentOrganization?.name || '';
@@ -213,7 +213,7 @@ export function StoreNavbar({
   useEffect(() => {
     const heightStartTime = performance.now();
 
-    
+
 
     // تحديد ارتفاع النافبار الثابت للاستخدام في CSS variables
     const navbarHeight = '64px'; // تطابق h-16 في tailwind
@@ -222,7 +222,7 @@ export function StoreNavbar({
 
     // تنظيف التأثير عند إلغاء المكون
     return () => {
-      
+
       document.documentElement.style.removeProperty('--navbar-height');
     };
   }, []);
@@ -231,7 +231,7 @@ export function StoreNavbar({
   useEffect(() => {
     const screenStartTime = performance.now();
 
-    
+
 
     // قلل ضوضاء السجلات وأثر الأداء
     const resizeLogCount = { current: 0 } as any;
@@ -254,7 +254,7 @@ export function StoreNavbar({
 
 
     return () => {
-      
+
       window.removeEventListener('resize', onResize as EventListener);
     };
   }, []);
@@ -263,7 +263,7 @@ export function StoreNavbar({
   useEffect(() => {
     const scrollStartTime = performance.now();
 
-    
+
 
     let scrollCount = 0;
     const handleScroll = throttle(() => {
@@ -281,11 +281,11 @@ export function StoreNavbar({
 
 
     return () => {
-      
+
       window.removeEventListener('scroll', handleScroll);
     };
   }, []);
-  
+
   // تحديث عنوان الصفحة والأيقونة عند تغيير الإعدادات - محسن
   const updatePageMetadata = useCallback(() => {
     const metadataStartTime = performance.now();
@@ -305,25 +305,25 @@ export function StoreNavbar({
         const faviconElement = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
         if (faviconElement) {
           faviconElement.href = `${finalOrganizationSettings.favicon_url}?t=${Date.now()}`;
-          
+
         } else {
           const newFavicon = document.createElement('link');
           newFavicon.rel = 'icon';
           newFavicon.href = `${finalOrganizationSettings.favicon_url}?t=${Date.now()}`;
           document.head.appendChild(newFavicon);
-          
+
         }
         lastFaviconRef.current = finalOrganizationSettings.favicon_url;
       }
 
       // تحديث صور الشعار فقط إذا تغيرت
       if (orgLogo && lastLogoRef.current !== orgLogo) {
-        
+
 
         // استخدام requestAnimationFrame لتجنب forced reflow
         requestAnimationFrame(() => {
           const logoImages = document.querySelectorAll('img[data-logo="organization"]');
-          
+
 
           logoImages.forEach(img => {
             const imgElement = img as HTMLImageElement;
@@ -332,7 +332,7 @@ export function StoreNavbar({
             }
           });
 
-          
+
         });
         lastLogoRef.current = orgLogo;
       }
@@ -363,19 +363,19 @@ export function StoreNavbar({
   const totalRenderTime = performance.now() - navbarStartTime;
 
   return (
-    <header 
+    <header
       data-navbar="store"
       className={cn(
         "fixed top-0 left-0 right-0 z-50 w-full flex flex-col",
         "transition-all duration-500 ease-in-out",
-        isScrolled 
-          ? "bg-background/85 backdrop-blur-xl shadow-xl border-b border-border/20" 
+        isScrolled
+          ? "bg-background/85 backdrop-blur-xl shadow-xl border-b border-border/20"
           : "bg-gradient-to-r from-background/60 via-background/70 to-background/60 backdrop-blur-lg shadow-lg",
         className
       )}
       style={{
-        background: isScrolled 
-          ? undefined 
+        background: isScrolled
+          ? undefined
           : `linear-gradient(135deg, 
               hsl(var(--background)/0.6) 0%, 
               hsl(var(--background)/0.8) 50%, 
@@ -390,7 +390,7 @@ export function StoreNavbar({
       <div className={cn(
         "absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-primary/40 to-transparent"
       )} />
-      
+
       <div className={cn(
         "flex items-center justify-between py-2 px-4 mx-auto w-full relative",
         isSmallScreen ? "h-14" : "h-16"
@@ -407,10 +407,10 @@ export function StoreNavbar({
 
         <div className="flex items-center gap-4 relative z-10">
           <div className="relative">
-            <NavbarLogo 
-              orgLogo={orgLogo} 
-              siteName={siteName} 
-              displayTextWithLogo={displayTextWithLogo} 
+            <NavbarLogo
+              orgLogo={orgLogo}
+              siteName={siteName}
+              displayTextWithLogo={displayTextWithLogo}
               isAdminPage={false}
               withGradientEffect={true}
             />
@@ -420,13 +420,13 @@ export function StoreNavbar({
         {/* Center navigation for store pages */}
         <div className="hidden lg:block absolute left-1/2 transform -translate-x-1/2">
           <div className="bg-gradient-to-r from-background/40 to-background/60 backdrop-blur-md rounded-full border border-border/20 shadow-lg px-2 py-1">
-            <NavbarLinks 
-              isAdminPage={false} 
-              categories={[]} 
+            <NavbarLinks
+              isAdminPage={false}
+              categories={[]}
             />
           </div>
         </div>
-        
+
         <div className="flex items-center gap-3 relative z-10">
           {/* Action buttons with enhanced styling */}
           <div className="hidden lg:flex items-center gap-2">
@@ -446,18 +446,18 @@ export function StoreNavbar({
               {/* إضافة تأثير بصري إضافي */}
               <div className="absolute inset-0 rounded-full bg-gradient-to-r from-primary/10 to-secondary/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
             </div>
-            
+
             {user && (
               <div className="bg-gradient-to-r from-background/40 to-background/60 backdrop-blur-md rounded-full border border-border/20 shadow-sm p-1">
                 <NavbarNotifications />
               </div>
             )}
-            
+
             <div className="bg-gradient-to-r from-background/40 to-background/60 backdrop-blur-md rounded-full border border-border/20 shadow-sm p-1">
               <NavbarUserMenu isAdminPage={false} />
             </div>
           </div>
-          
+
           {/* Mobile actions: إظهار زر السويتش + أيقونة كل المنتجات */}
           <div className="flex lg:hidden items-center gap-2">
             <NavbarCartButton />
@@ -491,7 +491,7 @@ export function StoreNavbar({
             </Button>
           </div>
         </div>
-        
+
         {/* Bottom gradient line */}
         <div className={cn(
           "absolute bottom-0 left-1/4 right-1/4 h-px bg-gradient-to-r from-transparent via-border/50 to-transparent"

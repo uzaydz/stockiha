@@ -59,6 +59,7 @@ const ALLOWED_CHANNELS = {
   'file:save-as': true,
   'file:export-pdf': true,
   'file:export-excel': true,
+  'download-image': true,
 };
 
 const ALLOWED_RECEIVE_CHANNELS = {
@@ -106,6 +107,10 @@ function sanitizeStorageKey(key) {
 // ============================================================================
 
 const electronAPI = {
+  downloadImage: (url, entityType, entityId) => {
+    if (!url || typeof url !== 'string') throw new Error('Invalid URL');
+    return ipcRenderer.invoke('download-image', url, entityType, entityId);
+  },
   // ========================================================================
   // App Information
   // ========================================================================

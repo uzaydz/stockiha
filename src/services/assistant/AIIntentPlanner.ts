@@ -6,17 +6,138 @@ type AIIntent = {
   confidence?: number;
 };
 
+type AIMultiIntent = {
+  intents: Array<{
+    intent: string;
+    args?: Record<string, any>;
+    confidence?: number;
+  }>;
+};
+
 const API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY || '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';
 const API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const MODEL = 'x-ai/grok-4-fast';
+const MODEL = 'tngtech/deepseek-r1t2-chimera:free'; // Using DeepSeek R1T2 Chimera
 
 export class AIIntentPlanner {
   static USE_AI = true; // استخدم الذكاء لاستخراج النية متعددة اللغات
-  private static readonly TIMEOUT_MS = 1800; // مهلة قصيرة لتفادي تعليق الواجهة
+  private static readonly TIMEOUT_MS = 5000; // Increased timeout for GPT-5.1 reasoning mode
+
+  /**
+   * خطة متعددة النوايا - تكتشف عدة نوايا في استعلام واحد
+   */
+  static async planMulti(userQuery: string, history?: Array<{ role: 'user' | 'assistant'; content: string }>, signal?: AbortSignal): Promise<ParsedIntent[] | null> {
+    if (!this.USE_AI || !API_KEY) return null;
+    if (signal?.aborted) throw new DOMException('Operation aborted', 'AbortError');
+    try {
+      const prompt = `You are a multilingual retail POS intent parser. Understand Arabic (Darija), French, English, and mixed slang by meaning (not keywords). Detect ONE OR MORE intents in the user's query.
+
+CRITICAL RULES:
+- If the query contains multiple separate requests/questions, extract ALL of them as separate intents.
+- Examples of multi-intent queries:
+  * "وريني مبيعات اليوم وكريدي أحمد" → [sales_today, customer_credit]
+  * "كم المخزون نتاع iPhone وشحال المصاريف اليوم" → [product_search, expense summary via tools]
+  * "سجل مصروف 500 توصيل وأعطيني مبيعات الأسبوع" → [expense_create, weekly_sales]
+- If there's only ONE intent, return array with one item.
+- Use same intent types as single-intent parser.
+- Output STRICT JSON only. No explanations.
+
+SCHEMA (must match exactly):
+{
+  "intents": [
+    {
+      "intent": "sales_today|sales_yesterday|...|repair_add_payment",
+      "args": {...},
+      "confidence": 0.0
+    }
+  ]
+}
+
+EXAMPLES:
+Q: "وريني مبيعات اليوم وكريدي أحمد"
+A: {"intents":[{"intent":"sales_today","args":{},"confidence":0.9},{"intent":"customer_credit","args":{"customerQuery":"أحمد"},"confidence":0.9}]}
+
+Q: "سجل مصروف 300 دج كهرباء وأعطيني أكثر المنتجات مبيعاً"
+A: {"intents":[{"intent":"expense_create","args":{"title":"كهرباء","amount":300,"category":"كهرباء"},"confidence":0.9},{"intent":"top_products","args":{"days":7},"confidence":0.9}]}
+
+Q: "كم المخزون نتاع iPhone؟"
+A: {"intents":[{"intent":"product_search","args":{"productQuery":"iPhone"},"confidence":0.9}]}
+`;
+
+      const controller = new AbortController();
+      const to = setTimeout(() => controller.abort(), this.TIMEOUT_MS);
+
+      const combinedSignal = signal || controller.signal;
+
+      const resp = await fetch(API_URL, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${API_KEY}`,
+          'HTTP-Referer': typeof window !== 'undefined' ? window.location.origin : '',
+          'X-Title': 'Bazaar Console - Multi Intent Planner',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          model: MODEL,
+          messages: [
+            { role: 'system', content: prompt },
+            ...(Array.isArray(history) ? history.slice(-4) : []),
+            { role: 'user', content: `Query: ${userQuery}\nReturn JSON only.` }
+          ],
+          temperature: 0.1,
+          max_tokens: 400
+        }),
+        signal: combinedSignal
+      });
+      clearTimeout(to);
+      if (!resp.ok) return null;
+      const data = await resp.json();
+      const content: string = data?.choices?.[0]?.message?.content || '';
+      const jsonText = (content.match(/\{[\s\S]*\}/) || [])[0] || '';
+      if (!jsonText) return null;
+      const parsed = JSON.parse(jsonText) as AIMultiIntent;
+
+      if (!parsed?.intents || !Array.isArray(parsed.intents)) return null;
+
+      // تحويل كل نية إلى ParsedIntent
+      const results: ParsedIntent[] = [];
+      for (const intent of parsed.intents) {
+        const mapped = this.mapToParsedIntent(intent);
+        if (mapped) results.push(mapped);
+      }
+
+      return results.length > 0 ? results : null;
+    } catch {
+      return null;
+    }
+  }
 
   static async plan(userQuery: string, history?: Array<{ role: 'user' | 'assistant'; content: string }>, signal?: AbortSignal): Promise<ParsedIntent | null> {
     if (!this.USE_AI || !API_KEY) return null;
     if (signal?.aborted) throw new DOMException('Operation aborted', 'AbortError');
+
+    // 🔥 PRE-CHECK: Detect obvious "add_customer_debt" cases before calling AI
+    // This is a safety net for when AI fails to detect correctly
+    const q = userQuery.toLowerCase();
+    const hasAmount = /\d+/.test(userQuery);
+    // Handle all forms of همزة: أ إ ا
+    const hasBorrowingContext = /[اإأ]ستلف|سلف|[اأإ]خذ.*كريدي|took.*credit|borrowed|lent/i.test(userQuery);
+
+    if (hasAmount && hasBorrowingContext) {
+      // Extract customer name and amount
+      const amountMatch = userQuery.match(/(\d+)\s*(دج|da|dzd)?/i);
+      const amount = amountMatch ? parseInt(amountMatch[1], 10) : 0;
+
+      // Extract customer query (remove common words) - handle all hamza forms
+      let customerQuery = userQuery
+        .replace(/لقد|[إاأ]ستلف[ىي]|مني|[اإأ]خذ|كريدي|سلف|دج|da|dzd|\d+/gi, '')
+        .trim();
+
+      if (amount > 0 && customerQuery) {
+        console.log('[AIIntentPlanner] 🎯 Pre-check detected add_customer_debt:', { customerQuery, amount });
+        return { type: 'add_customer_debt', customerQuery, amount } as any;
+      }
+    }
+
     try {
       const prompt = `You are a multilingual retail POS intent parser. Understand Arabic (Darija), French, English, and mixed slang by meaning (not keywords). Infer a SINGLE intent and arguments for a retail POS assistant.
 
@@ -26,11 +147,17 @@ CRITICAL RULES:
 - When intent is "update_stock" and details are missing (quantity/mode/color/size), leave them undefined. The UI will ask the user.
 - Use "product_search" ONLY when the user asks to know the current stock or find a product, without implying a change.
 - Parse the product name into args.productQuery; strip filler words like "تاع/ta3/نتاع/هذا/produit/product".
+- DEBT RULES (CRITICAL - READ CAREFULLY):
+  * IF user mentions BOTH (customer name + amount number), it's ALWAYS "add_customer_debt" or "customer_payment" - NEVER "customer_credit"
+  * "customer_credit" = QUERY/VIEW existing debt (NO amount/number in query). Examples: "كم كريدي أحمد؟", "شحال دين علي؟", "how much does oussama owe?"
+  * "add_customer_debt" = CREATE NEW debt (customer + amount + borrowing context like استلفى/أخذ/سلف). Examples: "استلفى مني أحمد 3000", "oussama took 5000", "سلف علي 2500", "أخذ كريدي"
+  * "customer_payment" = RECORD payment (customer + amount + payment context like دفع/paid/سدد). Examples: "أحمد دفع 1000", "oussama paid 500"
+  * KEY DISTINCTION: "لقد إستلفى مني oussama 3000 دج" = "add_customer_debt" (borrowing + amount), NOT "customer_credit"
 - Output STRICT JSON only. No explanations. No extra keys.
 
 SCHEMA (must match exactly):
 {
-  "intent": "sales_today|sales_yesterday|sales_on_date|weekly_sales|monthly_sales|top_products|inventory_stats|low_stock|out_of_stock|product_search|update_stock|rename_product|customer_credit|customer_payment|debts_list|expense_create|expense_update|repair_create|repair_status|repair_update_status|repair_add_payment",
+  "intent": "sales_today|sales_yesterday|sales_on_date|weekly_sales|monthly_sales|top_products|inventory_stats|low_stock|out_of_stock|product_search|update_stock|rename_product|customer_credit|add_customer_debt|customer_payment|debts_list|expense_create|expense_update|repair_create|repair_status|repair_update_status|repair_add_payment",
   "args": {
     "date": "yyyy-mm-dd",
     "days": 7,
@@ -67,6 +194,18 @@ EXAMPLES (very important):
   A: {"intent":"expense_create","args":{"title":"توصيل","amount":250,"category":"توصيل","date":"2025-01-20"},"confidence":0.9}
 - Q: "غير مصروف أسامة كتوبي دا إلى 6000 دج"
   A: {"intent":"expense_update","args":{"title":"أسامة كتوبي دا","amount":6000,"timeframe":"month"},"confidence":0.9}
+- Q: "لقد استلفى مني oussama 3000 دج"
+  A: {"intent":"add_customer_debt","args":{"customerQuery":"oussama","amount":3000},"confidence":0.95}
+- Q: "أحمد أخذ كريدي 5000"
+  A: {"intent":"add_customer_debt","args":{"customerQuery":"أحمد","amount":5000},"confidence":0.95}
+- Q: "سلف علي 2500 دج"
+  A: {"intent":"add_customer_debt","args":{"customerQuery":"علي","amount":2500},"confidence":0.95}
+- Q: "كم كريدي oussama؟"
+  A: {"intent":"customer_credit","args":{"customerQuery":"oussama"},"confidence":0.9}
+- Q: "شحال الدين نتاع أحمد؟"
+  A: {"intent":"customer_credit","args":{"customerQuery":"أحمد"},"confidence":0.9}
+- Q: "كم رصيد علي؟"
+  A: {"intent":"customer_credit","args":{"customerQuery":"علي"},"confidence":0.9}
 - Q: "العملاء الذين لديهم ديون عندي؟"
   A: {"intent":"debts_list","args":{},"confidence":0.9}
  - Q: "أضف تصليح لأسامة 0555123456 آيفون 13 شاشة مكسورة بسعر 5000"
@@ -77,6 +216,11 @@ EXAMPLES (very important):
   A: {"intent":"repair_update_status","args":{"customerQuery":"أسامة","status":"مكتمل"},"confidence":0.9}
  - Q: "أضف دفعة 2000 لتصليح أسامة"
   A: {"intent":"repair_add_payment","args":{"customerQuery":"أسامة","amount":2000},"confidence":0.9}
+
+IMPORTANT REMINDER:
+- "لقد إستلفى مني [name] [amount] دج" → ALWAYS "add_customer_debt" (NOT "customer_credit")
+- "كم كريدي [name]؟" → "customer_credit"
+- Key difference: Does the query contain an AMOUNT? If YES and borrowing context → "add_customer_debt"
 `;
 
       const controller = new AbortController();
@@ -232,6 +376,10 @@ Schema:
       }
       case 'customer_credit': {
         return { type: 'customer_credit', customerQuery: q(a.customerQuery) } as any;
+      }
+      case 'add_customer_debt': {
+        const amount = Number(a.amount) || num(a.amount);
+        return { type: 'add_customer_debt', customerQuery: q(a.customerQuery), amount: Number.isFinite(amount) ? amount : 0 } as any;
       }
       case 'customer_payment': {
         const amount = Number(a.amount) || num(a.amount);

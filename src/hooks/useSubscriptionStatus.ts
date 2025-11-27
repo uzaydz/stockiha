@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import { getSecureNow, getLocalSubscription, toSubscriptionDataFromLocal } from '@/lib/license/licenseService';
+import { getSecureNow, getLocalSubscription, toSubscriptionDataFromLocal, saveLocalSubscription } from '@/lib/license/licenseService';
 import { useOfflineStatus } from '@/hooks/useOfflineStatus';
 
 interface SubscriptionStatus {
@@ -16,13 +16,13 @@ interface SubscriptionStatus {
   planCode: string | null;
   daysRemaining: number;
   subscriptionStatus: 'active' | 'trial' | 'expired' | null;
-  
+
   // معلومات الطلبات (للباقات التي تقدم طلبات)
   hasOrdersLimit: boolean;
   currentOrders: number;
   maxOrders: number | null;
   remainingOrders: number | null;
-  
+
   // حالة التحميل
   isLoading: boolean;
   error: string | null;
@@ -53,7 +53,7 @@ export const useSubscriptionStatus = () => {
 
     try {
       setStatus(prev => ({ ...prev, isLoading: true, error: null }));
-      try { console.log('[TitlebarSubscription] fetch start', { orgId: organization.id }); } catch {}
+      try { console.log('[TitlebarSubscription] fetch start', { orgId: organization.id }); } catch { }
 
       let subscriptionInfo = {
         hasActiveSubscription: false,
@@ -86,7 +86,7 @@ export const useSubscriptionStatus = () => {
                 end_iso: localData.end_date
               }
             });
-          } catch {}
+          } catch { }
           subscriptionInfo = {
             hasActiveSubscription: localData.status === 'active' || localData.status === 'trial',
             planName: localData.plan_name || 'غير محدد',
@@ -110,7 +110,7 @@ export const useSubscriptionStatus = () => {
                 end_date: subData.end_date,
                 daysLeft
               });
-            } catch {}
+            } catch { }
             subscriptionInfo = {
               hasActiveSubscription: true,
               planName: subData.plan_name || 'غير محدد',
@@ -118,6 +118,12 @@ export const useSubscriptionStatus = () => {
               daysRemaining: daysLeft,
               subscriptionStatus: subData.status as 'active' | 'trial' | 'expired',
             };
+
+            // ✅ Save to SQLite for offline use
+            await saveLocalSubscription(organization.id, {
+              ...subData,
+              days_left: daysLeft
+            });
           }
         }
       } catch (err) {
@@ -157,11 +163,42 @@ export const useSubscriptionStatus = () => {
         isLoading: false,
         error: null,
       };
-      try { console.log('[TitlebarSubscription] final', nextStatus); } catch {}
+      try { console.log('[TitlebarSubscription] final', nextStatus); } catch { }
+
+      // Cache successful status
+      if (nextStatus.hasActiveSubscription) {
+        try {
+          localStorage.setItem('cached_subscription_status', JSON.stringify({
+            ...nextStatus,
+            timestamp: Date.now()
+          }));
+        } catch { }
+      }
+
       setStatus(nextStatus);
 
     } catch (err) {
       console.error('Error fetching subscription status:', err);
+
+      // Fallback to cache if offline and error occurred
+      if (isOffline) {
+        try {
+          const cached = localStorage.getItem('cached_subscription_status');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            // Use cache if less than 7 days old
+            if (Date.now() - parsed.timestamp < 7 * 24 * 60 * 60 * 1000) {
+              setStatus({
+                ...parsed,
+                isLoading: false,
+                error: null
+              });
+              return;
+            }
+          }
+        } catch { }
+      }
+
       setStatus(prev => ({
         ...prev,
         isLoading: false,
@@ -179,9 +216,9 @@ export const useSubscriptionStatus = () => {
     const handler = () => fetchSubscriptionStatus();
     try {
       window.addEventListener('subscriptionActivated', handler as EventListener);
-    } catch {}
+    } catch { }
     return () => {
-      try { window.removeEventListener('subscriptionActivated', handler as EventListener); } catch {}
+      try { window.removeEventListener('subscriptionActivated', handler as EventListener); } catch { }
     };
   }, [fetchSubscriptionStatus]);
 

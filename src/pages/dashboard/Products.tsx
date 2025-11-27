@@ -4,6 +4,8 @@ import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import Layout from '@/components/Layout';
 import { toast } from 'sonner';
 import { getProductsPaginated } from '@/lib/api/products';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import { fastSearchLocalProducts } from '@/lib/api/offlineProductsAdapter';
 
 
 
@@ -64,6 +66,7 @@ const ProductsComponent = ({
 }: ProductsProps) => {
   const { currentOrganization } = useTenant();
   const { user } = useAuth();
+  const { isOnline } = useNetworkStatus();
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -242,28 +245,81 @@ const ProductsComponent = ({
       
       const searchFilters = { ...currentFilters, ...filterOverrides };
 
-      // الخطوة 2: تنفيذ الطلب مع تحسين الأداء
-      const { getProductsPaginatedOptimized } = await import('@/lib/api/products');
       // تحديد ما إذا كان يجب تضمين المنتجات غير النشطة بناءً على فلتر حالة النشر
       const shouldIncludeInactive = searchFilters.publicationFilter === 'all' || 
                                    searchFilters.publicationFilter === 'draft' || 
                                    searchFilters.publicationFilter === 'archived';
 
+      let result: {
+        products: Product[];
+        totalCount: number;
+        totalPages: number;
+        currentPage: number;
+        hasNextPage: boolean;
+        hasPreviousPage: boolean;
+      };
 
-      const result = await getProductsPaginatedOptimized(
-        currentOrganization.id,
-        currentPageValue,
-        pageSize,
-        {
-          includeInactive: shouldIncludeInactive,
-          searchQuery: currentDebouncedQuery.trim(),
-          categoryFilter: searchFilters.categoryFilter || '',
-          stockFilter: searchFilters.stockFilter,
-          publicationFilter: searchFilters.publicationFilter,
-          sortOption: searchFilters.sortOption,
-        } as any
-      );
+      // ⚡ Offline-First: جلب من SQLite المحلي أولاً، ثم من السيرفر
+      if (!isOnline) {
+        // ⚡ وضع الأوفلاين - جلب من SQLite فقط
+        console.log('[Products] ⚡ Offline mode - fetching from SQLite...');
+        
+        // استخدام البحث المحلي السريع
+        let localProducts: any[];
+        
+        if (currentDebouncedQuery.trim()) {
+          // بحث بالنص
+          localProducts = await fastSearchLocalProducts(
+            currentOrganization.id,
+            currentDebouncedQuery.trim(),
+            { limit: 200, includeInactive: shouldIncludeInactive, categoryId: searchFilters.categoryFilter || undefined }
+          );
+        } else {
+          // جلب كل المنتجات
+          const { getProducts: getOfflineProducts } = await import('@/lib/api/offlineProductsAdapter');
+          localProducts = await getOfflineProducts(currentOrganization.id, shouldIncludeInactive);
+        }
 
+        // فلترة حسب الفئة
+        if (searchFilters.categoryFilter) {
+          localProducts = localProducts.filter((p: any) => p.category_id === searchFilters.categoryFilter);
+        }
+
+        // Pagination يدوي
+        const totalCount = localProducts.length;
+        const startIndex = (currentPageValue - 1) * pageSize;
+        const paginatedProducts = localProducts.slice(startIndex, startIndex + pageSize);
+
+        result = {
+          products: paginatedProducts as unknown as Product[],
+          totalCount,
+          totalPages: Math.ceil(totalCount / pageSize),
+          currentPage: currentPageValue,
+          hasNextPage: currentPageValue * pageSize < totalCount,
+          hasPreviousPage: currentPageValue > 1
+        };
+
+        console.log(`[Products] ⚡ Loaded ${result.products.length} products from SQLite (offline)`);
+      } else {
+        // ⚡ وضع الأونلاين - جلب من API
+        const { getProductsPaginatedOptimized } = await import('@/lib/api/products');
+        
+        result = await getProductsPaginatedOptimized(
+          currentOrganization.id,
+          currentPageValue,
+          pageSize,
+          {
+            includeInactive: shouldIncludeInactive,
+            searchQuery: currentDebouncedQuery.trim(),
+            categoryFilter: searchFilters.categoryFilter || '',
+            stockFilter: searchFilters.stockFilter,
+            publicationFilter: searchFilters.publicationFilter,
+            sortOption: searchFilters.sortOption,
+          } as any
+        );
+
+        console.log(`[Products] ✅ Loaded ${result.products.length} products from server (online)`);
+      }
 
       // التحقق من عدم إلغاء الطلب أو تغيير الطلب
       if (signal.aborted || lastRequestIdRef.current !== requestId) {
@@ -292,8 +348,24 @@ const ProductsComponent = ({
         return;
       }
 
-      setLoadError('حدث خطأ أثناء تحميل المنتجات');
-      toast.error('حدث خطأ أثناء تحميل المنتجات');
+      // ⚡ Fallback إلى البيانات المحلية عند فشل الاتصال
+      console.warn('[Products] ⚠️ Server fetch failed, trying local data...');
+      try {
+        const { getProducts: getOfflineProducts } = await import('@/lib/api/offlineProductsAdapter');
+        const localProducts = await getOfflineProducts(currentOrganization?.id, true);
+        if (localProducts.length > 0) {
+          setProducts(localProducts as unknown as Product[]);
+          setTotalCount(localProducts.length);
+          setTotalPages(Math.ceil(localProducts.length / pageSize));
+          toast.info('تم تحميل المنتجات من البيانات المحلية');
+        } else {
+          setLoadError('حدث خطأ أثناء تحميل المنتجات');
+          toast.error('حدث خطأ أثناء تحميل المنتجات');
+        }
+      } catch {
+        setLoadError('حدث خطأ أثناء تحميل المنتجات');
+        toast.error('حدث خطأ أثناء تحميل المنتجات');
+      }
     } finally {
       // تنظيف الحالة فقط إذا كان هذا هو آخر طلب
       if (lastRequestIdRef.current === requestId) {
@@ -302,7 +374,7 @@ const ProductsComponent = ({
         setIsRefreshing(false);
       }
     }
-  }, [currentOrganization?.id]);
+  }, [currentOrganization?.id, isOnline]);
 
   // Load categories optimized
   const loadCategories = useCallback(async () => {

@@ -1,6 +1,7 @@
 import * as React from "react"
 import * as LabelPrimitive from "@radix-ui/react-label"
-import { Slot } from "@radix-ui/react-slot"
+// تم تعطيل Slot لتجنب مشاكل compose-refs مع React 19
+// import { Slot } from "@radix-ui/react-slot"
 import {
   Controller,
   ControllerProps,
@@ -12,6 +13,23 @@ import {
 
 import { cn } from "@/lib/utils"
 import { Label } from "@/components/ui/label"
+
+// بديل بسيط لـ Slot يتجنب مشاكل compose-refs
+const SimpleSlot = React.forwardRef<
+  HTMLElement,
+  React.HTMLAttributes<HTMLElement> & { children?: React.ReactNode }
+>(({ children, ...props }, _ref) => {
+  // إذا كان children عنصر React صالح، نقوم بنسخه مع الخصائص الإضافية
+  if (React.isValidElement(children)) {
+    return React.cloneElement(children as React.ReactElement<any>, {
+      ...props,
+      ...(children as React.ReactElement<any>).props,
+    });
+  }
+  // وإلا نعيد div عادي
+  return <div {...props}>{children}</div>;
+});
+SimpleSlot.displayName = 'SimpleSlot';
 
 const Form = FormProvider
 
@@ -101,26 +119,32 @@ const FormLabel = React.forwardRef<
 })
 FormLabel.displayName = "FormLabel"
 
-const FormControl = React.forwardRef<
-  React.ElementRef<typeof Slot>,
-  React.ComponentPropsWithoutRef<typeof Slot>
->(({ ...props }, ref) => {
-  const { error, formItemId, formDescriptionId, formMessageId } = useFormField()
+// FormControl بدون استخدام Slot من Radix لتجنب مشاكل compose-refs مع React 19
+const FormControl = React.memo<React.HTMLAttributes<HTMLElement> & { children?: React.ReactNode }>(
+  ({ children, ...props }) => {
+    const { error, formItemId, formDescriptionId, formMessageId } = useFormField()
 
-  return (
-    <Slot
-      ref={ref}
-      id={formItemId}
-      aria-describedby={
-        !error
-          ? `${formDescriptionId}`
-          : `${formDescriptionId} ${formMessageId}`
-      }
-      aria-invalid={!!error}
-      {...props}
-    />
-  )
-})
+    const extraProps = {
+      id: formItemId,
+      'aria-describedby': !error
+        ? `${formDescriptionId}`
+        : `${formDescriptionId} ${formMessageId}`,
+      'aria-invalid': !!error,
+      ...props,
+    };
+
+    // إذا كان children عنصر React صالح، نقوم بنسخه مع الخصائص الإضافية
+    if (React.isValidElement(children)) {
+      return React.cloneElement(children as React.ReactElement<any>, {
+        ...extraProps,
+        ...(children as React.ReactElement<any>).props,
+      });
+    }
+
+    // وإلا نعيد div عادي
+    return <div {...extraProps}>{children}</div>;
+  }
+);
 FormControl.displayName = "FormControl"
 
 const FormDescription = React.forwardRef<

@@ -13,12 +13,15 @@ import { v4 as uuidv4 } from 'uuid';
 
 // استيراد Hooks
 import useUnifiedPOSData from '@/hooks/useUnifiedPOSData';
+import useLocalPOSProducts from '@/hooks/useLocalPOSProducts';
 import useBarcodeScanner from '@/hooks/useBarcodeScanner';
 import { useGlobalBarcodeScanner } from '@/hooks/useGlobalBarcodeScanner';
 import { usePOSBarcode } from '@/components/pos/hooks/usePOSBarcode';
 import { usePOSCart } from '@/components/pos/hooks/usePOSCart';
 import { usePOSReturn } from '@/components/pos/hooks/usePOSReturn';
 import { usePOSOrder } from '@/components/pos/hooks/usePOSOrder';
+import { localProductSearchService } from '@/services/LocalProductSearchService';
+import { isSQLiteAvailable } from '@/lib/db/sqliteAPI';
 
 interface CartItem {
   product: Product;
@@ -63,6 +66,7 @@ export const usePOSAdvancedState = () => {
   const [pageSize, setPageSize] = useState(30);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('');
+  const [useLocalData, setUseLocalData] = useState(true); // ⚡ استخدام البيانات المحلية افتراضياً
 
   // دالة محسنة لجلب البيانات مع cache
   const getCachedData = useCallback((key: string) => {
@@ -81,10 +85,35 @@ export const usePOSAdvancedState = () => {
     });
   }, []);
 
-  // جلب البيانات الأساسية مع cache محسن
+  // ⚡ جلب المنتجات من SQLite المحلية (سريع جداً)
   const {
-    products: pagedProducts,
-    pagination,
+    products: localProducts,
+    pagination: localPagination,
+    isLoading: isLocalLoading,
+    isRefetching: isLocalRefetching,
+    error: localError,
+    refreshData: refreshLocalData,
+    invalidateCache: invalidateLocalCache
+  } = useLocalPOSProducts({
+    page: currentPage,
+    limit: pageSize,
+    search: searchQuery?.trim() || '',
+    categoryId: categoryFilter && categoryFilter !== 'all' ? categoryFilter : '',
+    enabled: useLocalData && !!currentOrganization?.id && isSQLiteAvailable()
+  });
+
+  // ⚡ تحديد ما إذا كانت البيانات المحلية فارغة (للتبديل للسيرفر كـ fallback)
+  const localDataEmpty = !isLocalLoading && localProducts.length === 0;
+  const shouldFetchFromServer = !!currentOrganization?.id && (
+    !useLocalData ||
+    !isSQLiteAvailable() ||
+    localDataEmpty // ⚡ إضافة: جلب من السيرفر إذا كانت البيانات المحلية فارغة
+  );
+
+  // جلب البيانات الأساسية من السيرفر (للفئات والاشتراكات والعملاء)
+  const {
+    products: serverProducts,
+    pagination: serverPagination,
     subscriptions,
     subscriptionCategories,
     productCategories,
@@ -93,25 +122,57 @@ export const usePOSAdvancedState = () => {
     recentOrders,
     inventoryStats,
     orderStats,
-    isLoading,
-    isRefetching,
-    error,
+    isLoading: isServerLoading,
+    isRefetching: isServerRefetching,
+    error: serverError,
     errorMessage,
-    refreshData,
+    refreshData: refreshServerData,
     updateProductStockInCache,
     getProductStock,
     executionTime,
     dataTimestamp
   } = useUnifiedPOSData({
     page: currentPage,
-    // استخدم حجم الصفحة الحالي بدل 10000 لتحسين سرعة التحميل
     limit: pageSize,
     search: searchQuery?.trim() || '',
     categoryId: categoryFilter && categoryFilter !== 'all' ? categoryFilter : '',
     staleTime: 20 * 60 * 1000, // 20 دقيقة
     gcTime: 40 * 60 * 1000, // 40 دقيقة
-    enabled: !!currentOrganization?.id
+    // ⚡ تفعيل جلب المنتجات من السيرفر كـ fallback إذا كانت البيانات المحلية فارغة
+    enabled: shouldFetchFromServer
   });
+
+  // ⚡ اختيار مصدر البيانات: محلي أولاً، ثم السيرفر
+  const pagedProducts = useMemo(() => {
+    if (useLocalData && localProducts.length > 0) {
+      console.log(`[usePOSAdvancedState] ⚡ استخدام ${localProducts.length} منتج من SQLite`);
+      return localProducts;
+    }
+    if (serverProducts && serverProducts.length > 0) {
+      console.log(`[usePOSAdvancedState] 🌐 استخدام ${serverProducts.length} منتج من السيرفر`);
+      return serverProducts;
+    }
+    return [];
+  }, [useLocalData, localProducts, serverProducts]);
+
+  const pagination = useMemo(() => {
+    if (useLocalData && localPagination) {
+      return localPagination;
+    }
+    return serverPagination;
+  }, [useLocalData, localPagination, serverPagination]);
+
+  const isLoading = useLocalData ? isLocalLoading : isServerLoading;
+  const isRefetching = useLocalData ? isLocalRefetching : isServerRefetching;
+  const error = useLocalData ? localError : serverError;
+
+  // دالة تحديث البيانات الموحدة
+  const refreshData = useCallback(async () => {
+    if (useLocalData) {
+      await refreshLocalData();
+    }
+    await refreshServerData();
+  }, [useLocalData, refreshLocalData, refreshServerData]);
 
   // منع الاستدعاءات المتكررة
   useEffect(() => {
@@ -431,6 +492,10 @@ export const usePOSAdvancedState = () => {
         POS_DATA_CACHE.delete(cacheKeyRef.current);
       }
       
+      // ⚡ تحديث البيانات المحلية والسيرفر
+      if (useLocalData) {
+        invalidateLocalCache();
+      }
       await refreshData();
       lastFetchTimeRef.current = Date.now();
       
@@ -438,7 +503,13 @@ export const usePOSAdvancedState = () => {
     } catch (error) {
       toast.error('فشل في تحديث البيانات');
     }
-  }, [refreshData]);
+  }, [refreshData, useLocalData, invalidateLocalCache]);
+
+  // ⚡ دالة للتبديل بين المصدر المحلي والسيرفر
+  const toggleDataSource = useCallback(() => {
+    setUseLocalData(prev => !prev);
+    toast.info(useLocalData ? 'تم التبديل للسيرفر' : 'تم التبديل للبيانات المحلية');
+  }, [useLocalData]);
 
   return {
     // البيانات الأساسية
@@ -537,6 +608,11 @@ export const usePOSAdvancedState = () => {
     // دوال التحديث
     refreshData: handleRefreshData,
     updateProductStockInCache,
-    getProductStock
+    getProductStock,
+
+    // ⚡ معلومات مصدر البيانات
+    useLocalData,
+    toggleDataSource,
+    dataSource: useLocalData ? 'local' : 'server'
   };
 };

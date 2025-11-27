@@ -160,29 +160,29 @@ function criticalCSSPlugin(): Plugin {
     generateBundle(options, bundle) {
       // العثور على ملف CSS الرئيسي
       const cssFiles = Object.keys(bundle).filter(file => file.endsWith('.css'));
-      
+
       if (cssFiles.length > 0) {
         const mainCssFile = cssFiles[0];
         const cssContent = bundle[mainCssFile] as OutputAsset;
-        
+
         if (typeof cssContent.source === 'string') {
           // استخراج CSS الحيوي (أول 1000 سطر)
           const lines = cssContent.source.split('\n');
           const criticalLines = lines.slice(0, Math.min(1000, lines.length));
           const criticalCSS = criticalLines.join('\n');
-          
+
           // إنشاء ملف CSS حيوي منفصل
           this.emitFile({
             type: 'asset',
             fileName: 'critical.css',
             source: criticalCSS
           });
-          
+
           // CSS غير الحيوي (الباقي)
           const nonCriticalCSS = lines.slice(1000).join('\n');
           if (nonCriticalCSS.trim()) {
             this.emitFile({
-              type: 'asset', 
+              type: 'asset',
               fileName: 'non-critical.css',
               source: nonCriticalCSS
             });
@@ -206,20 +206,20 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
   // تم إزالة إعدادات store build - البناء يركز على الموقع الرئيسي فقط
 
   // تحميل متغيرات البيئة
-  
+
   return {
-    base: '/',
+    base: './',
     envPrefix: 'VITE_', // ضمان حقن متغيرات VITE_ في import.meta.env
     server: {
       host: "0.0.0.0", // تغيير من "::" إلى "0.0.0.0" لضمان الوصول من جميع الأجهزة
       port: 8080,
       strictPort: false, // السماح باستخدام منفذ بديل إذا كان 8080 مشغولاً
-      
+
       // 🚀 تحسين HMR للأداء الفائق وتقليل التكرارات
       hmr: {
         overlay: false,
       },
-      
+
       // ⚡ تحسين مراقبة الملفات لتقليل التكرارات
       watch: {
         usePolling: false,
@@ -257,7 +257,7 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
           pollInterval: 100 // زيادة فترة الاستطلاع
         }
       },
-      
+
       cors: {
         origin: true, // السماح لجميع المصادر
         credentials: true,
@@ -294,26 +294,26 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
             // HTTP headers are case-insensitive, Node.js converts them to lowercase
             const apiId = req.headers['x-api-id'] || req.headers['X-API-ID'];
             const apiToken = req.headers['x-api-token'] || req.headers['X-API-TOKEN'];
-            
+
             if (apiId) {
               proxyReq.setHeader('X-API-ID', apiId);
             }
             if (apiToken) {
               proxyReq.setHeader('X-API-TOKEN', apiToken);
             }
-            
+
             proxyReq.setHeader('Content-Type', 'application/json');
             proxyReq.setHeader('Accept', 'application/json');
-            
+
             // Remove browser headers that might interfere
             proxyReq.removeHeader('origin');
             proxyReq.removeHeader('referer');
             proxyReq.removeHeader('host');
-            
+
           },
           configure: (proxy: any, _options: any) => {
             proxy.on('error', (err: any, req: any, res: any) => {
-              
+
               if (!res.headersSent) {
                 res.writeHead(500, {
                   'Access-Control-Allow-Origin': '*',
@@ -327,12 +327,12 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
                 }));
               }
             });
-            
+
             proxy.on('proxyReq', (proxyReq: any, req: any, _res: any) => {
             });
-            
+
             proxy.on('proxyRes', (proxyRes: any, req: any, _res: any) => {
-              
+
               proxyRes.headers['Access-Control-Allow-Origin'] = '*';
               proxyRes.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, PATCH, OPTIONS';
               proxyRes.headers['Access-Control-Allow-Headers'] = 'X-API-ID, X-API-TOKEN, Content-Type, Accept, Authorization';
@@ -377,16 +377,16 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
       // Content Type Plugin - يجب أن يكون أولاً لإصلاح مشاكل MIME
       contentTypePlugin(),
       // تم إزالة devStoreRewritePlugin - البناء يركز على الموقع الرئيسي فقط
-      
+
       // Instagram Compatibility Plugin
       instagramCompatibilityPlugin(),
-      
+
       // Security Plugin - للتطوير فقط (لتجنب التضارب مع CSP plugin)
       isDev && securityPlugin(),
-      
+
       // Dev Critical CSS Plugin - لخدمة critical.css في التطوير
       devCriticalCSSPlugin(),
-      
+
       // Icons plugin for tree-shaking
       Icons({
         compiler: 'jsx',
@@ -395,7 +395,7 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
         defaultClass: 'icon',
         defaultStyle: 'display: inline-block; vertical-align: middle;',
       }),
-      
+
       // Million.js configuration for performance optimization - DISABLED temporarily
       // million.vite({
       //   auto: {
@@ -414,12 +414,12 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
       //   mode: 'react',
       //   server: true
       // }),
-      
-              // React مع Fast Refresh محسن
-        react({
-          // إعدادات محسنة للأداء
-          jsxImportSource: 'react',
-        }),
+
+      // React مع Fast Refresh محسن
+      react({
+        // إعدادات محسنة للأداء
+        jsxImportSource: 'react',
+      }),
 
       lodashResolverPlugin(),
       rawContentPlugin(),
@@ -530,7 +530,7 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
         filter: /\.(js|mjs|json|css|html|txt|xml|svg|woff2?)$/i,
         verbose: false
       }),
-      
+
       // criticalCSSPlugin() معطّل مؤقتاً لتجنب تقسيم CSS غير دقيق يسبب FOUC
       // criticalCSSPlugin(),
 
@@ -555,7 +555,7 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
           return out;
         }
       },
-      
+
       // 🎯 تعطيل nodePolyfills مؤقتاً لحل مشكلة unenv
       // nodePolyfills({
       //   globals: {
@@ -575,7 +575,10 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
-        
+
+        // 🔧 إصلاح مشكلة compose-refs مع React 19
+        '@radix-ui/react-compose-refs': path.resolve(__dirname, './src/lib/radix-compose-refs-patched.ts'),
+
         // 🎯 تحسين للويب فقط - إزالة Node.js polyfills الثقيلة
         'react': path.resolve(__dirname, './node_modules/react'),
         'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
@@ -592,23 +595,23 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
         'node:stream': path.resolve(__dirname, './src/polyfills/stream.ts'),
         // 'process': false, // تعطيل process لتجنب مشاكل unenv
         // 'unenv/node/process': false, // تعطيل unenv/node/process
-        
+
         // 🚀 Universal lodash resolver - handles ALL lodash imports automatically
         'lodash': 'lodash-es',
         // Force dayjs to resolve to the ESM build to retain default export semantics
         'dayjs$': path.resolve(__dirname, './node_modules/dayjs/esm/index.js'),
         'es-toolkit/compat': path.resolve(__dirname, './src/shims/es-toolkit/compat'),
         // تم إزالة store build aliases - البناء يركز على الموقع الرئيسي فقط
-        
+
         // 🎯 Lazy Loading Aliases - تحويل تلقائي للاستيرادات الثقيلة
         // Note: framer-motion alias removed to avoid hook complexity
       },
-      
+
       dedupe: ['react', 'react-dom', 'react-router-dom'],
-      
+
       // 🌐 تحسين للمتصفحات الحديثة
       mainFields: ['browser', 'module', 'main'],
-      
+
       // ⚡ تحسين سرعة الـ resolution
       extensions: ['.ts', '.tsx', '.js', '.jsx', '.json']
     },
@@ -616,7 +619,7 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
       __STORE_BUILD__: false,
       // 🌐 تحسين للويب فقط
       'global': 'globalThis',
-      
+
       // ⚡ متغيرات البيئة الأساسية - محدثة لـ Cloudflare
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL || 'https://wrnssatuvmumsczyldth.supabase.co'),
       'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndybnNzYXR1dm11bXNjenlsZHRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMyNTgxMTYsImV4cCI6MjA1ODgzNDExNn0.zBT3h3lXQgcFqzdpXARVfU9kwRLvNiQrSdAJwMdojYY'),
@@ -629,22 +632,22 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
       'import.meta.env.VITE_DEFAULT_ORGANIZATION_ID': JSON.stringify(env.VITE_DEFAULT_ORGANIZATION_ID || ''),
       'import.meta.env.VITE_YALIDINE_DEFAULT_ORG_ID': JSON.stringify(env.VITE_YALIDINE_DEFAULT_ORG_ID || 'fed872f9-1ade-4351-b020-5598fda976fe'),
       'import.meta.env.VITE_SITE_URL': JSON.stringify(env.VITE_SITE_URL || 'https://stockiha.com'),
-      
+
       // 🎯 متغيرات التطبيق
       __DEV__: false, // تعطيل jsxDEV لتحسين الأداء
       __PROD__: isProd,
       __VERSION__: JSON.stringify(process.env.npm_package_version || '1.0.0'),
-      
+
       // ✅ متغيرات React الأساسية فقط
       'process.env.NODE_ENV': JSON.stringify(isDev ? 'development' : 'production'),
       'process.env': JSON.stringify({
         NODE_ENV: isDev ? 'development' : 'production'
       }),
-      
+
       // 🔧 متغيرات Vite الإضافية
       'import.meta.env.DEV': isDev,
       'import.meta.env.PROD': isProd,
-      
+
       // 🚫 تعطيل React DevTools في التطوير لتقليل الثقل
       ...(isDev && {
         // لا نقوم بتعطيل __REACT_DEVTOOLS_GLOBAL_HOOK__ في Vite 7 لتجنب الأخطاء
@@ -802,12 +805,12 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
           moduleSideEffects: (id) => {
             // Keep side effects for CSS and critical modules
             return id.includes('.css') ||
-                   id.includes('polyfill') ||
-                   id.includes('@supabase') ||
-                   id.includes('react-dom') ||
-                   id.includes('@radix-ui') ||      // UI components need side effects
-                   id.includes('framer-motion') ||  // Animation library
-                   id.includes('lucide-react');     // Icon library
+              id.includes('polyfill') ||
+              id.includes('@supabase') ||
+              id.includes('react-dom') ||
+              id.includes('@radix-ui') ||      // UI components need side effects
+              id.includes('framer-motion') ||  // Animation library
+              id.includes('lucide-react');     // Icon library
           },
           propertyReadSideEffects: false, // تحسين أقوى
           tryCatchDeoptimization: false,
@@ -826,10 +829,10 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
       // 🚀 تحسين إضافي لتقليل الطلبات
       reportCompressedSize: false, // إيقاف تقارير الحجم المضغوط
       write: true, // تفعيل الكتابة المباشرة
-      
+
       // 🎨 إعدادات خاصة لملفات الأصول
       assetsInclude: ['**/*.woff2', '**/*.woff', '**/*.ttf'],
-      
+
       // 🚀 تحسين CommonJS للويب
       commonjsOptions: {
         include: [/node_modules/],
@@ -847,7 +850,7 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
 
       // 🎨 تقسيم CSS للأداء - مُفعّل مع تحسينات
       cssCodeSplit: true,
-      
+
       // ⚡ تحسين module preloading للويب - محسن لتقليل render blocking
       modulePreload: {
         polyfill: true,
@@ -858,7 +861,7 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
             if (dep.includes('.css')) {
               return dep.includes('index-') || dep.includes('critical');
             }
-            
+
             // JS حرج فقط
             const criticalChunks = ['react-core', 'router', 'main-'];
             return criticalChunks.some(chunk => dep.includes(chunk));
@@ -921,7 +924,7 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
         // CJS-only modules - prebundled for proper default interop
         'is-retry-allowed',
       ],
-      
+
       // 🚨 استبعاد جميع المكتبات الثقيلة من التحسين المسبق
       exclude: [
         // React 19 built-ins (no longer needed as external packages)
@@ -934,16 +937,16 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
         // Heavy Charts & Graphics (keep these for lazy loading)
         'chart.js', 'react-chartjs-2', 'recharts',
         '@nivo/core', '@nivo/bar', '@nivo/line', '@nivo/pie',
-      
+
         // Heavy Editors
         '@monaco-editor/react',
         '@tinymce/tinymce-react',
-        
+
         // Heavy UI Libraries
         '@mui/material', '@mui/icons-material', '@mui/x-date-pickers',
         '@emotion/react', '@emotion/styled',
         'antd',
-        
+
         // Heavy PDF & Image Processing (MUST be lazy)
         'jspdf', 'jspdf-autotable',
         'html2canvas',
@@ -951,49 +954,49 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
         'potrace',
         'qrcode',
         'qr-code-styling',
-        
+
         // Lodash (causes chunking issues when pre-optimized)
         'lodash',
-        
+
         // Non-essential Radix UI (load on demand) - excluding core dependencies
-        '@radix-ui/react-accordion', '@radix-ui/react-aspect-ratio', 
-        '@radix-ui/react-avatar', '@radix-ui/react-checkbox', 
-        '@radix-ui/react-collapsible', '@radix-ui/react-context-menu', 
-        '@radix-ui/react-hover-card', '@radix-ui/react-icons', 
-        '@radix-ui/react-label', '@radix-ui/react-menubar', 
-        '@radix-ui/react-navigation-menu', '@radix-ui/react-popover', 
-        '@radix-ui/react-progress', '@radix-ui/react-radio-group', 
-        '@radix-ui/react-scroll-area', '@radix-ui/react-select', 
-        '@radix-ui/react-separator', '@radix-ui/react-slider', 
-        '@radix-ui/react-switch', '@radix-ui/react-tabs', 
-        '@radix-ui/react-toast', '@radix-ui/react-toggle', 
+        '@radix-ui/react-accordion', '@radix-ui/react-aspect-ratio',
+        '@radix-ui/react-avatar', '@radix-ui/react-checkbox',
+        '@radix-ui/react-collapsible', '@radix-ui/react-context-menu',
+        '@radix-ui/react-hover-card', '@radix-ui/react-icons',
+        '@radix-ui/react-label', '@radix-ui/react-menubar',
+        '@radix-ui/react-navigation-menu', '@radix-ui/react-popover',
+        '@radix-ui/react-progress', '@radix-ui/react-radio-group',
+        '@radix-ui/react-scroll-area', '@radix-ui/react-select',
+        '@radix-ui/react-separator', '@radix-ui/react-slider',
+        '@radix-ui/react-switch', '@radix-ui/react-tabs',
+        '@radix-ui/react-toast', '@radix-ui/react-toggle',
         '@radix-ui/react-toggle-group',
-        
+
         // Heavy drag and drop
         '@dnd-kit/core', '@dnd-kit/sortable',
         'react-dnd', 'react-dnd-html5-backend',
-        
+
         // Animation libraries (defer)
         'motion',
-        
+
         // Large utility libraries
         'date-fns/locale',
         'unenv',
         'process',
         'unenv/node/process',
-        
+
         // Node.js polyfills that cause circular dependencies
         'url',
         'punycode',
-        
+
         // Monitoring (load async)
         '@sentry/react', '@sentry/browser', '@sentry/tracing', '@sentry/replay',
-        
+
         // Context Providers (load on demand)
         './src/context/DashboardDataContext.tsx',
         './src/lib/cache/deduplication.ts'
       ],
-      
+
       // 🔧 تحسين عملية الاكتشاف
       holdUntilCrawlEnd: false,
     },

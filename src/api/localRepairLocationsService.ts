@@ -1,0 +1,322 @@
+/**
+ * localRepairLocationsService - خدمة مواقع الإصلاح المحلية
+ *
+ * ⚡ Local-First مع Delta Sync
+ * - يعمل بدون إنترنت
+ * - يستخدم deltaWriteService للمزامنة التلقائية
+ */
+
+import { v4 as uuidv4 } from 'uuid';
+import type { LocalRepairLocation } from '@/database/localDb';
+import { deltaWriteService } from '@/services/DeltaWriteService';
+
+// Re-export type
+export type { LocalRepairLocation } from '@/database/localDb';
+
+const getOrgId = (): string => {
+  try {
+    return (
+      localStorage.getItem('currentOrganizationId') ||
+      localStorage.getItem('bazaar_organization_id') ||
+      '11111111-1111-1111-1111-111111111111'
+    );
+  } catch {
+    return '11111111-1111-1111-1111-111111111111';
+  }
+};
+
+const nowISO = () => new Date().toISOString();
+
+/**
+ * جلب جميع مواقع الإصلاح
+ */
+export async function getAll(organizationId?: string): Promise<LocalRepairLocation[]> {
+  try {
+    const orgId = organizationId || getOrgId();
+    const locations = await deltaWriteService.getAll<LocalRepairLocation>('repair_locations', orgId);
+
+    // فلترة المواقع النشطة فقط
+    return locations.filter((loc) => loc.is_active !== false);
+  } catch (error) {
+    console.error('[localRepairLocationsService] ❌ خطأ في getAll:', error);
+    return [];
+  }
+}
+
+/**
+ * جلب موقع محدد
+ */
+export async function getById(id: string, organizationId?: string): Promise<LocalRepairLocation | null> {
+  try {
+    const orgId = organizationId || getOrgId();
+    const location = await deltaWriteService.getById<LocalRepairLocation>('repair_locations', id, orgId);
+    return location;
+  } catch (error) {
+    console.error('[localRepairLocationsService] ❌ خطأ في getById:', error);
+    return null;
+  }
+}
+
+/**
+ * إنشاء موقع جديد
+ */
+export async function create(
+  input: Omit<LocalRepairLocation, 'id' | 'organization_id' | 'created_at' | 'updated_at' | 'synced' | 'pendingOperation'>,
+  organizationId?: string
+): Promise<LocalRepairLocation> {
+  const id = uuidv4();
+  const orgId = organizationId || getOrgId();
+  const now = nowISO();
+
+  const location: LocalRepairLocation = {
+    id,
+    organization_id: orgId,
+    name: input.name,
+    description: input.description || null,
+    address: input.address || null,
+    phone: input.phone || null,
+    email: input.email || null,
+    is_default: input.is_default ?? false,
+    is_active: input.is_active ?? true,
+    created_at: now,
+    updated_at: now,
+    synced: false,
+    pendingOperation: 'create',
+  } as any;
+
+  try {
+    console.log('[localRepairLocationsService] 💾 إنشاء موقع جديد:', id);
+    const result = await deltaWriteService.create('repair_locations', location, orgId);
+
+    if (result) {
+      console.log('[localRepairLocationsService] ✅ تم إنشاء الموقع بنجاح');
+      return result as LocalRepairLocation;
+    }
+
+    throw new Error('فشل الإنشاء');
+  } catch (error) {
+    console.error('[localRepairLocationsService] ❌ خطأ في create:', error);
+    throw error;
+  }
+}
+
+/**
+ * تحديث موقع
+ */
+export async function update(
+  id: string,
+  updates: Partial<LocalRepairLocation>,
+  organizationId?: string
+): Promise<LocalRepairLocation | null> {
+  try {
+    const orgId = organizationId || getOrgId();
+
+    console.log('[localRepairLocationsService] 🔄 تحديث موقع:', id);
+
+    // جلب الموقع الحالي
+    const existing = await getById(id, orgId);
+    if (!existing) {
+      console.error('[localRepairLocationsService] ❌ الموقع غير موجود:', id);
+      return null;
+    }
+
+    // تطبيق التحديثات
+    const updated: LocalRepairLocation = {
+      ...existing,
+      ...updates,
+      updated_at: nowISO(),
+      synced: false,
+      pendingOperation: 'update',
+    } as any;
+
+    const result = await deltaWriteService.update('repair_locations', id, updated);
+
+    if (result) {
+      console.log('[localRepairLocationsService] ✅ تم تحديث الموقع بنجاح');
+      return result as LocalRepairLocation;
+    }
+
+    return null;
+  } catch (error) {
+    console.error('[localRepairLocationsService] ❌ خطأ في update:', error);
+    return null;
+  }
+}
+
+/**
+ * حذف موقع (soft delete)
+ */
+export async function deleteLocation(id: string, organizationId?: string): Promise<void> {
+  try {
+    const orgId = organizationId || getOrgId();
+
+    console.log('[localRepairLocationsService] 🗑️ حذف موقع:', id);
+
+    // Soft delete: تعطيل الموقع بدلاً من حذفه
+    await update(
+      id,
+      {
+        is_active: false,
+        updated_at: nowISO(),
+      },
+      orgId
+    );
+
+    console.log('[localRepairLocationsService] ✅ تم تعطيل الموقع');
+  } catch (error) {
+    console.error('[localRepairLocationsService] ❌ خطأ في delete:', error);
+    throw error;
+  }
+}
+
+/**
+ * حفظ موقع من السيرفر (بدون إضافة للـ outbox)
+ * يُستخدم عند المزامنة من السيرفر
+ */
+export async function saveRemoteLocation(location: LocalRepairLocation, organizationId?: string): Promise<void> {
+  try {
+    const orgId = organizationId || getOrgId();
+
+    console.log('[localRepairLocationsService] 📥 حفظ موقع من السيرفر:', location.id);
+
+    const rec: LocalRepairLocation = {
+      ...location,
+      synced: true,
+      pendingOperation: undefined,
+    } as any;
+
+    await deltaWriteService.saveFromServer('repair_locations', rec);
+
+    console.log('[localRepairLocationsService] ✅ تم حفظ الموقع من السيرفر');
+  } catch (error) {
+    console.error('[localRepairLocationsService] ❌ خطأ في saveRemoteLocation:', error);
+    throw error;
+  }
+}
+
+/**
+ * جلب المواقع غير المتزامنة
+ */
+export async function getUnsynced(organizationId?: string): Promise<LocalRepairLocation[]> {
+  try {
+    const orgId = organizationId || getOrgId();
+    const allLocations = await deltaWriteService.getAll<LocalRepairLocation>('repair_locations', orgId);
+
+    return allLocations.filter((loc) => loc.synced === false || loc.pendingOperation);
+  } catch (error) {
+    console.error('[localRepairLocationsService] ❌ خطأ في getUnsynced:', error);
+    return [];
+  }
+}
+
+/**
+ * تحديث حالة المزامنة
+ */
+export async function updateSyncStatus(id: string, synced: boolean, organizationId?: string): Promise<void> {
+  try {
+    const orgId = organizationId || getOrgId();
+
+    await update(
+      id,
+      {
+        synced,
+        pendingOperation: synced ? undefined : 'update',
+      } as any,
+      orgId
+    );
+
+    console.log(`[localRepairLocationsService] ✅ تم تحديث حالة المزامنة: ${id} -> ${synced}`);
+  } catch (error) {
+    console.error('[localRepairLocationsService] ❌ خطأ في updateSyncStatus:', error);
+    throw error;
+  }
+}
+
+/**
+ * جلب الموقع الافتراضي
+ */
+export async function getDefaultLocation(organizationId?: string): Promise<LocalRepairLocation | null> {
+  try {
+    const orgId = organizationId || getOrgId();
+    const locations = await getAll(orgId);
+
+    return locations.find((loc) => loc.is_default === true) || null;
+  } catch (error) {
+    console.error('[localRepairLocationsService] ❌ خطأ في getDefaultLocation:', error);
+    return null;
+  }
+}
+
+/**
+ * تعيين موقع كافتراضي
+ */
+export async function setDefault(id: string, organizationId?: string): Promise<void> {
+  try {
+    const orgId = organizationId || getOrgId();
+    const locations = await getAll(orgId);
+
+    console.log('[localRepairLocationsService] 🔄 تعيين موقع افتراضي:', id);
+
+    // إزالة الافتراضي من جميع المواقع
+    for (const loc of locations) {
+      if (loc.is_default) {
+        await update(loc.id, { is_default: false }, orgId);
+      }
+    }
+
+    // تعيين الموقع الجديد كافتراضي
+    await update(id, { is_default: true }, orgId);
+
+    console.log('[localRepairLocationsService] ✅ تم تعيين الموقع الافتراضي');
+  } catch (error) {
+    console.error('[localRepairLocationsService] ❌ خطأ في setDefault:', error);
+    throw error;
+  }
+}
+
+/**
+ * إحصائيات المواقع
+ */
+export async function getStats(organizationId?: string): Promise<{
+  total: number;
+  active: number;
+  inactive: number;
+  unsynced: number;
+}> {
+  try {
+    const orgId = organizationId || getOrgId();
+    const allLocations = await deltaWriteService.getAll<LocalRepairLocation>('repair_locations', orgId);
+
+    return {
+      total: allLocations.length,
+      active: allLocations.filter((loc) => loc.is_active !== false).length,
+      inactive: allLocations.filter((loc) => loc.is_active === false).length,
+      unsynced: allLocations.filter((loc) => loc.synced === false || loc.pendingOperation).length,
+    };
+  } catch (error) {
+    console.error('[localRepairLocationsService] ❌ خطأ في getStats:', error);
+    return {
+      total: 0,
+      active: 0,
+      inactive: 0,
+      unsynced: 0,
+    };
+  }
+}
+
+/**
+ * خدمة مواقع الإصلاح المحلية - الواجهة الرئيسية
+ */
+export const localRepairLocationsService = {
+  getAll,
+  getById,
+  create,
+  update,
+  delete: deleteLocation,
+  saveRemoteLocation,
+  getUnsynced,
+  updateSyncStatus,
+  getDefaultLocation,
+  setDefault,
+  getStats,
+};

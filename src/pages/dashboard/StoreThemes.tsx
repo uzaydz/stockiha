@@ -25,7 +25,7 @@ const STORE_TEMPLATES = [
     name: 'الشبكة العصرية V2',
     description: 'تخطيط شبكي عصري مع بطاقات منتجات بارزة.',
     preview: '/images/store-themes/modern-grid-v2.png',
-    isAvailable: false
+    isAvailable: true
   },
   {
     id: 'hero-showcase-v3',

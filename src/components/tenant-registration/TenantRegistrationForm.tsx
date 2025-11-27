@@ -4,18 +4,17 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { registerTenant } from '@/lib/api/tenant-fixed';
 import { useAuth } from '@/context/AuthContext';
 
-// المكونات الفرعية
-import RegistrationHeader from './RegistrationHeader';
-import RegistrationStepper from './RegistrationStepper';
+// Components
+import RegistrationSidebar from './RegistrationSidebar';
 import PersonalInfoForm from './PersonalInfoForm';
 import OrganizationInfoForm from './OrganizationInfoForm';
 import { Form } from '@/components/ui/form';
 
-// مخطط التحقق من صحة النموذج
+// Validation Schema
 const formSchema = z.object({
   name: z.string().min(3, { message: 'يجب أن يكون الاسم 3 أحرف على الأقل' }),
   email: z.string().email({ message: 'يرجى إدخال بريد إلكتروني صحيح' }),
@@ -25,8 +24,8 @@ const formSchema = z.object({
   organizationName: z.string().min(3, { message: 'يجب أن يكون اسم المؤسسة 3 أحرف على الأقل' }),
   subdomain: z.string()
     .min(3, { message: 'يجب أن يكون النطاق الفرعي 3 أحرف على الأقل' })
-    .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, { 
-      message: 'النطاق الفرعي يجب أن يحتوي على أحرف صغيرة وأرقام وشرطات فقط' 
+    .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/, {
+      message: 'النطاق الفرعي يجب أن يحتوي على أحرف صغيرة وأرقام وشرطات فقط'
     }),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "كلمات المرور غير متطابقة",
@@ -40,8 +39,8 @@ const TenantRegistrationForm = () => {
   const { refreshData } = useAuth();
   const [currentStep, setCurrentStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [direction, setDirection] = useState(0);
 
-  // إعداد نموذج React Hook Form مع Zod
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -56,84 +55,44 @@ const TenantRegistrationForm = () => {
     mode: 'onChange'
   });
 
-  // التحقق من صحة الخطوة الأولى
-  const validateFirstStep = () => {
-    const { name, email, password, confirmPassword } = form.getValues();
-
-    // التحقق من حقول الخطوة الأولى
-    if (!name || name.length < 3) {
-      form.setError('name', { 
-        type: 'manual', 
-        message: 'يجب أن يكون الاسم 3 أحرف على الأقل' 
-      });
-      return false;
-    }
-    
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      form.setError('email', { 
-        type: 'manual', 
-        message: 'يرجى إدخال بريد إلكتروني صحيح' 
-      });
-      return false;
-    }
-    
-    if (!password || password.length < 6) {
-      form.setError('password', { 
-        type: 'manual', 
-        message: 'يجب أن تكون كلمة المرور 6 أحرف على الأقل' 
-      });
-      return false;
-    }
-    
-    if (password !== confirmPassword) {
-      form.setError('confirmPassword', { 
-        type: 'manual', 
-        message: 'كلمات المرور غير متطابقة' 
-      });
-      return false;
-    }
-    
-    return true;
+  const validateFirstStep = async () => {
+    const result = await form.trigger(['name', 'email', 'password', 'confirmPassword', 'phone']);
+    return result;
   };
 
-  // الانتقال إلى الخطوة التالية
-  const handleNext = () => {
-    if (validateFirstStep()) {
+  const handleNext = async () => {
+    const isValid = await validateFirstStep();
+    if (isValid) {
+      setDirection(1);
       setCurrentStep(2);
-    } else {
     }
   };
 
-  // العودة إلى الخطوة السابقة
   const handlePrevious = () => {
+    setDirection(-1);
     setCurrentStep(1);
   };
 
-  // معالجة إرسال النموذج
   const handleSubmit = async () => {
-    
-    // تنظيف النطاق الفرعي قبل التحقق
     const subdomainValue = form.getValues('subdomain');
     if (subdomainValue) {
       const cleanSubdomain = subdomainValue
         .toLowerCase()
         .trim()
-        .replace(/\s+/g, '') // إزالة جميع المسافات
-        .replace(/[^a-z0-9-]/g, '') // إزالة الأحرف غير المسموحة
-        .replace(/^-+|-+$/g, '') // إزالة الشرطات من البداية والنهاية
-        .replace(/-+/g, '-'); // تحويل الشرطات المتعددة إلى شرطة واحدة
+        .replace(/\s+/g, '')
+        .replace(/[^a-z0-9-]/g, '')
+        .replace(/^-+|-+$/g, '')
+        .replace(/-+/g, '-');
       form.setValue('subdomain', cleanSubdomain);
     }
-    
-    // التحقق من صحة كل الحقول قبل الإرسال
+
     const isValid = await form.trigger();
-    
+
     if (!isValid) {
-      const errors = form.formState.errors;
       toast.error('يرجى التأكد من صحة جميع البيانات المدخلة');
       return;
     }
-    
+
     setIsLoading(true);
     const values = form.getValues();
 
@@ -148,22 +107,11 @@ const TenantRegistrationForm = () => {
       });
 
       if (success) {
-        toast.success('🎉 تم إنشاء حساب المسؤول بنجاح! مرحباً بك في ستوكيها');
-        
-        // تحديث بيانات AuthContext لجلب المؤسسة الجديدة
-        try {
-          await refreshData();
-        } catch (error) {
-        }
-        
-        // انتظار قصير ثم إعادة تحميل الصفحة لضمان تحديث كامل للحالة
-        setTimeout(() => {
-          // إعادة تحميل الصفحة لضمان تحديث كامل لـ Context
-          window.location.href = '/dashboard';
-        }, 1500); // تأخير أطول قليلاً لضمان استكمال جميع العمليات
+        toast.success('🎉 تم إنشاء حساب المسؤول بنجاح!');
+        try { await refreshData(); } catch { }
+        setTimeout(() => { window.location.href = '/dashboard'; }, 1500);
       } else {
-        const errorMessage = error || 'حدث خطأ غير متوقع أثناء التسجيل';
-        toast.error(`فشل التسجيل: ${errorMessage}`);
+        toast.error(`فشل التسجيل: ${error || 'حدث خطأ غير متوقع'}`);
       }
     } catch (error) {
       toast.error('حدث خطأ أثناء التسجيل');
@@ -172,33 +120,104 @@ const TenantRegistrationForm = () => {
     }
   };
 
+  const variants = {
+    enter: (direction: number) => ({
+      x: direction > 0 ? 20 : -20,
+      opacity: 0,
+      scale: 0.98
+    }),
+    center: {
+      zIndex: 1,
+      x: 0,
+      opacity: 1,
+      scale: 1
+    },
+    exit: (direction: number) => ({
+      zIndex: 0,
+      x: direction < 0 ? 20 : -20,
+      opacity: 0,
+      scale: 0.98
+    }),
+  };
+
   return (
-    <div>
-      <RegistrationHeader currentStep={currentStep} totalSteps={2} />
-      <RegistrationStepper currentStep={currentStep} />
-      
+    <div className="w-full">
+      {/* Mobile Stepper (Visible only on small screens) */}
+      <div className="lg:hidden mb-8">
+        <div className="flex items-center justify-between text-sm font-medium text-slate-500 mb-3">
+          <span>الخطوة {currentStep} من 2</span>
+          <span className="text-orange-600 font-bold">{Math.round((currentStep / 2) * 100)}%</span>
+        </div>
+        <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+          <motion.div
+            className="h-full bg-gradient-to-r from-orange-500 to-rose-500"
+            initial={{ width: '0%' }}
+            animate={{ width: `${(currentStep / 2) * 100}%` }}
+            transition={{ duration: 0.5, ease: "circOut" }}
+          />
+        </div>
+      </div>
+
+      <div className="mb-10">
+        <h1 className="text-3xl lg:text-4xl font-bold text-slate-900 dark:text-white mb-3">
+          {currentStep === 1 ? 'مرحباً بك 👋' : 'بيانات المتجر 🏪'}
+        </h1>
+        <p className="text-lg text-slate-500 dark:text-slate-400">
+          {currentStep === 1 ? 'أدخل بياناتك الشخصية لإنشاء حساب مسؤول جديد' : 'قم بتخصيص رابط وهوية متجرك الإلكتروني'}
+        </p>
+      </div>
+
       <Form {...form}>
-        <form onSubmit={(e) => e.preventDefault()}>
-          <AnimatePresence mode="wait">
+        <form onSubmit={(e) => e.preventDefault()} className="relative">
+          <AnimatePresence initial={false} custom={direction} mode="wait">
             {currentStep === 1 ? (
-              <PersonalInfoForm 
-                key="step1" 
-                form={form} 
-                onNext={handleNext} 
-                isLoading={isLoading} 
-              />
+              <motion.div
+                key="step1"
+                custom={direction}
+                variants={variants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                className="w-full"
+              >
+                <PersonalInfoForm
+                  form={form}
+                  onNext={handleNext}
+                  isLoading={isLoading}
+                />
+              </motion.div>
             ) : (
-              <OrganizationInfoForm 
-                key="step2" 
-                form={form} 
-                onPrevious={handlePrevious} 
-                onSubmit={handleSubmit} 
-                isLoading={isLoading} 
-              />
+              <motion.div
+                key="step2"
+                custom={direction}
+                variants={variants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                className="w-full"
+              >
+                <OrganizationInfoForm
+                  form={form}
+                  onPrevious={handlePrevious}
+                  onSubmit={handleSubmit}
+                  isLoading={isLoading}
+                />
+              </motion.div>
             )}
           </AnimatePresence>
         </form>
       </Form>
+
+      <div className="mt-10 pt-8 border-t border-slate-100 dark:border-slate-800 text-center">
+        <p className="text-slate-500 dark:text-slate-400">
+          لديك حساب بالفعل؟{' '}
+          <a href="/login" className="font-bold text-orange-600 hover:text-orange-700 dark:text-orange-400 transition-colors hover:underline underline-offset-4 decoration-orange-200">
+            تسجيل الدخول
+          </a>
+        </p>
+      </div>
     </div>
   );
 };

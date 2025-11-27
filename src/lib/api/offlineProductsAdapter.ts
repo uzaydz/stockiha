@@ -1,4 +1,11 @@
+/**
+ * offlineProductsAdapter - محول المنتجات Offline-First
+ *
+ * ⚡ تم التحديث لاستخدام Delta Sync بالكامل
+ */
+
 import { supabase } from '@/lib/supabase';
+import { v4 as uuidv4 } from 'uuid';
 import {
   getProducts as onlineGetProducts,
   getProductById as onlineGetProductById,
@@ -9,7 +16,8 @@ import {
   type InsertProduct,
   type UpdateProduct
 } from '@/lib/api/products';
-import { inventoryDB, type LocalProduct } from '@/database/localDb';
+import type { LocalProduct } from '@/database/localDb';
+import { deltaWriteService } from '@/services/DeltaWriteService';
 
 /**
  * محول لربط خدمة المنتجات التقليدية بخدمة Offline-First
@@ -23,31 +31,41 @@ const isOnline = (): boolean => {
   return navigator.onLine;
 };
 
-// الاعتماد على Dexie عبر inventoryDB.products كمصدر وحيد
+// Helper للحصول على orgId
+const getOrgId = (): string => {
+  return localStorage.getItem('currentOrganizationId') ||
+         localStorage.getItem('bazaar_organization_id') || '';
+};
+
+// تطبيع النص العربي للبحث
+const normalizeArabic = (s: string) => {
+  try {
+    let t = (s || '').toString().toLowerCase();
+    t = t.replace(/[\u064B-\u0652\u0670\u0640]/g, '');
+    t = t.replace(/[\u0622\u0623\u0625\u0671]/g, '\u0627');
+    t = t.replace(/\u0624/g, '\u0648');
+    t = t.replace(/\u0626/g, '\u064a');
+    t = t.replace(/\u0629/g, '\u0647');
+    t = t.replace(/\u0649/g, '\u064a');
+    t = t.replace(/[^\u0600-\u06FFa-z0-9\s]/g, ' ');
+    t = t.replace(/\s+/g, ' ').trim();
+    return t;
+  } catch {
+    return (s || '').toString().toLowerCase();
+  }
+};
+
+// ⚡ استخدام Delta Sync
 
 // الحصول على جميع المنتجات المحلية
 export const getLocalProducts = async (): Promise<LocalProduct[]> => {
-  return await inventoryDB.products.toArray();
+  // ⚡ استخدام Delta Sync
+  const orgId = getOrgId();
+  return await deltaWriteService.getAll<LocalProduct>('products', orgId);
 };
 
 // حفظ المنتج محلياً
 export const saveProductLocally = async (product: Product, synced: boolean = true): Promise<LocalProduct> => {
-  const normalizeArabic = (s: string) => {
-    try {
-      let t = (s || '').toString().toLowerCase();
-      t = t.replace(/[\u064B-\u0652\u0670\u0640]/g, '');
-      t = t.replace(/[\u0622\u0623\u0625\u0671]/g, '\u0627');
-      t = t.replace(/\u0624/g, '\u0648');
-      t = t.replace(/\u0626/g, '\u064a');
-      t = t.replace(/\u0629/g, '\u0647');
-      t = t.replace(/\u0649/g, '\u064a');
-      t = t.replace(/[^\u0600-\u06FFa-z0-9\s]/g, ' ');
-      t = t.replace(/\s+/g, ' ').trim();
-      return t;
-    } catch {
-      return (s || '').toString().toLowerCase();
-    }
-  };
   const localProduct: LocalProduct = {
     ...product,
     synced,
@@ -77,7 +95,8 @@ export const saveProductLocally = async (product: Product, synced: boolean = tru
     });
   }
 
-  await inventoryDB.products.put(localProduct as any);
+  // ⚡ استخدام Delta Sync
+  await deltaWriteService.saveFromServer('products', localProduct);
 
   if ((product as any).thumbnail_image || (product as any).images) {
     console.log('🖼️ [saveProductLocally] ✅ Product saved to DB with images');
@@ -89,22 +108,6 @@ export const saveProductLocally = async (product: Product, synced: boolean = tru
 // حفظ مجموعة كبيرة محلياً بكفاءة
 export const bulkSaveProductsLocally = async (products: Product[], synced: boolean = true): Promise<void> => {
   const now = new Date().toISOString();
-  const normalizeArabic = (s: string) => {
-    try {
-      let t = (s || '').toString().toLowerCase();
-      t = t.replace(/[\u064B-\u0652\u0670\u0640]/g, '');
-      t = t.replace(/[\u0622\u0623\u0625\u0671]/g, '\u0627');
-      t = t.replace(/\u0624/g, '\u0648');
-      t = t.replace(/\u0626/g, '\u064a');
-      t = t.replace(/\u0629/g, '\u0647');
-      t = t.replace(/\u0649/g, '\u064a');
-      t = t.replace(/[^\u0600-\u06FFa-z0-9\s]/g, ' ');
-      t = t.replace(/\s+/g, ' ').trim();
-      return t;
-    } catch {
-      return (s || '').toString().toLowerCase();
-    }
-  };
   const locals: LocalProduct[] = products.map((p) => ({
     ...(p as any),
     synced,
@@ -131,9 +134,10 @@ export const bulkSaveProductsLocally = async (products: Product[], synced: boole
     console.log(`⚠️ [bulkSaveProductsLocally] No products with images found in ${products.length} products`);
   }
 
-  await inventoryDB.transaction('rw', inventoryDB.products, async () => {
-    await inventoryDB.products.bulkPut(locals as any[]);
-  });
+  // ⚡ استخدام Delta Sync - حفظ كل منتج
+  for (const local of locals) {
+    await deltaWriteService.saveFromServer('products', local);
+  }
 };
 
 // إضافة منتج جديد محلياً
@@ -146,22 +150,46 @@ export const addProductLocally = async (productData: InsertProduct): Promise<Loc
         return await saveProductLocally(newProduct);
       }
     }
-    
+
     // إذا لم يكن متصلاً أو فشلت العملية عبر الإنترنت
-    // قم بإنشاء معرف مؤقت وحفظ البيانات محلياً
-    const tempId = 'temp_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+    // ✅ إنشاء UUID حقيقي بدلاً من temp_ID لتجنب أخطاء المزامنة مع Supabase
+    const productId = uuidv4();
     const now = new Date().toISOString();
-    
+    const orgId = getOrgId();
+
+    // 🔍 DEBUG: فحص بيانات الصورة الواردة
+    console.log('[OfflineProductsAdapter] 🔍 DEBUG createProduct - Input productData:');
+    console.log('[OfflineProductsAdapter] 🔍 thumbnail_image:', (productData as any).thumbnail_image ? `exists (${Math.round(String((productData as any).thumbnail_image).length/1024)}KB)` : 'NOT EXISTS');
+    console.log('[OfflineProductsAdapter] 🔍 thumbnail_base64:', (productData as any).thumbnail_base64 ? `exists (${Math.round(String((productData as any).thumbnail_base64).length/1024)}KB)` : 'NOT EXISTS');
+    console.log('[OfflineProductsAdapter] 🔍 images_base64:', (productData as any).images_base64 ? `exists (${Math.round(String((productData as any).images_base64).length/1024)}KB)` : 'NOT EXISTS');
+
     const newLocalProduct: LocalProduct = {
       ...productData,
-      id: tempId,
+      id: productId,
+      organization_id: orgId,
       created_at: now,
       updated_at: now,
       synced: false,
-      localUpdatedAt: now
+      localUpdatedAt: now,
+      name_lower: (productData as any).name ? String((productData as any).name).toLowerCase() : '',
+      sku_lower: (productData as any).sku ? String((productData as any).sku).toLowerCase() : '',
+      barcode_lower: (productData as any).barcode ? String((productData as any).barcode).toLowerCase() : '',
+      name_search: (productData as any).name ? normalizeArabic((productData as any).name) : '',
+      sku_search: (productData as any).sku ? normalizeArabic((productData as any).sku) : '',
+      barcode_digits: (productData as any).barcode ? String((productData as any).barcode).replace(/\D+/g, '') : '',
+      category_id: (productData as any).category_id || null,
+      // ⚡ حقول الصور المحلية - نمررها مباشرة
+      thumbnail_base64: (productData as any).thumbnail_base64 || null,
+      images_base64: (productData as any).images_base64 || null
     } as LocalProduct;
-    
-    await inventoryDB.products.put(newLocalProduct as any);
+
+    // 🔍 DEBUG: فحص newLocalProduct قبل الإرسال
+    console.log('[OfflineProductsAdapter] 🔍 DEBUG - newLocalProduct before deltaWriteService.create:');
+    console.log('[OfflineProductsAdapter] 🔍 thumbnail_base64:', (newLocalProduct as any).thumbnail_base64 ? `exists (${Math.round(String((newLocalProduct as any).thumbnail_base64).length/1024)}KB)` : 'NOT EXISTS');
+    console.log('[OfflineProductsAdapter] 🔍 images_base64:', (newLocalProduct as any).images_base64 ? `exists (${Math.round(String((newLocalProduct as any).images_base64).length/1024)}KB)` : 'NOT EXISTS');
+
+    // ⚡ استخدام Delta Sync
+    await deltaWriteService.create('products', newLocalProduct, orgId);
     return newLocalProduct;
   } catch (error) {
     return null;
@@ -171,11 +199,12 @@ export const addProductLocally = async (productData: InsertProduct): Promise<Loc
 // تحديث منتج محلياً
 export const updateProductLocally = async (productId: string, updates: UpdateProduct): Promise<LocalProduct | null> => {
   try {
-    const existingProduct = await inventoryDB.products.get(productId) as LocalProduct | undefined;
+    // ⚡ استخدام Delta Sync
+    const existingProduct = await deltaWriteService.get<LocalProduct>('products', productId);
     if (!existingProduct) {
       return null;
     }
-    
+
     // محاولة التحديث عبر الإنترنت أولاً إذا كان متصلاً
     if (isOnline() && !productId.startsWith('temp_')) {
       try {
@@ -186,24 +215,8 @@ export const updateProductLocally = async (productId: string, updates: UpdatePro
       } catch (error) {
       }
     }
-    
+
     // التحديث المحلي
-    const normalizeArabic = (s: string) => {
-      try {
-        let t = (s || '').toString().toLowerCase();
-        t = t.replace(/[\u064B-\u0652\u0670\u0640]/g, '');
-        t = t.replace(/[\u0622\u0623\u0625\u0671]/g, '\u0627');
-        t = t.replace(/\u0624/g, '\u0648');
-        t = t.replace(/\u0626/g, '\u064a');
-        t = t.replace(/\u0629/g, '\u0647');
-        t = t.replace(/\u0649/g, '\u064a');
-        t = t.replace(/[^\u0600-\u06FFa-z0-9\s]/g, ' ');
-        t = t.replace(/\s+/g, ' ').trim();
-        return t;
-      } catch {
-        return (s || '').toString().toLowerCase();
-      }
-    };
     const updatedLocalProduct: LocalProduct = {
       ...existingProduct,
       ...updates,
@@ -219,7 +232,8 @@ export const updateProductLocally = async (productId: string, updates: UpdatePro
       category_id: (updates as any).category_id || existingProduct.category_id || (existingProduct as any).category?.id || null
     };
 
-    await inventoryDB.products.put(updatedLocalProduct as any);
+    // ⚡ استخدام Delta Sync
+    await deltaWriteService.update('products', productId, updatedLocalProduct);
     return updatedLocalProduct;
   } catch (error) {
     return null;
@@ -233,14 +247,16 @@ export const deleteProductLocally = async (productId: string): Promise<boolean> 
     if (isOnline() && !productId.startsWith('temp_')) {
       try {
         await onlineDeleteProduct(productId);
-        await inventoryDB.products.delete(productId);
+        // ⚡ استخدام Delta Sync
+        await deltaWriteService.delete('products', productId);
         return true;
       } catch (error) {
       }
     }
-    
+
     // الحذف المحلي فقط
-    await inventoryDB.products.delete(productId);
+    // ⚡ استخدام Delta Sync
+    await deltaWriteService.delete('products', productId);
     return true;
   } catch (error) {
     return false;
@@ -252,42 +268,43 @@ export const syncLocalProducts = async (): Promise<{ success: number; failed: nu
   if (!isOnline()) {
     return { success: 0, failed: 0 };
   }
-  
+
   let success = 0;
   let failed = 0;
-  
+
   const localProducts = await getLocalProducts();
   const unsyncedProducts = localProducts.filter(p => !p.synced);
-  
+
   for (const product of unsyncedProducts) {
     try {
       // إذا كان معرف المنتج مؤقتاً، قم بإنشاء منتج جديد
       if (product.id.startsWith('temp_')) {
         // استخراج بيانات المنتج للإرسال
         const { id, synced, localUpdatedAt, created_at, updated_at, ...productData } = product;
-        
+
         // إنشاء المنتج على الخادم
         const newProduct = await onlineCreateProduct(productData as InsertProduct);
-        
+
         if (newProduct) {
           // حفظ المنتج الجديد محلياً
           await saveProductLocally(newProduct);
-          
+
           // حذف النسخة المؤقتة
-          await inventoryDB.products.delete(product.id);
+          // ⚡ استخدام Delta Sync
+          await deltaWriteService.delete('products', product.id);
           success++;
         } else {
           failed++;
         }
-      } 
+      }
       // إذا لم يكن معرف المنتج مؤقتاً، قم بتحديثه
       else {
         // استخراج بيانات التحديث
         const { synced, localUpdatedAt, ...productData } = product;
-        
+
         // تحديث المنتج على الخادم
         const updatedProduct = await onlineUpdateProduct(product.id, productData);
-        
+
         if (updatedProduct) {
           // تحديث المنتج محلياً وتعيين حالة المزامنة
           await saveProductLocally(updatedProduct);
@@ -300,7 +317,7 @@ export const syncLocalProducts = async (): Promise<{ success: number; failed: nu
       failed++;
     }
   }
-  
+
   return { success, failed };
 };
 
@@ -316,37 +333,34 @@ export const getProducts = async (organizationId?: string, includeInactive: bool
     if (isOnline()) {
       try {
         const onlineProducts = await onlineGetProducts(organizationId, includeInactive);
-        
+
         // حفظ المنتجات محلياً (bulk) للوصول إليها دون اتصال
         try {
           await bulkSaveProductsLocally(onlineProducts);
         } catch {}
-        
+
         return onlineProducts;
       } catch (error) {
       }
     }
-    
+
     // جلب المنتجات المحلية
-    let localProducts = await getLocalProducts();
-    
-    // تصفية حسب المؤسسة إذا تم تمرير معرف المؤسسة
-    if (organizationId) {
-      localProducts = localProducts.filter(p => (p as any).organization_id === organizationId);
-    }
-    
+    // ⚡ استخدام Delta Sync
+    const orgId = organizationId || getOrgId();
+    let localProducts = await deltaWriteService.getAll<LocalProduct>('products', orgId);
+
     // فلترة المنتجات النشطة فقط إذا لم يتم تمرير includeInactive = true
     if (!includeInactive) {
       localProducts = localProducts.filter(p => p.is_active !== false);
     }
-    
+
     return localProducts;
   } catch (error) {
     return [];
   }
 };
 
-// بحث محلي فائق السرعة باستخدام الفهارس
+// بحث محلي فائق السرعة
 export const fastSearchLocalProducts = async (
   organizationId: string,
   query: string,
@@ -359,60 +373,31 @@ export const fastSearchLocalProducts = async (
   const includeInactive = options.includeInactive ?? false;
   const categoryId = options.categoryId;
 
+  // ⚡ استخدام Delta Sync - جلب كل المنتجات ثم التصفية
+  const allProducts = await deltaWriteService.getAll<LocalProduct>('products', organizationId);
+
   const resultsMap = new Map<string, LocalProduct>();
-  // بحث بالاسم
-  const nameMatches = await inventoryDB.products
-    .where('[organization_id+name_lower]')
-    .between([organizationId, q], [organizationId, q + '\uffff'])
-    .limit(limit)
-    .toArray();
-  nameMatches.forEach((p: any) => {
-    if ((includeInactive || p.is_active !== false) && (!categoryId || p.category_id === categoryId)) {
-      resultsMap.set(p.id as any, p as any);
+
+  for (const p of allProducts) {
+    // تصفية حسب النشاط
+    if (!includeInactive && (p as any).is_active === false) continue;
+    // تصفية حسب الفئة
+    if (categoryId && (p as any).category_id !== categoryId) continue;
+
+    // بحث بالاسم أو SKU أو الباركود
+    const nameLower = (p.name_lower || '');
+    const skuLower = (p.sku_lower || '');
+    const barcodeLower = (p.barcode_lower || '');
+    const barcodeDigits = (p.barcode_digits || '');
+    const nameSearch = (p.name_search || '');
+    const skuSearch = (p.sku_search || '');
+
+    if (nameLower.includes(q) || skuLower.includes(q) || barcodeLower.includes(q) ||
+        nameSearch.includes(q) || skuSearch.includes(q) || barcodeDigits.includes(q.replace(/\D+/g, ''))) {
+      resultsMap.set(p.id, p);
     }
-  });
 
-  // بحث بالـ SKU
-  if (resultsMap.size < limit) {
-    const skuMatches = await inventoryDB.products
-      .where('[organization_id+sku_lower]')
-      .between([organizationId, q], [organizationId, q + '\uffff'])
-      .limit(limit - resultsMap.size)
-      .toArray();
-    skuMatches.forEach((p: any) => {
-      if ((includeInactive || p.is_active !== false) && (!categoryId || p.category_id === categoryId)) {
-        resultsMap.set(p.id as any, p as any);
-      }
-    });
-  }
-
-  // بحث بالباركود النصي
-  if (resultsMap.size < limit) {
-    const barcodeMatches = await inventoryDB.products
-      .where('[organization_id+barcode_lower]')
-      .between([organizationId, q], [organizationId, q + '\uffff'])
-      .limit(limit - resultsMap.size)
-      .toArray();
-    barcodeMatches.forEach((p: any) => {
-      if ((includeInactive || p.is_active !== false) && (!categoryId || p.category_id === categoryId)) {
-        resultsMap.set(p.id as any, p as any);
-      }
-    });
-  }
-
-  // بحث رقمي للباركود إن أمكن
-  const digits = q.replace(/\D+/g, '');
-  if (digits && resultsMap.size < limit) {
-    const digitMatches = await inventoryDB.products
-      .where('[organization_id+barcode_digits]')
-      .between([organizationId, digits], [organizationId, digits + '\uffff'])
-      .limit(limit - resultsMap.size)
-      .toArray();
-    digitMatches.forEach((p: any) => {
-      if ((includeInactive || p.is_active !== false) && (!categoryId || p.category_id === categoryId)) {
-        resultsMap.set(p.id as any, p as any);
-      }
-    });
+    if (resultsMap.size >= limit) break;
   }
 
   return Array.from(resultsMap.values()).slice(0, limit);
@@ -439,68 +424,66 @@ export async function getLocalProductsPage(
     sortOrder = 'ASC'
   } = options;
 
-  // الحالة الافتراضية: ترتيب بالاسم
-  if (!categoryId || categoryId === 'all') {
-    console.log('📦 [getLocalProductsPage] Querying products...', { organizationId, offset, limit, includeInactive });
+  console.log('📦 [getLocalProductsPage] Querying products...', { organizationId, offset, limit, includeInactive });
 
-    try {
-      // استخدام فهرس organization_id فقط (أكثر موثوقية)
-      const baseQuery = inventoryDB.products
-        .where('organization_id')
-        .equals(organizationId);
+  try {
+    // ⚡ استخدام Delta Sync
+    let allProducts = await deltaWriteService.getAll<LocalProduct>('products', organizationId);
+    console.log('📦 [getLocalProductsPage] All products fetched:', { count: allProducts.length, first: allProducts[0] });
 
-      // Get all products
-      let allProducts = await baseQuery.toArray();
-      console.log('📦 [getLocalProductsPage] All products fetched:', { count: allProducts.length, first: allProducts[0] });
+    // Filter inactive if needed
+    if (!includeInactive) {
+      allProducts = allProducts.filter((p: any) => p.is_active !== false);
+    }
 
-      // Filter inactive if needed
-      if (!includeInactive) {
-        allProducts = allProducts.filter((p: any) => p.is_active !== false);
+    // Filter by category if needed
+    if (categoryId && categoryId !== 'all') {
+      allProducts = allProducts.filter((p: any) => p.category_id === categoryId);
+    }
+
+    const total = allProducts.length;
+    console.log('📦 [getLocalProductsPage] After filtering:', { count: total });
+
+    // Sort
+    const sorted = allProducts.sort((a: any, b: any) => {
+      let valA: any, valB: any;
+      switch (sortBy) {
+        case 'name':
+          valA = (a.name || '').toLowerCase();
+          valB = (b.name || '').toLowerCase();
+          break;
+        case 'price':
+          valA = a.price || 0;
+          valB = b.price || 0;
+          break;
+        case 'stock':
+          valA = a.stock_quantity || 0;
+          valB = b.stock_quantity || 0;
+          break;
+        case 'created':
+          valA = a.created_at || '';
+          valB = b.created_at || '';
+          break;
+        default:
+          valA = (a.name || '').toLowerCase();
+          valB = (b.name || '').toLowerCase();
       }
 
-      const total = allProducts.length;
-      console.log('📦 [getLocalProductsPage] After filtering:', { count: total });
+      if (sortOrder === 'ASC') {
+        return valA < valB ? -1 : valA > valB ? 1 : 0;
+      } else {
+        return valA > valB ? -1 : valA < valB ? 1 : 0;
+      }
+    });
 
-      // Sort by name manually
-      const sorted = allProducts.sort((a: any, b: any) => {
-        const nameA = (a.name || '').toLowerCase();
-        const nameB = (b.name || '').toLowerCase();
-        return nameA.localeCompare(nameB);
-      });
+    // Apply offset and limit
+    const slice = sorted.slice(offset, offset + limit);
+    console.log('📦 [getLocalProductsPage] After slice:', { count: slice.length, offset, limit });
 
-      // Apply offset and limit
-      const slice = sorted.slice(offset, offset + limit);
-      console.log('📦 [getLocalProductsPage] After slice:', { count: slice.length, offset, limit });
-
-      return { products: slice as any, total };
-    } catch (error) {
-      console.error('❌ [getLocalProductsPage] Error:', error);
-      return { products: [], total: 0 };
-    }
-  }
-
-  // عند تحديد فئة: استخدام فهرس مرتب بالاسم داخل الفئة عند فرز الاسم
-  if (sortBy === 'name') {
-    let coll2 = inventoryDB.products
-      .where('[organization_id+category_id+name_lower]')
-      .between([organizationId, categoryId as string, ''], [organizationId, categoryId as string, '\uffff']);
-    if (!includeInactive) {
-      coll2 = coll2.and((p: any) => p.is_active !== false);
-    }
-    const total2 = await coll2.count();
-    const slice2 = await coll2.offset(offset).limit(limit).toArray();
-    return { products: slice2 as any, total: total2 };
-  } else {
-    // فallback: باستخدام فهرس الفئة فقط ثم تقطيع
-    let coll = inventoryDB.products
-      .where('[organization_id+category_id]')
-      .equals([organizationId, categoryId as string]);
-    if (!includeInactive) {
-      coll = coll.and((p: any) => p.is_active !== false);
-    }
-    const total = await coll.count();
-    const slice = await coll.offset(offset).limit(limit).toArray();
     return { products: slice as any, total };
+  } catch (error) {
+    console.error('❌ [getLocalProductsPage] Error:', error);
+    return { products: [], total: 0 };
   }
 }
 
@@ -513,18 +496,21 @@ export async function getLocalProductStats(organizationId: string): Promise<{
   productsWithVariants: number;
   totalCategories: number;
 }> {
-  const base = inventoryDB.products.where('organization_id').equals(organizationId);
-  const totalProducts = await base.count();
-  const activeProducts = await base.and((p: any) => p.is_active !== false).count();
-  const outOfStockProducts = await base.and((p: any) => ((p.stock_quantity ?? 0) === 0)).count();
-  const lowStockProducts = await base.and((p: any) => {
+  // ⚡ استخدام Delta Sync
+  const allProducts = await deltaWriteService.getAll<LocalProduct>('products', organizationId);
+
+  const totalProducts = allProducts.length;
+  const activeProducts = allProducts.filter((p: any) => p.is_active !== false).length;
+  const outOfStockProducts = allProducts.filter((p: any) => ((p.stock_quantity ?? 0) === 0)).length;
+  const lowStockProducts = allProducts.filter((p: any) => {
     const sq = (p.stock_quantity ?? 0);
     return sq > 0 && sq <= 5;
-  }).count();
-  const productsWithVariants = await base.and((p: any) => p.has_variants === true).count();
-  // حساب عدد الفئات المميزة (قد يكون مكلفاً قليلاً لكنه محلي)
-  const cats = await base.and((p: any) => !!p.category_id).toArray();
-  const totalCategories = new Set((cats as any[]).map((p) => p.category_id)).size;
+  }).length;
+  const productsWithVariants = allProducts.filter((p: any) => p.has_variants === true).length;
+
+  // حساب عدد الفئات المميزة
+  const categoriesSet = new Set(allProducts.filter((p: any) => !!p.category_id).map((p: any) => p.category_id));
+  const totalCategories = categoriesSet.size;
 
   return {
     totalProducts,
@@ -545,7 +531,7 @@ export const getProductById = async (id: string): Promise<Product | null> => {
     if (isOnline() && !id.startsWith('temp_')) {
       try {
         const onlineProduct = await onlineGetProductById(id);
-        
+
         if (onlineProduct) {
           // حفظ المنتج محلياً للوصول إليه دون اتصال
           await saveProductLocally(onlineProduct);
@@ -554,9 +540,10 @@ export const getProductById = async (id: string): Promise<Product | null> => {
       } catch (error) {
       }
     }
-    
+
     // جلب المنتج محلياً
-    return (await inventoryDB.products.get(id)) as any;
+    // ⚡ استخدام Delta Sync
+    return await deltaWriteService.get<LocalProduct>('products', id);
   } catch (error) {
     return null;
   }
@@ -571,7 +558,7 @@ export const createProduct = async (productData: InsertProduct): Promise<Product
     if (isOnline()) {
       try {
         const newProduct = await onlineCreateProduct(productData);
-        
+
         if (newProduct) {
           // حفظ المنتج محلياً للوصول إليه دون اتصال
           await saveProductLocally(newProduct);
@@ -580,7 +567,7 @@ export const createProduct = async (productData: InsertProduct): Promise<Product
       } catch (error) {
       }
     }
-    
+
     // إنشاء المنتج محلياً إذا لم يكن متصلاً أو فشلت العملية عبر الإنترنت
     return await addProductLocally(productData);
   } catch (error) {
@@ -616,7 +603,7 @@ export const syncProducts = async (): Promise<{ success: number; failed: number 
   if (!isOnline()) {
     return { success: 0, failed: 0 };
   }
-  
+
   try {
     return await syncLocalProducts();
   } catch (error) {

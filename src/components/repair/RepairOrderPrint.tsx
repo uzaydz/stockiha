@@ -7,6 +7,7 @@ import { RepairOrder } from '@/types/repair';
 import RepairReceiptPrint from './RepairReceiptPrint';
 import { supabase } from '@/lib/supabase';
 import { buildStoreUrl, buildTrackingUrl } from '@/lib/utils/store-url';
+import { isTauriApp } from '@/lib/platform';
 import '@/styles/repair-print.css';
 
 interface RepairOrderPrintProps {
@@ -23,7 +24,7 @@ const useSafePOSData = () => {
     // إذا لم يكن POSDataProvider متاحاً، أرجع قيم افتراضية
     return {
       posSettings: null,
-      refreshPOSSettings: () => {}
+      refreshPOSSettings: () => { }
     };
   }
 };
@@ -42,9 +43,9 @@ const RepairOrderPrint: React.FC<RepairOrderPrintProps> = ({ order, queuePositio
   useEffect(() => {
     const fetchPOSSettings = async () => {
       if (!organizationId) return;
-      
+
       try {
-        
+
         const { data, error } = await supabase
           .from('pos_settings')
           .select('*')
@@ -75,7 +76,7 @@ const RepairOrderPrint: React.FC<RepairOrderPrintProps> = ({ order, queuePositio
   // حساب ترتيب الطلبية في الطابور
   useEffect(() => {
     const calculateQueuePosition = async () => {
-      
+
       if (!organizationId || !order) {
         return;
       }
@@ -83,7 +84,7 @@ const RepairOrderPrint: React.FC<RepairOrderPrintProps> = ({ order, queuePositio
       try {
         // التحقق من أن الطلبية مؤهلة لتكون في الطابور
         const activeStatuses = ['قيد الانتظار', 'جاري التصليح'];
-        
+
         if (!activeStatuses.includes(order.status)) {
           setCalculatedQueuePosition(0);
           return;
@@ -122,7 +123,7 @@ const RepairOrderPrint: React.FC<RepairOrderPrintProps> = ({ order, queuePositio
   const getStoreInfo = () => {
     // استخدام إعدادات نقطة البيع من Context أولاً، ثم من قاعدة البيانات، ثم المنظمة
     const activePOSSettings = posSettings || fallbackPOSSettings;
-    
+
     // تسجيل تفصيلي للبيانات الأولية
 
     const storeInfo = {
@@ -137,30 +138,23 @@ const RepairOrderPrint: React.FC<RepairOrderPrintProps> = ({ order, queuePositio
 
   const { storeName, storePhone, storeAddress, storeLogo } = getStoreInfo();
 
-  // وظيفة الطباعة المباشرة المحسنة
-  const handlePrintClick = () => {
+  // وظيفة الطباعة المباشرة المحسنة (تدعم Tauri)
+  const handlePrintClick = async () => {
     if (isPrinting) return;
-    
+
     try {
       setIsPrinting(true);
-      
+
       // جلب المحتوى المراد طباعته
       const contentToPrint = receiptRef.current;
       if (!contentToPrint) {
         setIsPrinting(false);
         return;
       }
-      
-      // إنشاء نافذة طباعة جديدة
-      const printWindow = window.open('', '_blank');
-      if (!printWindow) {
-        setIsPrinting(false);
-        return;
-      }
-      
+
       // CSS محسن للطباعة مع إصلاح مشكلة الوصل الأبيض والهوامش
       const printCSS = `
-        @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@200;300;400;500;600;700;800;900&display=swap');
+        /* @import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@200;300;400;500;600;700;800;900&display=swap'); */
         
         /* إعدادات الصفحة مع طباعة تلقائية بمقاسات الورق */
         @page {
@@ -468,9 +462,9 @@ const RepairOrderPrint: React.FC<RepairOrderPrintProps> = ({ order, queuePositio
           }
         }
       `;
-      
-      // إنشاء محتوى HTML للنافذة الجديدة مع تحسينات أفضل
-      printWindow.document.write(`
+
+      // إنشاء محتوى HTML للطباعة
+      const printHtmlContent = `
         <!DOCTYPE html>
         <html dir="rtl" lang="ar">
           <head>
@@ -483,41 +477,81 @@ const RepairOrderPrint: React.FC<RepairOrderPrintProps> = ({ order, queuePositio
             ${contentToPrint.innerHTML}
           </body>
         </html>
-      `);
-      
-      // إغلاق الكتابة وانتظار التحميل
-      printWindow.document.close();
-      
-      // طباعة النافذة بعد تحميل المحتوى مع وقت انتظار أطول للخطوط
-      printWindow.onload = () => {
-        // انتظار إضافي لتحميل الخطوط والصور
-        setTimeout(() => {
-          printWindow.print();
-          
-          // التعامل مع أحداث ما بعد الطباعة
-          const handleAfterPrint = () => {
-            printWindow.close();
-            setIsPrinting(false);
-            setIsPrintSuccess(true);
-            setTimeout(() => setIsPrintSuccess(false), 2000);
-          };
-          
-          // استخدام onafterprint إذا كان متاحاً، وإلا استخدام timeout
-          if (printWindow.onafterprint !== undefined) {
-            printWindow.onafterprint = handleAfterPrint;
-          } else {
-            setTimeout(handleAfterPrint, 2000);
+      `;
+
+      // ⚡ إنشاء container للطباعة
+      const printContainerId = 'repair-print-container';
+
+      // إزالة container قديم إذا وجد
+      const existingContainer = document.getElementById(printContainerId);
+      if (existingContainer) {
+        existingContainer.remove();
+      }
+      const existingStyles = document.getElementById('repair-print-styles-temp');
+      if (existingStyles) {
+        existingStyles.remove();
+      }
+
+      // إنشاء container للطباعة
+      const printContainer = document.createElement('div');
+      printContainer.id = printContainerId;
+      printContainer.innerHTML = printHtmlContent;
+      printContainer.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 99999; background: white; overflow: auto;';
+
+      // إضافة styles للطباعة
+      const printStyles = document.createElement('style');
+      printStyles.id = 'repair-print-styles-temp';
+      printStyles.textContent = `
+        @media print {
+          body > *:not(#${printContainerId}) { display: none !important; }
+          #${printContainerId} {
+            position: static !important;
+            width: 100% !important;
+            height: auto !important;
+            overflow: visible !important;
           }
-        }, 1000); // زيادة وقت الانتظار لضمان تحميل الخطوط
-      };
-      
-      // التعامل مع خطأ التحميل
-      printWindow.onerror = () => {
-        printWindow.close();
+        }
+      `;
+      document.head.appendChild(printStyles);
+      document.body.appendChild(printContainer);
+
+      // انتظار تحميل المحتوى
+      await new Promise(r => setTimeout(r, 1000));
+
+      // دالة تنظيف وإنهاء الطباعة
+      const cleanupAndFinish = (success: boolean) => {
+        printContainer.remove();
+        printStyles.remove();
         setIsPrinting(false);
+        if (success) {
+          setIsPrintSuccess(true);
+          setTimeout(() => setIsPrintSuccess(false), 2000);
+        }
       };
-      
+
+      // ⚡ محاولة استخدام Tauri API للطباعة
+      if (isTauriApp()) {
+        console.log('[RepairPrint] محاولة استخدام Tauri API...');
+        try {
+          const { getCurrentWebview } = await import('@tauri-apps/api/webview');
+          const webview = getCurrentWebview();
+          await webview.print();
+          console.log('[RepairPrint] تم استدعاء Tauri print()');
+          cleanupAndFinish(true);
+          return;
+        } catch (tauriError: any) {
+          console.warn('[RepairPrint] Tauri API فشل:', tauriError.message);
+        }
+      }
+
+      // ⚡ الطريقة البديلة: window.print
+      console.log('[RepairPrint] استخدام window.print...');
+      window.focus();
+      window.print();
+      cleanupAndFinish(true);
+
     } catch (error) {
+      console.error('[RepairPrint] خطأ:', error);
       setIsPrinting(false);
     }
   };

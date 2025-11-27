@@ -254,7 +254,7 @@ const OrdersV2: React.FC<OrdersV2Props> = ({
 
   const [visibleColumns] = useState<string[]>([
     'checkbox', 'expand', 'id', 'customer_name', 'customer_contact',
-    'total', 'status', 'assignee', 'call_confirmation', 'shipping_provider', 'actions'
+    'total', 'status', 'assignee', 'call_confirmation', 'shipping_provider', 'tracking', 'actions'
   ]);
 
   // حالة لإدارة النافذة المنبثقة لاختيار المكتب

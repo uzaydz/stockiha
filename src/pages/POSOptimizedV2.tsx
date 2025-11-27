@@ -51,11 +51,14 @@ const ProductCard: React.FC<ProductCardProps> = ({ product, onAddToCart }) => {
   const productData = product.product || product;
   const totalStock = computeAvailableStock(productData);
 
+  // ⚡ دعم thumbnail_base64 للعمل Offline
+  const imageSrc = productData.thumbnail_base64 || productData.thumbnail_image || productData.images?.[0] || '/placeholder-product.jpg';
+
   return (
     <div className="bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow p-4">
       <div className="aspect-square mb-3 bg-gray-100 rounded-lg overflow-hidden">
         <img
-          src={productData.thumbnail_image || productData.images?.[0] || '/placeholder-product.jpg'}
+          src={imageSrc}
           alt={productData.name}
           className="w-full h-full object-cover"
           onError={(e) => {

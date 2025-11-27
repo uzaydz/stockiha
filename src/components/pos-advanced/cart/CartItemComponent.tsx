@@ -90,25 +90,35 @@ const CartItemComponent: React.FC<CartItemComponentProps> = ({
     )}>
         <div className="flex items-start gap-3">
           {/* Product Image - Simplified */}
-          <div className="relative w-14 h-14 flex-shrink-0 bg-muted rounded-lg overflow-hidden border border-border/50">
-            {(item.variantImage || item.product.thumbnail_image || item.product.thumbnailImage || (item.product.images && item.product.images[0])) ? (
-              <img
-                src={item.variantImage || item.product.thumbnail_image || item.product.thumbnailImage || (item.product.images && item.product.images[0])}
-                alt={item.product.name}
-                className="w-full h-full object-cover"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                }}
-              />
-            ) : null}
-            <div className={cn(
-              "w-full h-full flex items-center justify-center",
-              (item.variantImage || item.product.thumbnail_image || item.product.thumbnailImage || (item.product.images && item.product.images[0])) ? "hidden" : ""
-            )}>
-              <Package className="h-6 w-6 text-muted-foreground" />
-            </div>
-          </div>
+          {/* ⚡ إضافة دعم thumbnail_base64 للعمل Offline */}
+          {(() => {
+            const imageSrc = item.variantImage || 
+              (item.product as any).thumbnail_base64 || 
+              item.product.thumbnail_image || 
+              item.product.thumbnailImage || 
+              (item.product.images && item.product.images[0]);
+            return (
+              <div className="relative w-14 h-14 flex-shrink-0 bg-muted rounded-lg overflow-hidden border border-border/50">
+                {imageSrc ? (
+                  <img
+                    src={imageSrc}
+                    alt={item.product.name}
+                    className="w-full h-full object-cover"
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                      e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                    }}
+                  />
+                ) : null}
+                <div className={cn(
+                  "w-full h-full flex items-center justify-center",
+                  imageSrc ? "hidden" : ""
+                )}>
+                  <Package className="h-6 w-6 text-muted-foreground" />
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Product Details - Simplified */}
           <div className="flex-1 min-w-0 space-y-2">
