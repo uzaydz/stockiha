@@ -127,7 +127,10 @@ jobs:
           rustup target add ${{ matrix.target }}
 
       - name: Install frontend dependencies
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --no-frozen-lockfile --ignore-scripts
+
+      - name: Run safe postinstall scripts
+        run: npx patch-package || true
 
       - name: Create Tauri icons directory
         run: |
