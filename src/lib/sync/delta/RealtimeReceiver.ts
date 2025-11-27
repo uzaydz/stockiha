@@ -262,7 +262,15 @@ export class RealtimeReceiver {
     this.lastOfflineLogTime = 0;
 
     if (this.reconnectAttempts >= this.MAX_RECONNECT_ATTEMPTS) {
-      console.error(`%c[RealtimeReceiver] ❌ Max reconnect attempts (${this.MAX_RECONNECT_ATTEMPTS}) reached, stopping`, 'color: #f44336; font-weight: bold');
+      // ⚡ بدلاً من التوقف تماماً، نعيد المحاولة بعد 5 دقائق
+      console.warn(`%c[RealtimeReceiver] ⚠️ Max reconnect attempts (${this.MAX_RECONNECT_ATTEMPTS}) reached, will retry in 5 minutes`, 'color: #FF9800; font-weight: bold');
+
+      // إعادة تعيين العداد بعد 5 دقائق للمحاولة مرة أخرى
+      this.reconnectTimeout = setTimeout(() => {
+        console.log('%c[RealtimeReceiver] 🔄 Resetting reconnect counter and trying again...', 'color: #2196F3');
+        this.reconnectAttempts = 0;
+        this.createSubscription();
+      }, 5 * 60 * 1000); // 5 دقائق
       return;
     }
 

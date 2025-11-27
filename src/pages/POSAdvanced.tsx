@@ -36,6 +36,7 @@ import { saveHeldOrder, HeldOrder, getHeldOrdersCount } from '@/lib/hold-orders'
 import { calculateDiscount, getDiscountRules, calculateTotalDiscount, formatDiscountText } from '@/lib/discount-engine';
 import { useWorkSession } from '@/context/WorkSessionContext';
 import StartSessionDialog from '@/components/pos/StartSessionDialog';
+import { usePOSAudio } from '@/hooks/usePOSAudio';
 
 // استيراد مكونات UI
 import { Skeleton } from "@/components/ui/skeleton";
@@ -56,7 +57,7 @@ const POSAdvanced = () => {
   // التحقق من جلسة العمل
   const { hasActiveSession, activeSession, refreshActiveSession, isAdminMode } = useWorkSession();
   const [showSessionDialog, setShowSessionDialog] = useState(!hasActiveSession && !isAdminMode);
-  
+
   // استخدام Hook إدارة الحالة الرئيسية
   const {
     // البيانات الأساسية
@@ -70,24 +71,24 @@ const POSAdvanced = () => {
     customers,
     currentUser,
     favoriteProducts,
-    
+
     // حالة التحميل والأخطاء
     isLoading,
     isRefetching,
     error,
     errorMessage,
     executionTime,
-    
+
     // حالة التطبيقات
     isAppEnabled,
     isStaff,
-    
+
     // حالة pagination والبحث
     currentPage,
     pageSize,
     searchQuery,
     categoryFilter,
-    
+
     // حالة السلة والطلبات
     tabs,
     activeTab,
@@ -100,13 +101,13 @@ const POSAdvanced = () => {
     returnReason,
     returnNotes,
     isSubmittingOrder,
-    
+
     // دوال pagination والبحث
     handlePageChange,
     handleSearchChange,
     handleCategoryFilter,
     handlePageSizeChange,
-    
+
     // دوال إدارة السلة
     setActiveTabId,
     addTab,
@@ -125,7 +126,7 @@ const POSAdvanced = () => {
     removeSubscription,
     updateSubscriptionPrice,
     assignCustomerToTab,
-    
+
     // دوال إدارة الإرجاع
     setReturnReason,
     setReturnNotes,
@@ -136,17 +137,17 @@ const POSAdvanced = () => {
     removeReturnItem,
     clearReturnCart,
     toggleReturnMode,
-    
+
     // دوال الطلبات
     handleSubmitOrder,
     processReturn: handleProcessReturn,
     refreshData: handleRefreshData,
-    
+
     // دوال السكانر
     scanBarcode,
     isScannerLoading,
     barcodeBuffer,
-    
+
     // دوال التحديث
     refreshData,
     updateProductStockInCache,
@@ -163,7 +164,7 @@ const POSAdvanced = () => {
     isPrintDialogOpen,
     isCalculatorOpen,
     isQuickExpenseOpen,
-    
+
     // دوال إدارة النوافذ الحوارية
     setIsVariantDialogOpen,
     setIsPOSSettingsOpen,
@@ -172,7 +173,7 @@ const POSAdvanced = () => {
     setIsPrintDialogOpen,
     setIsCalculatorOpen,
     setIsQuickExpenseOpen,
-    
+
     // بيانات النوافذ الحوارية
     selectedProductForVariant,
     setSelectedProductForVariant,
@@ -180,7 +181,7 @@ const POSAdvanced = () => {
     setSelectedRepairOrder,
     repairQueuePosition,
     setRepairQueuePosition,
-    
+
     // بيانات الطباعة
     completedItems,
     completedServices,
@@ -197,20 +198,35 @@ const POSAdvanced = () => {
     isPartialPayment,
     considerRemainingAsPartial,
     subscriptionAccountInfo,
-    
+
     // دوال معالجة الأحداث
     handleRepairServiceSuccess,
     clearPrintData,
     savePrintData
   } = usePOSAdvancedDialogs();
 
+  // الصوت
+  const { playAddToCart, playSuccess, playError, playClick } = usePOSAudio();
+
   // استخدام Hook معالجة المنتجات
   const { handleProductWithVariants, handleAddVariantToCart } = usePOSAdvancedProductHandlers(
     isReturnMode,
-    addItemToCart,
-    addItemToReturnCart,
-    addVariantToCart,
-    addVariantToReturnCart,
+    (product) => {
+      addItemToCart(product);
+      playAddToCart();
+    },
+    (product) => {
+      addItemToReturnCart(product);
+      playClick();
+    },
+    (product, colorId, sizeId, price, colorName, colorCode, sizeName, image) => {
+      addVariantToCart(product, colorId, sizeId, price, colorName, colorCode, sizeName, image);
+      playAddToCart();
+    },
+    (product, colorId, sizeId, price, colorName, colorCode, sizeName, image) => {
+      addVariantToReturnCart(product, colorId, sizeId, price, colorName, colorCode, sizeName, image);
+      playClick();
+    },
     setSelectedProductForVariant,
     setIsVariantDialogOpen
   );
@@ -284,7 +300,7 @@ const POSAdvanced = () => {
       setHeldOrdersCount(getHeldOrdersCount());
     };
     updateHeldOrdersCount();
-    
+
     // تحديث كل 5 ثواني
     const interval = setInterval(updateHeldOrdersCount, 5000);
     return () => clearInterval(interval);
@@ -443,71 +459,14 @@ const POSAdvanced = () => {
     preventDefault: true,
   });
 
-  // إعداد الاختصارات بعد تهيئة keyboardShortcuts
-  React.useEffect(() => {
-    const posShortcuts = createPOSShortcuts({
-      onHelp: () => keyboardShortcuts.showShortcutsHelp(),
-      onSearch: () => searchInputRef.current?.focus(),
-      onClearSearch: () => handleSearchChange(''),
-      onFocusBarcode: () => barcodeInputRef.current?.focus(),
-      onRefresh: refreshData,
-      onToggleCart: () => setIsMobileCartOpen(prev => !prev),
-      onToggleReturnMode: toggleReturnMode,
-      onOpenSettings: () => setIsPOSSettingsOpen(true),
-      onOpenCalculator: () => setIsCalculatorOpen(true),
-      onCheckout: () => {
-        if (cartItems.length > 0 || selectedServices.length > 0 || selectedSubscriptions.length > 0) {
-          toast.info('اضغط على زر "إتمام الطلب" في السلة');
-        } else {
-          toast.warning('السلة فارغة!');
-        }
-      },
-      onNewTab: addTab,
-      onCloseTab: () => {
-        if (tabs.length > 1) {
-          removeTab(activeTabId);
-        } else {
-          toast.info('لا يمكن إغلاق التبويب الوحيد');
-        }
-      },
-      onNextTab: () => {
-        const currentIndex = tabs.findIndex(t => t.id === activeTabId);
-        const nextIndex = (currentIndex + 1) % tabs.length;
-        setActiveTabId(tabs[nextIndex].id);
-      },
-      onPrevTab: () => {
-        const currentIndex = tabs.findIndex(t => t.id === activeTabId);
-        const prevIndex = currentIndex === 0 ? tabs.length - 1 : currentIndex - 1;
-        setActiveTabId(tabs[prevIndex].id);
-      },
-      onSaveOrder: handleSaveHeldOrder,
-      onPrint: () => {
-        if (isPrintDialogOpen) {
-          window.print();
-        } else {
-          toast.info('لا توجد فاتورة للطباعة');
-        }
-      },
-      onCancel: () => {
-        setIsVariantDialogOpen(false);
-        setIsPOSSettingsOpen(false);
-        setIsCalculatorOpen(false);
-        setIsQuickExpenseOpen(false);
-        setIsHoldOrdersOpen(false);
-        setIsCameraScannerOpen(false);
-      },
-      onToggleFullscreen: toggleFullscreen,
-    });
-    
-    keyboardShortcuts.setShortcuts(posShortcuts);
-  }, []);
+
 
   // دالة submitOrder مخصصة مع حفظ بيانات الطباعة
   const handleSubmitOrderWithPrint = useCallback(async (
-    customerId?: string, 
-    notes?: string, 
-    discount?: number, 
-    discountType?: 'percentage' | 'fixed', 
+    customerId?: string,
+    notes?: string,
+    discount?: number,
+    discountType?: 'percentage' | 'fixed',
     amountPaid?: number,
     paymentMethod?: string,
     isPartialPayment?: boolean,
@@ -519,13 +478,13 @@ const POSAdvanced = () => {
         const price = (item as any).customPrice || item.variantPrice || item.product.price || 0;
         return total + (price * item.quantity);
       }, 0);
-      
+
       const servicesTotal = selectedServices.reduce((total, service) => total + (service.price || 0), 0);
       const subscriptionsTotal = selectedSubscriptions.reduce((total, subscription) => {
         const price = subscription.price || subscription.selling_price || subscription.purchase_price || 0;
         return total + price;
       }, 0);
-      
+
       const subtotal = cartSubtotal + servicesTotal + subscriptionsTotal;
       const finalTotal = subtotal;
       const paidAmount = amountPaid !== undefined ? amountPaid : finalTotal;
@@ -565,22 +524,137 @@ const POSAdvanced = () => {
       });
 
       await handleSubmitOrder(
-        customerId, 
-        notes, 
-        discount || 0, 
-        discountType || 'fixed', 
+        customerId,
+        notes,
+        discount || 0,
+        discountType || 'fixed',
         amountPaid,
         paymentMethod || 'cash',
         isPartialPayment || false,
         considerRemainingAsPartial || false
       );
-      
+
       // فتح نافذة الطباعة
       setIsPrintDialogOpen(true);
+      playSuccess();
     } catch (error) {
+      playError();
       throw error;
     }
   }, [handleSubmitOrder, cartItems, selectedServices, selectedSubscriptions, customers, savePrintData, setIsPrintDialogOpen]);
+
+  // دوال الدفع السريع للاختصارات
+  const handleQuickCash = useCallback(() => {
+    if (cartItems.length === 0 && selectedServices.length === 0 && selectedSubscriptions.length === 0) {
+      toast.warning('السلة فارغة!');
+      return;
+    }
+    handleSubmitOrderWithPrint(
+      activeTab?.customerId,
+      '', // notes
+      (activeTab as any)?.discount,
+      (activeTab as any)?.discountType,
+      undefined, // amountPaid (full)
+      'cash'
+    );
+  }, [cartItems, selectedServices, selectedSubscriptions, activeTab, handleSubmitOrderWithPrint]);
+
+  const handleQuickCard = useCallback(() => {
+    if (cartItems.length === 0 && selectedServices.length === 0 && selectedSubscriptions.length === 0) {
+      toast.warning('السلة فارغة!');
+      return;
+    }
+    handleSubmitOrderWithPrint(
+      activeTab?.customerId,
+      '', // notes
+      (activeTab as any)?.discount,
+      (activeTab as any)?.discountType,
+      undefined, // amountPaid (full)
+      'card'
+    );
+  }, [cartItems, selectedServices, selectedSubscriptions, activeTab, handleSubmitOrderWithPrint]);
+
+  // إعداد الاختصارات بعد تهيئة keyboardShortcuts
+  React.useEffect(() => {
+    const posShortcuts = createPOSShortcuts({
+      onHelp: () => keyboardShortcuts.showShortcutsHelp(),
+      onSearch: () => searchInputRef.current?.focus(),
+      onClearSearch: () => handleSearchChange(''),
+      onFocusBarcode: () => barcodeInputRef.current?.focus(),
+      onRefresh: refreshData,
+      onToggleCart: () => setIsMobileCartOpen(prev => !prev),
+      onToggleReturnMode: toggleReturnMode,
+      onOpenSettings: () => setIsPOSSettingsOpen(true),
+      onOpenCalculator: () => setIsCalculatorOpen(true),
+      onCheckout: () => {
+        if (cartItems.length > 0 || selectedServices.length > 0 || selectedSubscriptions.length > 0) {
+          toast.info('اضغط على زر "إتمام الطلب" في السلة');
+        } else {
+          toast.warning('السلة فارغة!');
+        }
+      },
+      onQuickCash: handleQuickCash,
+      onQuickCard: handleQuickCard,
+      onAddDiscount: () => toast.info('استخدم واجهة السلة لإضافة خصم'),
+      onAddCustomer: () => toast.info('استخدم واجهة السلة لاختيار عميل'),
+      onNewTab: addTab,
+      onCloseTab: () => {
+        if (tabs.length > 1) {
+          removeTab(activeTabId);
+        } else {
+          toast.info('لا يمكن إغلاق التبويب الوحيد');
+        }
+      },
+      onNextTab: () => {
+        const currentIndex = tabs.findIndex(t => t.id === activeTabId);
+        const nextIndex = (currentIndex + 1) % tabs.length;
+        setActiveTabId(tabs[nextIndex].id);
+      },
+      onPrevTab: () => {
+        const currentIndex = tabs.findIndex(t => t.id === activeTabId);
+        const prevIndex = currentIndex === 0 ? tabs.length - 1 : currentIndex - 1;
+        setActiveTabId(tabs[prevIndex].id);
+      },
+      onSaveOrder: handleSaveHeldOrder,
+      onPrint: () => {
+        if (isPrintDialogOpen) {
+          window.print();
+        } else {
+          toast.info('لا توجد فاتورة للطباعة');
+        }
+      },
+      onCancel: () => {
+        setIsVariantDialogOpen(false);
+        setIsPOSSettingsOpen(false);
+        setIsCalculatorOpen(false);
+        setIsQuickExpenseOpen(false);
+        setIsHoldOrdersOpen(false);
+        setIsCameraScannerOpen(false);
+      },
+      onToggleFullscreen: toggleFullscreen,
+    });
+
+    keyboardShortcuts.setShortcuts(posShortcuts);
+  }, [
+    handleQuickCash,
+    handleQuickCard,
+    refreshData,
+    toggleReturnMode,
+    addTab,
+    removeTab,
+    activeTabId,
+    tabs,
+    handleSaveHeldOrder,
+    isPrintDialogOpen,
+    toggleFullscreen,
+    keyboardShortcuts,
+    handleSearchChange
+  ]);
+
+  // Force update shortcuts on mount to ensure they are registered
+  React.useEffect(() => {
+    // console.log('Shortcuts initialized');
+  }, []);
 
   const cartSummary = useMemo(() => {
     const productItemsCount = cartItems.reduce((total, item) => total + (item.quantity || 0), 0);
@@ -665,6 +739,7 @@ const POSAdvanced = () => {
           toast.dismiss(toastId);
         } else {
           addItemToCart(fullProduct);
+          playAddToCart();
           toast.success(`✅ تم إضافة "${fullProduct.name || 'منتج'}" إلى السلة`, { id: toastId, duration: 2000 });
         }
 
@@ -674,9 +749,11 @@ const POSAdvanced = () => {
       } else {
         const message = response?.message || 'لم يتم العثور على المنتج لهذا الباركود';
         toast.error(`❌ ${message}`, { id: toastId, duration: 3000 });
+        playError();
       }
     } catch (error) {
       toast.error(`💥 تعذر معالجة الباركود: ${formattedBarcode}`, { id: toastId, duration: 3000 });
+      playError();
     } finally {
       if (source === 'camera') {
         cameraProcessingRef.current = false;
@@ -732,22 +809,22 @@ const POSAdvanced = () => {
     >
       {/* مؤشر السكانر العالمي */}
       <POSAdvancedGlobalScanner
-         products={allProducts || products}
-         isReturnMode={isReturnMode}
-         isScannerLoading={isScannerLoading}
-         scanBarcode={async (barcode: string) => {
-           const response = await scanBarcode(barcode);
-           return {
-             success: response.success,
-             data: response.data as any
-           };
-         }}
-         addItemToCart={addItemToCart}
-         addItemToReturnCart={addItemToReturnCart}
-         handleProductWithVariants={handleProductWithVariants}
-         getProductById={getProductById}
-       />
-      
+        products={allProducts || products}
+        isReturnMode={isReturnMode}
+        isScannerLoading={isScannerLoading}
+        scanBarcode={async (barcode: string) => {
+          const response = await scanBarcode(barcode);
+          return {
+            success: response.success,
+            data: response.data as any
+          };
+        }}
+        addItemToCart={addItemToCart}
+        addItemToReturnCart={addItemToReturnCart}
+        handleProductWithVariants={handleProductWithVariants}
+        getProductById={getProductById}
+      />
+
       {/* تخطيط POS محسن - متناسق */}
       <div className="relative flex flex-col min-h-screen gap-3 bg-transparent">
 
@@ -773,10 +850,10 @@ const POSAdvanced = () => {
               <div className="w-full bg-background">
                 <POSAdvancedContent
                   products={products}
-                  pagination={{ 
-                    current_page: pagination?.current_page || currentPage, 
-                    total_pages: pagination?.total_pages || Math.ceil((pagination?.total_count || filteredProducts.length) / (pagination?.per_page || pageSize)), 
-                    per_page: pagination?.per_page || pageSize, 
+                  pagination={{
+                    current_page: pagination?.current_page || currentPage,
+                    total_pages: pagination?.total_pages || Math.ceil((pagination?.total_count || filteredProducts.length) / (pagination?.per_page || pageSize)),
+                    per_page: pagination?.per_page || pageSize,
                     total_count: pagination?.total_count || filteredProducts.length,
                     has_next_page: Boolean(pagination?.has_next_page ?? (currentPage < Math.ceil((pagination?.total_count || filteredProducts.length) / (pagination?.per_page || pageSize)))),
                     has_prev_page: Boolean(pagination?.has_prev_page ?? (currentPage > 1))
@@ -806,7 +883,7 @@ const POSAdvanced = () => {
                   hasNativeBarcodeDetector={hasNativeBarcodeDetector}
                   isMobile={isCompactLayout}
                 />
-                
+
                 {/* إحصائيات البحث المحلي المحسنة */}
                 <POSAdvancedSearchStats
                   allProductsCount={pagination?.total_count || allProducts?.length || 0}
@@ -1019,7 +1096,7 @@ const POSAdvanced = () => {
         isPrintDialogOpen={isPrintDialogOpen}
         isCalculatorOpen={isCalculatorOpen}
         isQuickExpenseOpen={isQuickExpenseOpen}
-        
+
         // دوال إدارة النوافذ الحوارية
         setIsVariantDialogOpen={setIsVariantDialogOpen}
         setIsPOSSettingsOpen={setIsPOSSettingsOpen}
@@ -1028,7 +1105,7 @@ const POSAdvanced = () => {
         setIsPrintDialogOpen={setIsPrintDialogOpen}
         setIsCalculatorOpen={setIsCalculatorOpen}
         setIsQuickExpenseOpen={setIsQuickExpenseOpen}
-        
+
         // بيانات النوافذ الحوارية
         selectedProductForVariant={selectedProductForVariant}
         setSelectedProductForVariant={setSelectedProductForVariant}
@@ -1036,7 +1113,7 @@ const POSAdvanced = () => {
         setSelectedRepairOrder={setSelectedRepairOrder}
         repairQueuePosition={repairQueuePosition}
         setRepairQueuePosition={setRepairQueuePosition}
-        
+
         // بيانات الطباعة
         completedItems={completedItems}
         completedServices={completedServices}
@@ -1053,11 +1130,11 @@ const POSAdvanced = () => {
         isPartialPayment={isPartialPayment}
         considerRemainingAsPartial={considerRemainingAsPartial}
         subscriptionAccountInfo={subscriptionAccountInfo}
-        
+
         // دوال معالجة الأحداث
         handleAddVariantToCart={handleAddVariantToCart}
         handleRepairServiceSuccess={handleRepairServiceSuccess}
-        
+
         // دوال مسح البيانات
         clearPrintData={clearPrintData}
       />

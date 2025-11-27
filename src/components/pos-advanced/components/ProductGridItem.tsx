@@ -40,12 +40,12 @@ const ProductGridItem: React.FC<ProductItemProps> = React.memo(({
 
     // Log only for products that should have images (just created or have any image field)
     if (hasBase64 || hasThumbnail || hasImages) {
-      console.log(`[ProductGridItem] 🔍 ${product.name} (${product.id.substring(0, 8)}): base64=${hasBase64 ? `${Math.round(String((product as any).thumbnail_base64).length/1024)}KB` : 'NO'}, thumbnail=${hasThumbnail ? 'YES' : 'NO'}, images=${hasImages ? product.images!.length : 0}`);
+      console.log(`[ProductGridItem] 🔍 ${product.name} (${product.id.substring(0, 8)}): base64=${hasBase64 ? `${Math.round(String((product as any).thumbnail_base64).length / 1024)}KB` : 'NO'}, thumbnail=${hasThumbnail ? 'YES' : 'NO'}, images=${hasImages ? product.images!.length : 0}`);
     }
 
     // ⚡ أولاً: الصورة المحلية Base64 (للعمل Offline)
     if ((product as any).thumbnail_base64 && (product as any).thumbnail_base64.trim()) {
-      console.log(`[ProductGridItem] 🖼️ ✅ Using thumbnail_base64 for ${product.name} (${Math.round(String((product as any).thumbnail_base64).length/1024)}KB)`);
+      console.log(`[ProductGridItem] 🖼️ ✅ Using thumbnail_base64 for ${product.name} (${Math.round(String((product as any).thumbnail_base64).length / 1024)}KB)`);
       return (product as any).thumbnail_base64;
     }
 
@@ -74,7 +74,7 @@ const ProductGridItem: React.FC<ProductItemProps> = React.memo(({
         if (Array.isArray(localImages) && localImages.length > 0) {
           return localImages[0];
         }
-      } catch {}
+      } catch { }
     }
 
     // محاولة استخدام صورة من أول لون متاح
@@ -141,10 +141,10 @@ const ProductGridItem: React.FC<ProductItemProps> = React.memo(({
           {/* مؤشر الإضافة المحسّن */}
           <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 z-[2]">
             <div className={cn(
-              "p-4 rounded-2xl backdrop-blur-md shadow-2xl transform scale-90 group-hover:scale-100 transition-transform duration-300",
+              "p-4 rounded-2xl glass shadow-2xl transform scale-90 group-hover:scale-100 transition-transform duration-300",
               isReturnMode
-                ? "bg-gradient-to-br from-amber-500 to-orange-600 text-white ring-2 ring-white/30"
-                : "bg-gradient-to-br from-primary to-primary/80 text-primary-foreground ring-2 ring-white/30"
+                ? "bg-gradient-to-br from-amber-500/80 to-orange-600/80 text-white"
+                : "bg-gradient-to-br from-primary/80 to-primary/60 text-primary-foreground"
             )}>
               {isReturnMode ? (
                 <RotateCcw className="h-6 w-6" strokeWidth={2.5} />
@@ -157,10 +157,10 @@ const ProductGridItem: React.FC<ProductItemProps> = React.memo(({
           {/* شارة السعر المحسّنة */}
           <div className="absolute bottom-3 left-3 z-[2]">
             <div className={cn(
-              "px-3 py-1.5 rounded-xl font-bold text-sm backdrop-blur-md shadow-xl border transition-all duration-300",
+              "px-3 py-1.5 rounded-xl font-bold text-sm glass shadow-xl transition-all duration-300",
               isReturnMode
-                ? "bg-gradient-to-r from-amber-500/95 to-orange-500/95 text-white border-white/20"
-                : "bg-card/95 text-foreground border-border/50 group-hover:bg-primary/95 group-hover:text-primary-foreground group-hover:border-primary/30"
+                ? "bg-gradient-to-r from-amber-500/80 to-orange-500/80 text-white"
+                : "bg-card/80 text-foreground group-hover:bg-primary/80 group-hover:text-primary-foreground"
             )}>
               {product.price?.toLocaleString('ar-DZ')} دج
             </div>

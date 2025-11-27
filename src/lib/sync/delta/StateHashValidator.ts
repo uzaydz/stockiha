@@ -16,14 +16,30 @@ import {
 export class StateHashValidator {
   private readonly HASH_TABLES = DELTA_SYNC_CONSTANTS.SYNCED_TABLES;
 
+  // ⚡ تعيين أسماء الجداول من Supabase إلى SQLite المحلي
+  private readonly TABLE_NAME_MAP: Record<string, string> = {
+    'orders': 'pos_orders',
+    'order_items': 'pos_order_items',
+  };
+
+  /**
+   * ⚡ تحويل اسم الجدول من Supabase إلى SQLite المحلي
+   */
+  private mapTableName(supabaseTable: string): string {
+    return this.TABLE_NAME_MAP[supabaseTable] || supabaseTable;
+  }
+
   /**
    * حساب Hash لجدول محلي
    */
   async computeTableHash(tableName: string): Promise<string> {
+    // ⚡ تحويل اسم الجدول للاسم المحلي
+    const localTableName = this.mapTableName(tableName);
+
     try {
       // جلب جميع السجلات مرتبة بالـ ID
       const records = await sqliteWriteQueue.read<any[]>(
-        `SELECT * FROM ${tableName} ORDER BY id`
+        `SELECT * FROM ${localTableName} ORDER BY id`
       );
 
       if (records.length === 0) {
@@ -218,9 +234,11 @@ export class StateHashValidator {
    * إصلاح جدول واحد
    */
   private async repairTable(organizationId: string, tableName: string): Promise<void> {
-    console.log(`[StateHashValidator] Repairing table: ${tableName}`);
+    // ⚡ تحويل اسم الجدول للاسم المحلي
+    const localTableName = this.mapTableName(tableName);
+    console.log(`[StateHashValidator] Repairing table: ${tableName} -> ${localTableName}`);
 
-    // جلب البيانات من الخادم
+    // جلب البيانات من الخادم (استخدام اسم Supabase)
     const { data, error } = await supabase
       .from(tableName)
       .select('*')
@@ -230,27 +248,27 @@ export class StateHashValidator {
       throw new Error(`Failed to fetch ${tableName}: ${error.message}`);
     }
 
-    // استخدام transaction لضمان atomicity
+    // استخدام transaction لضمان atomicity (استخدام الاسم المحلي)
     await sqliteWriteQueue.transaction(async () => {
       // حذف البيانات المحلية للجدول
       await sqliteWriteQueue.write(
-        `DELETE FROM ${tableName} WHERE organization_id = ?`,
+        `DELETE FROM ${localTableName} WHERE organization_id = ?`,
         [organizationId]
       );
 
       // إدراج البيانات الجديدة
       for (const record of data || []) {
-        await this.upsertRecord(tableName, record);
+        await this.upsertRecord(localTableName, record);
       }
     });
 
-    console.log(`[StateHashValidator] Repaired ${tableName} with ${data?.length || 0} records`);
+    console.log(`[StateHashValidator] Repaired ${localTableName} with ${data?.length || 0} records`);
   }
 
   /**
    * إدراج أو تحديث سجل
    */
-  private async upsertRecord(tableName: string, record: Record<string, any>): Promise<void> {
+  private async upsertRecord(localTableName: string, record: Record<string, any>): Promise<void> {
     const columns = Object.keys(record);
     const values = Object.values(record).map(v => {
       if (v === null || v === undefined) return null;
@@ -265,7 +283,7 @@ export class StateHashValidator {
       .join(', ');
 
     await sqliteWriteQueue.write(
-      `INSERT INTO ${tableName} (${columns.join(', ')})
+      `INSERT INTO ${localTableName} (${columns.join(', ')})
        VALUES (${placeholders})
        ON CONFLICT(id) DO UPDATE SET ${updateSet}`,
       values
@@ -317,9 +335,11 @@ export class StateHashValidator {
     const counts: Record<string, number> = {};
 
     for (const table of this.HASH_TABLES) {
+      // ⚡ تحويل اسم الجدول للاسم المحلي
+      const localTableName = this.mapTableName(table);
       try {
         const result = await sqliteWriteQueue.read<any[]>(
-          `SELECT COUNT(*) as count FROM ${table}`
+          `SELECT COUNT(*) as count FROM ${localTableName}`
         );
         counts[table] = result[0]?.count || 0;
       } catch {

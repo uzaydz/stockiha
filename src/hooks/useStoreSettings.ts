@@ -8,6 +8,8 @@ import {
 } from "@/lib/api/store-settings";
 import type { OrganizationSettings, UpdateSettingsPayload } from "@/types/settings";
 import { canMutateHead } from "@/lib/headGuard";
+import { localStoreSettingsService } from "@/api/localStoreSettingsService";
+import type { LocalOrganizationSettings } from "@/database/localDb";
 
 // تعريف الأنواع المطلوبة
 interface UseStoreSettingsProps {
@@ -154,7 +156,7 @@ export const useStoreSettings = ({
     }
   }, [settings]);
 
-  // تحميل إعدادات المتجر
+  // تحميل إعدادات المتجر - ⚡ مع دعم الأوفلاين
   const loadStoreSettings = useCallback(async () => {
     if (!organizationId) {
       setIsLoading(false);
@@ -165,33 +167,98 @@ export const useStoreSettings = ({
       setIsLoading(true);
       setError(null);
 
-      // مسح الكاش أولاً لضمان الحصول على أحدث البيانات
-      clearStoreSettingsCache(organizationId);
-
-      const response = await getStoreSettingsComplete(organizationId);
-      
-      if (response && response.success && response.settings) {
-        setSettings(response.settings);
-        
-        // تحديث بيانات التتبع
-        if (response.tracking_pixels) {
-          setTrackingPixels({
-            facebook: response.tracking_pixels.facebook || { enabled: false, pixelId: '' },
-            tiktok: response.tracking_pixels.tiktok || { enabled: false, pixelId: '' },
-            snapchat: response.tracking_pixels.snapchat || { enabled: false, pixelId: '' },
-            google: response.tracking_pixels.google || { enabled: false, pixelId: '' },
-          });
+      // ⚡ 1. محاولة تحميل الإعدادات المحلية أولاً (للأوفلاين)
+      let localSettings: LocalOrganizationSettings | null = null;
+      try {
+        localSettings = await localStoreSettingsService.get(organizationId);
+        if (localSettings) {
+          console.log('[useStoreSettings] ✅ تم تحميل الإعدادات المحلية');
+          // استخدام الإعدادات المحلية مؤقتاً
+          setSettings(localSettings as unknown as OrganizationSettings);
+          
+          // تحميل بيانات التتبع من custom_js
+          try {
+            const customJs = localSettings.custom_js 
+              ? (typeof localSettings.custom_js === 'string' ? JSON.parse(localSettings.custom_js) : localSettings.custom_js)
+              : {};
+            if (customJs.trackingPixels) {
+              setTrackingPixels({
+                facebook: customJs.trackingPixels.facebook || { enabled: false, pixelId: '' },
+                tiktok: customJs.trackingPixels.tiktok || { enabled: false, pixelId: '' },
+                snapchat: customJs.trackingPixels.snapchat || { enabled: false, pixelId: '' },
+                google: customJs.trackingPixels.google || { enabled: false, pixelId: '' },
+              });
+            }
+          } catch {}
         }
+      } catch (localErr) {
+        console.warn('[useStoreSettings] فشل تحميل الإعدادات المحلية:', localErr);
+      }
 
-        // تطبيق الثيم تلقائياً إذا كان مفعلاً
-        if (autoApplyTheme) {
-          // تطبيق الثيم مباشرة من الإعدادات المحلية
-          setTimeout(() => {
-            applyTheme();
-          }, 100);
+      // ⚡ 2. محاولة تحميل من السيرفر (إذا كان متصلاً)
+      const isOnline = navigator.onLine;
+      if (isOnline) {
+        try {
+          clearStoreSettingsCache(organizationId);
+          const response = await getStoreSettingsComplete(organizationId);
+          
+          if (response && response.success && response.settings) {
+            setSettings(response.settings);
+            
+            // تحديث بيانات التتبع
+            if (response.tracking_pixels) {
+              setTrackingPixels({
+                facebook: response.tracking_pixels.facebook || { enabled: false, pixelId: '' },
+                tiktok: response.tracking_pixels.tiktok || { enabled: false, pixelId: '' },
+                snapchat: response.tracking_pixels.snapchat || { enabled: false, pixelId: '' },
+                google: response.tracking_pixels.google || { enabled: false, pixelId: '' },
+              });
+            }
+
+            // ⚡ 3. حفظ الإعدادات محلياً للأوفلاين
+            try {
+              await localStoreSettingsService.save({
+                ...response.settings,
+                organization_id: organizationId,
+                synced: true,
+                pending_sync: false,
+                updated_at: new Date().toISOString()
+              } as LocalOrganizationSettings);
+              console.log('[useStoreSettings] ✅ تم حفظ الإعدادات محلياً');
+            } catch (saveErr) {
+              console.warn('[useStoreSettings] فشل حفظ الإعدادات محلياً:', saveErr);
+            }
+          } else if (!localSettings) {
+            // إنشاء إعدادات افتراضية إذا لم توجد (لا محلية ولا من السيرفر)
+            const defaultSettings: OrganizationSettings = {
+              organization_id: organizationId,
+              theme_primary_color: '#3B82F6',
+              theme_secondary_color: '#10B981',
+              theme_mode: 'light',
+              site_name: 'متجري الإلكتروني',
+              custom_css: null,
+              logo_url: null,
+              favicon_url: null,
+              default_language: 'ar',
+              custom_js: null,
+              custom_header: null,
+              custom_footer: null,
+              enable_registration: true,
+              enable_public_site: true,
+              display_text_with_logo: true,
+            };
+            setSettings(defaultSettings);
+          }
+        } catch (serverErr) {
+          console.warn('[useStoreSettings] فشل التحميل من السيرفر:', serverErr);
+          // استخدام الإعدادات المحلية إذا فشل التحميل من السيرفر
+          if (!localSettings) {
+            setError('فشل في تحميل الإعدادات - يرجى التحقق من اتصال الإنترنت');
+          }
         }
-      } else {
-        // إنشاء إعدادات افتراضية إذا لم توجد
+      } else if (!localSettings) {
+        // أوفلاين ولا توجد إعدادات محلية
+        console.log('[useStoreSettings] ⚠️ أوفلاين - استخدام إعدادات افتراضية');
         const defaultSettings: OrganizationSettings = {
           organization_id: organizationId,
           theme_primary_color: '#3B82F6',
@@ -210,21 +277,23 @@ export const useStoreSettings = ({
           display_text_with_logo: true,
         };
         setSettings(defaultSettings);
-        setError(response?.message || 'فشل في تحميل الإعدادات');
+      }
+
+      // تطبيق الثيم تلقائياً إذا كان مفعلاً
+      if (autoApplyTheme) {
+        setTimeout(() => {
+          applyTheme();
+        }, 100);
       }
       
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'حدث خطأ غير متوقع';
       setError(errorMessage);
-      toast({
-        variant: "destructive",
-        title: "خطأ في تحميل الإعدادات",
-        description: errorMessage,
-      });
+      console.error('[useStoreSettings] خطأ:', errorMessage);
     } finally {
       setIsLoading(false);
     }
-  }, [organizationId, autoApplyTheme, toast]);
+  }, [organizationId, autoApplyTheme]);
 
   // تحميل الإعدادات عند تغيير معرف المؤسسة
   useEffect(() => {
@@ -263,7 +332,7 @@ export const useStoreSettings = ({
     setSaveSuccess(false);
   }, []);
 
-  // دالة حفظ الإعدادات
+  // دالة حفظ الإعدادات - ⚡ مع دعم الأوفلاين
   const saveSettings = useCallback(async () => {
     if (!organizationId || !settings) {
       return;
@@ -289,6 +358,39 @@ export const useStoreSettings = ({
         auto_deduct_inventory: baseCustomJs?.auto_deduct_inventory ?? true
       };
 
+      const settingsToSave = {
+        ...settings,
+        custom_js: JSON.stringify(updatedCustomJs)
+      };
+
+      // ⚡ حفظ محلي أولاً (للأوفلاين)
+      const isOnline = navigator.onLine;
+      
+      try {
+        await localStoreSettingsService.save({
+          ...settingsToSave,
+          organization_id: organizationId,
+          synced: isOnline ? false : false, // سيتم تحديثه بعد نجاح السيرفر
+          pending_sync: !isOnline,
+          updated_at: new Date().toISOString()
+        } as LocalOrganizationSettings);
+        console.log('[useStoreSettings] ✅ تم الحفظ المحلي');
+      } catch (localErr) {
+        console.warn('[useStoreSettings] فشل الحفظ المحلي:', localErr);
+      }
+
+      // ⚡ إذا كان أوفلاين، نجاح محلي فقط
+      if (!isOnline) {
+        setSettings(settingsToSave);
+        setSaveSuccess(true);
+        toast({
+          title: "تم الحفظ محلياً",
+          description: "تم حفظ الإعدادات وستتم المزامنة عند الاتصال",
+        });
+        return;
+      }
+
+      // ⚡ محاولة الحفظ على السيرفر
       const payload: UpdateSettingsPayload = {
         theme_primary_color: settings.theme_primary_color,
         theme_secondary_color: settings.theme_secondary_color,
@@ -312,6 +414,11 @@ export const useStoreSettings = ({
         setSettings(result.data);
         setSaveSuccess(true);
         
+        // ⚡ تحديث الإعدادات المحلية كمتزامنة
+        try {
+          await localStoreSettingsService.markSynced(organizationId);
+        } catch {}
+        
         toast({
           title: "تم الحفظ بنجاح",
           description: "تم حفظ إعدادات المتجر بنجاح",
@@ -326,15 +433,25 @@ export const useStoreSettings = ({
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'حدث خطأ غير متوقع';
       setError(errorMessage);
-      toast({
-        variant: "destructive",
-        title: "خطأ في الحفظ",
-        description: errorMessage,
-      });
+      
+      // ⚡ إذا فشل السيرفر، على الأقل تم الحفظ محلياً
+      if (navigator.onLine) {
+        toast({
+          variant: "destructive",
+          title: "خطأ في الحفظ على السيرفر",
+          description: "تم الحفظ محلياً وستتم المحاولة لاحقاً",
+        });
+      } else {
+        toast({
+          variant: "destructive",
+          title: "خطأ في الحفظ",
+          description: errorMessage,
+        });
+      }
     } finally {
       setIsSaving(false);
     }
-  }, [organizationId, settings, trackingPixels, autoApplyTheme, toast, applyTheme]);
+  }, [organizationId, settings, trackingPixels, toast]);
 
   // دالة إعادة تحميل الإعدادات
   const refreshSettings = useCallback(async () => {

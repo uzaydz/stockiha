@@ -4,7 +4,21 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
 import { useStaffSession } from '@/context/StaffSessionContext';
-import type { CartItem, Service, Order, User } from '@/types';
+import type { Service, Order, User } from '@/types';
+
+// تعريف CartItem محلياً إذا لم يكن موجوداً في types
+interface CartItem {
+  product: any;
+  quantity: number;
+  total: number;
+  isWholesale?: boolean;
+  colorId?: string;
+  sizeId?: string;
+  colorName?: string;
+  sizeName?: string;
+  variantDisplayName?: string;
+  [key: string]: any;
+}
 
 interface OrderData {
   customerId?: string;
@@ -38,8 +52,8 @@ interface OrderResult {
 
 export function usePOSOrderOptimized() {
   const [isProcessing, setIsProcessing] = useState(false);
-  const { currentUser, userProfile } = useAuth();
-  const { currentTenant } = useTenant();
+  const { user: currentUser, userProfile } = useAuth(); // تصحيح: user بدلاً من currentUser
+  const { tenant: currentTenant } = useTenant(); // تصحيح: tenant بدلاً من currentTenant
   const { currentStaff } = useStaffSession();
   const processingRef = useRef(false);
 
@@ -58,151 +72,148 @@ export function usePOSOrderOptimized() {
       processingRef.current = true;
       setIsProcessing(true);
 
-      if (!currentTenant?.organization?.id) {
+      const organizationId = currentTenant?.id; // استخدام id مباشرة من tenant
+      if (!organizationId) {
         throw new Error('معرف المؤسسة غير موجود');
       }
 
-      if (!currentUser?.id) {
+      const employeeId = userProfile?.id || currentUser?.id;
+      if (!employeeId) {
         throw new Error('معرف الموظف غير موجود');
       }
 
-      // تحضير بيانات عناصر السلة بتنسيق محسن
-      const orderItems = cartItems.map(item => ({
-        product_id: item.product.id,
+      // تحضير بيانات عناصر السلة بتنسيق OfflinePOSOrderItemPayload
+      const itemsPayload: any[] = cartItems.map(item => ({
+        productId: item.product.id,
+        productName: item.product.name,
         quantity: item.quantity,
-        unit_price: item.isWholesale ? 
-          (item.product.wholesale_price || item.product.price) : 
+        unitPrice: item.isWholesale ?
+          (item.product.wholesale_price || item.product.price) :
           item.product.price,
-        total_price: item.total,
-        original_price: item.product.price,
-        is_wholesale: item.isWholesale || false,
+        totalPrice: item.total,
+        originalPrice: item.product.price,
+        isWholesale: item.isWholesale || false,
+        colorId: item.colorId || null,
+        sizeId: item.sizeId || null,
+        colorName: item.colorName || null,
+        sizeName: item.sizeName || null,
         variant_info: item.colorId || item.sizeId ? {
           color_id: item.colorId,
           size_id: item.sizeId,
           color_name: item.colorName,
-          size_name: item.sizeName
-        } : {},
-        color_id: item.colorId || '',
-        size_id: item.sizeId || '',
-        color_name: item.colorName || '',
-        size_name: item.sizeName || '',
-        variant_display_name: item.variantDisplayName || ''
+          size_name: item.sizeName,
+          variant_display_name: item.variantDisplayName
+        } : null
       }));
 
-      // معالجة الخدمات (إذا وجدت)
+      // معالجة الخدمات
       if (selectedServices.length > 0) {
         const serviceItems = selectedServices.map(service => ({
-          product_id: service.id,
+          productId: service.id,
+          productName: service.name || 'خدمة',
           quantity: 1,
-          unit_price: service.price,
-          total_price: service.price,
-          original_price: service.price,
-          is_wholesale: false,
+          unitPrice: service.price,
+          totalPrice: service.price,
+          originalPrice: service.price,
+          isWholesale: false,
           variant_info: {
             service_type: 'repair',
-            scheduled_date: service.scheduledDate?.toISOString(),
-            notes: service.notes,
-            tracking_code: service.public_tracking_code
-          },
-          color_id: '',
-          size_id: '',
-          color_name: '',
-          size_name: '',
-          variant_display_name: ''
+            scheduled_date: (service as any).scheduledDate?.toISOString(),
+            notes: (service as any).notes,
+            tracking_code: (service as any).public_tracking_code,
+            is_service: true
+          }
         }));
-        orderItems.push(...serviceItems);
+        itemsPayload.push(...serviceItems);
       }
 
-      // معالجة الاشتراكات (إذا وجدت)
+      // معالجة الاشتراكات
       if (selectedSubscriptions.length > 0) {
         const subscriptionItems = selectedSubscriptions.map(subscription => ({
-          product_id: subscription.id,
+          productId: subscription.id,
+          productName: subscription.name || 'اشتراك',
           quantity: 1,
-          unit_price: subscription.price,
-          total_price: subscription.price,
-          original_price: subscription.price,
-          is_wholesale: false,
+          unitPrice: subscription.price,
+          totalPrice: subscription.price,
+          originalPrice: subscription.price,
+          isWholesale: false,
           variant_info: {
             subscription_type: 'digital',
             duration: subscription.duration,
-            features: subscription.features
-          },
-          color_id: '',
-          size_id: '',
-          color_name: '',
-          size_name: '',
-          variant_display_name: ''
-        }));
-        orderItems.push(...subscriptionItems);
-      }
-
-      // استدعاء الدالة المحسنة
-      const { data: result, error } = await supabase.rpc('create_pos_order_optimized', {
-        p_organization_id: currentTenant.organization.id,
-        p_customer_id: orderData.customerId === 'guest' ? null : orderData.customerId,
-        p_employee_id: userProfile?.id || currentUser.id, // استخدام userProfile.id إذا كان متاحاً
-        p_created_by_staff_id: currentStaff?.id || null,
-        p_created_by_staff_name: currentStaff?.staff_name || null,
-        p_items: orderItems,
-        p_payment_method: orderData.paymentMethod,
-        p_payment_status: orderData.paymentStatus,
-        p_total_amount: orderData.total,
-        p_subtotal: orderData.subtotal,
-        p_discount: orderData.discount,
-        p_tax: 0, // الضريبة محسوبة في الإجمالي
-        p_amount_paid: orderData.partialPayment?.amountPaid,
-        p_remaining_amount: orderData.partialPayment?.remainingAmount,
-        p_consider_remaining_as_partial: orderData.considerRemainingAsPartial,
-        p_notes: orderData.notes,
-        p_subscription_account_info: orderData.subscriptionAccountInfo || null
-      });
-
-      if (error) {
-        throw new Error(`فشل في إنشاء الطلبية: ${error.message}`);
-      }
-
-      if (!result?.success) {
-        throw new Error(result?.error || 'فشل في إنشاء الطلبية');
-      }
-
-      // معالجة الخدمات منفصلة (تحديث حالتها)
-      if (selectedServices.length > 0) {
-        const servicePromises = selectedServices.map(async (service) => {
-          if (service.id && service.scheduledDate) {
-            const { error: serviceError } = await supabase
-              .from('repair_orders')
-              .update({
-                status: 'confirmed',
-                order_id: result.orderId,
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', service.id);
-              
-            if (serviceError) {
-            }
+            features: subscription.features,
+            is_subscription: true
           }
-        });
-
-        // تنفيذ تحديثات الخدمات بالتوازي
-        await Promise.allSettled(servicePromises);
+        }));
+        itemsPayload.push(...subscriptionItems);
       }
 
-      toast.success(`تم إنشاء الطلبية بنجاح - رقم: ${result.customerOrderNumber}`);
+      // استيراد createLocalPOSOrder ديناميكياً لتجنب مشاكل الدورة (Circular Dependency) إذا وجدت
+      const { createLocalPOSOrder } = await import('@/api/localPosOrderService');
+
+      // إنشاء الطلب محلياً (Offline-First)
+      const localOrder = await createLocalPOSOrder({
+        organizationId,
+        customerId: orderData.customerId === 'guest' ? undefined : orderData.customerId,
+        customerName: undefined, // يمكن إضافته إذا كان متاحاً في orderData
+        employeeId,
+        paymentMethod: orderData.paymentMethod,
+        paymentStatus: orderData.paymentStatus as any,
+        subtotal: orderData.subtotal,
+        discount: orderData.discount,
+        total: orderData.total,
+        amountPaid: orderData.partialPayment?.amountPaid,
+        remainingAmount: orderData.partialPayment?.remainingAmount,
+        considerRemainingAsPartial: orderData.considerRemainingAsPartial,
+        notes: orderData.notes,
+        metadata: {
+          subscriptionAccountInfo: orderData.subscriptionAccountInfo,
+          created_by_staff_id: currentStaff?.id,
+          created_by_staff_name: currentStaff?.staff_name
+        },
+        items: itemsPayload // تمرير العناصر هنا أيضاً لتلبية متطلبات النوع
+      } as any, itemsPayload);
+
+      // معالجة الخدمات منفصلة (تحديث حالتها) - محاولة فقط
+      if (selectedServices.length > 0) {
+        // نترك هذه العملية في الخلفية ولا ننتظرها
+        (async () => {
+          try {
+            const servicePromises = selectedServices.map(async (service) => {
+              if (service.id && (service as any).scheduledDate) {
+                await supabase
+                  .from('repair_orders')
+                  .update({
+                    status: 'confirmed',
+                    // order_id: localOrder.id, // TODO: نحتاج ربطها بالطلب عند المزامنة
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', service.id);
+              }
+            });
+            await Promise.allSettled(servicePromises);
+          } catch (e) {
+            console.warn('Failed to update repair orders status in background', e);
+          }
+        })();
+      }
+
+      toast.success(`تم إنشاء الطلبية بنجاح - رقم: ${localOrder.local_order_number}`);
 
       return {
-        orderId: result.orderId,
-        customerOrderNumber: result.customerOrderNumber,
+        orderId: localOrder.id,
+        customerOrderNumber: localOrder.local_order_number,
         success: true
       };
 
     } catch (error: any) {
+      console.error('Submit Order Error:', error);
       toast.error(error.message || 'حدث خطأ في معالجة الطلبية');
       throw error;
     } finally {
       setIsProcessing(false);
       processingRef.current = false;
     }
-  }, [currentTenant, currentUser]);
+  }, [currentTenant, currentUser, currentStaff, userProfile]);
 
   // دالة لإلغاء الطلبية (للطوارئ)
   const cancelOrder = useCallback(async (orderId: string): Promise<boolean> => {
@@ -211,7 +222,7 @@ export function usePOSOrderOptimized() {
 
       const { data, error } = await supabase.rpc('cancel_pos_order', {
         p_order_id: orderId,
-        p_organization_id: currentTenant?.organization?.id
+        p_organization_id: currentTenant?.id
       });
 
       if (error) {
@@ -241,7 +252,7 @@ export function usePOSOrderOptimized() {
           created_at,
           customer:users(name)
         `)
-        .eq('organization_id', currentTenant?.organization?.id)
+        .eq('organization_id', currentTenant?.id)
         .eq('is_online', false)
         .order('created_at', { ascending: false })
         .limit(limit);

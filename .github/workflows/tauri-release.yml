@@ -176,72 +176,75 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
       - name: Generate latest.json
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ needs.create-release.outputs.version }}"
           DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
-          # Get signature files content
+          # Download signature files from the release
+          mkdir -p sigs
+          gh release download "v${VERSION}" --pattern "*.sig" --dir sigs || true
+
+          # Debug: list downloaded files
+          echo "Downloaded signature files:"
+          ls -la sigs/ || echo "No signatures found"
+
+          # Read signatures
           MACOS_ARM_SIG=""
           MACOS_X64_SIG=""
           WINDOWS_SIG=""
           LINUX_SIG=""
 
-          # Read signatures if they exist
-          for dir in artifacts/*/; do
-            for sig in "$dir"*.sig; do
-              if [ -f "$sig" ]; then
-                content=$(cat "$sig")
-                filename=$(basename "$sig")
-                case "$filename" in
-                  *aarch64*.dmg.sig|*aarch64*.app.tar.gz.sig)
-                    MACOS_ARM_SIG="$content"
-                    ;;
-                  *x86_64*.dmg.sig|*x64*.dmg.sig|*x86_64*.app.tar.gz.sig)
-                    MACOS_X64_SIG="$content"
-                    ;;
-                  *.msi.sig|*setup*.exe.sig|*.nsis.sig)
-                    WINDOWS_SIG="$content"
-                    ;;
-                  *.AppImage.sig)
-                    LINUX_SIG="$content"
-                    ;;
-                esac
-              fi
-            done
+          for sig in sigs/*.sig; do
+            if [ -f "$sig" ]; then
+              content=$(cat "$sig")
+              filename=$(basename "$sig")
+              echo "Processing: $filename"
+              case "$filename" in
+                Stockiha_aarch64.app.tar.gz.sig)
+                  MACOS_ARM_SIG="$content"
+                  ;;
+                Stockiha_x64.app.tar.gz.sig)
+                  MACOS_X64_SIG="$content"
+                  ;;
+                *x64-setup.exe.sig)
+                  WINDOWS_SIG="$content"
+                  ;;
+                *.AppImage.sig)
+                  LINUX_SIG="$content"
+                  ;;
+              esac
+            fi
           done
 
-          # Generate the latest.json file
+          # Generate the latest.json file with .app.tar.gz URLs for macOS (required by Tauri updater)
           cat > latest.json << EOF
-          {
-            "version": "${VERSION}",
-            "notes": "See release notes on GitHub",
-            "pub_date": "${DATE}",
-            "platforms": {
-              "darwin-aarch64": {
-                "signature": "${MACOS_ARM_SIG}",
-                "url": "https://github.com/uzaydz/stockiha/releases/download/v${VERSION}/Stockiha_${VERSION}_aarch64.dmg"
-              },
-              "darwin-x86_64": {
-                "signature": "${MACOS_X64_SIG}",
-                "url": "https://github.com/uzaydz/stockiha/releases/download/v${VERSION}/Stockiha_${VERSION}_x64.dmg"
-              },
-              "linux-x86_64": {
-                "signature": "${LINUX_SIG}",
-                "url": "https://github.com/uzaydz/stockiha/releases/download/v${VERSION}/Stockiha_${VERSION}_amd64.AppImage"
-              },
-              "windows-x86_64": {
-                "signature": "${WINDOWS_SIG}",
-                "url": "https://github.com/uzaydz/stockiha/releases/download/v${VERSION}/Stockiha_${VERSION}_x64-setup.exe"
-              }
-            }
-          }
-          EOF
+{
+  "version": "${VERSION}",
+  "notes": "See release notes on GitHub",
+  "pub_date": "${DATE}",
+  "platforms": {
+    "darwin-aarch64": {
+      "signature": "${MACOS_ARM_SIG}",
+      "url": "https://github.com/uzaydz/stockiha/releases/download/v${VERSION}/Stockiha_aarch64.app.tar.gz"
+    },
+    "darwin-x86_64": {
+      "signature": "${MACOS_X64_SIG}",
+      "url": "https://github.com/uzaydz/stockiha/releases/download/v${VERSION}/Stockiha_x64.app.tar.gz"
+    },
+    "linux-x86_64": {
+      "signature": "${LINUX_SIG}",
+      "url": "https://github.com/uzaydz/stockiha/releases/download/v${VERSION}/Stockiha_${VERSION}_amd64.AppImage"
+    },
+    "windows-x86_64": {
+      "signature": "${WINDOWS_SIG}",
+      "url": "https://github.com/uzaydz/stockiha/releases/download/v${VERSION}/Stockiha_${VERSION}_x64-setup.exe"
+    }
+  }
+}
+EOF
 
           cat latest.json
 
@@ -251,5 +254,6 @@ jobs:
           tag_name: v${{ needs.create-release.outputs.version }}
           files: latest.json
           draft: false
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

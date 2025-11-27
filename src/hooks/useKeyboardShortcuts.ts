@@ -45,20 +45,35 @@ export const useKeyboardShortcuts = ({
         target.isContentEditable;
 
       // السماح ببعض الاختصارات حتى في حقول الإدخال
-      const allowedInInputFields = ['F1', 'F5', 'Escape'];
-      const shouldSkip = isInputField && !allowedInInputFields.includes(event.key);
+      const allowedInInputFields = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12', 'Escape'];
+
+      // السماح بالاختصارات التي تستخدم Ctrl أو Alt حتى في حقول الإدخال
+      const hasModifier = event.ctrlKey || event.metaKey || event.altKey;
+
+      const shouldSkip = isInputField && !allowedInInputFields.includes(event.key) && !hasModifier;
 
       if (shouldSkip) return;
+
+      console.log('Key Pressed:', event.key, 'Code:', event.code, 'Modifiers:', { ctrl: event.ctrlKey, meta: event.metaKey, alt: event.altKey, shift: event.shiftKey });
 
       for (const shortcut of shortcutsRef.current) {
         if (shortcut.disabled) continue;
 
-        const keyMatch = event.key === shortcut.key;
+        // التحقق من المفتاح
+        let keyMatch = event.key.toLowerCase() === shortcut.key.toLowerCase();
+
+        // ⚡ إصلاح لنظام Mac: مفتاح Option يغير الحرف (مثلاً Alt+c يصبح ç)
+        // لذلك نستخدم event.code للحروف عند ضغط Alt
+        if (!keyMatch && shortcut.alt && /^[a-z]$/i.test(shortcut.key)) {
+          keyMatch = event.code === `Key${shortcut.key.toUpperCase()}`;
+        }
+
         const ctrlMatch = shortcut.ctrl ? event.ctrlKey || event.metaKey : !event.ctrlKey && !event.metaKey;
         const shiftMatch = shortcut.shift ? event.shiftKey : !event.shiftKey;
         const altMatch = shortcut.alt ? event.altKey : !event.altKey;
 
         if (keyMatch && ctrlMatch && shiftMatch && altMatch) {
+          console.log('Shortcut Triggered:', shortcut.description);
           if (preventDefault) {
             event.preventDefault();
           }
@@ -73,10 +88,11 @@ export const useKeyboardShortcuts = ({
   useEffect(() => {
     if (!enabled) return;
 
-    window.addEventListener('keydown', handleKeyDown);
+    // استخدام capture: true لضمان التقاط الأحداث قبل توقفها
+    window.addEventListener('keydown', handleKeyDown, { capture: true });
 
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keydown', handleKeyDown, { capture: true });
     };
   }, [handleKeyDown, enabled]);
 
@@ -89,13 +105,13 @@ export const useKeyboardShortcuts = ({
     setIsHelpOpen(false);
   }, []);
 
-  return { 
-    showShortcutsHelp, 
+  return {
+    showShortcutsHelp,
     closeShortcutsHelp,
-    isHelpOpen, 
+    isHelpOpen,
     setIsHelpOpen,
     setShortcuts,
-    shortcuts: shortcutsRef.current 
+    shortcuts: shortcutsRef.current
   };
 };
 
@@ -124,121 +140,149 @@ export const createPOSShortcuts = (actions: {
   onIncreaseQuantity?: () => void;
   onDecreaseQuantity?: () => void;
   onToggleFullscreen?: () => void;
+  onQuickCash?: () => void;
+  onQuickCard?: () => void;
+  onAddDiscount?: () => void;
+  onAddCustomer?: () => void;
 }): KeyboardShortcut[] => {
   return [
     {
       key: 'F1',
       description: 'عرض المساعدة',
-      action: actions.onHelp || (() => {}),
+      action: actions.onHelp || (() => { }),
     },
     {
       key: 'F2',
       description: 'البحث عن منتج',
-      action: actions.onSearch || (() => {}),
+      action: actions.onSearch || (() => { }),
     },
     {
       key: 'F3',
       description: 'مسح البحث',
-      action: actions.onClearSearch || (() => {}),
+      action: actions.onClearSearch || (() => { }),
     },
     {
       key: 'F4',
       description: 'التركيز على الباركود',
-      action: actions.onFocusBarcode || (() => {}),
+      action: actions.onFocusBarcode || (() => { }),
     },
     {
       key: 'F5',
       description: 'تحديث البيانات',
-      action: actions.onRefresh || (() => {}),
+      action: actions.onRefresh || (() => { }),
     },
     {
       key: 'F6',
       description: 'فتح/إغلاق السلة',
-      action: actions.onToggleCart || (() => {}),
+      action: actions.onToggleCart || (() => { }),
     },
     {
       key: 'F7',
       description: 'وضع الإرجاع',
-      action: actions.onToggleReturnMode || (() => {}),
+      action: actions.onToggleReturnMode || (() => { }),
     },
     {
       key: 'F8',
       description: 'إعدادات POS',
-      action: actions.onOpenSettings || (() => {}),
+      action: actions.onOpenSettings || (() => { }),
     },
     {
       key: 'F9',
       description: 'آلة حاسبة',
-      action: actions.onOpenCalculator || (() => {}),
+      action: actions.onOpenCalculator || (() => { }),
     },
     {
       key: 'F10',
       description: 'إتمام الطلب',
-      action: actions.onCheckout || (() => {}),
+      action: actions.onCheckout || (() => { }),
     },
     {
       key: 'F11',
       description: 'شاشة كاملة',
-      action: actions.onToggleFullscreen || (() => {}),
+      action: actions.onToggleFullscreen || (() => { }),
+    },
+    {
+      key: 'c',
+      alt: true,
+      description: 'دفع نقدي سريع',
+      action: actions.onQuickCash || (() => { }),
+    },
+    {
+      key: 'k',
+      alt: true,
+      description: 'دفع بطاقة سريع',
+      action: actions.onQuickCard || (() => { }),
+    },
+    {
+      key: 'd',
+      alt: true,
+      description: 'إضافة خصم',
+      action: actions.onAddDiscount || (() => { }),
+    },
+    {
+      key: 'u',
+      alt: true,
+      description: 'اختيار عميل',
+      action: actions.onAddCustomer || (() => { }),
     },
     {
       key: 'n',
       ctrl: true,
       description: 'تبويب جديد',
-      action: actions.onNewTab || (() => {}),
+      action: actions.onNewTab || (() => { }),
     },
     {
       key: 'w',
       ctrl: true,
       description: 'إغلاق التبويب',
-      action: actions.onCloseTab || (() => {}),
+      action: actions.onCloseTab || (() => { }),
     },
     {
       key: 'Tab',
       ctrl: true,
       description: 'التبويب التالي',
-      action: actions.onNextTab || (() => {}),
+      action: actions.onNextTab || (() => { }),
     },
     {
       key: 'Tab',
       ctrl: true,
       shift: true,
       description: 'التبويب السابق',
-      action: actions.onPrevTab || (() => {}),
+      action: actions.onPrevTab || (() => { }),
     },
     {
       key: 's',
       ctrl: true,
       description: 'حفظ الطلب',
-      action: actions.onSaveOrder || (() => {}),
+      action: actions.onSaveOrder || (() => { }),
     },
     {
       key: 'p',
       ctrl: true,
       description: 'طباعة',
-      action: actions.onPrint || (() => {}),
+      action: actions.onPrint || (() => { }),
     },
     {
       key: 'Escape',
       description: 'إلغاء/إغلاق',
-      action: actions.onCancel || (() => {}),
+      action: actions.onCancel || (() => { }),
     },
     {
       key: 'Enter',
       description: 'تأكيد/إضافة',
-      action: actions.onConfirm || (() => {}),
+      action: actions.onConfirm || (() => { }),
       disabled: true, // معطل افتراضياً لتجنب التعارض
     },
     {
       key: '+',
       description: 'زيادة الكمية',
-      action: actions.onIncreaseQuantity || (() => {}),
+      action: actions.onIncreaseQuantity || (() => { }),
       disabled: true, // يتم تفعيله عند التركيز على منتج
     },
     {
       key: '-',
       description: 'تقليل الكمية',
-      action: actions.onDecreaseQuantity || (() => {}),
+      action: actions.onDecreaseQuantity || (() => { }),
       disabled: true, // يتم تفعيله عند التركيز على منتج
     },
   ];

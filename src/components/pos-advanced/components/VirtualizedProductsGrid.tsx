@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { Package2 } from 'lucide-react';
+import { FixedSizeList as List } from 'react-window';
 import { ProductsGridProps } from '../types';
 import ProductGridItem from './ProductGridItem';
 import ProductListItem from './ProductListItem';
@@ -28,81 +29,99 @@ const EmptyState = React.memo<{ hasFilters: boolean }>(({ hasFilters }) => (
 
 EmptyState.displayName = 'EmptyState';
 
-// مكون عرض المنتجات
-const ProductsDisplay = React.memo<{
-  products: any[];
-  favoriteProducts: any[];
-  isReturnMode: boolean;
-  onAddToCart: (product: any) => void;
-  viewMode: 'grid' | 'list';
-  bottomPadding: number;
-}>(({ products, favoriteProducts, isReturnMode, onAddToCart, viewMode, bottomPadding }) => {
+// Hook لقياس أبعاد الحاوية
+const useContainerSize = () => {
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) {
+        setSize({
+          width: entry.contentRect.width,
+          height: entry.contentRect.height
+        });
+      }
+    });
+
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  return { ref, width: size.width, height: size.height };
+};
+
+// مكون صف الشبكة
+const GridRow = React.memo<{
+  index: number;
+  style: React.CSSProperties;
+  data: {
+    items: any[];
+    columnCount: number;
+    favoriteProducts: any[];
+    isReturnMode: boolean;
+    onAddToCart: (product: any) => void;
+    gap: number;
+  };
+}>(({ index, style, data }) => {
+  const { items, columnCount, favoriteProducts, isReturnMode, onAddToCart, gap } = data;
+  const startIndex = index * columnCount;
+  const rowItems = items.slice(startIndex, startIndex + columnCount);
+
   return (
-    <div className="w-full" style={{ paddingBottom: bottomPadding }}>
-      <div className="p-4">
-        {viewMode === 'grid' ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 md:gap-4">
-            {products.map((product) => (
-              <ProductGridItem
-                key={`grid-${product.id}-${product.stock_quantity || 0}`}
-                product={product}
-                favoriteProducts={favoriteProducts}
-                isReturnMode={isReturnMode}
-                onAddToCart={onAddToCart}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {products.map((product) => (
-              <ProductListItem
-                key={`list-${product.id}-${product.stock_quantity || 0}`}
-                product={product}
-                favoriteProducts={favoriteProducts}
-                isReturnMode={isReturnMode}
-                onAddToCart={onAddToCart}
-              />
-            ))}
-          </div>
-        )}
-      </div>
+    <div style={{ ...style, display: 'flex', gap: gap, paddingLeft: gap, paddingRight: gap }}>
+      {rowItems.map((product) => (
+        <div key={product.id} style={{ flex: 1, minWidth: 0 }}>
+          <ProductGridItem
+            product={product}
+            favoriteProducts={favoriteProducts}
+            isReturnMode={isReturnMode}
+            onAddToCart={onAddToCart}
+          />
+        </div>
+      ))}
+      {/* تعبئة الفراغات للحفاظ على المحاذاة في الصف الأخير */}
+      {rowItems.length < columnCount && Array.from({ length: columnCount - rowItems.length }).map((_, i) => (
+        <div key={`empty-${i}`} style={{ flex: 1, minWidth: 0 }} />
+      ))}
     </div>
   );
 });
 
-ProductsDisplay.displayName = 'ProductsDisplay';
+GridRow.displayName = 'GridRow';
 
-const haveSameProducts = (prevProducts: any[], nextProducts: any[]): boolean => {
-  if (prevProducts.length !== nextProducts.length) {
-    return false;
-  }
+// مكون صف القائمة
+const ListRow = React.memo<{
+  index: number;
+  style: React.CSSProperties;
+  data: {
+    items: any[];
+    favoriteProducts: any[];
+    isReturnMode: boolean;
+    onAddToCart: (product: any) => void;
+    gap: number;
+  };
+}>(({ index, style, data }) => {
+  const { items, favoriteProducts, isReturnMode, onAddToCart, gap } = data;
+  const product = items[index];
 
-  for (let i = 0; i < prevProducts.length; i += 1) {
-    const prevProduct = prevProducts[i];
-    const nextProduct = nextProducts[i];
+  return (
+    <div style={{ ...style, paddingLeft: gap, paddingRight: gap }}>
+      <ProductListItem
+        product={product}
+        favoriteProducts={favoriteProducts}
+        isReturnMode={isReturnMode}
+        onAddToCart={onAddToCart}
+      />
+    </div>
+  );
+});
 
-    if (prevProduct.id !== nextProduct.id) {
-      return false;
-    }
-
-    const prevStock =
-      prevProduct.actual_stock_quantity ??
-      prevProduct.stock_quantity ??
-      prevProduct.stockQuantity ??
-      0;
-    const nextStock =
-      nextProduct.actual_stock_quantity ??
-      nextProduct.stock_quantity ??
-      nextProduct.stockQuantity ??
-      0;
-
-    if (prevStock !== nextStock) {
-      return false;
-    }
-  }
-
-  return true;
-};
+ListRow.displayName = 'ListRow';
 
 const VirtualizedProductsGrid: React.FC<ProductsGridProps> = React.memo(({
   products,
@@ -115,44 +134,72 @@ const VirtualizedProductsGrid: React.FC<ProductsGridProps> = React.memo(({
   onAddToCart,
   isMobile
 }) => {
+  const { ref, width, height } = useContainerSize();
+
   // تبسيط منطق التصفية
-  const hasFilters = useMemo(() => 
+  const hasFilters = useMemo(() =>
     Boolean(searchQuery) || selectedCategory !== 'all' || stockFilter !== 'all'
-  , [searchQuery, selectedCategory, stockFilter]);
+    , [searchQuery, selectedCategory, stockFilter]);
 
   const isEmpty = products.length === 0;
-  const bottomPadding = isMobile ? 120 : 80;
+
+  // حساب عدد الأعمدة بناءً على العرض
+  const columnCount = useMemo(() => {
+    if (viewMode === 'list') return 1;
+    if (width < 640) return 2; // sm
+    if (width < 768) return 3; // md
+    if (width < 1024) return 4; // lg
+    if (width < 1280) return 4; // xl
+    if (width < 1536) return 5; // 2xl
+    return 6;
+  }, [width, viewMode]);
+
+  const gap = 12; // gap-3 equivalent
+  const rowHeight = viewMode === 'grid' ? 320 : 100; // ارتفاع تقريبي للبطاقة
+  const rowCount = Math.ceil(products.length / columnCount);
 
   // عرض الحالة الفارغة
   if (isEmpty) {
     return (
-      <div className="w-full bg-background">
+      <div className="w-full h-full bg-background">
         <EmptyState hasFilters={hasFilters} />
       </div>
     );
   }
 
   return (
-    <div className="w-full bg-background">
-      <ProductsDisplay
-        products={products}
-        favoriteProducts={favoriteProducts}
-        isReturnMode={isReturnMode}
-        onAddToCart={onAddToCart}
-        viewMode={viewMode}
-        bottomPadding={bottomPadding}
-      />
+    <div className="w-full h-full bg-background" ref={ref}>
+      {width > 0 && (
+        <List
+          height={height || 600} // ارتفاع افتراضي إذا لم يتم القياس بعد
+          itemCount={rowCount}
+          itemSize={rowHeight + gap}
+          width={width}
+          itemData={{
+            items: products,
+            columnCount,
+            favoriteProducts,
+            isReturnMode,
+            onAddToCart,
+            gap
+          }}
+          className="scrollbar-hide pb-20" // إضافة padding في الأسفل
+        >
+          {viewMode === 'grid' ? GridRow : ListRow}
+        </List>
+      )}
     </div>
   );
 }, (prevProps, nextProps) => {
   return (
-    haveSameProducts(prevProps.products, nextProps.products) &&
-    prevProps.favoriteProducts.length === nextProps.favoriteProducts.length &&
+    prevProps.products === nextProps.products && // الاعتماد على المرجع لأن القائمة تأتي من useMemo في الوالد
+    prevProps.favoriteProducts === nextProps.favoriteProducts &&
     prevProps.isReturnMode === nextProps.isReturnMode &&
     prevProps.viewMode === nextProps.viewMode &&
     prevProps.searchQuery === nextProps.searchQuery &&
     prevProps.selectedCategory === nextProps.selectedCategory &&
-    prevProps.stockFilter === nextProps.stockFilter
+    prevProps.stockFilter === nextProps.stockFilter &&
+    prevProps.isMobile === nextProps.isMobile
   );
 });
 
