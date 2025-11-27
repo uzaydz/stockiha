@@ -132,6 +132,7 @@ jobs:
         run: npx patch-package || true
 
       - name: Create Tauri icons directory
+        shell: bash
         run: |
           mkdir -p src-tauri/icons
 
