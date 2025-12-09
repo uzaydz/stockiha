@@ -102,16 +102,16 @@ class SubscriptionCryptoService {
 
   /**
    * الحصول على بصمة الجهاز (للمساعدة في إنشاء مفتاح فريد)
+   * ⚡ تم تبسيطها لتكون أكثر استقراراً - لا تتغير مع تحديثات المتصفح
    */
   private getDeviceFingerprint(): string {
     try {
+      // استخدام مكونات ثابتة فقط (لا تتغير مع تحديثات المتصفح)
       const components = [
-        navigator.userAgent,
-        navigator.language,
         screen.width,
         screen.height,
         new Date().getTimezoneOffset(),
-        navigator.hardwareConcurrency || 0
+        navigator.language?.split('-')[0] || 'en' // فقط اللغة الرئيسية
       ];
       return components.join('|');
     } catch {

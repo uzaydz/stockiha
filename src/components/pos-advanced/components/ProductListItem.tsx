@@ -11,11 +11,12 @@ import {
 import { ProductItemProps } from '../types';
 import { computeAvailableStock, isOutOfStock as calcOutOfStock } from '@/lib/stock';
 
-const ProductListItem: React.FC<ProductItemProps> = ({ 
-  product, 
-  favoriteProducts, 
-  isReturnMode, 
-  onAddToCart 
+const ProductListItem: React.FC<ProductItemProps> = ({
+  product,
+  favoriteProducts,
+  isReturnMode,
+  isLossMode = false,
+  onAddToCart
 }) => {
   const stock = computeAvailableStock(product);
   const isOutOfStock = calcOutOfStock(product);
@@ -49,9 +50,11 @@ const ProductListItem: React.FC<ProductItemProps> = ({
   return (
     <Card className={cn(
       "group cursor-pointer transition-all duration-300 hover:shadow-md",
-      isReturnMode 
-        ? "border-orange-200 hover:border-orange-300 bg-gradient-to-r from-orange-50/30 to-background hover:from-orange-50/50" 
-        : "border-border hover:border-primary/30",
+      isLossMode
+        ? "border-orange-400 hover:border-orange-500 bg-gradient-to-r from-orange-50/50 to-background hover:from-orange-100/50 ring-1 ring-orange-400/50"
+        : isReturnMode
+          ? "border-amber-200 hover:border-amber-300 bg-gradient-to-r from-amber-50/30 to-background hover:from-amber-50/50"
+          : "border-border hover:border-primary/30",
       isOutOfStock && "opacity-60"
     )}>
       <CardContent 
@@ -129,7 +132,9 @@ const ProductListItem: React.FC<ProductItemProps> = ({
 
           {/* أيقونة الإضافة */}
           <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-            {isReturnMode ? (
+            {isLossMode ? (
+              <Package2 className="h-5 w-5 text-orange-600" />
+            ) : isReturnMode ? (
               <RotateCcw className="h-5 w-5 text-muted-foreground" />
             ) : (
               <ShoppingCart className="h-5 w-5 text-muted-foreground" />

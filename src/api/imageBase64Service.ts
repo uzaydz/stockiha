@@ -8,22 +8,22 @@
  * - إدارة قائمة انتظار الصور للرفع
  */
 
-import { deltaWriteService } from '@/services/DeltaWriteService';
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
 import { supabase } from '@/lib/supabase';
 
-// الحد الأقصى لحجم الصورة (5MB)
-const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+// ⚡ الحد الأقصى لحجم الصورة (2MB بدلاً من 5MB) - لتقليل استهلاك الذاكرة
+const MAX_IMAGE_SIZE = 2 * 1024 * 1024;
 
-// ⚡ إعدادات ضغط الصور
+// ⚡ إعدادات ضغط الصور - محسّنة لتقليل استهلاك الذاكرة
 const IMAGE_COMPRESSION_CONFIG = {
-  // الحد الأقصى للعرض/الارتفاع للـ thumbnail
-  thumbnailMaxSize: 800,
-  // الحد الأقصى للعرض/الارتفاع للصور الإضافية
-  additionalMaxSize: 1200,
-  // جودة WebP (0.0 - 1.0) - 0.85 توازن ممتاز بين الجودة والحجم
-  webpQuality: 0.85,
-  // جودة JPEG fallback
-  jpegQuality: 0.85,
+  // الحد الأقصى للعرض/الارتفاع للـ thumbnail - ⚡ تقليل من 800 إلى 400
+  thumbnailMaxSize: 400,
+  // الحد الأقصى للعرض/الارتفاع للصور الإضافية - ⚡ تقليل من 1200 إلى 800
+  additionalMaxSize: 800,
+  // جودة WebP (0.0 - 1.0) - ⚡ تقليل من 0.85 إلى 0.7 لتوفير الذاكرة
+  webpQuality: 0.7,
+  // جودة JPEG fallback - ⚡ تقليل من 0.85 إلى 0.7
+  jpegQuality: 0.7,
 };
 
 // Interface لنتيجة التحويل
@@ -327,15 +327,21 @@ export const imageBase64Service = {
           mimeType = fallbackResult.mimeType || 'image/jpeg';
         }
 
-        await deltaWriteService.update('products', productId, {
-          thumbnail_base64: `data:${mimeType};base64,${base64Data}`
+        await powerSyncService.transaction(async (tx) => {
+await tx.execute(
+            'UPDATE products SET thumbnail_base64 = ? WHERE id = ?',
+            [`data:${mimeType};base64,${base64Data}`, productId]
+          );
         });
         return true;
       }
 
       // تحديث المنتج بالصورة المضغوطة
-      await deltaWriteService.update('products', productId, {
-        thumbnail_base64: `data:${result.mimeType};base64,${result.base64}`
+      await powerSyncService.transaction(async (tx) => {
+        await tx.execute(
+          'UPDATE products SET thumbnail_base64 = ? WHERE id = ?',
+          [`data:${result.mimeType};base64,${result.base64}`, productId]
+        );
       });
 
       console.log(`[ImageBase64] ✅ Saved compressed thumbnail for product ${productId} (${result.compressionRatio}% smaller)`);
@@ -388,8 +394,11 @@ export const imageBase64Service = {
       }
 
       // تحديث المنتج بالصور المحلية
-      await deltaWriteService.update('products', productId, {
-        images_base64: JSON.stringify(base64Images)
+      await powerSyncService.transaction(async (tx) => {
+        await tx.execute(
+          'UPDATE products SET images_base64 = ? WHERE id = ?',
+          [JSON.stringify(base64Images), productId]
+        );
       });
 
       const overallReduction = totalOriginalSize > 0

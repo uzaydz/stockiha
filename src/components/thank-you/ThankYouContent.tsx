@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ThankYouTemplate } from "@/pages/dashboard/ThankYouPageEditor";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { usePrinter } from "@/hooks/usePrinter";
 
 // *** استيراد النوع المحدث ***
 import { DisplayOrderInfo } from "@/api/orders";
@@ -31,6 +32,9 @@ interface ThankYouContentProps {
 
 export default function ThankYouContent({ template, orderInfo }: ThankYouContentProps) {
   const navigate = useNavigate();
+
+  // ⚡ نظام الطباعة الموحد
+  const { printHtml, isElectron: isElectronPrint } = usePrinter();
   
   // استخراج معلومات التصميم والألوان
   const { layout_type, color_scheme, custom_colors, content } = template;
@@ -85,8 +89,37 @@ export default function ThankYouContent({ template, orderInfo }: ThankYouContent
   const colors = getColors();
 
   // معالجة إجراءات الأزرار
-  const handleAction = (action: string) => {
+  const handleAction = async (action: string) => {
     if (action === "print") {
+      // ⚡ استخدام نظام الطباعة الموحد
+      if (isElectronPrint) {
+        try {
+          const contentDiv = document.querySelector('.thank-you-content');
+          if (contentDiv) {
+            await printHtml(`
+              <!DOCTYPE html>
+              <html dir="rtl" lang="ar">
+                <head>
+                  <meta charset="UTF-8">
+                  <title>تفاصيل الطلب #${orderInfo.orderNumber}</title>
+                  <style>
+                    * { box-sizing: border-box; margin: 0; padding: 0; }
+                    body { font-family: 'Tajawal', Arial, sans-serif; direction: rtl; padding: 20px; }
+                    @page { size: A4; margin: 15mm; }
+                    table { width: 100%; border-collapse: collapse; }
+                    th, td { padding: 8px; border: 1px solid #ddd; text-align: right; }
+                  </style>
+                </head>
+                <body>${contentDiv.innerHTML}</body>
+              </html>
+            `, { silent: false, pageSize: 'A4' });
+            return;
+          }
+        } catch (err) {
+          console.warn('[ThankYouContent] فشلت الطباعة المباشرة:', err);
+        }
+      }
+      // Fallback
       window.print();
     } else if (action.startsWith("http") || action.startsWith("https")) {
       window.open(action, "_blank");

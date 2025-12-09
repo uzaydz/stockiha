@@ -1,7 +1,7 @@
 /**
  * localInvoiceService - خدمة الفواتير المحلية
  *
- * ⚡ تم التحديث لاستخدام Delta Sync بالكامل
+ * ⚡ تم التحديث لاستخدام PowerSync
  *
  * - Local-First: الكتابة محلياً فوراً
  * - Offline-First: يعمل بدون إنترنت
@@ -10,14 +10,14 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import type { LocalInvoice, LocalInvoiceItem } from '@/database/localDb';
-import { deltaWriteService } from '@/services/DeltaWriteService';
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
 
 // Re-export types
 export type { LocalInvoice, LocalInvoiceItem } from '@/database/localDb';
 
 interface CreateInvoiceData {
-  invoiceData: Omit<LocalInvoice, 'id' | 'created_at' | 'updated_at' | 'synced' | 'syncStatus' | 'pendingOperation'>;
-  items: Array<Omit<LocalInvoiceItem, 'id' | 'invoice_id' | 'created_at' | 'synced'>>;
+  invoiceData: Omit<LocalInvoice, 'id' | 'created_at' | 'updated_at'>;
+  items: Array<Omit<LocalInvoiceItem, 'id' | 'invoice_id' | 'created_at'>>;
 }
 
 // إنشاء فاتورة جديدة محلياً
@@ -30,35 +30,45 @@ export const createLocalInvoice = async (
   const invoiceRecord: LocalInvoice = {
     ...data.invoiceData,
     id: invoiceId,
-    invoice_number_lower: data.invoiceData.invoice_number?.toLowerCase(),
-    customer_name_lower: data.invoiceData.customer_name?.toLowerCase(),
+    // ⚡ v3.0: تم إزالة invoice_number_lower و customer_name_lower - غير موجودين في PowerSync schema
     created_at: now,
     updated_at: now,
-    synced: false,
-    syncStatus: 'pending',
-    pendingOperation: 'create'
-  };
+  } as LocalInvoice;
 
   const itemRecords: LocalInvoiceItem[] = data.items.map(item => ({
     ...item,
     id: uuidv4(),
     invoice_id: invoiceId,
+    organization_id: data.invoiceData.organization_id, // ⚡ مطلوب في Supabase
     created_at: now,
-    synced: false
-  }));
+  } as LocalInvoiceItem));
 
-  // ⚡ استخدام Delta Sync مع العناصر
-  const result = await deltaWriteService.createInvoiceWithItems(
-    data.invoiceData.organization_id,
-    invoiceRecord,
-    itemRecords
-  );
+  // ⚡ استخدام PowerSync مع العناصر
+  await powerSyncService.transaction(async (tx) => {
+    // حفظ الفاتورة
+    const invoiceKeys = Object.keys(invoiceRecord).filter(k => k !== 'id' && k !== 'created_at' && k !== 'updated_at');
+    const invoicePlaceholders = invoiceKeys.map(() => '?').join(', ');
+    const invoiceValues = invoiceKeys.map(k => (invoiceRecord as any)[k]);
+    
+    await tx.execute(
+      `INSERT INTO invoices (id, ${invoiceKeys.join(', ')}, created_at, updated_at) VALUES (?, ${invoicePlaceholders}, ?, ?)`,
+      [invoiceId, ...invoiceValues, now, now]
+    );
 
-  if (!result.success) {
-    throw new Error(`Failed to create invoice: ${result.error}`);
-  }
+    // حفظ العناصر
+    for (const item of itemRecords) {
+      const itemKeys = Object.keys(item).filter(k => k !== 'id' && k !== 'invoice_id' && k !== 'created_at');
+      const itemPlaceholders = itemKeys.map(() => '?').join(', ');
+      const itemValues = itemKeys.map(k => (item as any)[k]);
+      
+      await tx.execute(
+        `INSERT INTO invoice_items (id, invoice_id, ${itemKeys.join(', ')}, created_at) VALUES (?, ?, ${itemPlaceholders}, ?)`,
+        [item.id, invoiceId, ...itemValues, now]
+      );
+    }
+  });
 
-  console.log(`[LocalInvoice] ⚡ Created invoice ${invoiceId} with ${itemRecords.length} items via Delta Sync`);
+  console.log(`[LocalInvoice] ⚡ Created invoice ${invoiceId} with ${itemRecords.length} items via PowerSync`);
   return { invoice: invoiceRecord, items: itemRecords };
 };
 
@@ -66,65 +76,71 @@ export const createLocalInvoice = async (
 export const updateLocalInvoice = async (
   invoiceId: string,
   updates: Partial<Omit<LocalInvoice, 'id' | 'created_at' | 'organization_id' | 'invoice_number'>>,
-  newItems?: Array<Omit<LocalInvoiceItem, 'id' | 'invoice_id' | 'created_at' | 'synced'>>
+  newItems?: Array<Omit<LocalInvoiceItem, 'id' | 'invoice_id' | 'created_at'>>
 ): Promise<{ invoice: LocalInvoice; items: LocalInvoiceItem[] } | null> => {
   try {
-    const existing = await deltaWriteService.get<LocalInvoice>('invoices', invoiceId);
+    const existing = await powerSyncService.get<LocalInvoice>(
+      'SELECT * FROM invoices WHERE id = ?',
+      [invoiceId]
+    );
     if (!existing) return null;
 
     const now = new Date().toISOString();
     const updatedData = {
       ...updates,
       updated_at: now,
-      synced: false,
-      syncStatus: 'pending',
-      pendingOperation: existing.pendingOperation === 'create' ? 'create' : 'update'
     };
-
-    // ⚡ تحديث الفاتورة
-    const result = await deltaWriteService.update('invoices', invoiceId, updatedData);
-
-    if (!result.success) {
-      console.error(`[LocalInvoice] Failed to update invoice ${invoiceId}:`, result.error);
-      return null;
-    }
 
     let itemRecords: LocalInvoiceItem[] = [];
 
-    // إذا تم تمرير عناصر جديدة
-    if (newItems) {
-      // حذف العناصر القديمة
-      const oldItems = await deltaWriteService.getAll<LocalInvoiceItem>('invoice_items', existing.organization_id, {
-        where: 'invoice_id = ?',
-        params: [invoiceId]
-      });
+    // ⚡ تحديث الفاتورة والعناصر
+    await powerSyncService.transaction(async (tx) => {
+// تحديث الفاتورة
+      const keys = Object.keys(updatedData).filter(k => k !== 'id' && k !== 'created_at');
+      const setClause = keys.map(k => `${k} = ?`).join(', ');
+      const values = keys.map(k => (updatedData as any)[k]);
+      
+      await tx.execute(
+        `UPDATE invoices SET ${setClause}, updated_at = ? WHERE id = ?`,
+        [...values, now, invoiceId]
+      );
 
-      for (const oldItem of oldItems) {
-        await deltaWriteService.delete('invoice_items', oldItem.id);
+      // إذا تم تمرير عناصر جديدة
+      if (newItems) {
+        // حذف العناصر القديمة
+        await tx.execute('DELETE FROM invoice_items WHERE invoice_id = ?', [invoiceId]);
+
+        // إضافة العناصر الجديدة
+        for (const item of newItems) {
+          const itemRecord: LocalInvoiceItem = {
+            ...item,
+            id: uuidv4(),
+            invoice_id: invoiceId,
+            organization_id: existing.organization_id, // ⚡ مطلوب في Supabase
+            created_at: now,
+          } as LocalInvoiceItem;
+
+          itemRecords.push(itemRecord);
+          
+          const itemKeys = Object.keys(itemRecord).filter(k => k !== 'id' && k !== 'invoice_id' && k !== 'created_at');
+          const itemPlaceholders = itemKeys.map(() => '?').join(', ');
+          const itemValues = itemKeys.map(k => (itemRecord as any)[k]);
+          
+          await tx.execute(
+            `INSERT INTO invoice_items (id, invoice_id, ${itemKeys.join(', ')}, created_at) VALUES (?, ?, ${itemPlaceholders}, ?)`,
+            [itemRecord.id, invoiceId, ...itemValues, now]
+          );
+        }
+      } else {
+        // جلب العناصر الحالية
+itemRecords = await powerSyncService.query<LocalInvoiceItem>({
+          sql: 'SELECT * FROM invoice_items WHERE invoice_id = ?',
+          params: [invoiceId]
+        });
       }
+    });
 
-      // إضافة العناصر الجديدة
-      for (const item of newItems) {
-        const itemRecord: LocalInvoiceItem = {
-          ...item,
-          id: uuidv4(),
-          invoice_id: invoiceId,
-          created_at: now,
-          synced: false
-        };
-
-        itemRecords.push(itemRecord);
-        await deltaWriteService.create('invoice_items', itemRecord, existing.organization_id);
-      }
-    } else {
-      // جلب العناصر الحالية
-      itemRecords = await deltaWriteService.getAll<LocalInvoiceItem>('invoice_items', existing.organization_id, {
-        where: 'invoice_id = ?',
-        params: [invoiceId]
-      });
-    }
-
-    console.log(`[LocalInvoice] ⚡ Updated invoice ${invoiceId} via Delta Sync`);
+    console.log(`[LocalInvoice] ⚡ Updated invoice ${invoiceId} via PowerSync`);
     return {
       invoice: { ...existing, ...updatedData } as LocalInvoice,
       items: itemRecords
@@ -138,17 +154,22 @@ export const updateLocalInvoice = async (
 // حذف فاتورة محلياً
 export const deleteLocalInvoice = async (invoiceId: string): Promise<boolean> => {
   try {
-    const existing = await deltaWriteService.get<LocalInvoice>('invoices', invoiceId);
+    const existing = await powerSyncService.get<LocalInvoice>(
+      'SELECT * FROM invoices WHERE id = ?',
+      [invoiceId]
+    );
     if (!existing) return false;
 
-    // ⚡ استخدام Delta Sync للحذف
-    const result = await deltaWriteService.delete('invoices', invoiceId);
+    // ⚡ استخدام PowerSync للحذف
+    await powerSyncService.transaction(async (tx) => {
+// حذف العناصر أولاً
+      await tx.execute('DELETE FROM invoice_items WHERE invoice_id = ?', [invoiceId]);
+      // ثم حذف الفاتورة
+      await tx.execute('DELETE FROM invoices WHERE id = ?', [invoiceId]);
+    });
 
-    if (result.success) {
-      console.log(`[LocalInvoice] ⚡ Deleted invoice ${invoiceId} via Delta Sync`);
-    }
-
-    return result.success;
+    console.log(`[LocalInvoice] ⚡ Deleted invoice ${invoiceId} via PowerSync`);
+    return true;
   } catch (error) {
     console.error(`[LocalInvoice] Delete error:`, error);
     return false;
@@ -159,11 +180,14 @@ export const deleteLocalInvoice = async (invoiceId: string): Promise<boolean> =>
 export const getLocalInvoice = async (
   invoiceId: string
 ): Promise<{ invoice: LocalInvoice; items: LocalInvoiceItem[] } | null> => {
-  const invoice = await deltaWriteService.get<LocalInvoice>('invoices', invoiceId);
+  const invoice = await powerSyncService.get<LocalInvoice>(
+    'SELECT * FROM invoices WHERE id = ?',
+    [invoiceId]
+  );
   if (!invoice) return null;
 
-  const items = await deltaWriteService.getAll<LocalInvoiceItem>('invoice_items', invoice.organization_id, {
-    where: 'invoice_id = ?',
+  const items = await powerSyncService.query<LocalInvoiceItem>({
+    sql: 'SELECT * FROM invoice_items WHERE invoice_id = ?',
     params: [invoiceId]
   });
 
@@ -177,17 +201,20 @@ export const getLocalInvoiceByNumber = async (
   const orgId = localStorage.getItem('currentOrganizationId') ||
     localStorage.getItem('bazaar_organization_id') || '';
 
-  const invoices = await deltaWriteService.getAll<LocalInvoice>('invoices', orgId, {
-    where: 'invoice_number = ?',
-    params: [invoiceNumber],
-    limit: 1
+  if (!powerSyncService.db) {
+    console.warn('[localInvoiceService] PowerSync DB not initialized');
+    return [];
+  }
+  const invoices = await powerSyncService.query<LocalInvoice>({
+    sql: 'SELECT * FROM invoices WHERE organization_id = ? AND invoice_number = ? LIMIT 1',
+    params: [orgId, invoiceNumber]
   });
 
   if (invoices.length === 0) return null;
 
   const invoice = invoices[0];
-  const items = await deltaWriteService.getAll<LocalInvoiceItem>('invoice_items', orgId, {
-    where: 'invoice_id = ?',
+  const items = await powerSyncService.query<LocalInvoiceItem>({
+    sql: 'SELECT * FROM invoice_items WHERE invoice_id = ?',
     params: [invoice.id]
   });
 
@@ -196,38 +223,41 @@ export const getLocalInvoiceByNumber = async (
 
 // جلب جميع الفواتير حسب المؤسسة
 export const getAllLocalInvoices = async (organizationId: string): Promise<LocalInvoice[]> => {
-  return deltaWriteService.getAll<LocalInvoice>('invoices', organizationId, {
-    where: "(pending_operation IS NULL OR pending_operation != 'delete')",
-    orderBy: 'created_at DESC'
+  if (!powerSyncService.db) {
+    console.warn('[localInvoiceService] PowerSync DB not initialized');
+    return [];
+  }
+  return powerSyncService.query<LocalInvoice>({
+    sql: 'SELECT * FROM invoices WHERE organization_id = ? ORDER BY created_at DESC',
+    params: [organizationId]
   });
 };
 
 // جلب الفواتير غير المتزامنة
 export const getUnsyncedInvoices = async (): Promise<LocalInvoice[]> => {
+  // ⚡ PowerSync يتعامل مع المزامنة تلقائياً
   const orgId = localStorage.getItem('currentOrganizationId') ||
     localStorage.getItem('bazaar_organization_id') || '';
 
-  return deltaWriteService.getAll<LocalInvoice>('invoices', orgId, {
-    where: 'synced = 0'
+  if (!powerSyncService.db) {
+    console.warn('[localInvoiceService] PowerSync DB not initialized');
+    return [];
+  }
+  return powerSyncService.query<LocalInvoice>({
+    sql: 'SELECT * FROM invoices WHERE organization_id = ?',
+    params: [orgId]
   });
 };
 
-// تحديث حالة المزامنة
+// تحديث حالة المزامنة (⚠️ PowerSync يدير المزامنة تلقائياً)
 export const updateInvoiceSyncStatus = async (
   invoiceId: string,
   synced: boolean,
   syncStatus?: 'pending' | 'syncing' | 'error'
 ): Promise<void> => {
-  const updatedData: any = {
-    synced,
-    sync_status: syncStatus || null
-  };
-
-  if (synced) {
-    updatedData.pending_operation = null;
-  }
-
-  await deltaWriteService.update('invoices', invoiceId, updatedData);
+  // PowerSync يدير المزامنة تلقائياً - لا حاجة لتحديث يدوي
+  console.log(`[LocalInvoice] ⚠️ PowerSync manages sync automatically for invoice ${invoiceId}`);
+  console.log(`[LocalInvoice] updateInvoiceSyncStatus called - PowerSync handles sync automatically`);
 };
 
 // تحديث حالة الدفع
@@ -272,15 +302,20 @@ export async function getLocalInvoicesPage(
     params.push(...statuses);
   }
 
-  const invoices = await deltaWriteService.getAll<LocalInvoice>('invoices', organizationId, {
-    where: whereClause,
-    params,
-    orderBy: `created_at ${createdSort === 'desc' ? 'DESC' : 'ASC'}`,
-    limit,
-    offset
+  if (!powerSyncService.db) {
+    console.warn('[localInvoiceService] PowerSync DB not initialized');
+    return [];
+  }
+  const invoices = await powerSyncService.query<LocalInvoice>({
+    sql: `SELECT * FROM invoices WHERE ${whereClause} ORDER BY created_at ${createdSort === 'desc' ? 'DESC' : 'ASC'} LIMIT ? OFFSET ?`,
+    params: [...params, limit, offset]
   });
 
-  const total = await deltaWriteService.count('invoices', organizationId);
+  const totalResult = await powerSyncService.get<{ count: number }>(
+    `SELECT COUNT(*) as count FROM invoices WHERE ${whereClause}`,
+    params
+  );
+  const total = totalResult?.count || 0;
 
   return { invoices, total };
 }
@@ -294,13 +329,15 @@ export async function fastSearchLocalInvoices(
   if (!q) return [];
   const limit = options.limit ?? 200;
 
-  return deltaWriteService.search<LocalInvoice>(
-    'invoices',
-    organizationId,
-    ['invoice_number_lower', 'customer_name_lower'],
-    q,
-    limit
-  );
+  if (!powerSyncService.db) {
+    console.warn('[localInvoiceService] PowerSync DB not initialized');
+    return [];
+  }
+  // ⚡ v3.0: استخدام LOWER() بدلاً من الأعمدة غير الموجودة
+  return powerSyncService.query<LocalInvoice>({
+    sql: `SELECT * FROM invoices WHERE organization_id = ? AND (LOWER(invoice_number) LIKE ? OR LOWER(customer_name) LIKE ?) LIMIT ?`,
+    params: [organizationId, `%${q}%`, `%${q}%`, limit]
+  });
 }
 
 export async function getLocalInvoiceStats(organizationId: string): Promise<{
@@ -309,7 +346,14 @@ export async function getLocalInvoiceStats(organizationId: string): Promise<{
   paid: number;
   draft: number;
 }> {
-  const invoices = await deltaWriteService.getAll<LocalInvoice>('invoices', organizationId);
+  if (!powerSyncService.db) {
+    console.warn('[localInvoiceService] PowerSync DB not initialized');
+    return [];
+  }
+  const invoices = await powerSyncService.query<LocalInvoice>({
+    sql: 'SELECT * FROM invoices WHERE organization_id = ?',
+    params: [organizationId]
+  });
 
   const total = invoices.length;
   const pending = invoices.filter((i: any) => i.payment_status === 'pending').length;
@@ -363,10 +407,10 @@ export const saveRemoteInvoices = async (invoices: any[]): Promise<void> => {
     const mappedInvoice: LocalInvoice = {
       id: invoice.id,
       invoice_number: invoice.invoice_number,
-      invoice_number_lower: invoice.invoice_number?.toLowerCase(),
+      // ⚡ v3.0: تم إزالة invoice_number_lower - غير موجود في PowerSync schema
       remote_invoice_id: invoice.id,
       customer_name: invoice.customer_name,
-      customer_name_lower: invoice.customer_name?.toLowerCase(),
+      // ⚡ v3.0: تم إزالة customer_name_lower - غير موجود في PowerSync schema
       customer_id: invoice.customer_id,
       total_amount: invoice.total_amount || 0,
       invoice_date: invoice.invoice_date || now,
@@ -389,20 +433,26 @@ export const saveRemoteInvoices = async (invoices: any[]): Promise<void> => {
       organization_id: invoice.organization_id,
       created_at: invoice.created_at || now,
       updated_at: invoice.updated_at || now,
-      synced: true,
-      syncStatus: undefined,
-      pendingOperation: undefined
-    };
+    } as LocalInvoice;
 
-    // حفظ عبر Delta Sync (لا يُضاف للـ outbox لأنها من السيرفر)
-    await deltaWriteService.saveFromServer('invoices', mappedInvoice);
+    // حفظ عبر PowerSync
+    await powerSyncService.transaction(async (tx) => {
+const keys = Object.keys(mappedInvoice).filter(k => k !== 'id' && k !== 'created_at' && k !== 'updated_at');
+      const placeholders = keys.map(() => '?').join(', ');
+      const values = keys.map(k => (mappedInvoice as any)[k]);
+      
+      await tx.execute(
+        `INSERT OR REPLACE INTO invoices (id, ${keys.join(', ')}, created_at, updated_at) VALUES (?, ${placeholders}, ?, ?)`,
+        [mappedInvoice.id, ...values, mappedInvoice.created_at, mappedInvoice.updated_at]
+      );
+    });
   }
 
   console.log(`[LocalInvoice] ⚡ Saved ${invoices.length} remote invoices`);
 };
 
 // حفظ عناصر الفاتورة القادمة من السيرفر
-export const saveRemoteInvoiceItems = async (invoiceId: string, items: any[]): Promise<void> => {
+export const saveRemoteInvoiceItems = async (invoiceId: string, items: any[], organizationId?: string): Promise<void> => {
   if (!items || items.length === 0) return;
 
   const now = new Date().toISOString();
@@ -411,6 +461,7 @@ export const saveRemoteInvoiceItems = async (invoiceId: string, items: any[]): P
     const mappedItem: LocalInvoiceItem = {
       id: item.id,
       invoice_id: invoiceId,
+      organization_id: organizationId || item.organization_id, // ⚡ مطلوب في Supabase
       name: item.name || 'عنصر',
       description: item.description,
       quantity: item.quantity || 1,
@@ -427,10 +478,18 @@ export const saveRemoteInvoiceItems = async (invoiceId: string, items: any[]): P
       total_tva: item.total_tva,
       total_ttc: item.total_ttc,
       created_at: item.created_at || now,
-      synced: true
-    };
+    } as LocalInvoiceItem;
 
-    await deltaWriteService.saveFromServer('invoice_items', mappedItem);
+    await powerSyncService.transaction(async (tx) => {
+const keys = Object.keys(mappedItem).filter(k => k !== 'id' && k !== 'invoice_id' && k !== 'created_at');
+      const placeholders = keys.map(() => '?').join(', ');
+      const values = keys.map(k => (mappedItem as any)[k]);
+      
+      await tx.execute(
+        `INSERT OR REPLACE INTO invoice_items (id, invoice_id, ${keys.join(', ')}, created_at) VALUES (?, ?, ${placeholders}, ?)`,
+        [mappedItem.id, invoiceId, ...values, mappedItem.created_at]
+      );
+    });
   }
 
   console.log(`[LocalInvoice] ⚡ Saved ${items.length} remote invoice items`);

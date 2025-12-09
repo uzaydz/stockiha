@@ -37,6 +37,8 @@ export interface CartTab {
 }
 
 // نوع بيانات عنصر السلة
+type SellingUnit = 'piece' | 'weight' | 'box' | 'meter';
+
 interface CartItem {
   product: Product;
   quantity: number;
@@ -47,6 +49,41 @@ interface CartItem {
   sizeName?: string;
   variantPrice?: number;
   variantImage?: string;
+  // === ⚡ حقول أنواع البيع المتقدمة ===
+  /** وحدة البيع (قطعة/وزن/علبة/متر) */
+  sellingUnit?: SellingUnit;
+  /** الوزن (للبيع بالوزن) */
+  weight?: number;
+  /** وحدة الوزن */
+  weightUnit?: 'kg' | 'g' | 'lb' | 'oz';
+  /** السعر لكل وحدة وزن */
+  pricePerWeightUnit?: number;
+  /** عدد الصناديق (للبيع بالعلبة) */
+  boxCount?: number;
+  /** عدد الوحدات في الصندوق */
+  unitsPerBox?: number;
+  /** سعر الصندوق */
+  boxPrice?: number;
+  /** الطول (للبيع بالمتر) */
+  length?: number;
+  /** السعر لكل متر */
+  pricePerMeter?: number;
+  // === ⚡ حقول الدفعات والأرقام التسلسلية ===
+  /** معرف الدفعة */
+  batchId?: string;
+  /** رقم الدفعة */
+  batchNumber?: string;
+  /** تاريخ انتهاء الصلاحية */
+  expiryDate?: string;
+  /** الأرقام التسلسلية المحددة */
+  serialNumbers?: string[];
+  // === حقول الجملة ===
+  /** نوع البيع (تجزئة/جملة/نصف جملة) */
+  saleType?: 'retail' | 'wholesale' | 'partial_wholesale';
+  /** هل هذا سعر جملة؟ */
+  isWholesale?: boolean;
+  /** السعر الأصلي قبل خصم الجملة */
+  originalPrice?: number;
 }
 
 interface CartTabManagerProps {

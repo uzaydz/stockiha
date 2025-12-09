@@ -94,6 +94,8 @@ class NotificationSoundManager {
   private lastPlayTime: number = 0;
   private playQueue: Array<{ config: SoundConfig; delay: number }> = [];
   private isInitialized: boolean = false;
+  // ⚡ إصلاح Memory Leak: تتبع timeouts لإمكانية إلغائها
+  private pendingTimeouts: ReturnType<typeof setTimeout>[] = [];
 
   constructor() {
     // لا نقوم بتهيئة AudioContext هنا - سنقوم بذلك عند الحاجة
@@ -155,11 +157,31 @@ class NotificationSoundManager {
     }
   }
 
+  // ⚡ إصلاح Memory Leak: مسح جميع الـ timeouts المعلقة
+  private clearPendingTimeouts(): void {
+    this.pendingTimeouts.forEach(timeout => clearTimeout(timeout));
+    this.pendingTimeouts = [];
+  }
+
+  // ⚡ إصلاح Memory Leak: إضافة timeout مع تتبع
+  private addTrackedTimeout(callback: () => void, delay: number): void {
+    const timeout = setTimeout(() => {
+      // إزالة الـ timeout من القائمة بعد تنفيذه
+      const index = this.pendingTimeouts.indexOf(timeout);
+      if (index > -1) {
+        this.pendingTimeouts.splice(index, 1);
+      }
+      callback();
+    }, delay);
+    this.pendingTimeouts.push(timeout);
+  }
+
   // تشغيل كورد (عدة نغمات معاً)
   private async playChord(baseFreq: number, duration: number, volume: number, waveType: OscillatorType) {
     const chordIntervals = [1, 1.25, 1.5]; // Major chord
     for (let i = 0; i < chordIntervals.length; i++) {
-      setTimeout(async () => {
+      // ⚡ إصلاح: استخدام timeout متتبع
+      this.addTrackedTimeout(async () => {
         await this.playTone(baseFreq * chordIntervals[i], duration, volume * 0.7, waveType);
       }, i * 50);
     }
@@ -169,7 +191,8 @@ class NotificationSoundManager {
   private async playMelody(baseFreq: number, duration: number, volume: number, waveType: OscillatorType) {
     const melodyPattern = [1, 1.125, 1.25, 1.5]; // جميل ومبهج
     for (let i = 0; i < melodyPattern.length; i++) {
-      setTimeout(async () => {
+      // ⚡ إصلاح: استخدام timeout متتبع
+      this.addTrackedTimeout(async () => {
         await this.playTone(baseFreq * melodyPattern[i], duration * 0.6, volume * 0.8, waveType);
       }, i * duration * 0.3);
     }
@@ -195,14 +218,16 @@ class NotificationSoundManager {
         
         case 'double':
           await this.playTone(config.frequency, config.duration * 0.7, config.volume, config.waveType);
-          setTimeout(async () => {
+          // ⚡ إصلاح: استخدام timeout متتبع
+          this.addTrackedTimeout(async () => {
             await this.playTone(config.frequency * 1.125, config.duration * 0.7, config.volume, config.waveType);
           }, config.duration * 0.8);
           break;
-        
+
         case 'triple':
           for (let i = 0; i < 3; i++) {
-            setTimeout(async () => {
+            // ⚡ إصلاح: استخدام timeout متتبع
+            this.addTrackedTimeout(async () => {
               await this.playTone(config.frequency * [1, 1.125, 1.25][i], config.duration * 0.6, config.volume, config.waveType);
             }, i * config.duration * 0.4);
           }
@@ -271,6 +296,9 @@ class NotificationSoundManager {
 
   // تنظيف الموارد
   public dispose() {
+    // ⚡ إصلاح Memory Leak: مسح جميع الـ timeouts المعلقة
+    this.clearPendingTimeouts();
+
     if (this.audioContext) {
       this.audioContext.close();
       this.audioContext = null;

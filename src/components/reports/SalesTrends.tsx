@@ -1,15 +1,17 @@
-import { useState } from 'react';
-import { format, isAfter, isBefore, parseISO, subDays } from 'date-fns';
+
+import { useState, useMemo } from 'react';
+import { format, parseISO } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import { 
+import {
   TrendingUp,
-  Calendar,
   BarChart2,
-  ArrowRight,
-  ArrowLeft,
-  Layers
+  Layers,
+  DollarSign,
+  ShoppingBag,
+  CreditCard,
+  Maximize2
 } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Select,
@@ -18,9 +20,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import {
+  ComposedChart,
+  Bar,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  Area
+} from 'recharts';
+import { cn } from '@/lib/utils';
 
 // Tipos de datos
 type DateRange = {
@@ -41,20 +55,67 @@ type SalesTrendsProps = {
   isLoading: boolean;
 };
 
+// مكون للأرقام بتنسيق جميل
+const MetricCard = ({ title, value, subtext, icon: Icon, trend, trendLabel, delay }: any) => (
+  <Card className={cn("overflow-hidden border-none shadow-md bg-card/50 backdrop-blur-sm transition-all duration-300 hover:bg-card hover:shadow-lg animate-in fade-in zoom-in-95", delay)}>
+    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+      <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
+      <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
+        <Icon className="h-4 w-4 text-primary" />
+      </div>
+    </CardHeader>
+    <CardContent>
+      <div className="text-2xl font-bold font-numeric">{value}</div>
+      <div className="flex items-center text-xs mt-1 space-x-2 space-x-reverse">
+        {trend !== undefined && (
+          <Badge variant="outline" className={cn("ml-2 font-numeric", trend >= 0 ? "text-emerald-500 border-emerald-500/20 bg-emerald-500/10" : "text-rose-500 border-rose-500/20 bg-rose-500/10")}>
+            {trend >= 0 ? "+" : ""}{trend.toFixed(1)}%
+          </Badge>
+        )}
+        <span className="text-muted-foreground truncate">{trendLabel || subtext}</span>
+      </div>
+    </CardContent>
+  </Card>
+);
+
+// تخصيص التلميح في المخطط
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-popover/95 backdrop-blur-md border border-border p-3 rounded-xl shadow-xl text-sm min-w-[180px]">
+        <p className="font-semibold mb-2 text-foreground border-b border-border/50 pb-1">{label}</p>
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-muted-foreground flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-[#FC5D41]" />
+              المبيعات:
+            </span>
+            <span className="font-bold font-numeric text-foreground">{Number(payload[0].value).toLocaleString()} <span className="text-xs font-normal text-muted-foreground">د.ج</span></span>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-muted-foreground flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-indigo-500" />
+              الطلبات:
+            </span>
+            <span className="font-bold font-numeric text-foreground">{Number(payload[1].value).toLocaleString()}</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
+
 // Componente para tendencias de ventas
 const SalesTrends = ({ data, dateRange, isLoading }: SalesTrendsProps) => {
   const [viewMode, setViewMode] = useState('chart');
   const [chartPeriod, setChartPeriod] = useState('daily');
-  
-  // Formatear rango de fechas para mostrar
-  const formattedDateRange = `${format(dateRange.from, 'dd MMM yyyy', { locale: ar })} - ${format(dateRange.to, 'dd MMM yyyy', { locale: ar })}`;
-  
+
   // Organizar datos por periodo
-  const organizeTrendData = () => {
+  const trendData = useMemo(() => {
     if (!data || data.length === 0) return [];
-    
-    let sortedData = [...data].sort((a, b) => {
-      // Ordenar datos por periodo
+
+    return [...data].sort((a, b) => {
       if (chartPeriod === 'daily') {
         return parseISO(a.time_period).getTime() - parseISO(b.time_period).getTime();
       } else if (chartPeriod === 'weekly') {
@@ -65,301 +126,256 @@ const SalesTrends = ({ data, dateRange, isLoading }: SalesTrendsProps) => {
         return a.time_period.localeCompare(b.time_period);
       }
     });
-    
-    return sortedData;
-  };
-  
-  const trendData = organizeTrendData();
-  
-  // Calcular el ancho de cada barra
-  const getBarWidth = (value: number, maxValue: number): number => {
-    if (maxValue === 0) return 0;
-    return (value / maxValue) * 100;
-  };
-  
-  // Encontrar el valor máximo para dimensionar el gráfico
-  const maxSales = Math.max(...(trendData.map(d => Number(d.total_sales)) || [0]));
-  const maxOrders = Math.max(...(trendData.map(d => Number(d.order_count)) || [0]));
-  
-  // Formatear etiquetas de periodo
+  }, [data, chartPeriod]);
+
+  // Formatear etiquetas de periodo para el gráfico
   const formatPeriodLabel = (period: string): string => {
-    if (chartPeriod === 'daily') {
-      return format(parseISO(period), 'dd MMM', { locale: ar });
-    } else if (chartPeriod === 'weekly') {
-      const [year, week] = period.split('-W');
-      return `أسبوع ${week}`;
-    } else if (chartPeriod === 'monthly') {
-      const [year, month] = period.split('-');
-      return format(new Date(Number(year), Number(month) - 1, 1), 'MMM yyyy', { locale: ar });
-    } else {
+    if (!period) return '';
+    try {
+      if (chartPeriod === 'daily') {
+        return format(parseISO(period), 'dd MMM', { locale: ar });
+      } else if (chartPeriod === 'weekly') {
+        const parts = period.split('-W');
+        if (parts.length < 2) return period;
+        return `أ ${parts[1]}`;
+      } else if (chartPeriod === 'monthly') {
+        const parts = period.split('-');
+        if (parts.length < 2) return period;
+        return format(new Date(Number(parts[0]), Number(parts[1]) - 1, 1), 'MMM yy', { locale: ar });
+      }
+      return period;
+    } catch (e) {
       return period;
     }
   };
-  
-  // Calcular tendencias y cambios
-  const calculateTrends = () => {
-    if (!data || data.length < 2) return { salesChange: 0, ordersChange: 0 };
-    
-    const currentPeriodData = trendData.slice(-Math.ceil(trendData.length / 2));
-    const previousPeriodData = trendData.slice(0, Math.floor(trendData.length / 2));
-    
-    const currentSales = currentPeriodData.reduce((sum, d) => sum + Number(d.total_sales), 0);
-    const previousSales = previousPeriodData.reduce((sum, d) => sum + Number(d.total_sales), 0);
-    
-    const currentOrders = currentPeriodData.reduce((sum, d) => sum + Number(d.order_count), 0);
-    const previousOrders = previousPeriodData.reduce((sum, d) => sum + Number(d.order_count), 0);
-    
-    const salesChange = previousSales === 0 ? 100 : ((currentSales - previousSales) / previousSales) * 100;
-    const ordersChange = previousOrders === 0 ? 100 : ((currentOrders - previousOrders) / previousOrders) * 100;
-    
-    return { salesChange, ordersChange };
-  };
-  
-  const { salesChange, ordersChange } = calculateTrends();
-  
+
+  // Prepare data for Recharts
+  const chartData = useMemo(() => {
+    return trendData.map(d => ({
+      name: formatPeriodLabel(d.time_period),
+      originalPeriod: d.time_period,
+      sales: Number(d.total_sales),
+      orders: Number(d.order_count),
+      avg: Number(d.order_count) > 0 ? Number(d.total_sales) / Number(d.order_count) : 0
+    }));
+  }, [trendData, chartPeriod]);
+
+  // Estadísticas
+  const stats = useMemo(() => {
+    if (!data || data.length === 0) return {
+      totalSales: 0, totalOrders: 0, avgOrderValue: 0, maxSales: 0,
+      salesChange: 0, ordersChange: 0
+    };
+
+    const totalSales = data.reduce((sum, d) => sum + Number(d.total_sales), 0);
+    const totalOrders = data.reduce((sum, d) => sum + Number(d.order_count), 0);
+    const maxSales = Math.max(...data.map(d => Number(d.total_sales)));
+    const avgOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0;
+
+    // Calculo simple de tendencias (primera mitad vs segunda mitad)
+    const midPoint = Math.floor(trendData.length / 2);
+    const firstHalf = trendData.slice(0, midPoint);
+    const secondHalf = trendData.slice(midPoint);
+
+    const firstHalfSales = firstHalf.reduce((sum, d) => sum + Number(d.total_sales), 0);
+    const secondHalfSales = secondHalf.reduce((sum, d) => sum + Number(d.total_sales), 0);
+    const salesChange = firstHalfSales === 0 ? 100 : ((secondHalfSales - firstHalfSales) / firstHalfSales) * 100;
+
+    const firstHalfOrders = firstHalf.reduce((sum, d) => sum + Number(d.order_count), 0);
+    const secondHalfOrders = secondHalf.reduce((sum, d) => sum + Number(d.order_count), 0);
+    const ordersChange = firstHalfOrders === 0 ? 100 : ((secondHalfOrders - firstHalfOrders) / firstHalfOrders) * 100;
+
+    return { totalSales, totalOrders, avgOrderValue, maxSales, salesChange, ordersChange };
+  }, [data, trendData]);
+
+  // Formatear rango de fechas
+  const formattedDateRange = `${format(dateRange.from, 'dd MMM yyyy', { locale: ar })} - ${format(dateRange.to, 'dd MMM yyyy', { locale: ar })}`;
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div className="flex flex-col space-y-2 md:flex-row md:justify-between md:items-center md:space-y-0">
-        <h2 className="text-xl font-semibold">اتجاهات المبيعات</h2>
-        <p className="text-sm text-muted-foreground">
-          {isLoading ? (
-            <Skeleton className="h-4 w-32" />
-          ) : (
-            <>الفترة: {formattedDateRange}</>
-          )}
-        </p>
+        <div>
+          <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-l from-primary to-orange-400 w-fit">تحليل اتجاهات المبيعات</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            {isLoading ? (
+              <Skeleton className="h-4 w-32" />
+            ) : (
+              <span>الفترة: <span className="font-menu text-foreground">{formattedDateRange}</span></span>
+            )}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Select value={chartPeriod} onValueChange={setChartPeriod}>
+            <SelectTrigger className="w-[140px] bg-card border-border/50">
+              <SelectValue placeholder="اختر الفترة" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="daily">يومي</SelectItem>
+              <SelectItem value="weekly">أسبوعي</SelectItem>
+              <SelectItem value="monthly">شهري</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Tabs value={viewMode} onValueChange={setViewMode} className="hidden md:block">
+            <TabsList className="h-10 bg-muted/50 p-1">
+              <TabsTrigger value="chart" className="px-3 data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm transition-all">
+                <BarChart2 className="h-4 w-4" />
+              </TabsTrigger>
+              <TabsTrigger value="table" className="px-3 data-[state=active]:bg-background data-[state=active]:text-primary data-[state=active]:shadow-sm transition-all">
+                <Layers className="h-4 w-4" />
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
       </div>
-      
-      <Card>
-        <CardHeader className="pb-2">
-          <div className="flex flex-col md:flex-row md:justify-between md:items-center">
-            <div>
-              <CardTitle className="text-lg">تحليل اتجاهات المبيعات</CardTitle>
-              <CardDescription>
-                تحليل اتجاهات المبيعات خلال الفترة المحددة
-              </CardDescription>
-            </div>
-            
-            <div className="flex items-center gap-2 mt-2 md:mt-0">
-              <Select
-                value={chartPeriod}
-                onValueChange={setChartPeriod}
-              >
-                <SelectTrigger className="w-[140px]">
-                  <SelectValue placeholder="اختر الفترة" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="daily">يومي</SelectItem>
-                  <SelectItem value="weekly">أسبوعي</SelectItem>
-                  <SelectItem value="monthly">شهري</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              <Tabs value={viewMode} onValueChange={setViewMode} className="hidden md:block">
-                <TabsList className="h-9">
-                  <TabsTrigger value="chart" className="px-3">
-                    <BarChart2 className="h-4 w-4" />
-                  </TabsTrigger>
-                  <TabsTrigger value="table" className="px-3">
-                    <Layers className="h-4 w-4" />
-                  </TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </div>
+
+      {isLoading ? (
+        <div className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-4">
+            {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-32 w-full rounded-xl" />)}
           </div>
-        </CardHeader>
-        
-        <CardContent>
-          {isLoading ? (
-            <div className="space-y-2">
-              <Skeleton className="h-[300px] w-full" />
+          <Skeleton className="h-[400px] w-full rounded-xl" />
+        </div>
+      ) : data?.length === 0 ? (
+        <Card className="border-dashed border-2">
+          <CardContent className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+            <div className="bg-muted p-4 rounded-full mb-4">
+              <TrendingUp className="h-8 w-8 text-muted-foreground/50" />
             </div>
-          ) : data?.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-              <TrendingUp className="h-12 w-12 mb-2" />
-              <p>لم يتم العثور على بيانات اتجاهات للفترة المحددة</p>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {/* ملخص البيانات */}
-              <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
-                <Card className="overflow-hidden bg-muted/50">
-                  <CardHeader className="pb-2 pt-4">
-                    <CardTitle className="text-sm">
-                      المبيعات
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pb-4">
-                    <div className="text-xl font-bold">
-                      {trendData.reduce((sum, d) => sum + Number(d.total_sales), 0).toLocaleString()} د.ج
-                    </div>
-                    <p className="text-xs flex items-center gap-1 mt-1">
-                      <Badge className={salesChange >= 0 ? "bg-emerald-500" : "bg-red-500"}>
-                        {salesChange >= 0 ? "+" : ""}{salesChange.toFixed(1)}%
-                      </Badge>
-                      <span className="text-muted-foreground">مقارنة بالفترة السابقة</span>
-                    </p>
-                  </CardContent>
-                </Card>
-                
-                <Card className="overflow-hidden bg-muted/50">
-                  <CardHeader className="pb-2 pt-4">
-                    <CardTitle className="text-sm">
-                      الطلبات
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pb-4">
-                    <div className="text-xl font-bold">
-                      {trendData.reduce((sum, d) => sum + Number(d.order_count), 0).toLocaleString()}
-                    </div>
-                    <p className="text-xs flex items-center gap-1 mt-1">
-                      <Badge className={ordersChange >= 0 ? "bg-emerald-500" : "bg-red-500"}>
-                        {ordersChange >= 0 ? "+" : ""}{ordersChange.toFixed(1)}%
-                      </Badge>
-                      <span className="text-muted-foreground">مقارنة بالفترة السابقة</span>
-                    </p>
-                  </CardContent>
-                </Card>
-                
-                <Card className="overflow-hidden bg-muted/50">
-                  <CardHeader className="pb-2 pt-4">
-                    <CardTitle className="text-sm">
-                      متوسط الطلب
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pb-4">
-                    <div className="text-xl font-bold">
-                      {trendData.length > 0 && trendData.reduce((sum, d) => sum + Number(d.order_count), 0) > 0
-                        ? (trendData.reduce((sum, d) => sum + Number(d.total_sales), 0) / trendData.reduce((sum, d) => sum + Number(d.order_count), 0)).toLocaleString(undefined, {maximumFractionDigits: 0})
-                        : 0} د.ج
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      متوسط قيمة الطلب
-                    </p>
-                  </CardContent>
-                </Card>
-                
-                <Card className="overflow-hidden bg-muted/50">
-                  <CardHeader className="pb-2 pt-4">
-                    <CardTitle className="text-sm">
-                      أعلى قيمة
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pb-4">
-                    <div className="text-xl font-bold">
-                      {maxSales.toLocaleString()} د.ج
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      أعلى قيمة في يوم واحد
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-              
+            <h3 className="text-lg font-medium text-foreground mb-1">لا توجد بيانات</h3>
+            <p className="text-sm">لم يتم العثور على بيانات مبيعات في الفترة المحددة</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {/* ملخص البيانات */}
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricCard
+              title="إجمالي المبيعات"
+              value={`${stats.totalSales.toLocaleString()} د.ج`}
+              icon={DollarSign}
+              trend={stats.salesChange}
+              trendLabel="مقارنة بالفترة السابقة"
+              delay="animation-delay-100"
+            />
+            <MetricCard
+              title="إجمالي الطلبات"
+              value={stats.totalOrders.toLocaleString()}
+              icon={ShoppingBag}
+              trend={stats.ordersChange}
+              trendLabel="مقارنة بالفترة السابقة"
+              delay="animation-delay-200"
+            />
+            <MetricCard
+              title="متوسط قيمة الطلب"
+              value={`${stats.avgOrderValue.toLocaleString(undefined, { maximumFractionDigits: 0 })} د.ج`}
+              icon={CreditCard}
+              subtext="متوسط السلة"
+              delay="animation-delay-300"
+            />
+            <MetricCard
+              title="أعلى مبيعات"
+              value={`${stats.maxSales.toLocaleString()} د.ج`}
+              icon={Maximize2}
+              subtext="في فترة واحدة"
+              delay="animation-delay-400"
+            />
+          </div>
+
+          <Card className="border-border/50 shadow-sm bg-card/40 backdrop-blur-sm overflow-hidden">
+            <CardContent className="p-0">
               {viewMode === 'chart' ? (
-                <div className="space-y-6">
-                  {/* المبيعات */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <h3 className="text-sm font-medium">المبيعات</h3>
-                      <div className="flex gap-1 text-xs text-muted-foreground">
-                        <span>0</span>
-                        <span>-</span>
-                        <span>{maxSales.toLocaleString()} د.ج</span>
-                      </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      {trendData.map((period, index) => (
-                        <div key={period.time_period} className="flex items-center gap-2">
-                          <div className="w-20 text-sm">{formatPeriodLabel(period.time_period)}</div>
-                          <div className="flex-1 h-8 bg-muted rounded-md overflow-hidden">
-                            <div 
-                              className="h-full bg-primary rounded-md transition-all duration-500"
-                              style={{ width: `${getBarWidth(Number(period.total_sales), maxSales)}%` }}
-                            />
-                          </div>
-                          <div className="w-20 text-sm text-left">
-                            {Number(period.total_sales).toLocaleString()}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  
-                  {/* الطلبات */}
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <h3 className="text-sm font-medium">الطلبات</h3>
-                      <div className="flex gap-1 text-xs text-muted-foreground">
-                        <span>0</span>
-                        <span>-</span>
-                        <span>{maxOrders}</span>
-                      </div>
-                    </div>
-                    <div className="space-y-1.5">
-                      {trendData.map((period, index) => (
-                        <div key={period.time_period} className="flex items-center gap-2">
-                          <div className="w-20 text-sm">{formatPeriodLabel(period.time_period)}</div>
-                          <div className="flex-1 h-8 bg-muted rounded-md overflow-hidden">
-                            <div 
-                              className="h-full bg-indigo-500 rounded-md transition-all duration-500"
-                              style={{ width: `${getBarWidth(Number(period.order_count), maxOrders)}%` }}
-                            />
-                          </div>
-                          <div className="w-20 text-sm text-left">
-                            {Number(period.order_count).toLocaleString()}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                <div className="p-6 h-[400px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={chartData} margin={{ top: 20, right: 0, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#FC5D41" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#FC5D41" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--items-border))" opacity={0.4} />
+                      <XAxis
+                        dataKey="name"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                        dy={10}
+                      />
+                      <YAxis
+                        yAxisId="left"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontFamily: 'JetBrains Mono' }}
+                        tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
+                      />
+                      <YAxis
+                        yAxisId="right"
+                        orientation="right"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12, fontFamily: 'JetBrains Mono' }}
+                      />
+                      <Tooltip content={<CustomTooltip />} cursor={{ fill: 'hsl(var(--muted)/0.4)' }} />
+                      <Legend iconType="circle" />
+
+                      <Bar
+                        yAxisId="left"
+                        dataKey="sales"
+                        name="المبيعات (د.ج)"
+                        fill="url(#colorSales)"
+                        stroke="#FC5D41"
+                        radius={[4, 4, 0, 0]}
+                        barSize={30}
+                      />
+                      <Line
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey="orders"
+                        name="الطلبات"
+                        stroke="#6366f1"
+                        strokeWidth={3}
+                        dot={{ r: 4, fill: '#6366f1', strokeWidth: 2, stroke: 'hsl(var(--background))' }}
+                        activeDot={{ r: 6, strokeWidth: 0 }}
+                      />
+                    </ComposedChart>
+                  </ResponsiveContainer>
                 </div>
               ) : (
-                <div className="overflow-auto">
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="py-2 px-4 text-right font-medium">الفترة</th>
-                        <th className="py-2 px-4 text-right font-medium">الطلبات</th>
-                        <th className="py-2 px-4 text-right font-medium">المبيعات</th>
-                        <th className="py-2 px-4 text-right font-medium">متوسط الطلب</th>
+                <div className="overflow-auto max-h-[400px]">
+                  <table className="w-full text-sm">
+                    <thead className="bg-muted/50 sticky top-0 z-10 backdrop-blur-sm">
+                      <tr className="border-b border-border/50">
+                        <th className="py-3 px-4 text-right font-medium text-muted-foreground">الفترة</th>
+                        <th className="py-3 px-4 text-right font-medium text-muted-foreground">الطلبات</th>
+                        <th className="py-3 px-4 text-right font-medium text-muted-foreground">المبيعات</th>
+                        <th className="py-3 px-4 text-right font-medium text-muted-foreground">متوسط الطلب</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {trendData.map((period) => (
-                        <tr key={period.time_period} className="border-b hover:bg-muted/50">
-                          <td className="py-2 px-4">{formatPeriodLabel(period.time_period)}</td>
-                          <td className="py-2 px-4">{Number(period.order_count).toLocaleString()}</td>
-                          <td className="py-2 px-4">{Number(period.total_sales).toLocaleString()} د.ج</td>
-                          <td className="py-2 px-4">
-                            {Number(period.order_count) > 0
-                              ? (Number(period.total_sales) / Number(period.order_count)).toLocaleString(undefined, {maximumFractionDigits: 0})
-                              : 0} د.ج
+                      {chartData.map((row, i) => (
+                        <tr key={i} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                          <td className="py-3 px-4 font-medium">{row.name}</td>
+                          <td className="py-3 px-4 font-numeric">{row.orders}</td>
+                          <td className="py-3 px-4 font-numeric text-primary font-medium">{row.sales.toLocaleString()}</td>
+                          <td className="py-3 px-4 font-numeric text-muted-foreground">
+                            {row.avg.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                           </td>
                         </tr>
                       ))}
-                      <tr className="bg-muted/30 font-medium">
-                        <td className="py-2 px-4">الإجمالي</td>
-                        <td className="py-2 px-4">
-                          {trendData.reduce((sum, d) => sum + Number(d.order_count), 0).toLocaleString()}
-                        </td>
-                        <td className="py-2 px-4">
-                          {trendData.reduce((sum, d) => sum + Number(d.total_sales), 0).toLocaleString()} د.ج
-                        </td>
-                        <td className="py-2 px-4">
-                          {trendData.reduce((sum, d) => sum + Number(d.order_count), 0) > 0
-                            ? (trendData.reduce((sum, d) => sum + Number(d.total_sales), 0) / trendData.reduce((sum, d) => sum + Number(d.order_count), 0)).toLocaleString(undefined, {maximumFractionDigits: 0})
-                            : 0} د.ج
-                        </td>
-                      </tr>
                     </tbody>
                   </table>
                 </div>
               )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   );
 };

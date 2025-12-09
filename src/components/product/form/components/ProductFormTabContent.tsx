@@ -2,7 +2,7 @@ import React, { memo, Suspense, lazy, useRef, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { TabsContent } from '@/components/ui/tabs';
 import { UseFormReturn } from 'react-hook-form';
-import { Loader2, Info, Images, DollarSign, Palette, Settings, Package, Truck, Megaphone, AlertTriangle, BarChart2, Gift, ChevronDown } from 'lucide-react';
+import { Loader2, Info, Images, DollarSign, Palette, Settings, Package, Truck, Megaphone, AlertTriangle, BarChart2, Gift, ChevronDown, Boxes } from 'lucide-react';
 
 import { ProductFormValues, ProductColor, WholesaleTier } from '@/types/product';
 import { Category, Subcategory } from '@/lib/api/categories';
@@ -105,8 +105,12 @@ const ConversionTrackingTab = createLazyComponent(
   'ConversionTrackingTab'
 );
 const SpecialOffersTab = createLazyComponent(
-  () => import('../special-offers/SpecialOffersTab'), 
+  () => import('../special-offers/SpecialOffersTab'),
   'SpecialOffersTab'
+);
+const AdvancedProductSettings = createLazyComponent(
+  () => import('../AdvancedProductSettings'),
+  'AdvancedProductSettings'
 );
 
 interface SectionLoaderProps {
@@ -400,7 +404,7 @@ const ProductFormTabContent = memo<ProductFormTabContentProps>(({
             tooltip="إعداد خيارات التوصيل والنماذج المختلفة"
             description="خيارات التوصيل والنماذج"
           />
-          
+
           <SafeSuspense fallback={<SectionLoader message="تحميل إعدادات التوصيل..." />}>
             <div className="rounded-lg sm:rounded-xl p-3 sm:p-4 lg:p-5 border border-border/60 bg-background/50 backdrop-blur-sm">
               <ProductShippingAndTemplates
@@ -411,7 +415,27 @@ const ProductFormTabContent = memo<ProductFormTabContentProps>(({
           </SafeSuspense>
         </TabsContent>
         )}
-        
+
+        {/* Advanced Selling Types Tab */}
+        {activeTab === 'selling_types' && (
+        <TabsContent value="selling_types" className="p-3 sm:p-4 lg:p-6 space-y-3 sm:space-y-4 lg:space-y-6 m-0">
+          <TabSectionHeader
+            icon={Boxes}
+            title="أنواع البيع المتقدمة"
+            color="green"
+            required={false}
+            tooltip="إعدادات البيع بالوزن والكرتون والمتر والتتبع والضمان ومستويات الأسعار"
+            description="الوزن، الكرتون، المتر، الصلاحية، الأرقام التسلسلية، الضمان"
+          />
+
+          <SafeSuspense fallback={<SectionLoader message="تحميل الإعدادات المتقدمة..." />}>
+            <div className="rounded-lg sm:rounded-xl p-3 sm:p-4 lg:p-5 border border-border/60 bg-background/50 backdrop-blur-sm">
+              <AdvancedProductSettings form={form} />
+            </div>
+          </SafeSuspense>
+        </TabsContent>
+        )}
+
         {/* Conversion Tracking Tab */}
         {activeTab === 'conversion_tracking' && (
         <TabsContent value="conversion_tracking" className="p-3 sm:p-4 lg:p-6 space-y-3 sm:space-y-4 lg:space-y-6 m-0">

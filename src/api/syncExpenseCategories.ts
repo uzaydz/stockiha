@@ -34,17 +34,17 @@ export const fetchExpenseCategoriesFromServer = async (organizationId: string): 
     let saved = 0;
     for (const row of data || []) {
       try {
-        // ⚡ حفظ عبر Delta Sync
+        // ⚡ حفظ عبر Delta Sync (بدون synced - PowerSync يديرها تلقائياً)
         await deltaWriteService.saveFromServer('expense_categories' as any, {
           id: row.id,
           organization_id: row.organization_id,
           name: row.name,
           description: row.description,
+          color: row.color,
           icon: row.icon,
+          is_default: row.is_default,
           created_at: row.created_at,
           updated_at: row.updated_at,
-          synced: true,
-          pendingOperation: undefined,
         });
         saved++;
       } catch (e) {

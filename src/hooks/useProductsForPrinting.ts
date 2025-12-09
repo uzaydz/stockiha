@@ -10,8 +10,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTenant } from '@/context/TenantContext';
-import { isSQLiteAvailable } from '@/lib/db/sqliteAPI';
-import { sqliteWriteQueue } from '@/lib/sync/delta/SQLiteWriteQueue';
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
 import { supabase } from '@/lib/supabase';
 
 // =====================================================
@@ -69,7 +68,7 @@ export const useProductsForPrinting = (
    * ⚡ جلب المنتجات من SQLite
    */
   const fetchFromLocal = useCallback(async (): Promise<ProductForBarcode[]> => {
-    if (!currentOrganization?.id || !isSQLiteAvailable()) {
+    if (!currentOrganization?.id) {
       return [];
     }
 
@@ -130,11 +129,16 @@ export const useProductsForPrinting = (
       sql += ` ORDER BY ${sortColumn} ${sortOrder.toUpperCase()}`;
       sql += ' LIMIT 1000';
 
-      const results = await sqliteWriteQueue.read<any[]>(sql, params);
-      
+      // ⚡ استخدام PowerSync مباشرة
+      if (!powerSyncService.db) {
+        console.warn('[useProductsForPrinting] PowerSync DB not initialized');
+        return [];
+      }
+      const results = await powerSyncService.query<any[]>({ sql, params });
+
       console.log(`[useProductsForPrinting] ⚡ تم جلب ${results.length} منتج من SQLite`);
       setDataSource('local');
-      
+
       return results.map(row => ({
         product_id: row.product_id,
         product_name: row.product_name,
@@ -181,9 +185,9 @@ export const useProductsForPrinting = (
           'get_products_for_barcode_printing' as any,
           { p_organization_id: currentOrganization.id }
         );
-        
+
         if (legacyError) throw legacyError;
-        
+
         console.log(`[useProductsForPrinting] 🌐 تم جلب ${(legacyData as any[])?.length || 0} منتج من السيرفر (legacy)`);
         setDataSource('server');
         return (legacyData as ProductForBarcode[]) || [];
@@ -199,19 +203,29 @@ export const useProductsForPrinting = (
   }, [currentOrganization?.id, searchQuery, sortBy, sortOrder, stockFilter]);
 
   /**
-   * ⚡ الدالة الرئيسية: محلي أولاً، ثم سيرفر
+   * ⚡ الدالة الرئيسية: Offline-First (محلي أولاً، ثم سيرفر فقط عند الاتصال)
    */
   const fetchProducts = useCallback(async (): Promise<ProductForBarcode[]> => {
-    // 1. محاولة محلية أولاً
-    if (isSQLiteAvailable()) {
-      const localProducts = await fetchFromLocal();
-      if (localProducts.length > 0) {
-        return localProducts;
-      }
+    // ⚡ 1. محاولة محلية أولاً (PowerSync متاح دائماً)
+    const localProducts = await fetchFromLocal();
+    if (localProducts.length > 0) {
+      return localProducts;
     }
 
-    // 2. Fallback للسيرفر
-    return fetchFromServer();
+    // 2. Fallback للسيرفر فقط إذا كان متصل
+    const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+    if (isOnline) {
+      try {
+        return await fetchFromServer();
+      } catch (error) {
+        console.warn('[useProductsForPrinting] ⚠️ فشل جلب البيانات من السيرفر:', error);
+        // إرجاع مصفوفة فارغة بدلاً من رمي خطأ
+        return [];
+      }
+    } else {
+      console.log('[useProductsForPrinting] 📴 غير متصل - إرجاع بيانات محلية فقط');
+      return [];
+    }
   }, [fetchFromLocal, fetchFromServer]);
 
   // استخدام React Query

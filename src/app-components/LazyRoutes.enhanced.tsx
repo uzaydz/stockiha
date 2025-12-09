@@ -89,7 +89,7 @@ export const BlockedCustomers = lazy(() => import('../pages/dashboard/BlockedCus
 
 // ============ CUSTOMER MANAGEMENT ============
 export const Customers = lazy(() =>
-  import('../pages/dashboard/Customers').then(module => {
+  import('../pages/dashboard/CustomersOptimized').then(module => {
     return module;
   }).catch((error) => {
     // تجاهل أخطاء CSS في وضع offline
@@ -98,7 +98,7 @@ export const Customers = lazy(() =>
 
     if (isOffline && isCSSError) {
       console.warn('⚠️ [Customers] تجاهل خطأ CSS في وضع offline، محاولة تحميل المكون');
-      return import('../pages/dashboard/Customers');
+      return import('../pages/dashboard/CustomersOptimized');
     }
 
     console.error('❌ فشل تحميل صفحة العملاء:', error);
@@ -129,35 +129,21 @@ export const Employees = lazy(() => import('../pages/dashboard/Employees'));
 export const OrderDistributionSettings = lazy(() => import('../pages/OrderDistributionSettings'));
 export const ConfirmationCenter = lazy(() => import('../pages/dashboard/ConfirmationCenter'));
 
-// ============ ENHANCED ANALYTICS with Heavy Chart Preloading ============
+// ============ ANALYTICS - صفحة التحليلات الجديدة ============
 export const Analytics = lazy(() =>
   import('../pages/dashboard/Analytics').then(module => {
-    // Preload ALL chart dependencies when analytics loads
+    // Preload Nivo chart dependencies for analytics
     Promise.all([
-      import('@nivo/bar'),
-      import('@nivo/line'),
-      import('@nivo/pie'),
-      import('recharts'),
-      import('chart.js'),
-      import('react-chartjs-2')
+      import('@nivo/bar').catch(() => { }),
+      import('@nivo/line').catch(() => { }),
+      import('@nivo/pie').catch(() => { }),
     ]).catch(() => { });
     return module;
   })
 );
 
-// ============ ANALYTICS ENHANCED - NEW 100% PROFESSIONAL DASHBOARD ============
-export const AnalyticsEnhanced = lazy(() =>
-  import('../pages/dashboard/AnalyticsEnhanced').then(module => {
-    // Preload ALL dependencies for enhanced analytics
-    Promise.all([
-      import('recharts'),
-      import('@/lib/analytics/metrics'),
-      import('@/hooks/useAnalytics'),
-      import('@/components/analytics/enhanced')
-    ]).catch(() => { });
-    return module;
-  })
-);
+// ============ التقارير المالية الشاملة ============
+export const ComprehensiveReports = lazy(() => import('../components/comprehensive-reports/ComprehensiveReports'));
 
 export const FinancialAnalytics = lazy(() =>
   import('../pages/FinancialAnalytics').then(module => {
@@ -192,28 +178,110 @@ export const POSOptimized = lazy(() =>
   })
 );
 
-export const POSAdvanced = lazy(() =>
-  import('../pages/POSAdvanced').then(module => {
-    // Preload POS dependencies
-    import('react-barcode').catch(() => { });
-    import('qrcode.react').catch(() => { });
+export const POSAdvanced = lazy(async () => {
+  try {
+    // محاولة تحميل المكون مع معالجة الأخطاء بشكل أفضل
+    const module = await import('../pages/POSAdvanced');
+    
+    // Preload POS dependencies (غير متزامن)
+    Promise.all([
+      import('react-barcode').catch(() => { }),
+      import('qrcode.react').catch(() => { })
+    ]).catch(() => { });
+    
+    // التأكد من وجود default export
+    if (!module.default) {
+      throw new Error('POSAdvanced module does not have a default export');
+    }
+    
     return module;
-  }).catch((error) => {
-    // تجاهل أخطاء CSS في وضع offline (مثل فشل تحميل Google Fonts)
+  } catch (error: any) {
+    // تجاهل أخطاء CSS في وضع offline
     const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
     const isCSSError = error?.message?.includes('preload CSS') || error?.message?.includes('Unable to preload');
+    const isImportError = error?.message?.includes('Importing binding name') || 
+                         error?.message?.includes('star export') ||
+                         error?.message?.includes('Importing a module script failed') ||
+                         error?.name === 'SyntaxError' ||
+                         error?.name === 'TypeError';
 
     if (isOffline && isCSSError) {
       console.warn('⚠️ [POSAdvanced] تجاهل خطأ CSS في وضع offline، محاولة تحميل المكون بدون CSS الخارجي');
-      // محاولة تحميل المكون مرة أخرى بتجاهل خطأ CSS
-      return import('../pages/POSAdvanced');
+      // محاولة تحميل المكون مرة أخرى
+      try {
+        const retryModule = await import('../pages/POSAdvanced');
+        if (retryModule.default) {
+          return retryModule;
+        }
+      } catch (retryError) {
+        // إذا فشلت المحاولة الثانية، استمر إلى fallback
+      }
     }
 
-    console.error('❌ فشل تحميل POSAdvanced:', error);
-    // fallback في حالة فشل التحميل
-    return { default: () => <div className="flex items-center justify-center min-h-screen"><div className="text-center"><div className="text-xl mb-2">⚠️ فشل تحميل نقطة البيع</div><div className="text-sm text-gray-600">يرجى تحديث الصفحة</div></div></div> };
-  })
-);
+    // في حالة خطأ الاستيراد (مثل star export أو module script failed)، إرجاع fallback component
+    if (isImportError) {
+      console.error('❌ فشل تحميل POSAdvanced بسبب خطأ في الاستيراد:', error);
+      
+      // إرجاع fallback component بسيط - استخدام function component مباشرة
+      return { 
+        default: function POSAdvancedErrorFallback() {
+          const errorMsg = error?.message || String(error);
+          const isDev = import.meta.env.DEV;
+          
+          return (
+            <div className="flex items-center justify-center min-h-screen bg-background">
+              <div className="text-center p-6 max-w-md">
+                <div className="text-xl font-semibold mb-2 text-destructive">
+                  ⚠️ فشل تحميل نقطة البيع
+                </div>
+                <div className="text-sm text-muted-foreground mb-4">
+                  يرجى تحديث الصفحة أو المحاولة مرة أخرى
+                </div>
+                {isDev && (
+                  <div className="text-xs text-muted-foreground mt-4 p-3 bg-muted rounded break-words">
+                    {errorMsg}
+                  </div>
+                )}
+                <button
+                  onClick={() => window.location.reload()}
+                  className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
+                >
+                  تحديث الصفحة
+                </button>
+              </div>
+            </div>
+          );
+        }
+      };
+    } else {
+      console.error('❌ فشل تحميل POSAdvanced:', error);
+      
+      // إرجاع fallback component بسيط
+      return { 
+        default: function POSAdvancedErrorFallback() {
+          return (
+            <div className="flex items-center justify-center min-h-screen bg-background">
+              <div className="text-center p-6">
+                <div className="text-xl font-semibold mb-2 text-destructive">
+                  ⚠️ فشل تحميل نقطة البيع
+                </div>
+                <div className="text-sm text-muted-foreground mb-4">
+                  يرجى تحديث الصفحة
+                </div>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
+                >
+                  تحديث الصفحة
+                </button>
+              </div>
+            </div>
+          );
+        }
+      };
+    }
+  }
+});
 export const POSDashboard = lazy(() => import('../pages/POSDashboard'));
 export const POSOrdersOptimized = lazy(() => import('../pages/POSOrdersOptimized'));
 export const POSOperationsPage = lazy(() => import('../pages/POSOperations'));
@@ -241,6 +309,18 @@ export const SuppliersManagement = lazy(() => import('../pages/dashboard/Supplie
 export const SupplierPurchases = lazy(() => import('../pages/dashboard/SupplierPurchases'));
 export const SupplierReports = lazy(() => import('../pages/dashboard/SupplierReports'));
 export const SupplierPayments = lazy(() => import('../pages/dashboard/SupplierPayments'));
+
+// ============ SMART PURCHASE SYSTEM - نظام المشتريات الذكي ============
+export const SmartPurchasePage = lazy(() =>
+  import('../features/purchases/components/SmartPurchasePage').then(module => {
+    // Preload related dependencies
+    Promise.all([
+      import('@tanstack/react-table').catch(() => { }),
+      import('zod').catch(() => { })
+    ]).catch(() => { });
+    return module;
+  })
+);
 
 // ============ REPAIR SERVICES ============
 export const RepairServices = lazy(() => import('../pages/RepairServices'));
@@ -357,6 +437,9 @@ export const SubscriptionPage = lazy(() => import('../pages/dashboard/subscripti
 export const OnlineOrdersRechargePage = lazy(() => import('../pages/dashboard/online-orders-recharge'));
 export const ConfirmationAgentWorkspace = lazy(() => import('../pages/dashboard/ConfirmationAgentWorkspace'));
 
+// ============ REFERRAL SYSTEM ============
+export const ReferralPage = lazy(() => import('../pages/dashboard/referral'));
+
 // ============ PRELOAD UTILITIES ============
 // Function to preload critical components
 export const preloadCriticalComponents = async () => {
@@ -377,7 +460,7 @@ export const preloadByRoute = (pathname: string) => {
     '/dashboard/products': () => import('../pages/dashboard/ProductsCached'),
     '/dashboard/orders': () => import('../pages/dashboard/Orders'),
     '/dashboard/customers': () => import('../pages/dashboard/Customers'),
-    '/dashboard/analytics': () => import('../pages/dashboard/Analytics'),
+    // '/dashboard/analytics': () => import('../pages/dashboard/Analytics'), // تم حذفها
     '/dashboard/pos': () => import('../pages/POSOptimized'),
     '/dashboard/store-editor': () => import('../pages/admin/StoreEditor'),
     '/dashboard/settings': () => import('../pages/dashboard/settings'),

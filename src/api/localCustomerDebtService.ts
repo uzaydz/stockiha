@@ -1,264 +1,340 @@
 /**
  * localCustomerDebtService - خدمة ديون العملاء المحلية
  *
- * ⚡ تم التحديث لاستخدام Delta Sync بالكامل
+ * ⚡ v2.0: تم إعادة الكتابة لاستخدام جدول orders بدلاً من customer_debts
  *
- * - Local-First: الكتابة محلياً فوراً
+ * ⚠️ ملاحظة مهمة:
+ * - في Supabase، الديون يتم حسابها من جدول orders عبر RPC: get_customer_debts
+ * - الدين = طلب فيه remaining_amount > 0
+ * - لا يوجد جدول customer_debts منفصل في Supabase
+ *
+ * - Local-First: القراءة من SQLite المحلي
  * - Offline-First: يعمل بدون إنترنت
- * - DELTA operations: للمبالغ المدفوعة
+ * - PowerSync: المزامنة التلقائية مع Supabase
  */
 
-import { v4 as uuidv4 } from 'uuid';
-import type { LocalCustomerDebt } from '@/database/localDb';
-import { deltaWriteService } from '@/services/DeltaWriteService';
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
 
-// إعادة تصدير النوع ليكون متاحاً للاستخدام الخارجي
-export type { LocalCustomerDebt } from '@/database/localDb';
+// ========================================
+// نوع الدين - محسوب من جدول orders
+// ========================================
+export interface LocalCustomerDebt {
+  id: string;                    // order_id
+  organization_id: string;
+  customer_id: string | null;
+  customer_name?: string;
+  order_number?: number;
+  total: number;                 // إجمالي الطلب
+  total_amount: number;          // alias for total
+  amount_paid: number;           // المبلغ المدفوع
+  paid_amount: number;           // alias for amount_paid
+  remaining_amount: number;      // المبلغ المتبقي
+  amount: number;                // alias for remaining_amount
+  status: string;                // حالة الطلب
+  payment_status: string;        // حالة الدفع
+  employee_id?: string;
+  employee_name?: string;
+  created_at: string;
+  updated_at?: string;
+}
 
-// إنشاء دين جديد محلياً
-export const createLocalCustomerDebt = async (
-  debtData: Omit<LocalCustomerDebt, 'id' | 'created_at' | 'updated_at' | 'synced' | 'syncStatus' | 'pendingOperation'>
-): Promise<LocalCustomerDebt> => {
-  const now = new Date().toISOString();
-  const debtId = uuidv4();
+// ========================================
+// جلب جميع الديون حسب المؤسسة
+// الديون = طلبات فيها remaining_amount > 0
+// ========================================
+export const getAllLocalCustomerDebts = async (organizationId: string): Promise<LocalCustomerDebt[]> => {
+  console.log('[getAllLocalCustomerDebts] 🔍 Fetching from orders table', { organizationId });
 
-  const debtRecord: LocalCustomerDebt = {
-    ...debtData,
-    id: debtId,
-    created_at: now,
-    updated_at: now,
-    synced: false,
-    syncStatus: 'pending',
-    pendingOperation: 'create',
-    // التأكد من وجود amount
-    amount: debtData.amount || debtData.remaining_amount || debtData.total_amount
-  };
-
-  // ⚡ استخدام Delta Sync
-  const result = await deltaWriteService.create('customer_debts', debtRecord, debtData.organization_id);
-
-  if (!result.success) {
-    throw new Error(`Failed to create customer debt: ${result.error}`);
+  if (!powerSyncService.db) {
+    console.warn('[localCustomerDebtService] PowerSync DB not initialized');
+    return [];
   }
 
-  console.log(`[LocalDebt] ⚡ Created debt ${debtId} via Delta Sync`);
-  return debtRecord;
-};
-
-// تحديث دين محلياً
-export const updateLocalCustomerDebt = async (
-  debtId: string,
-  updates: Partial<Omit<LocalCustomerDebt, 'id' | 'created_at' | 'organization_id'>>
-): Promise<LocalCustomerDebt | null> => {
   try {
-    const existing = await deltaWriteService.get<LocalCustomerDebt>('customer_debts', debtId);
-    if (!existing) return null;
+    // الديون = طلبات فيها remaining_amount > 0
+    const orders = await powerSyncService.query<any>({
+      sql: `SELECT
+        o.id,
+        o.organization_id,
+        o.customer_id,
+        c.name as customer_name,
+        o.customer_order_number as order_number,
+        o.total,
+        o.total as total_amount,
+        COALESCE(o.amount_paid, 0) as amount_paid,
+        COALESCE(o.amount_paid, 0) as paid_amount,
+        COALESCE(o.remaining_amount, o.total) as remaining_amount,
+        COALESCE(o.remaining_amount, o.total) as amount,
+        o.status,
+        o.payment_status,
+        o.employee_id,
+        o.created_by_staff_name as employee_name,
+        o.created_at,
+        o.updated_at
+       FROM orders o
+       LEFT JOIN customers c ON o.customer_id = c.id
+       WHERE o.organization_id = ?
+       AND COALESCE(o.remaining_amount, o.total) > 0
+       AND o.status != 'cancelled'
+       ORDER BY o.created_at DESC`,
+      params: [organizationId]
+    });
 
-    const now = new Date().toISOString();
-    const updatedData = {
-      ...updates,
-      updated_at: now,
-      synced: false,
-      syncStatus: 'pending',
-      pendingOperation: existing.pendingOperation === 'create' ? 'create' : 'update'
-    };
+    console.log('[getAllLocalCustomerDebts] ✅ Found debts from orders:', {
+      count: orders.length,
+      sample: orders[0] ? {
+        id: orders[0].id,
+        customer_name: orders[0].customer_name,
+        remaining_amount: orders[0].remaining_amount
+      } : null
+    });
 
-    // ⚡ استخدام Delta Sync
-    const result = await deltaWriteService.update('customer_debts', debtId, updatedData);
-
-    if (!result.success) {
-      console.error(`[LocalDebt] Failed to update debt ${debtId}:`, result.error);
-      return null;
-    }
-
-    console.log(`[LocalDebt] ⚡ Updated debt ${debtId} via Delta Sync`);
-    return {
-      ...existing,
-      ...updatedData
-    } as LocalCustomerDebt;
+    return orders;
   } catch (error) {
-    console.error(`[LocalDebt] Update error:`, error);
-    return null;
+    console.error('[getAllLocalCustomerDebts] Error:', error);
+    return [];
   }
 };
 
-// حذف دين محلياً
-export const deleteLocalCustomerDebt = async (debtId: string): Promise<boolean> => {
-  try {
-    const existing = await deltaWriteService.get<LocalCustomerDebt>('customer_debts', debtId);
-    if (!existing) return false;
-
-    // ⚡ استخدام Delta Sync للحذف
-    const result = await deltaWriteService.delete('customer_debts', debtId);
-
-    if (result.success) {
-      console.log(`[LocalDebt] ⚡ Deleted debt ${debtId} via Delta Sync`);
-    }
-
-    return result.success;
-  } catch (error) {
-    console.error(`[LocalDebt] Delete error:`, error);
-    return false;
-  }
-};
-
-// جلب دين واحد
-export const getLocalCustomerDebt = async (debtId: string): Promise<LocalCustomerDebt | null> => {
-  return deltaWriteService.get<LocalCustomerDebt>('customer_debts', debtId);
-};
-
+// ========================================
 // جلب جميع ديون عميل معين
+// ========================================
 export const getLocalCustomerDebts = async (customerId: string): Promise<LocalCustomerDebt[]> => {
   const orgId = localStorage.getItem('currentOrganizationId') ||
     localStorage.getItem('bazaar_organization_id') || '';
 
-  return deltaWriteService.getAll<LocalCustomerDebt>('customer_debts', orgId, {
-    where: "customer_id = ? AND (pending_operation IS NULL OR pending_operation != 'delete')",
-    params: [customerId],
-    orderBy: 'created_at DESC'
-  });
-};
-
-// جلب جميع الديون حسب المؤسسة
-export const getAllLocalCustomerDebts = async (organizationId: string): Promise<LocalCustomerDebt[]> => {
-  console.log('[getAllLocalCustomerDebts] 🔍 Fetching via Delta Sync', { organizationId });
-
-  const debts = await deltaWriteService.getAll<LocalCustomerDebt>('customer_debts', organizationId, {
-    where: "(pending_operation IS NULL OR pending_operation != 'delete') AND remaining_amount > 0",
-    orderBy: 'created_at DESC'
-  });
-
-  console.log('[getAllLocalCustomerDebts] ✅ Delta Sync result:', {
-    count: debts.length,
-    sample: debts[0]
-  });
-
-  return debts;
-};
-
-// جلب الديون غير المتزامنة
-export const getUnsyncedCustomerDebts = async (): Promise<LocalCustomerDebt[]> => {
-  const orgId = localStorage.getItem('currentOrganizationId') ||
-    localStorage.getItem('bazaar_organization_id') || '';
-
-  const debts = await deltaWriteService.getAll<LocalCustomerDebt>('customer_debts', orgId, {
-    where: "(synced = 0 OR synced IS NULL) AND (pending_operation IS NOT NULL OR synced = 0)"
-  });
-
-  console.log('[getUnsyncedCustomerDebts] 📋 Found unsynced debts:', {
-    count: debts.length,
-    sample: debts[0] ? {
-      id: debts[0].id,
-      pendingOperation: debts[0].pendingOperation,
-      synced: debts[0].synced
-    } : null
-  });
-
-  return debts;
-};
-
-// تحديث حالة المزامنة
-export const updateCustomerDebtSyncStatus = async (
-  debtId: string,
-  synced: boolean,
-  syncStatus?: 'pending' | 'syncing' | 'error'
-): Promise<void> => {
-  const updatedData: any = {
-    synced,
-    sync_status: syncStatus || null
-  };
-
-  if (synced) {
-    updatedData.pending_operation = null;
+  if (!powerSyncService.db) {
+    console.warn('[localCustomerDebtService] PowerSync DB not initialized');
+    return [];
   }
 
-  await deltaWriteService.update('customer_debts', debtId, updatedData);
+  try {
+    const orders = await powerSyncService.query<any>({
+      sql: `SELECT
+        o.id,
+        o.organization_id,
+        o.customer_id,
+        c.name as customer_name,
+        o.customer_order_number as order_number,
+        o.total,
+        o.total as total_amount,
+        COALESCE(o.amount_paid, 0) as amount_paid,
+        COALESCE(o.amount_paid, 0) as paid_amount,
+        COALESCE(o.remaining_amount, o.total) as remaining_amount,
+        COALESCE(o.remaining_amount, o.total) as amount,
+        o.status,
+        o.payment_status,
+        o.employee_id,
+        o.created_by_staff_name as employee_name,
+        o.created_at,
+        o.updated_at
+       FROM orders o
+       LEFT JOIN customers c ON o.customer_id = c.id
+       WHERE o.organization_id = ?
+       AND o.customer_id = ?
+       AND COALESCE(o.remaining_amount, o.total) > 0
+       AND o.status != 'cancelled'
+       ORDER BY o.created_at DESC`,
+      params: [orgId, customerId]
+    });
+
+    return orders;
+  } catch (error) {
+    console.error('[getLocalCustomerDebts] Error:', error);
+    return [];
+  }
 };
 
-// تسجيل دفعة على دين باستخدام DELTA operation
+// ========================================
+// جلب دين واحد (طلب)
+// ========================================
+export const getLocalCustomerDebt = async (orderId: string): Promise<LocalCustomerDebt | null> => {
+  if (!powerSyncService.db) {
+    console.warn('[localCustomerDebtService] PowerSync DB not initialized');
+    return null;
+  }
+
+  try {
+    const order = await powerSyncService.get<any>(
+      `SELECT
+        o.id,
+        o.organization_id,
+        o.customer_id,
+        c.name as customer_name,
+        o.customer_order_number as order_number,
+        o.total,
+        o.total as total_amount,
+        COALESCE(o.amount_paid, 0) as amount_paid,
+        COALESCE(o.amount_paid, 0) as paid_amount,
+        COALESCE(o.remaining_amount, o.total) as remaining_amount,
+        COALESCE(o.remaining_amount, o.total) as amount,
+        o.status,
+        o.payment_status,
+        o.employee_id,
+        o.created_by_staff_name as employee_name,
+        o.created_at,
+        o.updated_at
+       FROM orders o
+       LEFT JOIN customers c ON o.customer_id = c.id
+       WHERE o.id = ?`,
+      [orderId]
+    );
+
+    return order;
+  } catch (error) {
+    console.error('[getLocalCustomerDebt] Error:', error);
+    return null;
+  }
+};
+
+// ========================================
+// تسجيل دفعة على دين (تحديث الطلب)
+// ========================================
 export const recordDebtPayment = async (
-  debtId: string,
+  orderId: string,
   paymentAmount: number
 ): Promise<LocalCustomerDebt | null> => {
   try {
-    const debt = await deltaWriteService.get<LocalCustomerDebt>('customer_debts', debtId);
-    if (!debt) return null;
-
-    // ⚡ استخدام DELTA operation للمبلغ المدفوع
-    const result = await deltaWriteService.recordDebtPayment(debtId, paymentAmount);
-
-    if (!result.success) {
-      console.error(`[LocalDebt] Failed to record payment:`, result.error);
+    // جلب الطلب الحالي
+    const order = await powerSyncService.get<any>(
+      'SELECT * FROM orders WHERE id = ?',
+      [orderId]
+    );
+    if (!order) {
+      console.error('[recordDebtPayment] Order not found:', orderId);
       return null;
     }
 
-    // حساب الحالة الجديدة
-    const newPaidAmount = debt.paid_amount + paymentAmount;
-    const newRemainingAmount = debt.total_amount - newPaidAmount;
+    // حساب القيم الجديدة
+    const currentPaid = order.amount_paid || 0;
+    const newPaidAmount = currentPaid + paymentAmount;
+    const newRemainingAmount = order.total - newPaidAmount;
 
-    let newStatus: 'pending' | 'partial' | 'paid' = 'pending';
+    // تحديد حالة الدفع
+    let newPaymentStatus = 'pending';
     if (newRemainingAmount <= 0) {
-      newStatus = 'paid';
+      newPaymentStatus = 'paid';
     } else if (newPaidAmount > 0) {
-      newStatus = 'partial';
+      newPaymentStatus = 'partial';
     }
 
-    // تحديث الحالة
-    await deltaWriteService.update('customer_debts', debtId, {
-      remaining_amount: Math.max(0, newRemainingAmount),
-      status: newStatus,
-      updated_at: new Date().toISOString()
+    // تحديث الطلب
+    const now = new Date().toISOString();
+    await powerSyncService.transaction(async (tx) => {
+      await tx.execute(
+        `UPDATE orders
+         SET amount_paid = ?,
+             remaining_amount = ?,
+             payment_status = ?,
+             updated_at = ?
+         WHERE id = ?`,
+        [newPaidAmount, Math.max(0, newRemainingAmount), newPaymentStatus, now, orderId]
+      );
     });
 
-    console.log(`[LocalDebt] ⚡ Recorded payment of ${paymentAmount} for debt ${debtId} via Delta`);
+    console.log(`[recordDebtPayment] ⚡ Recorded payment of ${paymentAmount} for order ${orderId}`);
 
-    return {
-      ...debt,
-      paid_amount: newPaidAmount,
-      remaining_amount: Math.max(0, newRemainingAmount),
-      status: newStatus
-    };
+    // إرجاع الدين المحدث
+    return await getLocalCustomerDebt(orderId);
   } catch (error) {
-    console.error(`[LocalDebt] Record payment error:`, error);
+    console.error('[recordDebtPayment] Error:', error);
     return null;
   }
 };
 
-// مسح الديون المتزامنة والمحذوفة
+// ========================================
+// دوال للتوافق العكسي (Legacy compatibility)
+// ========================================
+
+// إنشاء دين جديد - غير مدعوم (الديون تُنشأ من الطلبات)
+export const createLocalCustomerDebt = async (
+  _debtData: any
+): Promise<LocalCustomerDebt | null> => {
+  console.warn('[createLocalCustomerDebt] ⚠️ Creating debts directly is not supported.');
+  console.warn('[createLocalCustomerDebt] ⚠️ Debts are calculated from orders with remaining_amount > 0');
+  return null;
+};
+
+// تحديث دين - يعني تحديث الطلب
+export const updateLocalCustomerDebt = async (
+  orderId: string,
+  updates: Partial<{ amount_paid: number; remaining_amount: number; payment_status: string }>
+): Promise<LocalCustomerDebt | null> => {
+  try {
+    const now = new Date().toISOString();
+    const updateFields: string[] = [];
+    const values: any[] = [];
+
+    if (updates.amount_paid !== undefined) {
+      updateFields.push('amount_paid = ?');
+      values.push(updates.amount_paid);
+    }
+    if (updates.remaining_amount !== undefined) {
+      updateFields.push('remaining_amount = ?');
+      values.push(updates.remaining_amount);
+    }
+    if (updates.payment_status !== undefined) {
+      updateFields.push('payment_status = ?');
+      values.push(updates.payment_status);
+    }
+
+    if (updateFields.length === 0) {
+      return await getLocalCustomerDebt(orderId);
+    }
+
+    updateFields.push('updated_at = ?');
+    values.push(now);
+    values.push(orderId);
+
+    await powerSyncService.transaction(async (tx) => {
+      await tx.execute(
+        `UPDATE orders SET ${updateFields.join(', ')} WHERE id = ?`,
+        values
+      );
+    });
+
+    console.log(`[updateLocalCustomerDebt] ⚡ Updated order ${orderId}`);
+    return await getLocalCustomerDebt(orderId);
+  } catch (error) {
+    console.error('[updateLocalCustomerDebt] Error:', error);
+    return null;
+  }
+};
+
+// حذف دين - غير مدعوم (الديون محسوبة من الطلبات)
+export const deleteLocalCustomerDebt = async (_orderId: string): Promise<boolean> => {
+  console.warn('[deleteLocalCustomerDebt] ⚠️ Deleting debts directly is not supported.');
+  console.warn('[deleteLocalCustomerDebt] ⚠️ To clear a debt, update the order payment status.');
+  return false;
+};
+
+// جلب الديون غير المتزامنة - PowerSync يدير المزامنة تلقائياً
+export const getUnsyncedCustomerDebts = async (): Promise<LocalCustomerDebt[]> => {
+  // PowerSync يدير المزامنة تلقائياً
+  console.log('[getUnsyncedCustomerDebts] ⚠️ PowerSync manages sync automatically');
+  return [];
+};
+
+// تحديث حالة المزامنة - PowerSync يدير المزامنة تلقائياً
+export const updateCustomerDebtSyncStatus = async (
+  _orderId: string,
+  _synced: boolean,
+  _syncStatus?: string
+): Promise<void> => {
+  console.log('[updateCustomerDebtSyncStatus] ⚠️ PowerSync manages sync automatically');
+};
+
+// تنظيف الديون - PowerSync يدير هذا تلقائياً
 export const cleanupSyncedDebts = async (): Promise<number> => {
-  // يتم التعامل مع هذا تلقائياً عبر Delta Sync
-  console.log('[LocalDebt] Cleanup handled by Delta Sync automatically');
+  console.log('[cleanupSyncedDebts] ⚠️ Cleanup handled by PowerSync automatically');
   return 0;
 };
 
-// =====================
-// Legacy compatibility
-// =====================
-
 // تحديث حالة المزامنة (للتوافقية)
 export const markDebtAsSynced = async (
-  debtId: string,
-  remoteData?: Partial<LocalCustomerDebt>
+  orderId: string,
+  _remoteData?: Partial<LocalCustomerDebt>
 ): Promise<LocalCustomerDebt | null> => {
-  try {
-    const debt = await deltaWriteService.get<LocalCustomerDebt>('customer_debts', debtId);
-    if (!debt) return null;
-
-    const updatedData = {
-      ...remoteData,
-      synced: true,
-      syncStatus: undefined,
-      pendingOperation: undefined
-    };
-
-    await deltaWriteService.update('customer_debts', debtId, updatedData);
-
-    return {
-      ...debt,
-      ...updatedData
-    } as LocalCustomerDebt;
-  } catch (error) {
-    console.error(`[LocalDebt] Mark synced error:`, error);
-    return null;
-  }
+  console.log('[markDebtAsSynced] ⚠️ PowerSync manages sync automatically');
+  return await getLocalCustomerDebt(orderId);
 };

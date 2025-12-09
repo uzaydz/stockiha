@@ -1,15 +1,19 @@
-import React, { useRef, useEffect, useState, useMemo } from 'react';
+import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
-import { Printer, ShoppingBag, Receipt, Wrench, QrCode, Clock, User, Hash, X, Download, Eye, Copy } from 'lucide-react';
+import { Printer, ShoppingBag, Receipt, Wrench, QrCode, Clock, User, Hash, X, Download, Eye, Copy, Zap, DollarSign } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Product, Service } from '@/types';
 import { formatPrice } from '@/lib/utils';
 import { usePOSData } from '@/context/POSDataContext';
 import { useTenant } from '@/context/TenantContext';
-import { POSSettings } from '@/types/posSettings';
+import { POSSettings, defaultPOSSettings as defaultSettings } from '@/types/posSettings';
 import { QRCodeSVG } from 'qrcode.react';
 import { usePOSSettings } from '@/hooks/usePOSSettings';
+import { usePrinterSettings } from '@/hooks/usePrinterSettings';
+import { usePrinter, ReceiptItem as PrinterReceiptItem } from '@/hooks/usePrinter';
+import { unifiedPrintService, ReceiptData, ReceiptItem } from '@/services/UnifiedPrintService';
+import { toast } from 'sonner';
 import '@/styles/pos-print.css';
 
 interface CartItem {
@@ -92,8 +96,50 @@ const PrintReceipt: React.FC<PrintReceiptProps> = ({
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [showCopySuccess, setShowCopySuccess] = useState(false);
 
-  // استخدام usePOSSettings للحصول على إعدادات POS فقط (تجنب الاستدعاءات المكررة)
-  const { settings, isLoading, error } = usePOSSettings({ organizationId: currentOrganization?.id });
+  // استخدام usePOSSettings للحصول على إعدادات POS المُزامنة (معلومات المتجر، نصوص الوصل)
+  const { settings: posSettings, isLoading: posLoading, error } = usePOSSettings({ organizationId: currentOrganization?.id });
+
+  // استخدام usePrinterSettings للحصول على إعدادات الطابعة المحلية
+  const {
+    settings: combinedSettings,
+    printerSettings,
+    isLoading: printerLoading
+  } = usePrinterSettings();
+
+  // استخدام usePrinter للطباعة المباشرة (Electron)
+  const {
+    printReceipt: printReceiptDirect,
+    openCashDrawer: openCashDrawerDirect,
+    isElectron,
+    isPrinting
+  } = usePrinter();
+
+  // دمج حالة التحميل
+  const isLoading = posLoading || printerLoading;
+
+  // استخدام الإعدادات المدمجة - POS للمعلومات العامة + الطابعة المحلية للإعدادات التقنية
+  const settings = posSettings ? {
+    ...posSettings,
+    // تجاوز إعدادات الطابعة بالإعدادات المحلية
+    printer_name: printerSettings.printer_name,
+    printer_type: printerSettings.printer_type,
+    silent_print: printerSettings.silent_print,
+    print_on_order: printerSettings.print_on_order,
+    print_copies: printerSettings.print_copies,
+    open_cash_drawer: printerSettings.open_cash_drawer,
+    beep_after_print: printerSettings.beep_after_print,
+    auto_cut: printerSettings.auto_cut,
+    paper_width: printerSettings.paper_width,
+    margin_top: printerSettings.margin_top,
+    margin_bottom: printerSettings.margin_bottom,
+    margin_left: printerSettings.margin_left,
+    margin_right: printerSettings.margin_right,
+    font_size: printerSettings.font_size,
+    line_spacing: printerSettings.line_spacing,
+    print_density: printerSettings.print_density,
+    receipt_template: printerSettings.receipt_template,
+    item_display_style: printerSettings.item_display_style,
+  } : null;
 
   // إعدادات افتراضية إذا لم تكن موجودة
   const defaultPOSSettings = {
@@ -102,7 +148,7 @@ const PrintReceipt: React.FC<PrintReceiptProps> = ({
     show_employee_name: true,
     show_order_id: true,
     auto_print: false,
-    print_copies: 1
+    print_copies: printerSettings.print_copies
   };
 
   const finalSettings = settings || defaultPOSSettings;
@@ -330,531 +376,187 @@ const PrintReceipt: React.FC<PrintReceiptProps> = ({
     };
   }, [isOpen, onClose]);
 
-  // طباعة الوصل مع تحسينات
-  const handlePrint = () => {
-    if (printRef.current) {
+  // تحويل عناصر السلة إلى تنسيق ReceiptItem
+  const convertCartItemsToReceiptItems = useCallback((): ReceiptItem[] => {
+    return items.map(item => ({
+      name: item.product.name,
+      quantity: item.quantity,
+      price: item.variantPrice || item.wholesalePrice || item.product.price,
+      total: (item.variantPrice || item.wholesalePrice || item.product.price) * item.quantity,
+      colorName: item.colorName,
+      sizeName: item.sizeName,
+    }));
+  }, [items]);
 
-      const printWindow = window.open('', '_blank');
-      if (printWindow) {
-        // استخراج CSS من الصفحة الحالية
-        const existingStyles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
-          .map(element => element.outerHTML)
-          .join('\n');
+  // تحويل الخدمات إلى تنسيق ReceiptService
+  const convertServicesToReceiptServices = useCallback(() => {
+    return services.map(service => ({
+      name: service.name,
+      price: service.price,
+      duration: service.duration || service.subscriptionDetails?.duration,
+      trackingCode: service.public_tracking_code,
+    }));
+  }, [services]);
 
-        // CSS محسن للطباعة مع إصلاح مشكلة الوصل الأبيض والهوامش
-        const printStyles = `
-          <style>
-            /* استبدال Google Fonts بالخطوط المحلية */
-            @font-face {
-              font-family: 'Tajawal';
-              src: url('/fonts/tajawal-regular.woff2') format('woff2');
-              font-weight: 400;
-              font-style: normal;
-            }
-            @font-face {
-              font-family: 'Tajawal';
-              src: url('/fonts/tajawal-medium.woff2') format('woff2');
-              font-weight: 500;
-              font-style: normal;
-            }
-            @font-face {
-              font-family: 'Tajawal';
-              src: url('/fonts/tajawal-bold.woff2') format('woff2');
-              font-weight: 700;
-              font-style: normal;
-            }
-            
-            /* إعادة تعيين مع دعم أفضل للطباعة */
-            * {
-              margin: 0;
-              padding: 0;
-              box-sizing: border-box;
-              border: none;
-              outline: none;
-              box-shadow: none;
-            }
-            
-            /* إعدادات الصفحة للطباعة - تحسين للهوامش */
-            @page {
-              size: auto;
-              margin: 5mm 3mm;
-              padding: 0;
-            }
-            
-            /* أنماط الجسم المحسنة - إصلاح مشكلة الوصل الأبيض */
-            body { 
-              margin: 0 !important;
-              padding: 0 !important;
-              font-family: 'Tajawal', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
-              font-size: 14px !important;
-              line-height: 1.4 !important;
-              color: #000000 !important;
-              background: #ffffff !important;
-              direction: rtl !important;
-              text-align: right !important;
-              min-height: 100vh !important;
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-              color-adjust: exact !important;
-              overflow: visible !important;
-            }
-            
-            /* حاوي الوصل المحسن - إصلاح مشكلة العرض والهوامش */
-            .receipt-container {
-              width: 100% !important;
-              max-width: none !important;
-              margin: 0 !important;
-              background: #ffffff !important;
-              color: #000000 !important;
-              font-family: 'Tajawal', sans-serif !important;
-              position: relative !important;
-              min-height: auto !important;
-              padding: 5mm !important;
-              border: none !important;
-              border-radius: 0 !important;
-              box-shadow: none !important;
-              overflow: visible !important;
-            }
-            
-            /* تحسينات الطباعة المتقدمة - ضمان ظهور المحتوى */
-            @media print {
-              * {
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-                color-adjust: exact !important;
-              }
-              
-              body {
-                background: white !important;
-                color: black !important;
-                margin: 0 !important;
-                padding: 0 !important;
-                width: 100% !important;
-                height: auto !important;
-                overflow: visible !important;
-              }
-              
-              .receipt-container {
-                position: static !important;
-                width: 100% !important;
-                max-width: none !important;
-                margin: 0 !important;
-                padding: 3mm !important;
-                background: white !important;
-                color: black !important;
-                border: none !important;
-                box-shadow: none !important;
-                overflow: visible !important;
-                page-break-inside: avoid !important;
-              }
-              
-              /* إخفاء العناصر غير المرغوب فيها */
-              .no-print {
-                display: none !important;
-                visibility: hidden !important;
-              }
-              
-              /* ضمان ظهور النصوص والعناصر */
-              .receipt-container * {
-                background: transparent !important;
-                color: black !important;
-                border-color: black !important;
-                visibility: visible !important;
-                opacity: 1 !important;
-              }
-              
-              /* تحسين عرض الجداول والصفوف */
-              .receipt-row, .receipt-item {
-                display: flex !important;
-                width: 100% !important;
-                margin: 2px 0 !important;
-                padding: 1px 0 !important;
-              }
-              
-              /* تحسين الخطوط */
-              h1, h2, h3, h4, h5, h6 {
-                font-weight: bold !important;
-                color: black !important;
-              }
-              
-              /* تحسين الحدود والخطوط الفاصلة */
-              .dashed-line, .solid-line, hr {
-                border-top: 1px solid black !important;
-                width: 100% !important;
-                margin: 3px 0 !important;
-              }
-              
-              /* تحسين الصور والشعارات */
-              img {
-                max-width: 100% !important;
-                height: auto !important;
-                object-fit: contain !important;
-                display: block !important;
-                margin: 0 auto !important;
-              }
-              
-              /* تحسين QR codes */
-              svg {
-                display: block !important;
-                margin: 0 auto !important;
-                background: white !important;
-                border: 1px solid black !important;
-              }
-            }
-            
-            /* تحسينات خاصة للطابعات الحرارية */
-            @media print and (max-width: 80mm) {
-              .receipt-container {
-                width: 76mm !important;
-                max-width: 76mm !important;
-                font-size: 12px !important;
-                line-height: 1.3 !important;
-                padding: 2mm !important;
-              }
-            }
-            
-            /* تحسينات للطابعات العادية */
-            @media print and (min-width: 80mm) {
-              .receipt-container {
-                width: 100% !important;
-                max-width: 210mm !important;
-                font-size: 14px !important;
-                line-height: 1.4 !important;
-                padding: 5mm !important;
-              }
-            }
-            
-            /* إزالة الهوامش الإضافية */
-            .receipt-container > * {
-              margin-left: 0 !important;
-              margin-right: 0 !important;
-            }
-            
-            /* تحسين محاذاة النص */
-            .text-center {
-              text-align: center !important;
-            }
-            
-            .text-right {
-              text-align: right !important;
-            }
-            
-            .text-left {
-              text-align: left !important;
-            }
-            
-            /* إعدادات الألوان الثابتة */
-            .receipt-container,
-            .receipt-container * {
-              background: white !important;
-              color: black !important;
-            }
-            
-            /* تجنب كسر الصفحات داخل العناصر المهمة */
-            .receipt-header,
-            .receipt-items,
-            .receipt-footer {
-              page-break-inside: avoid !important;
-            }
-            
-            /* إعدادات خاصة لضمان عدم قطع المحتوى */
-            .receipt-container {
-              orphans: 2 !important;
-              widows: 2 !important;
-            }
-            
-            /* إزالة أي تأثيرات بصرية قد تتداخل مع الطباعة */
-            * {
-              text-shadow: none !important;
-              filter: none !important;
-              transform: none !important;
-              transition: none !important;
-              animation: none !important;
-            }
-            
-            /* إعدادات الطباعة المحددة حسب نوع الطابعة */
-            @media print and (color) {
-              .receipt-container {
-                background: white !important;
-                color: black !important;
-              }
-            }
-            
-            @media print and (monochrome) {
-              .receipt-container {
-                background: white !important;
-                color: black !important;
-              }
-              
-              .receipt-container * {
-                background: white !important;
-                color: black !important;
-                border-color: black !important;
-              }
-            }
-            
-            /* تحسينات للطباعة عالية الدقة */
-            @media print and (min-resolution: 300dpi) {
-              .receipt-container {
-                font-size: 13px !important;
-                line-height: 1.3 !important;
-              }
-            }
-            
-            /* تحسينات للطباعة منخفضة الدقة */
-            @media print and (max-resolution: 150dpi) {
-              .receipt-container {
-                font-size: 15px !important;
-                line-height: 1.5 !important;
-                font-weight: 500 !important;
-              }
-            }
-            
-            /* إعدادات خاصة للطابعات المحمولة */
-            @media print and (max-device-width: 480px) {
-              .receipt-container {
-                width: 100% !important;
-                max-width: none !important;
-                padding: 3mm !important;
-                font-size: 13px !important;
-              }
-            }
-            
-            /* تحسين عرض العناصر المرنة */
-            .flex, .d-flex {
-              display: flex !important;
-            }
-            
-            .justify-content-between {
-              justify-content: space-between !important;
-            }
-            
-            .align-items-center {
-              align-items: center !important;
-            }
-            
-            /* إعدادات خاصة للعناصر المخفية عند الطباعة */
-            .print-hidden,
-            .d-print-none {
-              display: none !important;
-              visibility: hidden !important;
-            }
-            
-            /* إعدادات خاصة للعناصر المرئية فقط عند الطباعة */
-            .print-only,
-            .d-print-block {
-              display: block !important;
-              visibility: visible !important;
-            }
-            
-            /* تأكيد أن المحتوى سيظهر بوضوح */
-            .receipt-content,
-            .receipt-preview,
-            .print-content {
-              background: white !important;
-              color: black !important;
-              visibility: visible !important;
-              opacity: 1 !important;
-              display: block !important;
-            }
-            
-            /* إزالة أي تنسيقات قد تخفي المحتوى */
-            .receipt-container .hidden,
-            .receipt-container .invisible {
-              display: block !important;
-              visibility: visible !important;
-              opacity: 1 !important;
-            }
-            
-            /* تأكيد ظهور الخطوط العربية */
-            * {
-              font-family: 'Tajawal', 'Arial', 'Helvetica', sans-serif !important;
-            }
-            
-            /* إعدادات خاصة للنصوص العربية */
-            [dir="rtl"], .rtl {
-              direction: rtl !important;
-              text-align: right !important;
-            }
-            
-            /* تحسين المسافات والهوامش */
-            .mb-1, .mb-2, .mb-3, .mb-4, .mb-5 {
-              margin-bottom: 0.5rem !important;
-            }
-            
-            .mt-1, .mt-2, .mt-3, .mt-4, .mt-5 {
-              margin-top: 0.5rem !important;
-            }
-            
-            .p-1, .p-2, .p-3, .p-4, .p-5 {
-              padding: 0.25rem !important;
-            }
-            
-            /* إزالة الحدود الخارجية التي قد تؤثر على التخطيط */
-            .border, .border-top, .border-bottom, .border-left, .border-right {
-              border: 1px solid black !important;
-            }
-            
-            /* تحسين عرض الأسعار والأرقام */
-            .price, .amount, .total {
-              font-weight: bold !important;
-              color: black !important;
-            }
-            
-            /* إعدادات خاصة لضمان الوضوح التام */
-            @media print {
-              html {
-                background: white !important;
-                color: black !important;
-              }
-              
-              body {
-                background: white !important;
-                color: black !important;
-                font-size: 14px !important;
-              }
-              
-              .receipt-container {
-                background: white !important;
-                color: black !important;
-                border: none !important;
-                box-shadow: none !important;
-                margin: 0 !important;
-                padding: 5mm !important;
-                width: 100% !important;
-                max-width: none !important;
-              }
-              
-              .receipt-container * {
-                background: transparent !important;
-                color: black !important;
-                visibility: visible !important;
-                opacity: 1 !important;
-              }
-            }
-            
-            /* إعدادات نهائية لضمان عدم وجود مشاكل في العرض */
-            .receipt-container {
-              overflow: visible !important;
-              height: auto !important;
-              min-height: auto !important;
-              max-height: none !important;
-            }
-            
-            /* تحسين التباعد بين العناصر */
-            .receipt-container > div,
-            .receipt-container > section,
-            .receipt-container > article {
-              margin-bottom: 0.5rem !important;
-            }
-            
-            /* إعدادات خاصة للجداول إذا وجدت */
-            table {
-              width: 100% !important;
-              border-collapse: collapse !important;
-              margin-bottom: 1rem !important;
-            }
-            
-            th, td {
-              padding: 0.25rem !important;
-              border: 1px solid black !important;
-              text-align: right !important;
-            }
-            
-            /* إعدادات خاصة للقوائم */
-            ul, ol {
-              margin: 0.5rem 0 !important;
-              padding-right: 1rem !important;
-            }
-            
-            li {
-              margin-bottom: 0.25rem !important;
-            }
-            
-            /* تحسين عرض التواريخ والأوقات */
-            .date, .time, .datetime {
-              font-weight: normal !important;
-              color: black !important;
-            }
-            
-            /* إعدادات خاصة للعناوين */
-            .title, .header, .heading {
-              font-weight: bold !important;
-              text-align: center !important;
-              margin-bottom: 1rem !important;
-            }
-            
-            /* إعدادات خاصة للمعلومات المهمة */
-            .important, .highlight, .emphasis {
-              font-weight: bold !important;
-              color: black !important;
-            }
-            
-            /* إعدادات أخيرة للتأكد من الوضوح */
-            @media print {
-              * {
-                color: black !important;
-                background: transparent !important;
-              }
-              
-              body {
-                background: white !important;
-              }
-              
-              .receipt-container {
-                background: white !important;
-              }
-            }
-            
-            /* تطبيق CSS مخصص إذا كان موجوداً - مع منع الإطارات */
-            ${settings?.custom_css ? settings.custom_css.replace(/border[^;]*;/g, 'border: none !important;') : ''}
-          </style>
-        `;
+  // طباعة الوصل باستخدام UnifiedPrintService
+  const handlePrint = async () => {
+    if (!printRef.current) return;
 
-        // إنشاء نسخة كاملة من محتوى الوصل
-        const receiptContent = printRef.current.innerHTML;
+    try {
+      // بناء بيانات الوصل
+      const receiptData: ReceiptData = {
+        orderId,
+        items: convertCartItemsToReceiptItems(),
+        services: convertServicesToReceiptServices(),
+        subtotal,
+        discount,
+        discountAmount,
+        tax,
+        total,
+        customerName,
+        employeeName,
+        paymentMethod,
+        amountPaid,
+        remainingAmount,
+        isPartialPayment,
+        subscriptionAccountInfo,
+      };
 
-        printWindow.document.write(`
-          <!DOCTYPE html>
-          <html lang="ar" dir="rtl">
-            <head>
-              <meta charset="UTF-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <title>وصل رقم ${formatNumberNormal(orderId)}</title>
-              ${printStyles}
-            </head>
-            <body>
-              <div class="receipt-container">
-                ${receiptContent}
-              </div>
-            </body>
-          </html>
-        `);
+      // تحضير إعدادات الطباعة
+      const printSettings = {
+        ...printerSettings,
+        // إعدادات المتجر من POS Settings
+        store_name: settings?.store_name,
+        store_phone: settings?.store_phone,
+        store_address: settings?.store_address,
+        store_logo_url: settings?.store_logo_url,
+        receipt_header_text: settings?.receipt_header_text,
+        receipt_footer_text: settings?.receipt_footer_text,
+        welcome_message: settings?.welcome_message,
+        currency_symbol: settings?.currency_symbol || 'دج',
+        currency_position: settings?.currency_position || 'after',
+        // العناصر المرئية
+        show_store_logo: settings?.show_store_logo,
+        show_store_info: settings?.show_store_info,
+        show_customer_info: settings?.show_customer_info,
+        show_employee_name: settings?.show_employee_name,
+        show_date_time: settings?.show_date_time,
+        show_qr_code: settings?.show_qr_code,
+      };
 
-        printWindow.document.close();
-        printWindow.focus();
+      // تنفيذ الطباعة
+      const result = await unifiedPrintService.printReceipt(receiptData, printSettings);
 
-        // انتظار تحميل الخطوط والأنماط قبل الطباعة
-        setTimeout(() => {
-          // التأكد من تحميل الخطوط
-          printWindow.document.fonts?.ready?.then(() => {
-            printWindow.print();
-
-            // إغلاق النافذة بعد الطباعة
-            if (settings?.auto_cut) {
-              setTimeout(() => {
-                printWindow.close();
-              }, 200);
-            }
-          }).catch(() => {
-            // في حالة عدم دعم fonts API، نطبع مباشرة
-            printWindow.print();
-            if (settings?.auto_cut) {
-              setTimeout(() => printWindow.close(), 200);
-            }
-          });
-        }, 1500); // وقت كافي لتحميل الخطوط والأنماط
+      if (result.success) {
+        toast.success('تمت الطباعة بنجاح', {
+          description: result.drawerOpened ? 'تم فتح درج النقود' : undefined,
+        });
+      } else {
+        toast.error('فشل في الطباعة', {
+          description: result.error,
+        });
       }
+    } catch (error) {
+      console.error('[PrintReceipt] Print error:', error);
+      toast.error('حدث خطأ أثناء الطباعة');
+    }
+  };
+
+  // طباعة سريعة (صامتة مباشرة)
+  const handleQuickPrint = async () => {
+    if (!printRef.current) return;
+
+    try {
+      const receiptData: ReceiptData = {
+        orderId,
+        items: convertCartItemsToReceiptItems(),
+        services: convertServicesToReceiptServices(),
+        subtotal,
+        discount,
+        discountAmount,
+        tax,
+        total,
+        customerName,
+        employeeName,
+        paymentMethod,
+        amountPaid,
+        remainingAmount,
+        isPartialPayment,
+        subscriptionAccountInfo,
+      };
+
+      const printSettings = {
+        ...printerSettings,
+        store_name: settings?.store_name,
+        store_phone: settings?.store_phone,
+        store_address: settings?.store_address,
+        store_logo_url: settings?.store_logo_url,
+        receipt_header_text: settings?.receipt_header_text,
+        receipt_footer_text: settings?.receipt_footer_text,
+        welcome_message: settings?.welcome_message,
+        currency_symbol: settings?.currency_symbol || 'دج',
+        currency_position: settings?.currency_position || 'after',
+        show_store_logo: settings?.show_store_logo,
+        show_store_info: settings?.show_store_info,
+        show_customer_info: settings?.show_customer_info,
+        show_employee_name: settings?.show_employee_name,
+        show_date_time: settings?.show_date_time,
+        show_qr_code: settings?.show_qr_code,
+        // فرض الطباعة الصامتة
+        silent_print: true,
+      };
+
+      toast.loading('جاري الطباعة السريعة...');
+
+      const result = await unifiedPrintService.printReceipt(receiptData, printSettings);
+
+      if (result.success) {
+        toast.dismiss();
+        toast.success('تمت الطباعة السريعة', {
+          description: `الطريقة: ${result.method}${result.drawerOpened ? ' • تم فتح الدرج' : ''}`,
+        });
+        // إغلاق النافذة بعد الطباعة السريعة الناجحة
+        onClose();
+      } else {
+        toast.dismiss();
+        toast.error('فشل في الطباعة السريعة', {
+          description: result.error,
+        });
+      }
+    } catch (error) {
+      toast.dismiss();
+      console.error('[PrintReceipt] Quick print error:', error);
+      toast.error('حدث خطأ أثناء الطباعة السريعة');
+    }
+  };
+
+  // فتح درج النقود فقط
+  const handleOpenCashDrawer = async () => {
+    try {
+      // استخدام النظام الجديد أولاً (Electron)
+      if (isElectron) {
+        const result = await openCashDrawerDirect();
+        if (result.success) {
+          toast.success('تم فتح درج النقود');
+        } else {
+          toast.error('فشل في فتح درج النقود', {
+            description: result.error,
+          });
+        }
+      } else {
+        // Fallback للنظام القديم
+        const success = await unifiedPrintService.openCashDrawer(printerSettings.printer_name);
+        if (success) {
+          toast.success('تم فتح درج النقود');
+        } else {
+          toast.error('فشل في فتح درج النقود', {
+            description: 'هذه الميزة متاحة فقط في تطبيق سطح المكتب',
+          });
+        }
+      }
+    } catch (error) {
+      console.error('[PrintReceipt] Cash drawer error:', error);
+      toast.error('حدث خطأ أثناء فتح درج النقود');
     }
   };
 
@@ -1033,7 +735,8 @@ ${paymentMethod ? `طريقة الدفع: ${paymentMethod}` : ''}
           </div>
 
           {/* أزرار التحكم المحسنة */}
-          <div className="p-4 bg-gray-50/50 dark:bg-gray-800/50 border-b border-gray-200/50 dark:border-gray-700/50">
+          <div className="p-4 bg-gray-50/50 dark:bg-gray-800/50 border-b border-gray-200/50 dark:border-gray-700/50 space-y-2">
+            {/* الصف الأول: أزرار الطباعة الرئيسية */}
             <div className="flex gap-2">
               <Button
                 onClick={handlePrint}
@@ -1042,6 +745,28 @@ ${paymentMethod ? `طريقة الدفع: ${paymentMethod}` : ''}
               >
                 <Printer className="h-4 w-4 ml-2" />
                 طباعة
+              </Button>
+              <Button
+                onClick={handleQuickPrint}
+                className="flex-1 bg-green-600 hover:bg-green-700 dark:bg-green-600 dark:hover:bg-green-700 text-white"
+                disabled={isLoading}
+                title="طباعة سريعة بدون معاينة (صامتة)"
+              >
+                <Zap className="h-4 w-4 ml-2" />
+                سريعة
+              </Button>
+            </div>
+
+            {/* الصف الثاني: أزرار إضافية */}
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={handleOpenCashDrawer}
+                className="flex-1 border-amber-400 dark:border-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 text-amber-600 dark:text-amber-400"
+                title="فتح درج النقود"
+              >
+                <DollarSign className="h-4 w-4 ml-2" />
+                فتح الدرج
               </Button>
               <Button
                 variant="outline"
@@ -1064,6 +789,20 @@ ${paymentMethod ? `طريقة الدفع: ${paymentMethod}` : ''}
                   </span>
                 )}
               </Button>
+            </div>
+
+            {/* معلومات إعدادات الطابعة */}
+            <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 pt-1 border-t border-gray-200/50 dark:border-gray-700/50">
+              <span>
+                {printerSettings.printer_type === 'thermal' ? '🖨️ طابعة حرارية' : '🖨️ طابعة عادية'}
+                {' • '}
+                {printerSettings.paper_width}mm
+              </span>
+              <span>
+                {printerSettings.silent_print ? '⚡ صامتة' : '📋 عادية'}
+                {printerSettings.open_cash_drawer && ' • 💵 فتح الدرج'}
+                {printerSettings.print_copies > 1 && ` • ${printerSettings.print_copies} نسخ`}
+              </span>
             </div>
           </div>
 

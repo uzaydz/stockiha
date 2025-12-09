@@ -1,6 +1,43 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Category, Subcategory, getCategories, getSubcategories, getCategoriesWithSubcategories } from '@/lib/api/categories';
+/**
+ * ⚡ useCategoriesCache - v2.0 (PowerSync Reactive)
+ * ============================================================
+ *
+ * 🚀 Hook محسّن للتصنيفات يستخدم:
+ *   - useQuery من @powersync/react (reactive)
+ *   - تحديث تلقائي عند أي تغيير
+ *   - لا يحتاج cache يدوي - PowerSync يتعامل مع هذا
+ *
+ * ============================================================
+ */
+
+import { useMemo, useCallback } from 'react';
+import { useQuery } from '@powersync/react';
 import { useTenant } from '@/context/TenantContext';
+
+// =====================================================
+// 📦 Types
+// =====================================================
+
+interface Category {
+  id: string;
+  name: string;
+  description?: string;
+  image_url?: string;
+  is_active?: boolean;
+  organization_id: string;
+  created_at: string;
+  updated_at?: string;
+}
+
+interface Subcategory {
+  id: string;
+  name: string;
+  category_id: string;
+  description?: string;
+  organization_id: string;
+  created_at: string;
+  updated_at?: string;
+}
 
 interface CategoryWithSubcategories extends Category {
   subcategories: Subcategory[];
@@ -15,83 +52,95 @@ interface UseCategoriesCacheResult {
   getSubcategoriesByCategoryId: (categoryId: string) => Subcategory[];
 }
 
+// =====================================================
+// 🎯 Main Hook
+// =====================================================
+
 export const useCategoriesCache = (): UseCategoriesCacheResult => {
   const { currentOrganization } = useTenant();
-  const [categories, setCategories] = useState<CategoryWithSubcategories[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [lastFetchTime, setLastFetchTime] = useState(0);
+  const orgId = currentOrganization?.id;
 
-  // مدة صلاحية الـ cache (5 دقائق)
-  const CACHE_DURATION = 5 * 60 * 1000;
-
-  // دالة لجلب الفئات والفئات الفرعية
-  const fetchCategories = useCallback(async (force = false) => {
-    if (!currentOrganization?.id) return;
-
-    const now = Date.now();
-
-    // فحص إذا كان الـ cache صالح
-    if (!force && categories.length > 0 && now - lastFetchTime < CACHE_DURATION) {
-      return;
+  // ⚡ استعلام التصنيفات (Reactive)
+  const categoriesQuery = useMemo(() => {
+    if (!orgId) {
+      return { sql: 'SELECT 1 WHERE 0', params: [] };
     }
+    return {
+      sql: `
+        SELECT * FROM product_categories
+        WHERE organization_id = ?
+          AND (is_active = 1 OR is_active IS NULL)
+        ORDER BY name
+      `,
+      params: [orgId]
+    };
+  }, [orgId]);
 
-    try {
-      setIsLoading(true);
-      setError(null);
+  const { data: categoriesData, isLoading: catsLoading, error: catsError } = useQuery<Category>(
+    categoriesQuery.sql,
+    categoriesQuery.params
+  );
 
-      // تحسين: جلب الفئات والفئات الفرعية في طلب واحد محسن
-      const { categories: categoriesData, subcategories: allSubcategories } = 
-        await getCategoriesWithSubcategories(currentOrganization.id);
-
-      // تجميع الفئات الفرعية حسب الفئة
-      const categoriesWithSubs: CategoryWithSubcategories[] = categoriesData.map(category => {
-        const categorySubs = allSubcategories.filter(sub => sub.category_id === category.id);
-        return {
-          ...category,
-          subcategories: categorySubs
-        };
-      });
-
-      setCategories(categoriesWithSubs);
-      setLastFetchTime(now);
-    } catch (err) {
-      console.error('Error fetching categories:', err);
-      setError('فشل في تحميل الفئات');
-    } finally {
-      setIsLoading(false);
+  // ⚡ استعلام التصنيفات الفرعية (Reactive)
+  const subcategoriesQuery = useMemo(() => {
+    if (!orgId) {
+      return { sql: 'SELECT 1 WHERE 0', params: [] };
     }
-  }, [currentOrganization?.id, categories.length, lastFetchTime]);
+    return {
+      sql: `
+        SELECT * FROM product_subcategories
+        WHERE organization_id = ?
+        ORDER BY name
+      `,
+      params: [orgId]
+    };
+  }, [orgId]);
 
-  // دالة لتحديث الفئات
+  const { data: subcategoriesData, isLoading: subsLoading } = useQuery<Subcategory>(
+    subcategoriesQuery.sql,
+    subcategoriesQuery.params
+  );
+
+  // ⚡ دمج التصنيفات مع التصنيفات الفرعية
+  const categories = useMemo((): CategoryWithSubcategories[] => {
+    if (!categoriesData) return [];
+
+    const subcategories = subcategoriesData || [];
+
+    return categoriesData.map(cat => ({
+      ...cat,
+      is_active: Boolean(cat.is_active),
+      subcategories: subcategories.filter(sub => sub.category_id === cat.id)
+    }));
+  }, [categoriesData, subcategoriesData]);
+
+  // =====================================================
+  // 🔧 Helper Functions
+  // =====================================================
+
   const refreshCategories = useCallback(async () => {
-    await fetchCategories(true);
-  }, [fetchCategories]);
+    // مع PowerSync، البيانات تتحدث تلقائياً
+    // هذه الدالة للتوافق مع الكود القديم
+    console.log('[useCategoriesCache] Data refreshes automatically via PowerSync');
+  }, []);
 
-  // دالة للحصول على فئة محددة
   const getCategoryById = useCallback((id: string): CategoryWithSubcategories | null => {
     return categories.find(cat => cat.id === id) || null;
   }, [categories]);
 
-  // دالة للحصول على الفئات الفرعية لفئة محددة
   const getSubcategoriesByCategoryId = useCallback((categoryId: string): Subcategory[] => {
     const category = categories.find(cat => cat.id === categoryId);
     return category?.subcategories || [];
   }, [categories]);
 
-  // تحميل الفئات عند التحميل الأول
-  useEffect(() => {
-    if (currentOrganization?.id) {
-      fetchCategories();
-    }
-  }, [currentOrganization?.id, fetchCategories]);
-
   return {
     categories,
-    isLoading,
-    error,
+    isLoading: catsLoading || subsLoading,
+    error: catsError ? 'فشل في تحميل الفئات' : null,
     refreshCategories,
     getCategoryById,
     getSubcategoriesByCategoryId
   };
 };
+
+export default useCategoriesCache;

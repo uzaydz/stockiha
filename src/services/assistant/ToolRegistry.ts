@@ -137,7 +137,8 @@ export const SIRA_TOOLS: Tool[] = [
 
             // Resolve variants if color/size provided
             if (color || size) {
-                const colors = (product.colors || product.product_colors || []) as any[];
+                const p = product as any;
+                const colors = (p.colors || p.product_colors || []) as any[];
                 if (color) {
                     const c = colors.find((x: any) => (x.name || x.color_name || '').toLowerCase() === color.toLowerCase());
                     if (c) {
@@ -160,6 +161,39 @@ export const SIRA_TOOLS: Tool[] = [
                 sizeId
             });
             return { success: true, message: `Stock for ${product.name} updated.` };
+        }
+    },
+    {
+        name: 'navigate_to_page',
+        description: 'Navigate the user to a specific page in the application.',
+        parameters: {
+            type: 'object',
+            properties: {
+                page: { type: 'string', enum: ['dashboard', 'pos', 'products', 'orders', 'customers', 'settings', 'reports'], description: 'The destination page' }
+            },
+            required: ['page']
+        },
+        execute: async ({ page }) => {
+            const routes: Record<string, string> = {
+                'dashboard': '/dashboard',
+                'pos': '/pos',
+                'products': '/dashboard/products',
+                'orders': '/dashboard/orders',
+                'customers': '/dashboard/customers',
+                'settings': '/dashboard/settings',
+                'reports': '/dashboard/reports'
+            };
+
+            const path = routes[page];
+            if (path) {
+                // We use window.location for now as we are outside React context
+                // Ideally we dispatch an event that the App listens to
+                if (typeof window !== 'undefined') {
+                    window.location.href = path;
+                }
+                return { success: true, message: `Navigating to ${page}...` };
+            }
+            return { error: 'Page not found' };
         }
     }
 ];

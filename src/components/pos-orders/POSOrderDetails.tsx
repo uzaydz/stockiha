@@ -43,7 +43,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
-import type { POSOrderWithDetails } from '../../api/posOrdersService';
+import type { POSOrderWithDetails } from '../../context/pos-orders/types';
 import { supabase } from '../../lib/supabase';
 
 interface POSOrderDetailsProps {
@@ -142,16 +142,56 @@ export const POSOrderDetails: React.FC<POSOrderDetailsProps> = ({
       const loadOrderItems = async () => {
         setIsLoadingItems(true);
         setItemsError(null);
-        
+
+        // 🔍 DEBUG: طباعة بيانات الطلبية الكاملة
+        console.log('[POSOrderDetails] 🔍 DEBUG - Order data:', {
+          orderId: order.id,
+          orderItemsExists: !!order.order_items,
+          orderItemsLength: order.order_items?.length,
+          orderItemsSample: order.order_items?.[0],
+          fullOrder: order
+        });
+
         try {
           // إذا كانت العناصر موجودة في order.order_items (من IndexedDB)، استخدمها مباشرة
           if (order.order_items && Array.isArray(order.order_items) && order.order_items.length > 0) {
+            // 🔍 DEBUG: طباعة العناصر من order.order_items
+            console.log('[POSOrderDetails] 🔍 DEBUG - Using order.order_items:', order.order_items.map((item: any) => ({
+              id: item.id,
+              product_name: item.product_name,
+              selling_unit_type: item.selling_unit_type,
+              selling_unit: item.selling_unit,
+              sellingUnit: item.sellingUnit,
+              weight_sold: item.weight_sold,
+              weight: item.weight,
+              meters_sold: item.meters_sold,
+              length: item.length,
+              boxes_sold: item.boxes_sold,
+              box_count: item.box_count,
+              boxCount: item.boxCount,
+              allKeys: Object.keys(item)
+            })));
             setOrderItems(order.order_items);
             setIsLoadingItems(false);
             return;
           }
 
-          // إذا لم تكن موجودة، حاول جلبها من Supabase
+          // ⚡ Offline-First: جلب من PowerSync أولاً
+          const { powerSyncService } = await import('@/lib/powersync/PowerSyncService');
+          if (powerSyncService.db) {
+            const localItems = await powerSyncService.query<any>({
+              sql: 'SELECT * FROM order_items WHERE order_id = ?',
+              params: [order.id]
+            });
+            if (localItems && localItems.length > 0) {
+              console.log('[POSOrderDetails] ⚡ Loaded from PowerSync:', localItems.length, 'items');
+              setOrderItems(localItems);
+              setIsLoadingItems(false);
+              return;
+            }
+          }
+
+          // Fallback: جلب من Supabase إذا لم توجد محلياً
           const { data, error } = await supabase
             .from('order_items')
             .select(`
@@ -164,6 +204,7 @@ export const POSOrderDetails: React.FC<POSOrderDetailsProps> = ({
             throw error;
           }
 
+          console.log('[POSOrderDetails] 🌐 Loaded from Supabase:', (data || []).length, 'items');
           setOrderItems(data || []);
         } catch (error) {
           // في حالة الخطأ، حاول استخدام order.order_items كـ fallback
@@ -196,18 +237,33 @@ export const POSOrderDetails: React.FC<POSOrderDetailsProps> = ({
         }
 
         // إذا لم يكن هناك employee_id، لا نجلب شيء
-        if (!order.employee_id) {
+        const staffId = order.employee_id || order.created_by_staff_id;
+        if (!staffId) {
           setEmployeeInfo(null);
           return;
         }
 
         setIsLoadingEmployee(true);
         try {
-          // جلب معلومات الموظف مباشرة باستخدام service role أو admin query
+          // ⚡ Offline-First: جلب من PowerSync أولاً
+          const { powerSyncService } = await import('@/lib/powersync/PowerSyncService');
+          if (powerSyncService.db) {
+            const localUser = await powerSyncService.queryOne<{id: string, name: string, email?: string}>({
+              sql: 'SELECT id, name, email FROM users WHERE id = ?',
+              params: [staffId]
+            });
+            if (localUser) {
+              setEmployeeInfo(localUser);
+              setIsLoadingEmployee(false);
+              return;
+            }
+          }
+
+          // Fallback: جلب من Supabase إذا لم يوجد محلياً
           const { data, error } = await supabase
             .from('users')
             .select('id, name, email')
-            .eq('id', order.employee_id)
+            .eq('id', staffId)
             .single();
 
           if (error) {
@@ -540,6 +596,7 @@ export const POSOrderDetails: React.FC<POSOrderDetailsProps> = ({
               </Card>
 
               {/* معلومات الموظف */}
+              {/* ⚡ v2.0: Offline-First - عرض معلومات الموظف من created_by_staff_name أولاً */}
               <Card>
                 <CardHeader className="pb-3">
                   <CardTitle className="text-lg flex items-center gap-2">
@@ -553,20 +610,23 @@ export const POSOrderDetails: React.FC<POSOrderDetailsProps> = ({
                       <Loader2 className="h-6 w-6 mx-auto mb-2 animate-spin" />
                       <p className="text-sm text-muted-foreground">جاري تحميل معلومات الموظف...</p>
                     </div>
-                  ) : (employeeInfo || order.employee) ? (
+                  ) : (employeeInfo || order.employee || order.created_by_staff_name) ? (
                     <>
                       <div className="flex items-center gap-2 justify-between">
                         <div className="flex items-center gap-2">
                           <User className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">{employeeInfo?.name || order.employee?.name}</span>
+                          {/* ⚡ أولوية: created_by_staff_name (Offline-First) */}
+                          <span className="font-medium">
+                            {employeeInfo?.name || order.created_by_staff_name || order.employee?.name}
+                          </span>
                         </div>
-                        {order.created_by_staff_name && (
+                        {(order.created_by_staff_name || order.employee) && (
                           <Badge variant="secondary" className="text-xs">
                             موظف نقطة البيع
                           </Badge>
                         )}
                       </div>
-                      
+
                       {(employeeInfo?.email || order.employee?.email) && (
                         <div className="flex items-center gap-2">
                           <Mail className="h-4 w-4 text-muted-foreground" />
@@ -574,11 +634,11 @@ export const POSOrderDetails: React.FC<POSOrderDetailsProps> = ({
                         </div>
                       )}
                     </>
-                  ) : order.employee_id ? (
+                  ) : (order.employee_id || order.created_by_staff_id) ? (
                     <div className="text-muted-foreground text-center py-4">
                       <AlertCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
                       <p>تعذر تحميل معلومات الموظف</p>
-                      <p className="text-xs mt-1">ID: {order.employee_id}</p>
+                      <p className="text-xs mt-1">ID: {order.employee_id || order.created_by_staff_id}</p>
                     </div>
                   ) : (
                     <div className="text-muted-foreground text-center py-4">
@@ -749,9 +809,94 @@ export const POSOrderDetails: React.FC<POSOrderDetailsProps> = ({
                                     )}
                                   </div>
                                 )}
+
+                                {/* ⚡ عرض تفاصيل البيع المتقدم (وزن/متر/صندوق) */}
+                                {/* ⚡ أسماء الحقول: selling_unit_type, weight_sold, meters_sold, boxes_sold */}
+                                {isProduct && (() => {
+                                  const sellingUnitType = (item as any).selling_unit_type || (item as any).selling_unit || (item as any).sellingUnit || 'piece';
+                                  if (sellingUnitType === 'piece') return null;
+
+                                  return (
+                                    <div className="flex flex-wrap gap-1 mt-1">
+                                      {sellingUnitType === 'weight' && (
+                                        <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">
+                                          ⚖️ {(item as any).weight_sold || (item as any).weight || 0} {(item as any).weight_unit === 'g' ? 'غرام' : (item as any).weight_unit === 'lb' ? 'رطل' : 'كغ'}
+                                          {((item as any).price_per_weight_unit || (item as any).pricePerWeightUnit) && (
+                                            <span className="mr-1 text-amber-600">
+                                              @ {parseFloat((item as any).price_per_weight_unit || (item as any).pricePerWeightUnit).toLocaleString()} د.ج/{(item as any).weight_unit === 'g' ? 'غرام' : 'كغ'}
+                                            </span>
+                                          )}
+                                        </Badge>
+                                      )}
+                                      {sellingUnitType === 'box' && (
+                                        <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-200">
+                                          📦 {(item as any).boxes_sold || (item as any).box_count || (item as any).boxCount || 0} صندوق
+                                          {((item as any).units_per_box || (item as any).unitsPerBox) && (
+                                            <span className="mr-1 text-orange-600">
+                                              ({(item as any).units_per_box || (item as any).unitsPerBox} وحدة/صندوق)
+                                            </span>
+                                          )}
+                                          {((item as any).box_price || (item as any).boxPrice) && (
+                                            <span className="mr-1 text-orange-600">
+                                              @ {parseFloat((item as any).box_price || (item as any).boxPrice).toLocaleString()} د.ج
+                                            </span>
+                                          )}
+                                        </Badge>
+                                      )}
+                                      {sellingUnitType === 'meter' && (
+                                        <Badge variant="outline" className="text-xs bg-cyan-50 text-cyan-700 border-cyan-200">
+                                          📏 {(item as any).meters_sold || (item as any).length || 0} متر
+                                          {((item as any).price_per_meter || (item as any).pricePerMeter) && (
+                                            <span className="mr-1 text-cyan-600">
+                                              @ {parseFloat((item as any).price_per_meter || (item as any).pricePerMeter).toLocaleString()} د.ج/متر
+                                            </span>
+                                          )}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  );
+                                })()}
+
+                                {/* عرض معلومات الدفعة والأرقام التسلسلية */}
+                                {isProduct && ((item as any).batch_number || (item as any).serial_numbers) && (
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {(item as any).batch_number && (
+                                      <Badge variant="outline" className="text-xs bg-slate-50 text-slate-700 border-slate-200">
+                                        🏷️ دفعة: {(item as any).batch_number}
+                                        {(item as any).expiry_date && (
+                                          <span className="mr-1 text-slate-500">
+                                            (تنتهي: {new Date((item as any).expiry_date).toLocaleDateString('ar-DZ')})
+                                          </span>
+                                        )}
+                                      </Badge>
+                                    )}
+                                    {(item as any).serial_numbers && Array.isArray((item as any).serial_numbers) && (item as any).serial_numbers.length > 0 && (
+                                      <Badge variant="outline" className="text-xs bg-violet-50 text-violet-700 border-violet-200">
+                                        🔢 {(item as any).serial_numbers.length} رقم تسلسلي
+                                      </Badge>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             </TableCell>
-                            <TableCell className="text-center">{item.quantity}</TableCell>
+                            <TableCell className="text-center">
+                              {/* ⚡ عرض الكمية حسب نوع البيع */}
+                              {/* ⚡ أسماء الحقول: selling_unit_type, weight_sold, meters_sold, boxes_sold */}
+                              {(() => {
+                                const sellingUnitType = (item as any).selling_unit_type || (item as any).selling_unit || (item as any).sellingUnit || 'piece';
+                                switch (sellingUnitType) {
+                                  case 'weight':
+                                    const weightUnit = (item as any).weight_unit === 'g' ? 'غ' : (item as any).weight_unit === 'lb' ? 'رطل' : 'كغ';
+                                    return `${(item as any).weight_sold || (item as any).weight || item.quantity} ${weightUnit}`;
+                                  case 'box':
+                                    return `${(item as any).boxes_sold || (item as any).box_count || (item as any).boxCount || item.quantity} صندوق`;
+                                  case 'meter':
+                                    return `${(item as any).meters_sold || (item as any).length || item.quantity} م`;
+                                  default:
+                                    return item.quantity;
+                                }
+                              })()}
+                            </TableCell>
                             <TableCell className="text-right">
                               {formatCurrency(String(item.unit_price))}
                               {item.original_price && parseFloat(item.original_price) !== parseFloat(item.unit_price) && (
@@ -764,11 +909,26 @@ export const POSOrderDetails: React.FC<POSOrderDetailsProps> = ({
                               {formatCurrency(String(item.total_price))}
                             </TableCell>
                             <TableCell className="text-center">
-                              {item.is_wholesale ? (
-                                <Badge variant="outline" className="text-xs">جملة</Badge>
-                              ) : (
-                                <Badge variant="secondary" className="text-xs">تجزئة</Badge>
-                              )}
+                              {(() => {
+                                const saleType = item.sale_type || (item.is_wholesale ? 'wholesale' : 'retail');
+                                if (saleType === 'wholesale' || item.is_wholesale === true || item.is_wholesale === 1) {
+                                  return (
+                                    <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+                                      📦 جملة
+                                    </Badge>
+                                  );
+                                } else if (saleType === 'partial_wholesale') {
+                                  return (
+                                    <Badge variant="outline" className="text-xs bg-indigo-50 text-indigo-700 border-indigo-200">
+                                      📦 نصف جملة
+                                    </Badge>
+                                  );
+                                } else {
+                                  return (
+                                    <Badge variant="secondary" className="text-xs">تجزئة</Badge>
+                                  );
+                                }
+                              })()}
                             </TableCell>
                           </TableRow>
                         );

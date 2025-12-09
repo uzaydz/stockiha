@@ -3,8 +3,21 @@ import { Link, useLocation } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
-import { Store, BarChart3, Zap, Layers, Package, LogOut, Truck, GraduationCap, Settings, Users, Building2, FileSpreadsheet, ChevronRight, ChevronLeft, ExternalLink, ShoppingCart, Database, UserCircle, Shield, Clock, RefreshCw } from 'lucide-react';
-import { ShoppingBag, Wrench, BarChart3 as ReportsIcon } from 'lucide-react';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Store, BarChart3, Zap, Layers, Package, LogOut, Truck, GraduationCap, Settings, Users, Building2,
+  FileSpreadsheet, ChevronRight, ChevronLeft, ExternalLink, ShoppingCart, Database, UserCircle, Shield,
+  Clock, RefreshCw, CreditCard, PieChart, MoreVertical, LayoutDashboard, ScanBarcode, ClipboardList,
+  Globe, Crown, Gift
+} from 'lucide-react';
+import { ShoppingBag, Wrench } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
 import { useUnifiedPermissions } from '@/hooks/useUnifiedPermissions';
@@ -116,7 +129,7 @@ const SidebarItem = memo<{
 
       {/* Badge dot in collapsed mode */}
       {!isExpanded && item.badge && (
-        <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full border border-[#0f172a] z-20" />
+        <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-orange-500 rounded-full border border-[#0f1419] z-20" />
       )}
     </Link>
   );
@@ -129,7 +142,7 @@ const SidebarItem = memo<{
         </TooltipTrigger>
         <TooltipContent
           side="right"
-          className="bg-[#0f172a] text-white border border-slate-700/50 shadow-2xl backdrop-blur-xl px-3 py-1.5 rounded-lg z-[100] ml-2"
+          className="bg-[#161b22] text-white border border-[#30363d] shadow-2xl backdrop-blur-xl px-3 py-1.5 rounded-lg z-[100] ml-2"
           sideOffset={5}
         >
           <div className="flex items-center gap-2">
@@ -152,10 +165,11 @@ SidebarItem.displayName = 'SidebarItem';
 
 // --- Sidebar Items Data ---
 export const posSidebarItems: POSSidebarItem[] = [
+  // 1. العمليات الأساسية (Core Operations)
   {
     id: 'pos-dashboard',
-    title: 'الصفحة الرئيسية',
-    icon: BarChart3,
+    title: 'نظرة عامة',
+    icon: LayoutDashboard,
     href: '/dashboard/pos-dashboard',
     isOnlineOnly: false,
     alwaysShow: true,
@@ -164,53 +178,10 @@ export const posSidebarItems: POSSidebarItem[] = [
   {
     id: 'pos-advanced',
     title: 'نقطة البيع',
-    icon: Zap,
+    icon: ScanBarcode,
     href: '/dashboard/pos-advanced',
     isOnlineOnly: false,
     permission: 'accessPOS',
-  },
-  {
-    id: 'pos-operations',
-    title: 'إدارة الطلبات',
-    icon: Layers,
-    href: '/dashboard/pos-operations/orders',
-    isOnlineOnly: false,
-    permissions: ['accessPOS', 'managePOSOrders'],
-  },
-  {
-    id: 'analytics-enhanced',
-    title: 'التحليلات',
-    icon: BarChart3,
-    href: '/dashboard/analytics-enhanced',
-    badge: 'PRO',
-    isOnlineOnly: false,
-    permissions: ['viewSalesReports', 'viewReports'],
-  },
-  {
-    id: 'etat104',
-    title: 'كشف حساب 104',
-    icon: FileSpreadsheet,
-    href: '/dashboard/etat104',
-    isOnlineOnly: false,
-    permission: 'accessPOS',
-  },
-  {
-    id: 'settings-unified',
-    title: 'الإعدادات',
-    icon: Settings,
-    href: '/dashboard/settings-unified',
-    isOnlineOnly: false,
-    alwaysShow: true,
-    permissions: ['manageSettings', 'manageOrganizationSettings'],
-  },
-  {
-    id: 'staff-management',
-    title: 'الموظفين',
-    icon: Users,
-    href: '/dashboard/staff-management',
-    isOnlineOnly: false,
-    alwaysShow: true,
-    permissions: ['manageStaff', 'viewStaff', 'accessPOS'],
   },
   {
     id: 'product-operations',
@@ -222,21 +193,25 @@ export const posSidebarItems: POSSidebarItem[] = [
     permissions: ['manageProducts', 'viewProducts'],
   },
   {
-    id: 'sales-operations',
-    title: 'المبيعات',
-    icon: ShoppingBag,
-    href: '/dashboard/sales-operations/onlineOrders',
-    isOnlineOnly: true,
-    permissions: ['manageOrders', 'viewOrders'],
+    id: 'pos-operations',
+    title: 'سجل الطلبات',
+    icon: ClipboardList,
+    href: '/dashboard/pos-operations/orders',
+    isOnlineOnly: false,
+    permissions: ['accessPOS', 'managePOSOrders'],
   },
   {
-    id: 'services-operations',
-    title: 'الخدمات',
-    icon: Wrench,
-    href: '/dashboard/services-operations/repair',
+    id: 'analytics',
+    title: 'التقارير',
+    icon: BarChart3,
+    href: '/dashboard/analytics',
+    badge: 'جديد',
     isOnlineOnly: false,
-    permissions: ['manageRepairs', 'viewRepairs'],
+    alwaysShow: true,
+    permissions: ['viewSalesReports', 'viewReports', 'accessPOS'],
   },
+
+  // 2. إدارة العمليات (Operations Management)
   {
     id: 'supplier-operations',
     title: 'الموردين',
@@ -246,6 +221,81 @@ export const posSidebarItems: POSSidebarItem[] = [
     permissions: ['manageSuppliers', 'viewSuppliers'],
   },
   {
+    id: 'services-operations',
+    title: 'الصيانة',
+    icon: Wrench,
+    href: '/dashboard/services-operations/repair',
+    isOnlineOnly: false,
+    permissions: ['manageRepairs', 'viewRepairs'],
+  },
+
+  // 3. التجارة الإلكترونية (E-Commerce)
+  {
+    id: 'sales-operations',
+    title: 'طلبات المتجر',
+    icon: Globe,
+    href: '/dashboard/sales-operations/onlineOrders',
+    isOnlineOnly: true,
+    permissions: ['manageOrders', 'viewOrders'],
+  },
+  {
+    id: 'store-operations',
+    title: 'إعدادات المتجر',
+    icon: Store,
+    href: '/dashboard/store-operations/store-settings',
+    isOnlineOnly: true,
+    permissions: ['manageSettings'],
+  },
+
+  // 4. الإدارة والفريق (Admin & Staff)
+  {
+    id: 'staff-management',
+    title: 'الموظفين',
+    icon: Users,
+    href: '/dashboard/staff-management',
+    isOnlineOnly: false,
+    alwaysShow: true,
+    permissions: ['manageStaff', 'viewStaff', 'accessPOS'],
+  },
+  {
+    id: 'settings-unified',
+    title: 'الإعدادات',
+    icon: Settings,
+    href: '/dashboard/settings-unified',
+    isOnlineOnly: false,
+    alwaysShow: true,
+    permissions: ['manageSettings', 'manageOrganizationSettings'],
+  },
+  {
+    id: 'subscription',
+    title: 'الاشتراك',
+    icon: Crown,
+    href: '/dashboard/subscription',
+    isOnlineOnly: true,
+    alwaysShow: true,
+    permissions: ['manageOrganizationSettings'],
+  },
+  {
+    id: 'referral',
+    title: 'برنامج الإحالة',
+    icon: Gift,
+    href: '/dashboard/referral',
+    badge: 'جديد',
+    isOnlineOnly: true,
+    alwaysShow: true,
+    permissions: ['manageOrganizationSettings'],
+  },
+
+  // 5. أخرى (Extras)
+  {
+    id: 'etat104',
+    title: 'كشف 104',
+    icon: FileSpreadsheet,
+    href: '/dashboard/etat104',
+    isOnlineOnly: false,
+    permission: 'accessPOS',
+  },
+  {
     id: 'courses-operations',
     title: 'الأكاديمية',
     icon: GraduationCap,
@@ -253,32 +303,6 @@ export const posSidebarItems: POSSidebarItem[] = [
     isOnlineOnly: false,
     alwaysShow: true,
     permission: 'canAccessCoursesOperations',
-  },
-  {
-    id: 'store-operations',
-    title: 'المتجر',
-    icon: Store,
-    href: '/dashboard/store-operations/store-settings',
-    isOnlineOnly: true,
-    permissions: ['manageSettings'],
-  },
-  {
-    id: 'reports-operations',
-    title: 'التقارير',
-    icon: ReportsIcon,
-    href: '/dashboard/reports-operations/financial',
-    isOnlineOnly: true,
-    permissions: ['viewReports', 'accessPOS'],
-  },
-  {
-    id: 'database-admin',
-    title: 'قاعدة البيانات',
-    icon: Database,
-    href: '/dashboard/database-admin',
-    badge: 'DEV',
-    isOnlineOnly: false,
-    alwaysShow: false,
-    permissions: ['manageSettings', 'isSuperAdmin'],
   },
 ];
 
@@ -300,6 +324,7 @@ const POSPureSidebar: React.FC<POSPureSidebarProps> = memo(({ className, items, 
     const saved = localStorage.getItem('sidebar-online-mode');
     return saved === 'true';
   });
+  const [logoError, setLogoError] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('sidebar-online-mode', String(isOnlineMode));
@@ -393,40 +418,50 @@ const POSPureSidebar: React.FC<POSPureSidebarProps> = memo(({ className, items, 
           {/* Logo Area */}
           <div className={cn(
             "flex items-center transition-all duration-300",
-            isExpanded ? "gap-3 w-full" : "justify-center"
+            isExpanded ? "gap-4 w-full px-1" : "justify-center"
           )}>
-            <div className="relative group cursor-pointer">
-              <div className="absolute inset-0 bg-orange-500/20 rounded-xl blur-lg group-hover:bg-orange-500/30 transition-all duration-500" />
-              <div className="relative w-11 h-11 bg-gradient-to-br from-[#1e293b] to-[#0f172a] rounded-xl flex items-center justify-center border border-slate-700/50 shadow-xl overflow-hidden group-hover:scale-105 transition-transform duration-300">
-                <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent" />
-                <img
-                  src="./images/logo-new.webp"
-                  alt="Logo"
-                  className="w-7 h-7 object-contain relative z-10 drop-shadow-md"
-                  onError={(e) => {
-                    if (e.currentTarget.src.includes('./images/')) {
-                      e.currentTarget.src = './images/logo.webp';
-                    } else {
-                      e.currentTarget.style.display = 'none';
-                      e.currentTarget.nextElementSibling?.classList.remove('hidden');
-                      e.currentTarget.nextElementSibling?.classList.add('flex');
-                    }
-                  }}
-                />
-                <div className="hidden w-full h-full items-center justify-center bg-orange-600 text-white">
-                  <Store className="w-5 h-5" />
-                </div>
+            <div className="relative group cursor-pointer shrink-0 py-1">
+              {/* Premium Glow Background */}
+              <div className="absolute -inset-1 bg-gradient-to-r from-orange-600/50 to-amber-600/50 rounded-2xl blur-md opacity-40 group-hover:opacity-75 transition duration-500 will-change-transform" />
+
+              {/* Logo Box container */}
+              <div className="relative w-11 h-11 bg-[#09090b] rounded-xl flex items-center justify-center border border-white/10 shadow-2xl overflow-hidden group-hover:scale-105 transition-transform duration-300">
+
+                {/* Internal gradient shine */}
+                <div className="absolute inset-0 bg-gradient-to-tr from-white/10 via-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+
+                {/* Animated Reflection (CSS keyframe) */}
+                <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shine pointer-events-none" />
+
+                {!logoError ? (
+                  <img
+                    src="./images/logo-new.webp"
+                    alt="Stockiha"
+                    className="w-7 h-7 object-contain relative z-10 drop-shadow-[0_4px_6px_rgba(0,0,0,0.5)]"
+                    onError={() => setLogoError(true)}
+                  />
+                ) : (
+                  <div className="relative z-10 text-xl font-black text-transparent bg-clip-text bg-gradient-to-br from-orange-400 via-amber-500 to-orange-600 select-none">
+                    S
+                  </div>
+                )}
               </div>
             </div>
 
             {isExpanded && (
-              <div className="flex flex-col min-w-0 animate-in fade-in slide-in-from-right-4 duration-300">
-                <h2 className="text-lg font-bold text-white tracking-tight leading-tight">
-                  سطوكيها
+              <div className="flex flex-col min-w-0 animate-in fade-in slide-in-from-right-4 duration-500 delay-75">
+                <h2 className="text-2xl font-black tracking-tighter leading-none bg-gradient-to-br from-white via-slate-200 to-slate-400 bg-clip-text text-transparent drop-shadow-sm font-['Inter']">
+                  Stockiha
                 </h2>
-                <p className="text-[10px] font-medium text-slate-400 tracking-wide uppercase">
-                  {isOnlineMode ? 'E-Commerce Mode' : 'Enterprise System'}
-                </p>
+                <div className="flex items-center gap-1.5 mt-1.5">
+                  <div className="relative flex h-2 w-2">
+                    <span className={cn("animate-ping absolute inline-flex h-full w-full rounded-full opacity-75", isOnlineMode ? "bg-emerald-400" : "bg-indigo-400")} />
+                    <span className={cn("relative inline-flex rounded-full h-2 w-2", isOnlineMode ? "bg-emerald-500" : "bg-indigo-500")} />
+                  </div>
+                  <span className="text-[10px] font-bold text-slate-500 tracking-widest uppercase font-mono">
+                    {isOnlineMode ? 'Online' : 'System'}
+                  </span>
+                </div>
               </div>
             )}
           </div>
@@ -440,20 +475,20 @@ const POSPureSidebar: React.FC<POSPureSidebarProps> = memo(({ className, items, 
                   target="_blank"
                   rel="noopener noreferrer"
                   className={cn(
-                    "group relative flex items-center rounded-xl border border-slate-700/50 bg-slate-800/30 hover:bg-slate-800/80 transition-all duration-300",
+                    "group relative flex items-center rounded-xl border border-[#30363d] bg-[#21262d]/50 hover:bg-[#21262d] transition-all duration-300",
                     isExpanded ? "px-3 py-2.5 gap-3" : "h-11 w-11 justify-center mx-auto"
                   )}
                 >
-                  <ExternalLink className="h-4 w-4 text-slate-400 group-hover:text-orange-400 transition-colors" />
+                  <ExternalLink className="h-4 w-4 text-[#8b949e] group-hover:text-orange-400 transition-colors" />
                   {isExpanded && (
-                    <span className="text-xs font-medium text-slate-300 group-hover:text-white transition-colors">
+                    <span className="text-xs font-medium text-[#e6edf3] group-hover:text-white transition-colors">
                       زيارة المتجر
                     </span>
                   )}
                 </a>
               </TooltipTrigger>
               {!isExpanded && (
-                <TooltipContent side="right" className="bg-slate-900 border-slate-700 text-white ml-2">
+                <TooltipContent side="right" className="bg-[#161b22] border-[#30363d] text-white ml-2">
                   زيارة المتجر
                 </TooltipContent>
               )}
@@ -462,7 +497,7 @@ const POSPureSidebar: React.FC<POSPureSidebarProps> = memo(({ className, items, 
         </div>
 
         {/* --- Navigation Section --- */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-2 space-y-1 sidebar-scroll-area">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-2 space-y-1 sidebar-scroll-area [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {filteredItems.map((item) => (
             <SidebarItem
               key={item.id}
@@ -473,204 +508,131 @@ const POSPureSidebar: React.FC<POSPureSidebarProps> = memo(({ className, items, 
           ))}
         </div>
 
-        {/* --- Footer Section --- */}
-        <div className="p-3 mt-auto space-y-2 border-t border-slate-800/50 bg-black/20 backdrop-blur-sm">
+        {/* --- Footer Section (Unified Compact) --- */}
+        <div className="p-2 mt-auto space-y-2 border-t border-[#30363d] bg-[#0f1419]/50 backdrop-blur-sm">
 
-          {/* عرض معلومات المستخدم/الموظف الحالي */}
-          {isExpanded && (
-            <div className="mb-2 px-2 py-2 rounded-lg bg-slate-800/40 border border-slate-700/30">
-              <div className="flex items-center gap-2">
-                {isAdminMode ? (
-                  <Shield className="h-4 w-4 text-orange-400" />
-                ) : currentStaff ? (
-                  <UserCircle className="h-4 w-4 text-blue-400" />
-                ) : (
-                  <UserCircle className="h-4 w-4 text-slate-400" />
-                )}
-                <div className="flex flex-col min-w-0 flex-1">
-                  <span className="text-xs font-medium text-white truncate">
-                    {unifiedPerms.displayName}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <span className="text-[10px] text-slate-400">
-                      {isAdminMode ? 'وضع المدير' : currentStaff ? 'موظف' : userProfile?.role || 'مستخدم'}
-                    </span>
-                    {/* عرض مدة الجلسة */}
-                    {unifiedPerms.sessionDuration > 0 && (
-                      <span className="text-[9px] text-slate-500 flex items-center gap-0.5">
-                        <Clock className="h-2.5 w-2.5" />
-                        {unifiedPerms.sessionDuration < 60 
-                          ? `${unifiedPerms.sessionDuration}د` 
-                          : `${Math.floor(unifiedPerms.sessionDuration / 60)}س`
-                        }
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* شارة الوضع المصغرة عند طي القائمة */}
-          {!isExpanded && (currentStaff || isAdminMode) && (
-            <Tooltip>
-              <TooltipTrigger asChild>
+          {/* 1. قائمة المستخدم الموحدة (Unified User Menu) */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className={cn(
+                "flex items-center rounded-xl transition-all duration-300 outline-none group",
+                "hover:bg-[#21262d] border border-transparent hover:border-[#30363d]",
+                isExpanded ? "w-full px-2 py-2 gap-3" : "h-11 w-11 justify-center mx-auto"
+              )}>
+                {/* Avatar */}
                 <div className={cn(
-                  "mx-auto w-9 h-9 rounded-lg flex items-center justify-center",
-                  isAdminMode ? "bg-orange-500/20 text-orange-400" : "bg-blue-500/20 text-blue-400"
+                  "relative flex items-center justify-center rounded-lg shadow-sm transition-transform group-hover:scale-105",
+                  isAdminMode ? "bg-orange-500/10 text-orange-400" : "bg-blue-500/10 text-blue-400",
+                  isExpanded ? "w-10 h-10" : "w-10 h-10"
                 )}>
-                  {isAdminMode ? <Shield className="h-4 w-4" /> : <UserCircle className="h-4 w-4" />}
+                  {isAdminMode ? <Shield className="h-5 w-5" /> : <UserCircle className="h-5 w-5" />}
+                  {/* Online Indicator Dot */}
+                  {isOnlineMode && (
+                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500 border-2 border-[#0f1419]"></span>
+                    </span>
+                  )}
                 </div>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="bg-slate-900 border-slate-700 text-white ml-2">
-                <div className="text-right">
-                  <div className="font-medium">{unifiedPerms.displayName}</div>
-                  <div className="text-xs text-slate-400">
-                    {isAdminMode ? 'وضع المدير' : 'موظف'}
-                    {unifiedPerms.sessionDuration > 0 && ` • ${unifiedPerms.sessionDuration}د`}
-                  </div>
-                </div>
-              </TooltipContent>
-            </Tooltip>
-          )}
 
-          {/* Online Mode Toggle */}
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={toggleOnlineMode}
-                className={cn(
-                  "w-full relative group overflow-hidden rounded-xl transition-all duration-300 border",
-                  isOnlineMode
-                    ? "bg-blue-500/10 border-blue-500/30 hover:border-blue-500/50"
-                    : "bg-slate-800/30 border-slate-700/30 hover:border-slate-600",
-                  isExpanded ? "h-12 px-3" : "h-11 w-11 flex items-center justify-center mx-auto"
+                {/* Text Info (Expanded Only) */}
+                {isExpanded && (
+                  <div className="flex flex-col items-start flex-1 min-w-0">
+                    <span className="text-sm font-bold text-[#e6edf3] truncate w-full text-right">
+                      {unifiedPerms.displayName}
+                    </span>
+                    <span className="text-[10px] text-[#8b949e] truncate w-full text-right">
+                      {isAdminMode ? 'مدير النظام' : userProfile?.role || 'موظف'}
+                    </span>
+                  </div>
                 )}
+
+                {/* Menu Icon (Expanded Only) */}
+                {isExpanded && (
+                  <MoreVertical className="h-4 w-4 text-slate-500 group-hover:text-slate-300" />
+                )}
+              </button>
+            </DropdownMenuTrigger>
+
+            <DropdownMenuContent
+              side="left"
+              align="end"
+              sideOffset={10}
+              collisionPadding={16}
+              className="w-64 bg-[#050b15]/95 backdrop-blur-xl border-slate-700 text-slate-200 p-2 shadow-2xl"
+            >
+              <DropdownMenuLabel className="font-normal">
+                <div className="flex flex-col space-y-1">
+                  <p className="text-sm font-medium leading-none text-white">{unifiedPerms.displayName}</p>
+                  <p className="text-xs leading-none text-slate-400">{userProfile?.email || 'No Email'}</p>
+                  {unifiedPerms.sessionDuration > 0 && (
+                    <div className="flex items-center gap-1 mt-1.5 text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full w-fit">
+                      <Clock className="w-3 h-3" />
+                      <span>نشط منذ {Math.floor(unifiedPerms.sessionDuration / 60)} ساعة</span>
+                    </div>
+                  )}
+                </div>
+              </DropdownMenuLabel>
+
+              <DropdownMenuSeparator className="bg-slate-700/50" />
+
+              {/* خيارات الوضع */}
+              <DropdownMenuItem
+                onClick={toggleOnlineMode}
+                className="flex items-center gap-2 cursor-pointer focus:bg-slate-800 focus:text-white rounded-lg p-2"
               >
                 <div className={cn(
-                  "flex items-center transition-all duration-300",
-                  isExpanded ? "justify-between" : "justify-center"
+                  "p-1.5 rounded-md",
+                  isOnlineMode ? "bg-blue-500/20 text-blue-400" : "bg-slate-700 text-slate-400"
                 )}>
-                  <div className="flex items-center gap-3">
-                    <div className={cn(
-                      "p-1.5 rounded-lg transition-colors",
-                      isOnlineMode ? "bg-blue-500/20 text-blue-400" : "bg-slate-700/50 text-slate-400"
-                    )}>
-                      <ShoppingCart className="h-4 w-4" />
-                    </div>
-                    {isExpanded && (
-                      <div className="flex flex-col items-start">
-                        <span className={cn("text-xs font-bold", isOnlineMode ? "text-blue-400" : "text-slate-300")}>
-                          {isOnlineMode ? "المتجر الإلكتروني" : "الوضع الكامل"}
-                        </span>
-                        <span className="text-[9px] text-slate-500">
-                          {isOnlineMode ? "ON" : "OFF"}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {isExpanded && (
-                    <div className={cn(
-                      "w-8 h-4 rounded-full relative transition-colors duration-300",
-                      isOnlineMode ? "bg-blue-500/30" : "bg-slate-700"
-                    )}>
-                      <div className={cn(
-                        "absolute top-0.5 w-3 h-3 rounded-full bg-white shadow-sm transition-all duration-300",
-                        isOnlineMode ? "left-4 bg-blue-400" : "left-0.5 bg-slate-400"
-                      )} />
-                    </div>
-                  )}
+                  <ShoppingCart className="w-4 h-4" />
                 </div>
-              </button>
-            </TooltipTrigger>
-            {!isExpanded && (
-              <TooltipContent side="right" className="bg-slate-900 border-slate-700 text-white ml-2">
-                {isOnlineMode ? "التبديل للوضع الكامل" : "التبديل لوضع المتجر"}
-              </TooltipContent>
-            )}
-          </Tooltip>
+                <div className="flex flex-col">
+                  <span className="font-medium">المتجر الإلكتروني</span>
+                  <span className="text-[10px] text-slate-500">{isOnlineMode ? 'مفعل (Online)' : 'معطل (Offline)'}</span>
+                </div>
+                {isOnlineMode && <div className="mr-auto w-2 h-2 rounded-full bg-blue-500" />}
+              </DropdownMenuItem>
 
-          <div className={cn(
-            "flex items-center gap-2",
-            !isExpanded && "flex-col-reverse" // Stack buttons when collapsed, Expand at bottom
-          )}>
-            {/* Expand/Collapse Button */}
-            {onToggleExpand && (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button
-                    onClick={onToggleExpand}
-                    className={cn(
-                      "rounded-xl flex items-center justify-center transition-all duration-300",
-                      "bg-slate-800/40 hover:bg-slate-700/50 text-slate-400 hover:text-white border border-slate-700/30",
-                      isExpanded ? "flex-1 h-10" : "h-11 w-11"
-                    )}
-                  >
-                    {isExpanded ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent side="right" className="bg-slate-900 border-slate-700 text-white ml-2">
-                  {isExpanded ? "تصغير القائمة" : "توسيع القائمة"}
-                </TooltipContent>
-              </Tooltip>
-            )}
-
-            {/* تبديل الموظف السريع */}
-            {(currentStaff || isAdminMode) && (
-              <>
-                {isExpanded ? (
-                  <QuickStaffSwitchModern 
+              {/* تبديل الموظف */}
+              {(currentStaff || isAdminMode) && (
+                <div className="p-1">
+                  <QuickStaffSwitchModern
                     iconOnly={false}
                     variant="ghost"
-                    className={cn(
-                      "flex-1 h-10 rounded-xl",
-                      "bg-gradient-to-r from-blue-500/10 to-cyan-500/10 hover:from-blue-500/20 hover:to-cyan-500/20",
-                      "text-blue-400 hover:text-blue-300 border border-blue-500/20"
-                    )}
+                    className="w-full justify-start h-9 px-2 text-sm font-normal text-slate-200 hover:bg-slate-800 hover:text-white"
                   />
-                ) : (
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div>
-                        <QuickStaffSwitchModern 
-                          iconOnly={true}
-                          variant="ghost"
-                          size="default"
-                          className={cn(
-                            "h-11 w-11 rounded-xl",
-                            "bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 hover:text-blue-300 border border-blue-500/20"
-                          )}
-                        />
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent side="right" className="bg-slate-900 border-slate-700 text-white ml-2">
-                      تبديل الموظف
-                    </TooltipContent>
-                  </Tooltip>
-                )}
-              </>
-            )}
+                </div>
+              )}
 
-            {/* Logout Button */}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button
-                  onClick={handleSignOut}
-                  className={cn(
-                    "rounded-xl flex items-center justify-center transition-all duration-300",
-                    "bg-red-500/10 hover:bg-red-500/20 text-red-400 hover:text-red-300 border border-red-500/20",
-                    isExpanded ? "w-10 h-10" : "h-11 w-11"
-                  )}
-                >
-                  <LogOut className="h-5 w-5" />
-                </button>
-              </TooltipTrigger>
-              <TooltipContent side="right" className="bg-slate-900 border-slate-700 text-white ml-2">
-                تسجيل الخروج
-              </TooltipContent>
-            </Tooltip>
-          </div>
+              <DropdownMenuSeparator className="bg-slate-700/50" />
+
+              {/* تسجيل الخروج */}
+              <DropdownMenuItem
+                onClick={handleSignOut}
+                className="flex items-center gap-2 cursor-pointer focus:bg-red-950/30 focus:text-red-400 text-red-400 p-2 rounded-lg"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>تسجيل الخروج</span>
+              </DropdownMenuItem>
+
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* 2. زر التصغير/التوسيع */}
+          {onToggleExpand && (
+            <button
+              onClick={onToggleExpand}
+              className={cn(
+                "w-full flex items-center justify-center rounded-xl transition-all duration-300",
+                "hover:bg-slate-800/50 text-slate-500 hover:text-white h-8"
+              )}
+              title={isExpanded ? "تصغير القائمة" : "توسيع القائمة"}
+            >
+              {isExpanded ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+            </button>
+          )}
+
         </div>
       </div>
     </TooltipProvider>

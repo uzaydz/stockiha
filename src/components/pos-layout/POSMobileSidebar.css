@@ -10,11 +10,11 @@
   border-top-right-radius: 0 !important;
   z-index: 60 !important;
   
-  /* Glassmorphism */
-  background: rgba(15, 23, 42, 0.95) !important;
+  /* Glassmorphism - Midnight Obsidian #050b15 */
+  background: rgba(5, 11, 21, 0.97) !important;
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border-left: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-left: 1px solid rgba(255, 255, 255, 0.06) !important;
 }
 
 /* Subtle noise texture overlay */

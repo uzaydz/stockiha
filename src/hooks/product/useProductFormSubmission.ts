@@ -50,9 +50,19 @@ export const useProductFormSubmission = ({
    * - إذا جاء من Dashboard layout، يعود لصفحة المنتجات في Dashboard
    */
   const getReturnPath = useCallback(() => {
+    const locationState = location.state as any;
+    
+    // أولوية 1: استخدام returnTo من location.state إذا كان موجوداً
+    if (locationState?.returnTo) {
+      return locationState.returnTo;
+    }
+    
+    // أولوية 2: استخدام from من location.state
+    const referrer = locationState?.from || document.referrer;
+    
+    // أولوية 3: التحقق من المسار الحالي
     const currentPath = location.pathname;
-    const referrer = (location.state as any)?.from || document.referrer;
-
+    
     // ⚡ التحقق من المسار الحالي أو المرجع
     // إذا كان المستخدم في POS layout أو جاء منه
     if (
@@ -60,6 +70,7 @@ export const useProductFormSubmission = ({
       currentPath.includes('/pos-advanced') ||
       currentPath.includes('/product-operations') ||
       referrer.includes('/pos-') ||
+      referrer.includes('/pos-advanced') ||
       referrer.includes('/product-operations')
     ) {
       return '/dashboard/product-operations/products';
@@ -75,10 +86,52 @@ export const useProductFormSubmission = ({
 
   // Enhanced submit handler
   const submitForm = useCallback(async (data: ProductFormValues) => {
-    // 🔍 DEBUG: فحص البيانات الحالية للصور
-    console.log('[ProductFormSubmission] 🔍 DEBUG - Form data received:');
-    console.log('[ProductFormSubmission] 🔍 thumbnail_image:', data.thumbnail_image ? `exists (${Math.round(String(data.thumbnail_image).length/1024)}KB, starts with: ${String(data.thumbnail_image).substring(0, 50)}...)` : 'NOT EXISTS or empty');
-    console.log('[ProductFormSubmission] 🔍 additionalImages:', additionalImages?.length || 0, 'images');
+    // 🔍 DEBUG COMPREHENSIVE: فحص شامل للبيانات
+    console.log('='.repeat(80));
+    console.log('[ProductFormSubmission] 🚀 SUBMIT STARTED');
+    console.log('='.repeat(80));
+
+    console.log('[ProductFormSubmission] 📋 Form data received:', {
+      name: data.name,
+      price: data.price,
+      purchase_price: data.purchase_price,
+      stock_quantity: data.stock_quantity,
+      category_id: data.category_id,
+      organization_id: data.organization_id,
+      has_variants: data.has_variants,
+      use_sizes: data.use_sizes,
+    });
+
+    // 🔍 DEBUG: أنواع البيع المتقدمة
+    console.log('[ProductFormSubmission] 📦 Advanced Selling Types:', {
+      sell_by_weight: (data as any).sell_by_weight,
+      sell_by_box: (data as any).sell_by_box,
+      sell_by_meter: (data as any).sell_by_meter,
+      track_expiry: (data as any).track_expiry,
+      track_serial_numbers: (data as any).track_serial_numbers,
+      track_batches: (data as any).track_batches,
+      has_warranty: (data as any).has_warranty,
+    });
+
+    // 🔍 DEBUG: الألوان والمقاسات
+    console.log('[ProductFormSubmission] 🎨 Colors:', {
+      count: productColors?.length || 0,
+      colors: productColors?.map(c => ({
+        id: c.id,
+        name: c.name,
+        quantity: c.quantity,
+        has_sizes: c.has_sizes,
+        sizes_count: c.sizes?.length || 0
+      }))
+    });
+
+    // 🔍 DEBUG: الصور
+    console.log('[ProductFormSubmission] 🖼️ Images:', {
+      thumbnail: data.thumbnail_image ? `exists (${Math.round(String(data.thumbnail_image).length/1024)}KB)` : 'MISSING',
+      additionalCount: additionalImages?.length || 0,
+    });
+
+    console.log('[ProductFormSubmission] 🔍 isEditMode:', isEditMode, 'productId:', productId);
 
     if (!organizationId && !data.organization_id) {
       toast.error("خطأ حرج: معرّف المؤسسة مفقود. لا يمكن إنشاء/تحديث المنتج.");
@@ -104,17 +157,41 @@ export const useProductFormSubmission = ({
       }
 
       // Prepare submission data
-      const submissionData = prepareFormSubmissionData(
-        data,
-        currentOrganizationId!,
-        additionalImages,
-        productColors,
-        wholesaleTiers
-      );
+      console.log('[ProductFormSubmission] 📤 Calling prepareFormSubmissionData...');
+
+      let submissionData;
+      try {
+        submissionData = prepareFormSubmissionData(
+          data,
+          currentOrganizationId!,
+          additionalImages,
+          productColors,
+          wholesaleTiers
+        );
+        console.log('[ProductFormSubmission] ✅ prepareFormSubmissionData SUCCESS');
+      } catch (prepareError: any) {
+        console.error('[ProductFormSubmission] ❌ prepareFormSubmissionData FAILED:', prepareError);
+        console.error('[ProductFormSubmission] ❌ Error message:', prepareError.message);
+        console.error('[ProductFormSubmission] ❌ Error stack:', prepareError.stack);
+        toast.error(`خطأ في تحضير البيانات: ${prepareError.message}`);
+        setIsSubmitting(false);
+        return;
+      }
 
       // 🔍 DEBUG: فحص البيانات بعد التحضير
-      console.log('[ProductFormSubmission] 🔍 DEBUG - After prepareFormSubmissionData:');
-      console.log('[ProductFormSubmission] 🔍 submissionData.thumbnail_image:', (submissionData as any).thumbnail_image ? `exists (${Math.round(String((submissionData as any).thumbnail_image).length/1024)}KB)` : 'NOT EXISTS');
+      console.log('[ProductFormSubmission] 📋 After prepareFormSubmissionData:', {
+        name: (submissionData as any).name,
+        price: (submissionData as any).price,
+        organization_id: (submissionData as any).organization_id,
+        thumbnail: (submissionData as any).thumbnail_image ? 'exists' : 'MISSING',
+        colors_count: (submissionData as any).colors?.length || 0,
+        // أنواع البيع المتقدمة
+        sell_by_weight: (submissionData as any).sell_by_weight,
+        sell_by_box: (submissionData as any).sell_by_box,
+        sell_by_meter: (submissionData as any).sell_by_meter,
+        track_expiry: (submissionData as any).track_expiry,
+        track_serial_numbers: (submissionData as any).track_serial_numbers,
+      });
 
       // Add CSRF protection
       const protectedSubmissionData = addCSRFTokenToFormData(submissionData as any);
@@ -129,7 +206,10 @@ export const useProductFormSubmission = ({
       // تحديد المسار بحسب حالة الاتصال
       const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
 
+      console.log('[ProductFormSubmission] 🌐 Online status:', isOnline);
+
       if (!isOnline) {
+        console.log('[ProductFormSubmission] 📴 OFFLINE MODE - Using local storage');
         // أوفلاين: استخدم المحول الأوفلاين الذي يكتب إلى SQLite + Outbox
         const offline = await import('@/lib/api/offlineProductsAdapter');
         const { imageBase64Service } = await import('@/api/imageBase64Service');
@@ -184,10 +264,26 @@ export const useProductFormSubmission = ({
         }
       } else {
         // أونلاين: المسار المتصل المعتاد
-        if (isEditMode && productId) {
-          result = await updateProductOnline(productId, protectedSubmissionData);
-        } else {
-          result = await createProductOnline(protectedSubmissionData);
+        console.log('[ProductFormSubmission] 🌐 ONLINE MODE - Using server API');
+        try {
+          if (isEditMode && productId) {
+            console.log('[ProductFormSubmission] 📝 Calling updateProductOnline with productId:', productId);
+            result = await updateProductOnline(productId, protectedSubmissionData);
+            console.log('[ProductFormSubmission] ✅ updateProductOnline result:', result ? 'success' : 'null/undefined');
+          } else {
+            console.log('[ProductFormSubmission] ➕ Calling createProductOnline...');
+            result = await createProductOnline(protectedSubmissionData);
+            console.log('[ProductFormSubmission] ✅ createProductOnline result:', result ? `success (id: ${result.id})` : 'null/undefined');
+          }
+        } catch (apiError: any) {
+          console.error('[ProductFormSubmission] ❌ API call FAILED:', apiError);
+          console.error('[ProductFormSubmission] ❌ Error details:', {
+            message: apiError.message,
+            code: apiError.code,
+            details: apiError.details,
+            hint: apiError.hint,
+          });
+          throw apiError; // Re-throw to be caught by outer catch
         }
       }
 

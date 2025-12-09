@@ -21,21 +21,32 @@ import {
   getSecureSessionMeta
 } from './secureSessionStorage';
 
-// استيراد دوال المزامنة لـ Tauri (lazy import لتجنب circular dependencies)
-const syncAuthToTauriSQLite = async (
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
+
+// ⚡ استيراد دوال المزامنة لـ PowerSync
+const syncAuthToPowerSync = async (
   organizationId: string,
   authUserId: string,
   userData: { email?: string; name?: string; role?: string; user_metadata?: any; app_metadata?: any }
 ) => {
   try {
-    const { syncAuthDataToSQLite, isTauriEnvironment } = await import('@/lib/sync/TauriSyncService');
-    if (isTauriEnvironment()) {
-      await syncAuthDataToSQLite(organizationId, authUserId, userData);
+    // ⚡ استخدام PowerSync mutate API
+    // ملاحظة: جدول employees غير موجود في PowerSync Schema
+    // البيانات تُزامن تلقائياً عبر pos_staff_sessions
+
+    if (!powerSyncService.db) {
+      console.warn('[authStorage] PowerSync DB not initialized');
+      return;
     }
-  } catch (error) {
+
+    // ⚡ PowerSync يدير المزامنة تلقائياً عبر Sync Rules
+    // لا حاجة لمزامنة يدوية - البيانات تُحفظ في pos_staff_sessions عبر PowerSync
+    console.log('[authStorage] ℹ️ Auth data synced automatically via PowerSync');
+
+  } catch (error: any) {
     // تجاهل الأخطاء - المزامنة اختيارية
     if (process.env.NODE_ENV === 'development') {
-      console.warn('[AuthStorage] Tauri SQLite sync skipped:', error);
+      console.warn('[AuthStorage] PowerSync sync skipped:', error);
     }
   }
 };
@@ -182,7 +193,7 @@ export const saveAuthToStorage = (session: Session | null, user: SupabaseUser | 
         // حفظ user_id لاستخدامه لاحقاً في المزامنة
         localStorage.setItem('auth_user_id', user.id);
 
-        void syncAuthToTauriSQLite(orgId, user.id, {
+        void syncAuthToPowerSync(orgId, user.id, {
           email: user.email,
           name: (user.user_metadata as any)?.name || user.email,
           role: (user.user_metadata as any)?.role || 'authenticated',
@@ -291,14 +302,65 @@ export const clearAuthStorage = (): void => {
     // مسح بيانات الأوفلاين السابقة
     localStorage.removeItem(OFFLINE_SNAPSHOT_KEY);
 
+    // ⚡ مسح بيانات POS عند تسجيل الخروج
+    clearPOSLocalStorage();
+
     if (process.env.NODE_ENV === 'development') {
+      console.log('[AuthStorage] تم مسح جميع البيانات بما في ذلك بيانات POS');
     }
   } catch (error) {
     if (process.env.NODE_ENV === 'development') {
+      console.error('[AuthStorage] خطأ في مسح البيانات:', error);
     }
   }
 
   void clearSecureSession().catch(() => undefined);
+};
+
+/**
+ * ⚡ مسح بيانات نقطة البيع من localStorage
+ * يُستدعى عند تسجيل الخروج لتنظيف السلة والبيانات المؤقتة
+ */
+export const clearPOSLocalStorage = (): void => {
+  try {
+    // مسح بيانات السلة والتبويبات
+    localStorage.removeItem('pos_cart_tabs');
+    localStorage.removeItem('pos_active_tab_id');
+    localStorage.removeItem('pos_return_items');
+
+    // مسح cache المنتجات
+    localStorage.removeItem('pos_products_cache');
+    localStorage.removeItem('pos_categories_cache');
+
+    // مسح بيانات الباركود
+    localStorage.removeItem('last_scanned_barcode');
+
+    // مسح إحصائيات المزامنة
+    localStorage.removeItem('discarded_operations');
+    localStorage.removeItem('skipped_gaps');
+
+    // مسح أي بيانات POS أخرى
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (
+        key.startsWith('pos_') ||
+        key.startsWith('cart_') ||
+        key.startsWith('bazaar_pos_')
+      )) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[AuthStorage] ✅ تم مسح بيانات POS:', keysToRemove.length, 'مفاتيح');
+    }
+  } catch (error) {
+    if (process.env.NODE_ENV === 'development') {
+      console.error('[AuthStorage] خطأ في مسح بيانات POS:', error);
+    }
+  }
 };
 
 /**

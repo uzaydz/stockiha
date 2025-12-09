@@ -65,62 +65,102 @@
     <script nonce="{{CSP_NONCE}}">
       // Smart font loading strategy - محسن لتجنب التحميل المتكرر
       (function() {
-        // تحقق من وجود الخطوط في الكاش
-        var fontsAlreadyLoaded = sessionStorage.getItem('fonts_loaded');
+        try {
+          // تحقق من وجود الخطوط في الكاش (مع حماية من خطأ localStorage)
+          var fontsAlreadyLoaded = false;
+          try {
+            fontsAlreadyLoaded = sessionStorage.getItem('fonts_loaded') === 'true';
+          } catch(e) {
+            // sessionStorage غير متاح
+          }
 
-        if (fontsAlreadyLoaded === 'true') {
-          console.log('Fonts already preloaded, skipping...');
-          return;
-        }
+          if (fontsAlreadyLoaded) {
+            return;
+          }
 
-        var fontsLoaded = false;
+          var fontsLoaded = false;
 
-        // Function to load additional fonts
-        function loadAdditionalFonts() {
-          if (fontsLoaded) return;
-          fontsLoaded = true;
+          // Function to load additional fonts
+          function loadAdditionalFonts() {
+            if (fontsLoaded) return;
+            fontsLoaded = true;
 
-          // تحميل الخطوط الإضافية عند الحاجة فقط
-          var fontsBase = './fonts/';
-          var additionalFonts = [
-            fontsBase + 'tajawal-medium.woff2',
-            fontsBase + 'tajawal-bold.woff2'
-          ];
+            // تحميل الخطوط الإضافية عند الحاجة فقط
+            var fontsBase = './fonts/';
+            var additionalFonts = [
+              fontsBase + 'tajawal-medium.woff2',
+              fontsBase + 'tajawal-bold.woff2'
+            ];
 
-          additionalFonts.forEach(function(fontUrl) {
-            var link = document.createElement('link');
-            link.rel = 'prefetch';
-            link.as = 'font';
-            link.type = 'font/woff2';
-            // لا نحتاج crossOrigin للخطوط المحلية
-            link.href = fontUrl;
-            document.head.appendChild(link);
+            additionalFonts.forEach(function(fontUrl) {
+              try {
+                var link = document.createElement('link');
+                link.rel = 'prefetch';
+                link.as = 'font';
+                link.type = 'font/woff2';
+                link.href = fontUrl;
+                document.head.appendChild(link);
+              } catch(e) {}
+            });
+
+            // حفظ في sessionStorage لتجنب التحميل المتكرر
+            try {
+              sessionStorage.setItem('fonts_loaded', 'true');
+            } catch(e) {}
+          }
+
+          // Load additional fonts on user interaction or after delay
+          var events = ['mousedown', 'touchstart', 'keydown', 'wheel'];
+          events.forEach(function(event) {
+            document.addEventListener(event, loadAdditionalFonts, { once: true, passive: true });
           });
 
-          // حفظ في sessionStorage لتجنب التحميل المتكرر
-          sessionStorage.setItem('fonts_loaded', 'true');
-          console.log('Fonts preloaded and cached for session');
+          // Fallback: load after 1 second if no interaction
+          setTimeout(loadAdditionalFonts, 1000);
+        } catch(e) {
+          // تجاهل أي خطأ في تحميل الخطوط
         }
-
-        // Load additional fonts on user interaction or after delay
-        var events = ['mousedown', 'touchstart', 'keydown', 'wheel'];
-        events.forEach(function(event) {
-          document.addEventListener(event, loadAdditionalFonts, { once: true, passive: true });
-        });
-
-        // Fallback: load after 1 second if no interaction (أقل من 2s)
-        setTimeout(loadAdditionalFonts, 1000);
       })();
     </script>
     
     <!-- إضافة سكريبت للتعامل مع وضع الإضاءة -->
     <script nonce="{{CSP_NONCE}}">
       // حاول تطبيق الوضع المحفوظ قبل تحميل الصفحة لمنع وميض الشاشة
-      const storedTheme = localStorage.getItem('theme') || 'light';
-      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      const initialTheme = storedTheme === 'system' ? systemTheme : storedTheme;
-      document.documentElement.classList.add(initialTheme);
-      document.documentElement.style.colorScheme = initialTheme;
+      (function() {
+        // تحقق من أن localStorage متاح (قد لا يكون في data: URLs أو about:blank)
+        var canUseStorage = false;
+        try {
+          // فحص إذا كان الـ origin صالح
+          if (window.location.protocol === 'http:' || window.location.protocol === 'https:' || window.location.protocol === 'file:') {
+            canUseStorage = typeof localStorage !== 'undefined' && localStorage !== null;
+            // اختبار فعلي
+            if (canUseStorage) {
+              localStorage.setItem('__test__', '1');
+              localStorage.removeItem('__test__');
+            }
+          }
+        } catch(e) {
+          canUseStorage = false;
+        }
+
+        try {
+          var storedTheme = 'light';
+          if (canUseStorage) {
+            try {
+              storedTheme = localStorage.getItem('theme') || 'light';
+            } catch(e) {
+              // تجاهل
+            }
+          }
+          var systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          var initialTheme = storedTheme === 'system' ? systemTheme : storedTheme;
+          document.documentElement.classList.add(initialTheme);
+          document.documentElement.style.colorScheme = initialTheme;
+        } catch(e) {
+          // في حالة أي خطأ، استخدم الوضع الفاتح
+          document.documentElement.classList.add('light');
+        }
+      })();
     </script>
     
     <!-- 🚀 Resource Hints محسنة للأداء -->

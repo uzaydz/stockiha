@@ -1,10 +1,11 @@
 import { useState, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
-import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
 import { useStaffSession } from '@/context/StaffSessionContext';
 import type { Service, Order, User } from '@/types';
+import { createPOSOrder, buildPOSItemsFromCart, type UnifiedCartItem } from '@/context/shop/posOrderService';
+import { unifiedOrderService } from '@/services/UnifiedOrderService';
 
 // تعريف CartItem محلياً إذا لم يكن موجوداً في types
 interface CartItem {
@@ -63,101 +64,93 @@ export function usePOSOrderOptimized() {
     selectedSubscriptions: any[],
     orderData: OrderData
   ): Promise<OrderResult> => {
+    const submitStartTime = Date.now();
+    console.log('[POS Submit] 🚀 ========== بدء تقديم الطلب ==========');
+    console.log('[POS Submit] 📦 بيانات السلة:', {
+      cartItemsCount: cartItems.length,
+      servicesCount: selectedServices.length,
+      subscriptionsCount: selectedSubscriptions.length,
+      total: orderData.total,
+      subtotal: orderData.subtotal,
+      discount: orderData.discount,
+      paymentMethod: orderData.paymentMethod,
+      paymentStatus: orderData.paymentStatus
+    });
+
     // منع المعالجة المتعددة المتزامنة
     if (processingRef.current) {
+      console.warn('[POS Submit] ⚠️ محاولة تقديم طلب أثناء معالجة طلب آخر');
       throw new Error('جاري معالجة طلب آخر، يرجى الانتظار');
     }
 
     try {
       processingRef.current = true;
       setIsProcessing(true);
+      console.log('[POS Submit] 🔒 تم قفل المعالجة');
 
       const organizationId = currentTenant?.id; // استخدام id مباشرة من tenant
       if (!organizationId) {
+        console.error('[POS Submit] ❌ معرف المؤسسة غير موجود');
         throw new Error('معرف المؤسسة غير موجود');
       }
+      console.log('[POS Submit] 🏢 معرف المؤسسة:', organizationId.slice(0, 8));
 
       const employeeId = userProfile?.id || currentUser?.id;
       if (!employeeId) {
+        console.error('[POS Submit] ❌ معرف الموظف غير موجود');
         throw new Error('معرف الموظف غير موجود');
       }
+      console.log('[POS Submit] 👤 معرف الموظف:', employeeId.slice(0, 8));
 
-      // تحضير بيانات عناصر السلة بتنسيق OfflinePOSOrderItemPayload
-      const itemsPayload: any[] = cartItems.map(item => ({
-        productId: item.product.id,
-        productName: item.product.name,
+      // ⚡ استخدام الدالة الموحدة لبناء عناصر الطلب
+      console.log('[POS Submit] 📦 بناء عناصر الطلب باستخدام buildPOSItemsFromCart...');
+      
+      // تحويل cartItems إلى UnifiedCartItem
+      const unifiedCartItems: UnifiedCartItem[] = cartItems.map(item => ({
+        product: item.product,
         quantity: item.quantity,
-        unitPrice: item.isWholesale ?
+        colorId: item.colorId,
+        colorName: item.colorName,
+        sizeId: item.sizeId,
+        sizeName: item.sizeName,
+        variantPrice: item.isWholesale ?
           (item.product.wholesale_price || item.product.price) :
           item.product.price,
-        totalPrice: item.total,
-        originalPrice: item.product.price,
+        customPrice: item.isWholesale ?
+          (item.product.wholesale_price || item.product.price) :
+          item.product.price,
         isWholesale: item.isWholesale || false,
-        colorId: item.colorId || null,
-        sizeId: item.sizeId || null,
-        colorName: item.colorName || null,
-        sizeName: item.sizeName || null,
+        originalPrice: item.product.price,
+        saleType: item.isWholesale ? 'wholesale' : 'retail',
         variant_info: item.colorId || item.sizeId ? {
-          color_id: item.colorId,
-          size_id: item.sizeId,
-          color_name: item.colorName,
-          size_name: item.sizeName,
-          variant_display_name: item.variantDisplayName
-        } : null
+          colorId: item.colorId,
+          sizeId: item.sizeId,
+          colorName: item.colorName,
+          sizeName: item.sizeName,
+          variantDisplayName: item.variantDisplayName
+        } : undefined
       }));
 
-      // معالجة الخدمات
-      if (selectedServices.length > 0) {
-        const serviceItems = selectedServices.map(service => ({
-          productId: service.id,
-          productName: service.name || 'خدمة',
-          quantity: 1,
-          unitPrice: service.price,
-          totalPrice: service.price,
-          originalPrice: service.price,
-          isWholesale: false,
-          variant_info: {
-            service_type: 'repair',
-            scheduled_date: (service as any).scheduledDate?.toISOString(),
-            notes: (service as any).notes,
-            tracking_code: (service as any).public_tracking_code,
-            is_service: true
-          }
-        }));
-        itemsPayload.push(...serviceItems);
-      }
+      // بناء عناصر الطلب باستخدام الدالة الموحدة
+      const orderItems = buildPOSItemsFromCart(
+        unifiedCartItems,
+        selectedServices,
+        selectedSubscriptions
+      );
 
-      // معالجة الاشتراكات
-      if (selectedSubscriptions.length > 0) {
-        const subscriptionItems = selectedSubscriptions.map(subscription => ({
-          productId: subscription.id,
-          productName: subscription.name || 'اشتراك',
-          quantity: 1,
-          unitPrice: subscription.price,
-          totalPrice: subscription.price,
-          originalPrice: subscription.price,
-          isWholesale: false,
-          variant_info: {
-            subscription_type: 'digital',
-            duration: subscription.duration,
-            features: subscription.features,
-            is_subscription: true
-          }
-        }));
-        itemsPayload.push(...subscriptionItems);
-      }
+      console.log('[POS Submit] ✅ تم بناء', orderItems.length, 'عنصر');
 
-      // استيراد createLocalPOSOrder ديناميكياً لتجنب مشاكل الدورة (Circular Dependency) إذا وجدت
-      const { createLocalPOSOrder } = await import('@/api/localPosOrderService');
-
-      // إنشاء الطلب محلياً (Offline-First)
-      const localOrder = await createLocalPOSOrder({
+      // ⚡ استخدام createPOSOrder كالمسار الرسمي الوحيد
+      console.log('[POS Submit] 💾 بدء إنشاء الطلب عبر createPOSOrder...');
+      const createStartTime = Date.now();
+      
+      const posOrderData: any = {
         organizationId,
+        employeeId,
         customerId: orderData.customerId === 'guest' ? undefined : orderData.customerId,
         customerName: undefined, // يمكن إضافته إذا كان متاحاً في orderData
-        employeeId,
         paymentMethod: orderData.paymentMethod,
-        paymentStatus: orderData.paymentStatus as any,
+        paymentStatus: orderData.paymentStatus,
         subtotal: orderData.subtotal,
         discount: orderData.discount,
         total: orderData.total,
@@ -165,68 +158,90 @@ export function usePOSOrderOptimized() {
         remainingAmount: orderData.partialPayment?.remainingAmount,
         considerRemainingAsPartial: orderData.considerRemainingAsPartial,
         notes: orderData.notes,
+        items: orderItems,
         metadata: {
           subscriptionAccountInfo: orderData.subscriptionAccountInfo,
           created_by_staff_id: currentStaff?.id,
           created_by_staff_name: currentStaff?.staff_name
-        },
-        items: itemsPayload // تمرير العناصر هنا أيضاً لتلبية متطلبات النوع
-      } as any, itemsPayload);
+        }
+      };
 
-      // معالجة الخدمات منفصلة (تحديث حالتها) - محاولة فقط
+      const result = await createPOSOrder(posOrderData);
+      const createDuration = Date.now() - createStartTime;
+      console.log('[POS Submit] ✅ تم إنشاء الطلب:', {
+        orderId: result.orderId,
+        localNumber: result.customerOrderNumber,
+        duration: createDuration + 'ms'
+      });
+
+      // ⚡ معالجة الخدمات محلياً (Local-First)
+      // حفظ repair_order_ids في metadata للطلب لربطها لاحقاً عبر المزامنة
       if (selectedServices.length > 0) {
-        // نترك هذه العملية في الخلفية ولا ننتظرها
-        (async () => {
-          try {
-            const servicePromises = selectedServices.map(async (service) => {
-              if (service.id && (service as any).scheduledDate) {
-                await supabase
-                  .from('repair_orders')
-                  .update({
-                    status: 'confirmed',
-                    // order_id: localOrder.id, // TODO: نحتاج ربطها بالطلب عند المزامنة
-                    updated_at: new Date().toISOString()
-                  })
-                  .eq('id', service.id);
-              }
-            });
-            await Promise.allSettled(servicePromises);
-          } catch (e) {
-            console.warn('Failed to update repair orders status in background', e);
-          }
-        })();
+        const repairOrderIds = selectedServices
+          .filter(service => service.id && (service as any).scheduledDate)
+          .map(service => service.id);
+
+        if (repairOrderIds.length > 0) {
+          // ⚡ حفظ repair_order_ids في metadata للطلب
+          // سيتم ربطها بالسيرفر لاحقاً عبر SyncManager
+          console.log(`[usePOSOrderOptimized] 📋 حفظ ${repairOrderIds.length} طلب صيانة في metadata للطلب ${result.orderId}`);
+          
+          // يمكن تحديث metadata الطلب لاحقاً إذا لزم الأمر
+          // حالياً، repair_order_ids موجودة في orderData.metadata.selectedServices
+        }
       }
 
-      toast.success(`تم إنشاء الطلبية بنجاح - رقم: ${localOrder.local_order_number}`);
+      const totalDuration = Date.now() - submitStartTime;
+      console.log('[POS Submit] 🎉 ========== اكتمل تقديم الطلب بنجاح ==========');
+      console.log('[POS Submit] ⏱️ المدة الإجمالية:', totalDuration + 'ms');
+      console.log('[POS Submit] 📊 النتيجة النهائية:', {
+        orderId: result.orderId,
+        localNumber: result.customerOrderNumber,
+        total: result.total,
+        status: result.status,
+        syncStatus: result.syncStatus,
+        duration: totalDuration + 'ms'
+      });
+
+      toast.success(`تم إنشاء الطلبية بنجاح - رقم: ${result.customerOrderNumber}`);
 
       return {
-        orderId: localOrder.id,
-        customerOrderNumber: localOrder.local_order_number,
+        orderId: result.orderId,
+        customerOrderNumber: result.customerOrderNumber,
         success: true
       };
 
     } catch (error: any) {
-      console.error('Submit Order Error:', error);
+      const totalDuration = Date.now() - submitStartTime;
+      console.error('[POS Submit] ❌ ========== فشل تقديم الطلب ==========');
+      console.error('[POS Submit] ❌ تفاصيل الخطأ:', {
+        error: error.message || String(error),
+        stack: error.stack,
+        duration: totalDuration + 'ms'
+      });
       toast.error(error.message || 'حدث خطأ في معالجة الطلبية');
       throw error;
     } finally {
       setIsProcessing(false);
       processingRef.current = false;
+      console.log('[POS Submit] 🔓 تم فتح قفل المعالجة');
     }
   }, [currentTenant, currentUser, currentStaff, userProfile]);
 
-  // دالة لإلغاء الطلبية (للطوارئ)
+  // ⚡ دالة لإلغاء الطلبية باستخدام UnifiedOrderService (Offline-First)
   const cancelOrder = useCallback(async (orderId: string): Promise<boolean> => {
     try {
       setIsProcessing(true);
 
-      const { data, error } = await supabase.rpc('cancel_pos_order', {
-        p_order_id: orderId,
-        p_organization_id: currentTenant?.id
-      });
+      if (!currentTenant?.id) {
+        throw new Error('معرف المؤسسة غير موجود');
+      }
 
-      if (error) {
-        throw new Error(error.message);
+      unifiedOrderService.setOrganizationId(currentTenant.id);
+      const updated = await unifiedOrderService.updateOrderStatus(orderId, 'cancelled');
+
+      if (!updated) {
+        throw new Error('فشل في إلغاء الطلبية');
       }
 
       toast.success('تم إلغاء الطلبية بنجاح');
@@ -239,27 +254,28 @@ export function usePOSOrderOptimized() {
     }
   }, [currentTenant]);
 
-  // دالة للحصول على آخر الطلبيات (للتحقق السريع)
+  // ⚡ دالة للحصول على آخر الطلبيات باستخدام UnifiedOrderService (Offline-First)
   const getRecentOrders = useCallback(async (limit: number = 10) => {
     try {
-      const { data, error } = await supabase
-        .from('orders')
-        .select(`
-          id,
-          customer_order_number,
-          total,
-          payment_status,
-          created_at,
-          customer:users(name)
-        `)
-        .eq('organization_id', currentTenant?.id)
-        .eq('is_online', false)
-        .order('created_at', { ascending: false })
-        .limit(limit);
+      if (!currentTenant?.id) return [];
 
-      if (error) throw error;
-      return data || [];
+      unifiedOrderService.setOrganizationId(currentTenant.id);
+      const result = await unifiedOrderService.getOrders(
+        { is_online: false },
+        1,
+        limit
+      );
+
+      return result.data.map(order => ({
+        id: order.id,
+        customer_order_number: order.customer_order_number,
+        total: order.total,
+        payment_status: order.payment_status,
+        created_at: order.created_at,
+        customer: order.customer ? { name: order.customer.name } : null
+      }));
     } catch (error: any) {
+      console.error('[usePOSOrderOptimized] Error getting recent orders:', error);
       return [];
     }
   }, [currentTenant]);

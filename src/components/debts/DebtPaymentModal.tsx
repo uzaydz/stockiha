@@ -1,7 +1,27 @@
+/**
+ * DebtPaymentModal - Simplified Apple-Inspired Design
+ * ============================================================
+ * Clean and minimal payment recording dialog
+ * Matches the table and details design style
+ * ============================================================
+ */
+
 import React, { useState, useEffect } from 'react';
-import { useTheme } from '@/context/ThemeContext';
-import { XMarkIcon } from '@heroicons/react/24/outline';
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Loader2, Wallet, Check } from 'lucide-react';
 import { DebtOrder } from '@/lib/api/debts';
+import { cn } from '@/lib/utils';
+import { formatPrice } from '@/lib/utils';
+
+// ===============================================================================
+// Types
+// ===============================================================================
 
 interface DebtPaymentModalProps {
   isOpen: boolean;
@@ -10,13 +30,50 @@ interface DebtPaymentModalProps {
   onSubmit: (data: { orderId: string; amountPaid: number; isFullPayment: boolean }) => void;
 }
 
-const DebtPaymentModal: React.FC<DebtPaymentModalProps> = ({ isOpen, onClose, debt, onSubmit }) => {
-  const { theme } = useTheme();
+// ===============================================================================
+// Info Row Component
+// ===============================================================================
+
+interface InfoRowProps {
+  label: string;
+  value: string;
+  highlight?: boolean;
+  valueColor?: 'default' | 'red' | 'green';
+}
+
+const InfoRow = ({ label, value, highlight, valueColor = 'default' }: InfoRowProps) => (
+  <div className={cn(
+    "flex items-center justify-between py-2.5",
+    "border-b border-zinc-100 dark:border-zinc-800 last:border-0"
+  )}>
+    <span className="text-sm text-zinc-500 dark:text-zinc-400">{label}</span>
+    <span className={cn(
+      "text-sm font-numeric",
+      highlight ? "text-lg font-bold" : "font-medium",
+      valueColor === 'red' && "text-red-600 dark:text-red-400",
+      valueColor === 'green' && "text-emerald-600 dark:text-emerald-400",
+      valueColor === 'default' && "text-zinc-900 dark:text-zinc-100"
+    )}>
+      {value}
+    </span>
+  </div>
+);
+
+// ===============================================================================
+// Main Component
+// ===============================================================================
+
+const DebtPaymentModal: React.FC<DebtPaymentModalProps> = ({
+  isOpen,
+  onClose,
+  debt,
+  onSubmit
+}) => {
   const [amount, setAmount] = useState<string>('');
   const [isFullPayment, setIsFullPayment] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   // تعيين المبلغ المتبقي كقيمة افتراضية عند فتح النافذة
   useEffect(() => {
     if (isOpen && debt) {
@@ -25,56 +82,54 @@ const DebtPaymentModal: React.FC<DebtPaymentModalProps> = ({ isOpen, onClose, de
       setError(null);
     }
   }, [isOpen, debt]);
-  
+
   // التحقق من صحة المبلغ المدخل
   const validateAmount = (value: string) => {
     const numValue = parseFloat(value);
     if (isNaN(numValue) || numValue <= 0) {
       return 'يجب إدخال قيمة موجبة';
     }
-    
     if (numValue > debt.remainingAmount) {
       return 'المبلغ المدخل أكبر من المبلغ المتبقي';
     }
-    
     return null;
   };
-  
+
   // معالج تغيير قيمة المبلغ
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
     setAmount(value);
     setError(validateAmount(value));
-    
+
     // تحديث حالة الدفع الكامل بناءً على المبلغ المدخل
     const numValue = parseFloat(value);
     if (!isNaN(numValue) && numValue === debt.remainingAmount) {
       setIsFullPayment(true);
+    } else {
+      setIsFullPayment(false);
     }
   };
-  
+
   // معالج تغيير حالة الدفع الكامل
-  const handleFullPaymentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const checked = e.target.checked;
-    setIsFullPayment(checked);
-    
+  const handleFullPaymentToggle = () => {
+    const newValue = !isFullPayment;
+    setIsFullPayment(newValue);
+
     // تحديث المبلغ بناءً على حالة الدفع الكامل
-    if (checked) {
+    if (newValue) {
       setAmount(debt.remainingAmount.toString());
       setError(null);
     }
   };
-  
+
   // معالج تقديم النموذج
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
+  const handleSubmit = () => {
     const validationError = validateAmount(amount);
     if (validationError) {
       setError(validationError);
       return;
     }
-    
+
     setIsSubmitting(true);
     try {
       const amountPaid = parseFloat(amount);
@@ -88,116 +143,143 @@ const DebtPaymentModal: React.FC<DebtPaymentModalProps> = ({ isOpen, onClose, de
       setIsSubmitting(false);
     }
   };
-  
-  if (!isOpen) return null;
-  
+
+  if (!debt) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black bg-opacity-50">
-      <div className={`w-full max-w-md rounded-lg shadow-lg ${theme === 'dark' ? 'bg-card' : 'bg-white'}`}>
-        {/* رأس النافذة */}
-        <div className="flex justify-between items-center p-4 border-b border-border">
-          <h3 className="text-lg font-semibold text-foreground">تسجيل دفع</h3>
-          <button
-            onClick={onClose}
-            className="text-muted-foreground hover:text-foreground"
-          >
-            <XMarkIcon className="w-5 h-5" />
-          </button>
-        </div>
-        
-        {/* محتوى النافذة */}
-        <div className="p-6">
-          {/* معلومات الطلب */}
-          <div className="mb-6 p-4 rounded-lg bg-muted/30">
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div>
-                <p className="text-muted-foreground">رقم الطلب:</p>
-                <p className="font-medium text-foreground">{debt.orderNumber}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">تاريخ الطلب:</p>
-                <p className="font-medium text-foreground">{debt.date}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">المبلغ الكلي:</p>
-                <p className="font-medium text-foreground">{debt.total.toFixed(2)} دج</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground">المبلغ المدفوع:</p>
-                <p className="font-medium text-foreground">{debt.amountPaid.toFixed(2)} دج</p>
-              </div>
-              <div className="col-span-2">
-                <p className="text-muted-foreground">المبلغ المتبقي:</p>
-                <p className="font-medium text-xl text-red-600 dark:text-red-400">{debt.remainingAmount.toFixed(2)} دج</p>
-              </div>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="sm:max-w-[400px] p-0 gap-0 overflow-hidden bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl">
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-zinc-100 dark:border-zinc-800">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-orange-50 dark:bg-orange-950/50 flex items-center justify-center">
+              <Wallet className="w-5 h-5 text-orange-600 dark:text-orange-400" />
             </div>
-          </div>
-          
-          {/* نموذج تسجيل الدفع */}
-          <form onSubmit={handleSubmit}>
-            {/* مبلغ الدفع */}
-            <div className="mb-4">
-              <label htmlFor="amount" className="block text-sm font-medium text-foreground mb-1">
-                مبلغ الدفع
-              </label>
-              <input
-                type="number"
-                id="amount"
-                value={amount}
-                onChange={handleAmountChange}
-                step="0.01"
-                min="0.01"
-                max={debt.remainingAmount}
-                className="w-full p-2 border border-border rounded-md bg-background focus:ring-primary focus:border-primary"
-                required
-                disabled={isSubmitting}
-              />
-              {error && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{error}</p>
-              )}
-            </div>
-            
-            {/* خيار الدفع الكامل */}
-            <div className="mb-6">
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isFullPayment}
-                  onChange={handleFullPaymentChange}
-                  className="rounded border-border text-primary focus:ring-primary"
-                  disabled={isSubmitting}
-                />
-                <span className="mr-2 rtl:ml-2 rtl:mr-0 text-sm text-foreground">
-                  تسديد كامل المبلغ المتبقي
-                </span>
-              </label>
-              <p className="mt-1 text-xs text-muted-foreground">
-                عند تفعيل هذا الخيار، سيتم تحديث حالة الطلب إلى "مدفوع بالكامل".
+            <div>
+              <DialogTitle className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+                تسجيل دفع
+              </DialogTitle>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                طلب رقم {debt.orderNumber}
               </p>
             </div>
-            
-            {/* أزرار الإجراءات */}
-            <div className="flex justify-end gap-2">
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="px-5 py-3">
+          {/* Order Info */}
+          <div className="mb-4">
+            <p className="text-[10px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wide mb-2">
+              معلومات الطلب
+            </p>
+            <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-3">
+              <InfoRow label="تاريخ الطلب" value={new Date(debt.date).toLocaleDateString('ar-DZ')} />
+              <InfoRow label="المبلغ الكلي" value={formatPrice(debt.total)} />
+              <InfoRow label="المدفوع سابقاً" value={formatPrice(debt.amountPaid)} valueColor="green" />
+              <InfoRow label="المتبقي" value={formatPrice(debt.remainingAmount)} valueColor="red" highlight />
+            </div>
+          </div>
+
+          {/* Payment Form */}
+          <div className="mb-4">
+            <p className="text-[10px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wide mb-2">
+              مبلغ الدفع
+            </p>
+            <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-3 space-y-3">
+              {/* Amount Input */}
+              <div>
+                <Input
+                  type="number"
+                  value={amount}
+                  onChange={handleAmountChange}
+                  step="0.01"
+                  min="0.01"
+                  max={debt.remainingAmount}
+                  disabled={isSubmitting}
+                  dir="ltr"
+                  className={cn(
+                    "h-12 text-lg font-bold text-center rounded-xl",
+                    "border-zinc-200 dark:border-zinc-700",
+                    "focus:border-orange-500 focus:ring-orange-500",
+                    error && "border-red-500 focus:border-red-500 focus:ring-red-500"
+                  )}
+                  placeholder="0.00"
+                />
+                {error && (
+                  <p className="text-xs text-red-500 mt-1.5 text-center">{error}</p>
+                )}
+              </div>
+
+              {/* Full Payment Toggle */}
               <button
                 type="button"
-                onClick={onClose}
+                onClick={handleFullPaymentToggle}
                 disabled={isSubmitting}
-                className="px-4 py-2 border border-border rounded-md text-foreground hover:bg-muted"
+                className={cn(
+                  "w-full flex items-center justify-between p-3 rounded-xl transition-colors",
+                  isFullPayment
+                    ? "bg-orange-50 dark:bg-orange-950/30 border-2 border-orange-500"
+                    : "bg-white dark:bg-zinc-800 border-2 border-zinc-200 dark:border-zinc-700"
+                )}
               >
-                إلغاء
+                <div className="flex items-center gap-2">
+                  <div className={cn(
+                    "w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors",
+                    isFullPayment
+                      ? "border-orange-500 bg-orange-500"
+                      : "border-zinc-300 dark:border-zinc-600"
+                  )}>
+                    {isFullPayment && <Check className="w-3 h-3 text-white" />}
+                  </div>
+                  <span className={cn(
+                    "text-sm font-medium",
+                    isFullPayment
+                      ? "text-orange-600 dark:text-orange-400"
+                      : "text-zinc-600 dark:text-zinc-400"
+                  )}>
+                    تسديد كامل المبلغ المتبقي
+                  </span>
+                </div>
+                <span className="text-sm font-bold font-numeric text-zinc-900 dark:text-zinc-100">
+                  {formatPrice(debt.remainingAmount)}
+                </span>
               </button>
-              <button
-                type="submit"
-                disabled={isSubmitting || Boolean(error)}
-                className="px-4 py-2 bg-primary hover:bg-primary-600 disabled:bg-primary-300 text-white rounded-md"
-              >
-                {isSubmitting ? 'جاري التنفيذ...' : 'تسجيل الدفع'}
-              </button>
+
+              <p className="text-[10px] text-zinc-400 dark:text-zinc-500 text-center">
+                عند تسديد كامل المبلغ، سيتم تحديث حالة الطلب إلى "مدفوع بالكامل"
+              </p>
             </div>
-          </form>
+          </div>
         </div>
-      </div>
-    </div>
+
+        {/* Footer */}
+        <div className="px-5 py-3 bg-zinc-50 dark:bg-zinc-800/30 border-t border-zinc-100 dark:border-zinc-800 flex gap-2">
+          <Button
+            variant="outline"
+            onClick={onClose}
+            disabled={isSubmitting}
+            className="flex-1 h-10 rounded-xl border-zinc-200 dark:border-zinc-700"
+          >
+            إلغاء
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={isSubmitting || Boolean(error)}
+            className="flex-1 h-10 rounded-xl bg-orange-500 hover:bg-orange-600 text-white"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 ml-2 animate-spin" />
+                جاري التسجيل...
+              </>
+            ) : (
+              'تسجيل الدفع'
+            )}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 

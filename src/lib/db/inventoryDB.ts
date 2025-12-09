@@ -1,7 +1,7 @@
 import { fetchProductInventoryDetails, updateVariantInventory } from '@/services/InventoryService';
 import type { InventoryVariantSize, ProductInventoryDetails } from '@/services/InventoryService';
 import type { InventoryItem as LocalInventoryItem, InventoryTransaction as LocalInventoryTransaction } from '@/database/localDb';
-import { sqliteDB } from './sqliteAPI';
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
 
 // إعادة تصدير الأنواع من المصدر الموحد
 export type InventoryItem = LocalInventoryItem;
@@ -30,18 +30,22 @@ export async function getProductStock(productId: string, variantId?: string): Pr
     const normalizedVariantId = variantId ?? null;
     const itemId = createInventoryItemId(productId, normalizedVariantId);
 
-    // البحث في SQLite
-    const result = await sqliteDB.queryOne(
-      'SELECT stock_quantity FROM inventory WHERE id = ?',
-      [itemId]
-    );
-    if (result.data) return result.data.stock_quantity || 0;
+    // البحث في PowerSync
+    if (!powerSyncService.db) {
+      console.warn('[inventoryDB] PowerSync DB not initialized');
+      return 0;
+    }
+    const result = await powerSyncService.queryOne<any>({
+      sql: 'SELECT stock_quantity FROM inventory WHERE id = ?',
+      params: [itemId]
+    });
+    if (result) return result.stock_quantity || 0;
 
-    const result2 = await sqliteDB.queryOne(
-      'SELECT stock_quantity FROM inventory WHERE product_id = ? AND (variant_id = ? OR (variant_id IS NULL AND ? IS NULL))',
-      [productId, normalizedVariantId, normalizedVariantId]
-    );
-    return result2.data?.stock_quantity || 0;
+    const result2 = await powerSyncService.queryOne<any>({
+      sql: 'SELECT stock_quantity FROM inventory WHERE product_id = ? AND (variant_id = ? OR (variant_id IS NULL AND ? IS NULL))',
+      params: [productId, normalizedVariantId, normalizedVariantId]
+    });
+    return result2?.stock_quantity || 0;
   } catch (error) {
     return 0;
   }
@@ -80,48 +84,56 @@ export async function updateProductStock(data: {
   };
 
   // بدء معاملة قاعدة البيانات
-  const result = await sqliteDB.queryOne(
-    'SELECT * FROM inventory WHERE id = ?',
-    [itemId]
-  );
-  let item = result.data;
+  const result = await powerSyncService.queryOne<any>({
+    sql: 'SELECT * FROM inventory WHERE id = ?',
+    params: [itemId]
+  });
+  let item = result;
   if (!item) {
-    const result2 = await sqliteDB.queryOne(
-      'SELECT * FROM inventory WHERE product_id = ? AND (variant_id = ? OR (variant_id IS NULL AND ? IS NULL))',
-      [data.product_id, variantId, variantId]
-    );
+    const result2 = await powerSyncService.queryOne<any>({
+      sql: 'SELECT * FROM inventory WHERE product_id = ? AND (variant_id = ? OR (variant_id IS NULL AND ? IS NULL))',
+      params: [data.product_id, variantId, variantId]
+    });
     item = result2.data;
   }
   const now = new Date().toISOString();
+  
+  // ⚡ استخدام PowerSync مباشرة
+  await powerSyncService.transaction(async (tx) => {
+    // db accessed via tx.execute
+  
   if (item) {
     const newQuantity = Math.max(0, item.stock_quantity + data.quantity);
-    await sqliteDB.upsert('inventory', {
-      id: itemId,
-      product_id: data.product_id,
-      variant_id: variantId,
-      stock_quantity: newQuantity,
-      last_updated: now,
-      synced: 0
-    });
+      await tx.execute(
+      `INSERT OR REPLACE INTO inventory (id, product_id, variant_id, stock_quantity, last_updated, synced) VALUES (?, ?, ?, ?, ?, ?)`,
+      [itemId, data.product_id, variantId, newQuantity, now, 0]
+    );
   } else {
-    await sqliteDB.upsert('inventory', {
-      id: itemId,
-      product_id: data.product_id,
-      variant_id: variantId,
-      stock_quantity: Math.max(0, data.quantity),
-      last_updated: now,
-      synced: 0
-    });
+      await tx.execute(
+      `INSERT OR REPLACE INTO inventory (id, product_id, variant_id, stock_quantity, last_updated, synced) VALUES (?, ?, ?, ?, ?, ?)`,
+      [itemId, data.product_id, variantId, Math.max(0, data.quantity), now, 0]
+    );
   }
 
   // حفظ المعاملة في SQLite (بعد حفظ المخزون)
-  const saveTx = await sqliteDB.upsert('transactions', {
-    ...transaction,
-    timestamp: transaction.timestamp.toISOString(),
-    synced: transaction.synced ? 1 : 0,
-    created_at: transaction.timestamp.toISOString()
+    await tx.execute(
+    `INSERT OR REPLACE INTO transactions (id, product_id, variant_id, quantity, reason, notes, source_id, created_by, timestamp, synced, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      transaction.id,
+      transaction.product_id,
+      transaction.variant_id,
+      transaction.quantity,
+      transaction.reason,
+      transaction.notes || null,
+      transaction.source_id || null,
+      transaction.created_by,
+      transaction.timestamp.toISOString(),
+      transaction.synced ? 1 : 0,
+      transaction.timestamp.toISOString()
+    ]
+  );
   });
-  console.log('[inventoryDB] Saved transaction to SQLite', { success: saveTx.success, id: transaction.id });
+  console.log('[inventoryDB] ⚡ Saved transaction via PowerSync', { id: transaction.id });
 
   return transaction;
 }
@@ -138,11 +150,11 @@ export async function syncInventoryData(): Promise<number> {
     }
 
     // الحصول على العمليات غير المتزامنة
-    const result = await sqliteDB.query(
-      'SELECT * FROM transactions WHERE synced = 0 ORDER BY timestamp ASC',
-      []
-    );
-    const unsyncedTransactions: InventoryTransaction[] = (result.data || []).map((t: any) => ({
+    const result = await powerSyncService.query<any>({
+      sql: 'SELECT * FROM transactions WHERE synced = 0 ORDER BY timestamp ASC',
+      params: []
+    });
+    const unsyncedTransactions: InventoryTransaction[] = (result || []).map((t: any) => ({
       ...t,
       timestamp: new Date(t.timestamp),
       synced: t.synced === 1
@@ -199,19 +211,27 @@ export async function syncInventoryData(): Promise<number> {
           notes: transaction.notes,
         });
 
-        await sqliteDB.upsert('transactions', {
-          ...transaction,
-          synced: 1,
-          timestamp: now.toISOString(),
-        });
+        // ⚡ استخدام PowerSync مباشرة
+        await powerSyncService.transaction(async (tx) => {
+          // db accessed via tx.execute
+          
+          await tx.execute(
+          `UPDATE transactions SET synced = ?, timestamp = ? WHERE id = ?`,
+          [1, now.toISOString(), transaction.id]
+        );
 
-        await sqliteDB.upsert('inventory', {
-          id: createInventoryItemId(transaction.product_id, transaction.variant_id ?? null),
-          product_id: transaction.product_id,
-          variant_id: transaction.variant_id ?? null,
-          stock_quantity: newStock,
-          last_updated: now.toISOString(),
-          synced: 1,
+        const inventoryItemId = createInventoryItemId(transaction.product_id, transaction.variant_id ?? null);
+          await tx.execute(
+          `INSERT OR REPLACE INTO inventory (id, product_id, variant_id, stock_quantity, last_updated, synced) VALUES (?, ?, ?, ?, ?, ?)`,
+          [
+            inventoryItemId,
+            transaction.product_id,
+            transaction.variant_id ?? null,
+            newStock,
+            now.toISOString(),
+            1
+          ]
+        );
         });
 
         syncedCount++;
@@ -221,10 +241,11 @@ export async function syncInventoryData(): Promise<number> {
     }
 
     // تحديث حالة المزامنة لعناصر المخزون
-    await sqliteDB.execute(
-      'UPDATE inventory SET synced = 1 WHERE synced = 0',
-      []
-    );
+    // ⚡ استخدام PowerSync مباشرة
+    await powerSyncService.transaction(async (tx) => {
+      // db accessed via tx.execute
+      await tx.execute('UPDATE inventory SET synced = 1 WHERE synced = 0', []);
+    });
 
     return syncedCount;
   } catch (error) {
@@ -238,11 +259,11 @@ export async function syncInventoryData(): Promise<number> {
  */
 export async function getUnsyncedTransactionsCount(): Promise<number> {
   try {
-    const result = await sqliteDB.query(
-      'SELECT COUNT(*) as count FROM transactions WHERE synced = 0',
-      []
-    );
-    return result.data?.[0]?.count || 0;
+    const result = await powerSyncService.query<any>({
+      sql: 'SELECT COUNT(*) as count FROM transactions WHERE synced = 0',
+      params: []
+    });
+    return result?.[0]?.count || 0;
   } catch (error) {
     return 0;
   }
@@ -266,8 +287,8 @@ export async function getProductTransactions(productId: string, variantId?: stri
       params.push(variantId);
     }
     sql += ' ORDER BY timestamp ASC';
-    const result = await sqliteDB.query(sql, params);
-    return (result.data || []).map((t: any) => ({
+    const result = await powerSyncService.query<any>({ sql, params });
+    return (result || []).map((t: any) => ({
       ...t,
       timestamp: new Date(t.timestamp),
       synced: t.synced === 1
@@ -297,28 +318,34 @@ export async function loadInventoryDataFromServer(): Promise<number> {
 
     const inventoryData = await response.json();
 
-    // حفظ في SQLite
-    await sqliteDB.execute(
-      'DELETE FROM inventory WHERE synced = 1',
-      []
-    );
+    // حفظ في PowerSync
+    await powerSyncService.transaction(async (tx) => {
+      // db accessed via tx.execute
+      
+      await tx.execute('DELETE FROM inventory WHERE synced = 1', []);
+      
     for (const item of inventoryData) {
       const variantId = item.variant_id ?? null;
       const itemId = createInventoryItemId(item.product_id, variantId);
-      const existingResult = await sqliteDB.queryOne(
-        'SELECT synced FROM inventory WHERE id = ?',
-        [itemId]
-      );
-      if (existingResult.data && existingResult.data.synced === 0) continue;
-      await sqliteDB.upsert('inventory', {
-        id: itemId,
-        product_id: item.product_id,
-        variant_id: variantId,
-        stock_quantity: item.stock_quantity || 0,
-        last_updated: item.last_updated || new Date().toISOString(),
-        synced: 1
+      const existingResult = await powerSyncService.queryOne<any>({
+        sql: 'SELECT synced FROM inventory WHERE id = ?',
+        params: [itemId]
       });
+        if (existingResult && existingResult.synced === 0) continue;
+        
+        await tx.execute(
+        `INSERT OR REPLACE INTO inventory (id, product_id, variant_id, stock_quantity, last_updated, synced) VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          itemId,
+          item.product_id,
+          variantId,
+          item.stock_quantity || 0,
+          item.last_updated || new Date().toISOString(),
+          1
+        ]
+      );
     }
+    });
 
     return inventoryData.length;
   } catch (error) {

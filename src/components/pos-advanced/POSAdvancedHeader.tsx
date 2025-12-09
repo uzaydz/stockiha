@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from '@/lib/utils';
 import { SmartAssistantButton } from '@/components/pos/SmartAssistantButton';
+import WorkSessionIndicator from '@/components/pos/WorkSessionIndicator';
 import {
   Undo2,
   Calculator,
@@ -11,7 +12,8 @@ import {
   Wrench,
   DollarSign,
   Store,
-  TrendingUp
+  TrendingUp,
+  AlertTriangle
 } from 'lucide-react';
 
 interface POSAdvancedHeaderProps {
@@ -23,6 +25,10 @@ interface POSAdvancedHeaderProps {
   onRepairOpen: () => void;
   onQuickExpenseOpen: () => void;
   isRepairEnabled: boolean;
+  // ⚡ وضع الخسائر
+  isLossMode?: boolean;
+  lossItemsCount?: number;
+  toggleLossMode?: () => void;
 }
 
 export const POSAdvancedHeader: React.FC<POSAdvancedHeaderProps> = ({
@@ -33,7 +39,11 @@ export const POSAdvancedHeader: React.FC<POSAdvancedHeaderProps> = ({
   onSettingsOpen,
   onRepairOpen,
   onQuickExpenseOpen,
-  isRepairEnabled
+  isRepairEnabled,
+  // ⚡ وضع الخسائر
+  isLossMode = false,
+  lossItemsCount = 0,
+  toggleLossMode
 }) => {
   const isMobile = useIsMobile();
 
@@ -46,7 +56,18 @@ export const POSAdvancedHeader: React.FC<POSAdvancedHeaderProps> = ({
         icon: <Undo2 className="h-4 w-4" strokeWidth={2} />,
         onClick: toggleReturnMode,
         variant: isReturnMode ? 'destructive' as const : 'outline' as const,
+        disabled: isLossMode, // لا يمكن الدخول لوضع الإرجاع أثناء وضع الخسائر
       },
+      // ⚡ زر وضع الخسائر
+      ...(toggleLossMode ? [{
+        key: 'loss',
+        label: isLossMode ? 'إنهاء الخسائر' : 'وضع الخسائر',
+        shortLabel: isLossMode ? 'بيع' : 'خسائر',
+        icon: <AlertTriangle className="h-4 w-4" strokeWidth={2} />,
+        onClick: toggleLossMode,
+        variant: isLossMode ? 'destructive' as const : 'outline' as const,
+        disabled: isReturnMode, // لا يمكن الدخول لوضع الخسائر أثناء وضع الإرجاع
+      }] : []),
       {
         key: 'calculator',
         label: 'آلة حاسبة',
@@ -84,7 +105,7 @@ export const POSAdvancedHeader: React.FC<POSAdvancedHeaderProps> = ({
     ];
 
     return base;
-  }, [isReturnMode, toggleReturnMode, onCalculatorOpen, onSettingsOpen, onRepairOpen, onQuickExpenseOpen, isRepairEnabled]);
+  }, [isReturnMode, isLossMode, toggleReturnMode, toggleLossMode, onCalculatorOpen, onSettingsOpen, onRepairOpen, onQuickExpenseOpen, isRepairEnabled]);
 
   return (
     <div className="relative overflow-hidden bg-card shadow-md">
@@ -103,7 +124,7 @@ export const POSAdvancedHeader: React.FC<POSAdvancedHeaderProps> = ({
                   <h2 className="text-base sm:text-lg font-bold text-foreground tracking-tight">
                     نقطة البيع
                   </h2>
-                  {!isReturnMode && (
+                  {!isReturnMode && !isLossMode && (
                     <Badge className="inline-flex items-center gap-1 sm:gap-1.5 rounded-md bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-0 px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-xs font-semibold">
                       <div className="h-1 w-1 sm:h-1.5 sm:w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                       نشط
@@ -115,38 +136,42 @@ export const POSAdvancedHeader: React.FC<POSAdvancedHeaderProps> = ({
                       إرجاع
                     </Badge>
                   )}
+                  {isLossMode && (
+                    <Badge className="inline-flex items-center gap-1 sm:gap-1.5 rounded-md bg-red-500/15 text-red-600 dark:text-red-400 border-0 px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-xs font-semibold">
+                      <AlertTriangle className="h-2.5 w-2.5 sm:h-3 sm:w-3" strokeWidth={2.5} />
+                      خسائر
+                    </Badge>
+                  )}
                 </div>
                 <p className="text-[11px] sm:text-[13px] text-muted-foreground mt-0.5 sm:mt-1 leading-tight">
-                  {isReturnMode
+                  {isLossMode
+                    ? `تسجيل الخسائر • ${lossItemsCount.toLocaleString('ar-DZ')} عنصر`
+                    : isReturnMode
                     ? `معالجة الإرجاعات • ${returnItemsCount.toLocaleString('ar-DZ')} عنصر`
                     : 'نظام بيع متكامل وسريع'}
                 </p>
               </div>
             </div>
 
-            {/* مؤشر الحالة وزر الذكاء الاصطناعي */}
+            {/* مؤشر الجلسة وزر الذكاء الاصطناعي */}
             <div className="flex items-center gap-2">
+              {/* مؤشر جلسة العمل */}
+              <WorkSessionIndicator compact={isMobile} />
+
               {/* زر المساعد الذكي (شات) */}
               <SmartAssistantButton variant="header" />
-              
-              {/* مؤشر الحالة */}
-              {!isReturnMode && (
-                <div className="hidden lg:flex items-center gap-2 rounded-lg border border-slate-800/40 bg-muted/50 px-3.5 py-2 shrink-0">
-                  <TrendingUp className="h-3.5 w-3.5 text-emerald-500" strokeWidth={2.5} />
-                  <span className="text-xs font-semibold text-foreground">جاهز للبيع</span>
-                </div>
-              )}
             </div>
           </div>
 
           {/* أزرار الإجراءات */}
           <div className="flex flex-wrap gap-2">
-            {actionButtons.map(({ key, label, shortLabel, icon, onClick, variant }) => (
+            {actionButtons.map(({ key, label, shortLabel, icon, onClick, variant, disabled }) => (
               <Button
                 key={key}
                 variant="ghost"
                 size={isMobile ? 'sm' : 'default'}
                 onClick={onClick}
+                disabled={disabled}
                 className={cn(
                   'group relative flex-1 sm:flex-none justify-center gap-1.5 sm:gap-2 rounded-lg border text-xs sm:text-[13px] font-semibold transition-all duration-150',
                   isMobile ? 'min-w-[30%] h-8 px-2' : 'px-4 h-10',
@@ -161,13 +186,26 @@ export const POSAdvancedHeader: React.FC<POSAdvancedHeaderProps> = ({
                     'border-slate-700/50 bg-muted/50 text-foreground',
                     'hover:bg-muted hover:border-slate-600/60'
                   ],
+                  // ⚡ زر الخسائر في وضع نشط
+                  key === 'loss' && isLossMode && [
+                    'border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400',
+                    'hover:bg-red-500/15 hover:border-red-500/40',
+                    'shadow-sm shadow-red-500/10'
+                  ],
+                  // ⚡ زر الخسائر في وضع عادي
+                  key === 'loss' && !isLossMode && [
+                    'border-slate-700/50 bg-muted/50 text-foreground',
+                    'hover:bg-muted hover:border-slate-600/60'
+                  ],
                   // الأزرار الأخرى
-                  key !== 'return' && [
+                  key !== 'return' && key !== 'loss' && [
                     'border-slate-700/50 bg-muted/50 text-foreground',
                     'hover:bg-muted hover:border-slate-600/60'
                   ],
                   // تأثيرات hover عامة
-                  'hover:shadow-sm active:scale-[0.98]'
+                  'hover:shadow-sm active:scale-[0.98]',
+                  // تعطيل
+                  disabled && 'opacity-50 cursor-not-allowed'
                 )}
               >
                 <span className="transition-transform duration-150 group-hover:scale-105">

@@ -8,8 +8,8 @@ import { getFastOrganizationId } from '@/utils/earlyPreload';
 import { getPreloadedProductFromDOM } from '@/utils/productDomPreload';
 import type { TenantContextType } from '@/types/tenant';
 
-// استيراد TenantContext
-import TenantContext from './TenantContext';
+// استيراد TenantContext من TenantProvider
+import { TenantContext } from './TenantProvider';
 
 export const PublicTenantProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // اشتقاق مؤسسة عامة من JSON المحقون أو من النطاق الفرعي

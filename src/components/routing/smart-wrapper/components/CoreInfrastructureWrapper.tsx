@@ -7,12 +7,16 @@ import React from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SupabaseProvider } from "@/context/SupabaseContext";
+import { PowerSyncProvider } from "@/context/PowerSyncProvider";
 import { AuthProvider } from '@/context/AuthContext';
 import { UserProvider } from '@/context/UserContext';
-import { TenantProvider } from '@/context/TenantContext';
+import { TenantProvider } from '@/context/tenant';
 import { AppInitializationProvider } from '@/context/AppInitializationContext';
 import { WorkSessionProvider } from '@/context/WorkSessionContext';
 import { NotificationsProvider } from '@/context/NotificationsContext';
+import { BusinessProfileProvider } from '@/context/BusinessProfileContext';
+import { POSModeProvider } from '@/context/POSModeContext';
+import { POSActionsProvider } from '@/context/POSActionsContext';
 import DesktopTitlebar from '@/components/desktop/DesktopTitlebar';
 import { queryClient } from '@/lib/config/queryClient';
 
@@ -29,12 +33,20 @@ export const CoreInfrastructureWrapper: React.FC<CoreInfrastructureWrapperProps>
             <AppInitializationProvider>
               <UserProvider>
                 <TenantProvider>
-                  <WorkSessionProvider>
-                    <NotificationsProvider>
-                      <DesktopTitlebar />
-                      {children}
-                    </NotificationsProvider>
-                  </WorkSessionProvider>
+                  <BusinessProfileProvider>
+                    <WorkSessionProvider>
+                      <NotificationsProvider>
+                        <PowerSyncProvider>
+                          <POSModeProvider>
+                            <POSActionsProvider>
+                              <DesktopTitlebar />
+                              {children}
+                            </POSActionsProvider>
+                          </POSModeProvider>
+                        </PowerSyncProvider>
+                      </NotificationsProvider>
+                    </WorkSessionProvider>
+                  </BusinessProfileProvider>
                 </TenantProvider>
               </UserProvider>
             </AppInitializationProvider>
@@ -57,12 +69,18 @@ export const MinimalCoreInfrastructureWrapper: React.FC<CoreInfrastructureWrappe
             <AppInitializationProvider>
               <UserProvider>
                 <TenantProvider>
-                  <WorkSessionProvider>
-                    <NotificationsProvider>
-                      <DesktopTitlebar />
-                      {children}
-                    </NotificationsProvider>
-                  </WorkSessionProvider>
+                  <BusinessProfileProvider>
+                    <WorkSessionProvider>
+                      <NotificationsProvider>
+                        <POSModeProvider>
+                          <POSActionsProvider>
+                            <DesktopTitlebar />
+                            {children}
+                          </POSActionsProvider>
+                        </POSModeProvider>
+                      </NotificationsProvider>
+                    </WorkSessionProvider>
+                  </BusinessProfileProvider>
                 </TenantProvider>
               </UserProvider>
             </AppInitializationProvider>

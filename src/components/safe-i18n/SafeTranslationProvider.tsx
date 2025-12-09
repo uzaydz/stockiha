@@ -19,57 +19,51 @@ interface SafeTranslationProviderProps {
 }
 
 /**
- * مزود آمن للترجمة يمنع React Error #310
- * - يضمن استقرار hooks
- * - يوفر fallbacks آمنة
- * - يتعامل مع حالات التحميل
+ * ⚡ مزود آمن للترجمة يمنع React Error #310
+ *
+ * تحسينات v2:
+ * - إزالة timeout الطويل - i18n مهيأ بشكل متزامن الآن
+ * - الجاهزية الفورية عند وجود i18n.isInitialized
+ * - استقرار hooks ومنع re-renders غير ضرورية
  */
 export const SafeTranslationProvider: React.FC<SafeTranslationProviderProps> = ({ children }) => {
-  // ✅ Hook calls في أعلى المكون دائماً
   const { t: originalT, i18n } = useTranslation();
-  const [isReady, setIsReady] = useState(false);
-  const [currentLanguage, setCurrentLanguage] = useState('ar');
 
-  // تتبع حالة الجاهزية
+  // ⚡ تحسين: تهيئة الحالة بناءً على i18n الحالي (synchronous)
+  const [isReady, setIsReady] = useState(() => {
+    // i18n يجب أن يكون مهيأ بالفعل لأن الترجمات مُضمّنة
+    return !!(i18n && i18n.isInitialized);
+  });
+
+  const [currentLanguage, setCurrentLanguage] = useState(() => {
+    return i18n?.language || 'ar';
+  });
+
   useEffect(() => {
-    // ✅ التحقق من صحة i18n instance قبل استخدامه
+    // ✅ التحقق من صحة i18n instance
     const isValidI18n = i18n &&
                         typeof i18n === 'object' &&
                         typeof i18n.on === 'function' &&
                         typeof i18n.off === 'function';
 
     if (!isValidI18n) {
-      console.warn('⚠️ [SafeTranslationProvider] i18n instance غير صحيح، استخدام fallback');
-      setIsReady(true); // ✅ تمكين المكوّن بدلاً من حجبه
+      // console.warn('⚠️ [SafeTranslationProvider] i18n instance غير صحيح، استخدام fallback');
+      setIsReady(true);
       setCurrentLanguage('ar');
       return;
     }
 
-    // 🔥 تحسين: إذا كان i18n مهيأ بالفعل، اجعله جاهز فوراً
-    if (i18n.isInitialized && i18n.language) {
-      setIsReady(true);
-      setCurrentLanguage(i18n.language);
-    } else if (i18n.isInitialized) {
-      // إذا كان مهيأ لكن بدون لغة، استخدم fallback
-      setIsReady(true);
-      setCurrentLanguage('ar');
-    }
-
-    // 🔍 Debug: حالة التهيئة (DEV فقط)
-    if (process.env.NODE_ENV === 'development') {
-      try {
-        console.log('🌐 [SafeTranslationProvider] i18n state', {
-          isInitialized: i18n.isInitialized,
-          language: i18n.language,
-          isReady
-        });
-      } catch {}
+    // ⚡ تحسين: i18n يجب أن يكون جاهز فوراً (الترجمات مُضمّنة)
+    if (i18n.isInitialized) {
+      if (!isReady) setIsReady(true);
+      if (i18n.language && i18n.language !== currentLanguage) {
+        setCurrentLanguage(i18n.language);
+      }
     }
 
     const handleLanguageChange = (lng: string) => {
       setCurrentLanguage(lng || 'ar');
-      // 🔥 تحسين: اجعل الـ provider جاهز فوراً عند تغيير اللغة
-      setIsReady(true);
+      if (!isReady) setIsReady(true);
     };
 
     const handleInitialized = () => {
@@ -81,28 +75,28 @@ export const SafeTranslationProvider: React.FC<SafeTranslationProviderProps> = (
       i18n.on('languageChanged', handleLanguageChange);
       i18n.on('initialized', handleInitialized);
     } catch (error) {
-      console.warn('⚠️ [SafeTranslationProvider] خطأ في تسجيل مستمعي الأحداث:', error);
+      // console.warn('⚠️ [SafeTranslationProvider] خطأ في تسجيل مستمعي الأحداث:', error);
     }
 
-    // 🔥 تحسين: إذا لم يكن جاهز بعد 100ms، اجعله جاهز بالقوة
-    const forceReadyTimeout = setTimeout(() => {
+    // ⚡ تحسين: timeout قصير جداً (10ms) فقط كشبكة أمان
+    // في الحالة الطبيعية، i18n سيكون جاهز قبل هذا
+    const safetyTimeout = setTimeout(() => {
       if (!isReady) {
-        console.log('🌐 [SafeTranslationProvider] فرض الجاهزية بعد timeout');
         setIsReady(true);
         setCurrentLanguage(i18n.language || 'ar');
       }
-    }, 100); // تقليل من 300ms إلى 100ms لتسريع أكبر
+    }, 10);
 
     return () => {
-      clearTimeout(forceReadyTimeout);
+      clearTimeout(safetyTimeout);
       try {
         i18n.off('languageChanged', handleLanguageChange);
         i18n.off('initialized', handleInitialized);
-      } catch (error) {
-        console.warn('⚠️ [SafeTranslationProvider] خطأ في إزالة مستمعي الأحداث:', error);
+      } catch {
+        // تجاهل
       }
     };
-  }, [i18n]);
+  }, [i18n, isReady, currentLanguage]);
 
   // دالة ترجمة آمنة مع fallbacks
   const safeT = useMemo(() => {

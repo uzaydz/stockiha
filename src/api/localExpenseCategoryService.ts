@@ -1,12 +1,12 @@
 /**
  * localExpenseCategoryService - خدمة فئات المصروفات المحلية
  *
- * ⚡ تم التحديث لاستخدام Delta Sync بالكامل
+ * ⚡ تم التحديث لاستخدام PowerSync
  */
 
 import { v4 as uuidv4 } from 'uuid';
 import type { LocalExpenseCategory } from '@/database/localDb';
-import { deltaWriteService } from '@/services/DeltaWriteService';
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
 
 const orgId = () => (
   localStorage.getItem('currentOrganizationId') ||
@@ -16,8 +16,11 @@ const orgId = () => (
 
 export const listLocalExpenseCategories = async (): Promise<LocalExpenseCategory[]> => {
   const id = orgId();
-  // ⚡ استخدام Delta Sync
-  return deltaWriteService.getAll<LocalExpenseCategory>('expense_categories' as any, id);
+  // ⚡ استخدام PowerSync
+  return powerSyncService.query<LocalExpenseCategory>({
+    sql: 'SELECT * FROM expense_categories WHERE organization_id = ?',
+    params: [id]
+  });
 };
 
 export const createLocalExpenseCategory = async (name: string, description?: string, icon?: string): Promise<LocalExpenseCategory> => {
@@ -33,18 +36,28 @@ export const createLocalExpenseCategory = async (name: string, description?: str
     icon: icon || null,
     created_at: now,
     updated_at: now,
-    synced: false,
-    pendingOperation: 'create'
-  };
+  } as LocalExpenseCategory;
 
-  // ⚡ استخدام Delta Sync
-  await deltaWriteService.create('expense_categories' as any, rec, organizationId);
+  // ⚡ استخدام PowerSync
+  await powerSyncService.transaction(async (tx) => {
+    await tx.execute(
+      'INSERT INTO expense_categories (id, organization_id, name, description, icon, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [id, organizationId, name, description || null, icon || null, now, now]
+    );
+  });
   return rec;
 };
 
 export const updateLocalExpenseCategory = async (id: string, patch: Partial<Pick<LocalExpenseCategory, 'name' | 'description' | 'icon'>>): Promise<LocalExpenseCategory | null> => {
-  // ⚡ استخدام Delta Sync
-  const cur = await deltaWriteService.get<LocalExpenseCategory>('expense_categories' as any, id);
+  // ⚡ استخدام PowerSync
+  if (!powerSyncService.db) {
+    console.warn('[localExpenseCategoryService] PowerSync DB not initialized');
+    return null;
+  }
+  const cur = await powerSyncService.queryOne<LocalExpenseCategory>({
+    sql: 'SELECT * FROM expense_categories WHERE id = ?',
+    params: [id]
+  });
   if (!cur) return null;
 
   const now = new Date().toISOString();
@@ -52,44 +65,65 @@ export const updateLocalExpenseCategory = async (id: string, patch: Partial<Pick
     ...cur,
     ...patch,
     updated_at: now,
-    synced: false,
-    pendingOperation: cur.pendingOperation === 'create' ? 'create' : 'update'
-  };
+  } as LocalExpenseCategory;
 
-  await deltaWriteService.update('expense_categories' as any, id, next);
+  await powerSyncService.transaction(async (tx) => {
+    const updates: string[] = [];
+    const values: any[] = [];
+    
+    if (patch.name !== undefined) {
+      updates.push('name = ?');
+      values.push(patch.name);
+    }
+    if (patch.description !== undefined) {
+      updates.push('description = ?');
+      values.push(patch.description);
+    }
+    if (patch.icon !== undefined) {
+      updates.push('icon = ?');
+      values.push(patch.icon);
+    }
+    
+    if (updates.length > 0) {
+      await tx.execute(
+        `UPDATE expense_categories SET ${updates.join(', ')}, updated_at = ? WHERE id = ?`,
+        [...values, now, id]
+      );
+    }
+  });
   return next;
 };
 
 export const deleteLocalExpenseCategory = async (id: string): Promise<boolean> => {
-  // ⚡ استخدام Delta Sync
-  const cur = await deltaWriteService.get<LocalExpenseCategory>('expense_categories' as any, id);
+  // ⚡ استخدام PowerSync
+  if (!powerSyncService.db) {
+    console.warn('[localExpenseCategoryService] PowerSync DB not initialized');
+    return null;
+  }
+  const cur = await powerSyncService.queryOne<LocalExpenseCategory>({
+    sql: 'SELECT * FROM expense_categories WHERE id = ?',
+    params: [id]
+  });
   if (!cur) return false;
 
-  await deltaWriteService.update('expense_categories' as any, id, {
-    synced: false,
-    pendingOperation: 'delete',
-    updated_at: new Date().toISOString()
+  await powerSyncService.transaction(async (tx) => {
+    await tx.execute('DELETE FROM expense_categories WHERE id = ?', [id]);
   });
   return true;
 };
 
 export const getUnsyncedExpenseCategories = async (): Promise<LocalExpenseCategory[]> => {
+  // ⚡ PowerSync يتعامل مع المزامنة تلقائياً
   const id = orgId();
-  // ⚡ استخدام Delta Sync
-  return deltaWriteService.getAll<LocalExpenseCategory>('expense_categories' as any, id, {
-    where: 'synced = 0 OR synced IS NULL'
+  return powerSyncService.query<LocalExpenseCategory>({
+    sql: 'SELECT * FROM expense_categories WHERE organization_id = ?',
+    params: [id]
   });
 };
 
 export const updateExpenseCategorySyncStatus = async (id: string, synced: boolean) => {
-  // ⚡ استخدام Delta Sync
-  const cur = await deltaWriteService.get<LocalExpenseCategory>('expense_categories' as any, id);
-  if (!cur) return;
-
-  await deltaWriteService.update('expense_categories' as any, id, {
-    synced,
-    pendingOperation: synced ? undefined : cur.pendingOperation
-  });
+  // ⚡ PowerSync يتعامل مع المزامنة تلقائياً - هذه الدالة للتوافق فقط
+  console.log(`[LocalExpenseCategory] updateExpenseCategorySyncStatus called - PowerSync handles sync automatically`);
 };
 
 // =====================
@@ -110,11 +144,14 @@ export const saveRemoteExpenseCategories = async (categories: any[]): Promise<vo
       icon: category.icon,
       created_at: category.created_at || now,
       updated_at: category.updated_at || now,
-      synced: true,
-      pendingOperation: undefined,
-    };
+    } as LocalExpenseCategory;
 
-    await deltaWriteService.saveFromServer('expense_categories' as any, mappedCategory);
+    await powerSyncService.transaction(async (tx) => {
+      await tx.execute(
+        'INSERT OR REPLACE INTO expense_categories (id, organization_id, name, description, icon, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [mappedCategory.id, mappedCategory.organization_id, mappedCategory.name, mappedCategory.description || null, mappedCategory.icon || null, mappedCategory.created_at, mappedCategory.updated_at]
+      );
+    });
   }
 
   console.log(`[LocalExpenseCategory] ⚡ Saved ${categories.length} remote categories`);

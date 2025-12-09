@@ -1,0 +1,1320 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🚀 BAZAAR CONSOLE - POWERSYNC SYNC RULES
+# ═══════════════════════════════════════════════════════════════════════════════
+# 
+# ⚠️ هام جداً: 
+# 1. انسخ هذا المحتوى بالكامل
+# 2. اذهب إلى PowerSync Dashboard → Sync Rules
+# 3. الصق المحتوى واضغط DEPLOY
+#
+# 📌 ملاحظات:
+# - جميع الجداول مفلترة بـ organization_id لأمان البيانات (Multi-Tenant)
+# - يستخدم token_parameters.user_id و token_parameters.organization_id من JWT
+# - تم تحسين الأداء باختيار الحقول المطلوبة فقط
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 📦 BUCKET: كل بيانات المؤسسة
+# ═══════════════════════════════════════════════════════════════════════════════
+bucket_definitions:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # 🏢 Organization Data Bucket
+  # ─────────────────────────────────────────────────────────────────────────────
+  organization_data:
+    # التحقق من المؤسسة
+    parameters:
+      - SELECT 
+          token_parameters.organization_id as org_id
+        WHERE token_parameters.organization_id IS NOT NULL
+
+    data:
+      # ═══════════════════════════════════════════════════════════════════════
+      # 🏢 ORGANIZATIONS - معلومات المؤسسة
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          name,
+          description,
+          logo_url,
+          domain,
+          subdomain,
+          subscription_tier,
+          subscription_status,
+          settings,
+          owner_id,
+          subscription_id,
+          online_orders_this_month,
+          online_orders_limit,
+          store_blocked,
+          store_block_reason,
+          business_type,
+          business_features,
+          business_type_selected,
+          business_type_selected_at,
+          created_at,
+          updated_at
+        FROM organizations
+        WHERE id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # ⚙️ ORGANIZATION_SETTINGS - إعدادات المؤسسة
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          organization_id,
+          theme_primary_color,
+          theme_secondary_color,
+          theme_mode,
+          site_name,
+          custom_css,
+          logo_url,
+          favicon_url,
+          default_language,
+          enable_registration,
+          enable_public_site,
+          display_text_with_logo,
+          merchant_type,
+          created_at,
+          updated_at
+        FROM organization_settings
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 🖨️ POS_SETTINGS - إعدادات نقطة البيع
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          organization_id,
+          store_name,
+          store_phone,
+          store_email,
+          store_address,
+          store_website,
+          store_logo_url,
+          receipt_header_text,
+          receipt_footer_text,
+          welcome_message,
+          show_qr_code,
+          show_tracking_code,
+          show_customer_info,
+          show_store_logo,
+          show_store_info,
+          show_date_time,
+          show_employee_name,
+          paper_width,
+          font_size,
+          line_spacing,
+          print_density,
+          auto_cut,
+          primary_color,
+          secondary_color,
+          text_color,
+          background_color,
+          receipt_template,
+          header_style,
+          footer_style,
+          item_display_style,
+          price_position,
+          tax_label,
+          currency_symbol,
+          currency_position,
+          allow_price_edit,
+          require_manager_approval,
+          business_license,
+          tax_number,
+          activity,
+          rc,
+          nif,
+          nis,
+          rib,
+          created_at,
+          updated_at
+        FROM pos_settings
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 👥 USERS - المستخدمين والموظفين
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          email,
+          name,
+          phone,
+          role,
+          permissions,
+          is_active,
+          organization_id,
+          is_org_admin,
+          whatsapp_phone,
+          whatsapp_connected,
+          whatsapp_enabled,
+          auth_user_id,
+          is_super_admin,
+          avatar_url,
+          first_name,
+          last_name,
+          job_title,
+          bio,
+          birth_date,
+          gender,
+          address,
+          city,
+          country,
+          last_activity_at,
+          status,
+          created_at,
+          updated_at
+        FROM users
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 📦 PRODUCTS - المنتجات (الجدول الأساسي)
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          name,
+          description,
+          price,
+          compare_at_price,
+          sku,
+          barcode,
+          category,
+          subcategory,
+          brand,
+          images,
+          thumbnail_image,
+          stock_quantity,
+          features,
+          specifications,
+          is_digital,
+          is_new,
+          is_featured,
+          purchase_price,
+          category_id,
+          subcategory_id,
+          min_stock_level,
+          reorder_level,
+          reorder_quantity,
+          organization_id,
+          slug,
+          has_variants,
+          show_price_on_landing,
+          wholesale_price,
+          partial_wholesale_price,
+          min_wholesale_quantity,
+          min_partial_wholesale_quantity,
+          allow_retail,
+          allow_wholesale,
+          allow_partial_wholesale,
+          last_inventory_update,
+          is_active,
+          use_sizes,
+          has_fast_shipping,
+          has_money_back,
+          has_quality_guarantee,
+          is_sold_by_unit,
+          unit_type,
+          use_variant_prices,
+          unit_purchase_price,
+          unit_sale_price,
+          shipping_clone_id,
+          name_for_shipping,
+          form_template_id,
+          shipping_provider_id,
+          use_shipping_clone,
+          shipping_method_type,
+          special_offers_config,
+          advanced_description,
+          publication_status,
+          publish_at,
+          published_at,
+          sell_by_weight,
+          weight_unit,
+          min_weight_per_sale,
+          max_weight_per_sale,
+          price_per_weight_unit,
+          purchase_price_per_weight_unit,
+          average_item_weight,
+          sell_by_box,
+          units_per_box,
+          box_price,
+          box_purchase_price,
+          box_barcode,
+          allow_single_unit_sale,
+          sell_by_meter,
+          meter_unit,
+          price_per_meter,
+          purchase_price_per_meter,
+          min_meters_per_sale,
+          roll_length_meters,
+          track_expiry,
+          default_expiry_days,
+          expiry_alert_days,
+          track_serial_numbers,
+          require_serial_on_sale,
+          has_warranty,
+          warranty_duration_months,
+          warranty_type,
+          track_batches,
+          use_fifo,
+          tax_rate,
+          tax_included,
+          supplier_id,
+          manufacturer,
+          country_of_origin,
+          available_weight,
+          total_weight_purchased,
+          available_length,
+          total_meters_purchased,
+          available_boxes,
+          total_boxes_purchased,
+          created_at,
+          updated_at
+        FROM products
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # ⚠️ ملاحظة: الجداول الفرعية (product_colors, product_sizes, product_images, product_advanced_settings)
+      # تم إزالتها لأنها لا تحتوي على organization_id مباشرة
+      # يجب إضافة organization_id إلى هذه الجداول في قاعدة البيانات أولاً
+      # ═══════════════════════════════════════════════════════════════════════
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 📁 PRODUCT_CATEGORIES - فئات المنتجات
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          name,
+          description,
+          slug,
+          icon,
+          is_active,
+          organization_id,
+          type,
+          image_url,
+          created_at,
+          updated_at
+        FROM product_categories
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 📂 PRODUCT_SUBCATEGORIES - فئات فرعية
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          category_id,
+          name,
+          description,
+          slug,
+          is_active,
+          organization_id,
+          created_at,
+          updated_at
+        FROM product_subcategories
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 🛒 ORDERS - طلبات نقطة البيع (POS)
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          customer_id,
+          subtotal,
+          tax,
+          discount,
+          total,
+          status,
+          payment_method,
+          payment_status,
+          shipping_address_id,
+          shipping_method,
+          shipping_cost,
+          notes,
+          is_online,
+          employee_id,
+          organization_id,
+          slug,
+          customer_order_number,
+          amount_paid,
+          remaining_amount,
+          consider_remaining_as_partial,
+          metadata,
+          pos_order_type,
+          completed_at,
+          customer_notes,
+          admin_notes,
+          call_confirmation_status_id,
+          global_order_number,
+          created_by_staff_id,
+          created_by_staff_name,
+          created_at,
+          updated_at
+        FROM orders
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 📝 ORDER_ITEMS - عناصر الطلبات
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          oi.id,
+          oi.order_id,
+          oi.product_id,
+          oi.product_name,
+          oi.quantity,
+          oi.unit_price,
+          oi.total_price,
+          oi.is_digital,
+          oi.organization_id,
+          oi.slug,
+          oi.name,
+          oi.is_wholesale,
+          oi.original_price,
+          oi.variant_info,
+          oi.color_id,
+          oi.size_id,
+          oi.color_name,
+          oi.size_name,
+          oi.variant_display_name,
+          oi.sale_type,
+          oi.selling_unit_type,
+          oi.weight_sold,
+          oi.weight_unit,
+          oi.price_per_weight_unit,
+          oi.meters_sold,
+          oi.price_per_meter,
+          oi.boxes_sold,
+          oi.units_per_box,
+          oi.box_price,
+          oi.batch_id,
+          oi.batch_number,
+          oi.expiry_date,
+          oi.serial_numbers,
+          oi.created_at
+        FROM order_items oi
+        WHERE oi.organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 🌐 ONLINE_ORDERS - الطلبات الإلكترونية
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          customer_id,
+          subtotal,
+          tax,
+          discount,
+          total,
+          status,
+          payment_method,
+          payment_status,
+          shipping_address_id,
+          shipping_method,
+          shipping_cost,
+          notes,
+          employee_id,
+          organization_id,
+          slug,
+          customer_order_number,
+          form_data,
+          shipping_option,
+          created_from,
+          call_confirmation_status_id,
+          call_confirmation_notes,
+          call_confirmation_updated_at,
+          call_confirmation_updated_by,
+          metadata,
+          stop_desk_id,
+          zrexpress_tracking_id,
+          yalidine_tracking_id,
+          ecotrack_tracking_id,
+          shipping_provider,
+          maystro_tracking_id,
+          tracking_data,
+          last_status_update,
+          delivered_at,
+          current_location,
+          estimated_delivery_date,
+          assigned_agent_id,
+          agent_priority,
+          call_attempts,
+          last_call_attempt,
+          next_call_scheduled,
+          assignment_timestamp,
+          call_center_priority,
+          call_center_notes,
+          yalidine_label_url,
+          zrexpress_label_url,
+          ecotrack_label_url,
+          maystro_label_url,
+          global_order_number,
+          created_at,
+          updated_at
+        FROM online_orders
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 📝 ONLINE_ORDER_ITEMS - عناصر الطلبات الإلكترونية
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          order_id,
+          product_id,
+          product_name,
+          quantity,
+          unit_price,
+          total_price,
+          is_digital,
+          organization_id,
+          slug,
+          name,
+          color_id,
+          color_name,
+          size_id,
+          size_name,
+          selected_price,
+          created_at,
+          updated_at
+        FROM online_order_items
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 👤 CUSTOMERS - العملاء
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          name,
+          email,
+          phone,
+          organization_id,
+          nif,
+          rc,
+          nis,
+          rib,
+          address,
+          created_at,
+          updated_at
+        FROM customers
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 👤 GUEST_CUSTOMERS - العملاء الزوار
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          name,
+          phone,
+          organization_id,
+          created_at
+        FROM guest_customers
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 📍 ADDRESSES - العناوين
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          user_id,
+          name,
+          street_address,
+          city,
+          state,
+          postal_code,
+          country,
+          phone,
+          is_default,
+          organization_id,
+          customer_id,
+          municipality
+        FROM addresses
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 💰 TRANSACTIONS - المعاملات المالية
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          order_id,
+          amount,
+          type,
+          payment_method,
+          description,
+          employee_id,
+          organization_id,
+          slug,
+          created_at
+        FROM transactions
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 📊 INVENTORY_LOG - سجل المخزون
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          product_id,
+          quantity,
+          previous_stock,
+          new_stock,
+          type,
+          reference_id,
+          reference_type,
+          notes,
+          created_by,
+          organization_id,
+          order_id,
+          created_at
+        FROM inventory_log
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 📦 INVENTORY_BATCHES - دفعات المخزون
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          product_id,
+          batch_number,
+          supplier_id,
+          purchase_date,
+          purchase_price,
+          selling_price,
+          quantity_received,
+          quantity_remaining,
+          expiry_date,
+          location,
+          notes,
+          cost_per_unit,
+          is_active,
+          organization_id,
+          created_by,
+          supplier_purchase_item_id,
+          color_id,
+          size_id,
+          variant_type,
+          variant_display_name,
+          created_at,
+          updated_at
+        FROM inventory_batches
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 📦 INVENTORY_BATCH_MOVEMENTS - حركات دفعات المخزون
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          batch_id,
+          movement_type,
+          quantity,
+          reference_type,
+          reference_id,
+          notes,
+          created_by,
+          organization_id,
+          created_at
+        FROM inventory_batch_movements
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 📜 INVENTORY_HISTORY - تاريخ حركات المخزون
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          organization_id,
+          product_id,
+          movement_type,
+          unit_type,
+          quantity_pieces,
+          quantity_weight,
+          quantity_meters,
+          quantity_boxes,
+          balance_before_pieces,
+          balance_after_pieces,
+          balance_before_weight,
+          balance_after_weight,
+          balance_before_meters,
+          balance_after_meters,
+          balance_before_boxes,
+          balance_after_boxes,
+          color_id,
+          size_id,
+          batch_id,
+          batch_number,
+          expiry_date,
+          serial_numbers,
+          reference_type,
+          reference_id,
+          unit_cost,
+          total_value,
+          notes,
+          created_by,
+          synced,
+          sync_id,
+          created_at,
+          updated_at
+        FROM inventory_history
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 💸 EXPENSES - المصروفات
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          organization_id,
+          title,
+          amount,
+          expense_date,
+          description,
+          category,
+          payment_method,
+          receipt_url,
+          created_by,
+          is_recurring,
+          status,
+          source,
+          category_id,
+          tags,
+          reference_number,
+          metadata,
+          is_deleted,
+          deleted_at,
+          created_at,
+          updated_at
+        FROM expenses
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 📁 EXPENSE_CATEGORIES - فئات المصروفات
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          organization_id,
+          name,
+          description,
+          color,
+          icon,
+          is_default,
+          created_at,
+          updated_at
+        FROM expense_categories
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 🏭 SUPPLIERS - الموردين
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          name,
+          company_name,
+          email,
+          phone,
+          address,
+          website,
+          tax_number,
+          business_type,
+          notes,
+          rating,
+          supplier_type,
+          supplier_category,
+          is_active,
+          organization_id,
+          created_by,
+          updated_by,
+          created_at,
+          updated_at
+        FROM suppliers
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 📋 SUPPLIER_PURCHASES - مشتريات الموردين
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          purchase_number,
+          supplier_id,
+          purchase_date,
+          due_date,
+          total_amount,
+          paid_amount,
+          balance_due,
+          status,
+          payment_status,
+          payment_terms,
+          notes,
+          organization_id,
+          created_by,
+          updated_by,
+          created_at,
+          updated_at
+        FROM supplier_purchases
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # ⚠️ ملاحظة: supplier_purchase_items تم إزالتها
+      # لأنها لا تحتوي على organization_id مباشرة
+      # ═══════════════════════════════════════════════════════════════════════
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 🔧 SERVICES - الخدمات
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          name,
+          description,
+          price,
+          estimated_time,
+          category,
+          image,
+          is_available,
+          is_price_dynamic,
+          organization_id,
+          slug,
+          created_at,
+          updated_at
+        FROM services
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 📅 SERVICE_BOOKINGS - حجوزات الخدمات
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          order_id,
+          service_id,
+          service_name,
+          price,
+          scheduled_date,
+          notes,
+          status,
+          assigned_to,
+          completed_at,
+          customer_id,
+          customer_name,
+          public_tracking_code,
+          organization_id,
+          slug,
+          customer_phone,
+          repair_location_id
+        FROM service_bookings
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 📊 SERVICE_PROGRESS - تقدم الخدمات
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          service_booking_id,
+          status,
+          note,
+          timestamp,
+          created_by,
+          organization_id,
+          slug
+        FROM service_progress
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 🛠️ REPAIR_ORDERS - طلبات التصليح
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          organization_id,
+          customer_name,
+          customer_phone,
+          repair_location_id,
+          custom_location,
+          issue_description,
+          repair_images,
+          total_price,
+          paid_amount,
+          payment_method,
+          order_number,
+          received_by,
+          status,
+          completed_at,
+          notes,
+          repair_tracking_code,
+          price_to_be_determined_later,
+          device_type,
+          created_at,
+          updated_at
+        FROM repair_orders
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 📍 REPAIR_LOCATIONS - مواقع التصليح
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          organization_id,
+          name,
+          description,
+          address,
+          phone,
+          email,
+          is_active,
+          is_default,
+          capacity,
+          working_hours,
+          specialties,
+          manager_name,
+          created_at,
+          updated_at
+        FROM repair_locations
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # ↩️ RETURNS - المرتجعات
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          return_number,
+          original_order_id,
+          original_order_number,
+          customer_id,
+          customer_name,
+          customer_phone,
+          customer_email,
+          return_type,
+          return_reason,
+          return_reason_description,
+          original_total,
+          return_amount,
+          refund_amount,
+          restocking_fee,
+          status,
+          approved_by,
+          approved_at,
+          processed_by,
+          processed_at,
+          refund_method,
+          notes,
+          internal_notes,
+          requires_manager_approval,
+          organization_id,
+          created_by,
+          approval_notes,
+          rejection_reason,
+          rejected_by,
+          rejected_at,
+          created_at,
+          updated_at
+        FROM returns
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # ⚠️ ملاحظة: return_items تم إزالتها
+      # لأنها لا تحتوي على organization_id مباشرة
+      # ═══════════════════════════════════════════════════════════════════════
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # ❌ LOSSES - الخسائر
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          loss_number,
+          loss_type,
+          loss_category,
+          loss_description,
+          incident_date,
+          reported_by,
+          witness_employee_id,
+          witness_name,
+          requires_manager_approval,
+          approved_by,
+          approved_at,
+          approval_notes,
+          status,
+          total_cost_value,
+          total_selling_value,
+          total_items_count,
+          location_description,
+          external_reference,
+          insurance_claim,
+          insurance_reference,
+          notes,
+          internal_notes,
+          organization_id,
+          processed_at,
+          created_at,
+          updated_at
+        FROM losses
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # ⚠️ ملاحظة: loss_items تم إزالتها
+      # لأنها لا تحتوي على organization_id مباشرة
+      # ═══════════════════════════════════════════════════════════════════════
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 📊 CALL_CONFIRMATION_STATUSES - حالات تأكيد المكالمات
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          name,
+          organization_id,
+          color,
+          icon,
+          is_default,
+          created_at,
+          updated_at
+        FROM call_confirmation_statuses
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 🛒 ABANDONED_CARTS - السلات المتروكة
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          organization_id,
+          product_id,
+          product_color_id,
+          product_size_id,
+          quantity,
+          customer_name,
+          customer_phone,
+          customer_email,
+          province,
+          municipality,
+          address,
+          delivery_option,
+          payment_method,
+          notes,
+          custom_fields_data,
+          calculated_delivery_fee,
+          subtotal,
+          discount_amount,
+          total_amount,
+          status,
+          last_activity_at,
+          cart_items,
+          source,
+          recovered_at,
+          recovered_by,
+          recovered_order_id,
+          created_at,
+          updated_at
+        FROM abandoned_carts
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 🚫 BLOCKED_CUSTOMERS - العملاء المحظورين
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          organization_id,
+          phone_raw,
+          phone_normalized,
+          name,
+          reason,
+          source,
+          created_by,
+          created_at,
+          updated_at
+        FROM blocked_customers
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 👨‍💼 POS_STAFF_SESSIONS - جلسات موظفي نقطة البيع
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          organization_id,
+          staff_name,
+          pin_code,
+          permissions,
+          is_active,
+          created_by,
+          last_login,
+          user_id,
+          created_at,
+          updated_at
+        FROM pos_staff_sessions
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 🕐 STAFF_WORK_SESSIONS - جلسات عمل الموظفين
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          organization_id,
+          staff_id,
+          staff_name,
+          opening_cash,
+          closing_cash,
+          expected_cash,
+          cash_difference,
+          total_sales,
+          total_orders,
+          cash_sales,
+          card_sales,
+          started_at,
+          ended_at,
+          paused_at,
+          resumed_at,
+          pause_count,
+          total_pause_duration,
+          status,
+          opening_notes,
+          closing_notes,
+          created_at,
+          updated_at
+        FROM staff_work_sessions
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 🔔 NOTIFICATIONS - الإشعارات
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          organization_id,
+          type,
+          title,
+          message,
+          priority,
+          is_read,
+          entity_type,
+          entity_id,
+          metadata,
+          created_at,
+          updated_at
+        FROM notifications
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # ⚠️ ملاحظة: subscription_plans تم إزالتها
+      # لأنها لا تحتوي على organization_id ولا يمكن استخدام bucket.org_id فيها
+      # ═══════════════════════════════════════════════════════════════════════
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 📋 ORGANIZATION_SUBSCRIPTIONS - اشتراكات المؤسسة
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          organization_id,
+          plan_id,
+          status,
+          billing_cycle,
+          start_date,
+          end_date,
+          trial_ends_at,
+          amount_paid,
+          currency,
+          payment_method,
+          payment_reference,
+          is_auto_renew,
+          lifetime_courses_access,
+          accessible_courses,
+          courses_access_expires_at,
+          created_at,
+          updated_at
+        FROM organization_subscriptions
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 🏷️ FORM_SETTINGS - إعدادات النماذج
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          organization_id,
+          name,
+          fields,
+          product_ids,
+          is_default,
+          is_active,
+          deleted_at,
+          created_by,
+          version,
+          slug,
+          settings,
+          created_at,
+          updated_at
+        FROM form_settings
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 🏪 STORE_SETTINGS - إعدادات المتجر
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          organization_id,
+          component_type,
+          settings,
+          is_active,
+          order_index,
+          settings_hash,
+          created_at,
+          updated_at
+        FROM store_settings
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 🚚 SHIPPING_PROVIDER_CLONES - نسخ مزودي الشحن
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          organization_id,
+          original_provider_id,
+          name,
+          is_active,
+          is_home_delivery_enabled,
+          is_desk_delivery_enabled,
+          use_unified_price,
+          unified_home_price,
+          unified_desk_price,
+          is_free_delivery_home,
+          is_free_delivery_desk,
+          api_token,
+          api_key,
+          sync_enabled,
+          created_at,
+          updated_at
+        FROM shipping_provider_clones
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # ⚠️ ملاحظة: product_images و product_advanced_settings تم إزالتها
+      # لأنها لا تحتوي على organization_id مباشرة
+      # ═══════════════════════════════════════════════════════════════════════
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 📜 ORDER_STATUS_HISTORY - سجل حالات الطلبات
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          order_id,
+          status,
+          previous_status,
+          changed_at,
+          tracking_data,
+          source,
+          notes,
+          location,
+          organization_id,
+          created_at,
+          updated_at
+        FROM order_status_history
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 🏷️ THANK_YOU_TEMPLATES - قوالب صفحات الشكر
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          name,
+          organization_id,
+          layout_type,
+          color_scheme,
+          custom_colors,
+          content,
+          is_active,
+          is_default,
+          applies_to,
+          product_ids,
+          created_at,
+          updated_at
+        FROM thank_you_templates
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 📊 PRODUCT_MARKETING_SETTINGS - إعدادات تسويق المنتجات
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          pms.id,
+          pms.product_id,
+          pms.organization_id,
+          pms.enable_reviews,
+          pms.reviews_verify_purchase,
+          pms.reviews_auto_approve,
+          pms.allow_images_in_reviews,
+          pms.enable_review_replies,
+          pms.review_display_style,
+          pms.enable_fake_star_ratings,
+          pms.fake_star_rating_value,
+          pms.fake_star_rating_count,
+          pms.enable_fake_purchase_counter,
+          pms.fake_purchase_count,
+          pms.enable_facebook_pixel,
+          pms.facebook_pixel_id,
+          pms.facebook_standard_events,
+          pms.facebook_advanced_matching_enabled,
+          pms.facebook_conversations_api_enabled,
+          pms.facebook_access_token,
+          pms.facebook_test_event_code,
+          pms.enable_tiktok_pixel,
+          pms.tiktok_pixel_id,
+          pms.tiktok_standard_events,
+          pms.tiktok_advanced_matching_enabled,
+          pms.tiktok_events_api_enabled,
+          pms.tiktok_access_token,
+          pms.tiktok_test_event_code,
+          pms.offer_timer_enabled,
+          pms.offer_timer_title,
+          pms.offer_timer_type,
+          pms.offer_timer_end_date,
+          pms.offer_timer_duration_minutes,
+          pms.offer_timer_display_style,
+          pms.enable_facebook_conversion_api,
+          pms.facebook_dataset_id,
+          pms.google_ads_conversion_label,
+          pms.google_gtag_id,
+          pms.test_mode,
+          pms.created_at,
+          pms.updated_at
+        FROM product_marketing_settings pms
+        WHERE pms.organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 📋 INVOICES - الفواتير
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          invoice_number,
+          customer_name,
+          customer_id,
+          total_amount,
+          invoice_date,
+          due_date,
+          status,
+          organization_id,
+          source_type,
+          source_id,
+          payment_method,
+          payment_status,
+          notes,
+          custom_fields,
+          tax_amount,
+          discount_amount,
+          subtotal_amount,
+          shipping_amount,
+          customer_info,
+          organization_info,
+          discount_type,
+          discount_percentage,
+          tva_rate,
+          amount_ht,
+          amount_tva,
+          amount_ttc,
+          created_at,
+          updated_at
+        FROM invoices
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # ⚠️ ملاحظة: invoice_items تم إزالتها
+      # لأنها لا تحتوي على organization_id مباشرة
+      # ═══════════════════════════════════════════════════════════════════════
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🔚 نهاية ملف Sync Rules
+# ═══════════════════════════════════════════════════════════════════════════════
+# 
+# 📌 الخطوات التالية:
+# 1. انسخ هذا الملف بالكامل
+# 2. اذهب إلى: https://dashboard.powersync.com
+# 3. اختر مشروعك: 6930a203200519202bf1d948
+# 4. انتقل إلى: Sync Rules
+# 5. الصق المحتوى واضغط DEPLOY
+#
+# ⚠️ تحذير: تأكد من أن الـ JWT يحتوي على:
+#   - token_parameters.user_id
+#   - token_parameters.organization_id
+#
+# ═══════════════════════════════════════════════════════════════════════════════

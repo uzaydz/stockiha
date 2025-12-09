@@ -1,61 +1,87 @@
 /**
- * ⚡ Loss Declarations Sync Service - نظام Delta Sync الموحد
+ * ⚡ Loss Declarations Sync Service - نظام PowerSync الموحد
  *
- * تم تبسيط هذا الملف - المزامنة للسيرفر تحدث تلقائياً عبر BatchSender
+ * ⚡ v3.0: تم إصلاح الأخطاء:
+ * - إزالة synced/pendingOperation (غير موجودة في PowerSync)
+ * - إزالة UPSERT على views (PowerSync يجلب البيانات تلقائياً)
+ * - PowerSync يدير المزامنة تلقائياً من السيرفر
  */
 
-import { supabase } from '@/lib/supabase';
-import {
-  saveRemoteLossDeclarations,
-  saveRemoteLossItems,
-  type LocalLossDeclaration
-} from './localLossDeclarationService';
-import { deltaWriteService } from '@/services/DeltaWriteService';
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
+
+function getOrganizationId(explicitOrgId?: string): string | null {
+  if (explicitOrgId) return explicitOrgId;
+  if (typeof window === 'undefined') return null;
+  return (
+    window.localStorage.getItem('currentOrganizationId') ||
+    window.localStorage.getItem('bazaar_organization_id') ||
+    null
+  );
+}
 
 /**
  * ⚡ مزامنة تصريحات الخسائر المعلقة
- * ملاحظة: BatchSender يتعامل مع هذا تلقائياً
+ * PowerSync يدير المزامنة تلقائياً - هذه الدالة تفرض المزامنة يدوياً
  */
-export const syncPendingLossDeclarations = async (): Promise<{ success: number; failed: number }> => {
-  console.log('[syncPendingLossDeclarations] ⚡ Delta Sync - المزامنة تلقائية عبر BatchSender');
+export const syncPendingLossDeclarations = async (
+  organizationId?: string
+): Promise<{ success: number; failed: number }> => {
+  const orgId = getOrganizationId(organizationId);
+  if (!orgId) {
+    console.warn('[syncPendingLossDeclarations] لا يوجد organizationId متاح');
+    return { success: 0, failed: 0 };
+  }
+
+  const ready = await powerSyncService.waitForInitialization(5000);
+  if (!ready) {
+    console.warn('[syncPendingLossDeclarations] PowerSync غير مهيأ بعد');
+    return { success: 0, failed: 0 };
+  }
+
+  // ⚡ PowerSync يدير المزامنة تلقائياً
+  const isConnected = powerSyncService.syncStatus?.connected;
+  if (isConnected) {
+    try {
+      await powerSyncService.forceSync();
+      console.log('[syncPendingLossDeclarations] ⚡ تمت المزامنة بنجاح');
+    } catch (err) {
+      console.warn('[syncPendingLossDeclarations] فشل في المزامنة:', err);
+    }
+  }
+
+  // PowerSync لا يعطينا عدد العناصر المُزامنة بشكل مباشر
   return { success: 0, failed: 0 };
 };
 
 /**
- * ⚡ جلب تصريحات الخسائر من السيرفر وحفظها محلياً
+ * ⚡ v3.0: تم إلغاء هذه الدالة
+ *
+ * السبب: PowerSync يجلب البيانات تلقائياً من السيرفر عبر sync-rules
+ * الخطأ السابق: "cannot UPSERT a view" + "no such column: loss_number_lower"
+ *
+ * الآن: البيانات تُجلب تلقائياً، لا حاجة لجلبها يدوياً
  */
-export const fetchLossDeclarationsFromServer = async (organizationId: string): Promise<number> => {
+export const fetchLossDeclarationsFromServer = async (_organizationId: string): Promise<number> => {
+  console.log('[fetchLossDeclarationsFromServer] ⚡ v3.0: PowerSync يجلب البيانات تلقائياً - لا حاجة لهذه الدالة');
+
+  // ⚡ فقط نفرض المزامنة لجلب أحدث البيانات
   try {
-    console.log('[fetchLossDeclarationsFromServer] ⚡ جلب تصريحات الخسائر من السيرفر...');
-
-    const { data: losses, error } = await supabase
-      .from('losses')
-      .select('*, loss_items(*)')
-      .eq('organization_id', organizationId)
-      .order('created_at', { ascending: false })
-      .limit(200);
-
-    if (error) throw error;
-
-    if (!losses || losses.length === 0) {
-      console.log('[fetchLossDeclarationsFromServer] لا توجد تصريحات خسائر في السيرفر');
-      return 0;
+    const isConnected = powerSyncService.syncStatus?.connected;
+    if (isConnected) {
+      await powerSyncService.forceSync();
+      console.log('[fetchLossDeclarationsFromServer] ⚡ تم تحديث البيانات من السيرفر عبر PowerSync');
     }
-
-    // حفظ التصريحات
-    await saveRemoteLossDeclarations(losses);
-
-    // حفظ عناصر كل تصريح
-    for (const loss of losses) {
-      if (loss.loss_items && Array.isArray(loss.loss_items)) {
-        await saveRemoteLossItems(loss.id, loss.loss_items);
-      }
-    }
-
-    console.log(`[fetchLossDeclarationsFromServer] ✅ تم جلب ${losses.length} تصريح`);
-    return losses.length;
-  } catch (error) {
-    console.error('[fetchLossDeclarationsFromServer] ❌ خطأ:', error);
-    return 0;
+  } catch (err) {
+    console.warn('[fetchLossDeclarationsFromServer] ⚠️ فشل في المزامنة:', err);
   }
+
+  // إرجاع 0 لأن PowerSync يدير العدد داخلياً
+  return 0;
 };
+
+// ========================================
+// Re-exports للتوافق العكسي
+// ========================================
+export {
+  type LocalLossDeclaration
+} from './localLossDeclarationService';

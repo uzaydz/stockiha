@@ -7,9 +7,13 @@
  */
 
 import { supabase } from './supabase';
-import { sqliteDB, isSQLiteAvailable } from '@/lib/db/sqliteAPI';
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
 import { encryptSubscriptionData, decryptSubscriptionData } from '@/lib/security/subscriptionCrypto';
 import { subscriptionAudit } from '@/lib/security/subscriptionAudit';
+
+// ⭐ استيراد الأنواع الجديدة
+import type { SubscriptionPlanLimits, SubscriptionPlanPermissions, PlanCode } from '@/types/subscription';
+import { DEFAULT_PLAN_LIMITS } from '@/lib/subscription-service';
 
 export interface SubscriptionData {
   success: boolean;
@@ -17,16 +21,15 @@ export interface SubscriptionData {
   subscription_type: 'paid' | 'trial_subscription' | 'organization_trial' | 'none';
   subscription_id: string | null;
   plan_name: string;
-  plan_code: string;
+  plan_code: PlanCode;
   start_date: string | null;
   end_date: string | null;
   days_left: number;
   features: string[];
-  limits: {
-    max_pos: string | null;
-    max_users: string | null;
-    max_products: string | null;
-  };
+  // ⭐ الحدود المحدثة للخطط الجديدة (v2)
+  limits: SubscriptionPlanLimits;
+  // ⭐ الصلاحيات (اختياري)
+  permissions?: SubscriptionPlanPermissions;
   billing_cycle?: string;
   amount_paid?: number;
   currency?: string;
@@ -107,35 +110,14 @@ class SubscriptionCacheService {
 
       const subscriptionData = data as SubscriptionData;
 
-      // حفظ نسخة في SQLite لاستخدامها أوفلاين
+      // ⚡ الاشتراكات تُزامن تلقائياً من Supabase عبر Sync Rules
+      // ❌ لا نكتب محلياً - البيانات تأتي من السيرفر فقط
+      // هذا يمنع العمليات المعلقة في Outbox
+      console.log('[SubscriptionCache] ℹ️ Subscription data synced from server via PowerSync');
+
       try {
-        if (isSQLiteAvailable()) {
-          await sqliteDB.initialize(organizationId);
-          const now = new Date().toISOString();
-          const id = subscriptionData.subscription_id || `org_${organizationId}_subscription`;
-          const trialEnd = (subscriptionData as any).trial_end_date ?? null;
-          const graceEnd = (subscriptionData as any).grace_end_date ?? null;
-          const row = {
-            id,
-            organization_id: organizationId,
-            plan_id: subscriptionData.plan_code || null,
-            status: subscriptionData.status,
-            start_date: subscriptionData.start_date,
-            end_date: subscriptionData.end_date,
-            trial_end_date: trialEnd,
-            grace_end_date: graceEnd,
-            currency: subscriptionData.currency || null,
-            amount: subscriptionData.amount_paid ?? null,
-            is_auto_renew: null,
-            updated_at: now,
-            source: 'supabase_rpc'
-          } as any;
-          await (window as any).electronAPI?.db?.upsert('organization_subscriptions', row);
-          try {
-            if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
-              window.dispatchEvent(new CustomEvent('subscriptionActivated', { detail: { organizationId } }));
-            }
-          } catch {}
+        if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+          window.dispatchEvent(new CustomEvent('subscriptionActivated', { detail: { organizationId } }));
         }
       } catch {}
 
@@ -273,11 +255,10 @@ class SubscriptionCacheService {
         const result = await decryptSubscriptionData(organizationId, cached);
 
         if (result.tamperDetected) {
-          // تسجيل محاولة التلاعب
-          await subscriptionAudit.logTamperDetected(organizationId, 'data', {
-            source: 'localStorage',
-            error: result.error
-          });
+          // ⚡ تحقق: هل هذا تلاعب حقيقي أم مجرد تغيير في بصمة الجهاز؟
+          // في معظم الحالات، هذا يحدث بسبب تحديث المتصفح أو تغيير الإعدادات
+          // لذلك نحذف الكاش بهدوء ونعيد جلب البيانات
+          console.info('[SubscriptionCache] 🔄 Cache invalidated (fingerprint changed), will refresh from server');
           localStorage.removeItem(`subscription_cache_${organizationId}`);
           return null;
         }
@@ -359,6 +340,7 @@ class SubscriptionCacheService {
 
   /**
    * إنشاء استجابة خطأ موحدة
+   * ⭐ محدث: يستخدم الحدود الافتراضية الجديدة
    */
   private getErrorResponse(errorMessage: string): SubscriptionData {
     return {
@@ -367,12 +349,12 @@ class SubscriptionCacheService {
       subscription_type: 'none',
       subscription_id: null,
       plan_name: 'خطأ',
-      plan_code: 'error',
+      plan_code: 'trial',
       start_date: null,
       end_date: null,
       days_left: 0,
       features: [],
-      limits: { max_pos: '0', max_users: '0', max_products: '0' },
+      limits: DEFAULT_PLAN_LIMITS.trial,
       message: errorMessage,
       error: errorMessage
     };
@@ -440,34 +422,13 @@ class SubscriptionCacheService {
 
       const subscriptionData = data as SubscriptionData;
 
+      // ⚡ الاشتراكات تُزامن تلقائياً من Supabase عبر Sync Rules
+      // ❌ لا نكتب محلياً - البيانات تأتي من السيرفر فقط
+      console.log('[SubscriptionCache] ℹ️ Subscription refreshed from server via PowerSync');
+
       try {
-        if (isSQLiteAvailable()) {
-          await sqliteDB.initialize(organizationId);
-          const now = new Date().toISOString();
-          const id = subscriptionData.subscription_id || `org_${organizationId}_subscription`;
-          const trialEnd = (subscriptionData as any).trial_end_date ?? null;
-          const graceEnd = (subscriptionData as any).grace_end_date ?? null;
-          const row = {
-            id,
-            organization_id: organizationId,
-            plan_id: subscriptionData.plan_code || null,
-            status: subscriptionData.status,
-            start_date: subscriptionData.start_date,
-            end_date: subscriptionData.end_date,
-            trial_end_date: trialEnd,
-            grace_end_date: graceEnd,
-            currency: subscriptionData.currency || null,
-            amount: subscriptionData.amount_paid ?? null,
-            is_auto_renew: null,
-            updated_at: now,
-            source: 'supabase_rpc'
-          } as any;
-          await (window as any).electronAPI?.db?.upsert('organization_subscriptions', row);
-          try {
-            if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
-              window.dispatchEvent(new CustomEvent('subscriptionActivated', { detail: { organizationId } }));
-            }
-          } catch {}
+        if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+          window.dispatchEvent(new CustomEvent('subscriptionActivated', { detail: { organizationId } }));
         }
       } catch {}
 

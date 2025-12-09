@@ -381,6 +381,37 @@ export const SuperAdminRoutes = () => (
           <LazyRoutes.SuperAdminDashboard />
         </Suspense>
       } />
+      {/* مسارات نظام الإحالات */}
+      <Route path="referrals" element={
+        <Suspense fallback={<PageLoader message="جاري تحميل لوحة الإحالات..." />}>
+          <LazyRoutes.SuperAdminReferralsDashboard />
+        </Suspense>
+      } />
+      <Route path="referrals/referrers" element={
+        <Suspense fallback={<PageLoader message="جاري تحميل المُحيلين..." />}>
+          <LazyRoutes.SuperAdminReferrers />
+        </Suspense>
+      } />
+      <Route path="referrals/redemptions" element={
+        <Suspense fallback={<PageLoader message="جاري تحميل طلبات الاستبدال..." />}>
+          <LazyRoutes.SuperAdminRedemptions />
+        </Suspense>
+      } />
+      <Route path="referrals/rewards" element={
+        <Suspense fallback={<PageLoader message="جاري تحميل المكافآت..." />}>
+          <LazyRoutes.SuperAdminRewards />
+        </Suspense>
+      } />
+      <Route path="referrals/tiers" element={
+        <Suspense fallback={<PageLoader message="جاري تحميل المستويات..." />}>
+          <LazyRoutes.SuperAdminTiers />
+        </Suspense>
+      } />
+      <Route path="referrals/transactions" element={
+        <Suspense fallback={<PageLoader message="جاري تحميل سجل المعاملات..." />}>
+          <LazyRoutes.SuperAdminTransactions />
+        </Suspense>
+      } />
     </Route>
   </Routes>
 );

@@ -16,13 +16,17 @@ export interface POSOrderWithDetails {
   subtotal: number;
   tax: number;
   discount?: number;
-  amount_paid?: number;
-  remaining_amount?: number;
+  amount_paid?: string;
+  remaining_amount?: string;
   consider_remaining_as_partial?: boolean;
   is_online: boolean;
   notes?: string;
   created_at: string;
   updated_at: string;
+  // ⚡ حقول موظف نقطة البيع (Offline-First)
+  created_by_staff_id?: string;
+  created_by_staff_name?: string;
+  pos_order_type?: 'retail' | 'wholesale' | 'partial_wholesale';
   
   // Relations
   customer?: {
@@ -66,20 +70,31 @@ export interface POSOrderWithDetails {
   product_items_count?: number;
   subscription_items_count?: number;
   metadata?: any;
+
+  // ⚡ حقول البيع بالجملة
+  has_wholesale?: boolean;
+  has_partial_wholesale?: boolean;
+  wholesale_items_count?: number;
+  partial_wholesale_items_count?: number;
 }
 
 export interface POSOrderStats {
   total_orders: number;
   total_revenue: number;
-  completed_orders: number;
-  pending_orders: number;
-  pending_payment_orders: number;
-  cancelled_orders: number;
-  cash_orders: number;
-  card_orders: number;
-  avg_order_value: number;
-  today_orders: number;
-  today_revenue: number;
+  total_paid?: number;
+  total_pending?: number;
+  completed_orders?: number;
+  pending_orders?: number;
+  pending_payment_orders?: number;
+  cancelled_orders?: number;
+  cash_orders?: number;
+  card_orders?: number;
+  avg_order_value?: number;
+  today_orders?: number;
+  today_revenue?: number;
+  // ⚡ إحصائيات حسب الحالة وطريقة الدفع
+  orders_by_status?: Record<string, number>;
+  orders_by_payment_method?: Record<string, number>;
   // إحصائيات المرتجعات
   fully_returned_orders?: number;
   partially_returned_orders?: number;

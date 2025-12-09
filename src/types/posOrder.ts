@@ -16,9 +16,13 @@ export interface POSOrderPayload {
   notes?: string;
   amountPaid?: number;
   discount?: number;
+  tax?: number;
   subtotal?: number;
+  shippingCost?: number;
   remainingAmount?: number;
   considerRemainingAsPartial?: boolean;
+  // ⚡ حقول البيع بالجملة
+  saleType?: 'retail' | 'wholesale' | 'partial_wholesale';
   metadata?: Record<string, unknown>;
 }
 

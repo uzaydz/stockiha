@@ -1,3 +1,51 @@
+/**
+ * 📋 Stokiha Subscription Plans - خطط الاشتراك
+ *
+ * الخطط المتاحة:
+ * - البداية (starter_v2): 2,500 دج - 600 منتج، مستخدم واحد، نقطة بيع واحدة
+ * - النمو (growth_v2): 5,000 دج - 1,000 منتج، 3 مستخدمين، نقطتا بيع
+ * - الأعمال (business_v2): 7,500 دج - 5,000 منتج، 7 مستخدمين، 5 نقاط بيع
+ * - المؤسسات (enterprise_v2): 12,500 دج - غير محدود، 15 مستخدم، 10 نقاط بيع
+ * - غير محدود (unlimited_v2): 20,000 دج - كل شيء غير محدود
+ */
+
+export interface SubscriptionPlanLimits {
+  max_products: number | null;
+  max_users: number | null;
+  max_pos: number | null;
+  max_branches: number | null;
+  max_staff: number | null;
+  max_customers: number | null;
+  max_suppliers: number | null;
+}
+
+export interface SubscriptionPlanPermissions {
+  all_features: boolean;
+  accessPOS: boolean;
+  offlineMode: boolean;
+  realtimeSync: boolean;
+  invoicing: boolean;
+  inventory: boolean;
+  customers: boolean;
+  suppliers: boolean;
+  repairs: boolean;
+  ecommerce: boolean;
+  delivery: boolean;
+  staff: boolean;
+  reports: boolean;
+  analytics: boolean;
+  zakat: boolean;
+  expenses: boolean;
+  debts: boolean;
+  callCenter: boolean;
+  aiAssistant: boolean;
+  courses: boolean;
+  api?: boolean;
+  whiteLabel?: boolean;
+  customDomain?: boolean;
+  support: 'email' | 'priority' | 'premium' | 'dedicated' | 'vip';
+}
+
 export interface SubscriptionPlan {
   id: string;
   name: string;
@@ -7,18 +55,34 @@ export interface SubscriptionPlan {
   monthly_price: number;
   yearly_price: number;
   trial_period_days: number;
-  limits?: {
-    max_users: number | null;
-    max_products: number | null;
-    max_pos: number | null;
-  };
-  permissions?: Record<string, boolean>;
+  limits: SubscriptionPlanLimits;
+  permissions: SubscriptionPlanPermissions;
+  max_online_orders: number | null;
   is_active: boolean;
   is_popular: boolean;
   display_order: number;
   created_at: string;
   updated_at: string;
 }
+
+// أكواد الخطط المتاحة
+export type PlanCode =
+  | 'trial'
+  | 'starter_v2'
+  | 'growth_v2'
+  | 'business_v2'
+  | 'enterprise_v2'
+  | 'unlimited_v2';
+
+// أسعار الخطط بالدينار الجزائري
+export const PLAN_PRICES: Record<PlanCode, { monthly: number; yearly: number }> = {
+  trial: { monthly: 0, yearly: 0 },
+  starter_v2: { monthly: 2500, yearly: 25000 },
+  growth_v2: { monthly: 5000, yearly: 50000 },
+  business_v2: { monthly: 7500, yearly: 75000 },
+  enterprise_v2: { monthly: 12500, yearly: 125000 },
+  unlimited_v2: { monthly: 20000, yearly: 200000 }
+};
 
 export interface OrganizationSubscription {
   id: string;
@@ -112,6 +176,57 @@ export interface SubscriptionLimits {
   max_pos: string | number | null;
   max_users: string | number | null;
   max_products: string | number | null;
+  max_branches?: string | number | null;
+  max_staff?: string | number | null;
+  max_customers?: string | number | null;
+  max_suppliers?: string | number | null;
+}
+
+// ============ أنواع المميزات ============
+
+export type FeatureCategory =
+  | 'pos_management'
+  | 'ecommerce'
+  | 'delivery'
+  | 'repairs'
+  | 'staff'
+  | 'ai'
+  | 'analytics'
+  | 'support';
+
+export interface StokihaFeature {
+  id: string;
+  category: FeatureCategory;
+  category_icon: string;
+  feature_key: string;
+  feature_name_ar: string;
+  feature_name_en?: string;
+  feature_description_ar: string;
+  feature_description_en?: string;
+  is_core: boolean;
+  display_order: number;
+}
+
+// ============ التحقق من الحدود ============
+
+export interface LimitCheckResult {
+  allowed: boolean;
+  current: number;
+  limit: number | null;
+  remaining?: number;
+  unlimited: boolean;
+}
+
+export interface SubscriptionSummary {
+  plan_name: string;
+  status: SubscriptionStatus;
+  end_date: string | null;
+  days_remaining: number | null;
+  limits: SubscriptionPlanLimits;
+  usage: {
+    products: number;
+    users: number;
+  };
 }
 
 export interface SubscriptionValidationResult {

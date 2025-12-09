@@ -1,349 +1,176 @@
 /**
- * localProductService - خدمة المنتجات المحلية
- *
- * ⚡ تم التحديث لاستخدام Delta Sync بالكامل
- *
- * - Local-First: الكتابة محلياً فوراً
- * - Offline-First: يعمل بدون إنترنت
- * - DELTA operations: للمخزون
+ * ⚡ localProductService - Adapter للخدمة الموحدة
+ * 
+ * هذا الملف يُعيد التصدير من UnifiedProductService للحفاظ على التوافق مع الكود القديم
+ * 
+ * تم استبدال التنفيذ القديم بـ UnifiedProductService للعمل Offline-First
  */
 
-import { v4 as uuidv4 } from 'uuid';
-import { LocalProduct, inventoryDB } from '@/database/localDb';
-import { Product } from './productService';
-import { deltaWriteService } from '@/services/DeltaWriteService';
-import { deltaSyncEngine } from '@/lib/sync/delta';
-import { imageSyncService } from '@/api/imageSyncService';
+import { unifiedProductService } from '@/services/UnifiedProductService';
+import type { Product } from '@/services/UnifiedProductService';
 
-// إضافة منتج جديد محلياً
-export const createLocalProduct = async (
-  organizationId: string,
-  product: Omit<Product, 'id' | 'created_at' | 'updated_at'>
-): Promise<LocalProduct> => {
-  const now = new Date().toISOString();
-  const productId = uuidv4();
+// إعادة تصدير جميع الصادرات من الخدمة الموحدة
+export * from '@/services/UnifiedProductService';
 
-  const newProduct: LocalProduct = {
-    ...product,
-    id: productId,
-    created_at: now,
-    updated_at: now,
-    organization_id: organizationId,
-    localUpdatedAt: now,
-    synced: false,
-    pendingOperation: 'create'
-  };
+// إعادة تصدير كـ default للتوافق
+export { unifiedProductService as default } from '@/services/UnifiedProductService';
 
-  // ⚡ استخدام Delta Sync
-  const result = await deltaWriteService.create('products', newProduct, organizationId);
+// إعادة تصدير الأنواع للتوافق
+export type {
+  Product,
+  ProductWithDetails,
+  ProductColor,
+  ProductSize,
+  ProductCategory,
+  ProductSubcategory,
+  ProductFilters,
+  PaginatedResult
+} from '@/services/UnifiedProductService';
 
-  if (!result.success) {
-    throw new Error(result.error || 'Failed to create product');
-  }
-
-  console.log(`[LocalProduct] ⚡ Created product ${productId} via Delta Sync`);
-  return newProduct;
+// ⚡ دوال التوافق القديمة
+/**
+ * إنشاء منتج محلياً (PowerSync Offline-First)
+ */
+export const createLocalProduct = async (productData: any): Promise<Product> => {
+  const orgId = localStorage.getItem('currentOrganizationId') || 
+                localStorage.getItem('bazaar_organization_id');
+  if (!orgId) throw new Error('Organization ID not found');
+  
+  unifiedProductService.setOrganizationId(orgId);
+  return unifiedProductService.createProduct(productData);
 };
 
-// إنشاء منتج مع الألوان والمقاسات
-export const createLocalProductWithVariants = async (
-  organizationId: string,
-  product: Omit<Product, 'id' | 'created_at' | 'updated_at'>,
-  colors?: Array<{ name: string; code?: string; quantity?: number }>,
-  sizes?: Array<{ name: string; colorId?: string; quantity?: number }>
-): Promise<LocalProduct> => {
-  const now = new Date().toISOString();
-  const productId = uuidv4();
-
-  const newProduct: LocalProduct = {
-    ...product,
-    id: productId,
-    created_at: now,
-    updated_at: now,
-    organization_id: organizationId,
-    localUpdatedAt: now,
-    synced: false,
-    pendingOperation: 'create'
-  };
-
-  // ⚡ استخدام Delta Sync مع المتغيرات
-  const result = await deltaWriteService.createProductWithVariants(
-    organizationId,
-    newProduct,
-    colors,
-    sizes
-  );
-
-  if (!result.success) {
-    throw new Error(result.error || 'Failed to create product with variants');
-  }
-
-  console.log(`[LocalProduct] ⚡ Created product ${productId} with variants via Delta Sync`);
-  return newProduct;
+/**
+ * تحديث منتج محلياً (PowerSync Offline-First)
+ */
+export const updateLocalProduct = async (productId: string, updates: any): Promise<Product | null> => {
+  const orgId = localStorage.getItem('currentOrganizationId') || 
+                localStorage.getItem('bazaar_organization_id');
+  if (!orgId) throw new Error('Organization ID not found');
+  
+  unifiedProductService.setOrganizationId(orgId);
+  return unifiedProductService.updateProduct(productId, updates);
 };
 
-// ⚡ إنشاء منتج كامل مع جميع البيانات المرتبطة
-export const createLocalProductComplete = async (
-  organizationId: string,
-  product: Omit<Product, 'id' | 'created_at' | 'updated_at'>,
-  options?: {
-    colors?: Array<{ name: string; code?: string; quantity?: number; sizes?: Array<{ name: string; quantity?: number }> }>;
-    advancedSettings?: Record<string, any>;
-    marketingSettings?: Record<string, any>;
-    wholesaleTiers?: Array<{ min_quantity: number; price_per_unit: number }>;
-  }
-): Promise<LocalProduct> => {
-  const now = new Date().toISOString();
-  const productId = uuidv4();
-
-  const newProduct: LocalProduct = {
-    ...product,
-    id: productId,
-    created_at: now,
-    updated_at: now,
-    organization_id: organizationId,
-    localUpdatedAt: now,
-    synced: false,
-    pendingOperation: 'create'
-  };
-
-  // ⚡ استخدام Delta Sync مع جميع البيانات
-  const result = await deltaWriteService.createProductComplete(
-    organizationId,
-    newProduct,
-    options
-  );
-
-  if (!result.success) {
-    throw new Error(result.error || 'Failed to create complete product');
-  }
-
-  console.log(`[LocalProduct] ⚡ Created complete product ${productId} via Delta Sync`);
-  return newProduct;
+/**
+ * حذف منتج محلياً (PowerSync Offline-First)
+ */
+export const deleteLocalProduct = async (productId: string): Promise<boolean> => {
+  const orgId = localStorage.getItem('currentOrganizationId') || 
+                localStorage.getItem('bazaar_organization_id');
+  if (!orgId) throw new Error('Organization ID not found');
+  
+  unifiedProductService.setOrganizationId(orgId);
+  await unifiedProductService.deleteProduct(productId);
+  return true;
 };
 
-// تحديث منتج محلياً
-export const updateLocalProduct = async (
-  productId: string,
-  updates: Partial<LocalProduct>
-): Promise<LocalProduct | null> => {
-  try {
-    // جلب المنتج الحالي
-    const existingProduct = await deltaWriteService.get<LocalProduct>('products', productId);
-
-    if (!existingProduct) {
-      console.warn(`[LocalProduct] Product ${productId} not found`);
-      return null;
-    }
-
-    const now = new Date().toISOString();
-    const updatedData = {
-      ...updates,
-      updated_at: now,
-      localUpdatedAt: now,
-      synced: false,
-      pendingOperation: existingProduct.pendingOperation === 'create' ? 'create' : 'update'
-    };
-
-    // ⚡ استخدام Delta Sync
-    const result = await deltaWriteService.update('products', productId, updatedData);
-
-    if (!result.success) {
-      console.error(`[LocalProduct] Failed to update product ${productId}:`, result.error);
-      return null;
-    }
-
-    console.log(`[LocalProduct] ⚡ Updated product ${productId} via Delta Sync`);
-
-    return {
-      ...existingProduct,
-      ...updatedData
-    } as LocalProduct;
-  } catch (error) {
-    console.error(`[LocalProduct] Update error:`, error);
-    return null;
-  }
-};
-
-// تقليل كمية المخزون محلياً (مثلاً عند البيع)
-export const reduceLocalProductStock = async (
-  productId: string,
-  quantity: number,
-  options?: { colorId?: string; sizeId?: string }
-): Promise<boolean> => {
-  try {
-    // ⚡ استخدام DELTA operation
-    const result = await deltaWriteService.updateProductStock(
-      productId,
-      -Math.abs(quantity), // سالب للتقليل
-      options
-    );
-
-    if (result.success) {
-      console.log(`[LocalProduct] ⚡ Reduced stock for ${productId} by ${quantity} via Delta`);
-    }
-
-    return result.success;
-  } catch (error) {
-    console.error(`[LocalProduct] Reduce stock error:`, error);
-    return false;
-  }
-};
-
-// زيادة كمية المخزون محلياً (مثلاً عند الإرجاع)
-export const increaseLocalProductStock = async (
-  productId: string,
-  quantity: number,
-  options?: { colorId?: string; sizeId?: string }
-): Promise<boolean> => {
-  try {
-    // ⚡ استخدام DELTA operation
-    const result = await deltaWriteService.updateProductStock(
-      productId,
-      Math.abs(quantity), // موجب للزيادة
-      options
-    );
-
-    if (result.success) {
-      console.log(`[LocalProduct] ⚡ Increased stock for ${productId} by ${quantity} via Delta`);
-    }
-
-    return result.success;
-  } catch (error) {
-    console.error(`[LocalProduct] Increase stock error:`, error);
-    return false;
-  }
-};
-
-// جلب المنتجات المحلية
-export const getLocalProducts = async (
-  organizationId?: string,
-  synced?: boolean
-): Promise<LocalProduct[]> => {
-  try {
-    if (!organizationId) {
-      organizationId = localStorage.getItem('currentOrganizationId') ||
-        localStorage.getItem('bazaar_organization_id') || '';
-    }
-
-    let products: LocalProduct[];
-
-    if (synced !== undefined) {
-      products = await deltaWriteService.getAll<LocalProduct>('products', organizationId, {
-        where: 'synced = ?',
-        params: [synced ? 1 : 0]
-      });
-    } else {
-      products = await deltaWriteService.getAll<LocalProduct>('products', organizationId);
-    }
-
-    // تحويل روابط الصور إلى مسارات محلية
-    for (const product of products) {
-      if (product.image_url) {
-        product.image_url = await imageSyncService.getLocalUrl(product.image_url);
-      }
-    }
-
-    return products;
-  } catch (error) {
-    console.error(`[LocalProduct] Get products error:`, error);
-    return [];
-  }
-};
-
-// جلب المنتجات التي تحتاج إلى مزامنة
-export const getUnsyncedProducts = async (): Promise<LocalProduct[]> => {
-  const orgId = localStorage.getItem('currentOrganizationId') ||
-    localStorage.getItem('bazaar_organization_id') || '';
-  return getLocalProducts(orgId, false);
-};
-
-// تحديث حالة مزامنة المنتج
+/**
+ * تحديث حالة مزامنة المنتج (PowerSync يتعامل مع المزامنة تلقائياً)
+ * @deprecated PowerSync handles sync automatically - no need to mark as synced
+ */
 export const markProductAsSynced = async (
   productId: string,
   remoteData?: Partial<Product>
-): Promise<LocalProduct | null> => {
-  try {
-    const product = await deltaWriteService.get<LocalProduct>('products', productId);
-
-    if (!product) {
-      return null;
-    }
-
-    const updatedData = {
-      ...remoteData,
-      synced: true,
-      syncStatus: undefined,
-      lastSyncAttempt: new Date().toISOString(),
-      pendingOperation: undefined
-    };
-
-    await deltaWriteService.update('products', productId, updatedData);
-
-    return {
-      ...product,
-      ...updatedData
-    } as LocalProduct;
-  } catch (error) {
-    console.error(`[LocalProduct] Mark synced error:`, error);
-    return null;
+): Promise<Product | null> => {
+  // PowerSync يتعامل مع المزامنة تلقائياً
+  // إذا كان هناك remoteData، نقوم بتحديث المنتج
+  if (remoteData) {
+    return updateLocalProduct(productId, remoteData);
   }
+  
+  // فقط إرجاع المنتج الحالي
+  const orgId = localStorage.getItem('currentOrganizationId') || 
+                localStorage.getItem('bazaar_organization_id');
+  if (!orgId) return null;
+  
+  unifiedProductService.setOrganizationId(orgId);
+  return unifiedProductService.getProduct(productId);
 };
 
-// حذف منتج محلياً
-export const deleteLocalProduct = async (productId: string): Promise<boolean> => {
+/**
+ * ⚡ تقليل مخزون منتج محلياً (للخسائر والمبيعات)
+ * يدعم أنواع البيع المختلفة: قطعة، متر، وزن، علبة
+ */
+export const reduceLocalProductStock = async (
+  productId: string,
+  quantity: number,
+  options?: {
+    colorId?: string;
+    sizeId?: string;
+    sellingUnit?: 'piece' | 'weight' | 'meter' | 'box';
+  }
+): Promise<boolean> => {
   try {
-    const product = await deltaWriteService.get<LocalProduct>('products', productId);
+    const orgId = localStorage.getItem('currentOrganizationId') ||
+                  localStorage.getItem('bazaar_organization_id');
+    if (!orgId) throw new Error('Organization ID not found');
 
+    unifiedProductService.setOrganizationId(orgId);
+
+    // جلب المنتج الحالي
+    const product = await unifiedProductService.getProduct(productId) as any;
     if (!product) {
+      console.error('[reduceLocalProductStock] Product not found:', productId);
       return false;
     }
 
-    // ⚡ استخدام Delta Sync للحذف
-    const result = await deltaWriteService.delete('products', productId);
-
-    if (result.success) {
-      console.log(`[LocalProduct] ⚡ Deleted product ${productId} via Delta Sync`);
+    // تحديد نوع البيع
+    let sellingUnit = options?.sellingUnit;
+    if (!sellingUnit) {
+      if (product.sell_by_meter) sellingUnit = 'meter';
+      else if (product.sell_by_weight) sellingUnit = 'weight';
+      else if (product.sell_by_box) sellingUnit = 'box';
+      else sellingUnit = 'piece';
     }
 
-    return result.success;
+    // تحديد الحقل الصحيح للتحديث
+    let updateData: Record<string, any> = {};
+    let logInfo: Record<string, any> = {
+      productId,
+      productName: product.name,
+      sellingUnit,
+      reduced: quantity
+    };
+
+    switch (sellingUnit) {
+      case 'meter':
+        const currentLength = product.available_length || 0;
+        const newLength = Math.max(0, currentLength - quantity);
+        updateData = { available_length: newLength };
+        logInfo = { ...logInfo, previousLength: currentLength, newLength };
+        break;
+
+      case 'weight':
+        const currentWeight = product.available_weight || 0;
+        const newWeight = Math.max(0, currentWeight - quantity);
+        updateData = { available_weight: newWeight };
+        logInfo = { ...logInfo, previousWeight: currentWeight, newWeight };
+        break;
+
+      case 'box':
+        const currentBoxes = product.available_boxes || 0;
+        const newBoxes = Math.max(0, currentBoxes - quantity);
+        updateData = { available_boxes: newBoxes };
+        logInfo = { ...logInfo, previousBoxes: currentBoxes, newBoxes };
+        break;
+
+      default: // piece
+        const currentStock = product.stock_quantity || 0;
+        const newStock = Math.max(0, currentStock - quantity);
+        updateData = { stock_quantity: newStock };
+        logInfo = { ...logInfo, previousStock: currentStock, newStock };
+        break;
+    }
+
+    // تحديث المخزون
+    await unifiedProductService.updateProduct(productId, updateData);
+
+    console.log('[reduceLocalProductStock] ✅ Stock reduced:', logInfo);
+
+    return true;
   } catch (error) {
-    console.error(`[LocalProduct] Delete error:`, error);
+    console.error('[reduceLocalProductStock] ❌ Error:', error);
     return false;
   }
-};
-
-// البحث في المنتجات
-export const searchLocalProducts = async (
-  organizationId: string,
-  searchTerm: string,
-  limit: number = 50
-): Promise<LocalProduct[]> => {
-  return deltaWriteService.search<LocalProduct>(
-    'products',
-    organizationId,
-    ['name', 'sku', 'barcode', 'description'],
-    searchTerm,
-    limit
-  );
-};
-
-// جلب منتج واحد
-export const getLocalProduct = async (productId: string): Promise<LocalProduct | null> => {
-  return deltaWriteService.get<LocalProduct>('products', productId);
-};
-
-// عد المنتجات
-export const countLocalProducts = async (organizationId: string): Promise<number> => {
-  return deltaWriteService.count('products', organizationId);
-};
-
-// =====================
-// Legacy compatibility - للتوافقية مع الكود القديم
-// =====================
-
-// إضافة عنصر إلى قائمة المزامنة (deprecated - يتم عبر Delta Sync تلقائياً)
-export const addToSyncQueue = async (item: any) => {
-  console.warn('[LocalProduct] addToSyncQueue is deprecated. Operations are queued via Delta Sync automatically.');
-  // لا نفعل شيئاً - العمليات تُضاف تلقائياً عبر Delta Sync
 };

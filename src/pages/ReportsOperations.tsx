@@ -8,8 +8,11 @@ import { POSLayoutState, RefreshHandler } from '@/components/pos-layout/types';
 import { Activity, BarChart3, DollarSign, FileBarChart, Loader2 } from 'lucide-react';
 import { useUnifiedPermissions } from '@/hooks/useUnifiedPermissions';
 
+// Static import for Analytics to avoid Safari ESM issues with recharts star exports
+import SalesAnalyticsTabComponent from '../pages/dashboard/Analytics';
+const SalesAnalyticsTab = SalesAnalyticsTabComponent;
+
 const FinancialAnalyticsTab = React.lazy(() => import('../pages/FinancialAnalyticsOptimized'));
-const SalesAnalyticsTab = React.lazy(() => import('../pages/dashboard/Analytics'));
 const ExpensesTab = React.lazy(() => import('../pages/dashboard/Expenses'));
 const ZakatTab = React.lazy(() => import('../pages/dashboard/Zakat'));
 const SupplierReportsTab = React.lazy(() => import('../pages/dashboard/SuppliersManagement').then(m => ({ default: m.SuppliersReports || m.default })));

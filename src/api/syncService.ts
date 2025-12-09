@@ -23,7 +23,7 @@
 import { supabase } from '@/lib/supabase';
 import { deltaWriteService } from '@/services/DeltaWriteService';
 import { localPosSettingsService } from '@/api/localPosSettingsService';
-import { saveRemoteOrders, saveRemoteOrderItems } from '@/api/localPosOrderService';
+import { unifiedOrderService } from '@/services/UnifiedOrderService';
 import { saveRemoteInvoices, saveRemoteInvoiceItems } from '@/api/localInvoiceService';
 import { imageSyncService } from '@/api/imageSyncService';
 
@@ -54,42 +54,31 @@ export const syncProductsFromServer = async (organizationId: string): Promise<nu
     let savedCount = 0;
     for (const product of products || []) {
       try {
-        // ⚡ حفظ عبر Delta Sync
-        await deltaWriteService.saveFromServer('products', {
-          ...product,
-          synced: true,
-          syncStatus: undefined,
-          pendingOperation: undefined
-        });
+        // ⚡ استخراج المتغيرات قبل الحفظ
+        const { product_colors, product_sizes, product_images, ...productData } = product;
+
+        // ⚡ حفظ المنتج عبر Delta Sync (بدون الأعمدة المتداخلة)
+        await deltaWriteService.saveFromServer('products', productData);
         savedCount++;
 
         // حفظ الألوان
-        if (product.product_colors?.length) {
-          for (const color of product.product_colors) {
-            await deltaWriteService.saveFromServer('product_colors', {
-              ...color,
-              synced: true
-            });
+        if (product_colors?.length) {
+          for (const color of product_colors) {
+            await deltaWriteService.saveFromServer('product_colors', color);
           }
         }
 
         // حفظ المقاسات
-        if (product.product_sizes?.length) {
-          for (const size of product.product_sizes) {
-            await deltaWriteService.saveFromServer('product_sizes', {
-              ...size,
-              synced: true
-            });
+        if (product_sizes?.length) {
+          for (const size of product_sizes) {
+            await deltaWriteService.saveFromServer('product_sizes', size);
           }
         }
 
         // حفظ الصور
-        if (product.product_images?.length) {
-          for (const image of product.product_images) {
-            await deltaWriteService.saveFromServer('product_images', {
-              ...image,
-              synced: true
-            });
+        if (product_images?.length) {
+          for (const image of product_images) {
+            await deltaWriteService.saveFromServer('product_images', image);
           }
         }
       } catch (e) {
@@ -126,12 +115,7 @@ export const syncCustomersFromServer = async (organizationId: string): Promise<n
     let savedCount = 0;
     for (const customer of customers || []) {
       try {
-        await deltaWriteService.saveFromServer('customers', {
-          ...customer,
-          synced: true,
-          syncStatus: undefined,
-          pendingOperation: undefined
-        });
+        await deltaWriteService.saveFromServer('customers', customer);
         savedCount++;
       } catch (e) {
         console.error(`[syncCustomersFromServer] ❌ فشل حفظ عميل:`, e);
@@ -149,31 +133,22 @@ export const syncCustomersFromServer = async (organizationId: string): Promise<n
 /**
  * ⚡ مزامنة الطلبات من السيرفر (Server → Local)
  */
+/**
+ * ⚡ مزامنة الطلبات من السيرفر (Server → Local)
+ * ملاحظة: PowerSync يتعامل مع المزامنة تلقائياً، هذه الدالة للتوافق فقط
+ */
 export const syncOrdersFromServer = async (organizationId: string): Promise<number> => {
   try {
-    console.log('[syncOrdersFromServer] ⚡ Delta Sync - جلب الطلبات...');
-
-    const { data: orders, error } = await supabase
-      .from('orders')
-      .select('*, order_items(*)')
-      .eq('organization_id', organizationId)
-      .order('created_at', { ascending: false })
-      .limit(500);
-
-    if (error) throw error;
-
-    // حفظ الطلبات
-    await saveRemoteOrders(orders || []);
-
-    // حفظ عناصر الطلبات
-    for (const order of orders || []) {
-      if (order.order_items?.length) {
-        await saveRemoteOrderItems(order.id, order.order_items);
-      }
-    }
-
-    console.log(`[syncOrdersFromServer] ✅ تم حفظ ${orders?.length || 0} طلب`);
-    return orders?.length || 0;
+    console.log('[syncOrdersFromServer] ⚡ PowerSync handles sync automatically');
+    
+    // PowerSync يتعامل مع المزامنة تلقائياً من Supabase
+    // لا حاجة لاستدعاء صريح هنا
+    unifiedOrderService.setOrganizationId(organizationId);
+    
+    // يمكن جلب عدد الطلبات المحلية للتحقق
+    const result = await unifiedOrderService.getOrders({}, 1, 1);
+    console.log(`[syncOrdersFromServer] ✅ PowerSync sync active, local orders count: ${result.total}`);
+    return result.total;
   } catch (error) {
     console.error('[syncOrdersFromServer] ❌ خطأ:', error);
     return 0;

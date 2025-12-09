@@ -5,7 +5,7 @@
 
 import { useContext } from 'react';
 import type { TenantContextType } from '@/types/tenant';
-import TenantContext from '../TenantContext';
+import { TenantContext } from '../TenantProvider';
 
 // Hook محسن لاستخدام السياق
 export function useTenant(): TenantContextType {

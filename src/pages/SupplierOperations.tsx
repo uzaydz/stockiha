@@ -10,7 +10,8 @@ import { useUnifiedPermissions } from '@/hooks/useUnifiedPermissions';
 import { SuppliersList } from '@/components/suppliers/SuppliersList';
 
 // Lazy load للصفحات الأخرى
-const PurchasesTab = React.lazy(() => import('./dashboard/SupplierPurchases'));
+// صفحة المشتريات الرئيسية (قائمة + إنشاء/تعديل)
+const PurchasesTab = React.lazy(() => import('../features/purchases/components/PurchasesTabPage'));
 const PaymentsTab = React.lazy(() => import('./dashboard/SupplierPayments'));
 const ReportsTab = React.lazy(() => import('./dashboard/SupplierReports'));
 
@@ -107,7 +108,7 @@ const SupplierOperationsPage: React.FC = () => {
       case 'purchases':
         return (
           <Suspense fallback={<LoadingView />}>
-            <PurchasesTab useStandaloneLayout={false} />
+            <PurchasesTab />
           </Suspense>
         );
       case 'payments':

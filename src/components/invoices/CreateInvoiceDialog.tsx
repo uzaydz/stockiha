@@ -292,9 +292,10 @@ const CreateInvoiceDialog = ({
           const unitPrice = Number(item.unitPrice) || 0;
           const quantity = Number(item.quantity) || 0;
           const totalPrice = unitPrice * quantity;
-          
+
           return {
             invoice_id: invoice.id,
+            organization_id: currentOrganization.id, // ⚡ مطلوب للمزامنة مع PowerSync
             name: item.name,
             description: item.description || null,
             quantity: quantity,

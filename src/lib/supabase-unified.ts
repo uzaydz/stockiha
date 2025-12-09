@@ -9,13 +9,8 @@ import { sqliteAuthStorage } from '@/lib/auth/sqliteStorage';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database.types';
 
-// ⚡ استيراد ConnectionState للاكتشاف الذكي
+// ⚡ ConnectionState removed - using navigator.onLine and fetch error handling instead
 let connectionStateRef: any = null;
-try {
-  import('./sync/delta/ConnectionState').then(m => {
-    connectionStateRef = m.connectionState;
-  }).catch(() => {});
-} catch {}
 
 // 🔍 تشخيص متقدم لمتغيرات البيئة مع حماية من undefined
 const getEnvSafely = (): Record<string, any> => {
@@ -313,35 +308,29 @@ const createOptimizedSupabaseClient = (): SupabaseClient<Database> => {
         'x-application-name': 'bazaar-console',
         'X-Client-Version': '3.0.0'
       },
-      // 🚀 تحسين timeout للشبكات البطيئة + ⚡ تكامل مع ConnectionState
-      fetch: (url: RequestInfo | URL, options: RequestInit = {}) => {
-        // ⚡ استخدام ConnectionState بدلاً من navigator.onLine
-        if (connectionStateRef?.isOffline?.()) {
-          return Promise.reject(new TypeError('network disconnected (detected by ConnectionState)'));
+      // 🚀 تحسين timeout للشبكات البطيئة
+      fetch: async (url: RequestInfo | URL, options: RequestInit = {}) => {
+        // فحص navigator.onLine كبديل
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+          console.log('%c[Supabase] 📴 Request blocked - offline mode', 'color: #f44336');
+          return Promise.reject(new TypeError('network disconnected'));
         }
-        
+
         // زيادة timeout بشكل كبير للشبكات البطيئة
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 240000); // 4 دقائق
 
-        return fetch(url, {
-          ...options,
-          signal: controller.signal,
-        }).then(response => {
-          // ⚡ إبلاغ ConnectionState عن النجاح
-          if (connectionStateRef?.reportSuccess) {
-            connectionStateRef.reportSuccess();
-          }
+        try {
+          const response = await fetch(url, {
+            ...options,
+            signal: controller.signal,
+          });
           return response;
-        }).catch(error => {
-          // ⚡ إبلاغ ConnectionState عن الفشل
-          if (connectionStateRef?.reportFailure) {
-            connectionStateRef.reportFailure(error);
-          }
+        } catch (error) {
           throw error;
-        }).finally(() => {
+        } finally {
           clearTimeout(timeoutId);
-        });
+        }
       }
     }
   });

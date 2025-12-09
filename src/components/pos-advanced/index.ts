@@ -32,3 +32,8 @@ export { POSAdvancedLoadingSkeleton, POSAdvancedInitialLoading } from './POSAdva
 export { default as POSAdvancedContent } from './POSAdvancedContent';
 export { default as POSAdvancedCart } from './POSAdvancedCart';
 export { default as GlobalScannerIndicator } from './GlobalScannerIndicator';
+
+// تصدير مكونات السلة الموحدة
+export { default as CompactUnifiedCartItem } from './cart/CompactUnifiedCartItem';
+export { default as SellingUnitSelectorModal } from './cart/SellingUnitSelectorModal';
+export type { SellingUnitConfig } from './cart/SellingUnitSelectorModal';

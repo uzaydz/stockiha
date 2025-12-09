@@ -1,13 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/context/TenantContext';
 import { useAuth } from '@/context/AuthContext';
-import { useAppInitialization } from '@/context/AppInitializationContext'; // ✅ استيراد جديد
+import { useAppInitialization } from '@/context/AppInitializationContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useToast } from '@/components/ui/use-toast';
 import { useCallback, useState, useEffect } from 'react';
 import { POSSettings, defaultPOSSettings } from '@/types/posSettings';
-import { localPosSettingsService } from '@/api/localPosSettingsService';
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
 
 // =====================================================
 // 🚀 Hook مخصص لإعدادات POS فقط - يمنع التكرار
@@ -41,10 +40,26 @@ export const usePOSSettings = ({ organizationId }: UsePOSSettingsProps): UsePOSS
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const resolvedOrganizationId = organizationId || currentOrganization?.id || '';
-  const [localSettings, setLocalSettings] = useState<POSSettings>(() => ({ 
-    ...defaultPOSSettings, 
-    organization_id: resolvedOrganizationId
-  }));
+  // دمج الإعدادات المحفوظة مع الافتراضية لضمان وجود كل الحقول
+  // ⚠️ ملاحظة: حقول الطابعة (printer_type, silent_print, etc) تأتي من local_printer_settings
+  //    عبر usePrinterSettings وليس من هنا
+  const mergeWithDefaults = (saved: Partial<POSSettings> | null): POSSettings => ({
+    ...defaultPOSSettings,
+    ...(saved || {}),
+    organization_id: resolvedOrganizationId,
+    // حقول الوصل المشتركة (موجودة في pos_settings)
+    receipt_template: saved?.receipt_template ?? defaultPOSSettings.receipt_template,
+    item_display_style: saved?.item_display_style ?? defaultPOSSettings.item_display_style,
+    paper_width: saved?.paper_width ?? defaultPOSSettings.paper_width,
+    font_size: saved?.font_size ?? defaultPOSSettings.font_size,
+    line_spacing: saved?.line_spacing ?? defaultPOSSettings.line_spacing,
+    print_density: saved?.print_density ?? defaultPOSSettings.print_density,
+    auto_cut: saved?.auto_cut ?? defaultPOSSettings.auto_cut,
+  });
+
+  const [localSettings, setLocalSettings] = useState<POSSettings>(() =>
+    mergeWithDefaults(null)
+  );
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
 
@@ -104,133 +119,42 @@ export const usePOSSettings = ({ organizationId }: UsePOSSettingsProps): UsePOSS
         };
       }
 
-      const isOnline = typeof navigator === 'undefined' ? true : navigator.onLine;
+      // ⚡ استخدام PowerSync مباشرة Offline-First
+      // ⚠️ تحديد الأعمدة الموجودة فقط في pos_settings (بدون printer_type, etc)
+      try {
+        const settings = await powerSyncService.queryOne<Partial<POSSettings>>({
+          sql: `SELECT
+            id, organization_id,
+            store_name, store_phone, store_email, store_address, store_website, store_logo_url,
+            receipt_header_text, receipt_footer_text, welcome_message,
+            show_qr_code, show_tracking_code, show_customer_info, show_store_logo,
+            show_store_info, show_date_time, show_employee_name,
+            paper_width, font_size, line_spacing, print_density, auto_cut,
+            primary_color, secondary_color, text_color, background_color,
+            receipt_template, header_style, footer_style, item_display_style, price_position,
+            custom_css, currency_symbol, currency_position, tax_label, tax_number,
+            business_license, activity, rc, nif, nis, rib,
+            allow_price_edit, require_manager_approval,
+            created_at, updated_at
+          FROM pos_settings WHERE organization_id = ? LIMIT 1`,
+          params: [currentOrganization.id]
+        });
 
-      if (!isOnline) {
-        const offlineSettings = await localPosSettingsService.get(currentOrganization.id);
-        if (offlineSettings) {
+        if (settings) {
           return {
             success: true,
-            data: offlineSettings as POSSettings
+            data: { ...defaultPOSSettings, ...settings, organization_id: currentOrganization.id } as POSSettings
           };
         }
+
+        // إرجاع الإعدادات الافتراضية إذا لم توجد
         return {
           success: true,
           data: { ...defaultPOSSettings, organization_id: currentOrganization.id }
         };
-      }
-
-      try {
-        if (isOnline) {
-          const pendingLocal = await localPosSettingsService.get(currentOrganization.id);
-          if (pendingLocal?.pending_sync) {
-            try {
-              const { data: existingSettings } = await supabase
-                .from('pos_settings')
-                .select('id')
-                .eq('organization_id', currentOrganization.id)
-                .single();
-
-              if (existingSettings) {
-                await supabase
-                  .from('pos_settings')
-                  .update({
-                    ...pendingLocal,
-                    pending_sync: undefined,
-                    updated_at: new Date().toISOString()
-                  })
-                  .eq('organization_id', currentOrganization.id);
-              } else {
-                await supabase
-                  .from('pos_settings')
-                  .insert({
-                    organization_id: currentOrganization.id,
-                    ...pendingLocal,
-                    pending_sync: undefined,
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString()
-                  });
-              }
-
-              await localPosSettingsService.save({
-                ...pendingLocal,
-                pending_sync: false,
-                updated_at: new Date().toISOString()
-              });
-            } catch (syncError) {
-              if (import.meta.env.DEV) {
-                console.error('[POSSettings] فشل مزامنة إعدادات الأوفلاين:', syncError);
-              }
-            }
-          }
-        }
-
-        // 1) حاول الدالة المحسنة أولاً
-        const { data: enhancedData, error: enhancedError } = await (supabase as any)
-          .rpc('get_pos_settings_enhanced', { p_org_id: currentOrganization.id });
-
-        if (!enhancedError && enhancedData && typeof enhancedData === 'object' && 'success' in enhancedData && (enhancedData as any).success) {
-          const result = (enhancedData as any).data as POSSettings;
-          if (result) {
-            await localPosSettingsService.save({
-              ...result,
-              pending_sync: false,
-              updated_at: (result as any)?.updated_at || new Date().toISOString()
-            } as any);
-          }
-          return { success: true, data: result } as any;
-        }
-
-        // 2) Fallback للدالة الأقدم مع اسم المعامل الصحيح
-        const { data: legacyData, error: legacyError } = await supabase.rpc('get_pos_settings' as any, {
-          p_organization_id: currentOrganization.id
-        });
-
-        if (!legacyError && legacyData) {
-          const responseData = Array.isArray(legacyData) ? legacyData[0] : legacyData;
-          const result = responseData as POSSettings;
-          if (result) {
-            await localPosSettingsService.save({
-              ...result,
-              pending_sync: false,
-              updated_at: (result as any)?.updated_at || new Date().toISOString()
-            } as any);
-          }
-          return { success: true, data: result } as any;
-        }
-
-        // 3) Fallback نهائي: استعلام مباشر من الجدول
-        const { data: directData, error: directError } = await supabase
-          .from('pos_settings')
-          .select('*')
-          .eq('organization_id', currentOrganization.id)
-          .maybeSingle();
-
-        if (directError) {
-          throw new Error(`خطأ في جلب إعدادات POS: ${directError.message}`);
-        }
-
-        if (!directData) {
-          throw new Error('لم يتم إرجاع أي إعدادات من الخادم');
-        }
-
-        await localPosSettingsService.save({
-          ...directData,
-          pending_sync: false,
-          updated_at: (directData as any)?.updated_at || new Date().toISOString()
-        } as any);
-
-        return { success: true, data: directData as any } as any;
-
       } catch (error) {
-        const offlineSettings = await localPosSettingsService.get(currentOrganization.id);
-        if (offlineSettings) {
-          return {
-            success: true,
-            data: offlineSettings as POSSettings
-          };
-        }
-
+        console.error('[usePOSSettings] Error loading settings:', error);
+        // في حالة الخطأ، نعيد الإعدادات الافتراضية بدلاً من الفشل
         return {
           success: true,
           data: { ...defaultPOSSettings, organization_id: currentOrganization.id }
@@ -238,194 +162,131 @@ export const usePOSSettings = ({ organizationId }: UsePOSSettingsProps): UsePOSS
       }
     },
     enabled: !!currentOrganization?.id && hasPermission(),
-    staleTime: 60 * 60 * 1000, // ساعة واحدة - الإعدادات لا تتغير كثيراً
-    gcTime: 2 * 60 * 60 * 1000, // ساعتان
-    retry: 1,
-    retryDelay: 2000,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    refetchOnReconnect: false,
-    // ✅ استخدام البيانات من AppInitializationContext كـ initialData
-    initialData: appInitPosSettings ? {
-      success: true,
-      data: appInitPosSettings as POSSettings
-    } : undefined,
-    placeholderData: (previousData) => {
-      return previousData;
-    },
-    networkMode: 'always',
-    meta: {
-      persist: false
+    staleTime: 5 * 60 * 1000, // 5 دقائق
+    gcTime: 10 * 60 * 1000, // 10 دقائق
+    networkMode: 'always', // ⚡ يعمل Offline-First
+    retry: 1
+  });
+
+  // ⚡ تحديث الإعدادات محلياً
+  const updateSettingsMutation = useMutation({
+    mutationFn: async (newSettings: Partial<POSSettings>): Promise<void> => {
+      if (!currentOrganization?.id) throw new Error('Organization ID required');
+
+      const now = new Date().toISOString();
+      if (!powerSyncService.db) {
+        console.warn('[usePOSSettings] PowerSync DB not initialized');
+        return null;
+      }
+      const existing = await powerSyncService.queryOne<{ id: string }>({
+        sql: 'SELECT id FROM pos_settings WHERE organization_id = ? LIMIT 1',
+        params: [currentOrganization.id]
+      });
+
+      // ⚠️ حقول الطابعة المتقدمة - تُحفظ في local_printer_settings وليس هنا
+      const PRINTER_FIELDS = [
+        'printer_name', 'printer_type', 'silent_print', 'print_copies',
+        'open_cash_drawer', 'print_on_order', 'beep_after_print',
+        'margin_top', 'margin_bottom', 'margin_left', 'margin_right'
+      ];
+
+      if (existing) {
+        await powerSyncService.transaction(async (tx) => {
+          // استبعاد حقول الطابعة من التحديث
+          const updateKeys = Object.keys(newSettings).filter(k =>
+            k !== 'id' &&
+            k !== 'organization_id' &&
+            k !== 'created_at' &&
+            !PRINTER_FIELDS.includes(k)
+          );
+
+          if (updateKeys.length === 0) {
+            console.log('[usePOSSettings] No valid fields to update');
+            return;
+          }
+
+          const setClause = [...updateKeys, 'updated_at'].map(k => `${k} = ?`).join(', ');
+          const values = [...updateKeys.map(k => (newSettings as any)[k]), now, currentOrganization.id];
+
+          await tx.execute(
+            `UPDATE pos_settings SET ${setClause} WHERE organization_id = ?`,
+            values
+          );
+        });
+      } else {
+        await powerSyncService.transaction(async (tx) => {
+          // استبعاد حقول الطابعة من الإدراج
+          const settingsData = {
+            ...defaultPOSSettings,
+            ...newSettings,
+            organization_id: currentOrganization.id,
+            created_at: now,
+            updated_at: now
+          };
+
+          // إزالة حقول الطابعة
+          PRINTER_FIELDS.forEach(field => {
+            delete (settingsData as any)[field];
+          });
+
+          const columns = Object.keys(settingsData);
+          const placeholders = columns.map(() => '?').join(', ');
+          const values = columns.map(col => (settingsData as any)[col]);
+
+          await tx.execute(
+            `INSERT INTO pos_settings (${columns.join(', ')}) VALUES (${placeholders})`,
+            values
+          );
+        });
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['pos-settings', currentOrganization.id] });
     }
   });
 
-  const typedResponse = response as POSSettingsResponse | undefined;
-  const remoteSettings = typedResponse?.success ? typedResponse.data : null;
-  const hasError = !typedResponse?.success || !!error;
-  const errorMessage = typedResponse?.error || error?.message;
-
-  // إضافة سجل للتأكد من البيانات
-
-  // إعدادات افتراضية
-  const defaultSettings: POSSettings = {
-    ...defaultPOSSettings,
-    organization_id: resolvedOrganizationId
-  };
-
-  const finalSettings = localSettings || defaultSettings;
-
-  // مزامنة الإعدادات المسترجعة مع الحالة المحلية
-  useEffect(() => {
-    if (remoteSettings) {
-      setLocalSettings(prev => ({
-        ...prev,
-        ...remoteSettings,
-        organization_id: remoteSettings.organization_id || resolvedOrganizationId || prev.organization_id
-      }));
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [remoteSettings?.organization_id, remoteSettings?.updated_at]);
-
-  // تأكد من أن معرف المؤسسة محدث دائماً في الحالة المحلية
-  useEffect(() => {
-    if (!resolvedOrganizationId) return;
-    setLocalSettings(prev => {
-      if (prev.organization_id === resolvedOrganizationId) {
-        return prev;
-      }
-      return {
-        ...prev,
-        organization_id: resolvedOrganizationId
-      };
-    });
-  }, [resolvedOrganizationId]);
-
-  // إضافة سجل للتأكد من البيانات المُرجعة
-
-  // دالة تحديث الإعدادات محلياً
   const updateSettings = useCallback((newSettings: Partial<POSSettings>) => {
-    setLocalSettings(prev => ({
-      ...prev,
-      ...newSettings,
-      organization_id: newSettings.organization_id ?? prev.organization_id ?? resolvedOrganizationId
-    }));
-  }, [resolvedOrganizationId]);
+    setLocalSettings(prev => ({ ...prev, ...newSettings }));
+  }, []);
 
-  // دالة حفظ الإعدادات
   const saveSettings = useCallback(async () => {
-    if (!currentOrganization?.id || !hasPermission()) {
-      toast({
-        title: "خطأ",
-        description: "ليس لديك صلاحية لحفظ إعدادات نقطة البيع",
-        variant: "destructive"
-      });
-      return;
-    }
-
     setIsSaving(true);
     setSaveSuccess(false);
-
     try {
-      const isOnline = typeof navigator === 'undefined' ? true : navigator.onLine;
-
-      if (!isOnline) {
-        await localPosSettingsService.save({
-          ...finalSettings,
-          pending_sync: true,
-          updated_at: new Date().toISOString()
-        });
-        setIsSaving(false);
-        setSaveSuccess(true);
-        toast({
-          title: 'تم حفظ الإعدادات محلياً',
-          description: 'سيتم مزامنة إعدادات نقطة البيع عند توفر الاتصال.'
-        });
-        return;
-      }
-
-      // التحقق من وجود إعدادات موجودة أولاً
-      const { data: existingSettings, error: checkError } = await supabase
-        .from('pos_settings')
-        .select('id')
-        .eq('organization_id', currentOrganization.id)
-        .single();
-
-      if (checkError && checkError.code !== 'PGRST116') {
-        // إذا كان الخطأ ليس "لا توجد نتائج"، فهناك خطأ حقيقي
-        throw new Error(`خطأ في التحقق من الإعدادات الموجودة: ${checkError.message}`);
-      }
-
-      let result;
-      if (existingSettings) {
-        // تحديث الإعدادات الموجودة
-        result = await supabase
-          .from('pos_settings')
-          .update({
-            ...finalSettings,
-            updated_at: new Date().toISOString()
-          })
-          .eq('organization_id', currentOrganization.id)
-          .select()
-          .single();
-      } else {
-        // إدراج إعدادات جديدة
-        result = await supabase
-          .from('pos_settings')
-          .insert({
-            organization_id: currentOrganization.id,
-            ...finalSettings,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          })
-          .select()
-          .single();
-      }
-
-      if (result.error) {
-        throw new Error(`خطأ في حفظ الإعدادات: ${result.error.message}`);
-      }
-
-      // تحديث cache
-      queryClient.setQueryData(['pos-settings', currentOrganization.id], {
-        success: true,
-        data: finalSettings
-      });
-      await localPosSettingsService.save({
-        ...finalSettings,
-        pending_sync: false,
-        updated_at: new Date().toISOString()
-      });
-
+      await updateSettingsMutation.mutateAsync(localSettings);
       setSaveSuccess(true);
       toast({
-        title: "تم الحفظ",
-        description: "تم حفظ إعدادات نقطة البيع بنجاح",
+        title: 'تم الحفظ',
+        description: 'تم حفظ إعدادات نقطة البيع بنجاح'
       });
-
-      // إعادة تعيين حالة النجاح بعد 3 ثوان
-      setTimeout(() => setSaveSuccess(false), 3000);
-
     } catch (error) {
       toast({
-        title: "خطأ",
-        description: error instanceof Error ? error.message : "فشل في حفظ الإعدادات",
-        variant: "destructive"
+        variant: 'destructive',
+        title: 'خطأ',
+        description: error instanceof Error ? error.message : 'فشل حفظ الإعدادات'
       });
     } finally {
       setIsSaving(false);
     }
-  }, [currentOrganization?.id, finalSettings, hasPermission, queryClient, toast]);
+  }, [localSettings, updateSettingsMutation, toast]);
+
+  // تحديث الإعدادات المحلية عند جلبها من الـ query مع دمج القيم الافتراضية
+  useEffect(() => {
+    if (response?.success && response.data) {
+      setLocalSettings(mergeWithDefaults(response.data));
+    }
+  }, [response]);
 
   return {
-    settings: finalSettings,
-    isLoading,
-    error: errorMessage,
+    settings: localSettings,
+    isLoading: isLoading || appInitLoading,
+    error: response?.error || error?.message || null,
     updateSettings,
     saveSettings,
-    isSaving,
+    isSaving: isSaving || updateSettingsMutation.isPending,
     saveSuccess,
     hasPermission
   };
 };
+
 
 export default usePOSSettings;

@@ -28,5 +28,5 @@ export { useTenantState, updateOrganization, setLoading, setError, resetState } 
 export { useTenantActions } from './TenantActions';
 export { useTenantHooks } from './TenantHooks';
 
-// تصدير السياق
-export { default as TenantContext } from './TenantContext';
+// تصدير السياق من TenantProvider
+export { TenantContext } from './TenantProvider';

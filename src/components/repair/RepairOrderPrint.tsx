@@ -7,8 +7,10 @@ import { RepairOrder } from '@/types/repair';
 import RepairReceiptPrint from './RepairReceiptPrint';
 import { supabase } from '@/lib/supabase';
 import { buildStoreUrl, buildTrackingUrl } from '@/lib/utils/store-url';
-import { isTauriApp } from '@/lib/platform';
+import { isElectronApp } from '@/lib/platform';
 import '@/styles/repair-print.css';
+// ⚡ نظام الطباعة الموحد
+import { usePrinter } from '@/hooks/usePrinter';
 
 interface RepairOrderPrintProps {
   order: RepairOrder;
@@ -38,6 +40,9 @@ const RepairOrderPrint: React.FC<RepairOrderPrintProps> = ({ order, queuePositio
   const [isPrintSuccess, setIsPrintSuccess] = useState(false);
   const [fallbackPOSSettings, setFallbackPOSSettings] = useState<any>(null);
   const [calculatedQueuePosition, setCalculatedQueuePosition] = useState<number>(queuePosition || 0);
+
+  // ⚡ نظام الطباعة الموحد
+  const { printHtml, isElectron: isElectronPrint } = usePrinter();
 
   // جلب إعدادات نقطة البيع من قاعدة البيانات كبديل
   useEffect(() => {
@@ -529,22 +534,27 @@ const RepairOrderPrint: React.FC<RepairOrderPrintProps> = ({ order, queuePositio
         }
       };
 
-      // ⚡ محاولة استخدام Tauri API للطباعة
-      if (isTauriApp()) {
-        console.log('[RepairPrint] محاولة استخدام Tauri API...');
+      // ⚡ محاولة الطباعة المباشرة عبر Electron أولاً
+      if (isElectronPrint) {
         try {
-          const { getCurrentWebview } = await import('@tauri-apps/api/webview');
-          const webview = getCurrentWebview();
-          await webview.print();
-          console.log('[RepairPrint] تم استدعاء Tauri print()');
-          cleanupAndFinish(true);
-          return;
-        } catch (tauriError: any) {
-          console.warn('[RepairPrint] Tauri API فشل:', tauriError.message);
+          console.log('[RepairPrint] محاولة الطباعة المباشرة عبر Electron...');
+          const result = await printHtml(printHtmlContent, {
+            silent: true, // طباعة صامتة بدون نافذة
+          });
+
+          if (result.success) {
+            console.log('[RepairPrint] تمت الطباعة المباشرة بنجاح');
+            cleanupAndFinish(true);
+            return;
+          } else {
+            console.warn('[RepairPrint] فشلت الطباعة المباشرة:', result.error);
+          }
+        } catch (err) {
+          console.warn('[RepairPrint] خطأ في الطباعة المباشرة، التراجع إلى window.print:', err);
         }
       }
 
-      // ⚡ الطريقة البديلة: window.print
+      // ⚡ الطباعة باستخدام window.print (fallback)
       console.log('[RepairPrint] استخدام window.print...');
       window.focus();
       window.print();

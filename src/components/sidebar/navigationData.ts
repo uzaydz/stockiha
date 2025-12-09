@@ -1,12 +1,12 @@
-import { 
-  LayoutDashboard, 
-  Package, 
-  ShoppingBag, 
-  Users, 
-  Settings, 
-  BarChart3, 
-  DollarSign, 
-  Wrench, 
+import {
+  LayoutDashboard,
+  Package,
+  ShoppingBag,
+  Users,
+  Settings,
+  BarChart3,
+  DollarSign,
+  Wrench,
   Store,
   FileText,
   Database,
@@ -34,7 +34,10 @@ import {
   Zap,
   Layers,
   Ban,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Crown,
+  PieChart,
+  Gift
 } from 'lucide-react';
 
 import { NavGroup, MerchantType } from './types';
@@ -336,6 +339,14 @@ export const createNavigationData = (
       allowedMerchantTypes: ['traditional', 'ecommerce', 'both'],
       items: [
         {
+          title: 'التقارير الشاملة',
+          icon: PieChart,
+          href: '/dashboard/comprehensive-reports',
+          requiredPermission: 'viewReports',
+          badge: 'جديد',
+          allowedMerchantTypes: ['traditional', 'ecommerce', 'both']
+        },
+        {
           title: 'التحليلات المالية الشاملة',
           icon: Activity,
           href: '/dashboard/reports-operations/financial',
@@ -510,6 +521,32 @@ export const createNavigationData = (
           title: 'مستكشف قاعدة البيانات',
           icon: Database,
           href: '/dashboard/database-admin',
+          requiredPermission: 'manageOrganizationSettings',
+          badge: 'جديد',
+          allowedMerchantTypes: ['traditional', 'ecommerce', 'both']
+        },
+      ]
+    },
+
+    // الاشتراك - تظهر للجميع
+    {
+      group: 'الاشتراك',
+      icon: Crown,
+      requiredPermission: 'manageOrganizationSettings',
+      allowedMerchantTypes: ['traditional', 'ecommerce', 'both'],
+      items: [
+        {
+          title: 'إدارة الاشتراك',
+          icon: Crown,
+          href: '/dashboard/subscription',
+          requiredPermission: 'manageOrganizationSettings',
+          badge: null,
+          allowedMerchantTypes: ['traditional', 'ecommerce', 'both']
+        },
+        {
+          title: 'برنامج الإحالة',
+          icon: Gift,
+          href: '/dashboard/referral',
           requiredPermission: 'manageOrganizationSettings',
           badge: 'جديد',
           allowedMerchantTypes: ['traditional', 'ecommerce', 'both']

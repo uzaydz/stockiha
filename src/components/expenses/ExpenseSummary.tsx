@@ -1,14 +1,26 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useExpenses } from '@/hooks/useExpenses';
 import { Activity, ArrowDown, ArrowUp, CalendarClock, DollarSign, LineChart, Repeat } from 'lucide-react';
-import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import {
+  Chart as ChartJS,
+  ArcElement,
+  Tooltip as ChartTooltip,
+  Legend as ChartLegend,
+  ChartOptions,
+  ChartData,
+} from 'chart.js';
+import { Doughnut } from 'react-chartjs-2';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { ExpenseWithRecurring } from '@/types/expenses';
 import { Badge } from '@/components/ui/badge';
 import { Loader2 } from 'lucide-react';
-import { ResponsivePie } from '@nivo/pie';
+import { useState, useMemo } from 'react';
+import { useTheme } from 'next-themes';
+
+// Register Chart.js components
+ChartJS.register(ArcElement, ChartTooltip, ChartLegend);
 
 export function ExpenseSummary() {
   const { useExpenseSummaryQuery } = useExpenses();
@@ -37,7 +49,7 @@ export function ExpenseSummary() {
   }
 
   // تنسيق البيانات لمخطط المصروفات الشهرية
-  const chartData = Object.entries(summary.by_month).map(([month, amount]) => {
+  const monthlyChartData = Object.entries(summary.by_month).map(([month, amount]) => {
     const [year, monthNum] = month.split('-');
     const monthName = getArabicMonthName(parseInt(monthNum) - 1);
     return {
@@ -99,25 +111,77 @@ export function ExpenseSummary() {
   };
 
   // Transformar datos para el gráfico de pastel
+  const PIE_COLORS = [
+    '#3B82F6', // blue
+    '#6366F1', // indigo
+    '#F59E0B', // amber
+    '#F97316', // orange
+    '#8B5CF6', // purple
+    '#14B8A6', // teal
+    '#6B7280', // gray
+    '#4B5563', // gray-600
+  ];
+
   const getPieChartData = () => {
     if (!summary?.categories) return [];
-    
+
     return Object.entries(summary.categories).map(([category, amount], index) => ({
-      id: category,
-      label: category,
+      name: category,
       value: Number(amount),
-      color: [
-        '#3B82F6', // blue
-        '#6366F1', // indigo
-        '#F59E0B', // amber
-        '#F97316', // orange
-        '#8B5CF6', // purple
-        '#14B8A6', // teal
-        '#6B7280', // gray
-        '#4B5563', // gray-600
-      ][index % 8]
+      fill: PIE_COLORS[index % PIE_COLORS.length],
     }));
   };
+
+  const [activePieIndex, setActivePieIndex] = useState<number | undefined>(undefined);
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
+
+  // Chart.js data and options
+  const chartData: ChartData<'doughnut'> = useMemo(() => {
+    const pieData = getPieChartData();
+    return {
+      labels: pieData.map(d => d.name),
+      datasets: [
+        {
+          data: pieData.map(d => d.value),
+          backgroundColor: pieData.map(d => d.fill),
+          borderColor: isDark ? '#18181b' : '#ffffff',
+          borderWidth: 2,
+          hoverOffset: 8,
+          spacing: 2,
+        },
+      ],
+    };
+  }, [summary?.categories, isDark]);
+
+  const chartOptions: ChartOptions<'doughnut'> = useMemo(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    cutout: '60%',
+    plugins: {
+      legend: {
+        display: false,
+      },
+      tooltip: {
+        enabled: true,
+        backgroundColor: isDark ? '#27272a' : '#ffffff',
+        titleColor: isDark ? '#a1a1aa' : '#71717a',
+        bodyColor: isDark ? '#ffffff' : '#18181b',
+        borderColor: isDark ? '#3f3f46' : '#e4e4e7',
+        borderWidth: 1,
+        padding: 12,
+        cornerRadius: 12,
+        callbacks: {
+          label: (context) => {
+            const value = context.raw as number;
+            const total = Number(summary?.total_expenses || 0);
+            const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0';
+            return `${value.toFixed(2)} د.ج (${percentage}%)`;
+          },
+        },
+      },
+    },
+  }), [isDark, summary?.total_expenses]);
 
   return (
     <div className="space-y-6" dir="rtl">
@@ -387,84 +451,36 @@ export function ExpenseSummary() {
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
               </div>
             ) : summary?.categories && Object.keys(summary.categories).length > 0 ? (
-              <ResponsivePie
-                data={getPieChartData()}
-                margin={{ top: 30, right: 20, bottom: 30, left: 20 }}
-                innerRadius={0.6}
-                padAngle={0.5}
-                cornerRadius={4}
-                activeOuterRadiusOffset={8}
-                borderWidth={1}
-                borderColor={{ from: 'color', modifiers: [['darker', 0.2]] }}
-                arcLinkLabelsSkipAngle={10}
-                arcLinkLabelsTextColor="var(--muted-foreground)"
-                arcLinkLabelsThickness={2}
-                arcLinkLabelsColor={{ from: 'color' }}
-                arcLabelsSkipAngle={10}
-                arcLabelsTextColor="var(--foreground)"
-                defs={[
-                  {
-                    id: 'dots',
-                    type: 'patternDots',
-                    background: 'inherit',
-                    color: 'rgba(255, 255, 255, 0.3)',
-                    size: 4,
-                    padding: 1,
-                    stagger: true
-                  },
-                  {
-                    id: 'lines',
-                    type: 'patternLines',
-                    background: 'inherit',
-                    color: 'rgba(255, 255, 255, 0.3)',
-                    rotation: -45,
-                    lineWidth: 6,
-                    spacing: 10
-                  }
-                ]}
-                fill={[
-                  { match: { id: 'الإيجار' }, id: 'lines' },
-                  { match: { id: 'الرواتب' }, id: 'dots' },
-                  { match: { id: 'المرافق' }, id: 'lines' },
-                  { match: { id: 'المخزون' }, id: 'dots' },
-                ]}
-                legends={[
-                  {
-                    anchor: 'bottom',
-                    direction: 'row',
-                    justify: false,
-                    translateX: 0,
-                    translateY: 30,
-                    itemsSpacing: 0,
-                    itemWidth: 65,
-                    itemHeight: 18,
-                    itemTextColor: "var(--muted-foreground)",
-                    itemDirection: 'right-to-left',
-                    itemOpacity: 1,
-                    symbolSize: 12,
-                    symbolShape: 'circle',
-                  }
-                ]}
-                theme={{
-                  tooltip: {
-                    container: {
-                      backgroundColor: "var(--card)",
-                      boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
-                      borderRadius: '0.5rem',
-                      padding: '0.75rem',
-                      color: "var(--card-foreground)",
-                      fontSize: '0.875rem',
-                      direction: 'rtl',
-                    }
-                  },
-                  grid: {
-                    line: {
-                      stroke: "var(--border)",
-                      strokeWidth: 1
-                    }
-                  }
-                }}
-              />
+              <div className="flex items-center h-full">
+                <div className="w-1/2 h-full">
+                  <Doughnut data={chartData} options={chartOptions} />
+                </div>
+                <div className="w-1/2 pr-2 max-h-full overflow-y-auto">
+                  {getPieChartData().map((item, index) => {
+                    const total = Number(summary?.total_expenses || 0);
+                    const percentage = total > 0 ? ((item.value / total) * 100).toFixed(0) : '0';
+                    return (
+                      <div
+                        key={index}
+                        className="flex items-center justify-between py-1.5 px-1 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 rounded-lg transition-colors"
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div
+                            className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: item.fill }}
+                          />
+                          <span className="text-xs text-zinc-600 dark:text-zinc-400 truncate max-w-[80px]">
+                            {item.name}
+                          </span>
+                        </div>
+                        <span className="text-xs font-semibold text-zinc-900 dark:text-white">
+                          {percentage}%
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             ) : (
               <div className="h-full w-full flex items-center justify-center">
                 <p className="text-muted-foreground">لا توجد بيانات كافية للعرض</p>

@@ -3,26 +3,26 @@
  * يستخدم المكونات المنفصلة لتحسين الأداء بشكل كبير
  */
 
-import React, { 
-  createContext, 
-  useContext, 
-  useEffect, 
-  useState, 
-  useCallback, 
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
   useMemo,
-  useRef 
+  useRef
 } from 'react';
 import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 
 import { setCurrentOrganizationId } from '@/lib/requestInterceptor';
 
 // استيراد الأنواع والمكونات المنفصلة
-import type { 
-  AuthContextType, 
-  AuthState, 
-  UserProfile, 
+import type {
+  AuthContextType,
+  AuthState,
+  UserProfile,
   Organization,
-  AuthResult 
+  AuthResult
 } from './auth/types';
 
 // استيراد الخدمات
@@ -45,11 +45,11 @@ import {
 } from './auth/utils/authStorage';
 
 // استيراد محرك المزامنة Delta-Based
-import { deltaSyncEngine } from '@/lib/sync/delta';
+// import { deltaSyncEngine } from '@/lib/sync/delta'; // Removed in favor of SyncManager
 import { loadSecureSession, hasStoredSecureSession, saveSecureSession } from './auth/utils/secureSessionStorage';
-import { 
-  compareAuthData, 
-  debounce 
+import {
+  compareAuthData,
+  debounce
 } from './auth/utils/authHelpers';
 import { AUTH_TIMEOUTS } from './auth/constants/authConstants';
 import { throttledLog } from '@/lib/utils/duplicateLogger';
@@ -59,13 +59,67 @@ import { dispatchAppEvent, addAppEventListener } from '@/lib/events/eventManager
 
 import { isAppOnline } from '@/utils/networkStatus';
 
-// Cache محسن للجلسة
+// ⚡ Cache محسن للجلسة - مع تنظيف تلقائي لمنع تسرب الذاكرة
 const sessionCache = new Map<string, { session: Session; timestamp: number }>();
 const userCache = new Map<string, { user: SupabaseUser; timestamp: number }>();
-const SESSION_CACHE_DURATION = 10 * 60 * 1000; // 10 دقائق
-const USER_CACHE_DURATION = 15 * 60 * 1000; // 15 دقيقة
+const SESSION_CACHE_DURATION = 5 * 60 * 1000; // ⚡ 5 دقائق (كان 10)
+const USER_CACHE_DURATION = 5 * 60 * 1000; // ⚡ 5 دقائق (كان 15)
+const MAX_CACHE_ENTRIES = 3; // ⚡ حد أقصى للمدخلات
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+// ⚡ دالة تنظيف الكاش لمنع تسرب الذاكرة
+const pruneAuthCaches = () => {
+  const now = Date.now();
+
+  // تنظيف sessionCache
+  for (const [key, value] of sessionCache.entries()) {
+    if (now - value.timestamp > SESSION_CACHE_DURATION) {
+      sessionCache.delete(key);
+    }
+  }
+  if (sessionCache.size > MAX_CACHE_ENTRIES) {
+    const oldest = [...sessionCache.entries()].sort((a, b) => a[1].timestamp - b[1].timestamp)[0];
+    if (oldest) sessionCache.delete(oldest[0]);
+  }
+
+  // تنظيف userCache
+  for (const [key, value] of userCache.entries()) {
+    if (now - value.timestamp > USER_CACHE_DURATION) {
+      userCache.delete(key);
+    }
+  }
+  if (userCache.size > MAX_CACHE_ENTRIES) {
+    const oldest = [...userCache.entries()].sort((a, b) => a[1].timestamp - b[1].timestamp)[0];
+    if (oldest) userCache.delete(oldest[0]);
+  }
+};
+
+// ⚡ تنظيف دوري كل 2 دقيقة - مع حفظ المرجع للتنظيف عند الحاجة
+// ⚡ v2.0: حفظ reference للـ beforeunload handler لمنع memory leaks
+let authCacheCleanupInterval: ReturnType<typeof setInterval> | null = null;
+let authBeforeUnloadHandler: (() => void) | null = null;
+
+if (typeof window !== 'undefined') {
+  // تأكد من عدم إنشاء interval مكرر
+  if (!authCacheCleanupInterval) {
+    authCacheCleanupInterval = setInterval(pruneAuthCaches, 2 * 60 * 1000);
+  }
+
+  // ⚡ تنظيف عند إغلاق الصفحة لمنع تسرب الذاكرة
+  // ⚡ v2.0: حفظ reference للإزالة لاحقاً إذا لزم الأمر
+  if (!authBeforeUnloadHandler) {
+    authBeforeUnloadHandler = () => {
+      if (authCacheCleanupInterval) {
+        clearInterval(authCacheCleanupInterval);
+        authCacheCleanupInterval = null;
+      }
+      sessionCache.clear();
+      userCache.clear();
+    };
+    window.addEventListener('beforeunload', authBeforeUnloadHandler);
+  }
+}
+
+export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(({ children }) => {
   // الحالة الأساسية
@@ -89,10 +143,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
   useEffect(() => {
     // تقليل logs في development mode
     if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {
-      try { console.log('🔐 [Auth] provider mount start', { subdomain: currentSubdomain }); } catch {}
+      try { console.log('🔐 [Auth] provider mount start', { subdomain: currentSubdomain }); } catch { }
     }
   }, [currentSubdomain]);
-  
+
   // استخدام الـ Hooks المحسنة
   const { session: hookSession, isValidSession, refreshSession, validateSession } = useAuthSession();
   const { userProfile, isLoading: profileLoading, refetch: refetchProfile } = useUserProfile({
@@ -124,7 +178,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
     const needsUpdate = !dataLoadingComplete && !authReady;
 
     if (isDataReady && needsUpdate) {
-      try { console.log('✅ [Auth] data ready', { userId: user?.id, orgId: memoizedOrganization?.id }); } catch {}
+      try { console.log('✅ [Auth] data ready', { userId: user?.id, orgId: memoizedOrganization?.id }); } catch { }
       setDataLoadingComplete(true);
       setAuthReady(true);
 
@@ -145,7 +199,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
     if (user && hasInitialSessionCheck) {
       // بدء تحميل الملف الشخصي
       if (!profileLoaded && !isLoadingProfile && !profileLoading) {
-        try { console.log('👤 [Auth] start loading profile'); } catch {}
+        try { console.log('👤 [Auth] start loading profile'); } catch { }
         setIsLoadingProfile(true);
       }
     }
@@ -156,7 +210,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
     if (userProfile && !profileLoading && isLoadingProfile) {
       if (process.env.NODE_ENV === 'development') {
       }
-      try { console.log('👤 [Auth] profile loaded'); } catch {}
+      try { console.log('👤 [Auth] profile loaded'); } catch { }
       setProfileLoaded(true);
       setIsLoadingProfile(false);
 
@@ -168,7 +222,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
     if (userProfile) {
       // بدء تحميل المؤسسة
       if (!organizationLoaded && !isLoadingOrganization && !orgLoading) {
-        try { console.log('🏢 [Auth] start loading organization'); } catch {}
+        try { console.log('🏢 [Auth] start loading organization'); } catch { }
         setIsLoadingOrganization(true);
       }
     }
@@ -177,7 +231,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
   // تحديث حالة البيانات المكتملة
   useEffect(() => {
     if (profileLoaded && organizationLoaded && !isLoadingProfile && !isLoadingOrganization) {
-      try { console.log('🟢 [Auth] dataLoadingComplete true'); } catch {}
+      try { console.log('🟢 [Auth] dataLoadingComplete true'); } catch { }
       setDataLoadingComplete(true);
     }
   }, [profileLoaded, organizationLoaded, isLoadingProfile, isLoadingOrganization]);
@@ -190,7 +244,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
         clearTimeout(authReadyFallbackRef.current);
       }
       authReadyFallbackRef.current = setTimeout(() => {
-        try { console.warn('⏳ [Auth] enabling authReady fallback (profile/org slow)'); } catch {}
+        try { console.warn('⏳ [Auth] enabling authReady fallback (profile/org slow)'); } catch { }
         setAuthReady(true);
       }, 7000);
       return () => {
@@ -208,18 +262,94 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
     };
   }, [user?.id, authReady]);
 
+  // ⚡ v3.2: Offline Mode Fallback - تفعيل authReady سريعاً عند عدم وجود اتصال
+  // هذا يسمح للتطبيق بالعمل في الوضع أوفلاين باستخدام البيانات المخزنة محلياً
+  const offlineFallbackRef = useRef<NodeJS.Timeout | null>(null);
+  useEffect(() => {
+    // إذا كان authReady مُفعّل بالفعل، لا حاجة للفالباك
+    if (authReady) {
+      if (offlineFallbackRef.current) {
+        clearTimeout(offlineFallbackRef.current);
+        offlineFallbackRef.current = null;
+      }
+      return;
+    }
+
+    // فحص حالة الاتصال
+    const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
+
+    // فحص وجود بيانات مخزنة محلياً
+    const hasLocalData = (() => {
+      try {
+        const orgId = localStorage.getItem('currentOrganizationId')
+          || localStorage.getItem('bazaar_organization_id')
+          || localStorage.getItem('organizationId');
+        return !!orgId && orgId !== 'undefined' && orgId !== 'null';
+      } catch {
+        return false;
+      }
+    })();
+
+    // في الوضع أوفلاين مع وجود بيانات محلية، فعّل authReady بسرعة
+    if (isOffline && hasLocalData) {
+      console.log('📴 [Auth] Offline mode detected with local data - enabling fast authReady');
+      offlineFallbackRef.current = setTimeout(() => {
+        if (!authReady) {
+          console.log('📴 [Auth] Enabling authReady for offline mode');
+          setAuthReady(true);
+          setHasInitialSessionCheck(true);
+          setIsLoading(false);
+        }
+      }, 500); // انتظار قصير جداً في الوضع أوفلاين
+    } else if (!isOffline) {
+      // في الوضع أونلاين، استخدم فالباك أطول كشبكة أمان
+      offlineFallbackRef.current = setTimeout(() => {
+        if (!authReady) {
+          console.warn('⏳ [Auth] Online fallback timeout - enabling authReady');
+          setAuthReady(true);
+          setHasInitialSessionCheck(true);
+          setIsLoading(false);
+        }
+      }, 10000); // 10 ثواني في الوضع أونلاين
+    }
+
+    // الاستماع لتغييرات حالة الاتصال
+    const handleOffline = () => {
+      if (!authReady && hasLocalData) {
+        console.log('📴 [Auth] Went offline - enabling fast authReady');
+        setTimeout(() => {
+          if (!authReady) {
+            setAuthReady(true);
+            setHasInitialSessionCheck(true);
+            setIsLoading(false);
+          }
+        }, 500);
+      }
+    };
+
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('offline', handleOffline);
+      if (offlineFallbackRef.current) {
+        clearTimeout(offlineFallbackRef.current);
+        offlineFallbackRef.current = null;
+      }
+    };
+  }, [authReady]);
+
   // الاستماع للأحداث من useUserOrganization - محسن لعدم إرسال حدث متكرر
   useEffect(() => {
     const unsubscribe = addAppEventListener<{ organization: Organization }>(
       'organizationLoaded',
       (detail) => {
         const loadedOrg = detail?.organization;
-      if (process.env.NODE_ENV === 'development') {
-      }
-      setOrganizationLoaded(true);
-      setIsLoadingOrganization(false);
+        if (process.env.NODE_ENV === 'development') {
+        }
+        setOrganizationLoaded(true);
+        setIsLoadingOrganization(false);
 
-      // لا نحتاج لإرسال حدث هنا - سيتم إرساله من useEffect الرئيسي
+        // لا نحتاج لإرسال حدث هنا - سيتم إرساله من useEffect الرئيسي
       }
     );
 
@@ -415,7 +545,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
           // ✅ بدء جلب الملف الشخصي فوراً لتجنب الانتظار الطويل في الواجهة
           try {
             setTimeout(() => { void refetchProfile(); }, 0);
-          } catch {}
+          } catch { }
         }
       }
 
@@ -433,12 +563,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
   const initializeFromStorage = useCallback(async () => {
     // منع التهيئة المتكررة بشكل أكثر صرامة
     if (initializedRef.current || hasInitialSessionCheck || initializationInProgressRef.current) return;
-    
+
     const startTime = performance.now();
     try {
       initializedRef.current = true; // تعيين مبكر لمنع التكرار
       initializationInProgressRef.current = true;
-      
+
       // 🔒 التحقق من علامة explicit logout
       const hasExplicitLogout = localStorage.getItem('bazaar_explicit_logout') === 'true';
       if (hasExplicitLogout) {
@@ -453,7 +583,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
         initializationInProgressRef.current = false;
         return;
       }
-      
+
       // تحميل البيانات المحفوظة أولاً (سريع)
       const savedAuth = loadAuthFromStorage();
 
@@ -529,7 +659,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
 
       } else if (savedAuth.session && savedAuth.user) {
         if (process.env.NODE_ENV === 'development' && Math.random() < 0.1) {
-          try { console.log('💾 [Auth] loaded legacy session from storage'); } catch {}
+          try { console.log('💾 [Auth] loaded legacy session from storage'); } catch { }
         }
 
         setUser(savedAuth.user);
@@ -592,7 +722,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
         if ((window as any).__PUBLIC_PRODUCT_PAGE__) {
           if (process.env.NODE_ENV === 'development') {
           }
-          try { console.log('🌐 [Auth] public product fast-path'); } catch {}
+          try { console.log('🌐 [Auth] public product fast-path'); } catch { }
           setUser(null);
           setSession(null);
           setIsLoading(false);
@@ -606,36 +736,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
         // نتحقق من المستخدم أولاً قبل الإعلان عن عدم وجود مستخدم
         if (process.env.NODE_ENV === 'development') {
         }
-        
+
         // فحص سريع (بدون انتظار طويل)
         if (sessionCheckTimeoutRef.current) {
           clearTimeout(sessionCheckTimeoutRef.current);
         }
-        
+
         sessionCheckTimeoutRef.current = setTimeout(async () => {
           try {
             const { user: currentUser, error } = await sessionManager.getCurrentUser();
-            
+
             if (!error && currentUser) {
               // تم العثور على مستخدم
-              try { console.log('👤 [Auth] user found via sessionManager'); } catch {}
+              try { console.log('👤 [Auth] user found via sessionManager'); } catch { }
               setUser(currentUser);
               setIsLoading(false);
               setHasInitialSessionCheck(true);
               setAuthReady(true); // الآن جاهز مع المستخدم
-              
+
               // حفظ في cache
               cacheUser(currentUser.id, currentUser);
-              
+
               if (process.env.NODE_ENV === 'development') {
               }
-              
+
               // جلب الجلسة أيضاً - مع cache
               setTimeout(async () => {
                 try {
                   const { session } = await sessionManager.getCurrentSession();
                   if (session) {
-                    try { console.log('🔑 [Auth] session fetched after user'); } catch {}
+                    try { console.log('🔑 [Auth] session fetched after user'); } catch { }
                     setSession(session);
                     cacheSession(currentUser.id, session);
                   }
@@ -645,19 +775,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
               }, 0); // ✅ إزالة التأخير لحل مشكلة عرض المتجر
             } else {
               // لا يوجد مستخدم - الآن يمكن الإعلان عن ذلك بأمان
-              try { console.log('🚫 [Auth] no user found'); } catch {}
+              try { console.log('🚫 [Auth] no user found'); } catch { }
               setUser(null);
               setSession(null);
               setIsLoading(false);
               setHasInitialSessionCheck(true);
               setAuthReady(true);
-              
+
               trackPerformance('initializeFromStorage (no user)', startTime);
             }
           } catch (error) {
             if (process.env.NODE_ENV === 'development') {
             }
-            
+
             setUser(null);
             setSession(null);
             setIsLoading(false);
@@ -667,20 +797,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
             initializationInProgressRef.current = false;
           }
         }, 0); // ✅ إزالة التأخير لحل مشكلة عرض المتجر
-        
+
       }
 
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
       }
-      
+
       setUser(null);
       setSession(null);
       setIsLoading(false);
       setHasInitialSessionCheck(true);
       setAuthReady(true);
       initializationInProgressRef.current = false;
-      
+
       trackPerformance('initializeFromStorage (error)', startTime);
     } finally {
     }
@@ -786,6 +916,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
 
   const signOut = useCallback(async (): Promise<void> => {
     // إيقاف محرك المزامنة قبل تسجيل الخروج
+    // Handled by SyncManager now
+    /*
     if (deltaSyncInitializedRef.current) {
       try {
         console.log('🛑 [DeltaSync] إيقاف محرك المزامنة قبل تسجيل الخروج');
@@ -795,6 +927,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
         console.error('[DeltaSync] خطأ في إيقاف المحرك:', error);
       }
     }
+    */
 
     await authService.signOut();
 
@@ -838,7 +971,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
     if (process.env.NODE_ENV === 'development') {
       try {
         console.log('[AuthContext] تم تسجيل الخروج مع الاحتفاظ ببيانات تسجيل الدخول الأوفلاين');
-      } catch {}
+      } catch { }
     }
   }, []);
 
@@ -847,15 +980,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
    */
   const refreshData = useCallback(async (): Promise<void> => {
     if (isLoading || isProcessingToken) return;
-    
+
     const startTime = performance.now();
-    
+
     try {
       await Promise.all([
         refetchProfile(),
         refetchOrganization()
       ]);
-      
+
       trackPerformance('refreshData', startTime);
     } catch (error) {
       if (process.env.NODE_ENV === 'development') {
@@ -869,13 +1002,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
   useEffect(() => {
     let mounted = true;
     let initPromise: Promise<void> | null = null;
-    
+
     const initialize = async () => {
       // منع التهيئة المتعددة
       if (!mounted || hasInitialSessionCheck || initializedRef.current || initPromise) {
         return;
       }
-      
+
       initPromise = initializeFromStorage();
       try {
         await initPromise;
@@ -886,9 +1019,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
         initPromise = null;
       }
     };
-    
+
     initialize();
-    
+
     return () => {
       mounted = false;
       if (initPromise) {
@@ -903,12 +1036,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
   useEffect(() => {
     // ✅ استخدام المراقب الموحد بدلاً من hook منفصل
     const { session: currentSession, isValid } = getCurrentSession();
-    
+
     // فقط إذا كانت الجلسة مختلفة حقاً وليست null
-    if (currentSession && currentSession !== session && 
-        currentSession.access_token !== session?.access_token) {
+    if (currentSession && currentSession !== session &&
+      currentSession.access_token !== session?.access_token) {
       setSession(currentSession);
-      
+
       if (process.env.NODE_ENV === 'development') {
       }
     }
@@ -946,74 +1079,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
   }, [organization?.id]);
 
   /**
-   * تهيئة وإيقاف Delta Sync Engine
-   * يتم تهيئة المحرك عندما تكون المؤسسة جاهزة وإيقافه عند تسجيل الخروج
+   * ⚡ بدء خدمة المزامنة الخلفية فقط (التهيئة تتم في PowerSyncProvider)
+   * تم إزالة التهيئة المتكررة لـ PowerSync - الآن يعتمد على PowerSyncProvider
    */
   useEffect(() => {
-    const initializeDeltaSync = async () => {
-      // التحقق من أن المؤسسة جاهزة ولم يتم التهيئة مسبقاً
+    const startBackgroundSync = async () => {
+      // التحقق من أن المؤسسة جاهزة ولم يتم البدء مسبقاً
       if (organization?.id && authReady && !deltaSyncInitializedRef.current) {
         try {
-          // ⚡ انتظار جاهزية قاعدة البيانات أولاً (في Tauri)
-          const isTauri = typeof window !== 'undefined' && Boolean(
-            (window as any).__TAURI_IPC__ ||
-            (window as any).__TAURI__ ||
-            (window as any).__TAURI_INTERNALS__
-          );
-
-          if (isTauri) {
-            console.log('🔄 [DeltaSync] تهيئة قاعدة البيانات...');
-            // ⚡ تهيئة قاعدة البيانات أولاً (مطلوب في Tauri)
-            const maxAttempts = 30;
-            let dbReady = false;
-
-            for (let attempt = 0; attempt < maxAttempts && !dbReady; attempt++) {
-              try {
-                const { sqliteDB } = await import('@/lib/db/sqliteAPI');
-                // ⚡ استدعاء initialize أولاً - هذا يُنشئ/يفتح قاعدة البيانات
-                const initResult = await sqliteDB.initialize(organization.id);
-                if (initResult.success) {
-                  // الآن نختبر بـ query
-                  const result = await sqliteDB.query('SELECT 1');
-                  if (result) {
-                    console.log('✅ [DeltaSync] قاعدة البيانات جاهزة');
-                    dbReady = true;
-                    break;
-                  }
-                }
-              } catch (err) {
-                if (attempt % 5 === 0) {
-                  console.log(`🔄 [DeltaSync] محاولة تهيئة DB ${attempt + 1}/${maxAttempts}...`);
-                }
-              }
-              await new Promise(resolve => setTimeout(resolve, 500));
-            }
-
-            if (!dbReady) {
-              console.warn('⚠️ [DeltaSync] لم تتم تهيئة DB بالكامل، سنستمر على أي حال');
-            }
-          }
-
-          console.log('🔄 [DeltaSync] بدء تهيئة محرك المزامنة للمؤسسة:', organization.id);
-          await deltaSyncEngine.initialize(organization.id);
+          // ⚡ بدء خدمة المزامنة الخلفية فقط (PowerSync مُهيأ من PowerSyncProvider)
+          const { powerSyncBackgroundService } = await import('@/services/PowerSyncBackgroundService');
+          await powerSyncBackgroundService.start(organization.id);
           deltaSyncInitializedRef.current = true;
-          console.log('✅ [DeltaSync] تم تهيئة محرك المزامنة بنجاح');
-        } catch (error) {
-          console.error('❌ [DeltaSync] فشل في تهيئة محرك المزامنة:', error);
+          console.log('✅ [AuthContext] تم بدء خدمة المزامنة الخلفية');
+        } catch (bgSyncError) {
+          console.warn('⚠️ [AuthContext] فشل بدء المزامنة الخلفية:', bgSyncError);
         }
       }
     };
 
-    // تهيئة المزامنة
-    initializeDeltaSync();
+    startBackgroundSync();
 
     // تنظيف عند إلغاء mount أو تغيير المؤسسة
     return () => {
       if (deltaSyncInitializedRef.current) {
-        console.log('🛑 [DeltaSync] إيقاف محرك المزامنة');
-        deltaSyncEngine.stop().catch(err => {
-          console.error('[DeltaSync] خطأ في إيقاف المحرك:', err);
-        });
+        import('@/services/PowerSyncBackgroundService').then(({ powerSyncBackgroundService }) => {
+          powerSyncBackgroundService.stop();
+        }).catch(() => {});
         deltaSyncInitializedRef.current = false;
       }
     };
@@ -1024,7 +1116,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
    */
   useEffect(() => {
     let cleanupInterval: NodeJS.Timeout | null = null;
-    
+
     // تأخير بسيط لتجنب التداخل مع التهيئة
     const startCleanup = setTimeout(() => {
       cleanupInterval = setInterval(() => {
@@ -1052,14 +1144,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = React.memo(
   const computedIsLoading = useMemo(() => {
     if (!hasInitialSessionCheck) return true;
     if (isProcessingToken) return true;
-    
+
     // إذا كان هناك مستخدم ولكن لا يوجد userProfile، انتظر قليلاً قبل إظهار التحميل
     if (user && !userProfile && profileLoading) {
       // إذا مر أكثر من ثانيتين على تسجيل الدخول، أظهر التحميل
       const timeSinceAuth = Date.now() - lastUpdateRef.current;
       return timeSinceAuth > 2000;
     }
-    
+
     return false;
   }, [hasInitialSessionCheck, isProcessingToken, user?.id, userProfile?.id, profileLoading]);
 

@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getSupabaseClient } from '@/lib/supabase';
-import { createLocalExpense, updateLocalExpense } from '@/api/localExpenseService';
-import { syncPendingExpenses } from '@/api/syncExpenses';
+import { unifiedExpenseService } from '@/services/UnifiedExpenseService';
 import { useExpenseCategories } from '@/context/AppInitializationContext';
 import { 
   Expense, 
@@ -25,7 +23,11 @@ export const useExpenses = () => {
   // ✅ استخدام expense_categories من AppInitializationContext
   const cachedExpenseCategories = useExpenseCategories();
 
-  const supabase = getSupabaseClient();
+  // ⚡ استخدام الخدمة الموحدة Offline-First
+  const organizationId = localStorage.getItem('currentOrganizationId') || localStorage.getItem('bazaar_organization_id');
+  if (organizationId) {
+    unifiedExpenseService.setOrganizationId(organizationId);
+  }
 
   // Get all expenses with pagination and filters
   const getExpenses = async (
@@ -34,61 +36,26 @@ export const useExpenses = () => {
     filters: ExpenseFilters = {}
   ): Promise<{ data: ExpenseWithRecurring[], count: number }> => {
     try {
-      // Obtenemos el ID de la organización actual desde localStorage
-      const organizationId = localStorage.getItem('currentOrganizationId') || localStorage.getItem('bazaar_organization_id');
+      // ⚡ استخدام الخدمة الموحدة محلياً
+      const expenseFilters: any = {
+        from_date: filters.startDate?.toISOString().split('T')[0],
+        to_date: filters.endDate?.toISOString().split('T')[0],
+        category_id: filters.categories?.[0], // TODO: دعم متعدد
+        min_amount: filters.minAmount,
+        max_amount: filters.maxAmount,
+        status: filters.status?.[0] as any, // TODO: دعم متعدد
+        search: filters.searchTerm
+      };
+
+      const result = await unifiedExpenseService.getExpenses(expenseFilters, page, pageSize);
       
-      let query = supabase
-        .from('expenses')
-        .select(`
-          *,
-          recurring:recurring_expenses(*)
-        `, { count: 'exact' });
+      // تحويل إلى ExpenseWithRecurring
+      const data = result.data.map(exp => ({
+        ...exp,
+        recurring: undefined // TODO: إضافة recurring_expenses إذا لزم
+      })) as ExpenseWithRecurring[];
       
-      // Añadimos el filtro por organization_id
-      if (organizationId) {
-        query = query.eq('organization_id', organizationId);
-      }
-      
-      // Apply filters
-      if (filters.startDate) {
-        query = query.gte('expense_date', filters.startDate.toISOString().split('T')[0]);
-      }
-      
-      if (filters.endDate) {
-        query = query.lte('expense_date', filters.endDate.toISOString().split('T')[0]);
-      }
-      
-      if (filters.categories && filters.categories.length > 0) {
-        query = query.in('category', filters.categories);
-      }
-      
-      if (filters.minAmount !== undefined) {
-        query = query.gte('amount', filters.minAmount);
-      }
-      
-      if (filters.maxAmount !== undefined) {
-        query = query.lte('amount', filters.maxAmount);
-      }
-      
-      if (filters.status && filters.status.length > 0) {
-        query = query.in('status', filters.status);
-      }
-      
-      if (filters.isRecurring !== undefined) {
-        query = query.eq('is_recurring', filters.isRecurring);
-      }
-      
-      if (filters.searchTerm) {
-        query = query.or(`title.ilike.%${filters.searchTerm}%,description.ilike.%${filters.searchTerm}%`);
-      }
-      
-      // Apply pagination
-      const { from, to } = getPaginationRange(page, pageSize);
-      query = query.range(from, to).order('expense_date', { ascending: false });
-      
-      const { data, error, count } = await query;
-      
-      if (error) throw error;
+      const count = result.total;
       
       // إذا كانت البيانات متوفرة، احصل على أسماء الفئات لعرضها بدلاً من المعرف
       let processedData = data || [];
@@ -123,8 +90,8 @@ export const useExpenses = () => {
       }
       
       return { 
-        data: processedData as ExpenseWithRecurring[], 
-        count: count || 0 
+        data, 
+        count 
       };
     } catch (error) {
       throw error;
@@ -134,18 +101,10 @@ export const useExpenses = () => {
   // Get expense by ID
   const getExpenseById = async (id: string): Promise<ExpenseWithRecurring> => {
     try {
-      const { data, error } = await supabase
-        .from('expenses')
-        .select(`
-          *,
-          recurring:recurring_expenses(*)
-        `)
-        .eq('id', id)
-        .single();
+      const expense = await unifiedExpenseService.getExpense(id);
+      if (!expense) throw new Error('Expense not found');
       
-      if (error) throw error;
-      
-      return data as ExpenseWithRecurring;
+      return expense as ExpenseWithRecurring;
     } catch (error) {
       throw error;
     }
@@ -153,10 +112,29 @@ export const useExpenses = () => {
 
   // Create a new expense
   const createExpense = async (expenseData: ExpenseFormData): Promise<Expense> => {
-    // أوفلاين أولاً
-    const local = await createLocalExpense(expenseData);
+    // ⚡ تحويل expense_date إلى string إذا كان Date object
+    const expenseDateStr = expenseData.expense_date instanceof Date
+      ? expenseData.expense_date.toISOString()
+      : (expenseData.expense_date || new Date().toISOString());
+
+    // ⚡ استخدام الخدمة الموحدة Offline-First
+    const local = await unifiedExpenseService.createExpense({
+      title: expenseData.title,
+      amount: expenseData.amount,
+      expense_date: expenseDateStr,
+      description: expenseData.description || expenseData.notes || '',
+      category: expenseData.category,
+      category_id: expenseData.category_id,
+      payment_method: (expenseData.payment_method || 'cash') as any, // ⚡ Default: cash
+      receipt_url: expenseData.receipt_url,
+      reference_number: expenseData.reference_number,
+      tags: expenseData.tags,
+      is_recurring: expenseData.is_recurring ?? false,
+      status: (expenseData.status || 'approved') as any
+    });
     // محاولة مزامنة فورية (لا تعطل واجهة المستخدم)
-    try { void syncPendingExpenses(); } catch {}
+    // ⚡ PowerSync يتعامل مع المزامنة تلقائياً - لا حاجة لاستدعاء صريح
+    // try { void syncPendingExpenses(); } catch {}
     // تحويل إلى شكل Expense (تقريبًا)
     const exp: Expense = {
       id: local.id,
@@ -178,21 +156,40 @@ export const useExpenses = () => {
 
   // Update an existing expense
   const updateExpense = async (id: string, expenseData: ExpenseFormData): Promise<Expense> => {
-    const local = await updateLocalExpense(id, expenseData);
+    // ⚡ تحويل expense_date إلى string إذا كان Date object
+    const expenseDateStr = expenseData.expense_date instanceof Date
+      ? expenseData.expense_date.toISOString()
+      : (expenseData.expense_date || new Date().toISOString());
+
+    const local = await unifiedExpenseService.updateExpense(id, {
+      title: expenseData.title,
+      amount: expenseData.amount,
+      expense_date: expenseDateStr,
+      description: expenseData.description || expenseData.notes || '',
+      category: expenseData.category,
+      category_id: expenseData.category_id,
+      payment_method: (expenseData.payment_method || 'cash') as any, // ⚡ Default: cash
+      receipt_url: expenseData.receipt_url,
+      reference_number: expenseData.reference_number,
+      tags: expenseData.tags,
+      is_recurring: expenseData.is_recurring ?? false,
+      status: (expenseData.status || 'approved') as any
+    });
+    
     if (!local) throw new Error('Expense not found locally');
-    try { void syncPendingExpenses(); } catch {}
+    
     const exp: Expense = {
       id: local.id,
       title: local.title,
       amount: local.amount,
       category: local.category,
       expense_date: local.expense_date,
-      notes: local.notes || undefined,
+      notes: local.description,
       status: local.status,
       is_recurring: local.is_recurring,
       receipt_url: local.receipt_url || undefined,
-      created_at: local.created_at,
-      updated_at: local.updated_at,
+      created_at: local.created_at || '',
+      updated_at: local.updated_at || '',
       organization_id: local.organization_id,
       recurring: undefined,
     };
@@ -202,17 +199,8 @@ export const useExpenses = () => {
   // Delete an expense
   const deleteExpense = async (id: string): Promise<void> => {
     try {
-      // Delete recurring configuration first (if exists)
-      await supabase
-        .from('recurring_expenses')
-        .delete()
-        .eq('expense_id', id);
-      
-      // Then delete the expense
-      const { error } = await supabase
-        .from('expenses')
-        .delete()
-        .eq('id', id);
+      // ⚡ استخدام الخدمة الموحدة Offline-First
+      await unifiedExpenseService.deleteExpense(id);
       
       if (error) throw error;
     } catch (error) {

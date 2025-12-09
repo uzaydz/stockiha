@@ -977,16 +977,286 @@ export const searchProductsByName = async (
   }
 };
 
+/**
+ * 🔄 تحويل بيانات النموذج إلى صيغة upsert_product_v2
+ * هذه الدالة تحول ProductFormValues إلى المعاملات المطلوبة لـ RPC
+ */
+const transformFormDataToV2Params = (productData: ProductFormValues, userId: string) => {
+  console.log('='.repeat(80));
+  console.log('[transformFormDataToV2Params] 🔄 TRANSFORM STARTED');
+  console.log('='.repeat(80));
+
+  // 🔍 DEBUG: فحص البيانات الواردة
+  console.log('[transformFormDataToV2Params] 📥 Input productData:', {
+    name: productData.name,
+    organization_id: productData.organization_id,
+    category_id: productData.category_id,
+    price: productData.price,
+    stock_quantity: productData.stock_quantity,
+    has_variants: productData.has_variants,
+    colors_count: productData.colors?.length || 0,
+  });
+
+  // 🔍 DEBUG: أنواع البيع المتقدمة
+  console.log('[transformFormDataToV2Params] 📦 Advanced Selling Types from form:', {
+    sell_by_weight: productData.sell_by_weight,
+    weight_unit: productData.weight_unit,
+    price_per_weight_unit: productData.price_per_weight_unit,
+    available_weight: productData.available_weight,
+    sell_by_box: productData.sell_by_box,
+    units_per_box: productData.units_per_box,
+    box_price: productData.box_price,
+    available_boxes: productData.available_boxes,
+    sell_by_meter: productData.sell_by_meter,
+    meter_unit: productData.meter_unit,
+    price_per_meter: productData.price_per_meter,
+    available_length: productData.available_length,
+  });
+
+  // 🔍 DEBUG: التتبع المتقدم
+  console.log('[transformFormDataToV2Params] 🔍 Tracking Features from form:', {
+    track_expiry: productData.track_expiry,
+    default_expiry_days: productData.default_expiry_days,
+    track_serial_numbers: productData.track_serial_numbers,
+    require_serial_on_sale: productData.require_serial_on_sale,
+    supports_imei: productData.supports_imei,
+    track_batches: productData.track_batches,
+    use_fifo: productData.use_fifo,
+    has_warranty: productData.has_warranty,
+    warranty_duration_months: productData.warranty_duration_months,
+    warranty_type: productData.warranty_type,
+  });
+
+  // البيانات الأساسية
+  const basic_data = {
+    organization_id: productData.organization_id,
+    name: productData.name,
+    description: productData.description || '',
+    sku: productData.sku || null,
+    barcode: productData.barcode || null,
+    category_id: productData.category_id || null,
+    subcategory_id: productData.subcategory_id || null,
+    brand: productData.brand || null,
+    slug: productData.slug || `${productData.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`,
+  };
+
+  // بيانات التسعير
+  const pricing_data = {
+    price: Number(productData.price) || 0,
+    purchase_price: productData.purchase_price ? Number(productData.purchase_price) : null,
+    compare_at_price: productData.compare_at_price ? Number(productData.compare_at_price) : null,
+    wholesale_price: productData.wholesale_price ? Number(productData.wholesale_price) : null,
+    partial_wholesale_price: productData.partial_wholesale_price ? Number(productData.partial_wholesale_price) : null,
+    min_wholesale_quantity: productData.min_wholesale_quantity ? Number(productData.min_wholesale_quantity) : null,
+    min_partial_wholesale_quantity: productData.min_partial_wholesale_quantity ? Number(productData.min_partial_wholesale_quantity) : null,
+    allow_retail: productData.allow_retail !== undefined ? productData.allow_retail : true,
+    allow_wholesale: productData.allow_wholesale || false,
+    allow_partial_wholesale: productData.allow_partial_wholesale || false,
+  };
+
+  // بيانات المخزون
+  const inventory_data = {
+    stock_quantity: productData.stock_quantity ? Number(productData.stock_quantity) : 0,
+    min_stock_level: productData.min_stock_level ? Number(productData.min_stock_level) : 5,
+    reorder_level: productData.reorder_level ? Number(productData.reorder_level) : 10,
+    reorder_quantity: productData.reorder_quantity ? Number(productData.reorder_quantity) : 20,
+  };
+
+  // ⚡ البيع بالوزن
+  const weight_selling = productData.sell_by_weight ? {
+    enabled: true,
+    weight_unit: productData.weight_unit || 'kg',
+    price_per_unit: productData.price_per_weight_unit ? Number(productData.price_per_weight_unit) : null,
+    purchase_price_per_unit: productData.purchase_price_per_weight_unit ? Number(productData.purchase_price_per_weight_unit) : null,
+    min_weight: productData.min_weight ? Number(productData.min_weight) : null,
+    max_weight: productData.max_weight ? Number(productData.max_weight) : null,
+    average_item_weight: productData.average_item_weight ? Number(productData.average_item_weight) : null,
+    // ⚡ مخزون الوزن المتقدم
+    available_weight: productData.available_weight ? Number(productData.available_weight) : null,
+    total_weight_purchased: productData.total_weight_purchased ? Number(productData.total_weight_purchased) : null,
+  } : null;
+
+  // ⚡ البيع بالكرتون
+  const box_selling = productData.sell_by_box ? {
+    enabled: true,
+    units_per_box: productData.units_per_box ? Number(productData.units_per_box) : 1,
+    box_price: productData.box_price ? Number(productData.box_price) : null,
+    box_purchase_price: productData.box_purchase_price ? Number(productData.box_purchase_price) : null,
+    box_barcode: productData.box_barcode || null,
+    allow_single_unit_sale: productData.allow_single_unit_sale !== undefined ? productData.allow_single_unit_sale : true,
+    // ⚡ مخزون الصناديق المتقدم
+    available_boxes: productData.available_boxes ? Number(productData.available_boxes) : null,
+    total_boxes_purchased: productData.total_boxes_purchased ? Number(productData.total_boxes_purchased) : null,
+  } : null;
+
+  // ⚡ البيع بالمتر
+  const meter_selling = productData.sell_by_meter ? {
+    enabled: true,
+    meter_unit: productData.meter_unit || 'm',
+    price_per_meter: productData.price_per_meter ? Number(productData.price_per_meter) : null,
+    purchase_price_per_meter: productData.purchase_price_per_meter ? Number(productData.purchase_price_per_meter) : null,
+    min_meters: productData.min_meters ? Number(productData.min_meters) : 0.1,
+    roll_length: productData.roll_length ? Number(productData.roll_length) : null,
+    // ⚡ مخزون الأمتار المتقدم
+    available_length: productData.available_length ? Number(productData.available_length) : null,
+    total_meters_purchased: productData.total_meters_purchased ? Number(productData.total_meters_purchased) : null,
+  } : null;
+
+  // ⚡ تتبع الصلاحية
+  const expiry_tracking = productData.track_expiry ? {
+    enabled: true,
+    default_expiry_days: productData.default_expiry_days ? Number(productData.default_expiry_days) : null,
+    alert_days_before: productData.alert_days_before ? Number(productData.alert_days_before) : 30,
+  } : null;
+
+  // ⚡ تتبع الأرقام التسلسلية
+  const serial_tracking = productData.track_serial_numbers ? {
+    enabled: true,
+    require_on_sale: productData.require_serial_on_sale || false,
+    supports_imei: productData.supports_imei || false,
+  } : null;
+
+  // ⚡ الضمان
+  const warranty = productData.has_warranty ? {
+    enabled: true,
+    duration_months: productData.warranty_duration_months ? Number(productData.warranty_duration_months) : null,
+    type: productData.warranty_type || 'store',
+  } : null;
+
+  // ⚡ تتبع الدفعات
+  const batch_tracking = productData.track_batches ? {
+    enabled: true,
+    use_fifo: productData.use_fifo !== undefined ? productData.use_fifo : true,
+  } : null;
+
+  // المتغيرات (الألوان)
+  const variants = productData.colors && productData.colors.length > 0
+    ? productData.colors.map(color => ({
+        name: color.name,
+        color_code: color.color_code,
+        image_url: color.image_url,
+        quantity: Number(color.quantity) || 0,
+        is_default: color.is_default || false,
+        barcode: color.barcode,
+        has_sizes: color.has_sizes || false,
+        price: color.price ? Number(color.price) : null,
+        purchase_price: color.purchase_price ? Number(color.purchase_price) : null,
+        sizes: color.sizes?.map(size => ({
+          name: size.size_name,
+          quantity: Number(size.quantity) || 0,
+          price: size.price ? Number(size.price) : null,
+          purchase_price: size.purchase_price ? Number(size.purchase_price) : null,
+          barcode: size.barcode,
+          is_default: size.is_default || false,
+        })),
+      }))
+    : null;
+
+  // الصور
+  const images = productData.additional_images && productData.additional_images.length > 0
+    ? productData.additional_images.map(url => ({ url, is_primary: false }))
+    : null;
+
+  // مستويات الأسعار - دمج wholesale_tiers و price_tiers
+  let price_tiers = null;
+
+  // أولاً: التحقق من price_tiers الجديدة
+  if (productData.price_tiers && productData.price_tiers.length > 0) {
+    price_tiers = productData.price_tiers.map(tier => ({
+      tier_name: tier.tier_name || 'wholesale',
+      tier_label: tier.tier_label || null,
+      min_quantity: Number(tier.min_quantity),
+      max_quantity: tier.max_quantity ? Number(tier.max_quantity) : null,
+      price_type: tier.price_type || 'fixed',
+      price: tier.price ? Number(tier.price) : null,
+      discount_percentage: tier.discount_percentage ? Number(tier.discount_percentage) : null,
+      discount_amount: tier.discount_amount ? Number(tier.discount_amount) : null,
+      is_active: tier.is_active !== false,
+      sort_order: tier.sort_order || 0,
+    }));
+  }
+  // ثانياً: fallback إلى wholesale_tiers القديمة
+  else if (productData.wholesale_tiers && productData.wholesale_tiers.length > 0) {
+    price_tiers = productData.wholesale_tiers.map(tier => ({
+      tier_name: 'wholesale',
+      min_quantity: Number(tier.min_quantity),
+      price_type: 'fixed' as const,
+      price: Number(tier.price_per_unit),
+    }));
+  }
+
+  // حالة النشر
+  const publication = {
+    status: (productData as any).publication_status || 'published',
+    publish_at: (productData as any).publish_at || null,
+  };
+
+  const result = {
+    basic_data,
+    pricing_data,
+    inventory_data,
+    weight_selling,
+    box_selling,
+    meter_selling,
+    expiry_tracking,
+    serial_tracking,
+    warranty,
+    batch_tracking,
+    variants,
+    images,
+    price_tiers,
+    advanced_settings: productData.advancedSettings || null,
+    marketing_settings: productData.marketingSettings || null,
+    special_offers: productData.special_offers_config || null,
+    advanced_description: productData.advanced_description || null,
+    publication,
+    user_id: userId,
+  };
+
+  // 🔍 DEBUG: النتيجة النهائية
+  console.log('[transformFormDataToV2Params] ✅ TRANSFORM COMPLETE - Output:', {
+    basic_data: { ...result.basic_data, description: result.basic_data.description?.substring(0, 50) + '...' },
+    pricing_data: result.pricing_data,
+    inventory_data: result.inventory_data,
+    weight_selling: result.weight_selling,
+    box_selling: result.box_selling,
+    meter_selling: result.meter_selling,
+    expiry_tracking: result.expiry_tracking,
+    serial_tracking: result.serial_tracking,
+    warranty: result.warranty,
+    batch_tracking: result.batch_tracking,
+    variants_count: result.variants?.length || 0,
+    images_count: result.images?.length || 0,
+    price_tiers_count: result.price_tiers?.length || 0,
+    publication: result.publication,
+  });
+  console.log('='.repeat(80));
+
+  return result;
+};
+
 export const createProduct = async (productData: ProductFormValues): Promise<Product> => {
-  const { 
-    colors,
-    additional_images,
-    wholesale_tiers, 
-    advancedSettings, 
-    marketingSettings,
-    special_offers_config,
-    ...mainProductData 
-  } = productData;
+  console.log('='.repeat(80));
+  console.log('[createProduct] 🚀 API CALL STARTED');
+  console.log('='.repeat(80));
+
+  console.log('[createProduct] 📥 Received productData:', {
+    name: productData.name,
+    organization_id: productData.organization_id,
+    price: productData.price,
+    category_id: productData.category_id,
+    has_variants: productData.has_variants,
+    colors_count: productData.colors?.length || 0,
+    // أنواع البيع المتقدمة
+    sell_by_weight: productData.sell_by_weight,
+    sell_by_box: productData.sell_by_box,
+    sell_by_meter: productData.sell_by_meter,
+    // التتبع
+    track_expiry: productData.track_expiry,
+    track_serial_numbers: productData.track_serial_numbers,
+    track_batches: productData.track_batches,
+    has_warranty: productData.has_warranty,
+  });
 
   // ✅ التحقق من صحة organization_id قبل أي شيء
   if (!productData.organization_id) {
@@ -1003,9 +1273,136 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
     throw error;
   }
 
+  // ⚡ PowerSync-First: إنشاء المنتج محلياً ثم المزامنة
+  try {
+    const { unifiedProductService } = await import('@/services/UnifiedProductService');
+    const { powerSyncService } = await import('@/lib/powersync/PowerSyncService');
+
+    unifiedProductService.setOrganizationId(productData.organization_id);
+
+    const basicProduct = {
+      name: productData.name,
+      description: productData.description,
+      sku: productData.sku,
+      barcode: productData.barcode,
+      category_id: productData.category_id,
+      subcategory_id: productData.subcategory_id,
+      price: productData.price || 0,
+      purchase_price: productData.purchase_price,
+      wholesale_price: productData.wholesale_price,
+      stock_quantity: productData.stock_quantity || 0,
+      min_stock_level: productData.min_stock_level,
+      thumbnail_image: productData.thumbnail_image,
+      has_variants: productData.has_variants || false,
+      use_sizes: productData.use_sizes || false,
+      is_active: productData.is_active !== false,
+      sell_by_weight: productData.sell_by_weight,
+      sell_by_meter: productData.sell_by_meter,
+      sell_by_box: productData.sell_by_box
+    } as any;
+
+    const colors = productData.colors?.map(c => ({
+      name: c.name,
+      color_code: c.color_code,
+      quantity: c.quantity || 0,
+      price: c.price,
+      purchase_price: c.purchase_price,
+      barcode: c.barcode,
+      is_default: c.is_default
+    }));
+
+    const sizes = productData.sizes?.map(s => ({
+      size_name: s.size_name,
+      quantity: s.quantity || 0,
+      price: s.price,
+      purchase_price: s.purchase_price,
+      barcode: s.barcode,
+      is_default: s.is_default
+    }));
+
+    const createdLocal = (colors && colors.length > 0) || (sizes && sizes.length > 0)
+      ? await unifiedProductService.createProductWithVariants(basicProduct, colors, sizes)
+      : await unifiedProductService.createProduct(basicProduct);
+
+    try {
+      if (typeof navigator === 'undefined' || navigator.onLine) {
+        await powerSyncService.forceSync();
+      }
+    } catch (syncErr) {
+      console.warn('[createProduct] PowerSync forceSync failed (will sync later):', syncErr);
+    }
+
+    toast.success('تم إنشاء المنتج عبر PowerSync (أوفلاين/أونلاين)');
+    return createdLocal as any;
+  } catch (psError) {
+    console.warn('[createProduct] PowerSync-first path فشل، سيتم استخدام المسار القديم', psError);
+  }
+
+  // ⚡ Offline-First: التحقق من الاتصال
+  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+  
+  // ⚡ إذا كان غير متصل، استخدم UnifiedProductService مباشرة
+  if (!isOnline) {
+    console.log('[createProduct] 📴 Offline mode - using UnifiedProductService');
+    try {
+      const { unifiedProductService } = await import('@/services/UnifiedProductService');
+      unifiedProductService.setOrganizationId(productData.organization_id);
+      
+      // تحويل البيانات إلى صيغة UnifiedProductService
+      const basicProduct = {
+        name: productData.name,
+        description: productData.description,
+        sku: productData.sku,
+        barcode: productData.barcode,
+        category_id: productData.category_id,
+        subcategory_id: productData.subcategory_id,
+        price: productData.price || 0,
+        purchase_price: productData.purchase_price,
+        wholesale_price: productData.wholesale_price,
+        stock_quantity: productData.stock_quantity || 0,
+        min_stock_level: productData.min_stock_level,
+        thumbnail_image: productData.thumbnail_image,
+        has_variants: productData.has_variants || false,
+        use_sizes: productData.use_sizes || false,
+        is_active: productData.is_active !== false,
+        sell_by_weight: productData.sell_by_weight,
+        sell_by_meter: productData.sell_by_meter,
+        sell_by_box: productData.sell_by_box
+      };
+
+      const colors = productData.colors?.map(c => ({
+        name: c.name,
+        color_code: c.color_code,
+        quantity: c.quantity || 0,
+        price: c.price,
+        purchase_price: c.purchase_price,
+        barcode: c.barcode,
+        is_default: c.is_default
+      }));
+
+      const sizes = productData.sizes?.map(s => ({
+        size_name: s.size_name,
+        quantity: s.quantity || 0,
+        price: s.price,
+        purchase_price: s.purchase_price,
+        barcode: s.barcode,
+        is_default: s.is_default
+      }));
+
+      const created = await unifiedProductService.createProductWithVariants(basicProduct, colors, sizes);
+      
+      toast.success('تم إنشاء المنتج محلياً (سيتم المزامنة عند الاتصال)');
+      return created as any;
+    } catch (offlineError) {
+      console.error('[createProduct] ❌ Offline creation failed:', offlineError);
+      toast.error('فشل إنشاء المنتج محلياً');
+      throw offlineError;
+    }
+  }
+
   // استخدام العميل الموحد بدلاً من إنشاء عميل جديد
   const { data: { user }, error: userError } = await supabase.auth.getUser();
-  
+
   if (userError || !user) {
     toast.error("يجب تسجيل الدخول لإنشاء منتج.");
     throw new Error("User not authenticated");
@@ -1018,92 +1415,122 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
       .select('id, name')
       .eq('id', productData.organization_id)
       .single();
-    
+
     if (orgError || !orgCheck) {
+      // ⚡ Fallback: محاولة الحفظ محلياً حتى لو فشل التحقق من المؤسسة
+      console.warn('[createProduct] ⚠️ Organization check failed, trying offline save:', orgError);
+      try {
+        const { unifiedProductService } = await import('@/services/UnifiedProductService');
+        unifiedProductService.setOrganizationId(productData.organization_id);
+        const basicProduct = {
+          name: productData.name,
+          description: productData.description,
+          sku: productData.sku,
+          barcode: productData.barcode,
+          category_id: productData.category_id,
+          price: productData.price || 0,
+          stock_quantity: productData.stock_quantity || 0,
+          is_active: true
+        };
+        const created = await unifiedProductService.createProduct(basicProduct);
+        toast.success('تم إنشاء المنتج محلياً (سيتم المزامنة عند الاتصال)');
+        return created as any;
+      } catch (fallbackError) {
+        console.error('[createProduct] ❌ Fallback failed:', fallbackError);
+      }
+      
       toast.error("المؤسسة غير موجودة أو ليس لديك صلاحية للوصول إليها");
       throw new Error("Organization not found or access denied");
     }
 
-    // إعداد بيانات المنتج الأساسية
-    const productCoreData = {
-      ...mainProductData,
-      organization_id: productData.organization_id,
-      price: productData.price ? Number(productData.price) : 0,
-      purchase_price: productData.purchase_price ? Number(productData.purchase_price) : null,
-      stock_quantity: productData.stock_quantity ? Number(productData.stock_quantity) : 0,
-      compare_at_price: productData.compare_at_price ? Number(productData.compare_at_price) : null,
-      wholesale_price: productData.wholesale_price ? Number(productData.wholesale_price) : null,
-      partial_wholesale_price: productData.partial_wholesale_price ? Number(productData.partial_wholesale_price) : null,
-      min_wholesale_quantity: productData.min_wholesale_quantity ? Number(productData.min_wholesale_quantity) : null,
-      min_partial_wholesale_quantity: productData.min_partial_wholesale_quantity ? Number(productData.min_partial_wholesale_quantity) : null,
-      unit_purchase_price: productData.unit_purchase_price ? Number(productData.unit_purchase_price) : null,
-      unit_sale_price: productData.unit_sale_price ? Number(productData.unit_sale_price) : null,
-      allow_retail: productData.allow_retail !== undefined ? productData.allow_retail : true,
-      allow_wholesale: productData.allow_wholesale || false,
-      allow_partial_wholesale: productData.allow_partial_wholesale || false,
-      has_variants: productData.has_variants || false,
-      show_price_on_landing: productData.show_price_on_landing !== undefined ? productData.show_price_on_landing : true,
-      is_featured: productData.is_featured || false,
-      is_new: productData.is_new !== undefined ? productData.is_new : true,
-      use_sizes: productData.use_sizes || false,
-      is_sold_by_unit: productData.is_sold_by_unit !== undefined ? productData.is_sold_by_unit : true,
-      use_variant_prices: productData.use_variant_prices || false,
-      use_shipping_clone: productData.use_shipping_clone || false,
-      is_digital: productData.is_digital || false,
-      features: productData.features || [],
-      specifications: productData.specifications || {},
-      description: productData.description || '',
-      thumbnail_image: productData.thumbnail_image || '',
-      slug: productData.slug || `${productData.name.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`,
-      // حقول وضع النشر (تم تمريرها مسبقاً من prepareFormSubmissionData)
-      // publication_status: (productData as any).publication_status, // معلق مؤقتاً
-      publish_at: (productData as any).publish_at,
-    };
+    // ⚡ تحويل البيانات إلى صيغة V2
+    const v2Params = transformFormDataToV2Params(productData, user.id);
 
     // ✅ تسجيل البيانات المرسلة للتشخيص
-    console.log('🚀 إرسال بيانات المنتج:', {
-      hasColors: colors && colors.length > 0,
-      colorsCount: colors?.length || 0,
-      colorsWithSizes: colors?.filter(c => c.sizes && c.sizes.length > 0).length || 0,
-      totalSizes: colors?.reduce((sum, c) => sum + (c.sizes?.length || 0), 0) || 0
+    console.log('🚀 إرسال بيانات المنتج V2:', {
+      hasVariants: v2Params.variants !== null,
+      variantsCount: v2Params.variants?.length || 0,
+      weightSelling: v2Params.weight_selling?.enabled || false,
+      boxSelling: v2Params.box_selling?.enabled || false,
+      meterSelling: v2Params.meter_selling?.enabled || false,
+      trackExpiry: v2Params.expiry_tracking?.enabled || false,
+      trackSerials: v2Params.serial_tracking?.enabled || false,
+      trackBatches: v2Params.batch_tracking?.enabled || false,
     });
 
-    // 🚀 الحل الجذري: استخدام Stored Procedure واحدة لجميع العمليات
-    const { data: result, error: createError } = await (supabase as any).rpc('create_product_complete', {
-      p_product_data: productCoreData,
-      p_advanced_settings: advancedSettings && Object.keys(advancedSettings).length > 0 ? advancedSettings : null,
-      p_marketing_settings: marketingSettings && Object.keys(marketingSettings).length > 0 ? marketingSettings : null,
-      p_colors: colors && colors.length > 0 ? colors as any : null,
-      p_images: additional_images && additional_images.length > 0 ? 
-        additional_images.map((url, index) => ({ image_url: url, sort_order: index + 1 })) : null,
-      p_wholesale_tiers: wholesale_tiers && wholesale_tiers.length > 0 ? wholesale_tiers as any : null,
-      p_special_offers_config: special_offers_config || null,
-      p_advanced_description: productData.advanced_description || null,
-      p_user_id: user.id
+    // 🚀 استخدام upsert_product_v2 بدلاً من create_product_complete
+    console.log('[createProduct] 📤 Calling supabase.rpc("upsert_product_v2")...');
+    console.log('[createProduct] 📤 RPC Parameters:', {
+      p_product_id: null,
+      p_basic_data: v2Params.basic_data,
+      p_pricing_data: v2Params.pricing_data,
+      p_weight_selling: v2Params.weight_selling,
+      p_box_selling: v2Params.box_selling,
+      p_meter_selling: v2Params.meter_selling,
+      p_expiry_tracking: v2Params.expiry_tracking,
+      p_serial_tracking: v2Params.serial_tracking,
+      p_warranty: v2Params.warranty,
+      p_batch_tracking: v2Params.batch_tracking,
+      p_variants_count: v2Params.variants?.length || 0,
     });
+
+    const { data: result, error: createError } = await supabase.rpc('upsert_product_v2', {
+      p_product_id: null, // null = إنشاء جديد
+      p_basic_data: v2Params.basic_data,
+      p_pricing_data: v2Params.pricing_data,
+      p_inventory_data: v2Params.inventory_data,
+      p_weight_selling: v2Params.weight_selling,
+      p_box_selling: v2Params.box_selling,
+      p_meter_selling: v2Params.meter_selling,
+      p_expiry_tracking: v2Params.expiry_tracking,
+      p_serial_tracking: v2Params.serial_tracking,
+      p_warranty: v2Params.warranty,
+      p_batch_tracking: v2Params.batch_tracking,
+      p_variants: v2Params.variants,
+      p_initial_batches: null,
+      p_initial_serials: null,
+      p_price_tiers: v2Params.price_tiers,
+      p_images: v2Params.images,
+      p_business_specific: null,
+      p_advanced_settings: v2Params.advanced_settings,
+      p_marketing_settings: v2Params.marketing_settings,
+      p_special_offers: v2Params.special_offers,
+      p_advanced_description: v2Params.advanced_description,
+      p_publication: v2Params.publication,
+      p_user_id: user.id,
+    });
+
+    console.log('[createProduct] 📥 RPC Response:', { result, createError });
 
     if (createError) {
-      
+      console.error('[createProduct] ❌ RPC ERROR:', createError);
+      console.error('[createProduct] ❌ Error details:', {
+        message: createError.message,
+        code: (createError as any).code,
+        details: (createError as any).details,
+        hint: (createError as any).hint,
+      });
+
       // ✅ معالجة خاصة لأخطاء UUID
       if (createError.message?.includes('invalid input syntax for type uuid')) {
         toast.error("خطأ في صيغة معرف المؤسسة أو الفئة. يرجى التحقق من البيانات");
         throw new Error("Invalid UUID format in product data");
       }
-      
+
       toast.error(`فشل إنشاء المنتج: ${createError.message}`);
       throw createError;
     }
 
     if (!result || !(result as any).success) {
-      const errorMessage = (result as any)?.message || 'فشل إنشاء المنتج';
+      const errorMessage = (result as any)?.error || 'فشل إنشاء المنتج';
       toast.error(errorMessage);
       throw new Error(errorMessage);
     }
 
     const productId = (result as any).product_id;
+    console.log('✅ تم إنشاء المنتج:', productId);
 
-    // 🎯 جلب المنتج المنشأ مع جميع البيانات المرتبطة في استدعاء واحد
-    // ✅ تم إصلاح المشكلة: استخدام maybeSingle() بدلاً من single() للجداول التي قد تعيد صفوف متعددة
+    // 🎯 جلب المنتج المنشأ مع جميع البيانات المرتبطة
     const { data: createdProduct, error: fetchError } = await supabase
       .from('products')
       .select(`
@@ -1146,25 +1573,21 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
           color_id: color.id
         }))
       })) || [],
-      // wholesale_tiers: createdProduct.wholesale_tiers || [], // مؤقتاً معطل بسبب مشاكل Types
-      purchase_page_config: (createdProduct as any).purchase_page_config ? 
+      purchase_page_config: (createdProduct as any).purchase_page_config ?
         JSON.parse(JSON.stringify((createdProduct as any).purchase_page_config)) : null,
-      special_offers_config: special_offers_config || null,
+      special_offers_config: productData.special_offers_config || null,
     };
 
-    // 🚀 تحديث محدود للكاش بدلاً من التحديث الشامل
+    // 🚀 تحديث محدود للكاش
     try {
-      // تحديث محدد فقط للمنتجات الجديدة
       cacheManager.invalidate(`products-${productData.organization_id}`);
-      
-      // تحديث React Query محدود
+
       if (queryClient) {
-        await queryClient.invalidateQueries({ 
-          queryKey: ['products', productData.organization_id], 
-          exact: true 
+        await queryClient.invalidateQueries({
+          queryKey: ['products', productData.organization_id],
+          exact: true
         });
       }
-      
     } catch (refreshError) {
       // لا نريد أن يفشل الإنشاء بسبب مشاكل الكاش
     }
@@ -1179,14 +1602,114 @@ export const createProduct = async (productData: ProductFormValues): Promise<Pro
 };
 
 export const updateProduct = async (id: string, updates: UpdateProduct): Promise<Product> => {
-  const { 
-    colors,
-    additional_images,
-    wholesale_tiers,
-    advancedSettings,
-    marketingSettings,
-    ...mainProductUpdates 
-  } = updates;
+  // ⚡ PowerSync-First: تحديث محلي ثم مزامنة
+  try {
+    const { unifiedProductService } = await import('@/services/UnifiedProductService');
+    const { powerSyncService } = await import('@/lib/powersync/PowerSyncService');
+
+    const orgId = updates.organization_id || localStorage.getItem('currentOrganizationId') || localStorage.getItem('bazaar_organization_id');
+    if (!orgId) {
+      throw new Error('Organization ID not found');
+    }
+
+    unifiedProductService.setOrganizationId(orgId);
+
+    const updateData: any = {};
+    const fields = ['name','description','sku','barcode','price','purchase_price','wholesale_price','stock_quantity','min_stock_level','is_active','sell_by_weight','sell_by_meter','sell_by_box','thumbnail_image','category_id','subcategory_id'];
+    for (const key of fields) {
+      const value = (updates as any)[key];
+      if (value !== undefined) updateData[key] = value;
+    }
+
+    await unifiedProductService.updateProduct(id, updateData);
+
+    // جلب المنتج والألوان والمقاسات من PowerSync بعد التحديث
+    if (!powerSyncService.db) {
+      console.warn('[products] PowerSync DB not initialized');
+      throw new Error('PowerSync DB not initialized');
+    }
+    const product = await powerSyncService.queryOne<any>({
+      sql: 'SELECT * FROM products WHERE id = ? LIMIT 1',
+      params: [id]
+    });
+    if (!product) {
+      throw new Error('Product not found locally after update');
+    }
+
+    const colors = await powerSyncService.query<any>({
+      sql: 'SELECT * FROM product_colors WHERE product_id = ? ORDER BY created_at',
+      params: [id]
+    });
+
+    const colorsWithSizes = [] as any[];
+    for (const color of colors) {
+      const sizes = await powerSyncService.query<any>({
+        sql: 'SELECT * FROM product_sizes WHERE color_id = ? ORDER BY created_at',
+        params: [color.id]
+      });
+      colorsWithSizes.push({ ...color, sizes });
+    }
+
+    const resultProduct: Product = {
+      ...(product as Product),
+      colors: colorsWithSizes
+    } as Product;
+
+    try {
+      if (typeof navigator === 'undefined' || navigator.onLine) {
+        await powerSyncService.forceSync();
+      }
+    } catch (syncErr) {
+      console.warn('[updateProduct] PowerSync forceSync failed (will sync later):', syncErr);
+    }
+
+    toast.success('تم تحديث المنتج عبر PowerSync (أوفلاين/أونلاين)');
+    return resultProduct;
+  } catch (psError) {
+    console.warn('[updateProduct] PowerSync-first path فشل، سيتم استخدام المسار القديم', psError);
+  }
+
+  // ⚡ Offline-First: التحقق من الاتصال
+  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+  
+  // ⚡ إذا كان غير متصل، استخدم UnifiedProductService مباشرة
+  if (!isOnline) {
+    console.log('[updateProduct] 📴 Offline mode - using UnifiedProductService');
+    try {
+      const { unifiedProductService } = await import('@/services/UnifiedProductService');
+      const orgId = updates.organization_id || localStorage.getItem('currentOrganizationId') || localStorage.getItem('bazaar_organization_id');
+      if (!orgId) {
+        throw new Error('Organization ID not found');
+      }
+      unifiedProductService.setOrganizationId(orgId);
+      
+      const updateData: any = {
+        name: updates.name,
+        description: updates.description,
+        sku: updates.sku,
+        barcode: updates.barcode,
+        price: updates.price,
+        purchase_price: updates.purchase_price,
+        wholesale_price: updates.wholesale_price,
+        stock_quantity: updates.stock_quantity,
+        min_stock_level: updates.min_stock_level,
+        is_active: updates.is_active
+      };
+      
+      const updated = await unifiedProductService.updateProduct(id, updateData);
+      
+      if (updated) {
+        toast.success('تم تحديث المنتج محلياً (سيتم المزامنة عند الاتصال)');
+        return updated as any;
+      } else {
+        throw new Error('Failed to update product');
+      }
+    } catch (offlineError) {
+      console.error('[updateProduct] ❌ Offline update failed:', offlineError);
+      toast.error('فشل تحديث المنتج محلياً');
+      throw offlineError;
+    }
+  }
 
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
@@ -1196,82 +1719,87 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
   }
 
   try {
-    // إعداد بيانات التحديث الرئيسي
-    if (mainProductUpdates.purchase_price !== undefined && mainProductUpdates.purchase_price !== null) {
-      mainProductUpdates.purchase_price = Number(mainProductUpdates.purchase_price);
-    }
-    
-    // تحويل الأرقام الأخرى إذا كانت موجودة
-    if (mainProductUpdates.price !== undefined && mainProductUpdates.price !== null) {
-      mainProductUpdates.price = Number(mainProductUpdates.price);
-    }
-    if (mainProductUpdates.stock_quantity !== undefined && mainProductUpdates.stock_quantity !== null) {
-      mainProductUpdates.stock_quantity = Number(mainProductUpdates.stock_quantity);
-    }
+    // ⚡ تحويل البيانات إلى صيغة V2 - استخدام نفس الدالة المحولة
+    const productData = updates as unknown as ProductFormValues;
+    const v2Params = transformFormDataToV2Params(productData, user.id);
 
     // ✅ تسجيل البيانات المرسلة للتشخيص
-    console.log('🔄 تحديث بيانات المنتج:', {
-      hasColors: colors && colors.length > 0,
-      colorsCount: colors?.length || 0,
-      colorsWithSizes: colors?.filter(c => c.sizes && c.sizes.length > 0).length || 0,
-      totalSizes: colors?.reduce((sum, c) => sum + (c.sizes?.length || 0), 0) || 0
+    console.log('🔄 تحديث بيانات المنتج V2:', {
+      productId: id,
+      hasVariants: v2Params.variants !== null,
+      variantsCount: v2Params.variants?.length || 0,
+      weightSelling: v2Params.weight_selling?.enabled || false,
+      boxSelling: v2Params.box_selling?.enabled || false,
+      meterSelling: v2Params.meter_selling?.enabled || false,
+      trackExpiry: v2Params.expiry_tracking?.enabled || false,
+      trackSerials: v2Params.serial_tracking?.enabled || false,
+      trackBatches: v2Params.batch_tracking?.enabled || false,
     });
 
-    // 🚀 الحل الجذري: استخدام Stored Procedure واحدة لجميع العمليات
-    const { data: result, error: updateError } = await supabase.rpc('update_product_complete', {
-      p_product_id: id,
-      p_product_data: {
-        ...mainProductUpdates,
-        // publication_status: (updates as any).publication_status, // معلق مؤقتاً
-        publish_at: (updates as any).publish_at,
-      },
-      p_advanced_settings: advancedSettings && Object.keys(advancedSettings).length > 0 ? advancedSettings : null,
-      p_marketing_settings: marketingSettings && Object.keys(marketingSettings).length > 0 ? marketingSettings : null,
-      p_colors: colors && colors.length > 0 ? JSON.parse(JSON.stringify(colors)) : null,
-      p_images: additional_images && additional_images.length > 0 ? 
-        additional_images.map((url, index) => ({ image_url: url, sort_order: index + 1 })) : null,
-      p_wholesale_tiers: wholesale_tiers && wholesale_tiers.length > 0 ? JSON.parse(JSON.stringify(wholesale_tiers)) : null,
-      p_user_id: user.id
+    // 🚀 استخدام upsert_product_v2 للتحديث (مع تمرير product_id)
+    const { data: result, error: updateError } = await supabase.rpc('upsert_product_v2', {
+      p_product_id: id, // تمرير ID = تحديث
+      p_basic_data: v2Params.basic_data,
+      p_pricing_data: v2Params.pricing_data,
+      p_inventory_data: v2Params.inventory_data,
+      p_weight_selling: v2Params.weight_selling,
+      p_box_selling: v2Params.box_selling,
+      p_meter_selling: v2Params.meter_selling,
+      p_expiry_tracking: v2Params.expiry_tracking,
+      p_serial_tracking: v2Params.serial_tracking,
+      p_warranty: v2Params.warranty,
+      p_batch_tracking: v2Params.batch_tracking,
+      p_variants: v2Params.variants,
+      p_initial_batches: null,
+      p_initial_serials: null,
+      p_price_tiers: v2Params.price_tiers,
+      p_images: v2Params.images,
+      p_business_specific: null,
+      p_advanced_settings: v2Params.advanced_settings,
+      p_marketing_settings: v2Params.marketing_settings,
+      p_special_offers: v2Params.special_offers,
+      p_advanced_description: v2Params.advanced_description,
+      p_publication: v2Params.publication,
+      p_user_id: user.id,
     });
 
     if (updateError) {
+      console.error('❌ خطأ في تحديث المنتج:', updateError);
       toast.error(`فشل تحديث المنتج: ${updateError.message}`);
       throw updateError;
     }
 
     if (!result || !(result as any)?.success) {
-      const errorMessage = (result as any)?.message || 'فشل تحديث المنتج';
+      const errorMessage = (result as any)?.error || 'فشل تحديث المنتج';
       toast.error(errorMessage);
       throw new Error(errorMessage);
     }
 
+    console.log('✅ تم تحديث المنتج:', id);
+
     // 🔧 تحديث إضافي لshipping_method_type إذا كان موجوداً
-    if (mainProductUpdates.shipping_method_type !== undefined) {
-      
+    if ((updates as any).shipping_method_type !== undefined) {
       const updateData: any = {
-        shipping_method_type: mainProductUpdates.shipping_method_type,
+        shipping_method_type: (updates as any).shipping_method_type,
         updated_at: new Date().toISOString(),
         updated_by_user_id: user.id
       };
-      
-      // إذا كانت طريقة الشحن مخصصة، تأكد من أن shipping_provider_id هو null
-      if (mainProductUpdates.shipping_method_type === 'custom') {
+
+      if ((updates as any).shipping_method_type === 'custom') {
         updateData.shipping_provider_id = null;
       }
-      
+
       const { error: shippingUpdateError } = await supabase
         .from('products')
         .update(updateData)
         .eq('id', id);
-      
+
       if (shippingUpdateError) {
-        toast.error(`تم تحديث المنتج ولكن فشل تحديث إعدادات الشحن: ${shippingUpdateError.message}`);
-      } else {
+        console.warn('⚠️ فشل تحديث إعدادات الشحن:', shippingUpdateError.message);
       }
     }
 
-    // 🎯 جلب المنتج المحدث مع جميع البيانات المرتبطة في استدعاء واحد
-    // ✅ تم إصلاح المشكلة: استخدام maybeSingle() بدلاً من single() للجداول التي قد تعيد صفوف متعددة
+    // 🎯 جلب المنتج المحدث مع جميع البيانات المرتبطة
     const { data: updatedProduct, error: fetchError } = await supabase
       .from('products')
       .select(`
@@ -1314,33 +1842,29 @@ export const updateProduct = async (id: string, updates: UpdateProduct): Promise
           color_id: color.id
         }))
       })) || [],
-      // wholesale_tiers: updatedProduct.wholesale_tiers || [], // مؤقتاً معطل بسبب مشاكل Types
-      purchase_page_config: updatedProduct.purchase_page_config ? 
+      purchase_page_config: updatedProduct.purchase_page_config ?
         JSON.parse(JSON.stringify(updatedProduct.purchase_page_config)) : null,
-      special_offers_config: (updatedProduct as any).special_offers_config ? 
+      special_offers_config: (updatedProduct as any).special_offers_config ?
         JSON.parse(JSON.stringify((updatedProduct as any).special_offers_config)) : null,
     };
 
-    // 🚀 تحديث محدود للكاش بدلاً من التحديث الشامل
+    // 🚀 تحديث محدود للكاش
     try {
-      // تحديث محدد فقط للمنتج المعدل
       cacheManager.invalidate(`product-${id}`);
       cacheManager.invalidate(`products-${resultProduct.organization_id}`);
-      
-      // تحديث React Query محدود
+
       if (queryClient) {
         await Promise.all([
-          queryClient.invalidateQueries({ 
-            queryKey: ['product', id], 
-            exact: true 
+          queryClient.invalidateQueries({
+            queryKey: ['product', id],
+            exact: true
           }),
-          queryClient.invalidateQueries({ 
-            queryKey: ['products', resultProduct.organization_id], 
-            exact: true 
+          queryClient.invalidateQueries({
+            queryKey: ['products', resultProduct.organization_id],
+            exact: true
           })
         ]);
       }
-      
     } catch (refreshError) {
       // لا نريد أن يفشل التحديث بسبب مشاكل الكاش
     }
@@ -1367,16 +1891,18 @@ export const deleteProduct = async (id: string, forceDisable: boolean = false): 
 
   const organizationId = product.organization_id;
 
+  // ⚡ توحيد مسار الكتابة: استخدام Local Service بدلاً من Supabase مباشرة
+  const { deleteLocalProduct, updateLocalProduct } = await import('@/api/localProductService');
+  
   if (forceDisable) {
-    const { error } = await supabase
-      .from('products')
-      .update({ is_active: false, is_featured: false })
-      .eq('id', id);
-
-    if (error) throw error;
+    // تحديث محلي مع pending_operation = 'UPDATE'
+    await updateLocalProduct(id, {
+      is_active: false,
+      is_featured: false
+    } as any);
   } else {
-    const { error } = await supabase.from('products').delete().eq('id', id);
-    if (error) throw error;
+    // حذف محلي مع pending_operation = 'DELETE'
+    await deleteLocalProduct(id);
   }
 
   // Invalidate relevant queries
@@ -1677,19 +2203,79 @@ export const generateAutomaticSku = async (
 };
 
 export const generateAutomaticBarcode = async (): Promise<string> => {
+  // ⚡ PowerSync local barcode generation (unique locally)
   try {
-    const { data, error } = await supabase.rpc('generate_product_barcode');
+    const { powerSyncService } = await import('@/lib/powersync/PowerSyncService');
+    const orgId =
+      localStorage.getItem('currentOrganizationId') ||
+      localStorage.getItem('bazaar_organization_id');
 
-    if (error) {
-      
+    const generateUnique = async () => {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const candidate = generateEAN13Fallback();
+        if (!orgId) return candidate;
+        if (!powerSyncService.db) {
+          console.warn('[products] PowerSync DB not initialized');
+          return candidate;
+        }
+        const existing = await powerSyncService.queryOne<{ id: string }>({
+          sql: `SELECT id FROM products WHERE barcode = ? AND organization_id = ?
+           UNION
+           SELECT id FROM product_colors WHERE barcode = ? AND organization_id = ?
+           UNION
+           SELECT id FROM product_sizes WHERE barcode = ? AND organization_id = ?
+           LIMIT 1`,
+          params: [candidate, orgId, candidate, orgId, candidate, orgId]
+        });
+        if (!existing) return candidate;
+      }
+      return generateEAN13Fallback();
+    };
+
+    const barcode = await generateUnique();
+    return barcode;
+  } catch (err) {
+    console.warn('[generateAutomaticBarcode] PowerSync generation failed, fallback to legacy path', err);
+  }
+  // ⚡ Offline-First: إنشاء باركود محلياً أولاً
+  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+  
+  if (isOnline) {
+    try {
+      const { data, error } = await supabase.rpc('generate_product_barcode');
+
+      if (error) {
+        console.warn('[generateAutomaticBarcode] RPC failed, using local generation:', error);
+        return generateEAN13Fallback();
+      }
+
+      // ⚡ التحقق من التكرار محلياً أيضاً
+      try {
+        const { powerSyncService } = await import('@/lib/powersync/PowerSyncService');
+        const orgId = localStorage.getItem('currentOrganizationId') || localStorage.getItem('bazaar_organization_id');
+        if (orgId && powerSyncService.db) {
+          const existing = await powerSyncService.queryOne<{ id: string }>({
+            sql: 'SELECT id FROM products WHERE barcode = ? AND organization_id = ? LIMIT 1',
+            params: [data, orgId]
+          });
+          if (existing) {
+            console.warn('[generateAutomaticBarcode] Barcode exists locally, regenerating...');
+            return generateEAN13Fallback();
+          }
+        }
+      } catch (localCheckError) {
+        // تجاهل الأخطاء المحلية
+      }
+
+      return data;
+    } catch (error) {
+      console.warn('[generateAutomaticBarcode] Error, using local generation:', error);
       return generateEAN13Fallback();
     }
-
-    return data;
-  } catch (error) {
-    
-    return generateEAN13Fallback();
   }
+  
+  // ⚡ Offline: إنشاء باركود محلياً
+  return generateEAN13Fallback();
 };
 
 const generateEAN13Fallback = (): string => {
@@ -1719,55 +2305,182 @@ export const generateVariantBarcode = async (
   productId: string,
   variantId: string
 ): Promise<string> => {
+  // ⚡ PowerSync local variant barcode (suffix-based, unique locally)
   try {
-    const { data, error } = await supabase.rpc('generate_variant_barcode', {
-      product_id: productId,
-      variant_id: variantId
+    const { powerSyncService } = await import('@/lib/powersync/PowerSyncService');
+    const orgId =
+      localStorage.getItem('currentOrganizationId') ||
+      localStorage.getItem('bazaar_organization_id');
+
+    if (!powerSyncService.db) {
+      console.warn('[products] PowerSync DB not initialized');
+      return null;
+    }
+    const product = await powerSyncService.queryOne<{ barcode?: string }>({
+      sql: 'SELECT barcode FROM products WHERE id = ? LIMIT 1',
+      params: [productId]
     });
 
-    if (error) {
+    const base = product?.barcode || (await generateAutomaticBarcode());
+
+    const generateUnique = async () => {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const suffix = Math.floor(Math.random() * 100).toString().padStart(2, '0');
+        const candidate = `${base}-${suffix}`;
+        if (!orgId) return candidate;
+        if (!powerSyncService.db) {
+          console.warn('[products] PowerSync DB not initialized');
+          return candidate;
+        }
+        const existing = await powerSyncService.queryOne<{ id: string }>({
+          sql: `SELECT id FROM product_colors WHERE barcode = ? AND organization_id = ?
+           UNION
+           SELECT id FROM product_sizes WHERE barcode = ? AND organization_id = ?
+           LIMIT 1`,
+          params: [candidate, orgId, candidate, orgId]
+        });
+        if (!existing) return candidate;
+      }
+      return `${base}-${Math.floor(Math.random() * 100).toString().padStart(2, '0')}`;
+    };
+
+    const barcode = await generateUnique();
+    return barcode;
+  } catch (err) {
+    console.warn('[generateVariantBarcode] PowerSync variant generation failed, fallback to legacy path', err);
+  }
+  // ⚡ Offline-First: البحث عن باركود المنتج محلياً أولاً
+  try {
+    const { powerSyncService } = await import('@/lib/powersync/PowerSyncService');
+    const orgId = localStorage.getItem('currentOrganizationId') || localStorage.getItem('bazaar_organization_id');
+    
+    if (orgId) {
+      // البحث عن باركود المنتج في PowerSync
+      if (!powerSyncService.db) {
+      console.warn('[products] PowerSync DB not initialized');
+      return null;
+    }
+    const product = await powerSyncService.queryOne<{ barcode?: string }>({
+        sql: 'SELECT barcode FROM products WHERE id = ? AND organization_id = ?',
+        params: [productId, orgId]
+      });
       
-      const { data: product } = await supabase
-        .from('products')
-        .select('barcode')
-        .eq('id', productId)
-        .single();
+      if (product?.barcode && powerSyncService.db) {
+        const suffix = Math.floor(Math.random() * 100).toString().padStart(2, '0');
+        const variantBarcode = `${product.barcode}-${suffix}`;
+        
+        // التحقق من التكرار محلياً
+        const existing = await powerSyncService.queryOne<{ id: string }>({
+          sql: `SELECT id FROM product_colors WHERE barcode = ? AND organization_id = ? 
+           UNION 
+           SELECT id FROM product_sizes WHERE barcode = ? AND organization_id = ? 
+           LIMIT 1`,
+          params: [variantBarcode, orgId, variantBarcode, orgId]
+        });
+        
+        if (!existing) {
+          return variantBarcode;
+        }
+      }
+    }
+  } catch (localError) {
+    console.warn('[generateVariantBarcode] Local check failed:', localError);
+  }
+
+  // Fallback: محاولة RPC إذا كان متصل
+  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+  if (isOnline) {
+    try {
+      const { data, error } = await supabase.rpc('generate_variant_barcode', {
+        product_id: productId,
+        variant_id: variantId
+      });
+
+      if (!error && data) {
+        return data;
+      }
+    } catch (rpcError) {
+      console.warn('[generateVariantBarcode] RPC failed:', rpcError);
+    }
+  }
+
+  // ⚡ Fallback نهائي: إنشاء باركود محلياً
+  try {
+    const { powerSyncService } = await import('@/lib/powersync/PowerSyncService');
+    const orgId = localStorage.getItem('currentOrganizationId') || localStorage.getItem('bazaar_organization_id');
+    
+    if (orgId) {
+      if (!powerSyncService.db) {
+      console.warn('[products] PowerSync DB not initialized');
+      return null;
+    }
+    const product = await powerSyncService.queryOne<{ barcode?: string }>({
+        sql: 'SELECT barcode FROM products WHERE id = ? AND organization_id = ?',
+        params: [productId, orgId]
+      });
       
       if (product?.barcode) {
         const suffix = Math.floor(Math.random() * 100).toString().padStart(2, '0');
         return `${product.barcode}-${suffix}`;
-      } else {
-        const newBarcode = await generateAutomaticBarcode();
-        const suffix = Math.floor(Math.random() * 100).toString().padStart(2, '0');
-        return `${newBarcode}-${suffix}`;
       }
     }
+  } catch {}
 
-    return data;
-  } catch (error) {
-    
-    const randomSuffix = Math.floor(Math.random() * 100).toString().padStart(2, '0');
-    const timestamp = Date.now().toString().substring(8);
-    return `${timestamp}-${randomSuffix}`;
-  }
+  // Fallback نهائي: إنشاء باركود جديد
+  const newBarcode = await generateAutomaticBarcode();
+  const suffix = Math.floor(Math.random() * 100).toString().padStart(2, '0');
+  return `${newBarcode}-${suffix}`;
 };
 
 export const validateBarcode = async (barcode: string): Promise<boolean> => {
+  // ⚡ PowerSync-local validation first (format + uniqueness)
+  const localValidation = validateEAN13Locally(barcode);
+  if (!localValidation) return false;
+
   try {
-    const { data, error } = await supabase.rpc('validate_barcode', {
-      barcode: barcode
-    });
+    const { powerSyncService } = await import('@/lib/powersync/PowerSyncService');
+    const orgId =
+      localStorage.getItem('currentOrganizationId') ||
+      localStorage.getItem('bazaar_organization_id');
 
-    if (error) {
-      
-      return validateEAN13Locally(barcode);
+    if (orgId) {
+      const existing = await powerSyncService.queryOne<{ id: string }>({
+        sql: `SELECT id FROM products WHERE barcode = ? AND organization_id = ?
+         UNION
+         SELECT id FROM product_colors WHERE barcode = ? AND organization_id = ?
+         UNION
+         SELECT id FROM product_sizes WHERE barcode = ? AND organization_id = ?
+         LIMIT 1`,
+        params: [barcode, orgId, barcode, orgId, barcode, orgId]
+      });
+      if (existing) return false;
     }
-
-    return data;
-  } catch (error) {
-    
-    return validateEAN13Locally(barcode);
+  } catch (err) {
+    console.warn('[validateBarcode] PowerSync-local validation failed, fallback to legacy path', err);
   }
+
+  // ⚡ إذا كان متصل، التحقق من السيرفر أيضاً
+  const isOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
+  if (isOnline) {
+    try {
+      const { data, error } = await supabase.rpc('validate_barcode', {
+        barcode: barcode
+      });
+
+      if (error) {
+        console.warn('[validateBarcode] RPC failed, using local validation:', error);
+        return localValidation; // نعتمد على التحقق المحلي
+      }
+
+      return data; // النتيجة من السيرفر
+    } catch (error) {
+      console.warn('[validateBarcode] RPC error, using local validation:', error);
+      return localValidation; // نعتمد على التحقق المحلي
+    }
+  }
+
+  // ⚡ Offline: نعتمد على التحقق المحلي فقط
+  return localValidation;
 };
 
 const validateEAN13Locally = (barcode: string): boolean => {

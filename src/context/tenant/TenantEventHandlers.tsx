@@ -7,7 +7,9 @@ import { useEffect, useRef } from 'react';
 import type { Organization } from '@/types/tenant';
 import { updateOrganizationFromData } from '@/lib/processors/organizationProcessor';
 import type { TenantStateRefs } from './TenantState';
+import { updateOrganization } from './TenantState';
 import { addAppEventListener, dispatchAppEvent } from '@/lib/events/eventManager';
+import { dbInitManager } from '@/lib/db/DatabaseInitializationManager';
 
 interface TenantEventHandlersProps {
   organization: Organization | null;
@@ -49,6 +51,12 @@ export function TenantEventHandlers({
 
       if (authOrg && lastOrgId.current !== authOrg.id) {
         if (process.env.NODE_ENV === 'development') {
+        }
+        // ⚡ PowerSync يتعامل مع المزامنة تلقائياً
+        try {
+            void dbInitManager.initialize(authOrg.id);
+          } catch (e) {
+          // تجاهل الأخطاء - التهيئة قد تكون قيد التنفيذ بالفعل
         }
         lastAuthOrgId.current = authOrg.id;
         lastOrgId.current = authOrg.id;
@@ -99,6 +107,20 @@ export function TenantEventHandlers({
           owner_id: null
         };
 
+        // ⚡ PowerSync يتعامل مع المزامنة تلقائياً
+        // if (isSQLiteAvailable()) {
+        //   try {
+        //     sqliteWriteQueue.setOrganizationId(organizationId);
+        //     void dbInitManager.initialize(organizationId);
+        //   } catch (e) {
+        if (true) { // ⚡ PowerSync stub
+          try {
+            // sqliteWriteQueue.setOrganizationId(organizationId);
+            void dbInitManager.initialize(organizationId);
+          } catch (e) {
+          }
+        }
+
         updateOrganization(setState, quickOrg);
         refs.initialized.current = true;
         isInitialized.current = true;
@@ -137,11 +159,3 @@ export function TenantEventHandlers({
 
   return null; // هذا مكون منطق فقط
 }
-
-// دوال مساعدة لمعالجة الأحداث
-export const updateOrganization = (
-  setState: React.Dispatch<React.SetStateAction<any>>,
-  organization: Organization | null
-) => {
-  setState(prev => ({ ...prev, organization, isLoading: false, error: null }));
-};

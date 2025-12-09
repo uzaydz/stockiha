@@ -1,14 +1,119 @@
 import { supabase } from '@/lib/supabase';
-import { 
-  Employee, 
-  EmployeeFilter, 
-  EmployeeStats, 
-  EmployeeWithStats, 
+import {
+  Employee,
+  EmployeeFilter,
+  EmployeeStats,
+  EmployeeWithStats,
   EmployeeSalary,
   EmployeeActivity,
   EmployeePermissions
 } from '@/types/employee';
-import { inventoryDB } from '@/database/localDb';
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
+
+// ⚡ PowerSync متاح دائماً
+const isDesktopApp = (): boolean => {
+  if (typeof window === 'undefined') return false;
+  return !!(window as any).electronAPI || !!(window as any).__ELECTRON__ || true;
+};
+
+// التحقق من حالة الاتصال بالإنترنت
+const isOnline = (): boolean => {
+  if (typeof navigator === 'undefined') return true;
+  return navigator.onLine !== false;
+};
+
+// ⚡ دالة مساعدة لجلب الموظفين من PowerSync
+const getEmployeesFromLocal = async (organizationId: string): Promise<{
+  employees: Employee[];
+  stats: { total: number; active: number; inactive: number };
+}> => {
+  try {
+    console.log('[employees] 📂 Fetching from PowerSync');
+
+    // ⚡ استخدام PowerSync مباشرة
+    // ملاحظة: جدول employees غير موجود في PowerSync Schema
+    // نستخدم pos_staff_sessions بدلاً منه
+    if (!powerSyncService.db) {
+      console.warn('[employees] PowerSync DB not initialized');
+      return { employees: [], stats: { total: 0, active: 0, inactive: 0 } };
+    }
+    const rows = await powerSyncService.query<any>({
+      sql: 'SELECT * FROM pos_staff_sessions WHERE organization_id = ?',
+      params: [organizationId]
+    });
+
+    const employees = (rows || []).map((r: any) => ({
+      id: r.id,
+      user_id: r.auth_user_id || r.id,
+      name: r.name,
+      email: r.email,
+      phone: r.phone,
+      role: (r.role || 'employee') as 'employee' | 'admin',
+      is_active: r.is_active !== false && r.is_active !== 0,
+      last_login: r.last_login || null,
+      created_at: r.created_at,
+      updated_at: r.updated_at,
+      organization_id: r.organization_id,
+      permissions: typeof r.permissions === 'string' ? JSON.parse(r.permissions || '{}') : (r.permissions || {})
+    })) as Employee[];
+
+    // حساب الإحصائيات من البيانات المحلية
+    const stats = {
+      total: employees.length,
+      active: employees.filter(e => e.is_active).length,
+      inactive: employees.filter(e => !e.is_active).length
+    };
+
+    console.log(`[employees] ✅ Found ${employees.length} employees via PowerSync`);
+
+    return { employees, stats };
+  } catch (error) {
+    console.error('[employees] ❌ Local fetch failed:', error);
+    return {
+      employees: [],
+      stats: { total: 0, active: 0, inactive: 0 }
+    };
+  }
+};
+
+// ⚡ دالة لحفظ الموظفين في PowerSync
+const saveEmployeesToLocal = async (employees: Employee[]): Promise<void> => {
+  if (!isDesktopApp()) return;
+
+  try {
+    console.log(`[employees] 💾 Saving ${employees.length} employees via PowerSync`);
+
+    // ⚡ استخدام PowerSync مباشرة
+    await powerSyncService.transaction(async (tx) => {
+for (const e of employees) {
+        const now = new Date().toISOString();
+        const permissionsJson = typeof e.permissions === 'object' ? JSON.stringify(e.permissions || {}) : (e.permissions || '{}');
+        
+        // Try UPDATE first
+        const updateResult = await tx.execute(
+          `UPDATE employees SET 
+            auth_user_id = ?, name = ?, email = ?, phone = ?, role = ?, 
+            is_active = ?, permissions = ?, updated_at = ?
+           WHERE id = ? AND organization_id = ?`,
+          [e.user_id, e.name, e.email || null, e.phone || null, e.role, e.is_active ? 1 : 0, permissionsJson, now, e.id, e.organization_id]
+        );
+
+        // If no rows updated, INSERT
+        if (!updateResult || (Array.isArray(updateResult) && updateResult.length === 0)) {
+          await tx.execute(
+            `INSERT INTO pos_staff_sessions (id, auth_user_id, name, email, phone, role, is_active, organization_id, permissions, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [e.id, e.user_id, e.name, e.email || null, e.phone || null, e.role, e.is_active ? 1 : 0, e.organization_id, permissionsJson, e.created_at || now, e.updated_at || now]
+          );
+    }
+      }
+    });
+
+    console.log('[employees] ✅ Employees saved via PowerSync');
+  } catch (error) {
+    console.error('[employees] ⚠️ Failed to save via PowerSync:', error);
+  }
+};
 
 // التأكد من وجود جداول الموظفين
 export const ensureEmployeeTables = async (): Promise<void> => {
@@ -330,34 +435,46 @@ const performGetEmployees = async (): Promise<Employee[]> => {
       }
     })) as unknown as Employee[];
     
-    // تحديث كاش SQLite للاستخدام الأوفلاين
+    // ⚡ تحديث كاش PowerSync للاستخدام الأوفلاين
     try {
-      for (const e of transformedEmployees) {
-        await inventoryDB.employees.put({
-          id: e.id,
-          auth_user_id: e.user_id,
-          name: e.name,
-          email: e.email,
-          phone: e.phone,
-          role: e.role,
-          is_active: e.is_active,
-          organization_id: e.organization_id,
-          permissions: e.permissions || {},
-          created_at: e.created_at,
-          updated_at: e.updated_at
-        } as any);
+      await powerSyncService.transaction(async (tx) => {
+for (const e of transformedEmployees) {
+          const now = new Date().toISOString();
+          const permissionsJson = typeof e.permissions === 'object' ? JSON.stringify(e.permissions || {}) : (e.permissions || '{}');
+          
+          // Try UPDATE first
+          const updateResult = await tx.execute(
+            `UPDATE employees SET auth_user_id = ?, name = ?, email = ?, phone = ?, role = ?, is_active = ?, permissions = ?, updated_at = ?
+             WHERE id = ? AND organization_id = ?`,
+            [e.user_id, e.name, e.email || null, e.phone || null, e.role, e.is_active ? 1 : 0, permissionsJson, now, e.id, e.organization_id]
+          );
+
+          // If no rows updated, INSERT
+          if (!updateResult || (Array.isArray(updateResult) && updateResult.length === 0)) {
+            await tx.execute(
+              `INSERT INTO pos_staff_sessions (id, auth_user_id, name, email, phone, role, is_active, organization_id, permissions, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              [e.id, e.user_id, e.name, e.email || null, e.phone || null, e.role, e.is_active ? 1 : 0, e.organization_id, permissionsJson, e.created_at || now, e.updated_at || now]
+            );
       }
+        }
+      });
     } catch {}
 
     if (process.env.NODE_ENV === 'development') {
     }
     return transformedEmployees;
   } catch (err) {
-    // فallback أوفلاين: قراءة الموظفين من SQLite
+    // ⚡ فallback أوفلاين: قراءة الموظفين من PowerSync
     try {
       const orgId = localStorage.getItem('organizationId') || localStorage.getItem('currentOrganizationId') || localStorage.getItem('bazaar_organization_id');
       if (!orgId) return [];
-      const rows = await inventoryDB.employees.where({ organization_id: orgId }).toArray();
+      
+      const rows = await powerSyncService.query<any>({
+        sql: 'SELECT * FROM pos_staff_sessions WHERE organization_id = ?',
+        params: [orgId]
+      });
+      
       return (rows || []).map((r: any) => ({
         id: r.id,
         user_id: r.auth_user_id || r.id,
@@ -365,12 +482,12 @@ const performGetEmployees = async (): Promise<Employee[]> => {
         email: r.email,
         phone: r.phone,
         role: (r.role || 'employee') as 'employee' | 'admin',
-        is_active: r.is_active !== false,
-        last_login: null,
+        is_active: r.is_active !== false && r.is_active !== 0,
+        last_login: r.last_login || null,
         created_at: r.created_at,
         updated_at: r.updated_at,
         organization_id: r.organization_id,
-        permissions: typeof r.permissions === 'object' ? r.permissions : {}
+        permissions: typeof r.permissions === 'string' ? JSON.parse(r.permissions || '{}') : (r.permissions || {})
       })) as Employee[];
     } catch {
       return [];
@@ -390,21 +507,28 @@ export const getEmployeeById = async (id: string): Promise<Employee | null> => {
 
     if (error) throw error;
 
-    // حفظ/تحديث في SQLite
+    // ⚡ حفظ/تحديث في PowerSync
     try {
-      await inventoryDB.employees.put({
-        id: data.id,
-        auth_user_id: data.auth_user_id || data.id,
-        name: data.name,
-        email: data.email,
-        phone: data.phone,
-        role: data.role,
-        is_active: data.is_active,
-        organization_id: data.organization_id,
-        permissions: data.permissions || {},
-        created_at: data.created_at,
-        updated_at: data.updated_at
-      } as any);
+      await powerSyncService.transaction(async (tx) => {
+const now = new Date().toISOString();
+        const permissionsJson = typeof data.permissions === 'object' ? JSON.stringify(data.permissions || {}) : (data.permissions || '{}');
+        
+        // Try UPDATE first
+        const updateResult = await tx.execute(
+          `UPDATE employees SET auth_user_id = ?, name = ?, email = ?, phone = ?, role = ?, is_active = ?, permissions = ?, updated_at = ?
+           WHERE id = ? AND organization_id = ?`,
+          [data.auth_user_id || data.id, data.name, data.email || null, data.phone || null, data.role, data.is_active ? 1 : 0, permissionsJson, now, data.id, data.organization_id]
+        );
+
+        // If no rows updated, INSERT
+        if (!updateResult || (Array.isArray(updateResult) && updateResult.length === 0)) {
+          await tx.execute(
+            `INSERT INTO pos_staff_sessions (id, auth_user_id, name, email, phone, role, is_active, organization_id, permissions, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [data.id, data.auth_user_id || data.id, data.name, data.email || null, data.phone || null, data.role, data.is_active ? 1 : 0, data.organization_id, permissionsJson, data.created_at || now, data.updated_at || now]
+          );
+        }
+      });
     } catch {}
 
     return {
@@ -413,9 +537,16 @@ export const getEmployeeById = async (id: string): Promise<Employee | null> => {
       permissions: typeof data.permissions === 'object' ? data.permissions : {}
     } as unknown as Employee;
   } catch (onlineErr) {
-    // فallback أوفلاين
+    // ⚡ فallback أوفلاين: قراءة من PowerSync
     try {
-      const r: any = await inventoryDB.employees.get(id);
+      if (!powerSyncService.db) {
+        console.warn('[employees] PowerSync DB not initialized');
+        return null;
+      }
+      const r = await powerSyncService.queryOne<any>({
+        sql: 'SELECT * FROM pos_staff_sessions WHERE id = ?',
+        params: [id]
+      });
       if (!r) return null;
       return {
         id: r.id,
@@ -424,12 +555,12 @@ export const getEmployeeById = async (id: string): Promise<Employee | null> => {
         email: r.email,
         phone: r.phone,
         role: (r.role || 'employee') as 'employee' | 'admin',
-        is_active: r.is_active !== false,
-        last_login: null,
+        is_active: r.is_active !== false && r.is_active !== 0,
+        last_login: r.last_login || null,
         created_at: r.created_at,
         updated_at: r.updated_at,
         organization_id: r.organization_id,
-        permissions: typeof r.permissions === 'object' ? r.permissions : {}
+        permissions: typeof r.permissions === 'string' ? JSON.parse(r.permissions || '{}') : (r.permissions || {})
       } as Employee;
     } catch {
       return null;
@@ -486,21 +617,14 @@ export const createEmployee = async (
     
     if (authError) {
       // We'll continue and try to create just the database record
+      console.warn('[Employees] Auth signup failed, will create DB record only:', authError.message);
     } else if (authData?.user) {
-      
       authUserId = authData.user.id;
-      
-      // Sign out immediately after creating the user so admin stays logged in
-      await supabase.auth.signOut();
-      
-      // Sign back in as the admin (important!)
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: adminUser.email!,
-        password: localStorage.getItem('adminPassword') || '' // Using stored password if available
-      });
-      
-      if (signInError) {
-      }
+
+      // ⚠️ ملاحظة أمنية: لا نقوم بتسجيل الخروج هنا
+      // لأن ذلك سيفقد جلسة الأدمن ولا يمكننا استعادتها بشكل آمن
+      // سيتم التعامل مع هذا عبر refresh الجلسة الحالية
+      console.log('[Employees] Auth user created successfully:', authUserId);
     }
   } catch (error) {
     // Continue with just the database record
@@ -628,19 +752,11 @@ export const createEmployee = async (
           });
           
           if (signupError) {
+            console.warn('[Employees] Fallback signup failed:', signupError.message);
           } else {
-
-            // Sign out immediately after creating the user
-            await supabase.auth.signOut();
-            
-            // Sign back in as the admin
-            const { error: signInError } = await supabase.auth.signInWithPassword({
-              email: adminUser.email!,
-              password: localStorage.getItem('adminPassword') || '' // Using stored password if available
-            });
-            
-            if (signInError) {
-            }
+            // ⚠️ ملاحظة أمنية: لا نقوم بتسجيل الخروج وإعادة تسجيل الدخول
+            // لأن ذلك يتطلب تخزين كلمة المرور بشكل غير آمن
+            console.log('[Employees] Fallback signup successful');
           }
         } catch (signupErr) {
         }
@@ -936,6 +1052,7 @@ export const inviteEmployeeAuth = async (
 };
 
 // تحديث بيانات موظف
+// ⚡ يدعم الأوفلاين: يحفظ محلياً ثم يزامن لاحقاً
 export const updateEmployee = async (
   id: string,
   updates: Partial<Omit<Employee, 'id' | 'created_at'>>
@@ -953,30 +1070,81 @@ export const updateEmployee = async (
     processedUpdates.permissions = permissions;
   }
 
+  // ⚡ دالة للتحديث المحلي باستخدام PowerSync
+  const updateLocally = async (): Promise<Employee | null> => {
+    if (!isDesktopApp()) return null;
+
+    try {
+      // ⚡ الحصول على الموظف الحالي من PowerSync
+      const existingEmployee = await powerSyncService.queryOne<any>({
+        sql: 'SELECT * FROM pos_staff_sessions WHERE id = ?',
+        params: [id]
+      });
+      if (!existingEmployee) return null;
+
+      const now = new Date().toISOString();
+      const permissionsJson = typeof permissions === 'object' ? JSON.stringify(permissions || {}) : (permissions || JSON.stringify(existingEmployee.permissions || {}));
+
+      // ⚡ تحديث في PowerSync
+      await powerSyncService.transaction(async (tx) => {
+const keys = Object.keys(processedUpdates).filter(k => k !== 'id' && k !== 'created_at');
+        const setClause = keys.map(k => `${k} = ?`).join(', ');
+        const values = keys.map(k => (processedUpdates as any)[k]);
+
+        await tx.execute(
+          `UPDATE employees SET ${setClause}, permissions = ?, updated_at = ? WHERE id = ?`,
+          [...values, permissionsJson, now, id]
+        );
+      });
+
+      console.log('[employees] ⚡ تم التحديث محلياً via PowerSync:', id);
+
+      return {
+        id: existingEmployee.id,
+        user_id: existingEmployee.auth_user_id || existingEmployee.id,
+        name: existingEmployee.name,
+        email: existingEmployee.email,
+        phone: existingEmployee.phone,
+        role: (existingEmployee.role || 'employee') as 'employee' | 'admin',
+        is_active: existingEmployee.is_active !== false && existingEmployee.is_active !== 0,
+        last_login: existingEmployee.last_login || null,
+        created_at: existingEmployee.created_at,
+        updated_at: now,
+        organization_id: existingEmployee.organization_id,
+        permissions: typeof permissions === 'object' ? permissions : (typeof existingEmployee.permissions === 'string' ? JSON.parse(existingEmployee.permissions || '{}') : (existingEmployee.permissions || {}))
+      } as Employee;
+    } catch (err) {
+      console.error('[employees] ❌ فشل التحديث المحلي:', err);
+      return null;
+    }
+  };
+
   // المحاولة الأولى: تحديث مباشر عبر RLS (للمسؤول في نفس المؤسسة)
-  const { data, error } = await supabase
-    .from('users')
-    .update(processedUpdates)
-    .eq('id', id)
-    .eq('role', 'employee')
-    .select()
-    .single();
-
-  if (!error && data) {
-    return {
-      ...data,
-      role: data.role as 'employee' | 'admin',
-      permissions: typeof data.permissions === 'object' ? data.permissions : {},
-    } as unknown as Employee;
-  }
-
-  // المحاولة الثانية: استخدام RPC موحد إذا فشل RLS (يتطلب توفر manage_employee في السيرفر)
   try {
+    const { data, error } = await supabase
+      .from('users')
+      .update(processedUpdates)
+      .eq('id', id)
+      .eq('role', 'employee')
+      .select()
+      .single();
+
+    if (!error && data) {
+      // ⚡ تحديث النسخة المحلية أيضاً
+      await updateLocally();
+
+      return {
+        ...data,
+        role: data.role as 'employee' | 'admin',
+        permissions: typeof data.permissions === 'object' ? data.permissions : {},
+      } as unknown as Employee;
+    }
+
+    // المحاولة الثانية: استخدام RPC موحد إذا فشل RLS
     const { data: rpcData, error: rpcError } = await supabase.rpc('manage_employee' as any, {
       p_action: 'upsert',
       p_payload: {
         employee_id: id,
-        // عند عدم تمرير البريد/الاسم سيحتفظ الـ RPC بالقيم الحالية
         ...(processedUpdates.name ? { name: processedUpdates.name } : {}),
         ...(processedUpdates.email ? { email: processedUpdates.email } : {}),
         ...(processedUpdates.phone ? { phone: processedUpdates.phone } : {}),
@@ -988,6 +1156,9 @@ export const updateEmployee = async (
     if (!rpcData?.success || !rpcData?.employee) {
       throw new Error(rpcData?.error || 'فشل في تحديث الموظف عبر RPC');
     }
+
+    // ⚡ تحديث النسخة المحلية أيضاً
+    await updateLocally();
 
     const e = rpcData.employee;
     return {
@@ -1004,12 +1175,17 @@ export const updateEmployee = async (
       organization_id: e.organization_id,
       permissions: e.permissions || {},
     } as Employee;
-  } catch (fallbackErr: any) {
-    // إن فشل كلا المسارين، أعد الخطأ الأصلي الأكثر وضوحاً إن وجد
-    if (error) {
-      throw new Error(error.message);
+  } catch (onlineErr: any) {
+    console.warn('[employees] ⚠️ فشل التحديث على السيرفر، محاولة التحديث محلياً:', onlineErr.message);
+
+    // ⚡ Fallback: التحديث محلياً فقط (وضع أوفلاين)
+    const localEmployee = await updateLocally();
+    if (localEmployee) {
+      console.log('[employees] ✅ تم التحديث محلياً - سيتم المزامنة لاحقاً');
+      return localEmployee;
     }
-    throw new Error(fallbackErr?.message || 'فشل تحديث الموظف');
+
+    throw new Error(onlineErr?.message || 'فشل تحديث الموظف');
   }
 };
 
@@ -1047,30 +1223,92 @@ export const resetEmployeePassword = async (employeeAuthUserId: string, newPassw
 };
 
 // تغيير حالة نشاط الموظف
+// ⚡ يدعم الأوفلاين: يحفظ محلياً ثم يزامن لاحقاً
 export const toggleEmployeeStatus = async (id: string, isActive: boolean): Promise<Employee> => {
   // مسح Cache عند تغيير حالة الموظف
   clearEmployeeCache();
-  const { data, error } = await supabase
-    .from('users')
-    .update({
-      is_active: isActive,
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', id)
-    .eq('role', 'employee')
-    .select()
-    .single();
-    
-  if (error) {
-    throw new Error(error.message);
+
+  // ⚡ دالة للتحديث المحلي باستخدام PowerSync
+  const updateLocally = async (): Promise<Employee | null> => {
+    if (!isDesktopApp()) return null;
+
+    try {
+      // ⚡ الحصول على الموظف الحالي من PowerSync
+      const existingEmployee = await powerSyncService.queryOne<any>({
+        sql: 'SELECT * FROM pos_staff_sessions WHERE id = ?',
+        params: [id]
+      });
+      if (!existingEmployee) return null;
+
+      const now = new Date().toISOString();
+
+      // ⚡ تحديث في PowerSync
+      await powerSyncService.transaction(async (tx) => {
+await tx.execute(
+          'UPDATE employees SET is_active = ?, updated_at = ? WHERE id = ?',
+          [isActive ? 1 : 0, now, id]
+        );
+      });
+
+      console.log('[employees] ⚡ تم تغيير حالة الموظف محلياً via PowerSync:', id, '→', isActive);
+
+      return {
+        id: existingEmployee.id,
+        user_id: existingEmployee.auth_user_id || existingEmployee.id,
+        name: existingEmployee.name,
+        email: existingEmployee.email,
+        phone: existingEmployee.phone,
+        role: (existingEmployee.role || 'employee') as 'employee' | 'admin',
+        is_active: isActive,
+        last_login: existingEmployee.last_login || null,
+        created_at: existingEmployee.created_at,
+        updated_at: now,
+        organization_id: existingEmployee.organization_id,
+        permissions: typeof existingEmployee.permissions === 'string' ? JSON.parse(existingEmployee.permissions || '{}') : (existingEmployee.permissions || {})
+      } as Employee;
+    } catch (err) {
+      console.error('[employees] ❌ فشل التحديث المحلي:', err);
+      return null;
+    }
+  };
+
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .update({
+        is_active: isActive,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .eq('role', 'employee')
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    // ⚡ تحديث النسخة المحلية أيضاً
+    await updateLocally();
+
+    // تحويل البيانات للنوع المطلوب
+    return {
+      ...data,
+      role: data.role as 'employee' | 'admin',
+      permissions: typeof data.permissions === 'object' ? data.permissions : {}
+    } as unknown as Employee;
+  } catch (onlineErr: any) {
+    console.warn('[employees] ⚠️ فشل تغيير الحالة على السيرفر، محاولة التحديث محلياً:', onlineErr.message);
+
+    // ⚡ Fallback: التحديث محلياً فقط (وضع أوفلاين)
+    const localEmployee = await updateLocally();
+    if (localEmployee) {
+      console.log('[employees] ✅ تم تغيير الحالة محلياً - سيتم المزامنة لاحقاً');
+      return localEmployee;
+    }
+
+    throw new Error(onlineErr?.message || 'فشل تغيير حالة الموظف');
   }
-  
-  // تحويل البيانات للنوع المطلوب
-  return {
-    ...data,
-    role: data.role as 'employee' | 'admin',
-    permissions: typeof data.permissions === 'object' ? data.permissions : {}
-  } as unknown as Employee;
 };
 
 // حذف موظف
@@ -1283,12 +1521,19 @@ const performGetEmployeeStats = async (): Promise<{
   inactive: number;
 }> => {
   try {
-    
+
     // الحصول على معرف المؤسسة (مع cache)
     const organizationId = await getOrganizationId();
-    
+
     if (!organizationId) {
       return { total: 0, active: 0, inactive: 0 };
+    }
+
+    // ⚡ إذا كنا أوفلاين، نحسب الإحصائيات من القاعدة المحلية
+    if (!isOnline() && isDesktopApp()) {
+      console.log('[employees] 📴 Offline mode - calculating stats from local');
+      const { stats } = await getEmployeesFromLocal(organizationId);
+      return stats;
     }
 
     // تشغيل جميع الاستعلامات بالتوازي لتحسين الأداء
@@ -1299,7 +1544,7 @@ const performGetEmployeeStats = async (): Promise<{
         .select('*', { count: 'exact', head: true })
         .eq('role', 'employee')
         .eq('organization_id', organizationId),
-      
+
       // عدد الموظفين النشطين
       supabase
         .from('users')
@@ -1307,7 +1552,7 @@ const performGetEmployeeStats = async (): Promise<{
         .eq('role', 'employee')
         .eq('organization_id', organizationId)
         .eq('is_active', true),
-      
+
       // عدد الموظفين غير النشطين
       supabase
         .from('users')
@@ -1318,9 +1563,15 @@ const performGetEmployeeStats = async (): Promise<{
     ]);
     
     if (totalResult.error || activeResult.error || inactiveResult.error) {
+      console.warn('[employees] ⚠️ Server error in stats, trying local fallback');
+      // 🔄 Fallback للقاعدة المحلية
+      if (isDesktopApp()) {
+        const { stats } = await getEmployeesFromLocal(organizationId);
+        return stats;
+      }
       return { total: 0, active: 0, inactive: 0 };
     }
-    
+
     const stats = {
       total: totalResult.count || 0,
       active: activeResult.count || 0,
@@ -1332,6 +1583,17 @@ const performGetEmployeeStats = async (): Promise<{
 
     return stats;
   } catch (error) {
+    console.error('[employees] ❌ Error in performGetEmployeeStats:', error);
+    // 🔄 Fallback للقاعدة المحلية في حالة الخطأ
+    if (isDesktopApp()) {
+      const organizationId = localStorage.getItem('organizationId') ||
+                             localStorage.getItem('currentOrganizationId') ||
+                             localStorage.getItem('bazaar_organization_id');
+      if (organizationId) {
+        const { stats } = await getEmployeesFromLocal(organizationId);
+        return stats;
+      }
+    }
     return {
       total: 0,
       active: 0,
@@ -1494,30 +1756,28 @@ export const updateEmployeesWithMissingOrganizationId = async (): Promise<void> 
   }
 };
 
-// جلب جميع الموظفين مع إحصائياتهم في استدعاء واحد فقط - دالة محسنة
+// جلب جميع الموظفين مع إحصائياتهم في استدعاء واحد فقط - دالة محسنة مع دعم أوفلاين
 export const getEmployeesWithStats = async (): Promise<{
   employees: Employee[];
   stats: EmployeeStats;
 }> => {
   const now = Date.now();
-  
+
   // بدء تتبع الأداء عند أول استخدام
   startPerformanceTracking();
-  
+
   // تحديث إحصائيات الطلبات
   performanceStats.employeesRequests++;
   performanceStats.statsRequests++;
-  
-  if (process.env.NODE_ENV === 'development') {
-  }
-  
+
+  console.log('[employees] 🔄 getEmployeesWithStats called');
+
   // فحص الـ cache للبيانات المدمجة
   const employeesCacheValid = cachedEmployees && (now - lastEmployeesFetch) < EMPLOYEES_CACHE_DURATION;
   const statsCacheValid = cachedStats && (now - lastStatsFetch) < STATS_CACHE_DURATION;
-  
+
   if (employeesCacheValid && statsCacheValid) {
-    if (process.env.NODE_ENV === 'development') {
-    }
+    console.log('[employees] 📦 Using cache');
     performanceStats.employeesCacheHits++;
     performanceStats.statsCacheHits++;
     return {
@@ -1525,44 +1785,50 @@ export const getEmployeesWithStats = async (): Promise<{
       stats: cachedStats
     };
   }
-  
+
   try {
-    if (process.env.NODE_ENV === 'development') {
-    }
-    
     // الحصول على معرف المؤسسة
     const organizationId = await getOrganizationId();
-    
+
     if (!organizationId) {
-      if (process.env.NODE_ENV === 'development') {
-      }
+      console.log('[employees] ⚠️ No organization ID found');
       return {
         employees: [],
         stats: { total: 0, active: 0, inactive: 0 }
       };
     }
-    
+
+    // ⚡ إذا كنا أوفلاين، نجلب من القاعدة المحلية مباشرة
+    if (!isOnline() && isDesktopApp()) {
+      console.log('[employees] 📴 Offline mode - fetching from local database');
+      return await getEmployeesFromLocal(organizationId);
+    }
+
     // استدعاء الـ RPC function الجديدة المحسنة
     const { data, error } = await supabase.rpc('get_employees_with_stats' as any, {
       p_organization_id: organizationId
     });
-    
+
     if (error) {
+      console.warn('[employees] ⚠️ Server error, trying local fallback:', error.message);
+
+      // 🔄 Fallback للقاعدة المحلية
+      if (isDesktopApp()) {
+        return await getEmployeesFromLocal(organizationId);
+      }
+
       throw new Error(error.message);
     }
-    
+
     if (!data) {
-      if (process.env.NODE_ENV === 'development') {
-      }
+      console.log('[employees] ⚠️ No data returned from server');
       return {
         employees: [],
         stats: { total: 0, active: 0, inactive: 0 }
       };
     }
-    
-    // إضافة تشخيص مفصل للبيانات المُسترجعة
-    if (process.env.NODE_ENV === 'development') {
-    }
+
+    console.log('[employees] ✅ Fetched employees from server')
     
     // معالجة البيانات المُسترجعة
     const employeesArray = (data as any)?.employees || [];
@@ -1635,19 +1901,39 @@ export const getEmployeesWithStats = async (): Promise<{
     })) as Employee[];
     
     const stats = (data as any)?.stats || { total: 0, active: 0, inactive: 0 };
-    
+
     // تحديث الـ cache
     cachedEmployees = employees;
     cachedStats = stats;
     lastEmployeesFetch = now;
     lastStatsFetch = now;
-    
+
+    // ⚡ حفظ في القاعدة المحلية للأوفلاين
+    if (isDesktopApp() && employees.length > 0) {
+      saveEmployeesToLocal(employees).catch(err => {
+        console.warn('[employees] ⚠️ Background save to local failed:', err);
+      });
+    }
+
     if (process.env.NODE_ENV === 'development') {
     }
-    
+
     return { employees, stats };
-    
+
   } catch (err) {
+    console.error('[employees] ❌ Error in getEmployeesWithStats:', err);
+
+    // 🔄 Fallback للقاعدة المحلية في حالة الخطأ
+    if (isDesktopApp()) {
+      const organizationId = localStorage.getItem('organizationId') ||
+                             localStorage.getItem('currentOrganizationId') ||
+                             localStorage.getItem('bazaar_organization_id');
+      if (organizationId) {
+        console.log('[employees] 📴 Trying local fallback after error');
+        return await getEmployeesFromLocal(organizationId);
+      }
+    }
+
     return {
       employees: [],
       stats: { total: 0, active: 0, inactive: 0 }

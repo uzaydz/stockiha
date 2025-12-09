@@ -16,6 +16,8 @@ class QueryCache {
   private cache = new Map<string, CacheEntry<any>>();
   private inProgress = new Map<string, RequestInProgress<any>>();
   private cleanupInterval: NodeJS.Timeout | null = null;
+  // ⚡ إضافة حد أقصى للكاش لمنع تسرب الذاكرة
+  private readonly MAX_CACHE_SIZE = 100;
 
   constructor() {
     // تنظيف دوري كل 5 دقائق
@@ -129,6 +131,11 @@ class QueryCache {
     try {
       const result = await promise;
       
+      // ⚡ LRU eviction - حذف الأقدم إذا امتلأ الكاش
+      if (this.cache.size >= this.MAX_CACHE_SIZE && !this.cache.has(cacheKey)) {
+        this.evictOldest();
+      }
+
       // حفظ النتيجة في التخزين المؤقت
       this.cache.set(cacheKey, {
         data: result,
@@ -206,6 +213,25 @@ class QueryCache {
   }
 
   /**
+   * ⚡ حذف أقدم عنصر في الكاش (LRU eviction)
+   */
+  private evictOldest(): void {
+    let oldestKey: string | null = null;
+    let oldestTime = Infinity;
+
+    for (const [key, entry] of this.cache.entries()) {
+      if (entry.timestamp < oldestTime) {
+        oldestTime = entry.timestamp;
+        oldestKey = key;
+      }
+    }
+
+    if (oldestKey) {
+      this.cache.delete(oldestKey);
+    }
+  }
+
+  /**
    * مسح التخزين المؤقت لجدول معين
    */
   clearTable(table: string) {
@@ -230,6 +256,7 @@ class QueryCache {
   getStats() {
     return {
       cacheSize: this.cache.size,
+      maxCacheSize: this.MAX_CACHE_SIZE,
       inProgressCount: this.inProgress.size,
       tables: Array.from(this.cache.keys()).reduce((acc, key) => {
         const table = key.split(':')[0];

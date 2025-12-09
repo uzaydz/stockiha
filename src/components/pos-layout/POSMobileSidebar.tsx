@@ -171,7 +171,7 @@ const POSMobileSidebar: React.FC<POSMobileSidebarProps> = memo(({ isOpen, onClos
         <SheetHeader className="px-4 py-4 border-b border-slate-800/50 relative overflow-hidden">
           <div className="flex items-center justify-between relative z-10">
             <div className="flex items-center gap-3">
-              <div className="relative w-10 h-10 bg-gradient-to-br from-[#1e293b] to-[#0f172a] rounded-xl flex items-center justify-center border border-slate-700/50 shadow-lg">
+              <div className="relative w-10 h-10 bg-gradient-to-br from-[#0d1626] to-[#050b15] rounded-xl flex items-center justify-center border border-slate-700/50 shadow-lg">
                 <img
                   src="./images/logo-new.webp"
                   alt="Logo"

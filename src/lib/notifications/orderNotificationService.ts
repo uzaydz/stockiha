@@ -8,7 +8,7 @@
  * - العمل أوفلاين مع المزامنة
  */
 
-import { sqliteAPI } from '@/lib/db/sqliteAPI';
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
 import { supabase } from '@/lib/supabase';
 import { offlineNotificationService, NotificationPriority, OfflineNotification } from './offlineNotificationService';
 import { RealtimeChannel } from '@supabase/supabase-js';
@@ -102,8 +102,8 @@ class OrderNotificationService {
    */
   async initialize(organizationId: string): Promise<void> {
     try {
-      // إنشاء جدول التتبع
-      await sqliteAPI.execute(CREATE_ORDER_STATUS_TRACKING);
+      // ⚡ PowerSync ينشئ الجداول تلقائياً من Schema
+      // لا حاجة لإنشاء الجداول يدوياً
 
       // تحميل آخر وقت فحص
       this.loadLastCheckedTime(organizationId);
@@ -267,12 +267,25 @@ class OrderNotificationService {
    */
   private async updateOrderTracking(orderId: string, organizationId: string, status: string): Promise<void> {
     try {
-      await sqliteAPI.execute(
+      // ⚡ استخدام PowerSync مباشرة
+      if (!powerSyncService.db) {
+        throw new Error('PowerSync DB not initialized');
+      }
+      await powerSyncService.transaction(async (tx) => {
+        // Get current count first
+        const current = await tx.get(
+          'SELECT notification_count FROM order_status_tracking WHERE order_id = ?',
+          [orderId]
+        );
+        const newCount = current ? (current.notification_count || 0) + 1 : 1;
+        
+        await tx.execute(
         `INSERT OR REPLACE INTO order_status_tracking
          (order_id, organization_id, last_status, last_notified_at, notification_count)
-         VALUES (?, ?, ?, ?, COALESCE((SELECT notification_count + 1 FROM order_status_tracking WHERE order_id = ?), 1))`,
-        [orderId, organizationId, status, new Date().toISOString(), orderId]
+           VALUES (?, ?, ?, ?, ?)`,
+          [orderId, organizationId, status, new Date().toISOString(), newCount]
       );
+      });
     } catch (error) {
       console.error('[OrderNotifications] Error updating tracking:', error);
     }
@@ -296,8 +309,8 @@ class OrderNotificationService {
     try {
       const lastCheck = this.lastCheckedAt || new Date(Date.now() - 5 * 60 * 1000).toISOString();
 
-      // جلب الطلبات الجديدة من SQLite
-      const newOrders = await sqliteAPI.query<any>(
+      // ⚡ جلب الطلبات الجديدة من PowerSync
+      const newOrders = await powerSyncService.getAll<any>(
         `SELECT o.*, c.name as customer_name
          FROM orders o
          LEFT JOIN customers c ON o.customer_id = c.id
@@ -314,24 +327,24 @@ class OrderNotificationService {
         }
       }
 
-      // فحص تغييرات الحالة
-      const trackedOrders = await sqliteAPI.query<any>(
-        `SELECT t.order_id, t.last_status, o.status as current_status
+      // ⚡ فحص تغييرات الحالة
+      const trackedOrders = await powerSyncService.query<any>({
+        sql: `SELECT t.order_id, t.last_status, o.status as current_status
          FROM order_status_tracking t
          JOIN orders o ON t.order_id = o.id
          WHERE t.organization_id = ? AND t.last_status != o.status`,
-        [organizationId]
-      );
+        params: [organizationId]
+      });
 
       for (const order of trackedOrders) {
-        const fullOrder = await sqliteAPI.query<any>(
-          'SELECT o.*, c.name as customer_name FROM orders o LEFT JOIN customers c ON o.customer_id = c.id WHERE o.id = ?',
-          [order.order_id]
-        );
-        if (fullOrder[0]) {
+        const fullOrder = await powerSyncService.queryOne<any>({
+          sql: 'SELECT o.*, c.name as customer_name FROM orders o LEFT JOIN customers c ON o.customer_id = c.id WHERE o.id = ?',
+          params: [order.order_id]
+        });
+        if (fullOrder) {
           await this.handleOrderUpdate(
             organizationId,
-            fullOrder[0],
+            fullOrder,
             { status: order.last_status }
           );
         }
@@ -350,11 +363,12 @@ class OrderNotificationService {
    */
   private async getOrderTracking(orderId: string): Promise<any | null> {
     try {
-      const result = await sqliteAPI.query<any>(
-        'SELECT * FROM order_status_tracking WHERE order_id = ?',
-        [orderId]
-      );
-      return result[0] || null;
+      // ⚡ استخدام PowerSync مباشرة
+      const result = await powerSyncService.queryOne<any>({
+        sql: 'SELECT * FROM order_status_tracking WHERE order_id = ?',
+        params: [orderId]
+      });
+      return result || null;
     } catch {
       return null;
     }

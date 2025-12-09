@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { toast } from 'sonner';
 import { useTenant } from '@/context/TenantContext';
+import POSPureLayout from '@/components/pos-layout/POSPureLayout';
 import Etat104ImportDialog from '../../components/etat104/Etat104ImportDialog';
 import Etat104ValidationTable from '../../components/etat104/Etat104ValidationTable';
 import Etat104Statistics from '../../components/etat104/Etat104Statistics';
@@ -386,8 +387,17 @@ const Etat104 = () => {
     }
   };
 
+  const handleRefresh = async () => {
+    await loadCurrentDeclaration();
+  };
+
   return (
-    <div className="container mx-auto p-6 space-y-6" dir="rtl">
+    <POSPureLayout
+      onRefresh={handleRefresh}
+      isRefreshing={isLoading}
+      connectionStatus="connected"
+    >
+      <div className="space-y-6 p-6" dir="rtl">
       {/* الرأس */}
       <div className="flex items-center justify-between">
         <div>
@@ -775,7 +785,8 @@ const Etat104 = () => {
         onExport={handleExport}
         validationResult={validationResult}
       />
-    </div>
+      </div>
+    </POSPureLayout>
   );
 };
 

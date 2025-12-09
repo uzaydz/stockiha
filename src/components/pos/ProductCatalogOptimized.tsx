@@ -13,14 +13,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { motion } from "framer-motion";
 import { useTenant } from '@/context/TenantContext';
 import { usePOSData } from '@/context/POSDataContext';
-import { getPaginatedProducts, getProductsStats, transformDatabaseProduct } from '@/lib/api/pos-products-api';
-import {
-  getProducts as getAllProductsOffline,
-  saveProductLocally,
-  fastSearchLocalProducts,
-  getLocalProductsPage,
-  getLocalProductStats
-} from '@/lib/api/offlineProductsAdapter';
+import { unifiedProductService } from '@/services/UnifiedProductService';
 import { useInView } from 'react-intersection-observer';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -81,22 +74,18 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
     return viewMode === 'grid' ? 50 : viewMode === 'compact' ? 80 : 30;
   }, [viewMode]);
 
-  // جلب إحصائيات المنتجات
+  // ⚡ جلب إحصائيات المنتجات من PowerSync (Offline-First)
   useEffect(() => {
     const fetchStats = async () => {
       if (!currentOrganization?.id) return;
       try {
-        if (useCacheBrowse || offlineMode) {
-          const s = await getLocalProductStats(currentOrganization.id);
-          setStats(s);
-        } else {
-          const s = await getProductsStats(currentOrganization.id);
-          setStats(s);
-        }
+        unifiedProductService.setOrganizationId(currentOrganization.id);
+        const s = await unifiedProductService.getProductStats();
+        setStats(s);
       } catch {}
     };
     fetchStats();
-  }, [currentOrganization?.id, useCacheBrowse, offlineMode]);
+  }, [currentOrganization?.id]);
 
   // تحميل الصفحة الأولى عند تغيير الفلاتر
   useEffect(() => {
@@ -112,9 +101,20 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
         setUseLocalPagination(canUseIndexedPagination);
 
         if (debouncedSearchQuery) {
-          // بحث محلي سريع عبر الفهارس
-          const localMatches = await fastSearchLocalProducts(orgId, debouncedSearchQuery, 1500);
-          const transformed = localMatches.map(transformDatabaseProduct);
+          // ⚡ بحث محلي سريع من PowerSync (Offline-First)
+          unifiedProductService.setOrganizationId(orgId);
+          const localMatches = await unifiedProductService.searchProducts(debouncedSearchQuery, 1500);
+          const transformed = localMatches.map((p: any) => ({
+            ...p,
+            stockQuantity: p.stock_quantity,
+            stock_quantity: p.stock_quantity,
+            thumbnailImage: p.thumbnail_image,
+            thumbnail_image: p.thumbnail_image,
+            compareAtPrice: p.compare_at_price,
+            compare_at_price: p.compare_at_price,
+            createdAt: p.created_at ? new Date(p.created_at) : new Date(),
+            updatedAt: p.updated_at ? new Date(p.updated_at) : new Date()
+          })) as Product[];
           setAllProducts(transformed);
           const filtered = transformed
             .filter(p => (selectedCategory === 'all' ? true : (p as any).category_id === selectedCategory));
@@ -136,44 +136,75 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
           setTotalPages(Math.ceil(sorted.length / pageSize));
           setTotalProducts(sorted.length);
           setHasNextPage(sorted.length > pageSize);
-          if (scrollAreaRef.current) scrollAreaRef.current.scrollTop = 0;
-        } else if (canUseIndexedPagination) {
-          // صفحة أولى عبر الفهرس المحلي بدون تحميل كامل للذاكرة
-          const res = await getLocalProductsPage(orgId, { offset: 0, limit: pageSize, includeInactive: true, sortBy: 'name', categoryId: selectedCategory === 'all' ? 'all' : selectedCategory });
-          const transformed = (res.products as any[]).map(transformDatabaseProduct);
-          setProducts(transformed);
-          setAllProducts([]);
-          setCurrentPage(1);
-          setTotalProducts(res.total);
-          setTotalPages(Math.ceil(res.total / pageSize));
-          setHasNextPage(res.total > pageSize);
           if (scrollAreaRef.current) scrollAreaRef.current.scrollTop = 0;
         } else {
-          // الرجوع للسلوك السابق: تحميل كامل ثم التصفح محلياً
-          const raw = await getAllProductsOffline(orgId, true);
-          const transformed = (raw as any[]).map(transformDatabaseProduct);
-          setAllProducts(transformed);
-          const filtered = transformed
-            .filter(p => (selectedCategory === 'all' ? true : (p as any).category_id === selectedCategory));
-          const sorted = filtered.sort((a, b) => {
-            const dir = sortOrder === 'ASC' ? 1 : -1;
-            switch (sortOption) {
-              case 'price': return dir * (((a as any).price || 0) - ((b as any).price || 0));
-              case 'stock': {
-                const sa = (a as any).stockQuantity ?? (a as any).stock_quantity ?? 0;
-                const sb = (b as any).stockQuantity ?? (b as any).stock_quantity ?? 0;
-                return dir * (sa - sb);
+          // ⚡ جلب المنتجات من PowerSync مع Pagination (Offline-First)
+          unifiedProductService.setOrganizationId(orgId);
+          const filters: any = {
+            is_active: true
+          };
+          if (selectedCategory !== 'all') {
+            filters.category_id = selectedCategory;
+          }
+          
+          const res = await unifiedProductService.getProducts(filters, 1, pageSize);
+          const transformed = res.data.map((p: any) => ({
+            ...p,
+            stockQuantity: p.stock_quantity,
+            stock_quantity: p.stock_quantity,
+            thumbnailImage: p.thumbnail_image,
+            thumbnail_image: p.thumbnail_image,
+            compareAtPrice: p.compare_at_price,
+            compare_at_price: p.compare_at_price,
+            createdAt: p.created_at ? new Date(p.created_at) : new Date(),
+            updatedAt: p.updated_at ? new Date(p.updated_at) : new Date()
+          })) as Product[];
+          
+          if (canUseIndexedPagination) {
+            setProducts(transformed);
+            setAllProducts([]);
+            setCurrentPage(1);
+            setTotalProducts(res.total);
+            setTotalPages(Math.ceil(res.total / pageSize));
+            setHasNextPage(res.hasMore);
+            if (scrollAreaRef.current) scrollAreaRef.current.scrollTop = 0;
+          } else {
+            // تحميل كامل للتصفح المحلي
+            const allRes = await unifiedProductService.getProducts(filters, 1, 10000);
+            const allTransformed = allRes.data.map((p: any) => ({
+              ...p,
+              stockQuantity: p.stock_quantity,
+              stock_quantity: p.stock_quantity,
+              thumbnailImage: p.thumbnail_image,
+              thumbnail_image: p.thumbnail_image,
+              compareAtPrice: p.compare_at_price,
+              compare_at_price: p.compare_at_price,
+              createdAt: p.created_at ? new Date(p.created_at) : new Date(),
+              updatedAt: p.updated_at ? new Date(p.updated_at) : new Date()
+            })) as Product[];
+            setAllProducts(allTransformed);
+            const filtered = allTransformed
+              .filter(p => (selectedCategory === 'all' ? true : (p as any).category_id === selectedCategory));
+            const sorted = filtered.sort((a, b) => {
+              const dir = sortOrder === 'ASC' ? 1 : -1;
+              switch (sortOption) {
+                case 'price': return dir * (((a as any).price || 0) - ((b as any).price || 0));
+                case 'stock': {
+                  const sa = (a as any).stockQuantity ?? (a as any).stock_quantity ?? 0;
+                  const sb = (b as any).stockQuantity ?? (b as any).stock_quantity ?? 0;
+                  return dir * (sa - sb);
+                }
+                case 'created': return dir * ((a as any).createdAt?.getTime?.() - (b as any).createdAt?.getTime?.());
+                default: return dir * (a.name?.localeCompare(b.name) || 0);
               }
-              case 'created': return dir * ((a as any).createdAt?.getTime?.() - (b as any).createdAt?.getTime?.());
-              default: return dir * (a.name?.localeCompare(b.name) || 0);
-            }
-          });
-          setProducts(sorted.slice(0, pageSize));
-          setCurrentPage(1);
-          setTotalPages(Math.ceil(sorted.length / pageSize));
-          setTotalProducts(sorted.length);
-          setHasNextPage(sorted.length > pageSize);
-          if (scrollAreaRef.current) scrollAreaRef.current.scrollTop = 0;
+            });
+            setProducts(sorted.slice(0, pageSize));
+            setCurrentPage(1);
+            setTotalPages(Math.ceil(sorted.length / pageSize));
+            setTotalProducts(sorted.length);
+            setHasNextPage(sorted.length > pageSize);
+            if (scrollAreaRef.current) scrollAreaRef.current.scrollTop = 0;
+          }
         }
       } catch (e) {
         setError('تعذر تحميل المنتجات من الكاش');
@@ -182,43 +213,8 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
       }
     };
 
-    const loadOnline = async () => {
-      setCurrentPage(1);
-      setIsInitialLoading(true);
-      setError(null);
-      try {
-        const response = await getPaginatedProducts(orgId, {
-          page: 1,
-          pageSize,
-          searchQuery: debouncedSearchQuery || undefined,
-          categoryId: selectedCategory !== 'all' ? selectedCategory : undefined,
-          sortBy: sortOption,
-          sortOrder: sortOrder,
-          includeVariants: true
-        });
-        const transformedProducts = response.products.map(transformDatabaseProduct);
-        setProducts(transformedProducts);
-        // احفظ في الكاش للأوفلاين
-        for (const p of transformedProducts) {
-          try { await saveProductLocally(p as any); } catch {}
-        }
-        if (scrollAreaRef.current) scrollAreaRef.current.scrollTop = 0;
-        setCurrentPage(response.currentPage);
-        setTotalPages(response.pageCount);
-        setTotalProducts(response.totalCount);
-        setHasNextPage(response.hasNextPage);
-      } catch (error) {
-        setError('حدث خطأ في تحميل المنتجات. يرجى المحاولة مرة أخرى.');
-      } finally {
-        setIsInitialLoading(false);
-      }
-    };
-
-    if (useCacheBrowse || offlineMode) {
-      void loadFromCache();
-    } else {
-      void loadOnline();
-    }
+    // ⚡ دائماً نستخدم PowerSync (Offline-First)
+    void loadFromCache();
   }, [debouncedSearchQuery, selectedCategory, sortOption, sortOrder, currentOrganization?.id, pageSize, useCacheBrowse, offlineMode]);
 
   // دالة لتحديث المخزون محلياً (يمكن استدعاؤها من الخارج)
@@ -257,9 +253,24 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
     setIsInitialLoading(true);
     setError(null);
     try {
-      // اجلب كل المنتجات من الخادم واحفظها محلياً، ثم اعرضها من الكاش
-      const raw = await getAllProductsOffline(currentOrganization.id, true);
-      const transformed = (raw as any[]).map(transformDatabaseProduct);
+      // ⚡ جلب كل المنتجات من PowerSync (Offline-First)
+      unifiedProductService.setOrganizationId(currentOrganization.id);
+      const filters: any = { is_active: true };
+      if (selectedCategory !== 'all') {
+        filters.category_id = selectedCategory;
+      }
+      const res = await unifiedProductService.getProducts(filters, 1, 10000);
+      const transformed = res.data.map((p: any) => ({
+        ...p,
+        stockQuantity: p.stock_quantity,
+        stock_quantity: p.stock_quantity,
+        thumbnailImage: p.thumbnail_image,
+        thumbnail_image: p.thumbnail_image,
+        compareAtPrice: p.compare_at_price,
+        compare_at_price: p.compare_at_price,
+        createdAt: p.created_at ? new Date(p.created_at) : new Date(),
+        updatedAt: p.updated_at ? new Date(p.updated_at) : new Date()
+      })) as Product[];
       setAllProducts(transformed);
       // تطبيق الفلاتر محلياً
       const filtered = transformed
@@ -288,11 +299,26 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
           const nextPage = currentPage + 1;
           if (useLocalPagination && !debouncedSearchQuery) {
             const orgId = currentOrganization?.id as string;
-            const res = await getLocalProductsPage(orgId, { offset: (nextPage - 1) * pageSize, limit: pageSize, includeInactive: true, sortBy: 'name', categoryId: selectedCategory === 'all' ? 'all' : selectedCategory });
-            const slice = (res.products as any[]).map(transformDatabaseProduct);
+            unifiedProductService.setOrganizationId(orgId);
+            const filters: any = { is_active: true };
+            if (selectedCategory !== 'all') {
+              filters.category_id = selectedCategory;
+            }
+            const res = await unifiedProductService.getProducts(filters, nextPage, pageSize);
+            const slice = res.data.map((p: any) => ({
+              ...p,
+              stockQuantity: p.stock_quantity,
+              stock_quantity: p.stock_quantity,
+              thumbnailImage: p.thumbnail_image,
+              thumbnail_image: p.thumbnail_image,
+              compareAtPrice: p.compare_at_price,
+              compare_at_price: p.compare_at_price,
+              createdAt: p.created_at ? new Date(p.created_at) : new Date(),
+              updatedAt: p.updated_at ? new Date(p.updated_at) : new Date()
+            })) as Product[];
             setProducts(prev => prev.concat(slice));
             setCurrentPage(nextPage);
-            setHasNextPage(res.total > nextPage * pageSize);
+            setHasNextPage(res.hasMore);
           } else {
             // fallback: احسب الصفحة التالية من allProducts
             const filtered = allProducts
@@ -893,22 +919,31 @@ export default function ProductCatalogOptimized({ onAddToCart, onStockUpdate, is
                         setIsLoadingMore(true);
 
                         try {
-                          const response = await getPaginatedProducts(currentOrganization.id, {
-                            page: currentPage + 1,
-                            pageSize,
-                            searchQuery: debouncedSearchQuery || undefined,
-                            categoryId: selectedCategory !== 'all' ? selectedCategory : undefined,
-                            sortBy: sortOption,
-                            sortOrder: sortOrder,
-                            includeVariants: true
-                          });
-
-                          const transformedProducts = response.products.map(transformDatabaseProduct);
+                          unifiedProductService.setOrganizationId(currentOrganization.id);
+                          const filters: any = { is_active: true };
+                          if (selectedCategory !== 'all') {
+                            filters.category_id = selectedCategory;
+                          }
+                          if (debouncedSearchQuery) {
+                            filters.search = debouncedSearchQuery;
+                          }
+                          const response = await unifiedProductService.getProducts(filters, currentPage + 1, pageSize);
+                          const transformedProducts = response.data.map((p: any) => ({
+                            ...p,
+                            stockQuantity: p.stock_quantity,
+                            stock_quantity: p.stock_quantity,
+                            thumbnailImage: p.thumbnail_image,
+                            thumbnail_image: p.thumbnail_image,
+                            compareAtPrice: p.compare_at_price,
+                            compare_at_price: p.compare_at_price,
+                            createdAt: p.created_at ? new Date(p.created_at) : new Date(),
+                            updatedAt: p.updated_at ? new Date(p.updated_at) : new Date()
+                          })) as Product[];
                           setProducts(prev => [...prev, ...transformedProducts]);
-                          setCurrentPage(response.currentPage);
-                          setTotalPages(response.pageCount);
-                          setTotalProducts(response.totalCount);
-                          setHasNextPage(response.hasNextPage);
+                          setCurrentPage(response.page);
+                          setTotalPages(Math.ceil(response.total / pageSize));
+                          setTotalProducts(response.total);
+                          setHasNextPage(response.hasMore);
                         } catch (error) {
                         } finally {
                           setIsLoadingMore(false);

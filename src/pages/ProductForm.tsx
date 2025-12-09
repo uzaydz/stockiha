@@ -65,15 +65,26 @@ const ProductForm: React.FC<ProductFormProps> = ({
 
   // ⚡ تحديد مسار العودة الذكي بناءً على المصدر
   const getReturnPath = useCallback(() => {
+    const locationState = location.state as any;
+    
+    // أولوية 1: استخدام returnTo من location.state إذا كان موجوداً
+    if (locationState?.returnTo) {
+      return locationState.returnTo;
+    }
+    
+    // أولوية 2: استخدام from من location.state
+    const referrer = locationState?.from || '';
+    
+    // أولوية 3: التحقق من المسار الحالي
     const currentPath = location.pathname;
-    const referrer = (location.state as any)?.from || '';
-
+    
     // إذا كان المستخدم في POS layout أو جاء منه
     if (
       currentPath.includes('/pos-') ||
       currentPath.includes('/pos-advanced') ||
       currentPath.includes('/product-operations') ||
       referrer.includes('/pos-') ||
+      referrer.includes('/pos-advanced') ||
       referrer.includes('/product-operations')
     ) {
       return '/dashboard/product-operations/products';

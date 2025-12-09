@@ -1,14 +1,15 @@
 /**
- * TauriPrintService - خدمة الطباعة الموحدة لـ Tauri
- * 
+ * TauriPrintService - خدمة الطباعة الموحدة
+ *
+ * ⚡ MIGRATED: From Tauri to Electron
+ *
  * ⚡ المميزات:
- * - يعمل في Tauri و Electron و المتصفح
- * - يتعامل مع مشكلة window.open() في Tauri
+ * - يعمل في Electron و المتصفح
  * - دعم الطباعة المباشرة والمعاينة
  * - تحسينات للطابعات الحرارية
  */
 
-import { isTauriApp, isElectronApp, isDesktopApp } from '@/lib/platform';
+import { isElectronApp, isDesktopApp } from '@/lib/platform';
 import { localBarcodeGenerator, type BarcodeType, type BarcodeOptions } from './LocalBarcodeGenerator';
 
 // =====================================================
@@ -74,11 +75,9 @@ class TauriPrintServiceClass {
     try {
       // توليد HTML للطباعة
       const htmlContent = await this.generatePrintHTML(items, settings);
-      
+
       // تحديد طريقة الطباعة حسب البيئة
-      if (isTauriApp()) {
-        return await this.printInTauri(htmlContent, settings);
-      } else if (isElectronApp()) {
+      if (isElectronApp()) {
         return await this.printInElectron(htmlContent, settings);
       } else {
         return await this.printInBrowser(htmlContent, settings);
@@ -86,31 +85,6 @@ class TauriPrintServiceClass {
     } catch (error: any) {
       console.error('[TauriPrintService] خطأ في الطباعة:', error);
       return { success: false, error: error.message || 'خطأ غير معروف' };
-    }
-  }
-
-  /**
-   * ⚡ طباعة في Tauri
-   */
-  private async printInTauri(
-    htmlContent: string,
-    settings: PrintSettings
-  ): Promise<PrintResult> {
-    try {
-      // الطريقة 1: استخدام iframe مخفي (الأكثر توافقاً)
-      return await this.printViaIframe(htmlContent, settings);
-    } catch (error) {
-      console.warn('[TauriPrintService] فشل iframe، محاولة طريقة بديلة...');
-      
-      // الطريقة 2: استخدام WebviewWindow
-      try {
-        return await this.printViaWebviewWindow(htmlContent, settings);
-      } catch (webviewError) {
-        console.warn('[TauriPrintService] فشل WebviewWindow، محاولة window.print...');
-        
-        // الطريقة 3: Fallback لـ window.print
-        return await this.printViaWindowPrint(htmlContent);
-      }
     }
   }
 
@@ -179,47 +153,6 @@ class TauriPrintServiceClass {
         }
       }, 3000);
     });
-  }
-
-  /**
-   * طباعة عبر WebviewWindow (Tauri فقط)
-   */
-  private async printViaWebviewWindow(
-    htmlContent: string,
-    settings: PrintSettings
-  ): Promise<PrintResult> {
-    try {
-      const { WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
-      
-      // إنشاء نافذة طباعة
-      const printWindow = new WebviewWindow('print-window', {
-        url: 'about:blank',
-        title: 'طباعة الباركود',
-        width: 800,
-        height: 600,
-        center: true,
-        resizable: true,
-        decorations: true
-      });
-
-      // انتظار إنشاء النافذة
-      await new Promise<void>((resolve, reject) => {
-        printWindow.once('tauri://created', () => {
-          resolve();
-        });
-        printWindow.once('tauri://error', (e) => {
-          reject(new Error('فشل في إنشاء نافذة الطباعة'));
-        });
-      });
-
-      // حقن المحتوى (ملاحظة: قد يحتاج تعديل حسب إصدار Tauri)
-      // هذا placeholder - قد تحتاج لاستخدام IPC
-      console.log('[TauriPrintService] تم إنشاء نافذة الطباعة');
-      
-      return { success: true };
-    } catch (error: any) {
-      throw error;
-    }
   }
 
   /**
@@ -537,23 +470,20 @@ class TauriPrintServiceClass {
    */
   checkPrintSupport(): {
     supported: boolean;
-    method: 'tauri' | 'electron' | 'browser' | 'iframe';
+    method: 'electron' | 'browser' | 'iframe';
     features: string[];
   } {
     const features: string[] = [];
-    let method: 'tauri' | 'electron' | 'browser' | 'iframe' = 'browser';
+    let method: 'electron' | 'browser' | 'iframe' = 'browser';
 
-    if (isTauriApp()) {
-      method = 'tauri';
-      features.push('tauri-webview', 'iframe-print');
-    } else if (isElectronApp()) {
+    if (isElectronApp()) {
       method = 'electron';
       features.push('electron-print', 'iframe-print');
     } else {
       if (typeof window.print === 'function') {
         features.push('window-print');
       }
-      
+
       // اختبار النوافذ المنبثقة
       try {
         const testWindow = window.open('', '_blank', 'width=1,height=1');

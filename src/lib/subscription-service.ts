@@ -1,15 +1,91 @@
 import { supabase } from '@/lib/supabase';
+import type {
+  SubscriptionPlanLimits,
+  SubscriptionPlanPermissions,
+  PlanCode,
+  LimitCheckResult,
+  SubscriptionSummary
+} from '@/types/subscription';
+
+// ============ أنواع الخطط الجديدة ============
+export const PLAN_CODES = {
+  TRIAL: 'trial',
+  STARTER: 'starter_v2',
+  GROWTH: 'growth_v2',
+  BUSINESS: 'business_v2',
+  ENTERPRISE: 'enterprise_v2',
+  UNLIMITED: 'unlimited_v2'
+} as const;
+
+// ============ الحدود الافتراضية للخطط ============
+export const DEFAULT_PLAN_LIMITS: Record<PlanCode, SubscriptionPlanLimits> = {
+  trial: {
+    max_products: 100,
+    max_users: 1,
+    max_pos: 1,
+    max_branches: 1,
+    max_staff: 1,
+    max_customers: 100,
+    max_suppliers: 10
+  },
+  starter_v2: {
+    max_products: 600,
+    max_users: 1,
+    max_pos: 1,
+    max_branches: 1,
+    max_staff: 2,
+    max_customers: 500,
+    max_suppliers: 50
+  },
+  growth_v2: {
+    max_products: 1000,
+    max_users: 3,
+    max_pos: 2,
+    max_branches: 1,
+    max_staff: 5,
+    max_customers: 1000,
+    max_suppliers: 100
+  },
+  business_v2: {
+    max_products: 5000,
+    max_users: 7,
+    max_pos: 5,
+    max_branches: 2,
+    max_staff: 15,
+    max_customers: 5000,
+    max_suppliers: 300
+  },
+  enterprise_v2: {
+    max_products: null, // غير محدود
+    max_users: 15,
+    max_pos: 10,
+    max_branches: 5,
+    max_staff: 50,
+    max_customers: null,
+    max_suppliers: null
+  },
+  unlimited_v2: {
+    max_products: null,
+    max_users: null,
+    max_pos: null,
+    max_branches: null,
+    max_staff: null,
+    max_customers: null,
+    max_suppliers: null
+  }
+};
 
 export interface SubscriptionPlan {
   id: string;
   name: string;
-  code: string;
+  code: PlanCode;
   description: string;
-  features: any; // Supabase returns Json type which can be string[] or other
+  features: string[];
   monthly_price: number;
   yearly_price: number;
   trial_period_days: number;
-  limits: any; // Supabase returns Json type
+  limits: SubscriptionPlanLimits;
+  permissions?: SubscriptionPlanPermissions;
   is_active: boolean;
   is_popular?: boolean;
   display_order?: number;
@@ -612,5 +688,236 @@ export const SubscriptionService = {
     } catch (error) {
       return null;
     }
+  },
+
+  // ============ دوال الحدود الجديدة ============
+
+  /**
+   * جلب حدود المؤسسة من الخطة الحالية
+   */
+  async getOrganizationLimits(organizationId: string): Promise<SubscriptionPlanLimits | null> {
+    try {
+      const { data, error } = await (supabase as any).rpc('get_organization_limits', {
+        org_id: organizationId
+      });
+
+      if (error) {
+        console.error('Error fetching organization limits:', error);
+        return null;
+      }
+
+      return data as SubscriptionPlanLimits;
+    } catch (error) {
+      console.error('Exception fetching organization limits:', error);
+      return null;
+    }
+  },
+
+  /**
+   * التحقق من حد المنتجات
+   */
+  async checkProductLimit(organizationId: string): Promise<LimitCheckResult> {
+    try {
+      const { data, error } = await (supabase as any).rpc('check_product_limit', {
+        org_id: organizationId
+      });
+
+      if (error) {
+        console.error('Error checking product limit:', error);
+        return {
+          allowed: false,
+          current: 0,
+          limit: 0,
+          unlimited: false
+        };
+      }
+
+      return {
+        allowed: data.allowed,
+        current: data.current_count,
+        limit: data.max_limit,
+        remaining: data.remaining,
+        unlimited: data.unlimited
+      };
+    } catch (error) {
+      console.error('Exception checking product limit:', error);
+      return {
+        allowed: false,
+        current: 0,
+        limit: 0,
+        unlimited: false
+      };
+    }
+  },
+
+  /**
+   * التحقق من حد المستخدمين
+   */
+  async checkUserLimit(organizationId: string): Promise<LimitCheckResult> {
+    try {
+      const { data, error } = await (supabase as any).rpc('check_user_limit', {
+        org_id: organizationId
+      });
+
+      if (error) {
+        console.error('Error checking user limit:', error);
+        return {
+          allowed: false,
+          current: 0,
+          limit: 0,
+          unlimited: false
+        };
+      }
+
+      return {
+        allowed: data.allowed,
+        current: data.current_count,
+        limit: data.max_limit,
+        remaining: data.remaining,
+        unlimited: data.unlimited
+      };
+    } catch (error) {
+      console.error('Exception checking user limit:', error);
+      return {
+        allowed: false,
+        current: 0,
+        limit: 0,
+        unlimited: false
+      };
+    }
+  },
+
+  /**
+   * جلب ملخص الاشتراك مع الاستخدام الحالي
+   */
+  async getSubscriptionSummary(organizationId: string): Promise<SubscriptionSummary | null> {
+    try {
+      const { data, error } = await (supabase as any).rpc('get_subscription_summary', {
+        org_id: organizationId
+      });
+
+      if (error) {
+        console.error('Error fetching subscription summary:', error);
+        return null;
+      }
+
+      return {
+        plan_name: data.plan_name,
+        status: data.status,
+        end_date: data.end_date,
+        days_remaining: data.days_remaining,
+        limits: data.limits,
+        usage: {
+          products: data.usage?.products || 0,
+          users: data.usage?.users || 0
+        }
+      };
+    } catch (error) {
+      console.error('Exception fetching subscription summary:', error);
+      return null;
+    }
+  },
+
+  /**
+   * التحقق من حد معين (generic)
+   */
+  async checkLimit(
+    organizationId: string,
+    limitType: keyof SubscriptionPlanLimits,
+    currentCount: number
+  ): Promise<LimitCheckResult> {
+    const limits = await this.getOrganizationLimits(organizationId);
+
+    if (!limits) {
+      return {
+        allowed: false,
+        current: currentCount,
+        limit: 0,
+        unlimited: false
+      };
+    }
+
+    const maxLimit = limits[limitType];
+    const unlimited = maxLimit === null;
+    const allowed = unlimited || currentCount < (maxLimit || 0);
+    const remaining = unlimited ? undefined : Math.max(0, (maxLimit || 0) - currentCount);
+
+    return {
+      allowed,
+      current: currentCount,
+      limit: maxLimit,
+      remaining,
+      unlimited
+    };
+  },
+
+  /**
+   * جلب الحدود من كود الخطة مباشرة (للاستخدام المحلي/Offline)
+   */
+  getLimitsFromPlanCode(planCode: PlanCode): SubscriptionPlanLimits {
+    return DEFAULT_PLAN_LIMITS[planCode] || DEFAULT_PLAN_LIMITS.trial;
+  },
+
+  /**
+   * التحقق من إمكانية إضافة منتج جديد محلياً
+   */
+  canAddProduct(planCode: PlanCode, currentProductCount: number): LimitCheckResult {
+    const limits = this.getLimitsFromPlanCode(planCode);
+    const maxProducts = limits.max_products;
+    const unlimited = maxProducts === null;
+    const allowed = unlimited || currentProductCount < (maxProducts || 0);
+
+    return {
+      allowed,
+      current: currentProductCount,
+      limit: maxProducts,
+      remaining: unlimited ? undefined : Math.max(0, (maxProducts || 0) - currentProductCount),
+      unlimited
+    };
+  },
+
+  /**
+   * التحقق من إمكانية إضافة مستخدم جديد محلياً
+   */
+  canAddUser(planCode: PlanCode, currentUserCount: number): LimitCheckResult {
+    const limits = this.getLimitsFromPlanCode(planCode);
+    const maxUsers = limits.max_users;
+    const unlimited = maxUsers === null;
+    const allowed = unlimited || currentUserCount < (maxUsers || 0);
+
+    return {
+      allowed,
+      current: currentUserCount,
+      limit: maxUsers,
+      remaining: unlimited ? undefined : Math.max(0, (maxUsers || 0) - currentUserCount),
+      unlimited
+    };
+  },
+
+  /**
+   * الحصول على رسالة الحد المناسبة بالعربية
+   */
+  getLimitMessage(limitType: string, result: LimitCheckResult): string {
+    const limitNames: Record<string, string> = {
+      max_products: 'المنتجات',
+      max_users: 'المستخدمين',
+      max_pos: 'نقاط البيع',
+      max_branches: 'الفروع',
+      max_staff: 'الموظفين',
+      max_customers: 'العملاء',
+      max_suppliers: 'الموردين'
+    };
+
+    const name = limitNames[limitType] || limitType;
+
+    if (result.unlimited) {
+      return `عدد ${name} غير محدود`;
+    }
+
+    if (result.allowed) {
+      return `يمكنك إضافة ${result.remaining} ${name} إضافية (${result.current}/${result.limit})`;
+    }
+
+    return `لقد وصلت للحد الأقصى من ${name} (${result.limit}). يرجى ترقية خطتك.`;
   }
 };

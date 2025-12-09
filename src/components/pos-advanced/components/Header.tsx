@@ -13,6 +13,7 @@ import { useDebounce } from '../hooks/useDebounce';
 
 const Header: React.FC<HeaderProps> = ({
   isReturnMode,
+  isLossMode = false,
   filteredProductsCount,
   isPOSDataLoading,
   onRefreshData: _onRefreshData,
@@ -83,9 +84,23 @@ const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <div className="relative overflow-hidden bg-card/50 border-b border-border/40 p-2 sm:p-3 md:p-4">
+    <div className={cn(
+      "relative overflow-hidden border-b p-2 sm:p-3 md:p-4 transition-colors",
+      isLossMode
+        ? "bg-orange-500/15 border-orange-500/40"
+        : isReturnMode
+          ? "bg-blue-500/10 border-blue-500/30"
+          : "bg-card/50 border-border/40"
+    )}>
       {/* خلفية متدرجة خفيفة */}
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.01] to-transparent pointer-events-none" />
+      <div className={cn(
+        "absolute inset-0 pointer-events-none",
+        isLossMode
+          ? "bg-gradient-to-br from-orange-500/[0.08] to-transparent"
+          : isReturnMode
+            ? "bg-gradient-to-br from-blue-500/[0.05] to-transparent"
+            : "bg-gradient-to-br from-primary/[0.01] to-transparent"
+      )} />
       
       {/* البحث والسكانر محسّن */}
       <div className="relative space-y-2 sm:space-y-3">

@@ -8,7 +8,7 @@ import { CustomPagination as Pagination } from '@/components/ui/pagination';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Plus, Printer } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { checkUserPermissionsLocal } from '@/lib/utils/permissions-utils';
 
@@ -24,6 +24,7 @@ interface FilterState {
 
 const ProductsWithCache: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   
   // فحص صلاحيات المستخدم
@@ -185,7 +186,21 @@ const ProductsWithCache: React.FC = () => {
           <Button 
             variant="default" 
             className="flex-1 sm:w-auto whitespace-nowrap" 
-            onClick={() => navigate('/dashboard/products/new')}
+            onClick={() => {
+              // استخدام المسار المناسب حسب layout الحالي
+              const isInPOSLayout = location.pathname.includes('/product-operations');
+              const targetPath = isInPOSLayout
+                ? '/dashboard/product-operations/new'
+                : '/dashboard/products/new';
+              navigate(targetPath, {
+                state: {
+                  from: location.pathname,
+                  returnTo: isInPOSLayout
+                    ? '/dashboard/product-operations/products'
+                    : '/dashboard/products'
+                }
+              });
+            }}
             disabled={!hasAddProductPermission}
             title={!hasAddProductPermission ? "ليس لديك صلاحية لإضافة منتجات" : ""}
           >

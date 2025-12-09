@@ -11,8 +11,9 @@ import { useAppInitialization } from './AppInitializationContext';
 import { supabase } from '@/lib/supabase';
 import { deltaWriteService } from '@/services/DeltaWriteService';
 import type { LocalProduct, LocalCustomer, LocalPOSOrder, LocalInvoice } from '@/database/localDb';
-import { saveRemoteOrders, saveRemoteOrderItems } from '@/api/localPosOrderService';
-import { saveRemoteInvoices, saveRemoteInvoiceItems } from '@/api/localInvoiceService';
+// ⚠️ تم إزالة imports المزامنة - TauriSyncService يتولى المهمة
+// import { saveRemoteOrders, saveRemoteOrderItems } from '@/api/localPosOrderService';
+// import { saveRemoteInvoices, saveRemoteInvoiceItems } from '@/api/localInvoiceService';
 
 // ================================================================
 // 📋 أنواع البيانات الموحدة
@@ -109,39 +110,33 @@ export const SuperUnifiedDataContext = createContext<SuperUnifiedDataContextType
 // 🔧 دالة جلب البيانات الموحدة
 // ================================================================
 
-// إضافة كاش محسن للبيانات الموحدة
+// ⚡ إضافة كاش محسن للبيانات الموحدة - محسّن لتقليل استهلاك الذاكرة
 const globalDataCache = new Map<string, { data: GlobalData; timestamp: number }>();
-const CACHE_DURATION = 15 * 60 * 1000; // 15 دقيقة للبيانات الموحدة
-const SESSION_CACHE_KEY = 'global_data_cache';
+const CACHE_DURATION = 30 * 60 * 1000; // ⚡ 30 دقيقة بدلاً من ساعة
+const MAX_CACHE_ENTRIES = 2; // ⚡ حد أقصى لعدد المدخلات في الكاش
 
-// دالة للحصول من sessionStorage
-const getFromSessionStorage = (cacheKey: string) => {
-  try {
-    const cached = sessionStorage.getItem(`${SESSION_CACHE_KEY}_${cacheKey}`);
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      if (parsed && parsed.timestamp && parsed.data) {
-        return parsed;
-      }
+// ⚡ دالة تنظيف الكاش - تحذف القديم وتحافظ على الحد الأقصى
+const pruneGlobalDataCache = () => {
+  const now = Date.now();
+
+  // حذف المدخلات المنتهية الصلاحية
+  for (const [key, value] of globalDataCache.entries()) {
+    if (now - value.timestamp > CACHE_DURATION) {
+      globalDataCache.delete(key);
     }
-  } catch (error) {
-    // تجاهل أخطاء sessionStorage
   }
-  return null;
+
+  // إذا تجاوز الحد الأقصى، احذف الأقدم
+  if (globalDataCache.size > MAX_CACHE_ENTRIES) {
+    const entries = [...globalDataCache.entries()];
+    entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
+    const toDelete = entries.slice(0, entries.length - MAX_CACHE_ENTRIES);
+    toDelete.forEach(([key]) => globalDataCache.delete(key));
+  }
 };
 
-// دالة للحفظ في sessionStorage
-const saveToSessionStorage = (cacheKey: string, data: GlobalData, timestamp: number) => {
-  try {
-    const cacheData = {
-      data,
-      timestamp
-    };
-    sessionStorage.setItem(`${SESSION_CACHE_KEY}_${cacheKey}`, JSON.stringify(cacheData));
-  } catch (error) {
-    // تجاهل أخطاء sessionStorage
-  }
-};
+// ⚡ تم إزالة sessionStorage نهائياً لتوفير الذاكرة
+// sessionStorage كان يخزن ~500KB لكل مؤسسة مما يسبب استهلاك مفرط
 
 // ✅ دالة محدثة تستخدم AppInitializationContext + بيانات إضافية فقط
 const fetchGlobalData = async (
@@ -152,21 +147,16 @@ const fetchGlobalData = async (
   try {
     console.log('🔄 [SuperUnified] بدء جلب البيانات...');
 
-    // التحقق من sessionStorage أولاً
+    // ⚡ تنظيف الكاش قبل البحث
+    pruneGlobalDataCache();
+
     const cacheKey = `global_data_${organizationId}_${userId || 'no_user'}`;
-    const sessionCached = getFromSessionStorage(cacheKey);
     const now = Date.now();
 
-    if (sessionCached && (now - sessionCached.timestamp) < CACHE_DURATION) {
-      console.log('✅ [SuperUnified] استخدام البيانات من sessionStorage');
-      return sessionCached.data;
-    }
-
-    // التحقق من كاش الذاكرة
+    // التحقق من كاش الذاكرة فقط (تم إزالة sessionStorage)
     const cached = globalDataCache.get(cacheKey);
     if (cached && (now - cached.timestamp) < CACHE_DURATION) {
       console.log('✅ [SuperUnified] استخدام البيانات من memory cache');
-      saveToSessionStorage(cacheKey, cached.data, now);
       return cached.data;
     }
 
@@ -241,14 +231,14 @@ const fetchGlobalData = async (
         organization_id: organizationId,
       };
 
-      // حفظ في كاش الذاكرة
+      // ⚡ حفظ في كاش الذاكرة فقط (تم إزالة sessionStorage)
       globalDataCache.set(cacheKey, {
         data: globalData,
         timestamp: now
       });
 
-      // حفظ في sessionStorage
-      saveToSessionStorage(cacheKey, globalData, now);
+      // ⚡ تنظيف الكاش بعد الإضافة
+      pruneGlobalDataCache();
 
       return globalData;
 
@@ -257,17 +247,17 @@ const fetchGlobalData = async (
 
       // ⚡ محاولة التحميل من Delta Sync
       try {
-        // ⚡ استخدام Delta Sync للجلب من قاعدة البيانات المحلية
+        // ⚡ استخدام Delta Sync للجلب من قاعدة البيانات المحلية مع LIMIT
         const [
           localProducts,
           localCustomers,
           localOrders,
           localInvoices
         ] = await Promise.all([
-          deltaWriteService.getAll<LocalProduct>('products', organizationId),
-          deltaWriteService.getAll<LocalCustomer>('customers', organizationId),
-          deltaWriteService.getAll<LocalPOSOrder>('pos_orders', organizationId).then(orders => orders.slice(0, 50)),
-          deltaWriteService.getAll<LocalInvoice>('invoices', organizationId).then(invoices => invoices.slice(0, 20))
+          deltaWriteService.getWithLimit<LocalProduct>('products', organizationId, 200), // ⚡ تحديد 200 منتج كحد أقصى
+          deltaWriteService.getWithLimit<LocalCustomer>('customers', organizationId, 100), // ⚡ تحديد 100 عميل
+          deltaWriteService.getWithLimit<LocalPOSOrder>('pos_orders', organizationId, 50), // ⚡ استخدام LIMIT في SQL
+          deltaWriteService.getWithLimit<LocalInvoice>('invoices', organizationId, 20) // ⚡ استخدام LIMIT في SQL
         ]);
 
         // بناء كائن GlobalData من البيانات المحلية
@@ -351,8 +341,8 @@ export const SuperUnifiedDataProvider: React.FC<SuperUnifiedDataProviderProps> =
 
   const organizationId = currentOrganization?.id;
 
-  // مدة انتعاش البيانات (5 دقائق)
-  const staleTime = 5 * 60 * 1000;
+  // ⚡ مدة انتعاش البيانات - زيادة من 5 دقائق إلى 30 دقيقة
+  const staleTime = 30 * 60 * 1000;
 
   // ✅ تمرير البيانات الأساسية من AppInitializationContext
   const baseData = useMemo(() => {
@@ -475,149 +465,13 @@ export const SuperUnifiedDataProvider: React.FC<SuperUnifiedDataProviderProps> =
   }, [globalData?.stats, globalData?.orders]);
   const provincesGlobal = globalData?.additional_data?.provinces_global || [];
 
-  // مزامنة الطلبات إلى SQLite
-  useEffect(() => {
-    const syncOrdersToLocal = async () => {
-      try {
-        const allOrders = [...(recentOrders || []), ...(recentOnlineOrders || [])];
-
-        if (allOrders.length === 0) return;
-
-        const orgId = organization?.id;
-        if (!orgId) return;
-
-        // حفظ الطلبات
-        await saveRemoteOrders(allOrders);
-
-        // حفظ العناصر إذا توفرت
-        for (const order of allOrders) {
-          // التحقق من وجود العناصر في الحقول المحتملة
-          const items = order.items || order.order_items || order.json_items;
-          if (Array.isArray(items) && items.length > 0) {
-            await saveRemoteOrderItems(order.id, items);
-          }
-        }
-
-        if (process.env.NODE_ENV === 'development') {
-          console.log('[SuperUnifiedDataContext] ✅ تم مزامنة الطلبات إلى SQLite:', {
-            count: allOrders.length
-          });
-        }
-      } catch (error) {
-        console.error('[SuperUnifiedDataContext] ❌ فشل مزامنة الطلبات:', error);
-      }
-    };
-
-    void syncOrdersToLocal();
-  }, [recentOrders, recentOnlineOrders, organization?.id]);
-
-  // مزامنة الفواتير إلى SQLite
-  useEffect(() => {
-    const syncInvoicesToLocal = async () => {
-      try {
-        if (!recentInvoices || recentInvoices.length === 0) return;
-
-        const orgId = organization?.id;
-        if (!orgId) return;
-
-        // حفظ الفواتير
-        await saveRemoteInvoices(recentInvoices);
-
-        // حفظ عناصر الفواتير إذا توفرت
-        for (const invoice of recentInvoices) {
-          const items = invoice.items || invoice.invoice_items || invoice.json_items;
-          if (Array.isArray(items) && items.length > 0) {
-            await saveRemoteInvoiceItems(invoice.id, items);
-          }
-        }
-
-        if (process.env.NODE_ENV === 'development') {
-          console.log('[SuperUnifiedDataContext] ✅ تم مزامنة الفواتير إلى SQLite:', {
-            count: recentInvoices.length
-          });
-        }
-      } catch (error) {
-        console.error('[SuperUnifiedDataContext] ❌ فشل مزامنة الفواتير:', error);
-      }
-    };
-
-    void syncInvoicesToLocal();
-  }, [recentInvoices, organization?.id]);
-
-  useEffect(() => {
-    const syncCustomersToLocal = async () => {
-      try {
-        if (!customers || customers.length === 0) {
-          return;
-        }
-
-        const orgId = organization?.id || (typeof localStorage !== 'undefined' && (localStorage.getItem('bazaar_organization_id') || localStorage.getItem('currentOrganizationId'))) || null;
-
-        if (!orgId) {
-          if (process.env.NODE_ENV === 'development') {
-            console.warn('[SuperUnifiedDataContext] تخطي مزامنة العملاء: لا يوجد معرف منظمة');
-          }
-          return;
-        }
-
-        // ✅ FIX: Ensure localStorage has the correct Org ID so dbAdapter's ensureInitialized doesn't revert to 'global'
-        if (typeof localStorage !== 'undefined') {
-          const currentStored = localStorage.getItem('currentOrganizationId');
-          if (currentStored !== orgId) {
-            localStorage.setItem('currentOrganizationId', orgId);
-          }
-        }
-
-        // ⚡ استخدام Delta Sync بدلاً من inventoryDB مباشرة
-        const now = new Date().toISOString();
-
-        const mapped = customers.map((c: any) => ({
-          id: c.id,
-          name: c.name,
-          email: c.email || null,
-          phone: c.phone || null,
-          organization_id: c.organization_id || orgId,
-          synced: true,
-          sync_status: null,
-          pending_operation: null,
-          local_updated_at: now,
-          created_at: c.created_at || now,
-          updated_at: c.updated_at || now,
-          name_lower: c.name ? String(c.name).toLowerCase() : null,
-          email_lower: c.email ? String(c.email).toLowerCase() : null,
-          phone_digits: c.phone ? String(c.phone).toString().replace(/\D/g, '') : null,
-          total_debt: c.total_debt ?? 0,
-          // حقول الامتثال الضريبي الجزائري
-          nif: c.nif || null,
-          rc: c.rc || null,
-          nis: c.nis || null,
-          rib: c.rib || null,
-          address: c.address || null
-        }));
-
-        // ⚡ حفظ العملاء عبر Delta Sync
-        for (const customer of mapped) {
-          await deltaWriteService.saveFromServer('customers', customer as any);
-        }
-        const result = mapped.length;
-
-        // طباعة النتيجة للتحقق من النجاح
-        if (process.env.NODE_ENV === 'development') {
-          console.log('[SuperUnifiedDataContext] ✅ تم مزامنة العملاء إلى SQLite:', {
-            total: mapped.length,
-            result: result || 'success'
-          });
-        }
-      } catch (error) {
-        // تسجيل الخطأ للتحليل
-        if (process.env.NODE_ENV === 'development') {
-          console.error('[SuperUnifiedDataContext] ❌ فشل في مزامنة العملاء إلى SQLite:', error);
-        }
-      }
-    };
-
-    void syncCustomersToLocal();
-  }, [customers, organization?.id]);
+  // ⚠️ تم إزالة مزامنة الطلبات والفواتير والعملاء من هنا
+  // السبب: TauriSyncService يقوم بالمزامنة الكاملة والتدريجية بشكل أفضل
+  // هذا يمنع التكرار ويحسن الأداء
+  //
+  // المسؤوليات الآن:
+  // - TauriSyncService: المزامنة الرئيسية (Server ↔ SQLite)
+  // - SuperUnifiedDataContext: قراءة البيانات فقط للعرض
 
   // معلومات إضافية
   const lastFetched = globalData?.fetched_at ? new Date(globalData.fetched_at) : null;

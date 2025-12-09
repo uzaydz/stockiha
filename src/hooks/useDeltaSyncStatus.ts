@@ -1,5 +1,5 @@
 /**
- * useDeltaSyncStatus - Hook لمراقبة حالة Delta Sync
+ * useDeltaSyncStatus - Hook لمراقبة حالة PowerSync
  *
  * يوفر:
  * - حالة المزامنة الحالية
@@ -8,7 +8,15 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { deltaSyncEngine, DeltaSyncStatus } from '@/lib/sync/delta';
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
+
+export interface DeltaSyncStatus {
+  isOnline: boolean;
+  isInitialized: boolean;
+  pendingOutboxCount: number;
+  lastSyncAt: string | null;
+  isSyncing: boolean;
+}
 
 export interface UseDeltaSyncStatusResult {
   /** حالة المزامنة الكاملة */
@@ -42,7 +50,18 @@ export function useDeltaSyncStatus(
 
   const fetchStatus = useCallback(async () => {
     try {
-      const currentStatus = await deltaSyncEngine.getStatus();
+      // ⚡ استخدام PowerSync مباشرة
+      const hasPending = await powerSyncService.hasPendingUploads();
+      const syncStatus = powerSyncService.syncStatus;
+
+      const currentStatus: DeltaSyncStatus = {
+        isOnline: syncStatus?.connected || navigator.onLine,
+        isInitialized: true, // ⚡ PowerSync متاح دائماً
+        pendingOutboxCount: hasPending ? 1 : 0,
+        lastSyncAt: syncStatus?.lastSyncedAt || null,
+        isSyncing: syncStatus?.connected && !syncStatus?.hasSynced // ⚡ PowerSync يتعامل مع المزامنة تلقائياً
+      };
+
       setStatus(currentStatus);
       setError(null);
     } catch (err) {
@@ -60,7 +79,8 @@ export function useDeltaSyncStatus(
   const fullSync = useCallback(async () => {
     try {
       setIsLoading(true);
-      await deltaSyncEngine.fullSync();
+      // ⚡ استخدام PowerSync مباشرة
+      await powerSyncService.forceSync();
       await fetchStatus();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Sync failed');
@@ -82,17 +102,23 @@ export function useDeltaSyncStatus(
     return () => clearInterval(interval);
   }, [fetchStatus, refreshInterval]);
 
-  // الاستماع لأحداث الشبكة
+  // الاستماع لأحداث الشبكة والمزامنة من PowerSync
   useEffect(() => {
     const handleOnline = () => fetchStatus();
     const handleOffline = () => fetchStatus();
+    const handleStatusChange = () => fetchStatus();
+    const handleUploadsChange = () => fetchStatus();
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    window.addEventListener('powersync-status-changed', handleStatusChange as EventListener);
+    window.addEventListener('powersync-uploads-changed', handleUploadsChange as EventListener);
 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('powersync-status-changed', handleStatusChange as EventListener);
+      window.removeEventListener('powersync-uploads-changed', handleUploadsChange as EventListener);
     };
   }, [fetchStatus]);
 
@@ -119,8 +145,9 @@ export function usePendingOperationsCount(): number {
   useEffect(() => {
     const fetchCount = async () => {
       try {
-        const status = await deltaSyncEngine.getStatus();
-        setCount(status.pendingOutboxCount);
+        // ⚡ استخدام PowerSync مباشرة
+        const hasPending = await powerSyncService.hasPendingUploads();
+        setCount(hasPending ? 1 : 0);
       } catch {
         // تجاهل الأخطاء
       }

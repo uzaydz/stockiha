@@ -39,20 +39,54 @@ export default function ProductVariantSelector({
 
   // ✅ استخدام ensureArray للتعامل مع JSON strings من SQLite
   const productColors = ensureArray(product.colors) as any[];
+  const productColorsAlt = ensureArray((product as any).product_colors) as any[];
+  const productVariants = ensureArray((product as any).variants) as any[];
+  
+  // 🔍 DEBUG: عرض بيانات الألوان
+  useEffect(() => {
+    console.log('%c[ProductVariantSelector] 🎨 Product colors check:', 'color: #9C27B0; font-weight: bold', {
+      product_name: product.name,
+      product_id: product.id,
+      has_variants: product.has_variants,
+      colors_from_product: productColors.length,
+      colors_from_product_colors: productColorsAlt.length,
+      colors_from_variants: productVariants.length,
+      raw_colors: product.colors,
+      raw_product_colors: (product as any).product_colors,
+      raw_variants: (product as any).variants,
+      sample_color: productColors[0] || productColorsAlt[0] || productVariants[0]
+    });
+  }, [product.id, product.name, productColors.length, productColorsAlt.length, productVariants.length]);
+  
+  // استخدام الألوان من أي مصدر متاح
+  const finalColors = productColors.length > 0 
+    ? productColors 
+    : productColorsAlt.length > 0 
+      ? productColorsAlt 
+      : productVariants;
 
   // الحصول على اللون المحدد
-  const selectedColor = productColors.find(c => c.id === selectedColorId);
+  const selectedColor = finalColors.find(c => c.id === selectedColorId);
   const selectedSize = sizes.find(s => s.id === selectedSizeId);
 
   // تحديد اللون الافتراضي عند التحميل
   useEffect(() => {
-    if (productColors && productColors.length > 0) {
-      const defaultColor = productColors.find(c => c.is_default) || productColors[0];
-      if (defaultColor && defaultColor.quantity > 0) {
+    if (finalColors && finalColors.length > 0) {
+      const defaultColor = finalColors.find(c => c.is_default) || finalColors[0];
+      if (defaultColor && (defaultColor.quantity ?? 0) > 0) {
         setSelectedColorId(defaultColor.id);
+        console.log('%c[ProductVariantSelector] ✅ Selected default color:', 'color: #4CAF50; font-weight: bold', {
+          color_id: defaultColor.id,
+          color_name: defaultColor.name,
+          has_sizes: defaultColor.has_sizes,
+          sizes_count: defaultColor.sizes?.length || defaultColor.product_sizes?.length || 0
+        });
       }
+    } else {
+      // إعادة تعيين selectedColorId إذا لم تكن هناك ألوان
+      setSelectedColorId(null);
     }
-  }, [product.colors]);
+  }, [finalColors.length, product.colors, productColors.length, productColorsAlt.length, productVariants.length]);
 
   // استخدام المقاسات القادمة مع المنتج (بدون استدعاء إضافي)
   useEffect(() => {
@@ -102,12 +136,12 @@ export default function ProductVariantSelector({
   // التحقق مما إذا كان يمكن إضافة المنتج
   const canAddToCart = () => {
     // إذا لم يكن للمنتج ألوان، يمكن إضافته مباشرة
-    if (!product.colors || product.colors.length === 0) {
+    if (!finalColors || finalColors.length === 0) {
       return product.stock_quantity > 0;
     }
 
     // تعديل الشرط ليعمل مع أي منتج له ألوان بغض النظر عن has_variants
-    if (product.colors && product.colors.length > 0) {
+    if (finalColors && finalColors.length > 0) {
       if (!selectedColorId) return false;
       
 
@@ -126,7 +160,7 @@ export default function ProductVariantSelector({
     if (!canAddToCart()) return;
     
     // إذا لم يكن للمنتج ألوان أو اللون غير محدد، أضف المنتج مباشرة
-    if (!product.colors || product.colors.length === 0 || !selectedColorId) {
+    if (!finalColors || finalColors.length === 0 || !selectedColorId) {
       onAddToCart(product, undefined, undefined, product.price);
       toast.success(`تم إضافة ${product.name} إلى السلة`);
       return;
@@ -171,11 +205,11 @@ export default function ProductVariantSelector({
       </div>
 
       {/* اللون */}
-      {product.colors && product.colors.length > 0 && (
+      {finalColors && finalColors.length > 0 && (
         <div className="space-y-1.5">
           <label className="text-xs text-muted-foreground">اللون</label>
           <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto">
-            {product.colors.map(color => (
+            {finalColors.map(color => (
               <button
                 key={color.id}
                 className={cn(

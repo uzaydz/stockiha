@@ -11,6 +11,10 @@ import { motion } from 'framer-motion';
 import { ShoppingCart, Save, Clock, X, Filter, RotateCcw, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { dispatchAppEvent } from '@/lib/events/eventManager';
+// 🖨️ خدمة الطباعة الموحدة
+import { unifiedPrintService, ReceiptData, ReceiptItem } from '@/services/UnifiedPrintService';
+import { usePrinterSettings } from '@/hooks/usePrinterSettings';
+import { usePOSSettings } from '@/hooks/usePOSSettings';
 
 import { Separator } from '@/components/ui/separator';
 
@@ -82,6 +86,11 @@ function Cart({
   const { createCustomer } = useCustomers();
   const { submitOrderFast, isSubmitting } = usePOSOrderFast(currentUser);
   const { currentStaff } = useStaffSession();
+  const { currentOrganization } = useTenant();
+
+  // 🖨️ إعدادات الطباعة
+  const { printerSettings, settings: combinedPrintSettings } = usePrinterSettings();
+  const { settings: posSettings } = usePOSSettings({ organizationId: currentOrganization?.id });
   
   // حالة العميل والدفع
   const [selectedCustomer, setSelectedCustomer] = useState<User | null>(null);
@@ -136,11 +145,42 @@ function Cart({
     notes: ''
   });
   
-  // وظائف الحساب المحسنة
+  // دالة مساعدة لحساب إجمالي عنصر في السلة بناءً على نوع البيع
+  const calculateCartItemTotal = useCallback((item: CartItemType): number => {
+    const sellingUnit = (item as any).sellingUnit || 'piece';
+    const product = item.product;
+
+    switch (sellingUnit) {
+      case 'weight':
+        if ((item as any).weight && ((item as any).pricePerWeightUnit || (product as any).price_per_weight_unit)) {
+          return (item as any).weight * ((item as any).pricePerWeightUnit || (product as any).price_per_weight_unit || 0);
+        }
+        break;
+      case 'box':
+        if ((item as any).boxCount && ((item as any).boxPrice || (product as any).box_price)) {
+          return (item as any).boxCount * ((item as any).boxPrice || (product as any).box_price || 0);
+        }
+        break;
+      case 'meter':
+        if ((item as any).length && ((item as any).pricePerMeter || (product as any).price_per_meter)) {
+          return (item as any).length * ((item as any).pricePerMeter || (product as any).price_per_meter || 0);
+        }
+        break;
+      default:
+        // piece - السعر العادي
+        const price = item.variantPrice !== undefined ? item.variantPrice : product.price;
+        return price * item.quantity;
+    }
+
+    // الافتراضي
+    const price = item.variantPrice !== undefined ? item.variantPrice : product.price;
+    return price * item.quantity;
+  }, []);
+
+  // وظائف الحساب المحسنة - مع دعم أنواع البيع المتقدمة
   const calculateSubtotal = useCallback(() => {
     const productsSubtotal = cartItems.reduce((sum, item) => {
-      const price = item.variantPrice !== undefined ? item.variantPrice : item.product.price;
-      return sum + (price * item.quantity);
+      return sum + calculateCartItemTotal(item);
     }, 0);
     
     const servicesSubtotal = selectedServices.reduce((sum, service) => 
@@ -266,6 +306,99 @@ function Cart({
     }
   };
 
+  // 🖨️ دالة الطباعة التلقائية بعد إنشاء الطلب
+  const handleAutoPrint = useCallback(async (orderData: {
+    orderId: string;
+    orderNumber: string;
+    items: CartItemType[];
+    services: Service[];
+    total: number;
+    subtotal: number;
+    discountAmount: number;
+    customerName?: string;
+    employeeName?: string;
+    paidAmount: number;
+    remainingAmount: number;
+    isPartialPayment: boolean;
+  }) => {
+    // التحقق من تفعيل الطباعة التلقائية
+    if (!printerSettings.print_on_order) {
+      console.log('[Cart] 🖨️ Auto-print disabled in settings');
+      return;
+    }
+
+    try {
+      console.log('[Cart] 🖨️ Starting auto-print for order:', orderData.orderNumber);
+
+      // تحويل العناصر إلى تنسيق ReceiptItem
+      const receiptItems: ReceiptItem[] = orderData.items.map(item => ({
+        name: item.product.name,
+        quantity: item.quantity,
+        price: item.variantPrice || item.product.price,
+        total: (item.variantPrice || item.product.price) * item.quantity,
+        colorName: item.colorName,
+        sizeName: item.sizeName,
+      }));
+
+      // تجهيز بيانات الوصل
+      const receiptData: ReceiptData = {
+        orderId: orderData.orderNumber,
+        items: receiptItems,
+        services: orderData.services.map(s => ({
+          name: s.name,
+          price: s.price,
+        })),
+        subtotal: orderData.subtotal,
+        discountAmount: orderData.discountAmount,
+        total: orderData.total,
+        customerName: orderData.customerName,
+        employeeName: orderData.employeeName || currentStaff?.name || currentUser?.full_name,
+        amountPaid: orderData.paidAmount,
+        remainingAmount: orderData.remainingAmount,
+        isPartialPayment: orderData.isPartialPayment,
+      };
+
+      // تجهيز إعدادات الطباعة
+      const printSettings = {
+        ...printerSettings,
+        store_name: posSettings?.store_name,
+        store_phone: posSettings?.store_phone,
+        store_address: posSettings?.store_address,
+        store_logo_url: posSettings?.store_logo_url,
+        receipt_header_text: posSettings?.receipt_header_text,
+        receipt_footer_text: posSettings?.receipt_footer_text,
+        welcome_message: posSettings?.welcome_message,
+        currency_symbol: posSettings?.currency_symbol || 'دج',
+        currency_position: posSettings?.currency_position || 'after',
+        show_store_logo: posSettings?.show_store_logo,
+        show_store_info: posSettings?.show_store_info,
+        show_customer_info: posSettings?.show_customer_info,
+        show_employee_name: posSettings?.show_employee_name,
+        show_date_time: posSettings?.show_date_time,
+        show_qr_code: posSettings?.show_qr_code,
+        // فرض الطباعة الصامتة للطباعة التلقائية
+        silent_print: true,
+      };
+
+      // تنفيذ الطباعة
+      const result = await unifiedPrintService.printReceipt(receiptData, printSettings);
+
+      if (result.success) {
+        console.log('[Cart] 🖨️ Auto-print successful:', result.method);
+        toast.success('تمت الطباعة تلقائياً', {
+          description: result.drawerOpened ? 'تم فتح درج النقود' : undefined,
+          duration: 2000,
+        });
+      } else {
+        console.error('[Cart] 🖨️ Auto-print failed:', result.error);
+        // لا نظهر خطأ للمستخدم - الطباعة اليدوية متاحة
+      }
+    } catch (error) {
+      console.error('[Cart] 🖨️ Auto-print error:', error);
+      // لا نظهر خطأ للمستخدم - الطباعة اليدوية متاحة من نافذة الطباعة
+    }
+  }, [printerSettings, posSettings, currentStaff, currentUser]);
+
   // معالجة إتمام الدفع السريعة المحسنة ⚡
   const handlePaymentComplete = useCallback(async () => {
     try {
@@ -334,11 +467,28 @@ function Cart({
         return;
       }
 
+      // 🖨️ الطباعة التلقائية (إذا كانت مفعلة)
+      const orderNumber = `POS-${orderResult.customerOrderNumber}`;
+      handleAutoPrint({
+        orderId: orderResult.orderId,
+        orderNumber,
+        items: cartItems,
+        services: selectedServices,
+        total: finalTotal,
+        subtotal,
+        discountAmount: actualDiscountAmount,
+        customerName: selectedCustomer?.name,
+        employeeName: currentStaff?.name || currentUser?.full_name,
+        paidAmount: numAmountPaid,
+        remainingAmount,
+        isPartialPayment: isPartialPayment && considerRemainingAsPartial,
+      });
+
       // استخدام requestAnimationFrame لتحسين الأداء
       requestAnimationFrame(() => {
         // تعيين مؤشر أن الطلب قد تمت معالجته
         setIsOrderProcessed(true);
-        
+
         // حفظ البيانات للطباعة بدون نسخ عميق
         setCompletedItems(cartItems);
         setCompletedServices(selectedServices);
@@ -346,16 +496,16 @@ function Cart({
         setCompletedSubtotal(subtotal);
         setCompletedDiscount(actualDiscountAmount);
         setCompletedCustomerName(selectedCustomer?.name);
-        setCompletedOrderNumber(`POS-${orderResult.customerOrderNumber}`);
+        setCompletedOrderNumber(orderNumber);
         setCompletedOrderDate(new Date());
         setCompletedPaidAmount(numAmountPaid);
         setCompletedRemainingAmount(remainingAmount);
-        
+
         if (hasSubscriptionServices && subscriptionAccountInfo) {
           setCompletedSubscriptionAccountInfo(subscriptionAccountInfo);
         }
-        
-        // فتح نافذة الطباعة
+
+        // فتح نافذة الطباعة (للطباعة اليدوية إذا لزم الأمر)
         setIsPaymentDialogOpen(false);
         setIsPrintDialogOpen(true);
       });
@@ -387,7 +537,6 @@ function Cart({
     returnNotes,
     isSubmitting,
     amountPaid,
-
     paymentMethod,
     subtotal,
     actualDiscountAmount,
@@ -395,11 +544,14 @@ function Cart({
     notes,
     remainingAmount,
     currentUser?.id,
+    currentUser?.full_name,
+    currentStaff?.name,
     hasSubscriptionServices,
     subscriptionAccountInfo,
     submitOrder,
     submitOrderFast,
-    clearCart
+    clearCart,
+    handleAutoPrint,
   ]);
 
   const handlePrintCompleted = () => {

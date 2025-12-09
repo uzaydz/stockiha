@@ -1,13 +1,12 @@
 import { useEffect, useState, useCallback } from 'react';
 import { networkStatusManager } from '@/lib/events/networkStatusManager';
-import { connectionState } from '@/lib/sync/delta/ConnectionState';
 
 interface OfflineStatus {
   isOnline: boolean;
   isOffline: boolean;
   wasOffline: boolean;
   resetWasOffline: () => void;
-  /** 🆕 عدد الفشل المتتالي (من ConnectionState) */
+  /** 🆕 عدد الفشل المتتالي (غير مدعوم حالياً) */
   consecutiveFailures: number;
   /** 🆕 آخر وقت نجاح */
   lastSuccessTime: number | null;
@@ -16,78 +15,45 @@ interface OfflineStatus {
 }
 
 /**
- * ⚡ فحص الاتصال باستخدام ConnectionState الذكي
- * 
- * الآن يعتمد على ConnectionState كمصدر أساسي للحقيقة:
- * - ConnectionState يتتبع نجاح/فشل الطلبات الفعلية
- * - 2 فشل متتالي = Offline
- * - 1 نجاح = Online
- * 
- * @returns وعد بوليان يشير إلى حالة الاتصال الحقيقية
- */
-const checkInternetConnection = async (): Promise<boolean> => {
-  // ⚡ استخدام ConnectionState كمصدر أساسي للحقيقة
-  // هذا أدق من navigator.onLine لأنه يعتمد على نتائج الطلبات الفعلية
-  const connectionStatus = connectionState.isOnline();
-  
-  // إذا كان ConnectionState يقول أننا offline، ثق به
-  if (!connectionStatus) {
-    console.log('[useOfflineStatus] ⚡ ConnectionState says OFFLINE');
-    return false;
-  }
-  
-  // إذا كان ConnectionState يقول أننا online، تحقق إضافي اختياري
-  // (ConnectionState يُحدّث تلقائياً من supabase-unified و NetworkQuality)
-  return true;
-};
-
-/**
  * ⚡ Hook محسّن للتعامل مع حالة الاتصال بالإنترنت
  * 
- * يستخدم ConnectionState كمصدر أساسي للحقيقة:
- * - يتتبع نجاح/فشل الطلبات الفعلية
- * - 2 فشل متتالي = Offline
- * - 1 نجاح = Online
- * 
- * @returns معلومات شاملة عن حالة الاتصال بالإنترنت
+ * يعتمد على navigator.onLine و networkStatusManager
  */
 export const useOfflineStatus = (): OfflineStatus => {
-  // ⚡ الحالة الأساسية من ConnectionState
-  const [connectionStatus, setConnectionStatus] = useState(() => connectionState.getState());
-  
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
   // تتبع ما إذا كان المستخدم غير متصل سابقًا وعاد للاتصال
   const [wasOffline, setWasOffline] = useState<boolean>(false);
 
-  // ⚡ الاشتراك في تغييرات ConnectionState
   useEffect(() => {
-    const unsubscribe = connectionState.subscribe((newStatus) => {
-      // تتبع إذا كنا offline ثم عدنا online
-      if (newStatus.isOnline && !connectionStatus.isOnline) {
-        setWasOffline(true);
-      }
-      setConnectionStatus(newStatus);
-      
-      // مزامنة مع networkStatusManager للتوافق مع الكود القديم
-      networkStatusManager.setStatus(newStatus.isOnline);
-    });
-    
-    return unsubscribe;
-  }, [connectionStatus.isOnline]);
+    const handleOnline = () => {
+      if (!isOnline) setWasOffline(true);
+      setIsOnline(true);
+      networkStatusManager.setStatus(true);
+    };
 
-  // ⚡ الاستماع أيضاً لـ connection-state-change event للتوافق
-  useEffect(() => {
-    const handleConnectionChange = (event: CustomEvent) => {
-      const { isOnline: newIsOnline } = event.detail;
-      if (newIsOnline && !connectionStatus.isOnline) {
-        setWasOffline(true);
+    const handleOffline = () => {
+      setIsOnline(false);
+      networkStatusManager.setStatus(false);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    // الاشتراك في networkStatusManager للتحديثات من مصادر أخرى
+    const unsubscribe = networkStatusManager.subscribe((status) => {
+      if (status.isOnline !== isOnline) {
+        if (status.isOnline && !isOnline) setWasOffline(true);
+        setIsOnline(status.isOnline);
       }
-    };
-    
-    window.addEventListener('connection-state-change', handleConnectionChange as EventListener);
+    });
+
     return () => {
-      window.removeEventListener('connection-state-change', handleConnectionChange as EventListener);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      unsubscribe();
     };
-  }, [connectionStatus.isOnline]);
+  }, [isOnline]);
 
   // وظيفة لإعادة تعيين حالة wasOffline
   const resetWasOffline = useCallback(() => {
@@ -95,13 +61,12 @@ export const useOfflineStatus = (): OfflineStatus => {
   }, []);
 
   return {
-    isOnline: connectionStatus.isOnline,
-    isOffline: !connectionStatus.isOnline,
+    isOnline,
+    isOffline: !isOnline,
     wasOffline,
     resetWasOffline,
-    // ⚡ معلومات إضافية من ConnectionState
-    consecutiveFailures: connectionStatus.consecutiveFailures,
-    lastSuccessTime: connectionStatus.lastSuccessTime,
-    lastError: connectionStatus.lastError
+    consecutiveFailures: 0,
+    lastSuccessTime: isOnline ? Date.now() : null,
+    lastError: null
   };
 };

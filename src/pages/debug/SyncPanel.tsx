@@ -18,10 +18,12 @@ import {
     Info
 } from 'lucide-react';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
-import { deltaSyncEngine } from '@/lib/sync/delta';
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
 import { syncLogger, type SyncLogEntry } from '@/utils/syncLogger';
 import { useTenant } from '@/context/TenantContext';
-import { inventoryDB } from '@/database/localDb';
+import { getDatabaseType } from '@/database/localDb';
+
+type DiagnosticsResult = Awaited<ReturnType<typeof powerSyncService.diagnoseSync>>;
 
 const SyncPanel: React.FC = () => {
     const { isOnline } = useNetworkStatus();
@@ -38,6 +40,10 @@ const SyncPanel: React.FC = () => {
         losses: 0,
         debts: 0
     });
+    const [diagnostics, setDiagnostics] = useState<DiagnosticsResult | null>(null);
+    const [diagLoading, setDiagLoading] = useState(false);
+    const [resettingDb, setResettingDb] = useState(false);
+    const [diagError, setDiagError] = useState<string | null>(null);
 
     useEffect(() => {
         const unsubscribe = syncLogger.subscribe((newLogs) => {
@@ -56,39 +62,64 @@ const SyncPanel: React.FC = () => {
         if (!currentOrganization) return;
 
         try {
-            const orders = await inventoryDB.posOrders.where('synced').equals(0).count();
-            const customers = await inventoryDB.customers.where('synced').equals(0).count();
-            const products = await inventoryDB.products.where('synced').equals(0).count();
-            const invoices = await inventoryDB.invoices.where('synced').equals(0).count();
-            const returns = await inventoryDB.productReturns.where('synced').equals(0).count();
-            const losses = await inventoryDB.lossDeclarations.where('synced').equals(0).count();
-            const debts = await inventoryDB.customerDebts.where('synced').equals(0).count();
+            // ⚡ استخدام PowerSync مباشرة
+            const orgId = currentOrganization.id;
+            
+            const [orders, customers, products, invoices, returns, losses, debts] = await Promise.all([
+                powerSyncService.get<{ count: number }>('SELECT COUNT(*) as count FROM orders WHERE organization_id = ? AND synced = 0', [orgId]),
+                powerSyncService.get<{ count: number }>('SELECT COUNT(*) as count FROM customers WHERE organization_id = ? AND synced = 0', [orgId]),
+                powerSyncService.get<{ count: number }>('SELECT COUNT(*) as count FROM products WHERE organization_id = ? AND synced = 0', [orgId]),
+                powerSyncService.get<{ count: number }>('SELECT COUNT(*) as count FROM invoices WHERE organization_id = ? AND synced = 0', [orgId]),
+                powerSyncService.get<{ count: number }>('SELECT COUNT(*) as count FROM returns WHERE organization_id = ? AND synced = 0', [orgId]),
+                powerSyncService.get<{ count: number }>('SELECT COUNT(*) as count FROM losses WHERE organization_id = ?', [orgId]),
+                powerSyncService.get<{ count: number }>('SELECT COUNT(*) as count FROM customer_debts WHERE organization_id = ? AND synced = 0', [orgId])
+            ]);
 
             setPendingCounts({
-                orders,
-                customers,
-                products,
-                invoices,
-                returns,
-                losses,
-                debts
+                orders: orders?.count || 0,
+                customers: customers?.count || 0,
+                products: products?.count || 0,
+                invoices: invoices?.count || 0,
+                returns: returns?.count || 0,
+                losses: losses?.count || 0,
+                debts: debts?.count || 0
             });
         } catch (e) {
             console.error('Failed to fetch pending counts', e);
+            setPendingCounts({
+                orders: 0,
+                customers: 0,
+                products: 0,
+                invoices: 0,
+                returns: 0,
+                losses: 0,
+                debts: 0
+            });
         }
     };
 
     const handleManualSync = async () => {
         if (isSyncing) return;
         setIsSyncing(true);
-        syncLogger.info('Starting manual sync (Delta)...', null, 'ManualTrigger');
+        syncLogger.info('Starting manual sync (PowerSync)...', null, 'ManualTrigger');
 
         try {
-            // استخدام Delta Sync Engine - مزامنة كاملة
-            await deltaSyncEngine.fullSync();
-            const status = await deltaSyncEngine.getStatus();
-            setLastSyncResult(status);
-            syncLogger.success('Manual sync completed (Delta)', status, 'ManualTrigger');
+            // ⚡ استخدام PowerSync مباشرة
+            await powerSyncService.forceSync();
+            const status = powerSyncService.syncStatus;
+            const hasPending = await powerSyncService.hasPendingUploads();
+            
+            setLastSyncResult({
+                pending: hasPending ? 1 : 0,
+                syncing: status?.connected && !status?.hasSynced ? 1 : 0,
+                failed: 0
+            });
+
+            syncLogger.success('Manual sync completed', { 
+                connected: status?.connected,
+                hasSynced: status?.hasSynced,
+                hasPendingUploads: hasPending
+            }, 'ManualTrigger');
         } catch (e) {
             syncLogger.error('Manual sync failed', e, 'ManualTrigger');
         } finally {
@@ -102,13 +133,27 @@ const SyncPanel: React.FC = () => {
         if (!confirm('Are you sure you want to run a full initial sync? This might take a while.')) return;
 
         setIsSyncing(true);
-        syncLogger.info('Starting initial sync (Delta)...', null, 'ManualTrigger');
+        syncLogger.info('Starting initial sync (PowerSync)...', null, 'ManualTrigger');
 
         try {
-            // تهيئة Delta Sync Engine للمزامنة الأولية
-            await deltaSyncEngine.initialize(currentOrganization.id);
-            const status = await deltaSyncEngine.getStatus();
-            syncLogger.success('Initial sync completed (Delta)', status, 'ManualTrigger');
+            // ⚡ تهيئة PowerSync إذا لم يكن مُهيأ
+            try {
+                await powerSyncService.initialize();
+            } catch (initError) {
+                // قد يكون مُهيأ بالفعل
+                console.log('[SyncPanel] PowerSync already initialized');
+            }
+
+            // ⚡ فرض المزامنة الكاملة
+            await powerSyncService.forceSync();
+            const status = powerSyncService.syncStatus;
+            const hasPending = await powerSyncService.hasPendingUploads();
+
+            syncLogger.success('Initial sync completed', { 
+                connected: status?.connected,
+                hasSynced: status?.hasSynced,
+                hasPendingUploads: hasPending
+            }, 'ManualTrigger');
         } catch (e) {
             syncLogger.error('Initial sync failed', e, 'ManualTrigger');
         } finally {
@@ -119,6 +164,49 @@ const SyncPanel: React.FC = () => {
 
     const clearLogs = () => {
         syncLogger.clear();
+    };
+
+    const runDiagnostics = async () => {
+        setDiagError(null);
+        setDiagLoading(true);
+        try {
+            // Ensure PowerSync is initialized before diagnosing
+            try {
+                await powerSyncService.initialize();
+            } catch (initError) {
+                console.log('[SyncPanel] PowerSync init (possibly already initialized)', initError);
+            }
+
+            const result = await powerSyncService.diagnoseSync();
+            setDiagnostics(result);
+            syncLogger.info('Diagnostics completed', result, 'Diag');
+        } catch (e: any) {
+            const message = e?.message || 'Failed to run diagnostics';
+            setDiagError(message);
+            syncLogger.error('Diagnostics failed', e, 'Diag');
+        } finally {
+            setDiagLoading(false);
+        }
+    };
+
+    const handleResetDb = async () => {
+        if (resettingDb) return;
+        if (!confirm('سيتم مسح قاعدة البيانات المحلية وإعادة تهيئتها. المتابعة؟')) return;
+
+        setDiagError(null);
+        setResettingDb(true);
+        try {
+            syncLogger.warn('Resetting local PowerSync DB...', null, 'Diag');
+            await powerSyncService.resetDatabase();
+            syncLogger.success('Local database reset complete', null, 'Diag');
+            await runDiagnostics();
+        } catch (e: any) {
+            const message = e?.message || 'Failed to reset database';
+            setDiagError(message);
+            syncLogger.error('Database reset failed', e, 'Diag');
+        } finally {
+            setResettingDb(false);
+        }
     };
 
     const getLogIcon = (type: string) => {
@@ -144,7 +232,7 @@ const SyncPanel: React.FC = () => {
                     </Badge>
                     <Badge variant="outline" className="flex items-center gap-1">
                         <Database className="h-3 w-3" />
-                        {inventoryDB.getDatabaseType()}
+                        {getDatabaseType()}
                     </Badge>
                 </div>
             </div>
@@ -174,6 +262,73 @@ const SyncPanel: React.FC = () => {
                             <RefreshCw className="h-4 w-4 mr-2" />
                             Full Initial Sync
                         </Button>
+
+                        <div className="pt-4 space-y-2 border-t">
+                            <h3 className="font-semibold">PowerSync Console</h3>
+                            <Button
+                                variant="secondary"
+                                className="w-full"
+                                onClick={runDiagnostics}
+                                disabled={diagLoading}
+                            >
+                                {diagLoading ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <Database className="h-4 w-4 mr-2" />}
+                                Diagnose & Status
+                            </Button>
+                            <Button
+                                variant="destructive"
+                                className="w-full"
+                                onClick={handleResetDb}
+                                disabled={resettingDb}
+                            >
+                                {resettingDb ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
+                                Reset Local DB
+                            </Button>
+
+                            {diagError && (
+                                <p className="text-xs text-red-600">{diagError}</p>
+                            )}
+
+                            {diagnostics && (
+                                <div className="text-xs space-y-2 bg-muted p-3 rounded border">
+                                    <div className="flex justify-between">
+                                        <span>Database Ready</span>
+                                        <Badge variant={diagnostics.databaseReady ? "default" : "destructive"}>
+                                            {diagnostics.databaseReady ? 'Ready' : 'Not ready'}
+                                        </Badge>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span>Connected</span>
+                                        <Badge variant={diagnostics.connected ? "default" : "outline"}>
+                                            {diagnostics.connected ? 'Yes' : 'No'}
+                                        </Badge>
+                                    </div>
+                                    <div className="flex justify-between">
+                                        <span>Has Synced</span>
+                                        <Badge variant={diagnostics.hasSynced ? "default" : "outline"}>
+                                            {diagnostics.hasSynced ? 'Yes' : 'No'}
+                                        </Badge>
+                                    </div>
+                                    <div>
+                                        <p className="font-semibold mb-1">Tables with data</p>
+                                        <div className="max-h-24 overflow-auto space-y-1">
+                                            {diagnostics.tablesWithData?.length ? diagnostics.tablesWithData.map((row) => (
+                                                <div key={row.table} className="flex justify-between">
+                                                    <span>{row.table}</span>
+                                                    <Badge variant="outline">{row.count}</Badge>
+                                                </div>
+                                            )) : (
+                                                <p className="text-muted-foreground">No local rows</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                    {diagnostics.recommendation && (
+                                        <div className="text-[11px] text-muted-foreground whitespace-pre-wrap">
+                                            {diagnostics.recommendation}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
 
                         <div className="mt-6">
                             <h3 className="font-semibold mb-2">Pending Changes</h3>

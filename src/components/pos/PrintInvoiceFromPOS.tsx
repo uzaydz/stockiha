@@ -2,8 +2,10 @@ import { forwardRef, useImperativeHandle } from 'react';
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { Product } from '@/types';
-import { isTauriApp } from '@/lib/platform';
+import { isElectronApp } from '@/lib/platform';
 import { toast } from 'sonner';
+// ⚡ نظام الطباعة الموحد
+import { usePrinter } from '@/hooks/usePrinter';
 
 interface CartItem {
   product: Product;
@@ -157,6 +159,9 @@ const PrintInvoiceFromPOS = forwardRef<PrintInvoiceFromPOSRef, PrintInvoiceFromP
   ) => {
     const t = translations[language];
     const isRTL = language === 'ar';
+
+    // ⚡ نظام الطباعة الموحد
+    const { printHtml, isElectron: isElectronPrint } = usePrinter();
 
     const formatDate = (date: Date) => {
       return format(date, 'dd/MM/yyyy', { locale: ar });
@@ -392,11 +397,58 @@ const PrintInvoiceFromPOS = forwardRef<PrintInvoiceFromPOSRef, PrintInvoiceFromP
       `;
     };
 
-    // ⚡ الطباعة باستخدام نفس آلية طباعة الباركود (Tauri compatible)
+    // ⚡ الطباعة باستخدام نظام الطباعة الموحد
     const handlePrint = async () => {
       const printContainerId = 'invoice-print-container';
       console.log('[Invoice Print] بدء عملية الطباعة...');
 
+      const invoiceHTML = generateInvoiceHTML();
+
+      // ⚡ محاولة الطباعة المباشرة عبر Electron أولاً
+      if (isElectronPrint) {
+        try {
+          console.log('[Invoice Print] محاولة الطباعة المباشرة عبر Electron...');
+
+          const fullHtml = `
+            <!DOCTYPE html>
+            <html dir="${isRTL ? 'rtl' : 'ltr'}" lang="${language}">
+              <head>
+                <meta charset="UTF-8">
+                <title>فاتورة-${orderId}</title>
+                <style>
+                  @page { size: A4; margin: 10mm; }
+                  * { box-sizing: border-box; }
+                  body { margin: 0; padding: 0; background: white; }
+                  @media print {
+                    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+                  }
+                </style>
+              </head>
+              <body>
+                ${invoiceHTML}
+              </body>
+            </html>
+          `;
+
+          const result = await printHtml(fullHtml, {
+            silent: false, // عرض نافذة الطباعة للفواتير
+            pageSize: 'A4',
+            landscape: false,
+          });
+
+          if (result.success) {
+            console.log('[Invoice Print] تمت الطباعة المباشرة بنجاح');
+            toast.success('تمت الطباعة بنجاح');
+            return;
+          } else {
+            console.warn('[Invoice Print] فشلت الطباعة المباشرة:', result.error);
+          }
+        } catch (err) {
+          console.warn('[Invoice Print] خطأ في الطباعة المباشرة:', err);
+        }
+      }
+
+      // ⚡ الطباعة العادية (fallback)
       // إزالة container قديم إذا وجد
       const existingContainer = document.getElementById(printContainerId);
       if (existingContainer) {
@@ -410,7 +462,7 @@ const PrintInvoiceFromPOS = forwardRef<PrintInvoiceFromPOSRef, PrintInvoiceFromP
       // إنشاء container للطباعة
       const printContainer = document.createElement('div');
       printContainer.id = printContainerId;
-      printContainer.innerHTML = generateInvoiceHTML();
+      printContainer.innerHTML = invoiceHTML;
       printContainer.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 99999; background: white; overflow: auto;';
 
       // إضافة styles للطباعة
@@ -443,29 +495,7 @@ const PrintInvoiceFromPOS = forwardRef<PrintInvoiceFromPOSRef, PrintInvoiceFromP
       // انتظار تحميل المحتوى
       await new Promise(r => setTimeout(r, 500));
 
-      // ⚡ محاولة استخدام Tauri API للطباعة
-      if (isTauriApp()) {
-        console.log('[Invoice Print] محاولة استخدام Tauri API...');
-        try {
-          const { getCurrentWebview } = await import('@tauri-apps/api/webview');
-          const webview = getCurrentWebview();
-          await webview.print();
-          console.log('[Invoice Print] تم استدعاء Tauri print()');
-          toast.success('تم فتح نافذة الطباعة');
-
-          // إزالة العناصر بعد الطباعة
-          setTimeout(() => {
-            printContainer.remove();
-            printStyles.remove();
-          }, 2000);
-
-          return;
-        } catch (tauriError: any) {
-          console.warn('[Invoice Print] Tauri API فشل:', tauriError.message, '- محاولة window.print');
-        }
-      }
-
-      // ⚡ الطريقة البديلة: window.print
+      // ⚡ الطباعة باستخدام window.print
       console.log('[Invoice Print] استخدام window.print...');
       try {
         window.focus();

@@ -16,7 +16,48 @@ interface CartItem {
   variantPrice?: number;
   variantImage?: string;
   customPrice?: number; // السعر المخصص المعدل
+  // === حقول أنواع البيع المتقدمة ===
+  sellingUnit?: 'piece' | 'weight' | 'box' | 'meter';
+  weight?: number;
+  pricePerWeightUnit?: number;
+  boxCount?: number;
+  boxPrice?: number;
+  length?: number;
+  pricePerMeter?: number;
 }
+
+// دالة مساعدة لحساب إجمالي عنصر في السلة بناءً على نوع البيع
+const calculateCartItemTotal = (item: CartItem): number => {
+  const sellingUnit = item.sellingUnit || 'piece';
+  const product = item.product;
+  const customPrice = item.customPrice;
+
+  switch (sellingUnit) {
+    case 'weight':
+      if (item.weight && (item.pricePerWeightUnit || (product as any).price_per_weight_unit)) {
+        return item.weight * (item.pricePerWeightUnit || (product as any).price_per_weight_unit || 0);
+      }
+      break;
+    case 'box':
+      if (item.boxCount && (item.boxPrice || (product as any).box_price)) {
+        return item.boxCount * (item.boxPrice || (product as any).box_price || 0);
+      }
+      break;
+    case 'meter':
+      if (item.length && (item.pricePerMeter || (product as any).price_per_meter)) {
+        return item.length * (item.pricePerMeter || (product as any).price_per_meter || 0);
+      }
+      break;
+    default:
+      // piece - السعر العادي
+      const price = customPrice || item.variantPrice || product.price || 0;
+      return price * item.quantity;
+  }
+
+  // الافتراضي
+  const price = customPrice || item.variantPrice || product.price || 0;
+  return price * item.quantity;
+};
 
 interface CartTab {
   id: string;
@@ -31,9 +72,11 @@ interface CartTab {
   discountType?: 'percentage' | 'fixed'; // نوع التخفيض
 }
 
+import type { SaleType, SellingUnit } from '@/lib/pricing/wholesalePricing';
+
 interface POSAdvancedCartProps {
   isReturnMode: boolean;
-  
+
   // بيانات السلة العادية
   tabs: CartTab[];
   activeTab: CartTab | null;
@@ -41,25 +84,26 @@ interface POSAdvancedCartProps {
   cartItems: CartItem[];
   selectedServices: any[];
   selectedSubscriptions: any[];
-  
+
   // بيانات سلة الإرجاع
   returnItems: CartItem[];
   returnReason: string;
   returnNotes: string;
-  
+
   // العملاء والمستخدمين
   customers: AppUser[];
   currentUser: AppUser | null;
-  
+
   // دوال إدارة التبويبات
   setActiveTabId: (tabId: string) => void;
   addTab: () => void;
   removeTab: (tabId: string) => void;
   updateTab: (tabId: string, updates: any) => void;
-  
+
   // دوال إدارة السلة
   updateItemQuantity: (index: number, quantity: number) => void;
   updateItemPrice: (index: number, price: number) => void; // دالة تعديل السعر
+  updateItemSaleType?: (index: number, saleType: SaleType) => void; // دالة تغيير نوع البيع
   removeItemFromCart: (index: number) => void;
   clearCart: () => void;
   submitOrder: (customerId?: string, notes?: string, discount?: number, discountType?: 'percentage' | 'fixed', amountPaid?: number, paymentMethod?: string, isPartialPayment?: boolean, considerRemainingAsPartial?: boolean) => Promise<void>;
@@ -71,7 +115,21 @@ interface POSAdvancedCartProps {
   processReturn: (customerId?: string, reason?: string, notes?: string) => Promise<void>;
   setReturnReason: (reason: string) => void;
   setReturnNotes: (notes: string) => void;
-  updateReturnItemPrice?: (index: number, price: number) => void; // إضافة دالة تعديل سعر الإرجاع
+  updateReturnItemPrice?: (index: number, price: number) => void;
+  // ⚡ دوال أنواع البيع المتقدمة للإرجاع
+  updateReturnItemWeight?: (index: number, weight: number) => void;
+  updateReturnItemBoxCount?: (index: number, count: number) => void;
+  updateReturnItemLength?: (index: number, length: number) => void;
+  updateReturnItemSellingUnit?: (index: number, unit: SellingUnit) => void;
+  updateReturnItemFullConfig?: (index: number, config: {
+    sellingUnit: SellingUnit;
+    quantity?: number;
+    weight?: number;
+    weightUnit?: 'kg' | 'g' | 'lb' | 'oz';
+    boxCount?: number;
+    length?: number;
+  }) => void;
+  calculateReturnItemTotal?: (item: CartItem) => number;
   
   // دوال الخدمات والاشتراكات
   removeService: (index: number) => void;
@@ -81,9 +139,27 @@ interface POSAdvancedCartProps {
   
   // callback لتحديث قائمة العملاء
   onCustomerAdded?: (customer: AppUser) => void;
-  
+
   // حالة التحميل
   isSubmittingOrder: boolean;
+
+  // ⚡ دوال أنواع البيع المتقدمة
+  updateItemSellingUnit?: (index: number, unit: SellingUnit) => void;
+  updateItemWeight?: (index: number, weight: number) => void;
+  updateItemBoxCount?: (index: number, count: number) => void;
+  updateItemLength?: (index: number, length: number) => void;
+  updateItemFullConfig?: (index: number, config: {
+    sellingUnit: SellingUnit;
+    quantity?: number;
+    weight?: number;
+    weightUnit?: 'kg' | 'g' | 'lb' | 'oz';
+    boxCount?: number;
+    length?: number;
+  }) => void;
+
+  // ⚡ دوال الدفعات والأرقام التسلسلية
+  updateItemBatch?: (index: number, batchId: string, batchNumber: string, expiryDate?: string) => void;
+  updateItemSerialNumbers?: (index: number, serials: string[]) => void;
 }
 
 const POSAdvancedCart: React.FC<POSAdvancedCartProps> = ({
@@ -105,6 +181,7 @@ const POSAdvancedCart: React.FC<POSAdvancedCartProps> = ({
   updateTab,
   updateItemQuantity,
   updateItemPrice, // Add updateItemPrice to props
+  updateItemSaleType, // Add updateItemSaleType to props
   removeItemFromCart,
   clearCart,
   submitOrder,
@@ -120,16 +197,30 @@ const POSAdvancedCart: React.FC<POSAdvancedCartProps> = ({
   updateSubscriptionPrice,
   onCustomerAdded,
   isSubmittingOrder,
-  updateReturnItemPrice
+  updateReturnItemPrice,
+  // ⚡ دوال أنواع البيع المتقدمة للإرجاع
+  updateReturnItemWeight,
+  updateReturnItemBoxCount,
+  updateReturnItemLength,
+  updateReturnItemSellingUnit,
+  updateReturnItemFullConfig,
+  calculateReturnItemTotal,
+  // ⚡ دوال أنواع البيع المتقدمة للسلة العادية
+  updateItemSellingUnit,
+  updateItemWeight,
+  updateItemBoxCount,
+  updateItemLength,
+  updateItemFullConfig,
+  updateItemBatch,
+  updateItemSerialNumbers
 }) => {
   // حالة dialog الدفع المتقدم
   const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
   
-  // حساب إجمالي السلة العادية - محسن
+  // حساب إجمالي السلة العادية - مع دعم أنواع البيع المتقدمة (متر، وزن، علبة)
   const cartSubtotal = useMemo(() => {
     const itemsTotal = cartItems.reduce((total, item) => {
-      const price = item.customPrice || item.variantPrice || item.product.price || 0;
-      return total + (price * item.quantity);
+      return total + calculateCartItemTotal(item);
     }, 0);
     
     const servicesTotal = selectedServices.reduce((total, service) => {
@@ -161,11 +252,10 @@ const POSAdvancedCart: React.FC<POSAdvancedCartProps> = ({
     return Math.max(0, cartSubtotal - finalDiscount);
   }, [cartSubtotal, activeTab?.discount, activeTab?.discountAmount, activeTab?.discountType]);
 
-  // حساب إجمالي سلة الإرجاع - محسن
+  // حساب إجمالي سلة الإرجاع - مع دعم أنواع البيع المتقدمة
   const returnTotal = useMemo(() => {
     return returnItems.reduce((total, item) => {
-      const price = item.variantPrice || item.product.price || 0;
-      return total + (price * item.quantity);
+      return total + calculateCartItemTotal(item);
     }, 0);
   }, [returnItems]);
 
@@ -191,6 +281,10 @@ const POSAdvancedCart: React.FC<POSAdvancedCartProps> = ({
     updateItemPrice(index, price);
   }, [updateItemPrice]);
 
+  const handleUpdateSaleType = useCallback((index: number, saleType: SaleType) => {
+    updateItemSaleType?.(index, saleType);
+  }, [updateItemSaleType]);
+
   if (isReturnMode) {
     return (
       <ReturnModeCart
@@ -207,6 +301,13 @@ const POSAdvancedCart: React.FC<POSAdvancedCartProps> = ({
         setReturnReason={setReturnReason}
         setReturnNotes={setReturnNotes}
         updateReturnItemPrice={updateReturnItemPrice}
+        // ⚡ دوال أنواع البيع المتقدمة للإرجاع
+        updateReturnItemWeight={updateReturnItemWeight}
+        updateReturnItemBoxCount={updateReturnItemBoxCount}
+        updateReturnItemLength={updateReturnItemLength}
+        updateReturnItemSellingUnit={updateReturnItemSellingUnit}
+        updateReturnItemFullConfig={updateReturnItemFullConfig}
+        calculateReturnItemTotal={calculateReturnItemTotal}
       />
     );
   }
@@ -229,11 +330,20 @@ const POSAdvancedCart: React.FC<POSAdvancedCartProps> = ({
         updateTab={updateTab}
         updateItemQuantity={handleUpdateQuantity}
         updateItemPrice={handleUpdatePrice}
+        updateItemSaleType={handleUpdateSaleType}
         removeItemFromCart={handleRemoveItem}
         removeService={removeService}
         removeSubscription={removeSubscription}
         clearCart={clearCart}
         setIsPaymentDialogOpen={setIsPaymentDialogOpen}
+        // ⚡ دوال أنواع البيع المتقدمة
+        updateItemSellingUnit={updateItemSellingUnit}
+        updateItemWeight={updateItemWeight}
+        updateItemBoxCount={updateItemBoxCount}
+        updateItemLength={updateItemLength}
+        updateItemFullConfig={updateItemFullConfig}
+        updateItemBatch={updateItemBatch}
+        updateItemSerialNumbers={updateItemSerialNumbers}
       />
 
       {/* Payment Dialog */}

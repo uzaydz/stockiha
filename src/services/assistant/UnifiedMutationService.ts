@@ -5,7 +5,8 @@ import { replaceProductInPOSCache, patchProductInAllPOSCaches } from '@/lib/cach
 import { supabase } from '@/lib/supabase';
 import { updateCustomerDebtSyncStatus } from '@/api/localCustomerDebtService';
 import { createLocalExpense } from '@/api/localExpenseService';
-import { syncPendingExpenses } from '@/api/syncExpenses';
+// ⚡ تم إزالة syncExpenses - PowerSync يتعامل مع المزامنة تلقائياً
+// import { syncPendingExpenses } from '@/api/syncExpenses';
 import { updateProductStock, setProductStockAbsolute } from '@/api/offlineProductService';
 import { updateVariantInventory } from '@/services/InventoryService';
 
@@ -101,33 +102,25 @@ export const UnifiedMutationService = {
     if (updated) {
       try { replaceProductInPOSCache(updated as any); } catch {}
       try { patchProductInAllPOSCaches(updated.id, { name: newName }); } catch {}
-      // مزامنة مباشرة مع قاعدة البيانات البعيدة (Supabase)
+      // ⚡ Offline-First: استخدام UnifiedProductService (PowerSync)
       try {
-        // 1) محاولة عبر RPC الآمن (يفحص RLS داخلياً)
-        const payload = { name: newName, updated_at: new Date().toISOString() } as any;
-        const { error: rpcErr } = await (supabase.rpc as any)('update_product_safe', {
-          product_id: updated.id,
-          product_data: payload
-        });
-        if (!rpcErr) {
-          await markProductAsSynced(updated.id);
+        const { unifiedProductService } = await import('@/services/UnifiedProductService');
+        const orgId = localStorage.getItem('currentOrganizationId') || localStorage.getItem('bazaar_organization_id');
+        if (orgId) {
+          unifiedProductService.setOrganizationId(orgId);
+          await unifiedProductService.updateProduct(updated.id, {
+            name: newName,
+            updated_at: new Date().toISOString()
+          });
+          console.log(`[UnifiedMutation] ✅ Product renamed via PowerSync: ${updated.id}`);
+          // ⚡ PowerSync يتعامل مع المزامنة تلقائياً
           return updated;
         }
-      } catch {}
-      try {
-        // 2) تحديث مباشر مع فلترة المؤسسة إن أمكن
-        const orgId = (updated as any).organization_id || null;
-        const upd = supabase.from('products').update({ name: newName, updated_at: new Date().toISOString() }).eq('id', updated.id);
-        const { error: updErr } = orgId ? await upd.eq('organization_id', orgId) : await upd;
-        if (!updErr) {
-          await markProductAsSynced(updated.id);
-          return updated;
-        }
-      } catch {}
-      // ⚡ Delta Sync: المزامنة تحدث تلقائياً عبر BatchSender
-      try {
-        void import('@/api/syncService').then(m => (m.syncUnsyncedProducts?.()));
-      } catch {}
+      } catch (powerSyncError) {
+        console.warn('[UnifiedMutation] ⚠️ PowerSync update failed, product saved locally:', powerSyncError);
+      }
+      
+      // ⚡ المزامنة تحدث تلقائياً عبر PowerSync عند الاتصال
     }
     return updated;
   },
@@ -228,7 +221,8 @@ export const UnifiedMutationService = {
       );
     } catch {
       // سيحاول نظام المزامنة لاحقاً
-      try { void import('@/api/syncCustomerDebts').then(m => (m.syncPendingCustomerDebts?.())); } catch {}
+      // ⚡ PowerSync يتعامل مع المزامنة تلقائياً - لا حاجة لاستدعاء صريح
+      // try { void import('@/api/syncCustomerDebts').then(m => (m.syncPendingCustomerDebts?.())); } catch {}
     }
 
     return { totalBefore, totalAfter, applied, debtsAffected: affected };
@@ -267,30 +261,23 @@ export const UnifiedMutationService = {
       pendingOperation: 'create'
     };
 
-    // Use proper DB adapter (SQLite or IndexedDB)
-    const { isSQLiteAvailable, sqliteDB } = await import('@/lib/db/sqliteAPI');
+    // ⚡ استخدام Delta Sync دائماً - المسار الموحد للكتابة
+    const result = await deltaWriteService.create('customer_debts' as any, {
+      ...newDebt,
+      synced: false,
+      pending_operation: 'INSERT'
+    }, organizationId);
 
-    if (isSQLiteAvailable()) {
-      // Use SQLite with proper field mapping
-      const result = await sqliteDB.upsert('customer_debts', {
-        ...newDebt,
-        synced: 0, // SQLite uses 0/1 for boolean
-        pending_operation: 'create' // Ensure snake_case for SQLite
-      });
-
-      if (!result.success) {
-        console.error('[createCustomerDebt] Failed to save to SQLite:', result.error);
-        throw new Error(`Failed to create customer debt: ${result.error}`);
-      }
-    } else {
-      // ⚡ Fallback to Delta Sync
-      await deltaWriteService.create('customer_debts' as any, newDebt, organizationId);
+    if (!result.success) {
+      console.error('[createCustomerDebt] Failed to save via Delta Sync:', result.error);
+      throw new Error(`Failed to create customer debt: ${result.error}`);
     }
 
     // محاولة المزامنة مع السيرفر
     try {
-      const { syncPendingCustomerDebts } = await import('@/api/syncCustomerDebts');
-      void syncPendingCustomerDebts();
+      // ⚡ PowerSync يتعامل مع المزامنة تلقائياً - لا حاجة لاستدعاء صريح
+      // const { syncPendingCustomerDebts } = await import('@/api/syncCustomerDebts');
+      // void syncPendingCustomerDebts();
     } catch (error) {
       console.error('[createCustomerDebt] خطأ في المزامنة:', error);
     }
@@ -312,15 +299,16 @@ export const ExpenseAssistantService = {
     const exp = await createLocalExpense({
       title: fields.title,
       amount: fields.amount,
-      category: fields.category,
+      category: fields.category || '',
       expense_date: fields.date || new Date().toISOString(),
-      notes: fields.notes,
-      status: 'completed',
+      notes: fields.notes || '',
+      status: 'approved', // ⚡ استخدام approved بدلاً من completed
       is_recurring: false,
-      payment_method: fields.payment_method,
-      vendor_name: fields.vendor_name,
+      payment_method: fields.payment_method || 'cash', // ⚡ Default: cash
+      vendor_name: fields.vendor_name || '',
     } as any);
-    try { void syncPendingExpenses(); } catch {}
+    // ⚡ PowerSync يتعامل مع المزامنة تلقائياً - لا حاجة لاستدعاء صريح
+    // try { void syncPendingExpenses(); } catch {}
     return exp;
   }
   ,
@@ -332,7 +320,8 @@ export const ExpenseAssistantService = {
       expense_date: undefined as any,
       is_recurring: false,
     } as any);
-    try { void (await import('@/api/syncExpenses')).syncPendingExpenses(); } catch {}
+    // ⚡ PowerSync يتعامل مع المزامنة تلقائياً - لا حاجة لاستدعاء صريح
+    // try { void (await import('@/api/syncExpenses')).syncPendingExpenses(); } catch {}
     return ex;
   }
 };

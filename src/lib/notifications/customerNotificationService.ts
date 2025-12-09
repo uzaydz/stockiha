@@ -8,7 +8,7 @@
  * - إشعارات أعياد الميلاد والمناسبات
  */
 
-import { sqliteAPI } from '@/lib/db/sqliteAPI';
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
 import { offlineNotificationService, NotificationPriority, OfflineNotification } from './offlineNotificationService';
 
 // واجهة العميل
@@ -133,9 +133,8 @@ class CustomerNotificationService {
     if (this.initialized) return;
 
     try {
-      // إنشاء الجداول
-      await sqliteAPI.execute(CREATE_DEBT_REMINDER_TRACKING);
-      await sqliteAPI.execute(CREATE_INACTIVE_CUSTOMER_TRACKING);
+      // ⚡ PowerSync ينشئ الجداول تلقائياً من Schema
+      // لا حاجة لإنشاء الجداول يدوياً
 
       // بدء المراقبة
       this.startMonitoring(organizationId);
@@ -181,13 +180,14 @@ class CustomerNotificationService {
    */
   async checkDebtReminders(organizationId: string): Promise<void> {
     try {
-      const debts = await sqliteAPI.query<any>(
-        `SELECT d.*, c.name as customer_name, c.phone as customer_phone
+      // ⚡ استخدام PowerSync مباشرة
+      const debts = await powerSyncService.query<any>({
+        sql: `SELECT d.*, c.name as customer_name, c.phone as customer_phone
          FROM customer_debts d
          LEFT JOIN customers c ON d.customer_id = c.id
          WHERE d.organization_id = ? AND d.status IN ('pending', 'partial')`,
-        [organizationId]
-      );
+        params: [organizationId]
+      });
 
       const now = new Date();
 
@@ -273,11 +273,12 @@ class CustomerNotificationService {
    */
   private async getDebtReminderTracking(debtId: string): Promise<any | null> {
     try {
-      const result = await sqliteAPI.query<any>(
-        'SELECT * FROM debt_reminder_tracking WHERE debt_id = ?',
-        [debtId]
-      );
-      return result[0] || null;
+      // ⚡ استخدام PowerSync مباشرة
+      const result = await powerSyncService.queryOne<any>({
+        sql: 'SELECT * FROM debt_reminder_tracking WHERE debt_id = ?',
+        params: [debtId]
+      });
+      return result || null;
     } catch {
       return null;
     }
@@ -292,12 +293,25 @@ class CustomerNotificationService {
     days: number
   ): Promise<void> {
     try {
-      await sqliteAPI.execute(
+      // ⚡ استخدام PowerSync مباشرة
+      if (!powerSyncService.db) {
+        throw new Error('PowerSync DB not initialized');
+      }
+      await powerSyncService.transaction(async (tx) => {
+        // Get current count first
+        const current = await db.get(
+          'SELECT reminder_count FROM debt_reminder_tracking WHERE debt_id = ?',
+          [debtId]
+        );
+        const newCount = current ? (current.reminder_count || 0) + 1 : 1;
+        
+        await tx.execute(
         `INSERT OR REPLACE INTO debt_reminder_tracking
          (debt_id, organization_id, last_reminder_days, last_reminded_at, reminder_count)
-         VALUES (?, ?, ?, ?, COALESCE((SELECT reminder_count + 1 FROM debt_reminder_tracking WHERE debt_id = ?), 1))`,
-        [debtId, organizationId, days, new Date().toISOString(), debtId]
+           VALUES (?, ?, ?, ?, ?)`,
+          [debtId, organizationId, days, new Date().toISOString(), newCount]
       );
+      });
     } catch (error) {
       console.error('[CustomerNotifications] Error updating debt tracking:', error);
     }
@@ -311,8 +325,9 @@ class CustomerNotificationService {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - this.settings.inactiveCustomers.inactiveDays);
 
-      const inactiveCustomers = await sqliteAPI.query<any>(
-        `SELECT c.*,
+      // ⚡ استخدام PowerSync مباشرة
+      const inactiveCustomers = await powerSyncService.query<any>({
+        sql: `SELECT c.*,
                 (SELECT SUM(total) FROM orders WHERE customer_id = c.id) as total_purchases,
                 (SELECT MAX(created_at) FROM orders WHERE customer_id = c.id) as last_purchase_date
          FROM customers c
@@ -322,8 +337,8 @@ class CustomerNotificationService {
              WHERE organization_id = ? AND created_at > ?
            )
            AND (SELECT COUNT(*) FROM orders WHERE customer_id = c.id) > 0`,
-        [organizationId, organizationId, cutoffDate.toISOString()]
-      );
+        params: [organizationId, organizationId, cutoffDate.toISOString()]
+      });
 
       for (const customer of inactiveCustomers) {
         // التحقق من آخر إشعار
@@ -372,11 +387,12 @@ class CustomerNotificationService {
    */
   private async getInactiveCustomerTracking(customerId: string): Promise<any | null> {
     try {
-      const result = await sqliteAPI.query<any>(
-        'SELECT * FROM inactive_customer_tracking WHERE customer_id = ?',
-        [customerId]
-      );
-      return result[0] || null;
+      // ⚡ استخدام PowerSync مباشرة
+      const result = await powerSyncService.queryOne<any>({
+        sql: 'SELECT * FROM inactive_customer_tracking WHERE customer_id = ?',
+        params: [customerId]
+      });
+      return result || null;
     } catch {
       return null;
     }
@@ -390,12 +406,25 @@ class CustomerNotificationService {
     organizationId: string
   ): Promise<void> {
     try {
-      await sqliteAPI.execute(
+      // ⚡ استخدام PowerSync مباشرة
+      if (!powerSyncService.db) {
+        throw new Error('PowerSync DB not initialized');
+      }
+      await powerSyncService.transaction(async (tx) => {
+        // Get current count first
+        const current = await db.get(
+          'SELECT notification_count FROM inactive_customer_tracking WHERE customer_id = ?',
+          [customerId]
+        );
+        const newCount = current ? (current.notification_count || 0) + 1 : 1;
+        
+        await tx.execute(
         `INSERT OR REPLACE INTO inactive_customer_tracking
          (customer_id, organization_id, last_notified_at, notification_count)
-         VALUES (?, ?, ?, COALESCE((SELECT notification_count + 1 FROM inactive_customer_tracking WHERE customer_id = ?), 1))`,
-        [customerId, organizationId, new Date().toISOString(), customerId]
+           VALUES (?, ?, ?, ?)`,
+          [customerId, organizationId, new Date().toISOString(), newCount]
       );
+      });
     } catch (error) {
       console.error('[CustomerNotifications] Error updating inactive tracking:', error);
     }
@@ -413,15 +442,15 @@ class CustomerNotificationService {
       const month = targetDate.getMonth() + 1;
       const day = targetDate.getDate();
 
-      // البحث عن العملاء الذين لديهم أعياد ميلاد
-      const customers = await sqliteAPI.query<any>(
-        `SELECT * FROM customers
+      // ⚡ البحث عن العملاء الذين لديهم أعياد ميلاد من PowerSync
+      const customers = await powerSyncService.query<any>({
+        sql: `SELECT * FROM customers
          WHERE organization_id = ?
            AND birthday IS NOT NULL
            AND strftime('%m', birthday) = ?
            AND strftime('%d', birthday) = ?`,
-        [organizationId, String(month).padStart(2, '0'), String(day).padStart(2, '0')]
-      );
+        params: [organizationId, String(month).padStart(2, '0'), String(day).padStart(2, '0')]
+      });
 
       for (const customer of customers) {
         const notification = await offlineNotificationService.createNotification(organizationId, {
@@ -507,7 +536,8 @@ class CustomerNotificationService {
       const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
       const monthFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-      const debts = await sqliteAPI.query<any>(
+      // ⚡ استخدام PowerSync مباشرة
+      const debts = await powerSyncService.getAll<any>(
         `SELECT amount, paid_amount, due_date FROM customer_debts
          WHERE organization_id = ? AND status IN ('pending', 'partial')`,
         [organizationId]

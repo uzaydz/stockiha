@@ -4,7 +4,8 @@ import '@/lib/patchComposeRefs';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import AdminApp from './apps/AdminApp';
-import '@/lib/connectivity/ConnectivityService';
+// ⚡ ConnectivityService يبدأ تلقائياً بشكل كسول عند استيراده من أي مكان
+// لا نستورده هنا لتجنب حجب التحميل الأولي
 
 import './index.css';
 import './App.css';
@@ -55,23 +56,17 @@ const ADMIN_PATH_PREFIXES = [
 // كشف نوع التطبيق مع دعم التطبيق المكتبي
 const detectAppVariant = (): 'admin' => {
   // كشف إذا كان التطبيق يعمل في Electron (تطبيق مكتبي)
-  const isElectron = typeof window !== 'undefined' &&
-                     window.navigator &&
-                     window.navigator.userAgent &&
-                     window.navigator.userAgent.includes('Electron');
-
-  // كشف Tauri - يستخدم tauri:// protocol أو __TAURI__ متغير عام
-  const isTauri = typeof window !== 'undefined' && (
-    window.location.protocol === 'tauri:' ||
-    '__TAURI__' in window ||
-    '__TAURI_INTERNALS__' in window
+  const isElectron = typeof window !== 'undefined' && (
+    (window as any).electronAPI !== undefined ||
+    (window.navigator &&
+     window.navigator.userAgent &&
+     window.navigator.userAgent.includes('Electron'))
   );
 
-  const isDesktopApp = isElectron || isTauri;
+  const isDesktopApp = isElectron;
 
   console.log('🖥️ [APP] كشف نوع التطبيق:');
   console.log('  - isElectron:', isElectron);
-  console.log('  - isTauri:', isTauri);
   console.log('  - isDesktopApp:', isDesktopApp);
   console.log('  - userAgent:', window.navigator?.userAgent);
 
@@ -165,20 +160,16 @@ const bootstrap = async () => {
   const variant = detectAppVariant();
   console.log('📊 [MAIN] تم كشف نوع التطبيق:', variant, 'في', performance.now() - startTime, 'ms');
 
-  // كشف التطبيق المكتبي (Electron أو Tauri)
-  const isElectron = typeof window !== 'undefined' &&
-                     window.navigator &&
-                     window.navigator.userAgent &&
-                     window.navigator.userAgent.includes('Electron');
-
-  const isTauri = typeof window !== 'undefined' && (
-    window.location.protocol === 'tauri:' ||
-    '__TAURI__' in window ||
-    '__TAURI_INTERNALS__' in window
+  // كشف التطبيق المكتبي (Electron)
+  const isElectron = typeof window !== 'undefined' && (
+    (window as any).electronAPI !== undefined ||
+    (window.navigator &&
+     window.navigator.userAgent &&
+     window.navigator.userAgent.includes('Electron'))
   );
 
-  if (isElectron || isTauri) {
-    console.log('🖥️ [MAIN] تطبيق مكتبي مكتشف', isElectron ? '(Electron)' : '(Tauri)');
+  if (isElectron) {
+    console.log('🖥️ [MAIN] تطبيق مكتبي مكتشف (Electron)');
   }
 
   if (import.meta.env.DEV) {

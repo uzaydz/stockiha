@@ -71,7 +71,13 @@ const StaffLoginModern: React.FC = () => {
   }, []);
 
   // التحقق من PIN
+  // 🔧 تم تحسين الـ logging للتشخيص
   const handlePinComplete = useCallback(async (pinCode: string) => {
+    console.log('%c[StaffLogin] 🔐 ═══ بدء التحقق من PIN ═══', 'color: #E91E63; font-weight: bold');
+    console.log('[StaffLogin] 🔑 PIN length:', pinCode?.length || 0);
+    console.log('[StaffLogin] 🌐 isOnline:', isOnline);
+    console.log('[StaffLogin] 🏢 Organization ID:', organization?.id || '(غير متوفر)');
+
     setIsLoading(true);
     setError(null);
     setPinError(false);
@@ -79,25 +85,44 @@ const StaffLoginModern: React.FC = () => {
     try {
       // إذا كنا أوفلاين
       if (!isOnline && organization?.id) {
-        const offlineResult = await verifyStaffPinOffline({ 
-          organizationId: organization.id, 
-          pin: pinCode 
+        console.log('[StaffLogin] 📱 وضع أوفلاين - محاولة التحقق محلياً فقط...');
+        const offlineResult = await verifyStaffPinOffline({
+          organizationId: organization.id,
+          pin: pinCode
         });
-        
+
+        console.log('[StaffLogin] 📊 نتيجة التحقق الأوفلاين:', {
+          success: offlineResult.success,
+          hasStaff: !!offlineResult.staff,
+        });
+
         if (offlineResult.success && offlineResult.staff) {
+          console.log('%c[StaffLogin] ✅ نجح التحقق الأوفلاين!', 'color: #4CAF50; font-weight: bold');
           handleSuccess(offlineResult.staff as any, true);
           return;
         } else {
+          console.log('%c[StaffLogin] ❌ فشل التحقق الأوفلاين', 'color: #f44336; font-weight: bold');
           throw new Error('لم يتم العثور على بيانات الدخول. يجب تسجيل الدخول أونلاين مرة واحدة.');
         }
       }
 
-      // أونلاين: تحقق من السيرفر
+      // أونلاين: تحقق من السيرفر (مع Offline-First في staffService)
+      console.log('[StaffLogin] 🌐 وضع أونلاين - استخدام staffService.verifyPin...');
       const result = await staffService.verifyPin(pinCode);
 
+      console.log('[StaffLogin] 📊 نتيجة staffService.verifyPin:', {
+        success: result.success,
+        hasStaff: !!result.staff,
+        staffName: result.staff?.staff_name,
+        error: result.error,
+      });
+
       if (result.success && result.staff) {
+        console.log('%c[StaffLogin] ✅ نجح التحقق!', 'color: #4CAF50; font-weight: bold');
+
         // حفظ للأوفلاين
         if (organization?.id && result.staff?.id) {
+          console.log('[StaffLogin] 💾 حفظ PIN للأوفلاين...');
           try {
             await saveStaffPinOffline({
               staffId: result.staff.id,
@@ -106,30 +131,43 @@ const StaffLoginModern: React.FC = () => {
               pin: pinCode,
               permissions: result.staff.permissions,
             });
+            console.log('[StaffLogin] ✅ تم حفظ PIN للأوفلاين');
           } catch (err) {
-            console.warn('[StaffLogin] Failed to save offline PIN:', err);
+            console.warn('[StaffLogin] ⚠️ فشل حفظ PIN للأوفلاين:', err);
           }
         }
 
         handleSuccess(result.staff, false);
       } else {
+        console.log('%c[StaffLogin] ❌ فشل التحقق', 'color: #f44336; font-weight: bold');
+        console.log('[StaffLogin] 📋 سبب الفشل:', result.error);
         setPinError(true);
         setError(result.error || 'كود PIN غير صحيح');
       }
     } catch (err: any) {
+      console.error('[StaffLogin] ❌ خطأ أثناء التحقق:', err);
+
       // محاولة أوفلاين عند فشل الشبكة
       if (organization?.id) {
-        const offlineResult = await verifyStaffPinOffline({ 
-          organizationId: organization.id, 
-          pin: pinCode 
+        console.log('[StaffLogin] 🔄 محاولة احتياطية - التحقق أوفلاين...');
+        const offlineResult = await verifyStaffPinOffline({
+          organizationId: organization.id,
+          pin: pinCode
         });
-        
+
+        console.log('[StaffLogin] 📊 نتيجة المحاولة الاحتياطية:', {
+          success: offlineResult.success,
+          hasStaff: !!offlineResult.staff,
+        });
+
         if (offlineResult.success && offlineResult.staff) {
+          console.log('%c[StaffLogin] ✅ نجحت المحاولة الاحتياطية!', 'color: #4CAF50; font-weight: bold');
           handleSuccess(offlineResult.staff as any, true);
           return;
         }
       }
 
+      console.log('%c[StaffLogin] ❌ فشلت جميع المحاولات', 'color: #f44336; font-weight: bold');
       setPinError(true);
       setError(err.message || 'حدث خطأ أثناء التحقق');
     } finally {

@@ -1,7 +1,7 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState, lazy } from 'react';
 import { createPortal } from 'react-dom';
 import { toast } from "sonner";
-import { Order } from '@/types/index';
+import type { Order } from '@/types/index';
 
 // استيراد المكونات المحسنة
 import POSPureLayout from '@/components/pos-layout/POSPureLayout';
@@ -9,22 +9,16 @@ import POSAdvancedContent from '@/components/pos-advanced/POSAdvancedContent';
 import POSAdvancedCart from '@/components/pos-advanced/POSAdvancedCart';
 import { POSAdvancedHeader } from '@/components/pos-advanced/POSAdvancedHeader';
 
-// استيراد المكونات الجديدة
-import {
-  POSAdvancedSearchStats,
-  POSAdvancedPerformanceBar,
-  POSAdvancedDialogs,
-  POSAdvancedGlobalScanner,
-  POSAdvancedLoadingSkeleton,
-  POSAdvancedInitialLoading
-} from '@/components/pos-advanced';
+// استيراد المكونات الجديدة - استيراد مباشر لتجنب مشاكل star export
+import { POSAdvancedPerformanceBar } from '@/components/pos-advanced/POSAdvancedPerformanceBar';
+import { POSAdvancedDialogs } from '@/components/pos-advanced/POSAdvancedDialogs';
+import { POSAdvancedGlobalScanner } from '@/components/pos-advanced/POSAdvancedGlobalScanner';
+import { POSAdvancedLoadingSkeleton, POSAdvancedInitialLoading } from '@/components/pos-advanced/POSAdvancedLoadingSkeleton';
 
-// استيراد Hooks الجديدة
-import {
-  usePOSAdvancedState,
-  usePOSAdvancedDialogs,
-  usePOSAdvancedProductHandlers
-} from '@/hooks';
+// استيراد Hooks الجديدة - استيراد مباشر لتجنب مشاكل barrel export
+import { usePOSAdvancedState } from '@/hooks/usePOSAdvancedState';
+import { usePOSAdvancedDialogs } from '@/hooks/usePOSAdvancedDialogs';
+import { usePOSAdvancedProductHandlers } from '@/hooks/usePOSAdvancedProductHandlers';
 
 // استيراد الميزات الجديدة
 import { useKeyboardShortcuts, createPOSShortcuts } from '@/hooks/useKeyboardShortcuts';
@@ -38,14 +32,39 @@ import { useWorkSession } from '@/context/WorkSessionContext';
 import StartSessionDialog from '@/components/pos/StartSessionDialog';
 import { usePOSAudio } from '@/hooks/usePOSAudio';
 
+// ⚡ Hooks الجديدة للتحسينات
+import { useDebouncedSearch } from '@/hooks/useDebouncedSearch';
+import { usePendingOperations } from '@/hooks/usePendingOperations';
+import { PendingOperationsIndicator } from '@/components/pos-advanced/PendingOperationsIndicator';
+import { useOldSessionAlert } from '@/hooks/useOldSessionAlert';
+
+// ⚡ نظام الطباعة الموحد
+import { usePrinter } from '@/hooks/usePrinter';
+
 // استيراد مكونات UI
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetClose, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { formatCurrency } from "@/lib/utils";
-import { Camera, ChevronUp, RotateCcw, ShoppingCart, Archive, Sparkles, Store, X } from "lucide-react";
+import { Camera, ChevronUp, RotateCcw, ShoppingCart, Archive, Sparkles, Store, X, AlertTriangle, Clock, ChevronLeft } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+
+// ⚡ مكونات Infinity Space الجديدة
+import { InfinityHeader, TitaniumCart, AdvancedItemEditDialog, CustomerSaleDialog } from '@/components/pos-infinity';
+import type { POSMode } from '@/components/pos-infinity/CommandIsland';
+import type { SaleMode } from '@/components/pos-infinity/CustomerSaleDialog';
+
+// ⚡ وضع الخسائر
+import { usePOSLoss } from '@/components/pos/hooks/usePOSLoss';
+import { LossModeCart } from '@/components/pos-advanced/cart/LossModeCart';
+
+// ⚡ Context للتواصل مع التايتل بار
+import { usePOSActions } from '@/context/POSActionsContext';
+
+// ⚡ نافذة الدفع
+const POSAdvancedPaymentDialog = React.lazy(() => import('@/components/pos-advanced/POSAdvancedPaymentDialog'));
 
 import MobileBarcodeScanner from "@/components/pos-advanced/components/MobileBarcodeScanner";
 
@@ -55,8 +74,47 @@ import MobileBarcodeScanner from "@/components/pos-advanced/components/MobileBar
 
 const POSAdvanced = () => {
   // التحقق من جلسة العمل
-  const { hasActiveSession, activeSession, refreshActiveSession, isAdminMode } = useWorkSession();
-  const [showSessionDialog, setShowSessionDialog] = useState(!hasActiveSession && !isAdminMode);
+  const { hasActiveSession, activeSession, refreshActiveSession, isAdminMode, isLoading: isSessionLoading } = useWorkSession();
+
+  // ⚡ إظهار dialog بدء الجلسة فقط للموظفين (ليس للمدير)
+  const [showSessionDialog, setShowSessionDialog] = useState(false);
+
+  // ⚡ تحديث حالة dialog عند تغيير الجلسة
+  useEffect(() => {
+    // إذا لم يكن هناك جلسة ولم يكن المدير، اعرض dialog
+    if (!isSessionLoading && !hasActiveSession && !isAdminMode) {
+      setShowSessionDialog(true);
+    } else if (hasActiveSession || isAdminMode) {
+      setShowSessionDialog(false);
+    }
+  }, [hasActiveSession, isAdminMode, isSessionLoading]);
+
+  // ⚡ تنبيه الجلسة القديمة
+  useOldSessionAlert({
+    enabled: true,
+    maxHours: 12 // تنبيه إذا مرت 12 ساعة
+  });
+
+  // ⚡ وضع الخسائر
+  const {
+    isLossMode,
+    toggleLossMode,
+    exitLossMode,
+    lossItems,
+    lossDescription,
+    setLossDescription,
+    addItemToLossCart,
+    addVariantToLossCart,
+    updateLossItem,
+    removeLossItem,
+    clearLossCart,
+    submitLoss,
+    isSubmittingLoss,
+    lossTotals
+  } = usePOSLoss();
+
+  // ⚡ نظام الطباعة الموحد
+  const { printHtml, isElectron: isElectronPrint } = usePrinter();
 
   // استخدام Hook إدارة الحالة الرئيسية
   const {
@@ -118,6 +176,7 @@ const POSAdvanced = () => {
     removeItemFromCart,
     updateItemQuantity,
     updateItemPrice,
+    updateItemSaleType,
     clearCart,
     addService,
     removeService,
@@ -137,6 +196,26 @@ const POSAdvanced = () => {
     removeReturnItem,
     clearReturnCart,
     toggleReturnMode,
+    // ⚡ دوال أنواع البيع المتقدمة للإرجاع
+    updateReturnItemWeight,
+    updateReturnItemBoxCount,
+    updateReturnItemLength,
+    updateReturnItemSellingUnit,
+    updateReturnItemSaleType,
+    updateReturnItemFullConfig,
+    calculateReturnItemTotal,
+
+    // ⚡ دوال أنواع البيع المتقدمة (وزن/كرتون/متر)
+    updateItemSellingUnit,
+    updateItemWeight,
+    updateItemBoxCount,
+    updateItemLength,
+    updateItemFullConfig,
+    calculateItemTotal,
+
+    // ⚡ دوال الدفعات والأرقام التسلسلية
+    updateItemBatch,
+    updateItemSerialNumbers,
 
     // دوال الطلبات
     handleSubmitOrder,
@@ -208,6 +287,46 @@ const POSAdvanced = () => {
   // الصوت
   const { playAddToCart, playSuccess, playError, playClick } = usePOSAudio();
 
+  // ⚡ ربط أزرار التايتل بار مع النوافذ المحلية
+  const {
+    isCalculatorOpen: isTitlebarCalculatorOpen,
+    isQuickExpenseOpen: isTitlebarExpenseOpen,
+    isSettingsOpen: isTitlebarSettingsOpen,
+    isCustomersOpen: isTitlebarCustomersOpen,
+    closeCalculator: closeTitlebarCalculator,
+    closeQuickExpense: closeTitlebarExpense,
+    closeSettings: closeTitlebarSettings,
+    closeCustomers: closeTitlebarCustomers,
+    setRefreshHandler
+  } = usePOSActions();
+
+  // ⚡ البحث مع Debounce (300ms تأخير)
+  const {
+    inputValue: searchInputValue,
+    debouncedValue: debouncedSearchValue,
+    setInputValue: setSearchInputValue,
+    clearSearch,
+    isSearching
+  } = useDebouncedSearch({
+    delay: 300,
+    onDebouncedChange: (value) => {
+      handleSearchChange(value);
+    }
+  });
+
+  // ⚡ مراقبة العمليات المعلقة
+  const {
+    stats: pendingStats,
+    hasPending: hasPendingOperations,
+    status: pendingStatus,
+    refresh: refreshPendingStats
+  } = usePendingOperations({
+    checkInterval: 15000, // تحقق كل 15 ثانية
+    warningThreshold: 5,
+    criticalThreshold: 20,
+    showNotifications: true
+  });
+
   // استخدام Hook معالجة المنتجات
   const { handleProductWithVariants, handleAddVariantToCart } = usePOSAdvancedProductHandlers(
     isReturnMode,
@@ -228,7 +347,17 @@ const POSAdvanced = () => {
       playClick();
     },
     setSelectedProductForVariant,
-    setIsVariantDialogOpen
+    setIsVariantDialogOpen,
+    // ⚡ وضع الخسائر
+    isLossMode,
+    (product) => {
+      addItemToLossCart(product);
+      playClick();
+    },
+    (product, colorId, sizeId, price, colorName, colorCode, sizeName, image) => {
+      addVariantToLossCart(product, colorId, sizeId, price, colorName, colorCode, sizeName, image);
+      playClick();
+    }
   );
 
   const isMobile = useIsMobile();
@@ -245,6 +374,59 @@ const POSAdvanced = () => {
     }
     return window.innerWidth < 1024;
   });
+
+  // ⚡ استخدام التصميم الجديد Infinity Space
+  const [useInfinityDesign] = useState(true);
+
+  // ⚡ نافذة تعديل العنصر المتقدمة
+  const [isAdvancedEditOpen, setIsAdvancedEditOpen] = useState(false);
+  const [editingItemIndex, setEditingItemIndex] = useState<number>(-1);
+
+  // ⚡ نافذة الدفع
+  const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false);
+
+  // ⚡ نافذة العميل ونوع البيع
+  const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
+  const [saleMode, setSaleMode] = useState<SaleMode>('normal');
+  const [discountValue, setDiscountValue] = useState(0);
+  const [discountType, setDiscountType] = useState<'percentage' | 'fixed'>('percentage');
+
+  // ⚡ مزامنة حالة النوافذ من التايتل بار
+  useEffect(() => {
+    if (isTitlebarCalculatorOpen) {
+      setIsCalculatorOpen(true);
+      closeTitlebarCalculator();
+    }
+  }, [isTitlebarCalculatorOpen]);
+
+  useEffect(() => {
+    if (isTitlebarExpenseOpen) {
+      setIsQuickExpenseOpen(true);
+      closeTitlebarExpense();
+    }
+  }, [isTitlebarExpenseOpen]);
+
+  useEffect(() => {
+    if (isTitlebarSettingsOpen) {
+      setIsPOSSettingsOpen(true);
+      closeTitlebarSettings();
+    }
+  }, [isTitlebarSettingsOpen]);
+
+  useEffect(() => {
+    if (isTitlebarCustomersOpen) {
+      setIsCustomerDialogOpen(true);
+      closeTitlebarCustomers();
+    }
+  }, [isTitlebarCustomersOpen]);
+
+  // ⚡ تسجيل دالة التحديث للتايتل بار - مرة واحدة فقط
+  useEffect(() => {
+    setRefreshHandler(() => {
+      refreshData();
+      toast.success('جاري تحديث البيانات...');
+    });
+  }, []);
 
   // الميزات الجديدة
   const [isHoldOrdersOpen, setIsHoldOrdersOpen] = useState(false);
@@ -616,8 +798,31 @@ const POSAdvanced = () => {
         setActiveTabId(tabs[prevIndex].id);
       },
       onSaveOrder: handleSaveHeldOrder,
-      onPrint: () => {
+      onPrint: async () => {
         if (isPrintDialogOpen) {
+          // ⚡ استخدام نظام الطباعة الموحد
+          if (isElectronPrint) {
+            try {
+              const printContent = document.querySelector('[data-print-receipt]');
+              if (printContent) {
+                await printHtml(`
+                  <!DOCTYPE html>
+                  <html dir="rtl" lang="ar">
+                    <head>
+                      <meta charset="UTF-8">
+                      <title>إيصال</title>
+                      <style>* { box-sizing: border-box; } body { font-family: 'Tajawal', sans-serif; direction: rtl; }</style>
+                    </head>
+                    <body>${printContent.innerHTML}</body>
+                  </html>
+                `, { silent: true });
+                return;
+              }
+            } catch (err) {
+              console.warn('[POSAdvanced] فشلت الطباعة المباشرة:', err);
+            }
+          }
+          // Fallback
           window.print();
         } else {
           toast.info('لا توجد فاتورة للطباعة');
@@ -661,9 +866,49 @@ const POSAdvanced = () => {
     const extraItemsCount = selectedServices.length + selectedSubscriptions.length;
     const itemsTotal = productItemsCount + extraItemsCount;
 
+    // ⚡ حساب إجمالي المنتجات الحالي (مع التعديلات)
     const productsTotal = cartItems.reduce((total, item) => {
-      const price = (item as any).customPrice ?? item.variantPrice ?? item.product?.price ?? 0;
-      return total + price * (item.quantity || 0);
+      const sellingUnit = (item as any).sellingUnit;
+      // نتحقق هل يوجد سعر مخصص (تم تعديله)
+      const hasCustomPrice = (item as any).customPrice !== undefined || item.variantPrice !== undefined;
+      const customPrice = (item as any).customPrice ?? item.variantPrice ?? 0;
+
+      switch (sellingUnit) {
+        case 'weight': {
+          const unitPrice = hasCustomPrice ? customPrice : (item.product?.price_per_weight_unit || item.product?.price || 0);
+          return total + ((item as any).weight || 0) * unitPrice;
+        }
+        case 'box': {
+          const unitPrice = hasCustomPrice ? customPrice : (item.product?.box_price || item.product?.price || 0);
+          return total + ((item as any).boxCount || 0) * unitPrice;
+        }
+        case 'meter': {
+          const unitPrice = hasCustomPrice ? customPrice : (item.product?.price_per_meter || item.product?.price || 0);
+          return total + ((item as any).length || 0) * unitPrice;
+        }
+        default: {
+          const unitPrice = hasCustomPrice ? customPrice : (item.product?.price || 0);
+          return total + unitPrice * (item.quantity || 0);
+        }
+      }
+    }, 0);
+
+    // ⚡ حساب السعر الأصلي (بدون أي تعديلات - السعر من المنتج مباشرة)
+    const originalProductsTotal = cartItems.reduce((total, item) => {
+      const sellingUnit = (item as any).sellingUnit;
+      const quantity = item.quantity || 1;
+
+      // نستخدم السعر الأصلي من المنتج حسب نوع البيع
+      switch (sellingUnit) {
+        case 'weight':
+          return total + ((item as any).weight || 0) * (item.product?.price_per_weight_unit || item.product?.price || 0);
+        case 'box':
+          return total + ((item as any).boxCount || 0) * (item.product?.box_price || item.product?.price || 0);
+        case 'meter':
+          return total + ((item as any).length || 0) * (item.product?.price_per_meter || item.product?.price || 0);
+        default:
+          return total + (item.product?.price || 0) * quantity;
+      }
     }, 0);
 
     const servicesTotal = selectedServices.reduce((total, service) => total + (service?.price || 0), 0);
@@ -673,9 +918,10 @@ const POSAdvanced = () => {
 
     return {
       itemCount: itemsTotal,
-      total: productsTotal + servicesTotal + subscriptionsTotal
+      total: productsTotal + servicesTotal + subscriptionsTotal,
+      originalTotal: originalProductsTotal + servicesTotal + subscriptionsTotal
     };
-  }, [cartItems, selectedServices, selectedSubscriptions]);
+  }, [cartItems, selectedServices, selectedSubscriptions, calculateItemTotal]);
 
   const returnSummary = useMemo(() => {
     const itemCount = returnItems.reduce((total, item) => total + (item.quantity || 0), 0);
@@ -731,7 +977,17 @@ const POSAdvanced = () => {
           return;
         }
 
-        if (isReturnMode) {
+        // ⚡ وضع الخسائر
+        if (isLossMode) {
+          if (fullProduct.has_variants && fullProduct.colors && fullProduct.colors.length > 0) {
+            handleProductWithVariants(fullProduct);
+            toast.dismiss(toastId);
+          } else {
+            addItemToLossCart(fullProduct);
+            playClick();
+            toast.success(`✅ تم إضافة "${fullProduct.name || 'منتج'}" إلى سلة الخسائر`, { id: toastId, duration: 2000 });
+          }
+        } else if (isReturnMode) {
           addItemToReturnCart(fullProduct);
           toast.success(`✅ تم إضافة "${fullProduct.name || 'منتج'}" إلى سلة الإرجاع`, { id: toastId, duration: 2000 });
         } else if (fullProduct.has_variants && fullProduct.colors && fullProduct.colors.length > 0) {
@@ -760,20 +1016,257 @@ const POSAdvanced = () => {
         setIsCameraBusy(false);
       }
     }
-  }, [scanBarcode, getProductById, isReturnMode, addItemToReturnCart, handleProductWithVariants, addItemToCart]);
+  }, [scanBarcode, getProductById, isReturnMode, isLossMode, addItemToReturnCart, addItemToLossCart, handleProductWithVariants, addItemToCart, playClick, playAddToCart, playError]);
 
-  const activeCartSummary = isReturnMode ? returnSummary : cartSummary;
-  const cartSummaryLabel = isReturnMode ? 'سلة الإرجاع' : 'السلة';
+  // ⚡ ملخص سلة الخسائر
+  const lossSummary = useMemo(() => ({
+    itemCount: lossItems.length,
+    total: lossTotals.totalCostValue
+  }), [lossItems.length, lossTotals.totalCostValue]);
+
+  // ملخص السلة النشطة
+  const activeCartSummary = isLossMode ? lossSummary : (isReturnMode ? returnSummary : cartSummary);
+  const cartSummaryLabel = isLossMode ? 'سلة الخسائر' : (isReturnMode ? 'سلة الإرجاع' : 'السلة');
   const cartSummarySubLabel = activeCartSummary.itemCount > 0
-    ? `${activeCartSummary.itemCount} عنصر${activeCartSummary.itemCount === 1 ? '' : ''} • ${formatCurrency(activeCartSummary.total || 0)}`
+    ? `${activeCartSummary.itemCount} عنصر • ${formatCurrency(activeCartSummary.total || 0)}`
     : 'لا توجد عناصر بعد';
+
+  // ⚡ متغيرات TitaniumCart
+  const currentPOSMode: POSMode = isLossMode ? 'loss' : (isReturnMode ? 'return' : 'sale');
+  const currentCartItems = isLossMode ? lossItems : (isReturnMode ? returnItems : cartItems);
+
+  // ⚡ دوال TitaniumCart
+  const handleTitaniumUpdateQuantity = useCallback((index: number, value: number) => {
+    // الحصول على العنصر الحالي لمعرفة نوع الوحدة
+    const items = isLossMode ? lossItems : (isReturnMode ? returnItems : cartItems);
+    const item = items[index];
+    const sellingUnit = item?.sellingUnit;
+
+    if (isLossMode) {
+      // تحديث حسب نوع الوحدة
+      if (sellingUnit === 'weight') {
+        updateLossItem(index, { weight: value });
+      } else if (sellingUnit === 'box') {
+        updateLossItem(index, { boxCount: value });
+      } else if (sellingUnit === 'meter') {
+        updateLossItem(index, { length: value });
+      } else {
+        updateLossItem(index, { quantity: value });
+      }
+    } else if (isReturnMode) {
+      if (sellingUnit === 'weight') {
+        updateReturnItemWeight?.(index, value, item?.weightUnit || 'kg');
+      } else if (sellingUnit === 'box') {
+        updateReturnItemBoxCount?.(index, value);
+      } else if (sellingUnit === 'meter') {
+        updateReturnItemLength?.(index, value);
+      } else {
+        updateReturnItemQuantity(index, value);
+      }
+    } else {
+      if (sellingUnit === 'weight') {
+        updateItemWeight?.(index, value, item?.weightUnit || 'kg');
+      } else if (sellingUnit === 'box') {
+        updateItemBoxCount?.(index, value);
+      } else if (sellingUnit === 'meter') {
+        updateItemLength?.(index, value);
+      } else {
+        updateItemQuantity(index, value);
+      }
+    }
+  }, [isLossMode, isReturnMode, lossItems, returnItems, cartItems, updateLossItem, updateReturnItemQuantity, updateItemQuantity, updateReturnItemWeight, updateReturnItemBoxCount, updateReturnItemLength, updateItemWeight, updateItemBoxCount, updateItemLength]);
+
+  const handleTitaniumUpdatePrice = useCallback((index: number, price: number) => {
+    if (isLossMode) {
+      // الخسائر لا تدعم تعديل السعر مباشرة
+      return;
+    } else if (isReturnMode) {
+      updateReturnItemPrice(index, price);
+    } else {
+      updateItemPrice(index, price);
+    }
+  }, [isLossMode, isReturnMode, updateReturnItemPrice, updateItemPrice]);
+
+  const handleTitaniumEditItem = useCallback((index: number) => {
+    // فتح نافذة تعديل البيانات المتقدمة
+    setEditingItemIndex(index);
+    setIsAdvancedEditOpen(true);
+  }, []);
+
+  // دالة حفظ التعديلات المتقدمة
+  const handleAdvancedEditSave = useCallback((index: number, updates: any) => {
+    if (isLossMode) {
+      updateLossItem(index, updates);
+    } else if (isReturnMode) {
+      // تحديث عنصر الإرجاع
+      if (updates.quantity !== undefined) updateReturnItemQuantity(index, updates.quantity);
+      if (updates.customPrice !== undefined) updateReturnItemPrice(index, updates.customPrice);
+      if (updates.weight !== undefined) updateReturnItemWeight?.(index, updates.weight, updates.weightUnit);
+      if (updates.boxCount !== undefined) updateReturnItemBoxCount?.(index, updates.boxCount);
+      if (updates.length !== undefined) updateReturnItemLength?.(index, updates.length);
+      if (updates.sellingUnit !== undefined) updateReturnItemSellingUnit?.(index, updates.sellingUnit);
+    } else {
+      // تحديث عنصر السلة العادية
+      if (updates.quantity !== undefined) updateItemQuantity(index, updates.quantity);
+      if (updates.customPrice !== undefined) updateItemPrice(index, updates.customPrice);
+      if (updates.weight !== undefined) updateItemWeight?.(index, updates.weight, updates.weightUnit);
+      if (updates.boxCount !== undefined) updateItemBoxCount?.(index, updates.boxCount);
+      if (updates.length !== undefined) updateItemLength?.(index, updates.length);
+      if (updates.sellingUnit !== undefined) updateItemSellingUnit?.(index, updates.sellingUnit);
+    }
+    toast.success('✅ تم حفظ التعديلات بنجاح');
+  }, [
+    isLossMode, isReturnMode, updateLossItem,
+    updateReturnItemQuantity, updateReturnItemPrice, updateReturnItemWeight,
+    updateReturnItemBoxCount, updateReturnItemLength, updateReturnItemSellingUnit,
+    updateItemQuantity, updateItemPrice, updateItemWeight,
+    updateItemBoxCount, updateItemLength, updateItemSellingUnit
+  ]);
+
+  const handleTitaniumRemoveItem = useCallback((index: number) => {
+    if (isLossMode) {
+      removeLossItem(index);
+    } else if (isReturnMode) {
+      removeReturnItem(index);
+    } else {
+      removeItemFromCart(index);
+    }
+  }, [isLossMode, isReturnMode, removeLossItem, removeReturnItem, removeItemFromCart]);
+
+  // ⚡ تعليق الطلب الحالي - إنشاء تبويب جديد والانتقال إليه
+  const handleHoldCart = useCallback(() => {
+    if (cartItems.length === 0) {
+      toast.error('السلة فارغة');
+      return;
+    }
+    // إضافة تبويب جديد فارغ والانتقال إليه
+    addTab();
+    toast.success('✅ تم تعليق الطلب بنجاح');
+  }, [cartItems.length, addTab]);
+
+  // ⚡ عرض الطلبات المعلقة
+  const handleViewHeldOrders = useCallback(() => {
+    setIsHoldOrdersOpen(true);
+  }, []);
+
+  // ⚡ حساب عدد الطلبات المعلقة (التبويبات التي فيها منتجات ما عدا التبويب الحالي)
+  const heldOrdersCountMemo = useMemo(() => {
+    return tabs.filter(tab =>
+      tab.id !== activeTabId &&
+      (tab.cartItems?.length > 0 || tab.selectedServices?.length > 0 || tab.selectedSubscriptions?.length > 0)
+    ).length;
+  }, [tabs, activeTabId]);
+
+  // تحديث العداد
+  useEffect(() => {
+    setHeldOrdersCount(heldOrdersCountMemo);
+  }, [heldOrdersCountMemo]);
+
+  const handleTitaniumClearCart = useCallback(() => {
+    if (isLossMode) {
+      clearLossCart();
+    } else if (isReturnMode) {
+      clearReturnCart();
+    } else {
+      clearCart();
+    }
+  }, [isLossMode, isReturnMode, clearLossCart, clearReturnCart, clearCart]);
+
+  // البيع العادي - يفتح نافذة التفاصيل
+  const handleTitaniumCheckout = useCallback(() => {
+    if (isLossMode) {
+      submitLoss();
+    } else if (isReturnMode) {
+      handleProcessReturn({});
+    } else {
+      // فتح نافذة الدفع بدلاً من البيع المباشر
+      setIsPaymentDialogOpen(true);
+    }
+  }, [isLossMode, isReturnMode, submitLoss, handleProcessReturn]);
+
+  // البيع السريع - تسجيل مباشر بدون نافذة
+  const handleTitaniumQuickCheckout = useCallback(() => {
+    if (!isLossMode && !isReturnMode) {
+      handleSubmitOrderWithPrint();
+    }
+  }, [isLossMode, isReturnMode, handleSubmitOrderWithPrint]);
+
+  // فتح نافذة العميل
+  const handleOpenCustomerDialog = useCallback(() => {
+    setIsCustomerDialogOpen(true);
+  }, []);
+
+  // اختيار العميل
+  const handleSelectCustomer = useCallback((customerId: string | undefined, customerName: string | undefined) => {
+    if (activeTabId) {
+      assignCustomerToTab(activeTabId, customerId, customerName);
+    }
+  }, [activeTabId, assignCustomerToTab]);
+
+  // تغيير نوع البيع
+  const handleChangeSaleMode = useCallback((mode: SaleMode) => {
+    setSaleMode(mode);
+  }, []);
+
+  // تغيير الخصم
+  const handleChangeDiscount = useCallback((value: number, type: 'percentage' | 'fixed') => {
+    setDiscountValue(value);
+    setDiscountType(type);
+    // تحديث التبويب بالخصم
+    if (activeTabId) {
+      updateTab(activeTabId, { discount: value, discountType: type });
+    }
+  }, [activeTabId, updateTab]);
+
+  // معالجة الدفع من نافذة الدفع
+  const handlePaymentComplete = useCallback((data: {
+    customerId?: string;
+    notes?: string;
+    discount: number;
+    discountType: 'percentage' | 'fixed';
+    amountPaid: number;
+    paymentMethod: string;
+    isPartialPayment: boolean;
+    considerRemainingAsPartial: boolean;
+  }) => {
+    setIsPaymentDialogOpen(false);
+    handleSubmitOrderWithPrint(
+      data.customerId,
+      data.notes,
+      data.discount,
+      data.discountType,
+      data.amountPaid,
+      data.paymentMethod,
+      data.isPartialPayment,
+      data.considerRemainingAsPartial
+    );
+  }, [handleSubmitOrderWithPrint]);
 
   // تشخيص للتطوير
   if (process.env.NODE_ENV === 'development') {
   }
 
-  // معالجة حالة التحميل الأولي
-  if (isLoading && !allProducts?.length) {
+  // معالجة حالة التحميل الأولي - مع timeout لمنع الانتظار للأبد
+  const [loadingTimeout, setLoadingTimeout] = useState(false);
+  
+  useEffect(() => {
+    if (isLoading && !allProducts?.length) {
+      // ⚡ بعد 10 ثواني، اعرض المحتوى حتى لو كان فارغاً
+      const timeout = setTimeout(() => {
+        console.warn('[POSAdvanced] ⚠️ Loading timeout - showing content anyway');
+        setLoadingTimeout(true);
+      }, 10000);
+      
+      return () => clearTimeout(timeout);
+    } else {
+      setLoadingTimeout(false);
+    }
+  }, [isLoading, allProducts?.length]);
+
+  // ⚡ إذا انتهى timeout التحميل، اعرض المحتوى حتى لو كان فارغاً
+  // ⚠️ مهم: لا نعرض شاشة التحميل إذا كان لدينا منتجات بالفعل (لتجنب re-mount)
+  const hasExistingProducts = products?.length > 0 || allProducts?.length > 0;
+  if (isLoading && !hasExistingProducts && !loadingTimeout) {
     return (
       <POSPureLayout
         onRefresh={refreshData}
@@ -825,146 +1318,172 @@ const POSAdvanced = () => {
         getProductById={getProductById}
       />
 
-      {/* تخطيط POS محسن - متناسق */}
-      <div className="relative flex flex-col min-h-screen gap-3 bg-transparent">
+      {/* تخطيط POS محسن - السلة يسار والمحتوى يمين */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr,320px] gap-2 h-full w-full p-2 overflow-hidden">
 
-        {/* الهيدر */}
-        <div className="lg:ml-80 xl:ml-[340px] 2xl:ml-[360px]">
-          <POSAdvancedHeader
-            isReturnMode={isReturnMode}
-            returnItemsCount={returnItems.length}
-            toggleReturnMode={toggleReturnMode}
-            onCalculatorOpen={() => setIsCalculatorOpen(true)}
-            onSettingsOpen={() => setIsPOSSettingsOpen(true)}
-            onRepairOpen={() => setIsRepairDialogOpen(true)}
-            onQuickExpenseOpen={() => setIsQuickExpenseOpen(true)}
-            isRepairEnabled={true}
-          />
-        </div>
+        {/* ═══ المحتوى الرئيسي - العمود الأول ═══ */}
+        <div className="flex flex-col h-full overflow-hidden min-w-0 order-1" dir="rtl">
 
-        {/* المحتوى الأساسي */}
-        <div className="flex flex-col lg:flex-row gap-0 w-full pb-4">
-          {/* منطقة المنتجات والاشتراكات */}
-          <div className="flex-1 flex flex-col min-w-0 lg:ml-80 xl:ml-[340px] 2xl:ml-[360px]">
+          {/* الهيدر - ثابت في الأعلى */}
+          <div className="flex-shrink-0 bg-background pb-2 pt-2 px-2">
+          {useInfinityDesign ? (
+            // ⚡ التصميم الجديد - Infinity Space
+            <div className="relative">
+              <InfinityHeader
+                isReturnMode={isReturnMode}
+                isLossMode={isLossMode}
+                toggleReturnMode={toggleReturnMode}
+                toggleLossMode={toggleLossMode}
+                searchQuery={searchQuery}
+                onSearchChange={handleSearchChange}
+                onBarcodeSearch={(value) => handleBarcodeLookup(value, 'manual')}
+                isScannerLoading={isScannerLoading}
+                selectedCategory={categoryFilter}
+                categories={productCategories.map(cat => ({
+                  id: cat.id,
+                  name: cat.name,
+                  productsCount: products?.filter(p => p.category_id === cat.id).length || 0
+                }))}
+                onCategoryChange={handleCategoryFilter}
+                cartItemsCount={cartSummary.itemCount}
+                cartTotal={cartSummary.total}
+                returnItemsCount={returnItems.length}
+                lossItemsCount={lossItems.length}
+                onOpenCalculator={() => setIsCalculatorOpen(true)}
+                onOpenExpense={() => setIsQuickExpenseOpen(true)}
+                onOpenSettings={() => setIsPOSSettingsOpen(true)}
+                onRefreshData={refreshData}
+                isMobile={isCompactLayout}
+              />
+
+              {/* ⚡ مؤشر العمليات المعلقة */}
+              {hasPendingOperations && (
+                <div
+                  className={`absolute top-2 left-2 flex items-center gap-2 px-3 py-1.5 rounded-full text-white text-sm cursor-pointer transition-all ${
+                    pendingStatus === 'critical' ? 'bg-red-500 animate-pulse' :
+                    pendingStatus === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
+                  }`}
+                  onClick={() => refreshPendingStats()}
+                  title={`${pendingStats.pending} معلق، ${pendingStats.failed} فاشل - انقر للتحديث`}
+                >
+                  <span>{pendingStatus === 'critical' ? '🚨' : pendingStatus === 'warning' ? '⚠️' : '📡'}</span>
+                  <span>{pendingStats.total}</span>
+                </div>
+              )}
+            </div>
+          ) : (
+            // التصميم القديم
+            <div className="flex items-center justify-between gap-2">
+              <POSAdvancedHeader
+                isReturnMode={isReturnMode}
+                returnItemsCount={returnItems.length}
+                toggleReturnMode={toggleReturnMode}
+                onCalculatorOpen={() => setIsCalculatorOpen(true)}
+                onSettingsOpen={() => setIsPOSSettingsOpen(true)}
+                onRepairOpen={() => setIsRepairDialogOpen(true)}
+                onQuickExpenseOpen={() => setIsQuickExpenseOpen(true)}
+                isRepairEnabled={true}
+                isLossMode={isLossMode}
+                lossItemsCount={lossItems.length}
+                toggleLossMode={toggleLossMode}
+              />
+
+              {/* ⚡ مؤشر العمليات المعلقة */}
+              {hasPendingOperations && (
+                <div
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-white text-sm cursor-pointer transition-all ${
+                    pendingStatus === 'critical' ? 'bg-red-500 animate-pulse' :
+                    pendingStatus === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'
+                  }`}
+                  onClick={() => refreshPendingStats()}
+                  title={`${pendingStats.pending} معلق، ${pendingStats.failed} فاشل - انقر للتحديث`}
+                >
+                  <span>{pendingStatus === 'critical' ? '🚨' : pendingStatus === 'warning' ? '⚠️' : '📡'}</span>
+                  <span>{pendingStats.total}</span>
+                </div>
+              )}
+            </div>
+          )}
+          </div>
+
+          {/* المحتوى الأساسي - يأخذ المساحة المتبقية */}
+          <div className="flex-1 overflow-hidden">
             <Suspense fallback={<Skeleton className="h-full w-full" />}>
-              <div className="w-full bg-background">
-                <POSAdvancedContent
-                  products={products}
-                  pagination={{
-                    current_page: pagination?.current_page || currentPage,
-                    total_pages: pagination?.total_pages || Math.ceil((pagination?.total_count || filteredProducts.length) / (pagination?.per_page || pageSize)),
-                    per_page: pagination?.per_page || pageSize,
-                    total_count: pagination?.total_count || filteredProducts.length,
-                    has_next_page: Boolean(pagination?.has_next_page ?? (currentPage < Math.ceil((pagination?.total_count || filteredProducts.length) / (pagination?.per_page || pageSize)))),
-                    has_prev_page: Boolean(pagination?.has_prev_page ?? (currentPage > 1))
-                  }}
-                  subscriptionServices={subscriptions}
-                  subscriptionCategories={subscriptionCategories}
-                  productCategories={productCategories}
-                  favoriteProducts={favoriteProducts}
-                  isReturnMode={isReturnMode}
-                  isPOSDataLoading={isRefetching}
-                  onAddToCart={handleProductWithVariants}
-                  onAddSubscription={handleAddSubscription}
-                  onRefreshData={refreshData}
-                  isAppEnabled={isAppEnabled}
-                  // دوال pagination والبحث
-                  onPageChange={handlePageChange}
-                  onSearchChange={handleSearchChange}
-                  onCategoryFilter={handleCategoryFilter}
-                  onPageSizeChange={handlePageSizeChange}
-                  searchQuery={searchQuery}
-                  categoryFilter={categoryFilter}
-                  // دالة السكانر
-                  onBarcodeSearch={(value) => handleBarcodeLookup(value, 'manual')}
-                  isScannerLoading={isScannerLoading}
-                  onOpenMobileScanner={() => setIsCameraScannerOpen(true)}
-                  isCameraScannerSupported={isCameraScannerSupported}
-                  hasNativeBarcodeDetector={hasNativeBarcodeDetector}
-                  isMobile={isCompactLayout}
-                />
-
-                {/* إحصائيات البحث المحلي المحسنة */}
-                <POSAdvancedSearchStats
-                  allProductsCount={pagination?.total_count || allProducts?.length || 0}
-                  filteredProductsCount={pagination?.total_count || filteredProducts.length}
-                  currentPage={pagination?.current_page || currentPage}
-                  totalPages={pagination?.total_pages || Math.ceil((pagination?.total_count || filteredProducts.length) / (pagination?.per_page || pageSize))}
-                  searchQuery={searchQuery}
-                  categoryFilter={categoryFilter}
-                  categoryName={productCategories.find(c => c.id === categoryFilter)?.name}
-                />
-              </div>
+              <POSAdvancedContent
+                products={products}
+                pagination={{
+                  current_page: pagination?.current_page || currentPage,
+                  total_pages: pagination?.total_pages || Math.ceil((pagination?.total_count || filteredProducts.length) / (pagination?.per_page || pageSize)),
+                  per_page: pagination?.per_page || pageSize,
+                  total_count: pagination?.total_count || filteredProducts.length,
+                  has_next_page: Boolean(pagination?.has_next_page ?? (currentPage < Math.ceil((pagination?.total_count || filteredProducts.length) / (pagination?.per_page || pageSize)))),
+                  has_prev_page: Boolean(pagination?.has_prev_page ?? (currentPage > 1))
+                }}
+                subscriptionServices={subscriptions}
+                subscriptionCategories={subscriptionCategories}
+                productCategories={productCategories}
+                favoriteProducts={favoriteProducts}
+                isReturnMode={isReturnMode}
+                isLossMode={isLossMode}
+                isPOSDataLoading={isRefetching}
+                onAddToCart={handleProductWithVariants}
+                onAddSubscription={handleAddSubscription}
+                onRefreshData={refreshData}
+                isAppEnabled={isAppEnabled}
+                onPageChange={handlePageChange}
+                onSearchChange={handleSearchChange}
+                onCategoryFilter={handleCategoryFilter}
+                onPageSizeChange={handlePageSizeChange}
+                searchQuery={searchQuery}
+                categoryFilter={categoryFilter}
+                onBarcodeSearch={(value) => handleBarcodeLookup(value, 'manual')}
+                isScannerLoading={isScannerLoading}
+                onOpenMobileScanner={() => setIsCameraScannerOpen(true)}
+                isCameraScannerSupported={isCameraScannerSupported}
+                hasNativeBarcodeDetector={hasNativeBarcodeDetector}
+                isMobile={isCompactLayout}
+                hideInternalHeader={useInfinityDesign}
+              />
             </Suspense>
           </div>
-        </div>
 
-        {/* السلة الذكية - كاملة مثل القائمة الجانبية - مخفية على الهاتف */}
-        <div className="hidden lg:block fixed left-2 w-80 xl:w-[340px] 2xl:w-[360px] z-20" style={{ top: 'calc(var(--titlebar-height, 48px) + 0.25rem)', bottom: '1rem' }}>
-          <Suspense fallback={<Skeleton className="h-full w-full" />}>
-            <div className="h-full w-full bg-background overflow-hidden rounded-lg border border-border/40 shadow-2xl">
-              <POSAdvancedCart
-                isReturnMode={isReturnMode}
-                // بيانات السلة العادية
-                tabs={tabs}
-                activeTab={activeTab}
-                activeTabId={activeTabId}
-                cartItems={cartItems}
-                selectedServices={selectedServices}
-                selectedSubscriptions={selectedSubscriptions}
-                // بيانات سلة الإرجاع
-                returnItems={returnItems}
-                returnReason={returnReason}
-                returnNotes={returnNotes}
-                // العملاء والمستخدمين
-                customers={customers}
-                currentUser={currentUser}
-                // دوال إدارة التبويبات
-                setActiveTabId={setActiveTabId}
-                addTab={addTab}
-                removeTab={removeTab}
-                updateTab={updateTab}
-                // دوال إدارة السلة
-                updateItemQuantity={updateItemQuantity}
-                updateItemPrice={updateItemPrice}
-                removeItemFromCart={removeItemFromCart}
-                clearCart={clearCart}
-                submitOrder={handleSubmitOrderWithPrint}
-                // دوال إدارة الإرجاع
-                updateReturnItemQuantity={updateReturnItemQuantity}
-                updateReturnItemPrice={updateReturnItemPrice}
-                removeReturnItem={removeReturnItem}
-                clearReturnCart={clearReturnCart}
-                processReturn={async (customerId?: string, reason?: string, notes?: string) => {
-                  // تحويل المعاملات إلى تنسيق Order
-                  const orderDetails: Partial<Order> = {
-                    customerId,
-                    notes: notes || reason || ''
-                  };
-                  await handleProcessReturn(orderDetails);
-                }}
-                setReturnReason={setReturnReason}
-                setReturnNotes={setReturnNotes}
-                // دوال الخدمات والاشتراكات - مع wrapper لتحويل التوقيعات
-                removeService={(index: number) => removeService(activeTabId, selectedServices[index]?.id)}
-                updateServicePrice={(index: number, price: number) => updateServicePrice(activeTabId, selectedServices[index]?.id, price)}
-                removeSubscription={(index: number) => removeSubscription(activeTabId, selectedSubscriptions[index]?.id)}
-                updateSubscriptionPrice={(index: number, price: number) => updateSubscriptionPrice(activeTabId, selectedSubscriptions[index]?.id, price)}
-                // callback لتحديث قائمة العملاء
-                onCustomerAdded={(newCustomer) => {
-                  // تحديث البيانات من cache إذا أمكن
-                  if (refreshData) {
-                    refreshData();
-                  }
-                }}
-                // حالة التحميل
-                isSubmittingOrder={isSubmittingOrder}
-              />
-            </div>
-          </Suspense>
         </div>
+        {/* ═══ نهاية المحتوى الرئيسي ═══ */}
+
+        {/* ═══ السلة الجديدة - Desktop فقط ═══ */}
+        <aside className="hidden lg:flex flex-col h-full order-2">
+          <div className="h-full w-full overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-lg">
+            <TitaniumCart
+              mode={currentPOSMode}
+              items={currentCartItems}
+              onUpdateQuantity={handleTitaniumUpdateQuantity}
+              onRemoveItem={handleTitaniumRemoveItem}
+              onClearCart={handleTitaniumClearCart}
+              onCheckout={handleTitaniumCheckout}
+              onQuickCheckout={handleTitaniumQuickCheckout}
+              onUpdatePrice={handleTitaniumUpdatePrice}
+              onEditItem={handleTitaniumEditItem}
+              customerName={activeTab?.customerName}
+              onSelectCustomer={handleOpenCustomerDialog}
+              isSubmitting={isSubmittingOrder || isSubmittingLoss}
+              subtotal={activeCartSummary.total}
+              discount={discountValue}
+              total={activeCartSummary.total}
+              saleMode={saleMode}
+              onHoldCart={handleHoldCart}
+              tabs={tabs}
+              activeTabId={activeTabId}
+              onSwitchTab={setActiveTabId}
+              onRemoveTab={removeTab}
+              lossDescription={lossDescription}
+              onLossDescriptionChange={setLossDescription}
+            />
+          </div>
+        </aside>
+
       </div>
 
+      {/* سلة الموبايل - تظهر فقط على الشاشات الصغيرة */}
       {isCompactLayout && typeof document !== 'undefined' && createPortal(
         (
           <div
@@ -989,8 +1508,14 @@ const POSAdvanced = () => {
                     className="flex-1 flex items-center justify-between gap-3 rounded-2xl border border-border/40 bg-card px-4 py-3 shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
-                        {isReturnMode ? (
+                      <div className={`flex h-10 w-10 items-center justify-center rounded-full ${
+                        isLossMode ? 'bg-amber-500/10 text-amber-600' :
+                        isReturnMode ? 'bg-primary/10 text-primary' :
+                        'bg-primary/10 text-primary'
+                      }`}>
+                        {isLossMode ? (
+                          <AlertTriangle className="h-5 w-5" />
+                        ) : isReturnMode ? (
                           <RotateCcw className="h-5 w-5" />
                         ) : (
                           <ShoppingCart className="h-5 w-5" />
@@ -1025,56 +1550,29 @@ const POSAdvanced = () => {
                       </button>
                     </SheetClose>
                   </div>
-                  <div className="h-[calc(100%-64px)] overflow-hidden px-2 pb-6 pt-4">
+                  <div className="h-[calc(100%-64px)] overflow-hidden">
                     <Suspense fallback={<Skeleton className="h-full w-full rounded-lg" />}>
-                      <div className="rounded-xl border border-border/40 bg-card shadow-sm">
-                        <POSAdvancedCart
-                          isReturnMode={isReturnMode}
-                          tabs={tabs}
-                          activeTab={activeTab}
-                          activeTabId={activeTabId}
-                          cartItems={cartItems}
-                          selectedServices={selectedServices}
-                          selectedSubscriptions={selectedSubscriptions}
-                          returnItems={returnItems}
-                          returnReason={returnReason}
-                          returnNotes={returnNotes}
-                          customers={customers}
-                          currentUser={currentUser}
-                          setActiveTabId={setActiveTabId}
-                          addTab={addTab}
-                          removeTab={removeTab}
-                          updateTab={updateTab}
-                          updateItemQuantity={updateItemQuantity}
-                          updateItemPrice={updateItemPrice}
-                          removeItemFromCart={removeItemFromCart}
-                          clearCart={clearCart}
-                          submitOrder={handleSubmitOrderWithPrint}
-                          updateReturnItemQuantity={updateReturnItemQuantity}
-                          updateReturnItemPrice={updateReturnItemPrice}
-                          removeReturnItem={removeReturnItem}
-                          clearReturnCart={clearReturnCart}
-                          processReturn={async (customerId?: string, reason?: string, notes?: string) => {
-                            const orderDetails: Partial<Order> = {
-                              customerId,
-                              notes: notes || reason || ''
-                            };
-                            await handleProcessReturn(orderDetails);
-                          }}
-                          setReturnReason={setReturnReason}
-                          setReturnNotes={setReturnNotes}
-                          removeService={(index: number) => removeService(activeTabId, selectedServices[index]?.id)}
-                          updateServicePrice={(index: number, price: number) => updateServicePrice(activeTabId, selectedServices[index]?.id, price)}
-                          removeSubscription={(index: number) => removeSubscription(activeTabId, selectedSubscriptions[index]?.id)}
-                          updateSubscriptionPrice={(index: number, price: number) => updateSubscriptionPrice(activeTabId, selectedSubscriptions[index]?.id, price)}
-                          onCustomerAdded={() => {
-                            if (refreshData) {
-                              refreshData();
-                            }
-                          }}
-                          isSubmittingOrder={isSubmittingOrder}
-                        />
-                      </div>
+                      {/* ⚡ السلة الجديدة للموبايل - TitaniumCart */}
+                      <TitaniumCart
+                        mode={currentPOSMode}
+                        items={currentCartItems}
+                        onUpdateQuantity={handleTitaniumUpdateQuantity}
+                        onRemoveItem={handleTitaniumRemoveItem}
+                        onClearCart={handleTitaniumClearCart}
+                        onCheckout={handleTitaniumCheckout}
+                        onQuickCheckout={handleTitaniumQuickCheckout}
+                        onUpdatePrice={handleTitaniumUpdatePrice}
+                        onEditItem={handleTitaniumEditItem}
+                        customerName={activeTab?.customerName}
+                        onSelectCustomer={handleOpenCustomerDialog}
+                        isSubmitting={isSubmittingOrder || isSubmittingLoss}
+                        subtotal={activeCartSummary.total}
+                        discount={discountValue}
+                        total={activeCartSummary.total}
+                        saleMode={saleMode}
+                        lossDescription={lossDescription}
+                        onLossDescriptionChange={setLossDescription}
+                      />
                     </Suspense>
                   </div>
                 </SheetContent>
@@ -1176,12 +1674,8 @@ const POSAdvanced = () => {
       {/* نافذة بدء جلسة العمل */}
       <StartSessionDialog
         open={showSessionDialog}
-        onOpenChange={(open) => {
-          // لا يمكن إغلاق النافذة إلا بعد بدء الجلسة
-          if (!open && hasActiveSession) {
-            setShowSessionDialog(false);
-          }
-        }}
+        onOpenChange={setShowSessionDialog}
+        allowClose={isAdminMode}
       />
 
       {/* نافذة اختصارات لوحة المفاتيح */}
@@ -1189,6 +1683,46 @@ const POSAdvanced = () => {
         open={keyboardShortcuts.isHelpOpen}
         onOpenChange={keyboardShortcuts.setIsHelpOpen}
         shortcuts={keyboardShortcuts.shortcuts}
+      />
+
+      {/* ⚡ نافذة تعديل العنصر المتقدمة */}
+      <AdvancedItemEditDialog
+        open={isAdvancedEditOpen}
+        onOpenChange={setIsAdvancedEditOpen}
+        item={editingItemIndex >= 0 ? currentCartItems[editingItemIndex] : null}
+        index={editingItemIndex}
+        onSave={handleAdvancedEditSave}
+        mode={currentPOSMode}
+      />
+
+      {/* ⚡ نافذة الدفع */}
+      <Suspense fallback={null}>
+        <POSAdvancedPaymentDialog
+          isOpen={isPaymentDialogOpen}
+          onOpenChange={setIsPaymentDialogOpen}
+          subtotal={cartSummary.total}
+          currentDiscount={discountValue}
+          currentDiscountType={discountType}
+          total={cartSummary.total}
+          customers={customers}
+          selectedCustomerId={activeTab?.customerId}
+          onPaymentComplete={handlePaymentComplete}
+          isProcessing={isSubmittingOrder}
+        />
+      </Suspense>
+
+      {/* ⚡ نافذة العميل ونوع البيع */}
+      <CustomerSaleDialog
+        open={isCustomerDialogOpen}
+        onOpenChange={setIsCustomerDialogOpen}
+        customers={customers}
+        selectedCustomerId={activeTab?.customerId}
+        selectedCustomerName={activeTab?.customerName}
+        originalTotal={cartSummary.originalTotal}
+        currentTotal={cartSummary.total}
+        saleMode={saleMode}
+        onSelectCustomer={handleSelectCustomer}
+        onChangeSaleMode={handleChangeSaleMode}
       />
 
     </POSPureLayout>

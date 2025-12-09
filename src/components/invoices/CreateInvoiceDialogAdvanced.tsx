@@ -346,6 +346,7 @@ const CreateInvoiceDialogAdvanced = ({
       // إدراج العناصر
       const invoiceItems = items.map((item) => ({
         invoice_id: invoice.id,
+        organization_id: currentOrganization.id, // ⚡ مطلوب للمزامنة مع PowerSync
         name: item.name,
         description: null,
         quantity: item.quantity,
@@ -353,7 +354,7 @@ const CreateInvoiceDialogAdvanced = ({
         total_price: item.totalTTC,
         product_id: item.productId || null,
         type: item.type,
-        
+
         // الحقول الجديدة
         sku: item.sku || null,
         barcode: item.barcode || null,

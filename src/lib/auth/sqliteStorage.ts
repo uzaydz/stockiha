@@ -1,4 +1,4 @@
-import { isSQLiteAvailable } from '@/lib/db/sqliteAPI';
+// ⚡ تم إزالة isSQLiteAvailable - PowerSync متاح دائماً
 
 // A Supabase-compatible async storage backed by Electron's secure storage (electron-store)
 // This avoids using the main SQLite database for auth tokens, preventing connection thrashing.

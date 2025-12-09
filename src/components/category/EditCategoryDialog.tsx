@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -6,6 +6,8 @@ import { toast } from 'sonner';
 import { updateCategory } from '@/lib/api/categories';
 import type { Category } from '@/lib/api/categories';
 import { useTenant } from '@/context/TenantContext';
+import { updateLocalCategoryWithImage } from '@/api/localCategoryService';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import {
   Dialog,
   DialogContent,
@@ -24,10 +26,11 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2 } from 'lucide-react';
+import { Loader2, CloudOff, Wifi } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import IconSelector from './IconSelector';
 import ImageUploader from '@/components/ui/ImageUploader';
+import { Badge } from '@/components/ui/badge';
 
 // Form schema using zod
 const categorySchema = z.object({
@@ -47,14 +50,23 @@ interface EditCategoryDialogProps {
   onCategoryUpdated: () => Promise<void>;
 }
 
-const EditCategoryDialog = ({ 
-  category, 
-  open, 
-  onOpenChange, 
-  onCategoryUpdated 
+const EditCategoryDialog = ({
+  category,
+  open,
+  onOpenChange,
+  onCategoryUpdated
 }: EditCategoryDialogProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { currentOrganization } = useTenant();
+  const { isOnline } = useNetworkStatus();
+
+  // ⚡ حفظ ملف الصورة للاستخدام في الأوفلاين
+  const selectedImageFileRef = useRef<File | null>(null);
+
+  // ⚡ معالج اختيار ملف الصورة
+  const handleImageFileSelected = (file: File | null) => {
+    selectedImageFileRef.current = file;
+  };
   
   // Initialize form with react-hook-form and zod validation
   const form = useForm<CategoryFormValues>({
@@ -90,27 +102,50 @@ const EditCategoryDialog = ({
 
     setIsSubmitting(true);
     try {
-      const categoryData = {
-        name: values.name,
-        description: values.description,
-        icon: values.icon,
-        image_url: values.image_url,
-        is_active: values.is_active,
-      };
+      // ⚡ Offline-First: إذا كان أوفلاين أو لدينا صورة محلية
+      if (!isOnline || selectedImageFileRef.current) {
+        console.log('[EditCategory] ⚡ Using Offline-First mode');
 
-      await updateCategory(category.id, categoryData, currentOrganization.id);
+        // تحديث الفئة محلياً مع الصورة
+        await updateLocalCategoryWithImage(
+          category.id,
+          {
+            name: values.name,
+            description: values.description || null,
+            icon: values.icon || null,
+            image_url: isOnline ? values.image_url : (category as any).image_url,
+            is_active: values.is_active,
+          },
+          selectedImageFileRef.current || undefined
+        );
 
-      toast.success('تم تحديث الفئة بنجاح');
+        toast.success(isOnline ? 'تم تحديث الفئة بنجاح' : 'تم حفظ التغييرات محلياً (ستتم المزامنة عند الاتصال)');
+      } else {
+        // أونلاين بدون صورة محلية - استخدم الطريقة التقليدية
+        const categoryData = {
+          name: values.name,
+          description: values.description,
+          icon: values.icon,
+          image_url: values.image_url,
+          is_active: values.is_active,
+        };
+
+        await updateCategory(category.id, categoryData, currentOrganization.id);
+        toast.success('تم تحديث الفئة بنجاح');
+      }
+
+      // مسح ملف الصورة المحفوظ
+      selectedImageFileRef.current = null;
       onOpenChange(false);
       onCategoryUpdated();
     } catch (error) {
-      
+
       // التحقق من خطأ تكرار اسم الفئة
       if (error instanceof Error && error.message.includes('duplicate key value violates unique constraint')) {
         toast.error('هذا الاسم موجود بالفعل في فئات مؤسستك، يرجى اختيار اسم آخر للفئة');
-        form.setError('name', { 
-          type: 'manual', 
-          message: 'هذا الاسم موجود بالفعل في فئات مؤسستك' 
+        form.setError('name', {
+          type: 'manual',
+          message: 'هذا الاسم موجود بالفعل في فئات مؤسستك'
         });
       } else {
         toast.error('حدث خطأ أثناء تحديث الفئة');
@@ -124,7 +159,29 @@ const EditCategoryDialog = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>تعديل الفئة: {category.name}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            تعديل الفئة: {category.name}
+            {/* ⚡ مؤشر حالة الاتصال */}
+            <Badge
+              variant="outline"
+              className={isOnline
+                ? "bg-green-50 text-green-700 border-green-200 text-xs"
+                : "bg-orange-50 text-orange-700 border-orange-200 text-xs"
+              }
+            >
+              {isOnline ? (
+                <>
+                  <Wifi className="h-3 w-3 ml-1" />
+                  متصل
+                </>
+              ) : (
+                <>
+                  <CloudOff className="h-3 w-3 ml-1" />
+                  أوفلاين
+                </>
+              )}
+            </Badge>
+          </DialogTitle>
         </DialogHeader>
         
         <Form {...form}>
@@ -169,11 +226,18 @@ const EditCategoryDialog = ({
               name="image_url"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>صورة الفئة</FormLabel>
+                  <FormLabel>
+                    صورة الفئة
+                    {!isOnline && (
+                      <span className="text-xs text-orange-600 mr-2">(سيتم حفظها محلياً)</span>
+                    )}
+                  </FormLabel>
                   <FormControl>
                     <ImageUploader
-                      imageUrl={field.value || ''}
+                      imageUrl={field.value || (category as any).image_base64 || ''}
                       onImageUploaded={field.onChange}
+                      onFileSelected={handleImageFileSelected}
+                      offlineMode={!isOnline}
                       folder="categories"
                       aspectRatio="1:1"
                       maxSizeInMB={1}

@@ -30,13 +30,30 @@ export const useCategoryData = ({ organizationId, watchCategoryId }: UseCategory
 
     const loadLocalFirst = async () => {
       try {
+        // 🔍 DEBUG: تتبع جلب الفئات المحلية
+        console.log('%c[useCategoryData] 📂 Loading local categories...', 'color: #673AB7; font-weight: bold', {
+          organizationId
+        });
+
         // محاولة تعبئة فورية من التخزين المحلي
         const localCats = await getLocalCategories();
+
+        // 🔍 DEBUG: عرض النتائج
+        console.log('%c[useCategoryData] 📊 Local categories result:', 'color: #673AB7; font-weight: bold', {
+          total_fetched: localCats?.length || 0,
+          sample: localCats?.slice(0, 3).map((c: any) => ({ id: c.id, name: c.name, type: c.type }))
+        });
+
         if (!cancelled && Array.isArray(localCats) && localCats.length > 0) {
           const productCategories = localCats.filter((cat: any) => (cat?.type || 'product') === 'product');
+          console.log('%c[useCategoryData] ✅ Product categories filtered:', 'color: #673AB7', {
+            count: productCategories.length
+          });
           setCategories(productCategories as Category[]);
         }
-      } catch {}
+      } catch (err) {
+        console.error('[useCategoryData] ❌ Error loading local categories:', err);
+      }
     };
 
     const loadRemote = async () => {

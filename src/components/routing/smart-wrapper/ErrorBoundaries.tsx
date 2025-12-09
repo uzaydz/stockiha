@@ -99,6 +99,24 @@ class EnhancedErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryS
       stack: error.stack
     };
 
+    // معالجة خاصة لخطأ "Component is not a function"
+    if (error.message && error.message.includes('Component is not a function')) {
+      console.error('🚨 [ErrorBoundary] Component export issue detected:', {
+        error: error.message,
+        componentStack: errorInfo.componentStack,
+        pathname: this.props.pathname,
+        pageType: this.props.pageType
+      });
+      
+      // محاولة إعادة تحميل الصفحة إذا كان الخطأ متعلقاً بتحميل المكون
+      if (error.message.includes('lazy') || errorInfo.componentStack?.includes('lazy')) {
+        console.warn('⚠️ [ErrorBoundary] Lazy loading issue detected, attempting page reload...');
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      }
+    }
+
     // تسجيل الخطأ في نظام الأداء
     addPerformanceWarning('CRITICAL', {
       type: 'ERROR_BOUNDARY_TRIGGERED',
@@ -115,10 +133,13 @@ class EnhancedErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryS
     }
 
     // تسجيل مفصل في الكونسول
-
-    // تسجيل الخطأ محلياً فقط
-    if (process.env.NODE_ENV === 'development') {
-    }
+    console.error('🚨 [ErrorBoundary] Error caught:', {
+      error: error.message,
+      stack: error.stack,
+      componentStack: errorInfo.componentStack,
+      pageType: this.props.pageType,
+      pathname: this.props.pathname
+    });
 
     this.setState({
       error,
@@ -181,6 +202,25 @@ class EnhancedErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryS
           enableRecovery={this.props.enableRecovery !== false}
         />
       );
+    }
+
+    // التحقق من أن children هو عنصر React صالح
+    try {
+      // إذا كان children هو object وليس function/component، هذا سيسبب خطأ
+      if (this.props.children && typeof this.props.children === 'object' && !React.isValidElement(this.props.children)) {
+        // محاولة التحقق من أن children ليس object عادي
+        const childrenType = typeof this.props.children;
+        if (childrenType === 'object' && this.props.children !== null && !Array.isArray(this.props.children)) {
+          // إذا كان object وليس React element، قد يكون component غير صالح
+          console.error('⚠️ [ErrorBoundary] Invalid children type detected:', {
+            type: childrenType,
+            children: this.props.children,
+            keys: Object.keys(this.props.children || {})
+          });
+        }
+      }
+    } catch (validationError) {
+      console.error('⚠️ [ErrorBoundary] Error validating children:', validationError);
     }
 
     return this.props.children;

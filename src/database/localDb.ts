@@ -1,6 +1,15 @@
 /**
- * قاعدة البيانات المحلية - محدث لاستخدام SQLite بدلاً من IndexedDB
- * يحافظ على نفس الواجهة للتوافقية مع الكود القديم
+ * قاعدة البيانات المحلية - النظام الموحد: SQLite فقط
+ * 
+ * ⚡ تم توحيد النظام: SQLite + SyncManager فقط
+ * - تم إزالة نظام IndexedDB القديم بالكامل
+ * - تم إزالة نظام المزامنة القديم (Legacy Sync)
+ * - النظام الحالي: SQLite + SyncManager (Delta Sync)
+ * 
+ * ⚡ ملاحظة: الأنواع الموحدة الجديدة موجودة في @/lib/types/entities/
+ * يتم إعادة تصدير الأنواع القديمة هنا للتوافق العكسي
+ * 
+ * ⚠️ متطلبات: يجب استخدام Tauri/Electron (SQLite مطلوب)
  */
 
 import { inventoryDB as dbAdapter } from '@/lib/db/dbAdapter';
@@ -8,90 +17,79 @@ import { Product } from '@/api/productService';
 import type { POSOrderSyncStatus } from '@/types/posOrder';
 
 // ========================================
-// التعريفات والأنواع (بدون تغيير)
+// ⚡ الأنواع الموحدة الجديدة - للاستخدام في الكود الجديد
 // ========================================
+export type {
+  LocalOrder as UnifiedLocalOrder,
+  LocalOrderItem as UnifiedLocalOrderItem,
+  LocalOrderWithItems as UnifiedLocalOrderWithItems,
+  CreateOrderInput,
+  CreateOrderItemInput,
+} from '@/lib/types/entities/order';
 
-// نموذج المنتج الموسع بإضافة حالة المزامنة - شامل جميع الأعمدة
-export interface LocalProduct extends Product {
-  // ⚡ حقول المزامنة
-  synced: boolean;
-  syncStatus?: 'pending' | 'error';
-  lastSyncAttempt?: string;
-  localUpdatedAt: string;
-  pendingOperation?: 'create' | 'update' | 'delete';
-  conflictResolution?: 'local' | 'remote' | 'merge';
-  
-  // ⚡ حقول البحث المحلية
-  name_lower?: string;
-  name_search?: string;
-  name_normalized?: string;
-  sku_lower?: string;
-  sku_search?: string;
-  barcode_lower?: string;
-  barcode_digits?: string;
-  
-  // ⚡ الفئات
-  category_id?: string | null;
-  subcategory_id?: string | null;
-  brand?: string | null;
-  
-  // ⚡ الأسعار (قد تكون موجودة في Product أيضاً)
-  purchase_price?: number | null;
-  compare_at_price?: number | null;
-  wholesale_price?: number | null;
-  partial_wholesale_price?: number | null;
-  unit_purchase_price?: number | null;
-  unit_sale_price?: number | null;
-  
-  // ⚡ المخزون
-  min_stock_level?: number | null;
-  min_wholesale_quantity?: number | null;
-  min_partial_wholesale_quantity?: number | null;
-  reorder_level?: number | null;
-  reorder_quantity?: number | null;
-  
-  // ⚡ الحالات
-  is_digital?: boolean;
-  is_featured?: boolean;
-  is_new?: boolean;
-  is_sold_by_unit?: boolean;
-  has_variants?: boolean;
-  show_price_on_landing?: boolean;
-  use_sizes?: boolean;
-  use_variant_prices?: boolean;
-  use_shipping_clone?: boolean;
-  
-  // ⚡ إعدادات البيع
-  allow_retail?: boolean;
-  allow_wholesale?: boolean;
-  allow_partial_wholesale?: boolean;
-  unit_type?: string | null;
-  
-  // ⚡ الصور المحلية
-  thumbnail_base64?: string | null;
-  images_base64?: string | null;
-  
-  // ⚡ الشحن والضمانات
-  has_fast_shipping?: boolean;
-  has_money_back?: boolean;
-  has_quality_guarantee?: boolean;
-  fast_shipping_text?: string | null;
-  money_back_text?: string | null;
-  quality_guarantee_text?: string | null;
-  shipping_clone_id?: number | null;
-  shipping_method_type?: string | null;
-  shipping_provider_id?: number | null;
-  
-  // ⚡ إعدادات متقدمة
-  purchase_page_config?: any | null;
-  form_template_id?: string | null;
-  last_inventory_update?: string | null;
-}
+export type {
+  LocalProduct as UnifiedLocalProduct,
+} from '@/lib/types/entities/product';
+
+export type {
+  LocalCustomer as UnifiedLocalCustomer,
+} from '@/lib/types/entities/customer';
+
+export type {
+  LocalUser as UnifiedLocalEmployee,
+} from '@/lib/types/entities/employee';
+
+export type {
+  LocalStaffWorkSession as UnifiedLocalWorkSession,
+} from '@/lib/types/entities/work-session';
+
+export type {
+  LocalRepairOrder as UnifiedLocalRepair,
+  LocalRepairStatusHistory as UnifiedLocalRepairStatusHistory,
+} from '@/lib/types/entities/repair';
+
+export type {
+  LocalInvoice as UnifiedLocalInvoice,
+  LocalInvoiceItem as UnifiedLocalInvoiceItem,
+} from '@/lib/types/entities/invoice';
+
+export type {
+  LocalReturn as UnifiedLocalReturn,
+  LocalReturnItem as UnifiedLocalReturnItem,
+} from '@/lib/types/entities/return';
+
+export type {
+  LocalExpense as UnifiedLocalExpense,
+  LocalExpenseCategory as UnifiedLocalExpenseCategory,
+} from '@/lib/types/entities/expense';
+
+export type {
+  LocalLoss as UnifiedLocalLoss,
+  LocalLossItem as UnifiedLocalLossItem,
+} from '@/lib/types/entities/loss';
+
+export type {
+  LocalSupplier as UnifiedLocalSupplier,
+} from '@/lib/types/entities/supplier';
+
+export type {
+  LocalSupplierPurchase as UnifiedLocalSupplierPurchase,
+  LocalSupplierPurchaseItem as UnifiedLocalSupplierPurchaseItem,
+  LocalSupplierPayment as UnifiedLocalSupplierPayment,
+} from '@/lib/types/entities/supplier-purchase';
+
+// ========================================
+// التعريفات والأنواع - مستوردة من الملف الموحد
+// ========================================
+import type { LocalProductFull } from '@/types/localProduct';
+
+// ⚡ إعادة تصدير LocalProduct للتوافقية مع الكود القديم
+export type LocalProduct = LocalProductFull;
 
 // نموذج عنصر قائمة المزامنة
 export interface SyncQueueItem {
   id: string;
-  objectType: 'product' | 'inventory' | 'customer' | 'address' | 'order' | 'pos_orders' | 'invoice';
+  objectType: 'product' | 'inventory' | 'customer' | 'address' | 'orders' | 'invoice';  // ✅ orders بدلاً من pos_orders
   objectId: string;
   operation: 'create' | 'update' | 'delete';
   data: any;
@@ -104,6 +102,7 @@ export interface SyncQueueItem {
 }
 
 // تعريف واجهة التحديث المحلي للمخزون
+// ✅ محدّث: أعمدة المزامنة موحدة مع SQLite schema
 export interface InventoryTransaction {
   id: string;
   product_id: string;
@@ -113,21 +112,31 @@ export interface InventoryTransaction {
   notes?: string;
   source_id?: string;
   timestamp: Date;
-  synced: boolean;
+  // ⚡ أعمدة المزامنة المحلية (موحدة مع SQLite schema)
+  synced: number;  // 0 = not synced, 1 = synced
+  sync_status?: string;
+  pending_operation?: 'INSERT' | 'UPDATE' | 'DELETE';
+  local_updated_at?: string;
   created_by: string;
 }
 
 // تعريف واجهة عنصر المخزون
+// ✅ محدّث: أعمدة المزامنة موحدة مع SQLite schema
 export interface InventoryItem {
   id?: string;
   product_id: string;
   variant_id: string | null;
   stock_quantity: number;
   last_updated: Date;
-  synced: boolean;
+  // ⚡ أعمدة المزامنة المحلية (موحدة مع SQLite schema)
+  synced: number;  // 0 = not synced, 1 = synced
+  sync_status?: string;
+  pending_operation?: 'INSERT' | 'UPDATE' | 'DELETE';
+  local_updated_at?: string;
 }
 
 // تعريف واجهة بيانات العميل المحلي
+// ✅ محدّث: أعمدة المزامنة موحدة مع SQLite schema
 export interface LocalCustomer {
   id: string;
   name: string;
@@ -136,17 +145,28 @@ export interface LocalCustomer {
   created_at: string;
   updated_at: string;
   organization_id: string;
-  synced: boolean;
-  syncStatus?: string;
-  lastSyncAttempt?: string;
-  localUpdatedAt: string;
-  pendingOperation?: 'create' | 'update' | 'delete';
+  // ⚡ أعمدة المزامنة المحلية (موحدة مع SQLite schema)
+  synced: number;  // 0 = not synced, 1 = synced
+  sync_status?: string;
+  pending_operation?: 'INSERT' | 'UPDATE' | 'DELETE';
+  local_updated_at?: string;
+  // ⚡ أعمدة البحث المحلية
   name_lower?: string;
   email_lower?: string;
   phone_digits?: string;
+  // Legacy fields (للتوافق العكسي - ستُحذف لاحقاً)
+  _synced?: number;
+  _sync_status?: string;
+  _pending_operation?: string;
+  _local_updated_at?: string;
+  _error?: string;
+  _name_lower?: string;
+  _email_lower?: string;
+  _phone_digits?: string;
 }
 
 // تعريف واجهة بيانات عنوان العميل
+// ✅ محدّث: أعمدة المزامنة موحدة مع SQLite schema
 export interface LocalAddress {
   id: string;
   customer_id: string;
@@ -159,76 +179,111 @@ export interface LocalAddress {
   phone: string;
   is_default: boolean;
   organization_id: string;
-  synced: boolean;
+  // ⚡ أعمدة المزامنة المحلية (موحدة مع SQLite schema)
+  synced: number;  // 0 = not synced, 1 = synced
+  sync_status?: string;
+  pending_operation?: 'INSERT' | 'UPDATE' | 'DELETE';
+  local_updated_at?: string;
+  // Legacy fields (للتوافق العكسي - ستُحذف لاحقاً)
   syncStatus?: string;
   lastSyncAttempt?: string;
-  localUpdatedAt: string;
+  localUpdatedAt?: string;
   pendingOperation?: 'create' | 'update' | 'delete';
 }
 
-// تعريف واجهة طلبات POS المحلية
-export interface LocalPOSOrder {
+// تعريف واجهة الطلبات المحلية
+// ✅ محدّث: الجدول الآن "orders" (كان pos_orders)، أعمدة المزامنة موحدة مع SQLite schema
+export interface LocalOrder {
   id: string;
-  order_number: string;
+  global_order_number?: string;  // ✅ كان order_number
   organization_id: string;
-  employee_id?: string | null;
+  employee_id?: string | null;  // ✅ كان staff_id
   customer_id?: string | null;
   customer_name?: string | null;
-  customer_name_lower?: string | null;
   subtotal: number;
-  total: number;
+  total: number;  // ✅ كان total_amount
+  tax?: number;
   discount?: number;
-  amount_paid?: number;
+  amount_paid?: number;  // ✅ كان paid_amount
   payment_method?: string;
   payment_status?: string;
   notes?: string;
   remaining_amount?: number;
   consider_remaining_as_partial?: boolean;
+  is_online?: boolean;
   status: string;
-  synced: boolean;
-  syncStatus?: POSOrderSyncStatus;
-  lastSyncAttempt?: string;
-  error?: string;
-  localCreatedAt: string;
-  serverCreatedAt?: string;
   created_at: string;
-  created_at_ts?: number;
   updated_at: string;
+  // ⚡ أعمدة المزامنة المحلية (موحدة مع SQLite schema)
+  synced: number;  // 0 = not synced, 1 = synced
+  sync_status?: string;
+  pending_operation?: 'INSERT' | 'UPDATE' | 'DELETE';
+  local_updated_at?: string;
+  // ⚡ حقول إضافية
+  customer_name_lower?: string;
   local_order_number?: number;
-  local_order_number_str?: string;
-  remote_order_id?: string | null;
-  remote_customer_order_number?: number | string | null;
   metadata?: any;
-  message?: string;
-  payload?: any;
-  pending_updates?: any;
   extra_fields?: any;
-  pendingOperation?: 'create' | 'update' | 'delete';
+  // Legacy fields (للتوافق العكسي - ستُحذف لاحقاً)
+  _synced?: number;
+  _sync_status?: string;
+  _pending_operation?: string;
+  _local_updated_at?: string;
+  _error?: string;
+  _local_order_number?: number;
+  _customer_name_lower?: string;
 }
 
+// ✅ Alias للتوافق العكسي مع الكود القديم
+export type LocalPOSOrder = LocalOrder;
+
 // تعريف واجهة عنصر الطلب
-export interface LocalPOSOrderItem {
+// ✅ محدّث: الجدول الآن "order_items" (كان pos_order_items)
+export interface LocalOrderItem {
   id: string;
   order_id: string;
   product_id: string;
-  product_name: string;
+  name: string;  // ✅ كان product_name
   quantity: number;
   unit_price: number;
-  total_price: number;
-  subtotal: number;
+  total_price: number;  // ✅ كان subtotal
   discount: number;
   created_at: string;
   is_wholesale?: boolean;
   original_price?: number;
+  sale_type?: 'retail' | 'wholesale' | 'partial_wholesale';
   color_id?: string | null;
   color_name?: string | null;
   size_id?: string | null;
   size_name?: string | null;
   variant_info?: Record<string, unknown> | null;
-  synced?: boolean;
+  slug?: string;
+  // ⚡ حقول البيع المتقدم
+  selling_unit_type?: 'piece' | 'weight' | 'box' | 'meter';
+  weight_sold?: number | null;
+  weight_unit?: string | null;
+  price_per_weight_unit?: number | null;
+  meters_sold?: number | null;
+  price_per_meter?: number | null;
+  boxes_sold?: number | null;
+  units_per_box?: number | null;
+  box_price?: number | null;
+  // ⚡ حقول التتبع
+  batch_id?: string | null;
+  batch_number?: string | null;
+  expiry_date?: string | null;
+  serial_numbers?: string | null;
+  // ⚡ أعمدة المزامنة المحلية (موحدة مع SQLite schema)
+  synced?: number;
+  // Legacy fields (للتوافق العكسي)
+  _synced?: number;
 }
 
+// ✅ Alias للتوافق العكسي
+export type LocalPOSOrderItem = LocalOrderItem;
+
 // تعريف واجهة الفاتورة المحلية
+// ✅ محدّث: أعمدة المزامنة موحدة مع SQLite schema
 export interface LocalInvoice {
   id: string;
   invoice_number: string;
@@ -258,42 +313,50 @@ export interface LocalInvoice {
   organization_id: string;
   created_at: string;
   updated_at: string;
-  synced: boolean;
+  // ⚡ أعمدة المزامنة المحلية (موحدة مع SQLite schema)
+  synced: number;  // 0 = not synced, 1 = synced
+  sync_status?: string;
+  pending_operation?: 'INSERT' | 'UPDATE' | 'DELETE';
+  local_updated_at?: string;
+  // Legacy fields (للتوافق العكسي - ستُحذف لاحقاً)
   syncStatus?: 'pending' | 'syncing' | 'error';
   pendingOperation?: 'create' | 'update' | 'delete';
 }
 
 // تعريف واجهة ديون العملاء
+// ⚡ v2.0: الديون يتم حسابها من جدول orders وليس جدول منفصل
+// الدين = طلب فيه remaining_amount > 0
 export interface LocalCustomerDebt {
-  id: string;
-  customer_id: string;
-  customer_name?: string;
-  // Order linkage
-  order_id?: string;
-  order_number?: string;
-  // Amounts
-  amount?: number; // legacy
-  subtotal?: number; // المبلغ قبل الخصم
-  discount?: number; // التخفيض
-  total_amount: number; // المبلغ النهائي (بعد الخصم)
-  paid_amount: number;
-  remaining_amount: number;
-  // Status & metadata
-  status: 'pending' | 'partial' | 'paid' | 'unpaid';
-  description?: string;
-  due_date?: string | null;
-  notes?: string | null;
+  id: string;                    // order_id - الدين هو الطلب نفسه
   organization_id: string;
-  // Sync fields
-  synced: boolean;
-  syncStatus?: string;
-  pendingOperation?: 'create' | 'update' | 'delete';
+  customer_id: string | null;
+  customer_name?: string;
+  // Order info
+  order_number?: number;
+  // Amounts
+  total: number;                 // إجمالي الطلب
+  total_amount: number;          // alias for total
+  amount_paid: number;           // المبلغ المدفوع
+  paid_amount: number;           // alias for amount_paid (legacy)
+  remaining_amount: number;      // المبلغ المتبقي
+  amount?: number;               // alias for remaining_amount (legacy)
+  // Status
+  status: string;                // حالة الطلب
+  payment_status: string;        // حالة الدفع: pending | partial | paid
+  // Staff info
+  employee_id?: string;
+  employee_name?: string;
   // Timestamps
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
+  // Legacy fields (للتوافق العكسي - لم تعد مستخدمة)
+  synced?: number;
+  syncStatus?: string;
+  pendingOperation?: string;
 }
 
 // تعريف واجهة سجل مدفوعات ديون العملاء
+// ✅ محدّث: أعمدة المزامنة موحدة مع SQLite schema
 export interface LocalCustomerDebtPayment {
   id: string;
   organization_id: string;
@@ -303,12 +366,17 @@ export interface LocalCustomerDebtPayment {
   note?: string | null;
   created_at: string;
   applied_by?: string | null;
-  // حالة المزامنة
-  synced: boolean;
+  // ⚡ أعمدة المزامنة المحلية (موحدة مع SQLite schema)
+  synced: number;  // 0 = not synced, 1 = synced
+  sync_status?: string;
+  pending_operation?: 'INSERT' | 'UPDATE' | 'DELETE';
+  local_updated_at?: string;
+  // Legacy fields (للتوافق العكسي - ستُحذف لاحقاً)
   pendingOperation?: 'create' | 'update' | 'delete';
 }
 
 // تعريف واجهة طلبات الإصلاح
+// ✅ محدّث: أعمدة المزامنة موحدة مع SQLite schema
 export interface LocalRepairOrder {
   id: string;
   order_number: string;
@@ -330,15 +398,21 @@ export interface LocalRepairOrder {
   received_by?: string | null;
   repair_tracking_code?: string | null;
   organization_id: string;
-  synced: boolean;
-  syncStatus?: string;
-  pendingOperation?: 'create' | 'update' | 'delete';
+  // ⚡ أعمدة المزامنة المحلية (موحدة مع SQLite schema)
+  synced: number;  // 0 = not synced, 1 = synced
+  sync_status?: string;
+  pending_operation?: 'INSERT' | 'UPDATE' | 'DELETE';
+  local_updated_at?: string;
   localCreatedAt?: string;
   created_at: string;
   updated_at: string;
+  // Legacy fields (للتوافق العكسي - ستُحذف لاحقاً)
+  syncStatus?: string;
+  pendingOperation?: 'create' | 'update' | 'delete';
 }
 
 // تعريف واجهة سجل حالة الإصلاح
+// ✅ محدّث: أعمدة المزامنة موحدة مع SQLite schema
 export interface LocalRepairStatusHistory {
   id: string;
   repair_order_id: string;
@@ -346,11 +420,17 @@ export interface LocalRepairStatusHistory {
   created_by: string;
   created_at: string;
   notes?: string | null;
-  synced: boolean;
+  // ⚡ أعمدة المزامنة المحلية (موحدة مع SQLite schema)
+  synced: number;  // 0 = not synced, 1 = synced
+  sync_status?: string;
+  pending_operation?: 'INSERT' | 'UPDATE' | 'DELETE';
+  local_updated_at?: string;
+  // Legacy fields (للتوافق العكسي - ستُحذف لاحقاً)
   pendingOperation?: 'create' | 'update' | 'delete';
 }
 
 // تعريف واجهة موقع الإصلاح (الورشة)
+// ✅ محدّث: أعمدة المزامنة موحدة مع SQLite schema
 export interface LocalRepairLocation {
   id: string;
   name: string;
@@ -362,24 +442,28 @@ export interface LocalRepairLocation {
   is_active: boolean;
   created_at: string;
   updated_at: string;
-  synced: boolean;
+  // ⚡ أعمدة المزامنة المحلية (موحدة مع SQLite schema)
+  synced: number;  // 0 = not synced, 1 = synced
+  sync_status?: string;
+  pending_operation?: 'INSERT' | 'UPDATE' | 'DELETE';
+  local_updated_at?: string;
+  // Legacy fields (للتوافق العكسي - ستُحذف لاحقاً)
   pendingOperation?: 'create' | 'update' | 'delete';
 }
 
 // تعريف واجهة صور الإصلاح
+// ⚡ v3.0: محدّث ليتطابق مع Supabase schema
 export interface LocalRepairImage {
   id: string;
-  repair_id: string;
-  image_data: string;
-  image_url?: string;
-  image_type: string;
-  file_size: number;
-  is_thumbnail: boolean;
-  synced: boolean;
-  uploaded_to_server: boolean;
-  server_url?: string;
+  repair_order_id: string; // ⚡ v3.0: تم تصحيح الاسم ليتطابق مع Supabase
+  image_url: string;
+  image_type: string; // 'before' | 'after' | 'during' | 'receipt'
+  description?: string | null;
   created_at: string;
-  notes?: string | null;
+  updated_at?: string;
+  // ⚡ Legacy fields - للتوافق فقط
+  storage_path?: string | null;
+  synced?: boolean;
   pendingOperation?: 'create' | 'update' | 'delete';
 }
 
@@ -397,10 +481,11 @@ export interface LocalStaffPIN {
 }
 
 // تعريف واجهة جلسات العمل
-export interface LocalWorkSession {
+// ✅ محدّث: الجدول الآن "work_sessions"، أعمدة المزامنة موحدة مع SQLite schema
+export interface LocalStaffWorkSession {
   id: string;
-  staff_id: string;
-  staff_name?: string;
+  employee_id: string;  // ✅ كان staff_id
+  employee_name?: string;  // ✅ كان staff_name
   organization_id: string;
 
   // معلومات النقد
@@ -423,7 +508,7 @@ export interface LocalWorkSession {
 
   // معلومات الإيقاف المؤقت
   pause_count?: number;
-  total_pause_duration?: number; // بالثواني
+  total_pause_duration?: number;
 
   // الحالة
   status: 'active' | 'paused' | 'closed';
@@ -432,27 +517,30 @@ export interface LocalWorkSession {
   opening_notes?: string;
   closing_notes?: string;
 
-  // حقول المزامنة
-  synced: boolean;
-  syncStatus?: 'pending' | 'syncing' | 'error';
-  pendingOperation?: 'create' | 'update' | 'delete';
-
   created_at: string;
   updated_at: string;
 
-  // Legacy fields for backward compatibility
-  opening_balance?: number;
-  closing_balance?: number;
-  opened_at?: string;
-  closed_at?: string;
+  // ⚡ أعمدة المزامنة المحلية (موحدة مع SQLite schema)
+  synced: number;  // 0 = not synced, 1 = synced
+  sync_status?: string;
+  pending_operation?: 'INSERT' | 'UPDATE' | 'DELETE';
+  local_updated_at?: string;
+  // Legacy fields (للتوافق العكسي - ستُحذف لاحقاً)
+  _synced?: number;
+  _sync_status?: string;
+  _pending_operation?: string;
+  _local_updated_at?: string;
+  _error?: string;
 }
 
+// ✅ Alias للتوافق العكسي
+export type LocalWorkSession = LocalStaffWorkSession;
+
 // تعريف واجهة الخسائر المحلية
-export interface LocalLossDeclaration {
+// ✅ محدّث: الجدول الآن "losses" و "loss_declarations"، أعمدة المزامنة موحدة مع SQLite schema
+export interface LocalLoss {
   id: string;
   loss_number: string;
-  loss_number_lower?: string;
-  remote_loss_id?: string | null;
   loss_type: 'damage' | 'theft' | 'expiry' | 'other';
   loss_category?: string | null;
   loss_description: string;
@@ -468,11 +556,25 @@ export interface LocalLossDeclaration {
   organization_id: string;
   created_at: string;
   updated_at: string;
-  synced: boolean;
-  syncStatus?: 'pending' | 'syncing' | 'error';
-  pendingOperation?: 'create' | 'update' | 'delete';
+  // ⚡ أعمدة المزامنة المحلية (موحدة مع SQLite schema)
+  synced: number;  // 0 = not synced, 1 = synced
+  sync_status?: string;
+  pending_operation?: 'INSERT' | 'UPDATE' | 'DELETE';
+  local_updated_at?: string;
+  loss_number_lower?: string;
+  // Legacy fields (للتوافق العكسي - ستُحذف لاحقاً)
+  _synced?: number;
+  _sync_status?: string;
+  _pending_operation?: string;
+  _local_updated_at?: string;
+  _error?: string;
+  _loss_number_lower?: string;
 }
 
+// ✅ Alias للتوافق العكسي
+export type LocalLossDeclaration = LocalLoss;
+
+// ✅ محدّث: أعمدة المزامنة موحدة مع SQLite schema
 export interface LocalLossItem {
   id: string;
   loss_id: string;
@@ -491,10 +593,15 @@ export interface LocalLossItem {
   size_id?: string | null;
   size_name?: string | null;
   created_at: string;
-  synced: boolean;
+  // ⚡ أعمدة المزامنة المحلية (موحدة مع SQLite schema)
+  synced: number;  // 0 = not synced, 1 = synced
+  sync_status?: string;
+  pending_operation?: 'INSERT' | 'UPDATE' | 'DELETE';
+  local_updated_at?: string;
 }
 
 // تعريف واجهة عنصر الفاتورة المحلية
+// ✅ محدّث: أعمدة المزامنة موحدة مع SQLite schema
 export interface LocalInvoiceItem {
   id: string;
   invoice_id: string;
@@ -514,30 +621,32 @@ export interface LocalInvoiceItem {
   total_tva?: number | null;
   total_ttc?: number | null;
   created_at: string;
-  synced: boolean;
+  // ⚡ أعمدة المزامنة المحلية (موحدة مع SQLite schema)
+  synced: number;  // 0 = not synced, 1 = synced
+  sync_status?: string;
+  pending_operation?: 'INSERT' | 'UPDATE' | 'DELETE';
+  local_updated_at?: string;
 }
 
 // تعريف واجهة إرجاع المنتج المحلي
-export interface LocalProductReturn {
+// ✅ محدّث: الجدول الآن "returns" (كان product_returns)، أعمدة المزامنة موحدة مع SQLite schema
+export interface LocalReturn {
   id: string;
   return_number: string;
-  return_number_lower?: string;
-  remote_return_id?: string | null;
   original_order_id?: string | null;
   original_order_number?: string | null;
   customer_name?: string | null;
-  customer_name_lower?: string | null;
   customer_id?: string | null;
   customer_phone?: string | null;
   customer_email?: string | null;
-  return_type: string; // 'refund' | 'exchange' | 'store_credit' | etc.
+  return_type: string;
   return_reason: string;
   return_reason_description?: string | null;
   original_total?: number;
-  return_amount: number; // This seems to be the total value of returned items
-  refund_amount: number; // This is the amount to be refunded
+  return_amount: number;
+  refund_amount: number;
   restocking_fee?: number;
-  status: 'pending' | 'approved' | 'rejected' | 'processed' | 'syncing' | 'error';
+  status: 'pending' | 'approved' | 'rejected' | 'processed';
   refund_method?: string | null;
   requires_manager_approval?: boolean;
   created_by?: string | null;
@@ -554,11 +663,27 @@ export interface LocalProductReturn {
   organization_id: string;
   created_at: string;
   updated_at: string;
-  synced: boolean;
-  syncStatus?: 'pending' | 'syncing' | 'error';
-  pendingOperation?: 'create' | 'update' | 'delete';
+  // ⚡ أعمدة المزامنة المحلية (موحدة مع SQLite schema)
+  synced: number;  // 0 = not synced, 1 = synced
+  sync_status?: string;
+  pending_operation?: 'INSERT' | 'UPDATE' | 'DELETE';
+  local_updated_at?: string;
+  return_number_lower?: string;
+  customer_name_lower?: string;
+  // Legacy fields (للتوافق العكسي - ستُحذف لاحقاً)
+  _synced?: number;
+  _sync_status?: string;
+  _pending_operation?: string;
+  _local_updated_at?: string;
+  _error?: string;
+  _return_number_lower?: string;
+  _customer_name_lower?: string;
 }
 
+// ✅ Alias للتوافق العكسي
+export type LocalProductReturn = LocalReturn;
+
+// ✅ محدّث: أعمدة المزامنة موحدة مع SQLite schema + دعم أنواع البيع
 export interface LocalReturnItem {
   id: string;
   return_id: string;
@@ -576,27 +701,95 @@ export interface LocalReturnItem {
   restocked: boolean; // This maps to resellable
   resellable?: boolean; // Alias for restocked
   inventory_returned?: boolean;
+  // ⚡ حقول المتغيرات (الألوان والمقاسات)
   color_id?: string | null;
   color_name?: string | null;
   size_id?: string | null;
   size_name?: string | null;
+  // ⚡ حقول أنواع البيع المختلفة
+  selling_unit_type?: 'piece' | 'weight' | 'meter' | 'box';
+  // البيع بالوزن
+  weight_returned?: number;
+  weight_unit?: string;
+  price_per_weight_unit?: number;
+  // البيع بالمتر
+  meters_returned?: number;
+  price_per_meter?: number;
+  // البيع بالعلبة/الصندوق
+  boxes_returned?: number;
+  units_per_box?: number;
+  box_price?: number;
+  // ⚡ حقول الجملة
+  original_sale_type?: 'retail' | 'wholesale' | 'partial_wholesale';
+  original_is_wholesale?: boolean;
+  // الأوقات
   created_at: string;
-  synced: boolean;
+  updated_at?: string;
+  // ⚡ أعمدة المزامنة المحلية (موحدة مع SQLite schema)
+  synced: number;  // 0 = not synced, 1 = synced
+  sync_status?: string;
+  pending_operation?: 'INSERT' | 'UPDATE' | 'DELETE';
+  local_updated_at?: string;
 }
 
-// تعريف واجهة الاشتراك المحلي
+// تعريف واجهة الاشتراك المحلي - محدث للخطط الجديدة (v2)
 export interface LocalSubscription {
   id: string;
   organization_id: string;
   plan_id: string;
-  status: 'active' | 'expired' | 'cancelled' | 'trial';
+  // ⭐ حقول الخطط الجديدة (v2)
+  plan_code?: 'trial' | 'starter_v2' | 'growth_v2' | 'business_v2' | 'enterprise_v2' | 'unlimited_v2';
+  plan_name?: string;
+  status: 'active' | 'expired' | 'cancelled' | 'trial' | 'pending';
+  billing_cycle?: 'monthly' | 'yearly';
   start_date: string;
   end_date: string;
   trial_end_date?: string;
+  grace_end_date?: string;
+  // ⭐ الحدود والصلاحيات (JSON)
+  limits?: {
+    max_products: number | null;
+    max_users: number | null;
+    max_pos: number | null;
+    max_branches: number | null;
+    max_staff: number | null;
+    max_customers: number | null;
+    max_suppliers: number | null;
+  };
+  permissions?: {
+    all_features: boolean;
+    accessPOS: boolean;
+    offlineMode: boolean;
+    realtimeSync: boolean;
+    invoicing: boolean;
+    inventory: boolean;
+    customers: boolean;
+    suppliers: boolean;
+    repairs: boolean;
+    ecommerce: boolean;
+    delivery: boolean;
+    staff: boolean;
+    reports: boolean;
+    analytics: boolean;
+    zakat: boolean;
+    expenses: boolean;
+    debts: boolean;
+    callCenter: boolean;
+    aiAssistant: boolean;
+    courses: boolean;
+    support: 'email' | 'priority' | 'premium' | 'dedicated' | 'vip';
+  };
   features: string[]; // JSON array of enabled features
+  amount_paid?: number;
+  currency?: string;
   last_check: string;
   synced: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
+
+// ✅ Alias للتوافق العكسي
+export type LocalOrganizationSubscription = LocalSubscription;
 
 // تعريف واجهة إعدادات نقطة البيع المحلية
 export interface LocalPOSSettings {
@@ -619,18 +812,37 @@ export interface LocalPOSSettings {
   show_store_info?: boolean;
   show_date_time?: boolean;
   show_employee_name?: boolean;
-  // إعدادات الطباعة
+  // إعدادات الطباعة الأساسية
   paper_width?: number;
   font_size?: number;
   line_spacing?: number;
   print_density?: 'light' | 'normal' | 'dark';
   auto_cut?: boolean;
-  receipt_template?: 'classic' | 'modern' | 'minimal' | 'custom';
+  receipt_template?: 'classic' | 'modern' | 'minimal' | 'apple' | 'custom';
+  // ⚡ إعدادات الطابعة الحرارية المتقدمة
+  printer_name?: string | null;
+  printer_type?: 'thermal' | 'normal';
+  silent_print?: boolean;
+  print_copies?: number;
+  print_on_order?: boolean;
+  open_cash_drawer?: boolean;
+  beep_after_print?: boolean;
+  // هوامش الطباعة
+  margin_top?: number;
+  margin_bottom?: number;
+  margin_left?: number;
+  margin_right?: number;
   // الألوان
   primary_color?: string;
   secondary_color?: string;
   text_color?: string;
   background_color?: string;
+  // تخطيط الوصل
+  header_style?: 'centered' | 'left' | 'right';
+  footer_style?: 'centered' | 'left' | 'right';
+  item_display_style?: 'table' | 'list' | 'compact';
+  price_position?: 'right' | 'left';
+  custom_css?: string | null;
   // الصلاحيات
   allow_price_edit?: boolean;
   require_manager_approval?: boolean;
@@ -806,7 +1018,12 @@ export interface LocalGameDownloadsSettings {
 // ========================================
 
 /**
- * قاعدة البيانات المحلية - تستخدم SQLite فقط (Tauri/Electron)
+ * قاعدة البيانات المحلية - النظام الموحد: SQLite فقط
+ * 
+ * ⚡ النظام الموحد: SQLite + SyncManager فقط
+ * - لا يوجد دعم لـ IndexedDB (تم إزالته)
+ * - لا يوجد دعم لنظام المزامنة القديم (تم إزالته)
+ * - يتطلب Tauri/Electron (SQLite مطلوب)
  */
 export const inventoryDB = dbAdapter;
 
@@ -833,16 +1050,20 @@ export const initializeDatabase = async (organizationId: string): Promise<void> 
 
 /**
  * فحص نوع قاعدة البيانات المستخدمة
+ * ⚡ النظام الموحد: دائماً SQLite
  */
 export const getDatabaseType = (): 'sqlite' | 'indexeddb' => {
-  return inventoryDB.getDatabaseType();
+  // ⚡ النظام الموحد: دائماً SQLite
+  return 'sqlite';
 };
 
 /**
  * فحص إذا كان SQLite مستخدم
+ * ⚡ النظام الموحد: دائماً true
  */
 export const isSQLiteDatabase = (): boolean => {
-  return inventoryDB.isSQLite();
+  // ⚡ النظام الموحد: دائماً SQLite
+  return true;
 };
 
 /**

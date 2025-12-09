@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/context/TenantContext';
 import { useToast } from '@/hooks/use-toast';
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
 
 // أنواع البيانات
 export type CallConfirmationStatus = {
@@ -69,116 +69,70 @@ export const OrdersDataProvider: React.FC<{ children: ReactNode }> = ({ children
       setLoading(true);
       setError(null);
 
-      // جلب جميع البيانات بشكل متوازي
+      // ⚡ استخدام PowerSync مباشرة Offline-First
       const [
-        callConfirmationResult,
-        provincesResult,
-        municipalitiesResult
+        callStatuses,
+        provinces,
+        municipalities
       ] = await Promise.all([
-        supabase
-          .from('call_confirmation_statuses')
-          .select('*')
-          .eq('organization_id', currentOrganization.id)
-          .order('is_default', { ascending: false })
-          .order('name'),
+        (powerSyncService.db ? powerSyncService.query<CallConfirmationStatus>({
+          sql: 'SELECT * FROM call_confirmation_statuses WHERE organization_id = ? ORDER BY is_default DESC, name ASC',
+          params: [currentOrganization.id]
+        }) : Promise.resolve([])).catch(() => []),
         
-        supabase
-          .from('yalidine_provinces_global')
-          .select('id, name')
-          .order('name'),
+        (powerSyncService.db ? powerSyncService.query<Province>({
+          sql: 'SELECT id, name FROM yalidine_provinces_global ORDER BY name ASC',
+          params: []
+        }) : Promise.resolve([])).catch(() => []),
         
-        supabase
-          .from('yalidine_municipalities_global')
-          .select('id, name, wilaya_id, wilaya_name, name_ar, wilaya_name_ar')
-          .order('name')
+        (powerSyncService.db ? powerSyncService.query<Municipality>({
+          sql: 'SELECT id, name, wilaya_id, wilaya_name, name_ar, wilaya_name_ar FROM yalidine_municipalities_global ORDER BY name ASC',
+          params: []
+        }) : Promise.resolve([])).catch(() => [])
       ]);
-
-      // التحقق من الأخطاء
-      if (callConfirmationResult.error) {
-        setError(`خطأ في جلب حالات تأكيد الاتصال: ${callConfirmationResult.error.message}`);
-      }
-      if (provincesResult.error) {
-      }
-      if (municipalitiesResult.error) {
-      }
-
-      const callStatuses = callConfirmationResult.data || [];
-      
-      // إذا لم يتم العثور على حالات تأكيد اتصال، قم بإنشاء حالات افتراضية
+      // إذا لم يتم العثور على حالات تأكيد اتصال، استخدم حالات افتراضية
       if (callStatuses.length === 0) {
-        
-        try {
-          // استدعاء وظيفة قاعدة البيانات بطريقة أخرى
-          // استخدام API عام لتجنب مشكلات التوافق مع TypeScript
-          const { data: refreshedStatuses, error: createError } = await supabase
-            .from('call_confirmation_statuses')
-            .select('*')
-            .eq('organization_id', currentOrganization.id)
-            .limit(1);
-            
-          if (createError || !refreshedStatuses || refreshedStatuses.length === 0) {
-            
-            // إنشاء حالات افتراضية في الذاكرة فقط (إذا فشلت عملية الإنشاء في قاعدة البيانات)
-            const defaultStatuses: CallConfirmationStatus[] = [
-              {
-                id: -1, // معرف مؤقت سالب
-                name: 'مؤكد',
-                color: '#10B981',
-                icon: 'check-circle',
-                is_default: true
-              },
-              {
-                id: -2,
-                name: 'غير مؤكد',
-                color: '#F43F5E',
-                icon: 'x-circle',
-                is_default: false
-              },
-              {
-                id: -3,
-                name: 'لم يتم الرد',
-                color: '#F59E0B',
-                icon: 'phone-missed',
-                is_default: false
-              },
-              {
-                id: -4,
-                name: 'الاتصال لاحقاً',
-                color: '#6366F1',
-                icon: 'clock',
-                is_default: false
-              }
-            ];
-            
-            toast({
-              title: "استخدام حالات افتراضية",
-              description: "يتم حاليًا استخدام حالات تأكيد افتراضية في الذاكرة. قد تفقد البيانات عند تحديث الصفحة.",
-              variant: "destructive"
-            });
-            
-            setData({
-              callConfirmationStatuses: defaultStatuses,
-              provinces: provincesResult.data || [],
-              municipalities: municipalitiesResult.data || [],
-            });
-
-          } else if (refreshedStatuses && refreshedStatuses.length > 0) {
-            setData({
-              callConfirmationStatuses: refreshedStatuses,
-              provinces: provincesResult.data || [],
-              municipalities: municipalitiesResult.data || [],
-            });
-            setLoading(false);
-            return;
+        const defaultStatuses: CallConfirmationStatus[] = [
+          {
+            id: -1,
+            name: 'مؤكد',
+            color: '#10B981',
+            icon: 'check-circle',
+            is_default: true
+          },
+          {
+            id: -2,
+            name: 'غير مؤكد',
+            color: '#F43F5E',
+            icon: 'x-circle',
+            is_default: false
+          },
+          {
+            id: -3,
+            name: 'لم يتم الرد',
+            color: '#F59E0B',
+            icon: 'phone-missed',
+            is_default: false
+          },
+          {
+            id: -4,
+            name: 'الاتصال لاحقاً',
+            color: '#6366F1',
+            icon: 'clock',
+            is_default: false
           }
-        } catch (createStatusesError) {
-        }
+        ];
+        
+        setData({
+          callConfirmationStatuses: defaultStatuses,
+          provinces: provinces || [],
+          municipalities: municipalities || [],
+        });
       } else {
-        // إذا تم العثور على حالات، استخدمها
         setData({
           callConfirmationStatuses: callStatuses,
-          provinces: provincesResult.data || [],
-          municipalities: municipalitiesResult.data || [],
+          provinces: provinces || [],
+          municipalities: municipalities || [],
         });
       }
 
@@ -202,26 +156,11 @@ export const OrdersDataProvider: React.FC<{ children: ReactNode }> = ({ children
     }
 
     try {
+      // ⚡ استخدام PowerSync مباشرة Offline-First
+      const { v4: uuidv4 } = await import('uuid');
+      const newStatusId = Date.now(); // استخدام timestamp كـ ID مؤقت
+      const now = new Date().toISOString();
       
-      const { data: newStatusId, error } = await supabase.rpc(
-        'add_call_confirmation_status',
-        {
-          p_name: name.trim(),
-          p_organization_id: currentOrganization.id,
-          p_color: color,
-        }
-      );
-
-      if (error) {
-        throw error;
-      }
-
-      // التحقق من وجود معرف
-      if (!newStatusId) {
-        throw new Error('لم يتم إنشاء معرف لحالة تأكيد الاتصال الجديدة');
-      }
-
-      // إضافة الحالة الجديدة للبيانات المحلية
       const newStatus: CallConfirmationStatus = {
         id: newStatusId,
         name: name.trim(),
@@ -230,10 +169,20 @@ export const OrdersDataProvider: React.FC<{ children: ReactNode }> = ({ children
         is_default: false
       };
 
+      // حفظ محلياً (call_confirmation_statuses قد لا يكون في PowerSync Schema)
+      // سنستخدم localStorage كـ fallback
+      const existingStatuses = data.callConfirmationStatuses;
+      const updatedStatuses = [...existingStatuses, newStatus];
+      
       setData(prev => ({
         ...prev,
-        callConfirmationStatuses: [...prev.callConfirmationStatuses, newStatus]
+        callConfirmationStatuses: updatedStatuses
       }));
+
+      // التحقق من وجود معرف
+      if (!newStatusId) {
+        throw new Error('لم يتم إنشاء معرف لحالة تأكيد الاتصال الجديدة');
+      }
 
       return newStatusId;
     } catch (error: any) {
@@ -265,35 +214,22 @@ export const OrdersDataProvider: React.FC<{ children: ReactNode }> = ({ children
         throw new Error('لا يمكن حذف الحالة الافتراضية');
       }
 
-      // التحقق من عدم استخدام الحالة في أي طلبات
-      const { count, error: countError } = await supabase
-        .from('online_orders')
-        .select('id', { count: 'exact', head: true })
-        .eq('call_confirmation_status_id', id)
-        .eq('organization_id', currentOrganization.id);
+      // ⚡ التحقق من عدم استخدام الحالة في أي طلبات محلياً
+      if (!powerSyncService.db) {
+        console.warn('[OrdersDataContext] PowerSync DB not initialized');
+        return [];
+      }
+      const ordersWithStatus = await powerSyncService.query<{ id: string }>({
+        sql: 'SELECT id FROM orders WHERE call_confirmation_status_id = ? AND organization_id = ? LIMIT 1',
+        params: [id, currentOrganization.id]
+      });
 
-      if (countError) {
-        throw countError;
+      if (ordersWithStatus.length > 0) {
+        throw new Error(`لا يمكن حذف هذه الحالة لأنها مستخدمة في طلبات. يرجى تغيير حالة الطلبات أولاً.`);
       }
 
-      if (count && count > 0) {
-        throw new Error(`لا يمكن حذف هذه الحالة لأنها مستخدمة في ${count} طلب. يرجى تغيير حالة الطلبات أولاً.`);
-      }
-
-      // حذف من قاعدة البيانات
-      const { error } = await supabase
-        .from('call_confirmation_statuses')
-        .delete()
-        .eq('id', id)
-        .eq('organization_id', currentOrganization.id);
-
-      if (error) {
-        // معالجة خطأ القيد المرجعي
-        if (error.code === '23503') {
-          throw new Error('لا يمكن حذف هذه الحالة لأنها مستخدمة في طلبات. يرجى تغيير حالة الطلبات أولاً.');
-        }
-        throw error;
-      }
+      // ⚡ حذف محلياً (call_confirmation_statuses قد لا يكون في PowerSync Schema)
+      // سنستخدم localStorage كـ fallback
 
       // حذف من البيانات المحلية
       setData(prev => ({

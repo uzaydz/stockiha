@@ -1,102 +1,185 @@
+/**
+ * EditCustomerDialog - Simplified Apple-Inspired Design
+ * ============================================================
+ * Clean and minimal customer editing dialog
+ * Matches the table and details design style
+ * ============================================================
+ */
+
 import { useEffect, useState } from 'react';
 import { Customer } from '@/types/customer';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { updateCustomer } from '@/lib/api/customers';
+import { unifiedCustomerService } from '@/services/UnifiedCustomerService';
 import { useToast } from '@/components/ui/use-toast';
+import { Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+// ===============================================================================
+// Types
+// ===============================================================================
 
 interface EditCustomerDialogProps {
   customer: Customer;
   open: boolean;
-  onClose: () => void;
+  onOpenChange: (open: boolean) => void;
+  onCustomerUpdated?: (updatedCustomer: Customer) => void;
 }
 
-const EditCustomerDialog = ({ customer, open, onClose }: EditCustomerDialogProps) => {
+// ===============================================================================
+// Simple Input Row
+// ===============================================================================
+
+interface InputRowProps {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  type?: string;
+  required?: boolean;
+  error?: string;
+  disabled?: boolean;
+  dir?: 'ltr' | 'rtl';
+}
+
+const InputRow = ({
+  label,
+  value,
+  onChange,
+  placeholder,
+  type = 'text',
+  required,
+  error,
+  disabled,
+  dir
+}: InputRowProps) => (
+  <div className="flex items-center gap-3 py-2.5 border-b border-zinc-100 dark:border-zinc-800 last:border-0">
+    <span className="w-24 shrink-0 text-sm text-zinc-500 dark:text-zinc-400">
+      {label}
+      {required && <span className="text-orange-500 mr-1">*</span>}
+    </span>
+    <Input
+      type={type}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      disabled={disabled}
+      dir={dir}
+      className={cn(
+        "flex-1 h-9 border-0 bg-transparent px-0",
+        "text-sm font-medium text-zinc-900 dark:text-zinc-100",
+        "placeholder:text-zinc-300 dark:placeholder:text-zinc-600",
+        "focus-visible:ring-0 focus-visible:ring-offset-0",
+        error && "text-red-500"
+      )}
+    />
+  </div>
+);
+
+// ===============================================================================
+// Main Component
+// ===============================================================================
+
+const EditCustomerDialog = ({
+  customer,
+  open,
+  onOpenChange,
+  onCustomerUpdated
+}: EditCustomerDialogProps) => {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [formData, setFormData] = useState({
     name: '',
+    phone: '',
     email: '',
-    phone: ''
-  });
-  const [errors, setErrors] = useState({
-    name: '',
-    email: '',
-    phone: ''
+    address: '',
+    nif: '',
+    rc: '',
   });
 
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Load customer data when dialog opens
   useEffect(() => {
-    if (customer) {
+    if (customer && open) {
       setFormData({
-        name: customer.name,
-        email: customer.email,
-        phone: customer.phone || ''
+        name: customer.name || '',
+        phone: customer.phone || '',
+        email: customer.email || '',
+        address: customer.address || '',
+        nif: customer.nif || '',
+        rc: customer.rc || '',
       });
+      setErrors({});
     }
-  }, [customer]);
+  }, [customer, open]);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    
-    // Clear error when typing
-    if (errors[name as keyof typeof errors]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
+  const updateField = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }));
     }
   };
 
   const validateForm = () => {
-    const newErrors = {
-      name: formData.name.trim() === '' ? 'اسم العميل مطلوب' : '',
-      email: !/^\S+@\S+\.\S+$/.test(formData.email) ? 'البريد الإلكتروني غير صالح' : '',
-      phone: formData.phone.trim() !== '' && !/^\d{10,15}$/.test(formData.phone.trim()) ? 'رقم الهاتف غير صالح' : ''
-    };
-    
+    const newErrors: Record<string, string> = {};
+    if (!formData.name.trim()) {
+      newErrors.name = 'مطلوب';
+    }
     setErrors(newErrors);
-    return !Object.values(newErrors).some(error => error !== '');
+    return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!validateForm()) {
-      return;
-    }
-    
+  const handleSubmit = async () => {
+    if (!validateForm()) return;
+
     setIsSubmitting(true);
-    
+
     try {
-      await updateCustomer(customer.id, {
+      const organizationId = localStorage.getItem('bazaar_organization_id');
+      if (!organizationId) throw new Error('لم يتم العثور على معرف المؤسسة');
+
+      const updatedData = {
         name: formData.name,
-        email: formData.email,
-        phone: formData.phone.trim() === '' ? null : formData.phone
-      });
-      
+        email: formData.email || undefined,
+        phone: formData.phone.trim() || undefined,
+        nif: formData.nif.trim() || undefined,
+        rc: formData.rc.trim() || undefined,
+        address: formData.address.trim() || undefined
+      };
+
+      unifiedCustomerService.setOrganizationId(organizationId);
+      await unifiedCustomerService.updateCustomer(customer.id, updatedData);
+
       toast({
-        title: 'تمت العملية بنجاح',
+        title: 'تم بنجاح',
         description: 'تم تحديث بيانات العميل',
       });
-      
-      onClose();
-    } catch (error) {
+
+      if (onCustomerUpdated) {
+        onCustomerUpdated({
+          ...customer,
+          ...updatedData,
+          phone: updatedData.phone || null,
+          nif: updatedData.nif || null,
+          rc: updatedData.rc || null,
+          nis: customer.nis,
+          rib: customer.rib,
+          address: updatedData.address || null,
+        });
+      }
+
+      onOpenChange(false);
+    } catch (error: any) {
       toast({
         title: 'خطأ',
-        description: 'حدث خطأ أثناء تحديث بيانات العميل. الرجاء المحاولة مرة أخرى.',
+        description: error?.message || 'حدث خطأ',
         variant: 'destructive'
       });
     } finally {
@@ -105,76 +188,114 @@ const EditCustomerDialog = ({ customer, open, onClose }: EditCustomerDialogProps
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
-        <form onSubmit={handleSubmit}>
-          <DialogHeader>
-            <DialogTitle>تعديل بيانات العميل</DialogTitle>
-            <DialogDescription>
-              قم بتعديل بيانات العميل. اضغط على زر حفظ عند الانتهاء.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="edit-name" className="text-left col-span-4">
-                الاسم <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="edit-name"
-                name="name"
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[420px] p-0 gap-0 overflow-hidden bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl">
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-zinc-100 dark:border-zinc-800">
+          <DialogTitle className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+            تعديل العميل
+          </DialogTitle>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+            {customer?.name}
+          </p>
+        </div>
+
+        {/* Form */}
+        <div className="px-5 py-3">
+          {/* Basic Info */}
+          <div className="mb-4">
+            <p className="text-[10px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wide mb-2">
+              المعلومات الأساسية
+            </p>
+            <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-3">
+              <InputRow
+                label="الاسم"
                 value={formData.name}
-                onChange={handleChange}
-                className="col-span-4"
-                placeholder="أدخل اسم العميل"
+                onChange={(v) => updateField('name', v)}
+                placeholder="اسم العميل"
+                required
+                error={errors.name}
+                disabled={isSubmitting}
               />
-              {errors.name && (
-                <p className="text-red-500 text-sm col-span-4 -mt-3">{errors.name}</p>
-              )}
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="edit-email" className="text-left col-span-4">
-                البريد الإلكتروني <span className="text-red-500">*</span>
-              </Label>
-              <Input
-                id="edit-email"
-                name="email"
-                type="email"
-                value={formData.email}
-                onChange={handleChange}
-                className="col-span-4"
-                placeholder="مثال: customer@example.com"
-              />
-              {errors.email && (
-                <p className="text-red-500 text-sm col-span-4 -mt-3">{errors.email}</p>
-              )}
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="edit-phone" className="text-left col-span-4">
-                رقم الهاتف
-              </Label>
-              <Input
-                id="edit-phone"
-                name="phone"
-                type="tel"
+              <InputRow
+                label="الهاتف"
                 value={formData.phone}
-                onChange={handleChange}
-                className="col-span-4"
-                placeholder="أدخل رقم الهاتف (اختياري)"
+                onChange={(v) => updateField('phone', v)}
+                placeholder="0555 123 456"
+                type="tel"
+                dir="ltr"
+                disabled={isSubmitting}
               />
-              {errors.phone && (
-                <p className="text-red-500 text-sm col-span-4 -mt-3">{errors.phone}</p>
-              )}
+              <InputRow
+                label="البريد"
+                value={formData.email}
+                onChange={(v) => updateField('email', v)}
+                placeholder="email@example.com"
+                type="email"
+                dir="ltr"
+                disabled={isSubmitting}
+              />
+              <InputRow
+                label="العنوان"
+                value={formData.address}
+                onChange={(v) => updateField('address', v)}
+                placeholder="العنوان الكامل"
+                disabled={isSubmitting}
+              />
             </div>
           </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
-              إلغاء
-            </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'جاري الحفظ...' : 'حفظ التغييرات'}
-            </Button>
-          </DialogFooter>
-        </form>
+
+          {/* Tax Info */}
+          <div>
+            <p className="text-[10px] font-semibold text-zinc-400 dark:text-zinc-500 uppercase tracking-wide mb-2">
+              المعلومات الضريبية <span className="font-normal">(اختياري)</span>
+            </p>
+            <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl px-3">
+              <InputRow
+                label="NIF"
+                value={formData.nif}
+                onChange={(v) => updateField('nif', v)}
+                placeholder="الرقم الجبائي"
+                dir="ltr"
+                disabled={isSubmitting}
+              />
+              <InputRow
+                label="RC"
+                value={formData.rc}
+                onChange={(v) => updateField('rc', v)}
+                placeholder="السجل التجاري"
+                dir="ltr"
+                disabled={isSubmitting}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-3 bg-zinc-50 dark:bg-zinc-800/30 border-t border-zinc-100 dark:border-zinc-800 flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={isSubmitting}
+            className="flex-1 h-10 rounded-xl border-zinc-200 dark:border-zinc-700"
+          >
+            إلغاء
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="flex-1 h-10 rounded-xl bg-orange-500 hover:bg-orange-600 text-white"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 ml-2 animate-spin" />
+                جاري الحفظ...
+              </>
+            ) : (
+              'حفظ'
+            )}
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

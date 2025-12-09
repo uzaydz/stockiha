@@ -2,6 +2,9 @@
 export * from './callCenter';
 export * from './confirmation';
 
+// ⚡ تصدير أنواع المنتجات المحلية الموحدة
+export * from './localProduct';
+
 // Product Types
 export type ProductCategory = 
   | 'consoles' // أجهزة
@@ -104,10 +107,101 @@ export interface Product {
   name_for_shipping?: string;
   use_shipping_clone?: boolean;
   shipping_method_type?: string;
-  
+
   // تتبع المستخدم
   created_by_user_id?: string;
   updated_by_user_id?: string;
+
+  // === أنواع البيع المتقدمة ===
+
+  // البيع بالوزن
+  sell_by_weight?: boolean;
+  weight_unit?: 'kg' | 'g' | 'lb' | 'oz';
+  price_per_weight_unit?: number;
+  average_item_weight?: number;
+  min_weight?: number;
+  max_weight?: number;
+
+  // البيع بالعلبة/الكرتون
+  sell_by_box?: boolean;
+  units_per_box?: number;
+  box_price?: number;
+  box_barcode?: string;
+
+  // البيع بالمتر
+  sell_by_meter?: boolean;
+  price_per_meter?: number;
+  min_meters?: number;
+  roll_length?: number;
+  meter_unit?: string;
+
+  // === المخزون المتقدم ===
+  available_weight?: number;        // الوزن المتاح للبيع
+  total_weight_purchased?: number;  // إجمالي الوزن المشترى
+  available_length?: number;        // الأمتار المتاحة للبيع
+  total_meters_purchased?: number;  // إجمالي الأمتار المشتراة
+  available_boxes?: number;         // عدد الصناديق المتاحة
+  total_boxes_purchased?: number;   // إجمالي الصناديق المشتراة
+
+  // === التتبع المتقدم ===
+
+  // نوع التتبع الموحد
+  tracking_type?: 'none' | 'batch' | 'serial' | 'both';
+
+  // تتبع الصلاحية
+  track_expiry?: boolean;
+  default_expiry_days?: number;
+  alert_days_before_expiry?: number;
+
+  // الأرقام التسلسلية
+  track_serial_numbers?: boolean;
+  require_serial_on_sale?: boolean;
+  supports_imei?: boolean;
+
+  // الضمان
+  has_warranty?: boolean;
+  warranty_duration_months?: number;
+  warranty_months?: number; // اختصار لـ warranty_duration_months
+  warranty_type?: 'manufacturer' | 'store' | 'extended';
+
+  // الدفعات
+  track_batches?: boolean;
+  use_fifo?: boolean;
+
+  // === مستويات الأسعار ===
+  price_tiers?: Array<{
+    tier_type: 'retail' | 'wholesale' | 'vip' | 'reseller' | 'distributor';
+    min_quantity: number;
+    price: number;
+    discount_percentage?: number;
+  }>;
+
+  // === حقول خاصة بالنشاط ===
+
+  // صيدلية
+  requires_prescription?: boolean;
+  active_ingredient?: string;
+  dosage_form?: string;
+
+  // مطعم
+  preparation_time_minutes?: number;
+  calories?: number;
+  allergens?: string[];
+  is_vegetarian?: boolean;
+  is_vegan?: boolean;
+  is_gluten_free?: boolean;
+
+  // قطع غيار
+  oem_number?: string;
+  vehicle_make?: string;
+  vehicle_model?: string;
+  compatible_models?: string[];
+
+  // مواد بناء
+  material_type?: string;
+  weight_kg?: number;
+  dimensions?: string;
+  coverage_area?: number;
 }
 
 // Service Types
@@ -169,6 +263,11 @@ export interface OrderItem {
   name: string;
   isWholesale?: boolean; // Flag to indicate if wholesale pricing was applied
   originalPrice?: number; // Original retail price before wholesale discount
+  saleType?: 'retail' | 'wholesale' | 'partial_wholesale'; // نوع البيع
+  colorId?: string | null;
+  colorName?: string | null;
+  sizeId?: string | null;
+  sizeName?: string | null;
   variant_info?: {
     colorId?: string;
     colorName?: string;
@@ -177,6 +276,32 @@ export interface OrderItem {
     sizeName?: string;
     variantImage?: string;
   }; // معلومات المتغيرات (اللون والمقاس)
+
+  // === أنواع البيع المتقدمة ===
+
+  // البيع بالوزن
+  weight?: number;              // الوزن المحدد
+  weightUnit?: string;          // وحدة الوزن
+  pricePerWeightUnit?: number;  // السعر لكل وحدة وزن
+
+  // البيع بالعلبة
+  boxCount?: number;            // عدد الصناديق
+  unitsPerBox?: number;         // عدد الوحدات في الصندوق
+  boxPrice?: number;            // سعر الصندوق
+
+  // البيع بالمتر
+  length?: number;              // الطول بالمتر
+  pricePerMeter?: number;       // السعر لكل متر
+
+  // نوع الوحدة المستخدمة
+  sellingUnit?: 'piece' | 'weight' | 'box' | 'meter';
+
+  // معلومات الدفعة والصلاحية
+  batchId?: string;              // معرف الدفعة
+  batchNumber?: string;          // رقم الدفعة
+  expiryDate?: string;           // تاريخ انتهاء الصلاحية
+  serialNumber?: string;         // رقم تسلسلي واحد (للتوافقية)
+  serialNumbers?: string[];      // مصفوفة الأرقام التسلسلية
 }
 
 export interface ServiceBooking {

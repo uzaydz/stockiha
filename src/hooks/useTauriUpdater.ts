@@ -1,63 +1,28 @@
 /**
- * Tauri Updater Hook
- * يوفر واجهة موحدة للتعامل مع نظام التحديثات في Tauri
+ * Desktop Updater Hook
+ * Provides a unified interface for handling auto-updates
+ *
+ * ⚡ MIGRATED: From Tauri to Electron
+ *
+ * @deprecated Use useElectronUpdater or @/lib/desktop/updater directly
  */
 
 import { useCallback, useEffect, useState } from 'react';
+import {
+  isElectron,
+  updater,
+  initializeUpdaterListeners,
+} from '@/lib/desktop';
+import type { UpdateInfo, DownloadProgress, UpdateStatus } from '@/lib/desktop/types';
 
-// Types
-export type UpdateStatus =
-  | 'idle'
-  | 'checking'
-  | 'available'
-  | 'not-available'
-  | 'downloading'
-  | 'downloaded'
-  | 'installing'
-  | 'error';
-
-export interface UpdateInfo {
-  version: string;
-  currentVersion: string;
-  body?: string;
-  date?: string;
-}
-
-export interface DownloadProgress {
-  downloaded: number;
-  total: number;
-  percent: number;
-  bytesPerSecond: number;
-}
-
-interface UpdateEvent {
-  type: 'checking' | 'available' | 'not-available' | 'progress' | 'downloaded' | 'error' | 'installing';
-  info?: UpdateInfo;
-  progress?: DownloadProgress;
-  message?: string;
-  recoverable?: boolean;
-  currentVersion?: string;
-}
+// Re-export types for backward compatibility
+export type { UpdateInfo, DownloadProgress, UpdateStatus };
 
 interface CheckResult {
   available: boolean;
   info?: UpdateInfo;
   error?: string;
 }
-
-// Check if running in Tauri
-const isTauri = (): boolean => {
-  return typeof window !== 'undefined' && Boolean(
-    (window as any).__TAURI_IPC__ ||
-    (window as any).__TAURI__ ||
-    (window as any).__TAURI_INTERNALS__
-  );
-};
-
-// Check if running in Electron (to avoid conflicts)
-const isElectron = (): boolean => {
-  return typeof window !== 'undefined' && !!(window as any).electronAPI?.updater;
-};
 
 export function useTauriUpdater() {
   const [status, setStatus] = useState<UpdateStatus>('idle');
@@ -68,8 +33,8 @@ export function useTauriUpdater() {
   const [lastCheckTime, setLastCheckTime] = useState<Date | null>(null);
   const [isAvailable, setIsAvailable] = useState(false);
 
-  // Only use Tauri updater if in Tauri and not in Electron
-  const canUse = isTauri() && !isElectron();
+  // Check if updater is available
+  const canUse = isElectron() && updater.isAvailable();
 
   // Get current version
   useEffect(() => {
@@ -77,127 +42,81 @@ export function useTauriUpdater() {
 
     const getVersion = async () => {
       try {
-        const { invoke } = await import('@tauri-apps/api/core');
-        const version = await invoke<string>('get_version');
+        const version = await updater.getVersion();
         setCurrentVersion(version);
       } catch (err) {
-        console.warn('[TauriUpdater] Failed to get version:', err);
-        // Fallback to app API
-        try {
-          const { getVersion } = await import('@tauri-apps/api/app');
-          const version = await getVersion();
-          setCurrentVersion(version);
-        } catch {
-          setCurrentVersion('dev');
-        }
+        console.warn('[Updater] Failed to get version:', err);
+        setCurrentVersion('dev');
       }
     };
 
     getVersion();
   }, [canUse]);
 
-  // Listen to update events from Rust
+  // Setup event listeners
   useEffect(() => {
     if (!canUse) return;
 
-    let unlisten: (() => void) | undefined;
+    // Initialize listeners and subscribe to state changes
+    const cleanupListeners = initializeUpdaterListeners();
 
-    const setupListener = async () => {
-      try {
-        const { listen } = await import('@tauri-apps/api/event');
+    const unsubscribe = updater.subscribe((state) => {
+      setStatus(state.status);
 
-        unlisten = await listen<UpdateEvent>('tauri-update', (event) => {
-          const { payload } = event;
-          console.log('[TauriUpdater] Event received:', payload);
-
-          switch (payload.type) {
-            case 'checking':
-              setStatus('checking');
-              setError(null);
-              break;
-
-            case 'available':
-              setStatus('available');
-              setIsAvailable(true);
-              if (payload.info) {
-                setUpdateInfo(payload.info);
-              }
-              break;
-
-            case 'not-available':
-              setStatus('not-available');
-              setIsAvailable(false);
-              setLastCheckTime(new Date());
-              break;
-
-            case 'progress':
-              setStatus('downloading');
-              if (payload.progress) {
-                setProgress(payload.progress);
-              }
-              break;
-
-            case 'downloaded':
-              setStatus('downloaded');
-              if (payload.info) {
-                setUpdateInfo(payload.info);
-              }
-              break;
-
-            case 'installing':
-              setStatus('installing');
-              break;
-
-            case 'error':
-              // التعامل مع أخطاء عدم وجود الإصدار كحالة عادية
-              if (payload.message?.includes('Could not fetch') ||
-                  payload.message?.includes('release JSON') ||
-                  payload.message?.includes('404') ||
-                  payload.message?.includes('not found')) {
-                setStatus('not-available');
-                setIsAvailable(false);
-                setLastCheckTime(new Date());
-                console.log('[TauriUpdater] No releases found yet (this is normal for new apps)');
-              } else {
-                setStatus('error');
-                setError(payload.message || 'Unknown error');
-              }
-              break;
-          }
-        });
-      } catch (err) {
-        console.error('[TauriUpdater] Failed to setup listener:', err);
+      if (state.updateInfo) {
+        setUpdateInfo(state.updateInfo);
       }
-    };
 
-    setupListener();
+      if (state.downloadProgress) {
+        setProgress({
+          bytesPerSecond: state.downloadProgress.bytesPerSecond,
+          percent: state.downloadProgress.percent,
+          downloaded: state.downloadProgress.transferred,
+          total: state.downloadProgress.total,
+        });
+      }
+
+      if (state.error) {
+        setError(state.error);
+      }
+
+      // Update isAvailable based on status
+      setIsAvailable(state.status === 'available' || state.status === 'downloaded');
+
+      // Update lastCheckTime when check completes
+      if (state.status === 'available' || state.status === 'not-available') {
+        setLastCheckTime(new Date());
+      }
+    });
 
     return () => {
-      if (unlisten) {
-        unlisten();
-      }
+      unsubscribe();
+      cleanupListeners();
     };
   }, [canUse]);
 
   // Check for updates
   const checkForUpdates = useCallback(async (): Promise<CheckResult> => {
     if (!canUse) {
-      return { available: false, error: 'Not running in Tauri' };
+      return { available: false, error: 'Not running in Electron' };
     }
 
     try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      const result = await invoke<CheckResult>('check_for_updates');
+      await updater.checkForUpdates();
+
+      // Wait a bit for the state to update
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      const state = updater.getState();
       setLastCheckTime(new Date());
 
-      if (result.available && result.info) {
-        setUpdateInfo(result.info);
-        setIsAvailable(true);
-      }
-
-      return result;
-    } catch (err: any) {
-      const errorMsg = err?.message || String(err);
+      return {
+        available: state.status === 'available',
+        info: state.updateInfo,
+        error: state.error,
+      };
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
       setError(errorMsg);
       setStatus('error');
       return { available: false, error: errorMsg };
@@ -209,11 +128,10 @@ export function useTauriUpdater() {
     if (!canUse) return false;
 
     try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      const result = await invoke<boolean>('download_update');
-      return result;
-    } catch (err: any) {
-      const errorMsg = err?.message || String(err);
+      await updater.downloadUpdate();
+      return true;
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
       setError(errorMsg);
       setStatus('error');
       return false;
@@ -225,10 +143,9 @@ export function useTauriUpdater() {
     if (!canUse) return;
 
     try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      await invoke('install_update');
-    } catch (err: any) {
-      const errorMsg = err?.message || String(err);
+      await updater.quitAndInstall();
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
       setError(errorMsg);
       setStatus('error');
     }
@@ -238,27 +155,16 @@ export function useTauriUpdater() {
   const downloadAndInstall = useCallback(async (): Promise<void> => {
     const success = await downloadUpdate();
     if (success) {
+      // Wait for download to complete
+      await new Promise((resolve) => setTimeout(resolve, 500));
       await installUpdate();
     }
   }, [downloadUpdate, installUpdate]);
 
   // Get last check time
   const getLastCheckTime = useCallback(async (): Promise<Date | null> => {
-    if (!canUse) return null;
-
-    try {
-      const { invoke } = await import('@tauri-apps/api/core');
-      const time = await invoke<string | null>('get_last_check_time');
-      if (time) {
-        const date = new Date(time);
-        setLastCheckTime(date);
-        return date;
-      }
-      return null;
-    } catch {
-      return null;
-    }
-  }, [canUse]);
+    return lastCheckTime;
+  }, [lastCheckTime]);
 
   // Format bytes to human readable
   const formatBytes = useCallback((bytes: number): string => {
@@ -297,7 +203,7 @@ export function useTauriUpdater() {
     isChecking: status === 'checking',
     isDownloading: status === 'downloading',
     isDownloaded: status === 'downloaded',
-    isInstalling: status === 'installing',
+    isInstalling: false, // Electron doesn't have a separate installing state
     hasError: status === 'error',
     canUse,
 
@@ -313,5 +219,8 @@ export function useTauriUpdater() {
     formatTimeAgo,
   };
 }
+
+// Alias for backward compatibility
+export const useElectronUpdater = useTauriUpdater;
 
 export default useTauriUpdater;

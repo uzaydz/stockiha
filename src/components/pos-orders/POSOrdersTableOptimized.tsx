@@ -11,12 +11,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { DropdownMenu,
+import {
+  DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
- } from "@/components/ui/dropdown-menu";
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
 import {
   Pagination,
   PaginationContent,
@@ -30,14 +32,27 @@ import {
   Edit,
   Trash2,
   Printer,
-  MoreVertical,
+  MoreHorizontal,
   Package,
   AlertCircle,
+  User,
+  Calendar,
+  CreditCard,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  ArrowUpRight,
+  Phone,
+  FileText,
+  Receipt
 } from 'lucide-react';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, formatDistanceToNow } from 'date-fns';
 import { ar } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import type { POSOrderWithDetails } from '@/api/posOrdersService';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Progress } from '@/components/ui/progress';
 
 interface POSOrdersTableProps {
   orders: POSOrderWithDetails[];
@@ -55,143 +70,165 @@ interface POSOrdersTableProps {
   onStatusUpdate: (orderId: string, status: string) => Promise<boolean>;
 }
 
-// Status badge component
+// Helper for formatting currency
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat('ar-DZ', {
+    style: 'currency',
+    currency: 'DZD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
+};
+
+// Status Configuration مع دعم حالات المزامنة
+const STATUS_CONFIG = {
+  pending: { label: 'معلق', icon: Clock, className: 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-400 dark:border-amber-800' },
+  processing: { label: 'قيد المعالجة', icon: Package, className: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800' },
+  completed: { label: 'مكتمل', icon: CheckCircle2, className: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800' },
+  cancelled: { label: 'ملغي', icon: XCircle, className: 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800' },
+  fully_returned: { label: 'مرجعة بالكامل', icon: ArrowUpRight, className: 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-400 dark:border-purple-800' },
+  partially_returned: { label: 'مرجعة جزئياً', icon: ArrowUpRight, className: 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-800' },
+  // ⚡ حالات المزامنة
+  pending_sync: { label: 'قيد المزامنة', icon: Clock, className: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800' },
+  synced: { label: 'مُزامَن', icon: CheckCircle2, className: 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-400 dark:border-emerald-800' },
+  syncing: { label: 'جاري المزامنة', icon: Clock, className: 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-800' },
+  failed: { label: 'فشل المزامنة', icon: XCircle, className: 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800' },
+};
+
 const StatusBadge = React.memo<{ status: string }>(({ status }) => {
-  const config = {
-    pending: { label: 'معلق', className: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' },
-    processing: { label: 'قيد المعالجة', className: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' },
-    completed: { label: 'مكتمل', className: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' },
-    cancelled: { label: 'ملغي', className: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' },
-    fully_returned: { label: 'مرجعة بالكامل', className: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300' },
-    partially_returned: { label: 'مرجعة جزئياً', className: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300' },
-  };
-
-  const { label, className } = config[status as keyof typeof config] || {
+  const config = STATUS_CONFIG[status as keyof typeof STATUS_CONFIG] || {
     label: status,
-    className: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300',
+    icon: AlertCircle,
+    className: 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700',
   };
+  const Icon = config.icon;
 
-  return <Badge className={cn('font-medium', className)}>{label}</Badge>;
+  return (
+    <div className={cn('flex items-center w-fit px-2.5 py-0.5 rounded-full text-xs font-medium border shadow-sm', config.className)}>
+      <Icon className="w-3 h-3 mr-1.5" />
+      {config.label}
+    </div>
+  );
 });
-
 StatusBadge.displayName = 'StatusBadge';
 
-// Payment status badge component
-const PaymentStatusBadge = React.memo<{ order: POSOrderWithDetails }>(({ order }) => {
+// Payment Progress Component
+const PaymentProgress = React.memo<{ order: POSOrderWithDetails }>(({ order }) => {
   const total = parseFloat(order.total.toString());
   const amountPaid = parseFloat(order.amount_paid?.toString() || '0');
+  const percentage = Math.min(100, Math.max(0, (amountPaid / total) * 100));
   
-  // إضافة تسجيل للتحقق من البيانات
-  
-  // تحديد حالة الدفع الفعلية بناءً على البيانات
-  let status = order.payment_status;
-  let label = '';
-  let className = '';
-  
-  // إذا كان المبلغ المدفوع أقل من المجموع وتم تعيين consider_remaining_as_partial
-  if (amountPaid < total && order.consider_remaining_as_partial === true) {
-    status = 'partial';
-    label = 'دفع جزئي';
-    className = 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300';
-  }
-  // إذا كان المبلغ المدفوع أقل من المجموع ولم يتم تعيين consider_remaining_as_partial (تخفيض)
-  else if (amountPaid < total && order.consider_remaining_as_partial !== true) {
-    status = 'paid';
-    label = 'مدفوع';
-    className = 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
-  }
-  // إذا كان المبلغ المدفوع يساوي أو أكبر من المجموع
-  else if (amountPaid >= total) {
-    status = 'paid';
-    label = 'مدفوع';
-    className = 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300';
-  }
-  // إذا لم يتم الدفع أصلاً
-  else if (amountPaid === 0) {
-    status = 'unpaid';
-    label = 'غير مدفوع';
-    className = 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300';
-  }
-  // استخدام حالة الدفع من قاعدة البيانات كـ fallback
-  else {
-    const config = {
-      paid: { label: 'مدفوع', className: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' },
-      unpaid: { label: 'غير مدفوع', className: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' },
-      partial: { label: 'دفع جزئي', className: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300' },
-    };
+  let statusColor = 'bg-emerald-500';
+  let statusText = 'مدفوع';
+  let textColor = 'text-emerald-600';
 
-    const statusConfig = config[order.payment_status as keyof typeof config] || {
-      label: order.payment_status,
-      className: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300',
-    };
-    
-    label = statusConfig.label;
-    className = statusConfig.className;
+  if (amountPaid === 0) {
+    statusColor = 'bg-red-500';
+    statusText = 'غير مدفوع';
+    textColor = 'text-red-600';
+  } else if (amountPaid < total) {
+    statusColor = 'bg-amber-500';
+    statusText = 'جزئي';
+    textColor = 'text-amber-600';
   }
 
-  return <Badge variant="outline" className={cn('font-medium text-xs', className)}>{label}</Badge>;
+  // Override based on payment_status if needed
+  if (order.payment_status === 'unpaid') {
+      statusColor = 'bg-red-500';
+      statusText = 'غير مدفوع';
+      textColor = 'text-red-600';
+  }
+
+  return (
+    <div className="w-full max-w-[140px]">
+      <div className="flex justify-between text-xs mb-1.5">
+        <span className={cn("font-medium", textColor)}>{statusText}</span>
+        <span className="text-muted-foreground">{Math.round(percentage)}%</span>
+      </div>
+      <Progress value={percentage} className="h-2" indicatorClassName={statusColor} />
+      {amountPaid < total && amountPaid > 0 && (
+        <div className="text-[10px] text-muted-foreground mt-1 text-right">
+          متبقي: {formatCurrency(total - amountPaid)}
+        </div>
+      )}
+    </div>
+  );
 });
+PaymentProgress.displayName = 'PaymentProgress';
 
-PaymentStatusBadge.displayName = 'PaymentStatusBadge';
+// Customer Cell Component
+const CustomerCell = React.memo<{ order: POSOrderWithDetails }>(({ order }) => {
+  const customerName = order.customer?.name || 'زائر';
+  const customerPhone = order.customer?.phone;
+  
+  return (
+    <div className="flex items-center gap-3">
+      <Avatar className="h-9 w-9 border border-border/50">
+        <AvatarImage src={order.customer?.avatar_url || undefined} />
+        <AvatarFallback className={cn(order.customer ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>
+          {customerName.charAt(0).toUpperCase()}
+        </AvatarFallback>
+      </Avatar>
+      <div className="flex flex-col">
+        <span className="text-sm font-medium text-foreground line-clamp-1">
+          {customerName}
+        </span>
+        {customerPhone ? (
+          <div className="flex items-center text-xs text-muted-foreground gap-1">
+            <Phone className="h-3 w-3" />
+            <span dir="ltr">{customerPhone}</span>
+          </div>
+        ) : (
+          <span className="text-xs text-muted-foreground">عميل نقدي</span>
+        )}
+      </div>
+    </div>
+  );
+});
+CustomerCell.displayName = 'CustomerCell';
 
-// Table row skeleton
+// Order ID & Date Cell
+const OrderInfoCell = React.memo<{ order: POSOrderWithDetails }>(({ order }) => {
+  const date = parseISO(order.created_at);
+  
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2">
+        <span className="font-bold text-sm font-mono bg-muted/50 px-2 py-0.5 rounded text-foreground">
+          #{order.slug?.slice(-8) || order.id.slice(-8)}
+        </span>
+      </div>
+      <div className="flex items-center text-xs text-muted-foreground gap-1" title={format(date, 'PPP pp', { locale: ar })}>
+        <Calendar className="h-3 w-3" />
+        <span>{format(date, 'd MMM', { locale: ar })}</span>
+        <span className="text-border">|</span>
+        <Clock className="h-3 w-3" />
+        <span>{format(date, 'HH:mm')}</span>
+      </div>
+    </div>
+  );
+});
+OrderInfoCell.displayName = 'OrderInfoCell';
+
+// Table Row Skeleton
 const TableRowSkeleton = () => (
-  <TableRow>
-    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+  <TableRow className="hover:bg-transparent">
+    <TableCell><Skeleton className="h-10 w-10 rounded-full" /></TableCell>
+    <TableCell>
+      <div className="flex flex-col gap-2">
+        <Skeleton className="h-4 w-24" />
+        <Skeleton className="h-3 w-16" />
+      </div>
+    </TableCell>
     <TableCell><Skeleton className="h-4 w-32" /></TableCell>
-    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-    <TableCell><Skeleton className="h-6 w-20" /></TableCell>
-    <TableCell><Skeleton className="h-6 w-16" /></TableCell>
-    <TableCell><Skeleton className="h-4 w-24" /></TableCell>
-    <TableCell><Skeleton className="h-4 w-20" /></TableCell>
-    <TableCell><Skeleton className="h-6 w-16" /></TableCell>
-    <TableCell><Skeleton className="h-6 w-20" /></TableCell>
-    <TableCell><Skeleton className="h-4 w-28" /></TableCell>
-    <TableCell><Skeleton className="h-8 w-8 rounded" /></TableCell>
+    <TableCell><Skeleton className="h-6 w-20 rounded-full" /></TableCell>
+    <TableCell><Skeleton className="h-2 w-24 mb-2" /><Skeleton className="h-3 w-12" /></TableCell>
+    <TableCell><Skeleton className="h-5 w-20" /></TableCell>
+    <TableCell><Skeleton className="h-8 w-8 rounded-md" /></TableCell>
   </TableRow>
 );
 
-// Sale type badge component  
-const SaleTypeBadge = React.memo<{ order: POSOrderWithDetails }>(({ order }) => {
-  // حل مؤقت: فحص metadata من قاعدة البيانات مباشرة إذا لم تكن متوفرة
-  const [hasSubscriptionInfo, setHasSubscriptionInfo] = React.useState(false);
-  const [isChecking, setIsChecking] = React.useState(false);
-
-  React.useEffect(() => {
-    // إذا كانت metadata موجودة، استخدمها مباشرة
-    if (order.metadata && 
-        typeof order.metadata === 'object' &&
-        order.metadata !== null &&
-        'subscriptionAccountInfo' in order.metadata) {
-      setHasSubscriptionInfo(true);
-      return;
-    }
-
-    // حل مؤقت: فحص الطلبيات المعروفة التي تحتوي على معلومات اشتراك
-    const knownSubscriptionOrders = ['4627df86-4f20-4c2b-b21f-18aaed85a5e2'];
-    if (knownSubscriptionOrders.includes(order.id)) {
-      setHasSubscriptionInfo(true);
-    }
-  }, [order.id, order.metadata]);
-
-  if (hasSubscriptionInfo || (order.notes && order.notes.includes('اشتراك'))) {
-    return (
-      <Badge className="bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
-        خدمة اشتراك
-      </Badge>
-    );
-  }
-  
-  return (
-    <Badge variant="outline" className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-      بيع منتج
-    </Badge>
-  );
-});
-
-SaleTypeBadge.displayName = 'SaleTypeBadge';
-
-// Order row component
+// Main Row Component
 const OrderRow = React.memo<{
   order: POSOrderWithDetails;
   onView: () => void;
@@ -200,182 +237,139 @@ const OrderRow = React.memo<{
   onPrint: () => void;
   onStatusUpdate: (status: string) => Promise<void>;
 }>(({ order, onView, onEdit, onDelete, onPrint, onStatusUpdate }) => {
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('ar-DZ', {
-      style: 'currency',
-      currency: 'DZD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
-  const handleQuickStatusUpdate = useCallback(async (newStatus: string) => {
-    await onStatusUpdate(newStatus);
+  
+  const handleQuickStatusUpdate = useCallback((newStatus: string) => {
+    onStatusUpdate(newStatus);
   }, [onStatusUpdate]);
 
-  // تحديد نوع الدفع
-  const getPaymentType = () => {
-    const total = parseFloat(order.total.toString());
-    const amountPaid = parseFloat(order.amount_paid?.toString() || '0');
-    const remainingAmount = parseFloat(order.remaining_amount?.toString() || '0');
-    const discount = parseFloat((order as any).discount?.toString() || '0');
-    
-    // إضافة تسجيل للتحقق من البيانات
-    
-    // إذا كان المبلغ المدفوع أقل من المجموع وتم تعيين consider_remaining_as_partial
-    if (amountPaid < total && order.consider_remaining_as_partial === true) {
-      return { type: 'partial', label: 'دفعة جزئية', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300' };
-    }
-    
-    // حالة التخفيض: وجود خصم وعدم اعتبار المتبقي كدفعة جزئية
-    if (discount > 0 && order.consider_remaining_as_partial !== true) {
-      return { type: 'discount', label: 'تخفيض', color: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300' };
-    }
-    
-    // إذا كان المبلغ المدفوع يساوي أو أكبر من المجموع
-    if (amountPaid >= total) {
-      return { type: 'full', label: 'دفع كامل', color: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300' };
-    }
-    
-    // إذا لم يتم الدفع أصلاً
-    if (amountPaid === 0) {
-      return { type: 'unpaid', label: 'لم يتم الدفع', color: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' };
-    }
-    
-    // إذا كان المبلغ المدفوع أقل من المجموع (حالة الدفع الجزئي)
-    if (amountPaid < total) {
-      return { type: 'partial', label: 'دفعة جزئية', color: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300' };
-    }
-    
-    return { type: 'unknown', label: 'غير محدد', color: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300' };
-  };
-
-  const paymentType = getPaymentType();
-
   return (
-    <TableRow className="hover:bg-muted/50 transition-colors">
-      <TableCell className="font-medium">
-        #{order.slug?.slice(-8) || order.id.slice(-8)}
+    <TableRow className="group hover:bg-muted/30 transition-colors data-[state=selected]:bg-muted">
+      <TableCell className="w-[200px]">
+        <OrderInfoCell order={order} />
       </TableCell>
-      <TableCell>
-        {order.customer ? (
-          <div className="text-sm">
-            <p className="font-medium">{order.customer.name}</p>
-            {order.customer.phone && (
-              <p className="text-muted-foreground">{order.customer.phone}</p>
-            )}
-          </div>
-        ) : (
-          <div className="text-sm">
-            <p className="font-medium text-muted-foreground">زائر</p>
-            <p className="text-xs text-muted-foreground">عميل نقدي</p>
-          </div>
-        )}
+      
+      <TableCell className="w-[250px]">
+        <CustomerCell order={order} />
       </TableCell>
+
       <TableCell>
-        <div className="flex items-center gap-1">
-          <Package className="h-4 w-4 text-muted-foreground" />
-          <span>{order.items_count}</span>
-          {order.has_returns && (
-            <Badge variant="outline" className="text-xs ml-1 text-purple-600">
-              مرتجع
-            </Badge>
-          )}
+        <div className="flex flex-col gap-1.5">
+           <div className="flex items-center gap-2 text-sm">
+              <Badge variant="outline" className="bg-background font-normal gap-1">
+                <Package className="h-3 w-3" />
+                {order.items_count} منتجات
+              </Badge>
+              {order.has_returns && (
+                <Badge variant="destructive" className="text-[10px] px-1.5 h-5">مرتجع</Badge>
+              )}
+           </div>
+           {(order.notes || (order.metadata as any)?.notes) && (
+             <TooltipProvider>
+               <Tooltip>
+                 <TooltipTrigger asChild>
+                   <div className="flex items-center gap-1 text-xs text-muted-foreground max-w-[150px] truncate cursor-help">
+                     <FileText className="h-3 w-3" />
+                     <span>{order.notes || (order.metadata as any)?.notes}</span>
+                   </div>
+                 </TooltipTrigger>
+                 <TooltipContent>
+                   <p>{order.notes || (order.metadata as any)?.notes}</p>
+                 </TooltipContent>
+               </Tooltip>
+             </TooltipProvider>
+           )}
         </div>
       </TableCell>
-      <TableCell>
-        <SaleTypeBadge order={order} />
-      </TableCell>
+
       <TableCell>
         <StatusBadge status={order.status} />
       </TableCell>
-      <TableCell>
-        <div className="text-right">
+
+      <TableCell className="min-w-[150px]">
+        <PaymentProgress order={order} />
+      </TableCell>
+
+      <TableCell className="text-right">
+        <div className="font-bold text-base">
           {formatCurrency(parseFloat(order.total))}
-          {order.has_returns && order.total_returned_amount && order.total_returned_amount > 0 && (
-            <div className="text-xs text-muted-foreground">
-              مرتجع: {formatCurrency(order.total_returned_amount)}
-            </div>
-          )}
         </div>
+        {order.discount && parseFloat(order.discount.toString()) > 0 && (
+             <div className="text-xs text-green-600">
+               خصم: {formatCurrency(parseFloat(order.discount.toString()))}
+             </div>
+        )}
       </TableCell>
+
       <TableCell>
-        <div className="text-right">
-          <span className="font-medium">
-            {formatCurrency(parseFloat(order.amount_paid?.toString() || '0'))}
-          </span>
-          {order.remaining_amount && parseFloat(order.remaining_amount.toString()) > 0 && (
-            <div className="text-xs text-muted-foreground">
-              متبقي: {formatCurrency(parseFloat(order.remaining_amount.toString()))}
-            </div>
-          )}
+        <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+          <TooltipProvider>
+             <Tooltip>
+               <TooltipTrigger asChild>
+                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onPrint}>
+                   <Printer className="h-4 w-4 text-muted-foreground" />
+                 </Button>
+               </TooltipTrigger>
+               <TooltipContent>طباعة</TooltipContent>
+             </Tooltip>
+          </TooltipProvider>
+
+          <TooltipProvider>
+             <Tooltip>
+               <TooltipTrigger asChild>
+                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={onView}>
+                   <Eye className="h-4 w-4 text-muted-foreground" />
+                 </Button>
+               </TooltipTrigger>
+               <TooltipContent>عرض التفاصيل</TooltipContent>
+             </Tooltip>
+          </TooltipProvider>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-8 w-8">
+                <MoreHorizontal className="h-4 w-4 text-muted-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuLabel>إجراءات الطلب</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={onEdit}>
+                <Edit className="h-4 w-4 ml-2" />
+                تعديل
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onPrint}>
+                <Receipt className="h-4 w-4 ml-2" />
+                طباعة الفاتورة
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem 
+                onClick={() => handleQuickStatusUpdate('completed')}
+                disabled={order.status === 'completed'}
+                className="text-emerald-600 focus:text-emerald-700 focus:bg-emerald-50 dark:focus:bg-emerald-900/20"
+              >
+                <CheckCircle2 className="h-4 w-4 ml-2" />
+                تحديد كمكتمل
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => handleQuickStatusUpdate('cancelled')}
+                disabled={order.status === 'cancelled'}
+                className="text-red-600 focus:text-red-700 focus:bg-red-50 dark:focus:bg-red-900/20"
+              >
+                <XCircle className="h-4 w-4 ml-2" />
+                إلغاء الطلب
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={onDelete} className="text-red-600 focus:text-red-700 focus:bg-red-50 dark:focus:bg-red-900/20">
+                <Trash2 className="h-4 w-4 ml-2" />
+                حذف
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-      </TableCell>
-      <TableCell>
-        <Badge className={cn('font-medium text-xs', paymentType.color)}>
-          {paymentType.label}
-        </Badge>
-      </TableCell>
-      <TableCell>
-        <PaymentStatusBadge order={order} />
-      </TableCell>
-      <TableCell>
-        <span className="text-sm text-muted-foreground">
-          {(() => {
-            try {
-              return format(parseISO(order.created_at), 'dd/MM/yyyy HH:mm', { locale: ar });
-            } catch (error) {
-              return format(new Date(order.created_at), 'dd/MM/yyyy HH:mm', { locale: ar });
-            }
-          })()}
-        </span>
-      </TableCell>
-      <TableCell>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-8 w-8">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem onClick={onView}>
-              <Eye className="h-4 w-4 ml-2" />
-              عرض التفاصيل
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={onEdit}>
-              <Edit className="h-4 w-4 ml-2" />
-              تعديل الطلبية
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={onPrint}>
-              <Printer className="h-4 w-4 ml-2" />
-              طباعة الفاتورة
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem 
-              onClick={() => handleQuickStatusUpdate('completed')}
-              disabled={order.status === 'completed'}
-            >
-              <span className="text-green-600">تحديد كمكتمل</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem 
-              onClick={() => handleQuickStatusUpdate('cancelled')}
-              disabled={order.status === 'cancelled'}
-              className="text-red-600"
-            >
-              <span>إلغاء الطلبية</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={onDelete} className="text-red-600">
-              <Trash2 className="h-4 w-4 ml-2" />
-              حذف الطلبية
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
       </TableCell>
     </TableRow>
   );
 });
-
 OrderRow.displayName = 'OrderRow';
 
 export const POSOrdersTableOptimized = React.memo<POSOrdersTableProps>(({
@@ -393,8 +387,7 @@ export const POSOrdersTableOptimized = React.memo<POSOrdersTableProps>(({
   onOrderPrint,
   onStatusUpdate,
 }) => {
-  // إضافة debugging للتحقق من البيانات المُمررة للمكون
-  // Pagination helpers
+  
   const paginationRange = useMemo(() => {
     const delta = 2;
     const range = [];
@@ -425,33 +418,37 @@ export const POSOrdersTableOptimized = React.memo<POSOrdersTableProps>(({
     return rangeWithDots;
   }, [currentPage, totalPages]);
 
-  // Empty state
   if (!loading && orders.length === 0) {
     return (
-      <Card>
-        <CardContent className="flex flex-col items-center justify-center py-12">
-          <Package className="h-12 w-12 text-muted-foreground mb-4" />
-          <h3 className="text-lg font-semibold mb-2">لا توجد طلبيات</h3>
-          <p className="text-sm text-muted-foreground text-center">
-            لم يتم العثور على أي طلبيات تطابق معايير البحث المحددة.
+      <Card className="border-dashed">
+        <CardContent className="flex flex-col items-center justify-center py-16">
+          <div className="bg-muted/50 p-4 rounded-full mb-4">
+            <Package className="h-12 w-12 text-muted-foreground" />
+          </div>
+          <h3 className="text-xl font-semibold mb-2">لا توجد طلبيات</h3>
+          <p className="text-muted-foreground text-center max-w-sm mb-6">
+            لم يتم العثور على أي طلبيات تطابق معايير البحث المحددة. جرب تغيير الفلاتر أو إنشاء طلبية جديدة.
           </p>
+          <Button variant="outline" onClick={() => window.location.reload()}>
+            تحديث الصفحة
+          </Button>
         </CardContent>
       </Card>
     );
   }
 
-  // Error state
   if (error) {
     return (
-      <Card className="bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800">
+      <Card className="bg-destructive/5 border-destructive/20">
         <CardContent className="flex flex-col items-center justify-center py-12">
-          <AlertCircle className="h-12 w-12 text-red-500 mb-4" />
-          <h3 className="text-lg font-semibold mb-2 text-red-900 dark:text-red-100">
-            حدث خطأ
-          </h3>
-          <p className="text-sm text-red-700 dark:text-red-300 text-center">
+          <AlertCircle className="h-12 w-12 text-destructive mb-4" />
+          <h3 className="text-lg font-semibold mb-2 text-destructive">حدث خطأ في تحميل البيانات</h3>
+          <p className="text-sm text-muted-foreground text-center mb-4">
             {error}
           </p>
+          <Button variant="outline" onClick={() => window.location.reload()}>
+            محاولة مرة أخرى
+          </Button>
         </CardContent>
       </Card>
     );
@@ -459,101 +456,90 @@ export const POSOrdersTableOptimized = React.memo<POSOrdersTableProps>(({
 
   return (
     <div className="space-y-4">
-      <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-b bg-muted/50">
-                  <TableHead className="text-right">رقم الطلبية</TableHead>
-                  <TableHead className="text-right">العميل</TableHead>
-                  <TableHead className="text-right">المنتجات</TableHead>
-                  <TableHead className="text-right">نوع البيع</TableHead>
-                  <TableHead className="text-right">الحالة</TableHead>
-                  <TableHead className="text-right">المجموع</TableHead>
-                  <TableHead className="text-right">المبلغ المدفوع</TableHead>
-                  <TableHead className="text-right">نوع الدفع</TableHead>
-                  <TableHead className="text-right">حالة الدفع</TableHead>
-                  <TableHead className="text-right">التاريخ</TableHead>
-                  <TableHead className="text-center w-[50px]">إجراءات</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
-                  Array.from({ length: 5 }).map((_, index) => (
-                    <TableRowSkeleton key={index} />
-                  ))
-                ) : (
-                  orders.map((order) => (
-                    <OrderRow
-                      key={order.id}
-                      order={order}
-                      onView={() => onOrderView(order)}
-                      onEdit={() => onOrderEdit(order)}
-                      onDelete={() => onOrderDelete(order)}
-                      onPrint={() => onOrderPrint(order)}
-                      onStatusUpdate={async (status) => {
-                        await onStatusUpdate(order.id, status);
-                      }}
-                    />
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/40 hover:bg-muted/40">
+              <TableHead className="text-right font-semibold">الطلبية</TableHead>
+              <TableHead className="text-right font-semibold">العميل</TableHead>
+              <TableHead className="text-right font-semibold">التفاصيل</TableHead>
+              <TableHead className="text-right font-semibold">الحالة</TableHead>
+              <TableHead className="text-right font-semibold">الدفع</TableHead>
+              <TableHead className="text-right font-semibold">الإجمالي</TableHead>
+              <TableHead className="w-[100px]"></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loading ? (
+              Array.from({ length: 5 }).map((_, index) => (
+                <TableRowSkeleton key={index} />
+              ))
+            ) : (
+              orders.map((order) => (
+                <OrderRow
+                  key={order.id}
+                  order={order}
+                  onView={() => onOrderView(order)}
+                  onEdit={() => onOrderEdit(order)}
+                  onDelete={() => onOrderDelete(order)}
+                  onPrint={() => onOrderPrint(order)}
+                  onStatusUpdate={async (status) => {
+                    await onStatusUpdate(order.id, status);
+                  }}
+                />
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
-      {/* Pagination */}
+      {/* Improved Pagination */}
       {totalPages > 1 && (
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                عرض {((currentPage - 1) * itemsPerPage) + 1} إلى{' '}
-                {Math.min(currentPage * itemsPerPage, totalItems)} من أصل{' '}
-                {totalItems} طلبية
-              </p>
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-2">
+          <p className="text-sm text-muted-foreground order-2 sm:order-1">
+            عرض {((currentPage - 1) * itemsPerPage) + 1} - {Math.min(currentPage * itemsPerPage, totalItems)} من {totalItems}
+          </p>
+          
+          <Pagination className="justify-end order-1 sm:order-2 w-auto">
+            <PaginationContent>
+              <PaginationItem>
+                <PaginationPrevious
+                  onClick={() => currentPage > 1 && onPageChange(currentPage - 1)}
+                  className={cn(
+                    "cursor-pointer",
+                    currentPage === 1 && 'pointer-events-none opacity-50'
+                  )}
+                />
+              </PaginationItem>
               
-              <Pagination>
-                <PaginationContent>
-                  <PaginationItem>
-                    <PaginationPrevious
-                      onClick={() => onPageChange(currentPage - 1)}
-                      className={cn(
-                        currentPage === 1 && 'pointer-events-none opacity-50'
-                      )}
-                    />
-                  </PaginationItem>
-                  
-                  {paginationRange.map((page, index) => (
-                    <PaginationItem key={index}>
-                      {page === '...' ? (
-                        <span className="px-3">...</span>
-                      ) : (
-                        <PaginationLink
-                          onClick={() => onPageChange(page as number)}
-                          isActive={currentPage === page}
-                        >
-                          {page}
-                        </PaginationLink>
-                      )}
-                    </PaginationItem>
-                  ))}
-                  
-                  <PaginationItem>
-                    <PaginationNext
-                      onClick={() => onPageChange(currentPage + 1)}
-                      className={cn(
-                        currentPage === totalPages && 'pointer-events-none opacity-50'
-                      )}
-                    />
-                  </PaginationItem>
-                </PaginationContent>
-              </Pagination>
-            </div>
-          </CardContent>
-        </Card>
+              {paginationRange.map((page, index) => (
+                <PaginationItem key={index}>
+                  {page === '...' ? (
+                    <span className="px-4 text-muted-foreground">...</span>
+                  ) : (
+                    <PaginationLink
+                      onClick={() => onPageChange(page as number)}
+                      isActive={currentPage === page}
+                      className="cursor-pointer"
+                    >
+                      {page}
+                    </PaginationLink>
+                  )}
+                </PaginationItem>
+              ))}
+              
+              <PaginationItem>
+                <PaginationNext
+                  onClick={() => currentPage < totalPages && onPageChange(currentPage + 1)}
+                  className={cn(
+                    "cursor-pointer",
+                    currentPage === totalPages && 'pointer-events-none opacity-50'
+                  )}
+                />
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
       )}
     </div>
   );

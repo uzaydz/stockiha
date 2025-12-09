@@ -313,9 +313,24 @@ const fetchPOSOrdersDashboard = async (
       let stats: POSOrderStats;
       
       try {
-        const { data: statsData, error: statsError } = await supabase.rpc('get_pos_order_stats', {
-          p_organization_id: orgId
-        });
+        // ⚡ استخدام الخدمة الموحدة Offline-First
+        const { unifiedOrderService } = await import('@/services/UnifiedOrderService');
+        unifiedOrderService.setOrganizationId(orgId);
+        const orderStats = await unifiedOrderService.getOrderStats();
+        
+        const statsData = {
+          total_orders: orderStats.total_orders,
+          total_revenue: orderStats.total_revenue,
+          completed_orders: orderStats.orders_by_status.completed || 0,
+          pending_orders: orderStats.orders_by_status.pending || 0,
+          pending_payment_orders: orderStats.total_pending > 0 ? 1 : 0,
+          cancelled_orders: orderStats.orders_by_status.cancelled || 0,
+          cash_orders: orderStats.orders_by_payment_method.cash || 0,
+          card_orders: orderStats.orders_by_payment_method.card || 0,
+          avg_order_value: orderStats.total_orders > 0 ? orderStats.total_revenue / orderStats.total_orders : 0,
+          today_orders: 0, // TODO: حساب من getTodayStats
+          today_revenue: 0
+        };
 
         if (statsError) throw statsError;
         stats = Array.isArray(statsData) ? statsData[0] : statsData;

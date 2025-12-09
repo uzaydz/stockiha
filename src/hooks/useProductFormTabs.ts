@@ -79,7 +79,8 @@ export const useProductFormTabs = ({
         return productColors.length > 0 ? 'complete' : 'empty';
       case 'shipping_templates':
         return 'optional';
-      
+      case 'selling_types':
+        return 'optional';
       case 'advanced':
         return 'optional';
       default:
@@ -139,6 +140,16 @@ export const useProductFormTabs = ({
       required: false,
       tooltip: "إعداد خيارات التوصيل والنماذج المختلفة",
       color: "green"
+    },
+    {
+      value: "selling_types",
+      label: "أنواع البيع المتقدمة",
+      shortLabel: "متقدم",
+      icon: "Boxes",
+      description: "البيع بالوزن، الكرتون، المتر",
+      required: false,
+      tooltip: "إعدادات البيع بالوزن والكرتون والمتر والتتبع والضمان",
+      color: "teal"
     },
     {
       value: "advanced",

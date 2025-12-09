@@ -1,0 +1,197 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# 🚀 BAZAAR CONSOLE - POWERSYNC SYNC RULES (FIXED)
+# ═══════════════════════════════════════════════════════════════════════════════
+# 
+# ✅ يستخدم aliases لمطابقة Schema المحلي
+# ✅ يستخدم token_parameters.user_id
+# ✅ يجلب organization_id من جدول users
+#
+# ═══════════════════════════════════════════════════════════════════════════════
+
+bucket_definitions:
+  org_data:
+    parameters:
+      - SELECT organization_id as org_id
+        FROM users
+        WHERE id = token_parameters.user_id
+
+    data:
+      # ═══════════════════════════════════════════════════════════════════════
+      # 📦 PRODUCTS (مع aliases لمطابقة Schema المحلي)
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          organization_id,
+          name,
+          description,
+          price as selling_price,
+          compare_at_price,
+          purchase_price,
+          purchase_price as cost_price,
+          sku,
+          barcode,
+          slug,
+          category_id,
+          subcategory_id,
+          supplier_id,
+          stock_quantity,
+          min_stock_level,
+          thumbnail_image as image_url,
+          thumbnail_image,
+          has_variants,
+          is_active,
+          wholesale_price,
+          partial_wholesale_price,
+          min_wholesale_quantity,
+          min_partial_wholesale_quantity,
+          tax_rate,
+          last_inventory_update,
+          created_at,
+          updated_at
+        FROM products
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 📁 PRODUCT_CATEGORIES
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT id, organization_id, name, description, image_url, created_at, updated_at
+        FROM product_categories
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 📂 PRODUCT_SUBCATEGORIES
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT id, organization_id, category_id, name, description, created_at, updated_at
+        FROM product_subcategories
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 👤 CUSTOMERS
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT id, organization_id, name, email, phone, address, created_at, updated_at
+        FROM customers
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 🛒 ORDERS
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          organization_id,
+          customer_id,
+          employee_id,
+          subtotal,
+          tax,
+          discount,
+          total,
+          status,
+          payment_method,
+          payment_status,
+          notes,
+          amount_paid,
+          remaining_amount,
+          pos_order_type,
+          created_at,
+          updated_at
+        FROM orders
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 📝 ORDER_ITEMS
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          organization_id,
+          order_id,
+          product_id,
+          product_name,
+          quantity,
+          unit_price,
+          total_price,
+          color_id,
+          size_id,
+          color_name,
+          size_name,
+          created_at
+        FROM order_items
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 🏭 SUPPLIERS
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          organization_id,
+          name,
+          company_name,
+          email,
+          phone,
+          address,
+          notes,
+          is_active,
+          created_at,
+          updated_at
+        FROM suppliers
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 💰 TRANSACTIONS
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          organization_id,
+          order_id,
+          amount,
+          type,
+          payment_method,
+          description,
+          employee_id,
+          created_at
+        FROM transactions
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 👥 USERS
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          organization_id,
+          email,
+          name as full_name,
+          phone,
+          role,
+          created_at,
+          updated_at
+        FROM users
+        WHERE organization_id = bucket.org_id
+
+      # ═══════════════════════════════════════════════════════════════════════
+      # 🏢 ORGANIZATIONS
+      # ═══════════════════════════════════════════════════════════════════════
+      - SELECT 
+          id,
+          name,
+          owner_id,
+          subscription_tier,
+          subscription_status,
+          settings,
+          created_at,
+          updated_at
+        FROM organizations
+        WHERE id = bucket.org_id
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

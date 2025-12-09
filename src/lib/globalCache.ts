@@ -17,10 +17,13 @@ class GlobalCacheManager {
   private readonly ORGANIZATION_TTL = 10 * 60 * 1000; // 10 دقائق للبيانات الأساسية للمؤسسة
   private readonly USER_TTL = 20 * 60 * 1000; // 20 دقيقة للبيانات الأساسية للمستخدم
   private readonly SUBSCRIPTION_TTL = 30 * 60 * 1000; // 30 دقيقة للبيانات الاشتراك
+  // ⚡ إضافة حد أقصى للكاش لمنع تسرب الذاكرة
+  private readonly MAX_CACHE_SIZE = 50;
+  private cleanupInterval: ReturnType<typeof setInterval> | null = null;
 
   // تنظيف الكاش المنتهي الصلاحية دورياً
   constructor() {
-    setInterval(() => this.cleanup(), 5 * 60 * 1000); // كل 5 دقائق
+    this.cleanupInterval = setInterval(() => this.cleanup(), 5 * 60 * 1000); // كل 5 دقائق
   }
 
   private cleanup(): void {
@@ -52,11 +55,33 @@ class GlobalCacheManager {
 
   // حفظ بيانات في الكاش
   set<T>(key: string, data: T, ttl?: number): void {
+    // ⚡ LRU eviction - حذف الأقدم إذا امتلأ الكاش
+    if (this.cache.size >= this.MAX_CACHE_SIZE && !this.cache.has(key)) {
+      this.evictOldest();
+    }
+
     this.cache.set(key, {
       data,
       timestamp: Date.now(),
       ttl: ttl || this.getDefaultTTL(key)
     });
+  }
+
+  // ⚡ حذف أقدم عنصر في الكاش
+  private evictOldest(): void {
+    let oldestKey: string | null = null;
+    let oldestTime = Infinity;
+
+    for (const [key, entry] of this.cache.entries()) {
+      if (entry.timestamp < oldestTime) {
+        oldestTime = entry.timestamp;
+        oldestKey = key;
+      }
+    }
+
+    if (oldestKey) {
+      this.cache.delete(oldestKey);
+    }
   }
 
   // الحصول على TTL الافتراضي بناءً على نوع البيانات
@@ -95,11 +120,21 @@ class GlobalCacheManager {
   }
 
   // معلومات عن الكاش
-  getStats(): { size: number; keys: string[] } {
+  getStats(): { size: number; keys: string[]; maxSize: number } {
     return {
       size: this.cache.size,
-      keys: Array.from(this.cache.keys())
+      keys: Array.from(this.cache.keys()),
+      maxSize: this.MAX_CACHE_SIZE
     };
+  }
+
+  // ⚡ تدمير الكاش وتنظيف الموارد
+  destroy(): void {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+    this.cache.clear();
   }
 
   // دالة مساعدة لإنشاء مفتاح كاش موحد

@@ -212,8 +212,17 @@ export function forceApplyOrganizationTheme(
 
 /**
  * مراقبة تغييرات النظام للوضع المظلم/الفاتح
+ * ⚡ v2.0: يُرجع cleanup function لمنع memory leaks
  */
-export function initializeSystemThemeListener(): void {
+// ⚡ حفظ reference للـ listener لمنع التكرار
+let systemThemeListenerCleanup: (() => void) | null = null;
+
+export function initializeSystemThemeListener(): () => void {
+  // ⚡ إذا كان هناك listener سابق، لا نُضيف جديد
+  if (systemThemeListenerCleanup) {
+    return systemThemeListenerCleanup;
+  }
+
   const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
   const handleChange = () => {
@@ -227,4 +236,12 @@ export function initializeSystemThemeListener(): void {
 
   // تطبيق الثيم الأولي
   handleChange();
+
+  // ⚡ إرجاع cleanup function
+  systemThemeListenerCleanup = () => {
+    mediaQuery.removeEventListener('change', handleChange);
+    systemThemeListenerCleanup = null;
+  };
+
+  return systemThemeListenerCleanup;
 }

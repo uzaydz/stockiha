@@ -1,22 +1,20 @@
 /**
  * Hook لتهيئة قاعدة البيانات تلقائياً
- * يستخدم في بداية التطبيق
+ *
+ * ⚡ تم التحديث لاستخدام PowerSync
+ * - PowerSync يعمل على جميع المنصات (Browser, Desktop)
+ * - التهيئة التلقائية
+ * - لا حاجة لـ migration يدوي
  */
 
 import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { initializeDatabase, getDatabaseType } from '@/database/localDb';
-import { migrateAllData, hasMigrated, type MigrationResult } from '@/lib/db/migrationTool';
-import { isElectron } from '@/lib/db/sqliteAPI';
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
 
 export interface DatabaseStatus {
   isInitialized: boolean;
   isInitializing: boolean;
-  isMigrating: boolean;
-  migrationNeeded: boolean;
-  migrationComplete: boolean;
-  migrationResult: MigrationResult | null;
-  databaseType: 'sqlite' | 'indexeddb' | null;
+  databaseType: 'powersync' | null;
   error: string | null;
 }
 
@@ -28,10 +26,6 @@ export const useDatabaseInitialization = () => {
   const [status, setStatus] = useState<DatabaseStatus>({
     isInitialized: false,
     isInitializing: false,
-    isMigrating: false,
-    migrationNeeded: false,
-    migrationComplete: false,
-    migrationResult: null,
     databaseType: null,
     error: null,
   });
@@ -55,101 +49,43 @@ export const useDatabaseInitialization = () => {
     }));
 
     try {
-      console.log('[DB Init] Starting database initialization...');
+      console.log('[DB Init] ⚡ Starting PowerSync initialization...');
 
-      // 1. تحديد نوع قاعدة البيانات
-      const dbType = isElectron() ? 'sqlite' : 'indexeddb';
-      console.log(`[DB Init] Database type: ${dbType}`);
-
-      // 2. تهيئة قاعدة البيانات
-      await initializeDatabase(organization.id);
-      console.log('[DB Init] Database initialized');
-
-      // 3. فحص إذا كان يحتاج ترحيل (فقط في Electron)
-      let migrationNeeded = false;
-      let migrationComplete = false;
-
-      if (dbType === 'sqlite') {
-        migrationComplete = hasMigrated();
-        migrationNeeded = !migrationComplete;
-
-        console.log('[DB Init] Migration status:', {
-          needed: migrationNeeded,
-          complete: migrationComplete,
-        });
-      }
+      // ⚡ تهيئة PowerSync
+      await powerSyncService.initialize();
+      console.log('[DB Init] ✅ PowerSync initialized successfully');
 
       setStatus({
         isInitialized: true,
         isInitializing: false,
-        isMigrating: false,
-        migrationNeeded,
-        migrationComplete,
-        migrationResult: null,
-        databaseType: dbType,
+        databaseType: 'powersync',
         error: null,
       });
 
-      console.log('[DB Init] Initialization complete');
+      console.log('[DB Init] ✅ Initialization complete');
     } catch (error: any) {
-      console.error('[DB Init] Initialization failed:', error);
+      console.error('[DB Init] ❌ Initialization failed:', error);
       setStatus(prev => ({
         ...prev,
         isInitializing: false,
-        error: error.message || 'Failed to initialize database',
+        error: error.message || 'Failed to initialize PowerSync',
       }));
     }
   }, [organization?.id, status.isInitializing, status.isInitialized]);
 
   /**
-   * تشغيل الترحيل
+   * فرض المزامنة الفورية (للاختبار)
    */
-  const startMigration = useCallback(async () => {
-    if (!organization?.id) {
-      throw new Error('Organization ID is required');
-    }
-
-    if (!isElectron()) {
-      throw new Error('Migration is only available in Electron');
-    }
-
-    if (status.isMigrating) {
-      return;
-    }
-
-    setStatus(prev => ({
-      ...prev,
-      isMigrating: true,
-      error: null,
-    }));
-
+  const forceSync = useCallback(async () => {
     try {
-      console.log('[DB Init] Starting data migration...');
-
-      const result = await migrateAllData(organization.id);
-
-      setStatus(prev => ({
-        ...prev,
-        isMigrating: false,
-        migrationNeeded: false,
-        migrationComplete: result.success,
-        migrationResult: result,
-        error: result.success ? null : 'Migration completed with errors',
-      }));
-
-      console.log('[DB Init] Migration complete:', result);
-
-      return result;
+      console.log('[DB Init] ⚡ Forcing PowerSync sync...');
+      await powerSyncService.forceSync();
+      console.log('[DB Init] ✅ Sync completed');
     } catch (error: any) {
-      console.error('[DB Init] Migration failed:', error);
-      setStatus(prev => ({
-        ...prev,
-        isMigrating: false,
-        error: error.message || 'Migration failed',
-      }));
+      console.error('[DB Init] ❌ Sync failed:', error);
       throw error;
     }
-  }, [organization?.id, status.isMigrating]);
+  }, []);
 
   /**
    * إعادة المحاولة
@@ -179,7 +115,7 @@ export const useDatabaseInitialization = () => {
   return {
     ...status,
     initialize,
-    startMigration,
+    forceSync,
     retry,
   };
 };
@@ -208,30 +144,10 @@ export const DatabaseStatusDisplay: React.FC = () => {
       zIndex: 9999,
       maxWidth: '300px',
     }}>
-      <div><strong>Database Status:</strong></div>
+      <div><strong>⚡ PowerSync Status:</strong></div>
       <div>Type: {status.databaseType || 'Unknown'}</div>
       <div>Initialized: {status.isInitialized ? '✅' : '❌'}</div>
-      {status.isInitializing && <div>⏳ Initializing...</div>}
-      {status.isMigrating && <div>⏳ Migrating data...</div>}
-      {status.migrationNeeded && (
-        <div style={{ color: '#ffa500' }}>
-          ⚠️ Migration needed
-          <button
-            onClick={status.startMigration}
-            style={{
-              marginLeft: '8px',
-              padding: '4px 8px',
-              fontSize: '11px',
-              cursor: 'pointer',
-            }}
-          >
-            Start Migration
-          </button>
-        </div>
-      )}
-      {status.migrationComplete && (
-        <div style={{ color: '#00ff00' }}>✅ Migration complete</div>
-      )}
+      {status.isInitializing && <div>⏳ Initializing PowerSync...</div>}
       {status.error && (
         <div style={{ color: '#ff0000', marginTop: '8px' }}>
           ❌ Error: {status.error}
@@ -248,13 +164,19 @@ export const DatabaseStatusDisplay: React.FC = () => {
           </button>
         </div>
       )}
-      {status.migrationResult && (
-        <div style={{ marginTop: '8px', fontSize: '11px' }}>
-          <div>Total: {status.migrationResult.totalRecords}</div>
-          <div>Migrated: {status.migrationResult.migratedRecords}</div>
-          <div>Failed: {status.migrationResult.failedRecords}</div>
-          <div>Duration: {(status.migrationResult.duration / 1000).toFixed(2)}s</div>
-        </div>
+      {status.isInitialized && (
+        <button
+          onClick={status.forceSync}
+          style={{
+            marginTop: '8px',
+            padding: '4px 8px',
+            fontSize: '11px',
+            cursor: 'pointer',
+            width: '100%',
+          }}
+        >
+          🔄 Force Sync
+        </button>
       )}
     </div>
   );

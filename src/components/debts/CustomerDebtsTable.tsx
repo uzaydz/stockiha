@@ -10,7 +10,6 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,7 +17,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
-  Search,
   MoreVertical,
   Eye,
   Wallet,
@@ -27,45 +25,116 @@ import {
   User,
   Calendar,
   DollarSign,
+  Package,
+  Info,
 } from 'lucide-react';
 import { CustomerDebt, DebtOrder } from '@/lib/api/debts';
 import { formatPrice } from '@/lib/utils';
 import { cn } from '@/lib/utils';
+import CustomerInfoModal from './CustomerInfoModal';
+import OrderDetailsModal from './OrderDetailsModal';
 
 interface CustomerDebtsTableProps {
   customers: CustomerDebt[];
   onPaymentClick: (debt: DebtOrder) => void;
   canRecordPayment?: boolean;
+  // ⚡ Props للـ Lazy Loading
+  onExpandCustomer?: (customerId: string | null) => void;
+  expandedCustomerId?: string | null;
+  isLoadingOrders?: boolean;
 }
 
 const CustomerDebtsTable: React.FC<CustomerDebtsTableProps> = ({
   customers,
   onPaymentClick,
   canRecordPayment = false,
+  onExpandCustomer,
+  expandedCustomerId,
+  isLoadingOrders = false,
 }) => {
   const navigate = useNavigate();
-  const [searchQuery, setSearchQuery] = useState('');
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
-  // تصفية العملاء حسب البحث
-  const filteredCustomers = useMemo(() => {
-    if (!searchQuery.trim()) return customers;
+  // حالة نافذة معلومات العميل
+  const [customerInfoModal, setCustomerInfoModal] = useState<{
+    isOpen: boolean;
+    customerId: string | null;
+    customerName: string;
+    totalDebt: number;
+    ordersCount: number;
+  }>({
+    isOpen: false,
+    customerId: null,
+    customerName: '',
+    totalDebt: 0,
+    ordersCount: 0,
+  });
 
-    const query = searchQuery.toLowerCase();
-    return customers.filter(customer =>
-      customer.customerName.toLowerCase().includes(query) ||
-      customer.customerId.toLowerCase().includes(query)
-    );
-  }, [customers, searchQuery]);
+  // حالة نافذة تفاصيل الطلب
+  const [orderDetailsModal, setOrderDetailsModal] = useState<{
+    isOpen: boolean;
+    order: {
+      orderId: string;
+      orderNumber: string;
+      date: string;
+      total: number;
+      amountPaid: number;
+      remainingAmount: number;
+      employee: string;
+    } | null;
+  }>({
+    isOpen: false,
+    order: null,
+  });
 
-  // تبديل توسيع الصف
+  // فتح نافذة معلومات العميل
+  const openCustomerInfo = (customer: CustomerDebt) => {
+    setCustomerInfoModal({
+      isOpen: true,
+      customerId: customer.customerId,
+      customerName: customer.customerName,
+      totalDebt: customer.totalDebt,
+      ordersCount: customer.ordersCount,
+    });
+  };
+
+  // فتح نافذة تفاصيل الطلب
+  const openOrderDetails = (order: DebtOrder) => {
+    setOrderDetailsModal({
+      isOpen: true,
+      order: {
+        orderId: order.orderId,
+        orderNumber: order.orderNumber,
+        date: order.date,
+        total: order.total,
+        amountPaid: order.amountPaid,
+        remainingAmount: order.remainingAmount,
+        employee: order.employee,
+      },
+    });
+  };
+
+  // ⚡ استخدام العملاء مباشرة (البحث يتم في الصفحة الرئيسية)
+  const filteredCustomers = customers;
+
+  // تبديل توسيع الصف - مع دعم Lazy Loading
   const toggleRow = (customerId: string) => {
     setExpandedRows(prev => {
       const newSet = new Set(prev);
       if (newSet.has(customerId)) {
         newSet.delete(customerId);
+        // ⚡ إلغاء تحديد العميل للـ Lazy Loading
+        if (onExpandCustomer) {
+          onExpandCustomer(null);
+        }
       } else {
+        // ⚡ إغلاق جميع الصفوف الأخرى وفتح الصف الجديد فقط
+        newSet.clear();
         newSet.add(customerId);
+        // ⚡ تحديد العميل لجلب طلباته (Lazy Loading)
+        if (onExpandCustomer) {
+          onExpandCustomer(customerId);
+        }
       }
       return newSet;
     });
@@ -84,35 +153,6 @@ const CustomerDebtsTable: React.FC<CustomerDebtsTableProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* شريط البحث والإحصائيات */}
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            type="text"
-            placeholder="ابحث عن عميل..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pr-10"
-          />
-        </div>
-
-        <div className="flex gap-4 items-center">
-          <div className="flex items-center gap-2 text-sm">
-            <User className="h-4 w-4 text-muted-foreground" />
-            <span className="text-muted-foreground">العملاء:</span>
-            <span className="font-semibold">{filteredCustomers.length}</span>
-          </div>
-          <div className="flex items-center gap-2 text-sm">
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-            <span className="text-muted-foreground">الإجمالي:</span>
-            <span className="font-semibold text-red-600 dark:text-red-400">
-              {formatPrice(totals.totalDebt)}
-            </span>
-          </div>
-        </div>
-      </div>
-
       {/* الجدول */}
       <div className="rounded-lg border border-border bg-card overflow-hidden">
         <Table>
@@ -130,7 +170,7 @@ const CustomerDebtsTable: React.FC<CustomerDebtsTableProps> = ({
             {filteredCustomers.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
-                  {searchQuery ? 'لا توجد نتائج للبحث' : 'لا توجد ديون مسجلة'}
+                  لا توجد ديون مسجلة
                 </TableCell>
               </TableRow>
             ) : (
@@ -153,15 +193,23 @@ const CustomerDebtsTable: React.FC<CustomerDebtsTableProps> = ({
                       </Button>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => openCustomerInfo(customer)}
+                        className="flex items-center gap-3 hover:bg-muted/50 rounded-lg p-1 -m-1 transition-colors w-full text-right"
+                      >
                         <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
                           <User className="h-5 w-5 text-primary" />
                         </div>
-                        <div>
-                          <p className="font-medium">{customer.customerName}</p>
-                          <p className="text-xs text-muted-foreground">#{customer.customerId}</p>
+                        <div className="flex-1">
+                          <p className="font-medium hover:text-primary transition-colors">
+                            {customer.customerName}
+                          </p>
+                          <p className="text-xs text-muted-foreground flex items-center gap-1">
+                            <Info className="h-3 w-3" />
+                            انقر لعرض المعلومات
+                          </p>
                         </div>
-                      </div>
+                      </button>
                     </TableCell>
                     <TableCell className="text-center">
                       <Badge variant="secondary" className="font-normal">
@@ -182,38 +230,43 @@ const CustomerDebtsTable: React.FC<CustomerDebtsTableProps> = ({
                       </Badge>
                     </TableCell>
                     <TableCell className="text-center">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => navigate(`/dashboard/customer-debt-details/${customer.customerId}`)}
-                            className="cursor-pointer"
-                          >
-                            <Eye className="ml-2 h-4 w-4" />
-                            عرض التفاصيل
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => toggleRow(customer.customerId)}
-                            className="cursor-pointer"
-                          >
-                            {expandedRows.has(customer.customerId) ? (
-                              <>
-                                <ChevronUp className="ml-2 h-4 w-4" />
-                                إخفاء الطلبات
-                              </>
-                            ) : (
-                              <>
-                                <ChevronDown className="ml-2 h-4 w-4" />
-                                عرض الطلبات
-                              </>
-                            )}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <div className="flex items-center justify-center gap-1">
+                        {/* زر عرض الطلبات مباشرة */}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => toggleRow(customer.customerId)}
+                          className="h-8 gap-1.5 text-xs"
+                        >
+                          {expandedRows.has(customer.customerId) ? (
+                            <>
+                              <ChevronUp className="h-3.5 w-3.5" />
+                              إخفاء
+                            </>
+                          ) : (
+                            <>
+                              <Eye className="h-3.5 w-3.5" />
+                              الطلبات
+                            </>
+                          )}
+                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => navigate(`/dashboard/customer-debt-details/${customer.customerId}`)}
+                              className="cursor-pointer"
+                            >
+                              <Eye className="ml-2 h-4 w-4" />
+                              عرض التفاصيل الكاملة
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </TableCell>
                   </TableRow>
 
@@ -225,7 +278,23 @@ const CustomerDebtsTable: React.FC<CustomerDebtsTableProps> = ({
                           <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
                             <Calendar className="h-4 w-4 text-muted-foreground" />
                             طلبات {customer.customerName}
+                            {isLoadingOrders && (
+                              <span className="text-xs text-muted-foreground mr-2">
+                                (جاري التحميل...)
+                              </span>
+                            )}
                           </h4>
+                          {/* ⚡ حالة التحميل */}
+                          {isLoadingOrders ? (
+                            <div className="flex items-center justify-center py-8">
+                              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary ml-3"></div>
+                              <span className="text-sm text-muted-foreground">جاري تحميل الطلبات...</span>
+                            </div>
+                          ) : customer.orders.length === 0 ? (
+                            <div className="text-center py-8 text-muted-foreground">
+                              لا توجد طلبات مع ديون لهذا العميل
+                            </div>
+                          ) : (
                           <div className="rounded-md border border-border overflow-hidden">
                             <Table>
                               <TableHeader>
@@ -273,24 +342,36 @@ const CustomerDebtsTable: React.FC<CustomerDebtsTableProps> = ({
                                       </span>
                                     </TableCell>
                                     <TableCell className="text-center">
-                                      {canRecordPayment ? (
+                                      <div className="flex items-center justify-center gap-1">
+                                        {/* زر عرض تفاصيل الطلب */}
                                         <Button
+                                          variant="outline"
                                           size="sm"
-                                          onClick={() => onPaymentClick(order)}
-                                          className="h-8 gap-1.5"
+                                          onClick={() => openOrderDetails(order)}
+                                          className="h-8 gap-1 text-xs"
+                                          title="عرض المنتجات"
                                         >
-                                          <Wallet className="h-3.5 w-3.5" />
-                                          تسجيل دفع
+                                          <Package className="h-3.5 w-3.5" />
+                                          المنتجات
                                         </Button>
-                                      ) : (
-                                        <span className="text-xs text-muted-foreground">غير مصرح</span>
-                                      )}
+                                        {canRecordPayment && (
+                                          <Button
+                                            size="sm"
+                                            onClick={() => onPaymentClick(order)}
+                                            className="h-8 gap-1"
+                                          >
+                                            <Wallet className="h-3.5 w-3.5" />
+                                            دفع
+                                          </Button>
+                                        )}
+                                      </div>
                                     </TableCell>
                                   </TableRow>
                                 ))}
                               </TableBody>
                             </Table>
                           </div>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -322,6 +403,23 @@ const CustomerDebtsTable: React.FC<CustomerDebtsTableProps> = ({
           </div>
         </div>
       )}
+
+      {/* نافذة معلومات العميل */}
+      <CustomerInfoModal
+        isOpen={customerInfoModal.isOpen}
+        onClose={() => setCustomerInfoModal(prev => ({ ...prev, isOpen: false }))}
+        customerId={customerInfoModal.customerId}
+        customerName={customerInfoModal.customerName}
+        totalDebt={customerInfoModal.totalDebt}
+        ordersCount={customerInfoModal.ordersCount}
+      />
+
+      {/* نافذة تفاصيل الطلب */}
+      <OrderDetailsModal
+        isOpen={orderDetailsModal.isOpen}
+        onClose={() => setOrderDetailsModal(prev => ({ ...prev, isOpen: false }))}
+        order={orderDetailsModal.order}
+      />
     </div>
   );
 };

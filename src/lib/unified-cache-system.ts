@@ -287,20 +287,16 @@ export class UnifiedCacheSystem {
     return this.presets[cacheName] || this.presets['memory-cache'];
   }
 
+  // ⚡ تم تعطيل الضغط الزائف - لا يوفر ذاكرة حقيقية للكائنات الصغيرة
+  // ويستهلك CPU عالي عند القراءة والكتابة
   private compress(data: any): any {
-    try {
-      return JSON.stringify(data); // يمكن تحسينها لاحقاً بضغط حقيقي
-    } catch {
-      return data;
-    }
+    // إرجاع البيانات كما هي - بدون JSON.stringify
+    return data;
   }
 
-  private decompress(data: string): any {
-    try {
-      return JSON.parse(data);
-    } catch {
-      return data;
-    }
+  private decompress(data: any): any {
+    // إرجاع البيانات كما هي - بدون JSON.parse
+    return data;
   }
 
   private estimateSize(data: any): number {
@@ -357,22 +353,23 @@ export class UnifiedCacheSystem {
     });
   }
 
+  // ⚡ تحسين: حذف عشوائي بدلاً من ترتيب كامل للمصفوفة
+  // الترتيب الكامل يستهلك O(n log n) CPU، بينما الحذف العشوائي O(count)
   private evictLeastUsed(cacheName: string, count: number): void {
     const cache = this.caches.get(cacheName);
-    if (!cache) return;
+    if (!cache || count <= 0) return;
 
-    const entries: Array<[string, CacheEntry<any>]> = [];
-    cache.forEach((value, key) => {
-      entries.push([key, value]);
-    });
+    // ⚡ استراتيجية سريعة: حذف أول count عناصر من المصفوفة
+    // Map.keys() يُرجع العناصر بترتيب الإدراج (أقدمها أولاً = تقريب LRU)
+    const keysIterator = cache.keys();
+    let deleted = 0;
 
-    // ترتيب حسب accessCount (الأقل استخداماً أولاً)
-    entries.sort((a, b) => a[1].accessCount - b[1].accessCount);
-
-    for (let i = 0; i < Math.min(count, entries.length); i++) {
-      cache.delete(entries[i][0]);
+    while (deleted < count) {
+      const next = keysIterator.next();
+      if (next.done) break;
+      cache.delete(next.value);
+      deleted++;
     }
-
   }
 
   private removeExpired(cacheName: string): void {

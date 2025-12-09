@@ -1,10 +1,21 @@
-const { app, BrowserWindow, Menu, shell, ipcMain, dialog, nativeImage, Tray, globalShortcut, protocol } = require('electron');
+const { app, BrowserWindow, Menu, shell, ipcMain, dialog, nativeImage, Tray, globalShortcut, protocol, net } = require('electron');
+
 const path = require('path');
 const fs = require('fs');
 const https = require('https');
 const http = require('http');
 const { SQLiteManager } = require('./sqliteManager.cjs');
 const { updaterManager } = require('./updater.cjs');
+
+// ======= مكتبة الطباعة للطابعات الحرارية =======
+let PosPrinter = null;
+try {
+  const posPrinterModule = require('electron-pos-printer');
+  PosPrinter = posPrinterModule.PosPrinter;
+  console.log('✅ [Electron] electron-pos-printer loaded successfully');
+} catch (error) {
+  console.warn('⚠️ [Electron] electron-pos-printer not available:', error.message);
+}
 
 // محاولة تحميل keytar (اختياري)
 let keytar = null;
@@ -211,7 +222,107 @@ function createMainWindow() {
     // في التطوير: حمّل الجذر ودع الموجه يقرر (يتجنب مسارات مطلقة تسبب 404)
     const devUrl = 'http://localhost:8080/';
     console.log('[Electron] تحميل التطبيق المكتبي من:', devUrl);
-    mainWindow.loadURL(devUrl);
+
+    // التحقق من اتصال الشبكة قبل محاولة التحميل
+    const checkAndLoad = async () => {
+      try {
+        // محاولة التحميل
+        await mainWindow.loadURL(devUrl);
+      } catch (err) {
+        console.error('[Electron] فشل تحميل dev server:', err.message);
+
+        // عرض صفحة خطأ محلية
+        const offlineHtml = `
+          <!DOCTYPE html>
+          <html dir="rtl" lang="ar">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>خطأ في الاتصال - سطوكيها</title>
+            <style>
+              * { margin: 0; padding: 0; box-sizing: border-box; }
+              body {
+                font-family: 'Tajawal', 'Segoe UI', Tahoma, sans-serif;
+                background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+                color: #fff;
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 20px;
+              }
+              .container {
+                text-align: center;
+                max-width: 500px;
+              }
+              .icon {
+                font-size: 80px;
+                margin-bottom: 20px;
+                opacity: 0.8;
+              }
+              h1 {
+                font-size: 28px;
+                margin-bottom: 16px;
+                color: #f0f0f0;
+              }
+              p {
+                font-size: 16px;
+                color: #a0a0a0;
+                margin-bottom: 24px;
+                line-height: 1.6;
+              }
+              .hint {
+                background: rgba(255,255,255,0.1);
+                padding: 16px;
+                border-radius: 12px;
+                font-size: 14px;
+                color: #c0c0c0;
+                margin-bottom: 24px;
+              }
+              .hint code {
+                background: rgba(0,0,0,0.3);
+                padding: 2px 8px;
+                border-radius: 4px;
+                font-family: monospace;
+              }
+              button {
+                background: #6366f1;
+                color: white;
+                border: none;
+                padding: 14px 32px;
+                font-size: 16px;
+                border-radius: 8px;
+                cursor: pointer;
+                transition: all 0.2s;
+                font-family: inherit;
+              }
+              button:hover {
+                background: #4f46e5;
+                transform: translateY(-2px);
+              }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="icon">🔌</div>
+              <h1>تعذر الاتصال بخادم التطوير</h1>
+              <p>لا يمكن الاتصال بـ localhost:8080</p>
+              <div class="hint">
+                <strong>في وضع التطوير:</strong><br>
+                تأكد من تشغيل <code>npm run dev</code> أولاً<br><br>
+                <strong>للاختبار أوفلاين:</strong><br>
+                قم ببناء التطبيق بـ <code>npm run build</code>
+              </div>
+              <button onclick="location.reload()">إعادة المحاولة</button>
+            </div>
+          </body>
+          </html>
+        `;
+        mainWindow.loadURL('data:text/html;charset=UTF-8,' + encodeURIComponent(offlineHtml));
+      }
+    };
+
+    checkAndLoad();
 
     // فتح DevTools دائماً في التطوير
     mainWindow.webContents.openDevTools({ mode: 'detach' });
@@ -1711,9 +1822,22 @@ ipcMain.handle('make-request', async (event, options) => {
 });
 
 // إدارة Storage عبر IPC (بديل آمن لـ localStorage في preload)
+// ملاحظة: نستخدم try-catch وننتظر حتى تكون النافذة جاهزة
 ipcMain.handle('storage:get', async (event, key) => {
   try {
-    return await mainWindow.webContents.executeJavaScript(`localStorage.getItem('${key}')`);
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      console.warn('[Storage] Window not available');
+      return null;
+    }
+    // انتظر حتى تنتهي الصفحة من التحميل
+    if (mainWindow.webContents.isLoading()) {
+      await new Promise(resolve => mainWindow.webContents.once('did-finish-load', resolve));
+    }
+    const safeKey = String(key).replace(/'/g, "\\'");
+    return await mainWindow.webContents.executeJavaScript(
+      `(function() { try { return localStorage.getItem('${safeKey}'); } catch(e) { return null; } })()`,
+      true
+    );
   } catch (error) {
     console.error('خطأ في قراءة localStorage:', error);
     return null;
@@ -1722,7 +1846,19 @@ ipcMain.handle('storage:get', async (event, key) => {
 
 ipcMain.handle('storage:set', async (event, key, value) => {
   try {
-    await mainWindow.webContents.executeJavaScript(`localStorage.setItem('${key}', '${value}')`);
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      console.warn('[Storage] Window not available');
+      return false;
+    }
+    if (mainWindow.webContents.isLoading()) {
+      await new Promise(resolve => mainWindow.webContents.once('did-finish-load', resolve));
+    }
+    const safeKey = String(key).replace(/'/g, "\\'");
+    const safeValue = String(value).replace(/'/g, "\\'").replace(/\n/g, '\\n');
+    await mainWindow.webContents.executeJavaScript(
+      `(function() { try { localStorage.setItem('${safeKey}', '${safeValue}'); return true; } catch(e) { return false; } })()`,
+      true
+    );
     return true;
   } catch (error) {
     console.error('خطأ في كتابة localStorage:', error);
@@ -1732,7 +1868,18 @@ ipcMain.handle('storage:set', async (event, key, value) => {
 
 ipcMain.handle('storage:remove', async (event, key) => {
   try {
-    await mainWindow.webContents.executeJavaScript(`localStorage.removeItem('${key}')`);
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      console.warn('[Storage] Window not available');
+      return false;
+    }
+    if (mainWindow.webContents.isLoading()) {
+      await new Promise(resolve => mainWindow.webContents.once('did-finish-load', resolve));
+    }
+    const safeKey = String(key).replace(/'/g, "\\'");
+    await mainWindow.webContents.executeJavaScript(
+      `(function() { try { localStorage.removeItem('${safeKey}'); return true; } catch(e) { return false; } })()`,
+      true
+    );
     return true;
   } catch (error) {
     console.error('خطأ في حذف localStorage:', error);
@@ -1742,7 +1889,17 @@ ipcMain.handle('storage:remove', async (event, key) => {
 
 ipcMain.handle('storage:clear', async () => {
   try {
-    await mainWindow.webContents.executeJavaScript(`localStorage.clear()`);
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      console.warn('[Storage] Window not available');
+      return false;
+    }
+    if (mainWindow.webContents.isLoading()) {
+      await new Promise(resolve => mainWindow.webContents.once('did-finish-load', resolve));
+    }
+    await mainWindow.webContents.executeJavaScript(
+      `(function() { try { localStorage.clear(); return true; } catch(e) { return false; } })()`,
+      true
+    );
     return true;
   } catch (error) {
     console.error('خطأ في مسح localStorage:', error);
@@ -1790,6 +1947,578 @@ ipcMain.handle('updater:quit-and-install', () => {
 // الحصول على إصدار التطبيق الحالي
 ipcMain.handle('updater:get-version', () => {
   return app.getVersion();
+});
+
+// ======= IPC Handlers للطباعة =======
+
+// الحصول على قائمة الطابعات المتاحة
+ipcMain.handle('print:get-printers', async () => {
+  try {
+    if (!mainWindow || !mainWindow.webContents) {
+      return { success: false, error: 'Main window not available', printers: [] };
+    }
+    const printers = await mainWindow.webContents.getPrintersAsync();
+    return {
+      success: true,
+      printers: printers.map(p => ({
+        name: p.name,
+        displayName: p.displayName || p.name,
+        description: p.description || '',
+        status: p.status,
+        isDefault: p.isDefault
+      }))
+    };
+  } catch (error) {
+    console.error('[Print] Failed to get printers:', error);
+    return { success: false, error: error.message, printers: [] };
+  }
+});
+
+// طباعة إيصال POS باستخدام electron-pos-printer
+ipcMain.handle('print:receipt', async (event, options) => {
+  try {
+    const { data, printerName, pageSize, copies, silent, margin } = options;
+
+    // التحقق من توفر مكتبة الطباعة
+    if (!PosPrinter) {
+      console.warn('[Print] electron-pos-printer not available, using fallback');
+      return await printHtmlFallback(options);
+    }
+
+    const printOptions = {
+      preview: silent === false, // إظهار المعاينة فقط إذا silent = false
+      margin: margin || '0 0 0 0',
+      copies: copies || 1,
+      printerName: printerName || undefined,
+      timeOutPerLine: 400,
+      pageSize: pageSize || '80mm',
+      silent: silent !== false // الطباعة الصامتة افتراضياً
+    };
+
+    console.log('[Print] Printing receipt with options:', printOptions);
+
+    await PosPrinter.print(data, printOptions);
+    console.log('[Print] Receipt printed successfully');
+    return { success: true };
+  } catch (error) {
+    console.error('[Print] Receipt printing failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// طباعة HTML مخصص (للفواتير والتقارير)
+ipcMain.handle('print:html', async (event, options) => {
+  try {
+    const { html, printerName, silent, pageSize, landscape, margins } = options;
+
+    // إنشاء نافذة مخفية للطباعة
+    const printWin = new BrowserWindow({
+      width: 800,
+      height: 600,
+      show: false, // دائماً مخفية
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true
+      }
+    });
+
+    // تحميل HTML
+    const encodedHtml = encodeURIComponent(html);
+    await printWin.loadURL(`data:text/html;charset=UTF-8,${encodedHtml}`);
+
+    return new Promise((resolve) => {
+      printWin.webContents.on('did-finish-load', () => {
+        // انتظار قليل للتأكد من تحميل الخطوط والصور
+        setTimeout(() => {
+          printWin.webContents.print({
+            silent: silent !== false,
+            printBackground: true,
+            deviceName: printerName || '',
+            pageSize: pageSize || 'A4',
+            landscape: landscape || false,
+            margins: margins || { marginType: 'default' }
+          }, (success, errorType) => {
+            printWin.close();
+            if (success) {
+              console.log('[Print] HTML printed successfully');
+              resolve({ success: true });
+            } else {
+              console.error('[Print] HTML print failed:', errorType);
+              resolve({ success: false, error: errorType });
+            }
+          });
+        }, 500);
+      });
+    });
+  } catch (error) {
+    console.error('[Print] HTML printing failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// طباعة باركود
+ipcMain.handle('print:barcode', async (event, options) => {
+  try {
+    const { barcodes, printerName, pageSize, silent, labelSize, showProductName, showPrice, showStoreName } = options;
+
+    if (!PosPrinter) {
+      console.warn('[Print] electron-pos-printer not available for barcode printing');
+      return { success: false, error: 'POS Printer not available' };
+    }
+
+    // تحويل الباركودات إلى تنسيق electron-pos-printer
+    const data = [];
+
+    for (const barcode of barcodes) {
+      // إضافة اسم المتجر إذا مطلوب
+      if (showStoreName && barcode.storeName) {
+        data.push({
+          type: 'text',
+          value: barcode.storeName,
+          style: { textAlign: 'center', fontSize: '10px', fontWeight: 'bold' }
+        });
+      }
+
+      // إضافة اسم المنتج إذا مطلوب
+      if (showProductName && barcode.productName) {
+        data.push({
+          type: 'text',
+          value: barcode.productName,
+          style: { textAlign: 'center', fontSize: '12px' }
+        });
+      }
+
+      // إضافة الباركود
+      data.push({
+        type: 'barCode',
+        value: barcode.value,
+        height: barcode.height || 40,
+        width: barcode.width || 2,
+        displayValue: barcode.showValue !== false,
+        fontsize: 10,
+        position: 'below',
+        font: 'monospace'
+      });
+
+      // إضافة السعر إذا مطلوب
+      if (showPrice && barcode.price) {
+        data.push({
+          type: 'text',
+          value: `${barcode.price} د.ج`,
+          style: { textAlign: 'center', fontSize: '14px', fontWeight: 'bold' }
+        });
+      }
+
+      // فاصل بين الملصقات
+      data.push({
+        type: 'text',
+        value: '',
+        style: { marginBottom: '5mm' }
+      });
+    }
+
+    const printOptions = {
+      preview: silent === false,
+      margin: '2mm',
+      copies: 1,
+      printerName: printerName || undefined,
+      pageSize: labelSize || pageSize || { width: '50mm', height: '30mm' },
+      silent: silent !== false
+    };
+
+    console.log('[Print] Printing barcodes:', barcodes.length);
+    await PosPrinter.print(data, printOptions);
+    console.log('[Print] Barcodes printed successfully');
+    return { success: true };
+  } catch (error) {
+    console.error('[Print] Barcode printing failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// فتح درج النقود
+ipcMain.handle('print:open-cash-drawer', async (event, printerName) => {
+  try {
+    if (!PosPrinter) {
+      return { success: false, error: 'POS Printer not available' };
+    }
+
+    // أوامر ESC/POS لفتح الدرج
+    // معظم الطابعات تستخدم: ESC p 0 25 250 (أو ESC p 1 25 250)
+    const drawerData = [
+      {
+        type: 'text',
+        value: '', // نص فارغ
+        style: { fontSize: '1px' }
+      }
+    ];
+
+    // نستخدم طريقة بديلة: طباعة صفحة فارغة مع أمر فتح الدرج
+    // ملاحظة: فتح الدرج يعتمد على إعدادات الطابعة نفسها
+    console.log('[Print] Opening cash drawer for printer:', printerName || 'default');
+
+    await PosPrinter.print(drawerData, {
+      printerName: printerName || undefined,
+      silent: true,
+      pageSize: '58mm'
+    });
+
+    return { success: true, message: 'Cash drawer command sent' };
+  } catch (error) {
+    console.error('[Print] Open cash drawer failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// طباعة صفحة اختبار
+ipcMain.handle('print:test', async (event, printerName) => {
+  try {
+    if (!PosPrinter) {
+      return { success: false, error: 'POS Printer not available' };
+    }
+
+    const testData = [
+      { type: 'text', value: '================================', style: { textAlign: 'center' } },
+      { type: 'text', value: 'صفحة اختبار الطباعة', style: { textAlign: 'center', fontWeight: 'bold', fontSize: '18px' } },
+      { type: 'text', value: 'Print Test Page', style: { textAlign: 'center', fontSize: '14px' } },
+      { type: 'text', value: '================================', style: { textAlign: 'center' } },
+      { type: 'text', value: '', style: { marginBottom: '3mm' } },
+      { type: 'text', value: `الطابعة: ${printerName || 'الافتراضية'}`, style: { textAlign: 'right' } },
+      { type: 'text', value: `التاريخ: ${new Date().toLocaleString('ar-DZ')}`, style: { textAlign: 'right' } },
+      { type: 'text', value: `الإصدار: ${app.getVersion()}`, style: { textAlign: 'right' } },
+      { type: 'text', value: '', style: { marginBottom: '3mm' } },
+      { type: 'text', value: '================================', style: { textAlign: 'center' } },
+      { type: 'barCode', value: '123456789012', height: 40, width: 2, displayValue: true, position: 'below' },
+      { type: 'text', value: '================================', style: { textAlign: 'center' } },
+      { type: 'text', value: '', style: { marginBottom: '2mm' } },
+      { type: 'text', value: 'سطوكيها - Stockiha', style: { textAlign: 'center', fontSize: '12px' } },
+      { type: 'text', value: 'www.stockiha.com', style: { textAlign: 'center', fontSize: '10px' } },
+      { type: 'text', value: '', style: { marginBottom: '5mm' } },
+    ];
+
+    console.log('[Print] Printing test page to:', printerName || 'default printer');
+
+    await PosPrinter.print(testData, {
+      printerName: printerName || undefined,
+      silent: false, // إظهار المعاينة للاختبار
+      pageSize: '80mm',
+      margin: '0 0 0 0'
+    });
+
+    console.log('[Print] Test page printed successfully');
+    return { success: true };
+  } catch (error) {
+    console.error('[Print] Test print failed:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// دالة مساعدة: طباعة HTML كـ fallback
+async function printHtmlFallback(options) {
+  try {
+    const { data, printerName, silent } = options;
+
+    // تحويل بيانات POS إلى HTML
+    let html = `
+      <!DOCTYPE html>
+      <html dir="rtl">
+      <head>
+        <meta charset="UTF-8">
+        <style>
+          body {
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            width: 80mm;
+            margin: 0;
+            padding: 5mm;
+          }
+          .center { text-align: center; }
+          .right { text-align: right; }
+          .bold { font-weight: bold; }
+          .barcode { text-align: center; font-family: 'Libre Barcode 128', monospace; font-size: 40px; }
+        </style>
+      </head>
+      <body>
+    `;
+
+    for (const item of data) {
+      if (item.type === 'text') {
+        const style = item.style || {};
+        html += `<p style="${styleToInline(style)}">${item.value}</p>`;
+      } else if (item.type === 'barCode') {
+        html += `<p class="center">[${item.value}]</p>`;
+      } else if (item.type === 'qrCode') {
+        html += `<p class="center">[QR: ${item.value}]</p>`;
+      }
+    }
+
+    html += '</body></html>';
+
+    // استخدام طباعة HTML
+    const printWin = new BrowserWindow({
+      width: 400,
+      height: 600,
+      show: false,
+      webPreferences: { nodeIntegration: false, contextIsolation: true }
+    });
+
+    await printWin.loadURL(`data:text/html;charset=UTF-8,${encodeURIComponent(html)}`);
+
+    return new Promise((resolve) => {
+      printWin.webContents.on('did-finish-load', () => {
+        printWin.webContents.print({
+          silent: silent !== false,
+          printBackground: true,
+          deviceName: printerName || ''
+        }, (success, errorType) => {
+          printWin.close();
+          resolve(success ? { success: true } : { success: false, error: errorType });
+        });
+      });
+    });
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+// تحويل كائن الأنماط إلى سلسلة inline style
+function styleToInline(style) {
+  const map = {
+    textAlign: 'text-align',
+    fontSize: 'font-size',
+    fontWeight: 'font-weight',
+    marginBottom: 'margin-bottom',
+    marginTop: 'margin-top'
+  };
+  return Object.entries(style)
+    .map(([key, value]) => `${map[key] || key}: ${value}`)
+    .join('; ');
+}
+
+// ======= IPC Handlers للشبكة والاتصال =======
+
+// فحص حالة الاتصال بالإنترنت (مستوى النظام)
+ipcMain.handle('net:is-online', () => {
+  try {
+    return { success: true, isOnline: net.isOnline() };
+  } catch (error) {
+    console.error('[Network] Failed to check online status:', error);
+    return { success: false, error: error.message, isOnline: navigator?.onLine ?? true };
+  }
+});
+
+// فحص الاتصال عن طريق طلب HTTP سريع
+ipcMain.handle('net:ping', async (event, url, timeout = 5000) => {
+  const startTime = Date.now();
+
+  return new Promise((resolve) => {
+    try {
+      const parsedUrl = new URL(url || 'https://www.google.com/generate_204');
+      const isHttps = parsedUrl.protocol === 'https:';
+      const client = isHttps ? https : http;
+
+      const options = {
+        hostname: parsedUrl.hostname,
+        port: parsedUrl.port || (isHttps ? 443 : 80),
+        path: parsedUrl.pathname + parsedUrl.search,
+        method: 'HEAD',
+        timeout: timeout,
+        headers: {
+          'User-Agent': 'Stockiha-Connectivity-Check/1.0',
+          'Cache-Control': 'no-cache'
+        }
+      };
+
+      const req = client.request(options, (res) => {
+        const latency = Date.now() - startTime;
+        req.destroy();
+        resolve({
+          success: true,
+          reachable: res.statusCode >= 200 && res.statusCode < 400,
+          statusCode: res.statusCode,
+          latency: latency
+        });
+      });
+
+      req.on('timeout', () => {
+        req.destroy();
+        resolve({
+          success: true,
+          reachable: false,
+          error: 'timeout',
+          latency: timeout
+        });
+      });
+
+      req.on('error', (error) => {
+        const latency = Date.now() - startTime;
+        resolve({
+          success: true,
+          reachable: false,
+          error: error.code || error.message,
+          latency: latency
+        });
+      });
+
+      req.end();
+    } catch (error) {
+      resolve({
+        success: false,
+        reachable: false,
+        error: error.message,
+        latency: Date.now() - startTime
+      });
+    }
+  });
+});
+
+// فحص متعدد للاتصال (يفحص عدة endpoints)
+ipcMain.handle('net:multi-ping', async (event, urls, timeout = 3000) => {
+  const defaultUrls = [
+    'https://www.google.com/generate_204',
+    'https://connectivitycheck.gstatic.com/generate_204',
+    'https://www.cloudflare.com/cdn-cgi/trace'
+  ];
+
+  const endpointsToCheck = urls && urls.length > 0 ? urls : defaultUrls;
+  const startTime = Date.now();
+
+  // نستخدم Promise.any للحصول على أول نجاح
+  try {
+    const pingPromises = endpointsToCheck.map(async (url) => {
+      return new Promise((resolve, reject) => {
+        try {
+          const parsedUrl = new URL(url);
+          const isHttps = parsedUrl.protocol === 'https:';
+          const client = isHttps ? https : http;
+
+          const options = {
+            hostname: parsedUrl.hostname,
+            port: parsedUrl.port || (isHttps ? 443 : 80),
+            path: parsedUrl.pathname + parsedUrl.search,
+            method: 'HEAD',
+            timeout: timeout,
+            headers: {
+              'User-Agent': 'Stockiha-Connectivity-Check/1.0',
+              'Cache-Control': 'no-cache'
+            }
+          };
+
+          const req = client.request(options, (res) => {
+            const latency = Date.now() - startTime;
+            req.destroy();
+            if (res.statusCode >= 200 && res.statusCode < 400) {
+              resolve({ url, latency, statusCode: res.statusCode });
+            } else {
+              reject(new Error(`HTTP ${res.statusCode}`));
+            }
+          });
+
+          req.on('timeout', () => {
+            req.destroy();
+            reject(new Error('timeout'));
+          });
+
+          req.on('error', (error) => {
+            reject(error);
+          });
+
+          req.end();
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+
+    // أول استجابة ناجحة تعني أننا متصلون
+    const result = await Promise.any(pingPromises);
+    return {
+      success: true,
+      isOnline: true,
+      firstResponder: result.url,
+      latency: result.latency
+    };
+  } catch (error) {
+    // كل الـ endpoints فشلت
+    return {
+      success: true,
+      isOnline: false,
+      error: 'All endpoints failed',
+      latency: Date.now() - startTime
+    };
+  }
+});
+
+// فحص Captive Portal
+ipcMain.handle('net:check-captive-portal', async (event) => {
+  const APPLE_CAPTIVE_URL = 'http://captive.apple.com/hotspot-detect.html';
+  const EXPECTED_RESPONSE = 'Success';
+
+  return new Promise((resolve) => {
+    try {
+      const req = http.get(APPLE_CAPTIVE_URL, { timeout: 5000 }, (res) => {
+        let data = '';
+        res.on('data', (chunk) => { data += chunk; });
+        res.on('end', () => {
+          const isCaptivePortal = !data.includes(EXPECTED_RESPONSE);
+          resolve({
+            success: true,
+            isCaptivePortal: isCaptivePortal,
+            redirectUrl: isCaptivePortal ? APPLE_CAPTIVE_URL : null
+          });
+        });
+      });
+
+      req.on('timeout', () => {
+        req.destroy();
+        resolve({ success: true, isCaptivePortal: false, error: 'timeout' });
+      });
+
+      req.on('error', (error) => {
+        resolve({ success: true, isCaptivePortal: false, error: error.message });
+      });
+    } catch (error) {
+      resolve({ success: false, isCaptivePortal: false, error: error.message });
+    }
+  });
+});
+
+// الحصول على معلومات الشبكة الكاملة
+ipcMain.handle('net:get-status', async () => {
+  try {
+    const isSystemOnline = net.isOnline();
+
+    // فحص سريع للإنترنت الفعلي
+    const pingResult = await new Promise((resolve) => {
+      const req = https.get('https://www.google.com/generate_204', { timeout: 3000 }, (res) => {
+        req.destroy();
+        resolve({ reachable: res.statusCode === 204 || res.statusCode === 200 });
+      });
+      req.on('timeout', () => { req.destroy(); resolve({ reachable: false }); });
+      req.on('error', () => resolve({ reachable: false }));
+    });
+
+    return {
+      success: true,
+      status: {
+        systemOnline: isSystemOnline,
+        internetReachable: pingResult.reachable,
+        isOnline: isSystemOnline && pingResult.reachable,
+        timestamp: Date.now()
+      }
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message,
+      status: {
+        systemOnline: true,
+        internetReachable: false,
+        isOnline: false,
+        timestamp: Date.now()
+      }
+    };
+  }
 });
 
 // إدارة الأخطاء

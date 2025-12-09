@@ -109,6 +109,40 @@ export const prepareFormSubmissionData = (
   productColors: ProductColor[],
   wholesaleTiers: WholesaleTier[]
 ): any => {
+  console.log('='.repeat(80));
+  console.log('[prepareFormSubmissionData] 📋 PREPARE STARTED');
+  console.log('='.repeat(80));
+
+  // 🔍 DEBUG: فحص البيانات الواردة
+  console.log('[prepareFormSubmissionData] 📥 Input Parameters:', {
+    dataName: data.name,
+    organizationId: organizationId,
+    additionalImagesCount: additionalImages?.length || 0,
+    productColorsCount: productColors?.length || 0,
+    wholesaleTiersCount: wholesaleTiers?.length || 0,
+  });
+
+  // 🔍 DEBUG: أنواع البيع المتقدمة من النموذج
+  console.log('[prepareFormSubmissionData] 📦 Advanced Selling Types from form:', {
+    sell_by_weight: data.sell_by_weight,
+    weight_unit: data.weight_unit,
+    price_per_weight_unit: data.price_per_weight_unit,
+    sell_by_box: data.sell_by_box,
+    units_per_box: data.units_per_box,
+    box_price: data.box_price,
+    sell_by_meter: data.sell_by_meter,
+    price_per_meter: data.price_per_meter,
+  });
+
+  // 🔍 DEBUG: التتبع المتقدم
+  console.log('[prepareFormSubmissionData] 🔍 Tracking Features from form:', {
+    track_expiry: data.track_expiry,
+    default_expiry_days: data.default_expiry_days,
+    track_serial_numbers: data.track_serial_numbers,
+    track_batches: data.track_batches,
+    has_warranty: data.has_warranty,
+    warranty_duration_months: data.warranty_duration_months,
+  });
 
   // ✅ التحقق من صحة organization_id
   if (!organizationId || organizationId === 'undefined' || organizationId === 'null' || organizationId.trim() === '') {
@@ -187,6 +221,75 @@ export const prepareFormSubmissionData = (
     advanced_description: data.advanced_description || null,
     // الصور الإضافية تذهب لحقل additional_images
     additional_images: imagesToSubmit,
+
+    // ========================================
+    // 📦 أنواع البيع المتقدمة
+    // ========================================
+
+    // البيع بالوزن
+    sell_by_weight: data.sell_by_weight || false,
+    weight_unit: data.weight_unit || 'kg',
+    price_per_weight_unit: data.price_per_weight_unit ? Number(data.price_per_weight_unit) : null,
+    purchase_price_per_weight_unit: data.purchase_price_per_weight_unit ? Number(data.purchase_price_per_weight_unit) : null,
+    min_weight: data.min_weight ? Number(data.min_weight) : null,
+    max_weight: data.max_weight ? Number(data.max_weight) : null,
+    average_item_weight: data.average_item_weight ? Number(data.average_item_weight) : null,
+    // ⚡ مخزون الوزن
+    available_weight: data.available_weight ? Number(data.available_weight) : null,
+    total_weight_purchased: data.total_weight_purchased ? Number(data.total_weight_purchased) : null,
+
+    // البيع بالكرتون/العلبة
+    sell_by_box: data.sell_by_box || false,
+    units_per_box: data.units_per_box ? Number(data.units_per_box) : null,
+    box_price: data.box_price ? Number(data.box_price) : null,
+    box_purchase_price: data.box_purchase_price ? Number(data.box_purchase_price) : null,
+    box_barcode: data.box_barcode || null,
+    allow_single_unit_sale: data.allow_single_unit_sale !== false,
+    // ⚡ مخزون الصناديق
+    available_boxes: data.available_boxes ? Number(data.available_boxes) : null,
+    total_boxes_purchased: data.total_boxes_purchased ? Number(data.total_boxes_purchased) : null,
+
+    // البيع بالمتر
+    sell_by_meter: data.sell_by_meter || false,
+    meter_unit: data.meter_unit || 'm',
+    price_per_meter: data.price_per_meter ? Number(data.price_per_meter) : null,
+    purchase_price_per_meter: data.purchase_price_per_meter ? Number(data.purchase_price_per_meter) : null,
+    min_meters: data.min_meters ? Number(data.min_meters) : null,
+    roll_length: data.roll_length ? Number(data.roll_length) : null,
+    // ⚡ مخزون الأمتار
+    available_length: data.available_length ? Number(data.available_length) : null,
+    total_meters_purchased: data.total_meters_purchased ? Number(data.total_meters_purchased) : null,
+
+    // ========================================
+    // 🔍 التتبع المتقدم
+    // ========================================
+
+    // تتبع الصلاحية
+    track_expiry: data.track_expiry || false,
+    default_expiry_days: data.default_expiry_days ? Number(data.default_expiry_days) : null,
+    alert_days_before_expiry: data.alert_days_before ? Number(data.alert_days_before) : null,
+
+    // تتبع الأرقام التسلسلية
+    track_serial_numbers: data.track_serial_numbers || false,
+    require_serial_on_sale: data.require_serial_on_sale || false,
+    supports_imei: data.supports_imei || false,
+
+    // تتبع الدفعات
+    track_batches: data.track_batches || false,
+    use_fifo: data.use_fifo !== false,
+
+    // ========================================
+    // 🛡️ الضمان
+    // ========================================
+    has_warranty: data.has_warranty || false,
+    warranty_duration_months: data.warranty_duration_months ? Number(data.warranty_duration_months) : null,
+    warranty_type: data.warranty_type && ['manufacturer', 'store', 'extended'].includes(data.warranty_type) ? data.warranty_type : undefined,
+
+    // ========================================
+    // 💰 مستويات الأسعار
+    // ========================================
+    price_tiers: data.price_tiers || [],
+
     // تحويل وضع النشر من الواجهة إلى حقول قاعدة البيانات
     ...(data.publication_mode === 'publish_now' ? {
       publication_status: 'published',
@@ -199,6 +302,18 @@ export const prepareFormSubmissionData = (
       publish_at: data.publish_at || null,
     } : {}),
   };
+
+  // 🔍 DEBUG: فحص الإعدادات المتقدمة
+  console.log('[prepareFormSubmissionData] 📦 Advanced Settings:', {
+    sell_by_weight: finalData.sell_by_weight,
+    sell_by_box: finalData.sell_by_box,
+    sell_by_meter: finalData.sell_by_meter,
+    track_expiry: finalData.track_expiry,
+    track_serial_numbers: finalData.track_serial_numbers,
+    track_batches: finalData.track_batches,
+    has_warranty: finalData.has_warranty,
+    price_tiers_count: finalData.price_tiers?.length || 0
+  });
 
   // 🔍 DEBUG: فحص البيانات النهائية
   console.log('[prepareFormSubmissionData] 🔍 DEBUG - finalData.thumbnail_image:', finalData.thumbnail_image ? `exists (${Math.round(String(finalData.thumbnail_image).length/1024)}KB)` : 'NOT EXISTS or empty');

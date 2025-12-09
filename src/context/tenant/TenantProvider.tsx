@@ -96,7 +96,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = React.mem
         refs={refs}
       />
 
-      {useOptimizedProvider(value, children, renderCount)}
+      {useOptimizedProvider(TenantContext, value, children, renderCount)}
     </>
   );
 }, (prevProps, nextProps) => {
@@ -106,6 +106,9 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = React.mem
 
 // 🔥 تحسين: إضافة displayName للتطوير
 TenantProvider.displayName = 'TenantProvider';
+
+// تصدير TenantContext للاستخدام في الملفات الأخرى
+export { TenantContext };
 
 // تصدير الـ hook من ملف منفصل
 export { useTenant } from './hooks/useTenant';

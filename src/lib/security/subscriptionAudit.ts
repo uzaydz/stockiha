@@ -8,7 +8,7 @@
  * - الأخطاء والاستثناءات
  */
 
-import { sqliteDB, isSQLiteAvailable } from '@/lib/db/sqliteAPI';
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
 
 // أنواع أحداث التدقيق
 export type AuditEventType =
@@ -73,44 +73,9 @@ class SubscriptionAuditService {
     if (this.isInitialized) return;
 
     try {
-      if (!isSQLiteAvailable()) {
-        console.log('[AuditService] SQLite not available, using memory only');
-        this.isInitialized = true;
-        return;
-      }
-
-      await sqliteDB.initialize(organizationId);
-
-      // إنشاء جدول التدقيق إذا لم يكن موجوداً
-      const createTableQuery = `
-        CREATE TABLE IF NOT EXISTS ${this.TABLE_NAME} (
-          id TEXT PRIMARY KEY,
-          timestamp TEXT NOT NULL,
-          event_type TEXT NOT NULL,
-          organization_id TEXT NOT NULL,
-          user_id TEXT,
-          details TEXT,
-          ip_address TEXT,
-          user_agent TEXT,
-          device_info TEXT,
-          severity TEXT NOT NULL DEFAULT 'info',
-          synced INTEGER DEFAULT 0,
-          created_at TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-      `;
-
-      await window.electronAPI?.db?.execute(createTableQuery, []);
-
-      // إنشاء فهرس للبحث السريع
-      await window.electronAPI?.db?.execute(
-        `CREATE INDEX IF NOT EXISTS idx_audit_org_type ON ${this.TABLE_NAME} (organization_id, event_type)`,
-        []
-      );
-
-      await window.electronAPI?.db?.execute(
-        `CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON ${this.TABLE_NAME} (timestamp DESC)`,
-        []
-      );
+      // ⚡ PowerSync متاح دائماً - الجداول تُنشأ تلقائياً من Schema
+      await powerSyncService.initialize();
+      // لا حاجة لإنشاء الجداول يدوياً - PowerSync Schema يديرها
 
       this.isInitialized = true;
       console.log('[AuditService] Initialized successfully');
@@ -246,10 +211,9 @@ class SubscriptionAuditService {
     } = {}
   ): Promise<AuditLogEntry[]> {
     try {
-      if (!isSQLiteAvailable()) {
-        return this.pendingLogs.filter(
-          log => log.organization_id === organizationId
-        );
+      // ⚡ PowerSync متاح دائماً
+      if (!this.isInitialized) {
+        await this.initialize(organizationId);
       }
 
       let query = `SELECT * FROM ${this.TABLE_NAME} WHERE organization_id = ?`;
@@ -282,10 +246,15 @@ class SubscriptionAuditService {
         params.push(options.offset);
       }
 
-      const result = await window.electronAPI?.db?.queryMany(query, params);
+      // ⚡ استخدام PowerSync مباشرة
+      if (!powerSyncService.db) {
+        console.warn('[subscriptionAudit] PowerSync DB not initialized');
+        return [];
+      }
+      const result = await powerSyncService.query<any>({ sql: query, params });
 
-      if (result?.success && result.data) {
-        return result.data.map((row: any) => ({
+      if (result && Array.isArray(result)) {
+        return result.map((row: any) => ({
           ...row,
           details: typeof row.details === 'string' ? JSON.parse(row.details) : row.details,
           synced: !!row.synced
@@ -444,26 +413,34 @@ class SubscriptionAuditService {
 
   private async saveToDatabase(entry: AuditLogEntry): Promise<void> {
     try {
-      if (!isSQLiteAvailable()) return;
+      // ⚡ استخدام PowerSync مباشرة
+      if (!this.isInitialized) {
+        await this.initialize(entry.organization_id);
+      }
 
-      await window.electronAPI?.db?.execute(
-        `INSERT INTO ${this.TABLE_NAME}
-         (id, timestamp, event_type, organization_id, user_id, details, ip_address, user_agent, device_info, severity, synced)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          entry.id,
-          entry.timestamp,
-          entry.event_type,
-          entry.organization_id,
-          entry.user_id || null,
-          JSON.stringify(entry.details),
-          entry.ip_address || null,
-          entry.user_agent || null,
-          entry.device_info || null,
-          entry.severity,
-          0
-        ]
-      );
+      if (!powerSyncService.db) {
+        throw new Error('PowerSync DB not initialized');
+      }
+      await powerSyncService.transaction(async (tx) => {
+        await tx.execute(
+          `INSERT INTO ${this.TABLE_NAME}
+           (id, timestamp, event_type, organization_id, user_id, details, ip_address, user_agent, device_info, severity, synced)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            entry.id,
+            entry.timestamp,
+            entry.event_type,
+            entry.organization_id,
+            entry.user_id || null,
+            JSON.stringify(entry.details),
+            entry.ip_address || null,
+            entry.user_agent || null,
+            entry.device_info || null,
+            entry.severity,
+            0
+          ]
+        );
+      });
     } catch (error) {
       console.error('[AuditService] Failed to save to database:', error);
     }
@@ -471,12 +448,16 @@ class SubscriptionAuditService {
 
   private async markAsSynced(id: string): Promise<void> {
     try {
-      if (!isSQLiteAvailable()) return;
-
-      await window.electronAPI?.db?.execute(
-        `UPDATE ${this.TABLE_NAME} SET synced = 1 WHERE id = ?`,
-        [id]
-      );
+      // ⚡ استخدام PowerSync مباشرة
+      if (!powerSyncService.db) {
+        throw new Error('PowerSync DB not initialized');
+      }
+      await powerSyncService.transaction(async (tx) => {
+        await tx.execute(
+          `UPDATE ${this.TABLE_NAME} SET synced = 1 WHERE id = ?`,
+          [id]
+        );
+      });
     } catch (error) {
       console.error('[AuditService] Failed to mark as synced:', error);
     }
@@ -484,34 +465,41 @@ class SubscriptionAuditService {
 
   private async cleanupOldLogs(organizationId: string): Promise<void> {
     try {
-      if (!isSQLiteAvailable()) {
-        // تنظيف الذاكرة
-        while (this.pendingLogs.length > this.MAX_LOCAL_LOGS) {
-          this.pendingLogs.shift();
-        }
-        return;
+      // تنظيف الذاكرة أولاً
+      while (this.pendingLogs.length > this.MAX_LOCAL_LOGS) {
+        this.pendingLogs.shift();
+      }
+
+      // ⚡ استخدام PowerSync مباشرة
+      if (!this.isInitialized) {
+        await this.initialize(organizationId);
       }
 
       // حذف السجلات الأقدم من 30 يوم
       const thirtyDaysAgo = new Date();
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-      await window.electronAPI?.db?.execute(
-        `DELETE FROM ${this.TABLE_NAME} WHERE organization_id = ? AND timestamp < ? AND synced = 1`,
-        [organizationId, thirtyDaysAgo.toISOString()]
-      );
+      if (!powerSyncService.db) {
+        throw new Error('PowerSync DB not initialized');
+      }
+      await powerSyncService.transaction(async (tx) => {
+        await tx.execute(
+          `DELETE FROM ${this.TABLE_NAME} WHERE organization_id = ? AND timestamp < ? AND synced = 1`,
+          [organizationId, thirtyDaysAgo.toISOString()]
+        );
 
-      // الاحتفاظ بآخر 1000 سجل فقط
-      await window.electronAPI?.db?.execute(
-        `DELETE FROM ${this.TABLE_NAME}
-         WHERE organization_id = ? AND id NOT IN (
-           SELECT id FROM ${this.TABLE_NAME}
-           WHERE organization_id = ?
-           ORDER BY timestamp DESC
-           LIMIT ?
-         )`,
-        [organizationId, organizationId, this.MAX_LOCAL_LOGS]
-      );
+        // الاحتفاظ بآخر 1000 سجل فقط
+        await tx.execute(
+          `DELETE FROM ${this.TABLE_NAME}
+           WHERE organization_id = ? AND id NOT IN (
+             SELECT id FROM ${this.TABLE_NAME}
+             WHERE organization_id = ?
+             ORDER BY timestamp DESC
+             LIMIT ?
+           )`,
+          [organizationId, organizationId, this.MAX_LOCAL_LOGS]
+        );
+      });
     } catch (error) {
       console.error('[AuditService] Cleanup failed:', error);
     }

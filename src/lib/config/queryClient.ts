@@ -1,39 +1,55 @@
+/**
+ * ⚡ Query Client Configuration - Best Practices 2025
+ * ============================================================
+ *
+ * 🚀 إعدادات محسّنة للتكامل مع PowerSync:
+ *   - لا حاجة لـ refetch - PowerSync يدير التحديثات التلقائية
+ *   - networkMode: 'offlineFirst' للعمل بدون اتصال
+ *   - staleTime عالي لأن PowerSync يحافظ على البيانات محدّثة
+ *
+ * المصادر:
+ * - https://docs.powersync.com/client-sdk-references/javascript-web
+ * - https://www.powersync.com/blog/sqlite-optimizations-for-ultra-high-performance
+ * ============================================================
+ */
+
 import { QueryClient } from '@tanstack/react-query';
 import { persistQueryClient } from '@tanstack/react-query-persist-client';
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister';
 
 // إعدادات React Query محسنة للأداء العالي ومنع الاستدعاءات المكررة
+// ⚡ متوافق مع PowerSync reactive queries
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // تحسين أوقات التخزين المؤقت - توازن بين الأداء والبيانات الحديثة
-      staleTime: 10 * 60 * 1000, // 10 دقائق - زيادة لتقليل الاستدعاءات المكررة
-      gcTime: 30 * 60 * 1000, // 30 دقيقة - زيادة للحفاظ على البيانات في الذاكرة
-      
+      // ⚡ تحسين أوقات التخزين المؤقت - تقليل استهلاك الذاكرة
+      staleTime: 3 * 60 * 1000, // ⚡ 3 دقائق بدلاً من 10 - لتقليل الذاكرة
+      gcTime: 5 * 60 * 1000, // ⚡ 5 دقائق بدلاً من 30 - تنظيف أسرع
+
       // تحسين إعادة المحاولة - تقليل التأخير
       retry: 1, // محاولة واحدة إضافية لتجنب الفشل المؤقت
       retryDelay: 1000, // ثانية واحدة
-      
+
       // تحسين سلوك التحديث - تقليل الاستدعاءات غير الضرورية
       refetchOnWindowFocus: false,
-      refetchOnReconnect: true, // إعادة التحميل عند استعادة الاتصال
-      refetchOnMount: true, // استخدام true مع staleTime أطول - React Query لن يعيد الجلب إذا كانت البيانات حديثة
+      refetchOnReconnect: false, // ⚡ تعطيل - قد يسبب CancelledError عند التنقل السريع
+      refetchOnMount: false, // ⚡ تغيير إلى false - يقلل الاستدعاءات المكررة
       refetchInterval: false, // تعطيل التحديث التلقائي
-      
-      // تحسين الشبكة - أولوية للسرعة
-      networkMode: 'online', // العمل فقط عند الاتصال
-      
+
+      // ⚡ تحسين الشبكة للعمل offline-first - يمنع CancelledError
+      networkMode: 'offlineFirst', // استخدام الكاش أولاً ثم الشبكة
+
       // تحسين إضافي للأداء
       structuralSharing: true, // مشاركة البنية
       throwOnError: false, // عدم رمي الأخطاء لتجنب التوقف
-      
+
       // إضافة notifyOnChangeProps لتقليل re-renders
       notifyOnChangeProps: ['data', 'error', 'isLoading', 'isFetching'],
     },
     mutations: {
       retry: 1, // محاولة واحدة إضافية
       retryDelay: 1000,
-      networkMode: 'online',
+      networkMode: 'offlineFirst', // ⚡ offlineFirst للمزامنة اللاحقة
       throwOnError: false,
     },
   },
@@ -46,13 +62,33 @@ export const queryClient = new QueryClient({
 
 // تفعيل حفظ React Query محليًا (LocalStorage في سطح المكتب كافٍ وبسيط)
 if (typeof window !== 'undefined') {
-  const key = 'rq-desktop-cache-v2';
+  const key = 'rq-desktop-cache-v3'; // ⚡ v3 للتخلص من الكاش القديم
+
+  // ⚡ تنظيف الكاش القديمة أولاً لمنع CancelledError
+  try {
+    window.localStorage.removeItem('rq-desktop-cache-v1');
+    window.localStorage.removeItem('rq-desktop-cache-v2');
+  } catch {}
+
   const persister = createSyncStoragePersister({
     storage: window.localStorage,
     key,
     throttleTime: 1000,
     serialize: (client) => JSON.stringify(client),
-    deserialize: (cached) => JSON.parse(cached)
+    deserialize: (cached) => {
+      try {
+        const parsed = JSON.parse(cached);
+        // ⚡ تصفية الاستعلامات المعلقة قبل الاستعادة
+        if (parsed?.clientState?.queries) {
+          parsed.clientState.queries = parsed.clientState.queries.filter(
+            (q: any) => q.state?.status === 'success' && q.state?.data !== undefined
+          );
+        }
+        return parsed;
+      } catch {
+        return { clientState: { queries: [], mutations: [] } };
+      }
+    }
   });
 
   try {
@@ -60,45 +96,66 @@ if (typeof window !== 'undefined') {
       queryClient,
       persister,
       maxAge: 24 * 60 * 60 * 1000, // يوم واحد
-      buster: 'desktop-cache-v1',
+      buster: 'desktop-cache-v3', // ⚡ تحديث للتخلص من الكاش القديم
       dehydrateOptions: {
-        // لا تحفظ الاستعلامات المعلّقة/الفاشلة لتجنب أخطاء الاستعادة
-        shouldDehydrateQuery: (query) => query.state.status === 'success'
+        // ⚡ لا تحفظ الاستعلامات المعلّقة/الفاشلة لتجنب CancelledError
+        shouldDehydrateQuery: (query) => {
+          // فقط حفظ الاستعلامات الناجحة التي لديها بيانات
+          return query.state.status === 'success' && query.state.data !== undefined;
+        }
+      },
+      hydrateOptions: {
+        // ⚡ معالجة الأخطاء أثناء الاستعادة بهدوء
+        defaultOptions: {
+          queries: {
+            // لا ترمي أخطاء للاستعلامات المستعادة
+            throwOnError: false,
+          }
+        }
       }
     });
   } catch (e) {
     // إذا فشلت الاستعادة لأي سبب، احذف الكاش وتابع بدون تعطيل التطبيق
+    console.warn('[QueryClient] Cache restoration failed, clearing:', e);
     try { window.localStorage.removeItem(key); } catch {}
   }
 }
 
-// تنظيف دوري مبسط
+// ⚡ تنظيف دوري محسّن - يحترم gcTime بدلاً من قيمة ثابتة
 export function cleanupQueryCache() {
   const cache = queryClient.getQueryCache();
   const queries = cache.getAll();
-  
+
   queries.forEach((query) => {
     const state = query.state;
     if (state.dataUpdatedAt) {
       const age = Date.now() - state.dataUpdatedAt;
-      // إزالة الاستعلامات الأقدم من 10 دقائق (بدلاً من 24 ساعة)
-      if (age > 10 * 60 * 1000) {
+      // ⚡ إزالة الاستعلامات الأقدم من gcTime (5 دقائق)
+      const gcTime = (query.options as any).gcTime || 5 * 60 * 1000;
+      if (age > gcTime) {
         queryClient.removeQueries({ queryKey: query.queryKey });
       }
     }
   });
 }
 
-// تنظيف سريع عند بدء التشغيل
+// ⚡ تنظيف محسّن عند بدء التشغيل
+let cleanupIntervalId: ReturnType<typeof setInterval> | null = null;
+
 if (typeof window !== 'undefined') {
-  // تنظيف فوري
-  setTimeout(cleanupQueryCache, 1000);
-  
-  // تنظيف كل 10 دقائق (بدلاً من كل ساعة)
-  setInterval(cleanupQueryCache, 10 * 60 * 1000);
-  
+  // تنظيف بعد 5 ثواني من بدء التشغيل (لإعطاء وقت للتهيئة)
+  setTimeout(cleanupQueryCache, 5000);
+
+  // ⚡ تنظيف كل 5 دقائق (متوافق مع gcTime الجديد)
+  cleanupIntervalId = setInterval(cleanupQueryCache, 5 * 60 * 1000);
+
   // تنظيف عند إغلاق الصفحة
   window.addEventListener('beforeunload', () => {
+    // ⚡ تنظيف الـ interval أولاً
+    if (cleanupIntervalId) {
+      clearInterval(cleanupIntervalId);
+      cleanupIntervalId = null;
+    }
     queryClient.clear();
   });
 }

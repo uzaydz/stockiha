@@ -72,7 +72,8 @@ export const BlockedCustomers = lazy(() => import('../pages/dashboard/BlockedCus
 
 // ============ المصروفات والتحليلات ============
 export const Expenses = lazy(() => import('../pages/dashboard/Expenses'));
-export const Analytics = lazy(() => import('../pages/dashboard/Analytics'));
+// Analytics - تم حذفها لإعادة البناء
+// export const Analytics = lazy(() => import('../pages/dashboard/Analytics'));
 export const FinancialAnalytics = lazy(() => import('../pages/FinancialAnalytics'));
 export const Zakat = lazy(() => import('../pages/dashboard/Zakat'));
 export const Invoices = lazy(() => import('../pages/dashboard/Invoices'));
@@ -192,6 +193,17 @@ export const ActivationCodesPage = lazy(() => import('../pages/super-admin/activ
 export const YalidineSyncPage = lazy(() => import('../pages/super-admin/YalidineSyncPage'));
 export const SuperAdminSEO = lazy(() => import('../pages/SuperAdminSEO'));
 export const SuperAdminCourses = lazy(() => import('../pages/SuperAdminCourses'));
+
+// ============ Super Admin Referrals ============
+export const SuperAdminReferralsDashboard = lazy(() => import('../pages/super-admin/referrals'));
+export const SuperAdminReferrers = lazy(() => import('../pages/super-admin/referrals/referrers'));
+export const SuperAdminRedemptions = lazy(() => import('../pages/super-admin/referrals/redemptions'));
+export const SuperAdminRewards = lazy(() => import('../pages/super-admin/referrals/rewards'));
+export const SuperAdminTiers = lazy(() => import('../pages/super-admin/referrals/tiers'));
+export const SuperAdminTransactions = lazy(() => import('../pages/super-admin/referrals/transactions'));
+
+// ============ User Referral Page ============
+export const ReferralPage = lazy(() => import('../pages/dashboard/referral'));
 
 // ============ Call Center ============
 export const CallCenterLayout = lazy(() => import('../components/call-center/CallCenterLayout'));

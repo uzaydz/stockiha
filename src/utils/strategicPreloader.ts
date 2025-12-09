@@ -105,11 +105,9 @@ class StrategicPreloader {
         component: () => import('../pages/dashboard/Analytics'),
         priority: 'high',
         dependencies: [
-          () => import('@nivo/bar'),
-          () => import('@nivo/line'),
-          () => import('@nivo/pie')
+          // () => import('recharts') // Disabled: Safari ESM bug with star exports
         ],
-        preloadDependencies: true
+        preloadDependencies: false
       },
       {
         route: '/dashboard/pos',
@@ -148,11 +146,9 @@ class StrategicPreloader {
         component: () => import('../pages/FinancialAnalytics'),
         priority: 'medium',
         dependencies: [
-          () => import('recharts'),
-          () => import('chart.js'),
-          () => import('react-chartjs-2')
+          // () => import('recharts') // Disabled: Safari ESM bug with star exports
         ],
-        preloadDependencies: true
+        preloadDependencies: false
       },
 
       // Low priority - Preload last
@@ -367,14 +363,11 @@ export const useStrategicPreloader = () => {
 };
 
 // Utility to preload heavy dependencies during idle time
+// NOTE: recharts removed due to Safari ESM issues with dynamic imports
 export const preloadHeavyDependencies = () => {
   const heavyDeps = [
-    // Chart libraries
-    () => import('@nivo/bar'),
-    () => import('@nivo/line'),
-    () => import('@nivo/pie'),
-    () => import('recharts'),
-    () => import('chart.js'),
+    // Chart libraries - disabled due to Safari ESM bug
+    // () => import('recharts'),
 
     // Editor libraries
     () => import('@monaco-editor/react'),

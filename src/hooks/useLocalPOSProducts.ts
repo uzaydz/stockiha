@@ -1,18 +1,18 @@
 /**
  * useLocalPOSProducts - Hook لجلب المنتجات من SQLite المحلية
- * 
- * ⚡ التحسينات:
- * - Pagination محلية بدون استدعاء السيرفر
- * - البحث والفلترة محلياً
- * - أداء عالي جداً (< 50ms)
- * - يعمل أوفلاين بالكامل
+ *
+ * ⚡ v3.0 (2025): يستخدم DeltaWriteService.searchProductsSmart
+ * - SQL-level filtering بدلاً من JavaScript filtering
+ * - Pagination على مستوى قاعدة البيانات
+ * - ألوان ومقاسات مرفقة تلقائياً
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useStatus } from '@powersync/react';
 import { useTenant } from '@/context/TenantContext';
-import { localProductSearchService, PaginatedProductsResult } from '@/services/LocalProductSearchService';
-import { isAppOnline } from '@/utils/networkStatus';
+import { deltaWriteService } from '@/services/DeltaWriteService';
+import { mapLocalProductToPOSProduct } from '@/context/POSDataContext';
 
 interface UseLocalPOSProductsOptions {
   page?: number;
@@ -23,7 +23,7 @@ interface UseLocalPOSProductsOptions {
   enabled?: boolean;
 }
 
-interface LocalPOSProductsState {
+interface PaginatedProductsResult {
   products: any[];
   pagination: {
     current_page: number;
@@ -32,16 +32,18 @@ interface LocalPOSProductsState {
     per_page: number;
     has_next_page: boolean;
     has_prev_page: boolean;
-  } | null;
-  isLoading: boolean;
-  isRefetching: boolean;
-  error: string | null;
-  source: 'local' | 'server';
+  };
+  source: string;
 }
 
 export const useLocalPOSProducts = (options: UseLocalPOSProductsOptions = {}) => {
   const { currentOrganization } = useTenant();
   const queryClient = useQueryClient();
+
+  // ⚡ v2.0: مراقبة حالة PowerSync للانتظار حتى تكتمل المزامنة الأولى
+  const powerSyncStatus = useStatus();
+  const hasSynced = powerSyncStatus?.hasSynced || false;
+  const initialSyncDone = useRef(false);
 
   const {
     page = 1,
@@ -52,13 +54,22 @@ export const useLocalPOSProducts = (options: UseLocalPOSProductsOptions = {}) =>
     enabled = true
   } = options;
 
-  // Query key للتخزين المؤقت
+  // Query key للتخزين المؤقت - يشمل hasSynced لإعادة الجلب بعد المزامنة
   const queryKey = useMemo(
-    () => ['local-pos-products', currentOrganization?.id, page, limit, search, categoryId, stockFilter],
-    [currentOrganization?.id, page, limit, search, categoryId, stockFilter]
+    () => ['local-pos-products', currentOrganization?.id, page, limit, search, categoryId, stockFilter, hasSynced],
+    [currentOrganization?.id, page, limit, search, categoryId, stockFilter, hasSynced]
   );
 
-  // جلب المنتجات من SQLite
+  // ⚡ v2.0: إعادة جلب البيانات عند اكتمال المزامنة الأولى
+  useEffect(() => {
+    if (hasSynced && !initialSyncDone.current) {
+      initialSyncDone.current = true;
+      console.log('[useLocalPOSProducts] ⚡ Initial sync completed, refetching data...');
+      queryClient.invalidateQueries({ queryKey: ['local-pos-products'] });
+    }
+  }, [hasSynced, queryClient]);
+
+  // ⚡ v3.0: جلب المنتجات باستخدام DeltaWriteService.searchProductsSmart
   const {
     data,
     isLoading,
@@ -83,43 +94,51 @@ export const useLocalPOSProducts = (options: UseLocalPOSProductsOptions = {}) =>
         };
       }
 
-      console.log(`[useLocalPOSProducts] 📦 جلب المنتجات - صفحة ${page}`);
-      const startTime = performance.now();
+      const startTime = Date.now();
 
-      const result = await localProductSearchService.getProductsPaginated(
-        currentOrganization.id,
-        {
-          page,
-          limit,
-          search,
-          categoryId,
-          stockFilter
-        }
-      );
+      // ⚡ استخدام الدالة الذكية الجديدة - SQL filtering + pagination
+      const result = await deltaWriteService.searchProductsSmart({
+        organizationId: currentOrganization.id,
+        search: search?.trim() || undefined,
+        categoryId: categoryId && categoryId !== 'all' ? categoryId : undefined,
+        page,
+        limit,
+        isActive: true,
+        stockFilter // ⚡ فلتر المخزون على مستوى SQL
+      });
 
-      const endTime = performance.now();
-      console.log(`[useLocalPOSProducts] ✅ تم جلب ${result.products.length} منتج في ${Math.round(endTime - startTime)}ms`);
+      // تحويل المنتجات لصيغة POS
+      const products = result.products.map(mapLocalProductToPOSProduct);
 
-      return result;
+      const duration = Date.now() - startTime;
+      console.log(`[useLocalPOSProducts] ⚡ Fetched ${products.length}/${result.totalCount} products in ${duration}ms`);
+
+      return {
+        products,
+        pagination: {
+          current_page: page,
+          total_pages: result.totalPages,
+          total_count: result.totalCount,
+          per_page: limit,
+          has_next_page: page < result.totalPages,
+          has_prev_page: page > 1
+        },
+        source: 'local-smart'
+      };
     },
     enabled: enabled && !!currentOrganization?.id,
-    staleTime: 2 * 60 * 1000, // 2 دقيقة
-    gcTime: 5 * 60 * 1000, // 5 دقائق
+    staleTime: 2 * 60 * 1000, // 2 دقيقة - البيانات تبقى fresh
+    gcTime: 10 * 60 * 1000,   // 10 دقائق
     refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    placeholderData: (previousData) => previousData
+    refetchOnMount: true, // جلب البيانات عند أول تحميل
+    refetchOnReconnect: false
   });
 
   // دوال التنقل
   const goToPage = useCallback((newPage: number) => {
     if (newPage < 1) return;
     if (data?.pagination && newPage > data.pagination.total_pages) return;
-    
-    // تحديث الـ query مباشرة
-    queryClient.invalidateQueries({ 
-      queryKey: ['local-pos-products', currentOrganization?.id, newPage] 
-    });
-  }, [data?.pagination, currentOrganization?.id, queryClient]);
+  }, [data?.pagination]);
 
   const nextPage = useCallback(() => {
     if (data?.pagination?.has_next_page) {
@@ -140,8 +159,8 @@ export const useLocalPOSProducts = (options: UseLocalPOSProductsOptions = {}) =>
 
   // إبطال الكاش
   const invalidateCache = useCallback(() => {
-    queryClient.invalidateQueries({ 
-      queryKey: ['local-pos-products', currentOrganization?.id] 
+    queryClient.invalidateQueries({
+      queryKey: ['local-pos-products', currentOrganization?.id]
     });
   }, [currentOrganization?.id, queryClient]);
 

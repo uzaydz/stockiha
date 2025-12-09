@@ -12,7 +12,8 @@ import {
   FolderPlus,
   Tag,
   Link as LinkIcon,
-  Calendar
+  Calendar,
+  CloudOff
 } from 'lucide-react';
 import {
   Card,
@@ -56,19 +57,40 @@ import { getLucideIcon } from '@/lib/utils';
 import CategoryDetailsDialog from './CategoryDetailsDialog';
 import { cn } from '@/lib/utils';
 
+// ⚡ Extended Category type with offline fields
+interface ExtendedCategory extends Category {
+  image_base64?: string | null;
+  _synced?: boolean;
+  _syncStatus?: string;
+  _pendingOperation?: string;
+}
+
 interface CategoriesListResponsiveProps {
-  categories: Category[];
+  categories: ExtendedCategory[];
   onRefreshCategories: () => Promise<void>;
   viewMode?: 'grid' | 'table';
 }
 
+// ⚡ Helper function to get category image (local-first)
+const getCategoryImageSrc = (category: ExtendedCategory): string | null => {
+  // أولاً: الصورة المحلية Base64
+  if (category.image_base64) {
+    return category.image_base64;
+  }
+  // ثانياً: URL من الخادم
+  if (category.image_url) {
+    return category.image_url;
+  }
+  return null;
+};
+
 // مكون البطاقة المحسن للموبايل
 const CategoryCard: React.FC<{
-  category: Category;
-  onView: (category: Category) => void;
-  onEdit: (category: Category) => void;
-  onDelete: (category: Category) => void;
-  onToggleActive: (category: Category) => void;
+  category: ExtendedCategory;
+  onView: (category: ExtendedCategory) => void;
+  onEdit: (category: ExtendedCategory) => void;
+  onDelete: (category: ExtendedCategory) => void;
+  onToggleActive: (category: ExtendedCategory) => void;
   renderCategoryIcon: (iconName: string | null, className: string) => React.ReactNode;
   formatDate: (dateString: string) => string;
 }> = ({
@@ -80,6 +102,11 @@ const CategoryCard: React.FC<{
   renderCategoryIcon,
   formatDate
 }) => {
+  // ⚡ جلب الصورة (محلية أو remote)
+  const imageSrc = getCategoryImageSrc(category);
+  const isLocalImage = !!category.image_base64;
+  const isPendingSync = category._syncStatus === 'pending' || category._pendingOperation;
+
   return (
     <Card className={cn(
       "h-full flex flex-col overflow-hidden transition-all duration-200 hover:shadow-md",
@@ -87,13 +114,24 @@ const CategoryCard: React.FC<{
     )}>
       {/* صورة الفئة */}
       <div className="relative aspect-video rounded-t-lg overflow-hidden bg-muted">
-        {category.image_url ? (
-          <img
-            src={category.image_url}
-            alt={category.name}
-            className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
-            loading="lazy"
-          />
+        {imageSrc ? (
+          <>
+            <img
+              src={imageSrc}
+              alt={category.name}
+              className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
+              loading="lazy"
+            />
+            {/* ⚡ مؤشر الصورة المحلية */}
+            {isLocalImage && (
+              <div className="absolute bottom-2 left-2">
+                <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200 text-xs">
+                  <CloudOff className="h-3 w-3 ml-1" />
+                  محلي
+                </Badge>
+              </div>
+            )}
+          </>
         ) : (
           <div className="h-full w-full flex items-center justify-center bg-primary/10">
             {renderCategoryIcon(category.icon, "h-16 w-16 text-primary")}
@@ -389,17 +427,27 @@ const CategoriesListResponsive: React.FC<CategoriesListResponsiveProps> = ({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {categories.map((category) => (
+                {categories.map((category) => {
+                  const tableCategoryImageSrc = getCategoryImageSrc(category as ExtendedCategory);
+                  const tableIsLocalImage = !!(category as ExtendedCategory).image_base64;
+
+                  return (
                   <TableRow key={category.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        {category.image_url ? (
-                          <Avatar className="h-10 w-10 rounded-md">
-                            <img src={category.image_url} alt={category.name} className="object-cover" />
-                            <AvatarFallback className="rounded-md">
-                              {renderCategoryIcon(category.icon, "h-5 w-5")}
-                            </AvatarFallback>
-                          </Avatar>
+                        {tableCategoryImageSrc ? (
+                          <div className="relative">
+                            <Avatar className="h-10 w-10 rounded-md">
+                              <img src={tableCategoryImageSrc} alt={category.name} className="object-cover" />
+                              <AvatarFallback className="rounded-md">
+                                {renderCategoryIcon(category.icon, "h-5 w-5")}
+                              </AvatarFallback>
+                            </Avatar>
+                            {/* ⚡ مؤشر صغير للصورة المحلية */}
+                            {tableIsLocalImage && (
+                              <CloudOff className="absolute -bottom-1 -right-1 h-3 w-3 text-orange-500 bg-white rounded-full" />
+                            )}
+                          </div>
                         ) : (
                           <div className="h-10 w-10 flex items-center justify-center rounded-md bg-primary/10">
                             {renderCategoryIcon(category.icon, "h-5 w-5 text-primary")}
@@ -468,7 +516,8 @@ const CategoriesListResponsive: React.FC<CategoriesListResponsiveProps> = ({
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           </div>

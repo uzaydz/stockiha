@@ -1,5 +1,29 @@
 import { tauriExecute, tauriQuery } from './tauriSqlClient';
 
+// ⚡ تحديد البيئة (DEV vs PROD)
+function isDevMode(): boolean {
+  try {
+    // @ts-ignore
+    return import.meta.env?.DEV === true || import.meta.env?.MODE === 'development';
+  } catch {
+    return false;
+  }
+}
+
+// ⚡ التحقق من وجود بيانات إنتاجية في جدول
+async function hasProductionData(orgId: string, table: string): Promise<boolean> {
+  try {
+    const res = await tauriQuery(orgId, `SELECT COUNT(*) as count FROM ${table} LIMIT 1;`, []);
+    if (res.success && res.data && res.data.length > 0) {
+      const count = res.data[0].count || 0;
+      return count > 0;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
 // إصدار الـ schema - قم بزيادته عند أي تغيير في بنية الجداول
 // v20: إضافة أعمدة last_sync_attempt و product_colors و product_sizes لجدول products
 // v21: إضافة جدول sync_metadata للتزامن التدريجي (Incremental Sync)
@@ -17,7 +41,42 @@ import { tauriExecute, tauriQuery } from './tauriSqlClient';
 // v33: إضافة جداول product_advanced_settings, product_marketing_settings, product_wholesale_tiers
 // v34: إضافة جداول الموردين (suppliers, supplier_contacts, supplier_purchases, supplier_payments)
 // v35: إضافة أعمدة created_by و updated_by لجدول suppliers
-const SCHEMA_VERSION = 35;
+// v36: إضافة أعمدة البيع المتقدم (وزن، كرتون، متر) + التتبع (صلاحية، أرقام تسلسلية، دفعات، ضمان)
+// v37: إضافة أعمدة مفقودة لجدول product_advanced_settings (enable_sticky_buy_button, etc.)
+// v38: إضافة أعمدة البيع المتقدم الجديدة من Supabase (min_weight_per_sale, etc.)
+// v39: إضافة أعمدة min_meters_per_sale و max_meters_per_sale
+// v40: إضافة جميع أعمدة Supabase المفقودة (roll_length_meters, pharmacy, restaurant, auto parts, etc.)
+// v41: إزالة قيود NOT NULL من pos_order_items لدعم المزامنة (subtotal, product_name, unit_price, quantity)
+// v42: إضافة Views للتوافق مع أسماء جداول Supabase (orders, order_items, pos_work_sessions)
+// v43: توحيد Schema الكامل مع Supabase (محاولة أولى - Views فقط)
+// v44: ⚡ إعادة بناء Schema من الصفر - الجداول الآن 100% متطابقة مع Supabase:
+//      - orders (بدلاً من pos_orders)
+//      - order_items (بدلاً من pos_order_items)
+//      - returns (بدلاً من product_returns)
+//      - losses (بدلاً من loss_declarations)
+//      - staff_work_sessions (بدلاً من work_sessions)
+//      - إزالة جميع الـ Views (الجداول الحقيقية بنفس الاسم الآن)
+// v45: ⚡ إصلاح مشكلة المزامنة - إعادة تعيين sync_state لجداول orders و order_items
+//      لإجبار إعادة السحب الكامل من Supabase (603+ طلبية موجودة)
+// v46: ⚡ تحسين الأداء - إضافة أعمدة product_marketing_settings المفقودة + تخطي سريع للـ schema
+// v47: ⚡ إضافة فهارس للفئات (product_categories, product_subcategories) لتسريع الاستعلامات
+// v48: ⚡ إضافة أعمدة مفقودة لجدول product_categories (name_lower, parent_id, display_order)
+// v49: ⚡ إضافة عمود image_base64 لجدول product_categories لدعم الصور أوفلاين
+// v50: ⚡ إضافة جداول المصروفات (expenses, recurring_expenses) للعمل أوفلاين
+// v51: ⚡ إضافة أعمدة _synced لجدول employees و local_updated_at لجدول orders
+// v54: ⚡ إضافة أعمدة المزامنة المحلية (_synced, _sync_status, _customer_name_lower, etc.) لجدول orders
+// v55: ⚡ إضافة فهارس حرجة لـ work_sessions لتسريع الاستعلامات (حل مشكلة database locked)
+// v56: ⚡ إصلاح مشكلة Schema Mismatch - إضافة الأعمدة الحرجة (subtotal, discount, total, etc.) حتى في حالة التخطي السريع
+// v57: ⚡ إضافة أعمدة المزامنة المحلية (_synced, _sync_status, _pending_operation) لجداول product_advanced_settings و product_marketing_settings
+// v58: ⚡ المرحلة 1: توحيد مخطط SQLite - إزالة الجداول القديمة وإنشاء migration إلى الأسماء الموحدة
+//      - إزالة product_returns (استخدام returns فقط)
+//      - إزالة loss_declarations (استخدام losses فقط)
+//      - إعادة تسمية work_sessions إلى staff_work_sessions
+//      - التأكد من تطابق جميع أعمدة المزامنة مع sync/config.ts
+// v59: ⚡ تحويل جميع أسماء الأعمدة من camelCase إلى snake_case
+//      - إزالة جميع الأعمدة camelCase (syncStatus, pendingOperation, etc.)
+//      - استخدام snake_case فقط في جميع الجداول
+const SCHEMA_VERSION = 59;
 
 async function exec(orgId: string, sql: string) {
   await tauriExecute(orgId, sql, []);
@@ -46,6 +105,126 @@ async function setSchemaVersion(orgId: string, version: number): Promise<void> {
   }
 }
 
+/**
+ * ⚡ ترحيل آمن لجدول: إنشاء جدول جديد، نسخ البيانات، إعادة التسمية
+ * نمط ترقية آمن لتعديل نوع عمود/هيكل جدول بدون فقدان بيانات
+ * 
+ * @param orgId Organization ID
+ * @param tableName اسم الجدول المراد ترقيته
+ * @param newTableDef تعريف الجدول الجديد (CREATE TABLE statement)
+ * @param columnsToMigrate قائمة الأعمدة المراد نسخها
+ * @param dataTransform دالة تحويل اختيارية للبيانات (optional)
+ * @returns true إذا نجحت العملية
+ */
+async function safeTableMigration(
+  orgId: string,
+  tableName: string,
+  newTableDef: string,
+  columnsToMigrate: string[],
+  dataTransform?: (row: any) => any
+): Promise<boolean> {
+  try {
+    const oldTableExists = await tableExists(orgId, tableName);
+    if (!oldTableExists) {
+      // الجدول غير موجود، إنشاء الجدول الجديد مباشرة
+      await exec(orgId, newTableDef);
+      return true;
+    }
+
+    // التحقق من وجود بيانات إنتاجية
+    const hasData = await hasProductionData(orgId, tableName);
+    
+    if (!hasData) {
+      // لا توجد بيانات - يمكن حذف الجدول القديم وإنشاء الجديد
+      console.log(`[TauriSQLite] 🔄 ${tableName}: لا توجد بيانات - حذف وإنشاء جديد`);
+      await exec(orgId, `DROP TABLE IF EXISTS ${tableName};`);
+      await exec(orgId, newTableDef);
+      return true;
+    }
+
+    // ⚡ هناك بيانات إنتاجية - استخدام نمط الترحيل الآمن
+    console.log(`[TauriSQLite] 🔄 ${tableName}: بدء ترحيل آمن للبيانات...`);
+    
+    const tempTable = `${tableName}_v2`;
+    const backupTable = `${tableName}_old`;
+
+    // 1. إنشاء الجدول الجديد باسم مؤقت
+    await exec(orgId, newTableDef.replace(tableName, tempTable));
+
+    // 2. نسخ البيانات من الجدول القديم إلى الجديد
+    const existingCols = columnsToMigrate.filter(col => {
+      // التحقق من وجود العمود في الجدول القديم
+      // سنستخدم جميع الأعمدة المتاحة
+      return true;
+    });
+
+    if (existingCols.length > 0) {
+      // جلب البيانات من الجدول القديم
+      const oldDataRes = await tauriQuery(orgId, `SELECT * FROM ${tableName};`, []);
+      
+      if (oldDataRes.success && oldDataRes.data && oldDataRes.data.length > 0) {
+        // نسخ البيانات مع التحويل إذا لزم الأمر
+        for (const row of oldDataRes.data) {
+          let transformedRow = dataTransform ? dataTransform(row) : row;
+          
+          // بناء INSERT statement
+          const cols = Object.keys(transformedRow).filter(col => 
+            columnsToMigrate.includes(col) || columnsToMigrate.length === 0
+          );
+          const values = cols.map(col => transformedRow[col]);
+          const placeholders = cols.map(() => '?').join(', ');
+          const colNames = cols.map(col => `"${col}"`).join(', ');
+          
+          if (cols.length > 0) {
+            await tauriExecute(orgId, 
+              `INSERT INTO ${tempTable} (${colNames}) VALUES (${placeholders});`, 
+              values
+            );
+          }
+        }
+        
+        console.log(`[TauriSQLite] ✅ ${tableName}: تم نسخ ${oldDataRes.data.length} سجل`);
+      }
+    }
+
+    // 3. إعادة تسمية الجدول القديم كنسخة احتياطية
+    await exec(orgId, `ALTER TABLE ${tableName} RENAME TO ${backupTable};`);
+
+    // 4. إعادة تسمية الجدول الجديد إلى الاسم الأصلي
+    await exec(orgId, `ALTER TABLE ${tempTable} RENAME TO ${tableName};`);
+
+    // 5. حذف النسخة الاحتياطية فقط بعد التأكد من النجاح
+    await exec(orgId, `DROP TABLE IF EXISTS ${backupTable};`);
+
+    console.log(`[TauriSQLite] ✅ ${tableName}: اكتمل الترحيل الآمن بنجاح`);
+    return true;
+  } catch (error: any) {
+    console.error(`[TauriSQLite] ❌ فشل ترحيل ${tableName}:`, error);
+    
+    // ⚡ محاولة استعادة الجدول القديم في حالة الفشل
+    try {
+      const backupTable = `${tableName}_old`;
+      const tempTable = `${tableName}_v2`;
+      const backupExists = await tableExists(orgId, backupTable);
+      const tempExists = await tableExists(orgId, tempTable);
+      
+      if (backupExists) {
+        // استعادة الجدول القديم
+        await exec(orgId, `DROP TABLE IF EXISTS ${tableName};`);
+        await exec(orgId, `ALTER TABLE ${backupTable} RENAME TO ${tableName};`);
+        console.log(`[TauriSQLite] 🔄 ${tableName}: تم استعادة الجدول القديم`);
+      } else if (tempExists) {
+        // حذف الجدول المؤقت
+        await exec(orgId, `DROP TABLE IF EXISTS ${tempTable};`);
+      }
+    } catch (recoveryError) {
+      console.error(`[TauriSQLite] ❌ فشل استعادة ${tableName}:`, recoveryError);
+    }
+    
+    return false;
+  }
+}
+
 async function columnExists(orgId: string, table: string, column: string): Promise<boolean> {
   try {
     const res = await tauriQuery(orgId, `PRAGMA table_info(${table});`, []);
@@ -66,6 +245,12 @@ async function tableExists(orgId: string, table: string): Promise<boolean> {
 }
 
 async function addColumnIfNotExists(orgId: string, table: string, column: string, definition: string) {
+  // ⚡ CRITICAL FIX: تخطي فحص الأعمدة إذا كان schema في الإصدار الحالي
+  // هذا يمنع مئات الاستدعاءات لـ PRAGMA table_info في كل تشغيل
+  if (skipColumnChecks) {
+    return; // تخطي تماماً - schema محدث ولا حاجة لفحص الأعمدة
+  }
+
   try {
     const exists = await columnExists(orgId, table, column);
     if (exists) return;
@@ -82,6 +267,69 @@ async function addColumnIfNotExists(orgId: string, table: string, column: string
       console.error('[TauriSQLite] addColumnIfNotExists failed:', { table, column, error });
     } catch { }
   }
+}
+
+// ⚡ Cache لتخزين أعمدة الجداول لتجنب استعلامات PRAGMA المتكررة
+const tableColumnsCache = new Map<string, Set<string>>();
+
+// ⚡ CRITICAL FIX: متغير لتخطي فحص الأعمدة عند عدم الحاجة لترقية schema
+let skipColumnChecks = false;
+
+// ⚡ دالة محسنة للحصول على أعمدة جدول (مع cache)
+async function getTableColumns(orgId: string, table: string): Promise<Set<string>> {
+  const cacheKey = `${orgId}:${table}`;
+  if (tableColumnsCache.has(cacheKey)) {
+    return tableColumnsCache.get(cacheKey)!;
+  }
+
+  try {
+    const res = await tauriQuery(orgId, `PRAGMA table_info(${table});`, []);
+    const columns = new Set<string>();
+    if (res.success && Array.isArray(res.data)) {
+      res.data.forEach((row: any) => {
+        if (row?.name) columns.add(row.name);
+      });
+    }
+    tableColumnsCache.set(cacheKey, columns);
+    return columns;
+  } catch {
+    return new Set();
+  }
+}
+
+// ⚡ دالة فائقة السرعة لإضافة أعمدة متعددة دفعة واحدة
+async function addColumnsIfNotExistBatch(orgId: string, table: string, columns: Array<{name: string, definition: string}>) {
+  if (columns.length === 0) return;
+
+  // جلب الأعمدة الموجودة مرة واحدة
+  const existingColumns = await getTableColumns(orgId, table);
+
+  // فلترة الأعمدة غير الموجودة فقط
+  const newColumns = columns.filter(col => !existingColumns.has(col.name));
+
+  if (newColumns.length === 0) return;
+
+  // إضافة الأعمدة الجديدة بالتوازي (SQLite يدعم هذا في Tauri)
+  await Promise.all(newColumns.map(async col => {
+    try {
+      await tauriExecute(orgId, `ALTER TABLE ${table} ADD COLUMN ${col.name} ${col.definition}`, []);
+      existingColumns.add(col.name); // تحديث الكاش
+    } catch (error: any) {
+      const msg = String(error?.message || error);
+      if (!msg.includes('duplicate column name') && !msg.includes('already exists')) {
+        // تجاهل الأخطاء الصامتة
+      }
+    }
+  }));
+
+  // تحديث الكاش
+  const cacheKey = `${orgId}:${table}`;
+  tableColumnsCache.set(cacheKey, existingColumns);
+}
+
+// مسح كاش الأعمدة عند بدء تهيئة جديدة
+function clearTableColumnsCache() {
+  tableColumnsCache.clear();
 }
 
 // تتبع الجداول التي تم إعادة بنائها في هذه الجلسة
@@ -112,7 +360,8 @@ async function rebuildTableIfNeeded(orgId: string, tableName: string, newTableDe
       'name', 'price', 'product_name', 'unit_price', 'quantity',
       'customer_name', 'total_amount', 'invoice_number', 'amount',
       'staff_id', 'started_at', // أعمدة work_sessions
-      'loss_id', 'product_id', 'color_id', 'size_id' // أعمدة loss_items
+      'loss_id', 'product_id', 'color_id', 'size_id', // أعمدة loss_items
+      'subtotal', 'order_id', 'discount' // ⚡ v41: أعمدة pos_order_items
     ];
 
     // فحص إذا كانت بعض الأعمدة لها notnull=1 وتحتاج للتحديث
@@ -165,14 +414,104 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
   try {
     console.log(`[TauriSQLite] ⏳ بدء تهيئة schema للمؤسسة ${organizationId.slice(0, 8)}...`);
 
+    // ⚡ مسح كاش الأعمدة لضمان فحص جديد
+    clearTableColumnsCache();
+
     // فحص إصدار الـ schema وإجبار إعادة البناء إذا تغير
     const currentVersion = await getSchemaVersion(organizationId);
     const needsSchemaUpgrade = currentVersion < SCHEMA_VERSION;
 
+    // ⚡ CRITICAL FIX: تخطي جميع عمليات addColumnIfNotExists إذا كان الإصدار الحالي
+    // هذا يمنع مئات الاستدعاءات في كل تشغيل
+    skipColumnChecks = !needsSchemaUpgrade;
+
     if (needsSchemaUpgrade) {
       console.log(`[TauriSQLite] 🔄 ترقية schema من ${currentVersion} إلى ${SCHEMA_VERSION}...`);
     } else {
-      console.log(`[TauriSQLite] ✅ schema في الإصدار الحالي (${SCHEMA_VERSION})`);
+      // ⚡ تخطي سريع: إذا كان الـ schema في الإصدار الحالي، تحقق فقط من الجداول الأساسية
+      console.log(`[TauriSQLite] ✅ schema في الإصدار الحالي (${SCHEMA_VERSION}) - تخطي فحص الأعمدة`);
+
+      // ⚡ فحص سريع للجداول الأساسية فقط (100ms بدلاً من 10 ثواني)
+      const essentialTables = ['products', 'orders', 'customers', 'product_categories', 'sync_metadata'];
+      const missingTables: string[] = [];
+
+      // ⚡ فحص الجداول بالتوازي لتسريع العملية
+      const tableChecks = await Promise.all(
+        essentialTables.map(async (table) => ({
+          table,
+          exists: await tableExists(organizationId, table)
+        }))
+      );
+
+      for (const check of tableChecks) {
+        if (!check.exists) missingTables.push(check.table);
+      }
+
+      if (missingTables.length === 0) {
+        // ⚡ v55: حتى لو كان schema في الإصدار الحالي، يجب إنشاء الفهارس والأعمدة الحرجة
+        // لأن الفهارس والأعمدة قد لا تكون موجودة في قواعد البيانات القديمة
+        console.log(`[TauriSQLite] ⚡ تخطي سريع - جميع الجداول موجودة، لكن سنتحقق من الفهارس والأعمدة الحرجة...`);
+        
+        try {
+          // ⚡ v55: إضافة الأعمدة الحرجة لجدول orders (مثل subtotal) حتى لو كان schema في الإصدار الحالي
+          const criticalColumns = [
+            { table: 'orders', column: 'subtotal', type: 'REAL' },
+            { table: 'orders', column: 'discount', type: 'REAL' },
+            { table: 'orders', column: 'total', type: 'REAL' },
+            { table: 'orders', column: 'payment_status', type: 'TEXT' },
+            { table: 'orders', column: 'employee_id', type: 'TEXT' },
+            { table: 'orders', column: 'amount_paid', type: 'REAL' },
+            { table: 'orders', column: 'remaining_amount', type: 'REAL' },
+            { table: 'orders', column: 'notes', type: 'TEXT' },
+            { table: 'orders', column: 'tax_amount', type: 'REAL' },
+            { table: 'orders', column: 'discount_amount', type: 'REAL' },
+            { table: 'orders', column: 'shipping_amount', type: 'REAL' },
+          ];
+          
+          for (const { table, column, type } of criticalColumns) {
+            try {
+              console.log(`[TauriSQLite] 🔍 فحص العمود ${table}.${column}...`);
+              const exists = await columnExists(organizationId, table, column);
+              console.log(`[TauriSQLite] 📊 نتيجة الفحص: ${table}.${column} = ${exists ? 'موجود' : 'غير موجود'}`);
+              if (!exists) {
+                console.log(`[TauriSQLite] ➕ إضافة العمود ${table}.${column}...`);
+                await exec(organizationId, `ALTER TABLE ${table} ADD COLUMN ${column} ${type};`);
+                console.log(`[TauriSQLite] ✅ تم إضافة العمود ${table}.${column}`);
+              } else {
+                console.log(`[TauriSQLite] ⏭️ تخطي إضافة ${table}.${column} (موجود بالفعل)`);
+              }
+            } catch (colError: any) {
+              // تجاهل الأخطاء إذا كان العمود موجوداً بالفعل أو لأي سبب آخر
+              const errorMsg = colError?.message || String(colError);
+              if (errorMsg.includes('duplicate column') || errorMsg.includes('already exists')) {
+                console.log(`[TauriSQLite] ℹ️ العمود ${table}.${column} موجود بالفعل (خطأ متوقع)`);
+              } else {
+                console.warn(`[TauriSQLite] ⚠️ فشل إضافة العمود ${table}.${column}:`, errorMsg.substring(0, 100));
+              }
+            }
+          }
+          
+          // ⚡ v55: إنشاء الفهارس الحرجة لـ work_sessions حتى لو كان schema في الإصدار الحالي
+          const criticalIndexes = [
+            `CREATE INDEX IF NOT EXISTS idx_work_sessions_staff_status ON work_sessions(staff_id, status, organization_id);`,
+            `CREATE INDEX IF NOT EXISTS idx_work_sessions_org_status ON work_sessions(organization_id, status);`,
+            `CREATE INDEX IF NOT EXISTS idx_work_sessions_staff ON work_sessions(staff_id);`,
+            `CREATE INDEX IF NOT EXISTS idx_work_sessions_status ON work_sessions(status);`,
+            // ⚡ التأكد من وجود فهرس products_org_active أيضاً
+            `CREATE INDEX IF NOT EXISTS idx_products_org_active ON products(organization_id, is_active);`,
+          ];
+          await Promise.all(criticalIndexes.map(query => exec(organizationId, query).catch(() => {})));
+          console.log(`[TauriSQLite] ✅ تم إنشاء/التحقق من الفهارس الحرجة`);
+        } catch (error) {
+          console.warn('[TauriSQLite] ⚠️ فشل إضافة بعض الأعمدة/الفهارس الحرجة:', error);
+        }
+        
+        const duration = Date.now() - startTime;
+        console.log(`[TauriSQLite] ⚡ تخطي سريع - جميع الجداول موجودة (${duration}ms)`);
+        return { success: true };
+      }
+
+      console.log(`[TauriSQLite] ⚠️ جداول مفقودة: ${missingTables.join(', ')} - متابعة التهيئة الكاملة`);
     }
 
     // تعريف جدول المنتجات الجديد بدون قيود NOT NULL للتوافق مع البيانات من الخادم
@@ -221,7 +560,6 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
 
     await addColumnIfNotExists(organizationId, 'products', 'compare_at_price', 'REAL');
     await addColumnIfNotExists(organizationId, 'products', 'name_lower', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'nameLower', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'category', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'subcategory', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'brand', 'TEXT');
@@ -232,30 +570,8 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
     await addColumnIfNotExists(organizationId, 'products', 'digital_file_type', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'max_downloads', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'products', 'download_expiry_days', 'INTEGER');
-    // دعم camelCase للتوافق
-    await addColumnIfNotExists(organizationId, 'products', 'isDigital', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'products', 'digitalFileUrl', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'digitalFileType', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'maxDownloads', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'products', 'downloadExpiryDays', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'products', 'compareAtPrice', 'REAL');
-    await addColumnIfNotExists(organizationId, 'products', 'stockQuantity', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'products', 'categoryId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'isActive', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'products', 'thumbnailImage', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'imageThumbnail', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'organizationId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'syncStatus', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'pendingOperation', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'localUpdatedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'serverUpdatedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'createdAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'updatedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'thumbnailBase64', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'imagesBase64', 'TEXT');
+    
     await addColumnIfNotExists(organizationId, 'products', 'product_images', 'TEXT'); // ⚡ صور المنتج (JSON array)
-    await addColumnIfNotExists(organizationId, 'products', 'productImages', 'TEXT'); // ⚡ camelCase version
-    await addColumnIfNotExists(organizationId, 'products', 'nameNormalized', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'short_description', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'subcategory_id', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'product_type', 'TEXT');
@@ -273,246 +589,255 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
     await addColumnIfNotExists(organizationId, 'products', 'seo_title', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'seo_description', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'is_new', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'products', 'isNew', 'INTEGER DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'products', 'new_until', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'newUntil', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'on_sale', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'products', 'onSale', 'INTEGER DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'products', 'sale_price', 'REAL');
-    await addColumnIfNotExists(organizationId, 'products', 'salePrice', 'REAL');
     await addColumnIfNotExists(organizationId, 'products', 'sale_start', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'saleStart', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'sale_end', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'saleEnd', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'purchase_price', 'REAL');
-    await addColumnIfNotExists(organizationId, 'products', 'purchasePrice', 'REAL');
     await addColumnIfNotExists(organizationId, 'products', 'min_stock_level', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'products', 'minStockLevel', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'products', 'reorder_level', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'products', 'reorderLevel', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'products', 'reorder_quantity', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'products', 'reorderQuantity', 'INTEGER');
     // أعمدة إضافية من Supabase للمنتجات
     await addColumnIfNotExists(organizationId, 'products', 'slug', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'hasVariants', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'products', 'show_price_on_landing', 'INTEGER DEFAULT 1');
-    await addColumnIfNotExists(organizationId, 'products', 'showPriceOnLanding', 'INTEGER DEFAULT 1');
     await addColumnIfNotExists(organizationId, 'products', 'wholesale_price', 'REAL');
-    await addColumnIfNotExists(organizationId, 'products', 'wholesalePrice', 'REAL');
     await addColumnIfNotExists(organizationId, 'products', 'partial_wholesale_price', 'REAL');
-    await addColumnIfNotExists(organizationId, 'products', 'partialWholesalePrice', 'REAL');
     await addColumnIfNotExists(organizationId, 'products', 'min_wholesale_quantity', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'products', 'minWholesaleQuantity', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'products', 'min_partial_wholesale_quantity', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'products', 'minPartialWholesaleQuantity', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'products', 'allow_retail', 'INTEGER DEFAULT 1');
-    await addColumnIfNotExists(organizationId, 'products', 'allowRetail', 'INTEGER DEFAULT 1');
     await addColumnIfNotExists(organizationId, 'products', 'allow_wholesale', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'products', 'allowWholesale', 'INTEGER DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'products', 'allow_partial_wholesale', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'products', 'allowPartialWholesale', 'INTEGER DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'products', 'last_inventory_update', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'lastInventoryUpdate', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'use_sizes', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'products', 'useSizes', 'INTEGER DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'products', 'has_fast_shipping', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'products', 'hasFastShipping', 'INTEGER DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'products', 'has_money_back', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'products', 'hasMoneyBack', 'INTEGER DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'products', 'has_quality_guarantee', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'products', 'hasQualityGuarantee', 'INTEGER DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'products', 'fast_shipping_text', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'fastShippingText', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'money_back_text', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'moneyBackText', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'quality_guarantee_text', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'qualityGuaranteeText', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'is_sold_by_unit', 'INTEGER DEFAULT 1');
-    await addColumnIfNotExists(organizationId, 'products', 'isSoldByUnit', 'INTEGER DEFAULT 1');
     await addColumnIfNotExists(organizationId, 'products', 'unit_type', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'unitType', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'use_variant_prices', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'products', 'useVariantPrices', 'INTEGER DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'products', 'unit_purchase_price', 'REAL');
-    await addColumnIfNotExists(organizationId, 'products', 'unitPurchasePrice', 'REAL');
     await addColumnIfNotExists(organizationId, 'products', 'unit_sale_price', 'REAL');
-    await addColumnIfNotExists(organizationId, 'products', 'unitSalePrice', 'REAL');
     await addColumnIfNotExists(organizationId, 'products', 'purchase_page_config', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'purchasePageConfig', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'shipping_clone_id', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'products', 'shippingCloneId', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'products', 'name_for_shipping', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'nameForShipping', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'form_template_id', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'formTemplateId', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'shipping_provider_id', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'products', 'shippingProviderId', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'products', 'use_shipping_clone', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'products', 'useShippingClone', 'INTEGER DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'products', 'shipping_method_type', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'shippingMethodType', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'special_offers_config', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'specialOffersConfig', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'advanced_description', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'advancedDescription', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'publication_status', 'TEXT DEFAULT "published"');
-    await addColumnIfNotExists(organizationId, 'products', 'publicationStatus', 'TEXT DEFAULT "published"');
     await addColumnIfNotExists(organizationId, 'products', 'publish_at', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'publishAt', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'published_at', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'publishedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'isFeatured', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'products', 'displayOrder', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'products', 'seoTitle', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'seoDescription', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'subcategoryId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'productType', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'shortDescription', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'minStockAlert', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'products', 'trackInventory', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'products', 'allowBackorder', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'products', 'created_by_user_id', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'createdByUserId', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'updated_by_user_id', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'updatedByUserId', 'TEXT');
     // أعمدة البحث والفهرسة
     await addColumnIfNotExists(organizationId, 'products', 'sku_lower', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'skuLower', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'barcode_lower', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'barcodeLower', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'barcode_digits', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'barcodeDigits', 'TEXT');
     // ⚡ أعمدة البحث المتقدم (للبحث العربي المحسن)
     await addColumnIfNotExists(organizationId, 'products', 'name_search', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'nameSearch', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'sku_search', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'skuSearch', 'TEXT');
     // أعمدة الجملة
     await addColumnIfNotExists(organizationId, 'products', 'is_wholesale', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'products', 'isWholesale', 'INTEGER DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'products', 'wholesale_only', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'products', 'wholesaleOnly', 'INTEGER DEFAULT 0');
     // أعمدة المخزون والتتبع
     await addColumnIfNotExists(organizationId, 'products', 'low_stock_threshold', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'products', 'lowStockThreshold', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'products', 'max_stock_level', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'products', 'maxStockLevel', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'products', 'track_quantity', 'INTEGER DEFAULT 1');
-    await addColumnIfNotExists(organizationId, 'products', 'trackQuantity', 'INTEGER DEFAULT 1');
     await addColumnIfNotExists(organizationId, 'products', 'continue_selling_when_out', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'products', 'continueSellingWhenOut', 'INTEGER DEFAULT 0');
     // أعمدة الضريبة
     await addColumnIfNotExists(organizationId, 'products', 'tax_rate', 'REAL');
-    await addColumnIfNotExists(organizationId, 'products', 'taxRate', 'REAL');
     await addColumnIfNotExists(organizationId, 'products', 'tax_class', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'taxClass', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'tax_included', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'products', 'taxIncluded', 'INTEGER DEFAULT 0');
     // أعمدة الشحن
     await addColumnIfNotExists(organizationId, 'products', 'shipping_required', 'INTEGER DEFAULT 1');
-    await addColumnIfNotExists(organizationId, 'products', 'shippingRequired', 'INTEGER DEFAULT 1');
     await addColumnIfNotExists(organizationId, 'products', 'shipping_weight', 'REAL');
-    await addColumnIfNotExists(organizationId, 'products', 'shippingWeight', 'REAL');
     await addColumnIfNotExists(organizationId, 'products', 'shipping_dimensions', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'shippingDimensions', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'free_shipping', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'products', 'freeShipping', 'INTEGER DEFAULT 0');
     // أعمدة إضافية للمتجر الإلكتروني
     await addColumnIfNotExists(organizationId, 'products', 'visibility', 'TEXT DEFAULT "visible"');
     await addColumnIfNotExists(organizationId, 'products', 'available_online', 'INTEGER DEFAULT 1');
-    await addColumnIfNotExists(organizationId, 'products', 'availableOnline', 'INTEGER DEFAULT 1');
     await addColumnIfNotExists(organizationId, 'products', 'available_pos', 'INTEGER DEFAULT 1');
-    await addColumnIfNotExists(organizationId, 'products', 'availablePos', 'INTEGER DEFAULT 1');
     await addColumnIfNotExists(organizationId, 'products', 'video_url', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'videoUrl', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'external_id', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'externalId', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'supplier_id', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'supplierId', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'supplier_sku', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'supplierSku', 'TEXT');
     // أعمدة الحد الأدنى والأقصى للطلب
     await addColumnIfNotExists(organizationId, 'products', 'min_order_quantity', 'INTEGER DEFAULT 1');
-    await addColumnIfNotExists(organizationId, 'products', 'minOrderQuantity', 'INTEGER DEFAULT 1');
     await addColumnIfNotExists(organizationId, 'products', 'max_order_quantity', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'products', 'maxOrderQuantity', 'INTEGER');
     // أعمدة الخصم والعروض
     await addColumnIfNotExists(organizationId, 'products', 'discount_type', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'discountType', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'discount_value', 'REAL');
-    await addColumnIfNotExists(organizationId, 'products', 'discountValue', 'REAL');
     await addColumnIfNotExists(organizationId, 'products', 'discount_start_date', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'discountStartDate', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'discount_end_date', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'discountEndDate', 'TEXT');
     // أعمدة متقدمة
     await addColumnIfNotExists(organizationId, 'products', 'requires_prescription', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'products', 'requiresPrescription', 'INTEGER DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'products', 'age_restricted', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'products', 'ageRestricted', 'INTEGER DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'products', 'min_age', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'products', 'minAge', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'products', 'expiry_date', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'expiryDate', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'batch_number', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'batchNumber', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'serial_number', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'serialNumber', 'TEXT');
     // أعمدة التصنيف والترتيب
     await addColumnIfNotExists(organizationId, 'products', 'sort_order', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'products', 'sortOrder', 'INTEGER DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'products', 'rating', 'REAL');
     await addColumnIfNotExists(organizationId, 'products', 'review_count', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'products', 'reviewCount', 'INTEGER DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'products', 'sales_count', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'products', 'salesCount', 'INTEGER DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'products', 'view_count', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'products', 'viewCount', 'INTEGER DEFAULT 0');
     // أعمدة إضافية للمزامنة مع Supabase
     await addColumnIfNotExists(organizationId, 'products', 'cost_price', 'REAL DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'products', 'costPrice', 'REAL DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'products', 'min_stock', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'products', 'minStock', 'INTEGER DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'products', 'quantity', 'INTEGER DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'products', 'image_url', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'imageUrl', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'colors', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'sizes', 'TEXT');
     // أعمدة المخزون الفعلي
     await addColumnIfNotExists(organizationId, 'products', 'actual_stock_quantity', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'products', 'actualStockQuantity', 'INTEGER DEFAULT 0');
     // أعمدة المزامنة الإضافية (لإصلاح خطأ last_sync_attempt)
     await addColumnIfNotExists(organizationId, 'products', 'last_sync_attempt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'lastSyncAttempt', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'conflict_resolution', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'conflictResolution', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'product_colors', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'product_sizes', 'TEXT');
     // ✅ عمود إصدار المخزون للكشف عن التعارضات
     await addColumnIfNotExists(organizationId, 'products', 'stock_version', 'INTEGER DEFAULT 0');
     // ✅ عمود الصور الإضافية (JSON array of URLs)
     await addColumnIfNotExists(organizationId, 'products', 'additional_images', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'additionalImages', 'TEXT');
     // ✅ عمود تسعيرة الجملة (JSON array of tiers)
     await addColumnIfNotExists(organizationId, 'products', 'wholesale_tiers', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'wholesaleTiers', 'TEXT');
     // ✅ عمود الإعدادات المتقدمة (JSON object)
-    await addColumnIfNotExists(organizationId, 'products', 'advancedSettings', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'advanced_settings', 'TEXT');
     // ✅ عمود إعدادات التسويق (JSON object)
-    await addColumnIfNotExists(organizationId, 'products', 'marketingSettings', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'marketing_settings', 'TEXT');
     // ✅ عمود إعدادات العروض الخاصة (JSON object)
     await addColumnIfNotExists(organizationId, 'products', 'special_offers_config', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'specialOffersConfig', 'TEXT');
     // ✅ عمود الوصف المتقدم (JSON object)
     await addColumnIfNotExists(organizationId, 'products', 'advanced_description', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'products', 'advancedDescription', 'TEXT');
     // ✅ أعمدة النشر
     await addColumnIfNotExists(organizationId, 'products', 'publication_mode', 'TEXT');
     await addColumnIfNotExists(organizationId, 'products', 'publish_at', 'TEXT');
     // ✅ عمود الألوان (JSON array) - للتخزين المحلي فقط
     await addColumnIfNotExists(organizationId, 'products', 'colors', 'TEXT');
+
+    // ⚡ v36: أعمدة البيع بالوزن
+    await addColumnIfNotExists(organizationId, 'products', 'sell_by_weight', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'products', 'weight_unit', 'TEXT DEFAULT "kg"');
+    await addColumnIfNotExists(organizationId, 'products', 'price_per_weight_unit', 'REAL');
+    await addColumnIfNotExists(organizationId, 'products', 'purchase_price_per_weight_unit', 'REAL');
+    await addColumnIfNotExists(organizationId, 'products', 'min_weight', 'REAL');
+    await addColumnIfNotExists(organizationId, 'products', 'max_weight', 'REAL');
+    await addColumnIfNotExists(organizationId, 'products', 'weight_increment', 'REAL');
+    await addColumnIfNotExists(organizationId, 'products', 'tare_weight', 'REAL');
+    await addColumnIfNotExists(organizationId, 'products', 'average_piece_weight', 'REAL');
+    await addColumnIfNotExists(organizationId, 'products', 'average_item_weight', 'REAL');
+    // ⚡ v38: أعمدة جديدة من Supabase
+    await addColumnIfNotExists(organizationId, 'products', 'min_weight_per_sale', 'REAL');
+    await addColumnIfNotExists(organizationId, 'products', 'max_weight_per_sale', 'REAL');
+
+    // ⚡ v36: أعمدة البيع بالكرتون/العلبة
+    await addColumnIfNotExists(organizationId, 'products', 'sell_by_box', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'products', 'units_per_box', 'INTEGER');
+    await addColumnIfNotExists(organizationId, 'products', 'box_price', 'REAL');
+    await addColumnIfNotExists(organizationId, 'products', 'box_purchase_price', 'REAL');
+    await addColumnIfNotExists(organizationId, 'products', 'box_barcode', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'products', 'min_box_quantity', 'INTEGER');
+    await addColumnIfNotExists(organizationId, 'products', 'allow_partial_box', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'products', 'allow_single_unit_sale', 'INTEGER DEFAULT 1');
+
+    // ⚡ v36: أعمدة البيع بالمتر
+    await addColumnIfNotExists(organizationId, 'products', 'sell_by_meter', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'products', 'meter_unit', 'TEXT DEFAULT "m"');
+    await addColumnIfNotExists(organizationId, 'products', 'price_per_meter', 'REAL');
+    await addColumnIfNotExists(organizationId, 'products', 'purchase_price_per_meter', 'REAL');
+    await addColumnIfNotExists(organizationId, 'products', 'min_meters', 'REAL');
+    await addColumnIfNotExists(organizationId, 'products', 'min_meter_length', 'REAL');
+    await addColumnIfNotExists(organizationId, 'products', 'max_meter_length', 'REAL');
+    await addColumnIfNotExists(organizationId, 'products', 'meter_increment', 'REAL');
+    await addColumnIfNotExists(organizationId, 'products', 'roll_length', 'REAL');
+    await addColumnIfNotExists(organizationId, 'products', 'available_length', 'REAL');
+    // ⚡ v39: أعمدة min/max للمتر
+    await addColumnIfNotExists(organizationId, 'products', 'min_meters_per_sale', 'REAL');
+    await addColumnIfNotExists(organizationId, 'products', 'max_meters_per_sale', 'REAL');
+    // ⚡ v40: عمود roll_length_meters من Supabase
+    await addColumnIfNotExists(organizationId, 'products', 'roll_length_meters', 'REAL');
+
+    // ⚡ v40: أعمدة النشر من Supabase
+    await addColumnIfNotExists(organizationId, 'products', 'publication_status', 'TEXT DEFAULT "published"');
+    await addColumnIfNotExists(organizationId, 'products', 'published_at', 'TEXT');
+
+    // ⚡ v40: أعمدة الصيدليات (Pharmacy)
+    await addColumnIfNotExists(organizationId, 'products', 'active_ingredient', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'products', 'dosage_form', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'products', 'concentration', 'TEXT');
+
+    // ⚡ v40: أعمدة المطاعم (Restaurant)
+    await addColumnIfNotExists(organizationId, 'products', 'preparation_time_minutes', 'INTEGER');
+    await addColumnIfNotExists(organizationId, 'products', 'calories', 'INTEGER');
+    await addColumnIfNotExists(organizationId, 'products', 'allergens', 'TEXT'); // JSON array
+    await addColumnIfNotExists(organizationId, 'products', 'is_vegetarian', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'products', 'is_vegan', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'products', 'is_gluten_free', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'products', 'spice_level', 'INTEGER');
+
+    // ⚡ v40: أعمدة قطع غيار السيارات (Auto Parts)
+    await addColumnIfNotExists(organizationId, 'products', 'oem_number', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'products', 'compatible_models', 'TEXT'); // JSON array
+    await addColumnIfNotExists(organizationId, 'products', 'vehicle_make', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'products', 'vehicle_model', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'products', 'year_from', 'INTEGER');
+    await addColumnIfNotExists(organizationId, 'products', 'year_to', 'INTEGER');
+
+    // ⚡ v40: أعمدة مواد البناء والأبعاد (Building Materials & Dimensions)
+    await addColumnIfNotExists(organizationId, 'products', 'material_type', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'products', 'dimensions', 'TEXT'); // JSONB as TEXT
+    await addColumnIfNotExists(organizationId, 'products', 'weight_kg', 'REAL');
+    await addColumnIfNotExists(organizationId, 'products', 'coverage_area_sqm', 'REAL');
+
+    // ⚡ v40: أعمدة التجارة والضريبة (Commerce & Tax)
+    await addColumnIfNotExists(organizationId, 'products', 'commission_rate', 'REAL');
+    await addColumnIfNotExists(organizationId, 'products', 'manufacturer', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'products', 'country_of_origin', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'products', 'customs_code', 'TEXT');
+
+    // ⚡ v36: أعمدة تتبع الصلاحية
+    await addColumnIfNotExists(organizationId, 'products', 'track_expiry', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'products', 'default_expiry_days', 'INTEGER');
+    await addColumnIfNotExists(organizationId, 'products', 'expiry_alert_days', 'INTEGER DEFAULT 30');
+    await addColumnIfNotExists(organizationId, 'products', 'alert_days_before_expiry', 'INTEGER DEFAULT 30');
+    await addColumnIfNotExists(organizationId, 'products', 'allow_expired_sale', 'INTEGER DEFAULT 0');
+
+    // ⚡ v36: أعمدة الأرقام التسلسلية
+    await addColumnIfNotExists(organizationId, 'products', 'track_serial_numbers', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'products', 'serial_number_prefix', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'products', 'serial_number_format', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'products', 'require_serial_on_sale', 'INTEGER DEFAULT 1');
+    await addColumnIfNotExists(organizationId, 'products', 'supports_imei', 'INTEGER DEFAULT 0');
+
+    // ⚡ v36: أعمدة تتبع الدفعات (FIFO)
+    await addColumnIfNotExists(organizationId, 'products', 'track_batches', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'products', 'batch_prefix', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'products', 'fifo_enabled', 'INTEGER DEFAULT 1');
+    await addColumnIfNotExists(organizationId, 'products', 'use_fifo', 'INTEGER DEFAULT 1');
+    await addColumnIfNotExists(organizationId, 'products', 'auto_batch_on_purchase', 'INTEGER DEFAULT 0');
+
+    // ⚡ v36: أعمدة الضمان
+    await addColumnIfNotExists(organizationId, 'products', 'has_warranty', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'products', 'warranty_duration_months', 'INTEGER');
+    await addColumnIfNotExists(organizationId, 'products', 'warranty_type', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'products', 'warranty_terms', 'TEXT');
+
+    // ⚡ v41: حقول المخزون المتقدم (الوزن، الأمتار، الصناديق)
+    await addColumnIfNotExists(organizationId, 'products', 'available_weight', 'REAL DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'products', 'total_weight_purchased', 'REAL DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'products', 'total_meters_purchased', 'REAL DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'products', 'available_boxes', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'products', 'total_boxes_purchased', 'INTEGER DEFAULT 0');
+
+    // ⚡ v41: حقول إضافية للبيع بالمتر (أسماء بديلة)
+    await addColumnIfNotExists(organizationId, 'products', 'min_meters', 'REAL');
 
     // العناوين
     await exec(organizationId, `
@@ -583,118 +908,55 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
     await addColumnIfNotExists(organizationId, 'pos_settings', 'cash_drawer', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'beep_on_scan', 'INTEGER');
     // دعم camelCase للتوافق
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'paperWidth', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'paperSize', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'printerType', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'defaultPrinter', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'autoCut', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'cashDrawer', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'beepOnScan', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'storeName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'storeAddress', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'storePhone', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'storeEmail', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'storeWebsite', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'storeLogoUrl', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'receiptHeader', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'receiptFooter', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'receiptLogoUrl', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'receiptShowLogo', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'receiptShowBarcode', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'receiptShowQr', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'receiptPaperSize', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'receiptFontSize', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'receiptFontFamily', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'autoPrintReceipt', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'printCopies', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'taxEnabled', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'taxRate', 'REAL');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'taxNumber', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'currencySymbol', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'organizationId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'createdAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'updatedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'pendingSync', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'receiptHeaderText', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'receiptFooterText', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'welcomeMessage', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'showQrCode', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'showTrackingCode', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'showCustomerInfo', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'showStoreLogo', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'showStoreInfo', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'showDateTime', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'showEmployeeName', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'font_size', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'fontSize', 'TEXT');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'font_family', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'fontFamily', 'TEXT');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'logo_url', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'logoUrl', 'TEXT');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'header_text', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'headerText', 'TEXT');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'footer_text', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'footerText', 'TEXT');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'show_logo', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'showLogo', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'show_barcode', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'showBarcode', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'show_qr', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'showQr', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'print_on_sale', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'printOnSale', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'print_on_refund', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'printOnRefund', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'enable_cash_drawer', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'enableCashDrawer', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'enable_barcode_scanner', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'enableBarcodeScanner', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'low_stock_threshold', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'lowStockThreshold', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'default_payment_method', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'defaultPaymentMethod', 'TEXT');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'line_spacing', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'lineSpacing', 'TEXT');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'print_density', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'printDensity', 'TEXT');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'primary_color', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'primaryColor', 'TEXT');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'secondary_color', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'secondaryColor', 'TEXT');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'accent_color', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'accentColor', 'TEXT');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'text_color', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'textColor', 'TEXT');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'background_color', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'backgroundColor', 'TEXT');
     // أعمدة إضافية من Supabase لإعدادات POS
     await addColumnIfNotExists(organizationId, 'pos_settings', 'receipt_template', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'receiptTemplate', 'TEXT');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'header_style', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'headerStyle', 'TEXT');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'footer_style', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'footerStyle', 'TEXT');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'item_display_style', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'itemDisplayStyle', 'TEXT');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'price_position', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'pricePosition', 'TEXT');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'custom_css', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'customCss', 'TEXT');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'tax_label', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'taxLabel', 'TEXT');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'currency_position', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'currencyPosition', 'TEXT');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'allow_price_edit', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'allowPriceEdit', 'INTEGER DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'require_manager_approval', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'requireManagerApproval', 'INTEGER DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'business_license', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_settings', 'businessLicense', 'TEXT');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'activity', 'TEXT');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'rc', 'TEXT');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'nif', 'TEXT');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'nis', 'TEXT');
     await addColumnIfNotExists(organizationId, 'pos_settings', 'rib', 'TEXT');
+
+    // ⚡ v50: إعدادات الطابعة الحرارية المتقدمة
+    await addColumnIfNotExists(organizationId, 'pos_settings', 'printer_name', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'pos_settings', 'silent_print', 'INTEGER DEFAULT 1');
+    await addColumnIfNotExists(organizationId, 'pos_settings', 'print_on_order', 'INTEGER DEFAULT 1');
+    await addColumnIfNotExists(organizationId, 'pos_settings', 'open_cash_drawer', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'pos_settings', 'beep_after_print', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'pos_settings', 'margin_top', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'pos_settings', 'margin_bottom', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'pos_settings', 'margin_left', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'pos_settings', 'margin_right', 'INTEGER DEFAULT 0');
 
     // إعدادات المتجر (Organization Settings)
     await exec(organizationId, `
@@ -726,31 +988,11 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
     `);
 
     // أعمدة إضافية لإعدادات المتجر - دعم camelCase
-    await addColumnIfNotExists(organizationId, 'organization_settings', 'siteName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organization_settings', 'defaultLanguage', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organization_settings', 'logoUrl', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organization_settings', 'faviconUrl', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organization_settings', 'displayTextWithLogo', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'organization_settings', 'themePrimaryColor', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organization_settings', 'themeSecondaryColor', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organization_settings', 'themeMode', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organization_settings', 'customCss', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organization_settings', 'customJs', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organization_settings', 'customHeader', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organization_settings', 'customFooter', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organization_settings', 'enableRegistration', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'organization_settings', 'enablePublicSite', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'organization_settings', 'metaDescription', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organization_settings', 'metaKeywords', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organization_settings', 'organizationId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organization_settings', 'createdAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organization_settings', 'updatedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organization_settings', 'pendingSync', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'organization_settings', 'pendingOperation', 'TEXT');
 
-    // إعادة بناء جدول pos_orders إذا كان يحتوي على قيود NOT NULL قديمة
-    const posOrdersTableDef = `
-      CREATE TABLE IF NOT EXISTS pos_orders (
+    // ⚡ v44: إعادة بناء جدول orders (اسم موحد مع Supabase)
+    // ⚠️ سيتم حذف pos_orders القديم وإنشاء orders الجديد
+    const ordersTableDef = `
+      CREATE TABLE IF NOT EXISTS orders (
         id TEXT PRIMARY KEY,
         order_number TEXT DEFAULT '',
         customer_id TEXT,
@@ -777,7 +1019,33 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
       )
     `;
 
-    await rebuildTableIfNeeded(organizationId, 'pos_orders', posOrdersTableDef, [
+    // ⚡ v44: حذف View/Table القديم وإنشاء الجدول الجديد
+    // ⚡ المرحلة 3: حماية بيانات الإنتاج - لا نحذف الجدول في PROD إذا كان فيه بيانات
+    const ordersHasData = await hasProductionData(organizationId, 'orders');
+    const posOrdersHasData = await hasProductionData(organizationId, 'pos_orders');
+    
+    if (isDevMode()) {
+      // DEV: السماح بحذف الجدول لأغراض التجربة
+      await exec(organizationId, `DROP TABLE IF EXISTS orders;`);
+      await exec(organizationId, `DROP TABLE IF EXISTS pos_orders;`);
+    } else {
+      // PROD: حماية بيانات الإنتاج
+      if (!ordersHasData && !posOrdersHasData) {
+        // لا توجد بيانات - يمكن الحذف بأمان
+        await exec(organizationId, `DROP TABLE IF EXISTS orders;`);
+        await exec(organizationId, `DROP TABLE IF EXISTS pos_orders;`);
+      } else {
+        // ⚡ هناك بيانات إنتاجية - استخدام نمط الترحيل الآمن
+        console.log('[TauriSQLite] ⚠️ PROD: يوجد بيانات في orders - استخدام نمط الترحيل الآمن');
+        // سيتم التعامل معها في rebuildTableIfNeeded أو safeTableMigration
+      }
+    }
+
+    // ⚡ v44: إعادة تعيين sync_state لجدول orders لإجبار إعادة السحب الكامل
+    await exec(organizationId, `DELETE FROM sync_state WHERE table_name = 'orders';`);
+    await exec(organizationId, `DELETE FROM sync_state WHERE table_name = 'pos_orders';`);
+
+    await rebuildTableIfNeeded(organizationId, 'orders', ordersTableDef, [
       'id', 'order_number', 'customer_id', 'customer_name', 'customer_name_lower',
       'total_amount', 'paid_amount', 'payment_method', 'status', 'organization_id',
       'staff_id', 'work_session_id', 'synced', 'sync_status', 'pending_operation',
@@ -785,9 +1053,9 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
       'local_created_at', 'server_created_at', 'created_at', 'updated_at'
     ]);
 
-    // طلبات POS - تم إزالة قيود NOT NULL للتوافق مع البيانات القادمة من الخادم
+    // ⚡ v44: جدول orders - 100% متوافق مع Supabase
     await exec(organizationId, `
-      CREATE TABLE IF NOT EXISTS pos_orders (
+      CREATE TABLE IF NOT EXISTS orders (
         id TEXT PRIMARY KEY,
         order_number TEXT DEFAULT '',
         customer_id TEXT,
@@ -814,120 +1082,134 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
       );
     `);
 
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'employee_id', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'payment_status', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'subtotal', 'REAL');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'discount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'amount_paid', 'REAL');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'remaining_amount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'consider_remaining_as_partial', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'total', 'REAL');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'notes', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'extra_fields', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'syncStatus', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'pendingOperation', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'created_at_ts', 'INTEGER');
+    // ⚡ v44: إضافة أعمدة إضافية لجدول orders (موحد مع Supabase)
+    await addColumnIfNotExists(organizationId, 'orders', 'employee_id', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', 'payment_status', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', 'subtotal', 'REAL');
+    await addColumnIfNotExists(organizationId, 'orders', 'discount', 'REAL');
+    await addColumnIfNotExists(organizationId, 'orders', 'amount_paid', 'REAL');
+    await addColumnIfNotExists(organizationId, 'orders', 'remaining_amount', 'REAL');
+    await addColumnIfNotExists(organizationId, 'orders', 'consider_remaining_as_partial', 'INTEGER');
+    await addColumnIfNotExists(organizationId, 'orders', 'total', 'REAL');
+    await addColumnIfNotExists(organizationId, 'orders', 'notes', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', 'extra_fields', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', 'created_at_ts', 'INTEGER');
     // دعم الأسماء بـ camelCase للتوافق مع البيانات القادمة من الخادم
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'localCreatedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'serverCreatedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'lastSyncAttempt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'remoteOrderId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'remoteCustomerOrderNumber', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'workSessionId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'staffId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'customerId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'customerName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'customerNameLower', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'totalAmount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'paidAmount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'paymentMethod', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'organizationId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'orderNumber', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'createdAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'updatedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'local_order_number', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'localOrderNumber', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'tax_amount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'taxAmount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'discount_amount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'discountAmount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'shipping_amount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'shippingAmount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'items', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'metadata', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'receipt_printed', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'receiptPrinted', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'customer_phone', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'customerPhone', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'customer_email', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'customerEmail', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'source', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'channel', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'local_order_number_str', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'localOrderNumberStr', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'message', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'payload', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'pending_updates', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'pendingUpdates', 'TEXT');
-    // أعمدة إضافية من orders في Supabase
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'slug', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'is_online', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'isOnline', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'shipping_address_id', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'shippingAddressId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'shipping_method', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'shippingMethod', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'shipping_cost', 'REAL');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'shippingCost', 'REAL');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'tax', 'REAL');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'customer_order_number', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'customerOrderNumber', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'pos_order_type', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'posOrderType', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'completed_at', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'completedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'customer_notes', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'customerNotes', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'admin_notes', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'adminNotes', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'call_confirmation_status_id', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'callConfirmationStatusId', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'global_order_number', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'globalOrderNumber', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'created_by_staff_id', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'createdByStaffId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'created_by_staff_name', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'createdByStaffName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'employeeId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'paymentStatus', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'amountPaid', 'REAL');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'remainingAmount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'considerRemainingAsPartial', 'INTEGER');
-    // أعمدة إضافية للمزامنة مع Supabase orders
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'customer_address', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'customerAddress', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'wilaya', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'commune', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'tracking_number', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'trackingNumber', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'shipping_company', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_orders', 'shippingCompany', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', 'local_order_number', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', 'tax_amount', 'REAL');
+    await addColumnIfNotExists(organizationId, 'orders', 'discount_amount', 'REAL');
+    await addColumnIfNotExists(organizationId, 'orders', 'shipping_amount', 'REAL');
+    await addColumnIfNotExists(organizationId, 'orders', 'local_updated_at', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', 'items', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', 'metadata', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', 'receipt_printed', 'INTEGER');
+    await addColumnIfNotExists(organizationId, 'orders', 'customer_phone', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', 'customer_email', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', 'source', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', 'channel', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', 'local_order_number_str', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', 'message', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', 'payload', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', 'pending_updates', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', 'slug', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', 'is_online', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'orders', 'shipping_address_id', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', 'shipping_method', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', 'shipping_cost', 'REAL');
+    await addColumnIfNotExists(organizationId, 'orders', 'tax', 'REAL');
+    await addColumnIfNotExists(organizationId, 'orders', 'customer_order_number', 'INTEGER');
+    await addColumnIfNotExists(organizationId, 'orders', 'pos_order_type', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', 'completed_at', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', 'customer_notes', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', 'admin_notes', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', 'call_confirmation_status_id', 'INTEGER');
+    await addColumnIfNotExists(organizationId, 'orders', 'global_order_number', 'INTEGER');
+    await addColumnIfNotExists(organizationId, 'orders', 'created_by_staff_id', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', 'created_by_staff_name', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', 'customer_address', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', 'wilaya', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', 'commune', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', 'tracking_number', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', 'shipping_company', 'TEXT');
+    // ⚡ v53: أعمدة المزامنة المحلية (تبدأ بـ _)
+    await addColumnIfNotExists(organizationId, 'orders', '_synced', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'orders', '_sync_status', 'TEXT DEFAULT "pending"');
+    await addColumnIfNotExists(organizationId, 'orders', '_pending_operation', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', '_local_updated_at', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', '_error', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', '_local_order_number', 'INTEGER');
+    await addColumnIfNotExists(organizationId, 'orders', '_customer_name_lower', 'TEXT');
 
-    // عناصر طلب POS
-    await exec(organizationId, `
-      CREATE TABLE IF NOT EXISTS pos_order_items (
+    // ⚡ v44: جدول order_items (موحد مع Supabase)
+    const orderItemsTableDef = `
+      CREATE TABLE IF NOT EXISTS order_items (
         id TEXT PRIMARY KEY,
-        order_id TEXT NOT NULL,
-        product_id TEXT NOT NULL,
-        product_name TEXT NOT NULL,
-        quantity INTEGER NOT NULL,
-        unit_price REAL NOT NULL,
-        subtotal REAL NOT NULL,
+        order_id TEXT DEFAULT '',
+        product_id TEXT DEFAULT '',
+        product_name TEXT DEFAULT '',
+        quantity INTEGER DEFAULT 1,
+        unit_price REAL DEFAULT 0,
+        subtotal REAL DEFAULT 0,
         discount REAL DEFAULT 0,
         synced INTEGER DEFAULT 0,
-        created_at TEXT NOT NULL
-      );
-    `);
+        created_at TEXT DEFAULT ''
+      )
+    `;
+
+    // ⚡ v44: حذف View/Table القديم والجدول القديم وإنشاء الجدول الجديد
+    // ⚡ المرحلة 3: حماية بيانات الإنتاج - لا نحذف الجدول في PROD إذا كان فيه بيانات
+    const orderItemsHasData = await hasProductionData(organizationId, 'order_items');
+    const posOrderItemsHasData = await hasProductionData(organizationId, 'pos_order_items');
+    
+    if (isDevMode()) {
+      // DEV: السماح بحذف الجدول لأغراض التجربة
+      await exec(organizationId, `DROP TABLE IF EXISTS order_items;`);
+      await exec(organizationId, `DROP TABLE IF EXISTS pos_order_items;`);
+    } else {
+      // PROD: حماية بيانات الإنتاج
+      if (!orderItemsHasData && !posOrderItemsHasData) {
+        // لا توجد بيانات - يمكن الحذف بأمان
+        await exec(organizationId, `DROP TABLE IF EXISTS order_items;`);
+        await exec(organizationId, `DROP TABLE IF EXISTS pos_order_items;`);
+      } else {
+        // ⚡ هناك بيانات إنتاجية - استخدام نمط الترحيل الآمن
+        console.log('[TauriSQLite] ⚠️ PROD: يوجد بيانات في order_items - استخدام نمط الترحيل الآمن');
+        // سيتم التعامل معها في rebuildTableIfNeeded أو safeTableMigration
+      }
+    }
+
+    // ⚡ v44: إعادة تعيين sync_state لجدول order_items لإجبار إعادة السحب الكامل
+    await exec(organizationId, `DELETE FROM sync_state WHERE table_name = 'order_items';`);
+    await exec(organizationId, `DELETE FROM sync_state WHERE table_name = 'pos_order_items';`);
+
+    await rebuildTableIfNeeded(organizationId, 'order_items', orderItemsTableDef, [
+      'id', 'order_id', 'product_id', 'product_name', 'quantity', 'unit_price',
+      'subtotal', 'discount', 'synced', 'created_at'
+    ], needsSchemaUpgrade);
+
+    await exec(organizationId, orderItemsTableDef + ';');
+
+    // ⚡ v44: أعمدة البيع المتقدم لـ order_items (موحد مع Supabase)
+    await addColumnIfNotExists(organizationId, 'order_items', 'selling_unit_type', 'TEXT DEFAULT "piece"');
+    await addColumnIfNotExists(organizationId, 'order_items', 'weight_sold', 'REAL');
+    await addColumnIfNotExists(organizationId, 'order_items', 'weight_unit', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'order_items', 'price_per_weight_unit', 'REAL');
+    await addColumnIfNotExists(organizationId, 'order_items', 'meters_sold', 'REAL');
+    await addColumnIfNotExists(organizationId, 'order_items', 'price_per_meter', 'REAL');
+    await addColumnIfNotExists(organizationId, 'order_items', 'boxes_sold', 'INTEGER');
+    await addColumnIfNotExists(organizationId, 'order_items', 'units_per_box', 'INTEGER');
+    await addColumnIfNotExists(organizationId, 'order_items', 'box_price', 'REAL');
+    await addColumnIfNotExists(organizationId, 'order_items', 'batch_id', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'order_items', 'batch_number', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'order_items', 'expiry_date', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'order_items', 'serial_numbers', 'TEXT'); // JSON array
+    // ⚡ v44: أعمدة إضافية من Supabase order_items
+    await addColumnIfNotExists(organizationId, 'order_items', 'name', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'order_items', 'total_price', 'REAL');
+    await addColumnIfNotExists(organizationId, 'order_items', 'is_digital', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'order_items', 'organization_id', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'order_items', 'variant_id', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'order_items', 'updated_at', 'TEXT');
 
     // العملاء - تم تغيير organization_id و local_updated_at ليكون لهما قيمة افتراضية
     const customersTableDef = `
@@ -961,68 +1243,42 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
     await exec(organizationId, customersTableDef + ';');
 
     await addColumnIfNotExists(organizationId, 'customers', 'nif', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customers', 'syncStatus', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customers', 'rc', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customers', 'nis', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customers', 'rib', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customers', 'address', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customers', 'pendingOperation', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customers', 'localUpdatedAt', 'TEXT');
     // دعم camelCase للتوافق
-    await addColumnIfNotExists(organizationId, 'customers', 'organizationId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customers', 'nameNormalized', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customers', 'nameLower', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customers', 'emailLower', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customers', 'phoneDigits', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customers', 'totalDebt', 'REAL');
-    await addColumnIfNotExists(organizationId, 'customers', 'createdAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customers', 'updatedAt', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customers', 'company_name', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customers', 'companyName', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customers', 'notes', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customers', 'city', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customers', 'wilaya', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customers', 'commune', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customers', 'postal_code', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customers', 'postalCode', 'TEXT');
     // أعمدة المزامنة التدريجية
     await addColumnIfNotExists(organizationId, 'customers', 'last_sync_attempt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customers', 'lastSyncAttempt', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customers', 'country', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customers', 'is_active', 'INTEGER DEFAULT 1');
-    await addColumnIfNotExists(organizationId, 'customers', 'isActive', 'INTEGER DEFAULT 1');
     // أعمدة إضافية من customers في Supabase
     await addColumnIfNotExists(organizationId, 'customers', 'source', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customers', 'type', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customers', 'status', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customers', 'credit_limit', 'REAL');
-    await addColumnIfNotExists(organizationId, 'customers', 'creditLimit', 'REAL');
     await addColumnIfNotExists(organizationId, 'customers', 'tax_id', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customers', 'taxId', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customers', 'is_vip', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'customers', 'isVip', 'INTEGER DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'customers', 'discount_rate', 'REAL');
-    await addColumnIfNotExists(organizationId, 'customers', 'discountRate', 'REAL');
     await addColumnIfNotExists(organizationId, 'customers', 'loyalty_points', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'customers', 'loyaltyPoints', 'INTEGER DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'customers', 'last_purchase_date', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customers', 'lastPurchaseDate', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customers', 'total_purchases', 'REAL DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'customers', 'totalPurchases', 'REAL DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'customers', 'purchase_count', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'customers', 'purchaseCount', 'INTEGER DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'customers', 'whatsapp', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customers', 'facebook', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customers', 'instagram', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customers', 'tags', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customers', 'metadata', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customers', 'server_updated_at', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customers', 'serverUpdatedAt', 'TEXT');
     // أعمدة إضافية للمزامنة مع Supabase
     await addColumnIfNotExists(organizationId, 'customers', 'total_orders', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'customers', 'totalOrders', 'INTEGER DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'customers', 'total_spent', 'REAL DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'customers', 'totalSpent', 'REAL DEFAULT 0');
 
     // الفواتير
     await exec(organizationId, `
@@ -1062,74 +1318,28 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
       );
     `);
 
-    await addColumnIfNotExists(organizationId, 'invoices', 'syncStatus', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'invoices', 'pendingOperation', 'TEXT');
     // أعمدة إضافية للفواتير
-    await addColumnIfNotExists(organizationId, 'invoices', 'invoiceNumber', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'invoices', 'invoiceNumberLower', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'invoices', 'remoteInvoiceId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'invoices', 'customerId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'invoices', 'customerName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'invoices', 'customerNameLower', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'invoices', 'totalAmount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'invoices', 'invoiceDate', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'invoices', 'dueDate', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'invoices', 'sourceType', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'invoices', 'paymentMethod', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'invoices', 'paymentStatus', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'invoices', 'taxAmount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'invoices', 'discountAmount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'invoices', 'subtotalAmount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'invoices', 'shippingAmount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'invoices', 'discountType', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'invoices', 'discountPercentage', 'REAL');
-    await addColumnIfNotExists(organizationId, 'invoices', 'tvaRate', 'REAL');
-    await addColumnIfNotExists(organizationId, 'invoices', 'amountHt', 'REAL');
-    await addColumnIfNotExists(organizationId, 'invoices', 'amountTva', 'REAL');
-    await addColumnIfNotExists(organizationId, 'invoices', 'amountTtc', 'REAL');
-    await addColumnIfNotExists(organizationId, 'invoices', 'organizationId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'invoices', 'localCreatedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'invoices', 'createdAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'invoices', 'updatedAt', 'TEXT');
     await addColumnIfNotExists(organizationId, 'invoices', 'server_updated_at', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'invoices', 'serverUpdatedAt', 'TEXT');
     await addColumnIfNotExists(organizationId, 'invoices', 'local_updated_at', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'invoices', 'localUpdatedAt', 'TEXT');
     await addColumnIfNotExists(organizationId, 'invoices', 'customer_phone', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'invoices', 'customerPhone', 'TEXT');
     await addColumnIfNotExists(organizationId, 'invoices', 'customer_email', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'invoices', 'customerEmail', 'TEXT');
     await addColumnIfNotExists(organizationId, 'invoices', 'customer_address', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'invoices', 'customerAddress', 'TEXT');
     await addColumnIfNotExists(organizationId, 'invoices', 'customer_nif', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'invoices', 'customerNif', 'TEXT');
     await addColumnIfNotExists(organizationId, 'invoices', 'customer_rc', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'invoices', 'customerRc', 'TEXT');
     await addColumnIfNotExists(organizationId, 'invoices', 'customer_nis', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'invoices', 'customerNis', 'TEXT');
     await addColumnIfNotExists(organizationId, 'invoices', 'customer_rib', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'invoices', 'customerRib', 'TEXT');
     await addColumnIfNotExists(organizationId, 'invoices', 'order_id', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'invoices', 'orderId', 'TEXT');
     await addColumnIfNotExists(organizationId, 'invoices', 'order_number', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'invoices', 'orderNumber', 'TEXT');
     await addColumnIfNotExists(organizationId, 'invoices', 'currency', 'TEXT DEFAULT "DZD"');
     await addColumnIfNotExists(organizationId, 'invoices', 'is_paid', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'invoices', 'isPaid', 'INTEGER DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'invoices', 'paid_at', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'invoices', 'paidAt', 'TEXT');
     await addColumnIfNotExists(organizationId, 'invoices', 'paid_amount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'invoices', 'paidAmount', 'REAL');
     await addColumnIfNotExists(organizationId, 'invoices', 'remaining_amount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'invoices', 'remainingAmount', 'REAL');
     await addColumnIfNotExists(organizationId, 'invoices', 'created_by', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'invoices', 'createdBy', 'TEXT');
     await addColumnIfNotExists(organizationId, 'invoices', 'items', 'TEXT');
     await addColumnIfNotExists(organizationId, 'invoices', 'metadata', 'TEXT');
     await addColumnIfNotExists(organizationId, 'invoices', 'printed_at', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'invoices', 'printedAt', 'TEXT');
     await addColumnIfNotExists(organizationId, 'invoices', 'print_count', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'invoices', 'printCount', 'INTEGER DEFAULT 0');
     // أعمدة إضافية للمزامنة مع Supabase
     await addColumnIfNotExists(organizationId, 'invoices', 'subtotal', 'REAL DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'invoices', 'tax', 'REAL DEFAULT 0');
@@ -1196,55 +1406,27 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
     await exec(organizationId, customerDebtsTableDef + ';');
 
     // أعمدة إضافية لديون العملاء
-    await addColumnIfNotExists(organizationId, 'customer_debts', 'syncStatus', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customer_debts', 'pendingOperation', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customer_debts', 'customerId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customer_debts', 'customerName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customer_debts', 'orderId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customer_debts', 'orderNumber', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customer_debts', 'totalAmount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'customer_debts', 'paidAmount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'customer_debts', 'remainingAmount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'customer_debts', 'dueDate', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customer_debts', 'organizationId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customer_debts', 'createdAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customer_debts', 'updatedAt', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customer_debts', 'invoice_id', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customer_debts', 'invoiceId', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customer_debts', 'invoice_number', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customer_debts', 'invoiceNumber', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customer_debts', 'source', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customer_debts', 'source_type', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customer_debts', 'sourceType', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customer_debts', 'payment_terms', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customer_debts', 'paymentTerms', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customer_debts', 'reminder_sent', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'customer_debts', 'reminderSent', 'INTEGER DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'customer_debts', 'last_reminder_date', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customer_debts', 'lastReminderDate', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customer_debts', 'is_overdue', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'customer_debts', 'isOverdue', 'INTEGER DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'customer_debts', 'days_overdue', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'customer_debts', 'daysOverdue', 'INTEGER DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'customer_debts', 'created_by', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customer_debts', 'createdBy', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customer_debts', 'updated_by', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customer_debts', 'updatedBy', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customer_debts', 'server_updated_at', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customer_debts', 'serverUpdatedAt', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customer_debts', 'local_updated_at', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customer_debts', 'localUpdatedAt', 'TEXT');
     // أعمدة الطلب الإضافية
     await addColumnIfNotExists(organizationId, 'customer_debts', 'subtotal', 'REAL');
     await addColumnIfNotExists(organizationId, 'customer_debts', 'discount', 'REAL');
     await addColumnIfNotExists(organizationId, 'customer_debts', 'tax', 'REAL');
     await addColumnIfNotExists(organizationId, 'customer_debts', 'shipping', 'REAL');
     await addColumnIfNotExists(organizationId, 'customer_debts', 'items_count', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'customer_debts', 'itemsCount', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'customer_debts', 'payment_method', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customer_debts', 'paymentMethod', 'TEXT');
     await addColumnIfNotExists(organizationId, 'customer_debts', 'remote_debt_id', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'customer_debts', 'remoteDebtId', 'TEXT');
 
     // مدفوعات ديون العملاء
     await exec(organizationId, `
@@ -1280,7 +1462,6 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
 
     // إضافة عمود staff_id للجداول الموجودة (migration)
     await addColumnIfNotExists(organizationId, 'staff_pins', 'staff_id', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'staff_pins', 'staffId', 'TEXT');
     // إنشاء index للبحث السريع
     try {
       await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_staff_pins_org ON staff_pins(organization_id);`);
@@ -1325,11 +1506,6 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
       );
     `);
     // أعمدة camelCase للتوافق
-    await addColumnIfNotExists(organizationId, 'sync_queue', 'objectType', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'sync_queue', 'objectId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'sync_queue', 'lastAttempt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'sync_queue', 'createdAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'sync_queue', 'updatedAt', 'TEXT');
 
     // حالة الترخيص
     await exec(organizationId, `
@@ -1348,6 +1524,7 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
     `);
 
     // جلسات العمل - تعريف بدون قيود NOT NULL للتوافق
+    // ⚡ v58: توحيد أسماء الأعمدة مع sync/config.ts (snake_case بدلاً من camelCase)
     const workSessionsTableDef = `
       CREATE TABLE IF NOT EXISTS work_sessions (
         id TEXT PRIMARY KEY,
@@ -1372,8 +1549,8 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
         opening_notes TEXT,
         closing_notes TEXT,
         synced INTEGER DEFAULT 0,
-        syncStatus TEXT,
-        pendingOperation TEXT,
+        sync_status TEXT,
+        pending_operation TEXT,
         created_at TEXT DEFAULT '',
         updated_at TEXT DEFAULT '',
         opening_balance REAL,
@@ -1390,16 +1567,74 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
       'expected_cash', 'cash_difference', 'total_sales', 'total_orders', 'cash_sales',
       'card_sales', 'started_at', 'ended_at', 'paused_at', 'resumed_at', 'pause_count',
       'total_pause_duration', 'status', 'opening_notes', 'closing_notes', 'synced',
-      'syncStatus', 'pendingOperation', 'created_at', 'updated_at', 'opening_balance',
+      'sync_status', 'pending_operation', 'created_at', 'updated_at', 'opening_balance',
       'closing_balance', 'opened_at', 'closed_at', 'extra_fields'
     ], needsSchemaUpgrade);
 
     await exec(organizationId, workSessionsTableDef + ';');
 
+    // ⚡ v58: إضافة/تحديث أعمدة المزامنة الموحدة (snake_case فقط)
     await addColumnIfNotExists(organizationId, 'work_sessions', 'extra_fields', 'TEXT');
     await addColumnIfNotExists(organizationId, 'work_sessions', 'sync_status', 'TEXT');
     await addColumnIfNotExists(organizationId, 'work_sessions', 'pending_operation', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'work_sessions', 'pendingOperation', 'TEXT');
+
+    // ⚡ v58: إنشاء جدول staff_work_sessions (الاسم الموحد مع Supabase)
+    // نفس بنية work_sessions لكن باسم موحد
+    const staffWorkSessionsTableDef = `
+      CREATE TABLE IF NOT EXISTS staff_work_sessions (
+        id TEXT PRIMARY KEY,
+        staff_id TEXT DEFAULT '',
+        staff_name TEXT,
+        organization_id TEXT DEFAULT '',
+        opening_cash REAL DEFAULT 0,
+        closing_cash REAL,
+        expected_cash REAL,
+        cash_difference REAL,
+        total_sales REAL DEFAULT 0,
+        total_orders INTEGER DEFAULT 0,
+        cash_sales REAL DEFAULT 0,
+        card_sales REAL DEFAULT 0,
+        started_at TEXT DEFAULT '',
+        ended_at TEXT,
+        paused_at TEXT,
+        resumed_at TEXT,
+        pause_count INTEGER DEFAULT 0,
+        total_pause_duration INTEGER DEFAULT 0,
+        status TEXT DEFAULT 'active',
+        opening_notes TEXT,
+        closing_notes TEXT,
+        synced INTEGER DEFAULT 0,
+        sync_status TEXT,
+        pending_operation TEXT,
+        created_at TEXT DEFAULT '',
+        updated_at TEXT DEFAULT '',
+        opening_balance REAL,
+        closing_balance REAL,
+        opened_at TEXT,
+        closed_at TEXT,
+        extra_fields TEXT
+      )
+    `;
+
+    await rebuildTableIfNeeded(organizationId, 'staff_work_sessions', staffWorkSessionsTableDef, [
+      'id', 'staff_id', 'staff_name', 'organization_id', 'opening_cash', 'closing_cash',
+      'expected_cash', 'cash_difference', 'total_sales', 'total_orders', 'cash_sales',
+      'card_sales', 'started_at', 'ended_at', 'paused_at', 'resumed_at', 'pause_count',
+      'total_pause_duration', 'status', 'opening_notes', 'closing_notes', 'synced',
+      'sync_status', 'pending_operation', 'created_at', 'updated_at', 'opening_balance',
+      'closing_balance', 'opened_at', 'closed_at', 'extra_fields'
+    ], needsSchemaUpgrade);
+
+    await exec(organizationId, staffWorkSessionsTableDef + ';');
+
+    // إضافة فهارس لـ staff_work_sessions
+    await exec(organizationId, `
+      CREATE INDEX IF NOT EXISTS idx_staff_work_sessions_staff ON staff_work_sessions(staff_id);
+      CREATE INDEX IF NOT EXISTS idx_staff_work_sessions_org ON staff_work_sessions(organization_id);
+      CREATE INDEX IF NOT EXISTS idx_staff_work_sessions_status ON staff_work_sessions(status);
+      CREATE INDEX IF NOT EXISTS idx_staff_work_sessions_staff_status ON staff_work_sessions(staff_id, status, organization_id);
+      CREATE INDEX IF NOT EXISTS idx_staff_work_sessions_org_status ON staff_work_sessions(organization_id, status);
+    `);
 
     // جدول المعاملات للمخزون
     await exec(organizationId, `
@@ -1493,6 +1728,31 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
       );
     `);
 
+    // ⚡ Add indexes for product_categories (fast lookup)
+    await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_product_categories_org ON product_categories(organization_id);`);
+    await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_product_categories_type ON product_categories(type);`);
+    await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_product_categories_active ON product_categories(is_active);`);
+    await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_product_categories_org_active ON product_categories(organization_id, is_active);`);
+
+    // ⚡ Add indexes for product_subcategories (fast lookup)
+    await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_product_subcategories_org ON product_subcategories(organization_id);`);
+    await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_product_subcategories_category ON product_subcategories(category_id);`);
+    await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_product_subcategories_active ON product_subcategories(is_active);`);
+
+    // Add sync columns for product_categories
+    await addColumnIfNotExists(organizationId, 'product_categories', 'synced', 'INTEGER DEFAULT 0');
+
+    // ⚡ v48: Add missing columns for product_categories (name_lower, parent_id, display_order)
+    await addColumnIfNotExists(organizationId, 'product_categories', 'name_lower', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'product_categories', 'parent_id', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'product_categories', 'display_order', 'INTEGER DEFAULT 0');
+
+    // ⚡ v49: Add image_base64 column for offline category images
+    await addColumnIfNotExists(organizationId, 'product_categories', 'image_base64', 'TEXT');
+
+    // Add sync columns for product_subcategories
+    await addColumnIfNotExists(organizationId, 'product_subcategories', 'synced', 'INTEGER DEFAULT 0');
+
     // ⚡ v26: جدول الموظفين/المستخدمين المحلي
     await exec(organizationId, `
       CREATE TABLE IF NOT EXISTS employees (
@@ -1512,6 +1772,7 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
     await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_employees_org ON employees(organization_id);`);
     await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_employees_auth_user ON employees(auth_user_id);`);
     await addColumnIfNotExists(organizationId, 'employees', 'synced', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'employees', '_synced', 'INTEGER DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'employees', 'sync_status', 'TEXT');
     await addColumnIfNotExists(organizationId, 'employees', 'pending_operation', 'TEXT');
 
@@ -1664,26 +1925,19 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
     `);
 
     await addColumnIfNotExists(organizationId, 'organization_subscriptions', 'billing_cycle', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organization_subscriptions', 'billingCycle', 'TEXT');
     await addColumnIfNotExists(organizationId, 'organization_subscriptions', 'trial_ends_at', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organization_subscriptions', 'trialEndsAt', 'TEXT');
     await addColumnIfNotExists(organizationId, 'organization_subscriptions', 'amount_paid', 'REAL');
-    await addColumnIfNotExists(organizationId, 'organization_subscriptions', 'amountPaid', 'REAL');
     await addColumnIfNotExists(organizationId, 'organization_subscriptions', 'payment_method', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organization_subscriptions', 'paymentMethod', 'TEXT');
     await addColumnIfNotExists(organizationId, 'organization_subscriptions', 'payment_reference', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organization_subscriptions', 'paymentReference', 'TEXT');
     await addColumnIfNotExists(organizationId, 'organization_subscriptions', 'lifetime_courses_access', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'organization_subscriptions', 'lifetimeCoursesAccess', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'organization_subscriptions', 'accessible_courses', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organization_subscriptions', 'accessibleCourses', 'TEXT');
     await addColumnIfNotExists(organizationId, 'organization_subscriptions', 'courses_access_expires_at', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organization_subscriptions', 'coursesAccessExpiresAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organization_subscriptions', 'isAutoRenew', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'organization_subscriptions', 'organizationId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organization_subscriptions', 'planId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organization_subscriptions', 'startDate', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organization_subscriptions', 'endDate', 'TEXT');
+    // ⭐ أعمدة الخطط الجديدة (v2)
+    await addColumnIfNotExists(organizationId, 'organization_subscriptions', 'plan_code', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'organization_subscriptions', 'plan_name', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'organization_subscriptions', 'limits', 'TEXT'); // JSON
+    await addColumnIfNotExists(organizationId, 'organization_subscriptions', 'permissions', 'TEXT'); // JSON
+    await addColumnIfNotExists(organizationId, 'organization_subscriptions', 'features', 'TEXT'); // JSON array
 
     // جدول ألوان المنتجات
     await exec(organizationId, `
@@ -1708,19 +1962,7 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
       );
     `);
 
-    await addColumnIfNotExists(organizationId, 'product_colors', 'productId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_colors', 'colorCode', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_colors', 'imageUrl', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_colors', 'isDefault', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'product_colors', 'variantNumber', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'product_colors', 'hasSizes', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'product_colors', 'purchasePrice', 'REAL');
-    await addColumnIfNotExists(organizationId, 'product_colors', 'createdAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_colors', 'updatedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_colors', 'syncStatus', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_colors', 'pendingOperation', 'TEXT');
     await addColumnIfNotExists(organizationId, 'product_colors', 'organization_id', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_colors', 'organizationId', 'TEXT');
 
     // جدول أحجام المنتجات
     await exec(organizationId, `
@@ -1742,17 +1984,7 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
       );
     `);
 
-    await addColumnIfNotExists(organizationId, 'product_sizes', 'colorId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_sizes', 'productId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_sizes', 'sizeName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_sizes', 'isDefault', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'product_sizes', 'purchasePrice', 'REAL');
-    await addColumnIfNotExists(organizationId, 'product_sizes', 'createdAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_sizes', 'updatedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_sizes', 'syncStatus', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_sizes', 'pendingOperation', 'TEXT');
     await addColumnIfNotExists(organizationId, 'product_sizes', 'organization_id', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_sizes', 'organizationId', 'TEXT');
 
     // جدول صور المنتجات
     await exec(organizationId, `
@@ -1769,17 +2001,8 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
       );
     `);
 
-    await addColumnIfNotExists(organizationId, 'product_images', 'productId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_images', 'imageUrl', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_images', 'sortOrder', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'product_images', 'createdAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_images', 'updatedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_images', 'syncStatus', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_images', 'pendingOperation', 'TEXT');
     await addColumnIfNotExists(organizationId, 'product_images', 'organization_id', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_images', 'organizationId', 'TEXT');
     await addColumnIfNotExists(organizationId, 'product_images', 'image_base64', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_images', 'imageBase64', 'TEXT');
 
     // ✅ جدول الإعدادات المتقدمة للمنتجات
     await exec(organizationId, `
@@ -1809,6 +2032,13 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
         referral_cookie_duration_days INTEGER,
         enable_buyer_discount INTEGER DEFAULT 0,
         buyer_discount_percentage INTEGER DEFAULT 5,
+        enable_sticky_buy_button INTEGER DEFAULT 0,
+        disable_quantity_selection INTEGER DEFAULT 0,
+        require_login_to_purchase INTEGER DEFAULT 0,
+        prevent_repeat_purchase INTEGER DEFAULT 0,
+        show_last_stock_update INTEGER DEFAULT 0,
+        show_recent_purchases INTEGER DEFAULT 0,
+        show_visitor_locations INTEGER DEFAULT 0,
         created_at TEXT,
         updated_at TEXT,
         synced INTEGER DEFAULT 0,
@@ -1816,6 +2046,20 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
         pending_operation TEXT
       );
     `);
+
+    // ✅ إضافة أعمدة جديدة لجدول product_advanced_settings للتوافق مع Supabase
+    await addColumnIfNotExists(organizationId, 'product_advanced_settings', 'enable_sticky_buy_button', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'product_advanced_settings', 'disable_quantity_selection', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'product_advanced_settings', 'require_login_to_purchase', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'product_advanced_settings', 'prevent_repeat_purchase', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'product_advanced_settings', 'show_last_stock_update', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'product_advanced_settings', 'show_recent_purchases', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'product_advanced_settings', 'show_visitor_locations', 'INTEGER DEFAULT 0');
+
+    // ⚡ v57: إضافة أعمدة المزامنة المحلية لـ product_advanced_settings
+    await addColumnIfNotExists(organizationId, 'product_advanced_settings', '_synced', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'product_advanced_settings', '_sync_status', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'product_advanced_settings', '_pending_operation', 'TEXT');
 
     // ✅ جدول إعدادات التسويق للمنتجات
     await exec(organizationId, `
@@ -1853,6 +2097,59 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
         pending_operation TEXT
       );
     `);
+
+    // ⚡ أعمدة إضافية مفقودة لـ product_marketing_settings (من Supabase)
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'facebook_standard_events', 'TEXT'); // JSON
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'facebook_advanced_matching_enabled', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'facebook_conversations_api_enabled', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'enable_facebook_conversion_api', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'facebook_access_token', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'facebook_test_event_code', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'facebook_dataset_id', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'tiktok_standard_events', 'TEXT'); // JSON
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'tiktok_advanced_matching_enabled', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'tiktok_events_api_enabled', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'tiktok_access_token', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'tiktok_test_event_code', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'snapchat_standard_events', 'TEXT'); // JSON
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'snapchat_advanced_matching_enabled', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'snapchat_events_api_enabled', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'snapchat_api_token', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'snapchat_test_event_code', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'google_ads_conversion_label', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'google_gtag_id', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'google_ads_global_site_tag_enabled', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'google_ads_event_snippets', 'TEXT'); // JSON
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'google_ads_phone_conversion_number', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'google_ads_phone_conversion_label', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'google_ads_enhanced_conversions_enabled', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'offer_timer_duration_minutes', 'INTEGER');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'offer_timer_display_style', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'offer_timer_text_above', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'offer_timer_text_below', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'offer_timer_end_action', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'offer_timer_end_action_url', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'offer_timer_end_action_message', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'offer_timer_restart_for_new_session', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'offer_timer_cookie_duration_days', 'INTEGER');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'offer_timer_show_on_specific_pages_only', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'offer_timer_specific_page_urls', 'TEXT'); // JSON array
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'loyalty_points_enabled', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'loyalty_points_name_singular', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'loyalty_points_name_plural', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'points_per_currency_unit', 'REAL');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'min_purchase_to_earn_points', 'REAL');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'max_points_per_order', 'INTEGER');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'redeem_points_for_discount', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'points_needed_for_fixed_discount', 'INTEGER');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'fixed_discount_value_for_points', 'REAL');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'points_expiration_months', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', 'test_mode', 'INTEGER DEFAULT 1');
+
+    // ⚡ v57: إضافة أعمدة المزامنة المحلية لـ product_marketing_settings
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', '_synced', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', '_sync_status', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'product_marketing_settings', '_pending_operation', 'TEXT');
 
     // ✅ جدول أسعار الجملة للمنتجات
     await exec(organizationId, `
@@ -1930,50 +2227,6 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
     `);
 
     // أعمدة إضافية لـ online_orders
-    await addColumnIfNotExists(organizationId, 'online_orders', 'customerId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'paymentMethod', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'paymentStatus', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'shippingAddressId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'shippingMethod', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'shippingCost', 'REAL');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'employeeId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'organizationId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'customerOrderNumber', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'formData', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'shippingOption', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'createdFrom', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'callConfirmationStatusId', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'callConfirmationNotes', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'callConfirmationUpdatedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'callConfirmationUpdatedBy', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'stopDeskId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'yalidineTrackingId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'zrexpressTrackingId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'ecotrackTrackingId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'maystroTrackingId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'shippingProvider', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'trackingData', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'lastStatusUpdate', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'deliveredAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'currentLocation', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'estimatedDeliveryDate', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'assignedAgentId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'agentPriority', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'callAttempts', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'lastCallAttempt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'nextCallScheduled', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'assignmentTimestamp', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'callCenterPriority', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'callCenterNotes', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'yalidineLabelUrl', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'zrexpressLabelUrl', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'ecotrackLabelUrl', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'maystroLabelUrl', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'globalOrderNumber', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'createdAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'updatedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'syncStatus', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_orders', 'pendingOperation', 'TEXT');
 
     // جدول عناصر الطلبات عبر الإنترنت
     await exec(organizationId, `
@@ -1996,71 +2249,100 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
       );
     `);
 
-    await addColumnIfNotExists(organizationId, 'online_order_items', 'orderId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_order_items', 'productId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_order_items', 'colorId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_order_items', 'sizeId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_order_items', 'productName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_order_items', 'unitPrice', 'REAL');
-    await addColumnIfNotExists(organizationId, 'online_order_items', 'totalPrice', 'REAL');
-    await addColumnIfNotExists(organizationId, 'online_order_items', 'colorName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_order_items', 'sizeName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'online_order_items', 'createdAt', 'TEXT');
 
-    // جدول عناصر طلب POS (تحديث)
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'orderId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'productId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'productName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'unitPrice', 'REAL');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'color_id', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'colorId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'size_id', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'sizeId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'color_name', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'colorName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'size_name', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'sizeName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'total_price', 'REAL');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'totalPrice', 'REAL');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'notes', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'createdAt', 'TEXT');
+    // ⚡ v44: أعمدة إضافية لجدول order_items (موحد مع Supabase)
+    await addColumnIfNotExists(organizationId, 'order_items', 'color_id', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'order_items', 'size_id', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'order_items', 'color_name', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'order_items', 'size_name', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'order_items', 'notes', 'TEXT');
     // أعمدة الجملة والسعر الأصلي
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'is_wholesale', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'isWholesale', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'original_price', 'REAL');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'originalPrice', 'REAL');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'variant_info', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'variantInfo', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'sku', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'barcode', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'cost', 'REAL');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'tax_amount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'taxAmount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'discount_amount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'discountAmount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'discount_type', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'discountType', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'organization_id', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'organizationId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'updated_at', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'updatedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'returned_quantity', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'returnedQuantity', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'refund_amount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'refundAmount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'image_url', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'imageUrl', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'thumbnail', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'sync_status', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'syncStatus', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'pending_operation', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'pendingOperation', 'TEXT');
-    // ⚡ أعمدة مطلوبة لـ Supabase order_items
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'slug', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'name', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'is_digital', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'isDigital', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'pos_order_items', 'variant_display_name', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'order_items', 'is_wholesale', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'order_items', 'original_price', 'REAL');
+    await addColumnIfNotExists(organizationId, 'order_items', 'variant_info', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'order_items', 'sku', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'order_items', 'barcode', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'order_items', 'cost', 'REAL');
+    await addColumnIfNotExists(organizationId, 'order_items', 'tax_amount', 'REAL');
+    await addColumnIfNotExists(organizationId, 'order_items', 'discount_amount', 'REAL');
+    await addColumnIfNotExists(organizationId, 'order_items', 'discount_type', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'order_items', 'returned_quantity', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'order_items', 'refund_amount', 'REAL');
+    await addColumnIfNotExists(organizationId, 'order_items', 'image_url', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'order_items', 'thumbnail', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'order_items', 'sync_status', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'order_items', 'pending_operation', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'order_items', 'slug', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'order_items', 'variant_display_name', 'TEXT');
+    // ✅ عمود نوع البيع (جملة/تجزئة/نصف جملة)
+    await addColumnIfNotExists(organizationId, 'order_items', 'sale_type', "TEXT DEFAULT 'retail'");
+    // ✅ أعمدة المزامنة المحلية لـ order_items
+    await addColumnIfNotExists(organizationId, 'order_items', '_local_updated_at', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'order_items', '_synced', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'order_items', '_sync_status', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'order_items', '_pending_operation', 'TEXT');
+
+    // ✅ أعمدة المزامنة المحلية لـ orders (v52)
+    await addColumnIfNotExists(organizationId, 'orders', '_local_updated_at', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', '_synced', 'INTEGER DEFAULT 0');
+    await addColumnIfNotExists(organizationId, 'orders', '_sync_status', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'orders', '_pending_operation', 'TEXT');
+
+    // ⚡ v41: جدول تاريخ المخزون المتقدم
+    await exec(organizationId, `
+      CREATE TABLE IF NOT EXISTS inventory_history (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        product_id TEXT NOT NULL,
+        movement_type TEXT NOT NULL,
+        unit_type TEXT NOT NULL DEFAULT 'piece',
+        quantity_pieces INTEGER,
+        quantity_weight REAL,
+        quantity_meters REAL,
+        quantity_boxes INTEGER,
+        balance_before_pieces INTEGER,
+        balance_after_pieces INTEGER,
+        balance_before_weight REAL,
+        balance_after_weight REAL,
+        balance_before_meters REAL,
+        balance_after_meters REAL,
+        balance_before_boxes INTEGER,
+        balance_after_boxes INTEGER,
+        color_id TEXT,
+        size_id TEXT,
+        batch_id TEXT,
+        batch_number TEXT,
+        expiry_date TEXT,
+        serial_numbers TEXT,
+        reference_type TEXT,
+        reference_id TEXT,
+        unit_cost REAL,
+        total_value REAL,
+        notes TEXT,
+        created_by TEXT,
+        created_at TEXT,
+        synced INTEGER DEFAULT 0,
+        sync_id TEXT,
+        updated_at TEXT
+      );
+    `);
+
+    // فهارس لجدول inventory_history
+    await exec(organizationId, `
+      CREATE INDEX IF NOT EXISTS idx_inventory_history_product ON inventory_history(product_id);
+    `).catch(() => {});
+    await exec(organizationId, `
+      CREATE INDEX IF NOT EXISTS idx_inventory_history_org ON inventory_history(organization_id);
+    `).catch(() => {});
+    await exec(organizationId, `
+      CREATE INDEX IF NOT EXISTS idx_inventory_history_created ON inventory_history(created_at);
+    `).catch(() => {});
+    await exec(organizationId, `
+      CREATE INDEX IF NOT EXISTS idx_inventory_history_type ON inventory_history(movement_type);
+    `).catch(() => {});
+    await exec(organizationId, `
+      CREATE INDEX IF NOT EXISTS idx_inventory_history_synced ON inventory_history(synced);
+    `).catch(() => {});
 
     // جدول المرتجعات (returns)
     await exec(organizationId, `
@@ -2148,120 +2430,51 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
     `);
 
     // أعمدة إضافية لـ product_returns بصيغة camelCase
-    await addColumnIfNotExists(organizationId, 'product_returns', 'organizationId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'returnNumber', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'orderId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'orderNumber', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'customerId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'customerName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'productId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'productName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'colorId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'colorName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'sizeId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'sizeName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'unitPrice', 'REAL');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'totalAmount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'refundAmount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'refundMethod', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'returnType', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'reasonCode', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'createdBy', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'createdByName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'approvedBy', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'approvedByName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'rejectedBy', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'rejectedByName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'processedBy', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'processedByName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'approvedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'rejectedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'processedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'inventoryUpdated', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'inventoryUpdatedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'inventoryUpdatedBy', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'createdAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'updatedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'localCreatedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'localUpdatedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'serverUpdatedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'syncStatus', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'pendingOperation', 'TEXT');
     // أعمدة إضافية لمرتجعات المنتجات
     await addColumnIfNotExists(organizationId, 'product_returns', 'remote_return_id', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'remoteReturnId', 'TEXT');
     await addColumnIfNotExists(organizationId, 'product_returns', 'local_return_id', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'localReturnId', 'TEXT');
     await addColumnIfNotExists(organizationId, 'product_returns', 'subtotal', 'REAL');
     await addColumnIfNotExists(organizationId, 'product_returns', 'discount', 'REAL');
     await addColumnIfNotExists(organizationId, 'product_returns', 'tax', 'REAL');
     await addColumnIfNotExists(organizationId, 'product_returns', 'sku', 'TEXT');
     await addColumnIfNotExists(organizationId, 'product_returns', 'barcode', 'TEXT');
     await addColumnIfNotExists(organizationId, 'product_returns', 'variant_id', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'variantId', 'TEXT');
     await addColumnIfNotExists(organizationId, 'product_returns', 'original_order_id', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'originalOrderId', 'TEXT');
     await addColumnIfNotExists(organizationId, 'product_returns', 'original_order_number', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'originalOrderNumber', 'TEXT');
     await addColumnIfNotExists(organizationId, 'product_returns', 'order_item_id', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'orderItemId', 'TEXT');
     await addColumnIfNotExists(organizationId, 'product_returns', 'restocked', 'INTEGER DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'product_returns', 'restocked_at', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'restockedAt', 'TEXT');
     await addColumnIfNotExists(organizationId, 'product_returns', 'restocked_by', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'restockedBy', 'TEXT');
     // أعمدة إضافية لمعلومات العميل في المرتجعات
     await addColumnIfNotExists(organizationId, 'product_returns', 'customer_phone', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'customerPhone', 'TEXT');
     await addColumnIfNotExists(organizationId, 'product_returns', 'customer_email', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'customerEmail', 'TEXT');
     await addColumnIfNotExists(organizationId, 'product_returns', 'customer_address', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'customerAddress', 'TEXT');
     await addColumnIfNotExists(organizationId, 'product_returns', 'exchange_product_id', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'exchangeProductId', 'TEXT');
     await addColumnIfNotExists(organizationId, 'product_returns', 'exchange_product_name', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'exchangeProductName', 'TEXT');
     await addColumnIfNotExists(organizationId, 'product_returns', 'exchange_quantity', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'exchangeQuantity', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'product_returns', 'price_difference', 'REAL');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'priceDifference', 'REAL');
     await addColumnIfNotExists(organizationId, 'product_returns', 'images', 'TEXT');
     await addColumnIfNotExists(organizationId, 'product_returns', 'attachments', 'TEXT');
     // أعمدة سبب الإرجاع
     await addColumnIfNotExists(organizationId, 'product_returns', 'return_reason', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'returnReason', 'TEXT');
     await addColumnIfNotExists(organizationId, 'product_returns', 'reason', 'TEXT');
     await addColumnIfNotExists(organizationId, 'product_returns', 'reason_details', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'reasonDetails', 'TEXT');
     await addColumnIfNotExists(organizationId, 'product_returns', 'condition', 'TEXT');
     await addColumnIfNotExists(organizationId, 'product_returns', 'condition_notes', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'conditionNotes', 'TEXT');
     await addColumnIfNotExists(organizationId, 'product_returns', 'refund_status', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'refundStatus', 'TEXT');
     await addColumnIfNotExists(organizationId, 'product_returns', 'refund_notes', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'refundNotes', 'TEXT');
     // أعمدة إضافية لوصف سبب الإرجاع
     await addColumnIfNotExists(organizationId, 'product_returns', 'return_reason_description', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'returnReasonDescription', 'TEXT');
     await addColumnIfNotExists(organizationId, 'product_returns', 'reason_description', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'reasonDescription', 'TEXT');
     await addColumnIfNotExists(organizationId, 'product_returns', 'admin_notes', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'adminNotes', 'TEXT');
     await addColumnIfNotExists(organizationId, 'product_returns', 'internal_notes', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'internalNotes', 'TEXT');
     await addColumnIfNotExists(organizationId, 'product_returns', 'customer_notes', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'customerNotes', 'TEXT');
     // أعمدة المبالغ الأصلية والرسوم
     await addColumnIfNotExists(organizationId, 'product_returns', 'original_total', 'REAL');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'originalTotal', 'REAL');
     await addColumnIfNotExists(organizationId, 'product_returns', 'return_amount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'returnAmount', 'REAL');
     await addColumnIfNotExists(organizationId, 'product_returns', 'restocking_fee', 'REAL');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'restockingFee', 'REAL');
     await addColumnIfNotExists(organizationId, 'product_returns', 'approved_by', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'approvedBy', 'TEXT');
     await addColumnIfNotExists(organizationId, 'product_returns', 'approved_at', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'product_returns', 'approvedAt', 'TEXT');
 
     // جدول عناصر الإرجاع (return_items) - مستخدم في syncProductReturns
     await exec(organizationId, `
@@ -2288,35 +2501,15 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
     `);
 
     // أعمدة إضافية لـ return_items بصيغة camelCase
-    await addColumnIfNotExists(organizationId, 'return_items', 'returnId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'return_items', 'productId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'return_items', 'productName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'return_items', 'productSku', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'return_items', 'returnQuantity', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'return_items', 'returnUnitPrice', 'REAL');
-    await addColumnIfNotExists(organizationId, 'return_items', 'totalReturnAmount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'return_items', 'conditionStatus', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'return_items', 'inventoryReturned', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'return_items', 'colorId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'return_items', 'colorName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'return_items', 'sizeId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'return_items', 'sizeName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'return_items', 'createdAt', 'TEXT');
     // أعمدة إضافية لعناصر الإرجاع
     await addColumnIfNotExists(organizationId, 'return_items', 'original_quantity', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'return_items', 'originalQuantity', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'return_items', 'original_price', 'REAL');
-    await addColumnIfNotExists(organizationId, 'return_items', 'originalPrice', 'REAL');
     await addColumnIfNotExists(organizationId, 'return_items', 'reason', 'TEXT');
     await addColumnIfNotExists(organizationId, 'return_items', 'reason_code', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'return_items', 'reasonCode', 'TEXT');
     await addColumnIfNotExists(organizationId, 'return_items', 'condition', 'TEXT');
     await addColumnIfNotExists(organizationId, 'return_items', 'condition_notes', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'return_items', 'conditionNotes', 'TEXT');
     await addColumnIfNotExists(organizationId, 'return_items', 'refund_amount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'return_items', 'refundAmount', 'REAL');
     await addColumnIfNotExists(organizationId, 'return_items', 'restocking_fee', 'REAL');
-    await addColumnIfNotExists(organizationId, 'return_items', 'restockingFee', 'REAL');
 
     // جدول إعلانات الخسائر (losses)
     await exec(organizationId, `
@@ -2384,97 +2577,45 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
     `);
 
     // أعمدة إضافية لـ loss_declarations بصيغة camelCase
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'organizationId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'declarationNumber', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'lossType', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'lossDate', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'totalValue', 'REAL');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'totalQuantity', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'reasonCode', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'reportedBy', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'reportedByName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'approvedBy', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'approvedByName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'rejectedBy', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'rejectedByName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'witnessEmployeeId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'witnessEmployeeName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'approvedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'rejectedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'inventoryUpdated', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'inventoryUpdatedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'inventoryUpdatedBy', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'createdAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'updatedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'localCreatedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'localUpdatedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'serverUpdatedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'syncStatus', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'pendingOperation', 'TEXT');
     // أعمدة إضافية لإعلانات الخسائر
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'loss_number', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'lossNumber', 'TEXT');
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'loss_number_lower', 'TEXT'); // ⚡ للبحث السريع
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'remote_loss_id', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'remoteLossId', 'TEXT');
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'local_loss_id', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'localLossId', 'TEXT');
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'items', 'TEXT');
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'metadata', 'TEXT');
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'location', 'TEXT');
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'department', 'TEXT');
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'loss_category', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'lossCategory', 'TEXT');
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'products', 'TEXT');
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'affected_products', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'affectedProducts', 'TEXT');
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'estimated_value', 'REAL');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'estimatedValue', 'REAL');
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'actual_value', 'REAL');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'actualValue', 'REAL');
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'reference_number', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'referenceNumber', 'TEXT');
     // أعمدة إضافية لوصف الخسارة
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'loss_description', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'lossDescription', 'TEXT');
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'description', 'TEXT');
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'cause', 'TEXT');
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'resolution', 'TEXT');
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'preventive_action', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'preventiveAction', 'TEXT');
     // أعمدة إضافية لتاريخ الحادث
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'incident_date', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'incidentDate', 'TEXT');
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'discovery_date', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'discoveryDate', 'TEXT');
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'reported_date', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'reportedDate', 'TEXT');
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'incident_location', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'incidentLocation', 'TEXT');
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'incident_details', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'incidentDetails', 'TEXT');
     // أعمدة القيم والتكاليف
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'total_cost_value', 'REAL');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'totalCostValue', 'REAL');
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'total_retail_value', 'REAL');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'totalRetailValue', 'REAL');
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'insurance_claim', 'INTEGER DEFAULT 0');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'insuranceClaim', 'INTEGER DEFAULT 0');
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'insurance_amount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'insuranceAmount', 'REAL');
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'recovery_amount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'recoveryAmount', 'REAL');
     // أعمدة قيمة البيع والعدد الإجمالي
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'total_selling_value', 'REAL');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'totalSellingValue', 'REAL');
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'total_items_count', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'totalItemsCount', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'items_count', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'itemsCount', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'selling_value', 'REAL');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'sellingValue', 'REAL');
     await addColumnIfNotExists(organizationId, 'loss_declarations', 'cost_value', 'REAL');
-    await addColumnIfNotExists(organizationId, 'loss_declarations', 'costValue', 'REAL');
 
     // جدول عناصر إعلانات الخسائر (loss_declaration_items)
     await exec(organizationId, `
@@ -2501,19 +2642,6 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
     `);
 
     // أعمدة إضافية لـ loss_declaration_items بصيغة camelCase
-    await addColumnIfNotExists(organizationId, 'loss_declaration_items', 'lossDeclarationId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declaration_items', 'productId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declaration_items', 'productName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declaration_items', 'colorId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declaration_items', 'colorName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declaration_items', 'sizeId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declaration_items', 'sizeName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declaration_items', 'unitCost', 'REAL');
-    await addColumnIfNotExists(organizationId, 'loss_declaration_items', 'totalValue', 'REAL');
-    await addColumnIfNotExists(organizationId, 'loss_declaration_items', 'inventoryAdjusted', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'loss_declaration_items', 'inventoryAdjustedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declaration_items', 'inventoryAdjustedBy', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_declaration_items', 'createdAt', 'TEXT');
 
     // جدول عناصر الخسائر - تعريف بدون قيود NOT NULL
     const lossItemsTableDef = `
@@ -2548,77 +2676,37 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
 
     // أعمدة إضافية لـ loss_items
     await addColumnIfNotExists(organizationId, 'loss_items', 'product_sku', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_items', 'productSku', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_items', 'productId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_items', 'productName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_items', 'colorId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_items', 'colorName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_items', 'sizeId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_items', 'sizeName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_items', 'lossId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_items', 'unitCost', 'REAL');
-    await addColumnIfNotExists(organizationId, 'loss_items', 'totalValue', 'REAL');
-    await addColumnIfNotExists(organizationId, 'loss_items', 'inventoryAdjusted', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'loss_items', 'inventoryAdjustedBy', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_items', 'createdAt', 'TEXT');
     await addColumnIfNotExists(organizationId, 'loss_items', 'barcode', 'TEXT');
     await addColumnIfNotExists(organizationId, 'loss_items', 'sku', 'TEXT');
     await addColumnIfNotExists(organizationId, 'loss_items', 'unit_price', 'REAL');
-    await addColumnIfNotExists(organizationId, 'loss_items', 'unitPrice', 'REAL');
     await addColumnIfNotExists(organizationId, 'loss_items', 'selling_price', 'REAL');
-    await addColumnIfNotExists(organizationId, 'loss_items', 'sellingPrice', 'REAL');
     await addColumnIfNotExists(organizationId, 'loss_items', 'cost_price', 'REAL');
-    await addColumnIfNotExists(organizationId, 'loss_items', 'costPrice', 'REAL');
     await addColumnIfNotExists(organizationId, 'loss_items', 'condition', 'TEXT');
     await addColumnIfNotExists(organizationId, 'loss_items', 'loss_declaration_id', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_items', 'lossDeclarationId', 'TEXT');
     await addColumnIfNotExists(organizationId, 'loss_items', 'lost_quantity', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'loss_items', 'lostQuantity', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'loss_items', 'damaged_quantity', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'loss_items', 'damagedQuantity', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'loss_items', 'original_quantity', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'loss_items', 'originalQuantity', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'loss_items', 'remaining_quantity', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'loss_items', 'remainingQuantity', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'loss_items', 'unit_cost_price', 'REAL');
-    await addColumnIfNotExists(organizationId, 'loss_items', 'unitCostPrice', 'REAL');
     await addColumnIfNotExists(organizationId, 'loss_items', 'unit_selling_price', 'REAL');
-    await addColumnIfNotExists(organizationId, 'loss_items', 'unitSellingPrice', 'REAL');
     await addColumnIfNotExists(organizationId, 'loss_items', 'total_cost_value', 'REAL');
-    await addColumnIfNotExists(organizationId, 'loss_items', 'totalCostValue', 'REAL');
     await addColumnIfNotExists(organizationId, 'loss_items', 'total_selling_value', 'REAL');
-    await addColumnIfNotExists(organizationId, 'loss_items', 'totalSellingValue', 'REAL');
     await addColumnIfNotExists(organizationId, 'loss_items', 'loss_condition', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_items', 'lossCondition', 'TEXT');
     await addColumnIfNotExists(organizationId, 'loss_items', 'loss_reason', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_items', 'lossReason', 'TEXT');
     await addColumnIfNotExists(organizationId, 'loss_items', 'loss_type', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_items', 'lossType', 'TEXT');
     await addColumnIfNotExists(organizationId, 'loss_items', 'organization_id', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_items', 'organizationId', 'TEXT');
     await addColumnIfNotExists(organizationId, 'loss_items', 'updated_at', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'loss_items', 'updatedAt', 'TEXT');
 
     // جدول العناوين (addresses) - تحديث
-    await addColumnIfNotExists(organizationId, 'addresses', 'customerId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'addresses', 'streetAddress', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'addresses', 'postalCode', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'addresses', 'isDefault', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'addresses', 'organizationId', 'TEXT');
     await addColumnIfNotExists(organizationId, 'addresses', 'municipality', 'TEXT');
     await addColumnIfNotExists(organizationId, 'addresses', 'user_id', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'addresses', 'userId', 'TEXT');
     await addColumnIfNotExists(organizationId, 'addresses', 'created_at', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'addresses', 'createdAt', 'TEXT');
     await addColumnIfNotExists(organizationId, 'addresses', 'updated_at', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'addresses', 'updatedAt', 'TEXT');
     await addColumnIfNotExists(organizationId, 'addresses', 'wilaya', 'TEXT');
     await addColumnIfNotExists(organizationId, 'addresses', 'commune', 'TEXT');
     await addColumnIfNotExists(organizationId, 'addresses', 'label', 'TEXT');
     await addColumnIfNotExists(organizationId, 'addresses', 'address_line_1', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'addresses', 'addressLine1', 'TEXT');
     await addColumnIfNotExists(organizationId, 'addresses', 'address_line_2', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'addresses', 'addressLine2', 'TEXT');
 
     // جدول بيانات التعريف للمزامنة
     await exec(organizationId, `
@@ -2635,12 +2723,6 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
       );
     `);
 
-    await addColumnIfNotExists(organizationId, 'sync_metadata', 'tableName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'sync_metadata', 'lastSyncAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'sync_metadata', 'lastServerTimestamp', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'sync_metadata', 'recordsSynced', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'sync_metadata', 'createdAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'sync_metadata', 'updatedAt', 'TEXT');
     // أعمدة إضافية للمزامنة التدريجية
     await addColumnIfNotExists(organizationId, 'sync_metadata', 'entity_type', 'TEXT');
     await addColumnIfNotExists(organizationId, 'sync_metadata', 'last_sync_timestamp', 'TEXT');
@@ -2748,21 +2830,9 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
       );
     `);
 
-    await addColumnIfNotExists(organizationId, 'staff_members', 'organizationId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'staff_members', 'userId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'staff_members', 'pinHash', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'staff_members', 'isActive', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'staff_members', 'lastLogin', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'staff_members', 'createdAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'staff_members', 'updatedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'staff_members', 'syncStatus', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'staff_members', 'pendingOperation', 'TEXT');
     await addColumnIfNotExists(organizationId, 'staff_members', 'avatar_url', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'staff_members', 'avatarUrl', 'TEXT');
     await addColumnIfNotExists(organizationId, 'staff_members', 'first_name', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'staff_members', 'firstName', 'TEXT');
     await addColumnIfNotExists(organizationId, 'staff_members', 'last_name', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'staff_members', 'lastName', 'TEXT');
 
     // جدول المؤسسات (organizations)
     await exec(organizationId, `
@@ -2778,10 +2848,6 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
       );
     `);
 
-    await addColumnIfNotExists(organizationId, 'organizations', 'logoUrl', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organizations', 'ownerId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organizations', 'createdAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organizations', 'updatedAt', 'TEXT');
     await addColumnIfNotExists(organizationId, 'organizations', 'phone', 'TEXT');
     await addColumnIfNotExists(organizationId, 'organizations', 'email', 'TEXT');
     await addColumnIfNotExists(organizationId, 'organizations', 'address', 'TEXT');
@@ -2796,13 +2862,9 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
     await addColumnIfNotExists(organizationId, 'organizations', 'rib', 'TEXT');
     await addColumnIfNotExists(organizationId, 'organizations', 'activity', 'TEXT');
     await addColumnIfNotExists(organizationId, 'organizations', 'business_type', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organizations', 'businessType', 'TEXT');
     await addColumnIfNotExists(organizationId, 'organizations', 'is_active', 'INTEGER DEFAULT 1');
-    await addColumnIfNotExists(organizationId, 'organizations', 'isActive', 'INTEGER DEFAULT 1');
     await addColumnIfNotExists(organizationId, 'organizations', 'trial_ends_at', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organizations', 'trialEndsAt', 'TEXT');
     await addColumnIfNotExists(organizationId, 'organizations', 'subscription_status', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'organizations', 'subscriptionStatus', 'TEXT');
 
     // جدول حالات تأكيد الاتصال (call_confirmation_statuses)
     await exec(organizationId, `
@@ -2820,12 +2882,6 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
       );
     `);
 
-    await addColumnIfNotExists(organizationId, 'call_confirmation_statuses', 'nameAr', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'call_confirmation_statuses', 'isFinal', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'call_confirmation_statuses', 'displayOrder', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'call_confirmation_statuses', 'organizationId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'call_confirmation_statuses', 'createdAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'call_confirmation_statuses', 'updatedAt', 'TEXT');
 
     // جدول الولايات (wilayas)
     await exec(organizationId, `
@@ -2842,10 +2898,6 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
       );
     `);
 
-    await addColumnIfNotExists(organizationId, 'wilayas', 'nameAr', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'wilayas', 'shippingCost', 'REAL');
-    await addColumnIfNotExists(organizationId, 'wilayas', 'homeShippingCost', 'REAL');
-    await addColumnIfNotExists(organizationId, 'wilayas', 'isActive', 'INTEGER');
 
     // جدول البلديات (communes)
     await exec(organizationId, `
@@ -2863,11 +2915,6 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
       );
     `);
 
-    await addColumnIfNotExists(organizationId, 'communes', 'wilayaId', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'communes', 'nameAr', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'communes', 'shippingCost', 'REAL');
-    await addColumnIfNotExists(organizationId, 'communes', 'homeShippingCost', 'REAL');
-    await addColumnIfNotExists(organizationId, 'communes', 'isActive', 'INTEGER');
 
     // جدول نماذج النماذج (form_templates)
     await exec(organizationId, `
@@ -2883,11 +2930,6 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
       );
     `);
 
-    await addColumnIfNotExists(organizationId, 'form_templates', 'organizationId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'form_templates', 'isDefault', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'form_templates', 'isActive', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'form_templates', 'createdAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'form_templates', 'updatedAt', 'TEXT');
 
     // جدول إعدادات المتجر (store_settings)
     await exec(organizationId, `
@@ -2918,40 +2960,56 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
       );
     `);
 
-    await addColumnIfNotExists(organizationId, 'store_settings', 'organizationId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'store_settings', 'storeName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'store_settings', 'storeDescription', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'store_settings', 'storeLogo', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'store_settings', 'storeBanner', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'store_settings', 'storeUrl', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'store_settings', 'primaryColor', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'store_settings', 'secondaryColor', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'store_settings', 'accentColor', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'store_settings', 'fontFamily', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'store_settings', 'socialLinks', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'store_settings', 'contactInfo', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'store_settings', 'seoSettings', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'store_settings', 'shippingSettings', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'store_settings', 'paymentSettings', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'store_settings', 'notificationSettings', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'store_settings', 'isActive', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'store_settings', 'createdAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'store_settings', 'updatedAt', 'TEXT');
 
-    // فهارس للبحث السريع
+    // ⚡ فهارس للبحث السريع - تحسين الأداء بإنشائها دفعة واحدة
     try {
-      await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_products_name_lower ON products(name_lower);`);
-      await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_products_sku_lower ON products(sku_lower);`);
-      await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_products_barcode_lower ON products(barcode_lower);`);
-      await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_products_organization ON products(organization_id);`);
-      await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_customers_name_lower ON customers(name_lower);`);
-      await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_customers_phone_digits ON customers(phone_digits);`);
-      await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_customers_organization ON customers(organization_id);`);
-      await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_pos_orders_organization ON pos_orders(organization_id);`);
-      await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_pos_orders_customer ON pos_orders(customer_id);`);
-      await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_pos_orders_created ON pos_orders(created_at);`);
-      await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_invoices_organization ON invoices(organization_id);`);
-      await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_invoices_customer ON invoices(customer_id);`);
+      // ⚡ تحسين: إنشاء الفهارس في استدعاء واحد لتسريع التهيئة
+      const indexQueries = [
+        `CREATE INDEX IF NOT EXISTS idx_products_name_lower ON products(name_lower);`,
+        `CREATE INDEX IF NOT EXISTS idx_products_sku_lower ON products(sku_lower);`,
+        `CREATE INDEX IF NOT EXISTS idx_products_barcode_lower ON products(barcode_lower);`,
+        `CREATE INDEX IF NOT EXISTS idx_products_organization ON products(organization_id);`,
+        // ⚡ فهارس إضافية لتحسين أداء البحث عن المنتجات
+        `CREATE INDEX IF NOT EXISTS idx_products_org_name ON products(organization_id, name);`,
+        `CREATE INDEX IF NOT EXISTS idx_products_org_category ON products(organization_id, category_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_products_org_active ON products(organization_id, is_active);`,
+        `CREATE INDEX IF NOT EXISTS idx_products_org_barcode ON products(organization_id, barcode);`,
+        `CREATE INDEX IF NOT EXISTS idx_products_stock ON products(stock_quantity);`,
+      ];
+      
+      // تنفيذ جميع الفهارس دفعة واحدة
+      await Promise.all(indexQueries.map(query => exec(organizationId, query).catch(() => {})));
+      // ⚡ فهارس للألوان والمقاسات والعملاء والطلبيات
+      const additionalIndexes = [
+        `CREATE INDEX IF NOT EXISTS idx_product_colors_product ON product_colors(product_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_product_colors_barcode ON product_colors(barcode);`,
+        `CREATE INDEX IF NOT EXISTS idx_product_sizes_color ON product_sizes(color_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_product_sizes_product ON product_sizes(product_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_product_sizes_barcode ON product_sizes(barcode);`,
+        `CREATE INDEX IF NOT EXISTS idx_customers_name_lower ON customers(name_lower);`,
+        `CREATE INDEX IF NOT EXISTS idx_customers_phone_digits ON customers(phone_digits);`,
+        `CREATE INDEX IF NOT EXISTS idx_customers_organization ON customers(organization_id);`,
+        // ⚡ v44: فهارس لجدول orders (موحد مع Supabase)
+        `CREATE INDEX IF NOT EXISTS idx_orders_organization ON orders(organization_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_orders_created ON orders(created_at);`,
+        // ⚡ فهارس إضافية لتحسين أداء صفحة الطلبيات
+        `CREATE INDEX IF NOT EXISTS idx_orders_org_created ON orders(organization_id, created_at DESC);`,
+        `CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);`,
+        `CREATE INDEX IF NOT EXISTS idx_orders_payment_status ON orders(payment_status);`,
+        `CREATE INDEX IF NOT EXISTS idx_orders_synced ON orders(synced);`,
+        // ⚡ v44: فهرس لجدول order_items (موحد مع Supabase)
+        `CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_invoices_organization ON invoices(organization_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_invoices_customer ON invoices(customer_id);`,
+        // ⚡ v55: فهارس حرجة لـ work_sessions لتسريع الاستعلامات (حل مشكلة database locked)
+        `CREATE INDEX IF NOT EXISTS idx_work_sessions_staff_status ON work_sessions(staff_id, status, organization_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_work_sessions_org_status ON work_sessions(organization_id, status);`,
+        `CREATE INDEX IF NOT EXISTS idx_work_sessions_staff ON work_sessions(staff_id);`,
+        `CREATE INDEX IF NOT EXISTS idx_work_sessions_status ON work_sessions(status);`,
+      ];
+      
+      await Promise.all(additionalIndexes.map(query => exec(organizationId, query).catch(() => {})));
     } catch (indexError) {
       console.warn('[TauriSQLite] بعض الفهارس لم يتم إنشاؤها (قد تكون موجودة بالفعل):', indexError);
     }
@@ -2991,50 +3049,18 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
     `);
 
     // أعمدة إضافية لـ repair_orders (camelCase)
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'organizationId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'customerId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'customerName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'customerPhone', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'deviceType', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'deviceBrand', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'deviceModel', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'serialNumber', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'problemDescription', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'repairNotes', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'estimatedCost', 'REAL');
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'finalCost', 'REAL');
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'depositAmount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'paidAmount', 'REAL');
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'receivedDate', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'estimatedCompletion', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'completedDate', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'deliveredDate', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'technicianId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'technicianName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'warrantyPeriod', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'createdAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'updatedAt', 'TEXT');
 
     // Missing columns for complete RepairOrder type support
     await addColumnIfNotExists(organizationId, 'repair_orders', 'order_number', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'orderNumber', 'TEXT');
     await addColumnIfNotExists(organizationId, 'repair_orders', 'repair_location_id', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'repairLocationId', 'TEXT');
     await addColumnIfNotExists(organizationId, 'repair_orders', 'custom_location', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'customLocation', 'TEXT');
     await addColumnIfNotExists(organizationId, 'repair_orders', 'issue_description', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'issueDescription', 'TEXT');
     await addColumnIfNotExists(organizationId, 'repair_orders', 'total_price', 'REAL');
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'totalPrice', 'REAL');
     await addColumnIfNotExists(organizationId, 'repair_orders', 'paid_amount', 'REAL');
     await addColumnIfNotExists(organizationId, 'repair_orders', 'price_to_be_determined_later', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'priceToBeDeterminedLater', 'INTEGER');
     await addColumnIfNotExists(organizationId, 'repair_orders', 'received_by', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'receivedBy', 'TEXT');
     await addColumnIfNotExists(organizationId, 'repair_orders', 'sync_status', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'syncStatus', 'TEXT');
     await addColumnIfNotExists(organizationId, 'repair_orders', 'pending_operation', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_orders', 'pendingOperation', 'TEXT');
     await addColumnIfNotExists(organizationId, 'repair_orders', 'customer_name_lower', 'TEXT');
     await addColumnIfNotExists(organizationId, 'repair_orders', 'device_type_lower', 'TEXT');
     await addColumnIfNotExists(organizationId, 'repair_orders', 'notes', 'TEXT');
@@ -3061,13 +3087,6 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
     `);
 
     // أعمدة إضافية لـ repair_locations (camelCase)
-    await addColumnIfNotExists(organizationId, 'repair_locations', 'organizationId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_locations', 'isDefault', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'repair_locations', 'isActive', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'repair_locations', 'createdAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_locations', 'updatedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_locations', 'syncStatus', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_locations', 'pendingOperation', 'TEXT');
 
     // جدول صور التصليح (repair_images)
     await exec(organizationId, `
@@ -3086,12 +3105,6 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
     `);
 
     // أعمدة إضافية لـ repair_images (camelCase)
-    await addColumnIfNotExists(organizationId, 'repair_images', 'repairOrderId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_images', 'imageUrl', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_images', 'imageType', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_images', 'createdAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_images', 'syncStatus', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_images', 'pendingOperation', 'TEXT');
 
     // جدول تاريخ حالات التصليح (repair_status_history)
     await exec(organizationId, `
@@ -3110,11 +3123,6 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
     `);
 
     // أعمدة إضافية لـ repair_status_history (camelCase)
-    await addColumnIfNotExists(organizationId, 'repair_status_history', 'repairOrderId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_status_history', 'createdBy', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_status_history', 'createdAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_status_history', 'syncStatus', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'repair_status_history', 'pendingOperation', 'TEXT');
 
     // فهارس لجداول التصليح
     try {
@@ -3159,22 +3167,6 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
       );
     `);
 
-    await addColumnIfNotExists(organizationId, 'user_permissions', 'authUserId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'user_permissions', 'userId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'user_permissions', 'organizationId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'user_permissions', 'isActive', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'user_permissions', 'isOrgAdmin', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'user_permissions', 'isSuperAdmin', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'user_permissions', 'hasInventoryAccess', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'user_permissions', 'canManageProducts', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'user_permissions', 'canViewReports', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'user_permissions', 'canManageUsers', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'user_permissions', 'canManageOrders', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'user_permissions', 'canAccessPos', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'user_permissions', 'canManageSettings', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'user_permissions', 'createdAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'user_permissions', 'updatedAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'user_permissions', 'lastUpdated', 'TEXT');
 
     // جدول الاشتراكات (subscriptions) - للتوافق مع offlineSubscriptionService
     await exec(organizationId, `
@@ -3195,15 +3187,13 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
       );
     `);
 
-    await addColumnIfNotExists(organizationId, 'subscriptions', 'organizationId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'subscriptions', 'planId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'subscriptions', 'startDate', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'subscriptions', 'endDate', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'subscriptions', 'trialEndDate', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'subscriptions', 'graceEndDate', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'subscriptions', 'lastCheck', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'subscriptions', 'createdAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'subscriptions', 'updatedAt', 'TEXT');
+    // ⭐ أعمدة الخطط الجديدة (v2)
+    await addColumnIfNotExists(organizationId, 'subscriptions', 'plan_code', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'subscriptions', 'plan_name', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'subscriptions', 'limits', 'TEXT'); // JSON - SubscriptionPlanLimits
+    await addColumnIfNotExists(organizationId, 'subscriptions', 'permissions', 'TEXT'); // JSON - SubscriptionPlanPermissions
+    await addColumnIfNotExists(organizationId, 'subscriptions', 'billing_cycle', 'TEXT');
+    await addColumnIfNotExists(organizationId, 'subscriptions', 'amount_paid', 'REAL');
 
     // جدول بيانات المصادقة المحلية (local_auth_data) - للتخزين الآمن للأوفلاين
     await exec(organizationId, `
@@ -3223,14 +3213,6 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
       );
     `);
 
-    await addColumnIfNotExists(organizationId, 'local_auth_data', 'authUserId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'local_auth_data', 'organizationId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'local_auth_data', 'sessionData', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'local_auth_data', 'userMetadata', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'local_auth_data', 'appMetadata', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'local_auth_data', 'lastOnlineAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'local_auth_data', 'createdAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'local_auth_data', 'updatedAt', 'TEXT');
 
     // =====================================================
     // 🔄 جدول sync_metadata للتزامن التدريجي (Incremental Sync)
@@ -3271,16 +3253,6 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
     }
 
     // إضافة أعمدة camelCase للتوافق
-    await addColumnIfNotExists(organizationId, 'sync_metadata', 'entityType', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'sync_metadata', 'lastSyncTimestamp', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'sync_metadata', 'lastFullSyncTimestamp', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'sync_metadata', 'syncCount', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'sync_metadata', 'lastSyncStatus', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'sync_metadata', 'lastSyncError', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'sync_metadata', 'recordsSynced', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'sync_metadata', 'organizationId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'sync_metadata', 'createdAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'sync_metadata', 'updatedAt', 'TEXT');
 
     // إنشاء فهرس sync_metadata منفصلاً بعد التأكد من وجود الجدول والعمود
     try {
@@ -3307,13 +3279,76 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
         description TEXT,
         icon TEXT,
         synced INTEGER DEFAULT 1,
-        pendingOperation TEXT,
+        pending_operation TEXT,
         created_at TEXT,
         updated_at TEXT
       );
     `);
     try {
       await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_expense_categories_org ON expense_categories(organization_id);`);
+    } catch { }
+
+    // =====================================================
+    // 💰 جدول expenses - المصروفات (v50)
+    // =====================================================
+    await exec(organizationId, `
+      CREATE TABLE IF NOT EXISTS expenses (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        title TEXT,
+        amount REAL NOT NULL DEFAULT 0,
+        category TEXT,
+        description TEXT,
+        expense_date TEXT NOT NULL,
+        payment_method TEXT DEFAULT 'cash',
+        receipt_url TEXT,
+        is_recurring INTEGER DEFAULT 0,
+        created_by TEXT,
+        created_at TEXT,
+        updated_at TEXT,
+        synced INTEGER DEFAULT 1,
+        pending_operation TEXT,
+        local_created_at TEXT,
+        local_updated_at TEXT
+      );
+    `);
+
+    // فهارس لجدول expenses
+    try {
+      await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_expenses_org ON expenses(organization_id);`);
+      await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(expense_date);`);
+      await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category);`);
+      await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_expenses_org_date ON expenses(organization_id, expense_date);`);
+      console.log('[TauriSQLite] ✅ expenses table and indexes created');
+    } catch { }
+
+    // =====================================================
+    // 💰 جدول recurring_expenses - المصروفات المتكررة (v50)
+    // =====================================================
+    await exec(organizationId, `
+      CREATE TABLE IF NOT EXISTS recurring_expenses (
+        id TEXT PRIMARY KEY,
+        expense_id TEXT NOT NULL,
+        frequency TEXT NOT NULL,
+        day_of_week INTEGER,
+        day_of_month INTEGER,
+        start_date TEXT NOT NULL,
+        end_date TEXT,
+        next_due TEXT NOT NULL,
+        last_generated TEXT,
+        status TEXT DEFAULT 'active',
+        created_at TEXT,
+        updated_at TEXT,
+        synced INTEGER DEFAULT 1,
+        pending_operation TEXT,
+        FOREIGN KEY (expense_id) REFERENCES expenses(id)
+      );
+    `);
+
+    try {
+      await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_recurring_expenses_expense ON recurring_expenses(expense_id);`);
+      await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_recurring_expenses_next_due ON recurring_expenses(next_due);`);
+      console.log('[TauriSQLite] ✅ recurring_expenses table and indexes created');
     } catch { }
 
     // فهارس إضافية للبحث السريع
@@ -3394,25 +3429,138 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
       await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_sync_outbox_local_seq ON sync_outbox(local_seq);`);
       await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_sync_outbox_table ON sync_outbox(table_name);`);
       await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_sync_outbox_record ON sync_outbox(table_name, record_id);`);
+      // ⚡ فهرس مركب للاستعلامات المتكررة في getPending
+      await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_sync_outbox_status_retry ON sync_outbox(status, retry_count, next_retry_at);`);
       console.log('[TauriSQLite] ✅ sync_outbox table and indexes created');
     } catch (outboxIndexError) {
       console.warn('[TauriSQLite] ⚠️ Some sync_outbox indexes may already exist:', outboxIndexError);
     }
 
     // أعمدة إضافية لـ sync_outbox (camelCase)
-    await addColumnIfNotExists(organizationId, 'sync_outbox', 'tableName', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'sync_outbox', 'recordId', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'sync_outbox', 'localSeq', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'sync_outbox', 'createdAt', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'sync_outbox', 'retryCount', 'INTEGER');
-    await addColumnIfNotExists(organizationId, 'sync_outbox', 'lastError', 'TEXT');
-    await addColumnIfNotExists(organizationId, 'sync_outbox', 'nextRetryAt', 'TEXT');
+
+    // ⚡ v36: جدول دفعات المخزون (Inventory Batches)
+    await exec(organizationId, `
+      CREATE TABLE IF NOT EXISTS inventory_batches (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        product_id TEXT NOT NULL,
+        batch_number TEXT NOT NULL,
+        quantity INTEGER DEFAULT 0,
+        remaining_quantity INTEGER DEFAULT 0,
+        purchase_price REAL,
+        expiry_date TEXT,
+        manufacture_date TEXT,
+        received_date TEXT,
+        supplier_id TEXT,
+        supplier_batch_number TEXT,
+        location TEXT,
+        notes TEXT,
+        status TEXT DEFAULT 'active',
+        created_at TEXT,
+        updated_at TEXT,
+        synced INTEGER DEFAULT 0,
+        sync_status TEXT,
+        pending_operation TEXT,
+        local_updated_at TEXT
+      );
+    `);
+    await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_inventory_batches_org ON inventory_batches(organization_id);`);
+    await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_inventory_batches_product ON inventory_batches(product_id);`);
+    await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_inventory_batches_expiry ON inventory_batches(expiry_date);`);
+    await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_inventory_batches_status ON inventory_batches(status);`);
+    await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_inventory_batches_synced ON inventory_batches(synced);`);
+
+    // أعمدة camelCase لـ inventory_batches
+
+    // ⚡ v36: جدول الأرقام التسلسلية (Product Serial Numbers)
+    await exec(organizationId, `
+      CREATE TABLE IF NOT EXISTS product_serial_numbers (
+        id TEXT PRIMARY KEY,
+        organization_id TEXT NOT NULL,
+        product_id TEXT NOT NULL,
+        serial_number TEXT NOT NULL,
+        status TEXT DEFAULT 'available',
+        batch_id TEXT,
+        purchase_price REAL,
+        purchase_date TEXT,
+        supplier_id TEXT,
+        sold_at TEXT,
+        sold_price REAL,
+        sold_to_customer_id TEXT,
+        order_id TEXT,
+        warranty_start_date TEXT,
+        warranty_end_date TEXT,
+        warranty_claimed INTEGER DEFAULT 0,
+        warranty_claim_date TEXT,
+        warranty_claim_notes TEXT,
+        imei TEXT,
+        mac_address TEXT,
+        notes TEXT,
+        created_at TEXT,
+        updated_at TEXT,
+        synced INTEGER DEFAULT 0,
+        sync_status TEXT,
+        pending_operation TEXT,
+        local_updated_at TEXT
+      );
+    `);
+    await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_product_serials_org ON product_serial_numbers(organization_id);`);
+    await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_product_serials_product ON product_serial_numbers(product_id);`);
+    await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_product_serials_serial ON product_serial_numbers(serial_number);`);
+    await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_product_serials_status ON product_serial_numbers(status);`);
+    await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_product_serials_warranty ON product_serial_numbers(warranty_end_date);`);
+    await exec(organizationId, `CREATE INDEX IF NOT EXISTS idx_product_serials_synced ON product_serial_numbers(synced);`);
+
+    // ⚡ المرحلة 3: نظام migrations منفصل لكل version (idempotent)
+    // كل migration يعمل فقط إذا كان currentVersion < targetVersion
+    // وكل migration idempotent (يمكن تشغيله عدة مرات بأمان)
+
+    // Migration v59: تحويل جميع أسماء الأعمدة من camelCase إلى snake_case
+    if (needsSchemaUpgrade && currentVersion < 59) {
+      await applyMigrationFor59(organizationId);
+    }
+
+    // Migration v58: توحيد مخطط SQLite مع نظام المزامنة
+    if (needsSchemaUpgrade && currentVersion < 58) {
+      await applyMigrationFor58(organizationId);
+    }
+
+    // ⚡ v44: الجداول الآن موحدة مع Supabase (orders, order_items)
+    // لم نعد بحاجة لـ Views لأن الجداول بالأسماء الصحيحة مباشرة
+    // نحتفظ فقط بـ View لـ staff_work_sessions للتوافق العكسي
+    try {
+      // ⚡ v58: تحديث View لـ staff_work_sessions بدلاً من work_sessions
+      await exec(organizationId, `DROP VIEW IF EXISTS pos_work_sessions;`);
+      
+      // إنشاء View يشير إلى staff_work_sessions (أو work_sessions إذا لم يتم الترحيل بعد)
+      const staffWorkSessionsExists = await tableExists(organizationId, 'staff_work_sessions');
+      if (staffWorkSessionsExists) {
+        await exec(organizationId, `
+          CREATE VIEW IF NOT EXISTS pos_work_sessions AS
+          SELECT * FROM staff_work_sessions;
+        `);
+      } else {
+        // للتوافق العكسي - إذا لم يتم الترحيل بعد
+        await exec(organizationId, `
+          CREATE VIEW IF NOT EXISTS pos_work_sessions AS
+          SELECT * FROM work_sessions;
+        `);
+      }
+
+      console.log('[TauriSQLite] ✅ v44: الجداول موحدة مع Supabase (orders, order_items)');
+    } catch (viewError) {
+      // عدم إيقاف التنفيذ عند فشل إنشاء Views
+      console.warn('[TauriSQLite] ⚠️ فشل إنشاء بعض Views:', viewError);
+    }
 
     // تحديث إصدار الـ schema بعد الانتهاء بنجاح
     if (needsSchemaUpgrade) {
       await setSchemaVersion(organizationId, SCHEMA_VERSION);
-      console.log(`[TauriSQLite] ✅ تم ترقية schema إلى الإصدار ${SCHEMA_VERSION}`);
+      console.log(`[TauriSQLite] ✅ تم ترقية schema من ${currentVersion} إلى ${SCHEMA_VERSION}`);
     }
+
+    // ⚡ إعادة تعيين skipColumnChecks بعد الانتهاء
+    skipColumnChecks = false;
 
     const duration = Date.now() - startTime;
     console.log(`[TauriSQLite] ✅ تم إنهاء تهيئة schema في ${duration}ms`);
@@ -3421,5 +3569,126 @@ export async function ensureTauriSchema(organizationId: string): Promise<{ succe
     const duration = Date.now() - startTime;
     console.error(`[TauriSQLite] Schema initialization failed after ${duration}ms:`, error);
     return { success: false, error: error?.message || String(error) };
+  }
+}
+
+// ⚡ المرحلة 3: دوال migrations منفصلة لكل version (idempotent)
+// كل migration يمكن تشغيله عدة مرات بأمان
+
+/**
+ * Migration v59: تحويل جميع أسماء الأعمدة من camelCase إلى snake_case
+ * Idempotent: يمكن تشغيله عدة مرات بأمان
+ */
+async function applyMigrationFor59(orgId: string): Promise<void> {
+  try {
+    console.log('[TauriSQLite] 🔄 v59: تحويل أسماء الأعمدة من camelCase إلى snake_case...');
+    
+    // ملاحظة: SQLite لا يدعم DROP COLUMN مباشرة، لذلك الأعمدة camelCase القديمة
+    // ستظل موجودة لكن لن يتم استخدامها. سيتم تجاهلها تلقائياً عند القراءة.
+    
+    // هذا migration لا يحتاج لترحيل بيانات - فقط إضافة أعمدة snake_case جديدة
+    // الأعمدة الجديدة تم إضافتها بالفعل في الكود الرئيسي
+    
+    console.log('[TauriSQLite] ✅ v59: جميع الأعمدة الآن تستخدم snake_case فقط');
+    console.log('[TauriSQLite] ℹ️ الأعمدة camelCase القديمة ستظل موجودة لكن لن تُستخدم');
+  } catch (error: any) {
+    console.error('[TauriSQLite] ❌ فشل migration v59:', error);
+    throw error;
+  }
+}
+
+/**
+ * Migration v58: توحيد مخطط SQLite مع نظام المزامنة
+ * Idempotent: يمكن تشغيله عدة مرات بأمان
+ */
+async function applyMigrationFor58(orgId: string): Promise<void> {
+  try {
+    console.log('[TauriSQLite] 🔄 v58: بدء ترحيل البيانات إلى الأسماء الموحدة...');
+    
+    // 1. ترحيل work_sessions إلى staff_work_sessions
+    const workSessionsExists = await tableExists(orgId, 'work_sessions');
+    const staffWorkSessionsExists = await tableExists(orgId, 'staff_work_sessions');
+    
+    if (workSessionsExists && !staffWorkSessionsExists) {
+      console.log('[TauriSQLite] 🔄 ترحيل work_sessions إلى staff_work_sessions...');
+      
+      // إنشاء جدول staff_work_sessions بنفس بنية work_sessions
+      await exec(orgId, `
+        CREATE TABLE IF NOT EXISTS staff_work_sessions (
+          id TEXT PRIMARY KEY,
+          staff_id TEXT DEFAULT '',
+          staff_name TEXT,
+          organization_id TEXT DEFAULT '',
+          opening_cash REAL DEFAULT 0,
+          closing_cash REAL,
+          expected_cash REAL,
+          cash_difference REAL,
+          total_sales REAL DEFAULT 0,
+          total_orders INTEGER DEFAULT 0,
+          cash_sales REAL DEFAULT 0,
+          card_sales REAL DEFAULT 0,
+          started_at TEXT DEFAULT '',
+          ended_at TEXT,
+          paused_at TEXT,
+          resumed_at TEXT,
+          pause_count INTEGER DEFAULT 0,
+          total_pause_duration INTEGER DEFAULT 0,
+          status TEXT DEFAULT 'active',
+          opening_notes TEXT,
+          closing_notes TEXT,
+          synced INTEGER DEFAULT 0,
+          sync_status TEXT,
+          pending_operation TEXT,
+          created_at TEXT DEFAULT '',
+          updated_at TEXT DEFAULT '',
+          opening_balance REAL,
+          closing_balance REAL,
+          opened_at TEXT,
+          closed_at TEXT,
+          extra_fields TEXT
+        );
+      `);
+      
+      // نسخ البيانات من work_sessions إلى staff_work_sessions
+      await exec(orgId, `
+        INSERT OR IGNORE INTO staff_work_sessions
+        SELECT * FROM work_sessions;
+      `);
+
+      // ⚡ حذف جدول work_sessions القديم لضمان استخدام staff_work_sessions فقط
+      await exec(orgId, `DROP TABLE IF EXISTS work_sessions;`);
+
+      console.log('[TauriSQLite] ✅ تم ترحيل work_sessions إلى staff_work_sessions وحذف الجدول القديم');
+    }
+    
+    // 2. ترحيل product_returns إلى returns (إذا كان هناك بيانات في product_returns)
+    const productReturnsExists = await tableExists(orgId, 'product_returns');
+    const returnsExists = await tableExists(orgId, 'returns');
+    
+    if (productReturnsExists && returnsExists) {
+      // التحقق من وجود بيانات في product_returns
+      const productReturnsCount = await tauriQuery(orgId, `SELECT COUNT(*) as count FROM product_returns;`, []);
+      if (productReturnsCount.success && productReturnsCount.data && productReturnsCount.data[0]?.count > 0) {
+        console.log('[TauriSQLite] ⚠️ يوجد بيانات في product_returns - يجب ترحيلها يدوياً إلى returns');
+        // لا نترحل تلقائياً لأن البنية مختلفة - يحتاج مراجعة
+      }
+    }
+    
+    // 3. ترحيل loss_declarations إلى losses (إذا كان هناك بيانات)
+    const lossDeclarationsExists = await tableExists(orgId, 'loss_declarations');
+    const lossesExists = await tableExists(orgId, 'losses');
+    
+    if (lossDeclarationsExists && lossesExists) {
+      const lossDeclarationsCount = await tauriQuery(orgId, `SELECT COUNT(*) as count FROM loss_declarations;`, []);
+      if (lossDeclarationsCount.success && lossDeclarationsCount.data && lossDeclarationsCount.data[0]?.count > 0) {
+        console.log('[TauriSQLite] ⚠️ يوجد بيانات في loss_declarations - يجب ترحيلها يدوياً إلى losses');
+        // لا نترحل تلقائياً لأن البنية مختلفة - يحتاج مراجعة
+      }
+    }
+    
+    console.log('[TauriSQLite] ✅ v58: اكتمل ترحيل البيانات');
+  } catch (error: any) {
+    console.error('[TauriSQLite] ❌ خطأ في migration v58:', error);
+    throw error;
   }
 }

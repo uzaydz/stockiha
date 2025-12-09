@@ -43,6 +43,7 @@ export interface POSAdvancedContentProps {
   subscriptionServices: any[];
   subscriptionCategories: any[];
   isReturnMode: boolean;
+  isLossMode?: boolean;
   isPOSDataLoading: boolean;
   onAddToCart: (product: Product) => void;
   onAddSubscription?: (subscription: any, pricing?: any) => void;
@@ -62,11 +63,14 @@ export interface POSAdvancedContentProps {
   isCameraScannerSupported?: boolean;
   hasNativeBarcodeDetector?: boolean;
   isMobile?: boolean;
+  // ⚡ إخفاء الهيدر الداخلي (للتصميم الجديد Infinity Space)
+  hideInternalHeader?: boolean;
 }
 
 // واجهة خصائص مكون الرأس
 export interface HeaderProps {
   isReturnMode: boolean;
+  isLossMode?: boolean;
   filteredProductsCount: number;
   isPOSDataLoading: boolean;
   onRefreshData: () => void;
@@ -97,6 +101,7 @@ export interface ProductItemProps {
   product: Product;
   favoriteProducts: any[];
   isReturnMode: boolean;
+  isLossMode?: boolean;
   onAddToCart: (product: Product) => void;
 }
 
@@ -105,6 +110,7 @@ export interface ProductsGridProps {
   products: Product[];
   favoriteProducts: any[];
   isReturnMode: boolean;
+  isLossMode?: boolean;
   viewMode: ViewMode;
   searchQuery: string;
   selectedCategory: string;

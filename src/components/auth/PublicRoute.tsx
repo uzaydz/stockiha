@@ -1,11 +1,16 @@
-import { ReactNode } from 'react';
+import { ReactNode, useRef } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+
+const isDev = import.meta.env.DEV;
 
 type PublicRouteProps = {
   children: ReactNode;
   redirectTo?: string; // إعادة التوجيه إذا كان المستخدم مسجلاً الدخول
 };
+
+// ⚡ منع تكرار logs - يسجل كل مسار مرة واحدة فقط
+const loggedRedirects = new Set<string>();
 
 const PublicRoute = ({ children, redirectTo = '/dashboard' }: PublicRouteProps) => {
   const location = useLocation();
@@ -22,6 +27,20 @@ const PublicRoute = ({ children, redirectTo = '/dashboard' }: PublicRouteProps) 
     location.hash.includes('error_code=')
   );
 
+  // ⚡ Helper لتسجيل الـ logs مرة واحدة فقط
+  const logOnce = (key: string, msg: string, data?: object) => {
+    if (!isDev) return;
+    const fullKey = `${location.pathname}-${key}`;
+    if (!loggedRedirects.has(fullKey)) {
+      loggedRedirects.add(fullKey);
+      if (data) {
+        console.log(`[PublicRoute] ${msg}`, data);
+      } else {
+        console.log(`[PublicRoute] ${msg}`);
+      }
+    }
+  };
+
   // محاولة استخدام useAuth مع معالجة الخطأ
   let authData = null;
   let isLoading = false;
@@ -32,39 +51,20 @@ const PublicRoute = ({ children, redirectTo = '/dashboard' }: PublicRouteProps) 
     isLoading = auth.isLoading;
   } catch (error) {
     // إذا لم يكن AuthProvider متاحاً، نعرض المحتوى مباشرة
-    if (import.meta.env.DEV) {
-    try { console.log('[PublicRoute] render children (public)'); } catch {}
-  }
-  return <>{children}</>;
+    logOnce('no-auth', 'render children (no AuthProvider)');
+    return <>{children}</>;
   }
 
   const { user, userProfile } = authData || {};
-  if (import.meta.env.DEV) {
-    try {
-      console.log('[PublicRoute] enter', {
-        path: location.pathname,
-        search: location.search,
-        hash: location.hash,
-        isLoading,
-        hasUser: !!user,
-        hasProfile: !!userProfile,
-      });
-    } catch {}
-  }
 
   // إذا كان التحميل جارياً، نعرض المحتوى
   if (isLoading) {
-    if (import.meta.env.DEV) {
-      try { console.log('[PublicRoute] render children (loading)'); } catch {}
-    }
     return <>{children}</>;
   }
 
   // لا تقم بإعادة التوجيه القسري في صفحات الاسترجاع أو عند وجود أخطاء/معلمات الاسترجاع
   if (allowAnonymousEvenIfLoggedIn) {
-    if (import.meta.env.DEV) {
-      try { console.log('[PublicRoute] allow anonymous even if logged in'); } catch {}
-    }
+    logOnce('recovery', 'allow anonymous (recovery/reset page)');
     return <>{children}</>;
   }
 
@@ -90,18 +90,14 @@ const PublicRoute = ({ children, redirectTo = '/dashboard' }: PublicRouteProps) 
         targetPath = '/dashboard';
     }
 
-    if (import.meta.env.DEV) {
-      try { console.log('[PublicRoute] redirecting logged-in user to', targetPath); } catch {}
-    }
+    logOnce('redirect', `redirecting logged-in user to ${targetPath}`, { role: userProfile.role });
     return <Navigate to={targetPath} replace />;
   }
 
   // حالة خاصة: المستخدم موجود لكن لم يكتمل تحميل الملف الشخصي بعد
   // ✅ انتظار قليلاً قبل التوجيه لتجنب التنقلات المتعددة
   if (user && !userProfile && !allowAnonymousEvenIfLoggedIn && !isLoading) {
-    if (import.meta.env.DEV) {
-      try { console.log('[PublicRoute] user present without profile -> redirecting to /dashboard'); } catch {}
-    }
+    logOnce('no-profile', 'user present without profile -> redirecting to /dashboard');
     return <Navigate to="/dashboard" replace />;
   }
 

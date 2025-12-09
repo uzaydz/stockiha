@@ -31,8 +31,10 @@ import { supabase } from '@/lib/supabase';
 import { useProductsForPrinting, type ProductForBarcode } from '@/hooks/useProductsForPrinting';
 import { tauriPrintService } from '@/services/TauriPrintService';
 import { localBarcodeGenerator } from '@/services/LocalBarcodeGenerator';
-import { isTauriApp, isDesktopApp } from '@/lib/platform';
+import { isElectronApp, isDesktopApp } from '@/lib/platform';
 import { printSettingsService, type PrintSettings } from '@/services/PrintSettingsService';
+// ⚡ نظام الطباعة الموحد
+import { usePrinter } from '@/hooks/usePrinter';
 
 // استخدام ProductForBarcode من useProductsForPrinting
 // interface ProductForBarcode معرف في useProductsForPrinting.ts
@@ -149,6 +151,15 @@ const QuickBarcodePrintPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectAll, setSelectAll] = useState(false);
+
+  // ⚡ نظام الطباعة الموحد
+  const {
+    printHtml,
+    printBarcodes,
+    isElectron: isElectronPrint,
+    selectedPrinter,
+    isPrinting
+  } = usePrinter();
 
   // إضافة state للبحث والفلترة
   const [searchAndFilter, setSearchAndFilter] = useState<SearchAndFilter>({
@@ -620,29 +631,7 @@ const QuickBarcodePrintPage = () => {
     // انتظار تحميل المحتوى
     await new Promise(r => setTimeout(r, 1000));
 
-    // ⚡ محاولة استخدام Tauri API للطباعة
-    if (isTauriApp()) {
-      console.log('[Print] محاولة استخدام Tauri API...');
-      try {
-        const { getCurrentWebview } = await import('@tauri-apps/api/webview');
-        const webview = getCurrentWebview();
-        await webview.print();
-        console.log('[Print] تم استدعاء Tauri print()');
-        toast.success('تم فتح نافذة الطباعة');
-
-        // إزالة العناصر بعد الطباعة
-        setTimeout(() => {
-          printContainer.remove();
-          printStyles.remove();
-        }, 2000);
-
-        return true;
-      } catch (tauriError: any) {
-        console.warn('[Print] Tauri API فشل:', tauriError.message, '- محاولة window.print');
-      }
-    }
-
-    // ⚡ الطريقة البديلة: window.print
+    // ⚡ الطباعة باستخدام window.print
     console.log('[Print] استخدام window.print...');
     try {
       window.focus();
@@ -676,7 +665,74 @@ const QuickBarcodePrintPage = () => {
     const selectedTemplate = barcodeTemplates.find(t => t.id === printSettings.selected_template_id) || barcodeTemplates[0];
     const selectedFont = fontOptions.find(f => f.cssValue === printSettings.font_family_css) || fontOptions[0];
 
-    // ⚡ توليد الباركودات مسبقاً كـ Data URLs
+    // ⚡ محاولة الطباعة المباشرة عبر Electron أولاً
+    if (isElectronPrint) {
+      try {
+        toast.info('جاري تحضير الطباعة المباشرة...');
+
+        // تجهيز بيانات الباركود للطباعة المباشرة
+        const barcodeData = selectedProducts.flatMap(product => {
+          const itemsToPrintCount = product.use_stock_quantity
+            ? (product.stock_quantity > 0 ? product.stock_quantity : 1)
+            : product.print_quantity;
+
+          const barcodes = [];
+          for (let i = 0; i < itemsToPrintCount; i++) {
+            barcodes.push({
+              value: product.product_barcode || product.product_sku || product.product_id || 'NO_DATA',
+              productName: printSettings.display_product_name ? product.product_name : undefined,
+              price: printSettings.display_price ? `${product.product_price} DA` : undefined,
+              storeName: printSettings.display_store_name ? product.organization_name : undefined,
+              height: 50,
+              width: 2,
+              showValue: printSettings.display_barcode_value
+            });
+          }
+          return barcodes;
+        });
+
+        const result = await printBarcodes(barcodeData, {
+          labelSize: {
+            width: `${printSettings.label_width}mm`,
+            height: `${printSettings.label_height}mm`
+          },
+          showProductName: printSettings.display_product_name,
+          showPrice: printSettings.display_price,
+          showStoreName: printSettings.display_store_name
+        });
+
+        if (result.success) {
+          toast.success('تمت الطباعة بنجاح!');
+
+          // حفظ سجل الطباعة
+          if (currentOrganization?.id) {
+            const productsForHistory = selectedProducts.map(p => ({
+              id: p.product_id,
+              name: p.product_name,
+              quantity: p.use_stock_quantity ? (p.stock_quantity > 0 ? p.stock_quantity : 1) : p.print_quantity
+            }));
+
+            await printHistoryService.addPrintRecord(
+              currentOrganization.id,
+              productsForHistory,
+              {
+                templateId: printSettings.selected_template_id,
+                labelSize: `${printSettings.label_width}x${printSettings.label_height}`,
+                barcodeType: printSettings.barcode_type
+              },
+              'success'
+            );
+          }
+          return;
+        } else {
+          console.warn('[Print] فشلت الطباعة المباشرة، التراجع إلى الطباعة العادية:', result.error);
+        }
+      } catch (err) {
+        console.warn('[Print] خطأ في الطباعة المباشرة، التراجع إلى الطباعة العادية:', err);
+      }
+    }
+
+    // ⚡ توليد الباركودات مسبقاً كـ Data URLs (للطباعة العادية)
     const generateBarcodeDataUrl = (value: string, format: string): string => {
       try {
         const canvas = document.createElement('canvas');

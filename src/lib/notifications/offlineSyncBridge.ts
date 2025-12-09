@@ -1,21 +1,28 @@
 /**
- * جسر المزامنة بين نظام الإشعارات الحالي و SQLite
+ * جسر التخزين المحلي للإشعارات
+ * ==============================
+ *
+ * ⚡ v3.0 - تخزين محلي فقط (بدون مزامنة مع السيرفر)
  *
  * يوفر:
- * - تخزين دائم في SQLite للعمل أوفلاين
- * - مزامنة مع النظام الحالي
- * - استرجاع الإشعارات عند العودة للاتصال
- *
- * ⚡ ملاحظة: الجداول تُنشأ في tauriSchema.ts (v29)
+ * - تخزين الإشعارات في PowerSync (SQLite)
+ * - استرجاع الإشعارات المخزنة
+ * - تحديث حالة القراءة محلياً
+ * - تنظيف الإشعارات القديمة
  */
 
-import { sqliteAPI, isSQLiteAvailable } from '@/lib/db/sqliteAPI';
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
 import type { NotificationItem } from '@/hooks/useRealTimeNotifications';
 
 class OfflineSyncBridge {
   private static instance: OfflineSyncBridge;
   private initialized = false;
-  private syncInProgress = false;
+
+  // ⚡ Debounce للحفظ
+  private saveDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingNotifications: NotificationItem[] = [];
+  private lastSaveHash: string = '';
+  private readonly SAVE_DEBOUNCE_MS = 2000;
 
   private constructor() {}
 
@@ -27,62 +34,99 @@ class OfflineSyncBridge {
   }
 
   /**
-   * تهيئة - الجداول تُنشأ في tauriSchema.ts
+   * تهيئة - PowerSync يدير الجداول
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
-    // ⚡ التحقق من توفر SQLite
-    if (!isSQLiteAvailable()) {
-      console.log('[OfflineSyncBridge] SQLite not available, skipping initialization');
-      return;
-    }
-
     try {
-      // الجداول تُنشأ تلقائياً في tauriSchema.ts عند تهيئة قاعدة البيانات
       this.initialized = true;
-      console.log('[OfflineSyncBridge] ✅ Initialized (tables created by tauriSchema)');
+      console.log('[OfflineSyncBridge] ⚡ Initialized (local-only mode)');
     } catch (error) {
       console.error('[OfflineSyncBridge] Init error:', error);
     }
   }
 
   /**
-   * حفظ الإشعارات في SQLite
+   * ⚡ حساب hash للإشعارات لتجنب الحفظ المتكرر
+   */
+  private computeNotificationsHash(notifications: NotificationItem[]): string {
+    return notifications.map(n => `${n.id}:${n.is_read}`).sort().join(',');
+  }
+
+  /**
+   * حفظ الإشعارات في SQLite (مع Debounce)
    */
   async saveNotifications(notifications: NotificationItem[]): Promise<void> {
+    if (!notifications || notifications.length === 0) {
+      return;
+    }
+
+    // تحقق من عدم تكرار نفس البيانات
+    const currentHash = this.computeNotificationsHash(notifications);
+    if (currentHash === this.lastSaveHash) {
+      return;
+    }
+
+    // Debounce
+    if (this.saveDebounceTimer) {
+      clearTimeout(this.saveDebounceTimer);
+    }
+
+    this.pendingNotifications = notifications;
+
+    this.saveDebounceTimer = setTimeout(() => {
+      this._doSaveNotifications(this.pendingNotifications, currentHash);
+    }, this.SAVE_DEBOUNCE_MS);
+  }
+
+  /**
+   * ⚡ الحفظ الفعلي للإشعارات
+   */
+  private async _doSaveNotifications(notifications: NotificationItem[], hash: string): Promise<void> {
     if (!this.initialized) await this.initialize();
 
-    // ⚡ تخطي إذا لم يكن SQLite متاحاً
-    if (!isSQLiteAvailable() || !this.initialized) {
-      console.log('[OfflineSyncBridge] SQLite not available, skipping save');
+    if (!notifications || notifications.length === 0) {
       return;
     }
 
     try {
-      for (const notif of notifications) {
-        await sqliteAPI.execute(
-          `INSERT OR REPLACE INTO cached_notifications
-           (id, organization_id, type, title, message, priority, is_read,
-            entity_type, entity_id, metadata, created_at, updated_at, synced_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            notif.id,
-            notif.organization_id,
-            notif.type,
-            notif.title,
-            notif.message,
-            notif.priority,
-            notif.is_read ? 1 : 0,
-            notif.entity_type || null,
-            notif.entity_id || null,
-            notif.metadata ? JSON.stringify(notif.metadata) : null,
-            notif.created_at,
-            notif.updated_at || null,
-            new Date().toISOString()
-          ]
-        );
+      const now = new Date().toISOString();
+      const values = notifications.map(notif => [
+        notif.id,
+        notif.organization_id,
+        notif.type,
+        notif.title,
+        notif.message,
+        notif.priority,
+        notif.is_read ? 1 : 0,
+        notif.entity_type || null,
+        notif.entity_id || null,
+        notif.metadata ? JSON.stringify(notif.metadata) : null,
+        notif.created_at,
+        notif.updated_at || null,
+        now
+      ]);
+
+      if (!powerSyncService.db) {
+        console.warn('[OfflineSyncBridge] PowerSync DB not initialized');
+        return;
       }
+
+      await powerSyncService.transaction(async (tx) => {
+        for (const value of values) {
+          await tx.execute(
+            `INSERT OR REPLACE INTO cached_notifications
+             (id, organization_id, type, title, message, priority, is_read,
+              entity_type, entity_id, metadata, created_at, updated_at, synced_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            value
+          );
+        }
+      });
+
+      this.lastSaveHash = hash;
+      console.log(`[OfflineSyncBridge] ✅ Saved ${notifications.length} notifications locally`);
     } catch (error) {
       console.error('[OfflineSyncBridge] Save error:', error);
     }
@@ -94,24 +138,16 @@ class OfflineSyncBridge {
   async getStoredNotifications(organizationId: string, limit = 50): Promise<NotificationItem[]> {
     if (!this.initialized) await this.initialize();
 
-    // ⚡ تخطي إذا لم يكن SQLite متاحاً
-    if (!isSQLiteAvailable() || !this.initialized) {
-      console.log('[OfflineSyncBridge] SQLite not available, returning empty');
-      return [];
-    }
-
     try {
-      const result = await sqliteAPI.query(
-        `SELECT * FROM cached_notifications
+      const results = await powerSyncService.query<any>({
+        sql: `SELECT * FROM cached_notifications
          WHERE organization_id = ?
          ORDER BY created_at DESC
          LIMIT ?`,
-        [organizationId, limit]
-      );
+        params: [organizationId, limit]
+      });
 
-      // ✅ إصلاح: استخدام result.data بدلاً من result مباشرة
-      const results = result.success && Array.isArray(result.data) ? result.data : [];
-      return results.map(row => ({
+      return (results || []).map(row => ({
         id: row.id,
         organization_id: row.organization_id,
         type: row.type,
@@ -136,20 +172,34 @@ class OfflineSyncBridge {
    */
   async markAsReadLocally(notificationId: string): Promise<void> {
     if (!this.initialized) await this.initialize();
-    if (!isSQLiteAvailable() || !this.initialized) return;
 
     try {
-      await sqliteAPI.execute(
-        'UPDATE cached_notifications SET is_read = 1 WHERE id = ?',
-        [notificationId]
-      );
-
-      // إضافة للقائمة إذا كنا أوفلاين
-      if (!navigator.onLine) {
-        await this.addToSyncQueue(notificationId, 'mark_read');
-      }
+      await powerSyncService.transaction(async (tx) => {
+        await tx.execute(
+          'UPDATE cached_notifications SET is_read = 1 WHERE id = ?',
+          [notificationId]
+        );
+      });
     } catch (error) {
       console.error('[OfflineSyncBridge] Mark read error:', error);
+    }
+  }
+
+  /**
+   * تعليم جميع الإشعارات كمقروءة
+   */
+  async markAllAsReadLocally(organizationId: string): Promise<void> {
+    if (!this.initialized) await this.initialize();
+
+    try {
+      await powerSyncService.transaction(async (tx) => {
+        await tx.execute(
+          'UPDATE cached_notifications SET is_read = 1 WHERE organization_id = ? AND is_read = 0',
+          [organizationId]
+        );
+      });
+    } catch (error) {
+      console.error('[OfflineSyncBridge] Mark all read error:', error);
     }
   }
 
@@ -158,113 +208,32 @@ class OfflineSyncBridge {
    */
   async deleteLocally(notificationId: string): Promise<void> {
     if (!this.initialized) await this.initialize();
-    if (!isSQLiteAvailable() || !this.initialized) return;
 
     try {
-      await sqliteAPI.execute(
-        'DELETE FROM cached_notifications WHERE id = ?',
-        [notificationId]
-      );
-
-      // إضافة للقائمة إذا كنا أوفلاين
-      if (!navigator.onLine) {
-        await this.addToSyncQueue(notificationId, 'delete');
-      }
+      await powerSyncService.transaction(async (tx) => {
+        await tx.execute(
+          'DELETE FROM cached_notifications WHERE id = ?',
+          [notificationId]
+        );
+      });
     } catch (error) {
       console.error('[OfflineSyncBridge] Delete error:', error);
     }
   }
 
   /**
-   * إضافة عملية لقائمة المزامنة
-   */
-  private async addToSyncQueue(notificationId: string, action: string, data?: any): Promise<void> {
-    if (!isSQLiteAvailable() || !this.initialized) return;
-
-    try {
-      const id = `sync_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      await sqliteAPI.execute(
-        `INSERT INTO notification_sync_queue
-         (id, notification_id, action, data, created_at, attempts)
-         VALUES (?, ?, ?, ?, ?, 0)`,
-        [id, notificationId, action, data ? JSON.stringify(data) : null, new Date().toISOString()]
-      );
-    } catch (error) {
-      console.error('[OfflineSyncBridge] Queue error:', error);
-    }
-  }
-
-  /**
-   * مزامنة قائمة الانتظار مع الخادم
-   */
-  async syncPendingActions(supabase: any): Promise<void> {
-    if (!this.initialized || this.syncInProgress || !navigator.onLine) return;
-    if (!isSQLiteAvailable()) return;
-
-    this.syncInProgress = true;
-
-    try {
-      const result = await sqliteAPI.query(
-        `SELECT * FROM notification_sync_queue
-         WHERE attempts < 5
-         ORDER BY created_at ASC
-         LIMIT 20`
-      );
-
-      // ✅ إصلاح: استخدام result.data بدلاً من result مباشرة
-      const pendingActions = result.success && Array.isArray(result.data) ? result.data : [];
-
-      for (const action of pendingActions) {
-        try {
-          if (action.action === 'mark_read') {
-            await supabase
-              .from('notifications')
-              .update({ is_read: true })
-              .eq('id', action.notification_id);
-          } else if (action.action === 'delete') {
-            await supabase
-              .from('notifications')
-              .delete()
-              .eq('id', action.notification_id);
-          }
-
-          // حذف من القائمة بعد النجاح
-          await sqliteAPI.execute(
-            'DELETE FROM notification_sync_queue WHERE id = ?',
-            [action.id]
-          );
-        } catch (error) {
-          // تحديث عدد المحاولات
-          await sqliteAPI.execute(
-            `UPDATE notification_sync_queue
-             SET attempts = attempts + 1, last_attempt = ?
-             WHERE id = ?`,
-            [new Date().toISOString(), action.id]
-          );
-        }
-      }
-    } catch (error) {
-      console.error('[OfflineSyncBridge] Sync error:', error);
-    } finally {
-      this.syncInProgress = false;
-    }
-  }
-
-  /**
-   * عدد الإشعارات غير المقروءة المخزنة
+   * عدد الإشعارات غير المقروءة
    */
   async getUnreadCount(organizationId: string): Promise<number> {
     if (!this.initialized) await this.initialize();
-    if (!isSQLiteAvailable() || !this.initialized) return 0;
 
     try {
-      const result = await sqliteAPI.query(
-        `SELECT COUNT(*) as count FROM cached_notifications
+      const result = await powerSyncService.queryOne<{ count: number }>({
+        sql: `SELECT COUNT(*) as count FROM cached_notifications
          WHERE organization_id = ? AND is_read = 0`,
-        [organizationId]
-      );
-      // ✅ إصلاح: استخدام result.data بدلاً من result مباشرة
-      return result.success && result.data?.[0]?.count || 0;
+        params: [organizationId]
+      });
+      return result?.count || 0;
     } catch {
       return 0;
     }
@@ -275,17 +244,20 @@ class OfflineSyncBridge {
    */
   async cleanup(daysToKeep = 30): Promise<void> {
     if (!this.initialized) await this.initialize();
-    if (!isSQLiteAvailable() || !this.initialized) return;
 
     try {
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
 
-      await sqliteAPI.execute(
-        `DELETE FROM cached_notifications
-         WHERE created_at < ? AND is_read = 1`,
-        [cutoffDate.toISOString()]
-      );
+      await powerSyncService.transaction(async (tx) => {
+        await tx.execute(
+          `DELETE FROM cached_notifications
+           WHERE created_at < ? AND is_read = 1`,
+          [cutoffDate.toISOString()]
+        );
+      });
+
+      console.log('[OfflineSyncBridge] ✅ Cleaned up old notifications');
     } catch (error) {
       console.error('[OfflineSyncBridge] Cleanup error:', error);
     }

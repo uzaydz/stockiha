@@ -1,9 +1,8 @@
 import { useState, useCallback } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/context/TenantContext';
 import { toast } from 'sonner';
-import { localProductSearchService } from '@/services/LocalProductSearchService';
+import { unifiedProductService } from '@/services/UnifiedProductService';
 
 // =====================================================
 // 🔍 Hook للسكانر والبحث السريع بالباركود
@@ -86,18 +85,28 @@ export const useBarcodeScanner = (options: BarcodeScannerOptions = {}) => {
         return cachedResult;
       }
 
-      // 2️⃣ ⚡ البحث محلياً في SQLite أولاً
+      // 2️⃣ ⚡ البحث محلياً في PowerSync أولاً
       console.log(`[BarcodeScanner] 🔍 البحث محلياً عن: ${cleanBarcode}`);
-      const localResult = await localProductSearchService.searchByBarcode(
-        currentOrganization.id,
-        cleanBarcode
-      );
+      unifiedProductService.setOrganizationId(currentOrganization.id);
+      const localResult = await unifiedProductService.getProductByBarcode(cleanBarcode);
 
       if (localResult) {
         console.log(`[BarcodeScanner] ✅ وُجد محلياً: ${localResult.name}`);
         const response: BarcodeSearchResponse = {
           success: true,
-          data: localResult,
+          data: {
+            id: localResult.id,
+            name: localResult.name,
+            price: localResult.price,
+            barcode: cleanBarcode,
+            stock_quantity: localResult.stock_quantity,
+            actual_stock_quantity: localResult.stock_quantity,
+            type: 'main_product',
+            found_in: 'local',
+            thumbnail_image: localResult.thumbnail_image,
+            category_id: localResult.category_id,
+            fullProduct: localResult
+          } as BarcodeSearchResult,
           search_term: cleanBarcode,
           message: `تم العثور على المنتج: ${localResult.name}`
         };
@@ -109,30 +118,18 @@ export const useBarcodeScanner = (options: BarcodeScannerOptions = {}) => {
         return response;
       }
 
-      // 3️⃣ Fallback للسيرفر إذا لم يُوجد محلياً
-      console.log(`[BarcodeScanner] 🌐 لم يُوجد محلياً، البحث في السيرفر...`);
-      const { data, error } = await supabase.rpc('search_product_by_barcode' as any, {
-        p_organization_id: currentOrganization.id,
-        p_barcode: cleanBarcode
-      });
-
-      if (error) {
-        throw new Error(`خطأ في البحث بالباركود: ${error.message}`);
-      }
-
-      const result = data as BarcodeSearchResponse;
+      // 3️⃣ ⚡ Offline-First: لا يوجد fallback للسيرفر
+      console.log(`[BarcodeScanner] ⚠️ المنتج غير موجود محلياً: ${cleanBarcode}`);
       
-      // حفظ النتيجة في Cache
-      (result as any).cachedAt = Date.now();
-      barcodeCache.set(cacheKey, result);
-      
-      // تنظيف Cache القديم (حد أقصى 100 عنصر)
-      if (barcodeCache.size > 100) {
-        const firstKey = barcodeCache.keys().next().value;
-        barcodeCache.delete(firstKey);
-      }
+      const notFoundResponse: BarcodeSearchResponse = {
+        success: false,
+        search_term: cleanBarcode,
+        message: 'المنتج غير موجود محلياً',
+        error: 'PRODUCT_NOT_FOUND',
+        error_code: 'NOT_FOUND'
+      };
 
-      return result;
+      return notFoundResponse;
     },
     onSuccess: (response, barcode) => {
       setLastScannedBarcode(barcode);

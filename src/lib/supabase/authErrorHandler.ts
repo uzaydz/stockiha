@@ -278,6 +278,16 @@ export function setupAuthErrorFiltering(): void {
     if (message.includes('Database not initialized')) {
       return;
     }
+
+    // ⚡ تجاهل أخطاء CancelledError من React Query (تحدث عند التنقل السريع)
+    if (
+      message.includes('CancelledError') ||
+      message.includes('dehydrated as pending') ||
+      message.includes('AbortError') ||
+      message.includes('The operation was aborted')
+    ) {
+      return;
+    }
     
     // فحص ما إذا كان الخطأ متعلق بـ Supabase Auth
     if (message.includes('supabase') || message.includes('_getUser') || message.includes('_useSession')) {

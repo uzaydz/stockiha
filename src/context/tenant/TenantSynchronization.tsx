@@ -8,6 +8,7 @@ import type { Organization } from '@/types/tenant';
 import { updateOrganizationFromData } from '@/lib/processors/organizationProcessor';
 import { globalCache, CacheKeys } from '@/lib/globalCache';
 import type { TenantStateRefs } from './TenantState';
+import { updateOrganization } from './TenantState';
 import { dispatchAppEvent } from '@/lib/events/eventManager';
 
 interface TenantSynchronizationProps {
@@ -123,11 +124,3 @@ export function TenantSynchronization({
 
   return null; // هذا مكون منطق فقط
 }
-
-// دوال مساعدة للمزامنة
-export const updateOrganization = (
-  setState: React.Dispatch<React.SetStateAction<any>>,
-  organization: Organization | null
-) => {
-  setState(prev => ({ ...prev, organization, isLoading: false, error: null }));
-};

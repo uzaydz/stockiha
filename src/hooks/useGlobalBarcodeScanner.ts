@@ -24,6 +24,8 @@ export const useGlobalBarcodeScanner = ({
   const lastKeypressTimeRef = useRef<number>(0);
   const isProcessingRef = useRef<boolean>(false);
   const onBarcodeScannedRef = useRef(onBarcodeScanned);
+  // ⚡ إصلاح Memory Leak: تتبع timeout إعادة تعيين المعالجة
+  const processingResetTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // استخدام البيانات المحملة محلياً
   const { searchByBarcode, isReady } = useAllProductsForScanner();
@@ -87,9 +89,13 @@ export const useGlobalBarcodeScanner = ({
           }
         }
 
-        // إعادة تعيين المعالجة بعد فترة قصيرة
-        setTimeout(() => {
+        // ⚡ إصلاح Memory Leak: تتبع timeout إعادة تعيين المعالجة
+        if (processingResetTimeoutRef.current) {
+          clearTimeout(processingResetTimeoutRef.current);
+        }
+        processingResetTimeoutRef.current = setTimeout(() => {
           isProcessingRef.current = false;
+          processingResetTimeoutRef.current = null;
         }, 500);
       }
     } else if (buffer.length > maxBarcodeLength) {
@@ -205,6 +211,11 @@ export const useGlobalBarcodeScanner = ({
         clearTimeout(timeoutRef.current);
         timeoutRef.current = null;
       }
+      // ⚡ إصلاح Memory Leak: تنظيف timeout إعادة تعيين المعالجة
+      if (processingResetTimeoutRef.current) {
+        clearTimeout(processingResetTimeoutRef.current);
+        processingResetTimeoutRef.current = null;
+      }
       barcodeBufferRef.current = '';
     };
   }, [enableGlobalScanning]); // إزالة handleKeyPress و clearBuffer من dependencies
@@ -214,6 +225,10 @@ export const useGlobalBarcodeScanner = ({
     return () => {
       if (timeoutRef.current) {
         clearTimeout(timeoutRef.current);
+      }
+      // ⚡ إصلاح Memory Leak: تنظيف جميع الـ timeouts
+      if (processingResetTimeoutRef.current) {
+        clearTimeout(processingResetTimeoutRef.current);
       }
     };
   }, []);

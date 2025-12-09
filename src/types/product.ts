@@ -225,6 +225,110 @@ export const productSchema = z.object({
   is_digital: z.boolean().default(false),
   features: z.array(z.string()).optional(),
   specifications: z.record(z.string(), z.string()).optional(),
+
+  // === أنواع البيع المتقدمة ===
+  // البيع بالوزن
+  sell_by_weight: z.boolean().default(false),
+  weight_unit: z.enum(['kg', 'g', 'lb', 'oz']).optional().default('kg'),
+  price_per_weight_unit: z.coerce.number().min(0).optional(),
+  purchase_price_per_weight_unit: z.coerce.number().min(0).optional(),
+  min_weight: z.coerce.number().min(0).optional(),
+  max_weight: z.coerce.number().min(0).optional(),
+  average_item_weight: z.coerce.number().min(0).optional(),
+  // ⚡ مخزون الوزن
+  available_weight: z.coerce.number().min(0).optional(),
+  total_weight_purchased: z.coerce.number().min(0).optional(),
+
+  // البيع بالكرتون
+  sell_by_box: z.boolean().default(false),
+  units_per_box: z.coerce.number().int().min(1).optional(),
+  box_price: z.coerce.number().min(0).optional(),
+  box_purchase_price: z.coerce.number().min(0).optional(),
+  box_barcode: z.string().optional(),
+  allow_single_unit_sale: z.boolean().default(true),
+  // ⚡ مخزون الصناديق
+  available_boxes: z.coerce.number().int().min(0).optional(),
+  total_boxes_purchased: z.coerce.number().int().min(0).optional(),
+
+  // البيع بالمتر
+  sell_by_meter: z.boolean().default(false),
+  meter_unit: z.enum(['m', 'cm', 'ft', 'inch']).optional().default('m'),
+  price_per_meter: z.coerce.number().min(0).optional(),
+  purchase_price_per_meter: z.coerce.number().min(0).optional(),
+  min_meters: z.coerce.number().min(0).optional(),
+  roll_length: z.coerce.number().min(0).optional(),
+  // ⚡ مخزون الأمتار
+  available_length: z.coerce.number().min(0).optional(),
+  total_meters_purchased: z.coerce.number().min(0).optional(),
+
+  // === التتبع المتقدم ===
+  // تتبع الصلاحية
+  track_expiry: z.boolean().default(false),
+  default_expiry_days: z.coerce.number().int().min(1).optional(),
+  alert_days_before: z.coerce.number().int().min(1).optional(),
+
+  // الأرقام التسلسلية
+  track_serial_numbers: z.boolean().default(false),
+  require_serial_on_sale: z.boolean().default(false),
+  supports_imei: z.boolean().default(false),
+
+  // الضمان
+  has_warranty: z.boolean().default(false),
+  warranty_duration_months: z.coerce.number().int().min(1).optional(),
+  warranty_type: z.preprocess(
+    (val) => (val === '' || val === null ? undefined : val),
+    z.enum(['manufacturer', 'store', 'extended']).optional()
+  ),
+
+  // تتبع الدفعات
+  track_batches: z.boolean().default(false),
+  use_fifo: z.boolean().default(true),
+
+  // === مستويات الأسعار ===
+  price_tiers: z.array(z.object({
+    tier_name: z.enum(['retail', 'wholesale', 'partial_wholesale', 'vip', 'reseller', 'distributor', 'employee', 'custom']),
+    tier_label: z.string().optional(),
+    min_quantity: z.coerce.number().int().min(1).default(1),
+    max_quantity: z.coerce.number().int().min(1).optional(),
+    price_type: z.enum(['fixed', 'percentage_discount', 'fixed_discount']),
+    price: z.coerce.number().min(0).optional(),
+    discount_percentage: z.coerce.number().min(0).max(100).optional(),
+    discount_amount: z.coerce.number().min(0).optional(),
+    is_active: z.boolean().default(true),
+    sort_order: z.coerce.number().int().default(0),
+  })).optional(),
+
+  // === حقول الصيدلية ===
+  requires_prescription: z.boolean().default(false),
+  active_ingredient: z.string().optional(),
+  dosage_form: z.string().optional(),
+  concentration: z.string().optional(),
+
+  // === حقول المطعم ===
+  preparation_time_minutes: z.coerce.number().int().min(0).optional(),
+  calories: z.coerce.number().int().min(0).optional(),
+  allergens: z.string().optional(),
+  is_vegetarian: z.boolean().default(false),
+  is_vegan: z.boolean().default(false),
+  is_gluten_free: z.boolean().default(false),
+  spice_level: z.coerce.number().int().min(0).max(5).optional(),
+
+  // === حقول قطع الغيار ===
+  oem_number: z.string().optional(),
+  vehicle_make: z.string().optional(),
+  vehicle_model: z.string().optional(),
+  year_from: z.coerce.number().int().min(1900).max(2100).optional(),
+  year_to: z.coerce.number().int().min(1900).max(2100).optional(),
+  compatible_models: z.string().optional(),
+
+  // === حقول مواد البناء ===
+  material_type: z.string().optional(),
+  weight_kg: z.coerce.number().min(0).optional(),
+  coverage_area_sqm: z.coerce.number().min(0).optional(),
+  dimension_length: z.coerce.number().min(0).optional(),
+  dimension_width: z.coerce.number().min(0).optional(),
+  dimension_height: z.coerce.number().min(0).optional(),
+
   advancedSettings: productAdvancedSettingsSchema,
   marketingSettings: productMarketingSettingsSchema,
   special_offers_config: specialOffersConfigSchema.optional(),

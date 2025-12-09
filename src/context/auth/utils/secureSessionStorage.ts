@@ -8,6 +8,12 @@ const encoder = typeof TextEncoder !== 'undefined' ? new TextEncoder() : null;
 const decoder = typeof TextDecoder !== 'undefined' ? new TextDecoder() : null;
 
 const isBrowser = typeof window !== 'undefined';
+const isDev = process.env.NODE_ENV === 'development';
+
+// ⚡ منع التكرار - حفظ آخر جلسة تم حفظها
+let lastSavedSessionUserId: string | null = null;
+let lastSaveTimestamp = 0;
+const MIN_SAVE_INTERVAL = 5000; // 5 ثواني بين كل حفظ
 
 export interface SecureSessionMeta {
   userId?: string | null;
@@ -156,6 +162,21 @@ const saveFallbackSession = (session: Session) => {
 export const saveSecureSession = async (session: Session | null): Promise<void> => {
   if (!isBrowser || !session) return;
 
+  // ⚡ منع التكرار - تجاهل الحفظ إذا كانت نفس الجلسة
+  const now = Date.now();
+  const userId = session.user?.id;
+  if (
+    userId === lastSavedSessionUserId &&
+    now - lastSaveTimestamp < MIN_SAVE_INTERVAL
+  ) {
+    // تجاهل الحفظ المتكرر
+    return;
+  }
+
+  // تحديث المتغيرات
+  lastSavedSessionUserId = userId ?? null;
+  lastSaveTimestamp = now;
+
   // إذا لم يتوفر التشفير الحديث نستخدم الوضع الاحتياطي
   if (!encoder || !window.crypto?.subtle) {
     saveFallbackSession(session);
@@ -185,7 +206,7 @@ export const saveSecureSession = async (session: Session | null): Promise<void> 
 
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
     saveSessionMeta(session);
-    if (process.env.NODE_ENV === 'development') {
+    if (isDev) {
       try {
         console.log('[SecureSession] stored encrypted session', {
           userId: session.user?.id,

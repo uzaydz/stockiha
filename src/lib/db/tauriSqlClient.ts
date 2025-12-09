@@ -1,23 +1,92 @@
-import type { QueryResult } from '@tauri-apps/plugin-sql';
+/**
+ * Desktop SQLite Client
+ *
+ * ⚡ MIGRATED: From Tauri to Electron
+ *
+ * This file provides backward compatibility for code that used the Tauri SQL client.
+ * All database operations now go through Electron IPC.
+ *
+ * Usage:
+ * - tauriQuery() → electronQuery()
+ * - tauriExecute() → electronExecute()
+ * - tauriUpsert() → electronUpsert()
+ * - etc.
+ */
 
-let db: any = null;
+import {
+  isElectron,
+  query as electronDbQuery,
+  queryOne as electronDbQueryOne,
+  execute as electronDbExecute,
+  upsert as electronDbUpsert,
+  batchUpsert as electronDbBatchUpsert,
+  deleteRecord as electronDbDelete,
+  initializeDatabase as electronDbInitialize,
+} from '@/lib/desktop';
+
+// ============================================================================
+// Legacy Compatibility Types
+// ============================================================================
+
+export interface QueryResult {
+  success: boolean;
+  data: unknown[];
+  error?: string;
+}
+
+export interface ExecuteResult {
+  success: boolean;
+  changes?: number;
+  lastInsertRowid?: number;
+  error?: string;
+}
+
+// ============================================================================
+// Connection Pool Info (for backward compatibility)
+// ============================================================================
+
 let currentOrgId: string | null = null;
 
+export function getConnectionPoolInfo(): {
+  poolSize: number;
+  currentOrgId: string | null;
+  organizationIds: string[];
+} {
+  return {
+    poolSize: currentOrgId ? 1 : 0,
+    currentOrgId,
+    organizationIds: currentOrgId ? [currentOrgId] : [],
+  };
+}
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
 /**
- * تحويل camelCase إلى snake_case
- * مثال: objectType → object_type, createdAt → created_at
+ * Check if running in desktop environment (Electron)
+ * @deprecated Use isElectron() from @/lib/desktop instead
  */
-function camelToSnake(str: string): string {
-  return str.replace(/[A-Z]/g, letter => `_${letter.toLowerCase()}`);
+export function isTauri(): boolean {
+  // For backward compatibility, isTauri() now returns isElectron()
+  // since we've migrated from Tauri to Electron
+  return isElectron();
 }
 
 /**
- * تحويل كائن من camelCase keys إلى snake_case keys
+ * Convert camelCase to snake_case
  */
-function convertKeysToSnakeCase(obj: any): any {
+function camelToSnake(str: string): string {
+  return str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
+}
+
+/**
+ * Convert object keys from camelCase to snake_case
+ */
+function convertKeysToSnakeCase(obj: Record<string, unknown>): Record<string, unknown> {
   if (!obj || typeof obj !== 'object') return obj;
 
-  const converted: any = {};
+  const converted: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(obj)) {
     const snakeKey = camelToSnake(key);
     converted[snakeKey] = value;
@@ -25,124 +94,361 @@ function convertKeysToSnakeCase(obj: any): any {
   return converted;
 }
 
-function isTauri(): boolean {
-  // إشارة build-time من Vite/Tauri
-  try {
-    // @ts-ignore
-    if ((import.meta as any).env?.TAURI) return true;
-  } catch {
-    // تجاهل أي خطأ في البيئات التي لا تدعم import.meta
+/**
+ * Apply table defaults for required columns
+ */
+function applyTableDefaults(table: string, data: Record<string, unknown>): Record<string, unknown> {
+  const result = { ...data };
+
+  if (table === 'order_items') {
+    if (result.subtotal === undefined || result.subtotal === null) {
+      const quantity = (result.quantity as number) || 1;
+      const unitPrice = (result.unit_price as number) || (result.unitPrice as number) || (result.price as number) || 0;
+      result.subtotal = quantity * unitPrice;
+    }
+    if (result.quantity === undefined || result.quantity === null) {
+      result.quantity = 1;
+    }
+    if (result.unit_price === undefined || result.unit_price === null) {
+      result.unit_price = result.unitPrice || result.price || 0;
+    }
+    if (result.discount === undefined || result.discount === null) {
+      result.discount = 0;
+    }
+    if (!result.product_name && !result.productName) {
+      result.product_name = result.name || 'منتج';
+    }
   }
 
-  if (typeof window === 'undefined') return false;
-  const w: any = window as any;
-
-  // إشارات runtime من Tauri
-  if (typeof w.__TAURI_IPC__ === 'function') return true;
-  if (!!w.__TAURI__) return true;
-  if (typeof w.isTauri === 'boolean' && w.isTauri) return true;
-
-  return false;
-}
-
-async function ensureDb(organizationId: string) {
-  if (db && currentOrgId === organizationId) {
-    return db;
+  if (table === 'orders') {
+    if (result.subtotal === undefined || result.subtotal === null) {
+      result.subtotal = result.total || result.total_amount || 0;
+    }
+    if (result.tax === undefined || result.tax === null) {
+      result.tax = 0;
+    }
+    if (result.is_online === undefined || result.is_online === null) {
+      result.is_online = 0;
+    }
   }
 
-  const mod = await import('@tauri-apps/plugin-sql');
-  const Database: any = (mod as any).default ?? (mod as any).Database ?? mod;
-
-  const dbPath = `sqlite:stockiha_${organizationId}.db`;
-  db = await Database.load(dbPath);
-  currentOrgId = organizationId;
-
-  // مبدئياً لا ننشئ كل الجداول هنا، سيتم توسيع ذلك لاحقاً لنقل كامل schema
-  return db;
+  return result;
 }
 
-export async function tauriInitDatabase(organizationId: string): Promise<{ success: boolean; error?: string }> {
+// ============================================================================
+// Database Initialization
+// ============================================================================
+
+/**
+ * Initialize database for an organization
+ */
+export async function tauriInitDatabase(
+  organizationId: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!isElectron()) {
+    const errorMsg = 'التطبيق يعمل في متصفح عادي - قاعدة البيانات المحلية غير متاحة';
+    console.warn('[SQLiteClient] ⚠️', errorMsg);
+    return { success: false, error: errorMsg };
+  }
+
   try {
-    await ensureDb(organizationId);
+    await electronDbInitialize(organizationId);
+    currentOrgId = organizationId;
+    console.log(`[SQLiteClient] ✅ Database initialized for org: ${organizationId}`);
     return { success: true };
-  } catch (error: any) {
-    console.error('[TauriSQLite] Failed to initialize DB:', error);
-    return { success: false, error: error?.message || String(error) };
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error('[SQLiteClient] ❌ Failed to initialize DB:', errorMsg);
+    return { success: false, error: errorMsg };
   }
 }
 
-export async function tauriQuery(organizationId: string, sql: string, params: any[] = []): Promise<{ success: boolean; data: any[]; error?: string }> {
-  try {
-    const dbInstance = await ensureDb(organizationId);
-    const rows = await dbInstance.select(sql, params);
-    return { success: true, data: rows as any[] };
-  } catch (error: any) {
-    console.error('[TauriSQLite] Query error:', { sql, params, error });
-    return { success: false, data: [], error: error?.message || String(error) };
-  }
+/**
+ * Close database for an organization
+ */
+export async function tauriCloseDatabase(
+  _organizationId: string
+): Promise<{ success: boolean; error?: string }> {
+  // In Electron, database connections are managed by the main process
+  // This is a no-op for backward compatibility
+  currentOrgId = null;
+  return { success: true };
 }
 
-export async function tauriQueryOne(organizationId: string, sql: string, params: any[] = []): Promise<{ success: boolean; data: any | null; error?: string }> {
-  const res = await tauriQuery(organizationId, sql, params);
-  if (!res.success) return { success: false, data: null, error: res.error };
-  return { success: true, data: res.data[0] ?? null };
+/**
+ * Close all database connections
+ */
+export async function tauriCloseAllDatabases(): Promise<{
+  success: boolean;
+  errors: string[];
+}> {
+  currentOrgId = null;
+  return { success: true, errors: [] };
 }
 
-export async function tauriExecute(organizationId: string, sql: string, params: any[] = []): Promise<{ success: boolean; changes?: number; lastInsertRowid?: number; error?: string }> {
-  try {
-    const dbInstance = await ensureDb(organizationId);
-    const result: QueryResult = await dbInstance.execute(sql, params);
+// ============================================================================
+// Query Operations
+// ============================================================================
+
+/**
+ * Execute a SELECT query and return multiple rows
+ */
+export async function tauriQuery(
+  organizationId: string,
+  sql: string,
+  params: unknown[] = []
+): Promise<{ success: boolean; data: unknown[]; error?: string }> {
+  if (!isElectron()) {
     return {
-      success: true,
-      changes: (result as any).rowsAffected,
-      lastInsertRowid: (result as any).lastInsertId
+      success: false,
+      data: [],
+      error: 'التطبيق يعمل في متصفح عادي',
     };
-  } catch (error: any) {
-    console.error('[TauriSQLite] Execute error:', { sql, params, error });
-    return { success: false, error: error?.message || String(error) };
+  }
+
+  // Ensure DB is initialized
+  if (currentOrgId !== organizationId) {
+    const initResult = await tauriInitDatabase(organizationId);
+    if (!initResult.success) {
+      return { success: false, data: [], error: initResult.error };
+    }
+  }
+
+  try {
+    const data = await electronDbQuery(sql, params);
+    return { success: true, data };
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error('[SQLiteClient] Query error:', errorMsg);
+    return { success: false, data: [], error: errorMsg };
   }
 }
 
-export async function tauriUpsert(organizationId: string, table: string, data: any): Promise<{ success: boolean; changes?: number; error?: string }> {
+/**
+ * Execute a SELECT query and return a single row
+ */
+export async function tauriQueryOne(
+  organizationId: string,
+  sql: string,
+  params: unknown[] = []
+): Promise<{ success: boolean; data: unknown | null; error?: string }> {
+  if (!isElectron()) {
+    return {
+      success: false,
+      data: null,
+      error: 'التطبيق يعمل في متصفح عادي',
+    };
+  }
+
+  if (currentOrgId !== organizationId) {
+    const initResult = await tauriInitDatabase(organizationId);
+    if (!initResult.success) {
+      return { success: false, data: null, error: initResult.error };
+    }
+  }
+
   try {
-    const dbInstance = await ensureDb(organizationId);
+    const data = await electronDbQueryOne(sql, params);
+    return { success: true, data };
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    return { success: false, data: null, error: errorMsg };
+  }
+}
 
-    // تحويل الـ keys من camelCase إلى snake_case
-    const snakeCaseData = convertKeysToSnakeCase(data);
-    const keys = Object.keys(snakeCaseData || {});
-    if (!keys.length) return { success: true, changes: 0 };
+// ============================================================================
+// Execute Operations
+// ============================================================================
 
-    const columns = keys.map(k => `"${k}"`).join(', ');
-    const placeholders = keys.map(() => '?').join(', ');
-    const values = keys.map(k => {
-      const val = snakeCaseData[k];
-      // تحويل Boolean إلى INTEGER (0 أو 1) لـ SQLite
-      if (typeof val === 'boolean') {
-        return val ? 1 : 0;
-      }
-      // تحويل الكائنات إلى JSON string
-      if (val !== null && typeof val === 'object') {
-        return JSON.stringify(val);
-      }
-      return val;
+/**
+ * Execute an INSERT, UPDATE, or DELETE query
+ */
+export async function tauriExecute(
+  organizationId: string,
+  sql: string,
+  params: unknown[] = []
+): Promise<{
+  success: boolean;
+  changes?: number;
+  lastInsertRowid?: number;
+  error?: string;
+}> {
+  if (!isElectron()) {
+    return {
+      success: false,
+      error: 'التطبيق يعمل في متصفح عادي',
+    };
+  }
+
+  if (currentOrgId !== organizationId) {
+    const initResult = await tauriInitDatabase(organizationId);
+    if (!initResult.success) {
+      return { success: false, error: initResult.error };
+    }
+  }
+
+  try {
+    const changes = await electronDbExecute(sql, params);
+    return { success: true, changes };
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error('[SQLiteClient] Execute error:', errorMsg);
+    return { success: false, error: errorMsg };
+  }
+}
+
+// ============================================================================
+// Upsert Operations
+// ============================================================================
+
+/**
+ * Upsert a single record (INSERT OR REPLACE)
+ */
+export async function tauriUpsert(
+  organizationId: string,
+  table: string,
+  data: Record<string, unknown>,
+  _conflictTarget: string = 'id'
+): Promise<{ success: boolean; changes?: number; error?: string }> {
+  if (!isElectron()) {
+    return {
+      success: false,
+      error: 'التطبيق يعمل في متصفح عادي',
+    };
+  }
+
+  if (currentOrgId !== organizationId) {
+    const initResult = await tauriInitDatabase(organizationId);
+    if (!initResult.success) {
+      return { success: false, error: initResult.error };
+    }
+  }
+
+  try {
+    // Apply defaults and convert keys
+    const dataWithDefaults = applyTableDefaults(table, data);
+    const snakeCaseData = convertKeysToSnakeCase(dataWithDefaults);
+
+    await electronDbUpsert(table, snakeCaseData);
+    return { success: true, changes: 1 };
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error('[SQLiteClient] Upsert error:', { table, error: errorMsg });
+    return { success: false, error: errorMsg };
+  }
+}
+
+/**
+ * Delete a record by ID
+ */
+export async function tauriDelete(
+  organizationId: string,
+  table: string,
+  id: string
+): Promise<{ success: boolean; changes?: number; error?: string }> {
+  if (!isElectron()) {
+    return {
+      success: false,
+      error: 'التطبيق يعمل في متصفح عادي',
+    };
+  }
+
+  if (currentOrgId !== organizationId) {
+    const initResult = await tauriInitDatabase(organizationId);
+    if (!initResult.success) {
+      return { success: false, error: initResult.error };
+    }
+  }
+
+  try {
+    await electronDbDelete(table, id);
+    return { success: true, changes: 1 };
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    return { success: false, error: errorMsg };
+  }
+}
+
+/**
+ * Batch upsert multiple records
+ */
+export async function tauriBatchUpsert(
+  organizationId: string,
+  table: string,
+  records: Record<string, unknown>[],
+  _conflictTarget: string = 'id',
+  _batchSize: number = 100
+): Promise<{
+  success: boolean;
+  totalChanges: number;
+  errors: number;
+  error?: string;
+}> {
+  if (!records || records.length === 0) {
+    return { success: true, totalChanges: 0, errors: 0 };
+  }
+
+  if (!isElectron()) {
+    return {
+      success: false,
+      totalChanges: 0,
+      errors: records.length,
+      error: 'التطبيق يعمل في متصفح عادي',
+    };
+  }
+
+  if (currentOrgId !== organizationId) {
+    const initResult = await tauriInitDatabase(organizationId);
+    if (!initResult.success) {
+      return {
+        success: false,
+        totalChanges: 0,
+        errors: records.length,
+        error: initResult.error,
+      };
+    }
+  }
+
+  try {
+    // Apply defaults and convert keys for each record
+    const processedRecords = records.map((record) => {
+      const dataWithDefaults = applyTableDefaults(table, record);
+      return convertKeysToSnakeCase(dataWithDefaults);
     });
 
-    const updateAssignments = keys
-      .filter(k => k !== 'id')
-      .map(k => `"${k}" = excluded."${k}"`)
-      .join(', ');
+    await electronDbBatchUpsert(table, processedRecords);
 
-    const sql = `INSERT INTO ${table} (${columns}) VALUES (${placeholders})` +
-      (updateAssignments ? ` ON CONFLICT(id) DO UPDATE SET ${updateAssignments}` : '');
-
-    const result: QueryResult = await dbInstance.execute(sql, values);
-    return { success: true, changes: (result as any).rowsAffected };
-  } catch (error: any) {
-    console.error('[TauriSQLite] Upsert error:', { table, data, error: error?.message || String(error) });
-    return { success: false, error: error?.message || String(error) };
+    console.log(`[SQLiteClient] ✅ Batch upsert complete: ${records.length} records`);
+    return {
+      success: true,
+      totalChanges: records.length,
+      errors: 0,
+    };
+  } catch (error: unknown) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    console.error('[SQLiteClient] Batch upsert error:', errorMsg);
+    return {
+      success: false,
+      totalChanges: 0,
+      errors: records.length,
+      error: errorMsg,
+    };
   }
 }
 
-export async function tauriDelete(organizationId: string, table: string, id: string): Promise<{ success: boolean; changes?: number; error?: string }> {
-  return tauriExecute(organizationId, `DELETE FROM ${table} WHERE id = ?`, [id]);
-}
+// ============================================================================
+// Legacy Exports (for backward compatibility)
+// ============================================================================
+
+// These exports maintain backward compatibility with existing code
+export {
+  tauriInitDatabase as initializeDatabase,
+  tauriCloseDatabase as closeDatabase,
+  tauriCloseAllDatabases as closeAllDatabases,
+  tauriQuery as query,
+  tauriQueryOne as queryOne,
+  tauriExecute as execute,
+  tauriUpsert as upsert,
+  tauriDelete as deleteRecord,
+  tauriBatchUpsert as batchUpsert,
+};

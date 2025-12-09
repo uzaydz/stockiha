@@ -42,9 +42,9 @@ body.appleshell-active .app-shell {
   backdrop-filter: blur(20px);
 }
 
-/* macOS-like wallpaper backdrop */
+/* macOS-like wallpaper backdrop - محسّن للدارك مود */
 .macos-new-wallpaper {
-  background-image: radial-gradient(1200px 800px at 50% -10%, #111827 18%, #0a0f1f 80%);
+  background-image: radial-gradient(1200px 800px at 50% -10%, #111827 18%, #0a0f1a 80%);
 }
 
 .app-shell {
@@ -63,13 +63,15 @@ body.appleshell-active .app-shell {
   flex-direction: column;
 }
 
+/* 🎨 Desktop Titlebar - دائماً بتصميم الدارك مود */
 .desktop-titlebar {
   -webkit-app-region: drag;
   position: fixed;
   inset-inline: 0;
   inset-block-start: 0;
-  background-color: #050b15;
-  color: #f8fafc;
+  background-color: #0a0f1a !important;
+  color: #f1f5f9 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
 }
 
 /* تحسينات التبويبات في التايتل بار */
@@ -100,15 +102,19 @@ body.appleshell-active .app-shell {
   white-space: nowrap !important;
 }
 
-/* تحسين التباين والوضوح */
+/* ============================================
+   🎨 تحسين التباين - التايتل بار دائماً داكن
+   ============================================ */
+
+/* التبويبات - دائماً بأسلوب الدارك مود */
 .desktop-titlebar button[role="tab"][aria-selected="true"] {
-  background: white !important;
-  color: rgb(15, 23, 42) !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  color: #0f172a !important;
   font-weight: 600 !important;
 }
 
 .desktop-titlebar button[role="tab"]:not([aria-selected="true"]) {
-  color: rgba(255, 255, 255, 0.75) !important;
+  color: rgba(255, 255, 255, 0.7) !important;
 }
 
 .desktop-titlebar button[role="tab"]:not([aria-selected="true"]):hover {
@@ -116,6 +122,9 @@ body.appleshell-active .app-shell {
   background: rgba(255, 255, 255, 0.12) !important;
 }
 
+/* ============================================
+   🔘 Titlebar Buttons
+   ============================================ */
 .desktop-titlebar .titlebar-button {
   width: 45px;
   height: 100%;
@@ -139,8 +148,10 @@ body.appleshell-active .app-shell {
   background-color: rgba(255, 255, 255, 0.12);
 }
 
+/* Close button */
 .desktop-titlebar .titlebar-button--close:hover {
-  background-color: rgba(244, 63, 94, 0.85);
+  background-color: rgba(244, 63, 94, 0.85) !important;
+  color: white !important;
 }
 
 .desktop-titlebar .titlebar-traffic-light {

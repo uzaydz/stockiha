@@ -101,6 +101,27 @@ export default {
     				border: 'hsl(var(--sidebar-border))',
     				ring: 'hsl(var(--sidebar-ring))'
     			},
+    			// 🎨 Extended Semantic Colors - ألوان دلالية إضافية
+    			success: {
+    				DEFAULT: 'hsl(var(--success))',
+    				foreground: 'hsl(var(--success-foreground))'
+    			},
+    			warning: {
+    				DEFAULT: 'hsl(var(--warning))',
+    				foreground: 'hsl(var(--warning-foreground))'
+    			},
+    			info: {
+    				DEFAULT: 'hsl(var(--info))',
+    				foreground: 'hsl(var(--info-foreground))'
+    			},
+    			// 📈 Chart Colors - ألوان الرسوم البيانية
+    			chart: {
+    				'1': 'hsl(var(--chart-1))',
+    				'2': 'hsl(var(--chart-2))',
+    				'3': 'hsl(var(--chart-3))',
+    				'4': 'hsl(var(--chart-4))',
+    				'5': 'hsl(var(--chart-5))'
+    			},
     			'game-purple': {
     				'50': '#f0eefa',
     				'100': '#d6bcfa',

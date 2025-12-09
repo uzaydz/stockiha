@@ -1,15 +1,16 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { 
-  Printer, 
-  Download, 
-  Share2, 
-  ArrowLeft, 
-  CheckCircle2, 
-  XCircle, 
-  Clock, 
-  AlertCircle 
+import {
+  Printer,
+  Download,
+  Share2,
+  ArrowLeft,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  AlertCircle,
+  Loader2
 } from "lucide-react";
 import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
@@ -17,6 +18,8 @@ import { useReactToPrint } from 'react-to-print';
 // Heavy libs are dynamically imported when needed to reduce initial JS size
 import { toast } from 'sonner';
 import type { Invoice } from '@/lib/api/invoices';
+// ⚡ نظام الطباعة الموحد
+import { usePrinter } from '@/hooks/usePrinter';
 
 interface InvoicePrintViewProps {
   invoice: Invoice;
@@ -25,13 +28,72 @@ interface InvoicePrintViewProps {
 
 const InvoicePrintView = ({ invoice, onBack }: InvoicePrintViewProps) => {
   const printRef = useRef<HTMLDivElement>(null);
+  const [isPrinting, setIsPrinting] = useState(false);
 
-  // استخدام react-to-print للطباعة
-  const handlePrint = useReactToPrint({
+  // ⚡ نظام الطباعة الموحد
+  const { printHtml, isElectron: isElectronPrint } = usePrinter();
+
+  // استخدام react-to-print للطباعة (fallback)
+  const handleReactToPrint = useReactToPrint({
     content: () => printRef.current,
     documentTitle: `فاتورة-${invoice.invoiceNumber}`,
     onAfterPrint: () => toast.success('تمت الطباعة بنجاح'),
   });
+
+  // ⚡ دالة الطباعة الموحدة مع دعم Electron
+  const handlePrint = async () => {
+    if (isPrinting) return;
+
+    // ⚡ محاولة الطباعة المباشرة عبر Electron أولاً
+    if (isElectronPrint && printRef.current) {
+      try {
+        setIsPrinting(true);
+
+        // إنشاء HTML للطباعة
+        const printHtmlContent = `
+          <!DOCTYPE html>
+          <html dir="rtl" lang="ar">
+            <head>
+              <meta charset="UTF-8">
+              <title>فاتورة-${invoice.invoiceNumber}</title>
+              <style>
+                * { box-sizing: border-box; margin: 0; padding: 0; }
+                body { font-family: 'Tajawal', 'Arial', sans-serif; direction: rtl; background: white; color: black; }
+                @page { size: A4; margin: 10mm; }
+                @media print {
+                  body { background: white !important; }
+                  * { color: black !important; background: transparent !important; }
+                }
+              </style>
+            </head>
+            <body>
+              ${printRef.current.innerHTML}
+            </body>
+          </html>
+        `;
+
+        const result = await printHtml(printHtmlContent, {
+          silent: false, // عرض نافذة الطباعة للفواتير
+          pageSize: 'A4',
+          landscape: false,
+        });
+
+        if (result.success) {
+          toast.success('تمت الطباعة بنجاح');
+          setIsPrinting(false);
+          return;
+        } else {
+          console.warn('[InvoicePrint] فشلت الطباعة المباشرة:', result.error);
+        }
+      } catch (err) {
+        console.warn('[InvoicePrint] خطأ في الطباعة المباشرة:', err);
+      }
+      setIsPrinting(false);
+    }
+
+    // ⚡ التراجع إلى react-to-print
+    handleReactToPrint();
+  };
 
   // تنزيل الفاتورة كملف PDF
   const handleDownloadPDF = async () => {
@@ -194,9 +256,13 @@ const InvoicePrintView = ({ invoice, onBack }: InvoicePrintViewProps) => {
         </Button>
         
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => handlePrint()} className="gap-2">
-            <Printer className="h-4 w-4" />
-            طباعة
+          <Button variant="outline" onClick={() => handlePrint()} className="gap-2" disabled={isPrinting}>
+            {isPrinting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Printer className="h-4 w-4" />
+            )}
+            {isPrinting ? 'جاري الطباعة...' : 'طباعة'}
           </Button>
           <Button variant="outline" onClick={handleDownloadPDF} className="gap-2">
             <Download className="h-4 w-4" />

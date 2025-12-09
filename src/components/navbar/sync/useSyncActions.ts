@@ -1,13 +1,22 @@
 /**
- * ⚡ Hook لإجراءات المزامنة
+ * ⚡ Hook لإجراءات المزامنة المحسّن
+ * @version 2.0.0
+ * 
+ * المميزات:
+ * - تكامل مباشر مع PowerSync
+ * - معالجة أخطاء محسّنة
+ * - إشعارات واضحة
  */
 
 import { useState, useCallback, useRef } from 'react';
 import { toast } from 'sonner';
-import { deltaSyncEngine, outboxManager, batchSender } from '@/lib/sync/delta';
-import { repairSync } from '@/lib/sync/TauriSyncService';
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
 
 const isDev = process.env.NODE_ENV === 'development';
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🔹 Types
+// ═══════════════════════════════════════════════════════════════════════════════
 
 interface UseSyncActionsOptions {
   organizationId: string | undefined;
@@ -27,17 +36,21 @@ interface UseSyncActionsResult {
   clearPendingOutbox: () => Promise<void>;
 }
 
-export function useSyncActions({ 
-  organizationId, 
-  isOnline, 
-  onSyncComplete 
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🔹 Hook
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export function useSyncActions({
+  organizationId,
+  isOnline,
+  onSyncComplete
 }: UseSyncActionsOptions): UseSyncActionsResult {
+  
+  // ⚡ الحالات
   const [isSyncing, setIsSyncing] = useState(false);
   const [isFullSyncing, setIsFullSyncing] = useState(false);
   const [isForceSending, setIsForceSending] = useState(false);
   const [lastSyncError, setLastSyncError] = useState<string | null>(null);
-  
-  // ⚡ حفظ واسترجاع lastSyncAt من localStorage
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(() => {
     if (typeof window === 'undefined') return null;
     const saved = localStorage.getItem('navbarSync_lastSyncAt');
@@ -46,13 +59,16 @@ export function useSyncActions({
 
   const syncingRef = useRef(false);
 
-  // حفظ lastSyncAt عند التغيير
+  // ⚡ تحديث وقت آخر مزامنة
   const updateLastSyncAt = useCallback((time: number) => {
     setLastSyncAt(time);
     localStorage.setItem('navbarSync_lastSyncAt', String(time));
   }, []);
 
-  // ⚡ مزامنة عادية
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🔹 مزامنة عادية
+  // ═══════════════════════════════════════════════════════════════════════════
+
   const runSync = useCallback(async (origin: 'auto' | 'manual' = 'auto') => {
     if (!organizationId) return;
 
@@ -67,64 +83,60 @@ export function useSyncActions({
 
     if (syncingRef.current) return;
 
-    // ⚡ التحقق من تهيئة Delta Sync قبل المزامنة
-    try {
-      const status = await deltaSyncEngine.getStatus();
-      if (!status.isInitialized) {
-        if (isDev) {
-          console.log('[useSyncActions] ⏳ Delta Sync not initialized yet, skipping...');
-        }
-        return;
-      }
-    } catch {
-      // تجاهل أخطاء التحقق - سنحاول المزامنة على أي حال
-    }
-
     syncingRef.current = true;
     setIsSyncing(true);
     setLastSyncError(null);
-    
-    // ⚡ إرسال حدث بدء المزامنة (لمنع قراءة الإحصائيات أثناء الكتابة)
-    window.dispatchEvent(new Event('sync-started'));
 
     try {
       if (isDev) {
-        console.log('[useSyncActions] ⚡ Starting Delta Sync...');
+        console.log('[useSyncActions] ⚡ Starting PowerSync...');
       }
 
-      await deltaSyncEngine.fullSync();
+      // ⚡ التحقق من التهيئة
+      const isReady = await powerSyncService.waitForInitialization(5000);
+      if (!isReady) {
+        if (origin === 'manual') {
+          toast.info('جارٍ تهيئة النظام...', {
+            description: 'يرجى الانتظار ثم إعادة المحاولة'
+          });
+        }
+        return;
+      }
+
+      // ⚡ تشغيل المزامنة
+      await powerSyncService.forceSync();
 
       updateLastSyncAt(Date.now());
 
       if (origin === 'manual') {
-        const deltaInfo = await deltaSyncEngine.getStatus();
-        const totalPending = deltaInfo.pendingOutboxCount || 0;
-
-        if (totalPending === 0) {
-          toast.success('تمت المزامنة بنجاح', {
-            description: '⚡ جميع البيانات محدثة'
-          });
-        } else {
-          toast.message(`لا تزال هناك ${totalPending} عناصر معلقة`);
-        }
+        toast.success('تمت المزامنة بنجاح', {
+          description: '⚡ جميع البيانات محدثة'
+        });
       }
 
       onSyncComplete?.();
+
     } catch (error) {
       const message = error instanceof Error ? error.message : 'فشل في مزامنة البيانات';
-      
-      // ⚡ تجاهل أخطاء التهيئة - ستُحل تلقائياً عند اكتمال التهيئة
+
+      // ⚡ تجاهل أخطاء التهيئة
       if (message.includes('Not initialized') || message.includes('Database not initialized')) {
         if (isDev) {
-          console.log('[useSyncActions] ⏳ Ignoring init error, will retry later');
+          console.log('[useSyncActions] ⏳ Not initialized, will retry later');
         }
         return;
       }
-      
+
       setLastSyncError(message);
 
       if (origin === 'manual') {
-        toast.error('تعذر إكمال المزامنة', { description: message });
+        toast.error('تعذر إكمال المزامنة', { 
+          description: getErrorMessageAr(message)
+        });
+      }
+
+      if (isDev) {
+        console.error('[useSyncActions] Error:', error);
       }
     } finally {
       syncingRef.current = false;
@@ -132,15 +144,22 @@ export function useSyncActions({
     }
   }, [organizationId, isOnline, updateLastSyncAt, onSyncComplete]);
 
-  // ⚡ إصلاح المزامنة
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🔹 إصلاح المزامنة (إعادة تحميل كاملة)
+  // ═══════════════════════════════════════════════════════════════════════════
+
   const runFullSync = useCallback(async () => {
     if (!organizationId) {
-      toast.error('لا يمكن المزامنة', { description: 'لم يتم تحديد المنظمة بعد' });
+      toast.error('لا يمكن المزامنة', { 
+        description: 'لم يتم تحديد المنظمة بعد' 
+      });
       return;
     }
 
     if (!isOnline) {
-      toast.error('غير متصل بالإنترنت', { description: 'يرجى الاتصال بالإنترنت أولاً' });
+      toast.error('غير متصل بالإنترنت', { 
+        description: 'يرجى الاتصال بالإنترنت أولاً' 
+      });
       return;
     }
 
@@ -149,63 +168,57 @@ export function useSyncActions({
       return;
     }
 
-    // ⚡ التحقق من تهيئة Delta Sync
-    try {
-      const status = await deltaSyncEngine.getStatus();
-      if (!status.isInitialized) {
-        toast.info('جارٍ تهيئة النظام...', { description: 'يرجى الانتظار قليلاً ثم إعادة المحاولة' });
-        return;
-      }
-    } catch {
-      // تجاهل أخطاء التحقق
-    }
-
     setIsFullSyncing(true);
     setLastSyncError(null);
-    
-    // ⚡ إرسال حدث بدء المزامنة
-    window.dispatchEvent(new Event('sync-started'));
 
     const loadingToast = toast.loading('جارٍ إصلاح المزامنة...', {
-      description: 'يتم إعادة ضبط البيانات المحلية'
+      description: 'يتم إعادة تحميل البيانات من السيرفر'
     });
 
     try {
-      const result = await repairSync(organizationId);
-
-      if (result.success) {
-        await deltaSyncEngine.fullSync();
-
+      // ⚡ التحقق من التهيئة
+      const isReady = await powerSyncService.waitForInitialization(10000);
+      if (!isReady) {
         toast.dismiss(loadingToast);
-        toast.success('تم إصلاح المزامنة بنجاح', {
-          description: result.message || '⚡ البيانات محدثة'
+        toast.info('جارٍ تهيئة النظام...', { 
+          description: 'يرجى الانتظار ثم إعادة المحاولة' 
         });
-
-        updateLastSyncAt(Date.now());
-        onSyncComplete?.();
-      } else {
-        throw new Error(result.message || 'فشل إصلاح المزامنة');
-      }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'فشل في إصلاح المزامنة';
-      
-      // ⚡ تجاهل أخطاء التهيئة
-      if (message.includes('Not initialized') || message.includes('Database not initialized')) {
-        toast.dismiss(loadingToast);
-        toast.info('جارٍ تهيئة النظام...', { description: 'يرجى الانتظار ثم إعادة المحاولة' });
         return;
       }
-      
+
+      // ⚡ إجبار المزامنة الكاملة
+      await powerSyncService.forceSync();
+
+      toast.dismiss(loadingToast);
+      toast.success('تم إصلاح المزامنة بنجاح', {
+        description: '⚡ البيانات محدثة بالكامل'
+      });
+
+      updateLastSyncAt(Date.now());
+      onSyncComplete?.();
+
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'فشل في إصلاح المزامنة';
+
       setLastSyncError(message);
 
       toast.dismiss(loadingToast);
-      toast.error('فشل إصلاح المزامنة', { description: message });
+      toast.error('فشل إصلاح المزامنة', { 
+        description: getErrorMessageAr(message)
+      });
+
+      if (isDev) {
+        console.error('[useSyncActions] Full sync error:', error);
+      }
     } finally {
       setIsFullSyncing(false);
     }
   }, [organizationId, isOnline, isFullSyncing, isSyncing, updateLastSyncAt, onSyncComplete]);
 
-  // ⚡ إرسال العمليات المعلقة
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🔹 إرسال العمليات المعلقة
+  // ═══════════════════════════════════════════════════════════════════════════
+
   const forceSendPending = useCallback(async () => {
     if (!isOnline) {
       toast.error('غير متصل بالإنترنت', {
@@ -221,36 +234,16 @@ export function useSyncActions({
 
     setIsForceSending(true);
     const loadingToast = toast.loading('جارٍ إرسال العمليات المعلقة...', {
-      description: 'يتم معالجة الطلبات مباشرة'
+      description: 'يتم رفع البيانات إلى السيرفر'
     });
 
     try {
-      // إعادة العمليات العالقة
-      const requeuedStuck = await outboxManager.requeueStuck();
-      const requeuedFailed = await outboxManager.requeueFailed();
-
-      if (isDev && (requeuedStuck > 0 || requeuedFailed > 0)) {
-        console.log('[useSyncActions] 📤 Requeued:', { stuck: requeuedStuck, failed: requeuedFailed });
-      }
-
-      // إرسال الدفعة
-      const result = await batchSender.sendNow();
+      await powerSyncService.forceSync();
 
       toast.dismiss(loadingToast);
-
-      if (result.processedCount > 0) {
-        toast.success(`تم إرسال ${result.processedCount} عملية بنجاح`, {
-          description: result.failedCount > 0
-            ? `فشلت ${result.failedCount} عملية`
-            : 'جميع العمليات تمت بنجاح'
-        });
-      } else if (result.failedCount > 0) {
-        toast.error(`فشل إرسال ${result.failedCount} عملية`, {
-          description: result.errors[0]?.error || 'خطأ غير معروف'
-        });
-      } else {
-        toast.info('لا توجد عمليات معلقة للإرسال');
-      }
+      toast.success('تم إرسال العمليات بنجاح', {
+        description: '✅ جميع العمليات المعلقة تم رفعها'
+      });
 
       onSyncComplete?.();
     } catch (error) {
@@ -263,30 +256,19 @@ export function useSyncActions({
     }
   }, [isOnline, isForceSending, onSyncComplete]);
 
-  // ⚡ حذف العمليات المعلقة
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🔹 حذف العمليات المعلقة
+  // ═══════════════════════════════════════════════════════════════════════════
+
   const clearPendingOutbox = useCallback(async () => {
-    try {
-      const statsBefore = await outboxManager.getStats();
-      await outboxManager.clear();
-      const statsAfter = await outboxManager.getStats();
+    toast.info('هذه الميزة غير متوفرة', {
+      description: 'PowerSync يدير العمليات المعلقة تلقائياً'
+    });
+  }, []);
 
-      if (statsAfter.total === 0) {
-        toast.success('تم حذف العمليات المعلقة بنجاح', {
-          description: `تم حذف ${statsBefore.total} عملية`
-        });
-      } else {
-        toast.warning('تم الحذف جزئياً', {
-          description: `بقيت ${statsAfter.total} عملية`
-        });
-      }
-
-      onSyncComplete?.();
-    } catch (error) {
-      toast.error('فشل حذف العمليات المعلقة', {
-        description: error instanceof Error ? error.message : 'خطأ غير معروف'
-      });
-    }
-  }, [onSyncComplete]);
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🔹 Return
+  // ═══════════════════════════════════════════════════════════════════════════
 
   return {
     isSyncing,
@@ -299,4 +281,24 @@ export function useSyncActions({
     forceSendPending,
     clearPendingOutbox
   };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🔹 مساعدات
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function getErrorMessageAr(error: string): string {
+  if (error.includes('PSYNC_S2002')) {
+    return 'Sync Rules غير منشورة - يرجى نشرها من PowerSync Dashboard';
+  }
+  if (error.includes('network') || error.includes('fetch')) {
+    return 'خطأ في الشبكة - تحقق من اتصالك بالإنترنت';
+  }
+  if (error.includes('auth') || error.includes('token')) {
+    return 'خطأ في المصادقة - يرجى تسجيل الدخول مرة أخرى';
+  }
+  if (error.includes('timeout')) {
+    return 'انتهت مهلة الاتصال - يرجى المحاولة مرة أخرى';
+  }
+  return error;
 }

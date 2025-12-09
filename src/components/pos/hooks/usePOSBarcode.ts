@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Product } from '@/types';
-import { searchProductByBarcode, BarcodeSearchResult } from '@/lib/api/barcode-search';
+import { unifiedProductService } from '@/services/UnifiedProductService';
 
 interface CartItem {
   product: Product;
@@ -134,17 +134,67 @@ export const usePOSBarcode = ({
     } as Product;
   }, []);
 
-  // البحث عن منتج بواسطة الباركود
+  // ⚡ البحث عن منتج بواسطة الباركود باستخدام UnifiedProductService (Offline-First)
   const searchProductInDatabase = useCallback(async (barcode: string) => {
     if (!currentOrganizationIdRef.current) return null;
     
     try {
-      const searchResult = await searchProductByBarcode(currentOrganizationIdRef.current, barcode);
-      return searchResult ? convertSearchResultToProduct(searchResult) : null;
+      unifiedProductService.setOrganizationId(currentOrganizationIdRef.current);
+      const productWithDetails = await unifiedProductService.searchProductsByBarcode(barcode);
+      
+      if (!productWithDetails) return null;
+
+      // تحويل ProductWithDetails إلى Product
+      const product: Product = {
+        id: productWithDetails.id,
+        name: productWithDetails.name,
+        description: productWithDetails.description || '',
+        price: productWithDetails.price,
+        compareAtPrice: productWithDetails.compare_at_price,
+        sku: productWithDetails.sku || '',
+        barcode: productWithDetails.barcode,
+        category: productWithDetails.category as any,
+        category_id: productWithDetails.category_id,
+        brand: (productWithDetails as any).brand,
+        images: (productWithDetails as any).images || [],
+        thumbnailImage: productWithDetails.thumbnail_image || '',
+        thumbnail_image: productWithDetails.thumbnail_image,
+        stockQuantity: productWithDetails.stock_quantity,
+        stock_quantity: productWithDetails.stock_quantity,
+        features: [],
+        specifications: {},
+        isDigital: false,
+        createdAt: productWithDetails.created_at ? new Date(productWithDetails.created_at) : new Date(),
+        updatedAt: productWithDetails.updated_at ? new Date(productWithDetails.updated_at) : new Date(),
+        has_variants: productWithDetails.has_variants || false,
+        use_sizes: productWithDetails.use_sizes || false,
+        colors: productWithDetails.colors?.map(color => ({
+          id: color.id,
+          name: color.name,
+          color_code: color.color_code,
+          image_url: color.image_url,
+          quantity: color.quantity,
+          price: color.price,
+          barcode: color.barcode,
+          is_default: color.is_default || false,
+          has_sizes: color.has_sizes || false,
+          sizes: productWithDetails.sizes?.filter(s => s.color_id === color.id).map(size => ({
+            id: size.id,
+            size_name: size.size_name,
+            quantity: size.quantity,
+            price: size.price,
+            barcode: size.barcode,
+            is_default: size.is_default || false,
+          }))
+        })) as any
+      };
+
+      return product;
     } catch (error) {
+      console.error('[usePOSBarcode] Error searching by barcode:', error);
       return null;
     }
-  }, [convertSearchResultToProduct]);
+  }, []);
 
   // معالجة الباركود المسح ضوئياً - مع منع المعالجة المضاعفة
   const processBarcodeScanned = useCallback(async (rawBarcode: string) => {

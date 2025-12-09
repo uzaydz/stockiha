@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useLocation, Navigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { 
-  AlertDialog, 
-  AlertDialogAction, 
-  AlertDialogContent, 
-  AlertDialogDescription, 
-  AlertDialogFooter, 
-  AlertDialogHeader, 
-  AlertDialogTitle 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
 } from '@/components/ui/alert-dialog';
 import { useUnifiedPermissions } from '@/hooks/useUnifiedPermissions';
 
@@ -20,10 +20,10 @@ interface PermissionGuardProps {
 
 // تم نقل خريطة الصلاحيات إلى permission-normalizer.ts للتوحيد
 
-const PermissionGuard = ({ 
-  requiredPermissions, 
-  children, 
-  fallbackPath = '/dashboard' 
+const PermissionGuard = ({
+  requiredPermissions,
+  children,
+  fallbackPath = '/dashboard'
 }: PermissionGuardProps) => {
   const { user, userProfile } = useAuth();
   const unifiedPerms = useUnifiedPermissions();
@@ -31,68 +31,95 @@ const PermissionGuard = ({
   const [showPermissionAlert, setShowPermissionAlert] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
-  
-  useEffect(() => {
-    console.log('🔐 [PermissionGuard] بدء التحقق من الصلاحيات:', {
-      requiredPermissions,
-      hasUser: !!user,
-      isAdminMode: unifiedPerms.isAdminMode,
-      isStaffMode: unifiedPerms.isStaffMode,
-      displayName: unifiedPerms.displayName,
-      permsReady: unifiedPerms.ready,
-    });
 
-    // ✅ إذا كان في وضع المدير أو موظف مسجل → صلاحيات مباشرة
+  // ⚡ v2.0: منع التكرار غير الضروري
+  const lastCheckRef = useRef<string>('');
+  const hasLoggedRef = useRef(false);
+
+  // ⚡ استخدام useMemo لتقليل الحسابات المتكررة
+  const permissionResult = useMemo(() => {
+    // ✅ إذا كان في وضع المدير → صلاحيات كاملة
     if (unifiedPerms.isAdminMode) {
-      console.log('✅ [PermissionGuard] وضع المدير - صلاحيات كاملة');
-      setHasPermission(true);
-      setIsChecking(false);
-      return;
+      return { hasPermission: true, reason: 'admin' };
     }
 
+    // ✅ إذا كان موظف مسجل → تحقق من صلاحياته
     if (unifiedPerms.isStaffMode) {
-      // موظف مسجل → تحقق من صلاحياته
-      const hasRequiredPermission = unifiedPerms.anyOf(requiredPermissions);
-      console.log('👤 [PermissionGuard] وضع الموظف:', {
-        hasRequiredPermission,
-        requiredPermissions,
-      });
-      setHasPermission(hasRequiredPermission);
-      setIsChecking(false);
-      return;
+      return {
+        hasPermission: unifiedPerms.anyOf(requiredPermissions),
+        reason: 'staff'
+      };
     }
 
-    // إذا لم يكن النظام جاهزاً بعد، انتظر
+    // إذا لم يكن النظام جاهزاً بعد
     if (!unifiedPerms.ready) {
-      console.log('⏳ [PermissionGuard] جاري التحميل...');
-      return;
+      return { hasPermission: null, reason: 'loading' };
     }
 
     // ليس موظف ولا مدير → تحقق من المستخدم العادي
     if (!user) {
-      console.log('❌ [PermissionGuard] لا يوجد user ولا موظف');
-      setHasPermission(false);
-      setIsChecking(false);
-      return;
+      return { hasPermission: false, reason: 'no-user' };
     }
 
     // استخدام Hook الصلاحيات الموحد للمستخدم العادي
-    const hasRequiredPermission = unifiedPerms.anyOf(requiredPermissions);
+    return {
+      hasPermission: unifiedPerms.anyOf(requiredPermissions),
+      reason: 'user'
+    };
+  }, [
+    unifiedPerms.isAdminMode,
+    unifiedPerms.isStaffMode,
+    unifiedPerms.ready,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    JSON.stringify(requiredPermissions), // استقرار أفضل
+    user?.id
+  ]);
 
-    console.log('🎯 [PermissionGuard] النتيجة النهائية:', {
-      hasRequiredPermission,
-      requiredPermissions,
-      isOrgAdmin: unifiedPerms.isOrgAdmin,
-      role: unifiedPerms.role,
-    });
+  useEffect(() => {
+    // ⚡ تجنب التكرار: إنشاء مفتاح فريد للفحص
+    const checkKey = `${permissionResult.reason}:${permissionResult.hasPermission}:${location.pathname}`;
 
-    setHasPermission(hasRequiredPermission);
+    // إذا كان نفس الفحص السابق، تخطى
+    if (lastCheckRef.current === checkKey) {
+      return;
+    }
+    lastCheckRef.current = checkKey;
+
+    // ⚡ تسجيل فقط عند التغيير الفعلي أو أول مرة
+    if (!hasLoggedRef.current || permissionResult.hasPermission !== hasPermission) {
+      hasLoggedRef.current = true;
+      console.log('🔐 [PermissionGuard] بدء التحقق من الصلاحيات:', {
+        requiredPermissions,
+        hasUser: !!user,
+        isAdminMode: unifiedPerms.isAdminMode,
+        isStaffMode: unifiedPerms.isStaffMode,
+        displayName: unifiedPerms.displayName,
+        permsReady: unifiedPerms.ready,
+      });
+
+      if (permissionResult.reason === 'admin') {
+        console.log('✅ [PermissionGuard] وضع المدير - صلاحيات كاملة');
+      } else if (permissionResult.reason === 'staff') {
+        console.log('👤 [PermissionGuard] وضع الموظف:', {
+          hasRequiredPermission: permissionResult.hasPermission,
+          requiredPermissions,
+        });
+      }
+    }
+
+    // تحديث الحالة
+    if (permissionResult.hasPermission === null) {
+      // لا تزال جارية التحميل
+      return;
+    }
+
+    setHasPermission(permissionResult.hasPermission);
     setIsChecking(false);
 
-    if (!hasRequiredPermission) {
+    if (!permissionResult.hasPermission && !hasLoggedRef.current) {
       console.log('❌ [PermissionGuard] لا يملك الصلاحيات - سيتم التوجيه إلى:', fallbackPath);
     }
-  }, [user, userProfile, requiredPermissions, location.pathname, unifiedPerms]);
+  }, [permissionResult, location.pathname]);
 
   const handleDialogClose = () => {
     setShowPermissionAlert(false);

@@ -77,9 +77,33 @@ export const saveSubcategoriesToLocalStorage = async (subcategories: Subcategory
 export const getLocalCategories = async (): Promise<Category[]> => {
   try {
     const orgId = localStorage.getItem('currentOrganizationId') || localStorage.getItem('bazaar_organization_id') || '';
+
+    // 🔍 DEBUG: تتبع جلب الفئات
+    console.log('%c[getLocalCategories] 📂 ═══════════════════════════════', 'color: #9C27B0; font-weight: bold');
+    console.log('%c[getLocalCategories] 🔍 Fetching categories for org:', 'color: #9C27B0', orgId);
+
     // ⚡ استخدام Delta Sync
-    return await deltaWriteService.getAll<Category>('product_categories' as any, orgId);
+    const categories = await deltaWriteService.getAll<Category>('product_categories' as any, orgId);
+
+    // 🔍 DEBUG: عرض النتائج
+    console.log('%c[getLocalCategories] 📊 Results:', 'color: #9C27B0; font-weight: bold', {
+      total_count: categories.length,
+      active_count: categories.filter(c => c.is_active !== false).length,
+      product_type_count: categories.filter(c => !c.type || c.type === 'product').length,
+      service_type_count: categories.filter(c => c.type === 'service').length,
+      sample_categories: categories.slice(0, 5).map(c => ({
+        id: c.id,
+        name: c.name,
+        type: c.type,
+        is_active: c.is_active,
+        organization_id: c.organization_id
+      }))
+    });
+    console.log('%c[getLocalCategories] 📂 ═══════════════════════════════', 'color: #9C27B0; font-weight: bold');
+
+    return categories;
   } catch (error) {
+    console.error('[getLocalCategories] ❌ Error fetching categories:', error);
     return [];
   }
 };

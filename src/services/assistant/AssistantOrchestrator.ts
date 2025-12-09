@@ -10,6 +10,7 @@ import { computeAvailableStock } from '@/lib/stock';
 import { ErrorHandler, handleError, getDetailedErrorMessage } from './ErrorHandler';
 import { ContextManager } from './ContextManager';
 import { UniversalIntelligence } from './UniversalIntelligence';
+import { GeniusIntelligence } from './GeniusIntelligence';
 import { LearningSystem } from './LearningSystem';
 import { FastIntelligence } from './FastIntelligence';
 import type { ParsedIntent, AssistantResult } from './types';
@@ -110,10 +111,19 @@ export const AssistantOrchestrator = {
         (AssistantOrchestrator as any)._pendingSelection = null;
       }
 
-      // 2) Main AI Logic: Use UniversalIntelligence (SIRA 2.0)
-      console.log('[AssistantOrchestrator] 🧠 Calling SIRA 2.0 UniversalIntelligence...');
+      // 2) Main AI Logic: Use GeniusIntelligence (SIRA Genius)
+      console.log('[AssistantOrchestrator] 🧠 Calling SIRA GeniusIntelligence...');
 
-      const response = await UniversalIntelligence.answer(query, opts?.history, opts?.signal);
+      // Enrich context with more details if available
+      const enrichedContext = {
+        ...opts?.context,
+        organizationId: opts?.organizationId,
+        platform: typeof window !== 'undefined' && window.navigator.userAgent.includes('Electron') ? 'Desktop' : 'Web',
+        currentPage: typeof window !== 'undefined' ? window.location.pathname : 'unknown'
+      };
+
+      const response = await GeniusIntelligence.think(query, enrichedContext, opts?.history, opts?.signal);
+      console.log(`⏱️ [AssistantOrchestrator] GeniusIntelligence.think returned at ${new Date().toISOString()}`);
 
       return {
         answer: response.answer,
@@ -121,7 +131,8 @@ export const AssistantOrchestrator = {
           confidence: response.confidence,
           suggestions: response.suggestions,
           relatedQuestions: response.relatedQuestions,
-          dataUsed: response.dataUsed
+          dataUsed: response.dataUsed,
+          intent: response.intent
         }
       };
 

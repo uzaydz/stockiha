@@ -46,6 +46,7 @@ const deleteImageFromStorage = async (imageUrl: string): Promise<boolean> => {
 interface ImageUploaderProps {
   imageUrl?: string;
   onImageUploaded: (url: string) => void;
+  onFileSelected?: (file: File | null) => void; // ⚡ Callback لتمرير الملف للحفظ المحلي
   className?: string;
   label?: string;
   aspectRatio?: number | string;
@@ -53,6 +54,7 @@ interface ImageUploaderProps {
   maxSizeInMB?: number;
   disableAutoCallback?: boolean;
   compact?: boolean;
+  offlineMode?: boolean; // ⚡ وضع أوفلاين - يحفظ الصورة محلياً فقط
 }
 
 // تصدير واجهة لوظائف المكون التي يمكن استدعاؤها من الخارج
@@ -63,6 +65,7 @@ export interface ImageUploaderRef {
 
 const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
   onImageUploaded,
+  onFileSelected,
   imageUrl = "",
   label = "رفع صورة",
   folder = "products",
@@ -70,7 +73,8 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
   aspectRatio,
   className = "",
   disableAutoCallback = false,
-  compact = false
+  compact = false,
+  offlineMode = false
 }, ref) => {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -702,8 +706,13 @@ const ImageUploader = forwardRef<ImageUploaderRef, ImageUploaderProps>(({
       setUploadProgress(50);
       setUploadStage('uploading');
 
-      // إذا كنا أوفلاين، خزّن الصورة محلياً وتخطّ الرفع
-      const offline = typeof navigator !== 'undefined' ? !navigator.onLine : false;
+      // ⚡ استدعاء callback لتمرير الملف (للاستخدام مع الحفظ المحلي)
+      if (onFileSelected) {
+        onFileSelected(compressedFile);
+      }
+
+      // إذا كنا أوفلاين أو في وضع أوفلاين، خزّن الصورة محلياً وتخطّ الرفع
+      const offline = offlineMode || (typeof navigator !== 'undefined' ? !navigator.onLine : false);
       if (offline) {
         const base64 = await convertImageToBase64(compressedFile);
         const localKey = `local_img_${Date.now()}_${Math.floor(Math.random() * 10000)}`;

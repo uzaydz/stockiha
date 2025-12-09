@@ -4478,6 +4478,10 @@ export type Database = {
       }
       organizations: {
         Row: {
+          business_features: Json | null
+          business_type: string | null
+          business_type_selected: boolean | null
+          business_type_selected_at: string | null
           created_at: string | null
           description: string | null
           domain: string | null
@@ -4493,6 +4497,10 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          business_features?: Json | null
+          business_type?: string | null
+          business_type_selected?: boolean | null
+          business_type_selected_at?: string | null
           created_at?: string | null
           description?: string | null
           domain?: string | null
@@ -4508,6 +4516,10 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          business_features?: Json | null
+          business_type?: string | null
+          business_type_selected?: boolean | null
+          business_type_selected_at?: string | null
           created_at?: string | null
           description?: string | null
           domain?: string | null
@@ -6045,6 +6057,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           name: string
+          organization_id: string | null
           slug: string | null
           updated_at: string | null
         }
@@ -6055,6 +6068,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           name: string
+          organization_id?: string | null
           slug?: string | null
           updated_at?: string | null
         }
@@ -6065,6 +6079,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           name?: string
+          organization_id?: string | null
           slug?: string | null
           updated_at?: string | null
         }

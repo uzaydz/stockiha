@@ -1,13 +1,13 @@
 import { Link, useLocation } from 'react-router-dom';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { 
-  LayoutDashboard, 
-  Building, 
-  Users, 
-  Settings, 
-  BarChart3, 
-  CreditCard, 
+import {
+  LayoutDashboard,
+  Building,
+  Users,
+  Settings,
+  BarChart3,
+  CreditCard,
   ShieldAlert,
   FileText,
   Bell,
@@ -20,7 +20,12 @@ import {
   Layers,
   Lock,
   Cog,
-  CircleDollarSign
+  CircleDollarSign,
+  Gift,
+  Trophy,
+  History,
+  Star,
+  UserCheck
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -155,6 +160,48 @@ export default function SuperAdminSidebar() {
           title: 'المتصفح العام',
           icon: Globe,
           href: '/',
+          badge: null
+        }
+      ]
+    },
+    {
+      group: 'نظام الإحالات',
+      icon: Gift,
+      items: [
+        {
+          title: 'لوحة الإحالات',
+          icon: Gift,
+          href: '/super-admin/referrals',
+          badge: null
+        },
+        {
+          title: 'المُحيلين',
+          icon: UserCheck,
+          href: '/super-admin/referrals/referrers',
+          badge: null
+        },
+        {
+          title: 'طلبات الاستبدال',
+          icon: Gift,
+          href: '/super-admin/referrals/redemptions',
+          badge: 'جديد'
+        },
+        {
+          title: 'المكافآت',
+          icon: Star,
+          href: '/super-admin/referrals/rewards',
+          badge: null
+        },
+        {
+          title: 'المستويات',
+          icon: Trophy,
+          href: '/super-admin/referrals/tiers',
+          badge: null
+        },
+        {
+          title: 'سجل المعاملات',
+          icon: History,
+          href: '/super-admin/referrals/transactions',
           badge: null
         }
       ]

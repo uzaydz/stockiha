@@ -1,6 +1,7 @@
 import React from 'react';
 import { POSDataProvider } from '@/context/POSDataContext';
 import { UnifiedDataProvider } from '@/context/UnifiedDataContext';
+import { POSModeProvider } from '@/context/POSModeContext';
 import POSAdvanced from '@/pages/POSAdvanced';
 
 // =================================================================
@@ -12,7 +13,9 @@ const POSWrapper: React.FC = () => {
     <div data-pos-context="wrapper">
       <UnifiedDataProvider>
         <POSDataProvider>
-          <POSAdvanced />
+          <POSModeProvider>
+            <POSAdvanced />
+          </POSModeProvider>
         </POSDataProvider>
       </UnifiedDataProvider>
     </div>

@@ -5,3 +5,7 @@ export { useStoreData } from './useStoreData';
 export { usePOSAdvancedState } from './usePOSAdvancedState';
 export { usePOSAdvancedDialogs } from './usePOSAdvancedDialogs';
 export { usePOSAdvancedProductHandlers } from './usePOSAdvancedProductHandlers';
+
+// ⚡ Printing Hooks
+export { usePrinter } from './usePrinter';
+export { usePrinterSettings } from './usePrinterSettings';

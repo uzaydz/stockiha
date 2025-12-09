@@ -46,8 +46,28 @@ export const imageSyncService = {
                         last_accessed: new Date().toISOString()
                     };
 
-                    const { sqliteDB } = await import('@/lib/db/sqliteAPI');
-                    await sqliteDB.upsert('local_images', localImage);
+                    // ⚡ استخدام PowerSync مباشرة
+                    const { powerSyncService } = await import('@/lib/powersync/PowerSyncService');
+                    await powerSyncService.transaction(async (tx) => {
+                        // Try UPDATE first
+                        await tx.execute(
+                            `UPDATE local_images SET 
+                             local_path = ?, entity_type = ?, entity_id = ?, file_size = ?, 
+                             mime_type = ?, last_accessed = ?
+                             WHERE url = ?`,
+                            [localImage.local_path, localImage.entity_type, localImage.entity_id, 
+                             localImage.file_size, localImage.mime_type, localImage.last_accessed, url]
+                        );
+                        // If no rows updated, INSERT
+                        await tx.execute(
+                            `INSERT OR IGNORE INTO local_images 
+                             (id, url, local_path, entity_type, entity_id, file_size, mime_type, created_at, last_accessed)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                            [localImage.id, localImage.url, localImage.local_path, localImage.entity_type, 
+                             localImage.entity_id, localImage.file_size, localImage.mime_type, 
+                             localImage.created_at, localImage.last_accessed]
+                        );
+                    });
 
                     return { success: true, localPath: result.localPath };
                 }
@@ -67,10 +87,15 @@ export const imageSyncService = {
     async getLocalImage(url: string): Promise<LocalImage | null> {
         try {
             if (isSQLiteDatabase()) {
-                const { sqliteDB } = await import('@/lib/db/sqliteAPI');
-                const res = await sqliteDB.queryOne('SELECT * FROM local_images WHERE url = ?', [url]);
-                if (res.success && res.data) {
-                    return res.data as LocalImage;
+                // ⚡ استخدام PowerSync مباشرة
+                const { powerSyncService } = await import('@/lib/powersync/PowerSyncService');
+                if (!powerSyncService.db) {
+                  console.warn('[imageSyncService] PowerSync DB not initialized');
+                  return null;
+                }
+                const res = await powerSyncService.queryOne<LocalImage>({ sql: 'SELECT * FROM local_images WHERE url = ?', params: [url] });
+                if (res) {
+                    return res;
                 }
             }
             return null;

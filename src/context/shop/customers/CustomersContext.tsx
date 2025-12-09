@@ -21,8 +21,9 @@ import { User } from '@/types';
 import { CustomersState, CustomerData, CustomersContextType } from './types';
 import { useTenant } from '@/context/TenantContext';
 import * as userService from '../userService';
-import { supabase } from '@/lib/supabase-client';
-import { mapSupabaseUserToUser } from '../mappers';
+import { unifiedCustomerService } from '@/services/UnifiedCustomerService';
+import { isAppOnline } from '@/utils/networkStatus';
+import { supabase } from '@/lib/supabase-unified';
 
 // ============================================================================
 // Initial State
@@ -91,6 +92,21 @@ export const CustomersProvider = React.memo(function CustomersProvider({
   // Customers Actions
   // ========================================================================
 
+  // ⚡ تحويل LocalCustomer إلى User
+  const mapLocalCustomerToUser = useCallback((customer: LocalCustomer): User => {
+    return {
+      id: customer.id,
+      name: customer.name || '',
+      email: customer.email,
+      phone: customer.phone,
+      role: 'customer',
+      isActive: true,
+      createdAt: customer.created_at ? new Date(customer.created_at) : new Date(),
+      updatedAt: customer.updated_at ? new Date(customer.updated_at) : new Date(),
+      organization_id: customer.organization_id
+    };
+  }, []);
+
   const refreshUsers = useCallback(async () => {
     const organizationId = tenant.currentOrganization?.id;
     if (!organizationId) {
@@ -100,45 +116,85 @@ export const CustomersProvider = React.memo(function CustomersProvider({
     try {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
 
-      // جلب المستخدمين من قاعدة البيانات
-      const { getOrganizationUsers } = await import('@/lib/api/deduplicatedApi');
-      const usersData = await getOrganizationUsers(organizationId);
+      // ⚡ استخدام الخدمة الموحدة Offline-First
+      let localCustomers: User[] = [];
+      try {
+        unifiedCustomerService.setOrganizationId(organizationId);
+        const result = await unifiedCustomerService.getCustomers({}, 1, 1000);
+        localCustomers = result.data.map(c => ({
+          id: c.id,
+          name: c.name,
+          email: c.email || '',
+          phone: c.phone || null,
+          organization_id: c.organization_id,
+          created_at: c.created_at || '',
+          updated_at: c.updated_at || '',
+          nif: c.nif ?? null,
+          rc: c.rc ?? null,
+          nis: c.nis ?? null,
+          rib: c.rib ?? null,
+          address: c.address ?? null
+        } as User));
+        console.log(`[CustomersContext] 📦 Loaded ${localCustomers.length} customers from PowerSync`);
+      } catch (localError) {
+        console.warn('[CustomersContext] ⚠️ Failed to load from PowerSync:', localError);
+      }
 
-      const mappedUsers = usersData.map(mapSupabaseUserToUser);
-
-      // دمج المستخدمين من API مع المستخدمين المخزنة محليًا
-      setState(prev => {
-        const mergedUsers = [...mappedUsers];
-
-        // إضافة المستخدمين المخزنة محليًا التي لا توجد في API
-        for (const localUser of prev.users) {
-          const existingIndex = mergedUsers.findIndex(u => u.id === localUser.id);
-          if (existingIndex >= 0) {
-            // تحديث البيانات الموجودة إذا كانت البيانات المحلية أحدث
-            if (localUser.updatedAt > mergedUsers[existingIndex].updatedAt) {
-              mergedUsers[existingIndex] = localUser;
-            }
-          } else {
-            // إضافة المستخدم المحلي إذا لم يكن موجوداً
-            mergedUsers.push(localUser);
-          }
-        }
-
-        return {
-          ...prev,
-          users: mergedUsers,
-          isLoading: false,
-        };
-      });
+      // وضع Local-Only: استخدام PowerSync فقط، بدون أي fallback للسيرفر
+      setState(prev => ({
+        ...prev,
+        users: localCustomers,
+        isLoading: false,
+      }));
+      console.log(`[CustomersContext] ✅ Local-only customers: ${localCustomers.length}`);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'فشل في جلب المستخدمين';
+      console.error('[CustomersContext] ❌ Error:', errorMessage);
       setState(prev => ({
         ...prev,
         isLoading: false,
         error: errorMessage,
       }));
     }
-  }, [tenant.currentOrganization?.id]);
+  }, [tenant.currentOrganization?.id, mapLocalCustomerToUser]);
+
+  // ========================================================================
+  // ⚡ Auto-refresh on mount and organization change
+  // ========================================================================
+
+  const hasInitialized = React.useRef(false);
+
+  useEffect(() => {
+    const organizationId = tenant.currentOrganization?.id;
+    if (organizationId && !hasInitialized.current) {
+      hasInitialized.current = true;
+      // ⚡ تأخير قصير للسماح بتهيئة SQLite
+      const timer = setTimeout(() => {
+        refreshUsers();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [tenant.currentOrganization?.id, refreshUsers]);
+
+  // ⚡ Re-fetch when coming back online
+  useEffect(() => {
+    const handleOnline = () => {
+      console.log('[CustomersContext] 🌐 Back online - refreshing customers');
+      refreshUsers();
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('delta-sync-complete', handleOnline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('delta-sync-complete', handleOnline);
+    };
+  }, [refreshUsers]);
+
+  // ========================================================================
+  // Other Actions
+  // ========================================================================
 
   const addUser = useCallback((user: Omit<User, 'id' | 'createdAt' | 'updatedAt'>): User => {
     const newUser: User = {

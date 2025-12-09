@@ -5,10 +5,20 @@ export { default as AnalyticsCharts } from './AnalyticsCharts';
 export { default as SalesSection } from './SalesSection';
 export { default as FinancialSection } from './FinancialSection';
 
-// 🔧 الأدوات والأنواع
-export * from './types';
-export * from './utils';
-export * from './useFinancialData';
-
-// 📄 الصفحة الرئيسية المحسنة
-export { default as FinancialAnalyticsOptimized } from '../../pages/FinancialAnalyticsOptimized';
+// 🔧 الأدوات والأنواع - تصدير صريح بدلاً من star export
+export type { DateRange, AnalyticsFilters, FinancialData, ChartDataItem } from './types';
+export {
+  getDateRangePreset,
+  formatCurrency,
+  formatPercentage,
+  formatLargeNumber,
+  calculateGrowthRate,
+  formatDate,
+  formatDateTime,
+  prepareSalesChartData,
+  prepareProfitAnalysisData,
+  calculateProfitMargin,
+  getColorByType,
+  useCurrentBreakpoint
+} from './utils';
+export { useFinancialData, useChartData } from './useFinancialData';

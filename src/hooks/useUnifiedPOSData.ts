@@ -8,10 +8,12 @@
  */
 
 import { useEffect, useMemo, useRef } from 'react';
-import { sqliteDB, isSQLiteAvailable } from '@/lib/db/sqliteAPI';
+// ⚡ تم إزالة sqliteDB و isSQLiteAvailable - PowerSync متاح دائماً
+// import { sqliteDB, isSQLiteAvailable } from '@/lib/db/sqliteAPI';
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
 import { dbInitManager } from '@/lib/db/DatabaseInitializationManager';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
+// ⚡ تم إزالة استيراد supabase - القراءة الآن فقط من SQLite
 import { useTenant } from '@/context/TenantContext';
 import type { LocalProduct, LocalCustomer, LocalPOSOrder, LocalOrganizationSubscription } from '@/database/localDb';
 import { deltaWriteService } from '@/services/DeltaWriteService';
@@ -23,7 +25,7 @@ import {
   mapLocalCategoryToSubscriptionCategory,
   ensureArray
 } from '@/context/POSDataContext';
-import { isAppOnline, markNetworkOnline, markNetworkOffline } from '@/utils/networkStatus';
+// ⚡ تم إزالة استيراد networkStatus - لم يعد مطلوباً في Hook
 import { imageOfflineService } from '@/services/ImageOfflineService';
 
 // =====================================================
@@ -100,12 +102,13 @@ const parseDateToISOString = (value: unknown, fallback: string): string => {
   try {
     const date = new Date(value as any);
     if (!Number.isNaN(date.getTime())) return date.toISOString();
-  } catch {}
+  } catch { }
   return fallback;
 };
 
 // ⚡ دالة لحفظ البيانات في قاعدة البيانات المحلية باستخدام Delta Sync
-const hydrateLocalDBFromResponse = async (
+// ⚡ يتم استدعاؤها من posDataSyncService عند المزامنة
+export const hydrateLocalDBFromResponse = async (
   orgId: string,
   response: CompletePOSResponse
 ) => {
@@ -135,134 +138,122 @@ const hydrateLocalDBFromResponse = async (
       ordersCount: recent_orders?.length || 0
     });
 
-    // ⚡ حفظ المنتجات باستخدام Delta Sync
-    if (Array.isArray(products)) {
-      for (const product of products) {
-        if (!product?.id) continue;
-
-        const createdAt = parseDateToISOString(
-          (product as any).created_at ?? product.createdAt,
-          now
-        );
-        const updatedAt = parseDateToISOString(
-          (product as any).updated_at ?? product.updatedAt ?? createdAt,
-          createdAt
-        );
-        const stock =
-          (product as any).stock_quantity ??
-          (product as any).stockQuantity ??
-          (product as any).actual_stock_quantity ??
-          0;
-
-        const localProduct: LocalProduct = {
-          ...(product as any),
-          id: product.id,
-          organization_id: (product as any).organization_id ?? orgId,
-          created_at: createdAt,
-          updated_at: updatedAt,
-          localUpdatedAt: now,
-          synced: true,
-          syncStatus: undefined,
-          pendingOperation: undefined,
-          lastSyncAttempt: now,
-          stock_quantity: Number.isFinite(Number(stock)) ? Number(stock) : 0,
-          stockQuantity: Number.isFinite(Number(stock)) ? Number(stock) : 0,
-          actual_stock_quantity:
-            (product as any).actual_stock_quantity ??
+    // ⚡ حفظ المنتجات باستخدام Batch UPSERT الحقيقي (أسرع 20x)
+    if (Array.isArray(products) && products.length > 0) {
+      const localProducts: LocalProduct[] = products
+        .filter(p => p?.id)
+        .map(product => {
+          const createdAt = parseDateToISOString(
+            (product as any).created_at ?? product.createdAt,
+            now
+          );
+          const updatedAt = parseDateToISOString(
+            (product as any).updated_at ?? product.updatedAt ?? createdAt,
+            createdAt
+          );
+          const stock =
             (product as any).stock_quantity ??
             (product as any).stockQuantity ??
-            stock
-        };
+            (product as any).actual_stock_quantity ??
+            0;
 
-        await deltaWriteService.saveFromServer('products', localProduct);
+          return {
+            ...(product as any),
+            id: product.id,
+            organization_id: (product as any).organization_id ?? orgId,
+            created_at: createdAt,
+            updated_at: updatedAt,
+            localUpdatedAt: now,
+            synced: 1,
+            stock_quantity: Number.isFinite(Number(stock)) ? Number(stock) : 0,
+            actual_stock_quantity:
+              (product as any).actual_stock_quantity ??
+              (product as any).stock_quantity ??
+              (product as any).stockQuantity ??
+              stock
+          };
+        });
+
+      // ⚡ استخدام Batch UPSERT الحقيقي - جملة SQL واحدة لكل 100 منتج!
+      console.log(`[hydrateLocalDB] ⚡ حفظ ${localProducts.length} منتج باستخدام Batch UPSERT...`);
+      const startTime = Date.now();
+
+      const batchResult = await deltaWriteService.upsertBatch('products', localProducts);
+
+      const duration = Date.now() - startTime;
+      console.log(`[hydrateLocalDB] ✅ تم حفظ ${batchResult.count} منتج في ${duration}ms (${Math.round(localProducts.length / (duration / 1000))} منتج/ثانية)`);
+
+      if (batchResult.errors > 0) {
+        console.warn(`[hydrateLocalDB] ⚠️ فشل حفظ ${batchResult.errors} منتج`);
       }
-      console.log(`[hydrateLocalDB] ⚡ تم حفظ ${products.length} منتج`);
     }
 
-    // ⚡ حفظ العملاء باستخدام Delta Sync
-    if (Array.isArray(customers)) {
-      for (const customer of customers) {
-        if (!customer?.id) continue;
+    // ⚡ حفظ العملاء باستخدام Batch UPSERT الحقيقي
+    if (Array.isArray(customers) && customers.length > 0) {
+      const localCustomers: LocalCustomer[] = customers
+        .filter(c => c?.id)
+        .map(customer => {
+          const createdAt = parseDateToISOString((customer as any).created_at, now);
+          const updatedAt = parseDateToISOString(
+            (customer as any).updated_at ?? createdAt,
+            createdAt
+          );
 
-        const createdAt = parseDateToISOString((customer as any).created_at, now);
-        const updatedAt = parseDateToISOString(
-          (customer as any).updated_at ?? createdAt,
-          createdAt
-        );
+          return {
+            id: customer.id,
+            name: customer.name ?? 'عميل',
+            email: customer.email ?? '',
+            phone: customer.phone ?? '',
+            organization_id: (customer as any).organization_id ?? orgId,
+            created_at: createdAt,
+            updated_at: updatedAt,
+            synced: 1
+          };
+        });
 
-        const localCustomer: LocalCustomer = {
-          id: customer.id,
-          name: customer.name ?? 'عميل',
-          email: customer.email ?? '',
-          phone: customer.phone ?? '',
-          organization_id: (customer as any).organization_id ?? orgId,
-          created_at: createdAt,
-          updated_at: updatedAt,
-          synced: true,
-          syncStatus: 'synced',
-          localUpdatedAt: now,
-          pendingOperation: undefined,
-          lastSyncAttempt: now
-        };
-
-        await deltaWriteService.saveFromServer('customers', localCustomer);
-      }
-      console.log(`[hydrateLocalDB] ⚡ تم حفظ ${customers.length} عميل`);
+      // ⚡ استخدام Batch UPSERT الحقيقي
+      const batchResult = await deltaWriteService.upsertBatch('customers', localCustomers);
+      console.log(`[hydrateLocalDB] ⚡ تم حفظ ${batchResult.count} عميل`);
     }
 
-    // ⚡ حفظ الطلبات باستخدام Delta Sync
-    if (Array.isArray(recent_orders)) {
-      for (const order of recent_orders) {
-        if (!order?.id) continue;
+    // ⚡ حفظ الطلبات باستخدام Batch UPSERT الحقيقي
+    if (Array.isArray(recent_orders) && recent_orders.length > 0) {
+      const localOrders: LocalPOSOrder[] = recent_orders
+        .filter(o => o?.id)
+        .map(order => {
+          const createdAt = parseDateToISOString((order as any).created_at, now);
+          const updatedAt = parseDateToISOString(
+            (order as any).updated_at ?? createdAt,
+            createdAt
+          );
 
-        const createdAt = parseDateToISOString((order as any).created_at, now);
-        const updatedAt = parseDateToISOString(
-          (order as any).updated_at ?? createdAt,
-          createdAt
-        );
+          return {
+            id: order.id,
+            organization_id: (order as any).organization_id ?? orgId,
+            employee_id: (order as any).employee_id ?? null,
+            customer_id: (order as any).customer_id ?? null,
+            customer_name: (order as any).customer_name ?? 'عميل نقاط البيع',
+            subtotal: Number((order as any).subtotal ?? (order as any).total ?? 0),
+            total: Number((order as any).total ?? 0),
+            discount: Number((order as any).discount ?? 0),
+            amount_paid: Number((order as any).amount_paid ?? (order as any).total ?? 0),
+            payment_method: (order as any).payment_method ?? 'cash',
+            payment_status: (order as any).payment_status ?? 'pending',
+            notes: (order as any).notes ?? '',
+            remaining_amount: Number((order as any).remaining_amount ?? 0),
+            status: 'synced',
+            synced: 1,
+            created_at: createdAt,
+            updated_at: updatedAt,
+            order_number: (order as any).order_number ||
+              (order as any).orderNumber ||
+              String((order as any).customer_order_number ?? order.id)
+          };
+        });
 
-        const localOrder: LocalPOSOrder = {
-          id: order.id,
-          organization_id: (order as any).organization_id ?? orgId,
-          employee_id: (order as any).employee_id ?? null,
-          customer_id: (order as any).customer_id ?? null,
-          customer_name: (order as any).customer_name ?? 'عميل نقاط البيع',
-          subtotal: Number((order as any).subtotal ?? (order as any).total ?? 0),
-          total: Number((order as any).total ?? 0),
-          discount: Number((order as any).discount ?? 0),
-          amount_paid: Number((order as any).amount_paid ?? (order as any).total ?? 0),
-          payment_method: (order as any).payment_method ?? 'cash',
-          payment_status: (order as any).payment_status ?? 'pending',
-          notes: (order as any).notes ?? '',
-          remaining_amount: Number((order as any).remaining_amount ?? 0),
-          consider_remaining_as_partial: Boolean((order as any).consider_remaining_as_partial ?? false),
-          status: 'synced',
-          synced: true,
-          syncStatus: 'synced',
-          pendingOperation: undefined,
-          created_at: createdAt,
-          updated_at: updatedAt,
-          lastSyncAttempt: now,
-          error: undefined,
-          order_number: (order as any).order_number ||
-            (order as any).orderNumber ||
-            String((order as any).customer_order_number ?? order.id),
-          localCreatedAt: createdAt,
-          local_order_number: Number((order as any).customer_order_number ?? 0) || 0,
-          remote_order_id: (order as any).remote_order_id ?? order.id,
-          remote_customer_order_number: (order as any).customer_order_number ?? null,
-          payload: undefined,
-          metadata: (order as any).metadata ?? null,
-          message: undefined,
-          pending_updates: null,
-          extra_fields: (order as any).extra_fields ?? {
-            remote_status: (order as any).status ?? 'unknown'
-          }
-        };
-
-        await deltaWriteService.saveFromServer('pos_orders', localOrder);
-      }
-      console.log(`[hydrateLocalDB] ⚡ تم حفظ ${recent_orders.length} طلب`);
+      // ⚡ استخدام Batch UPSERT الحقيقي
+      const batchResult = await deltaWriteService.upsertBatch('orders', localOrders);
+      console.log(`[hydrateLocalDB] ⚡ تم حفظ ${batchResult.count} طلب`);
     }
 
     console.log('[hydrateLocalDB] ⚡ اكتملت عملية الحفظ بنجاح');
@@ -299,19 +290,24 @@ const loadCachedCompletePOSData = async (
 ): Promise<CompletePOSResponse | null> => {
   try {
     const cacheKey = buildCacheKey(orgId, page, limit, search, categoryId);
-    if (isSQLiteAvailable()) {
-      try { await dbInitManager.initialize(orgId); } catch { }
-      const res = await sqliteDB.getPOSOfflineCacheById(cacheKey);
-      const cached = res.success ? (res.data as CachedPOSResponse | null) : null;
-      if (cached?.data) {
-        console.warn('[UnifiedPOSData][Cache] استخدام البيانات المخزنة (SQLite)', {
-          orgId,
-          cacheKey,
-          productCount: cached.data.data?.products?.length ?? 0,
-          cachedAt: cached.timestamp
-        });
-        return cached.data;
-      }
+    // ⚡ استخدام PowerSync مباشرة
+    if (!powerSyncService.db) {
+      console.warn('[useUnifiedPOSData] PowerSync DB not initialized');
+      return null;
+    }
+    const res = await powerSyncService.queryOne<any>({
+      sql: 'SELECT * FROM pos_offline_cache WHERE id = ?',
+      params: [cacheKey]
+    });
+    const cached = res ? (res as CachedPOSResponse | null) : null;
+    if (cached?.data) {
+      console.warn('[UnifiedPOSData][Cache] استخدام البيانات المخزنة (SQLite)', {
+        orgId,
+        cacheKey,
+        productCount: cached.data.data?.products?.length ?? 0,
+        cachedAt: cached.timestamp
+      });
+      return cached.data;
     }
   } catch (error) {
     console.error('[UnifiedPOSData][Cache] فشل تحميل البيانات من SQLite', error);
@@ -319,7 +315,8 @@ const loadCachedCompletePOSData = async (
   return null;
 };
 
-// ⚡ دالة لتحميل البيانات الأولية من قاعدة البيانات المحلية باستخدام Delta Sync
+// ⚡ دالة لتحميل البيانات الأولية من قاعدة البيانات المحلية (محسّنة 2025)
+// تستخدم SQL-level filtering و pagination بدلاً من تحميل كل شيء للذاكرة
 const loadInitialDataFromLocalDB = async (
   orgId: string,
   page: number,
@@ -328,7 +325,8 @@ const loadInitialDataFromLocalDB = async (
   categoryId?: string
 ) => {
   const logPrefix = '[UnifiedPOSData][LocalDB]';
-  console.info(`${logPrefix} ===== بدء loadInitialDataFromLocalDB (Delta Sync) =====`, {
+  const startTime = Date.now();
+  console.info(`${logPrefix} ===== بدء loadInitialDataFromLocalDB (Smart SQL) =====`, {
     orgId,
     page,
     limit,
@@ -337,128 +335,60 @@ const loadInitialDataFromLocalDB = async (
   });
 
   try {
-    // ⚡ استخدام Delta Sync بدلاً من inventoryDB
+    // ⚡ استخدام الدوال الذكية - SQL filtering & pagination
+    // هذا يجلب فقط المنتجات المطلوبة بدلاً من كل المنتجات!
     const [
-      localProducts,
+      productsResult,
+      productStats,
+      orderStats,
       localCategories,
       localSettings,
       localSubscriptions,
       localCustomers,
-      localOrders
+      recentOrdersResult
     ] = await Promise.all([
-      deltaWriteService.getAll<LocalProduct>('products', orgId),
+      // ⚡ جلب المنتجات مع فلترة SQL - فقط ما نحتاجه!
+      deltaWriteService.searchProductsSmart({
+        organizationId: orgId,
+        search,
+        categoryId,
+        page,
+        limit,
+        isActive: true
+      }),
+      // ⚡ إحصائيات المنتجات - SQL aggregation
+      deltaWriteService.getProductStats(orgId),
+      // ⚡ إحصائيات الطلبات - SQL aggregation
+      deltaWriteService.getOrderStats(orgId),
+      // الفئات
       getLocalCategories(),
+      // الإعدادات
       localPosSettingsService.get(orgId),
+      // الاشتراكات
       deltaWriteService.getAll<LocalOrganizationSubscription>('organization_subscriptions' as any, orgId).catch(() => []),
-      deltaWriteService.getAll<LocalCustomer>('customers', orgId).catch(() => []),
-      deltaWriteService.getAll<LocalPOSOrder>('pos_orders', orgId).catch(() => [])
+      // العملاء
+      deltaWriteService.getAll<LocalCustomer>('customers', orgId, { limit: 100 }).catch(() => []),
+      // آخر 10 طلبات فقط
+      deltaWriteService.getOrdersSmart({
+        organizationId: orgId,
+        page: 1,
+        limit: 10
+      }).catch(() => ({ orders: [], totalCount: 0, page: 1, totalPages: 1 }))
     ]);
 
-    // ⚡ جلب الألوان والمقاسات من جداولها المنفصلة
-    const productIds = localProducts.map(p => p.id);
-    let colorsMap: Map<string, any[]> = new Map();
-    let sizesMap: Map<string, any[]> = new Map();
+    // ⚡ المنتجات جاهزة مع الألوان والمقاسات من searchProductsSmart
+    const mappedProducts = productsResult.products.map(mapLocalProductToPOSProduct);
 
-    if (productIds.length > 0) {
-      try {
-        const allColors = await deltaWriteService.query<any>(
-          'product_colors',
-          `SELECT * FROM product_colors WHERE product_id IN (${productIds.map(() => '?').join(',')})`,
-          productIds
-        );
-
-        const allSizes = await deltaWriteService.query<any>(
-          'product_sizes',
-          `SELECT * FROM product_sizes WHERE product_id IN (${productIds.map(() => '?').join(',')})`,
-          productIds
-        );
-
-        // تجميع الألوان حسب product_id
-        for (const color of allColors || []) {
-          if (!colorsMap.has(color.product_id)) {
-            colorsMap.set(color.product_id, []);
-          }
-          colorsMap.get(color.product_id)!.push(color);
-        }
-
-        // تجميع المقاسات حسب color_id
-        for (const size of allSizes || []) {
-          if (!sizesMap.has(size.color_id)) {
-            sizesMap.set(size.color_id, []);
-          }
-          sizesMap.get(size.color_id)!.push(size);
-        }
-
-        // ربط المقاسات بالألوان
-        for (const [, colors] of colorsMap) {
-          for (const color of colors) {
-            color.sizes = sizesMap.get(color.id) || [];
-            color.product_sizes = color.sizes;
-          }
-        }
-
-        console.info(`${logPrefix} 🎨 تم تحميل الألوان والمقاسات:`, {
-          colors: allColors?.length || 0,
-          sizes: allSizes?.length || 0
-        });
-      } catch (variantError) {
-        console.warn(`${logPrefix} ⚠️ Error loading variants:`, variantError);
-      }
-    }
-
-    // إضافة الألوان للمنتجات
-    const productsWithColors = localProducts.map(product => {
-      const colors = colorsMap.get(product.id) || [];
-      return {
-        ...product,
-        colors: colors.length > 0 ? colors : (product as any).colors || [],
-        product_colors: colors.length > 0 ? colors : (product as any).product_colors || [],
-        variants: colors.length > 0 ? colors : (product as any).variants || []
-      };
-    });
-
-    console.info(`${logPrefix} ⚡ تم تحميل الكيانات من Delta Sync`, {
-      products: productsWithColors.length,
+    const duration = Date.now() - startTime;
+    console.info(`${logPrefix} ⚡ تم التحميل في ${duration}ms`, {
+      productsLoaded: mappedProducts.length,
+      totalProducts: productsResult.totalCount,
       categories: localCategories.length,
       subscriptions: localSubscriptions.length,
       customers: localCustomers.length,
-      orders: localOrders.length,
-      hasSettings: Boolean(localSettings),
-      colorsLoaded: Array.from(colorsMap.values()).flat().length,
-      sizesLoaded: Array.from(sizesMap.values()).flat().length
+      recentOrders: recentOrdersResult.orders.length,
+      hasSettings: Boolean(localSettings)
     });
-
-    const mappedProducts = productsWithColors.map(mapLocalProductToPOSProduct);
-    const normalizedSearch = search?.trim().toLowerCase() || '';
-
-    const filteredProducts = mappedProducts.filter((product) => {
-      const matchesCategory =
-        !categoryId || categoryId === '' || product.category_id === categoryId;
-
-      if (!normalizedSearch) return matchesCategory;
-
-      const name = (product.name || '').toLowerCase();
-      const barcode = (product.barcode || '').toLowerCase();
-      const productColors = ensureArray(product.colors) as any[];
-      const matchesVariant = productColors.some((color: any) => {
-        const colorName = (color?.name || '').toLowerCase();
-        const colorBarcode = (color?.barcode || '').toLowerCase();
-        const colorSizes = ensureArray(color?.sizes) as any[];
-        const sizeMatch = colorSizes.some((size: any) => {
-          const sizeName = (size?.size_name || '').toLowerCase();
-          const sizeBarcode = (size?.barcode || '').toLowerCase();
-          return sizeName.includes(normalizedSearch) || sizeBarcode.includes(normalizedSearch);
-        });
-        return colorName.includes(normalizedSearch) || colorBarcode.includes(normalizedSearch) || Boolean(sizeMatch);
-      });
-
-      return matchesCategory && (name.includes(normalizedSearch) || barcode.includes(normalizedSearch) || matchesVariant);
-    });
-
-    const safeLimit = limit > 0 ? limit : filteredProducts.length || 1;
-    const startIndex = (page - 1) * safeLimit;
-    const endIndex = startIndex + safeLimit;
-    const paginatedProducts = filteredProducts.slice(startIndex, endIndex);
 
     const productCategories = localCategories
       .filter(category => category.organization_id === orgId && (!category.type || category.type === 'product'))
@@ -488,11 +418,7 @@ const loadInitialDataFromLocalDB = async (
       organization_id: customer.organization_id
     }));
 
-    const sortedOrders = [...(localOrders || [])].sort(
-      (a, b) => new Date(b.created_at ?? b.updated_at ?? 0).getTime() - new Date(a.created_at ?? a.updated_at ?? 0).getTime()
-    );
-
-    const recentOrders = sortedOrders.slice(0, 10).map(order => ({
+    const recentOrders = recentOrdersResult.orders.map(order => ({
       id: order.id,
       organization_id: order.organization_id,
       customer_id: order.customer_id ?? null,
@@ -506,27 +432,6 @@ const loadInitialDataFromLocalDB = async (
       updated_at: order.updated_at ?? order.created_at,
       remaining_amount: order.remaining_amount ?? 0
     }));
-
-    const totalProductsCount = mappedProducts.length;
-    const outOfStockProducts = mappedProducts.filter(
-      product => (product.actual_stock_quantity ?? product.stock_quantity ?? 0) <= 0
-    ).length;
-    const totalStock = mappedProducts.reduce(
-      (sum, product) => sum + (product.actual_stock_quantity ?? product.stock_quantity ?? 0),
-      0
-    );
-
-    const now = new Date();
-    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-
-    const totalPosOrders = sortedOrders.length;
-    const todayOrders = sortedOrders.filter(order => {
-      const createdAt = new Date(order.created_at ?? order.updated_at ?? 0).getTime();
-      return createdAt >= startOfDay;
-    });
-
-    const totalSales = sortedOrders.reduce((sum, order) => sum + (order.total ?? 0), 0);
-    const todaySales = todayOrders.reduce((sum, order) => sum + (order.total ?? 0), 0);
 
     const organizationApps = [
       {
@@ -559,13 +464,13 @@ const loadInitialDataFromLocalDB = async (
     return {
       success: true,
       data: {
-        products: paginatedProducts,
+        products: mappedProducts,
         pagination: {
           current_page: page,
-          total_pages: safeLimit > 0 ? Math.max(1, Math.ceil(filteredProducts.length / safeLimit)) : 1,
-          total_count: filteredProducts.length,
-          per_page: safeLimit,
-          has_next_page: endIndex < filteredProducts.length,
+          total_pages: productsResult.totalPages,
+          total_count: productsResult.totalCount,
+          per_page: limit,
+          has_next_page: page < productsResult.totalPages,
           has_prev_page: page > 1
         },
         product_categories: productCategories,
@@ -577,19 +482,19 @@ const loadInitialDataFromLocalDB = async (
         customers,
         recent_orders: recentOrders,
         inventory_stats: {
-          totalProducts: totalProductsCount,
-          outOfStockProducts,
-          totalStock
+          totalProducts: productStats.totalProducts,
+          outOfStockProducts: productStats.outOfStock,
+          totalStock: productStats.totalStock
         },
         order_stats: {
-          totalPosOrders,
-          todayOrders: todayOrders.length,
-          totalSales,
-          todaySales
+          totalPosOrders: orderStats.totalOrders,
+          todayOrders: orderStats.todayOrders,
+          totalSales: orderStats.totalSales,
+          todaySales: orderStats.todaySales
         }
       },
       meta: {
-        execution_time_ms: 0,
+        execution_time_ms: duration,
         data_timestamp: new Date().toISOString(),
         organization_id: orgId
       }
@@ -642,111 +547,87 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
         throw new Error('معرف المؤسسة مطلوب');
       }
 
-      const navigatorOnline = typeof navigator !== 'undefined' ? navigator.onLine : true;
-      const isOffline = !navigatorOnline || !isAppOnline();
+      // ⚡ توحيد مسار القراءة: القراءة دائمًا من SQLite فقط
+      // المزامنة تحدث في الخلفية عبر posDataSyncService
+      console.log('[UnifiedPOSData] ⚡ قراءة البيانات من SQLite فقط (Offline-First)');
 
-      if (isOffline) {
-        console.warn('[UnifiedPOSData] وضع عدم الاتصال - استخدام البيانات المحلية');
+      const localData = await loadInitialDataFromLocalDB(
+        currentOrganization.id,
+        page,
+        limit,
+        search,
+        categoryId
+      );
 
-        const offlineData = await loadInitialDataFromLocalDB(
-          currentOrganization.id,
-          page,
-          limit,
-          search,
-          categoryId
-        );
-
-        if (offlineData) {
-          console.info('[UnifiedPOSData] ⚡ تم تحميل البيانات من Delta Sync بنجاح');
-          return offlineData;
-        }
-
-        return {
-          success: true,
-          data: {
-            products: [],
-            subscriptions: [],
-            subscription_categories: [],
-            product_categories: [],
-            pos_settings: null,
-            organization_apps: [],
-            users: [],
-            customers: [],
-            recent_orders: [],
-            inventory_stats: { totalProducts: 0, outOfStockProducts: 0, totalStock: 0 },
-            order_stats: { totalPosOrders: 0, todayOrders: 0, totalSales: 0, todaySales: 0 },
-            pagination: {
-              current_page: page,
-              total_pages: 1,
-              total_count: 0,
-              per_page: limit,
-              has_next_page: false,
-              has_prev_page: false
-            }
-          },
-          meta: {
-            execution_time_ms: 0,
-            data_timestamp: new Date().toISOString(),
-            organization_id: currentOrganization.id
-          }
-        };
+      if (localData) {
+        console.info('[UnifiedPOSData] ✅ تم تحميل البيانات من SQLite بنجاح');
+        return localData;
       }
+
+      // ⚡ إذا لم توجد بيانات محلية، حاول المزامنة الأولية من السيرفر
+      console.warn('[UnifiedPOSData] ⚠️ لا توجد بيانات محلية - محاولة المزامنة الأولية...');
 
       try {
-        const { data, error } = await supabase.rpc('get_complete_pos_data_optimized' as any, {
-          p_organization_id: currentOrganization.id,
-          p_products_page: page,
-          p_products_limit: limit,
-          p_search: search || null,
-          p_category_id: categoryId || null
-        });
-
-        if (error) throw new Error(`خطأ في جلب بيانات POS: ${error.message}`);
-        if (!data) throw new Error('لم يتم إرجاع أي بيانات من الخادم');
-
-        const responseData = Array.isArray(data) ? data[0] : data;
-
-        if (responseData && typeof responseData === 'object' && 'success' in responseData) {
-          if (!responseData.success) {
-            throw new Error(responseData.error || 'فشل في جلب البيانات');
-          }
-          const finalResponse = responseData as CompletePOSResponse;
-          markNetworkOnline();
-          await hydrateLocalDBFromResponse(currentOrganization.id, finalResponse);
-          return finalResponse;
-        }
-
-        const finalResponse: CompletePOSResponse = {
-          success: true,
-          data: responseData as CompletePOSData,
-          meta: {
-            execution_time_ms: 0,
-            data_timestamp: new Date().toISOString(),
-            organization_id: currentOrganization.id
-          }
-        };
-        markNetworkOnline();
-        await hydrateLocalDBFromResponse(currentOrganization.id, finalResponse);
-        return finalResponse;
-      } catch (fetchError) {
-        console.error('[UnifiedPOSData] فشل جلب البيانات - استخدام البيانات المحلية', fetchError);
-        markNetworkOffline({ force: true });
-
-        const offlineData = await loadInitialDataFromLocalDB(
-          currentOrganization.id,
+        const { syncPOSDataFromServer } = await import('@/services/posDataSyncService');
+        const syncResult = await syncPOSDataFromServer({
+          organizationId: currentOrganization.id,
           page,
           limit,
           search,
           categoryId
-        );
+        });
 
-        if (offlineData) {
-          console.info('[UnifiedPOSData] ⚡ تم استخدام البيانات المحلية بعد فشل الجلب');
-          return offlineData;
+        if (syncResult.success) {
+          console.log('[UnifiedPOSData] ✅ تمت المزامنة الأولية - إعادة تحميل البيانات المحلية');
+          // إعادة تحميل البيانات بعد المزامنة
+          const freshLocalData = await loadInitialDataFromLocalDB(
+            currentOrganization.id,
+            page,
+            limit,
+            search,
+            categoryId
+          );
+          if (freshLocalData) {
+            return freshLocalData;
+          }
+        } else {
+          console.warn('[UnifiedPOSData] ⚠️ فشلت المزامنة الأولية:', syncResult.error);
         }
-
-        throw fetchError;
+      } catch (syncError) {
+        console.error('[UnifiedPOSData] ❌ خطأ في المزامنة الأولية:', syncError);
       }
+
+      // إذا فشل كل شيء، إرجاع بيانات فارغة
+      console.warn('[UnifiedPOSData] ⚠️ إرجاع بيانات فارغة');
+      return {
+        success: true,
+        data: {
+          products: [],
+          subscriptions: [],
+          subscription_categories: [],
+          product_categories: [],
+          pos_settings: null,
+          organization_apps: [],
+          users: [],
+          customers: [],
+          recent_orders: [],
+          inventory_stats: { totalProducts: 0, outOfStockProducts: 0, totalStock: 0 },
+          order_stats: { totalPosOrders: 0, todayOrders: 0, totalSales: 0, todaySales: 0 },
+          pagination: {
+            current_page: page,
+            total_pages: 1,
+            total_count: 0,
+            per_page: limit,
+            has_next_page: false,
+            has_prev_page: false
+          }
+        },
+        meta: {
+          execution_time_ms: 0,
+          data_timestamp: new Date().toISOString(),
+          organization_id: currentOrganization.id
+        }
+      };
     },
     enabled: enabled && !!currentOrganization?.id && isSearchValid,
     staleTime,
@@ -886,11 +767,14 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
     });
   };
 
+  // ⚡ تحديث المخزون في الكاش - مع دعم جميع أنواع البيع
   const updateProductStockInCache = (
     productId: string,
     colorId: string | null,
     sizeId: string | null,
-    quantityChange: number
+    quantityChange: number,
+    // ⚡ معامل جديد لتحديد نوع البيع
+    sellingUnit?: 'piece' | 'weight' | 'meter' | 'box'
   ) => {
     applyUpdateToPOSQueries((oldData) => {
       if (!oldData?.success || !oldData.data) return oldData;
@@ -900,6 +784,14 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
 
         const baseStock = product.actual_stock_quantity ?? product.stockQuantity ?? product.stock_quantity ?? 0;
         const clamp = (value: number) => Math.max(0, value);
+
+        // ⚡ تحديد نوع البيع من المعامل أو من المنتج
+        const effectiveUnit = sellingUnit ||
+          (product as any).selling_unit_type ||
+          (product as any).sellingUnit ||
+          ((product as any).sell_by_meter ? 'meter' :
+           (product as any).sell_by_weight ? 'weight' :
+           (product as any).sell_by_box ? 'box' : 'piece');
 
         const recalculateTotalFromColors = (colors: any[] | undefined) => {
           if (!Array.isArray(colors)) return 0;
@@ -947,8 +839,42 @@ export const useUnifiedPOSData = (options: POSDataOptions = {}) => {
           return applyTotalStock({ ...product, colors: updatedColors }, totalStock);
         }
 
-        const totalStock = clamp(baseStock + quantityChange);
-        return applyTotalStock(product, totalStock);
+        // ⚡ تحديث المخزون حسب نوع البيع
+        switch (effectiveUnit) {
+          case 'meter':
+            const newLength = clamp((product as any).available_length || 0) + quantityChange;
+            return {
+              ...product,
+              available_length: clamp(newLength),
+              stock_quantity: clamp(baseStock + quantityChange),
+              stockQuantity: clamp(baseStock + quantityChange),
+              actual_stock_quantity: clamp(baseStock + quantityChange)
+            };
+
+          case 'weight':
+            const newWeight = clamp((product as any).available_weight || 0) + quantityChange;
+            return {
+              ...product,
+              available_weight: clamp(newWeight),
+              stock_quantity: clamp(baseStock + quantityChange),
+              stockQuantity: clamp(baseStock + quantityChange),
+              actual_stock_quantity: clamp(baseStock + quantityChange)
+            };
+
+          case 'box':
+            const newBoxes = clamp((product as any).available_boxes || 0) + quantityChange;
+            return {
+              ...product,
+              available_boxes: clamp(newBoxes),
+              stock_quantity: clamp(baseStock + quantityChange),
+              stockQuantity: clamp(baseStock + quantityChange),
+              actual_stock_quantity: clamp(baseStock + quantityChange)
+            };
+
+          default: // piece
+            const totalStock = clamp(baseStock + quantityChange);
+            return applyTotalStock(product, totalStock);
+        }
       });
 
       return { ...oldData, data: { ...oldData.data, products: updatedProducts } };

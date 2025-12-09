@@ -79,10 +79,25 @@ const ALLOWED_CHANNELS = {
   'updater:quit-and-install': true,
   'updater:get-version': true,
 
+  // Printing
+  'print:get-printers': true,
+  'print:receipt': true,
+  'print:html': true,
+  'print:barcode': true,
+  'print:open-cash-drawer': true,
+  'print:test': true,
+
   // File (restricted)
   'file:save-as': true,
   'file:export-pdf': true,
   'file:export-excel': true,
+
+  // Network / Connectivity
+  'net:is-online': true,
+  'net:ping': true,
+  'net:multi-ping': true,
+  'net:check-captive-portal': true,
+  'net:get-status': true,
 };
 
 const ALLOWED_RECEIVE_CHANNELS = {
@@ -515,6 +530,223 @@ const electronAPI = {
         window.removeEventListener('online', onlineHandler);
         window.removeEventListener('offline', offlineHandler);
       };
+    },
+  },
+
+  // ========================================================================
+  // Network / Connectivity API - فحص الاتصال بالإنترنت
+  // ========================================================================
+  network: {
+    /**
+     * فحص حالة الاتصال على مستوى النظام (Electron net.isOnline)
+     * @returns {Promise<{success: boolean, isOnline: boolean, error?: string}>}
+     */
+    isOnlineSystem: () => ipcRenderer.invoke('net:is-online'),
+
+    /**
+     * فحص الاتصال بالإنترنت عن طريق الـ Browser API
+     * @returns {boolean}
+     */
+    isOnline: () => navigator.onLine,
+
+    /**
+     * الحصول على معلومات الشبكة من Network Information API
+     * @returns {Object|null}
+     */
+    getConnection: () => {
+      const connection = navigator.connection ||
+                        navigator.mozConnection ||
+                        navigator.webkitConnection;
+
+      if (!connection) {
+        return null;
+      }
+
+      return {
+        effectiveType: connection.effectiveType || null,
+        downlink: connection.downlink || null,
+        rtt: connection.rtt || null,
+        saveData: connection.saveData || false,
+        type: connection.type || null,
+      };
+    },
+
+    /**
+     * فحص سريع للاتصال عبر ping لموقع معين
+     * @param {string} [url] - URL للفحص (افتراضي: Google 204)
+     * @param {number} [timeout=5000] - الوقت المحدد بالمللي ثانية
+     * @returns {Promise<{success: boolean, reachable: boolean, latency?: number, error?: string}>}
+     */
+    ping: (url, timeout) => {
+      const validUrl = url && typeof url === 'string' ? url : null;
+      const validTimeout = timeout && Number.isFinite(timeout) && timeout > 0 ? timeout : 5000;
+      return ipcRenderer.invoke('net:ping', validUrl, validTimeout);
+    },
+
+    /**
+     * فحص متعدد للاتصال (يفحص عدة مواقع، أول نجاح يكسب)
+     * @param {string[]} [urls] - قائمة URLs للفحص
+     * @param {number} [timeout=3000] - الوقت المحدد بالمللي ثانية
+     * @returns {Promise<{success: boolean, isOnline: boolean, firstResponder?: string, latency?: number, error?: string}>}
+     */
+    multiPing: (urls, timeout) => {
+      const validUrls = Array.isArray(urls) && urls.length > 0 ? urls.filter(u => typeof u === 'string') : null;
+      const validTimeout = timeout && Number.isFinite(timeout) && timeout > 0 ? timeout : 3000;
+      return ipcRenderer.invoke('net:multi-ping', validUrls, validTimeout);
+    },
+
+    /**
+     * فحص وجود Captive Portal (صفحة تسجيل الدخول للفنادق/المطارات)
+     * @returns {Promise<{success: boolean, isCaptivePortal: boolean, redirectUrl?: string, error?: string}>}
+     */
+    checkCaptivePortal: () => ipcRenderer.invoke('net:check-captive-portal'),
+
+    /**
+     * الحصول على حالة الشبكة الكاملة (النظام + الإنترنت الفعلي)
+     * @returns {Promise<{success: boolean, status: {systemOnline: boolean, internetReachable: boolean, isOnline: boolean, timestamp: number}}>}
+     */
+    getStatus: () => ipcRenderer.invoke('net:get-status'),
+
+    /**
+     * الاستماع لتغييرات حالة الاتصال
+     * @param {Function} callback - دالة يتم استدعاؤها عند تغير الحالة
+     * @returns {Function} - دالة لإلغاء الاشتراك
+     */
+    onStatusChange: (callback) => {
+      if (typeof callback !== 'function') {
+        throw new Error('Callback must be a function');
+      }
+
+      const onlineHandler = () => callback({ isOnline: true, source: 'browser' });
+      const offlineHandler = () => callback({ isOnline: false, source: 'browser' });
+
+      window.addEventListener('online', onlineHandler);
+      window.addEventListener('offline', offlineHandler);
+
+      // الاستماع لتغييرات Network Information API
+      const connection = navigator.connection ||
+                        navigator.mozConnection ||
+                        navigator.webkitConnection;
+
+      let connectionChangeHandler = null;
+      if (connection) {
+        connectionChangeHandler = () => {
+          callback({
+            isOnline: navigator.onLine,
+            source: 'network-info',
+            connection: {
+              effectiveType: connection.effectiveType,
+              downlink: connection.downlink,
+              rtt: connection.rtt,
+              saveData: connection.saveData,
+            }
+          });
+        };
+        connection.addEventListener('change', connectionChangeHandler);
+      }
+
+      return () => {
+        window.removeEventListener('online', onlineHandler);
+        window.removeEventListener('offline', offlineHandler);
+        if (connection && connectionChangeHandler) {
+          connection.removeEventListener('change', connectionChangeHandler);
+        }
+      };
+    },
+  },
+
+  // ========================================================================
+  // Printing API - طباعة الإيصالات والفواتير والباركود
+  // ========================================================================
+  print: {
+    /**
+     * الحصول على قائمة الطابعات المتاحة
+     * @returns {Promise<{success: boolean, printers: Array, error?: string}>}
+     */
+    getPrinters: () => ipcRenderer.invoke('print:get-printers'),
+
+    /**
+     * طباعة إيصال POS
+     * @param {Object} options - خيارات الطباعة
+     * @param {Array} options.data - بيانات الإيصال (تنسيق electron-pos-printer)
+     * @param {string} [options.printerName] - اسم الطابعة
+     * @param {string} [options.pageSize='80mm'] - حجم الورق
+     * @param {number} [options.copies=1] - عدد النسخ
+     * @param {boolean} [options.silent=true] - طباعة صامتة
+     * @param {string} [options.margin='0 0 0 0'] - الهوامش
+     * @returns {Promise<{success: boolean, error?: string}>}
+     */
+    receipt: (options) => {
+      if (!options || typeof options !== 'object') {
+        throw new Error('Print options must be an object');
+      }
+      if (!options.data || !Array.isArray(options.data)) {
+        throw new Error('Receipt data must be an array');
+      }
+      return ipcRenderer.invoke('print:receipt', options);
+    },
+
+    /**
+     * طباعة HTML مخصص (للفواتير والتقارير)
+     * @param {Object} options - خيارات الطباعة
+     * @param {string} options.html - محتوى HTML
+     * @param {string} [options.printerName] - اسم الطابعة
+     * @param {boolean} [options.silent=true] - طباعة صامتة
+     * @param {string} [options.pageSize='A4'] - حجم الورق
+     * @param {boolean} [options.landscape=false] - اتجاه أفقي
+     * @returns {Promise<{success: boolean, error?: string}>}
+     */
+    html: (options) => {
+      if (!options || typeof options !== 'object') {
+        throw new Error('Print options must be an object');
+      }
+      if (!options.html || typeof options.html !== 'string') {
+        throw new Error('HTML content is required and must be a string');
+      }
+      return ipcRenderer.invoke('print:html', options);
+    },
+
+    /**
+     * طباعة باركود
+     * @param {Object} options - خيارات الطباعة
+     * @param {Array} options.barcodes - قائمة الباركودات
+     * @param {string} [options.printerName] - اسم الطابعة
+     * @param {boolean} [options.silent=true] - طباعة صامتة
+     * @param {Object} [options.labelSize] - حجم الملصق {width, height}
+     * @param {boolean} [options.showProductName] - إظهار اسم المنتج
+     * @param {boolean} [options.showPrice] - إظهار السعر
+     * @param {boolean} [options.showStoreName] - إظهار اسم المتجر
+     * @returns {Promise<{success: boolean, error?: string}>}
+     */
+    barcode: (options) => {
+      if (!options || typeof options !== 'object') {
+        throw new Error('Print options must be an object');
+      }
+      if (!options.barcodes || !Array.isArray(options.barcodes)) {
+        throw new Error('Barcodes must be an array');
+      }
+      if (options.barcodes.length === 0) {
+        throw new Error('Barcodes array cannot be empty');
+      }
+      return ipcRenderer.invoke('print:barcode', options);
+    },
+
+    /**
+     * فتح درج النقود
+     * @param {string} [printerName] - اسم الطابعة المتصل بها الدرج
+     * @returns {Promise<{success: boolean, error?: string}>}
+     */
+    openCashDrawer: (printerName) => {
+      return ipcRenderer.invoke('print:open-cash-drawer', printerName || null);
+    },
+
+    /**
+     * طباعة صفحة اختبار
+     * @param {string} [printerName] - اسم الطابعة
+     * @returns {Promise<{success: boolean, error?: string}>}
+     */
+    test: (printerName) => {
+      return ipcRenderer.invoke('print:test', printerName || null);
     },
   },
 };

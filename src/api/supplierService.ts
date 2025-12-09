@@ -6,19 +6,32 @@ import {
   getLocalSuppliers,
   getLocalSupplierById,
   saveServerSuppliersToLocal,
-  type LocalSupplier
+  saveServerPurchasesToLocal,
+  saveServerPaymentsToLocal,
+  getLocalSupplierPurchases,
+  getLocalPurchaseById,
+  createLocalPurchaseWithItems,
+  updateLocalPurchaseWithItems,
+  deleteLocalPurchase,
+  updateLocalPurchaseStatus,
+  recordLocalPayment,
+  getLocalSupplierPayments,
+  getAllLocalSupplierPayments,
+  getLocalOverduePurchases,
+  type LocalSupplier,
+  type LocalSupplierPurchase,
+  type LocalSupplierPurchaseItem,
+  type LocalSupplierPayment
 } from './localSupplierService';
-import { isSQLiteAvailable } from '@/lib/db/sqliteAPI';
 
-// التحقق من توفر SQLite (Electron أو Tauri)
+// التحقق من توفر SQLite (Electron)
 const isDesktopApp = (): boolean => {
   if (typeof window === 'undefined') return false;
   // فحص Electron
-  if ((window as any).electronAPI?.db) return true;
-  // فحص Tauri
   const w = window as any;
-  if (w.__TAURI_IPC__ || w.__TAURI__ || w.isTauri) return true;
-  return isSQLiteAvailable();
+  if (w.electronAPI || w.__ELECTRON__ || w.electron?.isElectron) return true;
+  // ⚡ PowerSync متاح دائماً
+  return true;
 };
 
 // Interfaces that match the database schema
@@ -128,76 +141,76 @@ export interface SupplierPaymentSummary {
 
 // API Functions
 
-// Get all suppliers - دعم offline-first
+// Get all suppliers - ⚡ Offline-First: القراءة من SQLite أولاً
 export async function getSuppliers(organizationId: string): Promise<Supplier[]> {
   try {
-    console.log('[supplierService] جلب الموردين للمؤسسة:', organizationId);
-    
-    // ⚡ محاولة جلب البيانات من السيرفر أولاً
+    console.log('[supplierService] ⚡ جلب الموردين للمؤسسة (Offline-First):', organizationId);
+
+    // ⚡ OFFLINE FIRST: في تطبيق Desktop، نقرأ من SQLite أولاً
+    if (isDesktopApp()) {
+      console.log('[supplierService] 📦 جلب الموردين من SQLite...');
+      const localSuppliers = await getLocalSuppliers(organizationId);
+      console.log('[supplierService] ✅ تم جلب الموردين من SQLite:', { count: localSuppliers.length });
+
+      // المزامنة تتم في الخلفية عبر SyncManager - لا نحتاج جلب من السيرفر هنا
+      return localSuppliers as unknown as Supplier[];
+    }
+
+    // 🌐 في الويب فقط: جلب من السيرفر
     const { data, error } = await supabase
       .from('suppliers')
       .select('*')
       .eq('organization_id', organizationId)
       .order('name');
-    
+
     if (error) {
       console.warn('[supplierService] ⚠️ خطأ في جلب الموردين من السيرفر:', error.message);
-      
-      // 🔄 Fallback للقاعدة المحلية في حالة عدم الاتصال
-      if (isDesktopApp()) {
-        console.log('[supplierService] 📦 جلب الموردين من القاعدة المحلية...');
-        const localSuppliers = await getLocalSuppliers(organizationId);
-        console.log('[supplierService] ✅ تم جلب الموردين من المحلي:', { count: localSuppliers.length });
-        return localSuppliers as unknown as Supplier[];
-      }
-      
       throw error;
     }
-    
-    // ⚡ حفظ البيانات محلياً للاستخدام offline
-    if (isDesktopApp() && data && data.length > 0) {
-      try {
-        await saveServerSuppliersToLocal(data as unknown as LocalSupplier[], organizationId);
-        console.log('[supplierService] 💾 تم حفظ الموردين محلياً');
-      } catch (saveError) {
-        console.warn('[supplierService] ⚠️ فشل حفظ الموردين محلياً:', saveError);
-      }
-    }
-    
+
     console.log('[supplierService] ✅ تم جلب الموردين من السيرفر:', { count: data?.length || 0 });
     return data || [];
   } catch (error) {
     console.error('[supplierService] ❌ خطأ غير متوقع:', error);
-    
+
     // 🔄 محاولة أخيرة من القاعدة المحلية
     if (isDesktopApp()) {
       try {
         const localSuppliers = await getLocalSuppliers(organizationId);
         if (localSuppliers.length > 0) {
-          console.log('[supplierService] 📦 تم جلب الموردين من القاعدة المحلية (fallback)');
+          console.log('[supplierService] 📦 تم جلب الموردين من SQLite (fallback)');
           return localSuppliers as unknown as Supplier[];
         }
       } catch (localError) {
         console.warn('[supplierService] ⚠️ فشل جلب الموردين محلياً:', localError);
       }
     }
-    
+
     return [];
   }
 }
 
-// Get a single supplier by ID
+// Get a single supplier by ID - ⚡ Offline-First
 export async function getSupplierById(organizationId: string, supplierId: string): Promise<Supplier | null> {
   try {
+    // ⚡ OFFLINE FIRST: في تطبيق Desktop، نقرأ من SQLite أولاً
+    if (isDesktopApp()) {
+      const localSupplier = await getLocalSupplierById(supplierId);
+      if (localSupplier) {
+        return localSupplier as unknown as Supplier;
+      }
+    }
+
+    // 🌐 في الويب أو إذا لم نجد محلياً: جلب من السيرفر
     const { data, error } = await supabase
       .from('suppliers')
       .select('*')
       .eq('organization_id', organizationId)
       .eq('id', supplierId)
       .single();
-    
+
     if (error) throw error;
-    
+
     return data;
   } catch (error) {
     return null;
@@ -376,44 +389,61 @@ export async function deleteSupplier(organizationId: string, supplierId: string)
   }
 }
 
-// Delete a purchase (Note: Inventory adjustment should be handled manually)
+// Delete a purchase - دعم offline-first
 export async function deletePurchase(organizationId: string, purchaseId: string): Promise<boolean> {
   try {
-    // جلب تفاصيل المشتريات للتحقق من الحالة
+    console.log('[supplierService] حذف المشتريات:', purchaseId);
+
+    // ⚡ في Desktop App: حذف محلياً أولاً
+    if (isDesktopApp()) {
+      console.log('[supplierService] 🗑️ حذف المشتريات محلياً...');
+      const deleted = await deleteLocalPurchase(organizationId, purchaseId);
+
+      if (deleted) {
+        console.log('[supplierService] ✅ تم حذف المشتريات محلياً');
+        // ⚡ توحيد مسار الكتابة: المزامنة تحدث تلقائياً عبر Delta Sync
+        // لا حاجة لاستدعاء Supabase مباشرة - Delta Sync سيتولى المزامنة عند الاتصال
+        return true;
+      }
+      return false;
+    }
+
+    // 🌐 بدون Desktop App: حذف من السيرفر مباشرة
     const { data: purchaseData, error: fetchError } = await supabase
       .from('supplier_purchases')
       .select('*')
       .eq('organization_id', organizationId)
       .eq('id', purchaseId)
       .single();
-    
+
     if (fetchError) throw fetchError;
     if (!purchaseData) throw new Error('المشتريات غير موجودة');
-    
+
     // التحقق من أن المشتريات في حالة مسودة أو مؤكدة فقط
     if (!['draft', 'confirmed'].includes(purchaseData.status)) {
       throw new Error('لا يمكن حذف المشتريات المدفوعة أو المتأخرة');
     }
-    
+
     // حذف عناصر المشتريات أولاً
     const { error: itemsError } = await supabase
       .from('supplier_purchase_items')
       .delete()
       .eq('purchase_id', purchaseId);
-    
+
     if (itemsError) throw itemsError;
-    
+
     // حذف المشتريات
     const { error: purchaseError } = await supabase
       .from('supplier_purchases')
       .delete()
       .eq('organization_id', organizationId)
       .eq('id', purchaseId);
-    
+
     if (purchaseError) throw purchaseError;
-    
+
     return true;
   } catch (error) {
+    console.error('[supplierService] ❌ خطأ في حذف المشتريات:', error);
     return false;
   }
 }
@@ -452,79 +482,190 @@ export async function createSupplierContact(contact: Omit<SupplierContact, 'id'>
   }
 }
 
-// Get all purchases for a specific supplier
+// Get all purchases for a specific supplier - ⚡ Offline-First
 export async function getSupplierPurchases(organizationId: string, supplierId?: string): Promise<SupplierPurchase[]> {
   try {
+    console.log('[supplierService] ⚡ جلب المشتريات (Offline-First):', organizationId);
+
+    // ⚡ OFFLINE FIRST: في تطبيق Desktop، نقرأ من SQLite أولاً
+    if (isDesktopApp()) {
+      console.log('[supplierService] 📦 جلب المشتريات من SQLite...');
+      const localPurchases = await getLocalSupplierPurchases(organizationId, supplierId);
+      console.log('[supplierService] ✅ تم جلب المشتريات من SQLite:', { count: localPurchases.length });
+      return localPurchases as unknown as SupplierPurchase[];
+    }
+
+    // 🌐 في الويب فقط: جلب من السيرفر
     let query = supabase
       .from('supplier_purchases')
       .select('*')
       .eq('organization_id', organizationId);
-    
+
     if (supplierId) {
       query = query.eq('supplier_id', supplierId);
     }
-    
+
     const { data, error } = await query.order('purchase_date', { ascending: false });
-    
-    if (error) throw error;
-    
+
+    if (error) {
+      console.warn('[supplierService] ⚠️ خطأ في جلب المشتريات من السيرفر:', error.message);
+      throw error;
+    }
+
+    console.log('[supplierService] ✅ تم جلب المشتريات من السيرفر:', { count: data?.length || 0 });
     return data || [];
   } catch (error) {
+    console.error('[supplierService] ❌ خطأ غير متوقع:', error);
+
+    // 🔄 محاولة أخيرة من القاعدة المحلية
+    if (isDesktopApp()) {
+      try {
+        const localPurchases = await getLocalSupplierPurchases(organizationId, supplierId);
+        if (localPurchases.length > 0) {
+          console.log('[supplierService] 📦 تم جلب المشتريات من SQLite (fallback)');
+          return localPurchases as unknown as SupplierPurchase[];
+        }
+      } catch (localError) {
+        console.warn('[supplierService] ⚠️ فشل جلب المشتريات محلياً:', localError);
+      }
+    }
+
     return [];
   }
 }
 
-// Get purchase details including items
+// Get purchase details including items - ⚡ Offline-First
 export async function getPurchaseById(organizationId: string, purchaseId: string): Promise<{purchase: SupplierPurchase, items: SupplierPurchaseItem[]} | null> {
   try {
-    // Get purchase details
+    console.log('[supplierService] ⚡ جلب المشتريات (Offline-First):', purchaseId);
+
+    // ⚡ OFFLINE FIRST: في تطبيق Desktop، نقرأ من SQLite أولاً
+    if (isDesktopApp()) {
+      console.log('[supplierService] 📦 جلب المشتريات من SQLite...');
+      const localResult = await getLocalPurchaseById(organizationId, purchaseId);
+      if (localResult) {
+        return localResult as unknown as { purchase: SupplierPurchase; items: SupplierPurchaseItem[] };
+      }
+    }
+
+    // 🌐 في الويب أو إذا لم نجد محلياً: جلب من السيرفر
     const { data: purchase, error: purchaseError } = await supabase
       .from('supplier_purchases')
       .select('*')
       .eq('organization_id', organizationId)
       .eq('id', purchaseId)
       .single();
-    
+
     if (purchaseError) throw purchaseError;
-    
+
     // Get purchase items
     const { data: items, error: itemsError } = await supabase
       .from('supplier_purchase_items')
       .select('*')
       .eq('purchase_id', purchaseId);
-    
+
     if (itemsError) throw itemsError;
-    
+
     return {
       purchase,
       items: items || []
     };
   } catch (error) {
+    console.error('[supplierService] ❌ خطأ في جلب المشتريات:', error);
+
+    // 🔄 محاولة أخيرة من القاعدة المحلية
+    if (isDesktopApp()) {
+      try {
+        const localResult = await getLocalPurchaseById(organizationId, purchaseId);
+        if (localResult) {
+          console.log('[supplierService] 📦 تم جلب المشتريات من SQLite (fallback)');
+          return localResult as unknown as { purchase: SupplierPurchase; items: SupplierPurchaseItem[] };
+        }
+      } catch (localError) {
+        console.warn('[supplierService] ⚠️ فشل جلب المشتريات محلياً:', localError);
+      }
+    }
+
     return null;
   }
 }
 
-// Create a new purchase with items
+// Create a new purchase with items - دعم offline-first
 export async function createPurchase(
-  organizationId: string, 
+  organizationId: string,
   purchase: Omit<SupplierPurchase, 'id' | 'created_at' | 'updated_at' | 'balance_due' | 'payment_status'>,
   items: Omit<SupplierPurchaseItem, 'id' | 'purchase_id' | 'total_price' | 'tax_amount'>[]
 ): Promise<SupplierPurchase | null> {
   try {
+    console.log('[supplierService] إنشاء مشتريات جديدة...');
 
     // تحقق من صحة البيانات
     if (!items || items.length === 0) {
       throw new Error("لا يمكن إنشاء مشتريات بدون عناصر");
     }
-    
+
     // تحقق من بيانات العناصر لضمان وجود وصف لكل عنصر
     for (const item of items) {
       if (!item.description) {
         throw new Error("يجب إضافة وصف لكل عنصر من عناصر المشتريات");
       }
     }
-    
-    // Simplify input data - only include essential fields to minimize trigger complexity
+
+    // ⚡ في Desktop App: حفظ محلياً أولاً
+    if (isDesktopApp()) {
+      console.log('[supplierService] 📝 إنشاء مشتريات محلياً...');
+      const localPurchase = await createLocalPurchaseWithItems(organizationId, purchase as any, items as any);
+      console.log('[supplierService] ✅ تم إنشاء المشتريات محلياً:', localPurchase.id);
+
+      // محاولة الإرسال للسيرفر في الخلفية
+      (async () => {
+        try {
+          const purchaseData = {
+            id: localPurchase.id,
+            purchase_number: localPurchase.purchase_number,
+            supplier_id: localPurchase.supplier_id,
+            purchase_date: localPurchase.purchase_date,
+            due_date: localPurchase.due_date,
+            total_amount: localPurchase.total_amount,
+            paid_amount: localPurchase.paid_amount,
+            status: localPurchase.status,
+            payment_terms: localPurchase.payment_terms,
+            notes: localPurchase.notes,
+            organization_id: organizationId
+          };
+
+          const { error } = await supabase
+            .from('supplier_purchases')
+            .insert(purchaseData);
+
+          if (!error) {
+            // إضافة العناصر للسيرفر
+            const formattedItems = items.map((item, index) => ({
+              purchase_id: localPurchase.id,
+              product_id: item.product_id,
+              description: item.description,
+              quantity: Number(item.quantity) || 0,
+              unit_price: Number(item.unit_price) || 0,
+              tax_rate: Number(item.tax_rate) || 0,
+              color_id: (item as any).color_id || null,
+              size_id: (item as any).size_id || null,
+              variant_type: (item as any).variant_type || 'simple',
+              variant_display_name: (item as any).variant_display_name || null
+            }));
+
+            // ⚡ توحيد مسار الكتابة: المزامنة تحدث تلقائياً عبر Delta Sync
+            // لا حاجة لاستدعاء Supabase مباشرة - Delta Sync سيتولى المزامنة عند الاتصال
+            console.log('[supplierService] ⚡ تم حفظ المشتريات محلياً - المزامنة ستحدث تلقائياً');
+          }
+        } catch (err: any) {
+          console.warn('[supplierService] ⚠️ فشل حفظ المشتريات محلياً:', err?.message);
+        }
+      })();
+
+      return localPurchase as unknown as SupplierPurchase;
+    }
+
+    // 🌐 بدون Desktop App: إرسال للسيرفر مباشرة
     const purchaseData = {
       purchase_number: purchase.purchase_number,
       supplier_id: purchase.supplier_id,
@@ -537,12 +678,12 @@ export async function createPurchase(
       notes: purchase.notes,
       organization_id: organizationId
     };
-    
+
     // Create purchase with retries - use exponential backoff
     let maxRetries = 3;
     let attempt = 0;
     let purchaseResult = null;
-    
+
     while (attempt < maxRetries && !purchaseResult) {
       attempt++;
       try {
@@ -551,9 +692,9 @@ export async function createPurchase(
         const { error } = await supabase
           .from('supplier_purchases')
           .insert(purchaseData);
-        
+
         if (error) {
-          
+
           // Handle stack depth error with longer exponential backoff
           if (error.code === '54001' || error.code === '428C9') {
             await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
@@ -562,7 +703,7 @@ export async function createPurchase(
             throw error;
           }
         }
-        
+
         // Once insert succeeds, fetch the record in a separate query
         const { data, error: fetchError } = await supabase
           .from('supplier_purchases')
@@ -572,34 +713,34 @@ export async function createPurchase(
           .order('created_at', { ascending: false })
           .limit(1)
           .single();
-        
+
         if (fetchError) {
           throw fetchError;
         }
-        
+
         purchaseResult = data;
-        
+
       } catch (retryError) {
         if (attempt === maxRetries) throw retryError;
         await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
       }
     }
-    
+
     if (!purchaseResult) {
       throw new Error('Failed to create purchase after multiple attempts');
     }
-    
+
     // Handle items insertion only if purchase was created successfully
     if (items.length > 0 && purchaseResult) {
 
       // Process items in small batches with sufficient delays between batches
       const BATCH_SIZE = 3;
       const batches = [];
-      
+
       for (let i = 0; i < items.length; i += BATCH_SIZE) {
         batches.push(items.slice(i, i + BATCH_SIZE));
       }
-      
+
       for (const [batchIndex, batch] of batches.entries()) {
 
         // Calculate tax_amount and total_price for each item
@@ -611,23 +752,22 @@ export async function createPurchase(
           // Include new variant fields with default values
           return {
             purchase_id: purchaseResult.id,
-            product_id: item.product_id, // يمكن أن يكون null ولكن يجب أن يكون معرفاً
+            product_id: item.product_id,
             description: item.description || '',
             quantity,
             unit_price,
             tax_rate,
-            // إضافة الحقول الجديدة مع قيم افتراضية
             color_id: (item as any).color_id || null,
             size_id: (item as any).size_id || null,
             variant_type: (item as any).variant_type || 'simple',
             variant_display_name: (item as any).variant_display_name || null
           };
         });
-        
+
         // Insert items with retry logic
         let itemAttempt = 0;
         let itemsInserted = false;
-        
+
         while (itemAttempt < maxRetries && !itemsInserted) {
           itemAttempt++;
           try {
@@ -636,7 +776,7 @@ export async function createPurchase(
             const { error: itemsError } = await supabase
               .from('supplier_purchase_items')
               .insert(formattedItems);
-            
+
             if (itemsError) {
               if (itemsError.code === '54001' || itemsError.code === '428C9') {
                 await new Promise(resolve => setTimeout(resolve, 2000 * itemAttempt));
@@ -645,20 +785,20 @@ export async function createPurchase(
                 throw itemsError;
               }
             }
-            
+
             itemsInserted = true;
-            
+
           } catch (itemRetryError) {
             if (itemAttempt === maxRetries) throw itemRetryError;
             await new Promise(resolve => setTimeout(resolve, 2000 * itemAttempt));
           }
         }
-        
+
         if (!itemsInserted) {
           // Continue with next batch instead of failing everything
           continue;
         }
-        
+
         // Wait longer between batches to avoid stack depth issues
         if (batchIndex < batches.length - 1) {
           await new Promise(resolve => setTimeout(resolve, 1500));
@@ -666,14 +806,15 @@ export async function createPurchase(
       }
 
     }
-    
+
     return purchaseResult;
   } catch (error) {
-    throw error; // Rethrow the error to be handled by the caller
+    console.error('[supplierService] ❌ خطأ في إنشاء المشتريات:', error);
+    throw error;
   }
 }
 
-// Update an existing purchase with items
+// Update an existing purchase with items - دعم offline-first
 export async function updatePurchase(
   organizationId: string,
   purchaseId: string,
@@ -681,25 +822,82 @@ export async function updatePurchase(
   items: Omit<SupplierPurchaseItem, 'id' | 'purchase_id' | 'total_price' | 'tax_amount'>[]
 ): Promise<SupplierPurchase | null> {
   try {
+    console.log('[supplierService] تحديث المشتريات:', purchaseId);
+
     // تحقق من صحة البيانات
     if (!items || items.length === 0) {
       throw new Error("لا يمكن تحديث المشتريات بدون عناصر");
     }
-    
+
     // تحقق من بيانات العناصر لضمان وجود وصف لكل عنصر
     for (const item of items) {
       if (!item.description) {
         throw new Error("يجب إضافة وصف لكل عنصر من عناصر المشتريات");
       }
     }
-    
-    // تحديث بيانات المشتريات
+
+    // ⚡ في Desktop App: تحديث محلياً أولاً
+    if (isDesktopApp()) {
+      console.log('[supplierService] 📝 تحديث المشتريات محلياً...');
+      const updatedPurchase = await updateLocalPurchaseWithItems(organizationId, purchaseId, purchase as any, items as any);
+
+      if (!updatedPurchase) {
+        console.warn('[supplierService] ⚠️ المشتريات غير موجودة محلياً');
+        return null;
+      }
+
+      console.log('[supplierService] ✅ تم تحديث المشتريات محلياً');
+
+      // محاولة التحديث في السيرفر في الخلفية
+      (async () => {
+        try {
+          const purchaseData = {
+            ...purchase,
+            updated_at: new Date().toISOString()
+          };
+
+          const { error } = await supabase
+            .from('supplier_purchases')
+            .update(purchaseData)
+            .eq('id', purchaseId)
+            .eq('organization_id', organizationId);
+
+          if (!error) {
+            // حذف العناصر القديمة
+            await supabase.from('supplier_purchase_items').delete().eq('purchase_id', purchaseId);
+
+            // إضافة العناصر الجديدة
+            const formattedItems = items.map(item => ({
+              purchase_id: purchaseId,
+              product_id: item.product_id,
+              description: item.description || '',
+              quantity: Number(item.quantity) || 0,
+              unit_price: Number(item.unit_price) || 0,
+              tax_rate: Number(item.tax_rate) || 0,
+              color_id: (item as any).color_id || null,
+              size_id: (item as any).size_id || null,
+              variant_type: (item as any).variant_type || 'simple',
+              variant_display_name: (item as any).variant_display_name || null
+            }));
+
+            // ⚡ توحيد مسار الكتابة: المزامنة تحدث تلقائياً عبر Delta Sync
+            // لا حاجة لاستدعاء Supabase مباشرة - Delta Sync سيتولى المزامنة عند الاتصال
+            console.log('[supplierService] ⚡ تم تحديث المشتريات محلياً - المزامنة ستحدث تلقائياً');
+          }
+        } catch (err: any) {
+          console.warn('[supplierService] ⚠️ فشل تحديث المشتريات محلياً:', err?.message);
+        }
+      })();
+
+      return updatedPurchase as unknown as SupplierPurchase;
+    }
+
+    // 🌐 بدون Desktop App: تحديث في السيرفر مباشرة
     const purchaseData = {
       ...purchase,
       updated_at: new Date().toISOString()
     };
-    
-    // تحديث المشتريات
+
     const { data: updatedPurchase, error: purchaseError } = await supabase
       .from('supplier_purchases')
       .update(purchaseData)
@@ -707,81 +905,53 @@ export async function updatePurchase(
       .eq('organization_id', organizationId)
       .select()
       .single();
-    
+
     if (purchaseError) throw purchaseError;
-    
-    // نحاول تحديث العناصر الموجودة بدلاً من حذفها وإعادة إنشائها
-    // أولاً، احصل على العناصر الموجودة
-    const { data: existingItems } = await supabase
-      .from('supplier_purchase_items')
-      .select('id')
-      .eq('purchase_id', purchaseId);
-    
-    // حذف العناصر الزائدة إذا كانت موجودة
-    if (existingItems && existingItems.length > items.length) {
-      const itemsToDelete = existingItems.slice(items.length);
-      for (const item of itemsToDelete) {
-        // محاولة حذف العنصر مع تجاهل أخطاء القيود الخارجية
-        try {
-          await supabase
-            .from('supplier_purchase_items')
-            .delete()
-            .eq('id', item.id);
-        } catch (error) {
-        }
-      }
-    }
-    
-    // حذف جميع العناصر الموجودة (مع معالجة أخطاء القيود الخارجية)
+
+    // حذف جميع العناصر الموجودة
     try {
       const { error: deleteError } = await supabase
         .from('supplier_purchase_items')
         .delete()
         .eq('purchase_id', purchaseId);
-      
+
       if (deleteError) {
-        // إذا فشل الحذف بسبب القيود الخارجية، نحاول نهجاً مختلفاً
         if (deleteError.code === '23503') {
-          throw new Error('لا يمكن تحديث هذه المشتريات لأنها مرتبطة بدفعات في المخزون. يرجى التواصل مع المسؤول.');
+          throw new Error('لا يمكن تحديث هذه المشتريات لأنها مرتبطة بدفعات في المخزون.');
         } else {
           throw deleteError;
         }
       }
     } catch (error: any) {
       if (error.message.includes('foreign key constraint')) {
-        throw new Error('لا يمكن تحديث هذه المشتريات لأنها مرتبطة بدفعات في المخزون. يرجى التواصل مع المسؤول.');
+        throw new Error('لا يمكن تحديث هذه المشتريات لأنها مرتبطة بدفعات في المخزون.');
       }
       throw error;
     }
-    
-    // إضافة العناصر الجديدة
-    const formattedItems = items.map(item => {
-      const quantity = Number(item.quantity) || 0;
-      const unit_price = Number(item.unit_price) || 0;
-      const tax_rate = Number(item.tax_rate) || 0;
 
-      return {
-        purchase_id: purchaseId,
-        product_id: item.product_id,
-        description: item.description || '',
-        quantity,
-        unit_price,
-        tax_rate,
-        color_id: (item as any).color_id || null,
-        size_id: (item as any).size_id || null,
-        variant_type: (item as any).variant_type || 'simple',
-        variant_display_name: (item as any).variant_display_name || null
-      };
-    });
-    
+    // إضافة العناصر الجديدة
+    const formattedItems = items.map(item => ({
+      purchase_id: purchaseId,
+      product_id: item.product_id,
+      description: item.description || '',
+      quantity: Number(item.quantity) || 0,
+      unit_price: Number(item.unit_price) || 0,
+      tax_rate: Number(item.tax_rate) || 0,
+      color_id: (item as any).color_id || null,
+      size_id: (item as any).size_id || null,
+      variant_type: (item as any).variant_type || 'simple',
+      variant_display_name: (item as any).variant_display_name || null
+    }));
+
     const { error: itemsError } = await supabase
       .from('supplier_purchase_items')
       .insert(formattedItems);
-    
+
     if (itemsError) throw itemsError;
-    
+
     return updatedPurchase;
   } catch (error) {
+    console.error('[supplierService] ❌ خطأ في تحديث المشتريات:', error);
     throw error;
   }
 }
@@ -957,48 +1127,88 @@ export async function updatePurchaseStatus(
   }
 }
 
-// Record a payment for a supplier purchase
+// Record a payment for a supplier purchase - دعم offline-first
 export async function recordPayment(
   organizationId: string,
   payment: Omit<SupplierPayment, 'id' | 'created_at'> & { is_full_payment?: boolean }
 ): Promise<SupplierPayment | null> {
   try {
-    // استخراج معلمة is_full_payment (إذا كانت موجودة)
+    console.log('[supplierService] تسجيل دفعة جديدة...');
+
+    // ⚡ في Desktop App: تسجيل محلياً أولاً
+    if (isDesktopApp()) {
+      console.log('[supplierService] 📝 تسجيل الدفعة محلياً...');
+      const localPayment = await recordLocalPayment(organizationId, payment as any);
+
+      if (localPayment) {
+        console.log('[supplierService] ✅ تم تسجيل الدفعة محلياً:', localPayment.id);
+
+        // محاولة الإرسال للسيرفر في الخلفية
+        (async () => {
+          try {
+            const { is_full_payment, ...paymentData } = payment;
+            const safePaymentData = { ...paymentData, organization_id: organizationId };
+
+            const { error } = await supabase
+              .from('supplier_payments')
+              .insert({ ...safePaymentData, id: localPayment.id });
+
+            if (!error && payment.purchase_id) {
+              // تحديث المشتريات في السيرفر
+              const { data: purchase } = await supabase
+                .from('supplier_purchases')
+                .select('total_amount, paid_amount')
+                .eq('id', payment.purchase_id)
+                .single();
+
+              if (purchase) {
+                const newPaidAmount = Number(purchase.paid_amount) + Number(payment.amount);
+                const balanceDue = Math.max(0, Number(purchase.total_amount) - newPaidAmount);
+                const purchaseStatus = balanceDue < 0.01 ? 'paid' : newPaidAmount > 0 ? 'partially_paid' : 'draft';
+
+                await supabase
+                  .from('supplier_purchases')
+                  .update({
+                    paid_amount: balanceDue < 0.01 ? purchase.total_amount : newPaidAmount,
+                    status: purchaseStatus,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', payment.purchase_id);
+              }
+
+              console.log('[supplierService] ☁️ تم مزامنة الدفعة مع السيرفر');
+            }
+          } catch (err: any) {
+            console.warn('[supplierService] ⚠️ فشل المزامنة مع السيرفر:', err?.message);
+          }
+        })();
+
+        return localPayment as unknown as SupplierPayment;
+      }
+      return null;
+    }
+
+    // 🌐 بدون Desktop App: إرسال للسيرفر مباشرة
     const { is_full_payment, ...paymentData } = payment;
-    
-    // التأكد من وجود organization_id في البيانات
-    const safePaymentData = {
-      ...paymentData,
-      organization_id: organizationId
-    };
-    
+    const safePaymentData = { ...paymentData, organization_id: organizationId };
+
     // If it's a full payment and linked to a purchase, get the purchase details first
     if (is_full_payment && payment.purchase_id) {
-      // الحصول على تفاصيل المشتريات
       const { data: purchase, error: purchaseGetError } = await supabase
         .from('supplier_purchases')
         .select('total_amount, paid_amount')
         .eq('id', payment.purchase_id)
         .single();
-      
+
       if (purchaseGetError) throw purchaseGetError;
-      
-      // في حالة الدفع الكامل، نستخدم المبلغ الإجمالي بالضبط للتأكد من أن المبلغ المدفوع = المبلغ الإجمالي
+
       const remainingAmount = Number(purchase.total_amount) - Number(purchase.paid_amount);
-      
-      // إذا كان المبلغ المتبقي أقل من 0.01، فقد تم دفعه بالفعل
+
       if (remainingAmount < 0.01) {
-        
         return null;
       }
-      
-      // احتفظ بالمبلغ المحدد بواسطة المستخدم للسجلات
-      const specifiedAmount = Number(payment.amount);
-      
-      // تسجيل معلومات التصحيح
 
-      // إنشاء سجل الدفع باستخدام المبلغ المتبقي بالضبط
-      const { data: paymentData, error: paymentError } = await supabase
+      const { data: paymentResult, error: paymentError } = await supabase
         .from('supplier_payments')
         .insert({
           ...safePaymentData,
@@ -1007,115 +1217,112 @@ export async function recordPayment(
         })
         .select()
         .single();
-      
+
       if (paymentError) throw paymentError;
-      
-      // تحديث المشتريات لتكون مدفوعة بالكامل
+
       const { error: purchaseUpdateError } = await supabase
         .from('supplier_purchases')
         .update({
-          paid_amount: purchase.total_amount, // تعيين المبلغ المدفوع ليساوي المبلغ الإجمالي بالضبط
+          paid_amount: purchase.total_amount,
           status: 'paid',
           updated_at: new Date().toISOString()
         })
         .eq('id', payment.purchase_id);
-      
+
       if (purchaseUpdateError) throw purchaseUpdateError;
-      
-      return paymentData;
+
+      return paymentResult;
     } else {
-      // سير العملية العادي (بدون دفع كامل)
-      
-      // First create the payment record
-      const { data: paymentData, error: paymentError } = await supabase
+      const { data: paymentResult, error: paymentError } = await supabase
         .from('supplier_payments')
         .insert(safePaymentData)
         .select()
         .single();
-      
+
       if (paymentError) throw paymentError;
-      
-      // If linked to a purchase, update the purchase's paid amount
+
       if (payment.purchase_id) {
         const { data: purchase, error: purchaseGetError } = await supabase
           .from('supplier_purchases')
           .select('total_amount, paid_amount')
           .eq('id', payment.purchase_id)
           .single();
-        
+
         if (purchaseGetError) throw purchaseGetError;
-        
+
         const newPaidAmount = Number(purchase.paid_amount) + Number(payment.amount);
         const totalAmount = Number(purchase.total_amount);
-        
-        // احسب المبلغ المتبقي بالضبط
         const balanceDue = Math.max(0, totalAmount - newPaidAmount);
-        
-        // تحديد حالة الدفع وفقًا للمبلغ المتبقي
-        let paymentStatus = 'partially_paid';
+
         let purchaseStatus = 'partially_paid';
-        
-        // استخدم مقارنة بدقة عالية للأرقام العشرية
         if (Math.abs(balanceDue) < 0.01) {
-          paymentStatus = 'paid';
           purchaseStatus = 'paid';
-          
-          // تعديل المبلغ المدفوع ليساوي المبلغ الإجمالي بالضبط لتجنب أخطاء التقريب
-          const { error: fixPrecisionError } = await supabase
-            .from('supplier_purchases')
-            .update({
-              paid_amount: purchase.total_amount,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', payment.purchase_id);
-            
-          if (fixPrecisionError) {
-          }
         } else if (newPaidAmount === 0) {
-          paymentStatus = 'unpaid';
           purchaseStatus = 'draft';
         }
-        
-        // إنشاء كائن التحديث - نحدد فقط paid_amount وندع balance_due يتم حسابه تلقائيًا
-        const updateData: any = {
-          paid_amount: newPaidAmount,
-          updated_at: new Date().toISOString()
-        };
-        
-        // تعيين حالة المشتريات
-        updateData.status = purchaseStatus;
-        
-        // تسجيل المعلومات للتصحيح
 
         const { error: purchaseUpdateError } = await supabase
           .from('supplier_purchases')
-          .update(updateData)
+          .update({
+            paid_amount: balanceDue < 0.01 ? purchase.total_amount : newPaidAmount,
+            status: purchaseStatus,
+            updated_at: new Date().toISOString()
+          })
           .eq('id', payment.purchase_id);
-        
+
         if (purchaseUpdateError) throw purchaseUpdateError;
       }
-      
-      return paymentData;
+
+      return paymentResult;
     }
   } catch (error) {
+    console.error('[supplierService] ❌ خطأ في تسجيل الدفعة:', error);
     return null;
   }
 }
 
-// Get supplier payments
+// Get supplier payments - ⚡ Offline-First
 export async function getSupplierPayments(organizationId: string, supplierId: string): Promise<SupplierPayment[]> {
   try {
+    console.log('[supplierService] ⚡ جلب مدفوعات المورد (Offline-First):', supplierId);
+
+    // ⚡ OFFLINE FIRST: في تطبيق Desktop، نقرأ من SQLite أولاً
+    if (isDesktopApp()) {
+      console.log('[supplierService] 📦 جلب المدفوعات من SQLite...');
+      const localPayments = await getLocalSupplierPayments(organizationId, supplierId);
+      console.log('[supplierService] ✅ تم جلب المدفوعات من SQLite:', { count: localPayments.length });
+      return localPayments as unknown as SupplierPayment[];
+    }
+
+    // 🌐 في الويب فقط: جلب من السيرفر
     const { data, error } = await supabase
       .from('supplier_payments')
       .select('*')
       .eq('organization_id', organizationId)
       .eq('supplier_id', supplierId)
       .order('payment_date', { ascending: false });
-    
-    if (error) throw error;
-    
+
+    if (error) {
+      console.warn('[supplierService] ⚠️ خطأ في جلب المدفوعات من السيرفر:', error.message);
+      throw error;
+    }
+
     return data || [];
   } catch (error) {
+    console.error('[supplierService] ❌ خطأ في جلب المدفوعات:', error);
+
+    // 🔄 محاولة أخيرة من القاعدة المحلية
+    if (isDesktopApp()) {
+      try {
+        const localPayments = await getLocalSupplierPayments(organizationId, supplierId);
+        if (localPayments.length > 0) {
+          return localPayments as unknown as SupplierPayment[];
+        }
+      } catch (localError) {
+        console.warn('[supplierService] ⚠️ فشل جلب المدفوعات محلياً:', localError);
+      }
+    }
+
     return [];
   }
 }
@@ -1173,11 +1380,21 @@ export async function getSupplierPaymentSummaries(organizationId: string): Promi
   }
 }
 
-// Get overdue purchases
+// Get overdue purchases - ⚡ Offline-First
 export async function getOverduePurchases(organizationId: string): Promise<SupplierPurchase[]> {
   try {
+    console.log('[supplierService] ⚡ جلب المشتريات المتأخرة (Offline-First)...');
+
+    // ⚡ OFFLINE FIRST: في تطبيق Desktop، نقرأ من SQLite أولاً
+    if (isDesktopApp()) {
+      console.log('[supplierService] 📦 جلب المشتريات المتأخرة من SQLite...');
+      const localOverdue = await getLocalOverduePurchases(organizationId);
+      console.log('[supplierService] ✅ تم جلب المشتريات المتأخرة من SQLite:', { count: localOverdue.length });
+      return localOverdue as unknown as SupplierPurchase[];
+    }
+
+    // 🌐 في الويب فقط: جلب من السيرفر
     const currentDate = new Date().toISOString();
-    
     const { data, error } = await supabase
       .from('supplier_purchases')
       .select('*')
@@ -1186,28 +1403,73 @@ export async function getOverduePurchases(organizationId: string): Promise<Suppl
       .not('status', 'eq', 'paid')
       .not('status', 'eq', 'cancelled')
       .order('due_date');
-    
-    if (error) throw error;
-    
+
+    if (error) {
+      console.warn('[supplierService] ⚠️ خطأ في جلب المشتريات المتأخرة من السيرفر:', error.message);
+      throw error;
+    }
+
     return data || [];
   } catch (error) {
+    console.error('[supplierService] ❌ خطأ في جلب المشتريات المتأخرة:', error);
+
+    // 🔄 محاولة أخيرة من القاعدة المحلية
+    if (isDesktopApp()) {
+      try {
+        const localOverdue = await getLocalOverduePurchases(organizationId);
+        if (localOverdue.length > 0) {
+          return localOverdue as unknown as SupplierPurchase[];
+        }
+      } catch (localError) {
+        console.warn('[supplierService] ⚠️ فشل جلب المشتريات المتأخرة محلياً:', localError);
+      }
+    }
+
     return [];
   }
 }
 
-// Get all supplier payments 
+// Get all supplier payments - ⚡ Offline-First
 export async function getAllSupplierPayments(organizationId: string): Promise<SupplierPayment[]> {
   try {
+    console.log('[supplierService] ⚡ جلب جميع المدفوعات (Offline-First)...');
+
+    // ⚡ OFFLINE FIRST: في تطبيق Desktop، نقرأ من SQLite أولاً
+    if (isDesktopApp()) {
+      console.log('[supplierService] 📦 جلب المدفوعات من SQLite...');
+      const localPayments = await getAllLocalSupplierPayments(organizationId);
+      console.log('[supplierService] ✅ تم جلب المدفوعات من SQLite:', { count: localPayments.length });
+      return localPayments as unknown as SupplierPayment[];
+    }
+
+    // 🌐 في الويب فقط: جلب من السيرفر
     const { data, error } = await supabase
       .from('supplier_payments')
       .select('*')
       .eq('organization_id', organizationId)
       .order('payment_date', { ascending: false });
-    
-    if (error) throw error;
-    
+
+    if (error) {
+      console.warn('[supplierService] ⚠️ خطأ في جلب المدفوعات من السيرفر:', error.message);
+      throw error;
+    }
+
     return data || [];
   } catch (error) {
+    console.error('[supplierService] ❌ خطأ في جلب المدفوعات:', error);
+
+    // 🔄 محاولة أخيرة من القاعدة المحلية
+    if (isDesktopApp()) {
+      try {
+        const localPayments = await getAllLocalSupplierPayments(organizationId);
+        if (localPayments.length > 0) {
+          return localPayments as unknown as SupplierPayment[];
+        }
+      } catch (localError) {
+        console.warn('[supplierService] ⚠️ فشل جلب المدفوعات محلياً:', localError);
+      }
+    }
+
     return [];
   }
 }

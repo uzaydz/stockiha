@@ -22,8 +22,15 @@ export function useCleanupResources(refs: TenantStateRefs) {
   return cleanupResources;
 }
 
+// ⚡ تقليل الـ logs المتكررة - نسجل فقط الانتقالات المهمة
+let lastTenantOrgId: string | null = null;
+let lastTenantIsReady: boolean | null = null;
+let tenantLogCount = 0;
+const MAX_TENANT_LOGS = 2; // أقصى عدد logs في الجلسة الواحدة
+
 /**
  * إنشاء قيمة السياق المحسنة
+ * ⚡ محسّن: يسجل فقط الانتقالات المهمة (orgId تغير أو isReady تغير)
  */
 export function useTenantContextValue(
   organization: Organization | null,
@@ -33,10 +40,33 @@ export function useTenantContextValue(
   actions: any,
   renderCount: React.MutableRefObject<number>
 ) {
+  // ⚡ تتبع القيمة السابقة لمنع الـ re-renders غير الضرورية
+  const prevValueRef = useRef<any>(null);
+
   const value = useMemo(() => {
     const hasValidOrgId = !!(organization?.id && organization.id.length > 10);
     // ✅ تحسين: إخفاء isLoading إذا كان لدينا orgId سريع لتجنب شاشات تحميل متعددة
     const effectiveLoading = isLoading && !hasValidOrgId;
+    const isReady = !effectiveLoading && hasValidOrgId;
+
+    // ⚡ تسجيل فقط الانتقالات المهمة:
+    // 1. أول مرة نحصل على orgId
+    // 2. تغير isReady من false إلى true (جاهزية التطبيق)
+    if (typeof window !== 'undefined' && tenantLogCount < MAX_TENANT_LOGS) {
+      const orgIdChanged = organization?.id !== lastTenantOrgId && hasValidOrgId;
+      const readyChanged = isReady !== lastTenantIsReady && isReady;
+
+      if (orgIdChanged || readyChanged) {
+        console.log('[TenantContext] 📊 Ready:', {
+          orgId: organization?.id?.slice(0, 8) || 'null',
+          isReady
+        });
+        tenantLogCount++;
+      }
+
+      lastTenantOrgId = organization?.id || null;
+      lastTenantIsReady = isReady;
+    }
 
     return {
       currentOrganization: organization,
@@ -48,7 +78,7 @@ export function useTenantContextValue(
       // ✅ إضافة: isOrganizationReady للمكونات التي تحتاج orgId
       isOrganizationReady: hasValidOrgId,
       // ✅ تحسين: isReady يتطلب orgId صالح
-      isReady: !effectiveLoading && hasValidOrgId,
+      isReady,
       ...actions
     };
   }, [
@@ -59,6 +89,9 @@ export function useTenantContextValue(
     actions
   ]);
 
+  // ⚡ تخزين القيمة للمقارنة
+  prevValueRef.current = value;
+
   return value;
 }
 
@@ -66,6 +99,7 @@ export function useTenantContextValue(
  * إنشاء المكون المحسن مع منع الرندر المفرط
  */
 export function useOptimizedProvider(
+  TenantContext: React.Context<TenantContextType | undefined>,
   value: TenantContextType,
   children: React.ReactNode,
   renderCount: React.MutableRefObject<number>
@@ -74,7 +108,7 @@ export function useOptimizedProvider(
     <TenantContext.Provider value={value}>
       {children}
     </TenantContext.Provider>
-  ), [value, children]);
+  ), [TenantContext, value, children]);
 
   // 🔥 تحسين: منع إعادة الرندر المفرطة
   if (renderCount.current > 5) {
@@ -122,5 +156,4 @@ export function useInitializationRefs() {
   };
 }
 
-// استيراد TenantContext هنا لتجنب الاستيراد الدائري
-import TenantContext from './TenantContext';
+// ✅ Removed circular import - TenantContext is now passed as a parameter

@@ -1,4 +1,6 @@
 import { supabase } from '@/lib/supabase';
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
+import { v4 as uuidv4 } from 'uuid';
 
 /**
  * واجهة بيانات الديون حسب العميل
@@ -313,6 +315,67 @@ export const createDebt = async (debtData: CreateDebtData): Promise<any> => {
 
     return { success: true, orderId: orderResult.id };
   } catch (error) {
+    throw error;
+  }
+};
+
+/**
+ * ⚡ إنشاء دين جديد (Offline-First مع PowerSync)
+ * @param debtData بيانات الدين الجديد
+ */
+export const createLocalDebt = async (debtData: CreateDebtData): Promise<{ success: boolean; orderId: string }> => {
+  try {
+    if (!debtData.customerId) {
+      throw new Error("معرف العميل مطلوب");
+    }
+
+    if (!debtData.amount || debtData.amount <= 0) {
+      throw new Error("يجب إدخال مبلغ صحيح");
+    }
+
+    if (!debtData.organizationId) {
+      throw new Error("معرف المؤسسة مطلوب");
+    }
+
+    // التحقق من جاهزية PowerSync
+    const ready = await powerSyncService.waitForInitialization(5000);
+    if (!ready) {
+      throw new Error('PowerSync غير جاهز');
+    }
+
+    const now = new Date().toISOString();
+    const orderId = uuidv4();
+
+    // إنشاء طلب جديد كدين محلياً
+    // ⚡ استخدام mutate مع الواجهة الصحيحة (table, operation, data)
+    await powerSyncService.mutate({
+      table: 'orders',
+      operation: 'INSERT',
+      data: {
+        id: orderId,
+        organization_id: debtData.organizationId,
+        customer_id: debtData.customerId,
+        total: debtData.amount,
+        subtotal: debtData.amount,
+        tax: 0,
+        discount: 0,
+        amount_paid: 0,
+        remaining_amount: debtData.amount,
+        payment_status: 'pending',
+        status: 'pending',
+        payment_method: 'credit',
+        is_online: 0,
+        customer_notes: debtData.description || '',
+        shipping_cost: 0,
+        created_at: now,
+        updated_at: now
+      }
+    });
+
+    console.log('[createLocalDebt] ✅ Debt created offline:', orderId);
+    return { success: true, orderId };
+  } catch (error) {
+    console.error('[createLocalDebt] ❌ Error:', error);
     throw error;
   }
 };

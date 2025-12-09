@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useTenant } from '@/context/TenantContext';
 import { useToast } from '@/hooks/use-toast';
+import { unifiedOrderService } from '@/services/UnifiedOrderService';
+import { useLocalOrders } from './useLocalOrders';
 
 // أنواع البيانات المحسنة
 export type OptimizedOrder = {
@@ -62,103 +63,102 @@ export type OrdersStats = {
 export const useOptimizedOrders = () => {
   const { currentOrganization } = useTenant();
   const { toast } = useToast();
-  
+
   const [orders, setOrders] = useState<OptimizedOrder[]>([]);
   const [stats, setStats] = useState<OrdersStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // ⚡ إصلاح Race Condition: تتبع الطلب الحالي لإلغاء الطلبات السابقة
+  const fetchRequestIdRef = useRef<number>(0);
+  const isMountedRef = useRef<boolean>(true);
+
+  // ⚡ استخدام الخدمة الموحدة Offline-First
+  // 🔧 FIX: Only set organizationId when it's valid (not null/empty)
+  useEffect(() => {
+    if (currentOrganization?.id) {
+      unifiedOrderService.setOrganizationId(currentOrganization.id);
+    }
+  }, [currentOrganization?.id]);
+
   // جلب الطلبيات مع التحسين باستخدام استدعاءات منفصلة
   const fetchOrders = useCallback(async (filters: OrdersFilter = {}) => {
     if (!currentOrganization?.id) return;
+
+    // ⚡ إصلاح Race Condition: إنشاء معرف فريد لهذا الطلب
+    const currentRequestId = ++fetchRequestIdRef.current;
 
     try {
       setLoading(true);
       setError(null);
 
-      // جلب الطلبيات الأساسية مع الفلاتر
-      let ordersQuery = supabase
-        .from('online_orders')
-        .select(`
-          id,
-          customer_id,
-          subtotal,
-          tax,
-          discount,
-          total,
-          status,
-          payment_method,
-          payment_status,
-          shipping_address_id,
-          shipping_method,
-          shipping_cost,
-          shipping_option,
-          notes,
-          employee_id,
-          created_at,
-          updated_at,
-          organization_id,
-          slug,
-          customer_order_number,
-          created_from,
-          call_confirmation_status_id,
-          call_confirmation_notes,
-          call_confirmation_updated_at,
-          call_confirmation_updated_by,
-          form_data,
-          metadata
-        `)
-        .eq('organization_id', currentOrganization.id)
-        .order('created_at', { ascending: false });
+      // ⚡ استخدام الخدمة الموحدة محلياً
+      const orderFilters: any = {
+        status: filters.status as any,
+        from_date: filters.dateFrom,
+        to_date: filters.dateTo,
+        search: filters.searchTerm,
+        is_online: false // طلبات محلية فقط
+      };
 
-      // تطبيق الفلاتر
-      if (filters.status) {
-        ordersQuery = ordersQuery.eq('status', filters.status);
-      }
-      
-      if (filters.dateFrom) {
-        ordersQuery = ordersQuery.gte('created_at', new Date(filters.dateFrom).toISOString());
-      }
-      
-      if (filters.dateTo) {
-        ordersQuery = ordersQuery.lte('created_at', new Date(filters.dateTo).toISOString());
+      const page = filters.offset ? Math.floor(filters.offset / (filters.limit || 15)) + 1 : 1;
+      const limit = filters.limit || 15;
+
+      const result = await unifiedOrderService.getOrders(orderFilters, page, limit);
+
+      // ⚡ إصلاح Race Condition: تجاهل النتيجة إذا جاء طلب أحدث
+      if (currentRequestId !== fetchRequestIdRef.current || !isMountedRef.current) {
+        return;
       }
 
-      if (filters.searchTerm) {
-        ordersQuery = ordersQuery.or(
-          `id.ilike.%${filters.searchTerm}%,customer_order_number.like.%${filters.searchTerm}%`
-        );
-      }
-
-      if (filters.limit) {
-        ordersQuery = ordersQuery.limit(filters.limit);
-      }
-
-      if (filters.offset) {
-        ordersQuery = ordersQuery.range(filters.offset, filters.offset + (filters.limit || 15) - 1);
-      }
-
-      const { data: ordersData, error: ordersError } = await ordersQuery;
-      if (ordersError) throw ordersError;
-
-      if (!ordersData?.length) {
+      if (!result.data?.length) {
         setOrders([]);
         return;
       }
 
-      // جلب البيانات المرتبطة بشكل متوازي
-      const customerIds = [...new Set(ordersData.map(o => o.customer_id).filter(Boolean))];
-      const addressIds = [...new Set(ordersData.map(o => o.shipping_address_id).filter(Boolean))];
-      const statusIds = [...new Set(ordersData.map(o => o.call_confirmation_status_id).filter(Boolean))];
+      // تحويل إلى OptimizedOrder format
+      const ordersData = result.data.map(order => ({
+        order_id: order.id,
+        customer_id: order.customer_id || '',
+        subtotal: order.subtotal,
+        tax: order.tax,
+        discount: order.discount,
+        total: order.total,
+        status: order.status,
+        payment_method: order.payment_method || '',
+        payment_status: order.payment_status,
+        shipping_address_id: order.shipping_address_id || '',
+        shipping_method: order.shipping_method || '',
+        shipping_cost: order.shipping_cost,
+        shipping_option: '',
+        notes: order.notes || '',
+        employee_id: order.employee_id || '',
+        created_at: order.created_at || '',
+        updated_at: order.updated_at || '',
+        organization_id: order.organization_id,
+        slug: order.slug || '',
+        customer_order_number: parseInt(order.customer_order_number || '0'),
+        created_from: '',
+        call_confirmation_status_id: 0,
+        call_confirmation_notes: '',
+        call_confirmation_updated_at: '',
+        call_confirmation_updated_by: '',
+        form_data: null,
+        metadata: null,
+        customer_name: order.customer?.name || '',
+        customer_email: '',
+        customer_phone: order.customer?.phone || '',
+        shipping_address: null,
+        call_confirmation_status: null,
+        order_items: order.items || []
+      }));
 
-      const [
-        { data: customersData },
-        { data: addressesData },
-        { data: statusesData },
-        { data: orderItemsData }
-      ] = await Promise.all([
-        customerIds.length > 0 
-          ? supabase.from('customers').select('id, name, email, phone').in('id', customerIds)
+      // ⚡ إصلاح Race Condition: تجاهل النتيجة إذا جاء طلب أحدث
+      if (currentRequestId !== fetchRequestIdRef.current || !isMountedRef.current) {
+        return;
+      }
+
+      setOrders(ordersData);
           : Promise.resolve({ data: [] }),
         
         addressIds.length > 0
@@ -172,89 +172,7 @@ export const useOptimizedOrders = () => {
         supabase
           .from('online_order_items')
           .select('*')
-          .in('order_id', ordersData.map(o => o.id))
-      ]);
-
-      // تجميع عناصر الطلبيات حسب معرف الطلب
-      const itemsByOrder = (orderItemsData || []).reduce((acc: any, item: any) => {
-        if (!acc[item.order_id]) acc[item.order_id] = [];
-        acc[item.order_id].push(item);
-        return acc;
-      }, {});
-
-      // تحويل البيانات إلى التنسيق المطلوب
-      const processedOrders: OptimizedOrder[] = ordersData.map(order => {
-        const customer = customersData?.find(c => c.id === order.customer_id);
-        const address = addressesData?.find(a => a.id === order.shipping_address_id);
-        const status = statusesData?.find(s => s.id === order.call_confirmation_status_id);
-        const items = itemsByOrder[order.id] || [];
-
-        return {
-          order_id: order.id,
-          customer_id: order.customer_id,
-          subtotal: Number(order.subtotal || 0),
-          tax: Number(order.tax || 0),
-          discount: Number(order.discount || 0),
-          total: Number(order.total || 0),
-          status: order.status,
-          payment_method: order.payment_method,
-          payment_status: order.payment_status,
-          shipping_address_id: order.shipping_address_id,
-          shipping_method: order.shipping_method,
-          shipping_cost: Number(order.shipping_cost || 0),
-          shipping_option: order.shipping_option,
-          notes: order.notes,
-          employee_id: order.employee_id,
-          created_at: order.created_at,
-          updated_at: order.updated_at,
-          organization_id: order.organization_id,
-          slug: order.slug,
-          customer_order_number: order.customer_order_number,
-          created_from: order.created_from,
-          call_confirmation_status_id: order.call_confirmation_status_id,
-          call_confirmation_notes: order.call_confirmation_notes,
-          call_confirmation_updated_at: order.call_confirmation_updated_at,
-          call_confirmation_updated_by: order.call_confirmation_updated_by,
-          form_data: order.form_data,
-          metadata: order.metadata,
-          customer_name: customer?.name || '',
-          customer_email: customer?.email || '',
-          customer_phone: customer?.phone || '',
-          shipping_address: address ? {
-            id: address.id,
-            name: address.name,
-            street_address: address.street_address,
-            city: address.city,
-            state: address.state,
-            country: address.country,
-            phone: address.phone,
-            municipality: address.municipality
-          } : null,
-          call_confirmation_status: status ? {
-            id: status.id,
-            name: status.name,
-            color: status.color,
-            icon: status.icon,
-            is_default: status.is_default
-          } : null,
-          order_items: items || [],
-        };
-      });
-
-      // تطبيق فلتر البحث على بيانات العملاء إذا لم يتم تطبيقه مسبقاً
-      let filteredOrders = processedOrders;
-      if (filters.searchTerm) {
-        const searchTerm = filters.searchTerm.toLowerCase();
-        filteredOrders = processedOrders.filter(order => 
-          order.order_id.toLowerCase().includes(searchTerm) ||
-          order.customer_order_number?.toString().includes(searchTerm) ||
-          order.customer_name?.toLowerCase().includes(searchTerm) ||
-          order.customer_phone?.toLowerCase().includes(searchTerm) ||
-          order.customer_email?.toLowerCase().includes(searchTerm)
-        );
-      }
-
-      setOrders(filteredOrders);
+      setOrders(ordersData);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'خطأ في جلب الطلبيات';
       setError(errorMessage);
@@ -458,10 +376,18 @@ export const useOptimizedOrders = () => {
 
   // جلب البيانات عند تحميل المكون
   useEffect(() => {
+    // ⚡ إصلاح Race Condition: تتبع حالة التثبيت
+    isMountedRef.current = true;
+
     if (currentOrganization?.id) {
       fetchOrders();
       fetchStats();
     }
+
+    // ⚡ تنظيف عند إلغاء التثبيت
+    return () => {
+      isMountedRef.current = false;
+    };
   }, [currentOrganization?.id, fetchOrders, fetchStats]);
 
   return {

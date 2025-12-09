@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { toast } from 'sonner';
 import type { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import { supabase, getSupabaseClient } from '@/lib/supabase-unified';
-import { sqliteDB, isSQLiteAvailable } from '@/lib/db/sqliteAPI';
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
 import { checkUserRequires2FA } from '@/lib/api/authHelpers';
 import { ensureUserOrganizationLink } from '@/lib/api/auth-helpers';
 import { loadSecureSession, saveSecureSession } from '@/context/auth/utils/secureSessionStorage';
@@ -26,22 +26,14 @@ const loginFormDebugLog = (message: string, data?: any) => {
 const ensureGlobalDB = async (): Promise<boolean> => {
   console.log('[OfflineAuth] 🗄️ ensureGlobalDB - بدء التهيئة...');
   try {
-    const sqliteAvailable = isSQLiteAvailable();
-    console.log('[OfflineAuth] 🗄️ isSQLiteAvailable:', sqliteAvailable);
-
-    if (sqliteAvailable) {
-      console.log('[OfflineAuth] 🗄️ جاري استدعاء sqliteDB.initialize("global")...');
-      const res = await sqliteDB.initialize('global');
-      console.log('[OfflineAuth] 🗄️ نتيجة التهيئة:', { success: res?.success, error: res?.error });
-      return Boolean(res?.success);
-    } else {
-      console.log('[OfflineAuth] ❌ SQLite غير متاح!');
-    }
+    // ⚡ PowerSync متاح دائماً - لا حاجة لـ initialize
+    console.log('[OfflineAuth] 🗄️ PowerSync متاح دائماً');
+    return true;
   } catch (e) {
     console.error('[OfflineAuth] ❌ خطأ في تهيئة قاعدة البيانات:', e);
     loginFormDebugLog('⚠️ فشل تهيئة قاعدة بيانات global للأوفلاين:', e);
-  }
   return false;
+  }
 };
 
 const getOfflineStorageSnapshot = () => {
@@ -258,7 +250,24 @@ const saveOfflineCredentials = async (email: string, password: string): Promise<
       updated_at: now
     } as any;
 
-    const result = await sqliteDB.upsert('user_credentials', rec);
+    // ⚡ استخدام PowerSync مباشرة
+    if (!powerSyncService.db) {
+      throw new Error('PowerSync DB not initialized');
+    }
+    await powerSyncService.transaction(async (tx) => {
+      const keys = Object.keys(rec).filter(k => k !== 'id');
+      const values = keys.map(k => (rec as any)[k]);
+      const placeholders = keys.map(() => '?').join(', ');
+      const now = new Date().toISOString();
+      
+      await tx.execute(
+        `INSERT INTO user_credentials (id, ${keys.join(', ')}, created_at, updated_at) 
+         VALUES (?, ${placeholders}, ?, ?)
+         ON CONFLICT(id) DO UPDATE SET ${keys.map(k => `${k} = excluded.${k}`).join(', ')}, updated_at = ?`,
+        [rec.id, ...values, rec.created_at || now, rec.updated_at || now, now]
+      );
+    });
+    const result = { success: true, changes: 1 };
     console.log('[OfflineAuth] ✅ نتيجة الحفظ:', result.success ? 'نجاح' : 'فشل', { changes: result.changes });
     loginFormDebugLog('💾 تم حفظ بيانات تسجيل الدخول للأوفلاين في SQLite:', {
       email: normalizedEmail,
@@ -301,10 +310,10 @@ const verifyOfflineCredentials = async (email: string, password: string): Promis
 
   // قراءة السجل من SQLite
   console.log('[OfflineAuth] ⏳ جاري البحث عن السجل في user_credentials...');
-  let res = await sqliteDB.queryOne('SELECT * FROM user_credentials WHERE email_lower = ?', [normalizedEmail]);
-  console.log('[OfflineAuth] 📋 نتيجة الاستعلام:', { success: res?.success, hasData: Boolean(res?.data), error: res?.error });
+  let res = await powerSyncService.queryOne<any>({ sql: 'SELECT * FROM user_credentials WHERE email_lower = ?', params: [normalizedEmail] });
+  console.log('[OfflineAuth] 📋 نتيجة الاستعلام:', { success: !!res, hasData: Boolean(res), error: null });
 
-  if (!res.success || !res.data) {
+  if (!res) {
     // محاولة ترحيل بيانات الاعتماد القديمة من localStorage إلى SQLite لمرة واحدة
     const legacyStore = readOfflineCredentialStore();
     const legacy = legacyStore[normalizedEmail];
@@ -324,21 +333,37 @@ const verifyOfflineCredentials = async (email: string, password: string): Promis
           created_at: now,
           updated_at: now
         } as any;
-        const up = await sqliteDB.upsert('user_credentials', migrated);
-        loginFormDebugLog('🔄 تم ترحيل بيانات الاعتماد من التخزين القديم إلى SQLite', { success: up.success, changes: up.changes });
+        // ⚡ استخدام PowerSync مباشرة
+        if (!powerSyncService.db) {
+          throw new Error('PowerSync DB not initialized');
+        }
+        await powerSyncService.transaction(async (tx) => {
+          const keys = Object.keys(migrated).filter(k => k !== 'id');
+          const values = keys.map(k => (migrated as any)[k]);
+          const placeholders = keys.map(() => '?').join(', ');
+          
+          await tx.execute(
+            `INSERT INTO user_credentials (id, ${keys.join(', ')}, created_at, updated_at) 
+             VALUES (?, ${placeholders}, ?, ?)
+             ON CONFLICT(id) DO UPDATE SET ${keys.map(k => `${k} = excluded.${k}`).join(', ')}, updated_at = ?`,
+            [migrated.id, ...values, migrated.created_at || now, migrated.updated_at || now, now]
+          );
+        });
+        const up = { success: true, changes: 1 };
+        loginFormDebugLog('🔄 تم ترحيل بيانات الاعتماد من التخزين القديم إلى PowerSync', { success: up.success, changes: up.changes });
         // إعادة القراءة بعد الترحيل
-        res = await sqliteDB.queryOne('SELECT * FROM user_credentials WHERE email_lower = ?', [normalizedEmail]);
+        res = await powerSyncService.queryOne<any>({ sql: 'SELECT * FROM user_credentials WHERE email_lower = ?', params: [normalizedEmail] });
       } catch (mErr) {
         loginFormDebugLog('⚠️ فشل ترحيل بيانات الاعتماد القديمة:', mErr);
       }
     }
-    if (!res.success || !res.data) {
+    if (!res) {
       loginFormDebugLog('❌ لا توجد بيانات محفوظة لهذا البريد الإلكتروني في SQLite');
       return false;
     }
   }
 
-  const record: any = res.data;
+  const record: any = res;
   const { sha, raw } = await computeHashes(password, record.salt);
 
   // 🔍 تشخيص مفصل للمقارنة
@@ -419,7 +444,11 @@ const verifyOfflineCredentials = async (email: string, password: string): Promis
   if (isValid) {
     try {
       // تحديث last_success_at
-      await sqliteDB.execute('UPDATE user_credentials SET last_success_at = ?, updated_at = ? WHERE id = ?', [new Date().toISOString(), new Date().toISOString(), record.id]);
+      if (!powerSyncService.db) {
+        console.warn('[LoginForm] PowerSync DB not initialized');
+        return;
+      }
+      await powerSyncService.db.execute('UPDATE user_credentials SET last_success_at = ?, updated_at = ? WHERE id = ?', [new Date().toISOString(), new Date().toISOString(), record.id]);
     } catch { }
   }
 
@@ -1246,6 +1275,25 @@ const LoginForm = () => {
       }
 
       setLoadingMessage('جاري الانتقال إلى لوحة التحكم...');
+
+      // ⚡ توحيد مسار القراءة: مزامنة بيانات POS من السيرفر إلى SQLite
+      if (organization?.id) {
+        try {
+          loginFormDebugLog('🔄 بدء مزامنة بيانات POS بعد تسجيل الدخول...');
+          const { syncAllPOSDataFromServer } = await import('@/services/posDataSyncService');
+          const syncResult = await syncAllPOSDataFromServer(organization.id);
+          
+          if (syncResult.success) {
+            loginFormDebugLog('✅ تمت مزامنة بيانات POS بنجاح');
+          } else {
+            loginFormDebugLog('⚠️ فشلت مزامنة بيانات POS:', syncResult.error);
+            // نكمل رغم الفشل - قد تكون البيانات المحلية كافية
+          }
+        } catch (syncError) {
+          loginFormDebugLog('⚠️ خطأ في مزامنة بيانات POS:', syncError);
+          // نكمل رغم الخطأ - لا نمنع تسجيل الدخول
+        }
+      }
 
       // 🎯 التوجيه بعد اكتمال العمليات
       let posPath = '/dashboard';

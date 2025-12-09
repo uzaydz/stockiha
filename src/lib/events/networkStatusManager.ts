@@ -7,24 +7,8 @@
 
 import { dispatchAppEvent } from './eventManager';
 
-// ⚡ استيراد ConnectionState للاكتشاف الذكي
+// ⚡ ConnectionState removed - using navigator.onLine and event listeners instead
 let connectionStateModule: any = null;
-try {
-  // Dynamic import to avoid circular dependencies
-  import('../sync/delta/ConnectionState').then(m => {
-    connectionStateModule = m;
-    // الاشتراك في تغييرات ConnectionState
-    if (m.connectionState) {
-      m.connectionState.subscribe((state: any) => {
-        networkStatusManager.setStatus(state.isOnline);
-      });
-    }
-  }).catch(() => {
-    // Fallback to navigator.onLine if ConnectionState not available
-  });
-} catch {
-  // Ignore
-}
 
 export interface NetworkStatus {
   isOnline: boolean;

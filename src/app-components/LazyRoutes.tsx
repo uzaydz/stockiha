@@ -62,7 +62,8 @@ export const CustomerDebtDetails = lazy(() => import('../pages/dashboard/Custome
 export const PaymentHistory = lazy(() => import('../pages/dashboard/PaymentHistory'));
 export const Employees = lazy(() => import('../pages/dashboard/Employees'));
 export const Expenses = lazy(() => import('../pages/dashboard/Expenses'));
-export const Analytics = lazy(() => import('../pages/dashboard/Analytics'));
+// Analytics - تم حذفها لإعادة البناء
+// export const Analytics = lazy(() => import('../pages/dashboard/Analytics'));
 export const FinancialAnalytics = lazy(() => import('../pages/FinancialAnalytics'));
 export const Invoices = lazy(() => import('../pages/dashboard/Invoices'));
 export const BlockedCustomers = lazy(() => import('../pages/dashboard/BlockedCustomers'));

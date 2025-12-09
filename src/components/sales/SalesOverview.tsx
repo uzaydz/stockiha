@@ -1,29 +1,41 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle 
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
 } from '@/components/ui/card';
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  ArcElement,
+  Title,
   Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Legend
-} from 'recharts';
+  Legend,
+  ChartOptions,
+  ChartData,
+} from 'chart.js';
+import { Bar, Doughnut } from 'react-chartjs-2';
 import { Loader2, TrendingUp, TrendingDown, DollarSign, Users, ShoppingBag, Calendar } from 'lucide-react';
 import { formatPrice } from '@/lib/utils';
+import { useTheme } from 'next-themes';
 // ✨ استخدام الـ context الجديد المحسن - فقط OrdersContext بدلاً من ShopContext الكامل
 import { useOrders } from '@/context/shop/ShopContext.new';
 import { DateRangePicker } from '@/components/ui/date-range-picker';
+
+// Register Chart.js components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
 // Цветовая схема для графиков
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
@@ -133,7 +145,93 @@ const SalesOverview = () => {
       setSalesByPaymentMethod(paymentMethodSales);
     }
   }, [isLoading, orders, dateRange]);
-  
+
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
+
+  // Chart.js data for daily sales bar chart
+  const dailySalesChartData: ChartData<'bar'> = useMemo(() => ({
+    labels: dailySales.map(d => d.name),
+    datasets: [
+      {
+        label: 'المبيعات',
+        data: dailySales.map(d => d.amount),
+        backgroundColor: '#8884d8',
+        borderRadius: 4,
+      },
+    ],
+  }), [dailySales]);
+
+  const barChartOptions: ChartOptions<'bar'> = useMemo(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false,
+      },
+      tooltip: {
+        backgroundColor: isDark ? '#27272a' : '#ffffff',
+        titleColor: isDark ? '#a1a1aa' : '#71717a',
+        bodyColor: isDark ? '#ffffff' : '#18181b',
+        borderColor: isDark ? '#3f3f46' : '#e4e4e7',
+        borderWidth: 1,
+        callbacks: {
+          label: (context) => formatPrice(context.raw as number),
+        },
+      },
+    },
+    scales: {
+      x: {
+        grid: { display: false },
+        ticks: { color: isDark ? '#71717a' : '#a1a1aa' },
+      },
+      y: {
+        grid: { color: isDark ? '#27272a' : '#e4e4e7' },
+        ticks: { color: isDark ? '#71717a' : '#a1a1aa' },
+      },
+    },
+  }), [isDark]);
+
+  // Chart.js data for payment methods pie chart
+  const paymentMethodsChartData: ChartData<'doughnut'> = useMemo(() => ({
+    labels: salesByPaymentMethod.map(d => d.name),
+    datasets: [
+      {
+        data: salesByPaymentMethod.map(d => d.value),
+        backgroundColor: COLORS.slice(0, salesByPaymentMethod.length),
+        borderColor: isDark ? '#18181b' : '#ffffff',
+        borderWidth: 2,
+      },
+    ],
+  }), [salesByPaymentMethod, isDark]);
+
+  const doughnutOptions: ChartOptions<'doughnut'> = useMemo(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: true,
+        position: 'bottom' as const,
+        labels: { color: isDark ? '#a1a1aa' : '#71717a' },
+      },
+      tooltip: {
+        backgroundColor: isDark ? '#27272a' : '#ffffff',
+        titleColor: isDark ? '#a1a1aa' : '#71717a',
+        bodyColor: isDark ? '#ffffff' : '#18181b',
+        borderColor: isDark ? '#3f3f46' : '#e4e4e7',
+        borderWidth: 1,
+        callbacks: {
+          label: (context) => {
+            const value = context.raw as number;
+            const total = salesByPaymentMethod.reduce((s, i) => s + i.value, 0);
+            const pct = total > 0 ? ((value / total) * 100).toFixed(0) : '0';
+            return `${context.label}: ${formatPrice(value)} (${pct}%)`;
+          },
+        },
+      },
+    },
+  }), [isDark, salesByPaymentMethod]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-60">
@@ -226,22 +324,11 @@ const SalesOverview = () => {
           </CardHeader>
           <CardContent>
             <div className="h-80">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={dailySales}
-                  margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip formatter={(value) => formatPrice(value as number)} />
-                  <Bar dataKey="amount" fill="#8884d8" />
-                </BarChart>
-              </ResponsiveContainer>
+              <Bar data={dailySalesChartData} options={barChartOptions} />
             </div>
           </CardContent>
         </Card>
-        
+
         {/* المبيعات حسب طريقة الدفع */}
         <Card>
           <CardHeader>
@@ -250,27 +337,7 @@ const SalesOverview = () => {
           </CardHeader>
           <CardContent>
             <div className="h-64">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={salesByPaymentMethod}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={true}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="value"
-                    nameKey="name"
-                    label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                  >
-                    {salesByPaymentMethod.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => formatPrice(value as number)} />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
+              <Doughnut data={paymentMethodsChartData} options={doughnutOptions} />
             </div>
           </CardContent>
         </Card>

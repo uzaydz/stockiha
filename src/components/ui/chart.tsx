@@ -1,16 +1,32 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler,
+} from 'chart.js'
 
-// Lazy load recharts components
-let RechartsPrimitive: any = null;
-
-// Load recharts dynamically
-const loadRecharts = async () => {
-  if (!RechartsPrimitive) {
-    RechartsPrimitive = await import("recharts");
-  }
-  return RechartsPrimitive;
-};
+// Register Chart.js components globally
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+)
 
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: "", dark: ".dark" } as const
@@ -50,15 +66,6 @@ const ChartContainer = React.forwardRef<
 >(({ id, className, children, config, ...props }, ref) => {
   const uniqueId = React.useId()
   const chartId = `chart-${id || uniqueId.replace(/:/g, "")}`
-  const [isLoaded, setIsLoaded] = React.useState(false)
-  const [ResponsiveContainer, setResponsiveContainer] = React.useState<any>(null)
-
-  React.useEffect(() => {
-    loadRecharts().then((recharts) => {
-      setResponsiveContainer(() => recharts.ResponsiveContainer)
-      setIsLoaded(true)
-    })
-  }, [])
 
   return (
     <ChartContext.Provider value={{ config }}>
@@ -66,19 +73,15 @@ const ChartContainer = React.forwardRef<
         data-chart={chartId}
         ref={ref}
         className={cn(
-          "flex aspect-video justify-center text-xs [&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground [&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50 [&_.recharts-curve.recharts-tooltip-cursor]:stroke-border [&_.recharts-dot[stroke='#fff']]:stroke-transparent [&_.recharts-layer]:outline-none [&_.recharts-polar-grid_[stroke='#ccc']]:stroke-border [&_.recharts-radial-bar-background-sector]:fill-muted [&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted [&_.recharts-reference-line_[stroke='#ccc']]:stroke-border [&_.recharts-sector[stroke='#fff']]:stroke-transparent [&_.recharts-sector]:outline-none [&_.recharts-surface]:outline-none",
+          "flex aspect-video justify-center text-xs",
           className
         )}
         {...props}
       >
         <ChartStyle id={chartId} config={config} />
-        {isLoaded && ResponsiveContainer ? (
-          <ResponsiveContainer>
-            {children}
-          </ResponsiveContainer>
-        ) : (
-          <div className="flex items-center justify-center">Loading chart...</div>
-        )}
+        <div className="w-full h-full">
+          {children}
+        </div>
       </div>
     </ChartContext.Provider>
   )
@@ -118,10 +121,30 @@ ${colorConfig
   )
 }
 
-const ChartTooltip = React.lazy(async () => {
-  const recharts = await loadRecharts()
-  return { default: recharts.Tooltip }
-})
+// Chart.js tooltip component (custom implementation)
+const ChartTooltip: React.FC<{
+  active?: boolean
+  payload?: any[]
+  label?: string
+}> = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null
+
+  return (
+    <div className="bg-background border border-border rounded-lg shadow-lg p-2 text-xs">
+      {label && <div className="font-medium mb-1">{label}</div>}
+      {payload.map((item, index) => (
+        <div key={index} className="flex items-center gap-2">
+          <div
+            className="w-2 h-2 rounded-full"
+            style={{ backgroundColor: item.color }}
+          />
+          <span className="text-muted-foreground">{item.name}:</span>
+          <span className="font-medium">{item.value?.toLocaleString()}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 const ChartTooltipContent = React.forwardRef<
   HTMLDivElement,
@@ -215,11 +238,11 @@ const ChartTooltipContent = React.forwardRef<
           {payload.map((item, index) => {
             const key = `${nameKey || item.name || item.dataKey || "value"}`
             const itemConfig = getPayloadConfigFromPayload(config, item, key)
-            const indicatorColor = color || item.payload.fill || item.color
+            const indicatorColor = color || item.payload?.fill || item.color
 
             return (
               <div
-                key={item.dataKey}
+                key={item.dataKey || index}
                 className={cn(
                   "flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5 [&>svg]:text-muted-foreground",
                   indicator === "dot" && "items-center"
@@ -283,10 +306,27 @@ const ChartTooltipContent = React.forwardRef<
 )
 ChartTooltipContent.displayName = "ChartTooltip"
 
-const ChartLegend = React.lazy(async () => {
-  const recharts = await loadRecharts()
-  return { default: recharts.Legend }
-})
+// Chart.js legend component (custom implementation)
+const ChartLegend: React.FC<{
+  payload?: Array<{ value: string; color: string }>
+  className?: string
+}> = ({ payload, className }) => {
+  if (!payload?.length) return null
+
+  return (
+    <div className={cn("flex items-center justify-center gap-4 pt-3", className)}>
+      {payload.map((item, index) => (
+        <div key={index} className="flex items-center gap-1.5">
+          <div
+            className="h-2 w-2 shrink-0 rounded-[2px]"
+            style={{ backgroundColor: item.color }}
+          />
+          <span className="text-xs text-muted-foreground">{item.value}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 const ChartLegendContent = React.forwardRef<
   HTMLDivElement,

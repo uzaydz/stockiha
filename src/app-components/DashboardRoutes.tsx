@@ -104,6 +104,24 @@ export const DashboardRoutes = () => (
               </PermissionGuard>
             } />
 
+            {/* إضافة منتج جديد من داخل layout نقطة البيع */}
+            <Route path="product-operations/new" element={
+              <PermissionGuard requiredPermissions={['addProducts']}>
+                <Suspense fallback={<PageLoader message="جاري تحميل نموذج المنتج..." />}>
+                  <LazyRoutes.ProductForm useStandaloneLayout={false} />
+                </Suspense>
+              </PermissionGuard>
+            } />
+
+            {/* تعديل منتج من داخل layout نقطة البيع */}
+            <Route path="product-operations/edit/:id" element={
+              <PermissionGuard requiredPermissions={['editProducts']}>
+                <Suspense fallback={<PageLoader message="جاري تحميل تعديل المنتج..." />}>
+                  <LazyRoutes.ProductForm useStandaloneLayout={false} />
+                </Suspense>
+              </PermissionGuard>
+            } />
+
             {/* تعديل منتج موجود */}
             <Route path="product/:id" element={
               <PermissionGuard requiredPermissions={['editProducts']}>
@@ -272,19 +290,21 @@ export const DashboardRoutes = () => (
               </PermissionGuard>
             } />
 
+            {/* صفحة التحليلات الجديدة */}
             <Route path="analytics" element={
-              <PermissionGuard requiredPermissions={['viewSalesReports']}>
+              <PermissionGuard requiredPermissions={['viewReports']}>
                 <Suspense fallback={<PageLoader message="جاري تحميل التحليلات..." />}>
                   <LazyRoutes.Analytics />
                 </Suspense>
               </PermissionGuard>
             } />
+            <Route path="analytics-enhanced" element={<Navigate to="/dashboard/analytics" replace />} />
 
-            {/* Analytics Enhanced - Dashboard احترافي 100% مع RLS */}
-            <Route path="analytics-enhanced" element={
-              <PermissionGuard requiredPermissions={['viewSalesReports']}>
-                <Suspense fallback={<PageLoader message="جاري تحميل التحليلات المحسّنة..." />}>
-                  <LazyRoutes.AnalyticsEnhanced />
+            {/* التقارير المالية الشاملة */}
+            <Route path="comprehensive-reports" element={
+              <PermissionGuard requiredPermissions={['viewReports']}>
+                <Suspense fallback={<PageLoader message="جاري تحميل التقارير الشاملة..." />}>
+                  <LazyRoutes.ComprehensiveReports />
                 </Suspense>
               </PermissionGuard>
             } />
@@ -344,7 +364,7 @@ export const DashboardRoutes = () => (
 
             {/* إعدادات نقطة البيع - توجيه للصفحة الموحدة */}
             <Route path="pos-settings" element={<Navigate to="/dashboard/settings-unified" replace />} />
-            
+
             {/* صفحة الإعدادات الموحدة */}
             <Route path="settings-unified" element={
               <PermissionGuard requiredPermissions={['manageOrganizationSettings']}>
@@ -443,7 +463,7 @@ export const DashboardRoutes = () => (
             {/* توجيه المسارات القديمة إلى المركز الجديد */}
             <Route path="settings" element={<Navigate to="/dashboard/settings-operations/settings" replace />} />
             <Route path="settings/:section" element={<Navigate to="/dashboard/settings-operations/settings" replace />} />
-            <Route path="subscription" element={<Navigate to="/dashboard/settings-operations/subscription" replace />} />
+
             <Route path="custom-domains" element={<Navigate to="/dashboard/settings-operations/custom-domains" replace />} />
             <Route path="/docs/custom-domains" element={<Navigate to="/dashboard/settings-operations/domains-docs" replace />} />
 
@@ -742,6 +762,13 @@ export const DashboardRoutes = () => (
           <Route path="subscription" element={
             <Suspense fallback={<PageLoader message="جاري تحميل الاشتراك..." />}>
               <LazyRoutes.SubscriptionPage />
+            </Suspense>
+          } />
+
+          {/* صفحة برنامج الإحالة */}
+          <Route path="referral" element={
+            <Suspense fallback={<PageLoader message="جاري تحميل برنامج الإحالة..." />}>
+              <LazyRoutes.ReferralPage />
             </Suspense>
           } />
 

@@ -127,32 +127,33 @@
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
+    /* 🌑 Midnight Obsidian Design - #050b15 */
+    --background: 218 61% 5%;     /* #050b15 - كحلي ليلي عميق */
+    --foreground: 210 40% 98%;    /* #f8fafc - أبيض مائل للزرقة */
+    --card: 218 50% 10%;          /* #0d1626 - أفتح قليلاً للبطاقات */
     --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
+    --popover: 218 50% 10%;
     --popover-foreground: 210 40% 98%;
     --primary: 15 96% 62%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 217.2 32.6% 17.5%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 218 30% 18%;     /* #202b3d */
     --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
+    --muted: 218 30% 18%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 218 30% 18%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
+    --border: 218 30% 18%;
+    --input: 218 30% 18%;
     --ring: 15 96% 62%;
-    --sidebar-background: 222.2 84% 4.9%;
+    --sidebar-background: 218 61% 5%;
     --sidebar-foreground: 210 40% 98%;
     --sidebar-primary: 15 96% 62%;
-    --sidebar-primary-foreground: 222.2 84% 4.9%;
-    --sidebar-accent: 217.2 32.6% 17.5%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 218 30% 18%;
     --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 217.2 32.6% 17.5%;
+    --sidebar-border: 218 30% 18%;
     --sidebar-ring: 15 96% 62%;
   }
 

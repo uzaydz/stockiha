@@ -7,8 +7,6 @@ import { useTenant } from '../TenantContext';
 import { useAuth } from '../AuthContext';
 import { useAppInitialization } from '../AppInitializationContext'; // ✅ استيراد جديد
 import { 
-  fetchPOSOrderStats,
-  fetchPOSOrders,
   fetchEmployees,
   fetchOrganizationSettings,
   fetchOrganizationSubscriptions,
@@ -24,6 +22,8 @@ import {
   POSOrderFilters, 
   Employee 
 } from './types';
+import { unifiedOrderService } from '@/services/UnifiedOrderService';
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
 
 // =================================================================
 // 🔧 Hooks محسنة للأداء
@@ -33,12 +33,64 @@ export const usePOSOrderStats = (orgId?: string) => {
   const { currentOrganization } = useTenant();
   const organizationId = orgId || currentOrganization?.id;
 
+  const fetchLocalStats = async (): Promise<POSOrderStats> => {
+    if (!organizationId) throw new Error('organizationId is required');
+    const ready = await powerSyncService.waitForInitialization(4000);
+    if (!ready) {
+      return {
+        total_orders: 0,
+        total_revenue: 0,
+        completed_orders: 0,
+        pending_orders: 0,
+        cancelled_orders: 0,
+        today_orders: 0,
+        today_revenue: 0
+      };
+    }
+
+    if (!powerSyncService.db) {
+      console.warn('[pos-orders/hooks] PowerSync DB not initialized');
+      return {
+        total_orders: 0,
+        total_revenue: 0,
+        completed_orders: 0,
+        pending_orders: 0,
+        cancelled_orders: 0,
+        today_orders: 0,
+        today_revenue: 0
+      };
+    }
+    const row = await powerSyncService.queryOne<POSOrderStats>({
+      sql: `SELECT
+        COUNT(*) as total_orders,
+        COALESCE(SUM(total), 0) as total_revenue,
+        COALESCE(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END), 0) as completed_orders,
+        COALESCE(SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END), 0) as pending_orders,
+        COALESCE(SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END), 0) as cancelled_orders,
+        COALESCE(SUM(CASE WHEN DATE(created_at) = DATE('now') THEN 1 ELSE 0 END), 0) as today_orders,
+        COALESCE(SUM(CASE WHEN DATE(created_at) = DATE('now') THEN total ELSE 0 END), 0) as today_revenue
+      FROM orders
+      WHERE organization_id = ?`,
+      params: [organizationId]
+    });
+
+    return row || {
+      total_orders: 0,
+      total_revenue: 0,
+      completed_orders: 0,
+      pending_orders: 0,
+      cancelled_orders: 0,
+      today_orders: 0,
+      today_revenue: 0
+    };
+  };
+
   return useQuery({
-    queryKey: ['pos-order-stats', organizationId],
-    queryFn: () => fetchPOSOrderStats(organizationId!),
+    queryKey: ['pos-order-stats-local', organizationId],
+    queryFn: fetchLocalStats,
     enabled: !!organizationId,
-    staleTime: 2 * 60 * 1000, // 2 دقائق
-    gcTime: 5 * 60 * 1000, // 5 دقائق
+    staleTime: 2 * 60 * 1000,
+    gcTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
     retry: 1
   });
@@ -53,15 +105,21 @@ export const usePOSOrders = (
   const { currentOrganization } = useTenant();
   const organizationId = orgId || currentOrganization?.id;
 
+  const fetchLocalOrders = async () => {
+    if (!organizationId) throw new Error('organizationId is required');
+    unifiedOrderService.setOrganizationId(organizationId);
+    return unifiedOrderService.getOrders(filters, page, limit);
+  };
+
   return useQuery({
-    queryKey: ['pos-orders', organizationId, page, limit, filters],
-    queryFn: () => fetchPOSOrders(organizationId!, page, limit, filters),
+    queryKey: ['pos-orders-local', organizationId, page, limit, filters],
+    queryFn: fetchLocalOrders,
     enabled: !!organizationId,
-    staleTime: 1 * 60 * 1000, // 1 دقيقة
-    gcTime: 3 * 60 * 1000, // 3 دقائق
+    staleTime: 1 * 60 * 1000,
+    gcTime: 3 * 60 * 1000,
     refetchOnWindowFocus: false,
     retry: 1,
-    keepPreviousData: true // للحفاظ على البيانات أثناء التنقل بين الصفحات
+    keepPreviousData: true
   });
 };
 

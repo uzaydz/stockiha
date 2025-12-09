@@ -8,6 +8,10 @@ import { supabase } from '@/lib/supabase';
 import { isSupabaseReady } from '@/lib/supabase-unified';
 import { Session, User } from '@supabase/supabase-js';
 
+// ⚡ تخزين الدوال الأصلية قبل أي اعتراض لتجنب الحلقة اللانهائية
+const originalGetSession = supabase.auth.getSession.bind(supabase.auth);
+const originalOnAuthStateChange = supabase.auth.onAuthStateChange.bind(supabase.auth);
+
 interface AuthData {
   session: Session | null;
   user: User | null;
@@ -150,17 +154,18 @@ class AuthSingleton {
 
   /**
    * الحصول على الجلسة مباشرة دون اعتراض
+   * ⚡ يستخدم الدالة الأصلية المخزنة قبل تفعيل الاعتراض
    */
   private async getSessionDirect(): Promise<{ data: { session: any }, error: any }> {
-    // استخدام الطريقة المباشرة لتجنب الحلقة اللانهائية
     try {
       // إضافة حماية من الحلقة اللانهائية
       if (this.isInAuthLoop) {
         return { data: { session: null }, error: new Error('Auth loop detected') };
       }
-      
+
       this.isInAuthLoop = true;
-      const session = await supabase.auth.getSession();
+      // ⚡ استخدام الدالة الأصلية بدلاً من supabase.auth.getSession المعترضة
+      const session = await originalGetSession();
       this.isInAuthLoop = false;
       return session;
     } catch (error) {
@@ -212,23 +217,24 @@ class AuthSingleton {
     } catch (error) {
       
       // محاولة fallback سريع مع getSession مباشرة
+      // ⚡ استخدام الدالة الأصلية لتجنب الحلقة اللانهائية
       try {
-        const { data: { session }, error: fallbackError } = await supabase.auth.getSession();
-        
+        const { data: { session }, error: fallbackError } = await originalGetSession();
+
         if (!fallbackError && session) {
           const authData: AuthData = {
             session,
             user: session.user || null,
             timestamp: Date.now()
           };
-          
+
           // حفظ في cache
           this.cache = {
             data: authData,
             expiresAt: Date.now() + this.CACHE_TTL,
             requestId: `${requestId}-fallback`
           };
-          
+
           return authData;
         }
       } catch (fallbackError) {
@@ -286,6 +292,7 @@ class AuthSingleton {
 
   /**
    * إعداد مستمع واحد فقط لتغييرات المصادقة
+   * ⚡ يستخدم الدالة الأصلية لتجنب الاعتراض
    */
   private setupAuthListener(): void {
     if (this.authStateSubscription) {
@@ -294,8 +301,9 @@ class AuthSingleton {
 
     let lastEvent = '';
     let lastEventTime = 0;
-    
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+
+    // ⚡ استخدام الدالة الأصلية بدلاً من المعترضة
+    const { data: { subscription } } = originalOnAuthStateChange(
       (event, session) => {
         const now = Date.now();
         

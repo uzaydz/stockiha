@@ -1,5 +1,5 @@
 import React from 'react';
-import { LayoutDashboard, Settings, Users, CircleDollarSign, ShoppingCart, BookOpen, KeyRound, DatabaseZap, Search, GraduationCap, FileText } from 'lucide-react';
+import { LayoutDashboard, Settings, Users, CircleDollarSign, ShoppingCart, BookOpen, KeyRound, DatabaseZap, Search, GraduationCap, FileText, Gift, Trophy, History, Star, UserCheck } from 'lucide-react';
 
 // تعريف نوع رابط القائمة الجانبية
 export interface SidebarLink {
@@ -65,4 +65,38 @@ export const SuperAdminSidebarLinks: SidebarLink[] = [
     href: "/super-admin/settings",
     icon: <Settings className="h-5 w-5" />,
   }
+];
+
+// روابط نظام الإحالات للمسؤول الرئيسي
+export const ReferralAdminSidebarLinks: SidebarLink[] = [
+  {
+    name: "لوحة الإحالات",
+    href: "/super-admin/referrals",
+    icon: <Gift className="h-5 w-5" />,
+  },
+  {
+    name: "المُحيلين",
+    href: "/super-admin/referrals/referrers",
+    icon: <UserCheck className="h-5 w-5" />,
+  },
+  {
+    name: "طلبات الاستبدال",
+    href: "/super-admin/referrals/redemptions",
+    icon: <Gift className="h-5 w-5" />,
+  },
+  {
+    name: "المكافآت",
+    href: "/super-admin/referrals/rewards",
+    icon: <Star className="h-5 w-5" />,
+  },
+  {
+    name: "المستويات",
+    href: "/super-admin/referrals/tiers",
+    icon: <Trophy className="h-5 w-5" />,
+  },
+  {
+    name: "سجل المعاملات",
+    href: "/super-admin/referrals/transactions",
+    icon: <History className="h-5 w-5" />,
+  },
 ];

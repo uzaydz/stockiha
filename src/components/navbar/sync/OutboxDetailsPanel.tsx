@@ -1,150 +1,399 @@
 /**
- * ⚡ مكون عرض تفاصيل Outbox
+ * ⚡ مكون عرض تفاصيل العمليات المعلقة المحسّن
+ * @version 2.0.0
  */
 
 import React, { useState } from 'react';
-import { Zap, RefreshCw, Send, Trash2 } from 'lucide-react';
+import { 
+  Zap, 
+  RefreshCw, 
+  Send, 
+  ChevronDown, 
+  ChevronUp,
+  Database,
+  Clock,
+  CheckCircle2,
+  AlertCircle
+} from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { outboxManager } from '@/lib/sync/delta';
-import type { OutboxDetails } from './types';
+import { cn } from '@/lib/utils';
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
+import type { OutboxDetails, PowerSyncStatus, SyncError } from './types';
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🔹 Props
+// ═══════════════════════════════════════════════════════════════════════════════
 
 interface OutboxDetailsPanelProps {
-  pendingOutbox: number;
-  outboxDetails: OutboxDetails | null;
+  outbox: OutboxDetails;
+  powerSyncStatus: PowerSyncStatus;
+  error: SyncError | null;
   isOnline: boolean;
-  isForceSending: boolean;
-  onForceSend: () => Promise<void>;
-  onClear: () => Promise<void>;
+  isSyncing: boolean;
+  onSync: () => Promise<void>;
 }
 
-export function OutboxDetailsPanel({
-  pendingOutbox,
-  outboxDetails,
-  isOnline,
-  isForceSending,
-  onForceSend,
-  onClear
-}: OutboxDetailsPanelProps) {
-  const [showDetails, setShowDetails] = useState(false);
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🔹 مكون التفاصيل
+// ═══════════════════════════════════════════════════════════════════════════════
 
-  const handleToggleDetails = async () => {
-    setShowDetails(!showDetails);
-    
-    // طباعة التفاصيل في الكونسول عند التوسيع
-    if (!showDetails && process.env.NODE_ENV === 'development') {
-      console.log('[OutboxDetails] 👁️ Expanding...');
-      const detailed = await outboxManager.getDetailedPending(20);
-      console.table(detailed.map(op => ({
-        status: op.status,
-        operation: op.operation,
-        table: op.table_name,
-        record: op.record_id.slice(0, 12) + '...',
-        retries: op.retry_count,
-        error: op.last_error?.slice(0, 50) || '-'
-      })));
+export function OutboxDetailsPanel({
+  outbox,
+  powerSyncStatus,
+  error,
+  isOnline,
+  isSyncing,
+  onSync
+}: OutboxDetailsPanelProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const { total = 0, byTable = {} } = outbox || {};
+  const { connected = false, hasSynced = false, lastSyncedAt = null } = powerSyncStatus || {};
+
+  // ⚡ تحديد حالة العرض
+  const getStatusConfig = () => {
+    if (error) {
+      return {
+        icon: AlertCircle,
+        label: 'خطأ',
+        color: 'text-red-500',
+        bg: 'bg-red-500/10',
+        border: 'border-red-500/20'
+      };
     }
+    if (!isOnline) {
+      return {
+        icon: Database,
+        label: 'غير متصل',
+        color: 'text-slate-500',
+        bg: 'bg-slate-500/10',
+        border: 'border-slate-500/20'
+      };
+    }
+    if (isSyncing) {
+      return {
+        icon: RefreshCw,
+        label: 'جارٍ المزامنة',
+        color: 'text-blue-500',
+        bg: 'bg-blue-500/10',
+        border: 'border-blue-500/20',
+        animate: true
+      };
+    }
+    if (total > 0) {
+      return {
+        icon: Clock,
+        label: `${total} عملية معلقة`,
+        color: 'text-amber-500',
+        bg: 'bg-amber-500/10',
+        border: 'border-amber-500/20'
+      };
+    }
+    if (connected && hasSynced) {
+      return {
+        icon: CheckCircle2,
+        label: 'متزامن',
+        color: 'text-emerald-500',
+        bg: 'bg-emerald-500/10',
+        border: 'border-emerald-500/20'
+      };
+    }
+    return {
+      icon: Zap,
+      label: 'PowerSync',
+      color: 'text-blue-500',
+      bg: 'bg-blue-500/10',
+      border: 'border-blue-500/20'
+    };
   };
 
+  const config = getStatusConfig();
+  const Icon = config.icon;
+
   return (
-    <div className="p-2 rounded-lg bg-blue-500/10 border border-blue-500/20">
-      <div className="flex items-center justify-between gap-2 text-xs text-blue-600">
+    <div className={cn(
+      "rounded-xl border transition-all duration-200",
+      config.bg,
+      config.border
+    )}>
+      {/* Header */}
+      <div 
+        className="flex items-center justify-between p-3 cursor-pointer"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
         <div className="flex items-center gap-2">
-          <Zap className="h-3 w-3" />
-          <span>⚡ Delta Sync</span>
+          <Icon className={cn(
+            "h-4 w-4",
+            config.color,
+            (config as any).animate && 'animate-spin'
+          )} />
+          <span className={cn("text-sm font-medium", config.color)}>
+            {config.label}
+          </span>
         </div>
-        
+
         <div className="flex items-center gap-2">
-          {pendingOutbox > 0 && (
-            <>
-              <Badge
-                variant="secondary"
-                className="h-5 cursor-pointer hover:bg-secondary/80"
-                onClick={handleToggleDetails}
-              >
-                {pendingOutbox} معلق ▼
-              </Badge>
-              
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={onForceSend}
-                disabled={isForceSending || !isOnline}
-                className="h-6 px-2 text-green-500 hover:text-green-600 hover:bg-green-100"
-                title="إرسال العمليات المعلقة الآن"
-              >
-                {isForceSending ? (
-                  <RefreshCw className="h-3 w-3 animate-spin" />
-                ) : (
-                  <Send className="h-3 w-3" />
-                )}
-              </Button>
-              
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={onClear}
-                className="h-6 px-2 text-red-500 hover:text-red-600 hover:bg-red-100"
-                title="حذف العمليات المعلقة"
-              >
-                <Trash2 className="h-3 w-3" />
-              </Button>
-            </>
+          {/* زر المزامنة */}
+          {total > 0 && isOnline && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSync();
+              }}
+              disabled={isSyncing}
+              className={cn(
+                "h-7 px-2",
+                "text-emerald-500 hover:text-emerald-600 hover:bg-emerald-100"
+              )}
+            >
+              {isSyncing ? (
+                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Send className="h-3.5 w-3.5" />
+              )}
+            </Button>
           )}
-          
-          {pendingOutbox === 0 && (
-            <span className="text-green-600 text-[10px]">✓ متزامن</span>
+
+          {/* Badge العدد */}
+          {total > 0 && (
+            <Badge variant="secondary" className="h-5 text-xs">
+              {total}
+            </Badge>
+          )}
+
+          {/* السهم */}
+          {(total > 0 || error) && (
+            isExpanded ? (
+              <ChevronUp className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            )
           )}
         </div>
       </div>
 
-      {/* تفاصيل العمليات المعلقة */}
-      {showDetails && outboxDetails && (
-        <div className="mt-2 pt-2 border-t border-blue-500/20 space-y-2">
-          {/* حسب الحالة */}
-          <div className="flex flex-wrap gap-1">
-            {outboxDetails.pending > 0 && (
-              <span className="px-2 py-0.5 rounded text-[10px] bg-yellow-100 text-yellow-700">
-                معلق: {outboxDetails.pending}
-              </span>
-            )}
-            {outboxDetails.sending > 0 && (
-              <span className="px-2 py-0.5 rounded text-[10px] bg-blue-100 text-blue-700">
-                قيد الإرسال: {outboxDetails.sending}
-              </span>
-            )}
-            {outboxDetails.failed > 0 && (
-              <span className="px-2 py-0.5 rounded text-[10px] bg-red-100 text-red-700">
-                فاشل: {outboxDetails.failed}
-              </span>
-            )}
-          </div>
+      {/* التفاصيل الموسعة */}
+      {isExpanded && (
+        <div className="px-3 pb-3 space-y-3 border-t border-inherit">
+          {/* رسالة الخطأ */}
+          {error && (
+            <div className="mt-3 p-2 rounded-lg bg-red-500/10 border border-red-500/20">
+              <p className="text-xs font-medium text-red-600">{error.messageAr}</p>
+              {error.details && (
+                <p className="text-[10px] text-red-400 mt-1 font-mono truncate">
+                  {error.details}
+                </p>
+              )}
+            </div>
+          )}
 
-          {/* حسب الجدول */}
-          {Object.keys(outboxDetails.byTable).length > 0 && (
-            <div>
-              <p className="text-[10px] text-blue-500 mb-1">حسب الجدول:</p>
+          {/* العمليات حسب الجدول */}
+          {Object.keys(byTable).length > 0 && (
+            <div className="mt-3">
+              <p className="text-[10px] text-muted-foreground mb-2">
+                العمليات المعلقة حسب الجدول:
+              </p>
               <div className="flex flex-wrap gap-1">
-                {Object.entries(outboxDetails.byTable).map(([table, count]) => (
-                  <span key={table} className="px-2 py-0.5 rounded text-[10px] bg-gray-100 text-gray-700">
-                    {table}: {count}
-                  </span>
+                {Object.entries(byTable).map(([table, count]) => (
+                  <Badge
+                    key={table}
+                    variant="outline"
+                    className="text-[10px] h-5"
+                  >
+                    {getTableNameAr(table)}: {count}
+                  </Badge>
                 ))}
               </div>
             </div>
           )}
 
-          {/* حسب نوع العملية */}
-          {Object.keys(outboxDetails.byOperation).length > 0 && (
-            <div>
-              <p className="text-[10px] text-blue-500 mb-1">حسب العملية:</p>
-              <div className="flex flex-wrap gap-1">
-                {Object.entries(outboxDetails.byOperation).map(([op, count]) => (
-                  <span key={op} className="px-2 py-0.5 rounded text-[10px] bg-purple-100 text-purple-700">
-                    {op}: {count}
-                  </span>
-                ))}
+          {/* آخر مزامنة */}
+          {lastSyncedAt && (
+            <div className="mt-3 text-center">
+              <p className="text-[10px] text-muted-foreground">
+                آخر مزامنة: {new Date(lastSyncedAt).toLocaleString('ar-SA')}
+              </p>
+            </div>
+          )}
+
+          {/* حالة الاتصال */}
+          <div className="mt-3 space-y-2">
+            <div className="flex items-center justify-center gap-3 text-[10px]">
+              <div className="flex items-center gap-1">
+                <div className={cn(
+                  "w-2 h-2 rounded-full",
+                  connected ? 'bg-emerald-500' : 'bg-red-500'
+                )} />
+                <span className="text-muted-foreground">
+                  {connected ? 'متصل' : 'غير متصل'}
+                </span>
               </div>
+              <div className="flex items-center gap-1">
+                <div className={cn(
+                  "w-2 h-2 rounded-full",
+                  hasSynced ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'
+                )} />
+                <span className="text-muted-foreground">
+                  {hasSynced ? 'تم التزامن' : 'لم يتزامن'}
+                </span>
+              </div>
+            </div>
+            
+            {/* تحذير إذا لم تكتمل المزامنة الأولى */}
+            {connected && !hasSynced && (
+              <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                <p className="text-[10px] text-amber-600 font-medium mb-1">
+                  ⚠️ المزامنة الأولى لم تكتمل
+                </p>
+                <p className="text-[9px] text-muted-foreground">
+                  تحقق من Sync Rules في PowerSync Dashboard
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🔹 مساعدات
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function getTableNameAr(table: string): string {
+  const names: Record<string, string> = {
+    products: 'المنتجات',
+    customers: 'العملاء',
+    orders: 'الطلبات',
+    order_items: 'عناصر الطلبات',
+    suppliers: 'الموردين',
+    users: 'المستخدمين',
+    organizations: 'المنظمات',
+    product_categories: 'التصنيفات',
+    product_subcategories: 'التصنيفات الفرعية',
+    transactions: 'المعاملات',
+    expenses: 'المصروفات',
+    expense_categories: 'تصنيفات المصروفات',
+    unknown: 'غير معروف'
+  };
+  return names[table] || table;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 🔹 مكون التشخيص
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface DiagnosticsPanelProps {
+  onGetDiagnostics: () => Promise<any>;
+}
+
+export function DiagnosticsPanel({ onGetDiagnostics }: DiagnosticsPanelProps) {
+  const [diagnostics, setDiagnostics] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleLoad = async () => {
+    setIsLoading(true);
+    try {
+      const data = await onGetDiagnostics();
+      setDiagnostics(data);
+      console.log('[Diagnostics] 🔍 Full diagnostics:', data);
+    } catch (err) {
+      console.error('[Diagnostics] Error:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-800/50 border">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs font-medium">🔧 التشخيص</span>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={handleLoad}
+          disabled={isLoading}
+          className="h-6 text-xs"
+        >
+          {isLoading ? (
+            <RefreshCw className="h-3 w-3 animate-spin" />
+          ) : (
+            'تحديث'
+          )}
+        </Button>
+      </div>
+
+      {diagnostics && (
+        <div className="space-y-2 text-[10px]">
+          <div className="p-2 rounded bg-white/50 dark:bg-black/20 space-y-1">
+            <div className="flex items-center justify-between">
+              <span>🔌 الاتصال:</span>
+              <span className={diagnostics.connection?.isOnline ? 'text-emerald-500' : 'text-red-500'}>
+                {diagnostics.connection?.isOnline ? '✅ متصل' : '❌ غير متصل'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>📡 PowerSync:</span>
+              <span className={diagnostics.powersync?.isInitialized ? 'text-emerald-500' : 'text-red-500'}>
+                {diagnostics.powersync?.isInitialized ? '✅ مهيأ' : '❌ غير مهيأ'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>💾 السجلات المحلية:</span>
+              <span className="font-mono">{diagnostics.database?.totalRecords || 0}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>🔐 المستخدم:</span>
+              <span className="font-mono text-[9px]">{diagnostics.auth?.userId?.slice(0, 8) || 'غير معروف'}...</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>🏢 المنظمة:</span>
+              <span className="font-mono text-[9px]">{diagnostics.auth?.organizationId?.slice(0, 8) || 'غير معروف'}...</span>
+            </div>
+            {diagnostics.connection?.lastConnectedAt && (
+              <div className="flex items-center justify-between">
+                <span>🕐 آخر اتصال:</span>
+                <span className="text-[9px]">
+                  {new Date(diagnostics.connection.lastConnectedAt).toLocaleTimeString('ar-SA')}
+                </span>
+              </div>
+            )}
+          </div>
+          
+          {/* تحذير إذا لم تكتمل المزامنة الأولى */}
+          {diagnostics.powersync?.isInitialized && diagnostics.connection?.isOnline && diagnostics.database?.totalRecords === 0 && (
+            <div className="p-2 rounded bg-amber-500/10 border border-amber-500/20">
+              <p className="text-[9px] text-amber-600 font-medium mb-1">
+                ⚠️ المزامنة الأولى لم تكتمل
+              </p>
+              <p className="text-[8px] text-muted-foreground">
+                تحقق من Sync Rules في PowerSync Dashboard
+              </p>
+            </div>
+          )}
+          
+          {/* حالة Sync Rules */}
+          {diagnostics.connection?.syncRulesDeployed !== undefined && (
+            <div className={cn(
+              "p-2 rounded border text-[9px]",
+              diagnostics.connection.syncRulesDeployed
+                ? "bg-emerald-500/10 border-emerald-500/20"
+                : "bg-red-500/10 border-red-500/20"
+            )}>
+              <div className="flex items-center gap-1 mb-1">
+                <span>{diagnostics.connection.syncRulesDeployed ? '✅' : '❌'}</span>
+                <span className="font-medium">
+                  Sync Rules: {diagnostics.connection.syncRulesDeployed ? 'منشورة' : 'غير منشورة'}
+                </span>
+              </div>
+              {diagnostics.connection.syncRulesError && (
+                <p className="text-[8px] text-muted-foreground mt-1">
+                  {diagnostics.connection.syncRulesError}
+                </p>
+              )}
             </div>
           )}
         </div>

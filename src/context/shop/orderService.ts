@@ -5,6 +5,10 @@ import { isValidUUID } from './mappers';
 import { updateProductsInventory } from './productService';
 import { ensureCustomerExists } from '@/lib/fallback_customer';
 import { createPOSOrder } from './posOrderService';
+// ⚡ Phase 4: استيراد DeltaWriteService لاستخدام عمليات Delta للمخزون
+import { deltaWriteService } from '@/services/DeltaWriteService';
+// ⚡ PowerSync: استخدام PowerSync للبحث عن الموظفين
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
 
 // معرف المنتج الافتراضي للمنتجات اليدوية (تم جلبه من قاعدة البيانات)
 const DEFAULT_PRODUCT_ID = "7b973625-5c3d-484f-a7e0-bf9e01f00ed2";
@@ -26,151 +30,131 @@ export const addOrder = async (
     const orderSlug = `order-${new Date().getTime()}`;
     
     // التحقق من صحة employee_id قبل إنشاء الطلب
+    // ⚡ استخدام PowerSync للبحث محلياً أولاً
     let validEmployeeId = null;
-    if (order.employeeId && order.employeeId !== "") {
+    if (order.employeeId && order.employeeId !== "" && currentOrganizationId) {
       try {
-        // البحث أولاً بـ id ثم بـ auth_user_id
-        let { data: employeeExists } = await supabase
-          .from('users')
-          .select('id')
-          .eq('id', order.employeeId)
-          .single();
-        
-        if (employeeExists) {
-          validEmployeeId = order.employeeId;
+        // البحث في PowerSync أولاً (أوفلاين)
+        if (!powerSyncService.db) {
+          console.warn('[orderService] PowerSync DB not initialized');
         } else {
-          // إذا لم يوجد، البحث بـ auth_user_id
-          const { data: employeeByAuthId } = await supabase
-            .from('users')
-            .select('id')
-            .eq('auth_user_id', order.employeeId)
-            .single();
+          const employee = await powerSyncService.queryOne<{ id: string; auth_user_id?: string }>({
+            sql: 'SELECT id, auth_user_id FROM users WHERE (id = ? OR auth_user_id = ?) AND organization_id = ? LIMIT 1',
+            params: [order.employeeId, order.employeeId, currentOrganizationId]
+          });
           
-          if (employeeByAuthId) {
-            validEmployeeId = employeeByAuthId.id;
+          if (employee) {
+            validEmployeeId = employee.id;
           } else {
+            // Fallback: البحث في Supabase (أونلاين فقط)
+            try {
+              let { data: employeeExists } = await supabase
+                .from('users')
+                .select('id')
+                .eq('id', order.employeeId)
+                .single();
+              
+              if (employeeExists) {
+                validEmployeeId = order.employeeId;
+              } else {
+                const { data: employeeByAuthId } = await supabase
+                  .from('users')
+                  .select('id')
+                  .eq('auth_user_id', order.employeeId)
+                  .single();
+                
+                if (employeeByAuthId) {
+                  validEmployeeId = employeeByAuthId.id;
+                }
+              }
+            } catch (supabaseError) {
+              // تجاهل الأخطاء - سنستخدم null
+              console.warn('[OrderService] Failed to find employee:', supabaseError);
+            }
+          }
+        }
+        
+        if (employee) {
+          validEmployeeId = employee.id;
+        } else {
+          // Fallback: البحث في Supabase (أونلاين فقط)
+          try {
+            let { data: employeeExists } = await supabase
+              .from('users')
+              .select('id')
+              .eq('id', order.employeeId)
+              .single();
+            
+            if (employeeExists) {
+              validEmployeeId = order.employeeId;
+            } else {
+              const { data: employeeByAuthId } = await supabase
+                .from('users')
+                .select('id')
+                .eq('auth_user_id', order.employeeId)
+                .single();
+              
+              if (employeeByAuthId) {
+                validEmployeeId = employeeByAuthId.id;
+              }
+            }
+          } catch (supabaseError) {
+            // تجاهل الأخطاء - سنستخدم null
+            console.warn('[OrderService] Failed to find employee:', supabaseError);
           }
         }
       } catch (error) {
+        console.warn('[OrderService] Error checking employee:', error);
       }
     }
     
-    // إنشاء الطلب في قاعدة لبيانات
-    const { data: orderData, error: orderError } = await supabase
-      .from('orders')
-      .insert({
-        customer_id: customerId,
-        subtotal: order.subtotal,
-        tax: order.tax,
-        discount: order.discount,
-        total: order.total,
-        status: order.status,
-        payment_method: order.paymentMethod,
-        payment_status: order.paymentStatus,
-        shipping_address_id: order.shippingAddress?.id,
-        shipping_method: order.shippingMethod,
-        shipping_cost: order.shippingCost,
-        notes: order.notes || '',
-        is_online: order.isOnline,
-        employee_id: validEmployeeId, // استخدام معرف الموظف المتحقق منه أو null
-        organization_id: currentOrganizationId,
-        slug: orderSlug,
-        // إضافة حقول المدفوعات الجزئية
-        amount_paid: order.partialPayment?.amountPaid || order.total,
-        remaining_amount: order.partialPayment?.remainingAmount || 0,
-        consider_remaining_as_partial: order.partialPayment ? true : false,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .select('*');
-      
-    if (orderError) {
-      throw new Error(`Error creating order: ${orderError.message}`);
+    // ⚡ Offline-First: استخدام UnifiedOrderService لإنشاء الطلب
+    const { unifiedOrderService } = await import('@/services/UnifiedOrderService');
+    if (!currentOrganizationId) {
+      throw new Error('Organization ID is required');
     }
     
-    const newOrderId = orderData[0].id;
+    unifiedOrderService.setOrganizationId(currentOrganizationId);
+    
+    // تحويل البيانات إلى صيغة UnifiedOrderService
+    const orderInput: CreateOrderInput = {
+      customerId,
+      items: order.items?.map(item => ({
+        productId: item.productId || DEFAULT_PRODUCT_ID,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice || item.price,
+        variantInfo: item.variant_info
+      })) || [],
+      subtotal: order.subtotal,
+      tax: order.tax,
+      discount: order.discount,
+      total: order.total,
+      status: order.status as any,
+      paymentMethod: order.paymentMethod as any,
+      paymentStatus: order.paymentStatus as any,
+      amountPaid: order.partialPayment?.amountPaid || order.total,
+      remainingAmount: order.partialPayment?.remainingAmount || 0,
+      shippingAddressId: order.shippingAddress?.id,
+      shippingMethod: order.shippingMethod,
+      shippingCost: order.shippingCost,
+      notes: order.notes || '',
+      employeeId: validEmployeeId || undefined,
+      isOnline: order.isOnline || false
+    };
+    
+    // ⚡ UnifiedOrderService يقوم تلقائياً بـ:
+    // - إنشاء الطلب
+    // - إضافة عناصر الطلب
+    // - تحديث المخزون
+    // - المزامنة مع السيرفر عند الاتصال
+    const createdOrder = await unifiedOrderService.createOrder(orderInput);
+    const newOrderId = createdOrder.id;
 
     // تحسين السرعة: تشغيل العمليات بالتوازي
     const parallelOperations = [];
     
-    // إضافة عناصر الطلب مع تحديث المخزون
-    if (order.items && order.items.length > 0) {
-      // إضافة order items إلى قاعدة البيانات
-      const orderItemsToInsert = order.items.map(item => ({
-        order_id: newOrderId,
-        product_id: item.productId || DEFAULT_PRODUCT_ID,
-        product_name: item.productName || item.name,
-        quantity: item.quantity,
-        unit_price: item.unitPrice || item.price,
-        total_price: item.totalPrice || (item.price * item.quantity),
-        variant_info: item.variant_info ? JSON.stringify(item.variant_info) : null,
-        created_at: new Date().toISOString()
-      }));
-      
-      parallelOperations.push(
-        supabase.from('order_items').insert(orderItemsToInsert)
-      );
-      
-      // تحديث المخزون بالتسلسل لتجنب race conditions والتحديث المضاعف
-      
-      // معالجة العناصر بالتسلسل وليس بالتوازي
-      for (let index = 0; index < order.items.length; index++) {
-        const item = order.items[index];
-        try {
-          
-          const hasVariantInfo = item.variant_info && (item.variant_info.colorId || item.variant_info.sizeId);
-          
-          if (hasVariantInfo) {
-            if (item.variant_info.sizeId) {
-              // تحديث مخزون المقاس بطريقة آمنة
-              const { data: currentSize } = await supabase
-                .from('product_sizes')
-                .select('quantity')
-                .eq('id', item.variant_info.sizeId)
-                .single();
-              
-              if (currentSize && currentSize.quantity >= item.quantity) {
-                const newQuantity = currentSize.quantity - item.quantity;
-                await supabase
-                  .from('product_sizes')
-                  .update({ quantity: newQuantity })
-                  .eq('id', item.variant_info.sizeId);
-              } else {
-              }
-            } else if (item.variant_info.colorId) {
-              // تحديث مخزون اللون بطريقة آمنة
-              const { data: currentColor } = await supabase
-                .from('product_colors')
-                .select('quantity')
-                .eq('id', item.variant_info.colorId)
-                .single();
-              
-              if (currentColor && currentColor.quantity >= item.quantity) {
-                const newQuantity = currentColor.quantity - item.quantity;
-                await supabase
-                  .from('product_colors')
-                  .update({ quantity: newQuantity })
-                  .eq('id', item.variant_info.colorId);
-              } else {
-              }
-            }
-          } else {
-            // استخدام الدالة الآمنة لتحديث مخزون المنتج الأساسي
-            const { error: stockError } = await supabase.rpc('update_product_stock_safe', {
-              p_product_id: item.productId,
-              p_quantity_sold: item.quantity
-            });
-            
-            if (stockError) {
-            } else {
-            }
-          }
-          
-        } catch (error) {
-        }
-      }
-      
-    }
+    // ⚡ ملاحظة: تحديث المخزون يتم تلقائياً عبر UnifiedOrderService
+    // لا حاجة لتحديث المخزون يدوياً هنا
     
     // إضافة حجوزات الخدمات
     if (order.services && order.services.length > 0) {
@@ -191,9 +175,9 @@ export const addOrder = async (
     return {
       ...order,
       id: newOrderId,
-      customer_order_number: orderData[0].customer_order_number,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      customer_order_number: createdOrder.customer_order_number || `ORDER-${newOrderId.substring(0, 8)}`,
+      createdAt: new Date(createdOrder.created_at || new Date()),
+      updatedAt: new Date(createdOrder.updated_at || new Date()),
       slug: orderSlug
     };
   } catch (error) {
@@ -520,33 +504,44 @@ async function updateProductQuantityFromColors(productId: string) {
   }
 }
 
-// دالة مساعدة لتحديث مخزون المنتج بدون متغيرات
+// ⚡ Phase 4: دالة مساعدة لتحديث مخزون المنتج باستخدام Delta operations
 async function updateProductStock(productId: string, quantity: number) {
   try {
-    // الحصول على كمية المخزون الحالية
-    const { data: productData, error: productError } = await supabase
-      .from('products')
-      .select('stock_quantity')
-      .eq('id', productId)
-      .single();
+    // ⚡ Phase 4: استخدام Delta operation بدلاً من UPDATE مباشر
+    // هذا يسهل: replay, conflict resolution, audit
+    await deltaWriteService.deltaUpdate(
+      'products',
+      productId,
+      'stock_quantity',
+      -quantity // سالب للخصم
+    );
+  } catch (deltaError) {
+    console.error(`[OrderService] Delta update failed, using fallback:`, deltaError);
+    // Fallback: التحديث المباشر (للتوافق مع الطلبات Online)
+    try {
+      const { data: productData, error: productError } = await supabase
+        .from('products')
+        .select('stock_quantity')
+        .eq('id', productId)
+        .single();
+        
+      if (productError) {
+        return;
+      }
       
-    if (productError) {
-      return;
+      const currentStock = productData?.stock_quantity || 0;
+      const newStock = Math.max(0, currentStock - quantity);
+      
+      const { error: updateError } = await supabase
+        .from('products')
+        .update({ stock_quantity: newStock })
+        .eq('id', productId);
+        
+      if (updateError) {
+        console.error(`[OrderService] Fallback update also failed:`, updateError);
+      }
+    } catch (error) {
+      console.error(`[OrderService] Fallback error:`, error);
     }
-    
-    const currentStock = productData?.stock_quantity || 0;
-    const newStock = Math.max(0, currentStock - quantity);
-    
-    // تحديث كمية المخزون
-    const { error: updateError } = await supabase
-      .from('products')
-      .update({ stock_quantity: newStock })
-      .eq('id', productId);
-      
-    if (updateError) {
-    } else {
-      
-    }
-  } catch (error) {
   }
 }

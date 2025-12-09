@@ -21,7 +21,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Package } from 'lucide-react';
+import { Package, Loader2 } from 'lucide-react';
+
+// ⚡ نظام الطباعة الموحد
+import { usePrinter } from '@/hooks/usePrinter';
 
 interface POSAdvancedDialogsProps {
   // حالة النوافذ الحوارية
@@ -135,6 +138,80 @@ export const POSAdvancedDialogs: React.FC<POSAdvancedDialogsProps> = ({
   // دوال مسح البيانات
   clearPrintData
 }) => {
+  // ⚡ نظام الطباعة الموحد
+  const { printHtml, isElectron: isElectronPrint, isPrinting } = usePrinter();
+
+  // ⚡ طباعة وصل التصليح
+  const handlePrintRepairReceipt = async () => {
+    const printContainer = document.querySelector('.repair-receipt-print-area');
+    if (!printContainer) {
+      // إذا لم يوجد container محدد، نستخدم window.print كـ fallback
+      if (isElectronPrint) {
+        try {
+          const dialogContent = document.querySelector('[data-repair-print-content]');
+          if (dialogContent) {
+            const result = await printHtml(`
+              <!DOCTYPE html>
+              <html dir="rtl" lang="ar">
+                <head>
+                  <meta charset="UTF-8">
+                  <title>وصل التصليح</title>
+                  <style>
+                    * { box-sizing: border-box; margin: 0; padding: 0; }
+                    body { font-family: 'Tajawal', Arial, sans-serif; direction: rtl; }
+                    @page { size: A4; margin: 10mm; }
+                  </style>
+                </head>
+                <body>${dialogContent.innerHTML}</body>
+              </html>
+            `, { silent: false });
+
+            if (result.success) {
+              toast.success('تمت الطباعة بنجاح');
+              return;
+            }
+          }
+        } catch (err) {
+          console.warn('[POSAdvancedDialogs] فشلت الطباعة المباشرة:', err);
+        }
+      }
+      // Fallback
+      window.print();
+      return;
+    }
+
+    // طباعة المحتوى المحدد
+    if (isElectronPrint) {
+      try {
+        const result = await printHtml(`
+          <!DOCTYPE html>
+          <html dir="rtl" lang="ar">
+            <head>
+              <meta charset="UTF-8">
+              <title>وصل التصليح</title>
+              <style>
+                * { box-sizing: border-box; margin: 0; padding: 0; }
+                body { font-family: 'Tajawal', Arial, sans-serif; direction: rtl; }
+                @page { size: A4; margin: 10mm; }
+              </style>
+            </head>
+            <body>${printContainer.innerHTML}</body>
+          </html>
+        `, { silent: false });
+
+        if (result.success) {
+          toast.success('تمت الطباعة بنجاح');
+          return;
+        }
+      } catch (err) {
+        console.warn('[POSAdvancedDialogs] فشلت الطباعة المباشرة:', err);
+      }
+    }
+
+    // Fallback to window.print
+    window.print();
+  };
+
   return (
     <>
       {/* نافذة اختيار المتغيرات */}
@@ -219,14 +296,21 @@ export const POSAdvancedDialogs: React.FC<POSAdvancedDialogsProps> = ({
             </div>
             
             <div className="p-6 border-t bg-gray-50 flex justify-end gap-2">
-              <Button 
+              <Button
                 variant="outline"
                 onClick={() => setIsRepairPrintDialogOpen(false)}
               >
                 إغلاق
               </Button>
-              <Button onClick={() => window.print()}>
-                طباعة
+              <Button onClick={handlePrintRepairReceipt} disabled={isPrinting}>
+                {isPrinting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin ml-2" />
+                    جاري الطباعة...
+                  </>
+                ) : (
+                  'طباعة'
+                )}
               </Button>
             </div>
           </div>

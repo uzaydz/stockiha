@@ -1,6 +1,14 @@
 /**
- * 🔔 نظام الإشعارات الفوري المتقدم
- * يراقب الطلبات الجديدة والمخزون المنخفض بشكل فوري وذكي
+ * 🔔 نظام الإشعارات الموحد (Local-First)
+ * =========================================
+ *
+ * ⚡ v5.0 - إشعارات محلية مع Realtime للطلبات الإلكترونية فقط
+ *
+ * الميزات:
+ * - الإشعارات المحلية تُخزن في PowerSync فقط
+ * - Supabase Realtime للاستماع للطلبات الإلكترونية الجديدة فقط
+ * - يتم تخزين إشعارات الطلبات محلياً بعد استقبالها
+ * - أداء عالي وتجربة offline ممتازة
  */
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
@@ -8,15 +16,19 @@ import { getSupabaseClient } from '@/lib/supabase';
 import { useTenant } from '@/context/TenantContext';
 import { playNotificationForType, enableNotificationSounds, setNotificationVolume, initializeNotificationSounds } from '@/lib/notification-sounds';
 import { useToastNotifications } from '@/hooks/useToastNotifications';
-import { localCache } from '@/lib/cacheManager';
 import { isAppOnline, markNetworkOffline, markNetworkOnline } from '@/utils/networkStatus';
 import { offlineSyncBridge } from '@/lib/notifications/offlineSyncBridge';
+import { offlineNotificationService } from '@/lib/notifications/offlineNotificationService';
+import { tauriNotificationService, initializeTauriNotifications } from '@/lib/notifications/tauriNotificationService';
 
-// Define the notification interface based on the migration schema
+// ═══════════════════════════════════════════════════════════════════════════
+// 📦 TYPES
+// ═══════════════════════════════════════════════════════════════════════════
+
 export interface NotificationItem {
   id: string;
   organization_id: string;
-  type: 'new_order' | 'low_stock' | 'payment_received' | 'order_status_change';
+  type: 'new_order' | 'low_stock' | 'out_of_stock' | 'stock_restored' | 'payment_received' | 'debt_reminder' | 'debt_overdue' | 'custom';
   title: string;
   message: string;
   priority: 'low' | 'medium' | 'high' | 'urgent';
@@ -25,7 +37,7 @@ export interface NotificationItem {
   entity_id?: string;
   metadata?: Record<string, any>;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
 interface NotificationStats {
@@ -44,22 +56,24 @@ interface NotificationSettings {
   soundVolume: number;
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+// 🪝 HOOK
+// ═══════════════════════════════════════════════════════════════════════════
+
 export function useRealTimeNotifications() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [realtimeRestartToken, setRealtimeRestartToken] = useState(0);
   const { currentOrganization } = useTenant();
   const supabase = getSupabaseClient();
   const subscriptionRef = useRef<any>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const maxReconnectAttempts = 5;
-  const hasInitialFetchRef = useRef(false);
-  const realtimeSuppressedRef = useRef(false);
+  const soundsInitializedRef = useRef(false);
+  const isSubscribingRef = useRef(false);
 
-  // إعدادات الإشعارات مع القيم الافتراضية
+  // إعدادات الإشعارات
   const [settings, setSettings] = useState<NotificationSettings>({
     enabled: true,
     realtimeEnabled: true,
@@ -73,7 +87,6 @@ export function useRealTimeNotifications() {
   // دمج نظام Toast
   const {
     toasts,
-    addToast,
     removeToast,
     clearAllToasts,
     showNewOrder,
@@ -87,27 +100,40 @@ export function useRealTimeNotifications() {
     position: 'bottom-right'
   });
 
-  // تحديث إعدادات الصوت عند تغيير الإعدادات
+  // تحديث إعدادات الصوت
   useEffect(() => {
     enableNotificationSounds(settings.soundEnabled);
     setNotificationVolume(settings.soundVolume);
     updateSoundSettings(settings.soundEnabled, settings.soundVolume);
   }, [settings.soundEnabled, settings.soundVolume, updateSoundSettings]);
 
-  // تهيئة الأصوات عند تفاعل المستخدم
+  // تهيئة الأصوات وإشعارات Tauri
   useEffect(() => {
-    const initializeSounds = async () => {
+    if (soundsInitializedRef.current) return;
+
+    const initializeSoundsAndTauri = async () => {
+      if (soundsInitializedRef.current) return;
+      soundsInitializedRef.current = true;
+
       if (settings.soundEnabled) {
         try {
           await initializeNotificationSounds();
         } catch (error) {
+          // تجاهل أخطاء تهيئة الأصوات
         }
+      }
+      try {
+        await initializeTauriNotifications();
+      } catch (error) {
+        // تجاهل إذا لم نكن في بيئة Tauri
       }
     };
 
-    // تهيئة الأصوات عند أول تفاعل مع المستخدم
+    const controller = new AbortController();
+
     const handleUserInteraction = () => {
-      initializeSounds();
+      if (controller.signal.aborted) return;
+      initializeSoundsAndTauri();
       document.removeEventListener('click', handleUserInteraction);
       document.removeEventListener('keydown', handleUserInteraction);
       document.removeEventListener('touchstart', handleUserInteraction);
@@ -118,195 +144,102 @@ export function useRealTimeNotifications() {
     document.addEventListener('touchstart', handleUserInteraction);
 
     return () => {
+      controller.abort();
       document.removeEventListener('click', handleUserInteraction);
       document.removeEventListener('keydown', handleUserInteraction);
       document.removeEventListener('touchstart', handleUserInteraction);
     };
-  }, [settings.soundEnabled]);
+  }, []);
 
-  // تحميل الإشعارات مع الكاش و SQLite
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 📖 تحميل الإشعارات من المحلي فقط
+  // ═══════════════════════════════════════════════════════════════════════════
+
   const loadNotifications = useCallback(async () => {
     if (!currentOrganization?.id || !settings.enabled) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[Notifications] ⏸️ تخطي تحميل الإشعارات:', {
-          hasOrg: !!currentOrganization?.id,
-          enabled: settings.enabled
-        });
-      }
       return;
     }
 
-    // ⚡ التحقق من وجود جلسة صالحة قبل طلب الإشعارات
-    // هذا يمنع طلب الإشعارات قبل اكتمال تسجيل الدخول
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData?.session) {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('[Notifications] ⏳ انتظار الجلسة... لا توجد جلسة صالحة بعد');
-        }
-        return; // سيتم إعادة المحاولة عند تغيير حالة المصادقة
-      }
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[Notifications] ✅ الجلسة صالحة، متابعة جلب الإشعارات');
-      }
-    } catch (sessionError) {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn('[Notifications] ⚠️ خطأ في التحقق من الجلسة:', sessionError);
-      }
-      // متابعة المحاولة في حالة الخطأ
-    }
-
-    // تهيئة جسر SQLite
-    await offlineSyncBridge.initialize();
-
-    if (!isAppOnline()) {
-      markNetworkOffline({ force: true });
-
-      // محاولة التحميل من SQLite أولاً (أكثر موثوقية من الكاش)
-      const sqliteNotifications = await offlineSyncBridge.getStoredNotifications(currentOrganization.id);
-      if (sqliteNotifications.length > 0) {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('[Notifications] 💾 تحميل من SQLite (offline):', sqliteNotifications.length);
-        }
-        setNotifications(sqliteNotifications);
-        return;
-      }
-
-      // fallback للكاش القديم
-      const cacheKey = `notifications_${currentOrganization.id}`;
-      const cached = localCache.get<NotificationItem[]>(cacheKey);
-      if (cached) {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('[Notifications] 📦 تحميل من الكاش (offline):', cached.length);
-        }
-        setNotifications(cached);
-      } else {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('[Notifications] ⚠️ لا يوجد كاش (offline)');
-        }
-      }
-      return;
-    }
-
-    if (hasInitialFetchRef.current && notifications.length > 0) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[Notifications] ⏸️ تم التحميل مسبقاً ولدينا إشعارات');
-      }
-      return; // منع التكرار فقط إذا كان لدينا إشعارات
-    }
-    hasInitialFetchRef.current = true;
-
-    const cacheKey = `notifications_${currentOrganization.id}`;
-
-    // التحقق من الكاش أولاً - لكن فقط إذا كان يحتوي على بيانات
-    const cachedNotifications = localCache.get<NotificationItem[]>(cacheKey);
-    if (cachedNotifications && cachedNotifications.length > 0) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[Notifications] 📦 تحميل من الكاش:', cachedNotifications.length);
-      }
-      setNotifications(cachedNotifications);
-      return;
-    }
-
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[Notifications] 🌐 جلب من الخادم...', {
-        hasCachedButEmpty: cachedNotifications && cachedNotifications.length === 0,
-        noCache: !cachedNotifications
-      });
-    }
+    setLoading(true);
 
     try {
-      // Use raw SQL to bypass strict typing
-      const { data, error } = await supabase
-        .from('notifications' as any)
-        .select('*')
-        .eq('organization_id', currentOrganization.id)
-        .order('created_at', { ascending: false })
-        .limit(50);
+      // تهيئة خدمة الإشعارات المحلية
+      await offlineNotificationService.initialize(currentOrganization.id);
+      await offlineSyncBridge.initialize();
 
-      if (error) {
-        if (process.env.NODE_ENV === 'development') {
-          console.warn('[Notifications] ⚠️ خطأ في جلب الإشعارات:', error.message);
-        }
-        // في حالة الخطأ، نحاول تحميل من الكاش القديم إن وجد
-        const oldCache = localCache.get<NotificationItem[]>(cacheKey);
-        if (oldCache && oldCache.length > 0) {
-          setNotifications(oldCache);
-          if (process.env.NODE_ENV === 'development') {
-            console.log('[Notifications] 📦 استخدام الكاش القديم بعد الخطأ:', oldCache.length);
-          }
-        } else {
-          // إذا لم يكن هناك كاش، نضع array فارغ بدلاً من عدم عمل شيء
-          setNotifications([]);
-          if (process.env.NODE_ENV === 'development') {
-            console.log('[Notifications] 📭 تعيين إشعارات فارغة بسبب الخطأ');
-          }
-        }
-        return;
-      }
+      // جلب الإشعارات من المحلي فقط
+      const localNotifications = await offlineNotificationService.getNotifications(
+        currentOrganization.id,
+        { limit: 100 }
+      );
 
-      if (data) {
-        const notificationsData = data as unknown as NotificationItem[];
-        if (process.env.NODE_ENV === 'development') {
-          console.log('[Notifications] ✅ تم جلب الإشعارات:', notificationsData.length);
-        }
-        setNotifications(notificationsData);
-        // حفظ في الكاش لمدة 2 دقيقة
-        localCache.set(cacheKey, notificationsData, 2 * 60 * 1000);
-        // حفظ في SQLite للأوفلاين الدائم
-        offlineSyncBridge.saveNotifications(notificationsData);
-        // مزامنة العمليات المعلقة
-        offlineSyncBridge.syncPendingActions(supabase);
-      } else {
-        // إذا كان data = null، نضع array فارغ
-        setNotifications([]);
-      }
+      // تحويل إلى NotificationItem
+      const mappedNotifications: NotificationItem[] = localNotifications.map(n => ({
+        id: n.id,
+        organization_id: n.organization_id,
+        type: n.type as NotificationItem['type'],
+        title: n.title,
+        message: n.message,
+        priority: n.priority,
+        is_read: n.is_read,
+        entity_type: n.data?.entity_type,
+        entity_id: n.data?.entity_id,
+        metadata: n.data,
+        created_at: n.created_at,
+        updated_at: n.read_at
+      }));
+
+      setNotifications(mappedNotifications);
+
+      console.log('[Notifications] ✅ تم تحميل الإشعارات محلياً:', mappedNotifications.length);
     } catch (error) {
-      if (process.env.NODE_ENV === 'development') {
-        console.error('[Notifications] ❌ خطأ في تحميل الإشعارات:', error);
-      }
-      // في حالة exception، نحاول الكاش القديم
-      const oldCache = localCache.get<NotificationItem[]>(cacheKey);
-      if (oldCache && oldCache.length > 0) {
-        setNotifications(oldCache);
-      } else {
-        setNotifications([]);
-      }
+      console.error('[Notifications] ❌ خطأ في تحميل الإشعارات:', error);
+    } finally {
+      setLoading(false);
     }
-  }, [currentOrganization?.id, settings.enabled, supabase]);
+  }, [currentOrganization?.id, settings.enabled]);
 
+  // تحميل الإشعارات عند التهيئة
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (!currentOrganization?.id) return;
+    loadNotifications();
+  }, [currentOrganization?.id, loadNotifications]);
 
-    const handleOnline = () => {
-      markNetworkOnline();
-      realtimeSuppressedRef.current = false;
-      reconnectAttemptsRef.current = 0;
-      hasInitialFetchRef.current = false;
-      loadNotifications();
-      setRealtimeRestartToken((token) => token + 1);
-    };
+  // الاستماع للإشعارات المحلية الجديدة
+  useEffect(() => {
+    if (!currentOrganization?.id) return;
 
-    const handleOffline = () => {
-      markNetworkOffline({ force: true });
-      realtimeSuppressedRef.current = true;
-      setIsRealtimeConnected(false);
-    };
+    const unsubscribe = offlineNotificationService.subscribe((notification) => {
+      const newNotif: NotificationItem = {
+        id: notification.id,
+        organization_id: notification.organization_id,
+        type: notification.type as NotificationItem['type'],
+        title: notification.title,
+        message: notification.message,
+        priority: notification.priority,
+        is_read: notification.is_read,
+        metadata: notification.data,
+        created_at: notification.created_at
+      };
 
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, [loadNotifications]);
+      setNotifications(prev => [newNotif, ...prev.filter(n => n.id !== newNotif.id)]);
 
-  // دالة إعادة الاتصال المحسنة
+      // تشغيل الصوت للإشعارات المحلية (مخزون، ديون، إلخ)
+      if (settings.soundEnabled && settings.lowStockSound) {
+        playNotificationForType(notification.type, notification.priority).catch(() => {});
+      }
+    });
+
+    return () => unsubscribe();
+  }, [currentOrganization?.id, settings.soundEnabled, settings.lowStockSound]);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🌐 Realtime للطلبات الإلكترونية الجديدة فقط
+  // ═══════════════════════════════════════════════════════════════════════════
+
   const reconnect = useCallback(() => {
     if (!isAppOnline()) {
       markNetworkOffline({ force: true });
-      realtimeSuppressedRef.current = true;
-      reconnectAttemptsRef.current = 0;
       setIsRealtimeConnected(false);
       return;
     }
@@ -320,33 +253,21 @@ export function useRealTimeNotifications() {
 
     reconnectTimeoutRef.current = setTimeout(() => {
       reconnectAttemptsRef.current++;
-      // إعادة إنشاء الاشتراك
       if (subscriptionRef.current) {
         subscriptionRef.current.unsubscribe();
         subscriptionRef.current = null;
       }
-      setRealtimeRestartToken((token) => token + 1);
     }, delay);
-  }, [setRealtimeRestartToken]);
+  }, []);
 
-  // إعداد الاشتراك في الوقت الفعلي مع آلية إعادة المحاولة المحسنة
+  // إعداد Realtime للطلبات الإلكترونية الجديدة فقط
   useEffect(() => {
     if (!currentOrganization?.id || !settings.realtimeEnabled || !supabase) {
       return;
     }
 
-    if (realtimeSuppressedRef.current) {
-      if (isAppOnline()) {
-        realtimeSuppressedRef.current = false;
-      } else {
-        setIsRealtimeConnected(false);
-        return;
-      }
-    }
-
     if (!isAppOnline()) {
       markNetworkOffline({ force: true });
-      realtimeSuppressedRef.current = true;
       setIsRealtimeConnected(false);
       return;
     }
@@ -355,100 +276,124 @@ export function useRealTimeNotifications() {
       return;
     }
 
+    if (isSubscribingRef.current) {
+      return;
+    }
+    isSubscribingRef.current = true;
+
     // إلغاء الاشتراك السابق
     if (subscriptionRef.current) {
-      subscriptionRef.current.unsubscribe();
+      try {
+        subscriptionRef.current.unsubscribe();
+      } catch (e) {
+        // تجاهل
+      }
       subscriptionRef.current = null;
     }
 
-    // إلغاء timeout إعادة الاتصال السابق
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = null;
     }
 
     try {
-      // استخدام طريقة أبسط للاشتراك بدون presence أو broadcast
-      const channelName = `notifications-${currentOrganization.id}-${Date.now()}`;
-      
+      const channelName = `orders-${currentOrganization.id}-${Date.now()}`;
+
+      // ⚡ الاستماع للطلبات الجديدة فقط (من جدول orders)
       const channel = supabase
-        .channel(channelName, {
-          config: {
-            presence: {
-              key: currentOrganization.id,
-            },
-          },
-        })
+        .channel(channelName)
         .on(
           'postgres_changes',
           {
             event: 'INSERT',
             schema: 'public',
-            table: 'notifications',
+            table: 'orders',
             filter: `organization_id=eq.${currentOrganization.id}`
           },
-          (payload) => {
+          async (payload) => {
             if (payload.new && payload.new.organization_id === currentOrganization.id) {
-              const newNotification = payload.new as NotificationItem;
-              
-              // إضافة الإشعار الجديد إلى البداية
-              setNotifications(prev => {
-                const filtered = prev.filter(n => n.id !== newNotification.id);
-                return [newNotification, ...filtered];
-              });
-              
-              // تشغيل الصوت إذا كان مفعل
-              if (settings.newOrderSound) {
-                playNotificationForType(newNotification.type, newNotification.priority).catch(error => {
-                });
-              }
-              
-              // إظهار إشعار المتصفح إذا كان مفعل
-              if (settings.toastEnabled && 'Notification' in window) {
-                if (Notification.permission === 'granted') {
-                  new Notification(newNotification.title, {
-                    body: newNotification.message,
-                    icon: '/favicon.ico'
-                  });
+              const order = payload.new as any;
+
+              console.log('[Notifications] 🛒 طلب إلكتروني جديد:', order.order_number || order.id);
+
+              // إنشاء إشعار محلي للطلب الجديد
+              const notification = await offlineNotificationService.createNotification(
+                currentOrganization.id,
+                {
+                  type: 'new_order',
+                  title: '🛒 طلب إلكتروني جديد',
+                  message: `طلب جديد #${order.order_number || order.id} بقيمة ${order.total || 0} دج`,
+                  priority: (order.total >= 10000 ? 'urgent' : 'high') as any,
+                  source: 'server',
+                  is_read: false,
+                  data: {
+                    order_id: order.id,
+                    order_number: order.order_number,
+                    total: order.total,
+                    customer_name: order.customer_name || 'عميل'
+                  },
+                  action_url: `/dashboard/orders/${order.id}`,
+                  action_label: 'عرض الطلب'
                 }
+              );
+
+              // إشعار Tauri/Browser
+              if (settings.toastEnabled) {
+                tauriNotificationService.sendNotification({
+                  title: notification.title,
+                  body: notification.message,
+                }).catch(() => {});
               }
+
+              // تشغيل الصوت
+              if (settings.soundEnabled && settings.newOrderSound) {
+                playNotificationForType('new_order', notification.priority).catch(() => {});
+              }
+
+              // Toast UI
+              showNewOrder({
+                orderNumber: order.order_number || order.id,
+                customerName: order.customer_name || 'عميل',
+                total: order.total || 0
+              });
             }
           }
         );
 
-      // الاشتراك مع معالجة الأخطاء المحسنة
       subscriptionRef.current = channel.subscribe((status) => {
-        
+        isSubscribingRef.current = false;
+
         if (status === 'SUBSCRIBED') {
           markNetworkOnline();
           setIsRealtimeConnected(true);
-          reconnectAttemptsRef.current = 0; // إعادة تعيين عداد المحاولات
+          reconnectAttemptsRef.current = 0;
+          console.log('[Notifications] ✅ متصل بـ Realtime (طلبات إلكترونية فقط)');
         } else if (status === 'CHANNEL_ERROR' || status === 'CLOSED' || status === 'TIMED_OUT') {
           markNetworkOffline({ force: true });
-          realtimeSuppressedRef.current = true;
           setIsRealtimeConnected(false);
-          reconnectAttemptsRef.current = 0;
           if (isAppOnline()) {
-            realtimeSuppressedRef.current = false;
             reconnect();
           }
         }
       });
 
     } catch (error) {
+      isSubscribingRef.current = false;
       markNetworkOffline({ force: true });
-      realtimeSuppressedRef.current = true;
       setIsRealtimeConnected(false);
-      reconnectAttemptsRef.current = 0;
       if (isAppOnline()) {
-        realtimeSuppressedRef.current = false;
         reconnect();
       }
     }
 
     return () => {
+      isSubscribingRef.current = false;
       if (subscriptionRef.current) {
-        subscriptionRef.current.unsubscribe();
+        try {
+          subscriptionRef.current.unsubscribe();
+        } catch (e) {
+          // تجاهل
+        }
         subscriptionRef.current = null;
       }
       if (reconnectTimeoutRef.current) {
@@ -456,177 +401,97 @@ export function useRealTimeNotifications() {
         reconnectTimeoutRef.current = null;
       }
     };
-  }, [currentOrganization?.id, settings.realtimeEnabled, settings.newOrderSound, settings.toastEnabled, reconnect, supabase, realtimeRestartToken]);
+  }, [currentOrganization?.id, settings.realtimeEnabled, settings.newOrderSound, settings.toastEnabled, settings.soundEnabled, reconnect, supabase, showNewOrder]);
 
-  // تحميل الإشعارات عند التهيئة مع الكاش (باستخدام الدالة المعرّفة useCallback أعلاه)
+  // مراقبة حالة الشبكة
   useEffect(() => {
-    if (!currentOrganization?.id) return;
-    // اعتمد على الدالة الموحدة لتجنب تكرار تنفيذ نفس الاستعلام مرتين
-    loadNotifications();
-  }, [currentOrganization?.id, loadNotifications]);
+    if (typeof window === 'undefined') return;
 
-  // ⚡ الاستماع لتغيير حالة المصادقة لإعادة جلب الإشعارات
-  // هذا يضمن إعادة جلب الإشعارات بعد اكتمال تسجيل الدخول
-  useEffect(() => {
-    if (!currentOrganization?.id) return;
+    const handleOnline = () => {
+      markNetworkOnline();
+      reconnectAttemptsRef.current = 0;
+      loadNotifications();
+    };
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session) {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('[Notifications] 🔐 تم تسجيل الدخول، إعادة جلب الإشعارات...');
-        }
-        // إعادة ضبط hasInitialFetchRef للسماح بجلب جديد
-        hasInitialFetchRef.current = false;
-        loadNotifications();
-      }
-    });
+    const handleOffline = () => {
+      markNetworkOffline({ force: true });
+      setIsRealtimeConnected(false);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
 
     return () => {
-      authListener?.subscription?.unsubscribe();
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
     };
-  }, [currentOrganization?.id, loadNotifications, supabase]);
+  }, [loadNotifications]);
 
-  // حساب الإحصائيات
-  const stats = useMemo(() => ({
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 📊 الإحصائيات
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  const stats = useMemo<NotificationStats>(() => ({
     total: notifications.length,
     unread: notifications.filter(n => !n.is_read).length,
     urgent: notifications.filter(n => n.priority === 'urgent').length
   }), [notifications]);
 
-  // حساب عدد الإشعارات الجديدة
-  const newNotificationsCount = useMemo(() => 
-    notifications.filter(n => !n.is_read).length, 
-    [notifications]
-  );
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 📝 العمليات (محلية فقط)
+  // ═══════════════════════════════════════════════════════════════════════════
 
-  // تحديث حالة القراءة
   const markAsRead = useCallback(async (notificationId: string) => {
-    // تحديث محلي فوري
     setNotifications(prev =>
-      prev.map(n =>
-        n.id === notificationId ? { ...n, is_read: true } : n
-      )
+      prev.map(n => n.id === notificationId ? { ...n, is_read: true } : n)
     );
+    await offlineNotificationService.markAsRead(notificationId);
+  }, []);
 
-    // حفظ في SQLite (يعمل أوفلاين)
-    await offlineSyncBridge.markAsReadLocally(notificationId);
-
-    // محاولة المزامنة مع الخادم
-    if (isAppOnline()) {
-      try {
-        const { error } = await supabase
-          .from('notifications' as any)
-          .update({ is_read: true })
-          .eq('id', notificationId);
-
-        if (error) {
-          console.warn('[Notifications] خطأ في مزامنة القراءة:', error.message);
-        }
-      } catch (error) {
-        // سيتم المزامنة لاحقاً من قائمة الانتظار
-      }
-    }
-  }, [supabase]);
-
-  // تحديث حالة القراءة للجميع
   const markAllAsRead = useCallback(async () => {
-    try {
-      const { error } = await supabase
-        .from('notifications' as any)
-        .update({ is_read: true })
-        .eq('organization_id', currentOrganization?.id)
-        .eq('is_read', false);
+    if (!currentOrganization?.id) return;
+    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    await offlineNotificationService.markAllAsRead(currentOrganization.id);
+  }, [currentOrganization?.id]);
 
-      if (error) {
-        return;
-      }
-
-      setNotifications(prev => 
-        prev.map(n => ({ ...n, is_read: true }))
-      );
-    } catch (error) {
-    }
-  }, [currentOrganization?.id, supabase]);
-
-  // حذف الإشعار
   const deleteNotification = useCallback(async (notificationId: string) => {
-    // حذف محلي فوري
-    setNotifications(prev =>
-      prev.filter(n => n.id !== notificationId)
-    );
+    setNotifications(prev => prev.filter(n => n.id !== notificationId));
+    await offlineNotificationService.deleteNotification(notificationId);
+  }, []);
 
-    // حذف من SQLite (يعمل أوفلاين)
-    await offlineSyncBridge.deleteLocally(notificationId);
-
-    // محاولة الحذف من الخادم
-    if (isAppOnline()) {
-      try {
-        const { error } = await supabase
-          .from('notifications' as any)
-          .delete()
-          .eq('id', notificationId);
-
-        if (error) {
-          console.warn('[Notifications] خطأ في مزامنة الحذف:', error.message);
-        }
-      } catch (error) {
-        // سيتم المزامنة لاحقاً من قائمة الانتظار
-      }
-    }
-  }, [supabase]);
-
-  // حذف جميع الإشعارات المقروءة
   const deleteReadNotifications = useCallback(async () => {
-    try {
-      const { error } = await supabase
-        .from('notifications' as any)
-        .delete()
-        .eq('organization_id', currentOrganization?.id)
-        .eq('is_read', true);
+    if (!currentOrganization?.id) return;
+    setNotifications(prev => prev.filter(n => !n.is_read));
+    await offlineNotificationService.deleteReadNotifications(currentOrganization.id);
+  }, [currentOrganization?.id]);
 
-      if (error) {
-        return;
-      }
-
-      setNotifications(prev => 
-        prev.filter(n => !n.is_read)
-      );
-    } catch (error) {
-    }
-  }, [currentOrganization?.id, supabase]);
-
-  // مسح جميع الإشعارات
   const clearAllNotifications = useCallback(async () => {
-    try {
-      const { error } = await supabase
-        .from('notifications' as any)
-        .delete()
-        .eq('organization_id', currentOrganization?.id);
+    if (!currentOrganization?.id) return;
+    // حذف الإشعارات المقروءة فقط لأمان
+    setNotifications(prev => prev.filter(n => !n.is_read));
+    await offlineNotificationService.deleteReadNotifications(currentOrganization.id);
+  }, [currentOrganization?.id]);
 
-      if (error) {
-        return;
-      }
-
-      setNotifications([]);
-    } catch (error) {
-    }
-  }, [currentOrganization?.id, supabase]);
-
-  // تحديث الإعدادات
   const updateSettings = useCallback((newSettings: Partial<NotificationSettings>) => {
     setSettings(prev => ({ ...prev, ...newSettings }));
   }, []);
 
-  // الحصول على أيقونة الإشعار
   const getNotificationIcon = useCallback((type: NotificationItem['type']) => {
     switch (type) {
       case 'new_order': return '🛒';
       case 'low_stock': return '📦';
+      case 'out_of_stock': return '🚫';
+      case 'stock_restored': return '✅';
       case 'payment_received': return '💰';
-      case 'order_status_change': return '📋';
+      case 'debt_reminder': return '⏰';
+      case 'debt_overdue': return '⚠️';
       default: return '🔔';
     }
   }, []);
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 📤 RETURN
+  // ═══════════════════════════════════════════════════════════════════════════
 
   return {
     // البيانات
@@ -635,13 +500,12 @@ export function useRealTimeNotifications() {
     settings,
     isRealtimeConnected,
     loading,
-    error,
-    
+
     // Toast notifications
     toasts,
     removeToast,
     clearAllToasts,
-    
+
     // الوظائف
     markAsRead,
     markAllAsRead,
@@ -651,10 +515,10 @@ export function useRealTimeNotifications() {
     updateSettings,
     getNotificationIcon,
     loadNotifications,
-    
+
     // وظائف الصوت
     playTestSound,
-    
+
     // وظائف Toast
     showNewOrder,
     showLowStock,

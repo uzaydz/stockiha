@@ -72,7 +72,7 @@ function applyThemeImmediate(theme: Theme): void {
     }
   `;
   document.head.appendChild(style);
-  
+
   // إزالة التعطيل بعد تطبيق الثيم
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
@@ -97,10 +97,10 @@ function applyThemeImmediate(theme: Theme): void {
   root.style.colorScheme = effectiveTheme;
   if (body) body.style.colorScheme = effectiveTheme;
 
-  // تحديث meta theme-color فوراً
+  // تحديث meta theme-color فوراً - Midnight Navy Pro
   const metaThemeColor = document.querySelector('meta[name="theme-color"]');
   if (metaThemeColor) {
-    const themeColor = effectiveTheme === 'dark' ? '#111827' : '#ffffff';
+    const themeColor = effectiveTheme === 'dark' ? '#0a0f1a' : '#ffffff';
     metaThemeColor.setAttribute('content', themeColor);
   }
 
@@ -109,7 +109,7 @@ function applyThemeImmediate(theme: Theme): void {
   root.style.setProperty('--theme-transition-timing', 'ease-out');
   root.style.setProperty('--transition-duration', '0.05s');
   root.style.setProperty('--transition-timing', 'ease-out');
-  
+
   // تعطيل جميع الانتقالات مؤقتاً
   root.style.setProperty('--global-transition-duration', '0.01ms');
   root.style.setProperty('--global-animation-duration', '0.01ms');
@@ -153,7 +153,7 @@ function applyThemeToDOM(theme: Theme): void {
   // إضافة attributes إضافية للتأكيد
   const root = document.documentElement;
   const body = document.body || null;
-  
+
   let effectiveTheme = theme;
   if (theme === 'system') {
     effectiveTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
@@ -167,12 +167,12 @@ function applyThemeToDOM(theme: Theme): void {
 function hexToHSL(hex: string): string {
   // إزالة # في حال وجودها
   hex = hex.replace(/^#/, '');
-  
+
   // التحقق من صحة اللون
   if (!/^[0-9A-F]{6}$/i.test(hex) && !/^[0-9A-F]{3}$/i.test(hex)) {
     return '217.2 91.2% 59.8%'; // لون افتراضي
   }
-  
+
   // تحويل إلى RGB
   let r = 0, g = 0, b = 0;
   if (hex.length === 3) {
@@ -184,12 +184,12 @@ function hexToHSL(hex: string): string {
     g = parseInt(hex.substring(2, 4), 16);
     b = parseInt(hex.substring(4, 6), 16);
   }
-  
+
   // تطبيع RGB إلى قيم بين 0 و 1
   r /= 255;
   g /= 255;
   b /= 255;
-  
+
   // حساب قيم HSL
   const max = Math.max(r, g, b);
   const min = Math.min(r, g, b);
@@ -198,7 +198,7 @@ function hexToHSL(hex: string): string {
   if (max !== min) {
     const d = max - min;
     s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    
+
     switch (max) {
       case r:
         h = (g - b) / d + (g < b ? 6 : 0);
@@ -210,15 +210,15 @@ function hexToHSL(hex: string): string {
         h = (r - g) / d + 4;
         break;
     }
-    
+
     h /= 6;
   }
-  
+
   // تحويل إلى صيغة CSS
   h = Math.round(h * 360);
   s = Math.round(s * 100);
   l = Math.round(l * 100);
-  
+
   return `${h} ${s}% ${l}%`;
 }
 
@@ -230,7 +230,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
   if (isDebug && !initLogRef.current && initialOrganizationId) {
     initLogRef.current = true;
   }
-  
+
   // حماية من استخدام useLocation خارج Router
   let location;
   try {
@@ -240,7 +240,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
     location = { pathname: '/', search: '', hash: '', state: null, key: 'default' };
   }
   const [isTransitioning] = useState(false);
-  
+
   // حالة الثيم الأساسية
   const [theme, setThemeState] = useState<Theme>(() => {
     // التحقق من وجود ثيم المؤسسة أولاً (أولوية قصوى)
@@ -256,19 +256,19 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
     } catch (e) {
       // تجاهل الأخطاء وانتقل للخيار التالي
     }
-    
+
     // التحقق من وجود تفضيل مخزن من إعدادات المؤسسة
     const orgThemePreference = localStorage.getItem('theme-preference') as Theme;
     if (orgThemePreference && ['light', 'dark', 'system'].includes(orgThemePreference)) {
       return orgThemePreference;
     }
-    
+
     // ثم التحقق من تفضيل المستخدم الشخصي
     const savedTheme = localStorage.getItem('theme') as Theme;
     if (savedTheme && ['light', 'dark', 'system'].includes(savedTheme)) {
       return savedTheme;
     }
-    
+
     // استخدام light كقيمة افتراضية بدلاً من إعدادات النظام
     return 'light';
   });
@@ -462,7 +462,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
   useEffect(() => {
     if (initialOrganizationId && initialOrganizationId !== lastAppliedOrganizationIdRef.current) {
       const orgThemeStart = performance.now();
-      
+
       // تطبيق سريع من cache أولاً
       const cachedOrgTheme = localStorage.getItem('bazaar_org_theme');
       if (cachedOrgTheme) {
@@ -475,10 +475,10 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
         } catch (e) {
         }
       }
-      
+
       // تطبيق كامل
       applyOrganizationTheme();
-      
+
       const orgThemeEnd = performance.now();
     }
   }, [initialOrganizationId, applyOrganizationTheme]);
@@ -501,19 +501,19 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
     }
 
     // تطبيق فقط للصفحات التي تحتاج ثيم المؤسسة
-    const shouldApplyOrganizationTheme = !location.pathname.includes('/login') && 
+    const shouldApplyOrganizationTheme = !location.pathname.includes('/login') &&
       !location.pathname.includes('/register') &&
       !location.pathname.includes('/forgot-password');
-    
+
     if (shouldApplyOrganizationTheme) {
       if (isDebug) {
       }
-      
+
       // إلغاء أي timeout سابق
       if (organizationThemeTimeoutRef.current) {
         clearTimeout(organizationThemeTimeoutRef.current);
       }
-      
+
       // تطبيق فوري للثيم لتجنب الفلاش
       organizationThemeTimeoutRef.current = setTimeout(() => {
         applyOrganizationTheme();
@@ -524,21 +524,23 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
   // مراقبة تغييرات إعدادات النظام للثيم
   useEffect(() => {
     if (theme !== 'system') return;
-    
+
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    
+
     const handleChange = () => {
       applyThemeToDOM('system');
     };
-    
+
     mediaQuery.addEventListener('change', handleChange);
-    
+
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, [theme]);
 
   // تهيئة مستمع تغييرات النظام (مرة واحدة فقط)
+  // ⚡ v2.0: استخدام cleanup function لمنع memory leaks
   useEffect(() => {
-    initializeSystemThemeListener();
+    const cleanup = initializeSystemThemeListener();
+    return cleanup;
   }, []);
 
   // مراقب تغييرات ثيم المؤسسة في localStorage
@@ -607,10 +609,10 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, initialO
     // تبديل سريع بين الثيمين - محسن للأداء القصوى
     toggleFast: () => {
       const newTheme = theme === 'dark' ? 'light' : 'dark';
-      
+
       // تطبيق الثيم فوراً بدون أي تأخيرات
       applyThemeImmediate(newTheme);
-      
+
       // تحديث الحالة
       setTheme(newTheme);
 

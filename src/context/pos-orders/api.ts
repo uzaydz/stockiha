@@ -2,8 +2,13 @@
 // 🎯 POS Orders API - دوال جلب البيانات المحسنة
 // =================================================================
 
-import { supabase } from '@/lib/supabase';
 import { deduplicateRequest } from '@/lib/cache/deduplication';
+import { unifiedOrderService } from '@/services/UnifiedOrderService';
+import type { 
+  OrderStats,
+  OrderFilters,
+  OrderWithItems
+} from '@/services/UnifiedOrderService';
 import { 
   POSOrderWithDetails, 
   POSOrderStats, 
@@ -18,62 +23,24 @@ import {
 export const fetchPOSOrderStats = async (orgId: string): Promise<POSOrderStats> => {
   return deduplicateRequest(`pos-order-stats-${orgId}`, async () => {
     try {
-      // جلب الإحصائيات الأساسية باستخدام RPC function
-      const { data: statsData, error: statsError } = await supabase.rpc('get_pos_order_stats', {
-        p_organization_id: orgId
-      });
+      // ⚡ استخدام الخدمة الموحدة Offline-First
+      unifiedOrderService.setOrganizationId(orgId);
+      const stats = await unifiedOrderService.getOrderStats();
 
-      if (statsError) {
-        throw statsError;
-      }
-
-      // البيانات تأتي كمصفوفة، نأخذ العنصر الأول
-      const stats = Array.isArray(statsData) ? statsData[0] : statsData;
-
-      // جلب إحصائيات المرتجعات إذا لزم الأمر
-      const { data: returnsData } = await supabase
-        .from('orders')
-        .select('id, total')
-        .eq('organization_id', orgId)
-        .eq('is_online', false);
-
-      const orderIds = (returnsData || []).map(order => order.id);
-      let totalReturnedAmount = 0;
-      let fullyReturnedCount = 0;
-      let partiallyReturnedCount = 0;
-
-      if (orderIds.length > 0) {
-        const { data: returnsDetails } = await (supabase as any)
-          .from('order_returns')
-          .select('order_id, total_returned_amount, is_full_return')
-          .in('order_id', orderIds);
-
-        if (returnsDetails) {
-          returnsDetails.forEach((ret: any) => {
-            totalReturnedAmount += ret.total_returned_amount || 0;
-            if (ret.is_full_return) {
-              fullyReturnedCount++;
-            } else {
-              partiallyReturnedCount++;
-            }
-          });
-        }
-      }
-
-      // حساب الإحصائيات النهائية
-      const effectiveRevenue = (stats?.total_revenue || 0) - totalReturnedAmount;
-      const returnRate = stats?.total_orders > 0 ? 
-        ((fullyReturnedCount + partiallyReturnedCount) / stats.total_orders) * 100 : 0;
-
+      // تحويل إلى POSOrderStats format
       return {
-        ...stats,
-        fully_returned_orders: fullyReturnedCount,
-        partially_returned_orders: partiallyReturnedCount,
-        total_returned_amount: totalReturnedAmount,
-        effective_revenue: effectiveRevenue,
-        return_rate: returnRate
-      };
-
+        total_orders: stats.total_orders,
+        total_revenue: stats.total_revenue,
+        total_paid: stats.total_paid,
+        total_pending: stats.total_pending,
+        orders_by_status: stats.orders_by_status as any,
+        orders_by_payment_method: stats.orders_by_payment_method as any,
+        fully_returned_orders: 0, // TODO: إضافة من order_returns
+        partially_returned_orders: 0,
+        total_returned_amount: 0,
+        effective_revenue: stats.total_revenue,
+        return_rate: 0
+      } as POSOrderStats;
     } catch (error) {
       throw error;
     }
@@ -92,70 +59,60 @@ export const fetchPOSOrders = async (
 }> => {
   return deduplicateRequest(`pos-orders-${orgId}-${page}-${JSON.stringify(filters)}`, async () => {
     try {
-      let query = supabase
-        .from('orders')
-        .select(`
-          *,
-          customer:customer_id(id, name, email, phone),
-          employee:employee_id(id, name, email),
-          order_items:order_items(
-            id, product_id, product_name, name, quantity, 
-            unit_price, total_price, is_wholesale, variant_info,
-            color_id, size_id, color_name, size_name
-          )
-        `, { count: 'exact' })
-        .eq('organization_id', orgId)
-        .eq('is_online', false)
-        .order('created_at', { ascending: false });
+      // ⚡ استخدام الخدمة الموحدة Offline-First
+      unifiedOrderService.setOrganizationId(orgId);
+      
+      const orderFilters: OrderFilters = {
+        status: filters.status as any,
+        payment_status: filters.payment_status as any,
+        customer_id: filters.customer_id,
+        is_online: false, // طلبات POS فقط
+        from_date: filters.date_from,
+        to_date: filters.date_to,
+        search: filters.search
+      };
 
-      // تطبيق الفلاتر
-      if (filters.status) {
-        query = query.eq('status', filters.status);
-      }
-      if (filters.payment_method) {
-        query = query.eq('payment_method', filters.payment_method);
-      }
-      if (filters.payment_status) {
-        query = query.eq('payment_status', filters.payment_status);
-      }
-      if (filters.employee_id) {
-        query = query.eq('employee_id', filters.employee_id);
-      }
-      if (filters.customer_id) {
-        query = query.eq('customer_id', filters.customer_id);
-      }
-      if (filters.date_from) {
-        query = query.gte('created_at', filters.date_from);
-      }
-      if (filters.date_to) {
-        query = query.lte('created_at', filters.date_to);
-      }
-      if (filters.search) {
-        query = query.or(`slug.ilike.%${filters.search}%,customer_order_number.eq.${filters.search}`);
-      }
+      const result = await unifiedOrderService.getOrders(orderFilters, page, limit);
 
-      // تطبيق pagination
-      const from = (page - 1) * limit;
-      const to = from + limit - 1;
-      query = query.range(from, to);
-
-      const { data, error, count } = await query;
-
-      if (error) {
-        throw error;
-      }
-
-      // معالجة البيانات
-      const processedOrders = (data || []).map((order: any) => ({
+      // تحويل إلى POSOrderWithDetails format
+      // ⚡ v2.0: إضافة معلومات الموظف والعميل من البيانات المحلية
+      const orders: POSOrderWithDetails[] = result.data.map(order => ({
         ...order,
-        items_count: order.order_items?.length || 0,
-        // حساب الحقول المحسوبة الأخرى...
-      })) as POSOrderWithDetails[];
+        order_items: order.items || [],
+        items_count: order.items?.length || 0,
+        // ⚡ معلومات العميل - من البيانات المحلية
+        customer: order.customer ? {
+          id: order.customer.id,
+          name: order.customer.name,
+          email: '',
+          phone: order.customer.phone || ''
+        } : undefined,
+        // ⚡ معلومات الموظف - من created_by_staff_name (Offline-First)
+        employee: (order as any).created_by_staff_name ? {
+          id: (order as any).created_by_staff_id || (order as any).employee_id || '',
+          name: (order as any).created_by_staff_name,
+          email: ''
+        } : undefined,
+        // ⚡ حقول إضافية للموظف (للتوافقية)
+        created_by_staff_id: (order as any).created_by_staff_id,
+        created_by_staff_name: (order as any).created_by_staff_name,
+        employee_id: (order as any).employee_id || (order as any).created_by_staff_id,
+        effective_status: order.status,
+        effective_total: order.total,
+        original_total: order.total,
+        has_returns: false,
+        is_fully_returned: false,
+        total_returned_amount: 0,
+        has_wholesale: order.pos_order_type === 'wholesale',
+        has_partial_wholesale: order.pos_order_type === 'partial_wholesale',
+        wholesale_items_count: 0,
+        partial_wholesale_items_count: 0
+      } as POSOrderWithDetails));
 
       return {
-        orders: processedOrders,
-        total: count || 0,
-        hasMore: (count || 0) > page * limit
+        orders,
+        total: result.total,
+        hasMore: result.hasMore
       };
 
     } catch (error) {
@@ -219,39 +176,42 @@ export const fetchOrganizationSettings = async (orgId: string): Promise<any> => 
 
 export const fetchOrganizationSubscriptions = async (orgId: string): Promise<any[]> => {
   return deduplicateRequest(`org-subscriptions-${orgId}`, async () => {
-    try {
-      const { data, error } = await (supabase as any)
-        .from('organization_subscriptions')
-        .select('*')
-        .eq('organization_id', orgId)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        throw error;
-      }
-
-      return data || [];
-    } catch (error) {
-      throw error;
+    const { powerSyncService } = await import('@/lib/powersync/PowerSyncService');
+    if (!powerSyncService.db) {
+      console.warn('[pos-orders/api] PowerSync DB not initialized');
+      return [];
     }
+    const rows = await powerSyncService.query<any>({
+      sql: `SELECT * FROM organization_subscriptions WHERE organization_id = ? AND is_active = 1 ORDER BY created_at DESC`,
+      params: [orgId]
+    });
+    return rows || [];
   });
 };
 
 export const fetchPOSSettings = async (orgId: string): Promise<any> => {
   return deduplicateRequest(`pos-settings-${orgId}`, async () => {
     try {
-      const { data, error } = await supabase
-        .from('pos_settings')
-        .select('*')
-        .eq('organization_id', orgId)
-        .single();
-
-      if (error && error.code !== 'PGRST116') {
-        throw error;
+      // ⚡ استخدام PowerSync مباشرة Offline-First
+      const { powerSyncService } = await import('@/lib/powersync/PowerSyncService');
+      if (!powerSyncService.db) {
+        console.warn('[pos-orders/api] PowerSync DB not initialized');
+        return null;
       }
-
-      return data;
+      // ⚠️ تحديد الأعمدة الموجودة فقط (بدون printer_type, etc)
+      const settings = await powerSyncService.queryOne<any>({
+        sql: `SELECT
+          id, organization_id,
+          store_name, store_phone, store_email, store_address, store_website, store_logo_url,
+          receipt_header_text, receipt_footer_text, welcome_message,
+          show_qr_code, show_tracking_code, show_customer_info, show_store_logo,
+          show_store_info, show_date_time, show_employee_name,
+          paper_width, font_size, line_spacing, print_density, auto_cut,
+          currency_symbol, currency_position, tax_label
+        FROM pos_settings WHERE organization_id = ? LIMIT 1`,
+        params: [orgId]
+      });
+      return settings;
     } catch (error) {
       throw error;
     }
@@ -261,19 +221,9 @@ export const fetchPOSSettings = async (orgId: string): Promise<any> => {
 export const fetchOrderDetails = async (orderId: string): Promise<any[]> => {
   return deduplicateRequest(`order-details-${orderId}`, async () => {
     try {
-      const { data, error } = await supabase
-        .from('order_items')
-        .select(`
-          *,
-          product:product_id(id, name, price, thumbnail_image)
-        `)
-        .eq('order_id', orderId);
-
-      if (error) {
-        throw error;
-      }
-
-      return data || [];
+      // ⚡ استخدام الخدمة الموحدة Offline-First
+      const order = await unifiedOrderService.getOrder(orderId);
+      return order?.items || [];
     } catch (error) {
       throw error;
     }
@@ -290,21 +240,12 @@ export const updateOrderStatus = async (
   notes?: string
 ): Promise<boolean> => {
   try {
-    const updateData: any = { status };
-    if (notes) {
-      updateData.notes = notes;
+    // ⚡ استخدام الخدمة الموحدة Offline-First
+    const order = await unifiedOrderService.updateOrderStatus(orderId, status as any);
+    if (notes && order) {
+      await unifiedOrderService.updateOrder(orderId, { notes });
     }
-
-    const { error } = await supabase
-      .from('orders')
-      .update(updateData)
-      .eq('id', orderId);
-
-    if (error) {
-      throw error;
-    }
-
-    return true;
+    return !!order;
   } catch (error) {
     return false;
   }
@@ -316,21 +257,8 @@ export const updatePaymentStatus = async (
   amountPaid?: number
 ): Promise<boolean> => {
   try {
-    const updateData: any = { payment_status: paymentStatus };
-    if (amountPaid !== undefined) {
-      updateData.amount_paid = amountPaid;
-    }
-
-    const { error } = await supabase
-      .from('orders')
-      .update(updateData)
-      .eq('id', orderId);
-
-    if (error) {
-      throw error;
-    }
-
-    return true;
+    const order = await unifiedOrderService.updatePayment(orderId, amountPaid ?? 0, paymentStatus as any);
+    return !!order;
   } catch (error) {
     return false;
   }
@@ -338,16 +266,8 @@ export const updatePaymentStatus = async (
 
 export const deleteOrder = async (orderId: string): Promise<boolean> => {
   try {
-    const { error } = await supabase
-      .from('orders')
-      .delete()
-      .eq('id', orderId);
-
-    if (error) {
-      throw error;
-    }
-
-    return true;
+    const success = await unifiedOrderService.deleteOrder(orderId, true);
+    return success;
   } catch (error) {
     return false;
   }

@@ -1,5 +1,18 @@
 /* تحسينات أداء DesktopTitlebar - محسّن للسرعة */
 
+/* جعل أي عنصر يحمل data-tauri-drag-region قابلاً للسحب افتراضياً */
+.desktop-titlebar,
+.desktop-titlebar [data-tauri-drag-region="true"] {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+/* مناطق يجب منع السحب فيها صراحة */
+.desktop-titlebar [data-tauri-drag-region="false"] {
+  -webkit-app-region: no-drag !important;
+  app-region: no-drag !important;
+}
+
 /* Titlebar الرئيسي */
 .desktop-titlebar {
   transform: translateZ(0);

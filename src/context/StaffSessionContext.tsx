@@ -37,6 +37,41 @@ const LAST_LOGIN_KEY = 'staff_last_login';
 const LAST_ACTIVITY_KEY = 'staff_last_activity';
 const SESSION_TIMEOUT_MINUTES = 480; // 8 ساعات
 
+/**
+ * ⚡ جلب organization_id من مصادر متعددة
+ */
+const getOrganizationIdFromStorage = (): string | undefined => {
+  // المصادر المحتملة لـ organization_id
+  const sources = [
+    'currentOrganizationId',
+    'bazaar_organization_id',
+    'organization_id',
+    'orgId'
+  ];
+
+  for (const key of sources) {
+    const value = localStorage.getItem(key);
+    if (value && value !== 'undefined' && value !== 'null') {
+      return value;
+    }
+  }
+
+  // محاولة من offline_auth_user
+  try {
+    const offlineUser = localStorage.getItem('offline_auth_user');
+    if (offlineUser) {
+      const parsed = JSON.parse(offlineUser);
+      if (parsed.organization_id) {
+        return parsed.organization_id;
+      }
+    }
+  } catch {
+    // تجاهل
+  }
+
+  return undefined;
+};
+
 export const StaffSessionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentStaff, setCurrentStaffState] = useState<POSStaffSession | null>(() => {
     // استرجاع الجلسة من localStorage عند التحميل
@@ -44,10 +79,14 @@ export const StaffSessionProvider: React.FC<{ children: React.ReactNode }> = ({ 
       const stored = localStorage.getItem(STORAGE_KEY);
       const parsed = stored ? JSON.parse(stored) : null;
       if (parsed) {
+        // ⚡ إصلاح: جلب organization_id إذا كان مفقوداً
+        const organizationId = parsed.organization_id || getOrganizationIdFromStorage();
+
         // ✅ التأكد من وجود صلاحية accessPOS عند التحميل
         const existingPerms = (parsed.permissions || {}) as Record<string, boolean | undefined>;
         const staffWithPOSAccess = {
           ...parsed,
+          organization_id: organizationId, // ⚡ إضافة organization_id
           permissions: {
             ...existingPerms,
             // ✅ صلاحيات افتراضية إذا لم تكن معرّفة

@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback, memo, useRef } from 'react';
-import { useAuth } from '@/context/AuthContext';
+import React, { useEffect, useState, useCallback, memo, useRef, useContext } from 'react';
+import { AuthContext } from '@/context/AuthContext';
 import { useTitlebar } from '@/context/TitlebarContext';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,69 @@ interface POSPureLayoutProps {
   disableScroll?: boolean; // للتحكم في السكرول - true لنقطة البيع فقط
 }
 
+// Safe hook that doesn't throw if AuthProvider is not available
+// Using try-catch to handle any potential errors during context access
+const useSafeAuth = () => {
+  try {
+    const context = useContext(AuthContext);
+    if (context === undefined) {
+      // Return default values if AuthProvider is not available
+      return {
+        user: null,
+        userProfile: null,
+        isLoading: true,
+        organization: null,
+        session: null,
+        currentSubdomain: null,
+        isProcessingToken: false,
+        isExplicitSignOut: false,
+        hasInitialSessionCheck: false,
+        authReady: false,
+        isLoadingProfile: false,
+        isLoadingOrganization: false,
+        profileLoaded: false,
+        organizationLoaded: false,
+        dataLoadingComplete: false,
+        signIn: async () => ({ success: false, error: new Error('Auth not available') }),
+        signUp: async () => ({ success: false, error: new Error('Auth not available') }),
+        signOut: async () => {},
+        refreshData: async () => {},
+        updateAuthState: () => {},
+        forceUpdateAuthState: () => {},
+        initialize: async () => {},
+      };
+    }
+    return context;
+  } catch (error) {
+    // If there's any error accessing the context, return default values
+    console.warn('[POSPureLayout] Error accessing auth context:', error);
+    return {
+      user: null,
+      userProfile: null,
+      isLoading: true,
+      organization: null,
+      session: null,
+      currentSubdomain: null,
+      isProcessingToken: false,
+      isExplicitSignOut: false,
+      hasInitialSessionCheck: false,
+      authReady: false,
+      isLoadingProfile: false,
+      isLoadingOrganization: false,
+      profileLoaded: false,
+      organizationLoaded: false,
+      dataLoadingComplete: false,
+      signIn: async () => ({ success: false, error: new Error('Auth not available') }),
+      signUp: async () => ({ success: false, error: new Error('Auth not available') }),
+      signOut: async () => {},
+      refreshData: async () => {},
+      updateAuthState: () => {},
+      forceUpdateAuthState: () => {},
+      initialize: async () => {},
+    };
+  }
+};
+
 const POSPureLayout = memo(function POSPureLayout({ 
   children, 
   onRefresh,
@@ -28,7 +91,7 @@ const POSPureLayout = memo(function POSPureLayout({
   sidebarItems,
   disableScroll = false
 }: POSPureLayoutProps) {
-  const { user, userProfile, isLoading } = useAuth();
+  const { user, userProfile, isLoading } = useSafeAuth();
   const perms = usePermissions();
   const { setActions, clearActions } = useTitlebar();
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -122,7 +185,9 @@ const POSPureLayout = memo(function POSPureLayout({
   const sidebarOffset = 'calc(var(--titlebar-height, 48px) + 0.25rem)';
   const mobileToggleOffset = 'calc(var(--titlebar-height, 48px) + 3.5rem)';
 
-  const layoutBackground = '#050b15';
+  // خلفية POS داكنة دائماً في كلا الوضعين (مثل التايتل بار)
+  // 🎨 استخدام لون Midnight Navy للتناسق
+  const layoutBackground = '#080f1a';
   
   // عرض القائمة الجانبية حسب الحالة
   const sidebarWidth = isSidebarExpanded ? 'w-64' : 'w-20';
@@ -163,19 +228,20 @@ const POSPureLayout = memo(function POSPureLayout({
   }, [sidebarItems, perms.ready, perms.has]);
 
   return (
-    <div dir="rtl" className="relative overflow-hidden" style={{ 
-      background: layoutBackground, 
-      height: 'calc(100vh - var(--titlebar-height, 48px))'
+    <div dir="rtl" className="relative" style={{
+      background: layoutBackground,
+      height: 'calc(100vh - var(--titlebar-height, 48px))',
+      overflow: 'hidden'
     }}>
-      <div className="relative h-full w-full overflow-hidden" style={{ background: layoutBackground }}>
-        <div className={cn("relative flex w-full h-full overflow-hidden")} style={{ background: layoutBackground }}>
+      <div className="relative h-full w-full" style={{ background: layoutBackground, overflow: 'hidden' }}>
+        <div className={cn("relative flex w-full h-full")} style={{ background: layoutBackground }}>
       {/* أزرار السايدبار للجوال */}
       {isStaff && !isLoading && isMobile && (
         <Button
           variant="ghost"
           size="sm"
           onClick={toggleMobileSidebar}
-          className="fixed right-4 z-50 bg-slate-900/95 backdrop-blur-sm border-2 border-orange-500/30 shadow-xl rounded-xl hover:bg-orange-500/10 hover:border-orange-500/50 transition-all duration-300"
+          className="fixed right-4 z-50 bg-[#161b22]/95 backdrop-blur-sm border-2 border-orange-500/30 shadow-xl rounded-xl hover:bg-orange-500/10 hover:border-orange-500/50 transition-all duration-300"
           style={{ top: mobileToggleOffset }}
         >
           {isMobileSidebarOpen ? (
@@ -212,19 +278,21 @@ const POSPureLayout = memo(function POSPureLayout({
         />
       )}
 
-      {/* المحتوى الرئيسي - مع بوردر سميك ومنع الخروج */}
+      {/* المحتوى الرئيسي - مع بوردر سميك */}
       <main className={cn(
-        "transition-all duration-300 w-full h-full overflow-hidden",
+        "transition-all duration-300 w-full h-full",
         !isMobile && isStaff && !isLoading ? `${contentMargin} p-3` : isMobile ? "p-2 pb-2" : "p-3"
       )}>
         <div className={cn(
-          "w-full h-full bg-background shadow-2xl overflow-hidden",
+          "w-full h-full bg-background shadow-2xl",
           "relative flex flex-col",
-          isMobile ? "rounded-t-2xl border-t-[3px] border-x-[3px] border-black/80" : "rounded-2xl border-[3px] border-black/80"
+          isMobile
+            ? "rounded-t-2xl border-t-[3px] border-x-[3px] border-border/50 dark:border-white/10"
+            : "rounded-2xl border-[3px] border-border/50 dark:border-white/10"
         )}>
           <div className={cn(
-            "w-full flex-1 overflow-hidden",
-            disableScroll ? "" : "overflow-y-auto"
+            "w-full flex-1",
+            disableScroll ? "overflow-hidden" : "overflow-y-auto overflow-x-hidden"
           )}>
             {children}
           </div>

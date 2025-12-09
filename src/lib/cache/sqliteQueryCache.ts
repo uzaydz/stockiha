@@ -24,6 +24,9 @@ class SQLiteQueryCache {
     queries: 0
   };
 
+  // ⚡ حد أقصى لحجم الكاش لمنع تسرب الذاكرة
+  private MAX_CACHE_SIZE = 50;
+
   /**
    * TTL افتراضي حسب نوع الجدول (بالميلي ثانية)
    */
@@ -41,8 +44,8 @@ class SQLiteQueryCache {
     'customers': 2 * 60 * 1000,
     
     // جداول متغيرة جداً - cache قصير
-    'pos_orders': 30 * 1000, // 30 ثانية
-    'pos_order_items': 30 * 1000,
+    'orders': 30 * 1000, // 30 ثانية
+    'order_items': 30 * 1000,
     'transactions': 30 * 1000,
     'sync_queue': 10 * 1000, // 10 ثوان
     
@@ -137,13 +140,19 @@ class SQLiteQueryCache {
     try {
       const result = await promise;
       
+      // ⚡ LRU: إذا تجاوز الحد الأقصى، احذف الأقدم
+      if (this.cache.size >= this.MAX_CACHE_SIZE) {
+        const firstKey = this.cache.keys().next().value;
+        if (firstKey) this.cache.delete(firstKey);
+      }
+
       // حفظ في Cache
       this.cache.set(key, {
         data: result,
         timestamp: now,
         ttl
       });
-      
+
       this.pending.delete(key);
       return result;
     } catch (error) {

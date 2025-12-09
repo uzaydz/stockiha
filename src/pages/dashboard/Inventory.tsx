@@ -1,16 +1,16 @@
 import { useEffect, useState, useCallback, memo } from 'react';
 import Layout from '@/components/Layout';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle, Loader2, Lock, RefreshCw } from 'lucide-react';
+import { AlertCircle, Loader2, Lock, RefreshCw, WifiOff, Wifi } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { usePermissions } from '@/hooks/usePermissions';
-import InventoryModern from '@/components/inventory/InventoryModern';
+import { InventoryModernAdvanced } from '@/components/inventory';
+import { useAdvancedInventory } from '@/hooks/useAdvancedInventory';
 import { POSSharedLayoutControls } from '@/components/pos-layout/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { getProducts as syncProductsOnline } from '@/lib/api/offlineProductsAdapter';
-import { getUnsyncedTransactionsCount, syncInventoryData } from '@/lib/db/inventoryDB';
 import { toast } from 'sonner';
 
 interface InventoryProps extends POSSharedLayoutControls {}
@@ -23,18 +23,33 @@ const InventoryComponent = ({
   const { user } = useAuth();
   const perms = usePermissions();
   const { isOnline } = useNetworkStatus();
-  
+
   // صلاحيات المستخدم
   const [canViewInventory, setCanViewInventory] = useState(false);
   const [canManageInventory, setCanManageInventory] = useState(false);
   const [isCheckingPermissions, setIsCheckingPermissions] = useState(true);
 
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [useCacheBrowse, setUseCacheBrowse] = useState<boolean>(
-    typeof window !== 'undefined' ? window.localStorage.getItem('inventory_use_cache') === '1' : false
-  );
-  const [unsyncedCount, setUnsyncedCount] = useState(0);
-  const [isSyncing, setIsSyncing] = useState(false);
+  // استخدام hook المخزون المتقدم
+  const {
+    products,
+    stats,
+    total,
+    filtered,
+    totalPages,
+    loading,
+    updating,
+    syncing,
+    unsyncedCount,
+    filters,
+    updateFilters,
+    goToPage,
+    updateStock,
+    refresh,
+    syncNow,
+  } = useAdvancedInventory({
+    autoSync: true,
+    syncInterval: 30000,
+  });
 
   const renderWithLayout = (node: React.ReactElement) => (
     useStandaloneLayout ? <Layout>{node}</Layout> : node
@@ -103,89 +118,52 @@ const InventoryComponent = ({
     if (!onLayoutStateChange) return;
     queueMicrotask(() => {
       onLayoutStateChange({
-        isRefreshing: isCheckingPermissions,
+        isRefreshing: isCheckingPermissions || loading,
         connectionStatus: !canViewInventory && !isCheckingPermissions ? 'disconnected' : 'connected'
       });
     });
-  }, [onLayoutStateChange, isCheckingPermissions, canViewInventory]);
+  }, [onLayoutStateChange, isCheckingPermissions, canViewInventory, loading]);
 
-  const handleRefresh = useCallback(() => {
-    setRefreshKey((prev) => prev + 1);
-  }, []);
-
-  const handleToggleCacheBrowse = useCallback(() => {
-    const next = !useCacheBrowse;
-    setUseCacheBrowse(next);
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem('inventory_use_cache', next ? '1' : '0');
-    }
-    setRefreshKey((prev) => prev + 1);
-  }, [useCacheBrowse]);
-
-  const handleSyncNow = useCallback(async () => {
+  // مزامنة المنتجات من الخادم
+  const handleSyncProducts = useCallback(async () => {
     try {
       if (!isOnline) return;
-      // جلب من الخادم وحفظ Bulk عبر offlineProductsAdapter
-      // includeInactive = true لضمان إتاحة التصفح الكامل محلياً
       const orgId = (user as any)?.user_metadata?.organization_id;
       if (!orgId) return;
+      toast.info('جاري مزامنة المنتجات...');
       await syncProductsOnline(orgId, true);
-      setRefreshKey((prev) => prev + 1);
-    } catch {
-      // تجاهل
+      refresh();
+      toast.success('تمت مزامنة المنتجات بنجاح');
+    } catch (error: any) {
+      toast.error('فشلت مزامنة المنتجات');
     }
-  }, [isOnline, user]);
+  }, [isOnline, user, refresh]);
 
+  // مزامنة عمليات المخزون المعلقة
   const handleSyncInventory = useCallback(async () => {
-    if (!isOnline || isSyncing) return;
+    if (!isOnline || syncing) return;
 
-    setIsSyncing(true);
     try {
-      const syncedCount = await syncInventoryData();
+      const syncedCount = await syncNow();
       if (syncedCount > 0) {
         toast.success(`تمت مزامنة ${syncedCount} عملية مخزون`);
-        setRefreshKey((prev) => prev + 1);
-        // تحديث العداد
-        const newCount = await getUnsyncedTransactionsCount();
-        setUnsyncedCount(newCount);
       } else {
         toast.info('لا توجد عمليات معلقة للمزامنة');
       }
     } catch (error: any) {
       toast.error('فشلت المزامنة: ' + (error?.message || 'خطأ غير معروف'));
-    } finally {
-      setIsSyncing(false);
     }
-  }, [isOnline, isSyncing]);
-
-  // تحديث عداد العمليات غير المتزامنة
-  useEffect(() => {
-    const updateUnsyncedCount = async () => {
-      try {
-        const count = await getUnsyncedTransactionsCount();
-        setUnsyncedCount(count);
-      } catch {
-        // تجاهل
-      }
-    };
-
-    updateUnsyncedCount();
-
-    // تحديث العداد كل 10 ثوانٍ
-    const intervalId = setInterval(updateUnsyncedCount, 10000);
-
-    return () => clearInterval(intervalId);
-  }, [refreshKey]);
+  }, [isOnline, syncing, syncNow]);
 
   useEffect(() => {
     if (!onRegisterRefresh) return;
     onRegisterRefresh(() => {
-      handleRefresh();
+      refresh();
     });
     return () => {
       onRegisterRefresh(null);
     };
-  }, [onRegisterRefresh, handleRefresh]);
+  }, [onRegisterRefresh, refresh]);
 
   if (!canViewInventory && !isCheckingPermissions) {
     return renderWithLayout(
@@ -225,77 +203,102 @@ const InventoryComponent = ({
     );
   }
 
-  // عرض النظام الجديد
+  // عرض النظام المتقدم الجديد
   const pageContent = (
     <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-10">
       <div className="space-y-4 sm:space-y-6">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-bold mb-2">إدارة المخزون</h1>
-          <p className="text-sm sm:text-base text-muted-foreground">
-            نظام بسيط وسريع لإدارة مخزونك بسهولة
-          </p>
+        {/* رأس الصفحة */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold mb-1">إدارة المخزون المتقدمة</h1>
+            <p className="text-sm sm:text-base text-muted-foreground">
+              نظام متكامل لإدارة جميع أنواع المخزون: قطعة، وزن، كرتون، متر، ألوان ومقاسات
+            </p>
+          </div>
+
+          {/* حالة الاتصال */}
+          <div className="flex items-center gap-2">
+            {isOnline ? (
+              <Badge className="bg-green-50 text-green-700 border-green-200">
+                <Wifi className="h-3 w-3 ml-1" />
+                متصل
+              </Badge>
+            ) : (
+              <Badge className="bg-amber-50 text-amber-700 border-amber-200">
+                <WifiOff className="h-3 w-3 ml-1" />
+                أوفلاين
+              </Badge>
+            )}
+          </div>
         </div>
 
+        {/* أزرار الإجراءات */}
         <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             size="sm"
-            onClick={handleRefresh}
+            onClick={refresh}
+            disabled={loading}
             className="h-8"
           >
-            <RefreshCw className="h-4 w-4 mr-1" /> تحديث
+            <RefreshCw className={`h-4 w-4 ml-1 ${loading ? 'animate-spin' : ''}`} />
+            تحديث
           </Button>
-          <Button
-            variant={useCacheBrowse ? 'default' : 'outline'}
-            size="sm"
-            onClick={handleToggleCacheBrowse}
-            className="h-8"
-          >
-            {useCacheBrowse ? 'تصفح من الكاش' : 'تصفح أونلاين'}
-          </Button>
+
           <Button
             variant="outline"
             size="sm"
-            onClick={handleSyncNow}
+            onClick={handleSyncProducts}
             disabled={!isOnline}
             className="h-8"
           >
             مزامنة المنتجات
           </Button>
+
           {unsyncedCount > 0 && (
             <Button
               variant="default"
               size="sm"
               onClick={handleSyncInventory}
-              disabled={!isOnline || isSyncing}
+              disabled={!isOnline || syncing}
               className="h-8 bg-orange-500 hover:bg-orange-600"
             >
-              {isSyncing ? (
+              {syncing ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  <Loader2 className="h-4 w-4 ml-1 animate-spin" />
                   جاري المزامنة...
                 </>
               ) : (
                 <>
-                  <RefreshCw className="h-4 w-4 mr-1" />
+                  <RefreshCw className="h-4 w-4 ml-1" />
                   مزامنة المخزون ({unsyncedCount})
                 </>
               )}
             </Button>
           )}
-          {(!isOnline || useCacheBrowse) && (
-            <Badge className="bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20">
-              {isOnline ? 'التصفح من الكاش' : 'وضع الأوفلاين'}
-            </Badge>
-          )}
+
           {unsyncedCount > 0 && !isOnline && (
-            <Badge className="bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20">
+            <Badge className="bg-red-50 text-red-700 border-red-200">
               {unsyncedCount} عملية معلقة
             </Badge>
           )}
         </div>
 
-        <InventoryModern key={refreshKey} />
+        {/* المكون المتقدم للمخزون */}
+        <InventoryModernAdvanced
+          products={products}
+          stats={stats}
+          loading={loading}
+          filters={filters}
+          total={total}
+          filtered={filtered}
+          totalPages={totalPages}
+          onUpdateFilters={updateFilters}
+          onGoToPage={goToPage}
+          onRefresh={refresh}
+          onUpdateStock={updateStock}
+          isUpdating={updating}
+        />
       </div>
     </div>
   );

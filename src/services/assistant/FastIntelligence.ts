@@ -5,7 +5,9 @@
  * @version 1.0.0
  */
 
-import { LocalAnalyticsService } from '@/services/LocalAnalyticsService';
+// ⚡ تم إزالة LocalAnalyticsService - تم إعادة تسميته إلى .old
+// import { LocalAnalyticsService } from '@/services/LocalAnalyticsService';
+// TODO: إعادة تنفيذ الوظائف المطلوبة باستخدام PowerSync
 import { computeAvailableStock } from '@/lib/stock';
 
 export class FastIntelligence {
@@ -19,7 +21,7 @@ export class FastIntelligence {
 
     // ✅ طلب تعديل المخزون بدون تحديد منتج
     if (q.match(/(تعديل|غير|بدل|تبديل|تغيير).*(مخزون|stock)/i) &&
-        !q.match(/(iphone|samsung|huawei|xiaomi|lg|[\u0600-\u06FF]{3,})/i)) {
+      !q.match(/(iphone|samsung|huawei|xiaomi|lg|[\u0600-\u06FF]{3,})/i)) {
       return `📦 **لتعديل المخزون:**\n\n` +
         `اكتب: "تعديل مخزون [اسم المنتج] [الكمية]"\n\n` +
         `**أمثلة:**\n` +
@@ -110,6 +112,39 @@ export class FastIntelligence {
       return `❌ **منتجات نافدة** (${data.length})\n\n${list}\n\n💡 يُفضّل إعادة التموين`;
     }
 
+    // ✅ المنتجات الراكدة (Dead Stock) - ⚡ NEW
+    if (q.match(/(منتجات لا تباع|منتجات راكدة|سلع راكدة|dead stock|ما هي المنتجات التي لا تباع|السلعة لي متمشيش)/)) {
+      const days = 30;
+      const deadStock = await LocalAnalyticsService.getDeadStock(days, 10);
+      if (deadStock.length === 0) return `✅ **ممتاز!** لا توجد منتجات راكدة (لم تبع) منذ ${days} يوم.`;
+
+      const dsList = deadStock.map(p => `- ${p.name} (المخزون: ${p.stock_quantity || 0})`).join('\n');
+      return `📦 **المنتجات الراكدة (Dead Stock)**\nهذه المنتجات لم يتم بيعها منذ ${days} يوم:\n${dsList}`;
+    }
+
+    // ✅ تحليل النمو (Growth) - ⚡ NEW
+    if (q.match(/(تحليل النمو|growth|مقارنة المبيعات|كيف هو أدائي|كيفاش راهي الحالة)/)) {
+      const [today, yesterday] = await Promise.all([
+        LocalAnalyticsService.getTodaySales(),
+        LocalAnalyticsService.getYesterdaySales()
+      ]);
+      const diff = today.totalSales - yesterday.totalSales;
+      const diffPercent = yesterday.totalSales > 0 ? ((diff / yesterday.totalSales) * 100).toFixed(1) : '∞';
+      const emoji = diff > 0 ? '📈' : '📉';
+      return `📊 **تحليل النمو (اليوم vs الأمس)**\n\n` +
+        `🟢 اليوم: ${today.totalSales} دج\n` +
+        `🟡 الأمس: ${yesterday.totalSales} دج\n` +
+        `${emoji} الفرق: ${diff > 0 ? '+' : ''}${diff} دج (${diffPercent}%)`;
+    }
+
+    // ✅ أفضل العملاء (Top Customers) - ⚡ NEW
+    if (q.match(/(أفضل العملاء|top customers|أحسن زبون|زبائن أوفياء|best customers)/)) {
+      const topCust = await LocalAnalyticsService.getTopCustomers(30, 5);
+      if (topCust.length === 0) return 'لا توجد بيانات كافية عن العملاء.';
+      const list = topCust.map((c, i) => `${i + 1}. ${c.customer_name} (${c.total} دج)`).join('\n');
+      return `🏆 **أفضل العملاء (آخر 30 يوم)**\n\n${list}`;
+    }
+
     // ✅ عدد المنتجات
     if (q.match(/(كم منتج|عدد المنتجات|how many products|شحال منتج)/)) {
       // ⚡ استخدام LocalAnalytics بدلاً من inventoryDB
@@ -124,21 +159,24 @@ export class FastIntelligence {
       return `👥 لديك عملاء مسجلين مع ${customersSummary?.totalDebts || 0} دين`;
     }
 
-    // ✅ الديون - ملخص
-    if (q.match(/(إجمالي الديون|total debts|كم دين|شحال الديون)/) &&
-        !q.match(/(قائمة|ليست|العملاء|الكليون|clients|customers|list)/)) {
-      const data = await LocalAnalyticsService.getDebtsSummary();
-      return `💳 **ملخص الديون**\n\n` +
-        `📋 إجمالي الديون: **${data.totalDebts}**\n` +
-        `⏳ قيد الانتظار: **${data.pending}**\n` +
-        `⚡ مدفوعة جزئياً: **${data.partial}**\n` +
-        `✅ مدفوعة: **${data.paid}**\n` +
-        `💰 المتبقي: **${data.totalRemaining.toFixed(2)} دج**`;
+    // ✅ الديون - ملخص (Total Debts)
+    if (q.match(/(إجمالي|مجموع|كم|شحال|total|sum).*(الديون|الكريدي|ديون|كريدي|debts|credit)/i) ||
+      q.match(/(الديون|الكريدي|ديون|كريدي).*(كم|شحال|how much)/i)) {
+      // استثناء طلبات القوائم
+      if (!q.match(/(قائمة|ليست|أسماء|list|names|who)/i)) {
+        const data = await LocalAnalyticsService.getDebtsSummary();
+        return `💳 **ملخص الديون (Credit/Debts)**\n\n` +
+          `📋 إجمالي الديون: **${data.totalDebts}**\n` +
+          `⏳ قيد الانتظار: **${data.pending}**\n` +
+          `⚡ مدفوعة جزئياً: **${data.partial}**\n` +
+          `✅ مدفوعة: **${data.paid}**\n` +
+          `💰 المبلغ المتبقي: **${data.totalRemaining.toFixed(2)} دج**`;
+      }
     }
 
     // ✅ قائمة العملاء الذين لديهم ديون
     if (q.match(/(قائمة|ليست|أسماء|وين).*(عملاء|كليون|clients|customers).*(دين|ديون|كريدي|credit|debt)/i) ||
-        q.match(/(عملاء|كليون|clients|customers).*(عندهم|لديهم|has|with).*(دين|ديون|كريدي|credit)/i)) {
+      q.match(/(عملاء|كليون|clients|customers).*(عندهم|لديهم|has|with).*(دين|ديون|كريدي|credit)/i)) {
       const customers = await LocalAnalyticsService.getCustomersWithDebts(15);
       if (customers.length === 0) {
         return `✅ **رائع!** لا يوجد عملاء لديهم ديون حالياً! 🎉`;
@@ -189,6 +227,42 @@ export class FastIntelligence {
         `❓ هل تريد تحليلاً أعمق لنقطة معينة؟`;
     }
 
+    // ✅ التنقل السريع (Navigation)
+    if (q.match(/(اذهب|روح|إلى|افتح|open|go to|navigate).*(dashboard|pos|products|orders|customers|settings|reports|الرئيسية|البيع|المنتجات|الطلبات|العملاء|الإعدادات|التقارير)/i)) {
+      let page = 'dashboard';
+      if (q.match(/(pos|البيع)/i)) page = 'pos';
+      else if (q.match(/(products|المنتجات)/i)) page = 'products';
+      else if (q.match(/(orders|الطلبات)/i)) page = 'orders';
+      else if (q.match(/(customers|العملاء|الزبائن)/i)) page = 'customers';
+      else if (q.match(/(settings|الإعدادات)/i)) page = 'settings';
+      else if (q.match(/(reports|التقارير)/i)) page = 'reports';
+
+      // We return a special marker that the UI or Orchestrator can intercept, 
+      // OR we just do it here if we can. Since this returns string, we'll return a message 
+      // but we need to actually perform the action. 
+      // Ideally, FastIntelligence should return an Action object, but for now we'll rely on the ToolRegistry 
+      // if we want "action". 
+      // BUT, to be "Fast", we can't wait for LLM.
+      // Let's return a specific string that the UI might parse, OR we can execute the side effect here if we are in browser.
+
+      if (typeof window !== 'undefined') {
+        const routes: Record<string, string> = {
+          'dashboard': '/dashboard',
+          'pos': '/pos',
+          'products': '/dashboard/products',
+          'orders': '/dashboard/orders',
+          'customers': '/dashboard/customers',
+          'settings': '/dashboard/settings',
+          'reports': '/dashboard/reports'
+        };
+        // Use setTimeout to allow the UI to show the message first
+        setTimeout(() => {
+          window.location.href = routes[page];
+        }, 1000);
+        return `🚀 **جاري الانتقال إلى ${page}...**`;
+      }
+    }
+
     // لم نستطع الإجابة سريعاً
     return null;
   }
@@ -198,7 +272,7 @@ export class FastIntelligence {
    */
   private static isCalculation(query: string): boolean {
     return /\d+\s*[+\-*/×÷]\s*\d+/.test(query) ||
-           /(احسب|calculate|حساب|كم يساوي)/i.test(query);
+      /(احسب|calculate|حساب|كم يساوي)/i.test(query);
   }
 
   /**

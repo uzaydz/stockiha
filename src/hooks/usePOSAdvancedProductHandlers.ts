@@ -1,4 +1,5 @@
-import { useCallback } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
+import { toast } from 'sonner';
 import { Product } from '@/types';
 import { ensureArray } from '@/context/POSDataContext';
 
@@ -27,48 +28,106 @@ export const usePOSAdvancedProductHandlers = (
     variantImage?: string
   ) => void,
   setSelectedProductForVariant: (product: Product | null) => void,
-  setIsVariantDialogOpen: (open: boolean) => void
+  setIsVariantDialogOpen: (open: boolean) => void,
+  // ⚡ وضع الخسائر (اختياري)
+  isLossMode?: boolean,
+  addItemToLossCart?: (product: Product) => void,
+  addVariantToLossCart?: (
+    product: Product,
+    colorId?: string,
+    sizeId?: string,
+    variantPrice?: number,
+    colorName?: string,
+    colorCode?: string,
+    sizeName?: string,
+    variantImage?: string
+  ) => void
 ) => {
+  // ⚡ استخدام refs لتجنب مشكلة closure القديمة
+  const isLossModeRef = useRef(isLossMode);
+  const isReturnModeRef = useRef(isReturnMode);
+  const addItemToLossCartRef = useRef(addItemToLossCart);
+  const addVariantToLossCartRef = useRef(addVariantToLossCart);
+
+  // تحديث refs عند تغيير القيم
+  useEffect(() => {
+    isLossModeRef.current = isLossMode;
+    isReturnModeRef.current = isReturnMode;
+    addItemToLossCartRef.current = addItemToLossCart;
+    addVariantToLossCartRef.current = addVariantToLossCart;
+  }, [isLossMode, isReturnMode, addItemToLossCart, addVariantToLossCart]);
+
   // معالجة اختيار المنتجات مع المتغيرات
   const handleProductWithVariants = useCallback((product: Product) => {
-    // قراءة حالة isReturnMode مباشرة من DOM أو من usePOSReturn hook مباشرة
-    const isCurrentlyReturnMode = document.body.classList.contains('return-mode') || isReturnMode;
+    // ⚡ قراءة القيم الحالية من refs
+    const currentIsLossMode = isLossModeRef.current;
+    const currentIsReturnMode = isReturnModeRef.current;
+    const currentAddItemToLossCart = addItemToLossCartRef.current;
 
     // ✅ استخدام ensureArray للتعامل مع JSON strings من SQLite
     const productColors = ensureArray(product.colors);
     const productColorsAlt = ensureArray((product as any).product_colors);
 
-    // 🐛 Debug: طباعة معلومات المنتج
-    console.log('[POS] Product clicked:', {
+    const colors = productColors.length > 0 ? productColors : productColorsAlt;
+    const hasVariants = (product.has_variants || colors.length > 0) && colors.length > 0;
+
+    // 🔍 DEBUG
+    console.log('[ProductHandlers] 🎨 Product check:', {
       name: product.name,
-      has_variants: product.has_variants,
-      colors_field: !!product.colors,
-      product_colors_field: !!(product as any).product_colors,
-      colors_length: productColors.length || 0,
-      product_colors_length: productColorsAlt.length || 0,
-      first_color: productColors[0],
-      first_product_color: productColorsAlt[0]
+      isLossMode: currentIsLossMode,
+      isReturnMode: currentIsReturnMode,
+      hasVariants,
+      hasLossCartFn: !!currentAddItemToLossCart
     });
 
-    const colors = productColors.length > 0 ? productColors : productColorsAlt;
-    if (product.has_variants && colors && colors.length > 0) {
-      console.log('[POS] Opening variant dialog for:', product.name);
+    // ⚡ وضع الخسائر أولاً
+    if (currentIsLossMode && currentAddItemToLossCart) {
+      console.log('[ProductHandlers] 🔶 LOSS MODE - Adding:', product.name);
+
+      if (hasVariants) {
+        toast.info(`اختر اللون والمقاس لـ "${product.name}"`, { icon: '⚠️' });
+        setSelectedProductForVariant(product);
+        setIsVariantDialogOpen(true);
+        return;
+      }
+
+      try {
+        currentAddItemToLossCart(product);
+        toast.success(`تمت إضافة "${product.name}" لسلة الخسائر`, { icon: '🔶' });
+      } catch (error) {
+        console.error('[ProductHandlers] ❌ خطأ:', error);
+        toast.error('حدث خطأ أثناء إضافة المنتج للخسائر');
+      }
+      return;
+    }
+
+    // وضع الإرجاع
+    if (currentIsReturnMode) {
+      if (hasVariants) {
+        toast.info(`اختر اللون والمقاس لـ "${product.name}"`);
+        setSelectedProductForVariant(product);
+        setIsVariantDialogOpen(true);
+        return;
+      }
+      addItemToReturnCart(product);
+      return;
+    }
+
+    // وضع البيع العادي
+    if (hasVariants) {
+      toast.info(`اختر اللون والمقاس لـ "${product.name}"`);
       setSelectedProductForVariant(product);
       setIsVariantDialogOpen(true);
       return;
     }
 
-    // استخدام القيمة الحقيقية
-    if (isCurrentlyReturnMode) {
-      addItemToReturnCart(product);
-    } else {
-      try {
-        addItemToCart(product);
-      } catch (error) {
-        // معالجة الخطأ إذا لزم الأمر
-      }
+    try {
+      addItemToCart(product);
+    } catch (error) {
+      console.error('[ProductHandlers] ❌ خطأ:', error);
+      toast.error('حدث خطأ أثناء إضافة المنتج');
     }
-  }, [isReturnMode, addItemToCart, addItemToReturnCart, setSelectedProductForVariant, setIsVariantDialogOpen]);
+  }, [addItemToCart, addItemToReturnCart, setSelectedProductForVariant, setIsVariantDialogOpen]);
 
   // معالجة إضافة متغير للسلة
   const handleAddVariantToCart = useCallback((
@@ -81,14 +140,28 @@ export const usePOSAdvancedProductHandlers = (
     sizeName?: string,
     variantImage?: string
   ) => {
-    if (isReturnMode) {
+    // ⚡ قراءة القيم الحالية من refs
+    const currentIsLossMode = isLossModeRef.current;
+    const currentIsReturnMode = isReturnModeRef.current;
+    const currentAddVariantToLossCart = addVariantToLossCartRef.current;
+
+    console.log('[ProductHandlers] 🎨 Variant add:', {
+      isLossMode: currentIsLossMode,
+      isReturnMode: currentIsReturnMode
+    });
+
+    if (currentIsLossMode && currentAddVariantToLossCart) {
+      currentAddVariantToLossCart(product, colorId, sizeId, variantPrice, colorName, colorCode, sizeName, variantImage);
+      toast.success(`تمت إضافة المتغير لسلة الخسائر`, { icon: '🔶' });
+    } else if (currentIsReturnMode) {
       addVariantToReturnCart(product, colorId, sizeId, variantPrice, colorName, colorCode, sizeName, variantImage);
     } else {
       addVariantToCart(product, colorId, sizeId, variantPrice, colorName, colorCode, sizeName, variantImage);
     }
+
     setIsVariantDialogOpen(false);
     setSelectedProductForVariant(null);
-  }, [isReturnMode, addVariantToCart, addVariantToReturnCart, setIsVariantDialogOpen, setSelectedProductForVariant]);
+  }, [addVariantToCart, addVariantToReturnCart, setIsVariantDialogOpen, setSelectedProductForVariant]);
 
   return {
     handleProductWithVariants,

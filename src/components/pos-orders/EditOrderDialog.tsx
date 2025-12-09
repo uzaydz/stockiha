@@ -1,10 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { User } from '@/types';
 import { formatPrice } from '@/lib/utils';
 import { cn } from '@/lib/utils';
-import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
-import { createCustomer } from '@/context/shop/userService';
+// ⚡ PowerSync - للقراءة والكتابة المحلية (Offline-First)
+import { deltaWriteService } from '@/services/DeltaWriteService';
+import { useReactiveCustomers } from '@/hooks/powersync/useReactiveCustomers';
+import { useTenant } from '@/context/TenantContext';
 import { 
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle 
 } from "@/components/ui/dialog";
@@ -18,9 +20,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
 import { Check, ChevronDown } from "lucide-react";
-import { 
-  Receipt, AlertCircle, CreditCard, Banknote, UserPlus, Wallet, 
-  Receipt as ReceiptIcon, Edit3, Save, X, Calculator, DollarSign 
+import {
+  Receipt, AlertCircle, CreditCard, Banknote, UserPlus, Wallet,
+  Receipt as ReceiptIcon, Edit3, Save, X, Calculator, DollarSign,
+  Package, Scale, Ruler, Box, ShoppingBag
 } from 'lucide-react';
 
 interface POSOrderWithDetails {
@@ -55,7 +58,28 @@ interface POSOrderWithDetails {
     name: string;
     email: string;
   };
-  order_items: any[];
+  order_items: {
+    id: string;
+    product_id?: string;
+    product_name?: string;
+    name?: string;
+    quantity: number;
+    unit_price: number;
+    total_price: number;
+    is_wholesale?: boolean;
+    variant_info?: any;
+    color_id?: string;
+    size_id?: string;
+    color_name?: string;
+    size_name?: string;
+    // حقول البيع المتقدمة
+    selling_unit_type?: 'piece' | 'weight' | 'meter' | 'box' | string;
+    weight_sold?: number;
+    weight_unit?: string;
+    meters_sold?: number;
+    boxes_sold?: number;
+    units_per_box?: number;
+  }[];
   items_count: number;
   effective_status?: string;
   effective_total?: number;
@@ -80,11 +104,17 @@ export default function EditOrderDialog({
 }: EditOrderDialogProps) {
   // حالة التحميل والمعالجة
   const [isProcessing, setIsProcessing] = useState(false);
-  
-  // بيانات العملاء
-  const [customers, setCustomers] = useState<any[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<User | null>(null);
+
+  // ⚡ جلب العملاء من PowerSync (محلياً - Offline First)
   const [searchCustomer, setSearchCustomer] = useState('');
+  const { customers: reactiveCustomers, isLoading: isLoadingCustomers } = useReactiveCustomers({
+    searchTerm: searchCustomer.length >= 2 ? searchCustomer : undefined,
+    limit: 100
+  });
+  const { currentOrganization } = useTenant();
+
+  // بيانات العملاء
+  const [selectedCustomer, setSelectedCustomer] = useState<User | null>(null);
   const [isCustomerPopoverOpen, setIsCustomerPopoverOpen] = useState(false);
   
   // حالة نافذة إضافة عميل جديد
@@ -155,86 +185,13 @@ export default function EditOrderDialog({
     { label: "500", value: 500 }
   ];
 
-  // جلب العملاء
-  const fetchCustomers = useCallback(async () => {
-    try {
-      
-      // الحصول على معرف المؤسسة من localStorage كما هو مستخدم في customers.ts
-      const organizationId = localStorage.getItem('bazaar_organization_id');
-      
-      if (!organizationId) {
-        return;
-      }
-
-      // جلب العملاء من جدول customers
-      const { data: orgCustomers, error: orgError } = await supabase
-        .from('customers')
-        .select('id, name, email, phone, organization_id, created_at, updated_at')
-        .eq('organization_id', organizationId)
-        .order('created_at', { ascending: false });
-
-      if (orgError) {
-        throw orgError;
-      }
-      
-      // جلب العملاء من جدول users مع role 'customer'
-      const { data: userCustomers, error: userError } = await supabase
-        .from('users')
-        .select('id, name, email, phone, organization_id, created_at, updated_at')
-        .eq('role', 'customer')
-        .eq('organization_id', organizationId)
-        .order('created_at', { ascending: false });
-
-      if (userError) {
-        // لا نرمي الخطأ هنا، نكمل مع عملاء المؤسسة فقط
-      }
-      
-      // تصفية العملاء الذين لديهم معرف مشكوك فيه
-      const filteredOrgCustomers = (orgCustomers || []).filter(customer => 
-        customer.id !== '00000000-0000-0000-0000-000000000000'
-      );
-      
-      const filteredUserCustomers = (userCustomers || []).filter(user => 
-        user.id !== '00000000-0000-0000-0000-000000000000'
-      );
-      
-      // تحويل عملاء المستخدمين إلى تنسيق العملاء ودمجهم
-      const mappedUserCustomers = filteredUserCustomers.map(user => ({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        organization_id: user.organization_id,
-        created_at: user.created_at,
-        updated_at: user.updated_at
-      }));
-
-      // دمج جميع العملاء
-      const allCustomers = [
-        ...filteredOrgCustomers,
-        ...mappedUserCustomers
-      ];
-      
-      // إزالة التكرار بناءً على معرف العميل
-      const uniqueCustomers = allCustomers.filter((customer, index, self) =>
-        index === self.findIndex(c => c.id === customer.id)
-      );
-      
-      // ترتيب العملاء حسب الاسم
-      uniqueCustomers.sort((a, b) => a.name.localeCompare(b.name));
-
-      setCustomers(uniqueCustomers);
-    } catch (error) {
-      setCustomers([]);
-    }
-  }, []);
-
-  // تحديث قائمة العملاء عند فتح النافذة
-  useEffect(() => {
-    if (isOpen) {
-      fetchCustomers();
-    }
-  }, [isOpen, fetchCustomers]);
+  // ⚡ قائمة العملاء من PowerSync (Offline-First)
+  const customers = useMemo(() => {
+    // تصفية العملاء الذين لديهم معرف مشكوك فيه
+    return reactiveCustomers.filter(customer =>
+      customer.id !== '00000000-0000-0000-0000-000000000000'
+    );
+  }, [reactiveCustomers]);
 
   // تحديث العميل المختار بعد جلب العملاء
   useEffect(() => {
@@ -242,7 +199,7 @@ export default function EditOrderDialog({
       // البحث عن العميل في قائمة العملاء المجلبة
       const foundCustomer = customers.find(c => c.id === order.customer?.id);
       if (foundCustomer) {
-        setSelectedCustomer(foundCustomer);
+        setSelectedCustomer(foundCustomer as User);
       } else {
         setSelectedCustomer(order.customer as User);
       }
@@ -312,73 +269,107 @@ export default function EditOrderDialog({
     }
   };
 
-  // فلترة العملاء
-  const filteredCustomers = useCallback(() => {
-    
-    if (!searchCustomer.trim()) {
+  // ⚡ العملاء المفلترين (من PowerSync مباشرة)
+  // البحث يتم في useReactiveCustomers عند searchTerm.length >= 2
+  // لكن نحتاج فلترة محلية للبحث الأقل من حرفين
+  const filteredCustomers = useMemo(() => {
+    if (!searchCustomer.trim() || searchCustomer.length >= 2) {
+      // البحث يتم في PowerSync
       return customers;
     }
-    
+    // فلترة محلية للبحث بحرف واحد
     const query = searchCustomer.toLowerCase();
-    const filtered = customers.filter(customer => 
-      customer.name.toLowerCase().includes(query) ||
+    return customers.filter(customer =>
+      customer.name?.toLowerCase().includes(query) ||
       customer.phone?.toLowerCase().includes(query) ||
       customer.email?.toLowerCase().includes(query)
     );
-    
-    return filtered;
   }, [customers, searchCustomer]);
 
   // حفظ التعديلات
   const handleSaveChanges = async () => {
     if (!order) return;
-    
+
     setIsProcessing(true);
-    
+
     try {
+      // ⚡ حساب payment_status تلقائياً بناءً على المبالغ
+      let calculatedPaymentStatus = paymentStatus;
+      const actualRemainingAmount = total - paidAmount;
+
+      if (paidAmount <= 0) {
+        calculatedPaymentStatus = 'pending';
+      } else if (actualRemainingAmount <= 0) {
+        calculatedPaymentStatus = 'paid';
+      } else if (paidAmount > 0 && actualRemainingAmount > 0) {
+        // ⚡ مهم: إذا كان هناك مبلغ مدفوع ومبلغ متبقي، فهو دفع جزئي
+        calculatedPaymentStatus = 'partial';
+      }
+
+      // ⚡ تحديد customer_id بشكل صحيح
+      const customerId = selectedCustomer &&
+                         selectedCustomer.id &&
+                         selectedCustomer.id !== 'guest' &&
+                         selectedCustomer.id !== '00000000-0000-0000-0000-000000000000'
+                           ? selectedCustomer.id
+                           : null;
+
+      // ⚡ تحقق: إذا كان هناك دفع جزئي ويريد اعتباره دين، يجب أن يكون هناك عميل
+      if (actualRemainingAmount > 0 && considerRemainingAsPartial && !customerId) {
+        toast.error('يجب اختيار عميل لتسجيل المديونية');
+        setIsProcessing(false);
+        return;
+      }
+
       // إعداد البيانات المحدثة
       const updatedData = {
         status: orderStatus,
-        payment_status: paymentStatus,
+        payment_status: calculatedPaymentStatus,
         payment_method: paymentMethod,
         subtotal: subtotal,
         tax: tax,
         notes: notes.trim() || null,
         discount: discount,
         amount_paid: paidAmount,
-        remaining_amount: paymentStatus === 'paid' ? 0 : remainingAmount,
-        consider_remaining_as_partial: isPartialPayment ? considerRemainingAsPartial : false,
-        customer_id: selectedCustomer && selectedCustomer.id !== 'guest' ? selectedCustomer.id : null,
-        updated_at: new Date().toISOString()
+        remaining_amount: calculatedPaymentStatus === 'paid' ? 0 : Math.max(0, actualRemainingAmount),
+        consider_remaining_as_partial: actualRemainingAmount > 0 ? considerRemainingAsPartial : false,
+        customer_id: customerId
       };
 
-      // تحديث الطلبية في قاعدة البيانات
-      const { data, error } = await supabase
-        .from('orders')
-        .update(updatedData)
-        .eq('id', order.id)
-        .select(`
-          *,
-          customer:customers!orders_customer_id_fkey(id, name, email, phone),
-          employee:users!orders_employee_id_fkey(id, name, email)
-        `)
-        .single();
+      console.log('[EditOrderDialog] 💾 Saving order with debt data:', {
+        orderId: order.id,
+        customerId,
+        customerName: selectedCustomer?.name,
+        paymentStatus: calculatedPaymentStatus,
+        amountPaid: paidAmount,
+        remainingAmount: actualRemainingAmount,
+        considerAsPartial: considerRemainingAsPartial
+      });
 
-      if (error) {
-        throw error;
+      // ⚡ تحديث الطلبية عبر PowerSync (محلي أولاً + مزامنة تلقائية)
+      const result = await deltaWriteService.update('orders', order.id, updatedData);
+
+      if (!result.success) {
+        throw new Error(result.error || 'فشل في تحديث الطلبية');
       }
 
       // إنشاء الطلبية المحدثة مع البيانات الكاملة
       const updatedOrder: POSOrderWithDetails = {
         ...order,
-        ...data,
-        customer: data.customer || null,
-        employee: data.employee || order.employee,
+        ...updatedData,
+        updated_at: new Date().toISOString(),
+        customer: selectedCustomer ? {
+          id: selectedCustomer.id,
+          name: selectedCustomer.name,
+          email: selectedCustomer.email,
+          phone: selectedCustomer.phone
+        } : null,
+        employee: order.employee,
         // الحفاظ على البيانات المحسوبة
         items_count: order.items_count,
         effective_status: order.effective_status,
-        effective_total: data.total - (order.total_returned_amount || 0),
-        original_total: data.total,
+        effective_total: order.total - (order.total_returned_amount || 0),
+        original_total: order.total,
         has_returns: order.has_returns,
         is_fully_returned: order.is_fully_returned,
         total_returned_amount: order.total_returned_amount,
@@ -387,14 +378,15 @@ export default function EditOrderDialog({
 
       // إشعار بالنجاح
       toast.success('تم تحديث الطلبية بنجاح');
-      
+
       // إرسال البيانات المحدثة للمكون الأب
       onOrderUpdated(updatedOrder);
-      
+
       // إغلاق النافذة
       onOpenChange(false);
-      
+
     } catch (error: any) {
+      console.error('[EditOrderDialog] Update failed:', error);
       toast.error(error.message || 'حدث خطأ أثناء تحديث الطلبية');
     } finally {
       setIsProcessing(false);
@@ -407,38 +399,56 @@ export default function EditOrderDialog({
     setIsNewCustomerDialogOpen(true);
   };
 
-  // إضافة عميل جديد
+  // ⚡ إضافة عميل جديد (Offline-First عبر PowerSync)
   const handleAddCustomer = async () => {
     if (!newCustomer.name.trim()) {
       toast.error("اسم العميل مطلوب");
       return;
     }
-    
+
+    if (!currentOrganization?.id) {
+      toast.error("لم يتم تحديد المؤسسة");
+      return;
+    }
+
     try {
       setIsAddingCustomer(true);
-      
-      const customer = await createCustomer({
+
+      // ⚡ إضافة العميل عبر deltaWriteService (محلياً + مزامنة تلقائية)
+      const customerData = {
         name: newCustomer.name.trim(),
-        email: newCustomer.email.trim() || undefined,
-        phone: newCustomer.phone.trim() || undefined
-      });
-      
-      if (customer) {
-        
-        // إضافة العميل الجديد إلى قائمة العملاء
-        setCustomers(prev => {
-          const updatedCustomers = [customer, ...prev];
-          return updatedCustomers;
-        });
-        
+        email: newCustomer.email.trim() || null,
+        phone: newCustomer.phone.trim() || null,
+        organization_id: currentOrganization.id,
+        address: null,
+        notes: null,
+        nif: null,
+        rc: null,
+        nis: null,
+        rib: null
+      };
+
+      const result = await deltaWriteService.create('customers', customerData);
+
+      if (result.success && result.id) {
+        const customer = {
+          id: result.id,
+          name: customerData.name,
+          email: customerData.email,
+          phone: customerData.phone,
+          organization_id: customerData.organization_id
+        };
+
         // اختيار العميل الجديد
-        setSelectedCustomer(customer);
-        
+        setSelectedCustomer(customer as User);
+
         // إغلاق النافذة وإعادة تعيين البيانات
         setIsNewCustomerDialogOpen(false);
         setNewCustomer({ name: '', email: '', phone: '' });
-        
+
         toast.success(`تم إضافة العميل "${customer.name}" بنجاح`);
+      } else {
+        throw new Error(result.error || 'فشل في إضافة العميل');
       }
     } catch (error: any) {
       toast.error(error.message || "حدث خطأ أثناء إضافة العميل");
@@ -504,6 +514,107 @@ export default function EditOrderDialog({
             </div>
           </div>
 
+          {/* عناصر الطلبية */}
+          {order.order_items && order.order_items.length > 0 && (
+            <div className="space-y-2">
+              <Label className="text-sm font-medium flex items-center gap-2">
+                <ShoppingBag className="h-4 w-4 text-primary" />
+                عناصر الطلبية ({order.order_items.length})
+              </Label>
+              <div className="bg-muted/20 rounded-lg border max-h-[200px] overflow-y-auto">
+                {order.order_items.map((item, index) => {
+                  const productName = item.product_name || item.name || 'منتج غير معروف';
+                  const sellingUnit = item.selling_unit_type || 'piece';
+
+                  // تحديد الكمية والوحدة حسب نوع البيع
+                  let quantityDisplay = '';
+                  let unitIcon = <Package className="h-3.5 w-3.5" />;
+                  let unitColorClass = 'text-slate-600';
+
+                  switch (sellingUnit) {
+                    case 'meter':
+                      quantityDisplay = `${item.meters_sold || item.quantity} متر`;
+                      unitIcon = <Ruler className="h-3.5 w-3.5" />;
+                      unitColorClass = 'text-purple-600';
+                      break;
+                    case 'weight':
+                      quantityDisplay = `${item.weight_sold || item.quantity} ${item.weight_unit || 'كجم'}`;
+                      unitIcon = <Scale className="h-3.5 w-3.5" />;
+                      unitColorClass = 'text-emerald-600';
+                      break;
+                    case 'box':
+                      const boxQty = item.boxes_sold || item.quantity;
+                      const unitsInfo = item.units_per_box ? ` (${item.units_per_box} وحدة/علبة)` : '';
+                      quantityDisplay = `${boxQty} علبة${unitsInfo}`;
+                      unitIcon = <Box className="h-3.5 w-3.5" />;
+                      unitColorClass = 'text-blue-600';
+                      break;
+                    case 'piece':
+                    default:
+                      quantityDisplay = `${item.quantity} قطعة`;
+                      unitIcon = <Package className="h-3.5 w-3.5" />;
+                      unitColorClass = 'text-slate-600';
+                  }
+
+                  return (
+                    <div
+                      key={item.id || index}
+                      className={cn(
+                        "flex items-center justify-between p-3 gap-3",
+                        index !== order.order_items.length - 1 && "border-b border-border/50"
+                      )}
+                    >
+                      {/* معلومات المنتج */}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm truncate">{productName}</p>
+                        {/* المتغيرات (اللون والمقاس) */}
+                        {(item.color_name || item.size_name) && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {item.color_name && (
+                              <span className="inline-flex items-center gap-1">
+                                {item.variant_info?.colorCode && (
+                                  <span
+                                    className="w-2.5 h-2.5 rounded-full border border-border"
+                                    style={{ backgroundColor: item.variant_info.colorCode }}
+                                  />
+                                )}
+                                {item.color_name}
+                              </span>
+                            )}
+                            {item.color_name && item.size_name && ' • '}
+                            {item.size_name && <span>مقاس {item.size_name}</span>}
+                          </p>
+                        )}
+                        {/* شارة الجملة */}
+                        {item.is_wholesale && (
+                          <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 mt-1 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                            جملة
+                          </span>
+                        )}
+                      </div>
+
+                      {/* الكمية ونوع البيع */}
+                      <div className={cn("flex items-center gap-1.5 text-sm font-medium", unitColorClass)}>
+                        {unitIcon}
+                        <span>{quantityDisplay}</span>
+                      </div>
+
+                      {/* السعر */}
+                      <div className="text-left min-w-[70px]">
+                        <p className="text-sm font-bold">{formatPrice(item.total_price)}</p>
+                        {item.quantity > 1 && sellingUnit === 'piece' && (
+                          <p className="text-[10px] text-muted-foreground">
+                            {formatPrice(item.unit_price)} / وحدة
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* اختيار العميل */}
           <div className="space-y-1.5">
             <Label className="text-sm font-medium">العميل</Label>
@@ -567,7 +678,7 @@ export default function EditOrderDialog({
                       )}
                       
                       {/* قائمة العملاء */}
-                      {filteredCustomers().map((customer) => (
+                      {filteredCustomers.map((customer) => (
                         <CommandItem
                           key={customer.id}
                           value={customer.name}

@@ -126,7 +126,7 @@ export const UniversalDataUpdateProvider: React.FC<{ children: React.ReactNode }
         'employees': ['employees_cache', `employees_${organizationId}`, 'users_cache'],
         'customers': ['customers_cache', `customers_${organizationId}`],
         'financials': ['financials_cache', `financials_${organizationId}`, 'dashboard_stats'],
-        'pos-data': ['pos_cache', `pos_${organizationId}`, 'pos_products', 'pos_orders'],
+        'pos-data': ['pos_cache', `pos_${organizationId}`, 'pos_products', 'orders'],
         'dashboard-stats': ['dashboard_cache', `dashboard_${organizationId}`, 'stats_cache'],
         'organization-apps': ['apps_cache', `apps_${organizationId}`, 'organization_apps'],
         'all': []

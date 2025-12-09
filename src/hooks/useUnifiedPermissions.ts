@@ -24,6 +24,11 @@ import {
 } from '@/lib/utils/permission-normalizer';
 import type { StaffPermissions } from '@/types/staff';
 
+const isDev = process.env.NODE_ENV === 'development';
+
+// ⚡ منع تكرار الـ logs - Set عالمي خارج المكوّن
+const loggedPermissions = new Set<string>();
+
 export interface UnifiedPermissionsResult {
   /**
    * التحقق من صلاحية واحدة
@@ -172,35 +177,47 @@ export function useUnifiedPermissions(): UnifiedPermissionsResult {
    * التحقق من صلاحية واحدة
    */
   const has = useCallback((permission: string): boolean => {
+    // ⚡ Helper لتسجيل الصلاحية مرة واحدة فقط (يستخدم Set عالمي)
+    const logOnce = (msg: string, data?: object) => {
+      if (!isDev) return;
+      const key = `${permission}-${msg}`;
+      if (!loggedPermissions.has(key)) {
+        loggedPermissions.add(key);
+        if (data) {
+          console.log(`[useUnifiedPermissions] ${msg}`, data);
+        } else {
+          console.log(`[useUnifiedPermissions] ${msg}`);
+        }
+      }
+    };
+
     // 1. وضع المدير = صلاحيات كاملة
     if (isAdminMode) {
-      console.log(`[useUnifiedPermissions] ✅ ${permission} - وضع المدير`);
+      logOnce(`✅ ${permission} - وضع المدير`);
       return true;
     }
-    
+
     // 2. إذا كان المستخدم admin/owner = صلاحيات كاملة
     if (isUserAdmin) {
-      console.log(`[useUnifiedPermissions] ✅ ${permission} - مستخدم إداري`);
+      logOnce(`✅ ${permission} - مستخدم إداري`);
       return true;
     }
-    
+
     // 3. إذا موظف مسجل → فحص صلاحيات الموظف
     if (isStaffMode && currentStaff?.permissions) {
       const staffPerms = currentStaff.permissions as Record<string, boolean | undefined>;
       const hasIt = checkPermissionWithAliases(permission, staffPerms);
-      console.log(`[useUnifiedPermissions] 👤 ${permission} - موظف:`, {
-        hasPermission: hasIt,
+      logOnce(`👤 ${permission} - موظف: ${hasIt ? '✅' : '❌'}`, {
         staffName: currentStaff.staff_name,
-        permissionKeys: Object.keys(staffPerms).slice(0, 10),
       });
       return hasIt;
     }
-    
+
     // 4. فحص صلاحيات المستخدم الرئيسي من PermissionsContext
     if (permData?.permissions) {
       return checkPermissionWithAliases(permission, permData.permissions);
     }
-    
+
     // 5. فحص صلاحيات المستخدم من userProfile
     if (userProfile?.permissions) {
       return checkPermissionWithAliases(
@@ -208,7 +225,7 @@ export function useUnifiedPermissions(): UnifiedPermissionsResult {
         userProfile.permissions as Record<string, boolean | undefined>
       );
     }
-    
+
     return false;
   }, [isAdminMode, isUserAdmin, isStaffMode, currentStaff, permData, userProfile]);
   

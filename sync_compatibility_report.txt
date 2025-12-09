@@ -1,0 +1,60 @@
+تقرير مطابقة Sync Rules مع PowerSync Schema و Supabase
+================================================================================
+تاريخ التحليل: 1764889789.191915
+
+عدد الجداول في Sync Rules: 32
+عدد الجداول في PowerSync Schema: 39
+عدد الجداول في Supabase: 241
+
+
+❌ المشاكل (46):
+   ❌ أعمدة مفقودة في Supabase للجدول 'products': supplier_id, sell_by_weight, weight_unit, price_per_weight_unit, purchase_price_per_weight_unit, min_weight_per_sale, max_weight_per_sale, average_item_weight, available_weight, total_weight_purchased, weight_kg, sell_by_meter, meter_unit, price_per_meter, purchase_price_per_meter, min_meters_per_sale, roll_length_meters, total_meters_purchased, available_length, sell_by_box, units_per_box, box_price, box_purchase_price, box_barcode, allow_single_unit_sale, available_boxes, total_boxes_purchased, track_expiry, default_expiry_days, expiry_alert_days, track_batches, track_serial_numbers, require_serial_on_sale
+   ❌ أعمدة مفقودة في Supabase للجدول 'product_colors': organization_id
+   ❌ أعمدة مفقودة في Supabase للجدول 'product_sizes': organization_id
+   ❌ أعمدة مفقودة في PowerSync Schema للجدول 'product_images': id
+   ❌ أعمدة مفقودة في Supabase للجدول 'product_images': organization_id
+   ❌ أعمدة مفقودة في PowerSync Schema للجدول 'product_wholesale_tiers': id
+   ❌ أعمدة مفقودة في Supabase للجدول 'product_wholesale_tiers': organization_id
+   ❌ أعمدة مفقودة في PowerSync Schema للجدول 'orders': id
+   ❌ أعمدة مفقودة في Supabase للجدول 'orders': global_order_number, created_by_staff_id, created_by_staff_name
+   ❌ أعمدة مفقودة في PowerSync Schema للجدول 'order_items': id
+   ❌ أعمدة مفقودة في Supabase للجدول 'order_items': sale_type, selling_unit_type, weight_sold, weight_unit, price_per_weight_unit, meters_sold, price_per_meter, boxes_sold, units_per_box, box_price, batch_id, batch_number, expiry_date, serial_numbers
+   ❌ أعمدة مفقودة في PowerSync Schema للجدول 'customers': id
+   ❌ أعمدة مفقودة في Supabase للجدول 'customers': address, nif, rc, nis, rib
+   ❌ أعمدة مفقودة في PowerSync Schema للجدول 'suppliers': id
+   ❌ أعمدة مفقودة في PowerSync Schema للجدول 'pos_staff_sessions': id
+   ❌ الجدول 'pos_staff_sessions' غير موجود في Supabase
+   ❌ أعمدة مفقودة في PowerSync Schema للجدول 'staff_work_sessions': id
+   ❌ الجدول 'staff_work_sessions' غير موجود في Supabase
+   ❌ أعمدة مفقودة في PowerSync Schema للجدول 'expenses': id
+   ❌ أعمدة مفقودة في Supabase للجدول 'expenses': category_id, reference_number, tags, metadata, source, is_deleted, deleted_at
+   ❌ أعمدة مفقودة في PowerSync Schema للجدول 'expense_categories': id
+   ❌ أعمدة مفقودة في PowerSync Schema للجدول 'users': id
+   ❌ أعمدة مفقودة في PowerSync Schema للجدول 'organizations': id
+   ❌ أعمدة مفقودة في Supabase للجدول 'organizations': business_type, business_features, business_type_selected, business_type_selected_at, online_orders_this_month, online_orders_limit, store_blocked, store_block_reason
+   ❌ أعمدة مفقودة في PowerSync Schema للجدول 'organization_subscriptions': id
+   ❌ أعمدة مفقودة في PowerSync Schema للجدول 'pos_settings': id
+   ❌ أعمدة مفقودة في Supabase للجدول 'pos_settings': activity, rc, nif, nis, rib
+   ❌ أعمدة مفقودة في PowerSync Schema للجدول 'invoices': id
+   ❌ أعمدة مفقودة في Supabase للجدول 'invoices': discount_type, discount_percentage, tva_rate, amount_ht, amount_tva, amount_ttc
+   ❌ أعمدة مفقودة في PowerSync Schema للجدول 'invoice_items': id
+   ❌ أعمدة مفقودة في Supabase للجدول 'invoice_items': organization_id, sku, barcode, tva_rate, unit_price_ht, unit_price_ttc, total_ht, total_tva, total_ttc, discount_amount, is_editable_price
+   ❌ أعمدة مفقودة في PowerSync Schema للجدول 'losses': id
+   ❌ أعمدة مفقودة في PowerSync Schema للجدول 'loss_items': id
+   ❌ أعمدة مفقودة في Supabase للجدول 'loss_items': organization_id
+   ❌ أعمدة مفقودة في PowerSync Schema للجدول 'repair_orders': id
+   ❌ أعمدة مفقودة في Supabase للجدول 'repair_orders': device_type, price_to_be_determined_later
+   ❌ أعمدة مفقودة في PowerSync Schema للجدول 'repair_locations': id
+   ❌ أعمدة مفقودة في PowerSync Schema للجدول 'returns': id
+   ❌ أعمدة مفقودة في PowerSync Schema للجدول 'return_items': id
+   ❌ أعمدة مفقودة في Supabase للجدول 'return_items': organization_id
+   ❌ أعمدة مفقودة في PowerSync Schema للجدول 'subscription_transactions': id
+   ❌ أعمدة مفقودة في Supabase للجدول 'subscription_transactions': service_name, provider, logo_url, tracking_code, public_tracking_code, account_username, account_email, account_password, account_notes
+   ❌ أعمدة مفقودة في PowerSync Schema للجدول 'activation_codes': id
+   ❌ أعمدة مفقودة في PowerSync Schema للجدول 'subscription_history': id
+   ❌ أعمدة مفقودة في PowerSync Schema للجدول 'subscription_plans': id
+   ❌ أعمدة مفقودة في PowerSync Schema للجدول 'payment_methods': id
+
+✅ الجداول المطابقة (2):
+   - product_categories
+   - product_subcategories

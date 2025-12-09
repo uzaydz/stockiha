@@ -72,29 +72,48 @@ export const OrdersProvider = React.memo(function OrdersProvider({
     try {
       setState(prev => ({ ...prev, isLoading: true, error: null }));
 
-      // استخدام التخزين المؤقت لتحسين الأداء
-      const orders = await withCache<Order[]>(
-        `orders:${organizationId}`,
-        async () => {
-          const { data, error } = await supabase
-            .from('orders')
-            .select('*, order_items(*)')
-            .eq('organization_id', organizationId)
-            .order('created_at', { ascending: false })
-            .limit(100); // تحديد عدد الطلبات للأداء
-
-          if (error) {
-            throw error;
-          }
-
-          // تحويل البيانات
-          const orderPromises = (data || []).map(order =>
-            mapSupabaseOrderToOrder(order, false)
-          );
-          return Promise.all(orderPromises);
-        },
-        SHORT_CACHE_TTL
-      );
+      // ⚡ استخدام UnifiedOrderService للجلب من PowerSync
+      const { unifiedOrderService } = await import('@/services/UnifiedOrderService');
+      unifiedOrderService.setOrganizationId(organizationId);
+      
+      const result = await unifiedOrderService.getOrders({}, 1, 100);
+      
+      // تحويل البيانات إلى تنسيق Order
+      const orders: Order[] = result.data.map(orderWithItems => ({
+        id: orderWithItems.id,
+        customerId: orderWithItems.customer_id,
+        subtotal: orderWithItems.subtotal,
+        tax: orderWithItems.tax,
+        discount: orderWithItems.discount,
+        total: orderWithItems.total,
+        status: orderWithItems.status as OrderStatus,
+        paymentMethod: orderWithItems.payment_method || 'cash',
+        paymentStatus: orderWithItems.payment_status || 'pending',
+        shippingAddress: orderWithItems.shipping_address_id ? { id: orderWithItems.shipping_address_id } : undefined,
+        shippingMethod: orderWithItems.shipping_method,
+        shippingCost: orderWithItems.shipping_cost,
+        notes: orderWithItems.notes || '',
+        isOnline: orderWithItems.is_online || false,
+        employeeId: orderWithItems.employee_id,
+        createdAt: new Date(orderWithItems.created_at),
+        updatedAt: new Date(orderWithItems.updated_at),
+        items: orderWithItems.items.map(item => ({
+          id: item.id,
+          productId: item.product_id,
+          productName: item.product_name || item.name || '',
+          name: item.name || item.product_name || '',
+          quantity: item.quantity,
+          price: item.unit_price,
+          unitPrice: item.unit_price,
+          totalPrice: item.total_price,
+          variant_info: item.color_id || item.size_id ? {
+            colorId: item.color_id,
+            sizeId: item.size_id,
+            colorName: item.color_name,
+            sizeName: item.size_name
+          } : undefined
+        }))
+      }));
 
       setState(prev => ({
         ...prev,

@@ -91,9 +91,9 @@ async function pullRepairOrders(): Promise<number> {
         organization_id: r.organization_id,
         customer_name: r.customer_name,
         customer_phone: r.customer_phone,
-        customer_name_lower: r.customer_name?.toLowerCase?.() || r.customer_name,
+        // ⚡ v3.0: تم إزالة customer_name_lower - غير موجود في PowerSync schema
         device_type: r.device_type,
-        device_type_lower: r.device_type?.toLowerCase?.() || r.device_type,
+        // ⚡ v3.0: تم إزالة device_type_lower - غير موجود في PowerSync schema
         repair_location_id: r.repair_location_id,
         custom_location: r.custom_location,
         issue_description: r.issue_description,
@@ -396,9 +396,9 @@ export async function syncSingleRepairOrderFromServer(
       organization_id: data.organization_id,
       customer_name: data.customer_name,
       customer_phone: data.customer_phone,
-      customer_name_lower: data.customer_name?.toLowerCase?.() || data.customer_name,
+      // ⚡ v3.0: تم إزالة customer_name_lower - غير موجود في PowerSync schema
       device_type: data.device_type,
-      device_type_lower: data.device_type?.toLowerCase?.() || data.device_type,
+      // ⚡ v3.0: تم إزالة device_type_lower - غير موجود في PowerSync schema
       repair_location_id: data.repair_location_id,
       custom_location: data.custom_location,
       issue_description: data.issue_description,

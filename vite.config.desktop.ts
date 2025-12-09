@@ -1,8 +1,165 @@
-import { defineConfig, loadEnv } from "vite";
+import { defineConfig, loadEnv, Plugin } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import million from "million/compiler";
 import Icons from 'unplugin-icons/vite';
+import wasm from 'vite-plugin-wasm';
+import topLevelAwait from 'vite-plugin-top-level-await';
 import * as path from "path";
+import * as fs from "fs";
+
+// Plugin لخدمة ملفات PowerSync Worker و WASM في التطبيق المكتبي
+function powersyncDesktopWorkerPlugin(): Plugin {
+  // مسار wa-sqlite في pnpm
+  const waSqlitePath = path.resolve(__dirname, 'node_modules/.pnpm/@journeyapps+wa-sqlite@1.3.3/node_modules/@journeyapps/wa-sqlite/dist');
+  const viteDepsPath = path.resolve(__dirname, 'node_modules/.vite/deps');
+
+  return {
+    name: 'powersync-desktop-worker-plugin',
+    enforce: 'pre', // تشغيل قبل جميع الـ plugins الأخرى
+    configureServer(server) {
+      // إضافة middleware في بداية السلسلة لضمان أولوية معالجة WASM
+      server.middlewares.use((req, res, next) => {
+        const url = req.url || '';
+        const cleanUrl = url.split('?')[0];
+
+        // معالجة CORS preflight requests
+        if (req.method === 'OPTIONS') {
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+          res.setHeader('Access-Control-Allow-Headers', '*');
+          res.setHeader('Access-Control-Max-Age', '86400');
+          res.statusCode = 204;
+          res.end();
+          return;
+        }
+
+        // 1. خدمة ملفات WASM بأولوية قصوى (من أي مسار)
+        if (cleanUrl.endsWith('.wasm')) {
+          const fileName = path.basename(cleanUrl);
+
+          // البحث في عدة مسارات - الأولوية لمجلد Vite deps
+          const searchPaths = [
+            // 1. مجلد Vite deps (للملفات المنسوخة) - أولوية قصوى
+            path.join(viteDepsPath, fileName),
+            // 2. مجلد wa-sqlite الأصلي
+            path.join(waSqlitePath, fileName),
+            // 3. مجلد public/powersync
+            path.resolve(__dirname, 'public/powersync', fileName),
+            // 4. مجلد public
+            path.resolve(__dirname, 'public', fileName),
+          ];
+
+          for (const filePath of searchPaths) {
+            if (fs.existsSync(filePath)) {
+              console.log(`[WASM] ✅ Serving: ${fileName}`);
+              const content = fs.readFileSync(filePath);
+              res.setHeader('Content-Type', 'application/wasm');
+              res.setHeader('Cache-Control', 'public, max-age=31536000');
+              res.setHeader('Access-Control-Allow-Origin', '*');
+              res.end(content);
+              return;
+            }
+          }
+
+          console.warn(`[WASM] ❌ Not found: ${fileName}`);
+        }
+
+        // 2. خدمة ملفات من node_modules/.vite/deps/ مع MIME type صحيح
+        if (cleanUrl.includes('/node_modules/.vite/deps/') && cleanUrl.endsWith('.wasm')) {
+          const fileName = path.basename(cleanUrl);
+          const filePath = path.join(viteDepsPath, fileName);
+
+          if (fs.existsSync(filePath)) {
+            console.log(`[WASM] ✅ Serving from deps: ${fileName}`);
+            const content = fs.readFileSync(filePath);
+            res.setHeader('Content-Type', 'application/wasm');
+            res.setHeader('Cache-Control', 'public, max-age=31536000');
+            res.end(content);
+            return;
+          }
+        }
+
+        // 3. خدمة ملفات Worker (من أي مسار، بما في ذلك node_modules)
+        if (cleanUrl.includes('WASQLiteDB.worker.js') ||
+          cleanUrl.includes('SharedSyncImplementation.worker.js') ||
+          cleanUrl.includes('worker.js')) {
+          const fileName = path.basename(cleanUrl);
+
+          // البحث في عدة مسارات
+          const searchPaths = [
+            path.resolve(__dirname, 'public/powersync', fileName),
+            path.resolve(__dirname, 'public/powersync/sync', fileName),
+            path.resolve(__dirname, 'public', fileName),
+            // محاولة العثور على الملف في node_modules إذا كان موجوداً
+            path.resolve(__dirname, 'node_modules/@powersync/web/lib/src/worker/sync', fileName),
+            path.resolve(__dirname, 'node_modules/@powersync/web/lib/src/worker', fileName),
+          ];
+
+          for (const filePath of searchPaths) {
+            if (fs.existsSync(filePath)) {
+              const content = fs.readFileSync(filePath);
+              res.setHeader('Content-Type', 'application/javascript');
+              res.setHeader('Cache-Control', 'no-cache');
+              res.setHeader('Access-Control-Allow-Origin', '*');
+              res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+              res.setHeader('Access-Control-Allow-Headers', '*');
+              res.end(content);
+              return;
+            }
+          }
+
+          // إذا لم نجد الملف، نعيد استجابة فارغة بدلاً من خطأ
+          // (لأن useWebWorker: false، لكن المكتبة قد تحاول تحميل الملف)
+          console.warn(`[Worker] ⚠️ Worker file not found: ${fileName}, serving empty response (workers disabled)`);
+          res.setHeader('Content-Type', 'application/javascript');
+          res.setHeader('Cache-Control', 'no-cache');
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+          res.setHeader('Access-Control-Allow-Headers', '*');
+          res.end('// Worker disabled - useWebWorker: false');
+          return;
+        }
+
+        // 4. خدمة ملفات powersync/ الأخرى
+        if (cleanUrl.includes('/powersync/') && !cleanUrl.endsWith('.map')) {
+          const fileName = path.basename(cleanUrl);
+          const filePath = path.resolve(__dirname, 'public/powersync', fileName);
+
+          if (fs.existsSync(filePath)) {
+            const content = fs.readFileSync(filePath);
+            res.setHeader('Content-Type', 'application/javascript');
+            res.setHeader('Cache-Control', 'no-cache');
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.end(content);
+            return;
+          }
+        }
+
+        // 5. ⚡ خدمة ملفات UMD chunks التي تطلبها Workers
+        // هذه الملفات تُطلب من المسار الجذري مثل:
+        // /node_modules_journeyapps_wa-sqlite_dist_wa-sqlite_mjs.umd.js
+        if (cleanUrl.includes('node_modules_') && cleanUrl.endsWith('.umd.js')) {
+          const fileName = path.basename(cleanUrl);
+          const filePath = path.resolve(__dirname, 'public/powersync', fileName);
+
+          if (fs.existsSync(filePath)) {
+            console.log(`[UMD] ✅ Serving chunk: ${fileName}`);
+            const content = fs.readFileSync(filePath);
+            res.setHeader('Content-Type', 'application/javascript');
+            res.setHeader('Cache-Control', 'no-cache');
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.end(content);
+            return;
+          } else {
+            console.warn(`[UMD] ❌ Chunk not found: ${fileName}`);
+          }
+        }
+
+        next();
+      });
+    }
+  };
+}
 
 export default defineConfig(({ command, mode }) => {
   const isDev = command === 'serve';
@@ -26,14 +183,26 @@ export default defineConfig(({ command, mode }) => {
         overlay: false
       },
       // تسريع CORS للتطبيق المكتبي
-      cors: false, // تعطيل CORS للتطبيق المكتبي
+      cors: true, // تفعيل CORS للسماح بتحميل Workers
       fs: {
-        strict: true,
-        allow: ['.']
+        strict: false, // تقليل القيود للسماح بالوصول إلى worker files
+        allow: ['.', 'node_modules/@powersync', 'node_modules/@journeyapps']
+      },
+      // ملاحظة: لا نضيف COEP headers هنا لأنها تمنع تحميل Workers
+      // إذا احتجنا SharedArrayBuffer، سنضيف COEP للملفات المحددة فقط
+      headers: {
+        'Access-Control-Allow-Origin': '*',
       }
     },
-    
+
     plugins: [
+      // ⚡ PowerSync plugins - MUST be first for WASM and async support
+      wasm(),
+      topLevelAwait(),
+
+      // PowerSync Worker Plugin - لخدمة ملفات Worker بشكل صحيح
+      powersyncDesktopWorkerPlugin(),
+
       // React محسن للتطبيق المكتبي
       react({
         jsxImportSource: 'react'
@@ -68,7 +237,7 @@ export default defineConfig(({ command, mode }) => {
         defaultStyle: 'display: inline-block; vertical-align: middle;'
       })
     ].filter(Boolean),
-    
+
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),
@@ -93,22 +262,33 @@ export default defineConfig(({ command, mode }) => {
       mainFields: ['module', 'browser', 'main'],
       extensions: ['.ts', '.tsx', '.js', '.jsx', '.json']
     },
-    
+
     define: {
       __DESKTOP_APP__: true,
       __ELECTRON__: true,
-      'process.env.NODE_ENV': JSON.stringify('development'), // دائماً development
+      'process.env.NODE_ENV': JSON.stringify(isDev ? 'development' : 'production'),
       'process.env': JSON.stringify({
-        NODE_ENV: 'development' // دائماً development
+        NODE_ENV: isDev ? 'development' : 'production'
       }),
-      'import.meta.env.DEV': true, // دائماً true
-      'import.meta.env.PROD': false, // دائماً false
+      'import.meta.env.DEV': isDev, // true في التطوير، false في الإنتاج
+      'import.meta.env.PROD': !isDev, // false في التطوير، true في الإنتاج
       'import.meta.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL || 'https://wrnssatuvmumsczyldth.supabase.co'),
       'import.meta.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndybnNzYXR1dm11bXNjenlsZHRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDMyNTgxMTYsImV4cCI6MjA1ODgzNDExNn0.zBT3h3lXQgcFqzdpXARVfU9kwRLvNiQrSdAJwMdojYY'),
       'import.meta.env.VITE_API_URL': JSON.stringify(env.VITE_API_URL || '/api'),
-      'import.meta.env.VITE_SITE_URL': JSON.stringify(env.VITE_SITE_URL || 'https://stockiha.com')
+      'import.meta.env.VITE_SITE_URL': JSON.stringify(env.VITE_SITE_URL || 'https://stockiha.com'),
+      // ⚡ PowerSync Configuration
+      'import.meta.env.VITE_POWERSYNC_URL': JSON.stringify(env.VITE_POWERSYNC_URL || '')
     },
-    
+
+    // إعدادات Workers - تكوين PowerSync
+    // ⚡ استخدام 'es' format لتجنب مشاكل code-splitting مع IIFE
+    // في الـ production build، IIFE يسبب خطأ:
+    // "UMD and IIFE output formats are not supported for code-splitting builds"
+    worker: {
+      format: 'es',
+      plugins: () => [wasm(), topLevelAwait()],
+    },
+
     build: {
       outDir: 'dist',
       cssMinify: false, // تعطيل CSS minify للتطبيق المكتبي
@@ -131,7 +311,7 @@ export default defineConfig(({ command, mode }) => {
       //     comments: false
       //   }
       // } : undefined,
-      
+
       rollupOptions: {
         input: {
           main: path.resolve(__dirname, 'index.html')
@@ -163,12 +343,12 @@ export default defineConfig(({ command, mode }) => {
             const is = (re: RegExp) => re.test(id);
 
             // React core
-            if (is(/[\\/]node_modules[\\/]react[\\/]/) || 
-                is(/[\\/]node_modules[\\/]react-dom[\\/]/) ||
-                is(/[\\/]node_modules[\\/]scheduler[\\/]/)) {
+            if (is(/[\\/]node_modules[\\/]react[\\/]/) ||
+              is(/[\\/]node_modules[\\/]react-dom[\\/]/) ||
+              is(/[\\/]node_modules[\\/]scheduler[\\/]/)) {
               return 'react-core';
             }
-            
+
             // Router
             if (is(/[\\/]node_modules[\\/]react-router(-dom)?[\\/]/)) {
               return 'router';
@@ -185,20 +365,20 @@ export default defineConfig(({ command, mode }) => {
             }
 
             // Utils
-            if (is(/[\\/]node_modules[\\/]lodash(-es)?[\\/]/) || 
-                is(/[\\/]node_modules[\\/]date-fns[\\/]/)) {
+            if (is(/[\\/]node_modules[\\/]lodash(-es)?[\\/]/) ||
+              is(/[\\/]node_modules[\\/]date-fns[\\/]/)) {
               return 'utils';
             }
 
             // Forms
-            if (is(/[\\/]node_modules[\\/]react-hook-form[\\/]/) || 
-                is(/[\\/]node_modules[\\/]zod[\\/]/)) {
+            if (is(/[\\/]node_modules[\\/]react-hook-form[\\/]/) ||
+              is(/[\\/]node_modules[\\/]zod[\\/]/)) {
               return 'forms';
             }
 
             // Charts
-            if (is(/[\\/]node_modules[\\/]chart\.js[\\/]/) || 
-                is(/[\\/]node_modules[\\/]react-chartjs-2[\\/]/)) {
+            if (is(/[\\/]node_modules[\\/]chart\.js[\\/]/) ||
+              is(/[\\/]node_modules[\\/]react-chartjs-2[\\/]/)) {
               return 'charts';
             }
 
@@ -227,7 +407,7 @@ export default defineConfig(({ command, mode }) => {
           'os'
         ]
       },
-      
+
       assetsInlineLimit: 8192,
       reportCompressedSize: false,
       write: true,
@@ -240,7 +420,7 @@ export default defineConfig(({ command, mode }) => {
         transformMixedEsModules: true
       }
     },
-    
+
     // تحسينات هائلة للأداء في التطبيق المكتبي
     optimizeDeps: {
       force: isDev, // تفعيل في التطوير فقط
@@ -262,13 +442,21 @@ export default defineConfig(({ command, mode }) => {
         'dayjs/esm/index.js',
         // ✅ Prebundle deps causing Outdated Optimize Dep in Electron dev
         'react-day-picker',
-        'cmdk'
+        'cmdk',
+        // 'js-logger' removed to avoid resolution errors
+        'recharts',
+        'react-smooth',
+        'prop-types'
       ],
       exclude: [
+        // ⚡ PowerSync - MUST be excluded (contains workers and WASM)
+        '@powersync/web',
+        '@journeyapps/wa-sqlite',
+
         // استثناء جميع المكتبات الثقيلة
         'lucide-react',
         '@nivo/bar', '@nivo/line', '@nivo/pie',
-        'recharts', 'chart.js', 'react-chartjs-2',
+        'chart.js', 'react-chartjs-2',
         '@monaco-editor/react',
         '@tinymce/tinymce-react',
         'jspdf', 'jspdf-autotable',
@@ -302,7 +490,7 @@ export default defineConfig(({ command, mode }) => {
         treeShaking: true
       }
     },
-    
+
     css: {
       devSourcemap: true,
       preprocessorOptions: {
@@ -312,7 +500,7 @@ export default defineConfig(({ command, mode }) => {
       },
       postcss: './postcss.config.cjs'
     },
-    
+
     esbuild: {
       target: 'es2020',
       drop: isProd ? ['debugger'] : [],

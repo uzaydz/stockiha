@@ -1,16 +1,16 @@
 /**
  * localLossDeclarationService - خدمة التصريح بالخسائر المحلية
  *
- * ⚡ تم التحديث لاستخدام Delta Sync بالكامل
+ * ⚡ تم التحديث لاستخدام PowerSync بالكامل
  *
  * - Local-First: الكتابة محلياً فوراً
  * - Offline-First: يعمل بدون إنترنت
- * - DELTA operations: لتحديث المخزون عند الخسائر
+ * - PowerSync: المزامنة التلقائية مع Supabase
  */
 
 import { v4 as uuidv4 } from 'uuid';
 import type { LocalLossDeclaration, LocalLossItem } from '@/database/localDb';
-import { deltaWriteService } from '@/services/DeltaWriteService';
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
 
 // إعادة تصدير الأنواع لتكون متاحة للاستخدام الخارجي
 export type { LocalLossDeclaration, LocalLossItem } from '@/database/localDb';
@@ -30,35 +30,46 @@ export const createLocalLossDeclaration = async (
   const lossRecord: LocalLossDeclaration = {
     ...data.lossData,
     id: lossId,
-    loss_number_lower: data.lossData.loss_number?.toLowerCase(),
+    // ⚡ v3.0: تم إزالة loss_number_lower - غير موجود في PowerSync schema
     created_at: now,
     updated_at: now,
-    synced: false,
-    syncStatus: 'pending',
-    pendingOperation: 'create'
-  };
+    // ⚠️ PowerSync يدير المزامنة تلقائياً - لا حاجة لحقول synced
+  } as any;
 
   const itemRecords: LocalLossItem[] = data.items.map(item => ({
     ...item,
     id: uuidv4(),
     loss_id: lossId,
     created_at: now,
-    synced: false,
     inventory_adjusted: false
-  }));
+  } as any));
 
-  // ⚡ استخدام Delta Sync (بدون تحديث المخزون - يتم عند الموافقة)
-  const result = await deltaWriteService.createLossWithItems(
-    data.lossData.organization_id,
-    lossRecord,
-    itemRecords
-  );
+  // ⚡ استخدام PowerSync مباشرة
+  await powerSyncService.transaction(async (tx) => {
+    // حفظ التصريح
+    const lossKeys = Object.keys(lossRecord).filter(k => k !== 'id');
+    const lossValues = lossKeys.map(k => (lossRecord as any)[k]);
+    const lossPlaceholders = lossKeys.map(() => '?').join(', ');
+    
+    await tx.execute(
+      `INSERT INTO losses (id, ${lossKeys.join(', ')}, created_at, updated_at) VALUES (?, ${lossPlaceholders}, ?, ?)`,
+      [lossId, ...lossValues, now, now]
+    );
 
-  if (!result.success) {
-    throw new Error(`Failed to create loss declaration: ${result.error}`);
-  }
+    // حفظ العناصر
+    for (const item of itemRecords) {
+      const itemKeys = Object.keys(item).filter(k => k !== 'id');
+      const itemValues = itemKeys.map(k => (item as any)[k]);
+      const itemPlaceholders = itemKeys.map(() => '?').join(', ');
+      
+      await tx.execute(
+        `INSERT INTO loss_items (id, ${itemKeys.join(', ')}, created_at, updated_at) VALUES (?, ${itemPlaceholders}, ?, ?)`,
+        [item.id, ...itemValues, now, now]
+      );
+    }
+  });
 
-  console.log(`[LocalLoss] ⚡ Created loss ${lossId} with ${itemRecords.length} items via Delta Sync`);
+  console.log(`[LocalLoss] ⚡ Created loss ${lossId} with ${itemRecords.length} items via PowerSync`);
   return { loss: lossRecord, items: itemRecords };
 };
 
@@ -68,27 +79,31 @@ export const updateLocalLossDeclaration = async (
   updates: Partial<Omit<LocalLossDeclaration, 'id' | 'created_at' | 'organization_id' | 'loss_number'>>
 ): Promise<LocalLossDeclaration | null> => {
   try {
-    const existing = await deltaWriteService.get<LocalLossDeclaration>('loss_declarations', lossId);
+    const existing = await powerSyncService.get<LocalLossDeclaration>(
+      'SELECT * FROM losses WHERE id = ?',
+      [lossId]
+    );
     if (!existing) return null;
 
     const now = new Date().toISOString();
     const updatedData = {
       ...updates,
       updated_at: now,
-      synced: false,
-      syncStatus: 'pending',
-      pendingOperation: existing.pendingOperation === 'create' ? 'create' : 'update'
     };
 
-    // ⚡ استخدام Delta Sync
-    const result = await deltaWriteService.update('loss_declarations', lossId, updatedData);
+    // ⚡ استخدام PowerSync مباشرة
+    await powerSyncService.transaction(async (tx) => {
+const keys = Object.keys(updatedData).filter(k => k !== 'id' && k !== 'created_at');
+      const setClause = keys.map(k => `${k} = ?`).join(', ');
+      const values = keys.map(k => (updatedData as any)[k]);
+      
+      await tx.execute(
+        `UPDATE losses SET ${setClause}, updated_at = ? WHERE id = ?`,
+        [...values, now, lossId]
+      );
+    });
 
-    if (!result.success) {
-      console.error(`[LocalLoss] Failed to update loss ${lossId}:`, result.error);
-      return null;
-    }
-
-    console.log(`[LocalLoss] ⚡ Updated loss ${lossId} via Delta Sync`);
+    console.log(`[LocalLoss] ⚡ Updated loss ${lossId} via PowerSync`);
     return {
       ...existing,
       ...updatedData
@@ -105,27 +120,38 @@ export const approveLocalLossDeclaration = async (
   approvedBy: string
 ): Promise<LocalLossDeclaration | null> => {
   try {
-    const loss = await deltaWriteService.get<LocalLossDeclaration>('loss_declarations', lossId);
+    const loss = await powerSyncService.get<LocalLossDeclaration>(
+      'SELECT * FROM losses WHERE id = ?',
+      [lossId]
+    );
     if (!loss) return null;
 
-    const items = await deltaWriteService.getAll<LocalLossItem>('loss_items', loss.organization_id, {
-      where: 'loss_id = ?',
+    if (!powerSyncService.db) {
+    console.warn('[localLossDeclarationService] PowerSync DB not initialized');
+    return [];
+  }
+  const items = await powerSyncService.query<LocalLossItem>({
+      sql: 'SELECT * FROM loss_items WHERE loss_id = ?',
       params: [lossId]
     });
 
     // تحديث المخزون لجميع العناصر التي لم يتم تعديل مخزونها بعد
     for (const item of items) {
       if (!item.inventory_adjusted) {
-        // ⚡ استخدام DELTA operation لتقليل المخزون
-        await deltaWriteService.updateProductStock(
+        // ⚡ استخدام PowerSync لتقليل المخزون
+        const { reduceLocalProductStock } = await import('./localProductService');
+        await reduceLocalProductStock(
           item.product_id,
-          -Math.abs(item.lost_quantity), // سالب للتقليل
+          Math.abs(item.lost_quantity),
           { colorId: item.color_id || undefined, sizeId: item.size_id || undefined }
         );
 
         // تحديث حالة العنصر
-        await deltaWriteService.update('loss_items', item.id, {
-          inventory_adjusted: true
+        await powerSyncService.transaction(async (tx) => {
+await tx.execute(
+            'UPDATE loss_items SET inventory_adjusted = 1, updated_at = ? WHERE id = ?',
+            [new Date().toISOString(), item.id]
+          );
         });
       }
     }
@@ -154,7 +180,10 @@ export const rejectLocalLossDeclaration = async (
 export const processLocalLossDeclaration = async (
   lossId: string
 ): Promise<LocalLossDeclaration | null> => {
-  const loss = await deltaWriteService.get<LocalLossDeclaration>('loss_declarations', lossId);
+  const loss = await powerSyncService.get<LocalLossDeclaration>(
+    'SELECT * FROM losses WHERE id = ?',
+    [lossId]
+  );
   if (!loss || loss.status !== 'approved') return null;
 
   return await updateLocalLossDeclaration(lossId, {
@@ -166,11 +195,18 @@ export const processLocalLossDeclaration = async (
 export const getLocalLossDeclaration = async (
   lossId: string
 ): Promise<{ loss: LocalLossDeclaration; items: LocalLossItem[] } | null> => {
-  const loss = await deltaWriteService.get<LocalLossDeclaration>('loss_declarations', lossId);
+  const loss = await powerSyncService.get<LocalLossDeclaration>(
+    'SELECT * FROM losses WHERE id = ?',
+    [lossId]
+  );
   if (!loss) return null;
 
-  const items = await deltaWriteService.getAll<LocalLossItem>('loss_items', loss.organization_id, {
-    where: 'loss_id = ?',
+  if (!powerSyncService.db) {
+    console.warn('[localLossDeclarationService] PowerSync DB not initialized');
+    return [];
+  }
+  const items = await powerSyncService.query<LocalLossItem>({
+    sql: 'SELECT * FROM loss_items WHERE loss_id = ?',
     params: [lossId]
   });
 
@@ -179,38 +215,28 @@ export const getLocalLossDeclaration = async (
 
 // جلب جميع تصاريح الخسائر حسب المؤسسة
 export const getAllLocalLossDeclarations = async (organizationId: string): Promise<LocalLossDeclaration[]> => {
-  return deltaWriteService.getAll<LocalLossDeclaration>('loss_declarations', organizationId, {
-    where: "(pending_operation IS NULL OR pending_operation != 'delete')",
-    orderBy: 'created_at DESC'
+  return await powerSyncService.query<LocalLossDeclaration>({
+    sql: `SELECT * FROM losses 
+     WHERE organization_id = ? 
+     ORDER BY created_at DESC`,
+    params: [organizationId]
   });
 };
 
-// جلب التصاريح غير المتزامنة
+// جلب التصاريح غير المتزامنة (⚠️ PowerSync يدير المزامنة تلقائياً)
 export const getUnsyncedLossDeclarations = async (): Promise<LocalLossDeclaration[]> => {
-  const orgId = localStorage.getItem('currentOrganizationId') ||
-    localStorage.getItem('bazaar_organization_id') || '';
-
-  return deltaWriteService.getAll<LocalLossDeclaration>('loss_declarations', orgId, {
-    where: 'synced = 0'
-  });
+  // PowerSync يدير المزامنة تلقائياً - نرجع قائمة فارغة
+  return [];
 };
 
-// تحديث حالة المزامنة
+// تحديث حالة المزامنة (⚠️ PowerSync يدير المزامنة تلقائياً)
 export const updateLossDeclarationSyncStatus = async (
   lossId: string,
   synced: boolean,
   syncStatus?: 'pending' | 'syncing' | 'error'
 ): Promise<void> => {
-  const updatedData: any = {
-    synced,
-    sync_status: syncStatus || null
-  };
-
-  if (synced) {
-    updatedData.pending_operation = null;
-  }
-
-  await deltaWriteService.update('loss_declarations', lossId, updatedData);
+  // PowerSync يدير المزامنة تلقائياً - لا حاجة لتحديث يدوي
+  console.log(`[LocalLoss] ⚠️ PowerSync manages sync automatically for loss ${lossId}`);
 };
 
 // مسح التصاريح المتزامنة والمحذوفة
@@ -253,15 +279,23 @@ export async function getLocalLossDeclarationsPage(
     params.push(...statuses);
   }
 
-  const losses = await deltaWriteService.getAll<LocalLossDeclaration>('loss_declarations', organizationId, {
-    where: whereClause,
-    params,
-    orderBy: `created_at ${createdSort === 'desc' ? 'DESC' : 'ASC'}`,
-    limit,
-    offset
+  if (!powerSyncService.db) {
+    console.warn('[localLossDeclarationService] PowerSync DB not initialized');
+    return [];
+  }
+  const losses = await powerSyncService.query<LocalLossDeclaration>({
+    sql: `SELECT * FROM losses 
+     WHERE ${whereClause}
+     ORDER BY created_at ${createdSort === 'desc' ? 'DESC' : 'ASC'}
+     LIMIT ? OFFSET ?`,
+    params: [...params, limit, offset]
   });
 
-  const total = await deltaWriteService.count('loss_declarations', organizationId);
+  const totalResult = await powerSyncService.queryOne<any>({
+    sql: `SELECT COUNT(*) as count FROM losses WHERE ${whereClause}`,
+    params: params
+  });
+  const total = totalResult?.[0]?.count || 0;
 
   return { losses, total };
 }
@@ -275,13 +309,15 @@ export async function fastSearchLocalLossDeclarations(
   if (!q) return [];
   const limit = options.limit ?? 200;
 
-  return deltaWriteService.search<LocalLossDeclaration>(
-    'loss_declarations',
-    organizationId,
-    ['loss_number_lower'],
-    q,
-    limit
-  );
+  const searchPattern = `%${q}%`;
+  // ⚡ v3.0: استخدام LOWER(loss_number) بدلاً من loss_number_lower غير الموجود
+  return await powerSyncService.query<LocalLossDeclaration>({
+    sql: `SELECT * FROM losses
+     WHERE organization_id = ?
+     AND LOWER(loss_number) LIKE ?
+     LIMIT ?`,
+    params: [organizationId, searchPattern, limit]
+  });
 }
 
 // =====================
@@ -297,7 +333,7 @@ export const saveRemoteLossDeclarations = async (losses: any[]): Promise<void> =
     const mappedLoss: LocalLossDeclaration = {
       id: loss.id,
       loss_number: loss.loss_number,
-      loss_number_lower: loss.loss_number?.toLowerCase(),
+      // ⚡ v3.0: تم إزالة loss_number_lower - غير موجود في PowerSync schema
       remote_loss_id: loss.id,
       loss_type: loss.loss_type,
       loss_category: loss.loss_category,
@@ -313,13 +349,34 @@ export const saveRemoteLossDeclarations = async (losses: any[]): Promise<void> =
       notes: loss.notes,
       organization_id: loss.organization_id,
       created_at: loss.created_at || now,
-      updated_at: loss.updated_at || now,
-      synced: true,
-      syncStatus: undefined,
-      pendingOperation: undefined
-    };
+      updated_at: loss.updated_at || now
+      // ⚠️ PowerSync يدير المزامنة تلقائياً - لا حاجة لحقول synced
+    } as any;
 
-    await deltaWriteService.saveFromServer('loss_declarations', mappedLoss);
+    // ⚡ استخدام PowerSync مباشرة للحفظ من Supabase
+    await powerSyncService.transaction(async (tx) => {
+const keys = Object.keys(mappedLoss).filter(k => k !== 'id');
+      const values = keys.map(k => (mappedLoss as any)[k]);
+      const placeholders = keys.map(() => '?').join(', ');
+      
+      // Try UPDATE first, then INSERT if no rows affected
+      const updateKeys = keys.filter(k => k !== 'created_at' && k !== 'updated_at');
+      const updateSet = updateKeys.map(k => `${k} = ?`).join(', ');
+      const updateValues = updateKeys.map(k => (mappedLoss as any)[k]);
+      
+      const updateResult = await tx.execute(
+        `UPDATE losses SET ${updateSet}, updated_at = ? WHERE id = ?`,
+        [...updateValues, mappedLoss.updated_at || now, mappedLoss.id]
+      );
+      
+      // If no rows updated, INSERT
+      if (!updateResult || (Array.isArray(updateResult) && updateResult.length === 0)) {
+        await tx.execute(
+          `INSERT INTO losses (id, ${keys.join(', ')}, created_at, updated_at) VALUES (?, ${placeholders}, ?, ?)`,
+          [mappedLoss.id, ...values, mappedLoss.created_at || now, mappedLoss.updated_at || now]
+        );
+      }
+    });
   }
 
   console.log(`[LocalLoss] ⚡ Saved ${losses.length} remote loss declarations`);
@@ -348,11 +405,35 @@ export const saveRemoteLossItems = async (lossId: string, items: any[]): Promise
       color_name: item.color_name,
       size_id: item.size_id,
       size_name: item.size_name,
-      created_at: item.created_at || now,
-      synced: true
-    };
+      created_at: item.created_at || now
+      // ⚠️ PowerSync يدير المزامنة تلقائياً - لا حاجة لحقول synced
+    } as any;
 
-    await deltaWriteService.saveFromServer('loss_items', mappedItem);
+    // ⚡ استخدام PowerSync مباشرة للحفظ من Supabase
+    await powerSyncService.transaction(async (tx) => {
+const keys = Object.keys(mappedItem).filter(k => k !== 'id');
+      const values = keys.map(k => (mappedItem as any)[k]);
+      const placeholders = keys.map(() => '?').join(', ');
+      const now = new Date().toISOString();
+      
+      // Try UPDATE first, then INSERT if no rows affected
+      const updateKeys = keys.filter(k => k !== 'created_at' && k !== 'updated_at');
+      const updateSet = updateKeys.map(k => `${k} = ?`).join(', ');
+      const updateValues = updateKeys.map(k => (mappedItem as any)[k]);
+      
+      const updateResult = await tx.execute(
+        `UPDATE loss_items SET ${updateSet}, updated_at = ? WHERE id = ?`,
+        [...updateValues, mappedItem.updated_at || now, mappedItem.id]
+      );
+      
+      // If no rows updated, INSERT
+      if (!updateResult || (Array.isArray(updateResult) && updateResult.length === 0)) {
+        await tx.execute(
+          `INSERT INTO loss_items (id, ${keys.join(', ')}, created_at, updated_at) VALUES (?, ${placeholders}, ?, ?)`,
+          [mappedItem.id, ...values, mappedItem.created_at || now, mappedItem.updated_at || now]
+        );
+      }
+    });
   }
 
   console.log(`[LocalLoss] ⚡ Saved ${items.length} remote loss items`);

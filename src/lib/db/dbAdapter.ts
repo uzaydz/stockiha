@@ -3,10 +3,11 @@
  * يوفر نفس الواجهة التي كانت مستخدمة مع Dexie/IndexedDB
  */
 
-import { sqliteDB, isSQLiteAvailable } from './sqliteAPI';
+// ⚡ تم إزالة sqliteAPI و sqliteWriteQueue - استخدام PowerSync
+// import { sqliteDB, isSQLiteAvailable } from './sqliteAPI';
 import { cachedSQLiteQuery, sqliteCache } from '../cache/sqliteQueryCache';
 import { dbInitManager } from './DatabaseInitializationManager';
-import { sqliteWriteQueue } from '../sync/delta/SQLiteWriteQueue';
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
 
 // تحويل أسماء الحقول من camelCase إلى snake_case لاستخدامها مع SQLite
 function toSQLiteColumnName(name: string): string {
@@ -27,8 +28,8 @@ function toSQLiteColumnName(name: string): string {
 export type TableName =
   | 'products'
   | 'inventory'
-  | 'pos_orders'
-  | 'pos_order_items'
+  | 'orders'
+  | 'order_items'
   | 'customers'
   | 'addresses'
   | 'invoices'
@@ -42,8 +43,9 @@ export type TableName =
   | 'sync_metadata'
   | 'work_sessions'
   | 'transactions'
-  | 'product_returns'
+  | 'returns'
   | 'return_items'
+  | 'losses'
   | 'loss_declarations'
   | 'loss_items'
   | 'repair_locations'
@@ -74,32 +76,7 @@ class TableAdapter<T = any> {
     const storedOrgId = localStorage.getItem('currentOrganizationId') ||
       localStorage.getItem('bazaar_organization_id');
 
-    // ✅ Robustness Fix: Check active DB state before switching
-    // If we are already connected to a valid Org DB, and localStorage says 'global' (or is empty),
-    // but we are accessing a table that DOES NOT exist in global (like customers),
-    // then IGNORE localStorage and keep the current connection.
-    if (sqliteDB && typeof sqliteDB.getCurrentOrganizationId === 'function') {
-      const activeOrgId = sqliteDB.getCurrentOrganizationId();
-
-      if (activeOrgId && activeOrgId !== 'global') {
-        // If IDs match, we are good.
-        if (activeOrgId === storedOrgId) return;
-
-        // If localStorage is trying to push us to global/null, but we need Org DB
-        const isGlobalOrMissing = !storedOrgId || storedOrgId === 'global';
-        const orgSpecificTables: TableName[] = [
-          'customers', 'products', 'pos_orders', 'pos_order_items',
-          'inventory', 'invoices', 'customer_debts', 'work_sessions'
-        ];
-
-        if (isGlobalOrMissing && orgSpecificTables.includes(this.tableName)) {
-          if (process.env.NODE_ENV === 'development') {
-            console.warn(`[TableAdapter:${this.tableName}] 🛡️ Preventing switch to '${storedOrgId}' DB because table requires Org DB. Keeping active: ${activeOrgId}`);
-          }
-          return;
-        }
-      }
-    }
+    // ⚡ PowerSync متاح دائماً - لا حاجة للتحقق من sqliteDB
 
     if (!storedOrgId) {
       if (this.tableName !== 'sync_queue') {
@@ -119,19 +96,50 @@ class TableAdapter<T = any> {
 
   async add(data: T): Promise<string> {
     await this.ensureInitialized();
-    const result = await sqliteDB.upsert(this.tableName, data);
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to add record');
-    }
+    // ⚡ استخدام PowerSync مباشرة
+    await powerSyncService.transaction(async (tx) => {
+      const keys = Object.keys(data as any);
+      const columns = keys.map(k => toSQLiteColumnName(k));
+      const placeholders = columns.map(() => '?').join(', ');
+      const values = keys.map(k => {
+        const v = (data as any)[k];
+        if (v === null || v === undefined) return null;
+        if (typeof v === 'boolean') return v ? 1 : 0;
+        if (v instanceof Date) return v.toISOString();
+        if (typeof v === 'object') return JSON.stringify(v);
+        return v;
+      });
+      await tx.execute(
+        `INSERT INTO ${this.tableName} (${columns.join(', ')}) VALUES (${placeholders})`,
+        values
+      );
+    });
     return (data as any).id;
   }
 
   async put(item: T): Promise<string> {
     await this.ensureInitialized();
-    const result = await sqliteDB.upsert(this.tableName, item);
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to upsert record');
-    }
+    // ⚡ استخدام PowerSync مباشرة
+    await powerSyncService.transaction(async (tx) => {
+      // db accessed via tx.execute
+      const keys = Object.keys(item as any);
+      const columns = keys.map(k => toSQLiteColumnName(k));
+      const placeholders = columns.map(() => '?').join(', ');
+      const updateSet = columns.filter(c => c !== 'id').map(c => `${c} = excluded.${c}`).join(', ');
+      const values = keys.map(k => {
+        const v = (item as any)[k];
+        if (v === null || v === undefined) return null;
+        if (typeof v === 'boolean') return v ? 1 : 0;
+        if (v instanceof Date) return v.toISOString();
+        if (typeof v === 'object') return JSON.stringify(v);
+        return v;
+      });
+      await tx.execute(
+        `INSERT INTO ${this.tableName} (${columns.join(', ')}) VALUES (${placeholders})
+         ON CONFLICT(id) DO UPDATE SET ${updateSet}`,
+        values
+      );
+    });
     sqliteCache.clearTable(this.tableName);
     return (item as any).id || '';
   }
@@ -193,7 +201,12 @@ class TableAdapter<T = any> {
 
       // ⚡ تنفيذ كل العمليات في transaction واحدة
       if (statements.length > 0) {
-        await sqliteWriteQueue.batchWrite(statements);
+        await powerSyncService.transaction(async (tx) => {
+          // db accessed via tx.execute
+          for (const stmt of statements) {
+            await tx.execute(stmt.sql, stmt.params);
+          }
+        });
         successCount = statements.length;
       }
 
@@ -201,15 +214,30 @@ class TableAdapter<T = any> {
       // ⚡ Fallback: إذا فشل batchWrite، نستخدم الطريقة القديمة
       console.warn(`[TableAdapter:${this.tableName}] ⚠️ batchWrite failed, falling back to individual inserts:`, err);
       
+      // ⚡ Fallback: استخدام PowerSync مباشرة
       for (const item of items) {
         try {
-          const result = await sqliteDB.upsert(this.tableName, item);
-          if (result.success) {
-            successCount++;
-          } else {
-            const itemId = (item as any)?.id || 'unknown';
-            failedItems.push({ id: itemId, error: result.error || 'Unknown error' });
-          }
+          await powerSyncService.transaction(async (tx) => {
+            // db accessed via tx.execute
+            const keys = Object.keys(item as any);
+            const columns = keys.map(k => toSQLiteColumnName(k));
+            const placeholders = columns.map(() => '?').join(', ');
+            const updateSet = columns.filter(c => c !== 'id').map(c => `${c} = excluded.${c}`).join(', ');
+            const values = keys.map(k => {
+              const v = (item as any)[k];
+              if (v === null || v === undefined) return null;
+              if (typeof v === 'boolean') return v ? 1 : 0;
+              if (v instanceof Date) return v.toISOString();
+              if (typeof v === 'object') return JSON.stringify(v);
+              return v;
+            });
+            await tx.execute(
+              `INSERT INTO ${this.tableName} (${columns.join(', ')}) VALUES (${placeholders})
+               ON CONFLICT(id) DO UPDATE SET ${updateSet}`,
+              values
+            );
+          });
+          successCount++;
         } catch (innerErr) {
           const itemId = (item as any)?.id || 'unknown';
           const errorMsg = innerErr instanceof Error ? innerErr.message : String(innerErr);
@@ -235,19 +263,21 @@ class TableAdapter<T = any> {
 
   async get(id: string): Promise<T | undefined> {
     await this.ensureInitialized();
-    const result = await sqliteDB.queryOne(
-      `SELECT * FROM ${this.tableName} WHERE id = ?`,
-      [id]
-    );
-    return result.data as T;
+    // ⚡ استخدام PowerSync مباشرة
+    const result = await powerSyncService.queryOne<T>({
+      sql: `SELECT * FROM ${this.tableName} WHERE id = ?`,
+      params: [id]
+    });
+    return result || undefined;
   }
 
   async delete(id: string): Promise<void> {
     await this.ensureInitialized();
-    const result = await sqliteDB.delete(this.tableName, id);
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to delete record');
-    }
+    // ⚡ استخدام PowerSync مباشرة
+    await powerSyncService.transaction(async (tx) => {
+      // db accessed via tx.execute
+      await tx.execute(`DELETE FROM ${this.tableName} WHERE id = ?`, [id]);
+    });
     sqliteCache.clearTable(this.tableName);
   }
 
@@ -264,36 +294,43 @@ class TableAdapter<T = any> {
     });
     const sql = `UPDATE ${this.tableName} SET ${cols} WHERE id = ?`;
     console.log(`[TableAdapter:${this.tableName}] UPDATE SQL:`, { sql, values, id });
-    const res = await sqliteDB.execute(sql, [...values, id]);
-    console.log(`[TableAdapter:${this.tableName}] UPDATE result:`, { success: res.success, changes: res.changes });
-    if (res.success && res.changes && res.changes > 0) {
-      sqliteCache.clearTable(this.tableName);
-    }
-    return res.success ? (res.changes || 0) : 0;
+    // ⚡ استخدام PowerSync مباشرة
+    await powerSyncService.transaction(async (tx) => {
+      // db accessed via tx.execute
+      await tx.execute(sql, [...values, id]);
+    });
+    sqliteCache.clearTable(this.tableName);
+    return 1; // PowerSync لا يرجع عدد الصفوف المتأثرة مباشرة
   }
 
   async clear(): Promise<void> {
     await this.ensureInitialized();
-    await sqliteDB.execute(`DELETE FROM ${this.tableName}`, {});
+    // ⚡ استخدام PowerSync مباشرة
+    await powerSyncService.transaction(async (tx) => {
+      // db accessed via tx.execute
+      await tx.execute(`DELETE FROM ${this.tableName}`, []);
+    });
     sqliteCache.clearTable(this.tableName);
   }
 
   async count(): Promise<number> {
     await this.ensureInitialized();
-    const result = await sqliteDB.queryOne(
-      `SELECT COUNT(*) as count FROM ${this.tableName}`,
-      {}
-    );
-    return result.data?.count || 0;
+    // ⚡ استخدام PowerSync مباشرة
+    const result = await powerSyncService.queryOne<{ count: number }>({
+      sql: `SELECT COUNT(*) as count FROM ${this.tableName}`,
+      params: []
+    });
+    return result?.count || 0;
   }
 
   async toArray(): Promise<T[]> {
     await this.ensureInitialized();
-    const result = await sqliteDB.query(
-      `SELECT * FROM ${this.tableName}`,
-      {}
-    );
-    return result.data as T[];
+    // ⚡ استخدام PowerSync مباشرة
+    const result = await powerSyncService.query<T>({
+      sql: `SELECT * FROM ${this.tableName}`,
+      params: []
+    });
+    return result || [];
   }
 
   where(fieldOrObject: any) {
@@ -461,8 +498,9 @@ class WhereClauseAdapter<T = any> {
     return cachedSQLiteQuery.toArray<T[]>(
       this.tableName,
       async () => {
-        const result = await sqliteDB.query(sql, this.params);
-        return result.data as T[];
+        // ⚡ استخدام PowerSync مباشرة
+        const result = await powerSyncService.query<T>({ sql, params: this.params });
+        return result || [];
       },
       {
         conditions: this.conditions,
@@ -483,8 +521,12 @@ class WhereClauseAdapter<T = any> {
       : '';
 
     const sql = `DELETE FROM ${this.tableName} ${whereClause}`;
-    const result = await sqliteDB.execute(sql, this.params);
-    return result.success ? (result.changes || 0) : 0;
+    // ⚡ استخدام PowerSync مباشرة
+    await powerSyncService.transaction(async (tx) => {
+      // db accessed via tx.execute
+      await tx.execute(sql, this.params);
+    });
+    return 1; // PowerSync لا يرجع عدد الصفوف المتأثرة مباشرة
   }
 
   and(predicate: (value: T) => boolean): FilterAdapter<T> {
@@ -519,8 +561,9 @@ class WhereClauseAdapter<T = any> {
     return cachedSQLiteQuery.count(
       this.tableName,
       async () => {
-        const result = await sqliteDB.queryOne(sql, this.params);
-        return (result.data?.count as number) || 0;
+        // ⚡ استخدام PowerSync مباشرة
+        const result = await powerSyncService.queryOne<{ count: number }>({ sql, params: this.params });
+        return result?.count || 0;
       },
       { conditions: this.conditions, params: this.params }
     );
@@ -548,8 +591,12 @@ class WhereClauseAdapter<T = any> {
             if (v instanceof Date) return v.toISOString();
             return v;
           });
-          const res = await sqliteDB.execute(`UPDATE ${this.tableName} SET ${cols} WHERE id = ?`, [...values, id]);
-          if (res.success && res.changes && res.changes > 0) modified++;
+          // ⚡ استخدام PowerSync مباشرة
+          await powerSyncService.transaction(async (tx) => {
+            // db accessed via tx.execute
+            await tx.execute(`UPDATE ${this.tableName} SET ${cols} WHERE id = ?`, [...values, id]);
+          });
+          modified++;
         }
       }
     }
@@ -598,19 +645,24 @@ class FilterAdapter<T = any> {
       : '';
 
     const sql = `SELECT * FROM ${this.tableName} ${whereClause}`;
-    const result = await sqliteDB.query(sql, this.params);
+    // ⚡ استخدام PowerSync مباشرة
+    const result = await powerSyncService.query<T>({ sql, params: this.params });
 
-    return (result.data as T[]).filter(this.predicate);
+    return (result || []).filter(this.predicate);
   }
 
   async delete(): Promise<number> {
     const items = await this.toArray();
     let deleted = 0;
 
-    for (const item of items) {
-      await sqliteDB.delete(this.tableName, (item as any).id);
-      deleted++;
-    }
+    // ⚡ استخدام PowerSync مباشرة
+    await powerSyncService.transaction(async (tx) => {
+      // db accessed via tx.execute
+      for (const item of items) {
+        await tx.execute(`DELETE FROM ${this.tableName} WHERE id = ?`, [(item as any).id]);
+        deleted++;
+      }
+    });
 
     return deleted;
   }
@@ -638,8 +690,9 @@ class LimitAdapter<T = any> {
 
   async toArray(): Promise<T[]> {
     const sql = `SELECT * FROM ${this.tableName} LIMIT ?`;
-    const result = await sqliteDB.query(sql, [this.limitCount]);
-    return result.data as T[];
+    // ⚡ استخدام PowerSync مباشرة
+    const result = await powerSyncService.query<T>({ sql, params: [this.limitCount] });
+    return result || [];
   }
 }
 
@@ -662,6 +715,7 @@ class DatabaseAdapter {
   transactions: TableAdapter;
   productReturns: TableAdapter;
   returnItems: TableAdapter;
+  losses: TableAdapter;
   lossDeclarations: TableAdapter;
   lossItems: TableAdapter;
   repairLocations: TableAdapter;
@@ -680,16 +734,14 @@ class DatabaseAdapter {
   syncMetadata: TableAdapter;
 
   constructor() {
-    if (!isSQLiteAvailable()) {
-      console.warn('[DB Adapter] SQLite DB API is not available yet. Adapter will wait for window.electronAPI.db to be ready.');
-    }
+    // ⚡ PowerSync متاح دائماً - لا حاجة للتحقق
 
     console.log(`[DB Adapter] Using SQLITE`);
 
     this.products = new TableAdapter('products');
     this.inventory = new TableAdapter('inventory');
-    this.posOrders = new TableAdapter('pos_orders');
-    this.posOrderItems = new TableAdapter('pos_order_items');
+    this.posOrders = new TableAdapter('orders');
+    this.posOrderItems = new TableAdapter('order_items');
     this.customers = new TableAdapter('customers');
     this.addresses = new TableAdapter('addresses');
     this.invoices = new TableAdapter('invoices');
@@ -702,8 +754,9 @@ class DatabaseAdapter {
     this.syncQueue = new TableAdapter('sync_queue');
     this.workSessions = new TableAdapter('work_sessions');
     this.transactions = new TableAdapter('transactions');
-    this.productReturns = new TableAdapter('product_returns');
+    this.productReturns = new TableAdapter('returns');
     this.returnItems = new TableAdapter('return_items');
+    this.losses = new TableAdapter('losses');
     this.lossDeclarations = new TableAdapter('loss_declarations');
     this.lossItems = new TableAdapter('loss_items');
     this.repairLocations = new TableAdapter('repair_locations');

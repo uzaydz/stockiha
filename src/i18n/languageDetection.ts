@@ -11,6 +11,61 @@ let lastLanguageUpdateFromDBTime = 0;
 const LANGUAGE_UPDATE_FROM_DB_DEBOUNCE = 10000; // 10 ثوان
 
 /**
+ * ⚡ الحصول على اللغة الأولية بشكل متزامن (Synchronous)
+ *
+ * هذه الدالة تقرأ من localStorage فقط ولا تقوم بأي عمليات شبكة.
+ * تُستخدم لتسريع التهيئة الأولية للتطبيق.
+ *
+ * ترتيب الأولوية:
+ * 1. localStorage: i18nextLng
+ * 2. localStorage: bazaar_app_init_data.language
+ * 3. لغة المتصفح (إذا كانت مدعومة)
+ * 4. العربية كـ fallback
+ */
+export const getInitialLanguageSync = (): string => {
+  if (typeof window === 'undefined') {
+    return 'ar';
+  }
+
+  try {
+    // 1. أولاً: تحقق من i18nextLng (الأكثر شيوعاً)
+    const i18nextLng = localStorage.getItem('i18nextLng');
+    if (i18nextLng && ['ar', 'en', 'fr'].includes(i18nextLng)) {
+      return i18nextLng;
+    }
+
+    // 2. تحقق من بيانات AppInitializer
+    const appInitData = localStorage.getItem('bazaar_app_init_data');
+    if (appInitData) {
+      try {
+        const parsed = JSON.parse(appInitData);
+        if (parsed.language && ['ar', 'en', 'fr'].includes(parsed.language)) {
+          return parsed.language;
+        }
+        // تحقق من organizationSettings
+        const orgLang = parsed.organizationSettings?.default_language || parsed.organization?.default_language;
+        if (orgLang && ['ar', 'en', 'fr'].includes(orgLang)) {
+          return orgLang;
+        }
+      } catch {
+        // تجاهل أخطاء parsing
+      }
+    }
+
+    // 3. لغة المتصفح
+    const browserLang = navigator.language?.split('-')[0];
+    if (browserLang && ['ar', 'en', 'fr'].includes(browserLang)) {
+      return browserLang;
+    }
+  } catch {
+    // تجاهل أي أخطاء
+  }
+
+  // 4. Fallback: العربية
+  return 'ar';
+};
+
+/**
  * الحصول على اللغة الافتراضية من قاعدة البيانات
  */
 export const getDefaultLanguageFromDatabase = async (useImmediateCache = false): Promise<string> => {

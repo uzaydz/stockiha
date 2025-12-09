@@ -116,6 +116,60 @@ function devCriticalCSSPlugin(): Plugin {
   };
 }
 
+// Plugin لخدمة ملفات PowerSync Worker من node_modules
+function powersyncWorkerPlugin(): Plugin {
+  return {
+    name: 'powersync-worker-plugin',
+    apply: 'serve', // للتطوير فقط
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const url = req.url || '';
+        
+        // خدمة ملفات wa-sqlite من node_modules (webpack chunk format)
+        // مثال: node_modules_journeyapps_wa-sqlite_dist_wa-sqlite-async_mjs.js
+        if (url.includes('node_modules_journeyapps_wa-sqlite_dist_')) {
+          // استخراج اسم الملف من URL
+          const match = url.match(/node_modules_journeyapps_wa-sqlite_dist_([^\.]+)/);
+          if (match) {
+            const chunkName = match[1];
+            // تحويل من snake_case إلى path
+            // wa_sqlite_async_mjs -> wa-sqlite-async.mjs
+            const fileName = chunkName.replace(/_/g, '-') + '.mjs';
+            const filePath = path.resolve(__dirname, 'node_modules/@journeyapps/wa-sqlite/dist', fileName);
+            
+            if (fs.existsSync(filePath)) {
+              const content = fs.readFileSync(filePath);
+              res.setHeader('Content-Type', 'application/javascript');
+              res.setHeader('Cache-Control', 'no-cache');
+              res.setHeader('Access-Control-Allow-Origin', '*');
+              res.end(content);
+              return;
+            }
+          }
+        }
+        
+        // خدمة ملفات wa-sqlite مباشرة (path format)
+        // مثال: ../../node_modules/@journeyapps/wa-sqlite/dist/wa-sqlite-async.mjs
+        if (url.includes('@journeyapps/wa-sqlite/dist/') || url.includes('journeyapps/wa-sqlite/dist/')) {
+          const fileName = url.split('dist/').pop()?.split('?')[0] || '';
+          const filePath = path.resolve(__dirname, 'node_modules/@journeyapps/wa-sqlite/dist', fileName);
+          
+          if (fs.existsSync(filePath)) {
+            const content = fs.readFileSync(filePath);
+            res.setHeader('Content-Type', 'application/javascript');
+            res.setHeader('Cache-Control', 'no-cache');
+            res.setHeader('Access-Control-Allow-Origin', '*');
+            res.end(content);
+            return;
+          }
+        }
+        
+        next();
+      });
+    }
+  };
+}
+
 // Dev middleware: rewrite product V3 deep-links to store.html so store SPA handles routing
 function devStoreRewritePlugin(): Plugin {
   return {
@@ -387,6 +441,9 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
       // Dev Critical CSS Plugin - لخدمة critical.css في التطوير
       devCriticalCSSPlugin(),
 
+      // PowerSync Worker Plugin - لخدمة ملفات wa-sqlite من node_modules
+      powersyncWorkerPlugin(),
+
       // Icons plugin for tree-shaking
       Icons({
         compiler: 'jsx',
@@ -633,6 +690,9 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
       'import.meta.env.VITE_YALIDINE_DEFAULT_ORG_ID': JSON.stringify(env.VITE_YALIDINE_DEFAULT_ORG_ID || 'fed872f9-1ade-4351-b020-5598fda976fe'),
       'import.meta.env.VITE_SITE_URL': JSON.stringify(env.VITE_SITE_URL || 'https://stockiha.com'),
 
+      // ⚡ PowerSync Configuration
+      'import.meta.env.VITE_POWERSYNC_URL': JSON.stringify(env.VITE_POWERSYNC_URL || ''),
+
       // 🎯 متغيرات التطبيق
       __DEV__: false, // تعطيل jsxDEV لتحسين الأداء
       __PROD__: isProd,
@@ -844,6 +904,8 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
         esmExternals: true,
         // Force default export for CJS modules that need it
         defaultIsModuleExports: true,
+        // Fix for D3 and Nivo ESM/CJS interop issues
+        extensions: ['.js', '.cjs', '.mjs'],
       },
 
       chunkSizeWarningLimit: 500, // 500KB - حد واقعي للتحذيرات
@@ -923,10 +985,31 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
 
         // CJS-only modules - prebundled for proper default interop
         'is-retry-allowed',
+
+        // Nivo Charts - must be included to fix ESM "Indirectly exported binding name 'default'" error
+        '@nivo/core',
+        '@nivo/bar',
+        '@nivo/line',
+        '@nivo/pie',
+        '@nivo/legends',
+        '@nivo/colors',
+        '@nivo/axes',
+        '@nivo/tooltip',
+        'd3-scale',
+        'd3-shape',
+        'd3-color',
+        'd3-interpolate',
+        'd3-format',
+        'd3-time',
+        'd3-time-format',
       ],
 
       // 🚨 استبعاد جميع المكتبات الثقيلة من التحسين المسبق
       exclude: [
+        // PowerSync - exclude to prevent worker issues
+        '@powersync/web',
+        '@journeyapps/wa-sqlite',
+
         // React 19 built-ins (no longer needed as external packages)
         'use-sync-external-store',
         'use-sync-external-store/shim',
@@ -936,7 +1019,7 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
         'lucide-react',
         // Heavy Charts & Graphics (keep these for lazy loading)
         'chart.js', 'react-chartjs-2', 'recharts',
-        '@nivo/core', '@nivo/bar', '@nivo/line', '@nivo/pie',
+        // Note: Nivo charts are now included in optimizeDeps.include to fix ESM export issues
 
         // Heavy Editors
         '@monaco-editor/react',
@@ -1039,7 +1122,13 @@ const WEB_CONFIG = defineConfig(({ command, mode }) => {
       }),
     },
     worker: {
-      format: 'es',
+      // ⚡ PowerSync requires classic workers (importScripts), not ES modules
+      format: 'iife',
+      plugins: () => [
+        react({
+          jsxImportSource: 'react',
+        }),
+      ],
     },
   };
 });

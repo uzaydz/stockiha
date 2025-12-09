@@ -1,14 +1,19 @@
 /**
- * PrintSettingsService - حفظ واسترجاع إعدادات الطباعة من SQLite
- * 
- * ⚡ المميزات:
- * - حفظ في SQLite (يعمل أوفلاين)
+ * ⚡ PrintSettingsService - v3.0 (PowerSync Best Practices 2025)
+ * ============================================================
+ *
+ * حفظ واسترجاع إعدادات الطباعة:
+ * - حفظ في localStorage
  * - Cache للإعدادات
  * - دعم إعدادات متعددة (للمستخدمين/المؤسسات)
+ *
+ * ✅ يستخدم localStorage للتخزين البسيط
+ * ✅ لا يحتاج PowerSync (بيانات محلية فقط)
  */
 
-import { isSQLiteAvailable } from '@/lib/db/sqliteAPI';
-import { sqliteWriteQueue } from '@/lib/sync/delta/SQLiteWriteQueue';
+// =====================================================
+// Types
+// =====================================================
 
 export interface PrintSettings {
   label_width: number;
@@ -26,6 +31,10 @@ export interface PrintSettings {
   font_family_css: string;
 }
 
+// =====================================================
+// Default Settings
+// =====================================================
+
 const DEFAULT_SETTINGS: PrintSettings = {
   label_width: 50,
   label_height: 30,
@@ -42,96 +51,115 @@ const DEFAULT_SETTINGS: PrintSettings = {
   font_family_css: "system-ui",
 };
 
-class PrintSettingsService {
-  private cache: PrintSettings | null = null;
-  private readonly TABLE_NAME = 'app_settings';
-  private readonly SETTING_KEY = 'barcode_print_settings';
+// =====================================================
+// PrintSettingsService
+// =====================================================
+
+class PrintSettingsServiceClass {
+  private readonly STORAGE_PREFIX = 'barcode_print_settings_';
+  private cache: Map<string, PrintSettings> = new Map();
+
+  // ========================================
+  // 💾 حفظ الإعدادات
+  // ========================================
 
   /**
    * ⚡ حفظ الإعدادات
    */
   async saveSettings(settings: PrintSettings, orgId: string): Promise<boolean> {
-    this.cache = settings;
-    
-    // حفظ في localStorage دائماً كنسخة احتياطية
     try {
-      localStorage.setItem(`${this.SETTING_KEY}_${orgId}`, JSON.stringify(settings));
-    } catch (e) {
-      console.warn('فشل الحفظ في localStorage', e);
+      // حفظ في الـ cache
+      this.cache.set(orgId, settings);
+
+      // حفظ في localStorage
+      localStorage.setItem(
+        this.STORAGE_PREFIX + orgId,
+        JSON.stringify(settings)
+      );
+
+      return true;
+    } catch (error) {
+      console.warn('[PrintSettings] فشل حفظ الإعدادات:', error);
+      return false;
+    }
+  }
+
+  // ========================================
+  // 📖 جلب الإعدادات
+  // ========================================
+
+  /**
+   * ⚡ جلب الإعدادات
+   */
+  async getSettings(orgId: string): Promise<PrintSettings> {
+    // تحقق من الـ cache أولاً
+    const cached = this.cache.get(orgId);
+    if (cached) {
+      return cached;
     }
 
-    // حفظ في SQLite إذا كان متاحاً
-    if (isSQLiteAvailable()) {
-      try {
-        // التأكد من وجود الجدول
-        await sqliteWriteQueue.write(`
-          CREATE TABLE IF NOT EXISTS ${this.TABLE_NAME} (
-            key TEXT PRIMARY KEY,
-            value TEXT,
-            updated_at TEXT
-          )
-        `);
-
-        const key = `${this.SETTING_KEY}_${orgId}`;
-        const value = JSON.stringify(settings);
-        
-        await sqliteWriteQueue.write(`
-          INSERT OR REPLACE INTO ${this.TABLE_NAME} (key, value, updated_at)
-          VALUES (?, ?, datetime('now'))
-        `, [key, value]);
-        
-        return true;
-      } catch (error) {
-        console.error('[PrintSettings] فشل الحفظ في SQLite:', error);
-        return false;
+    try {
+      // جلب من localStorage
+      const data = localStorage.getItem(this.STORAGE_PREFIX + orgId);
+      if (data) {
+        const settings = JSON.parse(data) as PrintSettings;
+        this.cache.set(orgId, settings);
+        return settings;
       }
+    } catch {
+      // تجاهل الأخطاء
     }
-    
-    return true;
+
+    // إرجاع الإعدادات الافتراضية
+    return { ...DEFAULT_SETTINGS };
   }
 
   /**
-   * ⚡ استرجاع الإعدادات
+   * ⚡ جلب الإعدادات الافتراضية
    */
-  async getSettings(orgId: string): Promise<PrintSettings> {
-    if (this.cache) return this.cache;
+  getDefaultSettings(): PrintSettings {
+    return { ...DEFAULT_SETTINGS };
+  }
 
-    // محاولة الاسترجاع من SQLite أولاً
-    if (isSQLiteAvailable()) {
-      try {
-        const key = `${this.SETTING_KEY}_${orgId}`;
-        const result = await sqliteWriteQueue.read<any[]>(`
-          SELECT value FROM ${this.TABLE_NAME} WHERE key = ?
-        `, [key]);
+  // ========================================
+  // 🔄 إعادة تعيين
+  // ========================================
 
-        if (result && result.length > 0 && result[0].value) {
-          try {
-            const settings = JSON.parse(result[0].value);
-            this.cache = { ...DEFAULT_SETTINGS, ...settings };
-            return this.cache!;
-          } catch (e) {
-            console.warn('[PrintSettings] بيانات تالفة في SQLite');
-          }
-        }
-      } catch (error) {
-        console.warn('[PrintSettings] فشل القراءة من SQLite:', error);
-      }
-    }
-
-    // Fallback: localStorage
+  /**
+   * ⚡ إعادة تعيين الإعدادات للافتراضية
+   */
+  async resetSettings(orgId: string): Promise<boolean> {
     try {
-      const stored = localStorage.getItem(`${this.SETTING_KEY}_${orgId}`);
-      if (stored) {
-        const settings = JSON.parse(stored);
-        this.cache = { ...DEFAULT_SETTINGS, ...settings };
-        return this.cache!;
-      }
-    } catch (e) {
-      console.warn('[PrintSettings] فشل القراءة من localStorage');
+      this.cache.delete(orgId);
+      localStorage.removeItem(this.STORAGE_PREFIX + orgId);
+      return true;
+    } catch {
+      return false;
     }
+  }
 
-    return DEFAULT_SETTINGS;
+  // ========================================
+  // 🔧 Helper Methods
+  // ========================================
+
+  /**
+   * ⚡ تهيئة الخدمة (للتوافق مع الكود القديم)
+   */
+  async initTable(): Promise<void> {
+    // لا يحتاج تهيئة - نستخدم localStorage
+  }
+
+  /**
+   * ⚡ مسح الـ cache
+   */
+  clearCache(): void {
+    this.cache.clear();
   }
 }
 
-export const printSettingsService = new PrintSettingsService();
+// ========================================
+// 📤 Export Singleton
+// ========================================
+
+export const printSettingsService = new PrintSettingsServiceClass();
+export default printSettingsService;

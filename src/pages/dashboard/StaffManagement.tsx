@@ -1,19 +1,22 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { 
-  Users, 
-  Plus, 
-  Pencil, 
-  Trash2, 
-  Key, 
+import {
+  Users,
+  Plus,
+  Pencil,
+  Trash2,
+  Key,
   Search,
   Power,
   PowerOff,
   Shield,
   Loader2,
-  Mail
+  Mail,
+  Wifi,
+  WifiOff
 } from 'lucide-react';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -45,6 +48,7 @@ import {
 import { staffService } from '@/services/staffService';
 import type { POSStaffSession } from '@/types/staff';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useTenant } from '@/context/TenantContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AddStaffDialog } from '@/components/staff/AddStaffDialog';
 import { UpdatePinDialog } from '@/components/staff/UpdatePinDialog';
@@ -63,6 +67,9 @@ const StaffManagement: React.FC<StaffManagementProps> = ({
 }) => {
   const perms = usePermissions();
   const queryClient = useQueryClient();
+  const { currentOrganization } = useTenant();
+  const organizationId = currentOrganization?.id;
+  const { isOnline } = useNetworkStatus();
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingStaff, setEditingStaff] = useState<POSStaffSession | null>(null);
@@ -82,22 +89,23 @@ const StaffManagement: React.FC<StaffManagementProps> = ({
     );
   }
 
-  // جلب الموظفين
-  const { 
-    data: staffSessions = [], 
-    isLoading, 
+  // جلب الموظفين - ⚡ يمرر organizationId لدعم الأوفلاين
+  const {
+    data: staffSessions = [],
+    isLoading,
     error,
-    refetch 
+    refetch
   } = useQuery({
-    queryKey: ['pos-staff-sessions'],
-    queryFn: () => staffService.getAll(),
+    queryKey: ['pos-staff-sessions', organizationId],
+    queryFn: () => staffService.getAll(organizationId),
+    enabled: !!organizationId,
     staleTime: 5 * 60 * 1000, // 5 دقائق
     gcTime: 30 * 60 * 1000, // 30 دقيقة
   });
 
-  // حذف موظف
+  // حذف موظف - ⚡ يمرر organizationId لدعم الأوفلاين
   const deleteMutation = useMutation({
-    mutationFn: (staffId: string) => staffService.delete(staffId),
+    mutationFn: (staffId: string) => staffService.delete(staffId, organizationId),
     onSuccess: (data) => {
       if (data.success) {
         toast.success('تم حذف الموظف بنجاح');
@@ -113,13 +121,13 @@ const StaffManagement: React.FC<StaffManagementProps> = ({
     },
   });
 
-  // تبديل حالة التفعيل
+  // تبديل حالة التفعيل - ⚡ يمرر organizationId لدعم الأوفلاين
   const toggleActiveMutation = useMutation({
     mutationFn: ({ staffId, isActive }: { staffId: string; isActive: boolean }) =>
-      staffService.toggleActive(staffId, isActive),
+      staffService.toggleActive(staffId, isActive, organizationId),
     onSuccess: (data) => {
       if (data.success) {
-        toast.success('تم تحديث حالة الموظف بنجاح');
+        toast.success(data.message || 'تم تحديث حالة الموظف بنجاح');
         queryClient.invalidateQueries({ queryKey: ['pos-staff-sessions'] });
       } else {
         toast.error(data.error || 'فشل تحديث حالة الموظف');
@@ -233,9 +241,36 @@ const StaffManagement: React.FC<StaffManagementProps> = ({
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="text-2xl">إدارة موظفي نقطة البيع</CardTitle>
+              <div className="flex items-center gap-3">
+                <CardTitle className="text-2xl">إدارة موظفي نقطة البيع</CardTitle>
+                {/* ⚡ مؤشر حالة الاتصال */}
+                <Badge
+                  variant="outline"
+                  className={isOnline
+                    ? "bg-green-50 text-green-700 border-green-200"
+                    : "bg-orange-50 text-orange-700 border-orange-200"
+                  }
+                >
+                  {isOnline ? (
+                    <>
+                      <Wifi className="h-3 w-3 ml-1" />
+                      متصل
+                    </>
+                  ) : (
+                    <>
+                      <WifiOff className="h-3 w-3 ml-1" />
+                      أوفلاين
+                    </>
+                  )}
+                </Badge>
+              </div>
               <CardDescription className="mt-2">
                 إدارة جلسات الموظفين وصلاحياتهم وأكواد الوصول الخاصة بهم
+                {!isOnline && (
+                  <span className="text-orange-600 block text-xs mt-1">
+                    ⚡ التغييرات ستُحفظ محلياً وتُزامن عند الاتصال
+                  </span>
+                )}
               </CardDescription>
             </div>
             <Button

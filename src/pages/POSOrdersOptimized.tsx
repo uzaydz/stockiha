@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useMemo } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,18 +10,23 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { 
-  ShoppingCart, 
-  RefreshCw, 
-  Download, 
+import { format } from 'date-fns';
+import {
+  ShoppingCart,
+  RefreshCw,
+  Download,
   Plus,
   AlertTriangle,
   Zap,
   TrendingUp,
   CheckCircle,
   Clock,
-  XCircle
+  XCircle,
+  ShieldAlert
 } from 'lucide-react';
+
+// PDF Export Utility
+import { exportAndSavePdf, type POSOrderForExport, type ExportFilters } from '@/lib/pdf/arabicPdfExport';
 
 // Layout component
 import POSPureLayout from '@/components/pos-layout/POSPureLayout';
@@ -33,16 +38,18 @@ import { useAuth } from '@/context/AuthContext';
 import { usePermissions } from '@/hooks/usePermissions';
 
 // Services
-import { supabase } from '@/lib/supabase-unified';
-import { inventoryDB } from '@/database/localDb';
-import { 
-  saveRemoteOrders, 
-  saveRemoteOrderItems, 
-  getLocalPOSOrderItems,
-  getLocalPOSOrdersPage,
-  fastSearchLocalPOSOrders,
-  getLocalPOSOrderStats
-} from '@/api/localPosOrderService';
+import { unifiedOrderService, type OrderStatus, type PaymentStatus } from '@/services/UnifiedOrderService';
+import { supabase } from '@/lib/supabase';
+import { powerSyncService } from '@/lib/powersync';
+
+// ⚡ PowerSync Reactive Hooks - تحديث تلقائي فوري!
+import {
+  useReactivePOSOrders,
+  useReactivePOSOrdersItems,
+  type ReactivePOSOrder,
+  type POSOrderStatus,
+  type POSPaymentStatus
+} from '@/hooks/powersync';
 
 // Types
 interface OptimizedPOSOrder {
@@ -84,7 +91,6 @@ interface OptimizedPOSOrder {
   has_returns?: boolean;
   is_fully_returned?: boolean;
   total_returned_amount?: number;
-  // إضافة الخصائص المفقودة
   order_items?: any[];
   admin_notes?: string;
   customer_notes?: string;
@@ -97,15 +103,15 @@ interface OptimizedPOSOrder {
 }
 
 interface POSOrderFilters {
-  status?: string;
+  status?: OrderStatus;
   payment_method?: string;
-  payment_status?: string;
+  payment_status?: PaymentStatus;
   employee_id?: string;
   date_from?: string;
   date_to?: string;
   search?: string;
-  statuses?: string[];
-  payment_statuses?: string[];
+  statuses?: OrderStatus[];
+  payment_statuses?: PaymentStatus[];
 }
 
 interface POSOrderStats {
@@ -137,20 +143,23 @@ interface Employee {
 interface POSOrdersOptimizedProps extends POSSharedLayoutControls {}
 
 // Components
-import { POSOrderStatsSimple as POSOrderStats } from '../components/pos-orders/POSOrderStatsSimple';
-import { POSOrderFiltersOptimized as POSOrderFilters } from '../components/pos-orders/POSOrderFiltersOptimized';
+import { POSOrderStatsSimple as POSOrderStatsComponent } from '../components/pos-orders/POSOrderStatsSimple';
+import { POSOrderFiltersOptimized as POSOrderFiltersComponent } from '../components/pos-orders/POSOrderFiltersOptimized';
 import { POSOrdersTableSimple as POSOrdersTable } from '../components/pos-orders/POSOrdersTableSimple';
 import { POSOrderDetails } from '../components/pos-orders/POSOrderDetails';
 import { POSOrderActions } from '../components/pos-orders/POSOrderActions';
 import { EditOrderItemsDialog } from '../components/pos-orders/EditOrderItemsDialog';
 import EditOrderDialog from '../components/pos-orders/EditOrderDialog';
+// ⚡ حوار الإرجاع السريع
+import QuickReturnDialog from '../components/pos/QuickReturnDialog';
 
 // Hooks
 import { useTitle } from '../hooks/useTitle';
 import { useOfflineStatus } from '../hooks/useOfflineStatus';
+import { useNetworkStatus } from '../hooks/useNetworkStatus';
 
 // =================================================================
-// 🎯 POSOrdersOptimized - النسخة المحسنة مع RPC واحد
+// 🎯 POSOrdersOptimized - النسخة المحسنة مع PowerSync Reactive
 // =================================================================
 
 interface DialogState {
@@ -159,160 +168,8 @@ interface DialogState {
   showOrderActions: boolean;
   showEditItems: boolean;
   showEditOrder: boolean;
+  showQuickReturn: boolean;
 }
-
-// دالة جلب البيانات من IndexedDB مع تفاصيل كاملة
-const fetchFromIndexedDB = async (
-  orgId: string,
-  page: number = 1,
-  pageSize: number = 20,
-  filters: POSOrderFilters = {}
-) => {
-  try {
-    const offset = (page - 1) * pageSize;
-    const search = (filters.search || '').trim();
-    let orders: any[] = [];
-    let total = 0;
-
-    if (search) {
-      const matches = await fastSearchLocalPOSOrders(orgId, search, { limit: 2000, status: filters.statuses || filters.status });
-      // ترتيب الأحدث أولاً ثم تقطيع
-      const sorted = matches.sort((a: any, b: any) => (Date.parse(b.created_at || '') - Date.parse(a.created_at || '')));
-      total = sorted.length;
-      orders = sorted.slice(offset, offset + pageSize);
-    } else {
-      const res = await getLocalPOSOrdersPage(orgId, {
-        offset,
-        limit: pageSize,
-        status: filters.statuses || filters.status,
-        payment_status: filters.payment_statuses || filters.payment_status,
-        createdSort: 'desc'
-      });
-      orders = res.orders as any[];
-      total = res.total;
-    }
-    
-    // جلب عناصر كل طلبية - ⚡ استخدام SQLite بدلاً من IndexedDB
-    const ordersWithItems = await Promise.all(
-      orders.map(async (order) => {
-        const items = await getLocalPOSOrderItems(order.id);
-        
-        return {
-          ...order,
-          customer: order.customer_name ? { 
-            id: order.customer_id || '',
-            name: order.customer_name 
-          } : null,
-          employee: order.employee_id ? {
-            id: order.employee_id,
-            name: 'موظف',
-            email: ''
-          } : null,
-          order_items: items.map(item => ({
-            id: item.id,
-            product_id: item.product_id,
-            product_name: item.product_name,
-            quantity: item.quantity,
-            unit_price: item.unit_price,
-            total_price: item.total_price,
-            is_wholesale: item.is_wholesale,
-            original_price: item.original_price,
-            color_id: item.color_id,
-            color_name: item.color_name,
-            size_id: item.size_id,
-            size_name: item.size_name,
-            variant_info: item.variant_info
-          })),
-          items_count: items.length,
-          total_qty: items.reduce((sum, item) => sum + item.quantity, 0),
-          slug: order.remote_order_id ? undefined : `offline-${order.local_order_number}`,
-          customer_order_number: order.remote_customer_order_number || order.local_order_number
-        };
-      })
-    );
-    
-    // حساب إحصائيات بسيطة من البيانات المحلية
-    const statsLocal = await getLocalPOSOrderStats(orgId);
-    const stats = {
-      ...statsLocal,
-      avg_order_value: statsLocal.total_orders > 0 ? (statsLocal.total_revenue / statsLocal.total_orders) : 0,
-      today_orders: 0,
-      today_revenue: 0
-    } as any;
-
-    return {
-      success: true,
-      data: {
-        orders: ordersWithItems,
-        stats,
-        employees: [],
-        pagination: {
-          current_page: page,
-          total_pages: Math.ceil(total / pageSize),
-          filtered_count: total,
-          has_next_page: page < Math.ceil(total / pageSize)
-        },
-        settings: {},
-        subscription: {}
-      }
-    };
-  } catch (error) {
-    console.error('Error fetching from IndexedDB:', error);
-    throw error;
-  }
-};
-
-// دالة جلب البيانات المحسنة مع حفظ في IndexedDB
-const fetchPOSOrdersPageData = async (
-  orgId: string,
-  userId: string,
-  page: number = 1,
-  pageSize: number = 20,
-  filters: POSOrderFilters = {},
-  sort: { field: string; direction: string } = { field: 'created_at', direction: 'desc' }
-) => {
-  const { data, error } = await supabase.rpc('get_pos_orders_page_data_fixed' as any, {
-    p_org_id: orgId,
-    p_user_id: userId,
-    p_page: page,
-    p_page_size: pageSize,
-    p_filters: filters,
-    p_sort: sort,
-    p_include: {
-      stats: true,
-      settings: true,
-      subscription: true,
-      returns: true
-    }
-  }) as { data: any, error: any };
-
-  if (error) {
-    throw error;
-  }
-
-  if (!(data as any)?.success) {
-    throw new Error((data as any)?.error || 'فشل في جلب البيانات');
-  }
-
-  // حفظ البيانات في IndexedDB للاستخدام في الأوفلاين
-  try {
-    const orders = (data as any)?.data?.orders || [];
-    if (orders.length > 0) {
-      await saveRemoteOrders(orders);
-      // حفظ عناصر كل طلبية
-      for (const order of orders) {
-        if (order.order_items && order.order_items.length > 0) {
-          await saveRemoteOrderItems(order.id, order.order_items);
-        }
-      }
-    }
-  } catch (saveError) {
-    console.error('Error saving to IndexedDB:', saveError);
-    // لا نرمي الخطأ هنا لأن البيانات تم جلبها بنجاح
-  }
-
-  return data as any;
-};
 
 export const POSOrdersOptimized: React.FC<POSOrdersOptimizedProps> = ({
   useStandaloneLayout = true,
@@ -320,39 +177,30 @@ export const POSOrdersOptimized: React.FC<POSOrdersOptimizedProps> = ({
   onLayoutStateChange,
 }) => {
   useTitle('طلبيات نقطة البيع');
-  
-  const { tenant } = useTenant();
+
+  const { tenant, currentOrganization } = useTenant();
   const { user, userProfile } = useAuth();
   const perms = usePermissions();
   const queryClient = useQueryClient();
-  const { isOnline, isOffline } = useOfflineStatus();
-  const [useCacheBrowse, setUseCacheBrowse] = useState<boolean>(
-    false // افتراضياً: جلب من الخادم دائماً
-  );
+  const { isOnline } = useNetworkStatus();
+  const { isOffline } = useOfflineStatus();
 
   // الحالات المحلية
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(20);
   const [filters, setFilters] = useState<POSOrderFilters>({});
-  const [sortConfig, setSortConfig] = useState({ field: 'created_at', direction: 'desc' });
   const [dialogState, setDialogState] = useState<DialogState>({
     selectedOrder: null,
     showOrderDetails: false,
     showOrderActions: false,
     showEditItems: false,
-    showEditOrder: false
+    showEditOrder: false,
+    showQuickReturn: false
   });
+  const [isSyncing, setIsSyncing] = useState(false);
 
-  // مفتاح الاستعلام الديناميكي
-  const queryKey = useMemo(() => [
-    'pos-orders-page-data',
-    tenant?.id,
-    userProfile?.id,
-    currentPage,
-    pageSize,
-    filters,
-    sortConfig
-  ], [tenant?.id, userProfile?.id, currentPage, pageSize, filters, sortConfig]);
+  const canViewOrders = perms.ready ? perms.anyOf(['accessPOS', 'canViewPosOrders', 'canManagePosOrders', 'manageOrders']) : false;
+  const isUnauthorized = perms.ready && !canViewOrders;
 
   // صلاحيات الطلبيات
   const canUpdateStatus = useMemo(
@@ -376,257 +224,173 @@ export const POSOrdersOptimized: React.FC<POSOrdersOptimizedProps> = ({
     [perms]
   );
 
-  // الاستعلام الرئيسي المحسن - مع تحسينات لتجنب الاستدعاءات المكررة ودعم الأوفلاين
+  // ⚡ PowerSync Reactive Hooks - تحديث تلقائي فوري!
   const {
-    data,
+    orders: rawOrders,
     isLoading,
+    isFetching,
     error,
-    refetch,
-    isFetching
-  } = useQuery({
-    queryKey,
-    queryFn: async () => {
-      // في حالة الأوفلاين أو وضع تصفح الكاش، نستخدم البيانات من IndexedDB
-      if (isOffline || useCacheBrowse) {
-        // أولاً نحاول جلب من React Query cache
-        const cachedData = queryClient.getQueryData(queryKey);
-        if (cachedData) {
-          return cachedData;
-        }
-        // ثانياً نجلب من IndexedDB
-        if (tenant?.id) {
-          try {
-            return await fetchFromIndexedDB(tenant.id, currentPage, pageSize, filters);
-          } catch (error) {
-            console.error('Error fetching from IndexedDB:', error);
-          }
-        }
-        // إذا فشل كل شيء، نرجع بيانات فارغة
-        return {
-          success: true,
-          data: {
-            orders: [],
-            stats: null,
-            employees: [],
-            pagination: { current_page: 1, total_pages: 1, filtered_count: 0, has_next_page: false },
-            settings: {},
-            subscription: {}
-          }
-        };
-      }
-      // في حالة الاتصال، نجلب البيانات من الخادم وتحفظ تلقائياً في IndexedDB
-      return fetchPOSOrdersPageData(
-        tenant?.id || '',
-        userProfile?.id || '',
-        currentPage,
-        pageSize,
-        filters,
-        sortConfig
-      );
-    },
-    enabled: !!tenant?.id && !!userProfile?.id, // تفعيل فقط عند وجود البيانات المطلوبة
-    staleTime: (isOffline || useCacheBrowse) ? Infinity : 10 * 60 * 1000, // 10 دقائق في الأونلاين
-    gcTime: 30 * 60 * 1000, // 30 دقيقة - زيادة من 15
-    refetchOnWindowFocus: false,
-    refetchOnMount: true, // استخدام true مع staleTime أطول لمنع الاستدعاءات المكررة
-    refetchOnReconnect: true,
-    refetchInterval: false,
-    retry: (failureCount, error: any) => {
-      if (isOffline || useCacheBrowse) return false;
-      if (error?.code === 'UNAUTHORIZED') return false;
-      return failureCount < 1; // تقليل عدد المحاولات
-    },
-    networkMode: 'offlineFirst',
-    // إضافة structuralSharing لمنع re-renders غير الضرورية
-    structuralSharing: true,
-    // إضافة notifyOnChangeProps لتقليل re-renders
-    notifyOnChangeProps: ['data', 'error', 'isLoading']
+    total,
+    pagination,
+    stats: reactiveStats
+  } = useReactivePOSOrders({
+    status: filters.statuses?.[0] as POSOrderStatus || filters.status as POSOrderStatus,
+    paymentStatus: filters.payment_statuses?.[0] as POSPaymentStatus || filters.payment_status as POSPaymentStatus,
+    employeeId: filters.employee_id,
+    fromDate: filters.date_from,
+    toDate: filters.date_to,
+    search: filters.search,
+    page: currentPage,
+    pageSize,
+    enabled: !isUnauthorized && !!currentOrganization?.id
   });
 
-  // استخراج البيانات
-  const orders = useMemo(() => (data as any)?.data?.orders || [], [data]);
-  const stats = useMemo(() => (data as any)?.data?.stats || null, [data]);
-  const employees = useMemo(() => (data as any)?.data?.employees || [], [data]);
-  const pagination = useMemo(() => (data as any)?.data?.pagination || {}, [data]);
-  const settings = useMemo(() => (data as any)?.data?.settings || {}, [data]);
-  const subscription = useMemo(() => (data as any)?.data?.subscription || {}, [data]);
+  // جلب عناصر الطلبيات دفعة واحدة
+  const orderIds = useMemo(() => rawOrders.map(o => o.id), [rawOrders]);
+  const { itemsByOrder, isLoading: itemsLoading } = useReactivePOSOrdersItems(orderIds);
 
-  React.useEffect(() => {
-    if (!onLayoutStateChange) return;
-
-    onLayoutStateChange({
-      isRefreshing: isFetching && isOnline,
-      connectionStatus: isOffline ? 'disconnected' : isFetching ? 'reconnecting' : 'connected',
-      executionTime: Number((data as any)?.debug?.timings_ms?.total_ms) || undefined
+  // ⚡ تحويل الطلبيات من ReactivePOSOrder إلى OptimizedPOSOrder
+  const orders = useMemo(() => {
+    return rawOrders.map((o: ReactivePOSOrder): OptimizedPOSOrder => {
+      const items = itemsByOrder.get(o.id) || [];
+      return {
+        id: o.id,
+        organization_id: o.organization_id,
+        customer_id: o.customer_id || undefined,
+        employee_id: o.employee_id || undefined,
+        slug: o.order_number || o.id.slice(-8),
+        status: o.status,
+        payment_status: o.payment_status,
+        payment_method: o.payment_method || 'cash',
+        total: o.total,
+        subtotal: o.subtotal,
+        tax: o.tax,
+        discount: o.discount || undefined,
+        amount_paid: o.amount_paid,
+        remaining_amount: o.remaining_amount,
+        notes: o.notes || undefined,
+        created_at: o.created_at,
+        updated_at: o.updated_at,
+        customer: o.customer_name ? {
+          id: o.customer_id || '',
+          name: o.customer_name
+        } : undefined,
+        employee: o.employee_name ? {
+          id: o.employee_id || '',
+          name: o.employee_name,
+          email: ''
+        } : undefined,
+        items_count: o.items_count || items.length,
+        total_qty: items.reduce((sum, item) => sum + (item.quantity || 0), 0),
+        is_online: o.is_online,
+        order_items: items.map(item => ({
+          id: item.id,
+          product_id: item.product_id,
+          product_name: item.product_name,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          total_price: item.total_price,
+          is_wholesale: item.is_wholesale,
+          original_price: item.original_price,
+          color_id: item.color_id,
+          color_name: item.color_name,
+          size_id: item.size_id,
+          size_name: item.size_name,
+          // ⚡ حقول نوع البيع ووحدة البيع
+          sale_type: item.sale_type,
+          selling_unit_type: item.selling_unit_type,
+          // بيع الوزن
+          weight_sold: item.weight_sold,
+          weight_unit: item.weight_unit,
+          price_per_weight_unit: item.price_per_weight_unit,
+          // بيع المتر
+          meters_sold: item.meters_sold,
+          price_per_meter: item.price_per_meter,
+          // بيع العلبة/الصندوق
+          boxes_sold: item.boxes_sold,
+          units_per_box: item.units_per_box,
+          box_price: item.box_price,
+          // معلومات المتغيرات
+          variant_display_name: item.variant_display_name,
+          variant_info: item.variant_info
+        }))
+      };
     });
-  }, [onLayoutStateChange, isFetching, isOnline, isOffline, data]);
+  }, [rawOrders, itemsByOrder]);
 
-  // Prefetch الصفحة التالية - محسن لتجنب الاستدعاءات المكررة
-  const prefetchNextPage = useCallback(() => {
-    // تعطيل prefetch مؤقتاً لتقليل الاستدعاءات
-    return;
-    
-    // الكود الأصلي معطل مؤقتاً
-    /*
-    if (pagination.has_next_page && currentPage > 0) {
-      const nextPageKey = [
-        'pos-orders-page-data',
-        tenant?.id,
-        userProfile?.id,
-        currentPage + 1,
-        pageSize,
-        filters,
-        sortConfig
-      ];
-      
-      const existingData = queryClient.getQueryData(nextPageKey);
-      if (!existingData) {
-        setTimeout(() => {
-          const currentData = queryClient.getQueryData(nextPageKey);
-          if (!currentData) {
-            queryClient.prefetchQuery({
-              queryKey: nextPageKey,
-              queryFn: () => fetchPOSOrdersPageData(
-                tenant?.id || '',
-                userProfile?.id || '',
-                currentPage + 1,
-                pageSize,
-                filters,
-                sortConfig
-              ),
-              staleTime: 60 * 1000
-            });
-          }
-        }, 1000);
-      }
-    }
-    */
-  }, [pagination.has_next_page, currentPage, pageSize, filters, sortConfig, tenant?.id, userProfile?.id, queryClient]);
+  // ⚡ تحويل الإحصائيات
+  const stats: POSOrderStats = useMemo(() => ({
+    total_orders: reactiveStats.totalOrders,
+    total_revenue: reactiveStats.totalRevenue,
+    completed_orders: reactiveStats.completedOrders,
+    pending_orders: reactiveStats.pendingOrders,
+    pending_payment_orders: reactiveStats.unpaidOrders + reactiveStats.partialOrders,
+    cancelled_orders: reactiveStats.cancelledOrders,
+    cash_orders: reactiveStats.cashOrders,
+    card_orders: reactiveStats.cardOrders,
+    avg_order_value: reactiveStats.avgOrderValue,
+    today_orders: reactiveStats.todayOrders,
+    today_revenue: reactiveStats.todayRevenue
+  }), [reactiveStats]);
 
-  // تأثير Prefetch - معطل مؤقتاً لتقليل الاستدعاءات
-  React.useEffect(() => {
-    // معطل مؤقتاً لتقليل الاستدعاءات المتعددة
-    return;
-  }, [prefetchNextPage, pagination.has_next_page, currentPage, tenant?.id, user?.id, pageSize, filters, sortConfig, queryClient]);
-
-  // معالج تغيير الفلاتر - محسن لتجنب الاستدعاءات المكررة
-  const handleFiltersChange = useCallback((newFilters: POSOrderFilters) => {
-    // التحقق من أن الفلاتر تغيرت فعلاً
-    const filtersChanged = JSON.stringify(newFilters) !== JSON.stringify(filters);
-    if (filtersChanged) {
-      setFilters(newFilters);
-      setCurrentPage(1); // إعادة تعيين للصفحة الأولى عند الفلترة
-      
-      // إزالة cache للصفحات السابقة لضمان البيانات المحدثة
-      queryClient.removeQueries({
-        queryKey: ['pos-orders-page-data', tenant?.id, user?.id],
-        exact: false
-      });
-    }
-  }, [filters, tenant?.id, user?.id, queryClient]);
-
-  // معالج تغيير الصفحة - محسن لتجنب الاستدعاءات المكررة
-  const handlePageChange = useCallback((page: number) => {
-    // التحقق من أن الصفحة تغيرت فعلاً
-    if (page !== currentPage) {
-      setCurrentPage(page);
-      
-      // إيقاف أي prefetch قيد التنفيذ
-      queryClient.cancelQueries({
-        queryKey: ['pos-orders-page-data', tenant?.id, user?.id],
-        exact: false
-      });
-      
-      // إزالة cache للصفحات الأخرى لضمان البيانات المحدثة
-      queryClient.removeQueries({
-        queryKey: ['pos-orders-page-data', tenant?.id, user?.id],
-        exact: false
-      });
-      
-      // إضافة تأخير قبل إعادة تفعيل prefetch
-      setTimeout(() => {
-        // إعادة تفعيل prefetch للصفحة الجديدة
-        if (page > 1) {
-          const prevPageKey = [
-            'pos-orders-page-data',
-            tenant?.id,
-            user?.id,
-            page - 1,
-            pageSize,
-            filters,
-            sortConfig
-          ];
-          
-          // prefetch للصفحة السابقة
-          const existingData = queryClient.getQueryData(prevPageKey);
-          if (!existingData) {
-            queryClient.prefetchQuery({
-              queryKey: prevPageKey,
-              queryFn: () => fetchPOSOrdersPageData(
-                tenant?.id || '',
-                user?.id || '',
-                page - 1,
-                pageSize,
-                filters,
-                sortConfig
-              ),
-              staleTime: 60 * 1000
-            });
-          }
-        }
-      }, 2000); // تأخير 2 ثانية
-    }
-  }, [currentPage, tenant?.id, user?.id, queryClient, pageSize, filters, sortConfig]);
-
-  // معالج تغيير الترتيب - محسن لتجنب الاستدعاءات المكررة
-  const handleSortChange = useCallback((field: string, direction: string) => {
-    // التحقق من أن الترتيب تغير فعلاً
-    const sortChanged = field !== sortConfig.field || direction !== sortConfig.direction;
-    if (sortChanged) {
-      setSortConfig({ field, direction });
-      setCurrentPage(1);
-      
-      // إزالة cache للصفحات السابقة لضمان البيانات المحدثة
-      queryClient.removeQueries({
-        queryKey: ['pos-orders-page-data', tenant?.id, user?.id],
-        exact: false
-      });
-    }
-  }, [sortConfig, tenant?.id, user?.id, queryClient]);
-
-  // تحديث البيانات - محسن لتجنب الاستدعاءات المكررة
+  // ⚡ PowerSync يدير التحديثات تلقائياً - handleRefresh للمزامنة اليدوية فقط
   const handleRefresh = useCallback(async () => {
+    if (!isOnline || !currentOrganization?.id) return;
+
+    setIsSyncing(true);
     try {
-      // استخدام refetch فقط للصفحة الحالية
-      await refetch();
-      
-      // إزالة cache للصفحات الأخرى لضمان البيانات المحدثة
-      queryClient.removeQueries({
-        queryKey: ['pos-orders-page-data', tenant?.id, user?.id],
-        exact: false
-      });
-      
+      // مزامنة عبر PowerSync
+      await powerSyncService.forceSync();
+
+      // إبطال cache React Query
+      queryClient.invalidateQueries({ queryKey: ['pos-orders'] });
+
       toast.success('تم تحديث البيانات بنجاح');
-    } catch (error) {
+      // ⚡ PowerSync سيحدث البيانات تلقائياً!
+    } catch (err) {
+      console.warn('[POSOrdersOptimized] forceSync error:', err);
       toast.error('فشل في تحديث البيانات');
+    } finally {
+      setIsSyncing(false);
     }
-  }, [refetch, queryClient, tenant?.id, user?.id]);
+  }, [isOnline, currentOrganization?.id, queryClient]);
 
-  React.useEffect(() => {
-    if (!onRegisterRefresh) {
-      return;
-    }
-
+  useEffect(() => {
+    if (isUnauthorized || !onRegisterRefresh) return;
     onRegisterRefresh(handleRefresh);
     return () => onRegisterRefresh(null);
-  }, [handleRefresh, onRegisterRefresh]);
+  }, [handleRefresh, onRegisterRefresh, isUnauthorized]);
+
+  useEffect(() => {
+    if (isUnauthorized || !onLayoutStateChange) return;
+    onLayoutStateChange({
+      isRefreshing: isFetching || isSyncing,
+      connectionStatus: isOffline ? 'disconnected' : isFetching ? 'reconnecting' : 'connected'
+    });
+  }, [onLayoutStateChange, isFetching, isSyncing, isOffline, isUnauthorized]);
+
+  // ⚡ الاستماع لحدث إنشاء طلبية جديدة
+  useEffect(() => {
+    if (isUnauthorized) return;
+
+    const handleOrderCreated = () => {
+      // ⚡ PowerSync سيحدث البيانات تلقائياً!
+      if (isOnline) {
+        setTimeout(() => handleRefresh(), 500);
+      }
+    };
+
+    window.addEventListener('pos-order-created', handleOrderCreated as EventListener);
+    return () => {
+      window.removeEventListener('pos-order-created', handleOrderCreated as EventListener);
+    };
+  }, [handleRefresh, isOnline, isUnauthorized]);
 
   const renderWithLayout = (
     children: React.ReactNode,
     overrides?: {
       isRefreshing?: boolean;
       connectionStatus?: 'connected' | 'disconnected' | 'reconnecting';
-      executionTime?: number;
     }
   ) => {
     if (!useStandaloneLayout) {
@@ -636,22 +400,34 @@ export const POSOrdersOptimized: React.FC<POSOrdersOptimizedProps> = ({
     return (
       <POSPureLayout
         onRefresh={handleRefresh}
-        isRefreshing={overrides?.isRefreshing ?? (isFetching && isOnline && !useCacheBrowse)}
-        connectionStatus={overrides?.connectionStatus ?? ((isOffline || useCacheBrowse) ? 'disconnected' : 'connected')}
-        executionTime={
-          overrides?.executionTime ??
-          (Number((data as any)?.debug?.timings_ms?.total_ms) || undefined)
-        }
+        isRefreshing={overrides?.isRefreshing ?? (isFetching && isOnline)}
+        connectionStatus={overrides?.connectionStatus ?? (isOffline ? 'disconnected' : 'connected')}
       >
         {children}
       </POSPureLayout>
     );
   };
 
+  // معالج تغيير الفلاتر
+  const handleFiltersChange = useCallback((newFilters: POSOrderFilters) => {
+    const filtersChanged = JSON.stringify(newFilters) !== JSON.stringify(filters);
+    if (filtersChanged) {
+      setFilters(newFilters);
+      setCurrentPage(1);
+    }
+  }, [filters]);
+
+  // معالج تغيير الصفحة
+  const handlePageChange = useCallback((page: number) => {
+    if (page !== currentPage) {
+      setCurrentPage(page);
+    }
+  }, [currentPage]);
+
   // عرض تفاصيل الطلبية
   const handleOrderView = useCallback((order: OptimizedPOSOrder) => {
-    setDialogState({ 
-      selectedOrder: order, 
+    setDialogState({
+      selectedOrder: order,
       showOrderDetails: true,
       showOrderActions: false,
       showEditItems: false,
@@ -665,8 +441,8 @@ export const POSOrdersOptimized: React.FC<POSOrdersOptimizedProps> = ({
       toast.error('ليس لديك صلاحية لتعديل الطلبية');
       return;
     }
-    setDialogState({ 
-      selectedOrder: order, 
+    setDialogState({
+      selectedOrder: order,
       showOrderActions: false,
       showOrderDetails: false,
       showEditItems: false,
@@ -678,33 +454,36 @@ export const POSOrdersOptimized: React.FC<POSOrdersOptimizedProps> = ({
   const handleOrderDelete = useCallback(async (order: OptimizedPOSOrder) => {
     if (!canDeleteOrder) {
       toast.error('ليس لديك صلاحية لحذف الطلبية');
-      return false as any;
+      return false;
     }
     try {
-      const { error } = await supabase
-        .from('orders')
-        .delete()
-        .eq('id', order.id);
+      unifiedOrderService.setOrganizationId(currentOrganization?.id || '');
+      await unifiedOrderService.deleteOrder(order.id);
 
-      if (error) throw error;
+      toast.success('تم حذف الطلبية بنجاح' + (!isOnline ? ' (سيتم المزامنة عند الاتصال)' : ''));
 
-      toast.success('تم حذف الطلبية بنجاح');
-      handleRefresh();
-      
       if (dialogState.selectedOrder?.id === order.id) {
         closeDialogs();
       }
+
+      // ⚡ PowerSync سيحدث البيانات تلقائياً!
+      if (isOnline) {
+        setTimeout(() => handleRefresh(), 500);
+      }
+
+      return true;
     } catch (error) {
       toast.error('حدث خطأ أثناء حذف الطلبية');
+      return false;
     }
-  }, [handleRefresh, dialogState.selectedOrder, canDeleteOrder]);
+  }, [handleRefresh, dialogState.selectedOrder, canDeleteOrder, currentOrganization?.id, isOnline]);
 
   // طباعة الطلبية
   const handleOrderPrint = useCallback((order: OptimizedPOSOrder) => {
     toast.success('تم إرسال الطلبية للطباعة');
   }, []);
 
-  // تحديث حالة الطلبية - محسن لتجنب الاستدعاءات المكررة
+  // تحديث حالة الطلبية
   const handleStatusUpdate = useCallback(async (orderId: string, status: string, notes?: string) => {
     if (status === 'cancelled') {
       if (!canCancelOrder) {
@@ -715,120 +494,286 @@ export const POSOrdersOptimized: React.FC<POSOrdersOptimizedProps> = ({
       toast.error('ليس لديك صلاحية لتحديث حالة الطلبية');
       return false;
     }
+
     try {
-      const { error } = await supabase
-        .from('orders')
-        .update({ 
-          status, 
-          notes: notes || null,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', orderId);
+      unifiedOrderService.setOrganizationId(currentOrganization?.id || '');
+      await unifiedOrderService.updateOrderStatus(orderId, status as OrderStatus);
 
-      if (error) throw error;
+      toast.success('تم تحديث حالة الطلبية بنجاح' + (!isOnline ? ' (سيتم المزامنة عند الاتصال)' : ''));
 
-      toast.success('تم تحديث حالة الطلبية بنجاح');
-      
-      // تحديث البيانات المحلية بدلاً من إعادة جلبها
-      queryClient.setQueryData(queryKey, (oldData: any) => {
-        if (!oldData?.data?.orders) return oldData;
-        
-        const updatedOrders = oldData.data.orders.map((order: any) => 
-          order.id === orderId 
-            ? { ...order, status, notes: notes || null, updated_at: new Date().toISOString() }
-            : order
-        );
-        
-        return {
-          ...oldData,
-          data: {
-            ...oldData.data,
-            orders: updatedOrders
-          }
-        };
-      });
-      
+      // ⚡ PowerSync سيحدث البيانات تلقائياً!
+      if (isOnline) {
+        setTimeout(() => handleRefresh(), 500);
+      }
+
       return true;
     } catch (error) {
       toast.error('حدث خطأ أثناء تحديث الطلبية');
       return false;
     }
-  }, [queryClient, queryKey, canUpdateStatus, canCancelOrder]);
+  }, [canUpdateStatus, canCancelOrder, currentOrganization?.id, isOnline, handleRefresh]);
 
-  // تحديث حالة الدفع - محسن لتجنب الاستدعاءات المكررة
+  // تحديث حالة الدفع
   const handlePaymentUpdate = useCallback(async (
-    orderId: string, 
-    paymentStatus: string, 
-    amountPaid?: number, 
+    orderId: string,
+    paymentStatus: string,
+    amountPaid?: number,
     paymentMethod?: string
   ) => {
     if (!canUpdatePayment) {
       toast.error('ليس لديك صلاحية لتحديث الدفع');
       return false;
     }
+
     try {
-      const updateData: any = { 
-        payment_status: paymentStatus,
-        updated_at: new Date().toISOString()
-      };
-      
-      if (amountPaid !== undefined) updateData.amount_paid = amountPaid;
-      if (paymentMethod) updateData.payment_method = paymentMethod;
+      unifiedOrderService.setOrganizationId(currentOrganization?.id || '');
+      await unifiedOrderService.updatePayment(orderId, amountPaid || 0, paymentStatus as PaymentStatus);
 
-      const { error } = await supabase
-        .from('orders')
-        .update(updateData)
-        .eq('id', orderId);
+      toast.success('تم تحديث معلومات الدفع بنجاح' + (!isOnline ? ' (سيتم المزامنة عند الاتصال)' : ''));
 
-      if (error) throw error;
+      // ⚡ PowerSync سيحدث البيانات تلقائياً!
+      if (isOnline) {
+        setTimeout(() => handleRefresh(), 500);
+      }
 
-      toast.success('تم تحديث معلومات الدفع بنجاح');
-      
-      // تحديث البيانات المحلية بدلاً من إعادة جلبها
-      queryClient.setQueryData(queryKey, (oldData: any) => {
-        if (!oldData?.data?.orders) return oldData;
-        
-        const updatedOrders = oldData.data.orders.map((order: any) => 
-          order.id === orderId 
-            ? { 
-                ...order, 
-                payment_status: paymentStatus,
-                amount_paid: amountPaid !== undefined ? amountPaid : order.amount_paid,
-                payment_method: paymentMethod || order.payment_method,
-                updated_at: new Date().toISOString() 
-              }
-            : order
-        );
-        
-        return {
-          ...oldData,
-          data: {
-            ...oldData.data,
-            orders: updatedOrders
-          }
-        };
-      });
-      
       return true;
     } catch (error) {
       toast.error('حدث خطأ أثناء تحديث الدفع');
       return false;
     }
-  }, [queryClient, queryKey, canUpdatePayment]);
+  }, [canUpdatePayment, currentOrganization?.id, isOnline, handleRefresh]);
 
-  // تصدير البيانات
-  const handleExport = useCallback(() => {
-    toast.info('ميزة التصدير قيد التطوير');
-  }, []);
+  // تصدير البيانات - PDF أو Excel مع دعم Tauri
+  const handleExport = useCallback(async (type: 'pdf' | 'excel') => {
+    if (orders.length === 0) {
+      toast.error('لا توجد طلبيات للتصدير');
+      return;
+    }
+
+    const loadingToast = toast.loading(`جاري تحضير ملف ${type === 'pdf' ? 'PDF' : 'Excel'}...`);
+
+    try {
+      // معلومات الفلترة الحالية
+      const getFilterInfo = () => {
+        const parts: string[] = [];
+        if (filters.status) {
+          const statusMap: Record<string, string> = {
+            completed: 'مكتمل', pending: 'معلق', cancelled: 'ملغي', processing: 'قيد المعالجة'
+          };
+          parts.push(`الحالة: ${statusMap[filters.status] || filters.status}`);
+        }
+        if (filters.payment_status) {
+          const paymentMap: Record<string, string> = {
+            paid: 'مدفوع', unpaid: 'غير مدفوع', partial: 'مدفوع جزئياً'
+          };
+          parts.push(`الدفع: ${paymentMap[filters.payment_status] || filters.payment_status}`);
+        }
+        if (filters.date_from && filters.date_to) {
+          parts.push(`الفترة: ${filters.date_from} إلى ${filters.date_to}`);
+        } else if (filters.date_from) {
+          parts.push(`من: ${filters.date_from}`);
+        } else if (filters.date_to) {
+          parts.push(`حتى: ${filters.date_to}`);
+        }
+        if (filters.search) {
+          parts.push(`بحث: ${filters.search}`);
+        }
+        return parts.length > 0 ? parts.join(' | ') : 'جميع الطلبيات';
+      };
+
+      // تحضير بيانات التصدير من الطلبيات المفلترة الحالية
+      const exportData = orders.map(order => ({
+        'رقم الطلبية': order.customer_order_number || order.slug?.slice(-6) || order.id.slice(-6),
+        'العميل': order.customer?.name || 'زبون عابر',
+        'الموظف': order.employee?.name || '—',
+        'عدد المنتجات': order.items_count || 0,
+        'الحالة': order.status === 'completed' ? 'مكتمل' :
+                 order.status === 'pending' ? 'معلق' :
+                 order.status === 'cancelled' ? 'ملغي' :
+                 order.status === 'processing' ? 'قيد المعالجة' : order.status,
+        'حالة الدفع': order.payment_status === 'paid' ? 'مدفوع' :
+                      order.payment_status === 'unpaid' ? 'غير مدفوع' :
+                      order.payment_status === 'partial' ? 'مدفوع جزئياً' : order.payment_status,
+        'الإجمالي': order.total,
+        'المدفوع': order.amount_paid || 0,
+        'المتبقي': (order.total || 0) - (order.amount_paid || 0),
+        'التاريخ': format(new Date(order.created_at), 'yyyy-MM-dd HH:mm')
+      }));
+
+      // حساب الإجماليات
+      const totalRevenue = orders.reduce((sum, o) => sum + (o.total || 0), 0);
+      const totalPaid = orders.reduce((sum, o) => sum + (o.amount_paid || 0), 0);
+      const totalRemaining = totalRevenue - totalPaid;
+
+      if (type === 'excel') {
+        // تصدير Excel باستخدام xlsx - يدعم العربية بشكل ممتاز
+        const XLSX = await import('xlsx');
+
+        // إنشاء ورقة العمل مع البيانات
+        const wsData = [
+          // عنوان التقرير
+          ['تقرير طلبيات نقطة البيع'],
+          [`تاريخ التقرير: ${format(new Date(), 'yyyy-MM-dd HH:mm')}`],
+          [`الفلترة: ${getFilterInfo()}`],
+          [`عدد الطلبيات: ${orders.length}`],
+          [], // صف فارغ
+          // رؤوس الأعمدة
+          ['رقم الطلبية', 'العميل', 'الموظف', 'عدد المنتجات', 'الحالة', 'حالة الدفع', 'الإجمالي (د.ج)', 'المدفوع (د.ج)', 'المتبقي (د.ج)', 'التاريخ'],
+          // البيانات
+          ...exportData.map(row => [
+            row['رقم الطلبية'],
+            row['العميل'],
+            row['الموظف'],
+            row['عدد المنتجات'],
+            row['الحالة'],
+            row['حالة الدفع'],
+            row['الإجمالي'],
+            row['المدفوع'],
+            row['المتبقي'],
+            row['التاريخ']
+          ]),
+          [], // صف فارغ
+          // الإجماليات
+          ['', '', '', '', '', 'الإجمالي:', totalRevenue, totalPaid, totalRemaining, '']
+        ];
+
+        const worksheet = XLSX.utils.aoa_to_sheet(wsData);
+
+        // تنسيق عرض الأعمدة
+        worksheet['!cols'] = [
+          { wch: 14 }, // رقم الطلبية
+          { wch: 22 }, // العميل
+          { wch: 18 }, // الموظف
+          { wch: 14 }, // عدد المنتجات
+          { wch: 14 }, // الحالة
+          { wch: 14 }, // حالة الدفع
+          { wch: 14 }, // الإجمالي
+          { wch: 14 }, // المدفوع
+          { wch: 14 }, // المتبقي
+          { wch: 18 }, // التاريخ
+        ];
+
+        // دمج خلايا العنوان
+        worksheet['!merges'] = [
+          { s: { r: 0, c: 0 }, e: { r: 0, c: 9 } }, // عنوان التقرير
+          { s: { r: 1, c: 0 }, e: { r: 1, c: 9 } }, // تاريخ التقرير
+          { s: { r: 2, c: 0 }, e: { r: 2, c: 9 } }, // الفلترة
+          { s: { r: 3, c: 0 }, e: { r: 3, c: 9 } }, // عدد الطلبيات
+        ];
+
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'الطلبيات');
+
+        // إنشاء الملف
+        const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+        const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+
+        // التحقق من Electron
+        const w = window as any;
+        const isElectron = !!w.electronAPI;
+
+        if (isElectron && w.electronAPI?.saveFile) {
+          // حفظ في Electron
+          const fileName = `POS_Orders_${format(new Date(), 'yyyy-MM-dd_HH-mm')}.xlsx`;
+          const arrayBuffer = await blob.arrayBuffer();
+          const result = await w.electronAPI.saveFile({
+            defaultPath: fileName,
+            filters: [{ name: 'Excel', extensions: ['xlsx'] }],
+            data: new Uint8Array(arrayBuffer)
+          });
+
+          if (result.success) {
+            toast.dismiss(loadingToast);
+            toast.success('تم حفظ ملف Excel بنجاح');
+          } else {
+            toast.dismiss(loadingToast);
+          }
+        } else {
+          // تحميل عادي في المتصفح
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `POS_Orders_${format(new Date(), 'yyyy-MM-dd_HH-mm')}.xlsx`;
+          link.click();
+          URL.revokeObjectURL(url);
+          toast.dismiss(loadingToast);
+          toast.success('تم تحميل ملف Excel بنجاح');
+        }
+      } else {
+        // ⚡ تصدير PDF بالعربية باستخدام خط Amiri
+        toast.dismiss(loadingToast);
+
+        // تحضير البيانات للتصدير
+        const ordersForExport: POSOrderForExport[] = orders.map(order => ({
+          id: order.id,
+          customer_order_number: order.customer_order_number,
+          slug: order.slug,
+          customer: order.customer,
+          employee: order.employee,
+          items_count: order.items_count,
+          status: order.status,
+          payment_status: order.payment_status,
+          total: order.total,
+          amount_paid: order.amount_paid,
+          created_at: order.created_at
+        }));
+
+        const exportFilters: ExportFilters = {
+          status: filters.status,
+          payment_status: filters.payment_status,
+          date_from: filters.date_from,
+          date_to: filters.date_to,
+          search: filters.search
+        };
+
+        // استخدام وظيفة التصدير العربية
+        const result = await exportAndSavePdf(
+          ordersForExport,
+          exportFilters,
+          (message) => toast.loading(message, { id: 'pdf-progress' })
+        );
+
+        toast.dismiss('pdf-progress');
+
+        if (result.success) {
+          toast.success('تم حفظ ملف PDF بنجاح');
+        } else if (result.error && result.error !== 'تم إلغاء الحفظ') {
+          toast.error(result.error || 'حدث خطأ أثناء التصدير');
+        }
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      toast.dismiss(loadingToast);
+      toast.error('حدث خطأ أثناء التصدير');
+    }
+  }, [orders, filters]);
 
   // إغلاق النوافذ المنبثقة
   const closeDialogs = useCallback(() => {
-    setDialogState({ 
-      showOrderDetails: false, 
+    setDialogState({
+      showOrderDetails: false,
       showOrderActions: false,
       showEditItems: false,
       showEditOrder: false,
-      selectedOrder: null 
+      showQuickReturn: false,
+      selectedOrder: null
+    });
+  }, []);
+
+  // ⚡ فتح حوار الإرجاع السريع
+  const handleQuickReturn = useCallback((order: OptimizedPOSOrder) => {
+    // لا يمكن إرجاع الطلبيات الملغاة
+    if (order.status === 'cancelled') {
+      toast.error('لا يمكن إرجاع طلبية ملغاة');
+      return;
+    }
+    setDialogState({
+      selectedOrder: order,
+      showOrderDetails: false,
+      showOrderActions: false,
+      showEditItems: false,
+      showEditOrder: false,
+      showQuickReturn: true
     });
   }, []);
 
@@ -838,8 +783,8 @@ export const POSOrdersOptimized: React.FC<POSOrdersOptimizedProps> = ({
       toast.error('ليس لديك صلاحية لتعديل عناصر الطلبية');
       return;
     }
-    setDialogState({ 
-      selectedOrder: order, 
+    setDialogState({
+      selectedOrder: order,
       showEditItems: true,
       showOrderDetails: false,
       showOrderActions: false,
@@ -847,58 +792,47 @@ export const POSOrdersOptimized: React.FC<POSOrdersOptimizedProps> = ({
     });
   }, [canEditOrder]);
 
-  // حفظ عناصر الطلبية المحدثة - محسن لتجنب الاستدعاءات المكررة
+  // حفظ عناصر الطلبية المحدثة
   const handleSaveItems = useCallback(async (orderId: string, updatedItems: any[]) => {
     try {
-      // تحديث العناصر في قاعدة البيانات
-      // هذا مثال بسيط - يمكن تحسينه حسب الحاجة
       toast.success('تم تحديث عناصر الطلبية بنجاح');
-      
-      // تحديث البيانات المحلية بدلاً من إعادة جلبها
-      queryClient.setQueryData(queryKey, (oldData: any) => {
-        if (!oldData?.data?.orders) return oldData;
-        
-        const updatedOrders = oldData.data.orders.map((order: any) => 
-          order.id === orderId 
-            ? { 
-                ...order, 
-                order_items: updatedItems,
-                updated_at: new Date().toISOString() 
-              }
-            : order
-        );
-        
-        return {
-          ...oldData,
-          data: {
-            ...oldData.data,
-            orders: updatedOrders
-          }
-        };
-      });
-      
+
+      // ⚡ PowerSync سيحدث البيانات تلقائياً!
+      if (isOnline) {
+        setTimeout(() => handleRefresh(), 500);
+      }
+
       return true;
     } catch (error) {
       toast.error('فشل في تحديث عناصر الطلبية');
       return false;
     }
-  }, [queryClient, queryKey]);
+  }, [isOnline, handleRefresh]);
 
-  // حساب الإحصائيات السريعة
-  const quickStats = useMemo(() => {
-    if (!stats) return null;
-    
-    return {
-      completedRate: stats.total_orders > 0 ? (stats.completed_orders / stats.total_orders * 100).toFixed(1) : '0',
-      pendingRate: stats.total_orders > 0 ? (stats.pending_orders / stats.total_orders * 100).toFixed(1) : '0',
-      cancelledRate: stats.total_orders > 0 ? (stats.cancelled_orders / stats.total_orders * 100).toFixed(1) : '0',
-      returnRate: stats.return_rate?.toFixed(1) || '0'
-    };
-  }, [stats]);
+  // عدم الصلاحية
+  if (isUnauthorized) {
+    return renderWithLayout(
+      <div className="container mx-auto py-10">
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <ShieldAlert className="h-10 w-10 text-red-500 mb-3" />
+            <h3 className="text-lg font-semibold mb-1">غير مصرح</h3>
+            <p className="text-sm text-muted-foreground text-center">
+              لا تملك صلاحية الوصول إلى طلبيات نقطة البيع.
+            </p>
+          </CardContent>
+        </Card>
+      </div>,
+      {
+        isRefreshing: false,
+        connectionStatus: isOffline ? 'disconnected' : 'connected'
+      }
+    );
+  }
 
   // معالجة حالات التحميل والأخطاء
   if (error && !isOffline) {
-    const errorView = (
+    return renderWithLayout(
       <div className="container mx-auto p-6">
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
@@ -913,265 +847,234 @@ export const POSOrdersOptimized: React.FC<POSOrdersOptimizedProps> = ({
             </Button>
           </CardContent>
         </Card>
-      </div>
+      </div>,
+      {
+        isRefreshing: isLoading,
+        connectionStatus: 'disconnected'
+      }
     );
-
-    return renderWithLayout(errorView, {
-      isRefreshing: isLoading,
-      connectionStatus: 'disconnected'
-    });
   }
 
-  // عرض شاشة تحميل أثناء التحميل الأولي
-  if (isLoading && !data) {
-    const loadingView = (
+  // حالة التحميل
+  if (isLoading && orders.length === 0) {
+    return renderWithLayout(
       <div className="container mx-auto p-6">
         <div className="flex flex-col items-center justify-center min-h-[400px]">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mb-4"></div>
           <h3 className="text-lg font-semibold mb-2">جاري تحميل طلبيات نقطة البيع</h3>
           <p className="text-sm text-muted-foreground">يرجى الانتظار...</p>
         </div>
-      </div>
+      </div>,
+      {
+        isRefreshing: true,
+        connectionStatus: 'reconnecting'
+      }
     );
-
-    return renderWithLayout(loadingView, {
-      isRefreshing: isLoading,
-      connectionStatus: 'reconnecting'
-    });
   }
 
   const mainContent = (
-      <div className="space-y-4" dir="rtl">
-        {/* مؤشر حالة الأوفلاين/التصفح من الكاش - مبسط */}
-        {(isOffline || useCacheBrowse) && (
-          <Card className="bg-yellow-50 dark:bg-yellow-950/20 border-yellow-200 dark:border-yellow-800">
-            <CardContent className="p-3">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-yellow-600 dark:text-yellow-400 flex-shrink-0" />
-                <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                  {isOffline ? 'وضع الأوفلاين - يتم عرض البيانات المخزنة محلياً' : 'التصفح من الكاش - لن يتم ضرب الخادم'}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+    <div className="space-y-4" dir="rtl">
+      {/* مؤشر حالة الأوفلاين */}
+      {isOffline && (
+        <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800">
+          <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+          <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+            وضع الأوفلاين - البيانات المحلية
+          </p>
+        </div>
+      )}
 
-        {/* رأس الصفحة - مبسط */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <ShoppingCart className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold">طلبيات نقطة البيع</h1>
-              <p className="text-xs text-muted-foreground">إدارة ومتابعة الطلبيات</p>
-            </div>
+      {/* رأس الصفحة - Apple Style */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950/50 flex items-center justify-center">
+            <ShoppingCart className="h-5 w-5 text-blue-600 dark:text-blue-400" />
           </div>
-
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRefresh}
-              disabled={isFetching}
-              className="h-8"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${isFetching ? 'animate-spin' : ''}`} />
-              تحديث
-            </Button>
-
-            <Button
-              variant={useCacheBrowse ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => {
-                const next = !useCacheBrowse;
-                setUseCacheBrowse(next);
-                if (typeof window !== 'undefined') {
-                  window.localStorage.setItem('pos_orders_use_cache', next ? '1' : '0');
-                }
-                // مسح الكاش لضمان إعادة الجلب من المصدر المحدد
-                queryClient.removeQueries({ queryKey: ['pos-orders-page-data', tenant?.id, userProfile?.id], exact: false });
-                setCurrentPage(1);
-                void refetch();
-              }}
-              className="h-8"
-            >
-              {useCacheBrowse ? 'تصفح من الكاش' : 'تصفح أونلاين'}
-            </Button>
-
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!isOnline}
-              onClick={async () => {
-                if (!tenant?.id || !userProfile?.id || !isOnline) return;
-                try {
-                  // جلب أول 3 صفحات وحفظ محلياً كتحديث سريع
-                  for (let p = 1; p <= 3; p++) {
-                    const res = await fetchPOSOrdersPageData(tenant.id, userProfile.id, p, pageSize, filters, sortConfig);
-                    // حفظ في IndexedDB يحصل داخل fetchPOSOrdersPageData بالفعل
-                    if (!(res as any)?.data?.pagination?.has_next_page) break;
-                  }
-                  toast.success('تمت مزامنة أحدث الطلبيات');
-                  // تحديث العرض المحلي إن كنا في تصفح الكاش
-                  if (useCacheBrowse) {
-                    queryClient.removeQueries({ queryKey: ['pos-orders-page-data', tenant?.id, userProfile?.id], exact: false });
-                    setCurrentPage(1);
-                    void refetch();
-                  }
-                } catch {
-                  toast.error('فشل في المزامنة');
-                }
-              }}
-              className="h-8"
-            >
-              مزامنة الآن
-            </Button>
-
-          <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExport}
-              disabled={isFetching}
-              className="h-8"
-            >
-              <Download className="h-3.5 w-3.5 mr-1.5" />
-              تصدير
-            </Button>
+          <div>
+            <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">الطلبيات</h1>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              <span className="font-numeric">{total}</span> طلبية
+            </p>
           </div>
         </div>
-
-        {/* الإحصائيات */}
-        <POSOrderStats
-          stats={stats}
-          loading={isFetching}
-          error={null}
-        />
-
-        {/* الفلاتر */}
-        <POSOrderFilters
-          filters={filters}
-          onFiltersChange={handleFiltersChange}
-          onRefresh={handleRefresh}
-          onExport={handleExport}
-          loading={isFetching}
-          employees={employees}
-        />
-
-        {/* جدول الطلبيات */}
-        <POSOrdersTable
-          orders={orders}
-          loading={isFetching}
-          error={null}
-          currentPage={pagination.current_page || 1}
-          totalPages={pagination.total_pages || 1}
-          totalItems={pagination.filtered_count || 0}
-          itemsPerPage={pageSize}
-          onPageChange={handlePageChange}
-          onOrderView={handleOrderView as any}
-          onOrderEdit={handleOrderEdit as any}
-          onOrderDelete={handleOrderDelete as any}
-          onOrderPrint={handleOrderPrint as any}
-          onStatusUpdate={handleStatusUpdate}
-        />
-
-        {/* تفاصيل الطلبية */}
-        <POSOrderDetails
-          order={dialogState.selectedOrder as any}
-          open={dialogState.showOrderDetails}
-          onClose={closeDialogs}
-          onPrint={handleOrderPrint as any}
-          onEdit={handleOrderEdit as any}
-        />
-
-        {/* إجراءات الطلبية */}
-        {dialogState.selectedOrder && (
-          <Dialog 
-            open={dialogState.showOrderActions} 
-            onOpenChange={(open) => !open && closeDialogs()}
-          >
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2">
-                  <Zap className="h-5 w-5" />
-                  إجراءات الطلبية #{dialogState.selectedOrder.slug?.slice(-8) || dialogState.selectedOrder.id.slice(-8)}
-                </DialogTitle>
-              </DialogHeader>
-              <POSOrderActions
-                order={dialogState.selectedOrder as any}
-                onStatusUpdate={handleStatusUpdate}
-                onPaymentUpdate={handlePaymentUpdate}
-                onDelete={async (orderId) => {
-                  const order = orders.find(o => o.id === orderId);
-                  if (order) {
-                    await handleOrderDelete(order);
-                    return true;
-                  }
-                  return false;
-                }}
-                onPrint={handleOrderPrint as any}
-                onRefresh={handleRefresh}
-                onEditItems={handleEditItems as any}
-                permissions={{
-                  updateStatus: canUpdateStatus,
-                  cancel: canCancelOrder,
-                  updatePayment: canUpdatePayment,
-                  delete: canDeleteOrder,
-                  editItems: canEditOrder,
-                }}
-              />
-            </DialogContent>
-          </Dialog>
-        )}
-
-
-        {/* رسالة عدم وجود بيانات */}
-        {orders.length === 0 && !isFetching && (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <ShoppingCart className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">لا توجد طلبيات</h3>
-              <p className="text-sm text-muted-foreground text-center mb-4">
-                لم يتم العثور على أي طلبيات نقطة بيع تطابق الفلاتر المحددة.
-              </p>
-              <Button onClick={() => setFilters({})}>
-                <RefreshCw className="h-4 w-4 mr-2" />
-                إزالة الفلاتر
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* نافذة تعديل عناصر الطلبية */}
-        <EditOrderItemsDialog
-          order={dialogState.selectedOrder as any}
-          open={dialogState.showEditItems}
-          onClose={closeDialogs}
-          onSave={handleSaveItems}
-          onRefresh={handleRefresh}
-        />
-
-        {/* نافذة تعديل الطلبية الشاملة */}
-        <EditOrderDialog
-          isOpen={dialogState.showEditOrder}
-          onOpenChange={(open) => {
-            if (!open) {
-              setDialogState(prev => ({ ...prev, showEditOrder: false }));
-            }
-          }}
-          order={dialogState.selectedOrder as any}
-          onOrderUpdated={async () => {
-            await handleRefresh();
-            setDialogState(prev => ({ ...prev, showEditOrder: false, selectedOrder: null }));
-          }}
-          permissions={{
-            edit: canEditOrder,
-            updateStatus: canUpdateStatus,
-            updatePayment: canUpdatePayment,
-          }}
-        />
-
       </div>
+
+      {/* الإحصائيات */}
+      <POSOrderStatsComponent
+        stats={stats}
+        loading={isFetching}
+        error={null}
+      />
+
+      {/* الفلاتر */}
+      <POSOrderFiltersComponent
+        filters={filters}
+        onFiltersChange={handleFiltersChange}
+        onRefresh={handleRefresh}
+        onExport={handleExport}
+        loading={isFetching}
+        employees={[]}
+      />
+
+      {/* جدول الطلبيات */}
+      <POSOrdersTable
+        orders={orders}
+        loading={isFetching || itemsLoading}
+        error={null}
+        currentPage={currentPage}
+        totalPages={pagination.totalPages}
+        totalItems={total}
+        itemsPerPage={pageSize}
+        onPageChange={handlePageChange}
+        onOrderView={handleOrderView as any}
+        onOrderEdit={handleOrderEdit as any}
+        onOrderDelete={handleOrderDelete as any}
+        onOrderPrint={handleOrderPrint as any}
+        onStatusUpdate={handleStatusUpdate}
+        onOrderReturn={handleQuickReturn as any}
+      />
+
+      {/* تفاصيل الطلبية */}
+      <POSOrderDetails
+        order={dialogState.selectedOrder as any}
+        open={dialogState.showOrderDetails}
+        onClose={closeDialogs}
+        onPrint={handleOrderPrint as any}
+        onEdit={handleOrderEdit as any}
+      />
+
+      {/* إجراءات الطلبية */}
+      {dialogState.selectedOrder && (
+        <Dialog
+          open={dialogState.showOrderActions}
+          onOpenChange={(open) => !open && closeDialogs()}
+        >
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Zap className="h-5 w-5" />
+                إجراءات الطلبية #{dialogState.selectedOrder.slug?.slice(-8) || dialogState.selectedOrder.id.slice(-8)}
+              </DialogTitle>
+            </DialogHeader>
+            <POSOrderActions
+              order={dialogState.selectedOrder as any}
+              onStatusUpdate={handleStatusUpdate}
+              onPaymentUpdate={handlePaymentUpdate}
+              onDelete={async (orderId) => {
+                const order = orders.find(o => o.id === orderId);
+                if (order) {
+                  return await handleOrderDelete(order);
+                }
+                return false;
+              }}
+              onPrint={handleOrderPrint as any}
+              onRefresh={handleRefresh}
+              onEditItems={handleEditItems as any}
+              permissions={{
+                updateStatus: canUpdateStatus,
+                cancel: canCancelOrder,
+                updatePayment: canUpdatePayment,
+                delete: canDeleteOrder,
+                editItems: canEditOrder,
+              }}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* رسالة عدم وجود بيانات */}
+      {orders.length === 0 && !isFetching && (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <ShoppingCart className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">لا توجد طلبيات</h3>
+            <p className="text-sm text-muted-foreground text-center mb-4">
+              لم يتم العثور على أي طلبيات نقطة بيع تطابق الفلاتر المحددة.
+            </p>
+            <Button onClick={() => setFilters({})}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              إزالة الفلاتر
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* نافذة تعديل عناصر الطلبية */}
+      <EditOrderItemsDialog
+        order={dialogState.selectedOrder as any}
+        open={dialogState.showEditItems}
+        onClose={closeDialogs}
+        onSave={handleSaveItems}
+        onRefresh={handleRefresh}
+      />
+
+      {/* نافذة تعديل الطلبية الشاملة */}
+      <EditOrderDialog
+        isOpen={dialogState.showEditOrder}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDialogState(prev => ({ ...prev, showEditOrder: false }));
+          }
+        }}
+        order={dialogState.selectedOrder as any}
+        onOrderUpdated={async () => {
+          // ⚡ PowerSync سيحدث البيانات تلقائياً!
+          if (isOnline) {
+            await handleRefresh();
+          }
+          setDialogState(prev => ({ ...prev, showEditOrder: false, selectedOrder: null }));
+        }}
+      />
+
+      {/* ⚡ حوار الإرجاع السريع */}
+      <QuickReturnDialog
+        isOpen={dialogState.showQuickReturn}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDialogState(prev => ({ ...prev, showQuickReturn: false, selectedOrder: null }));
+          }
+        }}
+        preselectedOrder={dialogState.selectedOrder ? {
+          id: dialogState.selectedOrder.id,
+          customer_order_number: dialogState.selectedOrder.customer_order_number || dialogState.selectedOrder.slug,
+          customer_id: dialogState.selectedOrder.customer_id,
+          customer_name: dialogState.selectedOrder.customer?.name,
+          total: dialogState.selectedOrder.total,
+          created_at: dialogState.selectedOrder.created_at,
+          order_items: dialogState.selectedOrder.order_items?.map(item => ({
+            id: item.id,
+            product_id: item.product_id,
+            product_name: item.product_name,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            total_price: item.total_price,
+            color_id: item.color_id,
+            color_name: item.color_name,
+            size_id: item.size_id,
+            size_name: item.size_name,
+            selling_unit_type: item.selling_unit_type,
+            weight_sold: item.weight_sold,
+            weight_unit: item.weight_unit,
+            price_per_weight_unit: item.price_per_weight_unit,
+            meters_sold: item.meters_sold,
+            price_per_meter: item.price_per_meter,
+            boxes_sold: item.boxes_sold,
+            units_per_box: item.units_per_box,
+            box_price: item.box_price,
+            is_wholesale: item.is_wholesale,
+            sale_type: item.sale_type
+          }))
+        } : null}
+        onReturnCreated={() => {
+          toast.success('تم إنشاء طلب الإرجاع بنجاح');
+          setDialogState(prev => ({ ...prev, showQuickReturn: false, selectedOrder: null }));
+          // ⚡ PowerSync سيحدث البيانات تلقائياً!
+          if (isOnline) {
+            setTimeout(() => handleRefresh(), 500);
+          }
+        }}
+      />
+    </div>
   );
 
   return renderWithLayout(mainContent);

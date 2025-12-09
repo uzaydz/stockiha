@@ -7,7 +7,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { useTauriUpdater } from '@/hooks/useTauriUpdater';
+import { useElectronUpdater } from '@/hooks/useTauriUpdater';
 
 interface UpdateInfo {
   version: string;
@@ -41,83 +41,80 @@ const UpdateButton: React.FC = () => {
   const [isDevMode, setIsDevMode] = useState(false);
   const checkingTimeoutRef = useRef<number | null>(null);
 
-  // Tauri Updater Hook
-  const tauriUpdater = useTauriUpdater();
+  // Electron Updater Hook
+  const electronUpdater = useElectronUpdater();
 
-  const isElectron = typeof window !== 'undefined' && (window as any).electronAPI?.updater;
-
-  // التحقق من Tauri
-  const isTauri = typeof window !== 'undefined' && Boolean(
-    (window as any).__TAURI_IPC__ ||
-    (window as any).__TAURI__ ||
-    (window as any).__TAURI_INTERNALS__
+  // Check for Electron
+  const isElectron = typeof window !== 'undefined' && (
+    (window as any).electronAPI?.updater ||
+    (window as any).electronAPI ||
+    (window as any).__ELECTRON__ ||
+    (window as any).electron?.isElectron
   );
 
-  // التطبيق desktop (Electron أو Tauri)
-  const isDesktopApp = isElectron || isTauri;
+  // Desktop app is Electron only (Tauri removed)
+  const isDesktopApp = isElectron;
 
-  // Tauri: جلب الإصدار الحالي والاستماع للأحداث
+  // Electron: Sync state from hook
   useEffect(() => {
-    if (!isTauri || isElectron) return;
+    if (!isElectron) return;
 
-    // استخدام الإصدار من الـ hook
-    if (tauriUpdater.currentVersion) {
-      setCurrentVersion(tauriUpdater.currentVersion);
-    }
-  }, [isTauri, isElectron, tauriUpdater.currentVersion]);
-
-  // Tauri: مزامنة الحالة من الـ hook
-  useEffect(() => {
-    if (!isTauri || isElectron) return;
-
-    // تحديث الحالة من الـ hook
-    if (tauriUpdater.status !== 'idle') {
-      setUpdateStatus(tauriUpdater.status as UpdateStatus);
+    // Update version from hook
+    if (electronUpdater.currentVersion) {
+      setCurrentVersion(electronUpdater.currentVersion);
     }
 
-    // تحديث progress
-    if (tauriUpdater.progress) {
+    // Update status from hook
+    if (electronUpdater.status !== 'idle') {
+      setUpdateStatus(electronUpdater.status as UpdateStatus);
+    }
+
+    // Update progress
+    if (electronUpdater.progress) {
       setDownloadProgress({
-        percent: tauriUpdater.progress.percent,
-        transferred: tauriUpdater.progress.downloaded,
-        total: tauriUpdater.progress.total,
-        bytesPerSecond: tauriUpdater.progress.bytesPerSecond,
+        percent: electronUpdater.progress.percent,
+        transferred: electronUpdater.progress.downloaded,
+        total: electronUpdater.progress.total,
+        bytesPerSecond: electronUpdater.progress.bytesPerSecond,
       });
     }
 
-    // تحديث معلومات التحديث
-    if (tauriUpdater.updateInfo) {
+    // Update info
+    if (electronUpdater.updateInfo) {
       setUpdateInfo({
-        version: tauriUpdater.updateInfo.version,
-        releaseNotes: tauriUpdater.updateInfo.body,
+        version: electronUpdater.updateInfo.version,
+        releaseNotes: electronUpdater.updateInfo.body,
       });
     }
 
-    // تحديث آخر وقت فحص
-    if (tauriUpdater.lastCheckTime) {
-      setLastCheckTime(tauriUpdater.lastCheckTime);
+    // Update last check time
+    if (electronUpdater.lastCheckTime) {
+      setLastCheckTime(electronUpdater.lastCheckTime);
     }
 
-    // التحقق من وضع التطوير
-    if (tauriUpdater.hasError && tauriUpdater.error?.includes('not configured')) {
+    // Check dev mode
+    if (electronUpdater.hasError && electronUpdater.error?.includes('not configured')) {
       setIsDevMode(true);
     }
   }, [
-    isTauri,
     isElectron,
-    tauriUpdater.status,
-    tauriUpdater.progress,
-    tauriUpdater.updateInfo,
-    tauriUpdater.lastCheckTime,
-    tauriUpdater.hasError,
-    tauriUpdater.error,
+    electronUpdater.status,
+    electronUpdater.progress,
+    electronUpdater.updateInfo,
+    electronUpdater.lastCheckTime,
+    electronUpdater.hasError,
+    electronUpdater.error,
+    electronUpdater.currentVersion,
   ]);
 
   useEffect(() => {
     if (!isElectron) return;
 
+    const api = (window as any).electronAPI;
+    if (!api?.updater) return;
+
     console.log('[UpdateButton] Initializing updater UI.');
-    (window as any).electronAPI.updater.getVersion().then((version: string) => {
+    api.updater.getVersion().then((version: string) => {
       console.log('[UpdateButton] Current app version:', version);
       setCurrentVersion(version);
     }).catch((error: any) => {
@@ -126,26 +123,26 @@ const UpdateButton: React.FC = () => {
       setIsDevMode(true);
     });
 
-    const unsubscribeChecking = (window as any).electronAPI.updater.onCheckingForUpdate(() => {
+    const unsubscribeChecking = api.updater.onCheckingForUpdate(() => {
       console.log('[UpdateButton] Event: checking-for-update');
       setUpdateStatus('checking');
       setLastCheckTime(new Date());
     });
 
-    const unsubscribeAvailable = (window as any).electronAPI.updater.onUpdateAvailable((info: UpdateInfo) => {
+    const unsubscribeAvailable = api.updater.onUpdateAvailable((info: UpdateInfo) => {
       console.log('[UpdateButton] Event: update-available', info);
       setUpdateStatus('available');
       setUpdateInfo(info);
       toast.success(`تحديث جديد: ${info.version}`, { icon: '🎉' });
     });
 
-    const unsubscribeNotAvailable = (window as any).electronAPI.updater.onUpdateNotAvailable(() => {
+    const unsubscribeNotAvailable = api.updater.onUpdateNotAvailable(() => {
       console.log('[UpdateButton] Event: update-not-available');
       setUpdateStatus('not-available');
       setLastCheckTime(new Date());
     });
 
-    const unsubscribeProgress = (window as any).electronAPI.updater.onDownloadProgress((progress: DownloadProgress) => {
+    const unsubscribeProgress = api.updater.onDownloadProgress((progress: DownloadProgress) => {
       console.log('[UpdateButton] Event: download-progress', {
         percent: Math.round(progress.percent),
         transferredMB: (progress.transferred / 1024 / 1024).toFixed(2),
@@ -156,45 +153,45 @@ const UpdateButton: React.FC = () => {
       setDownloadProgress(progress);
     });
 
-    const unsubscribeDownloaded = (window as any).electronAPI.updater.onUpdateDownloaded((info: UpdateInfo) => {
+    const unsubscribeDownloaded = api.updater.onUpdateDownloaded((info: UpdateInfo) => {
       console.log('[UpdateButton] Event: update-downloaded', info);
       setUpdateStatus('downloaded');
       setUpdateInfo(info);
       toast.success('تم تنزيل التحديث!', { icon: '✅' });
     });
 
-    const unsubscribeError = (window as any).electronAPI.updater.onUpdateError((error: any) => {
+    const unsubscribeError = api.updater.onUpdateError((error: any) => {
       console.error('[UpdateButton] Event: update-error', error);
       setUpdateStatus('error');
       setLastCheckTime(new Date());
     });
 
     return () => {
-      unsubscribeChecking();
-      unsubscribeAvailable();
-      unsubscribeNotAvailable();
-      unsubscribeProgress();
-      unsubscribeDownloaded();
-      unsubscribeError();
+      unsubscribeChecking?.();
+      unsubscribeAvailable?.();
+      unsubscribeNotAvailable?.();
+      unsubscribeProgress?.();
+      unsubscribeDownloaded?.();
+      unsubscribeError?.();
     };
   }, [isElectron]);
 
   // Watchdog: avoid staying in 'checking' forever if no events are received
   useEffect(() => {
     if (updateStatus === 'checking') {
-      // تنظيف الـ timer السابق أولاً
+      // Clear previous timer first
       if (checkingTimeoutRef.current) {
         clearTimeout(checkingTimeoutRef.current);
         checkingTimeoutRef.current = null;
       }
 
-      // إنشاء timer جديد
+      // Create new timer
       if (process.env.NODE_ENV === 'development') {
         console.log('[UpdateButton] Watchdog: start 12s timer for checking state');
       }
 
       checkingTimeoutRef.current = window.setTimeout(() => {
-        // تحقق من الحالة قبل التغيير لتجنب race conditions
+        // Check state before changing to avoid race conditions
         setUpdateStatus(prev => {
           if (prev === 'checking') {
             if (process.env.NODE_ENV === 'development') {
@@ -207,7 +204,7 @@ const UpdateButton: React.FC = () => {
         });
       }, 12000);
     } else {
-      // تنظيف الـ timer إذا تغيرت الحالة
+      // Clean timer if state changed
       if (checkingTimeoutRef.current) {
         clearTimeout(checkingTimeoutRef.current);
         checkingTimeoutRef.current = null;
@@ -228,69 +225,20 @@ const UpdateButton: React.FC = () => {
       return;
     }
 
-    // Tauri updater - استخدام الـ hook الجديد
-    if (isTauri && !isElectron) {
-      try {
-        console.log('[UpdateButton] Tauri: checkForUpdates via invoke');
-        setUpdateStatus('checking');
-
-        const result = await tauriUpdater.checkForUpdates();
-
-        if (result.available && result.info) {
-          console.log('[UpdateButton] Tauri: update available', result.info.version);
-          setUpdateStatus('available');
-          setUpdateInfo({
-            version: result.info.version || 'جديد',
-            releaseNotes: result.info.body
-          });
-          toast.success(`تحديث جديد: ${result.info.version}`, { icon: '🎉' });
-        } else if (result.error) {
-          console.warn('[UpdateButton] Tauri check error:', result.error);
-
-          // تجاهل أخطاء عدم وجود الإصدار (طبيعي لتطبيق جديد)
-          if (result.error.includes('Could not fetch') ||
-              result.error.includes('release JSON') ||
-              result.error.includes('404') ||
-              result.error.includes('not found')) {
-            console.log('[UpdateButton] No GitHub releases found yet - this is normal');
-            setUpdateStatus('not-available');
-          }
-          // تجاهل أخطاء السيرفر العادية
-          else if (result.error.includes('decoding') || result.error.includes('timeout')) {
-            setUpdateStatus('not-available');
-          } else if (result.error.includes('not configured') || result.error.includes('plugin')) {
-            setIsDevMode(true);
-            toast('التحديثات متاحة في النسخة المبنية', { icon: '💡', duration: 3000 });
-            setUpdateStatus('not-available');
-          } else {
-            setUpdateStatus('error');
-          }
-        } else {
-          console.log('[UpdateButton] Tauri: no update available');
-          setUpdateStatus('not-available');
-        }
-      } catch (error: any) {
-        const errorMessage = typeof error === 'string' ? error : (error?.message || JSON.stringify(error) || '');
-        console.error('[UpdateButton] Tauri checkForUpdates error:', error);
-
-        if (errorMessage.includes('not configured') || errorMessage.includes('plugin')) {
-          setIsDevMode(true);
-          toast('التحديثات متاحة في النسخة المبنية', { icon: '💡', duration: 3000 });
-        }
-        setUpdateStatus('not-available');
-      } finally {
-        setLastCheckTime(new Date());
-      }
-      return;
-    }
-
     // Electron updater
     if (!isElectron) return;
+
+    const api = (window as any).electronAPI;
+    if (!api?.updater) {
+      setIsDevMode(true);
+      toast('التحديثات متاحة في النسخة المبنية', { icon: '💡', duration: 3000 });
+      return;
+    }
 
     try {
       console.log('[UpdateButton] Action: checkForUpdates clicked');
       setUpdateStatus('checking');
-      const result = await (window as any).electronAPI.updater.checkForUpdates();
+      const result = await api.updater.checkForUpdates();
       console.log('[UpdateButton] checkForUpdates result:', result);
 
       if (!result || !result.success) {
@@ -303,61 +251,32 @@ const UpdateButton: React.FC = () => {
       setUpdateStatus('not-available');
       setIsDevMode(true);
     } finally {
-      // حدّث "آخر تحقق" دائماً حتى في وضع التطوير أو عند الفشل
+      // Always update last check time
       setLastCheckTime(new Date());
     }
   };
 
   const handleDownload = async () => {
-    if (isTauri && !isElectron) {
-      if (!tauriUpdater.isAvailable) return;
-
-      try {
-        setUpdateStatus('downloading');
-        console.log('[UpdateButton] Tauri: starting download via invoke');
-
-        const success = await tauriUpdater.downloadUpdate();
-
-        if (success) {
-          setUpdateStatus('downloaded');
-          toast.success('تم تنزيل التحديث! سيتم إعادة التشغيل.', { icon: '✅' });
-        } else {
-          setUpdateStatus('error');
-          toast.error('فشل تحديث التطبيق');
-        }
-      } catch (error) {
-        console.error('[Tauri] Update failed:', error);
-        setUpdateStatus('error');
-        toast.error('فشل تحديث التطبيق');
-      }
-      return;
-    }
-
     if (!isElectron || updateStatus !== 'available') return;
 
+    const api = (window as any).electronAPI;
+    if (!api?.updater) return;
+
     try {
-      await (window as any).electronAPI.updater.downloadUpdate();
+      await api.updater.downloadUpdate();
     } catch (error) {
       toast.error('فشل تنزيل التحديث');
     }
   };
 
   const handleInstall = async () => {
-    if (isTauri && !isElectron) {
-      try {
-        console.log('[UpdateButton] Tauri: installing update via invoke');
-        await tauriUpdater.installUpdate();
-      } catch (error) {
-        console.error('[Tauri] Install failed:', error);
-        toast.error('فشل إعادة التشغيل');
-      }
-      return;
-    }
-
     if (!isElectron || updateStatus !== 'downloaded') return;
 
+    const api = (window as any).electronAPI;
+    if (!api?.updater) return;
+
     try {
-      await (window as any).electronAPI.updater.quitAndInstall();
+      await api.updater.quitAndInstall();
     } catch (error) {
       toast.error('فشل تثبيت التحديث');
     }
@@ -376,7 +295,7 @@ const UpdateButton: React.FC = () => {
     return `منذ ${Math.floor(hours / 24)} يوم`;
   };
 
-  // إخفاء في المتصفح - إظهار فقط في Desktop (Electron أو Tauri)
+  // Hide in browser - show only in Desktop (Electron)
   if (!isDesktopApp) return null;
 
   const getStatusIcon = () => {

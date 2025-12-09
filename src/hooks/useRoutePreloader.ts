@@ -103,20 +103,17 @@ export const useRoutePreloader = (options: RoutePreloaderOptions = {}) => {
 };
 
 // Hook for preloading specific component patterns
+// NOTE: recharts removed due to Safari ESM issues with dynamic imports
 export const useComponentPreloader = () => {
   const preloadCharts = useCallback(async () => {
-    const chartDeps = [
-      () => import('@nivo/bar'),
-      () => import('@nivo/line'),
-      () => import('@nivo/pie'),
-      () => import('recharts'),
-      () => import('chart.js'),
-      () => import('react-chartjs-2')
-    ];
-
-    return Promise.allSettled(
-      chartDeps.map(dep => dep().catch(() => {}))
-    );
+    // Disabled: Safari ESM bug with star exports
+    // const chartDeps = [
+    //   () => import('recharts')
+    // ];
+    // return Promise.allSettled(
+    //   chartDeps.map(dep => dep().catch(() => {}))
+    // );
+    return Promise.resolve([]);
   }, []);
 
   const preloadEditors = useCallback(async () => {

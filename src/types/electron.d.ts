@@ -87,6 +87,99 @@ interface LicenseAPI {
   ) => Promise<{ success: boolean; secureNowMs: number; tamperDetected?: boolean; tamperCount?: number; error?: string }>;
 }
 
+// =================== Printing API ===================
+
+interface PrinterInfo {
+  name: string;
+  displayName: string;
+  description: string;
+  status: number;
+  isDefault: boolean;
+}
+
+interface PrintResult {
+  success: boolean;
+  error?: string;
+}
+
+interface PrintReceiptOptions {
+  data: PrintDataItem[];
+  printerName?: string;
+  pageSize?: string;
+  copies?: number;
+  silent?: boolean;
+  margin?: string;
+}
+
+interface PrintHtmlOptions {
+  html: string;
+  printerName?: string;
+  silent?: boolean;
+  pageSize?: string;
+  landscape?: boolean;
+  margins?: {
+    marginType?: 'default' | 'none' | 'custom';
+    top?: number;
+    bottom?: number;
+    left?: number;
+    right?: number;
+  };
+}
+
+interface PrintBarcodeOptions {
+  barcodes: BarcodeData[];
+  printerName?: string;
+  pageSize?: string;
+  silent?: boolean;
+  labelSize?: { width: string; height: string };
+  showProductName?: boolean;
+  showPrice?: boolean;
+  showStoreName?: boolean;
+}
+
+interface PrintDataItem {
+  type: 'text' | 'barCode' | 'qrCode' | 'image' | 'table';
+  value: string;
+  style?: Record<string, string>;
+  height?: number;
+  width?: number;
+  displayValue?: boolean;
+  position?: 'above' | 'below';
+  fontsize?: number;
+  font?: string;
+  [key: string]: any;
+}
+
+interface BarcodeData {
+  value: string;
+  productName?: string;
+  price?: number | string;
+  storeName?: string;
+  height?: number;
+  width?: number;
+  showValue?: boolean;
+}
+
+interface PrintAPI {
+  /** الحصول على قائمة الطابعات المتاحة */
+  getPrinters: () => Promise<{ success: boolean; printers: PrinterInfo[]; error?: string }>;
+
+  /** طباعة إيصال POS */
+  receipt: (options: PrintReceiptOptions) => Promise<PrintResult>;
+
+  /** طباعة HTML مخصص (للفواتير والتقارير) */
+  html: (options: PrintHtmlOptions) => Promise<PrintResult>;
+
+  /** طباعة باركود */
+  barcode: (options: PrintBarcodeOptions) => Promise<PrintResult>;
+
+  /** فتح درج النقود */
+  openCashDrawer: (printerName?: string | null) => Promise<PrintResult>;
+
+  /** طباعة صفحة اختبار */
+  test: (printerName?: string | null) => Promise<PrintResult>;
+}
+
 interface ElectronAPI {
   // معلومات التطبيق
   getAppVersion: () => Promise<string>;
@@ -172,7 +265,7 @@ interface ElectronAPI {
   notifications?: NotificationsAPI;
 
   // إدارة الطباعة
-  print?: () => void;
+  print?: PrintAPI;
 
   // إدارة النسخ
   copyToClipboard?: (text: string) => Promise<boolean>;

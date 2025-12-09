@@ -1,32 +1,48 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Card, 
-  CardContent, 
-  CardDescription, 
-  CardHeader, 
-  CardTitle 
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
 } from '@/components/ui/card';
 import {
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  Title,
   Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Legend
-} from 'recharts';
+  Legend,
+  Filler,
+  ChartOptions,
+  ChartData,
+} from 'chart.js';
+import { Line, Bar, Doughnut } from 'react-chartjs-2';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Loader2 } from 'lucide-react';
 import { formatPrice } from '@/lib/utils';
+import { useTheme } from 'next-themes';
 // ✨ استخدام الـ contexts الجديدة المحسنة - OrdersContext و ProductsContext بدلاً من ShopContext الكامل
 import { useOrders, useProducts } from '@/context/shop/ShopContext.new';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+// Register Chart.js components
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  Title,
+  Tooltip,
+  Legend,
+  Filler
+);
 
 // Цветовая схема для графиков
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
@@ -249,6 +265,148 @@ const SalesAnalytics = () => {
     return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
   };
   
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
+
+  // Chart.js data for revenue line chart
+  const revenueChartData: ChartData<'line'> = useMemo(() => ({
+    labels: revenueByTime.map(d => d.name),
+    datasets: [
+      {
+        label: 'الإيرادات',
+        data: revenueByTime.map(d => d.amount),
+        borderColor: '#8884d8',
+        backgroundColor: '#8884d833',
+        fill: true,
+        tension: 0.4,
+        pointRadius: 4,
+        pointHoverRadius: 8,
+      },
+    ],
+  }), [revenueByTime]);
+
+  // Chart.js data for top products bar chart
+  const topProductsChartData: ChartData<'bar'> = useMemo(() => ({
+    labels: topProducts.map(d => d.name),
+    datasets: [
+      {
+        label: 'الكمية',
+        data: topProducts.map(d => d.value),
+        backgroundColor: '#8884d8',
+        borderRadius: 4,
+      },
+    ],
+  }), [topProducts]);
+
+  // Chart.js data for categories pie chart
+  const categoriesChartData: ChartData<'doughnut'> = useMemo(() => ({
+    labels: salesByCategory.map(d => d.name),
+    datasets: [
+      {
+        data: salesByCategory.map(d => d.value),
+        backgroundColor: COLORS.slice(0, salesByCategory.length),
+        borderColor: isDark ? '#18181b' : '#ffffff',
+        borderWidth: 2,
+      },
+    ],
+  }), [salesByCategory, isDark]);
+
+  // Chart.js data for avg order value bar chart
+  const avgOrderChartData: ChartData<'bar'> = useMemo(() => ({
+    labels: avgOrderValue.map(d => d.name),
+    datasets: [
+      {
+        label: 'متوسط قيمة الطلب',
+        data: avgOrderValue.map(d => d.value),
+        backgroundColor: '#82ca9d',
+        borderRadius: 4,
+      },
+    ],
+  }), [avgOrderValue]);
+
+  const lineChartOptions: ChartOptions<'line'> = useMemo(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: true, position: 'bottom' as const, labels: { color: isDark ? '#a1a1aa' : '#71717a' } },
+      tooltip: {
+        backgroundColor: isDark ? '#27272a' : '#ffffff',
+        titleColor: isDark ? '#a1a1aa' : '#71717a',
+        bodyColor: isDark ? '#ffffff' : '#18181b',
+        borderColor: isDark ? '#3f3f46' : '#e4e4e7',
+        borderWidth: 1,
+        callbacks: { label: (ctx) => `${ctx.dataset.label}: ${formatPrice(ctx.raw as number)}` },
+      },
+    },
+    scales: {
+      x: { grid: { display: false }, ticks: { color: isDark ? '#71717a' : '#a1a1aa' } },
+      y: { grid: { color: isDark ? '#27272a' : '#e4e4e7' }, ticks: { color: isDark ? '#71717a' : '#a1a1aa' } },
+    },
+  }), [isDark]);
+
+  const barChartOptions: ChartOptions<'bar'> = useMemo(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    indexAxis: 'y' as const,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: isDark ? '#27272a' : '#ffffff',
+        titleColor: isDark ? '#a1a1aa' : '#71717a',
+        bodyColor: isDark ? '#ffffff' : '#18181b',
+        borderColor: isDark ? '#3f3f46' : '#e4e4e7',
+        borderWidth: 1,
+      },
+    },
+    scales: {
+      x: { grid: { color: isDark ? '#27272a' : '#e4e4e7' }, ticks: { color: isDark ? '#71717a' : '#a1a1aa' } },
+      y: { grid: { display: false }, ticks: { color: isDark ? '#71717a' : '#a1a1aa' } },
+    },
+  }), [isDark]);
+
+  const verticalBarOptions: ChartOptions<'bar'> = useMemo(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: isDark ? '#27272a' : '#ffffff',
+        titleColor: isDark ? '#a1a1aa' : '#71717a',
+        bodyColor: isDark ? '#ffffff' : '#18181b',
+        borderColor: isDark ? '#3f3f46' : '#e4e4e7',
+        borderWidth: 1,
+        callbacks: { label: (ctx) => formatPrice(ctx.raw as number) },
+      },
+    },
+    scales: {
+      x: { grid: { display: false }, ticks: { color: isDark ? '#71717a' : '#a1a1aa' } },
+      y: { grid: { color: isDark ? '#27272a' : '#e4e4e7' }, ticks: { color: isDark ? '#71717a' : '#a1a1aa' } },
+    },
+  }), [isDark]);
+
+  const doughnutOptions: ChartOptions<'doughnut'> = useMemo(() => ({
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: true, position: 'bottom' as const, labels: { color: isDark ? '#a1a1aa' : '#71717a' } },
+      tooltip: {
+        backgroundColor: isDark ? '#27272a' : '#ffffff',
+        titleColor: isDark ? '#a1a1aa' : '#71717a',
+        bodyColor: isDark ? '#ffffff' : '#18181b',
+        borderColor: isDark ? '#3f3f46' : '#e4e4e7',
+        borderWidth: 1,
+        callbacks: {
+          label: (ctx) => {
+            const value = ctx.raw as number;
+            const total = salesByCategory.reduce((s, i) => s + i.value, 0);
+            const pct = total > 0 ? ((value / total) * 100).toFixed(0) : '0';
+            return `${ctx.label}: ${formatPrice(value)} (${pct}%)`;
+          },
+        },
+      },
+    },
+  }), [isDark, salesByCategory]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-60">
@@ -257,7 +415,7 @@ const SalesAnalytics = () => {
       </div>
     );
   }
-  
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -295,29 +453,12 @@ const SalesAnalytics = () => {
             </CardHeader>
             <CardContent>
               <div className="h-96">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart
-                    data={revenueByTime}
-                    margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip formatter={(value) => formatPrice(value as number)} />
-                    <Line 
-                      type="monotone" 
-                      dataKey="amount" 
-                      stroke="#8884d8" 
-                      activeDot={{ r: 8 }} 
-                      name="الإيرادات" 
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
+                <Line data={revenueChartData} options={lineChartOptions} />
               </div>
             </CardContent>
           </Card>
         </TabsContent>
-        
+
         {/* تحليل المنتجات */}
         <TabsContent value="products" className="mt-6">
           <Card>
@@ -327,24 +468,12 @@ const SalesAnalytics = () => {
             </CardHeader>
             <CardContent>
               <div className="h-96">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={topProducts}
-                    layout="vertical"
-                    margin={{ top: 20, right: 30, left: 120, bottom: 5 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" />
-                    <YAxis type="category" dataKey="name" />
-                    <Tooltip />
-                    <Bar dataKey="value" fill="#8884d8" name="الكمية" />
-                  </BarChart>
-                </ResponsiveContainer>
+                <Bar data={topProductsChartData} options={barChartOptions} />
               </div>
             </CardContent>
           </Card>
         </TabsContent>
-        
+
         {/* تحليل الفئات */}
         <TabsContent value="categories" className="mt-6">
           <Card>
@@ -354,32 +483,12 @@ const SalesAnalytics = () => {
             </CardHeader>
             <CardContent>
               <div className="h-96">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={salesByCategory}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={true}
-                      outerRadius={120}
-                      fill="#8884d8"
-                      dataKey="value"
-                      nameKey="name"
-                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                    >
-                      {salesByCategory.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(value) => formatPrice(value as number)} />
-                    <Legend />
-                  </PieChart>
-                </ResponsiveContainer>
+                <Doughnut data={categoriesChartData} options={doughnutOptions} />
               </div>
             </CardContent>
           </Card>
         </TabsContent>
-        
+
         {/* تحليل متوسط قيمة الطلب */}
         <TabsContent value="avg" className="mt-6">
           <Card>
@@ -389,18 +498,7 @@ const SalesAnalytics = () => {
             </CardHeader>
             <CardContent>
               <div className="h-96">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={avgOrderValue}
-                    margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="name" />
-                    <YAxis />
-                    <Tooltip formatter={(value) => formatPrice(value as number)} />
-                    <Bar dataKey="value" fill="#82ca9d" name="متوسط قيمة الطلب" />
-                  </BarChart>
-                </ResponsiveContainer>
+                <Bar data={avgOrderChartData} options={verticalBarOptions} />
               </div>
             </CardContent>
           </Card>

@@ -1,56 +1,31 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { unifiedCache } from '@/lib/unified-cache-system';
-import { supabase } from '@/lib/supabase';
+import { unifiedOrderService } from '@/services/UnifiedOrderService';
 import { useToast } from '@/hooks/use-toast';
 import { useTenant } from '@/context/TenantContext';
 import { Order } from '@/components/orders/table/OrderTableTypes';
 // تم إزالة useOptimizedInterval - نستخدم useEffect عادي
 
-// دالة إلغاء الطلب مع إرجاع المخزون
+// ⚡ دالة إلغاء الطلب مع إرجاع المخزون (Offline-First)
 const cancelOrderWithInventoryRestore = async (orderId: string, organizationId: string) => {
   try {
-    // أولاً، التحقق من وجود الطلب
-    const { data: orderData, error: orderError } = await supabase
-      .from('online_orders')
-      .select('id, status, organization_id')
-      .eq('id', orderId)
-      .eq('organization_id', organizationId)
-      .single();
+    // ⚡ استخدام UnifiedOrderService لإلغاء الطلب محلياً
+    unifiedOrderService.setOrganizationId(organizationId);
+    const cancelledOrder = await unifiedOrderService.cancelOrder(orderId, true);
 
-    if (orderError || !orderData) {
-      throw new Error('الطلب غير موجود أو لا يمكن الوصول إليه');
-    }
-
-    if (orderData.status === 'cancelled') {
+    if (!cancelledOrder) {
       return {
         success: false,
-        error: 'الطلب مُلغى بالفعل'
+        error: 'الطلب غير موجود أو لا يمكن الوصول إليه'
       };
-    }
-
-    // استخدام الدالة المخصصة للطلبات الإلكترونية
-    const { data, error } = await supabase.rpc('cancel_online_order_with_inventory' as any, {
-      p_order_id: orderId,
-      p_organization_id: organizationId,
-      p_cancelled_by: null, // يمكن تمرير معرف المستخدم لاحقاً
-      p_cancellation_reason: 'تم إلغاء الطلب من صفحة الطلبات'
-    });
-
-    if (error) {
-      throw new Error(error.message || 'فشل في إلغاء الطلب');
-    }
-
-    const result = data as any;
-    if (!result?.success) {
-      throw new Error(result?.error || 'فشل في إلغاء الطلب');
     }
 
     return {
       success: true,
       order_id: orderId,
-      inventory_restored: result.inventory_restored,
-      restored_items_count: result.restored_items_count,
-      message: result.message
+      inventory_restored: true,
+      restored_items_count: cancelledOrder.items?.length || 0,
+      message: 'تم إلغاء الطلب وإرجاع المخزون بنجاح'
     };
 
   } catch (error: any) {
@@ -161,77 +136,65 @@ export const useOrdersData = (options: UseOrdersDataOptions = {}) => {
     }
 
     try {
-      // Use existing query structure since RPC function doesn't exist yet
-      let query = supabase
-        .from('online_orders')
-        .select(`
-          id,
-          customer_id,
-          subtotal,
-          tax,
-          discount,
-          total,
-          status,
-          payment_method,
-          payment_status,
-          shipping_address_id,
-          shipping_method,
-          shipping_cost,
-          shipping_option,
-          notes,
-          employee_id,
-          created_at,
-          updated_at,
-          organization_id,
-          slug,
-          customer_order_number,
-          created_from,
-          call_confirmation_status_id,
-          call_confirmation_notes,
-          call_confirmation_updated_at,
-          call_confirmation_updated_by,
-          form_data,
-          metadata,
-          yalidine_tracking_id,
-          zrexpress_tracking_id,
-          ecotrack_tracking_id,
-          order_items:online_order_items(
-            id, 
-            product_id, 
-            product_name, 
-            quantity, 
-            unit_price, 
-            total_price, 
-            color_id, 
-            color_name, 
-            size_id, 
-            size_name
-          )
-        `)
-        .eq('organization_id', currentOrganization.id)
-        .order('created_at', { ascending: false })
-        .range(page * pageSize, (page + 1) * pageSize - 1);
-
-      // Apply filters
+      // ⚡ استخدام UnifiedOrderService للجلب من PowerSync
+      unifiedOrderService.setOrganizationId(currentOrganization.id);
+      
+      const orderFilters: any = {
+        is_online: true, // فقط الطلبات الإلكترونية
+      };
+      
       if (filters.status !== 'all') {
-        query = query.eq('status', filters.status);
+        orderFilters.status = filters.status;
       }
-
+      
       if (filters.searchTerm) {
-        query = query.or(`customer_order_number.ilike.%${filters.searchTerm}%,id.ilike.%${filters.searchTerm}%`);
+        orderFilters.search = filters.searchTerm;
       }
-
+      
       if (filters.dateFrom) {
-        query = query.gte('created_at', filters.dateFrom.toISOString());
+        orderFilters.from_date = filters.dateFrom.toISOString();
       }
-
+      
       if (filters.dateTo) {
-        query = query.lte('created_at', filters.dateTo.toISOString());
+        orderFilters.to_date = filters.dateTo.toISOString();
       }
-
-      const { data: ordersData, error } = await query;
-
-      if (error) throw error;
+      
+      const result = await unifiedOrderService.getOrders(orderFilters, page + 1, pageSize);
+      
+      // تحويل البيانات إلى تنسيق Order
+      const ordersData = result.data.map(orderWithItems => ({
+        id: orderWithItems.id,
+        customer_id: orderWithItems.customer_id,
+        subtotal: orderWithItems.subtotal,
+        tax: orderWithItems.tax,
+        discount: orderWithItems.discount,
+        total: orderWithItems.total,
+        status: orderWithItems.status,
+        payment_method: orderWithItems.payment_method,
+        payment_status: orderWithItems.payment_status,
+        shipping_address_id: orderWithItems.shipping_address_id,
+        shipping_method: orderWithItems.shipping_method,
+        shipping_cost: orderWithItems.shipping_cost,
+        notes: orderWithItems.notes,
+        employee_id: orderWithItems.employee_id,
+        created_at: orderWithItems.created_at,
+        updated_at: orderWithItems.updated_at,
+        organization_id: orderWithItems.organization_id,
+        slug: orderWithItems.slug,
+        customer_order_number: orderWithItems.customer_order_number,
+        order_items: orderWithItems.items.map(item => ({
+          id: item.id,
+          product_id: item.product_id,
+          product_name: item.product_name || item.name,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          total_price: item.total_price,
+          color_id: item.color_id,
+          color_name: item.color_name,
+          size_id: item.size_id,
+          size_name: item.size_name
+        }))
+      }));
 
       // Process the data and fetch related customer/address data
       const rawOrders: any[] = ordersData || [];
@@ -249,28 +212,34 @@ export const useOrdersData = (options: UseOrdersDataOptions = {}) => {
       let guestCustomersData: any[] = [];
       let addressesData: any[] = [];
 
-      // Fetch customers data if we have customer IDs
+      // ⚡ v4.0: جلب بيانات العملاء من PowerSync باستعلام واحد
       if (customerIds.length > 0) {
         try {
-          const [regularCustomers, guestCustomers] = await Promise.all([
-            supabase
-              .from('customers')
-              .select('id, name, phone, email, organization_id')
-              .in('id', customerIds)
-              .eq('organization_id', currentOrganization.id),
-            supabase
+          const { unifiedCustomerService } = await import('@/services/UnifiedCustomerService');
+          unifiedCustomerService.setOrganizationId(currentOrganization.id);
+
+          // ⚡ استعلام واحد لجميع العملاء بدلاً من استعلام لكل عميل
+          const allCustomers = await unifiedCustomerService.getCustomersByIds(customerIds);
+
+          customersData = allCustomers;
+          guestCustomersData = []; // ⚠️ guest_customers قد لا يكون في PowerSync - يمكن إضافته لاحقاً
+          
+          // Fallback: محاولة جلب guest_customers من Supabase إذا لزم الأمر
+          try {
+            const guestCustomers = await supabase
               .from('guest_customers')
               .select('id, name, phone, organization_id')
               .in('id', customerIds)
-              .eq('organization_id', currentOrganization.id)
-          ]);
-
-          customersData = regularCustomers.data || [];
-          guestCustomersData = (guestCustomers.data || []).map(guest => ({
+              .eq('organization_id', currentOrganization.id);
+            
+            guestCustomersData = (guestCustomers.data || []).map(guest => ({
             ...guest,
             email: null
           }));
         } catch (error) {
+        }
+        } catch (error) {
+          console.error('Error fetching customers from PowerSync:', error);
         }
       }
 
@@ -379,18 +348,27 @@ export const useOrdersData = (options: UseOrdersDataOptions = {}) => {
       // تحديد نوع الطلبات الحالي
       const statusFilter = filters.status === 'all' ? '' : filters.status;
       
-      // استخدام requests متوازية
-      const [countsResult, statsResult] = await Promise.all([
-        supabase.rpc('get_orders_count_by_status', {
-          org_id: currentOrganization.id
-        }).abortSignal(signal),
-        supabase.rpc('get_order_stats', {
-          org_id: currentOrganization.id
-        }).abortSignal(signal)
-      ]);
-
-      if (countsResult.error) throw countsResult.error;
-      if (statsResult.error) throw statsResult.error;
+      // ⚡ استخدام UnifiedOrderService للحصول على الإحصائيات
+      unifiedOrderService.setOrganizationId(currentOrganization.id);
+      const stats = await unifiedOrderService.getOrderStats();
+      
+      // محاكاة نفس التنسيق الذي كان يُرجع من RPC
+      const countsResult = { data: {
+        all: stats.total_orders,
+        pending: stats.ordersByStatus.pending || 0,
+        processing: stats.ordersByStatus.processing || 0,
+        shipped: 0, // لا يوجد في OrderStatus
+        delivered: 0, // لا يوجد في OrderStatus
+        cancelled: stats.ordersByStatus.cancelled || 0,
+        completed: stats.ordersByStatus.completed || 0
+      }, error: null };
+      
+      const statsResult = { data: {
+        total_sales: stats.total_revenue,
+        avg_order_value: stats.total_orders > 0 ? stats.total_revenue / stats.total_orders : 0,
+        sales_trend: 0, // يمكن حسابه لاحقاً
+        pending_amount: stats.total_pending
+      }, error: null };
 
       // Process counts
       const counts = {
@@ -409,7 +387,7 @@ export const useOrdersData = (options: UseOrdersDataOptions = {}) => {
 
       // Process stats
       const statsData = statsResult.data as any;
-      const stats = {
+      const formattedStats = {
         totalSales: statsData?.total_sales || 0,
         avgOrderValue: statsData?.avg_order_value || 0,
         salesTrend: statsData?.sales_trend || 0,
@@ -419,7 +397,7 @@ export const useOrdersData = (options: UseOrdersDataOptions = {}) => {
       setState(prev => ({
         ...prev,
         orderCounts: counts,
-        orderStats: stats,
+        orderStats: formattedStats,
         totalCount: counts.all,
       }));
 

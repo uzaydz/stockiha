@@ -1,373 +1,115 @@
 /**
- * localCustomerService - خدمة العملاء المحلية
- *
- * ⚡ تم التحديث لاستخدام Delta Sync بالكامل
- *
- * - Local-First: الكتابة محلياً فوراً
- * - Offline-First: يعمل بدون إنترنت
- * - يدعم العملاء مع عناوينهم
+ * ⚡ localCustomerService - Adapter للخدمة الموحدة
+ * 
+ * هذا الملف يُعيد التصدير من UnifiedCustomerService للحفاظ على التوافق مع الكود القديم
+ * 
+ * تم استبدال التنفيذ القديم بـ UnifiedCustomerService للعمل Offline-First
  */
 
-import { v4 as uuidv4 } from 'uuid';
-import type { LocalCustomer, LocalAddress } from '@/database/localDb';
-import { deltaWriteService } from '@/services/DeltaWriteService';
+import { unifiedCustomerService } from '@/services/UnifiedCustomerService';
+import type { Customer } from '@/services/UnifiedCustomerService';
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
 
-// Re-export types
-export type { LocalCustomer, LocalAddress } from '@/database/localDb';
+// إعادة تصدير جميع الصادرات من الخدمة الموحدة
+export * from '@/services/UnifiedCustomerService';
 
-// الحصول على معرف المؤسسة الحالية
-const getCurrentOrganizationId = (): string => {
-  return localStorage.getItem('bazaar_organization_id') || localStorage.getItem('currentOrganizationId') || '';
-};
+// إعادة تصدير كـ default للتوافق
+export { unifiedCustomerService as default } from '@/services/UnifiedCustomerService';
 
+// إعادة تصدير الأنواع للتوافق
+export type {
+  Customer,
+  CustomerWithStats,
+  CustomerFilters,
+  CustomerStats,
+  PaginatedCustomers
+} from '@/services/UnifiedCustomerService';
+
+// إعادة تصدير الأنواع القديمة للتوافق
+export type { Customer as LocalCustomer } from '@/services/UnifiedCustomerService';
+
+// ⚡ دوال التوافق القديمة
 /**
- * إنشاء عميل محلي جديد
+ * إنشاء عميل محلي جديد (PowerSync Offline-First)
  */
 export const createLocalCustomer = async (
-  customer: Omit<LocalCustomer, 'id' | 'created_at' | 'updated_at' | 'synced' | 'localUpdatedAt' | 'syncStatus' | 'pendingOperation'>
-): Promise<LocalCustomer> => {
-  const id = uuidv4();
-  const now = new Date().toISOString();
-  const orgId = customer.organization_id || getCurrentOrganizationId();
-
-  const toLower = (s: any) => (s || '').toString().toLowerCase();
-  const digits = (s: any) => (s || '').toString().replace(/\D+/g, '');
-
-  const localCustomer: LocalCustomer = {
-    id,
-    ...customer,
-    created_at: now,
-    updated_at: now,
-    organization_id: orgId,
-    synced: false,
-    syncStatus: 'pending',
-    localUpdatedAt: now,
-    pendingOperation: 'create',
-    name_lower: toLower((customer as any).name),
-    email_lower: toLower((customer as any).email),
-    phone_digits: digits((customer as any).phone)
+  customer: {
+    name: string;
+    email?: string;
+    phone?: string;
+    organization_id: string;
+    address?: string;
+    city?: string;
+    country?: string;
+    notes?: string;
+    [key: string]: any;
+  }
+): Promise<Customer> => {
+  const orgId = customer.organization_id || 
+                localStorage.getItem('currentOrganizationId') || 
+                localStorage.getItem('bazaar_organization_id');
+  if (!orgId) throw new Error('Organization ID not found');
+  
+  unifiedCustomerService.setOrganizationId(orgId);
+  
+  const customerData: Omit<Customer, 'id' | 'organization_id' | 'created_at' | 'updated_at'> = {
+    name: customer.name,
+    email: customer.email,
+    phone: customer.phone,
+    address: customer.address
   };
-
-  // ⚡ استخدام Delta Sync
-  const result = await deltaWriteService.create('customers', localCustomer, orgId);
-
-  if (!result.success) {
-    throw new Error(`Failed to create customer: ${result.error}`);
-  }
-
-  console.log(`[LocalCustomer] ⚡ Created customer ${id} via Delta Sync`);
-  return localCustomer;
+  
+  return unifiedCustomerService.createCustomer(customerData);
 };
 
 /**
- * تحديث عميل محلي موجود
+ * ⚡ جلب جميع العملاء المحليين
  */
-export const updateLocalCustomer = async (
-  id: string,
-  updates: Partial<Omit<LocalCustomer, 'id' | 'created_at' | 'synced' | 'syncStatus' | 'localUpdatedAt' | 'pendingOperation'>>
-): Promise<LocalCustomer | null> => {
+export const getLocalCustomers = async (organizationId?: string): Promise<Customer[]> => {
   try {
-    const existingCustomer = await deltaWriteService.get<LocalCustomer>('customers', id);
+    const start = performance.now();
+    const orgId = organizationId ||
+                  localStorage.getItem('currentOrganizationId') ||
+                  localStorage.getItem('bazaar_organization_id');
 
-    if (!existingCustomer) {
-      return null;
+    if (!orgId) {
+      console.warn('[localCustomerService] No organization ID found');
+      return [];
     }
 
-    const now = new Date().toISOString();
-    const toLower = (s: any) => (s || '').toString().toLowerCase();
-    const digits = (s: any) => (s || '').toString().replace(/\D+/g, '');
+    console.log('[localCustomerService] 🔄 getLocalCustomers start', { orgId });
 
-    const updatedData = {
-      ...updates,
-      updated_at: now,
-      synced: false,
-      syncStatus: 'pending',
-      localUpdatedAt: now,
-      pendingOperation: existingCustomer.pendingOperation === 'create' ? 'create' : 'update',
-      name_lower: (updates as any).name ? toLower((updates as any).name) : existingCustomer.name_lower,
-      email_lower: (updates as any).email ? toLower((updates as any).email) : existingCustomer.email_lower,
-      phone_digits: (updates as any).phone ? digits((updates as any).phone) : existingCustomer.phone_digits
-    };
-
-    // ⚡ استخدام Delta Sync
-    const result = await deltaWriteService.update('customers', id, updatedData);
-
-    if (!result.success) {
-      console.error(`[LocalCustomer] Failed to update customer ${id}:`, result.error);
-      return null;
+    // استخدام استعلام خفيف دون حساب stats لكل عميل (أسرع بكثير)
+    const ready = await powerSyncService.waitForInitialization(10000);
+    if (!ready || !powerSyncService.db) {
+      console.warn('[localCustomerService] PowerSync DB not ready');
+      return [];
     }
 
-    console.log(`[LocalCustomer] ⚡ Updated customer ${id} via Delta Sync`);
-    return {
-      ...existingCustomer,
-      ...updatedData
-    } as LocalCustomer;
-  } catch (error) {
-    console.error(`[LocalCustomer] Update error:`, error);
-    return null;
-  }
-};
-
-/**
- * حذف عميل محلي
- */
-export const deleteLocalCustomer = async (id: string): Promise<boolean> => {
-  try {
-    const existingCustomer = await deltaWriteService.get<LocalCustomer>('customers', id);
-
-    if (!existingCustomer) {
-      return false;
-    }
-
-    // ⚡ استخدام Delta Sync للحذف
-    const result = await deltaWriteService.delete('customers', id);
-
-    if (result.success) {
-      console.log(`[LocalCustomer] ⚡ Deleted customer ${id} via Delta Sync`);
-    }
-
-    return result.success;
-  } catch (error) {
-    console.error(`[LocalCustomer] Delete error:`, error);
-    return false;
-  }
-};
-
-// ==================== بحث وتصفح محلي للعملاء ====================
-
-export async function fastSearchLocalCustomers(
-  organizationId: string,
-  query: string,
-  options: { limit?: number } = {}
-): Promise<LocalCustomer[]> {
-  const q = (query || '').toLowerCase();
-  if (!q) return [];
-  const limit = options.limit ?? 200;
-
-  return deltaWriteService.search<LocalCustomer>(
-    'customers',
-    organizationId,
-    ['name_lower', 'email_lower', 'phone_digits'],
-    q,
-    limit
-  );
-}
-
-export async function getLocalCustomersPage(
-  organizationId: string,
-  options: { offset?: number; limit?: number } = {}
-): Promise<{ customers: LocalCustomer[]; total: number }> {
-  const { offset = 0, limit = 50 } = options;
-
-  console.log('[localCustomerService] getLocalCustomersPage called:', { organizationId, offset, limit });
-
-  const customers = await deltaWriteService.getAll<LocalCustomer>('customers', organizationId, {
-    where: "(pending_operation IS NULL OR pending_operation != 'delete')",
-    limit,
-    offset
-  });
-
-  const total = await deltaWriteService.count('customers', organizationId);
-
-  console.log('[localCustomerService] ✅ Delta Sync:', { total, page: customers.length });
-  return { customers, total };
-}
-
-/**
- * الحصول على جميع العملاء المحليين
- */
-export const getLocalCustomers = async (
-  options: {
-    includeDeleted?: boolean;
-    onlySynced?: boolean;
-    onlyUnsynced?: boolean;
-    organizationId?: string;
-  } = {}
-): Promise<LocalCustomer[]> => {
-  try {
-    const { includeDeleted = false, onlySynced = false, onlyUnsynced = false, organizationId } = options;
-    const orgId = organizationId || getCurrentOrganizationId();
-
-    let whereClause = "1=1";
-    if (!includeDeleted) {
-      whereClause += " AND (pending_operation IS NULL OR pending_operation != 'delete')";
-    }
-    if (onlySynced) {
-      whereClause += " AND synced = 1";
-    }
-    if (onlyUnsynced) {
-      whereClause += " AND (synced = 0 OR synced IS NULL)";
-    }
-
-    const results = await deltaWriteService.getAll<LocalCustomer>('customers', orgId, {
-      where: whereClause
+    // ⚡ إضافة phone و email للعرض في القوائم المنسدلة
+    const queryPromise = powerSyncService.query<{ id: string; name: string; phone: string | null; email: string | null }>({
+      sql: 'SELECT id, name, phone, email FROM customers WHERE organization_id = ? ORDER BY name ASC',
+      params: [orgId]
     });
 
-    console.log('[localCustomerService] ✅ Delta Sync getLocalCustomers:', results.length);
-    return results;
+    const timeoutMs = 7000;
+    const rows = await Promise.race([
+      queryPromise,
+      new Promise<{ id: string; name: string; phone: string | null; email: string | null }[]>((_, reject) =>
+        setTimeout(() => reject(new Error('customers query timeout')), timeoutMs)
+      )
+    ]);
+
+    const elapsed = Math.round(performance.now() - start);
+    console.log('[localCustomerService] ✅ fetched customers (lightweight)', {
+      count: rows.length,
+      elapsedMs: elapsed
+    });
+
+    // نحافظ على نوع Customer بإرجاع الاسم فقط (المستخدم هنا للكاش فقط)
+    return rows as unknown as Customer[];
   } catch (error) {
-    console.error('[localCustomerService] ❌ getLocalCustomers error:', error);
+    console.error('[localCustomerService] Error getting customers:', error);
     return [];
   }
-};
-
-/**
- * الحصول على عميل محلي بواسطة المعرّف
- */
-export const getLocalCustomerById = async (id: string): Promise<LocalCustomer | null> => {
-  return deltaWriteService.get<LocalCustomer>('customers', id);
-};
-
-/**
- * وضع علامة على العميل كمتزامن
- */
-export const markCustomerAsSynced = async (
-  id: string,
-  remoteCustomer?: any
-): Promise<LocalCustomer | null> => {
-  try {
-    const localCustomer = await deltaWriteService.get<LocalCustomer>('customers', id);
-
-    if (!localCustomer) {
-      return null;
-    }
-
-    // في حالة وجود عملية حذف، حذف العميل فعلياً
-    if (localCustomer.pendingOperation === 'delete') {
-      await deltaWriteService.delete('customers', id);
-      return null;
-    }
-
-    const updatedData = {
-      ...(remoteCustomer || {}),
-      synced: true,
-      syncStatus: undefined,
-      lastSyncAttempt: new Date().toISOString(),
-      pendingOperation: undefined
-    };
-
-    await deltaWriteService.update('customers', id, updatedData);
-
-    return {
-      ...localCustomer,
-      ...updatedData
-    } as LocalCustomer;
-  } catch (error) {
-    console.error(`[LocalCustomer] Mark synced error:`, error);
-    return null;
-  }
-};
-
-/**
- * الحصول على عملاء غير متزامنين للمزامنة مع الخادم
- */
-export const getUnsyncedCustomers = async (): Promise<LocalCustomer[]> => {
-  return await getLocalCustomers({ onlyUnsynced: true });
-};
-
-/**
- * إضافة عنوان جديد للعميل
- */
-export const createLocalAddress = async (
-  address: Omit<LocalAddress, 'id' | 'synced' | 'syncStatus' | 'localUpdatedAt' | 'pendingOperation'>
-): Promise<LocalAddress> => {
-  const id = uuidv4();
-  const now = new Date().toISOString();
-  const orgId = getCurrentOrganizationId();
-
-  const localAddress: LocalAddress = {
-    id,
-    ...address,
-    synced: false,
-    syncStatus: 'pending',
-    localUpdatedAt: now,
-    pendingOperation: 'create'
-  };
-
-  // ⚡ استخدام Delta Sync
-  const result = await deltaWriteService.create('customer_addresses', localAddress, orgId);
-
-  if (!result.success) {
-    throw new Error(`Failed to create address: ${result.error}`);
-  }
-
-  console.log(`[LocalCustomer] ⚡ Created address ${id} via Delta Sync`);
-  return localAddress;
-};
-
-/**
- * الحصول على عناوين العميل
- */
-export const getLocalAddressesByCustomerId = async (customerId: string): Promise<LocalAddress[]> => {
-  const orgId = getCurrentOrganizationId();
-
-  return deltaWriteService.getAll<LocalAddress>('customer_addresses', orgId, {
-    where: "customer_id = ? AND (pending_operation IS NULL OR pending_operation != 'delete')",
-    params: [customerId]
-  });
-};
-
-// =====================
-// حفظ البيانات من السيرفر
-// =====================
-
-export const saveRemoteCustomers = async (customers: any[]): Promise<void> => {
-  if (!customers || customers.length === 0) return;
-
-  const now = new Date().toISOString();
-  const toLower = (s: any) => (s || '').toString().toLowerCase();
-  const digits = (s: any) => (s || '').toString().replace(/\D+/g, '');
-
-  for (const customer of customers) {
-    const mappedCustomer: LocalCustomer = {
-      id: customer.id,
-      name: customer.name,
-      name_lower: toLower(customer.name),
-      email: customer.email,
-      email_lower: toLower(customer.email),
-      phone: customer.phone,
-      phone_digits: digits(customer.phone),
-      city: customer.city,
-      address: customer.address,
-      notes: customer.notes,
-      organization_id: customer.organization_id,
-      created_at: customer.created_at || now,
-      updated_at: customer.updated_at || now,
-      synced: true,
-      syncStatus: undefined,
-      pendingOperation: undefined,
-      localUpdatedAt: now
-    };
-
-    await deltaWriteService.saveFromServer('customers', mappedCustomer);
-  }
-
-  console.log(`[LocalCustomer] ⚡ Saved ${customers.length} remote customers`);
-};
-
-export const saveRemoteAddresses = async (addresses: any[]): Promise<void> => {
-  if (!addresses || addresses.length === 0) return;
-
-  const now = new Date().toISOString();
-
-  for (const address of addresses) {
-    const mappedAddress: LocalAddress = {
-      id: address.id,
-      customer_id: address.customer_id,
-      label: address.label,
-      city: address.city,
-      commune: address.commune,
-      address_line: address.address_line,
-      phone: address.phone,
-      is_default: address.is_default || false,
-      synced: true,
-      syncStatus: undefined,
-      pendingOperation: undefined,
-      localUpdatedAt: now
-    };
-
-    await deltaWriteService.saveFromServer('customer_addresses', mappedAddress);
-  }
-
-  console.log(`[LocalCustomer] ⚡ Saved ${addresses.length} remote addresses`);
 };

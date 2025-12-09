@@ -3,23 +3,25 @@
  * عرض الإحصائيات والمقارنات والتحكم في النظام
  */
 
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
 import { Button } from './ui/button';
 import { RefreshCwIcon } from 'lucide-react';
 
-// Lazy loading for charts components
-const LazyBarChart = lazy(() => import('recharts').then(module => ({ default: module.BarChart })));
-const LazyBar = lazy(() => import('recharts').then(module => ({ default: module.Bar })));
-const LazyXAxis = lazy(() => import('recharts').then(module => ({ default: module.XAxis })));
-const LazyYAxis = lazy(() => import('recharts').then(module => ({ default: module.YAxis })));
-const LazyCartesianGrid = lazy(() => import('recharts').then(module => ({ default: module.CartesianGrid })));
-const LazyTooltip = lazy(() => import('recharts').then(module => ({ default: module.Tooltip })));
-const LazyResponsiveContainer = lazy(() => import('recharts').then(module => ({ default: module.ResponsiveContainer })));
-const LazyPieChart = lazy(() => import('recharts').then(module => ({ default: module.PieChart })));
-const LazyPie = lazy(() => import('recharts').then(module => ({ default: module.Pie })));
-const LazyCell = lazy(() => import('recharts').then(module => ({ default: module.Cell })));
+// Static imports to avoid Safari ESM issues with dynamic imports
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell
+} from 'recharts';
 
 import {
   Database,
@@ -257,26 +259,22 @@ export const AuditSystemDashboard: React.FC = () => {
             <BarChart3 className="h-5 w-5 text-blue-500" />
             مقارنة النشاط اليومي
           </h3>
-          <Suspense fallback={<div className="flex justify-center items-center h-[300px]">
-            <RefreshCwIcon className="h-8 w-8 animate-spin text-primary" />
-          </div>}>
-            <LazyResponsiveContainer width="100%" height={300}>
-              <LazyBarChart data={activity}>
-                <LazyCartesianGrid strokeDasharray="3 3" />
-                <LazyXAxis dataKey="date" />
-                <LazyYAxis />
-                <LazyTooltip 
-                  labelFormatter={(value) => `التاريخ: ${value}`}
-                  formatter={(value, name) => [
-                    `${value} MB`,
-                    name === 'old_system' ? 'النظام القديم' : 'النظام الجديد'
-                  ]}
-                />
-                <LazyBar dataKey="old_system" fill="#EF4444" name="النظام القديم" />
-                <LazyBar dataKey="new_system" fill="#10B981" name="النظام الجديد" />
-              </LazyBarChart>
-            </LazyResponsiveContainer>
-          </Suspense>
+          <ResponsiveContainer width="100%" height={300}>
+            <BarChart data={activity}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" />
+              <YAxis />
+              <Tooltip
+                labelFormatter={(value) => `التاريخ: ${value}`}
+                formatter={(value, name) => [
+                  `${value} MB`,
+                  name === 'old_system' ? 'النظام القديم' : 'النظام الجديد'
+                ]}
+              />
+              <Bar dataKey="old_system" fill="#EF4444" name="النظام القديم" />
+              <Bar dataKey="new_system" fill="#10B981" name="النظام الجديد" />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
 
         {/* مخطط دائري للتوفير */}
@@ -285,28 +283,24 @@ export const AuditSystemDashboard: React.FC = () => {
             <TrendingDown className="h-5 w-5 text-green-500" />
             توزيع استخدام المساحة
           </h3>
-          <Suspense fallback={<div className="flex justify-center items-center h-[300px]">
-            <RefreshCwIcon className="h-8 w-8 animate-spin text-primary" />
-          </div>}>
-            <LazyResponsiveContainer width="100%" height={300}>
-              <LazyPieChart>
-                <LazyPie
-                  data={pieData}
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={80}
-                  fill="#8884d8"
-                  dataKey="value"
-                  label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                >
-                  {pieData.map((entry, index) => (
-                    <LazyCell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </LazyPie>
-                <LazyTooltip formatter={(value) => [`${Number(value).toFixed(1)} MB`, 'الحجم']} />
-              </LazyPieChart>
-            </LazyResponsiveContainer>
-          </Suspense>
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie
+                data={pieData}
+                cx="50%"
+                cy="50%"
+                outerRadius={80}
+                fill="#8884d8"
+                dataKey="value"
+                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+              >
+                {pieData.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} />
+                ))}
+              </Pie>
+              <Tooltip formatter={(value) => [`${Number(value).toFixed(1)} MB`, 'الحجم']} />
+            </PieChart>
+          </ResponsiveContainer>
         </div>
       </div>
 

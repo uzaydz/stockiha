@@ -4,7 +4,6 @@ import { useAuth } from '@/context/AuthContext';
 import { useStaffSession } from '@/context/StaffSessionContext';
 import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { invoke } from '@tauri-apps/api/core';
 
 const ProfileMenu: React.FC = () => {
   const { user, userProfile, signOut } = useAuth();

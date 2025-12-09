@@ -1,20 +1,29 @@
 /**
- * خدمة الإشعارات الموحدة للأوفلاين
+ * خدمة الإشعارات المحلية (Local-Only)
+ * =====================================
  *
- * توفر:
- * - تخزين الإشعارات في SQLite للعمل أوفلاين
- * - مزامنة الإشعارات عند استعادة الاتصال
- * - إنشاء إشعارات محلية للمخزون والطلبات والعملاء
- * - قائمة انتظار للإشعارات غير المرسلة
+ * ⚡ v5.0 - نظام إشعارات محلي بالكامل
+ *
+ * الميزات:
+ * - تخزين الإشعارات في PowerSync (SQLite) محلياً فقط
+ * - إنشاء إشعارات محلية للمخزون والديون
+ * - بدون مزامنة مع السيرفر (إلا للطلبات الإلكترونية عبر Realtime)
+ * - أداء عالي وسرعة فائقة
+ *
+ * الاستثناء الوحيد:
+ * - إشعارات الطلبات الإلكترونية تأتي من Supabase Realtime
+ *   ويتم تخزينها محلياً أيضاً
  */
 
-import { sqliteAPI } from '@/lib/db/sqliteAPI';
-import { supabase } from '@/lib/supabase';
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 📦 TYPES
+// ═══════════════════════════════════════════════════════════════════════════
 
 // أنواع الإشعارات
 export type NotificationType =
-  | 'new_order'           // طلب جديد
-  | 'order_status_change' // تغيير حالة طلب
+  | 'new_order'           // طلب جديد (من السيرفر عبر Realtime)
   | 'low_stock'           // مخزون منخفض
   | 'out_of_stock'        // نفاد المخزون
   | 'stock_restored'      // استعادة المخزون
@@ -23,12 +32,9 @@ export type NotificationType =
   | 'debt_overdue'        // دين متأخر
   | 'customer_inactive'   // عميل غير نشط
   | 'subscription_expiry' // انتهاء اشتراك
-  | 'sync_completed'      // اكتمال المزامنة
-  | 'sync_failed'         // فشل المزامنة
   | 'repair_status'       // حالة إصلاح
   | 'invoice_due'         // فاتورة مستحقة
   | 'return_request'      // طلب إرجاع
-  | 'price_change'        // تغيير سعر
   | 'custom';             // مخصص
 
 // أولوية الإشعار
@@ -38,7 +44,7 @@ export type NotificationPriority = 'low' | 'medium' | 'high' | 'urgent';
 export type NotificationStatus = 'pending' | 'delivered' | 'read' | 'dismissed';
 
 // مصدر الإشعار
-export type NotificationSource = 'local' | 'server' | 'system';
+export type NotificationSource = 'local' | 'server';
 
 // واجهة الإشعار
 export interface OfflineNotification {
@@ -57,23 +63,21 @@ export interface OfflineNotification {
   created_at: string;
   read_at?: string;
   expires_at?: string;
-  sync_status: 'synced' | 'pending' | 'failed';
-  retry_count: number;
 }
 
 // إعدادات المخزون المنخفض
 export interface LowStockSettings {
   enabled: boolean;
-  threshold: number;        // العتبة الافتراضية
-  criticalThreshold: number; // عتبة النفاد الحرج
-  checkInterval: number;    // فترة الفحص بالملي ثانية
-  notifyOnRestore: boolean; // إشعار عند استعادة المخزون
+  threshold: number;
+  criticalThreshold: number;
+  checkInterval: number;
+  notifyOnRestore: boolean;
 }
 
 // إعدادات تذكير الديون
 export interface DebtReminderSettings {
   enabled: boolean;
-  reminderDays: number[];   // أيام التذكير قبل الاستحقاق
+  reminderDays: number[];
   overdueCheckInterval: number;
 }
 
@@ -87,7 +91,10 @@ export interface NotificationSettings {
   retentionDays: number;
 }
 
-// الإعدادات الافتراضية
+// ═══════════════════════════════════════════════════════════════════════════
+// ⚙️ DEFAULT SETTINGS
+// ═══════════════════════════════════════════════════════════════════════════
+
 const DEFAULT_SETTINGS: NotificationSettings = {
   lowStock: {
     enabled: true,
@@ -99,7 +106,7 @@ const DEFAULT_SETTINGS: NotificationSettings = {
   debtReminder: {
     enabled: true,
     reminderDays: [7, 3, 1, 0],
-    overdueCheckInterval: 24 * 60 * 60 * 1000 // يوميا
+    overdueCheckInterval: 24 * 60 * 60 * 1000 // يومياً
   },
   soundEnabled: true,
   desktopNotifications: true,
@@ -107,52 +114,9 @@ const DEFAULT_SETTINGS: NotificationSettings = {
   retentionDays: 30
 };
 
-// جدول SQLite للإشعارات
-const CREATE_NOTIFICATIONS_TABLE = `
-  CREATE TABLE IF NOT EXISTS offline_notifications (
-    id TEXT PRIMARY KEY,
-    organization_id TEXT NOT NULL,
-    type TEXT NOT NULL,
-    title TEXT NOT NULL,
-    message TEXT NOT NULL,
-    priority TEXT DEFAULT 'medium',
-    status TEXT DEFAULT 'pending',
-    source TEXT DEFAULT 'local',
-    is_read INTEGER DEFAULT 0,
-    data TEXT,
-    action_url TEXT,
-    action_label TEXT,
-    created_at TEXT NOT NULL,
-    read_at TEXT,
-    expires_at TEXT,
-    sync_status TEXT DEFAULT 'pending',
-    retry_count INTEGER DEFAULT 0
-  )
-`;
-
-const CREATE_NOTIFICATIONS_INDEX = `
-  CREATE INDEX IF NOT EXISTS idx_notifications_org_date
-  ON offline_notifications(organization_id, created_at DESC)
-`;
-
-const CREATE_NOTIFICATION_SETTINGS_TABLE = `
-  CREATE TABLE IF NOT EXISTS notification_settings (
-    organization_id TEXT PRIMARY KEY,
-    settings TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  )
-`;
-
-// جدول تتبع المخزون المنخفض (لتجنب الإشعارات المتكررة)
-const CREATE_LOW_STOCK_TRACKING_TABLE = `
-  CREATE TABLE IF NOT EXISTS low_stock_tracking (
-    product_id TEXT PRIMARY KEY,
-    organization_id TEXT NOT NULL,
-    last_notified_at TEXT,
-    last_quantity INTEGER,
-    notification_count INTEGER DEFAULT 0
-  )
-`;
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔔 NOTIFICATION SERVICE CLASS
+// ═══════════════════════════════════════════════════════════════════════════
 
 class OfflineNotificationService {
   private static instance: OfflineNotificationService;
@@ -161,7 +125,7 @@ class OfflineNotificationService {
   private listeners: Set<(notification: OfflineNotification) => void> = new Set();
   private lowStockInterval: number | null = null;
   private debtReminderInterval: number | null = null;
-  private syncInterval: number | null = null;
+  private currentOrganizationId: string | null = null;
 
   private constructor() {}
 
@@ -172,61 +136,55 @@ class OfflineNotificationService {
     return OfflineNotificationService.instance;
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🚀 INITIALIZATION
+  // ═══════════════════════════════════════════════════════════════════════════
+
   /**
    * تهيئة الخدمة
    */
   async initialize(organizationId: string): Promise<void> {
-    if (this.initialized) return;
+    if (this.initialized && this.currentOrganizationId === organizationId) {
+      return;
+    }
+
+    // إذا كان هناك تهيئة سابقة لمؤسسة مختلفة، نظفها
+    if (this.initialized && this.currentOrganizationId !== organizationId) {
+      this.stop();
+    }
 
     try {
-      // إنشاء الجداول
-      await this.createTables();
+      this.currentOrganizationId = organizationId;
 
       // تحميل الإعدادات
       await this.loadSettings(organizationId);
 
-      // بدء المراقبة
-      this.startMonitoring(organizationId);
-
-      // بدء المزامنة الدورية
-      this.startSyncInterval(organizationId);
+      // بدء المراقبة المحلية
+      this.startLocalMonitoring(organizationId);
 
       this.initialized = true;
-      console.log('[OfflineNotifications] Service initialized');
+      console.log('[LocalNotifications] ✅ Service initialized (local-only mode)');
     } catch (error) {
-      console.error('[OfflineNotifications] Initialization error:', error);
+      console.error('[LocalNotifications] ❌ Initialization error:', error);
     }
   }
 
   /**
-   * إنشاء جداول SQLite
-   */
-  private async createTables(): Promise<void> {
-    try {
-      await sqliteAPI.execute(CREATE_NOTIFICATIONS_TABLE);
-      await sqliteAPI.execute(CREATE_NOTIFICATIONS_INDEX);
-      await sqliteAPI.execute(CREATE_NOTIFICATION_SETTINGS_TABLE);
-      await sqliteAPI.execute(CREATE_LOW_STOCK_TRACKING_TABLE);
-    } catch (error) {
-      console.error('[OfflineNotifications] Error creating tables:', error);
-    }
-  }
-
-  /**
-   * تحميل الإعدادات
+   * تحميل الإعدادات من PowerSync
    */
   private async loadSettings(organizationId: string): Promise<void> {
     try {
-      const result = await sqliteAPI.query<{ settings: string }>(
-        'SELECT settings FROM notification_settings WHERE organization_id = ?',
-        [organizationId]
-      );
+      const result = await powerSyncService.queryOne<{ settings: string }>({
+        sql: 'SELECT settings FROM notification_settings WHERE organization_id = ?',
+        params: [organizationId]
+      });
 
-      if (result.length > 0) {
-        this.settings = { ...DEFAULT_SETTINGS, ...JSON.parse(result[0].settings) };
+      if (result) {
+        this.settings = { ...DEFAULT_SETTINGS, ...JSON.parse(result.settings) };
       }
     } catch (error) {
-      console.error('[OfflineNotifications] Error loading settings:', error);
+      // استخدام الإعدادات الافتراضية في حالة الخطأ
+      console.log('[LocalNotifications] Using default settings');
     }
   }
 
@@ -237,22 +195,28 @@ class OfflineNotificationService {
     this.settings = { ...this.settings, ...settings };
 
     try {
-      await sqliteAPI.execute(
-        `INSERT OR REPLACE INTO notification_settings (organization_id, settings, updated_at)
-         VALUES (?, ?, ?)`,
-        [organizationId, JSON.stringify(this.settings), new Date().toISOString()]
-      );
+      await powerSyncService.transaction(async (tx) => {
+        await tx.execute(
+          `INSERT OR REPLACE INTO notification_settings (organization_id, settings, updated_at)
+           VALUES (?, ?, ?)`,
+          [organizationId, JSON.stringify(this.settings), new Date().toISOString()]
+        );
+      });
     } catch (error) {
-      console.error('[OfflineNotifications] Error saving settings:', error);
+      console.error('[LocalNotifications] Error saving settings:', error);
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 📝 NOTIFICATION CRUD
+  // ═══════════════════════════════════════════════════════════════════════════
+
   /**
-   * إنشاء إشعار جديد
+   * إنشاء إشعار جديد (محلي)
    */
   async createNotification(
     organizationId: string,
-    notification: Omit<OfflineNotification, 'id' | 'organization_id' | 'created_at' | 'sync_status' | 'retry_count' | 'status'>
+    notification: Omit<OfflineNotification, 'id' | 'organization_id' | 'created_at' | 'status'>
   ): Promise<OfflineNotification> {
     const id = `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const now = new Date().toISOString();
@@ -260,60 +224,52 @@ class OfflineNotificationService {
     const fullNotification: OfflineNotification = {
       id,
       organization_id: organizationId,
-      status: 'pending',
-      sync_status: 'pending',
-      retry_count: 0,
+      status: 'delivered',
       created_at: now,
       ...notification
     };
 
-    // حفظ في SQLite
+    // حفظ في PowerSync (محلي فقط)
     await this.saveNotification(fullNotification);
 
     // إشعار المستمعين
     this.notifyListeners(fullNotification);
 
-    // محاولة المزامنة مع الخادم
-    if (navigator.onLine) {
-      this.syncNotificationToServer(fullNotification);
-    }
-
     return fullNotification;
   }
 
   /**
-   * حفظ إشعار في SQLite
+   * حفظ إشعار في PowerSync
    */
   private async saveNotification(notification: OfflineNotification): Promise<void> {
     try {
-      await sqliteAPI.execute(
-        `INSERT OR REPLACE INTO offline_notifications
-         (id, organization_id, type, title, message, priority, status, source,
-          is_read, data, action_url, action_label, created_at, read_at,
-          expires_at, sync_status, retry_count)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          notification.id,
-          notification.organization_id,
-          notification.type,
-          notification.title,
-          notification.message,
-          notification.priority,
-          notification.status,
-          notification.source,
-          notification.is_read ? 1 : 0,
-          notification.data ? JSON.stringify(notification.data) : null,
-          notification.action_url || null,
-          notification.action_label || null,
-          notification.created_at,
-          notification.read_at || null,
-          notification.expires_at || null,
-          notification.sync_status,
-          notification.retry_count
-        ]
-      );
+      await powerSyncService.transaction(async (tx) => {
+        await tx.execute(
+          `INSERT OR REPLACE INTO offline_notifications
+           (id, organization_id, type, title, message, priority, status, source,
+            is_read, data, action_url, action_label, created_at, read_at, expires_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            notification.id,
+            notification.organization_id,
+            notification.type,
+            notification.title,
+            notification.message,
+            notification.priority,
+            notification.status,
+            notification.source,
+            notification.is_read ? 1 : 0,
+            notification.data ? JSON.stringify(notification.data) : null,
+            notification.action_url || null,
+            notification.action_label || null,
+            notification.created_at,
+            notification.read_at || null,
+            notification.expires_at || null
+          ]
+        );
+      });
     } catch (error) {
-      console.error('[OfflineNotifications] Error saving notification:', error);
+      console.error('[LocalNotifications] Error saving notification:', error);
     }
   }
 
@@ -353,10 +309,10 @@ class OfflineNotificationService {
     params.push(limit, offset);
 
     try {
-      const results = await sqliteAPI.query<any>(query, params);
+      const results = await powerSyncService.query<any>({ sql: query, params });
       return results.map(this.mapNotificationFromDb);
     } catch (error) {
-      console.error('[OfflineNotifications] Error fetching notifications:', error);
+      console.error('[LocalNotifications] Error fetching notifications:', error);
       return [];
     }
   }
@@ -378,12 +334,14 @@ class OfflineNotificationService {
   async markAsRead(notificationId: string): Promise<void> {
     const now = new Date().toISOString();
     try {
-      await sqliteAPI.execute(
-        'UPDATE offline_notifications SET is_read = 1, read_at = ?, status = ? WHERE id = ?',
-        [now, 'read', notificationId]
-      );
+      await powerSyncService.transaction(async (tx) => {
+        await tx.execute(
+          'UPDATE offline_notifications SET is_read = 1, read_at = ?, status = ? WHERE id = ?',
+          [now, 'read', notificationId]
+        );
+      });
     } catch (error) {
-      console.error('[OfflineNotifications] Error marking as read:', error);
+      console.error('[LocalNotifications] Error marking as read:', error);
     }
   }
 
@@ -393,12 +351,14 @@ class OfflineNotificationService {
   async markAllAsRead(organizationId: string): Promise<void> {
     const now = new Date().toISOString();
     try {
-      await sqliteAPI.execute(
-        'UPDATE offline_notifications SET is_read = 1, read_at = ?, status = ? WHERE organization_id = ? AND is_read = 0',
-        [now, 'read', organizationId]
-      );
+      await powerSyncService.transaction(async (tx) => {
+        await tx.execute(
+          'UPDATE offline_notifications SET is_read = 1, read_at = ?, status = ? WHERE organization_id = ? AND is_read = 0',
+          [now, 'read', organizationId]
+        );
+      });
     } catch (error) {
-      console.error('[OfflineNotifications] Error marking all as read:', error);
+      console.error('[LocalNotifications] Error marking all as read:', error);
     }
   }
 
@@ -407,12 +367,30 @@ class OfflineNotificationService {
    */
   async deleteNotification(notificationId: string): Promise<void> {
     try {
-      await sqliteAPI.execute(
-        'DELETE FROM offline_notifications WHERE id = ?',
-        [notificationId]
-      );
+      await powerSyncService.transaction(async (tx) => {
+        await tx.execute(
+          'DELETE FROM offline_notifications WHERE id = ?',
+          [notificationId]
+        );
+      });
     } catch (error) {
-      console.error('[OfflineNotifications] Error deleting notification:', error);
+      console.error('[LocalNotifications] Error deleting notification:', error);
+    }
+  }
+
+  /**
+   * حذف جميع الإشعارات المقروءة
+   */
+  async deleteReadNotifications(organizationId: string): Promise<void> {
+    try {
+      await powerSyncService.transaction(async (tx) => {
+        await tx.execute(
+          'DELETE FROM offline_notifications WHERE organization_id = ? AND is_read = 1',
+          [organizationId]
+        );
+      });
+    } catch (error) {
+      console.error('[LocalNotifications] Error deleting read notifications:', error);
     }
   }
 
@@ -421,16 +399,20 @@ class OfflineNotificationService {
    */
   async getUnreadCount(organizationId: string): Promise<number> {
     try {
-      const result = await sqliteAPI.query<{ count: number }>(
-        'SELECT COUNT(*) as count FROM offline_notifications WHERE organization_id = ? AND is_read = 0',
-        [organizationId]
-      );
-      return result[0]?.count || 0;
+      const result = await powerSyncService.queryOne<{ count: number }>({
+        sql: 'SELECT COUNT(*) as count FROM offline_notifications WHERE organization_id = ? AND is_read = 0',
+        params: [organizationId]
+      });
+      return result?.count || 0;
     } catch (error) {
-      console.error('[OfflineNotifications] Error getting unread count:', error);
+      console.error('[LocalNotifications] Error getting unread count:', error);
       return 0;
     }
   }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 👂 LISTENERS
+  // ═══════════════════════════════════════════════════════════════════════════
 
   /**
    * الاشتراك في الإشعارات الجديدة
@@ -448,22 +430,26 @@ class OfflineNotificationService {
       try {
         callback(notification);
       } catch (error) {
-        console.error('[OfflineNotifications] Listener error:', error);
+        console.error('[LocalNotifications] Listener error:', error);
       }
     });
 
     // إرسال حدث عام
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('offlineNotification', {
+      window.dispatchEvent(new CustomEvent('localNotification', {
         detail: notification
       }));
     }
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🔍 LOCAL MONITORING
+  // ═══════════════════════════════════════════════════════════════════════════
+
   /**
-   * بدء مراقبة المخزون والديون
+   * بدء المراقبة المحلية
    */
-  private startMonitoring(organizationId: string): void {
+  private startLocalMonitoring(organizationId: string): void {
     // مراقبة المخزون المنخفض
     if (this.settings.lowStock.enabled) {
       this.checkLowStock(organizationId);
@@ -485,28 +471,31 @@ class OfflineNotificationService {
 
   /**
    * فحص المخزون المنخفض
+   * ⚡ محسّن: يستخدم Batch Query بدلاً من N+1 queries
    */
   async checkLowStock(organizationId: string): Promise<void> {
     try {
-      // جلب المنتجات من SQLite
-      const products = await sqliteAPI.query<{
+      const products = await powerSyncService.query<{
         id: string;
         name: string;
         quantity: number;
         min_stock_level: number;
-        image_url?: string;
-      }>(
-        `SELECT id, name, quantity, min_stock_level, image_url
+      }>({
+        sql: `SELECT id, name, stock_quantity as quantity, min_stock_level
          FROM products
-         WHERE organization_id = ? AND track_stock = 1`,
-        [organizationId]
-      );
+         WHERE organization_id = ? AND is_active = 1`,
+        params: [organizationId]
+      });
+
+      // ⚡ تحسين: جلب جميع التتبعات دفعة واحدة (حل N+1 Query)
+      const productIds = products.map(p => p.id);
+      await this.preloadLowStockTracking(productIds);
 
       for (const product of products) {
         const threshold = product.min_stock_level || this.settings.lowStock.threshold;
         const criticalThreshold = this.settings.lowStock.criticalThreshold;
 
-        // التحقق من آخر إشعار لهذا المنتج
+        // التحقق من آخر إشعار - الآن يستخدم الـ cache
         const tracking = await this.getLowStockTracking(product.id);
 
         if (product.quantity <= 0) {
@@ -572,60 +561,128 @@ class OfflineNotificationService {
         }
       }
     } catch (error) {
-      console.error('[OfflineNotifications] Error checking low stock:', error);
+      console.error('[LocalNotifications] Error checking low stock:', error);
     }
   }
 
   /**
-   * جلب تتبع المخزون المنخفض
+   * جلب تتبع المخزون المنخفض - Batch Version
+   * ⚡ تحسين: جلب جميع التتبعات دفعة واحدة بدلاً من N+1 queries
    */
   private async getLowStockTracking(productId: string): Promise<{ last_quantity: number } | null> {
+    // استخدام الـ cache إذا كان متاحاً
+    if (this.lowStockTrackingCache.has(productId)) {
+      return this.lowStockTrackingCache.get(productId) || null;
+    }
+
     try {
-      const result = await sqliteAPI.query<{ last_quantity: number }>(
-        'SELECT last_quantity FROM low_stock_tracking WHERE product_id = ?',
-        [productId]
-      );
-      return result[0] || null;
+      const result = await powerSyncService.queryOne<{ last_quantity: number }>({
+        sql: 'SELECT last_quantity FROM low_stock_tracking WHERE product_id = ?',
+        params: [productId]
+      });
+      return result || null;
     } catch {
       return null;
     }
   }
 
   /**
+   * ⚡ جلب جميع تتبعات المخزون دفعة واحدة (Batch)
+   * هذا يحل مشكلة N+1 Query
+   */
+  private async preloadLowStockTracking(productIds: string[]): Promise<void> {
+    if (productIds.length === 0) return;
+
+    try {
+      // جلب جميع التتبعات دفعة واحدة
+      const placeholders = productIds.map(() => '?').join(',');
+      const trackings = await powerSyncService.query<{ product_id: string; last_quantity: number }>({
+        sql: `SELECT product_id, last_quantity FROM low_stock_tracking WHERE product_id IN (${placeholders})`,
+        params: productIds
+      });
+
+      // تخزين في الـ cache
+      this.lowStockTrackingCache.clear();
+      for (const tracking of trackings) {
+        this.lowStockTrackingCache.set(tracking.product_id, { last_quantity: tracking.last_quantity });
+      }
+
+      // وضع null للمنتجات التي ليس لها تتبع
+      for (const productId of productIds) {
+        if (!this.lowStockTrackingCache.has(productId)) {
+          this.lowStockTrackingCache.set(productId, null);
+        }
+      }
+    } catch (error) {
+      console.warn('[LocalNotifications] Error preloading low stock tracking:', error);
+    }
+  }
+
+  // ⚡ Cache لتتبع المخزون - يُملأ مرة واحدة لكل دورة فحص
+  private lowStockTrackingCache: Map<string, { last_quantity: number } | null> = new Map();
+
+  /**
    * تحديث تتبع المخزون المنخفض
    */
   private async updateLowStockTracking(productId: string, organizationId: string, quantity: number): Promise<void> {
     try {
-      await sqliteAPI.execute(
-        `INSERT OR REPLACE INTO low_stock_tracking
-         (product_id, organization_id, last_notified_at, last_quantity, notification_count)
-         VALUES (?, ?, ?, ?, COALESCE((SELECT notification_count + 1 FROM low_stock_tracking WHERE product_id = ?), 1))`,
-        [productId, organizationId, new Date().toISOString(), quantity, productId]
-      );
+      // ⚡ جلب العدد الحالي قبل الـ transaction
+      let newCount = 1;
+      try {
+        const current = await powerSyncService.queryOne<{ notification_count: number }>({
+          sql: 'SELECT notification_count FROM low_stock_tracking WHERE product_id = ?',
+          params: [productId]
+        });
+        if (current) {
+          newCount = (current.notification_count || 0) + 1;
+        }
+      } catch {
+        // إذا لم يوجد سجل، نبدأ من 1
+      }
+
+      const now = new Date().toISOString();
+      await powerSyncService.transaction(async (tx) => {
+        await tx.execute(
+          `INSERT OR REPLACE INTO low_stock_tracking
+           (id, product_id, organization_id, last_notified_at, last_quantity, notification_count, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [productId, productId, organizationId, now, quantity, newCount, now, now]
+        );
+      });
     } catch (error) {
-      console.error('[OfflineNotifications] Error updating low stock tracking:', error);
+      console.error('[LocalNotifications] Error updating low stock tracking:', error);
     }
   }
 
   /**
    * فحص الديون المتأخرة
+   * ⚡ v5.1: يستخدم جدول orders مباشرة بدلاً من customer_debts
+   * الديون = طلبات فيها remaining_amount > 0
    */
   async checkOverdueDebts(organizationId: string): Promise<void> {
     try {
-      const debts = await sqliteAPI.query<{
+      // ⚡ جلب الديون من جدول orders مباشرة
+      const debts = await powerSyncService.query<{
         id: string;
         customer_id: string;
         customer_name: string;
         amount: number;
         due_date: string;
-        status: string;
-      }>(
-        `SELECT d.id, d.customer_id, c.name as customer_name, d.amount, d.due_date, d.status
-         FROM customer_debts d
-         LEFT JOIN customers c ON d.customer_id = c.id
-         WHERE d.organization_id = ? AND d.status = 'pending'`,
-        [organizationId]
-      );
+      }>({
+        sql: `SELECT
+           o.id,
+           o.customer_id,
+           c.name as customer_name,
+           COALESCE(o.remaining_amount, o.total) as amount,
+           o.created_at as due_date
+         FROM orders o
+         LEFT JOIN customers c ON o.customer_id = c.id
+         WHERE o.organization_id = ?
+           AND COALESCE(o.remaining_amount, o.total) > 0
+           AND o.status != 'cancelled'
+           AND o.customer_id IS NOT NULL`,
+        params: [organizationId]
+      });
 
       const now = new Date();
       const reminderDays = this.settings.debtReminder.reminderDays;
@@ -636,7 +693,6 @@ class OfflineNotificationService {
         const dueDate = new Date(debt.due_date);
         const daysUntilDue = Math.floor((dueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
-        // التحقق من التذكيرات
         for (const days of reminderDays) {
           if (daysUntilDue === days) {
             const priority: NotificationPriority =
@@ -668,84 +724,13 @@ class OfflineNotificationService {
         }
       }
     } catch (error) {
-      console.error('[OfflineNotifications] Error checking overdue debts:', error);
+      console.error('[LocalNotifications] Error checking overdue debts:', error);
     }
   }
 
-  /**
-   * مزامنة الإشعارات مع الخادم
-   */
-  private async syncNotificationToServer(notification: OfflineNotification): Promise<void> {
-    try {
-      const { error } = await supabase
-        .from('notifications')
-        .upsert({
-          id: notification.id,
-          organization_id: notification.organization_id,
-          type: notification.type,
-          title: notification.title,
-          message: notification.message,
-          priority: notification.priority,
-          is_read: notification.is_read,
-          data: notification.data,
-          created_at: notification.created_at
-        });
-
-      if (error) throw error;
-
-      // تحديث حالة المزامنة
-      await sqliteAPI.execute(
-        'UPDATE offline_notifications SET sync_status = ? WHERE id = ?',
-        ['synced', notification.id]
-      );
-    } catch (error) {
-      console.error('[OfflineNotifications] Sync error:', error);
-
-      // تحديث عداد المحاولات
-      await sqliteAPI.execute(
-        'UPDATE offline_notifications SET sync_status = ?, retry_count = retry_count + 1 WHERE id = ?',
-        ['failed', notification.id]
-      );
-    }
-  }
-
-  /**
-   * بدء المزامنة الدورية
-   */
-  private startSyncInterval(organizationId: string): void {
-    // مزامنة كل 5 دقائق
-    this.syncInterval = window.setInterval(
-      () => this.syncPendingNotifications(organizationId),
-      5 * 60 * 1000
-    );
-
-    // مزامنة عند استعادة الاتصال
-    window.addEventListener('online', () => {
-      this.syncPendingNotifications(organizationId);
-    });
-  }
-
-  /**
-   * مزامنة الإشعارات المعلقة
-   */
-  async syncPendingNotifications(organizationId: string): Promise<void> {
-    if (!navigator.onLine) return;
-
-    try {
-      const pending = await sqliteAPI.query<any>(
-        `SELECT * FROM offline_notifications
-         WHERE organization_id = ? AND sync_status IN ('pending', 'failed') AND retry_count < 5
-         ORDER BY created_at ASC LIMIT 50`,
-        [organizationId]
-      );
-
-      for (const row of pending) {
-        await this.syncNotificationToServer(this.mapNotificationFromDb(row));
-      }
-    } catch (error) {
-      console.error('[OfflineNotifications] Error syncing pending:', error);
-    }
-  }
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 🧹 CLEANUP
+  // ═══════════════════════════════════════════════════════════════════════════
 
   /**
    * تنظيف الإشعارات القديمة
@@ -755,37 +740,42 @@ class OfflineNotificationService {
     cutoffDate.setDate(cutoffDate.getDate() - this.settings.retentionDays);
 
     try {
-      await sqliteAPI.execute(
-        `DELETE FROM offline_notifications
-         WHERE organization_id = ? AND created_at < ? AND is_read = 1`,
-        [organizationId, cutoffDate.toISOString()]
-      );
+      await powerSyncService.transaction(async (tx) => {
+        // حذف الإشعارات القديمة المقروءة
+        await tx.execute(
+          `DELETE FROM offline_notifications
+           WHERE organization_id = ? AND created_at < ? AND is_read = 1`,
+          [organizationId, cutoffDate.toISOString()]
+        );
+      });
 
       // التحقق من الحد الأقصى
-      const count = await sqliteAPI.query<{ count: number }>(
+      const count = await powerSyncService.get<{ count: number }>(
         'SELECT COUNT(*) as count FROM offline_notifications WHERE organization_id = ?',
         [organizationId]
       );
 
-      if (count[0]?.count > this.settings.maxStoredNotifications) {
-        await sqliteAPI.execute(
-          `DELETE FROM offline_notifications
-           WHERE id IN (
-             SELECT id FROM offline_notifications
-             WHERE organization_id = ?
-             ORDER BY created_at ASC
-             LIMIT ?
-           )`,
-          [organizationId, count[0].count - this.settings.maxStoredNotifications]
-        );
+      if (count?.count && count.count > this.settings.maxStoredNotifications) {
+        await powerSyncService.transaction(async (tx) => {
+          await tx.execute(
+            `DELETE FROM offline_notifications
+             WHERE id IN (
+               SELECT id FROM offline_notifications
+               WHERE organization_id = ?
+               ORDER BY created_at ASC
+               LIMIT ?
+             )`,
+            [organizationId, count.count - this.settings.maxStoredNotifications]
+          );
+        });
       }
     } catch (error) {
-      console.error('[OfflineNotifications] Error cleaning up:', error);
+      console.error('[LocalNotifications] Error cleaning up:', error);
     }
   }
 
   /**
-   * إيقاف الخدمة
+   * إيقاف الخدمة وتنظيف الموارد
    */
   stop(): void {
     if (this.lowStockInterval) {
@@ -796,14 +786,29 @@ class OfflineNotificationService {
       clearInterval(this.debtReminderInterval);
       this.debtReminderInterval = null;
     }
-    if (this.syncInterval) {
-      clearInterval(this.syncInterval);
-      this.syncInterval = null;
-    }
+
     this.listeners.clear();
     this.initialized = false;
+    this.currentOrganizationId = null;
+
+    console.log('[LocalNotifications] ✅ Service stopped');
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 📊 GETTERS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  get isInitialized(): boolean {
+    return this.initialized;
+  }
+
+  get currentSettings(): NotificationSettings {
+    return { ...this.settings };
   }
 }
 
-// تصدير المثيل الوحيد
+// ═══════════════════════════════════════════════════════════════════════════
+// 📤 EXPORT
+// ═══════════════════════════════════════════════════════════════════════════
+
 export const offlineNotificationService = OfflineNotificationService.getInstance();

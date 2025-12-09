@@ -1,9 +1,24 @@
 /**
- * ⚡ تصدير مكونات المزامنة
+ * ⚡ مكونات المزامنة - Index
+ * @version 2.0.0
  */
 
+// Types
 export * from './types';
-export * from './useSyncStats';
-export * from './useSyncActions';
-export * from './SyncStatsGrid';
-export * from './OutboxDetailsPanel';
+
+// Hooks
+export { useSyncStats } from './useSyncStats';
+export { useSyncActions } from './useSyncActions';
+
+// Components
+export { 
+  SyncStatsGrid, 
+  SyncStatsGridExpanded,
+  SyncSummary,
+  ConnectionStatus 
+} from './SyncStatsGrid';
+
+export { 
+  OutboxDetailsPanel,
+  DiagnosticsPanel 
+} from './OutboxDetailsPanel';

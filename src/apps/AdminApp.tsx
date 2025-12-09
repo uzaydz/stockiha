@@ -15,6 +15,7 @@ import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import { ConfirmationProvider } from '@/context/ConfirmationContext';
 import { SyncManagerWrapper } from '@/app-components/AppComponents';
 import { SuperUnifiedDataProvider } from '@/context/SuperUnifiedDataContext';
+import SnowEffect from '@/components/effects/SnowEffect';
 
 const LocalStorageMonitor = lazy(() =>
   import('@/components/auth/LocalStorageMonitor').then(module => ({ default: module.LocalStorageMonitor }))
@@ -57,199 +58,200 @@ const AdminApp: React.FC = () => {
         <LayoutShiftPrevention>
           <AppCore>
             <SuperUnifiedDataProvider>
+              <SnowEffect className="fixed inset-0 z-[9999] pointer-events-none opacity-40" />
               <SyncManagerWrapper />
-              <Routes>
-                <Route
-                  path="/dashboard/*"
-                  element={
-                    <SuspenseRoute fallback={<SharedPageLoader message="جاري تحميل لوحة التحكم..." />}>
-                      <DashboardRoutes />
-                    </SuspenseRoute>
-                  }
-                />
+                <Routes>
+                  <Route
+                    path="/dashboard/*"
+                    element={
+                      <SuspenseRoute fallback={<SharedPageLoader message="جاري تحميل لوحة التحكم..." />}>
+                        <DashboardRoutes />
+                      </SuspenseRoute>
+                    }
+                  />
 
-                <Route
-                  path="/call-center/*"
-                  element={
-                    <SuspenseRoute fallback={<SharedPageLoader message="جاري تحميل مركز الاتصال..." />}>
-                      <CallCenterRoutes />
-                    </SuspenseRoute>
-                  }
-                />
+                  <Route
+                    path="/call-center/*"
+                    element={
+                      <SuspenseRoute fallback={<SharedPageLoader message="جاري تحميل مركز الاتصال..." />}>
+                        <CallCenterRoutes />
+                      </SuspenseRoute>
+                    }
+                  />
 
-                <Route
-                  path="/pos/*"
-                  element={
-                    <Suspense fallback={<AppLoader message="جاري تحميل نقطة البيع..." />}>
-                      <LazyLoadingWrapper message="جاري تحميل نقطة البيع...">
-                        <POSRoutes />
-                      </LazyLoadingWrapper>
-                    </Suspense>
-                  }
-                />
+                  <Route
+                    path="/pos/*"
+                    element={
+                      <Suspense fallback={<AppLoader message="جاري تحميل نقطة البيع..." />}>
+                        <LazyLoadingWrapper message="جاري تحميل نقطة البيع...">
+                          <POSRoutes />
+                        </LazyLoadingWrapper>
+                      </Suspense>
+                    }
+                  />
 
-                <Route
-                  path="/super-admin/*"
-                  element={
-                    <SuspenseRoute fallback={<SharedPageLoader message="جاري تحميل لوحة الإدارة العليا..." />}>
-                      <SuperAdminRoutes />
-                    </SuspenseRoute>
-                  }
-                />
+                  <Route
+                    path="/super-admin/*"
+                    element={
+                      <SuspenseRoute fallback={<SharedPageLoader message="جاري تحميل لوحة الإدارة العليا..." />}>
+                        <SuperAdminRoutes />
+                      </SuspenseRoute>
+                    }
+                  />
 
-                <Route
-                  path="/login"
-                  element={
-                    <SuspenseRoute fallback={<AppLoader message="جاري تحميل صفحة الدخول..." />}>
-                      <PublicRoute>
-                        <LazyRoutes.LoginForm />
-                      </PublicRoute>
-                    </SuspenseRoute>
-                  }
-                />
+                  <Route
+                    path="/login"
+                    element={
+                      <SuspenseRoute fallback={<AppLoader message="جاري تحميل صفحة الدخول..." />}>
+                        <PublicRoute>
+                          <LazyRoutes.LoginForm />
+                        </PublicRoute>
+                      </SuspenseRoute>
+                    }
+                  />
 
-                <Route
-                  path="/staff-login"
-                  element={
-                    <SuspenseRoute fallback={<AppLoader message="جاري تحميل تسجيل دخول الموظف..." />}>
-                      <ProtectedRoute>
-                        <StaffLogin />
-                      </ProtectedRoute>
-                    </SuspenseRoute>
-                  }
-                />
+                  <Route
+                    path="/staff-login"
+                    element={
+                      <SuspenseRoute fallback={<AppLoader message="جاري تحميل تسجيل دخول الموظف..." />}>
+                        <ProtectedRoute>
+                          <StaffLogin />
+                        </ProtectedRoute>
+                      </SuspenseRoute>
+                    }
+                  />
 
-                <Route
-                  path="/forgot-password"
-                  element={
-                    <SuspenseRoute fallback={<AppLoader message="جاري تحميل صفحة نسيت كلمة المرور..." />}>
-                      <PublicRoute>
-                        <LazyRoutes.ForgotPasswordForm />
-                      </PublicRoute>
-                    </SuspenseRoute>
-                  }
-                />
+                  <Route
+                    path="/forgot-password"
+                    element={
+                      <SuspenseRoute fallback={<AppLoader message="جاري تحميل صفحة نسيت كلمة المرور..." />}>
+                        <PublicRoute>
+                          <LazyRoutes.ForgotPasswordForm />
+                        </PublicRoute>
+                      </SuspenseRoute>
+                    }
+                  />
 
-                <Route
-                  path="/reset-password"
-                  element={
-                    <SuspenseRoute fallback={<AppLoader message="جاري تحميل صفحة إعادة تعيين كلمة المرور..." />}>
-                      <PublicRoute>
-                        <LazyRoutes.ResetPasswordForm />
-                      </PublicRoute>
-                    </SuspenseRoute>
-                  }
-                />
+                  <Route
+                    path="/reset-password"
+                    element={
+                      <SuspenseRoute fallback={<AppLoader message="جاري تحميل صفحة إعادة تعيين كلمة المرور..." />}>
+                        <PublicRoute>
+                          <LazyRoutes.ResetPasswordForm />
+                        </PublicRoute>
+                      </SuspenseRoute>
+                    }
+                  />
 
-                <Route
-                  path="/admin/signup"
-                  element={
-                    <SuspenseRoute fallback={<AppLoader message="جاري تحميل التسجيل..." />}>
-                      <PublicRoute>
-                        <LazyRoutes.AdminSignup />
-                      </PublicRoute>
-                    </SuspenseRoute>
-                  }
-                />
+                  <Route
+                    path="/admin/signup"
+                    element={
+                      <SuspenseRoute fallback={<AppLoader message="جاري تحميل التسجيل..." />}>
+                        <PublicRoute>
+                          <LazyRoutes.AdminSignup />
+                        </PublicRoute>
+                      </SuspenseRoute>
+                    }
+                  />
 
-                <Route
-                  path="/tenant/signup"
-                  element={
-                    <SuspenseRoute fallback={<AppLoader message="جاري تحميل التسجيل..." />}>
-                      <PublicRoute>
-                        <LazyRoutes.TenantSignup />
-                      </PublicRoute>
-                    </SuspenseRoute>
-                  }
-                />
+                  <Route
+                    path="/tenant/signup"
+                    element={
+                      <SuspenseRoute fallback={<AppLoader message="جاري تحميل التسجيل..." />}>
+                        <PublicRoute>
+                          <LazyRoutes.TenantSignup />
+                        </PublicRoute>
+                      </SuspenseRoute>
+                    }
+                  />
 
-                <Route
-                  path="/setup-organization"
-                  element={
-                    <SuspenseRoute fallback={<AppLoader message="جاري تحميل إعداد المؤسسة..." />}>
-                      <LazyRoutes.SetupOrganization />
-                    </SuspenseRoute>
-                  }
-                />
+                  <Route
+                    path="/setup-organization"
+                    element={
+                      <SuspenseRoute fallback={<AppLoader message="جاري تحميل إعداد المؤسسة..." />}>
+                        <LazyRoutes.SetupOrganization />
+                      </SuspenseRoute>
+                    }
+                  />
 
-                <Route
-                  path="/program-landing"
-                  element={
-                    <SuspenseRoute fallback={<AppLoader message="جاري تحميل صفحة البرنامج..." />}>
-                      <ProtectedRoute>
-                        <LazyRoutes.ProgramLandingPage />
-                      </ProtectedRoute>
-                    </SuspenseRoute>
-                  }
-                />
+                  <Route
+                    path="/program-landing"
+                    element={
+                      <SuspenseRoute fallback={<AppLoader message="جاري تحميل صفحة البرنامج..." />}>
+                        <ProtectedRoute>
+                          <LazyRoutes.ProgramLandingPage />
+                        </ProtectedRoute>
+                      </SuspenseRoute>
+                    }
+                  />
 
-                <Route
-                  path="/redirect"
-                  element={
-                    <SuspenseRoute fallback={fallback}>
-                      <RoleBasedRedirect />
-                    </SuspenseRoute>
-                  }
-                />
+                  <Route
+                    path="/redirect"
+                    element={
+                      <SuspenseRoute fallback={fallback}>
+                        <RoleBasedRedirect />
+                      </SuspenseRoute>
+                    }
+                  />
 
-                <Route
-                  path="/super-admin/login"
-                  element={
-                    <SuspenseRoute fallback={fallback}>
-                      <LazyRoutes.SuperAdminLogin />
-                    </SuspenseRoute>
-                  }
-                />
+                  <Route
+                    path="/super-admin/login"
+                    element={
+                      <SuspenseRoute fallback={fallback}>
+                        <LazyRoutes.SuperAdminLogin />
+                      </SuspenseRoute>
+                    }
+                  />
 
-                <Route
-                  path="/confirmation/workspace"
-                  element={
-                    <SuspenseRoute fallback={<SharedPageLoader message="جاري تحميل مساحة موظف التأكيد..." />}>
-                      <ProtectedRoute allowedRoles={['confirmation_agent']}>
-                        <ConfirmationProvider>
-                          <LazyRoutes.ConfirmationAgentWorkspace />
-                        </ConfirmationProvider>
-                      </ProtectedRoute>
-                    </SuspenseRoute>
-                  }
-                />
+                  <Route
+                    path="/confirmation/workspace"
+                    element={
+                      <SuspenseRoute fallback={<SharedPageLoader message="جاري تحميل مساحة موظف التأكيد..." />}>
+                        <ProtectedRoute allowedRoles={['confirmation_agent']}>
+                          <ConfirmationProvider>
+                            <LazyRoutes.ConfirmationAgentWorkspace />
+                          </ConfirmationProvider>
+                        </ProtectedRoute>
+                      </SuspenseRoute>
+                    }
+                  />
 
-                <Route
-                  path="/confirmation"
-                  element={<Navigate to="/confirmation/workspace" replace />}
-                />
+                  <Route
+                    path="/confirmation"
+                    element={<Navigate to="/confirmation/workspace" replace />}
+                  />
 
-                <Route
-                  path="/"
-                  element={<Navigate to="/login" replace />}
-                />
+                  <Route
+                    path="/"
+                    element={<Navigate to="/login" replace />}
+                  />
 
-                <Route
-                  path="/desktop"
-                  element={
-                    <SuspenseRoute fallback={<SharedPageLoader message="جاري تحميل لوحة التحكم..." />}>
-                      <ProtectedRoute>
-                        <POSDashboard />
-                      </ProtectedRoute>
-                    </SuspenseRoute>
-                  }
-                />
+                  <Route
+                    path="/desktop"
+                    element={
+                      <SuspenseRoute fallback={<SharedPageLoader message="جاري تحميل لوحة التحكم..." />}>
+                        <ProtectedRoute>
+                          <POSDashboard />
+                        </ProtectedRoute>
+                      </SuspenseRoute>
+                    }
+                  />
 
-                <Route
-                  path="*"
-                  element={
-                    <SuspenseRoute fallback={fallback}>
-                      <NotFoundPage />
-                    </SuspenseRoute>
-                  }
-                />
-              </Routes>
+                  <Route
+                    path="*"
+                    element={
+                      <SuspenseRoute fallback={fallback}>
+                        <NotFoundPage />
+                      </SuspenseRoute>
+                    }
+                  />
+                </Routes>
 
-              {import.meta.env.DEV && (
-                <Suspense fallback={null}>
-                  <LocalStorageMonitor />
-                </Suspense>
-              )}
+                {import.meta.env.DEV && (
+                  <Suspense fallback={null}>
+                    <LocalStorageMonitor />
+                  </Suspense>
+                )}
             </SuperUnifiedDataProvider>
           </AppCore>
         </LayoutShiftPrevention>

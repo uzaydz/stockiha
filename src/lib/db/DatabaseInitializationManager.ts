@@ -3,7 +3,9 @@
  * يحل مشكلة Race Conditions ويضمن تهيئة آمنة ومنسقة
  */
 
-import { sqliteDB, isSQLiteAvailable, isElectron } from './sqliteAPI';
+// ⚡ تم إزالة sqliteAPI - PowerSync متاح دائماً
+// import { sqliteDB, isSQLiteAvailable, isElectron } from './sqliteAPI';
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
 
 /**
  * حالة التهيئة لكل مؤسسة
@@ -109,54 +111,37 @@ class DatabaseInitializationManager {
 
   /**
    * تنفيذ التهيئة الفعلية
+   * ⚡ محسّن: يتحقق أولاً إذا كان PowerSync مُهيأ بالفعل
    */
   private async performInitialization(orgId: string, timeout: number): Promise<boolean> {
-    console.log(`[DBInitManager] Starting initialization for org: ${orgId.slice(0, 8)}...`);
     const startTime = Date.now();
 
-    // الخطوة 1: التحقق من توفر SQLite API
-    // في Electron: ننتظر حتى تتوفر window.electronAPI.db من الـ preload
-    // في Tauri أو المتصفح: نتجاوز الانتظار وندع sqliteDB.initialize يتعامل مع البيئة
-    if (isElectron()) {
-      const isAvailable = await this.waitForSQLiteAPI(timeout);
-      if (!isAvailable) {
-        console.error(`[DBInitManager] SQLite API not available after ${timeout}ms`);
-        return false;
-      }
+    // ⚡ تحقق سريع: إذا كان PowerSync مُهيأ بالفعل، لا حاجة للتهيئة مرة أخرى
+    if (powerSyncService.isReady() && powerSyncService.db) {
+      console.log(`[DBInitManager] ⚡ PowerSync already initialized for org ${orgId.slice(0, 8)}`);
+      return true;
     }
 
-    // الخطوة 2: تهيئة قاعدة البيانات
-    try {
-      const result = await sqliteDB.initialize(orgId);
+    console.log(`[DBInitManager] Starting initialization for org: ${orgId.slice(0, 8)}...`);
 
-      if (result.success) {
-        const duration = Date.now() - startTime;
-        console.log(`[DBInitManager] ✅ Initialization successful for org ${orgId.slice(0, 8)} in ${duration}ms`);
-        return true;
-      } else {
-        console.error(`[DBInitManager] ❌ Initialization failed:`, result.error);
-        return false;
-      }
+    // ⚡ الخطوة 1: تهيئة PowerSync (متاح دائماً)
+    try {
+      await powerSyncService.initialize();
+      const duration = Date.now() - startTime;
+      console.log(`[DBInitManager] ⚡ PowerSync initialization successful for org ${orgId.slice(0, 8)} in ${duration}ms`);
+      return true;
     } catch (error) {
-      console.error(`[DBInitManager] ❌ Initialization threw error:`, error);
+      console.error(`[DBInitManager] ❌ PowerSync initialization threw error:`, error);
       return false;
     }
   }
 
   /**
-   * انتظار توفر SQLite API
+   * ⚡ PowerSync متاح دائماً - لا حاجة للانتظار
    */
   private async waitForSQLiteAPI(timeoutMs: number): Promise<boolean> {
-    const startTime = Date.now();
-
-    while (Date.now() - startTime < timeoutMs) {
-      if (isSQLiteAvailable()) {
-        return true;
-      }
-      await this.sleep(this.POLL_INTERVAL);
-    }
-
-    return isSQLiteAvailable();
+    // ⚡ PowerSync متاح دائماً
+    return true;
   }
 
   /**

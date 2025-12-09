@@ -7,27 +7,17 @@
   box-shadow: none;
 }
 
-/* Custom Scrollbar */
+/* Custom Scrollbar - HIDDEN */
 .sidebar-scroll-area {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
 }
 
 .sidebar-scroll-area::-webkit-scrollbar {
-  width: 4px;
-}
-
-.sidebar-scroll-area::-webkit-scrollbar-track {
+  display: none; /* Chrome, Safari and Opera */
+  width: 0;
+  height: 0;
   background: transparent;
-}
-
-.sidebar-scroll-area::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.1);
-  border-radius: 20px;
-}
-
-.sidebar-scroll-area:hover::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.2);
 }
 
 /* Smooth transitions for all interactive elements */
@@ -41,4 +31,26 @@ a {
 /* Tooltip Animation overrides if needed */
 [data-radix-popper-content-wrapper] {
   z-index: 50 !important;
+}
+
+/* Shine Animation for Logo */
+@keyframes shine {
+  from {
+    transform: translateX(-100%) skewX(-15deg);
+  }
+  to {
+    transform: translateX(200%) skewX(-15deg);
+  }
+}
+
+.animate-shine {
+  animation: shine 1.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Text Gradient Utilities */
+.text-gradient-gold {
+  background: linear-gradient(135deg, #FFD700 0%, #FFA500 50%, #FF8C00 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }

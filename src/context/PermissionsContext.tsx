@@ -729,23 +729,32 @@ export const PermissionsProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   }, [user?.id]);
 
+  // ⚡ استخدام ref لتتبع آخر userId تم جلب الصلاحيات له
+  const lastFetchedUserIdRef = useRef<string | null>(null);
+
   useEffect(() => {
+    // ⚡ تجنب الاستدعاء المكرر لنفس المستخدم
+    if (user?.id && lastFetchedUserIdRef.current === user.id) {
+      console.log('[PermissionsContext] ⏭️ Already fetched for this user, skipping...');
+      return;
+    }
+
     // Clear cache on user change
     cachedValue = null;
     setData(null);
     setReady(false);
     setError(null);
     if (user) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[PermissionsContext] 🚀 Starting to fetch permissions for user:', user.id);
-      }
+      console.log('[PermissionsContext] 🚀 Starting to fetch permissions for user:', user.id);
+      lastFetchedUserIdRef.current = user.id;
       fetchUnified();
     } else {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[PermissionsContext] ⏸️ No user, skipping permissions fetch');
-      }
+      console.log('[PermissionsContext] ⏸️ No user, skipping permissions fetch');
+      lastFetchedUserIdRef.current = null;
     }
-  }, [user?.id, fetchUnified]);
+  // ⚡ إزالة fetchUnified من dependencies لمنع الاستدعاءات المكررة
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   const has = useCallback((permission: string) => {
     if (!data) {

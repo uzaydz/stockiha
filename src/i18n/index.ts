@@ -1,55 +1,83 @@
 // ملف index.ts الجديد المُعاد تنظيمه - يجمع كل الوحدات
 // تم تقسيم الملف الأصلي إلى وحدات منفصلة لسهولة الصيانة والتطوير
+//
+// ⚡ تحسين الأداء (v2):
+// - إزالة Promise.race و timeouts التي كانت تسبب مشاكل "SafeTranslationProvider timeout"
+// - التهيئة المتزامنة لأن الترجمات مُضمّنة statically
+// - تأجيل عمليات الشبكة (جلب لغة المؤسسة) للخلفية
 
-import { getInitialLanguage } from './languageDetection';
+import { getInitialLanguage, getInitialLanguageSync } from './languageDetection';
 import { initializeI18n } from './i18nInit';
 import { setupAllEventListeners, scheduleLanguageUpdate } from './eventHandlers';
 import { langLog } from '@/lib/debug/langDebug';
 import i18n from './i18nInit';
 
-// تهيئة i18n - محسنة لتكون أسرع
-const initI18n = async () => {
-  try {
-    // الحصول على اللغة الأولية بطريقة أسرع (fallback إلى 'ar')
-    const initialLanguage = await Promise.race([
-      getInitialLanguage(),
-      new Promise<string>((resolve) => setTimeout(() => resolve('ar'), 50))
-    ]);
-    langLog('i18n:main-init', { initialLanguage });
+// ⚡ متغير لتتبع حالة التهيئة
+let initPromise: Promise<void> | null = null;
 
-    // تهيئة i18n باللغة الأولية - async لكن مع timeout
-    const initPromise = initializeI18n(initialLanguage);
-    const timeoutPromise = new Promise((resolve) => setTimeout(resolve, 100));
+/**
+ * ⚡ تهيئة i18n - محسّنة للسرعة
+ *
+ * التحسينات:
+ * 1. استخدام getInitialLanguageSync() للحصول على اللغة فوراً من localStorage
+ * 2. إزالة Promise.race و timeouts التي كانت تسبب مشاكل
+ * 3. تأجيل جلب لغة المؤسسة من قاعدة البيانات للخلفية
+ */
+const initI18n = async (): Promise<void> => {
+  // منع التهيئة المتكررة
+  if (initPromise) return initPromise;
 
-    await Promise.race([initPromise, timeoutPromise]);
-
-    // إعداد مستمعات الأحداث
-    const cleanup = setupAllEventListeners();
-
-    // جدولة تحديث اللغة
-    scheduleLanguageUpdate();
-
-    // استمرار التهيئة في الخلفية
-    initPromise.then(() => {
-      langLog('i18n:background-init-complete', { language: initialLanguage });
-    }).catch((error) => {
-      console.warn('⚠️ [i18n] خطأ في التهيئة الخلفية:', error);
-    });
-
-    return cleanup;
-  } catch (error) {
-    console.error('⚠️ [i18n] خطأ في تهيئة النظام:', error);
-    // في حالة الخطأ، تهيئة بسيطة
+  initPromise = (async () => {
     try {
-      await initializeI18n('ar');
-    } catch (fallbackError) {
-      console.error('⚠️ [i18n] خطأ في التهيئة البديلة:', fallbackError);
+      // ⚡ 1. الحصول على اللغة من localStorage فوراً (synchronous)
+      const initialLanguage = getInitialLanguageSync();
+      langLog('i18n:main-init', { initialLanguage, source: 'localStorage-sync' });
+
+      // ⚡ 2. تهيئة i18n - الترجمات مُضمّنة فلا حاجة للانتظار
+      await initializeI18n(initialLanguage);
+      langLog('i18n:init-complete', { language: initialLanguage });
+
+      // ⚡ 3. إعداد مستمعات الأحداث (بعد اكتمال التهيئة)
+      setupAllEventListeners();
+
+      // ⚡ 4. جدولة تحديث اللغة من قاعدة البيانات (في الخلفية - لا يعيق التطبيق)
+      // نستخدم requestIdleCallback لتأجيل هذا حتى يكون المتصفح خاملاً
+      if (typeof window !== 'undefined') {
+        const scheduleBackgroundUpdate = () => {
+          getInitialLanguage().then(dbLanguage => {
+            if (dbLanguage && dbLanguage !== i18n.language) {
+              langLog('i18n:background-language-update', { from: i18n.language, to: dbLanguage });
+              // لا نغير اللغة فوراً - نترك المستخدم يقرر
+            }
+          }).catch(() => {
+            // تجاهل أخطاء جلب اللغة من قاعدة البيانات
+          });
+
+          scheduleLanguageUpdate();
+        };
+
+        // تأجيل للخلفية
+        if ('requestIdleCallback' in window) {
+          (window as any).requestIdleCallback(scheduleBackgroundUpdate, { timeout: 2000 });
+        } else {
+          setTimeout(scheduleBackgroundUpdate, 500);
+        }
+      }
+    } catch (error) {
+      console.error('⚠️ [i18n] خطأ في تهيئة النظام:', error);
+      // في حالة الخطأ، تهيئة بسيطة بالعربية
+      try {
+        await initializeI18n('ar');
+      } catch (fallbackError) {
+        console.error('⚠️ [i18n] خطأ في التهيئة البديلة:', fallbackError);
+      }
     }
-    throw error;
-  }
+  })();
+
+  return initPromise;
 };
 
-// تشغيل التهيئة
+// تشغيل التهيئة فوراً
 initI18n();
 
 // تصدير الوحدات المطلوبة للاستخدام الخارجي

@@ -8,13 +8,13 @@ import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
 import { SettingsTab } from '@/components/settings/components/SettingsNav';
-import { 
-  User, 
-  ShieldCheck, 
-  Bell, 
-  Building, 
-  CreditCard, 
-  Link2, 
+import {
+  User,
+  ShieldCheck,
+  Bell,
+  Building,
+  CreditCard,
+  Link2,
   Settings2,
   BookOpen,
   Globe,
@@ -25,7 +25,8 @@ import {
   X,
   Home,
   Sparkles,
-  ArrowLeft
+  ArrowLeft,
+  Store
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,6 +46,7 @@ import DomainSettings from '@/components/settings/DomainSettings';
 import PasswordSettings from '@/components/settings/PasswordSettings';
 import { SecurityPrivacySettings } from '@/components/settings/SecurityPrivacySettings';
 import NotificationsSettings from '@/components/settings/NotificationsSettings';
+import BusinessProfileSettings from '@/components/settings/BusinessProfileSettings';
 
 // متغيرات الحركة للرسوم المتحركة
 const pageVariants = {
@@ -113,15 +115,21 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ useStandaloneLayout = true 
     // إعدادات إضافية للمسؤول
     if (isOrgAdmin) {
       baseTabs.push(
-        { 
-          id: 'organization', 
-          label: 'المؤسسة', 
+        {
+          id: 'organization',
+          label: 'المؤسسة',
           icon: 'Building',
           description: 'إعدادات المؤسسة والفريق'
         },
-        { 
-          id: 'domains', 
-          label: 'النطاقات المخصصة', 
+        {
+          id: 'business-type',
+          label: 'نوع التجارة',
+          icon: 'Store',
+          description: 'تخصيص النظام حسب نوع عملك'
+        },
+        {
+          id: 'domains',
+          label: 'النطاقات المخصصة',
           icon: 'Globe',
           description: 'إدارة النطاقات المخصصة'
         },
@@ -172,6 +180,8 @@ const SettingsPage: React.FC<SettingsPageProps> = ({ useStandaloneLayout = true 
         return <NotificationsSettings />;
       case 'organization':
         return <OrganizationSettingsPage />;
+      case 'business-type':
+        return <BusinessProfileSettings />;
       case 'domains':
         return <DomainSettings />;
       case 'billing':

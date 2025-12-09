@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
 import { createCategory } from '@/lib/api/categories';
+import { createLocalCategoryWithImage } from '@/api/localCategoryService';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import {
   Dialog,
   DialogContent,
@@ -22,10 +24,11 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Loader2 } from 'lucide-react';
+import { Loader2, CloudOff, Wifi } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import IconSelector from './IconSelector';
 import ImageUploader from '@/components/ui/ImageUploader';
+import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -58,7 +61,11 @@ interface AddCategoryDialogProps {
 const AddCategoryDialog = ({ open, onOpenChange, onCategoryAdded }: AddCategoryDialogProps) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { currentOrganization } = useTenant();
-  
+  const { isOnline } = useNetworkStatus();
+
+  // ⚡ حفظ ملف الصورة للاستخدام في الأوفلاين
+  const selectedImageFileRef = useRef<File | null>(null);
+
   // Initialize form with react-hook-form and zod validation
   const form = useForm<CategoryFormValues>({
     resolver: zodResolver(categorySchema),
@@ -81,31 +88,57 @@ const AddCategoryDialog = ({ open, onOpenChange, onCategoryAdded }: AddCategoryD
 
     setIsSubmitting(true);
     try {
-      const categoryData = {
-        name: values.name,
-        description: values.description,
-        icon: values.icon,
-        image_url: values.image_url,
-        is_active: values.is_active,
-        type: values.type,
-      };
+      // ⚡ Offline-First: إذا كان أوفلاين أو لدينا صورة محلية
+      if (!isOnline || selectedImageFileRef.current) {
+        console.log('[AddCategory] ⚡ Using Offline-First mode');
 
-      const createdCategory = await createCategory(categoryData, currentOrganization.id);
+        // إنشاء الفئة محلياً مع الصورة
+        await createLocalCategoryWithImage(
+          currentOrganization.id,
+          {
+            name: values.name,
+            slug: values.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\u0621-\u064Aa-z0-9-]/g, ''),
+            description: values.description || null,
+            icon: values.icon || null,
+            image_url: isOnline ? values.image_url : null, // URL فقط إذا كان أونلاين
+            is_active: values.is_active,
+            type: values.type as 'physical' | 'digital' | 'service' | 'mixed' | 'product',
+            organization_id: currentOrganization.id,
+          },
+          selectedImageFileRef.current || undefined // الصورة المحلية
+        );
 
-      toast.success('تم إضافة الفئة بنجاح');
+        toast.success(isOnline ? 'تم إضافة الفئة بنجاح' : 'تم حفظ الفئة محلياً (ستتم المزامنة عند الاتصال)');
+      } else {
+        // أونلاين بدون صورة محلية - استخدم الطريقة التقليدية
+        const categoryData = {
+          name: values.name,
+          description: values.description,
+          icon: values.icon,
+          image_url: values.image_url,
+          is_active: values.is_active,
+          type: values.type,
+        };
+
+        await createCategory(categoryData, currentOrganization.id);
+        toast.success('تم إضافة الفئة بنجاح');
+      }
+
+      // مسح ملف الصورة المحفوظ
+      selectedImageFileRef.current = null;
       form.reset();
       onOpenChange(false);
-      
+
       await onCategoryAdded();
-      
+
     } catch (error) {
-      
+
       // Check for duplicate category name error
       if (error instanceof Error && error.message.includes('duplicate key value violates unique constraint')) {
         toast.error('هذا الاسم موجود بالفعل في فئات مؤسستك، يرجى اختيار اسم آخر للفئة');
-        form.setError('name', { 
-          type: 'manual', 
-          message: 'هذا الاسم موجود بالفعل في فئات مؤسستك' 
+        form.setError('name', {
+          type: 'manual',
+          message: 'هذا الاسم موجود بالفعل في فئات مؤسستك'
         });
       } else {
         toast.error('حدث خطأ أثناء إضافة الفئة');
@@ -115,11 +148,38 @@ const AddCategoryDialog = ({ open, onOpenChange, onCategoryAdded }: AddCategoryD
     }
   };
 
+  // ⚡ معالج اختيار ملف الصورة
+  const handleImageFileSelected = (file: File | null) => {
+    selectedImageFileRef.current = file;
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="backdrop-blur-sm bg-background/95 rounded-xl">
         <DialogHeader className="border-b border-border/20 pb-4">
-          <DialogTitle className="text-xl font-bold text-center">إضافة فئة جديدة</DialogTitle>
+          <DialogTitle className="text-xl font-bold text-center flex items-center justify-center gap-2">
+            إضافة فئة جديدة
+            {/* ⚡ مؤشر حالة الاتصال */}
+            <Badge
+              variant="outline"
+              className={isOnline
+                ? "bg-green-50 text-green-700 border-green-200 text-xs"
+                : "bg-orange-50 text-orange-700 border-orange-200 text-xs"
+              }
+            >
+              {isOnline ? (
+                <>
+                  <Wifi className="h-3 w-3 ml-1" />
+                  متصل
+                </>
+              ) : (
+                <>
+                  <CloudOff className="h-3 w-3 ml-1" />
+                  أوفلاين
+                </>
+              )}
+            </Badge>
+          </DialogTitle>
         </DialogHeader>
         
         <Form {...form}>
@@ -169,11 +229,18 @@ const AddCategoryDialog = ({ open, onOpenChange, onCategoryAdded }: AddCategoryD
               name="image_url"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="text-sm font-medium">صورة الفئة</FormLabel>
+                  <FormLabel className="text-sm font-medium">
+                    صورة الفئة
+                    {!isOnline && (
+                      <span className="text-xs text-orange-600 mr-2">(سيتم حفظها محلياً)</span>
+                    )}
+                  </FormLabel>
                   <FormControl>
                     <ImageUploader
                       imageUrl={field.value || ''}
                       onImageUploaded={field.onChange}
+                      onFileSelected={handleImageFileSelected}
+                      offlineMode={!isOnline}
                       folder="categories"
                       aspectRatio="1:1"
                       maxSizeInMB={1}

@@ -2,15 +2,16 @@ import { useState, useEffect } from 'react';
 import { FormControl, FormField, FormItem, FormMessage, FormLabel } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
 import { UseFormReturn } from "react-hook-form";
 import { ProductFormValues } from "@/types/product";
-import { 
-  DollarSign, 
-  ShoppingBag, 
-  Percent, 
-  Plus, 
-  Trash2, 
-  TrendingUp, 
+import {
+  DollarSign,
+  ShoppingBag,
+  Percent,
+  Plus,
+  Trash2,
+  TrendingUp,
   Calculator,
   ArrowRight,
   ShoppingCart,
@@ -18,7 +19,9 @@ import {
   AlertCircle,
   CheckCircle,
   Info,
-  HelpCircle
+  HelpCircle,
+  Store,
+  Boxes
 } from 'lucide-react';
 import { useFieldArray } from "react-hook-form";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,6 +43,8 @@ export default function ProductPricing({ form }: ProductPricingProps) {
   const price = form.watch("price");
   const purchasePrice = form.watch("purchase_price");
   const compareAtPrice = form.watch("compare_at_price");
+  const allowWholesale = form.watch("allow_wholesale");
+  const allowPartialWholesale = form.watch("allow_partial_wholesale");
 
   // حسابات الربحية المتقدمة
   let profitMargin: number | null = null;
@@ -316,6 +321,258 @@ export default function ProductPricing({ form }: ProductPricingProps) {
           </Card>
         )}
 
+        {/* Wholesale Settings Section */}
+        <Card className="border-border/50 shadow-md sm:shadow-lg dark:shadow-xl sm:dark:shadow-2xl dark:shadow-black/20 bg-card/50 backdrop-blur-sm">
+          <CardHeader className="pb-3 sm:pb-4 p-3 sm:p-4 lg:p-5 bg-gradient-to-r from-green-50/60 via-emerald-50/40 to-transparent dark:from-green-950/30 dark:via-emerald-950/20 dark:to-transparent rounded-t-lg border-b border-border/30">
+            <CardTitle className="text-sm sm:text-base font-semibold flex items-center gap-2 sm:gap-3">
+              <div className="bg-gradient-to-br from-green-100 to-emerald-100 dark:from-green-900/60 dark:to-emerald-900/60 p-2 sm:p-2.5 rounded-lg sm:rounded-xl shadow-sm flex-shrink-0">
+                <Boxes className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-green-600 dark:text-green-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="text-foreground text-xs sm:text-sm truncate block">إعدادات البيع بالجملة</span>
+                <Badge variant="outline" className="text-[10px] sm:text-xs mr-0 sm:mr-2 shadow-sm mt-1 sm:mt-0 sm:inline-block">اختياري</Badge>
+              </div>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-3 sm:p-4 lg:p-6 space-y-4 bg-gradient-to-b from-background/50 to-background">
+            {/* Wholesale Toggle */}
+            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-green-50/60 to-emerald-50/40 dark:from-green-950/30 dark:to-emerald-950/20 rounded-xl border border-green-200/50 dark:border-green-800/30">
+              <div className="flex items-center gap-3">
+                <div className="bg-gradient-to-br from-green-100 to-green-200 dark:from-green-900/60 dark:to-green-800/60 p-2 rounded-lg shadow-sm">
+                  <Boxes className="w-4 h-4 text-green-600 dark:text-green-400" />
+                </div>
+                <div>
+                  <div className="font-medium text-sm text-foreground flex items-center gap-2">
+                    تفعيل البيع بالجملة
+                    <span
+                      className="inline-flex items-center justify-center p-1 rounded-md hover:bg-muted/50 transition-colors"
+                      title="تفعيل هذا الخيار يتيح للعملاء شراء المنتج بسعر الجملة عند شراء كميات كبيرة"
+                    >
+                      <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
+                    </span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">سعر مخفض للكميات الكبيرة</div>
+                </div>
+              </div>
+              <FormField
+                control={form.control}
+                name="allow_wholesale"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        className="data-[state=checked]:bg-green-600 dark:data-[state=checked]:bg-green-500"
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Wholesale Price Fields */}
+            {allowWholesale && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4 bg-muted/20 rounded-xl border border-border/40 animate-in slide-in-from-top-2 duration-300">
+                <FormField
+                  control={form.control}
+                  name="wholesale_price"
+                  render={({ field }) => (
+                    <FormItem className="space-y-2">
+                      <FormLabel className="text-sm font-medium text-foreground flex items-center gap-2">
+                        سعر الجملة
+                        <span className="text-destructive">*</span>
+                      </FormLabel>
+                      <FormControl>
+                        <div className="relative group">
+                          <Input
+                            type="number"
+                            min="0"
+                            step="1"
+                            placeholder="0"
+                            className="h-10 text-sm bg-background/80 dark:bg-background/60 border-border/60 hover:border-green-500/60 focus:border-green-600 focus:ring-2 focus:ring-green-500/20 transition-all duration-300 shadow-sm hover:shadow-md focus:shadow-lg backdrop-blur-sm pr-10"
+                            {...field}
+                            value={field.value ?? ''}
+                            onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
+                          />
+                          <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-xs text-muted-foreground bg-background/80 dark:bg-background/60 px-1 rounded">
+                            دج
+                          </div>
+                        </div>
+                      </FormControl>
+                      <FormMessage className="text-xs" />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="min_wholesale_quantity"
+                  render={({ field }) => (
+                    <FormItem className="space-y-2">
+                      <FormLabel className="text-sm font-medium text-foreground flex items-center gap-2">
+                        الحد الأدنى للجملة
+                        <span
+                          className="inline-flex items-center justify-center p-1 rounded-md hover:bg-muted/50 transition-colors"
+                          title="الكمية الأدنى التي يجب شراؤها للحصول على سعر الجملة"
+                        >
+                          <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
+                        </span>
+                      </FormLabel>
+                      <FormControl>
+                        <div className="relative group">
+                          <Input
+                            type="number"
+                            min="1"
+                            placeholder="10"
+                            className="h-10 text-sm bg-background/80 dark:bg-background/60 border-border/60 hover:border-green-500/60 focus:border-green-600 focus:ring-2 focus:ring-green-500/20 transition-all duration-300 shadow-sm hover:shadow-md focus:shadow-lg backdrop-blur-sm"
+                            {...field}
+                            value={field.value ?? ''}
+                            onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                          />
+                        </div>
+                      </FormControl>
+                      <FormMessage className="text-xs" />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
+
+            {/* Partial Wholesale Toggle */}
+            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-amber-50/60 to-yellow-50/40 dark:from-amber-950/30 dark:to-yellow-950/20 rounded-xl border border-amber-200/50 dark:border-amber-800/30">
+              <div className="flex items-center gap-3">
+                <div className="bg-gradient-to-br from-amber-100 to-amber-200 dark:from-amber-900/60 dark:to-amber-800/60 p-2 rounded-lg shadow-sm">
+                  <Package className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div>
+                  <div className="font-medium text-sm text-foreground flex items-center gap-2">
+                    تفعيل نصف الجملة
+                    <span
+                      className="inline-flex items-center justify-center p-1 rounded-md hover:bg-muted/50 transition-colors"
+                      title="سعر متوسط بين التجزئة والجملة للكميات المتوسطة"
+                    >
+                      <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
+                    </span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">سعر متوسط للكميات المتوسطة</div>
+                </div>
+              </div>
+              <FormField
+                control={form.control}
+                name="allow_partial_wholesale"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                        className="data-[state=checked]:bg-amber-600 dark:data-[state=checked]:bg-amber-500"
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            </div>
+
+            {/* Partial Wholesale Price Fields */}
+            {allowPartialWholesale && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4 bg-muted/20 rounded-xl border border-border/40 animate-in slide-in-from-top-2 duration-300">
+                <FormField
+                  control={form.control}
+                  name="partial_wholesale_price"
+                  render={({ field }) => (
+                    <FormItem className="space-y-2">
+                      <FormLabel className="text-sm font-medium text-foreground flex items-center gap-2">
+                        سعر نصف الجملة
+                        <span className="text-destructive">*</span>
+                      </FormLabel>
+                      <FormControl>
+                        <div className="relative group">
+                          <Input
+                            type="number"
+                            min="0"
+                            step="1"
+                            placeholder="0"
+                            className="h-10 text-sm bg-background/80 dark:bg-background/60 border-border/60 hover:border-amber-500/60 focus:border-amber-600 focus:ring-2 focus:ring-amber-500/20 transition-all duration-300 shadow-sm hover:shadow-md focus:shadow-lg backdrop-blur-sm pr-10"
+                            {...field}
+                            value={field.value ?? ''}
+                            onChange={(e) => field.onChange(e.target.value ? parseFloat(e.target.value) : undefined)}
+                          />
+                          <div className="absolute left-3 top-1/2 transform -translate-y-1/2 text-xs text-muted-foreground bg-background/80 dark:bg-background/60 px-1 rounded">
+                            دج
+                          </div>
+                        </div>
+                      </FormControl>
+                      <FormMessage className="text-xs" />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="min_partial_wholesale_quantity"
+                  render={({ field }) => (
+                    <FormItem className="space-y-2">
+                      <FormLabel className="text-sm font-medium text-foreground flex items-center gap-2">
+                        الحد الأدنى لنصف الجملة
+                        <span
+                          className="inline-flex items-center justify-center p-1 rounded-md hover:bg-muted/50 transition-colors"
+                          title="الكمية الأدنى التي يجب شراؤها للحصول على سعر نصف الجملة"
+                        >
+                          <HelpCircle className="w-3.5 h-3.5 text-muted-foreground hover:text-primary transition-colors cursor-help" />
+                        </span>
+                      </FormLabel>
+                      <FormControl>
+                        <div className="relative group">
+                          <Input
+                            type="number"
+                            min="1"
+                            placeholder="5"
+                            className="h-10 text-sm bg-background/80 dark:bg-background/60 border-border/60 hover:border-amber-500/60 focus:border-amber-600 focus:ring-2 focus:ring-amber-500/20 transition-all duration-300 shadow-sm hover:shadow-md focus:shadow-lg backdrop-blur-sm"
+                            {...field}
+                            value={field.value ?? ''}
+                            onChange={(e) => field.onChange(e.target.value ? parseInt(e.target.value) : undefined)}
+                          />
+                        </div>
+                      </FormControl>
+                      <FormMessage className="text-xs" />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            )}
+
+            {/* Pricing Summary */}
+            {(allowWholesale || allowPartialWholesale) && price && (
+              <div className="p-4 bg-gradient-to-r from-blue-50/60 to-indigo-50/40 dark:from-blue-950/30 dark:to-indigo-950/20 rounded-xl border border-blue-200/50 dark:border-blue-800/30">
+                <div className="flex items-center gap-2 mb-3">
+                  <Store className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  <span className="font-medium text-sm text-foreground">ملخص الأسعار</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+                  <div className="flex justify-between p-2 bg-background/50 rounded-lg">
+                    <span className="text-muted-foreground">سعر التجزئة:</span>
+                    <span className="font-medium text-foreground">{formatDZD(price)}</span>
+                  </div>
+                  {allowPartialWholesale && form.watch('partial_wholesale_price') && (
+                    <div className="flex justify-between p-2 bg-background/50 rounded-lg">
+                      <span className="text-muted-foreground">نصف جملة:</span>
+                      <span className="font-medium text-amber-600 dark:text-amber-400">{formatDZD(form.watch('partial_wholesale_price'))}</span>
+                    </div>
+                  )}
+                  {allowWholesale && form.watch('wholesale_price') && (
+                    <div className="flex justify-between p-2 bg-background/50 rounded-lg">
+                      <span className="text-muted-foreground">جملة:</span>
+                      <span className="font-medium text-green-600 dark:text-green-400">{formatDZD(form.watch('wholesale_price'))}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Wholesale Tiers Section */}
         <Card className="border-border/50 shadow-md sm:shadow-lg dark:shadow-xl sm:dark:shadow-2xl dark:shadow-black/20 bg-card/50 backdrop-blur-sm">
           <CardHeader className="pb-3 sm:pb-4 p-3 sm:p-4 lg:p-5 bg-gradient-to-r from-amber-50/60 via-orange-50/40 to-transparent dark:from-amber-950/30 dark:via-orange-950/20 dark:to-transparent rounded-t-lg border-b border-border/30">
@@ -325,8 +582,8 @@ export default function ProductPricing({ form }: ProductPricingProps) {
                   <ShoppingBag className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-600 dark:text-amber-400" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <span className="text-foreground text-xs sm:text-sm truncate block">أسعار الجملة</span>
-                  <Badge variant="outline" className="text-[10px] sm:text-xs mr-0 sm:mr-2 shadow-sm mt-1 sm:mt-0 sm:inline-block">اختياري</Badge>
+                  <span className="text-foreground text-xs sm:text-sm truncate block">مستويات أسعار الجملة</span>
+                  <Badge variant="outline" className="text-[10px] sm:text-xs mr-0 sm:mr-2 shadow-sm mt-1 sm:mt-0 sm:inline-block">اختياري - متقدم</Badge>
                 </div>
               </CardTitle>
               <Button
@@ -337,7 +594,7 @@ export default function ProductPricing({ form }: ProductPricingProps) {
                 className="h-8 sm:h-9 gap-1 sm:gap-1.5 px-2.5 sm:px-3 text-xs sm:text-sm border-border/60 hover:bg-gradient-to-r hover:from-amber-50/50 hover:to-orange-50/30 dark:hover:from-amber-950/20 dark:hover:to-orange-950/10 hover:border-amber-300/50 dark:hover:border-amber-600/30 transition-all duration-300 shadow-sm hover:shadow-md w-full sm:w-auto"
               >
                 <Plus className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                إضافة سعر
+                إضافة مستوى
               </Button>
             </div>
           </CardHeader>

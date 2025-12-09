@@ -14,8 +14,67 @@ interface PricingCardsProps {
   error: string | null;
 }
 
-// أيقونات وألوان حسب نوع الخطة
-const planDetails = {
+// أيقونات وألوان حسب نوع الخطة - الخطط الجديدة
+const planDetails: Record<string, {
+  icon: React.ReactNode;
+  gradientFrom: string;
+  gradientTo: string;
+  bgClass: string;
+  borderClass: string;
+  shadowClass: string;
+  iconClass: string;
+}> = {
+  // خطة البداية - 2,500 دج
+  starter_v2: {
+    icon: <Settings className="h-6 w-6" />,
+    gradientFrom: 'from-sky-500',
+    gradientTo: 'to-blue-600',
+    bgClass: 'bg-gradient-to-br from-sky-50 to-blue-50 dark:from-sky-950/20 dark:to-blue-950/20',
+    borderClass: 'border-sky-200 dark:border-sky-800',
+    shadowClass: 'shadow-sky-500/10',
+    iconClass: 'text-sky-600 dark:text-sky-400'
+  },
+  // خطة النمو - 5,000 دج (الأكثر شعبية)
+  growth_v2: {
+    icon: <Zap className="h-6 w-6" />,
+    gradientFrom: 'from-indigo-500',
+    gradientTo: 'to-purple-600',
+    bgClass: 'bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/20 dark:to-purple-950/20',
+    borderClass: 'border-indigo-200 dark:border-indigo-800',
+    shadowClass: 'shadow-indigo-500/10',
+    iconClass: 'text-indigo-600 dark:text-indigo-400'
+  },
+  // خطة الأعمال - 7,500 دج
+  business_v2: {
+    icon: <Crown className="h-6 w-6" />,
+    gradientFrom: 'from-amber-500',
+    gradientTo: 'to-orange-600',
+    bgClass: 'bg-gradient-to-br from-amber-50 to-orange-50 dark:from-amber-950/20 dark:to-orange-950/20',
+    borderClass: 'border-amber-200 dark:border-amber-800',
+    shadowClass: 'shadow-amber-500/10',
+    iconClass: 'text-amber-600 dark:text-amber-400'
+  },
+  // خطة المؤسسات - 12,500 دج
+  enterprise_v2: {
+    icon: <Diamond className="h-6 w-6" />,
+    gradientFrom: 'from-purple-500',
+    gradientTo: 'to-pink-600',
+    bgClass: 'bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20',
+    borderClass: 'border-purple-200 dark:border-purple-800',
+    shadowClass: 'shadow-purple-500/10',
+    iconClass: 'text-purple-600 dark:text-purple-400'
+  },
+  // خطة غير محدود - 20,000 دج
+  unlimited_v2: {
+    icon: <Sparkles className="h-6 w-6" />,
+    gradientFrom: 'from-rose-500',
+    gradientTo: 'to-red-600',
+    bgClass: 'bg-gradient-to-br from-rose-50 to-red-50 dark:from-rose-950/20 dark:to-red-950/20',
+    borderClass: 'border-rose-200 dark:border-rose-800',
+    shadowClass: 'shadow-rose-500/10',
+    iconClass: 'text-rose-600 dark:text-rose-400'
+  },
+  // الخطط القديمة للتوافقية
   basic: {
     icon: <Settings className="h-6 w-6" />,
     gradientFrom: 'from-blue-600',
@@ -43,6 +102,12 @@ const planDetails = {
     shadowClass: 'shadow-purple-500/10',
     iconClass: 'text-purple-600 dark:text-purple-400'
   }
+};
+
+// دالة للحصول على الحدود بصيغة مقروءة
+const formatLimit = (value: number | null | undefined): string => {
+  if (value === null || value === undefined) return 'غير محدود';
+  return value.toLocaleString('ar-DZ');
 };
 
 const PricingCards = ({ plans, isLoading, error }: PricingCardsProps) => {
@@ -256,18 +321,58 @@ const PricingCards = ({ plans, isLoading, error }: PricingCardsProps) => {
                       </div>
                     </div>
 
-                    <div className="space-y-4 mb-10">
-                      {plan.features.map((feature, idx) => (
-                        <div key={idx} className="flex items-start gap-3">
-                          <div className={cn(
-                            "w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5",
-                            planStyle.bgClass
-                          )}>
-                            <Check className={cn("h-3 w-3", planStyle.iconClass)} />
+                    {/* عرض الحدود الرئيسية */}
+                    {plan.limits && (
+                      <div className="grid grid-cols-2 gap-3 mb-6 p-4 rounded-xl bg-gray-50 dark:bg-gray-900/50">
+                        <div className="text-center">
+                          <div className={cn("text-2xl font-bold", planStyle.iconClass)}>
+                            {formatLimit(plan.limits.max_products)}
                           </div>
-                          <span className="text-sm">{feature}</span>
+                          <div className="text-xs text-muted-foreground">منتج</div>
                         </div>
-                      ))}
+                        <div className="text-center">
+                          <div className={cn("text-2xl font-bold", planStyle.iconClass)}>
+                            {formatLimit(plan.limits.max_users)}
+                          </div>
+                          <div className="text-xs text-muted-foreground">مستخدم</div>
+                        </div>
+                        <div className="text-center">
+                          <div className={cn("text-2xl font-bold", planStyle.iconClass)}>
+                            {formatLimit(plan.limits.max_pos)}
+                          </div>
+                          <div className="text-xs text-muted-foreground">نقطة بيع</div>
+                        </div>
+                        <div className="text-center">
+                          <div className={cn("text-2xl font-bold", planStyle.iconClass)}>
+                            {formatLimit(plan.limits.max_branches)}
+                          </div>
+                          <div className="text-xs text-muted-foreground">فرع</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* المميزات الموحدة */}
+                    <div className="space-y-3 mb-8">
+                      <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400 font-medium">
+                        <Check className="h-4 w-4" />
+                        <span>جميع المميزات متاحة</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Check className="h-4 w-4" />
+                        <span>العمل بدون إنترنت (Offline)</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Check className="h-4 w-4" />
+                        <span>المزامنة الفورية (Realtime)</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Check className="h-4 w-4" />
+                        <span>التقارير والتحليلات</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Check className="h-4 w-4" />
+                        <span>الدورات التدريبية</span>
+                      </div>
                     </div>
 
                     <Link to="/signup" className="block w-full">

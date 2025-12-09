@@ -5,6 +5,7 @@
 
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { isElectronApp } from '@/lib/platform';
 
 // =====================================================
 // أنواع البيانات (Types)
@@ -536,7 +537,7 @@ export async function exportToExcel(
 
 /**
  * تصدير الكشف إلى PDF
- * ملاحظة: يستخدم window.print حالياً
+ * ⚡ يستخدم نظام الطباعة الموحد في Electron مع fallback لـ window.print
  */
 export async function exportToPDF(
   declarationId: string,
@@ -544,10 +545,47 @@ export async function exportToPDF(
 ): Promise<void> {
   try {
     toast.info('جاري فتح نافذة الطباعة...');
-    
-    // استخدام window.print كحل مؤقت
+
+    // ⚡ محاولة الطباعة المباشرة عبر Electron أولاً
+    if (isElectronApp() && window.electronAPI?.print?.html) {
+      try {
+        const printContent = document.querySelector('[data-etat104-print]') || document.body;
+        const result = await window.electronAPI.print.html({
+          html: `
+            <!DOCTYPE html>
+            <html dir="rtl" lang="ar">
+              <head>
+                <meta charset="UTF-8">
+                <title>كشف حساب 104</title>
+                <style>
+                  * { box-sizing: border-box; margin: 0; padding: 0; }
+                  body { font-family: 'Tajawal', Arial, sans-serif; direction: rtl; padding: 20px; }
+                  @page { size: A4 landscape; margin: 10mm; }
+                  table { width: 100%; border-collapse: collapse; font-size: 10px; }
+                  th, td { padding: 6px; border: 1px solid #000; text-align: right; }
+                  @media print { * { -webkit-print-color-adjust: exact !important; } }
+                </style>
+              </head>
+              <body>${printContent.innerHTML}</body>
+            </html>
+          `,
+          silent: false,
+          pageSize: 'A4',
+          landscape: true
+        });
+
+        if (result.success) {
+          toast.success('يمكنك الآن الطباعة أو الحفظ كـ PDF');
+          return;
+        }
+      } catch (err) {
+        console.warn('[etat104Service] فشلت الطباعة المباشرة:', err);
+      }
+    }
+
+    // Fallback: استخدام window.print
     window.print();
-    
+
     toast.success('يمكنك الآن الطباعة أو الحفظ كـ PDF');
   } catch (error: any) {
     console.error('Error exporting to PDF:', error);

@@ -1,11 +1,11 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { User, Service, OrderItem } from '@/types';
-import { supabase } from '@/lib/supabase';
 import { CartItemType } from '../CartItem';
 import { toast } from 'sonner';
 import { v4 as uuidv4 } from 'uuid';
 import { dispatchAppEvent } from '@/lib/events/eventManager';
-import { createPOSOrder, POSOrderData, initializePOSOfflineSync } from '@/context/shop/posOrderService';
+import { createPOSOrder, POSOrderData, initializePOSOfflineSync, buildPOSItemsFromCart, type UnifiedCartItem } from '@/context/shop/posOrderService';
+import { unifiedOrderService } from '@/services/UnifiedOrderService';
 
 interface FastOrderDetails {
   customerId?: string;
@@ -97,32 +97,35 @@ export function usePOSOrderFast(currentUser: User | null) {
            throw new Error('لا توجد منتجات يمكن حفظها في وضع الأوفلاين');
          }
 
-         const offlineItems: OrderItem[] = cartItems.map(item => {
-           const unitPrice = item.variantPrice !== undefined ? item.variantPrice : item.product.price;
-           const totalPrice = unitPrice * item.quantity;
+         // ⚡ استخدام الدالة الموحدة لبناء عناصر الطلب
+         const unifiedCartItems: UnifiedCartItem[] = cartItems.map(item => ({
+           product: item.product,
+           quantity: item.quantity,
+           colorId: item.colorId,
+           colorName: item.colorName,
+           colorCode: item.colorCode,
+           sizeId: item.sizeId,
+           sizeName: item.sizeName,
+           variantPrice: item.variantPrice,
+           variantImage: item.variantImage,
+           customPrice: item.variantPrice !== undefined ? item.variantPrice : item.product.price,
+           isWholesale: false,
+           originalPrice: item.product.price,
+           variant_info: {
+             colorId: item.colorId,
+             colorName: item.colorName,
+             colorCode: item.colorCode,
+             sizeId: item.sizeId,
+             sizeName: item.sizeName,
+             variantImage: item.variantImage
+           }
+         }));
 
-           return {
-             id: uuidv4(),
-             productId: item.product.id,
-             productName: item.product.name,
-             name: item.product.name,
-             slug: item.product.slug || `product-${item.product.id}`,
-             quantity: item.quantity,
-             unitPrice,
-             totalPrice,
-             isDigital: item.product.isDigital || false,
-             isWholesale: false,
-             originalPrice: item.product.price,
-             variant_info: {
-               colorId: item.colorId || undefined,
-               colorName: item.colorName || undefined,
-               colorCode: item.colorCode || undefined,
-               sizeId: item.sizeId || undefined,
-               sizeName: item.sizeName || undefined,
-               variantImage: item.variantImage || undefined
-             }
-           };
-         });
+         const offlineItems = buildPOSItemsFromCart(
+           unifiedCartItems,
+           selectedServices,
+           selectedSubscriptions
+         );
 
          const offlineOrderData: POSOrderData = {
            organizationId,
@@ -170,160 +173,72 @@ export function usePOSOrderFast(currentUser: User | null) {
          };
        }
 
-       // معالجة الاشتراكات منفصلة عن المنتجات
-       if (selectedSubscriptions.length > 0) {
+       // ⚡ استخدام UnifiedOrderService لإنشاء الطلب (Offline-First)
+       unifiedOrderService.setOrganizationId(organizationId);
 
-         // معالجة كل اشتراك منفصل
-         for (const subscription of selectedSubscriptions) {
-           try {
-             const { data: transactionData, error: transactionError } = await supabase
-               .from('subscription_transactions' as any)
-               .insert([{
-                 service_id: subscription.id,
-                 transaction_type: 'sale',
-                 amount: subscription.final_price || subscription.selling_price || 0,
-                 cost: subscription.selectedPricing?.purchase_price || subscription.purchase_price || 0,
-                 customer_id: orderDetails.customerId === 'guest' ? null : orderDetails.customerId,
-                 customer_name: orderDetails.customerId === 'guest' ? 'زائر' : 'عميل',
-                 payment_method: orderDetails.paymentMethod,
-                 payment_status: orderDetails.paymentStatus === 'paid' ? 'completed' : orderDetails.paymentStatus,
-                 quantity: 1,
-                 description: `${subscription.name} - ${subscription.duration_label || 'خدمة رقمية'}`,
-                 notes: `كود التتبع: ${subscription.tracking_code || 'غير محدد'}`,
-                 processed_by: currentUser?.id || orderDetails.employeeId,
-                 organization_id: organizationId
-               }])
-               .select()
-               .single();
-
-             if (transactionError) {
-               throw new Error(`فشل في معالجة الاشتراك ${subscription.name}: ${transactionError.message}`);
-             }
-
-             // تحديث المخزون إذا لزم الأمر (فقط للأسعار الحقيقية وليس الافتراضية)
-             if (subscription.selectedPricing?.id && !subscription.selectedPricing.id.startsWith('legacy-') && !subscription.selectedPricing.id.startsWith('default-')) {
-               const { error: updateError } = await supabase
-                 .from('subscription_service_pricing' as any)
-                 .update({
-                   available_quantity: Math.max(0, (subscription.selectedPricing.available_quantity || 1) - 1),
-                   sold_quantity: (subscription.selectedPricing.sold_quantity || 0) + 1
-                 })
-                 .eq('id', subscription.selectedPricing.id);
-
-               if (updateError) {
-               }
-             }
-
-           } catch (subscriptionError: any) {
-             throw new Error(`فشل في معالجة الاشتراك: ${subscriptionError.message}`);
-           }
+       // تحضير عناصر الطلب
+       const unifiedCartItems: UnifiedCartItem[] = cartItems.map(item => ({
+         product: item.product,
+         quantity: item.quantity,
+         colorId: item.colorId,
+         colorName: item.colorName,
+         colorCode: item.colorCode,
+         sizeId: item.sizeId,
+         sizeName: item.sizeName,
+         variantPrice: item.variantPrice,
+         variantImage: item.variantImage,
+         customPrice: item.variantPrice !== undefined ? item.variantPrice : item.product.price,
+         isWholesale: false,
+         originalPrice: item.product.price,
+         variant_info: {
+           colorId: item.colorId,
+           colorName: item.colorName,
+           colorCode: item.colorCode,
+           sizeId: item.sizeId,
+           sizeName: item.sizeName,
+           variantImage: item.variantImage
          }
+       }));
 
-         // إذا كان لدينا اشتراكات فقط (بدون منتجات)، إرجاع نتيجة مباشرة
-         if (cartItems.length === 0 && selectedServices.length === 0) {
-           
-           // إنشاء معرف طلب وهمي للاشتراكات
-           const subscriptionOrderId = uuidv4();
-           const subscriptionOrderNumber = Math.floor(1000 + Math.random() * 9000);
+       const orderItems = buildPOSItemsFromCart(
+         unifiedCartItems,
+         selectedServices,
+         selectedSubscriptions
+       );
 
-           toast.success('✅ تم معالجة الاشتراكات بنجاح!');
+       // ⚡ إنشاء الطلب باستخدام UnifiedOrderService (Offline-First)
+       const orderInput = {
+         customer_id: orderDetails.customerId === 'guest' ? undefined : orderDetails.customerId,
+         items: orderItems.map(item => ({
+           product_id: item.product_id,
+           quantity: item.quantity,
+           unit_price: item.unit_price,
+           product_name: item.product_name || item.name || 'منتج',
+           color_id: item.color_id,
+           size_id: item.size_id,
+           color_name: item.color_name,
+           size_name: item.size_name,
+           sale_type: item.is_wholesale ? 'wholesale' : 'retail' as 'retail' | 'wholesale' | 'partial_wholesale'
+         })),
+         payment_method: orderDetails.paymentMethod as 'cash' | 'card' | 'transfer' | 'mixed' | 'credit',
+         amount_paid: orderDetails.partialPayment?.amountPaid || orderDetails.total,
+         discount: orderDetails.discount || 0,
+         tax: 0,
+         shipping_cost: 0,
+         notes: orderDetails.notes || '',
+         staff_id: orderDetails.employeeId,
+         staff_name: currentUser?.name || 'موظف',
+         pos_order_type: 'retail' as 'retail' | 'wholesale' | 'partial_wholesale'
+       };
 
-           return {
-             orderId: subscriptionOrderId,
-             customerOrderNumber: subscriptionOrderNumber
-           };
-         }
+       const createdOrder = await unifiedOrderService.createPOSOrder(orderInput);
+
+       // التحقق من الإلغاء
+       if (abortControllerRef.current.signal.aborted) {
+         throw new Error('تم إلغاء العملية');
        }
 
-       // تحضير بيانات العناصر بشكل محسن (فقط إذا وُجدت منتجات)
-       const orderItems: FastOrderItem[] = cartItems.map(item => {
-        const price = item.variantPrice !== undefined ? item.variantPrice : item.product.price;
-        return {
-          product_id: item.product.id,
-          quantity: item.quantity,
-          price: price,
-          total: price * item.quantity,
-          color_id: item.colorId || undefined,
-          size_id: item.sizeId || undefined,
-          color_name: item.colorName || undefined,
-          size_name: item.sizeName || undefined,
-          variant_display_name: item.colorName || item.sizeName ? 
-            `${item.colorName || ''} ${item.sizeName || ''}`.trim() : undefined,
-          is_wholesale: false,
-          original_price: item.product.price
-        };
-       });
-
-      // إنشاء timeout للطلب
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('انتهت مهلة الطلب')), 15000);
-      });
-
-      // معالجة المنتجات إذا وُجدت
-      if (cartItems.length > 0) {
-        // تحضير معاملات الدالة
-        const rpcParams = {
-          p_organization_id: organizationId,
-          p_employee_id: orderDetails.employeeId,
-          p_items: JSON.stringify(orderItems),
-          p_total_amount: orderDetails.total,
-          p_customer_id: orderDetails.customerId === 'guest' ? null : orderDetails.customerId,
-          p_payment_method: orderDetails.paymentMethod,
-          p_payment_status: orderDetails.paymentStatus,
-          p_notes: orderDetails.notes || '',
-          p_amount_paid: orderDetails.partialPayment?.amountPaid || orderDetails.total,
-          p_discount: orderDetails.discount || 0,
-          p_subtotal: orderDetails.subtotal || orderDetails.total,
-          p_consider_remaining_as_partial: orderDetails.considerRemainingAsPartial || false
-        };
-
-        // محاولة استخدام الدالة المحسنة مع fallback للدالة القديمة
-        let rpcPromise;
-        
-        try {
-          
-          // محاولة استخدام الدالة الجديدة المحسنة
-          rpcPromise = supabase.rpc('create_pos_order_fast' as any, rpcParams);
-          
-        } catch (fastError) {
-          // استخدام الدالة القديمة كـ fallback
-          rpcPromise = supabase.rpc('create_pos_order_safe', rpcParams);
-        }
-
-        const rpcResult = await Promise.race([rpcPromise, timeoutPromise]) as any;
-
-        const { data: result, error } = rpcResult;
-
-        // التحقق من الإلغاء
-        if (abortControllerRef.current.signal.aborted) {
-          throw new Error('تم إلغاء العملية');
-        }
-
-        if (error) {
-          
-          // إضافة معلومات إضافية حول السبب المحتمل
-          if (error.message?.includes('GROUP BY')) {
-          }
-          
-          throw new Error(`فشل في استدعاء الدالة: ${error.message}`);
-        }
-
-        const resultData = result as any;
-        
-        // طباعة النتيجة الكاملة للتشخيص
-        
-        // التحقق من النجاح بطرق متعددة
-        const isSuccess = resultData?.success === true || 
-                         (resultData?.id && resultData?.customer_order_number);
-
-        if (!isSuccess) {
-          
-          // إضافة تحليل أعمق للخطأ
-          if (resultData?.error?.includes('GROUP BY')) {
-          }
-          
-          throw new Error(resultData?.error || 'فشل في إنشاء الطلب');
-        }
+       const resultData = createdOrder;
 
         const processingTime = Math.round(performance.now() - startTime);
 
@@ -341,20 +256,8 @@ export function usePOSOrderFast(currentUser: User | null) {
             }
           }));
           
-          // 📊 تحديث فوري لبيانات المنتجات من قاعدة البيانات
-          const productIds = cartItems.map(item => item.product.id);
-          const { data: updatedProducts } = await supabase
-            .from('products')
-            .select('id, stock_quantity, last_inventory_update')
-            .in('id', productIds);
-          
-          if (updatedProducts) {
-            
-            // إشعال حدث آخر مع البيانات المحدثة
-            window.dispatchEvent(new CustomEvent('pos-products-refreshed', {
-              detail: { updatedProducts }
-            }));
-          }
+          // ⚡ تحديث فوري من PowerSync (لا حاجة لـ Supabase)
+          // المخزون يتم تحديثه تلقائياً في createPOSOrder
         } catch (inventoryUpdateError) {
           // لا نرمي خطأ هنا لأن الطلب نجح فعلياً
         }

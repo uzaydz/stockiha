@@ -117,6 +117,69 @@ export const useProductFormInitialization = ({
       advancedSettings: formAdvancedSettings as ProductAdvancedSettings,
       special_offers_config: (productData as any)?.special_offers_config || undefined,
       advanced_description: (productData as any)?.advanced_description || null,
+
+      // ========================================
+      // 📦 أنواع البيع المتقدمة
+      // ========================================
+
+      // البيع بالوزن
+      sell_by_weight: (productData as any)?.sell_by_weight || false,
+      weight_unit: (productData as any)?.weight_unit || 'kg',
+      price_per_weight_unit: (productData as any)?.price_per_weight_unit ?? undefined,
+      purchase_price_per_weight_unit: (productData as any)?.purchase_price_per_weight_unit ?? undefined,
+      min_weight_per_sale: (productData as any)?.min_weight_per_sale ?? undefined,
+      max_weight_per_sale: (productData as any)?.max_weight_per_sale ?? undefined,
+      average_item_weight: (productData as any)?.average_item_weight ?? undefined,
+      // ⚡ مخزون الوزن
+      available_weight: (productData as any)?.available_weight ?? undefined,
+      total_weight_purchased: (productData as any)?.total_weight_purchased ?? undefined,
+
+      // البيع بالكرتون
+      sell_by_box: (productData as any)?.sell_by_box || false,
+      units_per_box: (productData as any)?.units_per_box ?? undefined,
+      box_price: (productData as any)?.box_price ?? undefined,
+      box_purchase_price: (productData as any)?.box_purchase_price ?? undefined,
+      box_barcode: (productData as any)?.box_barcode || '',
+      allow_single_unit_sale: (productData as any)?.allow_single_unit_sale ?? true,
+      // ⚡ مخزون الصناديق
+      available_boxes: (productData as any)?.available_boxes ?? undefined,
+      total_boxes_purchased: (productData as any)?.total_boxes_purchased ?? undefined,
+
+      // البيع بالمتر
+      sell_by_meter: (productData as any)?.sell_by_meter || false,
+      meter_unit: (productData as any)?.meter_unit || 'm',
+      price_per_meter: (productData as any)?.price_per_meter ?? undefined,
+      purchase_price_per_meter: (productData as any)?.purchase_price_per_meter ?? undefined,
+      min_meters: (productData as any)?.min_meters ?? (productData as any)?.min_meters_per_sale ?? undefined,
+      roll_length: (productData as any)?.roll_length ?? (productData as any)?.roll_length_meters ?? undefined,
+      // ⚡ مخزون الأمتار
+      available_length: (productData as any)?.available_length ?? undefined,
+      total_meters_purchased: (productData as any)?.total_meters_purchased ?? undefined,
+
+      // ========================================
+      // 🔍 التتبع المتقدم
+      // ========================================
+
+      // تتبع الصلاحية
+      track_expiry: (productData as any)?.track_expiry || false,
+      default_expiry_days: (productData as any)?.default_expiry_days ?? undefined,
+      expiry_alert_days: (productData as any)?.expiry_alert_days ?? 30,
+
+      // تتبع الأرقام التسلسلية
+      track_serial_numbers: (productData as any)?.track_serial_numbers || false,
+      require_serial_on_sale: (productData as any)?.require_serial_on_sale || false,
+
+      // تتبع الدفعات
+      track_batches: (productData as any)?.track_batches || false,
+      use_fifo: (productData as any)?.use_fifo ?? true,
+
+      // ========================================
+      // 🛡️ الضمان
+      // ========================================
+      has_warranty: (productData as any)?.has_warranty || false,
+      warranty_duration_months: (productData as any)?.warranty_duration_months ?? undefined,
+      warranty_type: (productData as any)?.warranty_type || undefined,
+
       marketingSettings: productData?.product_marketing_settings ? {
         // Review Settings
         enable_reviews: productData.product_marketing_settings.enable_reviews ?? true,

@@ -2,10 +2,13 @@ export class AIGateway {
   private static readonly API_KEY = import.meta.env.VITE_OPENROUTER_API_KEY || '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';
   private static readonly API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
-  // Primary and fallback models for resilience
   private static readonly MODELS = [
+    'google/gemini-2.0-flash-exp', // ⚡ Ultra-fast (Sub-second)
     'x-ai/grok-code-fast-1'
   ];
+
+  // Map to track failed models and their timestamp
+  private static _failedModels = new Map<string, number>();
 
   private static readonly WHISPER_API_URL = 'https://api.openai.com/v1/audio/transcriptions';
   private static readonly TTS_API_URL = 'https://api.openai.com/v1/audio/speech';
@@ -19,7 +22,8 @@ export class AIGateway {
   static async chat(
     messages: Array<{ role: 'system' | 'user' | 'assistant' | 'tool'; content?: string; tool_calls?: any[]; tool_call_id?: string; name?: string }>,
     tools?: any[],
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    preferredModel?: string
   ): Promise<any> {
     if (!this.USE_AI || !this.API_KEY) {
       throw new Error('AI Service not configured');
@@ -27,14 +31,40 @@ export class AIGateway {
 
     let lastError: any;
 
+    // Construct the list of models to try
+    // If a preferred model is provided, try it first
+    let modelsToTry = [...this.MODELS];
+    if (preferredModel) {
+      // Move preferred model to the front, or add it if not present
+      modelsToTry = [preferredModel, ...modelsToTry.filter(m => m !== preferredModel)];
+    }
+
+    // Circuit Breaker: Skip models that failed recently (last 5 minutes)
+    // We store failed models in a static map: private static failedModels = new Map<string, number>();
+    const now = Date.now();
+    modelsToTry = modelsToTry.filter(m => {
+      const lastFail = (AIGateway as any)._failedModels?.get(m);
+      if (lastFail && (now - lastFail) < 5 * 60 * 1000) {
+        console.log(`[AIGateway] ⏭️ Skipping ${m} (Circuit Breaker active)`);
+        return false;
+      }
+      return true;
+    });
+
+    // If all models are skipped, reset the breaker for the primary model
+    if (modelsToTry.length === 0) {
+      console.log('[AIGateway] ⚠️ All models in circuit breaker. Resetting primary.');
+      modelsToTry = [this.MODELS[0]];
+    }
+
     // Try each model in sequence until one succeeds
-    for (let i = 0; i < this.MODELS.length; i++) {
-      const model = this.MODELS[i];
+    for (let i = 0; i < modelsToTry.length; i++) {
+      const model = modelsToTry[i];
 
       try {
         // Add a small delay before retries to avoid hammering APIs
         if (i > 0) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise(resolve => setTimeout(resolve, 500)); // Reduced delay for speed
         }
 
         const body: any = {
@@ -56,6 +86,8 @@ export class AIGateway {
           }));
         }
 
+        console.log(`⏱️ [AIGateway] Sending request to ${model}...`);
+        const startFetch = performance.now();
         const resp = await fetch(this.API_URL, {
           method: 'POST',
           headers: {
@@ -67,6 +99,7 @@ export class AIGateway {
           signal,
           body: JSON.stringify(body)
         });
+        console.log(`⏱️ [AIGateway] Fetch completed in ${(performance.now() - startFetch).toFixed(2)}ms. Status: ${resp.status}`);
 
         if (!resp.ok) {
           const errText = await resp.text();
@@ -75,6 +108,10 @@ export class AIGateway {
           if (resp.status === 429 || resp.status >= 500 || resp.status === 404 || resp.status === 400) {
             console.warn(`[AIGateway] ⚠️ Model ${model} failed (${resp.status}). Details: ${errText.slice(0, 200)}...`);
             lastError = new Error(`Model ${model} failed: ${resp.status} - ${errText.slice(0, 100)}`);
+
+            // Record failure for circuit breaker
+            (AIGateway as any)._failedModels.set(model, Date.now());
+
             continue; // Try next model
           }
 
@@ -87,11 +124,15 @@ export class AIGateway {
         const data = await resp.json();
 
         // Log which model was used (helpful for debugging)
-        if (i > 0) {
-          console.log(`[AIGateway] ✅ Fallback successful using: ${model}`);
+        if (i > 0 || model !== this.MODELS[0]) {
+          console.log(`[AIGateway] ✅ Fallback/Preferred successful using: ${model}`);
         }
 
-        return data?.choices?.[0]?.message;
+        const message = data?.choices?.[0]?.message;
+        if (message) {
+          message._usedModel = model; // Attach used model for stickiness
+        }
+        return message;
 
       } catch (error: any) {
         // If user aborted, throw immediately
@@ -103,7 +144,7 @@ export class AIGateway {
         lastError = error;
 
         // If this is the last model, we'll throw below
-        if (i === this.MODELS.length - 1) {
+        if (i === modelsToTry.length - 1) {
           break;
         }
 

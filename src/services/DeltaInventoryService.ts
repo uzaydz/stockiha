@@ -8,7 +8,7 @@
  * - عند التعديل اليدوي: استخدم setStock
  */
 
-import { deltaSyncEngine } from '@/lib/sync/delta';
+import { deltaWriteService } from './DeltaWriteService';
 
 export interface StockUpdateResult {
   success: boolean;
@@ -67,7 +67,7 @@ class DeltaInventoryServiceClass {
       // للتعيين المباشر، نستخدم UPDATE بدلاً من DELTA
       if (options?.sizeId) {
         // تحديث المقاس
-        await deltaSyncEngine.localWrite(
+        await deltaWriteService.localWrite(
           'product_sizes',
           'UPDATE',
           options.sizeId,
@@ -75,7 +75,7 @@ class DeltaInventoryServiceClass {
         );
       } else if (options?.colorId) {
         // تحديث اللون
-        await deltaSyncEngine.localWrite(
+        await deltaWriteService.localWrite(
           'product_colors',
           'UPDATE',
           options.colorId,
@@ -83,7 +83,7 @@ class DeltaInventoryServiceClass {
         );
       } else {
         // تحديث المنتج مباشرة
-        await deltaSyncEngine.localWrite(
+        await deltaWriteService.localWrite(
           'products',
           'UPDATE',
           productId,
@@ -121,7 +121,7 @@ class DeltaInventoryServiceClass {
       // تحديد الجدول والسجل والحقل المناسب
       if (options?.sizeId) {
         // تحديث كمية المقاس
-        await deltaSyncEngine.stockDelta(
+        await deltaWriteService.stockDelta(
           'product_sizes',
           options.sizeId,
           'quantity',
@@ -130,7 +130,7 @@ class DeltaInventoryServiceClass {
         console.log(`[DeltaInventory] Size ${options.sizeId} stock delta: ${change}`);
       } else if (options?.colorId) {
         // تحديث كمية اللون
-        await deltaSyncEngine.stockDelta(
+        await deltaWriteService.stockDelta(
           'product_colors',
           options.colorId,
           'quantity',
@@ -139,7 +139,7 @@ class DeltaInventoryServiceClass {
         console.log(`[DeltaInventory] Color ${options.colorId} stock delta: ${change}`);
       } else {
         // تحديث كمية المنتج مباشرة
-        await deltaSyncEngine.stockDelta(
+        await deltaWriteService.stockDelta(
           'products',
           productId,
           'stock_quantity',

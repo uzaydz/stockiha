@@ -1,14 +1,18 @@
 import { useState, useCallback, useEffect } from 'react';
+import { toast as sonnerToast } from 'sonner';
 import { useToast } from '@/components/ui/use-toast';
-import { supabase } from '@/lib/supabase-client';
 import { Product, Order, User as AppUser, Service, OrderItem, ServiceBooking } from '@/types';
 import { logOrderSubmit, logStockUpdate, logProductAdd } from '@/utils/inventoryLogger';
-import { createPOSOrder, POSOrderData, initializePOSOfflineSync } from '@/context/shop/posOrderService';
+import { createPOSOrder, POSOrderData, initializePOSOfflineSync, buildPOSItemsFromCart, type UnifiedCartItem } from '@/context/shop/posOrderService';
+import { unifiedProductService } from '@/services/UnifiedProductService';
 import { useAuth } from '@/context/AuthContext';
 import { useTenant } from '@/context/TenantContext';
 import { useStaffSession } from '@/context/StaffSessionContext';
 import { useWorkSession } from '@/context/WorkSessionContext';
 import { v4 as uuidv4 } from 'uuid';
+// 📦 استيراد خدمات الدفعات والأرقام التسلسلية
+import { consumeFromBatches } from '@/api/batchService';
+import { sellSerial, findBySerialNumber } from '@/api/serialNumberService';
 
 // واجهة مخصصة لبيانات الطلب من POS
 interface POSOrderDetails extends Partial<Order> {
@@ -33,6 +37,8 @@ export interface POSOrderFormData {
   considerRemainingAsPartial?: boolean;
 }
 
+import type { SaleType } from '@/lib/pricing/wholesalePricing';
+
 // Interface لعنصر السلة (متوافق مع usePOSCart)
 interface CartItem {
   product: Product;
@@ -53,6 +59,40 @@ interface CartItem {
     sizeName?: string;
     variantImage?: string;
   };
+  /** نوع البيع (تجزئة/جملة/نصف جملة) */
+  saleType?: SaleType;
+  /** هل هذا سعر جملة؟ */
+  isWholesale?: boolean;
+  /** السعر الأصلي قبل خصم الجملة */
+  originalPrice?: number;
+  // === حقول الدفعات والأرقام التسلسلية ===
+  /** معرف الدفعة المختارة */
+  batchId?: string;
+  /** رقم الدفعة */
+  batchNumber?: string;
+  /** تاريخ انتهاء صلاحية الدفعة */
+  expiryDate?: string;
+  /** الأرقام التسلسلية المختارة */
+  serialNumbers?: string[];
+  // === ⚡ حقول البيع المتقدم ===
+  /** وحدة البيع (قطعة/وزن/صندوق/متر) */
+  sellingUnit?: 'piece' | 'weight' | 'box' | 'meter';
+  /** الوزن (للبيع بالوزن) */
+  weight?: number;
+  /** وحدة الوزن */
+  weightUnit?: 'kg' | 'g' | 'lb' | 'oz';
+  /** السعر لكل وحدة وزن */
+  pricePerWeightUnit?: number;
+  /** عدد الصناديق (للبيع بالصندوق) */
+  boxCount?: number;
+  /** عدد الوحدات في الصندوق */
+  unitsPerBox?: number;
+  /** سعر الصندوق */
+  boxPrice?: number;
+  /** الطول (للبيع بالمتر) */
+  length?: number;
+  /** السعر لكل متر */
+  pricePerMeter?: number;
 }
 
 interface UsePOSOrderProps {
@@ -64,7 +104,12 @@ interface UsePOSOrderProps {
   users: AppUser[];
   orders: Order[];
   products: Product[];
-  updateProductStockInCache: (productId: string, colorId: string | null, sizeId: string | null, quantityChange: number) => void;
+  updateProductStockInCache: (productId: string, colorId: string | null, sizeId: string | null, quantityChange: number, advancedStockUpdate?: {
+    type: 'weight' | 'meter' | 'box' | 'piece';
+    weightChange?: number;
+    lengthChange?: number;
+    boxChange?: number;
+  }) => void;
   refreshProducts: () => Promise<void>;
   refreshPOSData: () => Promise<void>;
   clearCart: () => void;
@@ -109,14 +154,17 @@ export const usePOSOrder = ({
   const submitOrder = useCallback(async (orderDetails: POSOrderDetails): Promise<{orderId: string, customerOrderNumber: number}> => {
 
     if (!user) {
+      sonnerToast.error('يجب تسجيل الدخول لإتمام الطلب');
       throw new Error('المستخدم غير مسجل الدخول');
     }
 
     if (!currentOrganization?.id) {
+      sonnerToast.error('خطأ في تحديد المؤسسة. يرجى تحديث الصفحة');
       throw new Error('معرف المؤسسة مطلوب');
     }
 
     if (cartItems.length === 0 && selectedServices.length === 0 && selectedSubscriptions.length === 0) {
+      sonnerToast.warning('السلة فارغة! أضف منتجات أولاً');
       throw new Error('لا يمكن إنشاء طلب فارغ');
     }
 
@@ -138,58 +186,44 @@ export const usePOSOrder = ({
     setIsSubmittingOrder(true);
 
     try {
-      // معالجة الاشتراكات منفصلة أولاً (مثل POS القديم)
+      // ⚡ معالجة الاشتراكات محلياً (Local-First)
       if (selectedSubscriptions.length > 0) {
-
+        const { createLocalSubscriptionTransaction } = await import('@/api/localSubscriptionTransactionService');
+        
         // معالجة كل اشتراك منفصل
         for (const subscription of selectedSubscriptions) {
           try {
-            const { data: transactionData, error: transactionError } = await supabase
-              .from('subscription_transactions' as any)
-              .insert([{
-                service_id: subscription.id,
-                service_name: subscription.name,
-                provider: subscription.provider || 'غير محدد',
-                logo_url: subscription.logo_url || null,
-                transaction_type: 'sale',
-                amount: subscription.final_price || subscription.selling_price || 0,
-                cost: subscription.selectedPricing?.purchase_price || subscription.purchase_price || 0,
-                profit: (subscription.final_price || subscription.selling_price || 0) - (subscription.selectedPricing?.purchase_price || subscription.purchase_price || 0),
-                customer_id: orderDetails.customerId === 'guest' ? null : orderDetails.customerId,
-                customer_name: orderDetails.customerId === 'guest' ? 'زائر' : 'عميل',
-                payment_method: orderDetails.paymentMethod || 'cash',
-                payment_status: orderDetails.paymentStatus === 'paid' ? 'completed' : orderDetails.paymentStatus,
-                quantity: 1,
-                description: `${subscription.name} - ${subscription.duration_label || 'خدمة رقمية'}`,
-                notes: `كود التتبع: ${subscription.tracking_code || 'غير محدد'}`,
-                tracking_code: subscription.tracking_code || null,
-                public_tracking_code: subscription.public_tracking_code || subscription.tracking_code || null,
-                processed_by: user.id,
-                organization_id: currentOrganization.id
-              }])
-              .select()
-              .single();
+            // ⚡ حفظ الاشتراك محلياً - لا نرمي خطأ إذا فشل
+            await createLocalSubscriptionTransaction({
+              organizationId: currentOrganization.id,
+              serviceId: subscription.id,
+              serviceName: subscription.name,
+              provider: subscription.provider || 'غير محدد',
+              logoUrl: subscription.logo_url || null,
+              amount: subscription.final_price || subscription.selling_price || 0,
+              cost: subscription.selectedPricing?.purchase_price || subscription.purchase_price || 0,
+              profit: (subscription.final_price || subscription.selling_price || 0) - (subscription.selectedPricing?.purchase_price || subscription.purchase_price || 0),
+              customerId: orderDetails.customerId === 'guest' ? undefined : orderDetails.customerId,
+              customerName: orderDetails.customerId === 'guest' ? 'زائر' : 'عميل',
+              paymentMethod: orderDetails.paymentMethod || 'cash',
+              paymentStatus: orderDetails.paymentStatus === 'paid' ? 'completed' : orderDetails.paymentStatus,
+              description: `${subscription.name} - ${subscription.duration_label || 'خدمة رقمية'}`,
+              notes: `كود التتبع: ${subscription.tracking_code || 'غير محدد'}`,
+              trackingCode: subscription.tracking_code || null,
+              publicTrackingCode: subscription.public_tracking_code || subscription.tracking_code || null,
+              processedBy: user.id,
+            });
 
-            if (transactionError) {
-              throw new Error(`فشل في معالجة الاشتراك ${subscription.name}: ${transactionError.message}`);
-            }
+            console.log(`[usePOSOrder] ✅ تم حفظ الاشتراك محلياً: ${subscription.name}`);
 
-            // تحديث المخزون إذا لزم الأمر (فقط للأسعار الحقيقية وليس الافتراضية)
-            if (subscription.selectedPricing?.id && !subscription.selectedPricing.id.startsWith('legacy-') && !subscription.selectedPricing.id.startsWith('default-')) {
-              const { error: updateError } = await supabase
-                .from('subscription_service_pricing' as any)
-                .update({
-                  available_quantity: Math.max(0, (subscription.selectedPricing.available_quantity || 1) - 1),
-                  sold_quantity: (subscription.selectedPricing.sold_quantity || 0) + 1
-                })
-                .eq('id', subscription.selectedPricing.id);
-
-              if (updateError) {
-              }
-            }
+            // ⚡ تحديث المخزون سيحدث لاحقاً عبر المزامنة
+            // لا نحتاج لتحديث subscription_service_pricing هنا - سيحدث عبر SyncManager
 
           } catch (subscriptionError: any) {
-            throw new Error(`فشل في معالجة الاشتراك: ${subscriptionError.message}`);
+            // ⚡ لا نرمي خطأ - نكتفي بتسجيل الخطأ
+            // الطلب نفسه سيُنشأ بنجاح حتى لو فشل حفظ الاشتراك
+            console.error(`[usePOSOrder] ⚠️ فشل حفظ الاشتراك محلياً: ${subscription.name}`, subscriptionError);
+            // يمكن إضافة الاشتراك إلى metadata للطلب لمعالجته لاحقاً
           }
         }
 
@@ -221,10 +255,35 @@ export const usePOSOrder = ({
       // معالجة المنتجات والخدمات العادية إذا وجدت
       if (cartItems.length > 0 || selectedServices.length > 0) {
 
-        // حساب المجموع الفرعي والإجمالي
+        // ⚡ حساب المجموع الفرعي والإجمالي (مع دعم البيع المتقدم)
         const cartSubtotal = cartItems.reduce((total, item) => {
-          const price = item.customPrice || item.variantPrice || item.product.price || 0;
-          return total + (price * item.quantity);
+          const sellingUnit = item.sellingUnit || 'piece';
+
+          switch (sellingUnit) {
+            case 'weight':
+              // البيع بالوزن
+              const weight = item.weight || 0;
+              const pricePerWeight = item.pricePerWeightUnit || item.product.price_per_weight_unit || 0;
+              return total + (weight * pricePerWeight);
+
+            case 'box':
+              // البيع بالصندوق
+              const boxCount = item.boxCount || 0;
+              const boxPrice = item.boxPrice || item.product.box_price || 0;
+              return total + (boxCount * boxPrice);
+
+            case 'meter':
+              // البيع بالمتر
+              const length = item.length || 0;
+              const pricePerMeter = item.pricePerMeter || item.product.price_per_meter || 0;
+              return total + (length * pricePerMeter);
+
+            case 'piece':
+            default:
+              // البيع بالقطعة (الافتراضي)
+              const price = item.customPrice || item.variantPrice || item.product.price || 0;
+              return total + (price * item.quantity);
+          }
         }, 0);
         
         const servicesTotal = selectedServices.reduce((total, service) => total + (service.price || 0), 0);
@@ -265,39 +324,52 @@ export const usePOSOrder = ({
         // ✅ إصلاح: استخدام اسم المستخدم من userProfile أو user_metadata
         const resolvedCreatedByStaffName = currentStaff?.staff_name ?? (userProfile as any)?.name ?? (user as any)?.user_metadata?.name ?? (user as any)?.email?.split('@')[0] ?? 'موظف';
 
+        // ⚡ استخدام الدالة الموحدة لبناء عناصر الطلب
+        const unifiedCartItems: UnifiedCartItem[] = cartItems.map(item => ({
+          product: item.product,
+          quantity: item.quantity,
+          colorId: item.colorId,
+          colorName: item.colorName,
+          colorCode: item.colorCode,
+          sizeId: item.sizeId,
+          sizeName: item.sizeName,
+          variantPrice: item.variantPrice,
+          variantImage: item.variantImage,
+          customPrice: item.customPrice,
+          saleType: item.saleType,
+          isWholesale: item.isWholesale,
+          originalPrice: item.originalPrice,
+          variant_info: item.variant_info,
+          // ⚡ حقول البيع المتقدم
+          sellingUnit: item.sellingUnit,
+          weight: item.weight,
+          weightUnit: item.weightUnit,
+          pricePerWeightUnit: item.pricePerWeightUnit,
+          boxCount: item.boxCount,
+          unitsPerBox: item.unitsPerBox,
+          boxPrice: item.boxPrice,
+          length: item.length,
+          pricePerMeter: item.pricePerMeter,
+          // ⚡ حقول التتبع
+          batchId: item.batchId,
+          batchNumber: item.batchNumber,
+          expiryDate: item.expiryDate,
+          serialNumbers: item.serialNumbers
+        }));
+
+        // بناء عناصر الطلب باستخدام الدالة الموحدة
+        const orderItems = buildPOSItemsFromCart(
+          unifiedCartItems,
+          selectedServices,
+          selectedSubscriptions
+        );
+
         const orderData: POSOrderData = {
           organizationId: currentOrganization.id,
           employeeId: userProfile?.id || user.id,
           createdByStaffId: resolvedCreatedByStaffId, // ✅ دائماً موجود (user.id على الأقل)
           createdByStaffName: resolvedCreatedByStaffName, // ✅ دائماً موجود
-          items: cartItems.map(item => {
-            const unitPrice = item.customPrice || item.variantPrice || item.product.price || 0;
-            const totalPrice = unitPrice * item.quantity;
-
-            return {
-              id: uuidv4(),
-              productId: item.product.id,
-              productName: item.product.name,
-              name: item.product.name,
-              slug: item.product.slug || `product-${item.product.id}`,
-              quantity: item.quantity,
-              unitPrice: unitPrice,
-              totalPrice: totalPrice,
-              isDigital: item.product.isDigital || false,
-              colorId: item.colorId || item.variant_info?.colorId || null,
-              colorName: item.colorName || item.variant_info?.colorName || null,
-              sizeId: item.sizeId || item.variant_info?.sizeId || null,
-              sizeName: item.sizeName || item.variant_info?.sizeName || null,
-              variant_info: {
-                colorId: item.colorId || item.variant_info?.colorId,
-                colorName: item.colorName || item.variant_info?.colorName,
-                colorCode: item.colorCode || item.variant_info?.colorCode,
-                sizeId: item.sizeId || item.variant_info?.sizeId,
-                sizeName: item.sizeName || item.variant_info?.sizeName,
-                variantImage: item.variantImage || item.variant_info?.variantImage
-              }
-            } as OrderItem;
-          }),
+          items: orderItems,
           // استخدام القيم من orderDetails مباشرة (محسوبة من usePOSAdvancedState) - تبسيط
           total: resolvedTotal,
           customerId: orderDetails.customerId,
@@ -314,6 +386,20 @@ export const usePOSOrder = ({
             ? { subscriptions: selectedSubscriptions }
             : undefined
         };
+
+        // 🔍 DEBUG: طباعة cartItems الأصلية لتتبع حقول البيع المتقدم
+        console.log('[usePOSOrder] 🔍 DEBUG cartItems قبل إنشاء الطلب:', cartItems.map(item => ({
+          productId: item.product.id,
+          productName: item.product.name,
+          sellingUnit: item.sellingUnit,
+          length: item.length,
+          weight: item.weight,
+          boxCount: item.boxCount,
+          quantity: item.quantity,
+          pricePerMeter: item.pricePerMeter,
+          pricePerWeightUnit: item.pricePerWeightUnit,
+          boxPrice: item.boxPrice
+        })));
 
         logOrderSubmit(
           'pending',
@@ -337,25 +423,163 @@ export const usePOSOrder = ({
         const result = await createPOSOrder(orderDataCopy);
 
         if (result.success) {
+          // ⚡ حساب الإجمالي للعرض
+          const displayTotal = result.total || orderData.total || 0;
+
           if (result.isOffline) {
-            toast({
-              title: 'تم حفظ الطلب في وضع الأوفلاين',
-              description: 'سيتم مزامنة الطلب تلقائياً عند عودة الاتصال.'
-            });
+            sonnerToast.warning(
+              `📡 تم حفظ الطلب محلياً - ${displayTotal.toLocaleString()} د.ج`,
+              { description: 'سيتم المزامنة عند عودة الاتصال', duration: 5000 }
+            );
           } else {
-            toast.success('تم إنشاء الطلب بنجاح');
+            sonnerToast.success(
+              `✅ تم إنشاء الطلب #${result.customerOrderNumber}`,
+              { description: `المبلغ: ${displayTotal.toLocaleString()} د.ج`, duration: 4000 }
+            );
           }
 
-          // تحديث المخزون في الكاش
-          cartItems.forEach(item => {
-            const quantityChange = -item.quantity; // سالب لأنه تم البيع
+          // ⚡ تحديث المخزون في الكاش (مع دعم البيع المتقدم)
+          console.log('🔍 [usePOSOrder] بدء تحديث المخزون لـ', cartItems.length, 'عنصر');
+          cartItems.forEach((item, index) => {
+            const sellingUnit = item.sellingUnit || 'piece';
+
+            // حساب التغيير في المخزون حسب نوع البيع
+            let quantityChange = 0;
+            let advancedStockUpdate: {
+              type: 'weight' | 'meter' | 'box' | 'piece';
+              weightChange?: number;
+              lengthChange?: number;
+              boxChange?: number;
+            } | undefined;
+
+            switch (sellingUnit) {
+              case 'weight':
+                // للبيع بالوزن: نخصم من available_weight
+                quantityChange = 0; // لا نخصم من stock_quantity
+                advancedStockUpdate = {
+                  type: 'weight',
+                  weightChange: -(item.weight || 0)
+                };
+                break;
+
+              case 'box':
+                // للبيع بالصندوق: نخصم عدد الوحدات من stock_quantity + عدد الصناديق
+                quantityChange = -(item.boxCount || 0) * (item.unitsPerBox || item.product.units_per_box || 1);
+                advancedStockUpdate = {
+                  type: 'box',
+                  boxChange: -(item.boxCount || 0)
+                };
+                break;
+
+              case 'meter':
+                // للبيع بالمتر: نخصم من available_length
+                quantityChange = 0; // لا نخصم من stock_quantity
+                advancedStockUpdate = {
+                  type: 'meter',
+                  lengthChange: -(item.length || 0)
+                };
+                break;
+
+              case 'piece':
+              default:
+                // للبيع بالقطعة: نخصم من stock_quantity
+                quantityChange = -item.quantity;
+                advancedStockUpdate = { type: 'piece' };
+                break;
+            }
+
+            console.log(`🔍 [usePOSOrder] تحديث المخزون [${index + 1}/${cartItems.length}]:`, {
+              productId: item.product.id,
+              productName: item.product.name,
+              sellingUnit,
+              colorId: item.colorId || item.variant_info?.colorId || null,
+              sizeId: item.sizeId || item.variant_info?.sizeId || null,
+              quantityChange,
+              advancedStockUpdate,
+              weight: item.weight,
+              boxCount: item.boxCount,
+              length: item.length,
+              currentStock: item.product.stock_quantity
+            });
+
+            // ⚡ تحديث الكاش مع دعم المخزون المتقدم
             updateProductStockInCache(
               item.product.id,
               item.colorId || item.variant_info?.colorId || null,
               item.sizeId || item.variant_info?.sizeId || null,
-              quantityChange
+              quantityChange,
+              advancedStockUpdate
             );
           });
+          console.log('🔍 [usePOSOrder] ✅ انتهى تحديث المخزون');
+
+          // ========================================
+          // 📦 معالجة الدفعات والأرقام التسلسلية
+          // ========================================
+          console.log('📦 [usePOSOrder] بدء معالجة الدفعات والأرقام التسلسلية...');
+
+          // معالجة كل عنصر يحتوي على دفعة أو أرقام تسلسلية
+          for (const item of cartItems) {
+            // 1️⃣ معالجة استهلاك الدفعات (FIFO)
+            if (item.product.tracking_type === 'batch' || item.batchId) {
+              try {
+                console.log(`📦 [usePOSOrder] استهلاك دفعة للمنتج: ${item.product.name}`);
+                const consumeResult = await consumeFromBatches(
+                  item.product.id,
+                  currentOrganization.id,
+                  item.quantity,
+                  {
+                    order_id: result.orderId,
+                    reason: 'sale',
+                    notes: `بيع من الطلب #${result.customerOrderNumber}`
+                  }
+                );
+
+                if (consumeResult.remaining > 0) {
+                  console.warn(`⚠️ [usePOSOrder] تبقى ${consumeResult.remaining} وحدة غير مستهلكة للمنتج: ${item.product.name}`);
+                } else {
+                  console.log(`✅ [usePOSOrder] تم استهلاك ${item.quantity} وحدة من ${consumeResult.consumed.length} دفعة`);
+                }
+              } catch (batchError) {
+                console.error(`❌ [usePOSOrder] خطأ في استهلاك الدفعة:`, batchError);
+                // لا نوقف العملية - الطلب تم بنجاح
+              }
+            }
+
+            // 2️⃣ معالجة بيع الأرقام التسلسلية
+            if (item.product.tracking_type === 'serial' && item.serialNumbers && item.serialNumbers.length > 0) {
+              try {
+                console.log(`🔢 [usePOSOrder] بيع ${item.serialNumbers.length} رقم تسلسلي للمنتج: ${item.product.name}`);
+
+                for (const serialNumber of item.serialNumbers) {
+                  // البحث عن الرقم التسلسلي أولاً
+                  const serialInfo = await findBySerialNumber(serialNumber, currentOrganization.id);
+
+                  if (serialInfo && serialInfo.status === 'available') {
+                    const unitPrice = item.customPrice || item.variantPrice || item.product.price || 0;
+
+                    await sellSerial({
+                      serial_id: serialInfo.id,
+                      order_id: result.orderId,
+                      customer_id: orderDetails.customerId !== 'guest' ? orderDetails.customerId : undefined,
+                      sold_price: unitPrice,
+                      sold_by_user_id: user.id,
+                      warranty_months: item.product.warranty_months
+                    });
+
+                    console.log(`✅ [usePOSOrder] تم بيع الرقم التسلسلي: ${serialNumber}`);
+                  } else {
+                    console.warn(`⚠️ [usePOSOrder] الرقم التسلسلي ${serialNumber} غير متاح للبيع`);
+                  }
+                }
+              } catch (serialError) {
+                console.error(`❌ [usePOSOrder] خطأ في بيع الرقم التسلسلي:`, serialError);
+                // لا نوقف العملية - الطلب تم بنجاح
+              }
+            }
+          }
+
+          console.log('📦 [usePOSOrder] ✅ انتهت معالجة الدفعات والأرقام التسلسلية');
 
           // مسح السلة
           clearCart();
@@ -406,9 +630,27 @@ export const usePOSOrder = ({
         }
       );
 
-      const errorMessage =
-        error instanceof Error ? error.message : 'حدث خطأ أثناء إنشاء الطلب';
-      toast.error(errorMessage);
+      // ⚡ رسائل خطأ محسنة حسب نوع الخطأ
+      const errorMessage = error instanceof Error ? error.message : 'حدث خطأ أثناء إنشاء الطلب';
+
+      if (errorMessage.includes('network') || errorMessage.includes('fetch') || errorMessage.includes('offline')) {
+        sonnerToast.error('❌ خطأ في الاتصال', {
+          description: 'تحقق من اتصال الإنترنت وحاول مرة أخرى',
+          duration: 6000
+        });
+      } else if (errorMessage.includes('stock') || errorMessage.includes('المخزون')) {
+        sonnerToast.error('❌ خطأ في المخزون', {
+          description: errorMessage,
+          duration: 6000
+        });
+      } else if (errorMessage.includes('permission') || errorMessage.includes('الصلاحية')) {
+        sonnerToast.error('❌ لا تملك الصلاحية', {
+          description: 'تواصل مع المسؤول للحصول على الصلاحيات المطلوبة',
+          duration: 6000
+        });
+      } else {
+        sonnerToast.error(`❌ ${errorMessage}`, { duration: 5000 });
+      }
 
       throw error;
     } finally {
@@ -427,7 +669,6 @@ export const usePOSOrder = ({
     clearCart,
     refreshPOSData,
     toast,
-    supabase,
     userProfile,
     users
   ]);

@@ -1,13 +1,16 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Product } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Trash2, Plus, Minus, Package, Check, ShoppingBag, AlertTriangle, X } from 'lucide-react';
+import { Trash2, Plus, Minus, Package, Check, ShoppingBag, AlertTriangle, X, Store, Boxes } from 'lucide-react';
 import { formatPrice } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ensureArray } from '@/context/POSDataContext';
+import { SaleTypeSelector, SaleTypeBadge, SavingsSummary } from './SaleTypeSelector';
+import type { SaleType } from '@/lib/pricing/wholesalePricing';
+import { toProductPricingInfo, isSaleTypeAvailable } from '@/lib/pricing/wholesalePricing';
 
 export interface CartItemType {
   product: Product;
@@ -20,6 +23,9 @@ export interface CartItemType {
   variantPrice?: number;
   variantImage?: string;
   customReturnPrice?: number; // سعر مخصص للإرجاع
+  saleType?: SaleType; // نوع البيع (تجزئة/جملة/نصف جملة)
+  isWholesale?: boolean; // هل هذا سعر جملة؟
+  originalPrice?: number; // السعر الأصلي قبل خصم الجملة
 }
 
 interface CartItemProps {
@@ -28,17 +34,19 @@ interface CartItemProps {
   updateItemQuantity: (index: number, quantity: number) => void;
   removeItemFromCart: (index: number) => void;
   updateItemPrice?: (index: number, price: number) => void;
+  updateItemSaleType?: (index: number, saleType: SaleType) => void;
   canEditPrice?: boolean;
   relatedProducts?: Product[];
   onRelatedProductClick?: (product: Product) => void;
 }
 
-export default function CartItem({ 
-  item, 
-  index, 
-  updateItemQuantity, 
-  removeItemFromCart, 
+export default function CartItem({
+  item,
+  index,
+  updateItemQuantity,
+  removeItemFromCart,
   updateItemPrice,
+  updateItemSaleType,
   canEditPrice = true,
   relatedProducts = [],
   onRelatedProductClick
@@ -46,12 +54,25 @@ export default function CartItem({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [showRelated, setShowRelated] = useState(false);
-  
+
   // استخراج معلومات المنتج
   const { product, quantity, colorName, colorCode, sizeName } = item;
   const imageUrl = item.variantImage || product.thumbnailImage || '/placeholder-product.svg';
   const price = item.variantPrice !== undefined ? item.variantPrice : product.price;
   const totalPrice = price * quantity;
+
+  // التحقق من توفر خيارات الجملة للمنتج
+  const pricingInfo = useMemo(() => toProductPricingInfo(product), [product]);
+  const hasWholesaleOptions = useMemo(() => {
+    return isSaleTypeAvailable(pricingInfo, 'wholesale') ||
+           isSaleTypeAvailable(pricingInfo, 'partial_wholesale');
+  }, [pricingInfo]);
+
+  // نوع البيع الحالي
+  const currentSaleType: SaleType = item.saleType || 'retail';
+
+  // السعر الأصلي للمقارنة
+  const originalPrice = item.originalPrice || product.price;
   
   // دالة تعديل السعر
   const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -157,8 +178,8 @@ export default function CartItem({
                 <div className="text-[10px] text-muted-foreground dark:text-muted-foreground flex items-center gap-1.5 mt-0.5">
                   {colorName && (
                     <div className="flex items-center gap-1">
-                      <div 
-                        className="w-2 h-2 rounded-full border border-border/50" 
+                      <div
+                        className="w-2 h-2 rounded-full border border-border/50"
                         style={{ backgroundColor: colorCode || '#888' }}
                       />
                       <span>{colorName}</span>
@@ -166,6 +187,27 @@ export default function CartItem({
                   )}
                   {colorName && sizeName && <span className="opacity-50">•</span>}
                   {sizeName && <span>{sizeName}</span>}
+                </div>
+              )}
+
+              {/* محدد نوع البيع (جملة/تجزئة) */}
+              {hasWholesaleOptions && updateItemSaleType && (
+                <div className="mt-1">
+                  <SaleTypeSelector
+                    product={product}
+                    quantity={quantity}
+                    currentSaleType={currentSaleType}
+                    onSaleTypeChange={(saleType) => updateItemSaleType(index, saleType)}
+                    size="sm"
+                    showDetails={false}
+                  />
+                </div>
+              )}
+
+              {/* عرض شارة نوع البيع إذا كان جملة ولا يوجد محدد */}
+              {!hasWholesaleOptions && item.isWholesale && (
+                <div className="mt-1">
+                  <SaleTypeBadge saleType={currentSaleType} size="sm" />
                 </div>
               )}
             </div>
@@ -201,6 +243,12 @@ export default function CartItem({
               <span className="text-primary font-semibold text-sm">
                 {formatPrice(totalPrice)}
               </span>
+              {/* عرض التوفير إذا كان سعر الجملة أقل */}
+              {item.isWholesale && originalPrice > price && (
+                <span className="text-[10px] text-green-600 bg-green-50 dark:bg-green-950 px-1 rounded">
+                  -{((originalPrice - price) / originalPrice * 100).toFixed(0)}%
+                </span>
+              )}
             </div>
             
             {/* التحكم بالكمية - مبسط */}

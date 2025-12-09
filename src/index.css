@@ -32,6 +32,23 @@
   unicode-range: U+0600-06FF, U+0750-077F, U+08A0-08FF, U+FB50-FDFF, U+FE70-FEFF, U+2000-206F, U+2070-209F;
 }
 
+/* 💎 JetBrains Mono - خط مثالي للأرقام (Offline Ready) */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-600.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-700.woff2') format('woff2');
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -61,13 +78,20 @@
   .bg-gradient-radial {
     background-image: radial-gradient(ellipse at center, var(--tw-gradient-stops));
   }
-  
+
   .perspective-1000 {
     perspective: 1000px;
   }
-  
+
   .transform-gpu {
     transform: translateZ(0);
+  }
+
+  /* 💎 خط الأرقام المثالي */
+  .font-numeric {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace !important;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.02em;
   }
 }
 
@@ -110,33 +134,70 @@
   }
 
   .dark {
-    --background: 222 47% 4%;  /* slate-950 */
-    --foreground: 210 40% 98%;
-    --card: 217 33% 8%;  /* slate-900 */
-    --card-foreground: 210 40% 98%;
-    --popover: 217 33% 8%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 15 96% 62%;
+    /* 🌑 Midnight Navy Pro - تصميم ليلي كحلي احترافي محسّن */
+    /* ==================================================== */
+
+    /* 🎨 Base Colors - الألوان الأساسية */
+    --background: 222 47% 6%;        /* #0a0f1a - كحلي عميق أنيق */
+    --foreground: 210 40% 96%;       /* #f1f5f9 - أبيض ناعم للنصوص */
+
+    /* 🃏 Surface Colors - أسطح البطاقات والنوافذ */
+    --card: 222 41% 11%;             /* #111827 - بطاقات مرئية بوضوح */
+    --card-foreground: 210 40% 96%;
+
+    --popover: 222 41% 11%;
+    --popover-foreground: 210 40% 96%;
+
+    /* 🔥 Primary Brand - اللون البرتقالي المميز */
+    --primary: 15 96% 62%;           /* #fc5d41 - برتقالي حيوي */
     --primary-foreground: 0 0% 100%;
-    --secondary: 215 25% 12%;  /* slate-850 */
-    --secondary-foreground: 210 40% 98%;
-    --muted: 215 25% 12%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 215 25% 12%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 215 25% 15%;
-    --input: 215 25% 12%;
-    --ring: 15 96% 62%;
-    --sidebar-background: 222 47% 4%;
-    --sidebar-foreground: 210 40% 98%;
+    --primary-lighter: 15 90% 72%;   /* للهوفر */
+    --primary-darker: 15 96% 50%;    /* للضغط */
+
+    /* 🎭 Secondary & Muted - العناصر الثانوية */
+    --secondary: 222 35% 16%;        /* #1e293b - رمادي كحلي */
+    --secondary-foreground: 210 40% 96%;
+
+    --muted: 222 35% 16%;
+    --muted-foreground: 215 20% 55%; /* نص فرعي واضح */
+
+    /* ✨ Accent - لون التفاعل والتمييز */
+    --accent: 222 30% 20%;           /* للعناصر التفاعلية */
+    --accent-foreground: 210 40% 96%;
+
+    /* ⚠️ Destructive - للتحذيرات والحذف */
+    --destructive: 0 72% 51%;        /* أحمر واضح */
+    --destructive-foreground: 0 0% 100%;
+
+    /* 📐 Borders & Inputs - الحدود */
+    --border: 222 30% 22%;           /* حدود مرئية بوضوح */
+    --input: 222 30% 18%;            /* خلفية الحقول */
+    --ring: 15 96% 62%;              /* حلقة التركيز */
+
+    /* 📊 Sidebar - الشريط الجانبي */
+    --sidebar-background: 222 50% 5%;    /* أغمق قليلاً من الخلفية */
+    --sidebar-foreground: 210 40% 96%;
     --sidebar-primary: 15 96% 62%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 215 25% 12%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 215 25% 15%;
+    --sidebar-accent: 222 30% 18%;
+    --sidebar-accent-foreground: 210 40% 96%;
+    --sidebar-border: 222 30% 20%;
     --sidebar-ring: 15 96% 62%;
+
+    /* 🎨 Extended Colors - ألوان إضافية للتناسق */
+    --success: 142 76% 36%;          /* أخضر للنجاح */
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;           /* برتقالي/أصفر للتحذير */
+    --warning-foreground: 0 0% 0%;
+    --info: 199 89% 48%;             /* أزرق سماوي للمعلومات */
+    --info-foreground: 0 0% 100%;
+
+    /* 📈 Chart Colors - ألوان الرسوم البيانية */
+    --chart-1: 15 96% 62%;           /* برتقالي */
+    --chart-2: 199 89% 48%;          /* أزرق سماوي */
+    --chart-3: 142 76% 36%;          /* أخضر */
+    --chart-4: 280 65% 60%;          /* بنفسجي */
+    --chart-5: 38 92% 50%;           /* أصفر */
   }
 
   body {
@@ -203,8 +264,8 @@
 }
 
 .dark .glass {
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(5, 11, 21, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .glass-hover:hover {
@@ -214,5 +275,5 @@
 }
 
 .dark .glass-hover:hover {
-  background: rgba(30, 41, 59, 0.7);
+  background: rgba(13, 22, 38, 0.8);
 }

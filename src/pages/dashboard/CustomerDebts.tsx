@@ -1,4 +1,12 @@
-import React, { useState, useEffect, useCallback } from 'react';
+/**
+ * CustomerDebts - صفحة إدارة ديون العملاء
+ * ============================================================
+ * Apple-Inspired Design - Same as Customers page
+ * Uses PowerSync Reactive Hooks for real-time updates
+ * ============================================================
+ */
+
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import POSPureLayout from '@/components/pos-layout/POSPureLayout';
 import { useTenant } from '@/context/TenantContext';
@@ -6,24 +14,323 @@ import { toast } from 'sonner';
 import { useAuth } from '@/context/AuthContext';
 import { usePermissions } from '@/hooks/usePermissions';
 import { hasPermissions } from '@/lib/api/userPermissionsUnified';
-import { AlertTriangle, Plus } from 'lucide-react';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import {
+  AlertTriangle,
+  Plus,
+  ChevronRight,
+  ChevronLeft,
+  Search,
+  Wallet,
+  Users,
+  FileText,
+  TrendingUp,
+  RefreshCw,
+  Eye,
+  ChevronDown,
+  ChevronUp,
+  Calendar,
+  Package,
+  CreditCard,
+  User,
+  ShieldAlert,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 import { POSSharedLayoutControls } from '@/components/pos-layout/types';
+import { cn } from '@/lib/utils';
+import { formatPrice } from '@/lib/utils';
 
-// مكونات صفحة الديون
-import DebtsSummary from '@/components/debts/DebtsSummary';
-import CustomerDebtsTable from '@/components/debts/CustomerDebtsTable';
+// مكونات الديون
 import DebtPaymentModal from '@/components/debts/DebtPaymentModal';
 import AddDebtModal from '@/components/debts/AddDebtModal';
 
 // استيراد واجهة الـ API
-import { DebtsData, getDebtsData } from '@/lib/api/debts';
-import { getAllLocalCustomerDebts, recordDebtPayment, type LocalCustomerDebt } from '@/api/localCustomerDebtService';
-import { syncPendingCustomerDebts, fetchCustomerDebtsFromServer } from '@/api/syncCustomerDebts';
+import { DebtsData, DebtOrder } from '@/lib/api/debts';
+import { unifiedOrderService } from '@/services/UnifiedOrderService';
 import { useNetworkStatus } from '@/hooks/useNetworkStatus';
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
 
-interface CustomerDebtsProps extends POSSharedLayoutControls { }
+// ⚡ PowerSync Reactive Hooks
+import {
+  usePaginatedCustomerDebts,
+  useReactiveDebtsGlobalStats,
+  useCustomerOrdersDebts,
+} from '@/hooks/powersync';
+
+// ===============================================================================
+// Types
+// ===============================================================================
+
+interface CustomerDebtsProps extends POSSharedLayoutControls {}
+
+interface CustomerDebt {
+  customerId: string;
+  customerName: string;
+  totalDebt: number;
+  ordersCount: number;
+  orders: DebtOrder[];
+}
+
+// ===============================================================================
+// Stat Card Component - Apple Style
+// ===============================================================================
+
+interface StatCardProps {
+  title: string;
+  value: string;
+  subtitle?: string;
+  icon: React.ReactNode;
+  iconBg: string;
+  loading?: boolean;
+}
+
+const StatCard = React.memo<StatCardProps>(({
+  title,
+  value,
+  subtitle,
+  icon,
+  iconBg,
+  loading = false
+}) => {
+  if (loading) {
+    return (
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl p-4 border border-zinc-200 dark:border-zinc-800">
+        <div className="flex items-start justify-between">
+          <div className="space-y-2">
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="h-7 w-24" />
+            <Skeleton className="h-3 w-12" />
+          </div>
+          <Skeleton className="h-10 w-10 rounded-xl" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn(
+      "bg-white dark:bg-zinc-900 rounded-2xl p-4",
+      "border border-zinc-200 dark:border-zinc-800",
+      "transition-all duration-200",
+      "hover:shadow-md hover:border-zinc-300 dark:hover:border-zinc-700"
+    )}>
+      <div className="flex items-start justify-between">
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+            {title}
+          </p>
+          <p className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 font-numeric tracking-tight">
+            {value}
+          </p>
+          {subtitle && (
+            <p className="text-xs text-zinc-400 dark:text-zinc-500">
+              {subtitle}
+            </p>
+          )}
+        </div>
+        <div className={cn(
+          "w-10 h-10 rounded-xl flex items-center justify-center",
+          iconBg
+        )}>
+          {icon}
+        </div>
+      </div>
+    </div>
+  );
+});
+StatCard.displayName = 'StatCard';
+
+// ===============================================================================
+// Debt Row Component
+// ===============================================================================
+
+interface DebtRowProps {
+  customer: CustomerDebt;
+  isExpanded: boolean;
+  onToggle: () => void;
+  onPaymentClick: (order: DebtOrder) => void;
+  canRecordPayment: boolean;
+  isLoadingOrders: boolean;
+}
+
+// Column widths for consistency
+const COL_WIDTHS = {
+  expand: 'w-12 shrink-0',
+  customer: 'flex-1 min-w-[120px]',
+  orders: 'w-24 shrink-0',
+  debt: 'w-28 shrink-0',
+  status: 'w-24 shrink-0',
+  actions: 'w-20 shrink-0',
+};
+
+const DebtRow = React.memo<DebtRowProps>(({
+  customer,
+  isExpanded,
+  onToggle,
+  onPaymentClick,
+  canRecordPayment,
+  isLoadingOrders,
+}) => {
+  return (
+    <>
+      {/* Main Row */}
+      <div
+        className={cn(
+          "group flex items-center gap-2 px-4 py-3",
+          "border-b border-zinc-100 dark:border-zinc-800/50",
+          "transition-colors duration-150",
+          "hover:bg-zinc-50 dark:hover:bg-zinc-800/40",
+          isExpanded && "bg-zinc-50 dark:bg-zinc-800/40"
+        )}
+      >
+        {/* Expand Button */}
+        <div className={COL_WIDTHS.expand}>
+          <button
+            onClick={onToggle}
+            className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+          >
+            {isExpanded ? (
+              <ChevronUp className="w-4 h-4 text-zinc-500" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-zinc-500" />
+            )}
+          </button>
+        </div>
+
+        {/* Customer Name */}
+        <div className={COL_WIDTHS.customer}>
+          <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate">
+            {customer.customerName}
+          </p>
+        </div>
+
+        {/* Orders Count */}
+        <div className={cn(COL_WIDTHS.orders, "text-center")}>
+          <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
+            {customer.ordersCount}
+          </p>
+        </div>
+
+        {/* Total Debt */}
+        <div className={cn(COL_WIDTHS.debt, "text-left")}>
+          <p className="text-sm font-bold text-red-600 dark:text-red-400 font-numeric">
+            {formatPrice(customer.totalDebt)}
+          </p>
+        </div>
+
+        {/* Status Badge */}
+        <div className={cn(COL_WIDTHS.status, "text-center")}>
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-red-50 text-red-600 dark:bg-red-950/40 dark:text-red-400">
+            مديون
+          </span>
+        </div>
+
+        {/* Action Button */}
+        <div className={cn(COL_WIDTHS.actions, "text-center")}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onToggle}
+            className="h-8 px-2.5 rounded-lg text-xs gap-1"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            {isExpanded ? 'إخفاء' : 'عرض'}
+          </Button>
+        </div>
+      </div>
+
+      {/* Expanded Orders */}
+      {isExpanded && (
+        <div className="bg-zinc-50 dark:bg-zinc-800/20 border-b border-zinc-100 dark:border-zinc-800/50">
+          <div className="p-4">
+            <p className="text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wide mb-3 flex items-center gap-2">
+              <Calendar className="w-3.5 h-3.5" />
+              طلبات {customer.customerName}
+              {isLoadingOrders && (
+                <span className="text-zinc-400">(جاري التحميل...)</span>
+              )}
+            </p>
+
+            {isLoadingOrders ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
+              </div>
+            ) : customer.orders.length === 0 ? (
+              <div className="text-center py-8 text-sm text-zinc-500">
+                لا توجد طلبات مع ديون لهذا العميل
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {customer.orders.map((order) => (
+                  <div
+                    key={order.orderId}
+                    className="bg-white dark:bg-zinc-900 rounded-xl p-3 border border-zinc-200 dark:border-zinc-700"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                            {order.orderNumber}
+                          </p>
+                          {order._synced === false && (
+                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 dark:bg-orange-950/50 dark:text-orange-400">
+                              غير متزامن
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                          {new Date(order.date).toLocaleDateString('ar-DZ')} • {order.employee}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-4">
+                        <div className="text-center">
+                          <p className="text-xs text-zinc-400">الإجمالي</p>
+                          <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 font-numeric">
+                            {formatPrice(order.total)}
+                          </p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs text-zinc-400">المدفوع</p>
+                          <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400 font-numeric">
+                            {formatPrice(order.amountPaid)}
+                          </p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-xs text-zinc-400">المتبقي</p>
+                          <p className="text-sm font-bold text-red-600 dark:text-red-400 font-numeric">
+                            {formatPrice(order.remainingAmount)}
+                          </p>
+                        </div>
+
+                        {canRecordPayment && (
+                          <Button
+                            size="sm"
+                            onClick={() => onPaymentClick(order)}
+                            className="h-8 px-3 rounded-lg text-xs gap-1.5 bg-orange-500 hover:bg-orange-600 text-white"
+                          >
+                            <Wallet className="w-3.5 h-3.5" />
+                            دفع
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  );
+});
+DebtRow.displayName = 'DebtRow';
+
+// ===============================================================================
+// Main Component
+// ===============================================================================
 
 const CustomerDebts: React.FC<CustomerDebtsProps> = ({
   useStandaloneLayout = true,
@@ -34,27 +341,100 @@ const CustomerDebts: React.FC<CustomerDebtsProps> = ({
   const { currentOrganization } = useTenant();
   const { user, userProfile } = useAuth();
   const { isOnline } = useNetworkStatus();
-  const [isLoading, setIsLoading] = useState(true);
+  const perms = usePermissions();
+
+  // Search State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // ⚡ PowerSync Reactive Hooks
+  const {
+    customers,
+    isLoading: loadingCustomers,
+    pagination,
+    goToPage,
+    nextPage,
+    prevPage
+  } = usePaginatedCustomerDebts({
+    pageSize: 10,
+    searchQuery: debouncedSearch
+  });
+
+  const { stats: globalStats, isLoading: loadingStats } = useReactiveDebtsGlobalStats();
+
+  const isLoading = loadingCustomers || loadingStats;
+
+  // Expanded customer for lazy loading orders
+  const [expandedCustomerId, setExpandedCustomerId] = useState<string | null>(null);
+  const { orders: customerOrders, isLoading: loadingOrders } = useCustomerOrdersDebts(expandedCustomerId);
+
+  // Transform data
+  const debtsData = useMemo<DebtsData | null>(() => {
+    if (customers.length === 0 && !isLoading) {
+      return {
+        totalDebts: 0,
+        totalPartialPayments: 0,
+        debtsByCustomer: [],
+        customerDebts: []
+      };
+    }
+
+    return {
+      totalDebts: globalStats.totalDebts,
+      totalPartialPayments: globalStats.totalOrders,
+      debtsByCustomer: customers.map(d => ({
+        customerId: d.customerId,
+        customerName: d.customerName,
+        totalDebts: d.totalDebts,
+        ordersCount: d.ordersCount
+      })),
+      customerDebts: customers.map(c => ({
+        customerId: c.customerId,
+        customerName: c.customerName,
+        totalDebt: c.totalDebts,
+        ordersCount: c.ordersCount,
+        orders: c.customerId === expandedCustomerId ? customerOrders : []
+      }))
+    };
+  }, [customers, globalStats, isLoading, expandedCustomerId, customerOrders]);
+
+  // UI State
   const [isSyncing, setIsSyncing] = useState(false);
-  const [debtsData, setDebtsData] = useState<DebtsData | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [refreshTrigger, setRefreshTrigger] = useState<number>(0);
   const [permissionsChecked, setPermissionsChecked] = useState(false);
   const [hasViewPermission, setHasViewPermission] = useState(false);
   const [hasPaymentPermission, setHasPaymentPermission] = useState(false);
   const [hasAddDebtPermission, setHasAddDebtPermission] = useState(false);
-  const perms = usePermissions();
 
-  // حالة نافذة تسجيل الدفع
+  // Modal State
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [selectedDebt, setSelectedDebt] = useState<any>(null);
-
-  // حالة نافذة إضافة الدين
   const [addDebtModalOpen, setAddDebtModalOpen] = useState(false);
 
-  const handleRefresh = useCallback(() => {
-    setRefreshTrigger(prev => prev + 1);
-  }, []);
+  // Stats
+  const customersWithDebts = debtsData?.customerDebts?.length || 0;
+  const averageDebt = customersWithDebts > 0 ? (globalStats.totalDebts / customersWithDebts) : 0;
+
+  // Refresh handler
+  const handleRefresh = useCallback(async () => {
+    if (!isOnline || !currentOrganization?.id) return;
+
+    setIsSyncing(true);
+    try {
+      await powerSyncService.forceSync();
+      toast.success('تمت مزامنة البيانات بنجاح');
+    } catch (err) {
+      console.warn('[CustomerDebts] forceSync error:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [isOnline, currentOrganization?.id]);
 
   useEffect(() => {
     if (!onRegisterRefresh) return;
@@ -70,29 +450,7 @@ const CustomerDebts: React.FC<CustomerDebtsProps> = ({
     });
   }, [onLayoutStateChange, isLoading, isSyncing, error, isOnline]);
 
-  const renderWithLayout = (
-    children: React.ReactNode,
-    overrides?: {
-      isRefreshing?: boolean;
-      connectionStatus?: 'connected' | 'disconnected' | 'reconnecting';
-    }
-  ) => {
-    if (!useStandaloneLayout) {
-      return children;
-    }
-
-    return (
-      <POSPureLayout
-        onRefresh={handleRefresh}
-        isRefreshing={overrides?.isRefreshing ?? isLoading}
-        connectionStatus={overrides?.connectionStatus ?? (error ? 'disconnected' : 'connected')}
-      >
-        {children}
-      </POSPureLayout>
-    );
-  };
-
-  // التحقق من صلاحيات المستخدم
+  // Permission check
   useEffect(() => {
     const checkPermissions = async () => {
       try {
@@ -104,7 +462,6 @@ const CustomerDebts: React.FC<CustomerDebtsProps> = ({
           return;
         }
 
-        // استخدام PermissionsContext أولاً
         const view = perms.ready ? perms.anyOf(['viewDebts', 'viewFinancialReports']) : false;
         const record = perms.ready ? perms.has('recordDebtPayments') : false;
 
@@ -116,13 +473,12 @@ const CustomerDebts: React.FC<CustomerDebtsProps> = ({
           return;
         }
 
-        // فالباك عبر RPC الموحد عند عدم توفر المزود
         const permissionsResult = await hasPermissions(['viewDebts', 'recordDebtPayments'], user.id);
         setHasViewPermission(!!permissionsResult.viewDebts);
         setHasPaymentPermission(!!permissionsResult.recordDebtPayments);
         setHasAddDebtPermission(!!permissionsResult.recordDebtPayments);
         setPermissionsChecked(true);
-      } catch (err) {
+      } catch {
         setHasViewPermission(false);
         setHasPaymentPermission(false);
         setHasAddDebtPermission(false);
@@ -133,415 +489,320 @@ const CustomerDebts: React.FC<CustomerDebtsProps> = ({
     checkPermissions();
   }, [user, userProfile, perms.ready, perms.role, perms.isOrgAdmin, perms.isSuperAdmin]);
 
-  // تحميل بيانات الديون
-  useEffect(() => {
-    // إذا لم يكن لدى المستخدم صلاحية العرض، لا داعي لتحميل البيانات
-    if (!hasViewPermission || !permissionsChecked) {
-      return;
-    }
-
-    if (!currentOrganization?.id) {
-
-      return;
-    }
-
-    const fetchDebts = async () => {
-      if (!currentOrganization?.id) return;
-
-      try {
-        setIsLoading(true);
-        setError(null); // Reset error state at the start of fetch
-
-        // محاولة التحميل من الخادم أولاً إذا كان متصلاً
-        if (isOnline) {
-          try {
-            await fetchCustomerDebtsFromServer(currentOrganization.id);
-          } catch (error) {
-            console.warn('[CustomerDebts] Failed to fetch from server, falling back to local:', error);
-            // Do not set global error here, as local data will still be loaded.
-          }
-        }
-
-        // التحميل من قاعدة البيانات المحلية (دائماً)
-        console.log('[CustomerDebts] 🔍 Fetching debts data... {organizationId: ' + currentOrganization.id + ', isOnline: ' + isOnline + '}');
-        const localDebts = await getAllLocalCustomerDebts(currentOrganization.id);
-
-        console.log('[CustomerDebts] 📊 Local debts fetched:', {
-          count: localDebts.length,
-          sample: localDebts[0]
-        });
-
-        const convertedData = convertLocalDebtsToDebtsData(localDebts);
-        setDebtsData(convertedData);
-
-        // مزامنة العمليات المعلقة إذا كان متصلاً
-        if (isOnline) {
-          syncInBackground(); // Call the existing syncInBackground function
-        } else {
-          console.log('[CustomerDebts] 📴 Offline - skipping sync');
-        }
-      } catch (err) {
-        console.error('[CustomerDebts] ❌ Error fetching debts:', err);
-        setError('حدث خطأ أثناء تحميل بيانات الديون');
-        // Don't set mock data, just leave empty or previous state
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchDebts();
-  }, [currentOrganization?.id, refreshTrigger, hasViewPermission, permissionsChecked]);
-
-  // معالج فتح نافذة تسجيل الدفع
+  // Handlers
   const handlePaymentClick = (debt: any) => {
-    // التحقق من صلاحية تسجيل الدفع
     if (!hasPaymentPermission) {
       toast.error('ليس لديك صلاحية لتسجيل دفعات الديون');
       return;
     }
-
     setSelectedDebt(debt);
     setPaymentModalOpen(true);
   };
 
-  // معالج تسجيل الدفع
   const handleRecordPayment = async (paymentData: {
     orderId: string;
     amountPaid: number;
     isFullPayment: boolean;
   }) => {
     try {
-      // التحقق مرة أخرى من صلاحية تسجيل الدفع
       if (!hasPaymentPermission) {
         toast.error('ليس لديك صلاحية لتسجيل دفعات الديون');
         return;
       }
 
-      setIsLoading(true);
-
-      // تسجيل الدفع في المخزن المحلي
-      await recordDebtPayment(
+      unifiedOrderService.setOrganizationId(currentOrganization?.id || '');
+      await unifiedOrderService.updatePayment(
         paymentData.orderId,
-        paymentData.amountPaid
+        paymentData.amountPaid,
+        paymentData.isFullPayment ? 'paid' : 'partial'
       );
 
       toast.success('تم تسجيل الدفع بنجاح' + (!isOnline ? ' (سيتم المزامنة عند الاتصال)' : ''));
       setPaymentModalOpen(false);
-      setRefreshTrigger(prev => prev + 1);
 
-      // مزامنة فورية إذا كان متصل
       if (isOnline) {
-        setTimeout(() => syncInBackground(), 1000);
+        setTimeout(() => handleRefresh(), 1000);
       }
     } catch (err) {
       console.error('خطأ في تسجيل الدفع:', err);
       toast.error('فشل في تسجيل الدفع');
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  // مزامنة في الخلفية
-  const syncInBackground = async () => {
-    if (!isOnline || !currentOrganization) return;
-
-    try {
-      setIsSyncing(true);
-
-      // مزامنة الديون المعلقة
-      const syncResult = await syncPendingCustomerDebts();
-
-      if (syncResult.success > 0) {
-        console.log(`✅ تمت مزامنة ${syncResult.success} دين`);
-      }
-
-      if (syncResult.failed > 0) {
-        console.warn(`⚠️ فشلت مزامنة ${syncResult.failed} دين`);
-      }
-
-      // جلب الديون الجديدة من السيرفر وتحديث الحالة مباشرة
-      await fetchCustomerDebtsFromServer(currentOrganization.id);
-
-      // تحديث البيانات محلياً بدون إعادة تشغيل useEffect
-      const localDebts = await getAllLocalCustomerDebts(currentOrganization.id);
-      const convertedData = convertLocalDebtsToDebtsData(localDebts);
-      setDebtsData(convertedData);
-    } catch (error) {
-      console.error('خطأ في المزامنة:', error);
-    } finally {
-      setIsSyncing(false);
-    }
-  };
-
-  // تحويل LocalCustomerDebt إلى DebtsData
-  const convertLocalDebtsToDebtsData = (localDebts: LocalCustomerDebt[]): DebtsData => {
-    // حساب الإحصائيات
-    const totalDebts = localDebts.reduce((sum, debt) => sum + debt.remaining_amount, 0);
-    const totalPartialPayments = localDebts.filter(debt => debt.paid_amount > 0 && debt.remaining_amount > 0).length;
-
-    // تجميع حسب العميل
-    const debtsByCustomerMap = new Map<string, { customerId: string; customerName: string; totalDebts: number; ordersCount: number }>();
-
-    localDebts.forEach(debt => {
-      const key = debt.customer_id || debt.customer_name;
-      const existing = debtsByCustomerMap.get(key);
-
-      if (existing) {
-        existing.totalDebts += debt.remaining_amount;
-        existing.ordersCount += 1;
-      } else {
-        debtsByCustomerMap.set(key, {
-          customerId: debt.customer_id || key,
-          customerName: debt.customer_name,
-          totalDebts: debt.remaining_amount,
-          ordersCount: 1
-        });
-      }
-    });
-
-    const debtsByCustomer = Array.from(debtsByCustomerMap.values());
-
-    // تحويل إلى تنسيق customerDebts
-    const customerDebtsMap = new Map<string, any>();
-
-    localDebts.forEach(debt => {
-      const key = debt.customer_id || debt.customer_name;
-
-      if (!customerDebtsMap.has(key)) {
-        customerDebtsMap.set(key, {
-          customerId: debt.customer_id || key,
-          customerName: debt.customer_name,
-          totalDebt: 0,
-          ordersCount: 0,
-          orders: []
-        });
-      }
-
-      const customerData = customerDebtsMap.get(key);
-      customerData.totalDebt += debt.remaining_amount;
-      customerData.ordersCount += 1;
-      customerData.orders.push({
-        orderId: debt.order_id,
-        orderNumber: debt.order_number || debt.order_id,
-        date: debt.created_at, // استخدام created_at بدلاً من order_date
-        total: debt.total_amount,
-        amountPaid: debt.paid_amount, // تصحيح الاسم
-        remainingAmount: debt.remaining_amount,
-        employee: 'غير محدد', // employee_name غير موجودة في LocalCustomerDebt
-        _synced: debt.synced,
-        _syncStatus: debt.syncStatus,
-        _pendingOperation: debt.pendingOperation
-      });
-    });
-
-    const customerDebts = Array.from(customerDebtsMap.values());
-
-    return {
-      totalDebts,
-      totalPartialPayments,
-      debtsByCustomer,
-      customerDebts
-    };
-  };
-
-  // توليد بيانات تجريبية - تستخدم فقط في حالة فشل تحميل البيانات الحقيقية
-  const getMockDebtsData = (): DebtsData => {
-    return {
-      totalDebts: 45000.00,
-      totalPartialPayments: 28,
-      debtsByCustomer: [
-        { customerId: '1', customerName: 'أحمد محمد', totalDebts: 15000.00, ordersCount: 10 },
-        { customerId: '2', customerName: 'فاطمة علي', totalDebts: 12000.00, ordersCount: 8 },
-        { customerId: '3', customerName: 'محمد خالد', totalDebts: 10000.00, ordersCount: 6 },
-        { customerId: '4', customerName: 'نورا سعيد', totalDebts: 8000.00, ordersCount: 4 }
-      ],
-      customerDebts: [
-        {
-          customerId: '1',
-          customerName: 'عبدالله حسن',
-          totalDebt: 5000.00,
-          ordersCount: 3,
-          orders: [
-            {
-              orderId: '101',
-              orderNumber: 'ORD-101',
-              date: '2023-05-15',
-              total: 2000.00,
-              amountPaid: 1000.00,
-              remainingAmount: 1000.00,
-              employee: 'أحمد محمد'
-            },
-            {
-              orderId: '102',
-              orderNumber: 'ORD-102',
-              date: '2023-06-20',
-              total: 3000.00,
-              amountPaid: 1500.00,
-              remainingAmount: 1500.00,
-              employee: 'فاطمة علي'
-            },
-            {
-              orderId: '103',
-              orderNumber: 'ORD-103',
-              date: '2023-07-10',
-              total: 5000.00,
-              amountPaid: 2500.00,
-              remainingAmount: 2500.00,
-              employee: 'أحمد محمد'
-            }
-          ]
-        },
-        {
-          customerId: '2',
-          customerName: 'سارة محمود',
-          totalDebt: 8000.00,
-          ordersCount: 4,
-          orders: [
-            {
-              orderId: '201',
-              orderNumber: 'ORD-201',
-              date: '2023-05-18',
-              total: 3000.00,
-              amountPaid: 1500.00,
-              remainingAmount: 1500.00,
-              employee: 'محمد خالد'
-            },
-            {
-              orderId: '202',
-              orderNumber: 'ORD-202',
-              date: '2023-06-25',
-              total: 4000.00,
-              amountPaid: 2000.00,
-              remainingAmount: 2000.00,
-              employee: 'نورا سعيد'
-            }
-          ]
-        },
-        {
-          customerId: '3',
-          customerName: 'محمد علي',
-          totalDebt: 10000.00,
-          ordersCount: 5,
-          orders: [
-            {
-              orderId: '301',
-              orderNumber: 'ORD-301',
-              date: '2023-06-10',
-              total: 6000.00,
-              amountPaid: 3000.00,
-              remainingAmount: 3000.00,
-              employee: 'أحمد محمد'
-            }
-          ]
-        }
-      ]
-    };
-  };
-
-  // معالج تحديث البيانات بعد إضافة دين جديد
   const handleDebtAdded = () => {
-    setRefreshTrigger(prev => prev + 1);
-    toast.success('تم إضافة الدين بنجاح وسيتم تحديث البيانات');
+    // ⚡ PowerSync useQuery يتحدث تلقائياً عند تغير البيانات المحلية
+    // لكن نضيف refresh للتأكد من تحديث الـ UI
+    console.log('[CustomerDebts] Debt added, triggering UI update...');
+
+    // Force state update to trigger re-render
+    setExpandedCustomerId(null);
+
+    if (isOnline) {
+      // في حالة الاتصال، نقوم بالمزامنة مع السيرفر
+      setTimeout(() => handleRefresh(), 500);
+    }
   };
 
-  // إذا لم يتم التحقق من الصلاحيات بعد
+  const toggleCustomerExpand = (customerId: string) => {
+    if (expandedCustomerId === customerId) {
+      setExpandedCustomerId(null);
+    } else {
+      setExpandedCustomerId(customerId);
+    }
+  };
+
+  // Layout wrapper
+  const renderWithLayout = (children: React.ReactNode) => {
+    if (!useStandaloneLayout) return children;
+
+    return (
+      <POSPureLayout
+        onRefresh={handleRefresh}
+        isRefreshing={isLoading}
+        connectionStatus={error ? 'disconnected' : 'connected'}
+      >
+        {children}
+      </POSPureLayout>
+    );
+  };
+
+  // Loading state
   if (!permissionsChecked) {
     return renderWithLayout(
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex justify-center items-center min-h-[50vh]">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-        </div>
-      </div>,
-      { isRefreshing: true, connectionStatus: 'reconnecting' }
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-orange-500"></div>
+      </div>
     );
   }
 
-  // إذا لم يكن للمستخدم صلاحية الوصول إلى صفحة الديون
+  // No permission
   if (!hasViewPermission) {
     return renderWithLayout(
-      <div className="container mx-auto px-4 py-8">
-        <Alert variant="destructive" className="mb-6">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>غير مصرح</AlertTitle>
-          <AlertDescription>
-            ليس لديك الصلاحيات اللازمة للوصول إلى صفحة الديون.
-            يرجى التواصل مع المدير للحصول على الصلاحيات المطلوبة.
-          </AlertDescription>
-        </Alert>
-      </div>,
-      { connectionStatus: 'disconnected', isRefreshing: false }
+      <div className="flex flex-col items-center justify-center min-h-[50vh] p-6">
+        <div className="w-16 h-16 rounded-2xl bg-red-50 dark:bg-red-950/30 flex items-center justify-center mb-4">
+          <ShieldAlert className="w-8 h-8 text-red-500" />
+        </div>
+        <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mb-2">
+          غير مصرح
+        </h3>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400 text-center max-w-sm">
+          ليس لديك الصلاحيات اللازمة للوصول إلى صفحة الديون.
+          يرجى التواصل مع المدير للحصول على الصلاحيات المطلوبة.
+        </p>
+      </div>
     );
   }
 
-  const pageContent = (
-    <>
-      <div className="container mx-auto py-6 space-y-6">
-        {/* العنوان والإجراءات */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">إدارة ديون العملاء</h1>
-            <p className="text-muted-foreground mt-1">تتبع ومتابعة مديونيات العملاء والمدفوعات</p>
+  // Main content
+  const mainContent = (
+    <div className="space-y-5 p-4" dir="rtl">
+      {/* Page Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-orange-50 dark:bg-orange-950/50 flex items-center justify-center">
+            <Wallet className="h-5 w-5 text-orange-600 dark:text-orange-400" />
           </div>
+          <div>
+            <h1 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">ديون العملاء</h1>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              {pagination.totalCustomers} عميل مديون
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Refresh Button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleRefresh}
+            disabled={isSyncing || !isOnline}
+            className="h-9 w-9 rounded-xl"
+          >
+            <RefreshCw className={cn("h-4 w-4", isSyncing && "animate-spin")} />
+          </Button>
+
+          {/* Add Debt Button */}
           {hasAddDebtPermission && (
             <Button
               onClick={() => setAddDebtModalOpen(true)}
-              className="flex items-center gap-2 shadow-sm"
-              size="lg"
+              size="sm"
+              className="h-9 px-3 rounded-xl gap-1.5 bg-orange-500 hover:bg-orange-600 text-white"
             >
               <Plus className="h-4 w-4" />
-              إضافة دين جديد
+              <span className="text-xs font-medium">إضافة دين</span>
             </Button>
           )}
         </div>
-
-        {/* عرض رسالة تحذير إذا لم يكن لدى المستخدم صلاحية عرض الديون */}
-        {!hasViewPermission && permissionsChecked && (
-          <Alert variant="destructive">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>صلاحيات غير كافية</AlertTitle>
-            <AlertDescription>
-              ليس لديك صلاحية للوصول إلى صفحة إدارة ديون العملاء.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {/* عرض محتوى الصفحة فقط إذا كان لدى المستخدم الصلاحية المناسبة */}
-        {hasViewPermission && (
-          <>
-            {isLoading ? (
-              <div className="py-8 text-center">
-                <p className="text-muted-foreground">جاري تحميل البيانات...</p>
-              </div>
-            ) : error ? (
-              <Alert variant="destructive">
-                <AlertTriangle className="h-4 w-4" />
-                <AlertTitle>خطأ في تحميل البيانات</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            ) : debtsData ? (
-              <>
-                {/* ملخص الديون */}
-                <DebtsSummary
-                  data={debtsData}
-                />
-
-                {/* جدول ديون العملاء */}
-                <CustomerDebtsTable
-                  customers={debtsData.customerDebts}
-                  onPaymentClick={handlePaymentClick}
-                  canRecordPayment={hasPaymentPermission}
-                />
-              </>
-            ) : (
-              <div className="py-8 text-center">
-                <p className="text-muted-foreground">لا توجد بيانات متاحة</p>
-              </div>
-            )}
-          </>
-        )}
       </div>
 
-      {/* نافذة تسجيل الدفع */}
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <StatCard
+          title="إجمالي الديون"
+          value={formatPrice(globalStats.totalDebts)}
+          subtitle="المبالغ المستحقة"
+          icon={<CreditCard className="w-5 h-5 text-red-600 dark:text-red-400" />}
+          iconBg="bg-red-50 dark:bg-red-950/50"
+          loading={isLoading}
+        />
+        <StatCard
+          title="عدد الطلبات"
+          value={globalStats.totalOrders.toString()}
+          subtitle="طلبات غير مسددة"
+          icon={<FileText className="w-5 h-5 text-orange-600 dark:text-orange-400" />}
+          iconBg="bg-orange-50 dark:bg-orange-950/50"
+          loading={isLoading}
+        />
+        <StatCard
+          title="العملاء المدينين"
+          value={customersWithDebts.toString()}
+          subtitle="عميل لديه دين"
+          icon={<Users className="w-5 h-5 text-amber-600 dark:text-amber-400" />}
+          iconBg="bg-amber-50 dark:bg-amber-950/50"
+          loading={isLoading}
+        />
+        <StatCard
+          title="متوسط الدين"
+          value={formatPrice(averageDebt)}
+          subtitle="لكل عميل"
+          icon={<TrendingUp className="w-5 h-5 text-violet-600 dark:text-violet-400" />}
+          iconBg="bg-violet-50 dark:bg-violet-950/50"
+          loading={isLoading}
+        />
+      </div>
+
+      {/* Search Bar */}
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl p-3 border border-zinc-200 dark:border-zinc-800">
+        <div className="relative">
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-zinc-400" />
+          <Input
+            type="text"
+            placeholder="ابحث عن عميل بالاسم..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pr-10 h-10 rounded-xl border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/50"
+          />
+        </div>
+      </div>
+
+      {/* Debts Table */}
+      {isLoading ? (
+        <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-8">
+          <div className="flex flex-col items-center justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500 mb-4"></div>
+            <p className="text-sm text-zinc-500">جاري تحميل البيانات...</p>
+          </div>
+        </div>
+      ) : debtsData && debtsData.customerDebts.length > 0 ? (
+        <>
+          {/* Table */}
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800">
+            {/* Header */}
+            <div className="flex items-center gap-2 px-4 py-3 bg-zinc-50 dark:bg-zinc-800/60 border-b border-zinc-200 dark:border-zinc-700">
+              <div className={COL_WIDTHS.expand}></div>
+              <span className={cn(COL_WIDTHS.customer, "text-[11px] font-semibold text-zinc-500 dark:text-zinc-400")}>العميل</span>
+              <span className={cn(COL_WIDTHS.orders, "text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 text-center")}>الطلبات</span>
+              <span className={cn(COL_WIDTHS.debt, "text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 text-left")}>الدين</span>
+              <span className={cn(COL_WIDTHS.status, "text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 text-center")}>الحالة</span>
+              <span className={cn(COL_WIDTHS.actions, "text-[11px] font-semibold text-zinc-500 dark:text-zinc-400 text-center")}>الإجراءات</span>
+            </div>
+
+            {/* Rows */}
+            <div>
+              {debtsData.customerDebts.map((customer) => (
+                <DebtRow
+                  key={customer.customerId}
+                  customer={customer}
+                  isExpanded={expandedCustomerId === customer.customerId}
+                  onToggle={() => toggleCustomerExpand(customer.customerId)}
+                  onPaymentClick={handlePaymentClick}
+                  canRecordPayment={hasPaymentPermission}
+                  isLoadingOrders={loadingOrders && expandedCustomerId === customer.customerId}
+                />
+              ))}
+            </div>
+          </div>
+
+          {/* Pagination */}
+          {pagination.totalPages > 1 && (
+            <div className="flex items-center justify-between px-1">
+              <p className="text-sm text-zinc-500">
+                <span className="font-numeric">{((pagination.currentPage - 1) * pagination.pageSize) + 1}</span>
+                <span className="mx-1">-</span>
+                <span className="font-numeric">{Math.min(pagination.currentPage * pagination.pageSize, pagination.totalCustomers)}</span>
+                <span className="mx-1.5">من</span>
+                <span className="font-numeric font-medium text-zinc-700 dark:text-zinc-300">{pagination.totalCustomers}</span>
+              </p>
+
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  onClick={prevPage}
+                  disabled={!pagination.hasPrevPage}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+
+                <div className="flex items-center gap-0.5">
+                  {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                    let page: number;
+                    if (pagination.totalPages <= 5) page = i + 1;
+                    else if (pagination.currentPage <= 3) page = i + 1;
+                    else if (pagination.currentPage >= pagination.totalPages - 2) page = pagination.totalPages - 4 + i;
+                    else page = pagination.currentPage - 2 + i;
+
+                    return (
+                      <Button
+                        key={page}
+                        variant="ghost"
+                        size="icon"
+                        className={cn(
+                          "h-9 w-9 rounded-xl text-sm font-medium font-numeric",
+                          pagination.currentPage === page
+                            ? "bg-zinc-900 dark:bg-white text-white dark:text-zinc-900"
+                            : "hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                        )}
+                        onClick={() => goToPage(page)}
+                      >
+                        {page}
+                      </Button>
+                    );
+                  })}
+                </div>
+
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 rounded-xl hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                  onClick={nextPage}
+                  disabled={!pagination.hasNextPage}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="flex flex-col items-center justify-center py-16">
+          <div className="w-16 h-16 rounded-2xl bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center mb-4">
+            <Wallet className="w-8 h-8 text-zinc-400" />
+          </div>
+          <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 mb-1">
+            {debouncedSearch ? 'لا توجد نتائج للبحث' : 'لا توجد ديون مسجلة'}
+          </h3>
+          <p className="text-sm text-zinc-500">
+            {debouncedSearch
+              ? 'جرب البحث باستخدام كلمات أخرى'
+              : 'جميع العملاء قاموا بسداد مستحقاتهم'}
+          </p>
+        </div>
+      )}
+
+      {/* Payment Modal */}
       {selectedDebt && (
         <DebtPaymentModal
           isOpen={paymentModalOpen}
@@ -551,16 +812,16 @@ const CustomerDebts: React.FC<CustomerDebtsProps> = ({
         />
       )}
 
-      {/* نافذة إضافة دين جديد */}
+      {/* Add Debt Modal */}
       <AddDebtModal
         isOpen={addDebtModalOpen}
         onOpenChange={setAddDebtModalOpen}
         onDebtAdded={handleDebtAdded}
       />
-    </>
+    </div>
   );
 
-  return renderWithLayout(pageContent, { isRefreshing: isLoading });
+  return renderWithLayout(mainContent);
 };
 
 export default CustomerDebts;

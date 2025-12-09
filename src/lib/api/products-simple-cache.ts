@@ -57,6 +57,7 @@ export const loadProductsToCache = async (organizationId: string): Promise<void>
   loadingPromise = (async () => {
   try {
     console.log('[ProductsCache] 🔄 Starting fresh load...', { organizationId });
+    const loadStart = performance.now();
     const offlineMode = typeof navigator !== 'undefined' && navigator.onLine === false;
     if (offlineMode) {
       // 📦 أوفلاين: حمّل من IndexedDB مباشرة بدون ضرب الخادم
@@ -84,13 +85,16 @@ export const loadProductsToCache = async (organizationId: string): Promise<void>
         slug: p.slug
       })) as SimpleProduct[];
 
-      productsCache = mapped.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ar'));
+      // ⚡ تحسين الأداء: استخدام Intl.Collator للترتيب الأسرع
+      const collator = new Intl.Collator('ar');
+      productsCache = mapped.sort((a, b) => collator.compare(a.name || '', b.name || ''));
       cacheTimestamp = now;
       cachedOrganizationId = organizationId;
 
       // ⚡ DEBUG: عرض المنتجات مع الصور المحلية
       const productsWithLocalImages = mapped.filter(p => p.thumbnail_base64);
-      console.log(`[ProductsCache] ✅ تم جلب ${productsCache.length} منتج محلياً (أوفلاين)`);
+      const loadDuration = performance.now() - loadStart;
+      console.log(`[ProductsCache] ✅ تم جلب ${productsCache.length} منتج محلياً (أوفلاين) في ${loadDuration.toFixed(0)}ms`);
       console.log(`[ProductsCache] 🖼️ منتجات مع صور محلية: ${productsWithLocalImages.length}`);
 
       // 🔍 DEBUG: عرض أحدث 5 منتجات (للتحقق من المنتجات الجديدة)

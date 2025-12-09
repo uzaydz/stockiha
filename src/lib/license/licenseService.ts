@@ -1,21 +1,26 @@
-import { sqliteDB, isSQLiteAvailable } from '@/lib/db/sqliteAPI';
+import { powerSyncService } from '@/lib/powersync/PowerSyncService';
 import { subscriptionAudit } from '@/lib/security/subscriptionAudit';
 
+/**
+ * Local Subscription Row - يتطابق مع organization_subscriptions في PowerSync
+ * ✅ محدث ليتطابق مع Supabase schema
+ */
 export type LocalSubscriptionRow = {
   id: string;
   organization_id: string;
   plan_id?: string | null;
   status?: string | null;
+  billing_cycle?: string | null;
   start_date?: string | null;
   end_date?: string | null;
-  trial_end_date?: string | null;
-  grace_end_date?: string | null;
+  trial_ends_at?: string | null;  // ✅ تم التصحيح من trial_end_date
+  amount_paid?: number | null;
   currency?: string | null;
-  amount?: number | null;
+  payment_method?: string | null;
+  payment_reference?: string | null;
   is_auto_renew?: number | boolean | null;
   updated_at?: string | null;
   created_at?: string | null;
-  source?: string | null;
 };
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -60,7 +65,10 @@ export async function getSecureNow(organizationId?: string): Promise<{
     }
 
     const res = await api.license.getSecureNow(organizationId || null);
-    console.log('[SecureClock] IPC get-secure-now result', res);
+    // ⚡ v2.0: تقليل الـ logs - فقط في حالة الخطأ أو التلاعب
+    if (!res?.success || res?.tamperDetected) {
+      console.log('[SecureClock] IPC get-secure-now result', res);
+    }
 
     if (res?.success) {
       let ms = Number(res.secureNowMs || 0);
@@ -120,22 +128,43 @@ export async function setAnchorFromServer(organizationId: string | null | undefi
 }
 
 async function ensureOrgDB(orgId: string): Promise<void> {
-  if (!isSQLiteAvailable()) return;
+  // ⚡ PowerSync متاح دائماً ولكن يجب التأكد من جاهزيته
   try {
-    await sqliteDB.initialize(orgId);
-  } catch { }
+    if (!powerSyncService.isAvailable()) {
+      await powerSyncService.initialize();
+    }
+  } catch (err) { 
+    console.warn('[LicenseService] Failed to ensure DB ready:', err);
+  }
 }
 
 export async function getLocalSubscription(orgId: string): Promise<LocalSubscriptionRow | null> {
   try {
-    if (typeof window === 'undefined' || !window.electronAPI?.db) return null;
+    // ⚡ استخدام PowerSync مباشرة
     await ensureOrgDB(orgId);
-    const res = await window.electronAPI.db.queryOne(
-      'SELECT * FROM organization_subscriptions WHERE organization_id = ? ORDER BY updated_at DESC LIMIT 1',
-      [orgId]
-    );
-    return res?.success ? (res.data || null) : null;
-  } catch {
+    
+    // ⚡ استخدام execute بدلاً من get لتجنب مشاكل النوع وتوفير استقرار أكثر
+    // ✅ إصلاح: ترتيب حسب حالة الاشتراك أولاً (active > trial > غيرها) ثم end_date
+    if (!powerSyncService.db) {
+      console.warn('[licenseService] PowerSync DB not initialized');
+      return null;
+    }
+    const rows = await powerSyncService.query({
+      sql: `SELECT * FROM organization_subscriptions
+       WHERE organization_id = ?
+       ORDER BY
+         CASE status
+           WHEN 'active' THEN 1
+           WHEN 'trial' THEN 2
+           ELSE 3
+         END,
+         end_date DESC
+       LIMIT 1`,
+      params: [orgId]
+    });
+    return (rows && rows.length > 0 ? rows[0] : null) as LocalSubscriptionRow | null;
+  } catch (err) {
+    console.warn('[LicenseService] Failed to get local subscription:', err);
     return null;
   }
 }
@@ -144,23 +173,21 @@ export function isExpired(row: LocalSubscriptionRow, secureNowMs: number): {
   expired: boolean;
   effectiveEndMs: number | null;
   daysLeft: number;
-  reason: 'trial' | 'grace' | 'end' | 'unknown';
+  reason: 'trial' | 'end' | 'unknown';
 } {
-  // Pick the active window in order: trial -> paid end (with optional grace) -> else unknown
-  const trialMs = toMs(row.trial_end_date);
-  const graceMs = toMs(row.grace_end_date);
+  // ✅ استخدام trial_ends_at بدلاً من trial_end_date
+  const trialMs = toMs(row.trial_ends_at);
   const endMs = toMs(row.end_date);
 
   let effective: number | null = null;
-  let reason: 'trial' | 'grace' | 'end' | 'unknown' = 'unknown';
+  let reason: 'trial' | 'end' | 'unknown' = 'unknown';
 
-  if (trialMs) {
+  if (trialMs && trialMs > secureNowMs) {
     effective = trialMs;
     reason = 'trial';
   } else if (endMs) {
-    // if grace exists, it extends
-    effective = graceMs && graceMs > endMs ? graceMs : endMs;
-    reason = graceMs && graceMs > endMs ? 'grace' : 'end';
+    effective = endMs;
+    reason = 'end';
   }
 
   if (!effective) {
@@ -177,8 +204,8 @@ export function toSubscriptionDataFromLocal(row: LocalSubscriptionRow, secureNow
   const endIso = effectiveEndMs ? new Date(effectiveEndMs).toISOString() : null;
   return {
     success: true,
-    status: expired ? 'expired' : (row.trial_end_date ? 'trial' : 'active'),
-    subscription_type: row.plan_id ? 'paid' : (row.trial_end_date ? 'trial' : 'none'),
+    status: expired ? 'expired' : (row.trial_ends_at ? 'trial' : 'active'),  // ✅ تم التصحيح
+    subscription_type: row.plan_id ? 'paid' : (row.trial_ends_at ? 'trial' : 'none'),  // ✅ تم التصحيح
     subscription_id: row.id,
     plan_name: row.plan_id || 'غير محدد',
     plan_code: row.plan_id || 'unknown',
@@ -190,59 +217,13 @@ export function toSubscriptionDataFromLocal(row: LocalSubscriptionRow, secureNow
 }
 
 export async function saveLocalSubscription(orgId: string, subscriptionData: any): Promise<void> {
-  try {
-    if (typeof window === 'undefined' || !window.electronAPI?.db) return;
-    await ensureOrgDB(orgId);
-
-    // Prepare the record for SQLite
-    const record: LocalSubscriptionRow = {
-      id: subscriptionData.subscription_id || `sub_${orgId}_${Date.now()}`,
-      organization_id: orgId,
-      plan_id: subscriptionData.plan_code || subscriptionData.plan_name,
-      status: subscriptionData.status,
-      start_date: subscriptionData.start_date,
-      end_date: subscriptionData.end_date,
-      trial_end_date: subscriptionData.subscription_type === 'trial' ? subscriptionData.end_date : null,
-      grace_end_date: null, // You might want to calculate this if available
-      updated_at: new Date().toISOString(),
-      created_at: new Date().toISOString(),
-      source: 'sync'
-    };
-
-    // Use the adapter via window.electronAPI.db directly or via dbAdapter if available
-    // Since we are in licenseService, we use direct DB call similar to getLocalSubscription
-
-    // First, check if a record exists to update it or insert new
-    const existing = await getLocalSubscription(orgId);
-
-    if (existing) {
-      await window.electronAPI.db.execute(
-        `UPDATE organization_subscriptions SET 
-          plan_id = ?, status = ?, start_date = ?, end_date = ?, 
-          trial_end_date = ?, updated_at = ?, source = ?
-         WHERE organization_id = ?`,
-        [
-          record.plan_id, record.status, record.start_date, record.end_date,
-          record.trial_end_date, record.updated_at, record.source,
-          orgId
-        ]
-      );
-    } else {
-      await window.electronAPI.db.execute(
-        `INSERT INTO organization_subscriptions (
-          id, organization_id, plan_id, status, start_date, end_date, 
-          trial_end_date, updated_at, created_at, source
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          record.id, record.organization_id, record.plan_id, record.status,
-          record.start_date, record.end_date, record.trial_end_date,
-          record.updated_at, record.created_at, record.source
-        ]
-      );
-    }
-
-    console.log('[LicenseService] Saved local subscription for offline use:', record);
-  } catch (error) {
-    console.error('[LicenseService] Failed to save local subscription:', error);
-  }
+  // ⚡ الاشتراكات تُزامن تلقائياً من Supabase عبر PowerSync Sync Rules
+  // ❌ لا نكتب محلياً عبر writeTransaction لتجنب العمليات المعلقة في Outbox
+  // البيانات تأتي من السيرفر فقط (أمان الاشتراكات)
+  console.log('[LicenseService] ℹ️ Subscription data managed by server, synced via PowerSync');
+  console.log('[LicenseService] ℹ️ Received subscription data:', {
+    status: subscriptionData.status,
+    plan: subscriptionData.plan_code || subscriptionData.plan_name,
+    end_date: subscriptionData.end_date
+  });
 }

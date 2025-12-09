@@ -7,21 +7,23 @@ import { useAppInitialization } from '@/context/AppInitializationContext';
 import { useApps } from '@/context/AppsContext';
 // ✨ استخدام الـ context الجديد المحسن - فقط OrdersContext بدلاً من ShopContext الكامل
 import { useOrders } from '@/context/shop/ShopContext.new';
+// ⚡ استيراد CustomersContext للحصول على العملاء من SQLite مباشرة
+import { useCustomers } from '@/context/shop/customers/CustomersContext';
 import { useWorkSession } from '@/context/WorkSessionContext';
 import { supabase } from '@/lib/supabase';
 import { v4 as uuidv4 } from 'uuid';
 
 // استيراد Hooks
 import useUnifiedPOSData from '@/hooks/useUnifiedPOSData';
-import useLocalPOSProducts from '@/hooks/useLocalPOSProducts';
+import usePOSProducts from '@/hooks/usePOSProducts'; // ⚡ v3.0: تحديثات فورية!
 import useBarcodeScanner from '@/hooks/useBarcodeScanner';
+import { useCategoryData } from '@/hooks/useCategoryData';
 import { useGlobalBarcodeScanner } from '@/hooks/useGlobalBarcodeScanner';
 import { usePOSBarcode } from '@/components/pos/hooks/usePOSBarcode';
 import { usePOSCart } from '@/components/pos/hooks/usePOSCart';
 import { usePOSReturn } from '@/components/pos/hooks/usePOSReturn';
 import { usePOSOrder } from '@/components/pos/hooks/usePOSOrder';
 import { localProductSearchService } from '@/services/LocalProductSearchService';
-import { isSQLiteAvailable } from '@/lib/db/sqliteAPI';
 
 interface CartItem {
   product: Product;
@@ -34,16 +36,98 @@ interface CartItem {
   variantPrice?: number;
   variantImage?: string;
   customPrice?: number;
+  // === حقول أنواع البيع المتقدمة ===
+  sellingUnit?: 'piece' | 'weight' | 'box' | 'meter';
+  weight?: number;
+  pricePerWeightUnit?: number;
+  boxCount?: number;
+  boxPrice?: number;
+  length?: number;
+  pricePerMeter?: number;
 }
 
-// Cache للبيانات الأساسية
+// دالة مساعدة لحساب إجمالي عنصر في السلة بناءً على نوع البيع
+const calculateCartItemTotal = (item: CartItem): number => {
+  const sellingUnit = item.sellingUnit || 'piece';
+  const product = item.product;
+  const customPrice = (item as any).customPrice;
+
+  switch (sellingUnit) {
+    case 'weight':
+      if (item.weight && (item.pricePerWeightUnit || (product as any).price_per_weight_unit)) {
+        return item.weight * (item.pricePerWeightUnit || (product as any).price_per_weight_unit || 0);
+      }
+      break;
+    case 'box':
+      if (item.boxCount && (item.boxPrice || (product as any).box_price)) {
+        return item.boxCount * (item.boxPrice || (product as any).box_price || 0);
+      }
+      break;
+    case 'meter':
+      if (item.length && (item.pricePerMeter || (product as any).price_per_meter)) {
+        return item.length * (item.pricePerMeter || (product as any).price_per_meter || 0);
+      }
+      break;
+    default:
+      // piece - السعر العادي
+      const price = customPrice || item.variantPrice || product.price || 0;
+      return price * item.quantity;
+  }
+
+  // الافتراضي
+  const price = customPrice || item.variantPrice || product.price || 0;
+  return price * item.quantity;
+};
+
+// ⚡ Cache محسّن للبيانات الأساسية - مع تنظيف تلقائي لمنع تسرب الذاكرة
 const POS_DATA_CACHE = new Map<string, {
   data: any;
   timestamp: number;
   ttl: number;
 }>();
 
-const CACHE_TTL = 5 * 60 * 1000; // 5 دقائق
+const CACHE_TTL = 2 * 60 * 1000; // ⚡ 2 دقائق بدلاً من 5
+const MAX_POS_CACHE_ENTRIES = 5; // ⚡ حد أقصى للمدخلات
+const FORCE_LOCAL_ONLY = true; // تشغيل POS ببيانات PowerSync فقط
+
+// ⚡ دالة تنظيف الكاش لمنع تسرب الذاكرة
+const prunePOSCache = () => {
+  const now = Date.now();
+
+  // حذف المدخلات المنتهية الصلاحية
+  for (const [key, value] of POS_DATA_CACHE.entries()) {
+    if (now - value.timestamp > value.ttl) {
+      POS_DATA_CACHE.delete(key);
+    }
+  }
+
+  // إذا تجاوز الحد الأقصى، احذف الأقدم
+  if (POS_DATA_CACHE.size > MAX_POS_CACHE_ENTRIES) {
+    const entries = [...POS_DATA_CACHE.entries()];
+    entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
+    const toDelete = entries.slice(0, entries.length - MAX_POS_CACHE_ENTRIES);
+    toDelete.forEach(([key]) => POS_DATA_CACHE.delete(key));
+  }
+};
+
+// ⚡ تنظيف دوري كل دقيقة - مع حفظ المرجع للتنظيف
+let posCacheCleanupInterval: ReturnType<typeof setInterval> | null = null;
+
+if (typeof window !== 'undefined') {
+  // تأكد من عدم إنشاء interval مكرر
+  if (!posCacheCleanupInterval) {
+    posCacheCleanupInterval = setInterval(prunePOSCache, 60 * 1000);
+  }
+
+  // ⚡ تنظيف عند إغلاق الصفحة
+  window.addEventListener('beforeunload', () => {
+    if (posCacheCleanupInterval) {
+      clearInterval(posCacheCleanupInterval);
+      posCacheCleanupInterval = null;
+    }
+    POS_DATA_CACHE.clear();
+  });
+}
 
 export const usePOSAdvancedState = () => {
   // مراجع لمنع الاستدعاءات المتكررة
@@ -57,8 +141,10 @@ export const usePOSAdvancedState = () => {
   const { isAppEnabled } = useApps();
   // ✨ استخدام addOrder من OrdersContext الجديد فقط - تحسين الأداء بنسبة 85%
   const { addOrder } = useOrders();
+  // ⚡ استخدام CustomersContext للحصول على العملاء من SQLite مباشرة (يعمل offline)
+  const { state: customersState } = useCustomers();
   const { activeSession, updateSessionLocally } = useWorkSession();
-  
+
   const isStaff = userProfile?.role === 'admin' || userProfile?.role === 'employee';
 
   // حالة pagination والبحث
@@ -66,7 +152,7 @@ export const usePOSAdvancedState = () => {
   const [pageSize, setPageSize] = useState(30);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('');
-  const [useLocalData, setUseLocalData] = useState(true); // ⚡ استخدام البيانات المحلية افتراضياً
+  const [useLocalData, setUseLocalData] = useState(true); // ⚡ استخدام البيانات المحلية افتراضياً (ومُجبراً إذا كان FORCE_LOCAL_ONLY)
 
   // دالة محسنة لجلب البيانات مع cache
   const getCachedData = useCallback((key: string) => {
@@ -85,7 +171,15 @@ export const usePOSAdvancedState = () => {
     });
   }, []);
 
-  // ⚡ جلب المنتجات من SQLite المحلية (سريع جداً)
+  // ⚡ v3.0: جلب المنتجات بتحديثات فورية (PowerSync Reactive)
+  const reactivePOSProductsResult = usePOSProducts({
+    page: currentPage,
+    limit: pageSize,
+    search: searchQuery?.trim() || '',
+    categoryId: categoryFilter && categoryFilter !== 'all' ? categoryFilter : '',
+    enabled: useLocalData && !!currentOrganization?.id // ⚡ PowerSync متاح دائماً
+  });
+
   const {
     products: localProducts,
     pagination: localPagination,
@@ -93,21 +187,26 @@ export const usePOSAdvancedState = () => {
     isRefetching: isLocalRefetching,
     error: localError,
     refreshData: refreshLocalData,
-    invalidateCache: invalidateLocalCache
-  } = useLocalPOSProducts({
-    page: currentPage,
-    limit: pageSize,
-    search: searchQuery?.trim() || '',
-    categoryId: categoryFilter && categoryFilter !== 'all' ? categoryFilter : '',
-    enabled: useLocalData && !!currentOrganization?.id && isSQLiteAvailable()
+    invalidateCache: invalidateLocalCache,
+    updateProductStockInCache: updateLocalProductStock,
+    getProductStock: getLocalProductStock
+  } = reactivePOSProductsResult;
+
+
+  // ⚡ جلب الفئات بشكل مستقل (تعمل دائماً - offline أو online)
+  const {
+    categories: localCategories,
+    isLoadingCategories
+  } = useCategoryData({
+    organizationId: currentOrganization?.id || ''
   });
 
   // ⚡ تحديد ما إذا كانت البيانات المحلية فارغة (للتبديل للسيرفر كـ fallback)
   const localDataEmpty = !isLocalLoading && localProducts.length === 0;
-  const shouldFetchFromServer = !!currentOrganization?.id && (
+  // تعطيل جلب السيرفر عندما يكون العمل Local-Only
+  const shouldFetchFromServer = !FORCE_LOCAL_ONLY && !!currentOrganization?.id && (
     !useLocalData ||
-    !isSQLiteAvailable() ||
-    localDataEmpty // ⚡ إضافة: جلب من السيرفر إذا كانت البيانات المحلية فارغة
+    localDataEmpty
   );
 
   // جلب البيانات الأساسية من السيرفر (للفئات والاشتراكات والعملاء)
@@ -127,8 +226,8 @@ export const usePOSAdvancedState = () => {
     error: serverError,
     errorMessage,
     refreshData: refreshServerData,
-    updateProductStockInCache,
-    getProductStock,
+    updateProductStockInCache: updateServerProductStock,
+    getProductStock: getServerProductStock,
     executionTime,
     dataTimestamp
   } = useUnifiedPOSData({
@@ -138,40 +237,100 @@ export const usePOSAdvancedState = () => {
     categoryId: categoryFilter && categoryFilter !== 'all' ? categoryFilter : '',
     staleTime: 20 * 60 * 1000, // 20 دقيقة
     gcTime: 40 * 60 * 1000, // 40 دقيقة
-    // ⚡ تفعيل جلب المنتجات من السيرفر كـ fallback إذا كانت البيانات المحلية فارغة
+    // ⚡ تعطيل جلب السيرفر في وضع Local-Only
     enabled: shouldFetchFromServer
   });
 
+  // في وضع Local-Only، تجاهل أي بيانات قادمة من السيرفر بالكامل
+  const effectiveServerProducts = FORCE_LOCAL_ONLY ? [] : (serverProducts || []);
+  const effectiveServerPagination = FORCE_LOCAL_ONLY ? null : serverPagination;
+
+
   // ⚡ اختيار مصدر البيانات: محلي أولاً، ثم السيرفر
+  // ⚠️ ملاحظة: تمت إزالة التحسين القديم (hash) لأنه كان يمنع تحديث UI عند تغيير المخزون
+  // الآن نُرجع المنتجات مباشرة - React سيُحسّن بنفسه
   const pagedProducts = useMemo(() => {
     if (useLocalData && localProducts.length > 0) {
-      console.log(`[usePOSAdvancedState] ⚡ استخدام ${localProducts.length} منتج من SQLite`);
       return localProducts;
     }
-    if (serverProducts && serverProducts.length > 0) {
-      console.log(`[usePOSAdvancedState] 🌐 استخدام ${serverProducts.length} منتج من السيرفر`);
-      return serverProducts;
+    if (!FORCE_LOCAL_ONLY && effectiveServerProducts && effectiveServerProducts.length > 0) {
+      return effectiveServerProducts;
     }
     return [];
-  }, [useLocalData, localProducts, serverProducts]);
+  }, [useLocalData, localProducts, effectiveServerProducts]);
 
   const pagination = useMemo(() => {
     if (useLocalData && localPagination) {
       return localPagination;
     }
-    return serverPagination;
+    return FORCE_LOCAL_ONLY ? localPagination : effectiveServerPagination;
   }, [useLocalData, localPagination, serverPagination]);
+
+  // ⚡ دمج الفئات: المحلية أولاً، ثم السيرفر كـ fallback
+  const mergedProductCategories = useMemo(() => {
+    if (localCategories && localCategories.length > 0) {
+      return localCategories.map(cat => ({
+        id: cat.id,
+        name: cat.name,
+        description: cat.description || '',
+        type: cat.type || 'product',
+        is_active: cat.is_active !== false,
+        organization_id: cat.organization_id
+      }));
+    }
+
+    if (!FORCE_LOCAL_ONLY) {
+      return productCategories || [];
+    }
+    return [];
+  }, [localCategories, productCategories]);
 
   const isLoading = useLocalData ? isLocalLoading : isServerLoading;
   const isRefetching = useLocalData ? isLocalRefetching : isServerRefetching;
   const error = useLocalData ? localError : serverError;
+
+  // ⚡ v3.0: دوال موحدة لتحديث المخزون - تستخدم المصدر المحلي (تحديثات فورية)
+  // ⚡ v3.1: إضافة دعم sellingUnit لتحديث الحقل الصحيح (available_length, available_weight, etc)
+  const updateProductStockInCache = useCallback((
+    productId: string,
+    colorId: string | null,
+    sizeId: string | null,
+    quantityChange: number,
+    sellingUnit?: 'piece' | 'weight' | 'meter' | 'box'
+  ) => {
+    // تحديث في المصدر المحلي (تحديث فوري)
+    if (updateLocalProductStock) {
+      updateLocalProductStock(productId, colorId, sizeId, quantityChange, sellingUnit);
+    }
+    // تحديث في السيرفر أيضاً إذا كان متاحاً
+    if (!FORCE_LOCAL_ONLY && updateServerProductStock) {
+      updateServerProductStock(productId, colorId, sizeId, quantityChange, sellingUnit);
+    }
+  }, [updateLocalProductStock, updateServerProductStock]);
+
+  const getProductStock = useCallback((
+    productId: string,
+    colorId?: string,
+    sizeId?: string
+  ): number => {
+    // استخدام المصدر المحلي أولاً
+    if (useLocalData && getLocalProductStock) {
+      return getLocalProductStock(productId, colorId, sizeId);
+    }
+    if (!FORCE_LOCAL_ONLY && getServerProductStock) {
+      return getServerProductStock(productId, colorId, sizeId);
+    }
+    return 0;
+  }, [useLocalData, getLocalProductStock, getServerProductStock]);
 
   // دالة تحديث البيانات الموحدة
   const refreshData = useCallback(async () => {
     if (useLocalData) {
       await refreshLocalData();
     }
-    await refreshServerData();
+    if (!FORCE_LOCAL_ONLY) {
+      await refreshServerData();
+    }
   }, [useLocalData, refreshLocalData, refreshServerData]);
 
   // منع الاستدعاءات المتكررة
@@ -225,30 +384,11 @@ export const usePOSAdvancedState = () => {
     return userData;
   }, [user, userProfile, currentOrganization, getCachedData, setCachedData]);
 
-  // تحويل العملاء مع cache
+  // ⚡ استخدام العملاء من CustomersContext مباشرة (يعمل offline)
   const filteredUsers: any[] = useMemo(() => {
-    const customersCacheKey = `customers_${currentOrganization?.id}`;
-    const cachedCustomers = getCachedData(customersCacheKey);
-    
-    if (cachedCustomers) {
-      return cachedCustomers;
-    }
-    
-    const usersData = customers.map(customer => ({
-      id: customer.id,
-      name: customer.name,
-      email: customer.email || '',
-      phone: customer.phone || '',
-      role: 'customer' as const,
-      isActive: true,
-      createdAt: new Date(customer.created_at),
-      updatedAt: new Date(customer.updated_at || customer.created_at),
-      organization_id: customer.organization_id
-    }));
-    
-    setCachedData(customersCacheKey, usersData, 5 * 60 * 1000); // 5 دقائق
-    return usersData;
-  }, [customers, currentOrganization?.id, getCachedData, setCachedData]);
+    // CustomersContext يُرجع العملاء بالفعل بصيغة User، لا حاجة للتحويل
+    return customersState.users || [];
+  }, [customersState.users]);
 
   // دوال pagination والبحث محسنة
   const handlePageChange = useCallback((page: number) => {
@@ -257,9 +397,20 @@ export const usePOSAdvancedState = () => {
     }
   }, [currentPage]);
 
+  // ⚡ Ref لتتبع آخر قيمة بحث - لمنع إعادة الصفحة إلى 1 عند استدعاءات متكررة بنفس القيمة
+  const lastSearchQueryRef = useRef(searchQuery);
+
   const handleSearchChange = useCallback((query: string) => {
+    // ⚡ تجاهل إذا كانت نفس القيمة (يمنع الاستدعاءات المتكررة من useDebouncedSearch)
+    if (query === lastSearchQueryRef.current) {
+      return;
+    }
+
+    lastSearchQueryRef.current = query;
     setSearchQuery(query);
-    if (currentPage !== 1) {
+
+    // ⚡ إعادة الصفحة إلى 1 فقط عند تغيير البحث فعلياً (ليس عند التهيئة)
+    if (currentPage !== 1 && query !== '') {
       setCurrentPage(1);
     }
   }, [currentPage]);
@@ -309,7 +460,23 @@ export const usePOSAdvancedState = () => {
     handleAddSubscription,
     removeSubscription,
     updateSubscriptionPrice,
-    assignCustomerToTab
+    assignCustomerToTab,
+    updateItemSaleType,
+    getItemPricingOptions,
+    calculateItemPrice,
+    // ⚡ دوال أنواع البيع المتقدمة
+    updateItemSellingUnit,
+    updateItemWeight,
+    updateItemBoxCount,
+    updateItemLength,
+    updateItemFullConfig,
+    getItemSellingUnits,
+    calculateItemTotal,
+    // ⚡ دوال الدفعات والأرقام التسلسلية
+    updateItemBatch,
+    updateItemSerialNumbers,
+    validateItemRequirements,
+    validateCartRequirements
   } = usePOSCart({
     updateProductStockInCache,
     getProductStock,
@@ -330,7 +497,15 @@ export const usePOSAdvancedState = () => {
     removeReturnItem,
     clearReturnCart,
     toggleReturnMode,
-    processReturn
+    processReturn,
+    // ⚡ دوال أنواع البيع المتقدمة للإرجاع
+    updateReturnItemWeight,
+    updateReturnItemBoxCount,
+    updateReturnItemLength,
+    updateReturnItemSellingUnit,
+    updateReturnItemSaleType,
+    updateReturnItemFullConfig,
+    calculateReturnItemTotal
   } = usePOSReturn({
     currentUser,
     currentOrganizationId: currentOrganization?.id,
@@ -372,10 +547,9 @@ export const usePOSAdvancedState = () => {
     considerRemainingAsPartial?: boolean
   ) => {
     try {
-      // حساب المبالغ الأساسية
+      // حساب المبالغ الأساسية - مع دعم أنواع البيع المتقدمة (متر، وزن، علبة)
       const cartSubtotal = cartItems.reduce((total, item) => {
-        const price = (item as any).customPrice || item.variantPrice || item.product.price || 0;
-        return total + (price * item.quantity);
+        return total + calculateCartItemTotal(item);
       }, 0);
       
       const servicesTotal = selectedServices.reduce((total, service) => total + (service.price || 0), 0);
@@ -485,6 +659,7 @@ export const usePOSAdvancedState = () => {
   }, [cartItems, selectedServices, selectedSubscriptions, submitOrder, activeSession, updateSessionLocally]);
 
   // دالة تحديث البيانات مع cache
+  // ⚡ توحيد مسار القراءة: المزامنة تحدث في الخلفية، ثم إعادة تحميل من SQLite
   const handleRefreshData = useCallback(async () => {
     try {
       // مسح cache عند التحديث
@@ -492,7 +667,24 @@ export const usePOSAdvancedState = () => {
         POS_DATA_CACHE.delete(cacheKeyRef.current);
       }
       
-      // ⚡ تحديث البيانات المحلية والسيرفر
+      // ⚡ الخطوة 1: مزامنة البيانات من السيرفر إلى SQLite
+      if (currentOrganization?.id) {
+        const { syncPOSDataFromServer } = await import('@/services/posDataSyncService');
+        const syncResult = await syncPOSDataFromServer({
+          organizationId: currentOrganization.id,
+          page: currentPage,
+          limit: pageSize,
+          search: searchQuery?.trim() || undefined,
+          categoryId: categoryFilter && categoryFilter !== 'all' ? categoryFilter : undefined
+        });
+        
+        if (!syncResult.success) {
+          console.warn('[usePOSAdvancedState] ⚠️ فشلت مزامنة بيانات POS:', syncResult.error);
+          // نكمل رغم الفشل - قد تكون البيانات المحلية كافية
+        }
+      }
+      
+      // ⚡ الخطوة 2: إعادة تحميل البيانات من SQLite
       if (useLocalData) {
         invalidateLocalCache();
       }
@@ -501,12 +693,17 @@ export const usePOSAdvancedState = () => {
       
       toast.success('تم تحديث البيانات بنجاح');
     } catch (error) {
+      console.error('[usePOSAdvancedState] ❌ خطأ في تحديث البيانات:', error);
       toast.error('فشل في تحديث البيانات');
     }
-  }, [refreshData, useLocalData, invalidateLocalCache]);
+  }, [refreshData, useLocalData, invalidateLocalCache, currentOrganization?.id, currentPage, pageSize, searchQuery, categoryFilter]);
 
   // ⚡ دالة للتبديل بين المصدر المحلي والسيرفر
   const toggleDataSource = useCallback(() => {
+    if (FORCE_LOCAL_ONLY) {
+      toast.info('الوضع المحلي فقط مفعل (PowerSync)');
+      return;
+    }
     setUseLocalData(prev => !prev);
     toast.info(useLocalData ? 'تم التبديل للسيرفر' : 'تم التبديل للبيانات المحلية');
   }, [useLocalData]);
@@ -519,8 +716,8 @@ export const usePOSAdvancedState = () => {
     pagination,
     subscriptions,
     subscriptionCategories,
-    productCategories,
-    customers,
+    productCategories: mergedProductCategories, // ⚡ استخدام الفئات المدمجة (محلية أولاً)
+    customers: filteredUsers, // ⚡ استخدام filteredUsers بدلاً من customers الخام
     currentUser,
     favoriteProducts,
     
@@ -581,7 +778,27 @@ export const usePOSAdvancedState = () => {
     removeSubscription,
     updateSubscriptionPrice,
     assignCustomerToTab,
-    
+
+    // دوال الجملة والتسعير
+    updateItemSaleType,
+    getItemPricingOptions,
+    calculateItemPrice,
+
+    // ⚡ دوال أنواع البيع المتقدمة (وزن/كرتون/متر)
+    updateItemSellingUnit,
+    updateItemWeight,
+    updateItemBoxCount,
+    updateItemLength,
+    updateItemFullConfig,
+    getItemSellingUnits,
+    calculateItemTotal,
+
+    // ⚡ دوال الدفعات والأرقام التسلسلية
+    updateItemBatch,
+    updateItemSerialNumbers,
+    validateItemRequirements,
+    validateCartRequirements,
+
     // دوال المرتجعات
     setReturnReason,
     setReturnNotes,
@@ -593,6 +810,14 @@ export const usePOSAdvancedState = () => {
     clearReturnCart,
     toggleReturnMode,
     processReturn,
+    // ⚡ دوال أنواع البيع المتقدمة للإرجاع
+    updateReturnItemWeight,
+    updateReturnItemBoxCount,
+    updateReturnItemLength,
+    updateReturnItemSellingUnit,
+    updateReturnItemSaleType,
+    updateReturnItemFullConfig,
+    calculateReturnItemTotal,
     
     // دوال الطلبات
     currentOrder,
